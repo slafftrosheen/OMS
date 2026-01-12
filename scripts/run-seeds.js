@@ -5,12 +5,13 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 
-// Load environment variables
-dotenv.config();
-
-const { Pool } = pg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Load environment variables
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+
+const { Pool } = pg;
 const projectRoot = path.resolve(__dirname, '..');
 
 const pool = new Pool({
@@ -62,7 +63,7 @@ async function main() {
 
     console.log("\n✅ Database initialization complete!");
   } catch (err) {
-    console.error("❌ Error:", err.message);
+    console.error("❌ Detailed Error:", err);
     process.exit(1);
   } finally {
     if (client) client.release();

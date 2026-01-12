@@ -448,6 +448,46 @@ CREATE INDEX idx_audit_created ON audit_log(created_at DESC);
 
 ---
 
+## Seeding
+
+The database can be seeded with initial data for development and production environments using a centralized script.
+
+### How to Run the Seeder
+
+1.  **Configure Environment**: Create a `.env` file in the `scripts` directory with the correct database credentials. Use `scripts/.env.example` as a template.
+
+    ```bash
+    # scripts/.env
+    DB_HOST=your_supabase_host
+    DB_PORT=5432
+    DB_NAME=postgres
+    DB_USER=postgres
+    DB_PASSWORD=your_secure_password_here
+    ADMIN_PASSWORD=your_admin_password_here
+    ```
+
+2.  **Execute the Script**: Run the following command from the project root:
+
+    ```bash
+    node scripts/run-seeds.js
+    ```
+
+The script will compile the TypeScript seed files, run the database migrations, and then execute the seeding logic.
+
+### Seeded Data
+
+-   **Production & Development**:
+    -   **Roles**: All user roles (Admin, CAD, CNC, etc.).
+    -   **Admin User**: A default admin user with a secure, hashed password set by `ADMIN_PASSWORD`.
+    -   **Color Catalogs**: RAL, Pantone, and ORACAL color palettes.
+
+-   **Development Only**:
+    -   **Test Users**: A default developer user (`developer@reclame-oms.com`).
+    -   **Sample Orders**: Demo orders with various statuses and configurations.
+    -   **Sample Materials**: A library of common manufacturing materials.
+
+---
+
 ## Triggers
 
 ### Auto-update timestamps
