@@ -33,16 +33,18 @@ Complete reference for the PostgreSQL database schema.
 
 | File | Description |
 |------|-------------|
-| `001_profiles_schema.sql` | Core tables: profiles, materials, colors, orders |
+| `001_profiles_schema.sql` | Core tables: files, profiles, materials, orders |
 | `002_inventory_system.sql` | Inventory, suppliers, stock, purchase orders |
 | `003_faq_system.sql` | FAQ and documentation system |
-| `004_add_metadata_to_fields.sql` | Metadata column additions |
-| `005_profile_templates_extended.sql` | Extended profile template fields |
+| `005_profile_templates_extended.sql` | Extended profile templates: versions, sections, fields |
 | `006_inventory_items.sql` | Inventory item extensions |
 | `007_users_auth_system.sql` | Users, sessions, preferences, audit |
 | `008_calendar_system.sql` | Calendar events, loading days, capacity |
 | `009_chat_notifications_system.sql` | Chat, messages, notifications |
 | `010_pdf_annotations.sql` | PDF annotations and highlights |
+| `011_indexes.sql` | Performance-enhancing indexes |
+| `012_inventory_trigger.sql` | Inventory update trigger |
+| `011_indexes.sql` | Performance-enhancing indexes |
 
 ---
 
@@ -71,17 +73,65 @@ CREATE TABLE users (
 );
 ```
 
+### profile_template_versions
+
+Version control for profile templates.
+
+```sql
+CREATE TABLE profile_template_versions (
+  id SERIAL PRIMARY KEY,
+  profile_template_id INTEGER REFERENCES profile_templates(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### profile_sections
+
+Sections within a profile template version.
+
+```sql
+CREATE TABLE profile_sections (
+  id SERIAL PRIMARY KEY,
+  profile_template_version_id INTEGER REFERENCES profile_template_versions(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  order_index INTEGER DEFAULT 0
+);
+```
+
+### profile_fields
+
+Fields within a profile section.
+
+```sql
+CREATE TABLE profile_fields (
+  id SERIAL PRIMARY KEY,
+  profile_section_id INTEGER REFERENCES profile_sections(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  field_type VARCHAR(50) NOT NULL,
+  options JSONB DEFAULT '{}',
+  order_index INTEGER DEFAULT 0
+);
+```
+
 | Column | Type | Description |
 |--------|------|-------------|
+| Column | Type | Description |
+|---|---|---|
 | `id` | SERIAL | Primary key |
 | `username` | VARCHAR(50) | Unique login identifier |
 | `display_name` | VARCHAR(200) | Full name for display |
+| `email` | VARCHAR(200) | User's email address |
 | `password_hash` | VARCHAR(255) | Bcrypt/SHA-256 hash |
 | `primary_section` | VARCHAR(50) | Default section: Admin, Production, Logistics |
 | `sections` | TEXT[] | Accessible sections array |
 | `roles` | JSONB | Role per section: `{section: role}` |
 | `stations` | TEXT[] | Assigned stations: CNC, SANDING, etc. |
 | `is_active` | BOOLEAN | Account active status |
+| `last_login_at` | TIMESTAMP | Timestamp of the last login |
+| `created_at` | TIMESTAMP | Timestamp of account creation |
+| `updated_at` | TIMESTAMP | Timestamp of the last update |
+| `metadata` | JSONB | Additional user metadata |
 
 ### user_sessions
 
@@ -142,6 +192,21 @@ CREATE TABLE audit_log (
 ---
 
 ## Orders & Profiles
+
+### files
+
+File storage for uploads.
+
+```sql
+CREATE TABLE files (
+  id SERIAL PRIMARY KEY,
+  filename VARCHAR(255) NOT NULL,
+  filepath VARCHAR(255) NOT NULL,
+  mimetype VARCHAR(100) NOT NULL,
+  size INTEGER NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
 
 ### draft_orders
 
