@@ -176,6 +176,7 @@
   }
 
   onMount(() => {
+    console.log('Orders page mounted');
     refresh();
   });
 </script>
