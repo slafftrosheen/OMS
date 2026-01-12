@@ -1,6 +1,7 @@
 // src/lib/server/auth/session.ts
-import { createSupabaseClient } from '$lib/server/supabase';
+import { query } from '$lib/server/db/connection';
 import type { RequestEvent } from '@sveltejs/kit';
+import crypto from 'crypto';
 
 export interface SessionUser {
   id: string;
@@ -14,28 +15,45 @@ export interface SessionUser {
 }
 
 /**
- * Get authenticated user from Supabase session
+ * Get authenticated user from session cookie
  */
 export async function getSessionUser(event: RequestEvent): Promise<SessionUser | null> {
-  const supabase = createSupabaseClient(event);
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
+  const token = event.cookies.get('session');
+  if (!token) {
     return null;
   }
 
-  const { display_name, primary_section, sections, roles, stations, username } = user.user_metadata;
+  try {
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const result = await query(
+      `SELECT u.id, u.username, u.display_name, u.email, u.primary_section,
+              u.sections, u.roles, u.stations
+       FROM users u
+       JOIN user_sessions s ON s.user_id = u.id
+       WHERE s.token_hash = $1 AND s.expires_at > NOW() AND u.is_active = true`,
+      [tokenHash]
+    );
 
-  return {
-    id: user.id,
-    email: user.email,
-    username: username || user.email,
-    displayName: display_name || user.email,
-    primarySection: primary_section || '',
-    sections: sections || [],
-    roles: roles || {},
-    stations: stations || []
-  };
+    if (result.rows.length === 0) {
+      event.cookies.delete('session', { path: '/' });
+      return null;
+    }
+
+    const user = result.rows[0];
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      displayName: user.display_name,
+      primarySection: user.primary_section,
+      sections: user.sections,
+      roles: user.roles,
+      stations: user.stations || []
+    };
+  } catch (err) {
+    console.error('Session user fetch error:', err);
+    return null;
+  }
 }
 
 /**

@@ -1,26 +1,26 @@
 // src/routes/api/users/[id]/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { db } from '$lib/server/db';
+import { query, transaction } from '$lib/server/db/connection';
 import { getSessionUser, isAdmin } from '$lib/server/auth/session';
+import bcrypt from 'bcrypt';
 
 /**
  * GET /api/users/[id] - Get single user
  */
 export const GET: RequestHandler = async (event) => {
   const { params } = event;
-  const supabase = db(event);
 
   try {
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('id, username, display_name, email, primary_section, sections, roles, stations, is_active, last_login_at, created_at')
-      .eq('id', params.id)
-      .single();
+    const result = await query(
+      'SELECT id, username, display_name, email, primary_section, sections, roles, stations, is_active, last_login_at, created_at FROM users WHERE id = $1',
+      [params.id]
+    );
 
-    if (userError || !user) {
+    if (result.rows.length === 0) {
       throw error(404, 'User not found');
     }
+    const user = result.rows[0];
 
     return json({
       id: user.id,
@@ -47,9 +47,7 @@ export const GET: RequestHandler = async (event) => {
  */
 export const PUT: RequestHandler = async (event) => {
   const { params, request } = event;
-  const supabase = db(event);
 
-  // Check admin authorization
   const currentUser = await getSessionUser(event);
   if (!currentUser || !isAdmin(currentUser)) {
     return json({ error: 'Admin access required' }, { status: 403 });
@@ -58,25 +56,15 @@ export const PUT: RequestHandler = async (event) => {
   const data = await request.json();
 
   try {
-    const { data: updatedUser, error: updateError } = await supabase
-      .from('users')
-      .update({
-        display_name: data.displayName,
-        email: data.email,
-        primary_section: data.primarySection,
-        sections: data.sections,
-        roles: data.roles,
-        stations: data.stations,
-        is_active: data.isActive,
-        updated_at: new Date()
-      })
-      .eq('id', params.id)
-      .select('id, username, display_name, email, primary_section, sections, roles, stations, is_active')
-      .single();
+    const result = await query(
+      'UPDATE users SET display_name = $1, email = $2, primary_section = $3, sections = $4, roles = $5, stations = $6, is_active = $7, updated_at = NOW() WHERE id = $8 RETURNING id, username, display_name, email, primary_section, sections, roles, stations, is_active',
+      [data.displayName, data.email, data.primarySection, data.sections, data.roles, data.stations, data.isActive, params.id]
+    );
 
-    if (updateError || !updatedUser) {
+    if (result.rows.length === 0) {
       throw error(404, 'User not found');
     }
+    const updatedUser = result.rows[0];
 
     return json({
       id: updatedUser.id,
@@ -101,37 +89,25 @@ export const PUT: RequestHandler = async (event) => {
  */
 export const DELETE: RequestHandler = async (event) => {
   const { params } = event;
-  const supabase = db(event);
 
-  // Check admin authorization
   const currentUser = await getSessionUser(event);
   if (!currentUser || !isAdmin(currentUser)) {
     return json({ error: 'Admin access required' }, { status: 403 });
   }
 
-  // Prevent self-deactivation
   if (currentUser.id === params.id) {
     return json({ error: 'Cannot deactivate your own account' }, { status: 400 });
   }
 
   try {
-    const { data: updatedUser, error: updateError } = await supabase
-      .from('users')
-      .update({ is_active: false, updated_at: new Date() })
-      .eq('id', params.id)
-      .select('username')
-      .single();
-
-    if (updateError || !updatedUser) {
-      throw error(404, 'User not found');
-    }
-
-    // Invalidate all sessions and log audit event
-    await supabase.rpc('deactivate_user_and_log', {
-      user_id_to_deactivate: params.id,
-      deactivated_by_username: currentUser.username
+    await transaction(async (client) => {
+      const result = await client.query('UPDATE users SET is_active = false, updated_at = NOW() WHERE id = $1 RETURNING id', [params.id]);
+      if (result.rows.length === 0) {
+        throw error(404, 'User not found');
+      }
+      await client.query('DELETE FROM user_sessions WHERE user_id = $1', [params.id]);
+      await client.query('INSERT INTO audit_log (user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4)', [currentUser.id, 'DEACTIVATE_USER', 'user', params.id]);
     });
-
 
     return json({ success: true });
   } catch (err: any) {
@@ -146,9 +122,7 @@ export const DELETE: RequestHandler = async (event) => {
  */
 export const PATCH: RequestHandler = async (event) => {
   const { params, request } = event;
-  const supabase = db(event);
 
-  // Check admin authorization
   const currentUser = await getSessionUser(event);
   if (!currentUser || !isAdmin(currentUser)) {
     return json({ error: 'Admin access required' }, { status: 403 });
@@ -161,25 +135,18 @@ export const PATCH: RequestHandler = async (event) => {
   }
 
   try {
-    // Generate new temporary password
     const tempPassword = data.newPassword || `temp${Math.random().toString(36).slice(2, 10)}`;
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(tempPassword, saltRounds);
 
-    const { error: adminUpdateError } = await supabase.auth.admin.updateUserById(
-      params.id,
-      { password: tempPassword }
-    );
-
-    if (adminUpdateError) {
-      throw adminUpdateError;
-    }
-
-    // Log audit event
-    await supabase.from('audit_log').insert({
-      username: currentUser.username,
-      action: 'PASSWORD_RESET_BY_ADMIN',
-      entity_type: 'user',
-      entity_id: params.id
+    await transaction(async (client) => {
+      const result = await client.query('UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id', [hashedPassword, params.id]);
+      if (result.rows.length === 0) {
+        throw error(404, 'User not found');
+      }
+      await client.query('INSERT INTO audit_log (user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4)', [currentUser.id, 'PASSWORD_RESET_BY_ADMIN', 'user', params.id]);
     });
+
 
     return json({
       success: true,

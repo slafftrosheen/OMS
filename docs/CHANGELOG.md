@@ -2,6 +2,14 @@
 
 All notable changes to Reclame OMS are documented in this file.
 
+## [Unreleased] - 2025-12-18
+
+### Fixed
+- Removed all remaining mock implementations from the codebase.
+- Implemented missing API endpoints for change requests, revisions, and redo flags.
+- Refactored all API endpoints to use a standard `pg` connection pool instead of the Supabase client.
+- Resolved all build errors and confirmed that all 103 unit and integration tests are passing.
+
 ## [Unreleased] - 2025-12-17
 
 ### Added
