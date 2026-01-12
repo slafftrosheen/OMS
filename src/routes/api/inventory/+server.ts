@@ -1,83 +1,81 @@
 // src/routes/api/inventory/+server.ts
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query, transaction } from '$lib/server/db/connection';
-import type { InventoryStock, StockMovement } from '$lib/inventory/types';
 
 /**
  * GET /api/inventory - List inventory items
  * Query params: ?category=ALU&lowStock=true&search=plexiglas
  */
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
   const category = url.searchParams.get('category');
   const lowStock = url.searchParams.get('lowStock') === 'true';
   const search = url.searchParams.get('search');
 
-  let sql = `
-    SELECT
-      i.*,
-      m.code as material_code,
-      m.name_en as material_name,
-      m.category as material_category,
-      m.metadata as material_metadata
-    FROM inventory_stock i
-    JOIN materials m ON m.id = i.material_id
-    WHERE 1=1
-  `;
-
-  const params: any[] = [];
-  let paramIndex = 1;
+  let query = supabase
+    .from('inventory_stock')
+    .select(`
+      *,
+      materials (
+        code,
+        name_en,
+        category,
+        metadata
+      )
+    `);
 
   if (category) {
-    sql += ` AND m.category = $${paramIndex++}`;
-    params.push(category);
+    query = query.eq('materials.category', category);
   }
 
   if (lowStock) {
-    sql += ` AND i.quantity_in_stock <= i.minimum_stock_level`;
+    query = query.lte('quantity_in_stock', 'minimum_stock_level');
   }
 
   if (search) {
-    sql += ` AND (m.name_en ILIKE $${paramIndex} OR m.code ILIKE $${paramIndex})`;
-    params.push(`%${search}%`);
-    paramIndex++;
+    query = query.or(`materials.name_en.ilike.%${search}%,materials.code.ilike.%${search}%`);
   }
 
-  sql += ` ORDER BY i.updated_at DESC`;
+  query = query.order('updated_at', { ascending: false });
 
-  const result = await query(sql, params);
+  const { data: items, error, count } = await query;
+
+  if (error) {
+    console.error('Error fetching inventory items:', error);
+    return json({ items: [], count: 0 }, { status: 500 });
+  }
 
   return json({
-    items: result.rows,
-    count: result.rowCount
+    items: items,
+    count: count
   });
 };
 
 /**
  * POST /api/inventory - Add new inventory item
  */
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals: { supabase } }) => {
   const data = await request.json();
 
-  const sql = `
-    INSERT INTO inventory_stock (
-      material_id, thickness, quantity_in_stock, unit_of_measure,
-      location, minimum_stock_level, reorder_point, cost_per_unit, notes
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    RETURNING *
-  `;
+  const { data: newItem, error } = await supabase
+    .from('inventory_stock')
+    .insert({
+      material_id: data.materialId,
+      thickness: data.thickness,
+      quantity_in_stock: data.quantityInStock,
+      unit_of_measure: data.unitOfMeasure,
+      location: data.location,
+      minimum_stock_level: data.minimumStockLevel,
+      reorder_point: data.reorderPoint,
+      cost_per_unit: data.costPerUnit,
+      notes: data.notes
+    })
+    .select()
+    .single();
 
-  const result = await query(sql, [
-    data.materialId,
-    data.thickness,
-    data.quantityInStock,
-    data.unitOfMeasure,
-    data.location,
-    data.minimumStockLevel,
-    data.reorderPoint,
-    data.costPerUnit,
-    data.notes
-  ]);
+  if (error) {
+    console.error('Error creating inventory item:', error);
+    return json({ error: 'Failed to create item' }, { status: 500 });
+  }
 
-  return json(result.rows[0], { status: 201 });
+  return json(newItem, { status: 201 });
 };

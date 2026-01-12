@@ -1,66 +1,56 @@
 // src/routes/api/users/+server.ts
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query } from '$lib/server/db/connection';
-import { getSessionUser, isAdmin } from '$lib/server/auth/session';
-import bcrypt from 'bcrypt';
 
 /**
  * GET /api/users - List all users
  */
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
   const activeOnly = url.searchParams.get('active') !== 'false';
   const section = url.searchParams.get('section');
 
-  let sql = `
-    SELECT id, username, display_name, primary_section, sections, roles, stations, is_active, last_login_at
-    FROM users
-    WHERE 1=1
-  `;
-
-  const params: any[] = [];
-  let idx = 1;
+  let query = supabase
+    .from('users')
+    .select('id, username, display_name, primary_section, sections, roles, stations, is_active, last_login_at');
 
   if (activeOnly) {
-    sql += ` AND is_active = true`;
+    query = query.eq('is_active', true);
   }
 
   if (section) {
-    sql += ` AND $${idx} = ANY(sections)`;
-    params.push(section);
-    idx++;
+    query = query.contains('sections', [section]);
   }
 
-  sql += ` ORDER BY display_name ASC`;
+  query = query.order('display_name', { ascending: true });
 
-  try {
-    const result = await query(sql, params);
-    const users = result.rows.map(row => ({
-      id: row.id,
-      username: row.username,
-      name: row.display_name,
-      displayName: row.display_name,
-      primarySection: row.primary_section,
-      sections: row.sections,
-      roles: row.roles,
-      stations: row.stations || [],
-      isActive: row.is_active,
-      lastLoginAt: row.last_login_at
-    }));
-    return json(users);
-  } catch (err) {
-    console.error('Failed to fetch users:', err);
+  const { data: users, error } = await query;
+
+  if (error) {
+    console.error('Failed to fetch users:', error);
     return json([], { status: 500 });
   }
+
+  const formattedUsers = users.map(row => ({
+    id: row.id,
+    username: row.username,
+    name: row.display_name,
+    displayName: row.display_name,
+    primarySection: row.primary_section,
+    sections: row.sections,
+    roles: row.roles,
+    stations: row.stations || [],
+    isActive: row.is_active,
+    lastLoginAt: row.last_login_at
+  }));
+
+  return json(formattedUsers);
 };
 
 /**
  * POST /api/users - Create new user (admin only)
  */
-export const POST: RequestHandler = async ({ request, cookies }) => {
-  // Check admin authorization
-  const currentUser = await getSessionUser(cookies);
-  if (!currentUser || !isAdmin(currentUser)) {
+export const POST: RequestHandler = async ({ request, locals: { supabase, user: currentUser } }) => {
+  if (!currentUser || !currentUser.roles.Admin === 'SuperAdmin') {
     return json({ error: 'Admin access required' }, { status: 403 });
   }
 
@@ -74,50 +64,49 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     return json({ error: 'Password must be at least 8 characters' }, { status: 400 });
   }
 
-  try {
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(data.password, saltRounds);
+  const { data: newUser, error: authError } = await supabase.auth.admin.createUser({
+    email: data.username,
+    password: data.password,
+    email_confirm: true,
+  });
 
-    const sql = `
-      INSERT INTO users (
-        username, display_name, password_hash, primary_section, 
-        sections, roles, stations
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, username, display_name, primary_section, sections, roles, stations
-    `;
-
-    const result = await query(sql, [
-      data.username.toLowerCase(),
-      data.displayName,
-      passwordHash,
-      data.primarySection || 'Production',
-      data.sections || ['Production'],
-      JSON.stringify(data.roles || { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' }),
-      data.stations || []
-    ]);
-
-    const user = result.rows[0];
-    
-    // Create default preferences
-    await query(
-      `INSERT INTO user_preferences (user_id) VALUES ($1)`,
-      [user.id]
-    );
-
-    return json({
-      id: user.id,
-      username: user.username,
-      displayName: user.display_name,
-      primarySection: user.primary_section,
-      sections: user.sections,
-      roles: user.roles,
-      stations: user.stations || []
-    }, { status: 201 });
-  } catch (err: any) {
-    console.error('Failed to create user:', err);
-    if (err.code === '23505') {
+  if (authError) {
+    console.error('Failed to create user in auth:', authError);
+    if (authError.message.includes('unique constraint')) {
       return json({ error: 'Username already exists' }, { status: 409 });
     }
     return json({ error: 'Failed to create user' }, { status: 500 });
   }
+
+  const { data: userProfile, error: profileError } = await supabase
+    .from('users')
+    .update({
+      display_name: data.displayName,
+      primary_section: data.primarySection || 'Production',
+      sections: data.sections || ['Production'],
+      roles: data.roles || { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' },
+      stations: data.stations || []
+    })
+    .eq('id', newUser.user.id)
+    .select()
+    .single();
+
+  if (profileError) {
+    console.error('Failed to update user profile:', profileError);
+    // Potentially delete the auth user here for rollback
+    return json({ error: 'Failed to set up user profile' }, { status: 500 });
+  }
+
+  // Create default preferences
+  await supabase.from('user_preferences').insert({ user_id: userProfile.id });
+
+  return json({
+    id: userProfile.id,
+    username: userProfile.username,
+    displayName: userProfile.display_name,
+    primarySection: userProfile.primary_section,
+    sections: userProfile.sections,
+    roles: userProfile.roles,
+    stations: userProfile.stations || []
+  }, { status: 201 });
 };
