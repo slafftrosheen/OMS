@@ -213,6 +213,36 @@ export async function approveChangeRequest(orderId: string, crId: string): Promi
   }
 }
 
+// Create a new blank order, locally
+export function createNewOrder(): Order {
+  const newId = `PO-${Date.now()}`;
+  return {
+    id: newId,
+    title: 'New Order',
+    client: '',
+    due: new Date().toISOString().slice(0, 10),
+    loadingDate: '',
+    badges: ['DRAFT'],
+    fields: [],
+    materials: [],
+    stages: {}, // You might want to initialize with blankStages()
+    isDraft: true,
+    profiles: [],
+    isRD: false,
+    rdNotes: '',
+    redo: [],
+    redoReasons: {},
+    redoStage: '',
+    redoReason: '',
+    progress: {},
+    cycles: [],
+    branches: [],
+    prs: [],
+    revisions: [],
+    defaultRevisionId: ''
+  };
+}
+
 export async function declineChangeRequest(orderId: string, crId: string): Promise<boolean> {
   try {
     const response = await fetch(`/api/draft-orders/${orderId}/change-requests/${crId}/decline`, {

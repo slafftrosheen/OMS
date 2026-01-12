@@ -59,6 +59,15 @@ const aliasPlugin = {
       path: await resolveWithExtensions(join(root, 'src/app', args.path.slice(5))),
       namespace: 'file'
     }));
+    build.onResolve({ filter: /^\$lib\/server\/db\/connection$/ }, () => ({
+      path: join(root, 'tests/mocks/db.js'),
+    }));
+    build.onResolve({ filter: /^\.\.\/\.\.\/src\/lib\/server\/db\/connection$/ }, () => ({
+        path: join(root, 'tests/mocks/db.js'),
+    }));
+    build.onResolve({ filter: /^\$env\/dynamic\/private$/ }, () => ({
+      path: join(root, 'tests/mocks/env.js'),
+    }));
     build.onResolve({ filter: /^\.\/?\$app\// }, async (args) => ({
       path: await resolveWithExtensions(join(root, 'src/app', args.path.replace(/^\.\/?\$app\//, ''))),
       namespace: 'file'
