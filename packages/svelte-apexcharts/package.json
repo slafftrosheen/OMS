@@ -1,0 +1,16 @@
+{
+  "name": "svelte-apexcharts",
+  "version": "1.0.5",
+  "type": "module",
+  "svelte": "./ApexCharts.svelte",
+  "module": "./index.js",
+  "exports": {
+    ".": {
+      "svelte": "./ApexCharts.svelte",
+      "import": "./index.js"
+    }
+  },
+  "peerDependencies": {
+    "svelte": "^4.0.0"
+  }
+}

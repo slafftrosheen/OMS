@@ -1,0 +1,237 @@
+[
+  {
+    "code": "PLEXIGLAS_XT_0F00",
+    "brand": "PLEXIGLAS®",
+    "series": "XT",
+    "colorCode": "0F00",
+    "colorName": "Clear",
+    "type": "extruded",
+    "transmittance": "92%",
+    "properties": {
+      "transparent": true,
+      "uvAbsorbent": true,
+      "weatherResistant": true,
+      "tempResistance": "70°C"
+    },
+    "thicknessOptions": [1.5, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25],
+    "standardSize": "3050x2050mm",
+    "hex": "#FFFFFF",
+    "applications": ["Glazing", "LED applications", "Shopfitting"]
+  },
+  {
+    "code": "PLEXIGLAS_XT_WN071",
+    "brand": "PLEXIGLAS®",
+    "series": "XT",
+    "colorCode": "WN071",
+    "colorName": "White Opal",
+    "type": "extruded",
+    "transmittance": "30%",
+    "properties": {
+      "translucent": true,
+      "uvAbsorbent": true,
+      "weatherResistant": true,
+      "highGloss": true,
+      "tempResistance": "70°C"
+    },
+    "thicknessOptions": [2, 3, 4, 5, 6, 8, 10],
+    "standardSize": "3050x2050mm",
+    "hex": "#F5F5F0",
+    "applications": ["Illuminated advertising", "Light diffusion", "Signage"]
+  },
+  {
+    "code": "PLEXIGLAS_XT_WN297",
+    "brand": "PLEXIGLAS®",
+    "series": "XT",
+    "colorCode": "WN297",
+    "colorName": "White",
+    "type": "extruded",
+    "transmittance": "25%",
+    "properties": {
+      "translucent": true,
+      "uvAbsorbent": true,
+      "weatherResistant": true
+    },
+    "thicknessOptions": [2, 3, 4, 5, 6, 8, 10],
+    "standardSize": "3050x2050mm",
+    "hex": "#FAFAFA",
+    "applications": ["Signage", "Displays"]
+  },
+  {
+    "code": "PLEXIGLAS_XT_WN970",
+    "brand": "PLEXIGLAS®",
+    "series": "XT",
+    "colorCode": "WN970",
+    "colorName": "White",
+    "type": "extruded",
+    "transmittance": "35%",
+    "properties": {
+      "translucent": true,
+      "uvAbsorbent": true
+    },
+    "thicknessOptions": [2, 3, 4, 5, 6, 8, 10],
+    "standardSize": "3050x2050mm",
+    "hex": "#FFFFFF",
+    "applications": ["Light boxes", "Signage"]
+  },
+  {
+    "code": "PLEXIGLAS_GS_WH10",
+    "brand": "PLEXIGLAS®",
+    "series": "GS",
+    "colorCode": "WH10",
+    "colorName": "White Opaque",
+    "type": "cast",
+    "transmittance": "0%",
+    "properties": {
+      "opaque": true,
+      "uvAbsorbent": true,
+      "weatherResistant": true
+    },
+    "thicknessOptions": [3, 4, 5, 6, 8, 10, 12, 15, 20],
+    "standardSize": "3050x2030mm",
+    "hex": "#FFFFFF",
+    "applications": ["Signage", "Furniture", "Displays"]
+  },
+  {
+    "code": "PLEXIGLAS_GS_WH73",
+    "brand": "PLEXIGLAS®",
+    "series": "GS",
+    "colorCode": "WH73",
+    "colorName": "White",
+    "type": "cast",
+    "transmittance": "50%",
+    "properties": {
+      "translucent": true,
+      "uvAbsorbent": true
+    },
+    "thicknessOptions": [3, 4, 5, 6, 8, 10, 12],
+    "standardSize": "3050x2030mm",
+    "hex": "#FEFEFE",
+    "applications": ["Light diffusion", "Signage"]
+  },
+  {
+    "code": "PLEXIGLAS_XT_1N870",
+    "brand": "PLEXIGLAS®",
+    "series": "XT",
+    "colorCode": "1N870",
+    "colorName": "Yellow",
+    "type": "extruded",
+    "transmittance": "20%",
+    "properties": {
+      "translucent": true,
+      "uvAbsorbent": true,
+      "colorFast": true
+    },
+    "thicknessOptions": [2, 3, 4, 5, 6, 8, 10],
+    "standardSize": "3050x2050mm",
+    "hex": "#FFD700",
+    "applications": ["Colored signage", "Displays"]
+  },
+  {
+    "code": "PLEXIGLAS_XT_3N570",
+    "brand": "PLEXIGLAS®",
+    "series": "XT",
+    "colorCode": "3N570",
+    "colorName": "Red",
+    "type": "extruded",
+    "transmittance": "15%",
+    "properties": {
+      "translucent": true,
+      "uvAbsorbent": true,
+      "colorFast": true
+    },
+    "thicknessOptions": [2, 3, 4, 5, 6, 8, 10],
+    "standardSize": "3050x2050mm",
+    "hex": "#DC143C",
+    "applications": ["Colored signage", "Displays"]
+  },
+  {
+    "code": "PLEXIGLAS_XT_5N870",
+    "brand": "PLEXIGLAS®",
+    "series": "XT",
+    "colorCode": "5N870",
+    "colorName": "Blue",
+    "type": "extruded",
+    "transmittance": "18%",
+    "properties": {
+      "translucent": true,
+      "uvAbsorbent": true,
+      "colorFast": true
+    },
+    "thicknessOptions": [2, 3, 4, 5, 6, 8, 10],
+    "standardSize": "3050x2050mm",
+    "hex": "#0047AB",
+    "applications": ["Colored signage", "Displays"]
+  },
+  {
+    "code": "PLEXIGLAS_XT_6N570",
+    "brand": "PLEXIGLAS®",
+    "series": "XT",
+    "colorCode": "6N570",
+    "colorName": "Green",
+    "type": "extruded",
+    "transmittance": "20%",
+    "properties": {
+      "translucent": true,
+      "uvAbsorbent": true,
+      "colorFast": true
+    },
+    "thicknessOptions": [2, 3, 4, 5, 6, 8, 10],
+    "standardSize": "3050x2050mm",
+    "hex": "#228B22",
+    "applications": ["Colored signage", "Displays"]
+  },
+  {
+    "code": "PLEXIGLAS_XT_9N870",
+    "brand": "PLEXIGLAS®",
+    "series": "XT",
+    "colorCode": "9N870",
+    "colorName": "Black",
+    "type": "extruded",
+    "transmittance": "0%",
+    "properties": {
+      "opaque": true,
+      "uvAbsorbent": true,
+      "weatherResistant": true
+    },
+    "thicknessOptions": [2, 3, 4, 5, 6, 8, 10, 12, 15],
+    "standardSize": "3050x2050mm",
+    "hex": "#000000",
+    "applications": ["Signage", "Displays", "Furniture"]
+  },
+  {
+    "code": "PLEXIGLAS_XT_7A670",
+    "brand": "PLEXIGLAS®",
+    "series": "XT",
+    "colorCode": "7A670",
+    "colorName": "Grey",
+    "type": "extruded",
+    "transmittance": "71%",
+    "properties": {
+      "translucent": true,
+      "uvAbsorbent": true
+    },
+    "thicknessOptions": [2, 3, 4, 5, 6, 8, 10],
+    "standardSize": "3050x2050mm",
+    "hex": "#808080",
+    "applications": ["Glazing", "Signage"]
+  },
+  {
+    "code": "PLEXIGLAS_LED_0E010",
+    "brand": "PLEXIGLAS®",
+    "series": "LED",
+    "colorCode": "0E010",
+    "colorName": "Clear LED-optimized",
+    "type": "extruded",
+    "transmittance": "92%",
+    "properties": {
+      "transparent": true,
+      "ledOptimized": true,
+      "uvAbsorbent": true,
+      "specialDiffusion": true
+    },
+    "thicknessOptions": [2, 3, 4, 5, 6, 8, 10, 12],
+    "standardSize": "3050x2050mm",
+    "hex": "#FFFFFF",
+    "applications": ["LED signage", "Illuminated displays", "Light boxes"]
+  }
+]

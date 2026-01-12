@@ -1,0 +1,162 @@
+[
+  {
+    "code": "PVC_FOAM_WHITE",
+    "brand": "Palight®",
+    "name": "PVC Foam Board White",
+    "type": "foam",
+    "density": "0.45-0.57 g/cm³",
+    "finish": "matte",
+    "properties": {
+      "lightweight": true,
+      "weatherResistant": true,
+      "easyToMachine": true,
+      "paintable": true,
+      "waterproof": true
+    },
+    "thicknessOptions": [3, 5, 8, 10, 12, 15, 18, 19],
+    "standardSize": "1220x2440mm",
+    "hex": "#FFFFFF",
+    "fireRating": "UK Class 1",
+    "serviceTemp": "-10 to 55°C",
+    "applications": ["Signage", "Displays", "Exhibition stands"]
+  },
+  {
+    "code": "PVC_FOAM_BLACK",
+    "brand": "Palight®",
+    "name": "PVC Foam Board Black",
+    "type": "foam",
+    "density": "0.50 g/cm³",
+    "finish": "matte",
+    "properties": {
+      "lightweight": true,
+      "weatherResistant": true,
+      "easyToMachine": true,
+      "waterproof": true
+    },
+    "thicknessOptions": [3, 5, 8, 10, 15, 18],
+    "standardSize": "1220x2440mm",
+    "hex": "#000000",
+    "applications": ["Signage", "Displays"]
+  },
+  {
+    "code": "PVC_FOAM_RED",
+    "brand": "Palight®",
+    "name": "PVC Foam Board Red",
+    "type": "foam",
+    "density": "0.50 g/cm³",
+    "finish": "gloss",
+    "properties": {
+      "lightweight": true,
+      "weatherResistant": true,
+      "colorFast": true,
+      "waterproof": true
+    },
+    "thicknessOptions": [5, 8, 10, 15, 18],
+    "standardSize": "1220x2440mm",
+    "hex": "#DC143C",
+    "applications": ["Signage", "Displays", "Point of sale"]
+  },
+  {
+    "code": "PVC_FOAM_BLUE",
+    "brand": "Palight®",
+    "name": "PVC Foam Board Blue",
+    "type": "foam",
+    "density": "0.50 g/cm³",
+    "finish": "gloss",
+    "properties": {
+      "lightweight": true,
+      "weatherResistant": true,
+      "colorFast": true,
+      "waterproof": true
+    },
+    "thicknessOptions": [5, 10, 15],
+    "standardSize": "1220x2440mm",
+    "hex": "#0047AB",
+    "applications": ["Signage", "Displays"]
+  },
+  {
+    "code": "PVC_FOAM_GREEN",
+    "brand": "Palight®",
+    "name": "PVC Foam Board Green",
+    "type": "foam",
+    "density": "0.50 g/cm³",
+    "finish": "gloss",
+    "properties": {
+      "lightweight": true,
+      "weatherResistant": true,
+      "colorFast": true
+    },
+    "thicknessOptions": [5, 10, 15],
+    "standardSize": "1220x2440mm",
+    "hex": "#228B22",
+    "applications": ["Signage", "Displays"]
+  },
+  {
+    "code": "PVC_FOAM_YELLOW",
+    "brand": "Palight®",
+    "name": "PVC Foam Board Yellow",
+    "type": "foam",
+    "density": "0.50 g/cm³",
+    "finish": "gloss",
+    "properties": {
+      "lightweight": true,
+      "weatherResistant": true,
+      "colorFast": true
+    },
+    "thicknessOptions": [5, 10, 15],
+    "standardSize": "1220x2440mm",
+    "hex": "#FFD700",
+    "applications": ["Signage", "Displays"]
+  },
+  {
+    "code": "PVC_FOAM_GREY",
+    "brand": "Palight®",
+    "name": "PVC Foam Board Grey",
+    "type": "foam",
+    "density": "0.50 g/cm³",
+    "finish": "matte",
+    "properties": {
+      "lightweight": true,
+      "weatherResistant": true
+    },
+    "thicknessOptions": [5, 10, 15],
+    "standardSize": "1220x2440mm",
+    "hex": "#808080",
+    "applications": ["Signage", "Displays"]
+  },
+  {
+    "code": "FOREX_WHITE",
+    "brand": "Forex®",
+    "name": "Forex Classic White",
+    "type": "foam",
+    "density": "0.55 g/cm³",
+    "finish": "matte",
+    "properties": {
+      "lightweight": true,
+      "weatherResistant": true,
+      "printable": true,
+      "easyToMachine": true
+    },
+    "thicknessOptions": [3, 5, 10, 19],
+    "standardSize": "1220x2440mm",
+    "hex": "#FFFFFF",
+    "applications": ["Indoor/outdoor signage", "Displays", "Exhibition"]
+  },
+  {
+    "code": "VEKAPLAN_WHITE",
+    "brand": "Vekaplan®",
+    "name": "Vekaplan White",
+    "type": "foam",
+    "density": "0.50 g/cm³",
+    "finish": "smooth",
+    "properties": {
+      "lightweight": true,
+      "weatherResistant": true,
+      "thermoformable": true
+    },
+    "thicknessOptions": [3, 5, 8, 10, 19],
+    "standardSize": "1220x2440mm",
+    "hex": "#FFFFFF",
+    "applications": ["Signage", "Construction", "Furniture"]
+  }
+]

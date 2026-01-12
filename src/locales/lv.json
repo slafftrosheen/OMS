@@ -1,0 +1,859 @@
+{
+  "app": {
+    "title": "Reclame Fabriek — OMS",
+    "brand": {
+      "label": "Reclame OMS",
+      "aria": "Reclame OMS"
+    }
+  },
+  "terms": {
+    "station": "Stacija",
+    "stationLog": "Stacijas žurnāls",
+    "stationLogs": "Staciju žurnāli",
+    "changeRequest": "Izmaiņu pieprasījums",
+    "changeRequests": "Izmaiņu pieprasījumi",
+    "workstream": "Darba plūsma",
+    "workstreams": "Darba plūsmas",
+    "approve": "Apstiprināt",
+    "decline": "Noraidīt",
+    "attachRevision": "Pievienot revīziju",
+    "currentRevision": "Aktīvā revīzija"
+  },
+  "stations": {
+    "CAD": "CAD",
+    "CNC": "CNC",
+    "SANDING": "Slīpēšana",
+    "BENDING": "Locīšana",
+    "WELDING": "Metināšana",
+    "PAINT": "Krāsošana",
+    "FILM_COATING": "Plēves pārklāšana",
+    "GLUEING": "Līmēšana",
+    "ASSEMBLY": "Montāža",
+    "QC": "QC",
+    "LOGISTICS": "Loģistika"
+  },
+  "nav": {
+    "dashboard": "Panelis",
+    "calendar": "Kalendārs",
+    "orders": "Pasūtījumi",
+    "inventory": "Krājumi",
+    "stations": "Stacijas",
+    "assets": "Resursi",
+    "files": "Faili",
+    "faq": "Bieži uzdotie jautājumi",
+    "settings": "Iestatījumi",
+    "kanban": "Ražošana",
+    "help": "Palīdzība",
+    "chat": "Čats"
+  },
+  "header": {
+    "actions": "Galvenes darbības",
+    "theme": {
+      "label": "Tēma",
+      "options": {
+        "LightVim": "Gaiša",
+        "DarkVim": "Tumša",
+        "HighContrast": "Augsts kontrasts"
+      }
+    },
+    "language": {
+      "label": "Valoda",
+      "options": {
+        "en": "English",
+        "ru": "Русский",
+        "lv": "Latviešu"
+      }
+    },
+    "notifications": {
+      "label": "Paziņojumi",
+      "srCount": "{count} paziņojumi"
+    },
+    "user": {
+      "label": "Lietotājs",
+      "switch": "Mainīt lietotāju"
+    },
+    "toggle_menu": "Pārslēgt izvēlni"
+  },
+  "topbar": {
+    "theme": "Tēma",
+    "language": "Valoda",
+    "textSize": "Teksta izmērs",
+    "chat": "Čats",
+    "notifications": "Paziņojumi",
+    "density": "Blīvums"
+  },
+  "orders": {
+    "status": "Statuss",
+    "stage": "Posms",
+    "rd": "R&D (var atkārtot posmus)",
+    "redoStage": "Atzīmēt posmu pārstrādei…",
+    "reason": "Iemesls",
+    "reasons": {
+      "recut": "Pārgriešana",
+      "resand": "Pārslīpēšana",
+      "reweld": "Pārmetināšana",
+      "repaint": "Pārkrāsošana"
+    },
+    "compare": "Salīdzināt",
+    "active_stages": "Aktīvie posmi",
+    "client": "Klients",
+    "due": "Termiņš",
+    "materials": "Materiāli",
+    "rd_project": "R&D projekts",
+    "title": "Nosaukums"
+  },
+  "print": {
+    "due_label": "Termiņš",
+    "loading_label": "Iekraušana",
+    "materials_title": "Materiāli",
+    "label_header": "Etiķete",
+    "value_header": "Vērtība",
+    "stages_checklist_title": "Posmu kontrolsaraksts"
+  },
+  "roles": {
+    "label": "Loma",
+    "superadmin": "Super Admins",
+    "admin": "Admins",
+    "station": "Stacija"
+  },
+  "order": {
+    "overview": "Pārskats",
+    "revisions": "Revīzijas",
+    "changes": "Izmaiņu pieprasījumi",
+    "logs": "Staciju žurnāli",
+    "workstreams": "Darba plūsmas",
+    "fields": "Galvenie lauki",
+    "materials": "Materiāli",
+    "progress": "Procesa progress",
+    "progress_help": "Katrs posms rāda izpildes procentu no 0 līdz 100.",
+    "progressbar_label": "Progresa līmenis {name}",
+    "currentPdf": "Aktuālais pasūtījuma PDF",
+    "no_file": "Fails nav.",
+    "attach_help": "Ielīmējiet PDF ceļu static/files/…",
+    "attach": "Pievienot",
+    "attach_admin_heading": "Pievienot revīziju (admins)",
+    "current_revision": "Aktīvā revīzija",
+    "create_change_request": "Izveidot izmaiņu pieprasījumu",
+    "create_change_request_hint": "Pārslēdzieties uz stacijas lomu.",
+    "timeline": "Laika līnija",
+    "badges": "Nozīmītes",
+    "badgeLabels": {
+      "OPEN": "Atvērts",
+      "IN_PROGRESS": "Procesā",
+      "BLOCKED": "Bloķēts",
+      "READY_TO_SHIP": "Gatavs nosūtīšanai",
+      "DONE": "Pabeigts",
+      "URGENT": "Steidzami",
+      "LOW_STOCK": "Maz krājumu",
+      "R&D": "P&A",
+      "DRAFT": "Melnraksts"
+    },
+    "quick_station_log": "Ātrais stacijas žurnāls",
+    "station_label": "Stacija",
+    "progress_percent": "Progress (%)",
+    "note_required": "Piezīme (obligāti izmaiņām)",
+    "log": "Reģistrēt",
+    "title_placeholder": "Nosaukums",
+    "message_optional_placeholder": "Ziņa (nav obligāta)",
+    "new_due_date": "Jaunais izpildes termiņš",
+    "sanding_progress": "Slīpēšanas progress (%)",
+    "station_note": "Stacijas piezīme",
+    "submit": "Iesniegt",
+    "changeRequests": {
+      "heading": "Izmaiņu pieprasījumi",
+      "empty": "Nav atvērti izmaiņu pieprasījumi.",
+      "proposed": "Piedāvātās izmaiņas",
+      "selected": "Izvēlētais pieprasījums",
+      "select_prompt": "Izvēlieties pieprasījumu, lai salīdzinātu laukus.",
+      "from": "no {author}",
+      "status": "Statuss: {status}"
+    },
+    "compare": {
+      "fields": "Galvenie lauki",
+      "materials": "Materiāli",
+      "stages": "Posmi"
+    },
+    "log_details": "Detalizācija",
+    "log_recorded_by": "reģistrēja {author}",
+    "log_recorded_station": " · {station}",
+    "chat": "Čats",
+    "files": "Faili"
+  },
+  "orderPage": {
+    "loading": {
+      "title": "Iekraušanas datums",
+      "clear": "Notīrīt",
+      "current": "Pašreizējais:"
+    },
+    "requests": {
+      "title": "Atvērtie pieprasījumi",
+      "approve": "Apstiprināt",
+      "decline": "Noraidīt",
+      "empty": "Nav atvērti pieprasījumi."
+    }
+  },
+  "orderLists": {
+    "title": "Pasūtījumi",
+    "new": "Jauns pasūtījums",
+    "headers": {
+      "po": "PO",
+      "client": "Klients",
+      "title": "Nosaukums",
+      "summary": "Posmu kopsavilkums",
+      "loading": "Iekraušana",
+      "due": "Termiņš",
+      "badges": "Žetoni",
+      "stages": "Procesa posmi",
+      "all_badges": "Visi žetoni"
+    },
+    "empty": "Nav atrasti pasūtījumi.",
+    "no_badges": "Nav nozīmju",
+    "filter_placeholder": "Filtrēt pēc klienta…",
+    "filter_label": "Filtrs"
+  },
+  "materialsEditor": {
+    "title": "Materiālu redaktors",
+    "delete": "Dzēst rindu",
+    "add": "Pievienot materiālu",
+    "applyAdmin": "Pielietot (admins)",
+    "propose": "Ierosināt izmaiņas",
+    "key": "Atslēga",
+    "label": "Etiķete",
+    "value": "Vērtība",
+    "default_label": "Vienums"
+  },
+  "progressEditor": {
+    "title": "Procesa redaktors",
+    "reset": "Atiestatīt",
+    "applyAdmin": "Pielietot (admins)",
+    "propose": "Iesniegt atjauninājumu"
+  },
+  "stageEditor": {
+    "title": "Posmu redaktors",
+    "next": "Nākamais stāvoklis",
+    "apply": "Pielietot",
+    "propose": "Ierosināt"
+  },
+  "revisions": {
+    "title": "Failu revīzijas",
+    "active": "Izmantots",
+    "use": "Izmantot",
+    "download": "Lejupielādēt",
+    "empty": "Nav revīziju.",
+    "by": "no {author}"
+  },
+  "themes": {
+    "light": "Gaiša",
+    "dark": "Tumša",
+    "hc": "Augsts kontrasts"
+  },
+  "a11y": {
+    "toggle_right": "Pārslēgt labo paneli (Shift+R)",
+    "search": "Meklēt pasūtījumus, failus, klientus…",
+    "progress_region": "Kopējais procesa progress",
+    "skip": "Pāriet uz saturu"
+  },
+  "accessibility": {
+    "text_size": "Teksta izmērs",
+    "text_size_toggle": "Mainīt teksta izmēru",
+    "text_size_hint": "Noklikšķiniet, lai mainītu teksta izmērus",
+    "text_size_options": {
+      "sm": {
+        "label": "Mazs teksts",
+        "abbr": "Mazs"
+      },
+      "md": {
+        "label": "Noklusējuma teksts",
+        "abbr": "Noklusējums"
+      },
+      "lg": {
+        "label": "Liels teksts",
+        "abbr": "Liels"
+      },
+      "xl": {
+        "label": "Ļoti liels teksts",
+        "abbr": "Ļoti liels"
+      }
+    },
+    "help_hints": "Palīdzības padomi",
+    "show_hints": "Rādīt noderīgus padomus visā saskarnē"
+  },
+  "help": {
+    "title": "Tastatūras saīsnes"
+  },
+  "faq": {
+    "title": "BUJ - Bieži uzdotie jautājumi",
+    "q1": "Kā izveidot jaunu pasūtījumu?",
+    "a1": "Noklikšķiniet uz pogas 'Jauns pasūtījums' Pasūtījumu lapā. Aizpildiet obligātos laukus, ieskaitot PO numuru, klientu, nosaukumu un termiņu.",
+    "q2": "Kas ir melnraksta pasūtījums?",
+    "a2": "Melnraksta pasūtījumi ir prelimināri pasūtījumi, ko izveidojis SuperAdmins ar CDR dizaina failiem. Tie ir redzami tikai Adminam un SuperAdminam līdz pārvēršanai par parastiem pasūtījumiem.",
+    "q3": "Kā piešķirt iekraušanas datumu?",
+    "a3": "Dodieties uz Kalendāra lapu, ieslēdziet administratora režīmu un noklikšķiniet uz datuma, lai atzīmētu to kā iekraušanas dienu. Pēc tam piešķiriet pasūtījumus šim datumam.",
+    "q4": "Ko nozīmē dažādi pasūtījumu žetoni?",
+    "a4": "DRAFT = preliminārs pasūtījums, URGENT = augsta prioritāte, BLOCKED = problēmas kavē progresu, IN_PROGRESS = aktīvi tiek strādāts, DONE = pabeigts.",
+    "q5": "Kā mainīt tēmu?",
+    "a5": "Izmantojiet galvenes vadīklas, lai izvēlētos vēlamo tēmu: Gaiša, Tumša vai Augsta kontrasta.",
+    "q6": "Vai varu mainīt teksta izmēru?",
+    "a6": "Jā! Izmantojiet Teksta izmēra vadīklu galvenē, lai pārslēgtos starp Mazu, Noklusējuma, Lielu un Ļoti lielu teksta izmēru."
+  },
+  "toast": {
+    "approved": "Pieprasījums apstiprināts",
+    "declined": "Pieprasījums noraidīts",
+    "revision_attached": "Revīzija pievienota",
+    "revision_switched": "Aktīvā revīzija nomainīta"
+  },
+  "launchpad": {
+    "themes": "Tēmas",
+    "language": "Valoda",
+    "digest": {
+      "title": "Operāciju pārskats",
+      "subtitle": "Maiņas fokuss no aktīvajiem pasūtījumiem.",
+      "next_load": "Tuvākā iekraušanas diena",
+      "no_loading": "Nav norādīta iekraušanas diena.",
+      "due_soon": "Termiņš 7 dienu laikā",
+      "due_none": "Šonedēļ termiņu nav.",
+      "due_in": "Termiņš pēc {days}d",
+      "blocked": "Aizturētie darbi",
+      "blocked_clear": "Visas stacijas brīvas.",
+      "station_health": "Staciju noslodze",
+      "station_empty": "Nav rindas",
+      "rework_watch": "Pārstrāžu uzraudzība",
+      "rework_none": "Atkārtotu darbu nav.",
+      "order_count": "{count} pasūtījumi"
+    }
+  },
+  "dashboard": {
+    "kpi": {
+      "active": "Aktīvie pasūtījumi",
+      "rd": "R&D pasūtījumi",
+      "blocked": "Bloķētie pasūtījumi",
+      "rework": "Pārstrāžu skaits kopā"
+    },
+    "charts": {
+      "throughput": "Nedēļas caurlaidība",
+      "stages": "Pasūtījumu posmi",
+      "materials": "Materiālu krājumi (galvenie)"
+    },
+    "materials": {
+      "aluminum": "Alumīnijs",
+      "acrylic": "Akrils",
+      "acp": "AKP",
+      "paint": "Krāsa",
+      "vinyl": "Vinils"
+    },
+    "topRework": {
+      "label": "Vairāk pārstrāžu stacija",
+      "none": "Nav"
+    },
+    "list": {
+      "title": "Aktīvie pasūtījumi"
+    },
+    "series": {
+      "jobs": "Darbi",
+      "qty": "Skaits"
+    }
+  },
+  "compare": {
+    "heading": "Salīdzinājums",
+    "field": "Lauks",
+    "before": "Pašreizējais",
+    "after": "Piedāvātais",
+    "empty": "Nav atšķirību.",
+    "item": "Vienums",
+    "stage": "Posms"
+  },
+  "badges": {
+    "heading": "Nozīmītes"
+  },
+  "station": {
+    "quick_log_note_placeholder": "Piezīme (obligāti izmaiņām)",
+    "quick_log_heading": "Ātrā stacijas reģistrācija",
+    "station_label": "Stacija",
+    "progress_label": "Progress (%)",
+    "log": "Reģistrēt"
+  },
+  "calendar": {
+    "title": "Kalendārs",
+    "upcoming": "Tuvākie",
+    "all": "Visi",
+    "loading": "Iekraušana",
+    "meeting": "Tikšanās",
+    "note": "Piezīme",
+    "quickCreate": "Ātrā izveide",
+    "loading_mode": "Iekraušanas režīms",
+    "loading_on": "Ieslēgts",
+    "loading_off": "Izslēgts",
+    "capacity": "Kapacitāte",
+    "loading_day": "Iekraušanas diena",
+    "loading_day_with_date": "Iekraušanas diena: {date}",
+    "meta": "Jauda {capacity} · Piezīme: {note}",
+    "note_empty": "—",
+    "summary": {
+      "idle": "Nav plānoto iekraušanu",
+      "open": "Iekraušanas diena atvērta",
+      "available": "Pieejama jauda",
+      "busy": "Drīz pilns",
+      "full": "Jauda iztērēta",
+      "unlimited": "Ieplānoti {assigned} pasūtījumi",
+      "capacity": "Aizpildīti {assigned} no {capacity} slotiem",
+      "note": "Piezīme: {note}",
+      "no_note": "Piezīmes nav"
+    },
+    "legend": {
+      "title": "Kalendāra apzīmējumi",
+      "idle": "Iekraušana izslēgta",
+      "open": "Diena atvērta",
+      "available": "Pieejamas vietas",
+      "busy": "Gandrīz pilns",
+      "full": "Pilnībā aizņemts"
+    },
+    "detail": {
+      "title": "Izvēlētā diena",
+      "capacity": "Kapacitāte",
+      "assignments": "Piešķīrumi",
+      "orders_count": "Ieplānoti pasūtījumi: {count}",
+      "note": "Piezīme",
+      "no_note": "Piezīmes nav",
+      "inactive": "Iekraušana izslēgta",
+      "pick": "Izvēlieties dienu, lai redzētu detaļas",
+      "orders": "Pasūtījumi šai dienai",
+      "orders_empty": "Nav piešķirtu pasūtījumu šai dienai.",
+      "order_due": "Termiņš: {date}"
+    },
+    "days": {
+      "Mon": "Pr",
+      "Tue": "Ot",
+      "Wed": "Tr",
+      "Thu": "Ce",
+      "Fri": "Pk",
+      "Sat": "Se",
+      "Sun": "Sv"
+    },
+    "columns": {
+      "po": "PO",
+      "client": "Klients",
+      "title": "Nosaukums",
+      "due": "Termiņš",
+      "loading": "Iekraušana"
+    },
+    "empty": "Nav piešķirtu pasūtījumu.",
+    "add_entry": "Pievienot ierakstu",
+    "type_loading": "Iekraušana",
+    "type_meeting": "Sanāksme",
+    "type_note": "Piezīme",
+    "carrier": "Pārvadātājs",
+    "window_from": "No",
+    "window_to": "Līdz",
+    "attendees": "Dalībnieki",
+    "location": "Vieta",
+    "notes": "Piezīmes"
+  },
+  "calendar_page": {
+    "tooltip": "Pārslēdziet administratora režīmu, lai atzīmētu iekraušanas dienas. Noklikšķiniet uz dienām, lai apskatītu vai piešķirtu pasūtījumus.",
+    "new_loading": "Jauna iekraušana",
+    "new_meeting": "Jauna sanāksme",
+    "new_note": "Jauna piezīme",
+    "view_mode_label": "Skatīšanas režīms",
+    "grid_view": "Režģis",
+    "list_view": "Saraksts",
+    "prev_month_label": "Iepriekšējais mēnesis",
+    "next_month_label": "Nākamais mēnesis",
+    "export_ics": "Eksportēt ICS",
+    "carrier_label": "Pārvadātājs",
+    "note_label": "Piezīme"
+  },
+  "orderform": {
+    "title": "Jauns pasūtījums",
+    "pdf": "PDF priekšskatījums",
+    "basics": "Pamatinformācija",
+    "materials": "Krāsas un materiāli",
+    "po": "Pasūtījuma numurs (unikāls)",
+    "client": "Klients",
+    "order_title": "Nosaukums",
+    "due": "Termiņš",
+    "due_date": "Izpildes datums",
+    "loading": "Iekraušanas datums",
+    "loading_link": "Iekraušana (saite uz kalendāru)",
+    "carrier": "Pārvadātājs",
+    "scheduling": "Plānošana",
+    "add_section": "Pievienot sadaļu",
+    "create": "Izveidot pasūtījumu",
+    "cancel": "Atcelt",
+    "section_label": "Sadaļa",
+    "material_label": "Materiāls",
+    "thickness_placeholder": "Biezums (piem., 3 mm)",
+    "color_placeholder": "Krāsas kods",
+    "optional_hex": "Papildu HEX",
+    "invalid_hex": "Nederīgs HEX",
+    "unknown_ral": "Nezināms RAL kods",
+    "remove": "Noņemt",
+    "pdf_source": "PDF avots",
+    "pdf_hint": "Ievietojiet PDF ceļu mapē {path}",
+    "pdf_path_label": "PDF ceļš",
+    "pdf_placeholder": "{base}/files/PO-....pdf",
+    "pdf_default_name": "order.pdf",
+    "close": "Aizvērt",
+    "remove_short": "–",
+    "color_system": {
+      "ral": "RAL",
+      "pantone": "Pantone",
+      "hex": "HEX",
+      "other": "Cits"
+    },
+    "defaults": {
+      "face": "Priekšpuse",
+      "back": "Aizmugure",
+      "face_frame": "Priekšējais rāmis",
+      "part": "Detaļa",
+      "acrylic": "Akrils",
+      "aluminum": "Alumīnijs",
+      "acp": "AKP",
+      "natural": "Dabisks",
+      "thickness_2mm": "2 mm",
+      "thickness_3mm": "3 mm"
+    }
+  },
+  "actions": {
+    "cancel": "Atcelt",
+    "saving": "Saglabā..."
+  },
+  "chat": {
+    "title": "Komandas čats",
+    "rooms": "Istabas",
+    "message_placeholder": "Ziņa (izmanto @name pieminēšanai)",
+    "signed_in_as": "Pieslēdzies kā",
+    "mentions": "Pieminējumi",
+    "to": "Kam",
+    "sending_to": "Adresē",
+    "remove_mention": "Noņemt pieminējumu {name}",
+    "empty": "Vēl nav ziņojumu.",
+    "quick_mentions": "Brigāžu saīsnes",
+    "quick_mentions_station": "Pievienot {station} brigādi",
+    "system": {
+      "name": "Sistēma",
+      "note_label": "Piezīme",
+      "rework": {
+        "summary": "Nosūtīts pārlabošanai",
+        "body": "Pārsūtīts pārlabošanai — {reason}"
+      },
+      "completed": {
+        "summary": "Stadija pabeigta",
+        "badge": "Pabeigts",
+        "body": "Stadija atzīmēta kā pabeigta"
+      }
+    },
+    "no_messages": "Vēl nav ziņojumu",
+    "order_discussion": "Pasūtījuma diskusija",
+    "type_message": "Ierakstiet ziņojumu..."
+  },
+  "loading": {
+    "assign": "Piešķirt",
+    "schedule": "Grafiks",
+    "export_csv": "Eksportēt CSV",
+    "updated": "Iekraušanas datums atjaunots",
+    "board": "Iekraušanas dēlis",
+    "remove": "Noņemt",
+    "carrier": "Pārvadātājs",
+    "notes": "Piezīmes"
+  },
+  "materials": {
+    "title": "Materiāli",
+    "add": "Pievienot",
+    "type": "Tips",
+    "thk": "Biezums (mm)",
+    "colorSys": "Krāsu sistēma",
+    "code": "Kods",
+    "qty": "Daudzums",
+    "notes": "Piezīmes"
+  },
+  "inv": {
+    "import": "Masveida imports",
+    "scan": "Skenēt svītrkodu",
+    "labels": "Drukāt etiķetes"
+  },
+  "users": {
+    "current": "Lietotājs"
+  },
+  "rework": {
+    "send": "Nosūtīt uz pārstrādi",
+    "reason": "Iemesls",
+    "note": "Piezīme ražošanai",
+    "x_repeat": "atkārtojums",
+    "reasons": {
+      "RECUT": "Pārgriezt",
+      "RESAND": "Pārsliet",
+      "REBEND": "Pārliekt",
+      "REWELD": "Pārmetināt",
+      "REPAINT": "Pārkrāsot",
+      "REASSEMBLE": "Pārsamontēt",
+      "RECHECK": "Atkārtoti pārbaudīt",
+      "CUSTOM": "Cits"
+    }
+  },
+  "commands": {
+    "title": "Pasūtījumu meklēšana",
+    "placeholder": "Meklēt pasūtījumus, klientus, laukus…",
+    "aria": "Meklēt pasūtījumus",
+    "match_label": "Sakritība",
+    "no_matches": "Nav atbilstošu",
+    "start_typing": "Sāciet rakstīt, lai meklētu pasūtījumus.",
+    "tip": "Padoms: spiediet ⌘K / Ctrl-K"
+  },
+  "inventory": {
+    "title": "Krājumi",
+    "search": "Meklēt",
+    "search_placeholder": "SKU, nosaukums, krāsa, vieta…",
+    "add_item": "Pievienot vienumu",
+    "movements": "Kustības",
+    "low_stock": "Zems krājums",
+    "minimum_label": "Minimums {value}",
+    "count": "{count} vienumi",
+    "newItem": "Jauns vienums",
+    "editItem": "Rediģēt vienumu",
+    "save": "Saglabāt",
+    "section": "Sadaļa",
+    "group": "Grupa",
+    "subgroup": "Apakšgrupa",
+    "filters": {
+      "sections_label": "Sadaļas",
+      "search_placeholder": "Meklēt pēc nosaukuma/artikula…",
+      "group_placeholder": "Grupa…",
+      "subgroup_placeholder": "Apakšgrupa…"
+    },
+    "filter_sections": {
+      "all": "visi",
+      "materials": "materiāli",
+      "leftovers": "atlikumi",
+      "paints": "krāsas",
+      "tools": "instrumenti",
+      "cons": "patērējamie"
+    },
+    "import": {
+      "title": "Masu imports (CSV)",
+      "placeholder": "sadaļa,grupa,apakšgrupa,artikuls,nosaukums,vienība,atlikums,minimums,atrašanās vieta",
+      "import_button": "Importēt"
+    },
+    "modal": {
+      "group_placeholder": "piemēram, Akrils / Alumīnijs",
+      "subgroup_label": "Apakšgrupa",
+      "subgroup_placeholder": "piemēram, Loksnes / Profili",
+      "sku_label": "Artikuls",
+      "unit_placeholder": "gab / m / kg",
+      "location_placeholder": "Plaukts A2",
+      "supplier_label": "Piegādātājs",
+      "price_label": "Cena (EUR)",
+      "barcode_label": "Svītrkods",
+      "barcode_placeholder": "EAN/QR id"
+    },
+    "movements_page": {
+      "title": "Krājumu kustības",
+      "description": "Kustību žurnāls šeit parādīsies nākamajā atjauninājumā."
+    },
+    "new_page": {
+      "title": "Pievienot krājumu vienību",
+      "description": "Veidlapas vietturis jaunas krājumu vienības izveidei."
+    },
+    "materials": "Materiāli",
+    "leftovers": "Atlikumi",
+    "paints": "Krāsas",
+    "tools": "Instrumenti",
+    "consumables": "Patēriņa preces",
+    "add": "Pievienot",
+    "headers": {
+      "sku": "Artikuls",
+      "name": "Nosaukums",
+      "category": "Kategorija",
+      "unit": "Vienība",
+      "stock": "Atlikums",
+      "minimum": "Minimums",
+      "location": "Atrašanās vieta",
+      "updated": "Atjaunots"
+    },
+    "labels": {
+      "vendor": "Piegādātājs",
+      "color": "Krāsa",
+      "thickness": "Biezums",
+      "offcut": "Atgriezums",
+      "bin": "Kaste",
+      "weight": "Svars",
+      "stock": "Atlikums",
+      "on_hand": "Pieejams",
+      "min": "Min.",
+      "location": "Vieta",
+      "updated": "Atjaunots"
+    },
+    "actions": {
+      "add": "Pievienot",
+      "consume": "Patērēt",
+      "back": "Atpakaļ"
+    },
+    "prompt": {
+      "add": "Pievienot daudzumu:",
+      "consume": "Patērēt daudzumu:"
+    },
+    "3dprinting": "3D drukāšana",
+    "basicInfo": "Pamatinformācija",
+    "colorInfo": "Krāsas informācija",
+    "stockInfo": "Krājumu informācija",
+    "supplierInfo": "Piegādātāja informācija",
+    "hexColor": "HEX krāsa",
+    "electronics": "Elektronika",
+    "catalog": "Materiālu katalogs",
+    "add_material": "Pievienot materiālu",
+    "low_stock_items": "materiāli ar zemu krājumu",
+    "show_all": "Rādīt visu",
+    "show_alerts": "Tikai brīdinājumi",
+    "search_materials": "Meklēt materiālus...",
+    "all_categories": "Visas kategorijas",
+    "empty_filter": "Nav vienumu šim filtram.",
+    "in_stock": "Noliktavā"
+  },
+  "notifications": {
+    "title": "Paziņojumi",
+    "empty": "Pagaidām nav paziņojumu.",
+    "filter": {
+      "station": "Staciju filtrs",
+      "urgency": "Steidzamība",
+      "all_stations": "Visas stacijas",
+      "all_urgencies": "Visi līmeņi"
+    },
+    "urgency": {
+      "normal": "Parasts",
+      "urgent": "Steidzams"
+    },
+    "pin_label": "Piespraust paziņojumu",
+    "unpin_label": "Atspraust paziņojumu",
+    "pinned_section": "Piespraustie",
+    "rework_requested": "{order} ({orderId}) • {station} nosūtīts pārlabošanai",
+    "stage_completed": "{order} ({orderId}) • {station} atzīmēta kā pabeigta"
+  },
+  "settings": {
+    "title": "Iestatījumi",
+    "sections": {
+      "branding": "Zīmols",
+      "integrations": "Integrācijas"
+    },
+    "branding": {
+      "logo": {
+        "label": "Logotips",
+        "path": "static/brand/logo.png",
+        "note": "(ievietojiet PNG tur)"
+      },
+      "colors": {
+        "label": "Krāsas",
+        "path": "static/brand.css"
+      }
+    },
+    "integrations": {
+      "telegram": "Telegram (makets)",
+      "n8n": "n8n (makets)",
+      "openrouter": "OpenRouter (makets)"
+    },
+    "appearance": "Izskats",
+    "accessibility": "Pieejamība",
+    "density": "Blīvums",
+    "densityHint": "Kontrolējiet atstarpi starp elementiem",
+    "description": "Pielāgojiet savu pieredzi",
+    "interfaceLanguage": "Saskarnes valoda",
+    "language": "Valoda",
+    "previewText": "Priekšskatījums: Ātrā brūnā lapsa pārlec pāri slinkajam sunim.",
+    "security": "Drošība",
+    "textSize": "Teksta izmērs",
+    "textSizeHint": "Pielāgojiet teksta izmēru lasāmībai",
+    "password": {
+      "confirm": "Apstipriniet paroli",
+      "current": "Pašreizējā parole",
+      "hint": "Atstājiet tukšu, lai saglabātu pašreizējo paroli",
+      "new": "Jaunā parole",
+      "submit": "Atjaunināt paroli",
+      "title": "Mainīt paroli"
+    }
+  },
+  "files": {
+    "title": "Faili",
+    "download": "Lejupielādēt",
+    "error": "Nevar ielādēt failu. Pārbaudiet ceļu vai augšupielādējiet static/files.",
+    "path_label": "Faila ceļš",
+    "drop_or_click": "Velciet failus šeit vai noklikšķiniet, lai augšupielādētu",
+    "no_files": "Faili nav augšupielādēti",
+    "order_files": "Pasūtījuma faili"
+  },
+  "layout": {
+    "notifications": "Paziņojumi",
+    "chat": "Čats"
+  },
+  "pdf": {
+    "label": "PDF",
+    "open": "Atvērt",
+    "placeholder": "Pievienojiet PDF ceļu priekšskatījumam.",
+    "prev": "Atpakaļ",
+    "next": "Uz priekšu",
+    "page": "Lapa {current} / {total}",
+    "error": "Nevar parādīt PDF. Pārbaudiet faila ceļu.",
+    "loading": "Ielādē PDF..."
+  },
+  "branches": {
+    "title": "Zari",
+    "headers": {
+      "name": "Nosaukums",
+      "head": "Galvenais",
+      "commits": "Komiti",
+      "actions": "Darbības"
+    },
+    "empty": "Vēl nav zaru.",
+    "default": "(noklusējums)",
+    "set_default": "Padarīt par noklusējumu",
+    "delete": "Dzēst",
+    "rollback": "Atgriezt uz vecāko"
+  },
+  "language": {
+    "title": "Valoda"
+  },
+  "theme": {
+    "title": "Tēma",
+    "hint": "Izvēlieties vēlamo krāsu shēmu"
+  },
+  "rd": {
+    "flag": "R&D pasūtījums",
+    "notes": "R&D piezīmes (redzamas visām stacijām)"
+  },
+  "stages": {
+    "NOT_STARTED": "Nav sākts",
+    "QUEUED": "Paredzēts",
+    "IN_PROGRESS": "Procesā",
+    "BLOCKED": "Aizturēts",
+    "REWORK": "Pārstrāde",
+    "COMPLETED": "Pabeigts"
+  },
+  "draft": {
+    "title": "Pasūtījumu melnraksti",
+    "add": "Pievienot melnrakstu",
+    "create": "Izveidot melnrakstu",
+    "cdr_file": "CDR fails",
+    "cdr_file_placeholder": "CDR faila ceļš (piemēram, /files/design.cdr)",
+    "attach_cdr": "Pievienot CDR",
+    "notification": "Pasūtījuma melnraksts {id} ir izveidots",
+    "cdr_attached": "CDR fails pievienots un gatavs pārbaudei",
+    "convert_to_order": "Pārvērst par pasūtījumu",
+    "download_cdr": "Lejupielādēt CDR"
+  },
+  "ui": {
+    "density": {
+      "title": "Blīvums",
+      "compact": "Kompakts",
+      "cozy": "Ērts",
+      "comfortable": "Komfortabls"
+    },
+    "quickCreate": "Ātrā izveide",
+    "notifications": "Paziņojumi",
+    "chat": "Komandas čats",
+    "textsize": "Teksta izmērs",
+    "new_loading": "Jauna iekraušana",
+    "new_meeting": "Jauna sanāksme",
+    "new_note": "Jauna piezīme",
+    "export_ics": "Eksportēt ICS",
+    "print_pack": "Drukāt komplektu",
+    "save": "Saglabāt",
+    "discard": "Atcelt"
+  }
+}

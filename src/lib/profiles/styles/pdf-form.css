@@ -1,0 +1,33 @@
+/* PDF Form Styles - Shared CSS variables and styles for Profile Visual components */
+
+:root {
+  /* Profile Badge Colors */
+  --pdf-profile-badge: #E91E63;
+  
+  /* Section Headers */
+  --pdf-section-header: #4A5568;
+  
+  /* ORACAL Code Boxes */
+  --pdf-oracal-blue: #2563EB;
+  
+  /* Field Borders */
+  --pdf-field-border: #000000;
+  --pdf-field-border-width: 2px;
+  
+  /* Warning/Alert */
+  --pdf-warning: #DC2626;
+  
+  /* Badges */
+  --pdf-separate-badge: #DC2626;
+  
+  /* Material Colors */
+  --pdf-alu-color: #C0C0C0;
+  --pdf-opal-color: #F5F5F0;
+  
+  /* Section Container */
+  --pdf-section-gap: #1A1A1A;
+  
+  /* Text Colors */
+  --pdf-text-light: #FFFFFF;
+  --pdf-text-dark: #000000;
+}

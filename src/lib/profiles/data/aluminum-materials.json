@@ -1,0 +1,292 @@
+[
+  {
+    "code": "ALU_MILL_1_0",
+    "name": "Aluminum Sheet 1.0mm Mill Finish",
+    "alloy": "AlMg3",
+    "finish": "mill",
+    "type": "sheet",
+    "thickness": 1.0,
+    "properties": {
+      "corrosionResistant": true,
+      "lightweight": true,
+      "bendable": true,
+      "weldable": true
+    },
+    "standardSize": "2000x1000mm",
+    "hex": "#C0C0C0",
+    "applications": ["Signage frames", "Letter backing", "Trim"]
+  },
+  {
+    "code": "ALU_MILL_1_2",
+    "name": "Aluminum Sheet 1.2mm Mill Finish",
+    "alloy": "AlMg3",
+    "finish": "mill",
+    "type": "sheet",
+    "thickness": 1.2,
+    "properties": {
+      "corrosionResistant": true,
+      "lightweight": true,
+      "bendable": true,
+      "weldable": true
+    },
+    "standardSize": "2000x1000mm",
+    "hex": "#C0C0C0",
+    "applications": ["Signage frames", "Letter backing"]
+  },
+  {
+    "code": "ALU_MILL_1_3",
+    "name": "Aluminum Sheet 1.3mm Mill Finish",
+    "alloy": "AlMg3",
+    "finish": "mill",
+    "type": "sheet",
+    "thickness": 1.3,
+    "properties": {
+      "corrosionResistant": true,
+      "lightweight": true,
+      "bendable": true,
+      "structural": true
+    },
+    "standardSize": "2000x1000mm",
+    "hex": "#C0C0C0",
+    "applications": ["Signage construction", "Structural support"]
+  },
+  {
+    "code": "ALU_MILL_1_5",
+    "name": "Aluminum Sheet 1.5mm Mill Finish",
+    "alloy": "AlMg3",
+    "finish": "mill",
+    "type": "sheet",
+    "thickness": 1.5,
+    "properties": {
+      "corrosionResistant": true,
+      "lightweight": true,
+      "bendable": true,
+      "structural": true
+    },
+    "standardSize": "2000x1000mm",
+    "hex": "#C0C0C0",
+    "applications": ["Signage construction", "Heavy-duty frames"]
+  },
+  {
+    "code": "ALU_MILL_2_0",
+    "name": "Aluminum Sheet 2.0mm Mill Finish",
+    "alloy": "AlMg3",
+    "finish": "mill",
+    "type": "sheet",
+    "thickness": 2.0,
+    "properties": {
+      "corrosionResistant": true,
+      "lightweight": true,
+      "structural": true,
+      "rigidity": "high"
+    },
+    "standardSize": "2000x1000mm",
+    "hex": "#C0C0C0",
+    "applications": ["Large signage", "Structural components"]
+  },
+  {
+    "code": "ALU_MILL_3_0",
+    "name": "Aluminum Sheet 3.0mm Mill Finish",
+    "alloy": "AlMg3",
+    "finish": "mill",
+    "type": "sheet",
+    "thickness": 3.0,
+    "properties": {
+      "corrosionResistant": true,
+      "lightweight": true,
+      "structural": true,
+      "rigidity": "very high"
+    },
+    "standardSize": "2000x1000mm",
+    "hex": "#C0C0C0",
+    "applications": ["Large signage", "Heavy construction"]
+  },
+  {
+    "code": "ALU_BRUSHED_1_5",
+    "name": "Aluminum Sheet 1.5mm Brushed Horizontal",
+    "alloy": "AlMg3",
+    "finish": "brushed_horizontal",
+    "type": "sheet",
+    "thickness": 1.5,
+    "properties": {
+      "corrosionResistant": true,
+      "decorative": true,
+      "scratchResistant": true,
+      "bendable": true
+    },
+    "standardSize": "2000x1000mm",
+    "hex": "#B8B8B8",
+    "applications": ["Decorative signage", "Premium finishes"]
+  },
+  {
+    "code": "ALU_BRUSHED_2_0",
+    "name": "Aluminum Sheet 2.0mm Brushed Horizontal",
+    "alloy": "AlMg3",
+    "finish": "brushed_horizontal",
+    "type": "sheet",
+    "thickness": 2.0,
+    "properties": {
+      "corrosionResistant": true,
+      "decorative": true,
+      "scratchResistant": true,
+      "structural": true
+    },
+    "standardSize": "2000x1000mm",
+    "hex": "#B8B8B8",
+    "applications": ["Premium signage", "Architectural elements"]
+  },
+  {
+    "code": "ALU_ANODIZED_NATURAL_1_5",
+    "name": "Aluminum Sheet 1.5mm Anodized Natural",
+    "alloy": "AlMg3",
+    "finish": "anodized",
+    "type": "sheet",
+    "thickness": 1.5,
+    "properties": {
+      "corrosionResistant": true,
+      "decorative": true,
+      "scratchResistant": true,
+      "weatherResistant": true
+    },
+    "standardSize": "2000x1000mm",
+    "hex": "#D3D3D3",
+    "applications": ["Exterior signage", "High-end applications"]
+  },
+  {
+    "code": "ALU_ANODIZED_BLACK_1_5",
+    "name": "Aluminum Sheet 1.5mm Anodized Black",
+    "alloy": "AlMg3",
+    "finish": "anodized",
+    "type": "sheet",
+    "thickness": 1.5,
+    "properties": {
+      "corrosionResistant": true,
+      "decorative": true,
+      "scratchResistant": true
+    },
+    "standardSize": "2000x1000mm",
+    "hex": "#1C1C1C",
+    "applications": ["Premium signage", "Architectural details"]
+  },
+  {
+    "code": "ALU_TUBE_SQUARE_10",
+    "name": "Aluminum Square Tube 10x10mm",
+    "alloy": "AlMg3",
+    "finish": "mill",
+    "type": "profile",
+    "dimensions": "10x10mm",
+    "wallThickness": 1.0,
+    "properties": {
+      "lightweight": true,
+      "structural": true,
+      "corrosionResistant": true
+    },
+    "standardLength": "6000mm",
+    "hex": "#C0C0C0",
+    "applications": ["Frame construction", "Spacing tubes"]
+  },
+  {
+    "code": "ALU_TUBE_SQUARE_15",
+    "name": "Aluminum Square Tube 15x15mm",
+    "alloy": "AlMg3",
+    "finish": "mill",
+    "type": "profile",
+    "dimensions": "15x15mm",
+    "wallThickness": 1.5,
+    "properties": {
+      "lightweight": true,
+      "structural": true,
+      "corrosionResistant": true
+    },
+    "standardLength": "6000mm",
+    "hex": "#C0C0C0",
+    "applications": ["Frame construction", "Structural support"]
+  },
+  {
+    "code": "ALU_TUBE_SQUARE_20",
+    "name": "Aluminum Square Tube 20x20mm",
+    "alloy": "AlMg3",
+    "finish": "mill",
+    "type": "profile",
+    "dimensions": "20x20mm",
+    "wallThickness": 1.5,
+    "properties": {
+      "lightweight": true,
+      "structural": true,
+      "highStrength": true
+    },
+    "standardLength": "6000mm",
+    "hex": "#C0C0C0",
+    "applications": ["Heavy frames", "Structural support"]
+  },
+  {
+    "code": "ALU_TUBE_ROUND_8",
+    "name": "Aluminum Round Tube 8mm",
+    "alloy": "AlMg3",
+    "finish": "mill",
+    "type": "profile",
+    "diameter": 8,
+    "wallThickness": 1.0,
+    "properties": {
+      "lightweight": true,
+      "flexible": true,
+      "corrosionResistant": true
+    },
+    "standardLength": "6000mm",
+    "hex": "#C0C0C0",
+    "applications": ["LED mounting", "Cable management"]
+  },
+  {
+    "code": "ALU_TUBE_ROUND_10",
+    "name": "Aluminum Round Tube 10mm",
+    "alloy": "AlMg3",
+    "finish": "mill",
+    "type": "profile",
+    "diameter": 10,
+    "wallThickness": 1.0,
+    "properties": {
+      "lightweight": true,
+      "structural": true
+    },
+    "standardLength": "6000mm",
+    "hex": "#C0C0C0",
+    "applications": ["Distance tubes", "LED mounting"]
+  },
+  {
+    "code": "DIBOND_WHITE_3",
+    "name": "Dibond White 3mm",
+    "brand": "Dibond®",
+    "type": "composite",
+    "thickness": 3,
+    "construction": "ALU-PE-ALU",
+    "finish": "white_coated",
+    "properties": {
+      "lightweight": true,
+      "flat": true,
+      "weatherResistant": true,
+      "printable": true,
+      "rigid": true
+    },
+    "standardSize": "2440x1220mm",
+    "hex": "#FFFFFF",
+    "applications": ["Signage", "Displays", "Exhibition"]
+  },
+  {
+    "code": "DIBOND_SILVER_3",
+    "name": "Dibond Silver Brushed 3mm",
+    "brand": "Dibond®",
+    "type": "composite",
+    "thickness": 3,
+    "construction": "ALU-PE-ALU",
+    "finish": "brushed_silver",
+    "properties": {
+      "lightweight": true,
+      "flat": true,
+      "weatherResistant": true,
+      "decorative": true
+    },
+    "standardSize": "2440x1220mm",
+    "hex": "#C0C0C0",
+    "applications": ["Premium signage", "Architectural panels"]
+  }
+]

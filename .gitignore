@@ -1,0 +1,22 @@
+node_modules
+.DS_Store
+build
+.svelte-kit
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Uploads
+uploads/
+
+# Backup files
+*.bak
+*.bak2
+
+# Large binary files in docs (PDFs, images)
+docs/*.pdf
+docs/*.png
+docs/*.jpg
+docs/*.jpeg

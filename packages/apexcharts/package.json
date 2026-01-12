@@ -1,0 +1,10 @@
+{
+  "name": "apexcharts",
+  "version": "3.49.1",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./index.js"
+    }
+  }
+}
