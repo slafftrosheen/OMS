@@ -40,7 +40,6 @@
     addRedoFlag, openChangeRequest, approveChangeRequest, declineChangeRequest
   } from '$lib/order/signage-store';
   import { blankStages, STATIONS, type StageState, type StationTag } from '$lib/order/stages';
-  import { getOrderSeed } from '$lib/order/order-seeds';
 
   // Accept params prop to silence SvelteKit warning
   export let params = {};
@@ -104,37 +103,7 @@
     o = await getOrder(id);
     
     if (!o) {
-      // Fallback to seed data for demo
-      const seed = getOrderSeed(id);
-      if (seed) {
-        const stages = seed.stages ? { ...blankStages(), ...seed.stages } : blankStages();
-        o = {
-          id: seed.id,
-          title: seed.title,
-          client: seed.client,
-          due: seed.due,
-          loadingDate: seed.loadingDate || '',
-          badges: seed.badges || ['OPEN'],
-          fields: seed.fields || [],
-          materials: seed.materials || [],
-          stages,
-          cycles: [],
-          isRD: seed.isRD || false,
-          rdNotes: seed.rdNotes || '',
-          isDraft: false,
-          profiles: [],
-          redo: [],
-          redoReasons: {},
-          redoStage: '',
-          revisions: [],
-          branches: [],
-          prs: [],
-          defaultBranch: 'main',
-          defaultRevisionId: ''
-        };
-      } else {
-        o = createFallbackOrder();
-      }
+      o = createFallbackOrder();
     }
 
     // Initialize profiles from order
