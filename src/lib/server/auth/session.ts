@@ -1,10 +1,10 @@
 // src/lib/server/auth/session.ts
-import { query } from '$lib/server/db/connection';
-import crypto from 'crypto';
-import type { Cookies } from '@sveltejs/kit';
+import { createSupabaseClient } from '$lib/server/supabase';
+import type { RequestEvent } from '@sveltejs/kit';
 
 export interface SessionUser {
-  id: number;
+  id: string;
+  email?: string;
   username: string;
   displayName: string;
   primarySection: string;
@@ -14,46 +14,28 @@ export interface SessionUser {
 }
 
 /**
- * Get authenticated user from session cookie
+ * Get authenticated user from Supabase session
  */
-export async function getSessionUser(cookies: Cookies): Promise<SessionUser | null> {
-  const token = cookies.get('session');
-  
-  if (!token) {
+export async function getSessionUser(event: RequestEvent): Promise<SessionUser | null> {
+  const supabase = createSupabaseClient(event);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
     return null;
   }
 
-  try {
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const { display_name, primary_section, sections, roles, stations, username } = user.user_metadata;
 
-    const result = await query(
-      `SELECT u.id, u.username, u.display_name, u.primary_section, 
-              u.sections, u.roles, u.stations
-       FROM users u
-       JOIN user_sessions s ON s.user_id = u.id
-       WHERE s.token_hash = $1 AND s.expires_at > NOW() AND u.is_active = true`,
-      [tokenHash]
-    );
-
-    if (result.rowCount === 0) {
-      return null;
-    }
-
-    const user = result.rows[0];
-
-    return {
-      id: user.id,
-      username: user.username,
-      displayName: user.display_name,
-      primarySection: user.primary_section,
-      sections: user.sections,
-      roles: user.roles,
-      stations: user.stations || []
-    };
-  } catch (err) {
-    console.error('Session validation error:', err);
-    return null;
-  }
+  return {
+    id: user.id,
+    email: user.email,
+    username: username || user.email,
+    displayName: display_name || user.email,
+    primarySection: primary_section || '',
+    sections: sections || [],
+    roles: roles || {},
+    stations: stations || []
+  };
 }
 
 /**
@@ -73,8 +55,8 @@ export function isAdmin(user: SessionUser): boolean {
 /**
  * Require authentication - returns user or throws 401
  */
-export async function requireAuth(cookies: Cookies): Promise<SessionUser> {
-  const user = await getSessionUser(cookies);
+export async function requireAuth(event: RequestEvent): Promise<SessionUser> {
+  const user = await getSessionUser(event);
   if (!user) {
     throw { status: 401, message: 'Authentication required' };
   }
@@ -84,8 +66,8 @@ export async function requireAuth(cookies: Cookies): Promise<SessionUser> {
 /**
  * Require admin role - returns user or throws 403
  */
-export async function requireAdmin(cookies: Cookies): Promise<SessionUser> {
-  const user = await requireAuth(cookies);
+export async function requireAdmin(event: RequestEvent): Promise<SessionUser> {
+  const user = await requireAuth(event);
   if (!isAdmin(user)) {
     throw { status: 403, message: 'Admin access required' };
   }

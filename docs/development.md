@@ -7,7 +7,7 @@ Guidelines for contributing to Reclame OMS.
 ### Prerequisites
 
 - Node.js 18+
-- PostgreSQL 14+
+- Supabase Account
 - Git
 - VS Code (recommended)
 
@@ -24,8 +24,8 @@ npm install
 # Copy environment file
 cp .env.example .env
 
-# Initialize database
-./scripts/init-database.sh
+# Configure .env with your Supabase credentials
+# (see .env.example for required variables)
 
 # Start development server
 npm run dev
@@ -42,8 +42,7 @@ Recommended extensions for development:
     "dbaeumer.vscode-eslint",
     "esbenp.prettier-vscode",
     "bradlc.vscode-tailwindcss",
-    "mtxr.sqltools",
-    "mtxr.sqltools-driver-pg"
+    "supabase.supabase"
   ]
 }
 ```
@@ -55,10 +54,7 @@ reclame_OMS/
 ├── src/
 │   ├── lib/                    # Shared library code
 │   │   ├── server/             # Server-only code
-│   │   │   └── db/             # Database layer
-│   │   │       ├── connection.ts
-│   │   │       ├── migrations/ # SQL migrations
-│   │   │       └── seeds/      # Seed data
+│   │   │   └── db.ts           # Supabase client setup
 │   │   ├── auth/               # Authentication
 │   │   ├── users/              # User management
 │   │   ├── calendar/           # Calendar module
@@ -76,6 +72,7 @@ reclame_OMS/
 ├── static/                     # Static assets
 ├── scripts/                    # Utility scripts
 ├── docs/                       # Documentation
+├── supabase/                   # Supabase migrations
 └── tests/                      # Test files
 ```
 
@@ -91,12 +88,12 @@ reclame_OMS/
 ```typescript
 // ✅ Good
 interface User {
-  id: number;
+  id: string;
   username: string;
   roles: Record<string, string>;
 }
 
-async function getUser(id: number): Promise<User | null> {
+async function getUser(id: string): Promise<User | null> {
   // ...
 }
 
@@ -149,20 +146,23 @@ async function getUser(id: any): Promise<any> {
 // src/routes/api/example/+server.ts
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query } from '$lib/server/db/connection';
+import { db } from '$lib/server/db';
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async (event) => {
+  const supabase = db(event);
   try {
-    const result = await query('SELECT * FROM example');
-    return json(result.rows);
+    const { data, error } = await supabase.from('example').select();
+    if (error) throw error;
+    return json(data);
   } catch (err) {
     console.error('Error:', err);
     return json({ error: 'Internal server error' }, { status: 500 });
   }
 };
 
-export const POST: RequestHandler = async ({ request }) => {
-  const data = await request.json();
+export const POST: RequestHandler = async (event) => {
+  const supabase = db(event);
+  const data = await event.request.json();
   
   // Validation
   if (!data.name) {
@@ -170,11 +170,14 @@ export const POST: RequestHandler = async ({ request }) => {
   }
   
   try {
-    const result = await query(
-      'INSERT INTO example (name) VALUES ($1) RETURNING *',
-      [data.name]
-    );
-    return json(result.rows[0], { status: 201 });
+    const { data: newData, error } = await supabase
+      .from('example')
+      .insert({ name: data.name })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return json(newData, { status: 201 });
   } catch (err: any) {
     if (err.code === '23505') {
       return json({ error: 'Name already exists' }, { status: 409 });
@@ -182,25 +185,6 @@ export const POST: RequestHandler = async ({ request }) => {
     return json({ error: 'Internal server error' }, { status: 500 });
   }
 };
-```
-
-### Database Queries
-
-- Use parameterized queries (prevent SQL injection)
-- Use transactions for multi-step operations
-- Add appropriate indexes for frequently queried columns
-
-```typescript
-// ✅ Good - Parameterized query
-const result = await query(
-  'SELECT * FROM users WHERE username = $1',
-  [username]
-);
-
-// ❌ Bad - SQL injection vulnerability
-const result = await query(
-  `SELECT * FROM users WHERE username = '${username}'`
-);
 ```
 
 ### CSS
@@ -289,16 +273,10 @@ export const GET: RequestHandler = async () => {
 
 ### Adding a New Database Table
 
-1. Create migration file:
-
-```bash
-touch src/lib/server/db/migrations/011_new_feature.sql
-```
-
-2. Write migration:
+1. Create migration file in the `supabase/` directory:
 
 ```sql
--- src/lib/server/db/migrations/011_new_feature.sql
+-- supabase/migrations/004_new_feature.sql
 CREATE TABLE new_feature (
   id SERIAL PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
@@ -308,13 +286,9 @@ CREATE TABLE new_feature (
 CREATE INDEX idx_new_feature_name ON new_feature(name);
 ```
 
-3. Run migration:
+2. Apply migrations using the Supabase CLI or from the Supabase dashboard.
 
-```bash
-./scripts/init-database.sh
-```
-
-4. Document in `docs/database-schema.md`
+3. Document in `docs/database-schema.md`
 
 ### Adding a New Store
 
@@ -430,19 +404,10 @@ debugger;
 
 ### Database Debugging
 
-```bash
-# Connect to database
-psql -U reclame_admin -d reclame_oms
-
-# View table structure
-\d table_name
-
-# Run query
-SELECT * FROM users LIMIT 10;
-
-# View query execution plan
-EXPLAIN ANALYZE SELECT * FROM large_table WHERE condition;
-```
+Use the Supabase SQL Editor in the dashboard to:
+- View table structure
+- Run queries
+- View query execution plans
 
 ### Network Debugging
 
@@ -457,11 +422,10 @@ Use browser DevTools Network tab to inspect:
 ### Database Query Optimization
 
 ```sql
--- Add indexes for frequently queried columns
+-- Add indexes for frequently queried columns in your Supabase migrations
 CREATE INDEX idx_orders_status ON draft_orders(status);
 
--- Use EXPLAIN to analyze queries
-EXPLAIN ANALYZE SELECT * FROM draft_orders WHERE status = 'pending';
+-- Use the Supabase dashboard to analyze query performance
 ```
 
 ### Frontend Optimization
@@ -491,15 +455,10 @@ rm -rf node_modules package-lock.json
 npm install
 ```
 
-### Database connection errors
+### Supabase connection errors
 
-```bash
-# Check PostgreSQL is running
-systemctl status postgresql
-
-# Verify connection details in .env
-cat .env | grep DB_
-```
+- Verify your Supabase credentials in `.env` are correct.
+- Check the Supabase status page for any ongoing incidents.
 
 ### Build errors
 
@@ -515,5 +474,5 @@ npm run build
 
 - [SvelteKit Documentation](https://kit.svelte.dev/docs)
 - [Svelte Documentation](https://svelte.dev/docs)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [Supabase Documentation](https://supabase.com/docs)
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/)

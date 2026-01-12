@@ -1,0 +1,10 @@
+
+> reclame-fabriek-mockup@1.0.1 dev
+> vite dev
+
+error when starting dev server:
+TypeError: Cannot convert undefined or null to object
+    at Function.values (<anonymous>)
+    at configureServer (file:///app/node_modules/@sveltejs/vite-plugin-svelte/src/plugins/hot-update.js:56:37)
+    at _createServer (file:///app/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:63337:26)
+    at async CAC.<anonymous> (file:///app/node_modules/vite/dist/node/cli.js:736:20)

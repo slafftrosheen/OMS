@@ -12,10 +12,11 @@
   },
   "dependencies": {
     "@ericblade/quagga2": "^1.12.0",
+    "@supabase/auth-helpers-sveltekit": "^0.12.0",
+    "@supabase/supabase-js": "^2.39.8",
     "@sveltejs/adapter-static": "^3.0.4",
     "@sveltejs/kit": "^2.7.4",
     "apexcharts": "file:packages/apexcharts",
-    "bcrypt": "^6.0.0",
     "dayjs": "^1.11.18",
     "dotenv": "^16.4.5",
     "esbuild": "^0.21.5",
@@ -23,13 +24,11 @@
     "lucide-svelte": "^0.462.0",
     "pantone-colors": "^1.0.3",
     "pdfjs-dist": "^4.8.69",
-    "pg": "^8.12.0",
     "svelte": "^4.2.19",
     "svelte-apexcharts": "file:packages/svelte-apexcharts",
     "svelte-i18n": "file:packages/svelte-i18n"
   },
   "devDependencies": {
-    "@types/pg": "^8.11.6",
     "axe-core": "^4.11.0",
     "vite": "^5.4.10",
     "vitest": "file:packages/vitest"
