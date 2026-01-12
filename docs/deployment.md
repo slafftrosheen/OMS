@@ -367,41 +367,54 @@ systemctl restart postgresql
 
 ---
 
-## Production Security Checklist
+## Production Deployment Checklist
 
-### Application
+### Configuration and Secrets
 
-- [ ] Set `NODE_ENV=production`
-- [ ] Use HTTPS only
-- [ ] Enable `secure` flag on cookies
-- [ ] Update default password hashes
-- [ ] Remove development users
-- [ ] Configure rate limiting
-- [ ] Set up error monitoring
+- [ ] **Audit .env:** Review and set all `.env` variables for the production environment.
+- [ ] **Secure Cookies:** Ensure that the `secure` flag is enabled for all cookies in a production environment.
+- [ ] **Strong DB Passwords:** Confirm that the database password is strong and has been changed from the default.
+- [ ] **Remove Development/Test Users:** Remove all development and test users from the database.
+- [ ] **Finalize Admin Credentials:** Ensure that all admin credentials have been finalized and are secure.
 
-### Database
+### Deployment Scripts and Environment
 
-- [ ] Use strong passwords
-- [ ] Restrict network access
-- [ ] Enable SSL connections
-- [ ] Regular backups
-- [ ] Monitor connection usage
+- [ ] **Test PM2/Nginx Scripts:** Test the PM2 and Nginx deployment scripts to ensure that they are working correctly.
+- [ ] **Test Docker Scripts:** Test the Docker deployment scripts to ensure that they are working correctly.
+- [ ] **Test Vercel Scripts:** If applicable, test the Vercel deployment scripts to ensure that they are working correctly.
+- [ ] **Enable SSL:** Ensure that SSL is enabled and that all traffic is being served over HTTPS.
+- [ ] **Configure Firewall:** Configure the firewall to restrict network access to the database and other sensitive services.
+- [ ] **Configure Backups:** Ensure that regular backups of the database and other important data are being taken.
 
-### Server
+### Monitoring and Health Checks
 
-- [ ] Keep system updated
-- [ ] Configure firewall (UFW/iptables)
-- [ ] Set up fail2ban
-- [ ] Enable automatic security updates
-- [ ] Configure log rotation
+- [ ] **Run Health Checks:** Run health checks to ensure that the application is running correctly.
+- [ ] **Test Error Monitoring:** Test the error monitoring system to ensure that it is working correctly.
 
-### Monitoring
+### Staging and Documentation
 
-- [ ] Application health checks
-- [ ] Database monitoring
-- [ ] Disk space alerts
-- [ ] SSL certificate expiry alerts
-- [ ] Uptime monitoring
+- [ ] **Run Staging Deployment:** Run a staging deployment and verify the full application with test data.
+- [ ] **Update Documentation:** Update the `docs/deployment.md` and `docs/configuration.md` files with the final checklist and troubleshooting information.
+
+---
+
+## Troubleshooting
+
+### Deployment Issues
+
+- **"Port already in use" error:** This error indicates that another process is already running on the port that you are trying to use. To fix this, you can either stop the other process or change the port that your application is running on.
+- **"Cannot find module" error:** This error indicates that a required module is not installed. To fix this, you can run `npm install` to install all the required modules.
+- **"Database connection refused" error:** This error indicates that the application is unable to connect to the database. To fix this, you can check that the database is running and that the connection details in your `.env` file are correct.
+
+### Nginx Issues
+
+- **"502 Bad Gateway" error:** This error indicates that Nginx is unable to connect to the application. To fix this, you can check that the application is running and that the `proxy_pass` directive in your Nginx configuration is correct.
+- **"404 Not Found" error:** This error indicates that Nginx is unable to find the requested file. To fix this, you can check that the `root` directive in your Nginx configuration is correct and that the file exists.
+
+### Docker Issues
+
+- **"Cannot connect to the Docker daemon" error:** This error indicates that the Docker daemon is not running. To fix this, you can start the Docker daemon.
+- **"Image not found" error:** This error indicates that the Docker image that you are trying to use does not exist. To fix this, you can build the Docker image.
 
 ---
 
