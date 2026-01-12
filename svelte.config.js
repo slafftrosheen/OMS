@@ -10,6 +10,10 @@ const config = {
   kit: {
     adapter: adapter({ fallback: '404.html' }),
     paths: { base, relative: true },
+    alias: {
+      '$lib': 'src/lib',
+      '$lib/*': 'src/lib/*'
+    },
     prerender: { 
       handleHttpError: 'warn',
       handleMissingId: 'warn',

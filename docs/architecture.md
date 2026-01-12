@@ -2,7 +2,7 @@
 
 ## Overview
 
-Reclame OMS follows a modern full-stack architecture with SvelteKit providing both the frontend framework and API layer, backed by PostgreSQL for persistent storage.
+Reclame OMS follows a modern full-stack architecture with SvelteKit providing both the frontend framework and API layer, backed by **Supabase** for the database, authentication, and storage.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -20,19 +20,19 @@ Reclame OMS follows a modern full-stack architecture with SvelteKit providing bo
 │                      SvelteKit Server                           │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │ API Routes  │  │   Session   │  │    SSR      │             │
-│  │ /api/*      │  │  Management │  │  Rendering  │             │
+│  │ API Routes  │  │   Supabase  │  │    SSR      │             │
+│  │ /api/*      │  │   Client    │  │  Rendering  │             │
 │  └─────────────┘  └─────────────┘  └─────────────┘             │
 └─────────────────────────────────────────────────────────────────┘
                               │
-                              │ pg (node-postgres)
+                              │ Supabase Client
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                       PostgreSQL                                │
+│                           Supabase                              │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
-│  │  Users   │  │  Orders  │  │ Inventory│  │ Calendar │       │
-│  │ Sessions │  │ Profiles │  │ Materials│  │  Events  │       │
+│  │ Postgres │  │   Auth   │  │ Storage  │  │   APIs   │       │
+│  │ RLS      │  │ (JWT)    │  │ (Files)  │  │ (REST)   │       │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘       │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -65,7 +65,7 @@ All API endpoints are in `src/routes/api/` and follow REST conventions:
 
 ```
 /api/
-├── auth/           # Authentication
+├── auth/           # Authentication (handled by Supabase)
 ├── users/          # User management
 ├── preferences/    # User preferences
 ├── draft-orders/   # Order management
@@ -81,58 +81,31 @@ All API endpoints are in `src/routes/api/` and follow REST conventions:
 ```
 1. Client makes HTTP request
 2. SvelteKit routes to +server.ts handler
-3. Handler validates session (if protected)
-4. Handler executes database query
+3. Handler uses Supabase client to interact with the database
+4. Session is validated by Supabase client and RLS policies
 5. Response returned as JSON
 ```
 
 ### 3. Data Layer (Database)
 
-**Technology**: PostgreSQL 14+
+**Technology**: Supabase
 
-#### Connection Pool
-
-```typescript
-// src/lib/server/db/connection.ts
-const pool = new Pool({
-  host: env.DB_HOST,
-  port: parseInt(env.DB_PORT),
-  database: env.DB_NAME,
-  user: env.DB_USER,
-  password: env.DB_PASSWORD,
-  max: 20,                    // Maximum pool size
-  idleTimeoutMillis: 30000,   // Close idle connections
-  connectionTimeoutMillis: 2000
-});
-```
-
-#### Transaction Support
-
-```typescript
-import { transaction } from '$lib/server/db/connection';
-
-await transaction(async (client) => {
-  await client.query('INSERT INTO orders ...');
-  await client.query('INSERT INTO order_items ...');
-  // Auto-commits on success, rollback on error
-});
-```
+- **Database**: Managed PostgreSQL with Row-Level Security (RLS).
+- **Authentication**: Supabase Auth handles user authentication and session management via JWTs.
+- **Storage**: Supabase Storage for file uploads and management.
+- **API**: Auto-generated RESTful API, though we primarily use the Supabase client library.
 
 ## Data Flow Patterns
 
 ### Authentication Flow
 
 ```
-┌────────┐     ┌────────┐     ┌────────┐     ┌────────┐
-│ Client │────▶│ /api/  │────▶│ Verify │────▶│ Create │
-│ Login  │     │ auth   │     │ Password│    │ Session│
-└────────┘     └────────┘     └────────┘     └────────┘
-                                                  │
-                                                  ▼
-┌────────┐     ┌────────┐     ┌────────┐     ┌────────┐
-│ Client │◀────│ Set    │◀────│ Generate│◀───│ Store  │
-│ Cookie │     │ Cookie │     │ Token  │     │ in DB  │
-└────────┘     └────────┘     └────────┘     └────────┘
+┌────────┐     ┌──────────────┐     ┌────────┐
+│ Client │────▶│ Supabase Auth│────▶│  JWT   │
+│ Login  │     │ (Sign In)    │     │ Session│
+└────────┘     └──────────────┘     └────────┘
+    │                                   │
+    └───────────────────────────────────┘
 ```
 
 ### Data Synchronization Pattern
@@ -166,53 +139,36 @@ theme.subscribe(value => {
 
 ### Authentication
 
-- **Method**: Session-based with HTTP-only cookies
-- **Token Storage**: SHA-256 hashed in database
-- **Session Duration**: 7 days (configurable)
-- **CSRF Protection**: SameSite cookie attribute
+- **Method**: Supabase Auth (JWT-based with server-side helpers)
+- **Session Management**: Handled by `@supabase/auth-helpers-sveltekit`.
 
 ### Authorization
 
-Role-based access control with per-section permissions:
-
-```typescript
-type Role = 'SuperAdmin' | 'StationLead' | 'Operator' | 'Viewer';
-type Section = 'Admin' | 'Production' | 'Logistics';
-
-interface User {
-  roles: Record<Section, Role>;
-}
-```
+- **Method**: PostgreSQL Row-Level Security (RLS)
+- **Policies**: Defined in `supabase/migrations/` to control access to tables and rows based on user roles and permissions.
 
 ### Audit Logging
 
-All sensitive operations are logged:
-
-```sql
-INSERT INTO audit_log (user_id, action, entity_type, entity_id)
-VALUES ($1, 'UPDATE_ORDER', 'order', $2);
-```
+All sensitive operations are logged to the `audit_log` table via Supabase functions or triggers.
 
 ## Scalability Considerations
 
 ### Database
 
-- Connection pooling (max 20 connections)
-- Indexed queries for common operations
-- JSONB for flexible metadata storage
+- Managed by Supabase, including connection pooling, indexing, and scaling.
+- JSONB for flexible metadata storage.
 
 ### Caching Strategy
 
 | Data Type | Cache Location | TTL |
 |-----------|---------------|-----|
 | User preferences | localStorage + DB | Permanent |
-| Session | HTTP-only cookie | 7 days |
+| Session | Supabase Auth | Configurable |
 | UI state | localStorage | Permanent |
 | Calendar events | Memory (store) | Per-session |
 
 ### Future Considerations
 
-- [ ] Redis for session storage (horizontal scaling)
-- [ ] WebSocket for real-time updates
-- [ ] CDN for static assets
-- [ ] Read replicas for reporting queries
+- [ ] Real-time updates with Supabase Realtime
+- [ ] CDN for static assets (managed by hosting provider)
+- [ ] Edge functions for performance-critical operations
