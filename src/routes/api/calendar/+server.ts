@@ -1,181 +1,182 @@
 // src/routes/api/calendar/+server.ts
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query, transaction } from '$lib/server/db/connection';
 
 /**
  * GET /api/calendar - List calendar events
  * Query params: ?from=2025-01-01&to=2025-12-31&kind=loading
  */
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
   const from = url.searchParams.get('from');
   const to = url.searchParams.get('to');
   const kind = url.searchParams.get('kind');
 
-  let sql = `
-    SELECT 
-      ce.id, ce.kind, ce.date, ce.title, ce.note, ce.created_at,
-      le.carrier, le.window_start, le.window_end,
-      me.start_time, me.end_time, me.location, me.attendees,
-      COALESCE(
-        (SELECT json_agg(do.po_number) 
-         FROM loading_event_pos lep 
-         JOIN draft_orders do ON do.id = lep.draft_order_id
-         WHERE lep.loading_event_id = ce.id),
-        '[]'::json
-      ) as po_list
-    FROM calendar_events ce
-    LEFT JOIN loading_events le ON le.id = ce.id
-    LEFT JOIN meeting_events me ON me.id = ce.id
-    WHERE 1=1
-  `;
-
-  const params: any[] = [];
-  let idx = 1;
+  let query = supabase
+    .from('calendar_events')
+    .select(`
+      id,
+      kind,
+      date,
+      title,
+      note,
+      created_at,
+      loading_events (
+        carrier,
+        window_start,
+        window_end,
+        loading_event_pos (
+          draft_orders (
+            po_number
+          )
+        )
+      ),
+      meeting_events (
+        start_time,
+        end_time,
+        location,
+        attendees
+      )
+    `);
 
   if (from) {
-    sql += ` AND ce.date >= $${idx++}`;
-    params.push(from);
+    query = query.gte('date', from);
   }
-
   if (to) {
-    sql += ` AND ce.date <= $${idx++}`;
-    params.push(to);
+    query = query.lte('date', to);
   }
-
   if (kind) {
-    sql += ` AND ce.kind = $${idx++}`;
-    params.push(kind);
+    query = query.eq('kind', kind);
   }
 
-  sql += ` ORDER BY ce.date ASC, ce.created_at ASC`;
+  query = query.order('date', { ascending: true }).order('created_at', { ascending: true });
 
-  try {
-    const result = await query(sql, params);
+  const { data: events, error } = await query;
 
-    const events = result.rows.map(row => {
-      const base = {
-        id: row.id,
-        kind: row.kind,
-        date: row.date?.toISOString().slice(0, 10),
-        createdAt: row.created_at?.toISOString(),
-        note: row.note
-      };
-
-      if (row.kind === 'loading') {
-        return {
-          ...base,
-          poList: row.po_list || [],
-          carrier: row.carrier,
-          window: row.window_start || row.window_end ? {
-            start: row.window_start?.slice(0, 5),
-            end: row.window_end?.slice(0, 5)
-          } : undefined
-        };
-      }
-
-      if (row.kind === 'meeting') {
-        return {
-          ...base,
-          title: row.title,
-          start: row.start_time?.slice(0, 5),
-          end: row.end_time?.slice(0, 5),
-          location: row.location,
-          attendees: row.attendees || []
-        };
-      }
-
-      return {
-        ...base,
-        title: row.title
-      };
-    });
-
-    return json(events);
-  } catch (err) {
-    console.error('Failed to fetch calendar events:', err);
+  if (error) {
+    console.error('Failed to fetch calendar events:', error);
     return json([], { status: 500 });
   }
+
+  const formattedEvents = events.map(event => {
+    const base = {
+      id: event.id,
+      kind: event.kind,
+      date: event.date?.slice(0, 10),
+      createdAt: event.created_at,
+      note: event.note
+    };
+
+    if (event.kind === 'loading' && event.loading_events) {
+      return {
+        ...base,
+        poList: event.loading_events.loading_event_pos.map(lep => lep.draft_orders.po_number),
+        carrier: event.loading_events.carrier,
+        window: {
+          start: event.loading_events.window_start?.slice(0, 5),
+          end: event.loading_events.window_end?.slice(0, 5)
+        }
+      };
+    }
+
+    if (event.kind === 'meeting' && event.meeting_events) {
+      return {
+        ...base,
+        title: event.title,
+        start: event.meeting_events.start_time?.slice(0, 5),
+        end: event.meeting_events.end_time?.slice(0, 5),
+        location: event.meeting_events.location,
+        attendees: event.meeting_events.attendees
+      };
+    }
+
+    return {
+      ...base,
+      title: event.title
+    };
+  });
+
+  return json(formattedEvents);
 };
 
 /**
  * POST /api/calendar - Create calendar event
  */
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals: { supabase } }) => {
   const data = await request.json();
 
   if (!data.date || !data.kind) {
     return json({ error: 'Date and kind are required' }, { status: 400 });
   }
 
-  try {
-    const result = await transaction(async (client) => {
-      // Create base event
-      const eventResult = await client.query(
-        `INSERT INTO calendar_events (kind, date, title, note)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, kind, date, title, note, created_at`,
-        [data.kind, data.date, data.title || '', data.note || '']
-      );
+  const { data: event, error: eventError } = await supabase
+    .from('calendar_events')
+    .insert({
+      kind: data.kind,
+      date: data.date,
+      title: data.title || '',
+      note: data.note || ''
+    })
+    .select()
+    .single();
 
-      const event = eventResult.rows[0];
-
-      // Create kind-specific data
-      if (data.kind === 'loading') {
-        await client.query(
-          `INSERT INTO loading_events (id, carrier, window_start, window_end)
-           VALUES ($1, $2, $3, $4)`,
-          [
-            event.id,
-            data.carrier || '',
-            data.window?.start || null,
-            data.window?.end || null
-          ]
-        );
-
-        // Link POs if provided
-        if (data.poList && Array.isArray(data.poList)) {
-          for (const poNumber of data.poList) {
-            const orderResult = await client.query(
-              `SELECT id FROM draft_orders WHERE po_number = $1`,
-              [poNumber]
-            );
-            if (orderResult.rowCount > 0) {
-              await client.query(
-                `INSERT INTO loading_event_pos (loading_event_id, draft_order_id)
-                 VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                [event.id, orderResult.rows[0].id]
-              );
-            }
-          }
-        }
-      } else if (data.kind === 'meeting') {
-        await client.query(
-          `INSERT INTO meeting_events (id, start_time, end_time, location, attendees)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            event.id,
-            data.start || null,
-            data.end || null,
-            data.location || '',
-            data.attendees || []
-          ]
-        );
-      }
-
-      return event;
-    });
-
-    return json({
-      id: result.id,
-      kind: result.kind,
-      date: result.date?.toISOString().slice(0, 10),
-      title: result.title,
-      note: result.note,
-      createdAt: result.created_at?.toISOString()
-    }, { status: 201 });
-  } catch (err) {
-    console.error('Failed to create calendar event:', err);
+  if (eventError) {
+    console.error('Failed to create calendar event:', eventError);
     return json({ error: 'Failed to create event' }, { status: 500 });
   }
+
+  if (data.kind === 'loading') {
+    const { error: loadingError } = await supabase
+      .from('loading_events')
+      .insert({
+        id: event.id,
+        carrier: data.carrier || '',
+        window_start: data.window?.start || null,
+        window_end: data.window?.end || null
+      });
+
+    if (loadingError) {
+      console.error('Failed to create loading event details:', loadingError);
+      // Rollback logic might be needed here in a real-world scenario
+    }
+
+    if (data.poList && Array.isArray(data.poList)) {
+      const { data: orders } = await supabase
+        .from('draft_orders')
+        .select('id')
+        .in('po_number', data.poList);
+
+      if (orders) {
+        await supabase
+          .from('loading_event_pos')
+          .insert(orders.map(o => ({
+            loading_event_id: event.id,
+            draft_order_id: o.id
+          })));
+      }
+    }
+  } else if (data.kind === 'meeting') {
+    const { error: meetingError } = await supabase
+      .from('meeting_events')
+      .insert({
+        id: event.id,
+        start_time: data.start || null,
+        end_time: data.end || null,
+        location: data.location || '',
+        attendees: data.attendees || []
+      });
+
+    if (meetingError) {
+      console.error('Failed to create meeting event details:', meetingError);
+      // Rollback logic might be needed here
+    }
+  }
+
+  return json({
+    id: event.id,
+    kind: event.kind,
+    date: event.date?.slice(0, 10),
+    title: event.title,
+    note: event.note,
+    createdAt: event.created_at
+  }, { status: 201 });
 };
