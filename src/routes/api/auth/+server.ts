@@ -1,7 +1,7 @@
 // src/routes/api/auth/+server.ts
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { createSupabaseClient } from '$lib/server/supabase'; // Using the supabase client factory
+import { query, transaction } from '$lib/server/db/connection';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 
@@ -77,7 +77,6 @@ export const POST: RequestHandler = async (event) => {
   console.log('POST /api/auth called');
   const { request, cookies, getClientAddress } = event;
   const clientIp = getClientAddress();
-  const supabase = createSupabaseClient(event);
   
   // Check rate limit
   const rateCheck = checkRateLimit(clientIp);
@@ -95,68 +94,48 @@ export const POST: RequestHandler = async (event) => {
   }
 
   try {
-    // Find user
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('id, username, display_name, password_hash, primary_section, sections, roles, stations, is_active')
-      .eq('username', username.toLowerCase())
-      .single();
+    const result = await query(
+      'SELECT id, username, display_name, password_hash, primary_section, sections, roles, stations, is_active FROM users WHERE username = $1',
+      [username.toLowerCase()]
+    );
 
-    if (userError || !user) {
+    if (result.rows.length === 0) {
       recordFailedAttempt(clientIp);
       return json({ error: 'Invalid credentials' }, { status: 401 });
     }
+    const user = result.rows[0];
 
     if (!user.is_active) {
       return json({ error: 'Account is disabled' }, { status: 403 });
     }
 
-    // Verify password (now async with bcrypt)
     const passwordValid = await verifyPassword(password, user.password_hash);
     if (!passwordValid) {
       recordFailedAttempt(clientIp);
       return json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    // Clear failed attempts on successful login
     clearFailedAttempts(clientIp);
 
-    // Create session
     const token = generateToken();
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    // Using sequential calls instead of a transaction for simplicity.
-    // For production, this should be a single database function (RPC).
-
-    // 1. Create session
-    const { error: sessionError } = await supabase.from('user_sessions').insert({
-      user_id: user.id,
-      token_hash: tokenHash,
-      expires_at: expiresAt.toISOString(),
-      ip_address: clientIp,
+    await transaction(async (client) => {
+      await client.query(
+        'INSERT INTO user_sessions (user_id, token_hash, expires_at, ip_address) VALUES ($1, $2, $3, $4)',
+        [user.id, tokenHash, expiresAt.toISOString(), clientIp]
+      );
+      await client.query(
+        'UPDATE users SET last_login_at = NOW() WHERE id = $1',
+        [user.id]
+      );
+      await client.query(
+        'INSERT INTO audit_log (user_id, username, action, entity_type, entity_id, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
+        [user.id, user.username, 'LOGIN', 'user', user.id.toString(), clientIp]
+      );
     });
-    if (sessionError) throw sessionError;
 
-    // 2. Update last login
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ last_login_at: new Date().toISOString() })
-      .eq('id', user.id);
-    if (updateError) throw updateError;
-
-    // 3. Log audit event
-    const { error: auditError } = await supabase.from('audit_log').insert({
-      user_id: user.id,
-      username: user.username,
-      action: 'LOGIN',
-      entity_type: 'user',
-      entity_id: user.id.toString(),
-      ip_address: clientIp
-    });
-    if (auditError) throw auditError;
-
-    // Set session cookie
     cookies.set('session', token, {
       path: '/',
       httpOnly: true,
@@ -187,12 +166,11 @@ export const POST: RequestHandler = async (event) => {
  */
 export const DELETE: RequestHandler = async (event) => {
   const { cookies } = event;
-  const supabase = createSupabaseClient(event);
   const token = cookies.get('session');
 
   if (token) {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    await supabase.from('user_sessions').delete().eq('token_hash', tokenHash);
+    await query('DELETE FROM user_sessions WHERE token_hash = $1', [tokenHash]);
     cookies.delete('session', { path: '/' });
   }
 

@@ -186,131 +186,99 @@ export function getOrderSync(id: string): Order | null {
   return orders.find(o => o.id === id) || null;
 }
 
-// Change request management (local store operations)
-let changeRequestCounter = 0;
-
-export function openChangeRequest(orderId: string, payload: {
-  title: string;
-  author: string;
-  message: string;
-  proposed: any;
-}): string {
-  const prId = `PR-${++changeRequestCounter}`;
-  
-  ordersStore.update(orders =>
-    orders.map(o => {
-      if (o.id !== orderId) return o;
-      const pr = {
-        id: prId,
-        ...payload,
-        status: 'pending' as const,
-        createdAt: new Date().toISOString()
-      };
-      return { ...o, prs: [...(o.prs || []), pr] };
-    })
-  );
-  
-  return prId;
+// Change request management
+export async function openChangeRequest(orderId: string, payload: { title: string; message: string; proposedChanges: any; }): Promise<any | null> {
+  try {
+    const response = await fetch(`/api/draft-orders/${orderId}/change-requests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return response.ok ? await response.json() : null;
+  } catch (err) {
+    console.error('Failed to open change request:', err);
+    return null;
+  }
 }
 
-export function approveChangeRequest(orderId: string, prId: string, approver = 'admin'): boolean {
-  ordersStore.update(orders =>
-    orders.map(o => {
-      if (o.id !== orderId) return o;
-      
-      const pr = o.prs?.find(p => p.id === prId);
-      if (!pr || pr.status !== 'pending') return o;
-      
-      // Apply proposed changes
-      const proposed = pr.proposed || {};
-      const stages = { ...o.stages, ...proposed.stages };
-      const cycles = proposed.cycles || o.cycles;
-      
-      // Update PR status
-      const prs = o.prs.map(p =>
-        p.id === prId ? { ...p, status: 'approved' as const, approvedAt: new Date().toISOString(), approver } : p
-      );
-      
-      return { ...o, stages, cycles, prs };
-    })
-  );
-  
-  return true;
+export async function approveChangeRequest(orderId: string, crId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/draft-orders/${orderId}/change-requests/${crId}/approve`, {
+      method: 'POST'
+    });
+    return response.ok;
+  } catch (err) {
+    console.error('Failed to approve change request:', err);
+    return false;
+  }
 }
 
-export function declineChangeRequest(orderId: string, prId: string, decliner = 'admin'): boolean {
-  ordersStore.update(orders =>
-    orders.map(o => {
-      if (o.id !== orderId) return o;
-      
-      const prs = o.prs?.map(p =>
-        p.id === prId ? { ...p, status: 'declined' as const, declinedAt: new Date().toISOString(), decliner } : p
-      );
-      
-      return { ...o, prs };
-    })
-  );
-  
-  return true;
+export async function declineChangeRequest(orderId: string, crId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/draft-orders/${orderId}/change-requests/${crId}/decline`, {
+      method: 'POST'
+    });
+    return response.ok;
+  } catch (err) {
+    console.error('Failed to decline change request:', err);
+    return false;
+  }
 }
 
 // Revision management
-export function addRevision(orderId: string, file: any): string {
-  const revId = `REV-${Date.now()}`;
-  
-  ordersStore.update(orders =>
-    orders.map(o => {
-      if (o.id !== orderId) return o;
-      const revision = {
-        id: revId,
-        name: file.name,
-        file,
-        createdAt: new Date().toISOString()
-      };
-      return { ...o, revisions: [...(o.revisions || []), revision] };
-    })
-  );
-  
-  return revId;
+export async function addRevision(orderId: string, fileId: string, name: string): Promise<any | null> {
+  try {
+    const response = await fetch(`/api/draft-orders/${orderId}/revisions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileId, name })
+    });
+    return response.ok ? await response.json() : null;
+  } catch (err) {
+    console.error('Failed to add revision:', err);
+    return null;
+  }
 }
 
-export function setDefaultRevision(orderId: string, revId: string): boolean {
-  ordersStore.update(orders =>
-    orders.map(o => o.id === orderId ? { ...o, defaultRevisionId: revId } : o)
-  );
-  return true;
+export async function setDefaultRevision(orderId: string, revisionId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/draft-orders/${orderId}/revisions`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ revisionId })
+    });
+    return response.ok;
+  } catch (err) {
+    console.error('Failed to set default revision:', err);
+    return false;
+  }
 }
 
 // Rework management
-export function setRedoSelection(orderId: string, stage: string, reason: string): void {
-  ordersStore.update(orders =>
-    orders.map(o => o.id === orderId ? { ...o, redoStage: stage, redoReason: reason } : o)
-  );
+export async function addRedoFlag(orderId: string, stage: string, reason: string): Promise<any | null> {
+  try {
+    const response = await fetch(`/api/draft-orders/${orderId}/redo-flags`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage, reason })
+    });
+    return response.ok ? await response.json() : null;
+  } catch (err) {
+    console.error('Failed to add redo flag:', err);
+    return null;
+  }
 }
 
-export function addRedoFlag(orderId: string, stage: string, reason: string): string[] {
-  let newRedo: string[] = [];
-  ordersStore.update(orders =>
-    orders.map(o => {
-      if (o.id !== orderId) return o;
-      newRedo = [...(o.redo || []), stage];
-      const redoReasons = { ...(o.redoReasons || {}), [stage]: reason };
-      return { ...o, redo: newRedo, redoReasons };
-    })
-  );
-  return newRedo;
-}
-
-export function clearRedoFlag(orderId: string, stage: string): string[] {
-  let newRedo: string[] = [];
-  ordersStore.update(orders =>
-    orders.map(o => {
-      if (o.id !== orderId) return o;
-      newRedo = (o.redo || []).filter(s => s !== stage);
-      const redoReasons = { ...(o.redoReasons || {}) };
-      delete redoReasons[stage];
-      return { ...o, redo: newRedo, redoReasons };
-    })
-  );
-  return newRedo;
+export async function clearRedoFlag(orderId: string, stage: string): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/draft-orders/${orderId}/redo-flags`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage })
+    });
+    return response.ok;
+  } catch (err) {
+    console.error('Failed to clear redo flag:', err);
+    return false;
+  }
 }
