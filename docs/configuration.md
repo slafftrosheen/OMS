@@ -218,22 +218,40 @@ body {
 
 ### Security
 
-- [ ] Set strong `DB_PASSWORD`
-- [ ] Enable `secure: true` for cookies
-- [ ] Update default user password hashes
-- [ ] Configure firewall rules for database
+- [ ] **Set strong `DB_PASSWORD`:** Ensure that the database password is strong and has been changed from the default.
+- [ ] **Enable `secure: true` for cookies:** Ensure that the `secure` flag is enabled for all cookies in a production environment.
+- [ ] **Update default user password hashes:** Ensure that all default user password hashes have been updated.
+- [ ] **Remove Placeholder Passwords:** Remove any placeholder or default passwords for all users.
+- [ ] **Configure firewall rules for database:** Configure the firewall to restrict network access to the database.
 
 ### Performance
 
-- [ ] Tune connection pool size for load
-- [ ] Enable PostgreSQL connection pooler (PgBouncer)
-- [ ] Configure appropriate indexes
+- [ ] **Tune connection pool size for load:** Tune the connection pool size to handle the expected load.
+- [ ] **Enable PostgreSQL connection pooler (PgBouncer):** Enable a PostgreSQL connection pooler such as PgBouncer to improve performance.
+- [ ] **Configure appropriate indexes:** Configure appropriate indexes to improve database performance.
 
 ### Monitoring
 
-- [ ] Set up database connection monitoring
-- [ ] Configure error logging
-- [ ] Set up health check endpoints
+- [ ] **Set up database connection monitoring:** Set up monitoring for database connections to identify and resolve any issues.
+- [ ] **Configure error logging:** Configure error logging to capture and analyze any errors that occur.
+- [ ] **Set up health check endpoints:** Set up health check endpoints to monitor the health of the application.
+
+## Troubleshooting Configuration Issues
+
+### Invalid `.env` file
+
+- **Symptom:** The application fails to start or some environment variables are not being set correctly.
+- **Solution:** Ensure that the `.env` file is in the root of the project and that it is formatted correctly.
+
+### Incorrect database connection details
+
+- **Symptom:** The application is unable to connect to the database.
+- **Solution:** Check that the database connection details in the `.env` file are correct.
+
+### Incorrect file permissions
+
+- **Symptom:** The application is unable to read or write to a file.
+- **Solution:** Check that the file permissions are correct.
 
 ## SvelteKit Configuration
 
