@@ -1,46 +1,45 @@
 // src/routes/api/inventory/items/+server.ts
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query } from '$lib/server/db/connection';
 
 /**
  * GET /api/inventory/items - List all inventory items
  */
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
   const category = url.searchParams.get('category');
   const section = url.searchParams.get('section');
   const lowStock = url.searchParams.get('lowStock') === 'true';
   const search = url.searchParams.get('search');
 
-  let sql = `SELECT * FROM inventory_items WHERE 1=1`;
-  const params: any[] = [];
-  let idx = 1;
+  let query = locals.supabase
+    .from('inventory_items')
+    .select('*')
+    .order('updated_at', { ascending: false });
 
-  if (category) {
-    sql += ` AND category = $${idx++}`;
-    params.push(category);
-  }
+  if (category) query = query.eq('category', category);
+  if (section) query = query.eq('section', section);
 
-  if (section) {
-    sql += ` AND section = $${idx++}`;
-    params.push(section);
-  }
-
-  if (lowStock) {
-    sql += ` AND stock <= min_stock`;
-  }
+  // Note: Supabase JS filtering for column <= column is not directly supported via simple filter.
+  // We can use RPC or raw filtering if needed, or filter in JS if dataset is small.
+  // Or maybe query.filter('stock', 'lte', 'min_stock') ? No, 'lte' takes a value.
+  // We might need to filter after fetching if we can't use complex where clause or use raw SQL view.
+  // Or we can use `.not('min_stock', 'is', null)` and then...
+  // Actually PostgREST supports this via raw embedding, but supbase-js doesn't expose it easily?
+  // We can just filter in JS for now if dataset is small, or assume lowStock is handled client side.
+  // But let's try to be efficient.
 
   if (search) {
-    sql += ` AND (sku ILIKE $${idx} OR name ILIKE $${idx} OR location ILIKE $${idx})`;
-    params.push(`%${search}%`);
-    idx++;
+    query = query.or(`sku.ilike.%${search}%,name.ilike.%${search}%,location.ilike.%${search}%`);
   }
 
-  sql += ` ORDER BY updated_at DESC`;
+  const { data, error } = await query;
 
-  try {
-    const result = await query(sql, params);
-    const items = result.rows.map(row => ({
+  if (error) {
+    console.error('Failed to fetch inventory items:', error);
+    return json([], { status: 500 });
+  }
+
+  let items = data.map(row => ({
       id: row.id,
       sku: row.sku,
       name: row.name,
@@ -49,66 +48,71 @@ export const GET: RequestHandler = async ({ url }) => {
       group: row.item_group,
       subgroup: row.subgroup,
       unit: row.unit,
-      stock: parseFloat(row.stock),
-      min: parseFloat(row.min_stock),
-      thicknessMM: row.thickness_mm ? parseFloat(row.thickness_mm) : undefined,
+      stock: row.stock,
+      min: row.min_stock,
+      thicknessMM: row.thickness_mm,
       location: row.location,
       vendor: row.vendor,
       colorCode: row.color_code,
       barcode: row.barcode,
       note: row.note,
       leftover: row.leftover_data,
-      updatedAt: row.updated_at?.toISOString()
-    }));
-    return json(items);
-  } catch (err) {
-    console.error('Failed to fetch inventory items:', err);
-    return json([], { status: 500 });
+      updatedAt: row.updated_at
+  }));
+
+  if (lowStock) {
+      items = items.filter(i => i.stock <= i.min);
   }
+
+  return json(items);
 };
 
 /**
  * POST /api/inventory/items - Create new inventory item
  */
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
   const data = await request.json();
 
-  const id = data.id || `INV-${Date.now()}`;
-  const sql = `
-    INSERT INTO inventory_items (
-      id, sku, name, category, section, item_group, subgroup, unit,
-      stock, min_stock, thickness_mm, location, vendor, color_code, barcode, note, leftover_data
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-    RETURNING *
-  `;
+  // If ID is not provided, let database gen random UUID if set to default, or we can provide one.
+  // The migration below will set id to uuid default gen_random_uuid().
+  // However, the original code allowed custom ID (string).
+  // If we want to keep custom ID support (e.g. legacy IDs), we should check if it's a UUID or text.
+  // The original code used `INV-${Date.now()}` which is not UUID.
+  // Supabase usually prefers UUID.
+  // I will assume we should migrate to UUIDs, but if we need to preserve IDs, we should use text primary key.
+  // Let's assume text primary key for inventory_items to be safe with `INV-` format.
 
-  try {
-    const result = await query(sql, [
-      id,
-      data.sku,
-      data.name,
-      data.category || 'HARDWARE',
-      data.section || 'materials',
-      data.group || 'General',
-      data.subgroup || 'General',
-      data.unit || 'PCS',
-      data.stock || 0,
-      data.min || 0,
-      data.thicknessMM || null,
-      data.location || null,
-      data.vendor || null,
-      data.colorCode || null,
-      data.barcode || null,
-      data.note || null,
-      data.leftover ? JSON.stringify(data.leftover) : null
-    ]);
-    
-    return json(result.rows[0], { status: 201 });
-  } catch (err: any) {
-    console.error('Failed to create inventory item:', err);
-    if (err.code === '23505') {
-      return json({ error: 'SKU already exists' }, { status: 409 });
+  const { data: item, error } = await locals.supabase
+    .from('inventory_items')
+    .insert({
+      id: data.id || `INV-${Date.now()}`,
+      sku: data.sku,
+      name: data.name,
+      category: data.category || 'HARDWARE',
+      section: data.section || 'materials',
+      item_group: data.group || 'General',
+      subgroup: data.subgroup || 'General',
+      unit: data.unit || 'PCS',
+      stock: data.stock || 0,
+      min_stock: data.min || 0,
+      thickness_mm: data.thicknessMM || null,
+      location: data.location || null,
+      vendor: data.vendor || null,
+      color_code: data.colorCode || null,
+      barcode: data.barcode || null,
+      note: data.note || null,
+      leftover_data: data.leftover || null
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Failed to create inventory item:', error);
+    if (error.code === '23505') {
+      return json({ error: 'SKU or ID already exists' }, { status: 409 });
     }
     return json({ error: 'Failed to create item' }, { status: 500 });
   }
+
+  return json(item, { status: 201 });
 };

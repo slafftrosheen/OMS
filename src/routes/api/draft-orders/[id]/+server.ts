@@ -1,71 +1,68 @@
 // src/routes/api/draft-orders/[id]/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query, transaction } from '$lib/server/db/connection';
 
 /**
  * GET /api/draft-orders/[id] - Get single order with profiles
  */
-export const GET: RequestHandler = async ({ params }) => {
+export const GET: RequestHandler = async ({ params, locals }) => {
   try {
-    // First get the order with profiles
-    const sql = `
-      SELECT 
-        d.*,
-        (
-          SELECT json_agg(json_build_object(
-            'id', op.id,
-            'profileTemplateId', op.profile_template_id,
-            'quantity', op.quantity,
-            'configuration', op.configuration,
-            'notes', op.notes
-          ))
-          FROM order_profiles op
-          WHERE op.draft_order_id = d.id
-        ) as profiles
-      FROM draft_orders d
-      WHERE d.po_number = $1 OR d.id::text = $1
-    `;
+    const { data: order, error: fetchError } = await locals.supabase
+      .from('draft_orders')
+      .select(`
+        *,
+        profiles:order_profiles(
+          id,
+          profile_template_id,
+          quantity,
+          configuration,
+          notes
+        )
+      `)
+      .or(`id.eq.${params.id},po_number.eq.${params.id}`)
+      .single();
 
-    const result = await query(sql, [params.id]);
-
-    if (result.rows.length === 0) {
-      throw error(404, 'Order not found');
+    if (fetchError || !order) {
+       throw error(404, 'Order not found');
     }
 
-    const row = result.rows[0];
-    
-    // Try to get files separately (in case order_files table doesn't exist)
+    // Fetch files
     let files: any[] = [];
-    try {
-      const filesResult = await query(`
-        SELECT f.id, f.filename, f.original_name as "originalName", of.file_type as "fileType", f.created_at as "uploadedAt"
-        FROM order_files of
-        JOIN files f ON f.id = of.file_id
-        WHERE of.draft_order_id = $1
-      `, [row.id]);
-      files = filesResult.rows;
-    } catch (filesErr) {
-      // Table might not exist - ignore silently
+    const { data: orderFiles } = await locals.supabase
+        .from('order_files')
+        .select(`
+            id, file_type, display_name,
+            files(id, filename, original_name, created_at)
+        `)
+        .eq('draft_order_id', order.id);
+
+    if (orderFiles) {
+        files = orderFiles.map((of: any) => ({
+            id: of.files?.id,
+            filename: of.files?.filename,
+            originalName: of.files?.original_name,
+            fileType: of.file_type,
+            uploadedAt: of.files?.created_at
+        }));
     }
-    
+
     return json({
-      id: row.id,
-      poNumber: row.po_number,
-      clientName: row.client,
-      title: row.title,
-      deadline: row.due_date?.toISOString().slice(0, 10),
-      loadingDate: row.loading_date?.toISOString().slice(0, 10),
-      status: row.status,
-      notes: row.notes,
-      priority: row.priority || 'NORMAL',
-      deliveryAddress: row.delivery_address,
-      deliveryContact: row.delivery_contact,
-      deliveryPhone: row.delivery_phone,
-      profiles: row.profiles || [],
+      id: order.id,
+      poNumber: order.po_number,
+      clientName: order.client,
+      title: order.title,
+      deadline: order.due_date,
+      loadingDate: order.loading_date,
+      status: order.status,
+      notes: order.notes,
+      priority: order.priority || 'NORMAL',
+      deliveryAddress: order.delivery_address,
+      deliveryContact: order.delivery_contact,
+      deliveryPhone: order.delivery_phone,
+      profiles: order.profiles || [],
       files,
-      createdAt: row.created_at?.toISOString(),
-      updatedAt: row.updated_at?.toISOString()
+      createdAt: order.created_at,
+      updatedAt: order.updated_at
     });
   } catch (err: any) {
     if (err.status) throw err;
@@ -77,106 +74,84 @@ export const GET: RequestHandler = async ({ params }) => {
 /**
  * PUT /api/draft-orders/[id] - Update order
  */
-export const PUT: RequestHandler = async ({ params, request }) => {
+export const PUT: RequestHandler = async ({ params, request, locals }) => {
   const data = await request.json();
 
   try {
-    const result = await transaction(async (client) => {
-      // Find the order first
-      const findResult = await client.query(
-        'SELECT id FROM draft_orders WHERE po_number = $1 OR id::text = $1',
-        [params.id]
-      );
+    const { data: order, error: findError } = await locals.supabase
+        .from('draft_orders')
+        .select('id')
+        .or(`id.eq.${params.id},po_number.eq.${params.id}`)
+        .single();
 
-      if (findResult.rows.length === 0) {
-        throw { status: 404, message: 'Order not found' };
-      }
+    if (findError || !order) throw error(404, 'Order not found');
 
-      const orderId = findResult.rows[0].id;
+    const updates: any = {
+        updated_at: new Date().toISOString()
+    };
+    if (data.clientName || data.client) updates.client = data.clientName || data.client;
+    if (data.title) updates.title = data.title;
+    if (data.deadline || data.due) updates.due_date = data.deadline || data.due;
+    // Allow clearing date if explicitly null
+    if (data.loadingDate !== undefined) updates.loading_date = data.loadingDate;
+    if (data.status) updates.status = data.status;
+    if (data.notes !== undefined) updates.notes = data.notes;
+    if (data.priority) updates.priority = data.priority;
+    if (data.deliveryAddress !== undefined) updates.delivery_address = data.deliveryAddress;
+    if (data.deliveryContact !== undefined) updates.delivery_contact = data.deliveryContact;
+    if (data.deliveryPhone !== undefined) updates.delivery_phone = data.deliveryPhone;
 
-      // Update order with all fields
-      const updateSql = `
-        UPDATE draft_orders SET
-          client = COALESCE($2, client),
-          title = COALESCE($3, title),
-          due_date = COALESCE($4, due_date),
-          loading_date = $5,
-          status = COALESCE($6, status),
-          notes = $7,
-          priority = COALESCE($8, priority),
-          delivery_address = $9,
-          delivery_contact = $10,
-          delivery_phone = $11,
-          updated_at = NOW()
-        WHERE id = $1
-        RETURNING *
-      `;
+    const { data: updatedOrder, error: updateError } = await locals.supabase
+        .from('draft_orders')
+        .update(updates)
+        .eq('id', order.id)
+        .select()
+        .single();
 
-      const orderResult = await client.query(updateSql, [
-        orderId,
-        data.clientName || data.client,
-        data.title,
-        data.deadline || data.due || null,
-        data.loadingDate || null,
-        data.status,
-        data.notes ?? null,
-        data.priority || 'NORMAL',
-        data.deliveryAddress || null,
-        data.deliveryContact || null,
-        data.deliveryPhone || null
-      ]);
+    if (updateError) throw updateError;
 
-      // Update profiles if provided
-      if (data.profiles && Array.isArray(data.profiles)) {
-        // Delete existing profiles
-        await client.query('DELETE FROM order_profiles WHERE draft_order_id = $1', [orderId]);
+    // Update profiles
+    if (data.profiles && Array.isArray(data.profiles)) {
+        // Delete existing
+        await locals.supabase.from('order_profiles').delete().eq('draft_order_id', order.id);
 
-        // Insert new profiles
-        for (const profile of data.profiles) {
-          await client.query(`
-            INSERT INTO order_profiles (draft_order_id, profile_template_id, quantity, configuration, notes)
-            VALUES ($1, $2, $3, $4, $5)
-          `, [
-            orderId,
-            profile.profileTemplateId || null,
-            profile.quantity || 1,
-            JSON.stringify(profile.configuration || {}),
-            profile.notes || ''
-          ]);
-        }
-      }
+        // Insert new
+        const profilesToInsert = data.profiles.map((p: any) => ({
+            draft_order_id: order.id,
+            profile_template_id: p.profileTemplateId || null,
+            quantity: p.quantity || 1,
+            configuration: p.configuration || {},
+            notes: p.notes || ''
+        }));
 
-      // Link new files if provided
-      if (data.newFileIds && Array.isArray(data.newFileIds) && data.newFileIds.length > 0) {
-        try {
-          for (const fileId of data.newFileIds) {
-            await client.query(
-              `INSERT INTO order_files (draft_order_id, file_id, file_type, display_name)
-               VALUES ($1, $2, 'sketch', NULL)`,
-              [orderId, fileId]
-            );
-          }
-        } catch (fileErr) {
-          console.warn('Could not link files to order:', fileErr);
-        }
-      }
+        await locals.supabase.from('order_profiles').insert(profilesToInsert);
+    }
 
-      return orderResult.rows[0];
-    });
+    // Link new files
+    if (data.newFileIds && Array.isArray(data.newFileIds) && data.newFileIds.length > 0) {
+        const filesToInsert = data.newFileIds.map((fid: string) => ({
+            draft_order_id: order.id,
+            file_id: fid,
+            file_type: 'sketch',
+            display_name: null
+        }));
+        await locals.supabase.from('order_files').insert(filesToInsert);
+    }
 
     return json({
-      id: result.po_number,
-      client: result.client,
-      title: result.title,
-      due: result.due_date?.toISOString().slice(0, 10),
-      loadingDate: result.loading_date?.toISOString().slice(0, 10),
-      status: result.status,
-      notes: result.notes,
-      priority: result.priority,
-      deliveryAddress: result.delivery_address,
-      deliveryContact: result.delivery_contact,
-      deliveryPhone: result.delivery_phone
+      id: updatedOrder.po_number,
+      client: updatedOrder.client,
+      title: updatedOrder.title,
+      due: updatedOrder.due_date,
+      loadingDate: updatedOrder.loading_date,
+      status: updatedOrder.status,
+      notes: updatedOrder.notes,
+      priority: updatedOrder.priority,
+      deliveryAddress: updatedOrder.delivery_address,
+      deliveryContact: updatedOrder.delivery_contact,
+      deliveryPhone: updatedOrder.delivery_phone
     });
+
   } catch (err: any) {
     console.error('Failed to update order:', err);
     if (err.status === 404) throw error(404, err.message);
@@ -185,67 +160,46 @@ export const PUT: RequestHandler = async ({ params, request }) => {
 };
 
 /**
- * PATCH /api/draft-orders/[id] - Partial update (e.g., loading date)
+ * PATCH /api/draft-orders/[id] - Partial update
  */
-export const PATCH: RequestHandler = async ({ params, request }) => {
+export const PATCH: RequestHandler = async ({ params, request, locals }) => {
   const data = await request.json();
 
   try {
-    // Find the order first
-    const findResult = await query(
-      'SELECT id FROM draft_orders WHERE po_number = $1 OR id::text = $1',
-      [params.id]
-    );
+     const { data: order, error: findError } = await locals.supabase
+        .from('draft_orders')
+        .select('id')
+        .or(`id.eq.${params.id},po_number.eq.${params.id}`)
+        .single();
 
-    if (findResult.rows.length === 0) {
-      throw error(404, 'Order not found');
+    if (findError || !order) throw error(404, 'Order not found');
+
+    const updates: any = { updated_at: new Date().toISOString() };
+    if (data.loadingDate !== undefined) updates.loading_date = data.loadingDate;
+    if (data.status !== undefined) updates.status = data.status;
+    if (data.priority !== undefined) updates.priority = data.priority;
+    if (data.notes !== undefined) updates.notes = data.notes;
+
+    if (Object.keys(updates).length <= 1) {
+       throw error(400, 'No fields to update');
     }
 
-    const orderId = findResult.rows[0].id;
+    const { data: updatedOrder, error: updateError } = await locals.supabase
+        .from('draft_orders')
+        .update(updates)
+        .eq('id', order.id)
+        .select()
+        .single();
 
-    // Build dynamic update query based on provided fields
-    const updates: string[] = [];
-    const values: any[] = [orderId];
-    let idx = 2;
+    if (updateError) throw updateError;
 
-    if (data.loadingDate !== undefined) {
-      updates.push(`loading_date = $${idx}`);
-      values.push(data.loadingDate || null);
-      idx++;
-    }
-    if (data.status !== undefined) {
-      updates.push(`status = $${idx}`);
-      values.push(data.status);
-      idx++;
-    }
-    if (data.priority !== undefined) {
-      updates.push(`priority = $${idx}`);
-      values.push(data.priority);
-      idx++;
-    }
-    if (data.notes !== undefined) {
-      updates.push(`notes = $${idx}`);
-      values.push(data.notes);
-      idx++;
-    }
-
-    if (updates.length === 0) {
-      throw error(400, 'No fields to update');
-    }
-
-    updates.push('updated_at = NOW()');
-
-    const sql = `UPDATE draft_orders SET ${updates.join(', ')} WHERE id = $1 RETURNING *`;
-    const result = await query(sql, values);
-
-    const row = result.rows[0];
     return json({
-      id: row.id,
-      poNumber: row.po_number,
-      loadingDate: row.loading_date?.toISOString().slice(0, 10),
-      status: row.status,
-      priority: row.priority,
-      notes: row.notes
+      id: updatedOrder.id,
+      poNumber: updatedOrder.po_number,
+      loadingDate: updatedOrder.loading_date,
+      status: updatedOrder.status,
+      priority: updatedOrder.priority,
+      notes: updatedOrder.notes
     });
   } catch (err: any) {
     if (err.status) throw err;
@@ -257,18 +211,21 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 /**
  * DELETE /api/draft-orders/[id] - Delete order
  */
-export const DELETE: RequestHandler = async ({ params }) => {
+export const DELETE: RequestHandler = async ({ params, locals }) => {
   try {
-    const result = await query(
-      'DELETE FROM draft_orders WHERE po_number = $1 OR id::text = $1 RETURNING po_number',
-      [params.id]
-    );
+    const { data: deleted, error: deleteError } = await locals.supabase
+        .from('draft_orders')
+        .delete()
+        .or(`id.eq.${params.id},po_number.eq.${params.id}`)
+        .select('po_number')
+        .single();
 
-    if (result.rows.length === 0) {
-      throw error(404, 'Order not found');
+    if (deleteError || !deleted) {
+         // Try to verify existence first if delete returns 0 rows (PostgREST V10+ behavior depends on Prefer header)
+         throw error(404, 'Order not found');
     }
 
-    return json({ success: true, id: result.rows[0].po_number });
+    return json({ success: true, id: deleted.po_number });
   } catch (err: any) {
     if (err.status) throw err;
     console.error('Failed to delete order:', err);

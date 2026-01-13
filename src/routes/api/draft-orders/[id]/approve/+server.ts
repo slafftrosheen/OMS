@@ -1,6 +1,5 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query, transaction } from '$lib/server/db/connection';
 
 /**
  * POST /api/draft-orders/[id]/approve - Approve a draft order
@@ -8,79 +7,72 @@ import { query, transaction } from '$lib/server/db/connection';
 export const POST: RequestHandler = async ({ params, locals }) => {
   const user = locals.user;
   
-  if (!user || (user.role !== 'Admin' && user.role !== 'SuperAdmin')) {
+  if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
     return json({ message: 'Admin access required' }, { status: 403 });
   }
 
   const idParam = params.id;
 
   try {
-    const result = await transaction(async (client) => {
-      // Check order exists and is draft - support both numeric ID and PO number
-      const orderResult = await client.query(
-        'SELECT * FROM draft_orders WHERE po_number = $1 OR id::text = $1',
-        [idParam]
-      );
+    const { data: order, error: fetchError } = await locals.supabase
+        .from('draft_orders')
+        .select('*')
+        .or(`id.eq.${idParam},po_number.eq.${idParam}`)
+        .single();
 
-      if (orderResult.rowCount === 0) {
-        throw { status: 404, message: 'Order not found' };
-      }
+    if (fetchError || !order) {
+        return json({ message: 'Order not found' }, { status: 404 });
+    }
 
-      const order = orderResult.rows[0];
-      const orderId = order.id;
-      
-      if (order.status !== 'draft') {
-        throw { status: 400, message: 'Only draft orders can be approved' };
-      }
+    if (order.status !== 'draft') {
+        return json({ message: 'Only draft orders can be approved' }, { status: 400 });
+    }
 
-      // Update status to approved (moves to production)
-      await client.query(
-        `UPDATE draft_orders 
-         SET status = 'approved', 
-             approved_at = NOW(),
-             approved_by = $2,
-             updated_at = NOW()
-         WHERE id = $1`,
-        [orderId, user.username]
-      );
+    const { error: updateError } = await locals.supabase
+        .from('draft_orders')
+        .update({
+            status: 'approved',
+            approved_at: new Date().toISOString(),
+            approved_by: user.username,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', order.id);
 
-      // Create notification for SuperAdmin
-      try {
-        const superAdminResult = await client.query(
-          `SELECT id FROM users WHERE roles->>'Admin' = 'SuperAdmin' AND is_active = true`
-        );
-        
-        for (const admin of superAdminResult.rows) {
-          await client.query(
-            `INSERT INTO notifications (user_id, notification_type, title, message, link, source_type, source_id)
-             VALUES ($1, 'order', 'Order Approved', $2, $3, 'order', $4)`,
-            [
-              admin.id,
-              `Order ${order.po_number} has been approved and moved to production`,
-              `/orders/${order.po_number}`,
-              orderId.toString()
-            ]
-          );
-        }
-      } catch (notifErr) {
-        console.warn('Failed to create notification:', notifErr);
-      }
+    if (updateError) throw updateError;
 
-      // Log audit
-      try {
-        await client.query(
-          `INSERT INTO audit_log (user_id, username, action, entity_type, entity_id, details)
-           VALUES ($1, $2, 'APPROVE_ORDER', 'order', $3, $4)`,
-          [user.id, user.username, orderId.toString(), JSON.stringify({ po_number: order.po_number })]
-        );
-      } catch (auditErr) {
-        console.warn('Failed to log audit:', auditErr);
-      }
+    // Notify SuperAdmins
+    const { data: superAdmins } = await locals.supabase
+        .from('profiles')
+        .select('id')
+        .eq('roles->>Admin', 'SuperAdmin')
+        .eq('is_active', true);
 
-      return { success: true, message: 'Order approved successfully', poNumber: order.po_number };
+    if (superAdmins && superAdmins.length > 0) {
+        const notifications = superAdmins.map(admin => ({
+            user_id: admin.id,
+            notification_type: 'order',
+            title: 'Order Approved',
+            message: `Order ${order.po_number} has been approved and moved to production`,
+            link: `/orders/${order.po_number}`,
+            source_type: 'order',
+            source_id: order.id
+        }));
+
+        await locals.supabase.from('notifications').insert(notifications);
+    }
+
+    // Audit Log
+    await locals.supabase.from('audit_log').insert({
+        user_id: user.id,
+        username: user.username,
+        action: 'APPROVE_ORDER',
+        entity_type: 'order',
+        entity_id: order.id,
+        details: { po_number: order.po_number }
     });
 
-    return json(result);
+    return json({ success: true, message: 'Order approved successfully', poNumber: order.po_number });
+
   } catch (err: any) {
     console.error('Error approving order:', err);
     return json(

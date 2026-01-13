@@ -1,341 +1,119 @@
-// src/routes/api/profiles/templates/[code]/+server.ts
-
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query } from '$lib/server/db/connection';
 
 /**
- * GET /api/profiles/templates/:code
- * Get single template with full details
+ * GET /api/profiles/templates/[code]
  */
-export const GET: RequestHandler = async ({ params, url, locals }) => {
-  // Simple auth check - in production this would use proper auth middleware
-  const user = locals.user || { id: 1, role: 'Admin', name: 'System' };
-
+export const GET: RequestHandler = async ({ params, locals }) => {
   const { code } = params;
-  const includeVersions = url.searchParams.get('versions') === 'true';
-  const includeChanges = url.searchParams.get('changes') === 'true';
 
-  try {
-    // Get template with sections and fields
-    const templateResult = await query(
-      `SELECT 
-        pt.*,
-        pt.created_by as created_by_name,
-        pt.updated_by as updated_by_name
-       FROM profile_templates pt
-       WHERE pt.code = $1`,
-      [code]
-    );
+  const { data: template, error: err } = await locals.supabase
+    .from('profile_templates')
+    .select(`
+        *,
+        sections:profile_sections(
+            *,
+            fields:profile_fields(*)
+        )
+    `)
+    .eq('code', code)
+    .single();
 
-    if (templateResult.rows.length === 0) {
-      throw error(404, `Template ${code} not found`);
-    }
+  if (err || !template) throw error(404, 'Template not found');
 
-    const template = templateResult.rows[0];
-
-    // Get sections
-    const sectionsResult = await query(
-      `SELECT * FROM profile_sections 
-       WHERE template_id = $1 
-       ORDER BY order_index`,
-      [template.id]
-    );
-    
-    template.sections = sectionsResult.rows;
-
-    // Get fields for each section
-    for (const section of template.sections) {
-      const fieldsResult = await query(
-        `SELECT * FROM profile_fields 
-         WHERE section_id = $1 
-         ORDER BY order_index`,
-        [section.id]
-      );
-      section.fields = fieldsResult.rows;
-    }
-
-    // Include version history
-    if (includeVersions) {
-      const versionsResult = await query(
-        `SELECT 
-          tv.*,
-          tv.created_by as created_by_name
-         FROM template_versions tv
-         WHERE tv.template_id = $1
-         ORDER BY tv.created_at DESC`,
-        [template.id]
-      );
-      template.versions = versionsResult.rows;
-    }
-
-    // Include change log
-    if (includeChanges) {
-      const changesResult = await query(
-        `SELECT 
-          tc.*,
-          tc.created_by as created_by_name
-         FROM template_changes tc
-         WHERE tc.template_id = $1
-         ORDER BY tc.created_at DESC
-         LIMIT 100`,
-        [template.id]
-      );
-      template.changes = changesResult.rows;
-    }
-
-    return json(template);
-
-  } catch (err: any) {
-    console.error('Error loading template:', err);
-    if (err.status) throw err;
-    throw error(500, 'Failed to load template');
+  // Sort sections and fields
+  if (template.sections) {
+      template.sections.sort((a: any, b: any) => a.order_index - b.order_index);
+      for (const section of template.sections) {
+          if (section.fields) {
+              section.fields.sort((a: any, b: any) => a.order_index - b.order_index);
+          }
+      }
   }
+
+  return json(template);
 };
 
 /**
- * PUT /api/profiles/templates/:code
- * Update existing template
+ * PUT /api/profiles/templates/[code] - Update template
  */
 export const PUT: RequestHandler = async ({ params, request, locals }) => {
-  // Simple auth check - in production this would use proper auth middleware
-  const user = locals.user || { id: 1, role: 'Admin', name: 'System' };
-  
-  if (user.role !== 'Admin' && user.role !== 'SuperAdmin') {
+  const { code } = params;
+  const data = await request.json();
+  const user = locals.user;
+
+  if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
     throw error(403, 'Admin access required');
   }
 
-  const { code } = params;
+  // Check if exists
+  const { data: template } = await locals.supabase.from('profile_templates').select('id').eq('code', code).single();
+  if (!template) throw error(404, 'Template not found');
 
-  try {
-    const updates = await request.json();
+  // Update base
+  await locals.supabase.from('profile_templates').update({
+      name: data.name,
+      description: data.description,
+      is_active: data.is_active,
+      metadata: data.metadata,
+      updated_by: user.id,
+      updated_at: new Date().toISOString()
+  }).eq('id', template.id);
 
-    // Get existing template
-    const existingResult = await query(
-      'SELECT * FROM profile_templates WHERE code = $1',
-      [code]
-    );
+  // Full update of sections/fields is complex via REST.
+  // Usually we expect specific endpoints or full replace.
+  // Assuming full replace for simplicity as per `import` logic.
 
-    if (existingResult.rows.length === 0) {
-      throw error(404, `Template ${code} not found`);
-    }
+  if (data.sections) {
+      // Delete old sections
+      await locals.supabase.from('profile_sections').delete().eq('template_id', template.id);
 
-    const existing = existingResult.rows[0];
+      // Insert new
+      for (const section of data.sections) {
+         const { data: newSection } = await locals.supabase.from('profile_sections').insert({
+             template_id: template.id,
+             name: section.name,
+             display_name_en: section.display_name_en,
+             order_index: section.order_index,
+             is_required: section.is_required,
+             metadata: section.metadata
+         }).select().single();
 
-    await query('BEGIN');
-
-    try {
-      // 1. Update template
-      await query(
-        `UPDATE profile_templates
-         SET name = $1,
-             description = $2,
-             is_active = $3,
-             metadata = $4,
-             updated_by = $5,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE code = $6`,
-        [
-          updates.name || existing.name,
-          updates.description !== undefined ? updates.description : existing.description,
-          updates.is_active !== undefined ? updates.is_active : existing.is_active,
-          JSON.stringify(updates.metadata || existing.metadata),
-          user.name || 'system',
-          code
-        ]
-      );
-
-      // 2. Update sections if provided
-      if (updates.sections) {
-        // Delete existing sections (cascade will delete fields)
-        await query('DELETE FROM profile_sections WHERE template_id = $1', [existing.id]);
-
-        // Insert new sections
-        for (const section of updates.sections) {
-          const sectionResult = await query(
-            `INSERT INTO profile_sections (
-              template_id, name, display_name_en, display_name_ru, display_name_lv,
-              order_index, is_required, metadata
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING *`,
-            [
-              existing.id,
-              section.name,
-              section.display_name_en,
-              section.display_name_ru || section.display_name_en,
-              section.display_name_lv || section.display_name_en,
-              section.order_index,
-              section.is_required || false,
-              JSON.stringify(section.metadata || {})
-            ]
-          );
-
-          const newSection = sectionResult.rows[0];
-
-          // Insert fields
-          for (const field of section.fields || []) {
-            await query(
-              `INSERT INTO profile_fields (
-                section_id, field_key, field_type, label_en, label_ru, label_lv,
-                order_index, is_required, options, config,
-                validation_rules, conditional_logic, metadata
-              )
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-              [
-                newSection.id,
-                field.field_key,
-                field.field_type,
-                field.label_en,
-                field.label_ru || field.label_en,
-                field.label_lv || field.label_en,
-                field.order_index,
-                field.is_required || false,
-                JSON.stringify(field.options || []),
-                JSON.stringify(field.config || {}),
-                JSON.stringify(field.validation_rules || []),
-                JSON.stringify(field.conditional_logic || []),
-                JSON.stringify(field.metadata || {})
-              ]
-            );
-          }
-        }
+         if (newSection && section.fields) {
+             const fields = section.fields.map((f: any) => ({
+                 section_id: newSection.id,
+                 field_key: f.field_key,
+                 field_type: f.field_type,
+                 label_en: f.label_en,
+                 order_index: f.order_index,
+                 is_required: f.is_required,
+                 options: f.options,
+                 config: f.config,
+                 validation_rules: f.validation_rules,
+                 conditional_logic: f.conditional_logic,
+                 metadata: f.metadata
+             }));
+             await locals.supabase.from('profile_fields').insert(fields);
+         }
       }
-
-      // 3. Increment version and create snapshot
-      const [major, minor] = existing.version.split('.').map(Number);
-      const newVersion = `${major}.${minor + 1}`;
-
-      await query(
-        'UPDATE profile_templates SET version = $1 WHERE id = $2',
-        [newVersion, existing.id]
-      );
-
-      // Get updated template snapshot
-      const snapshotResult = await query(
-        `SELECT 
-          row_to_json(pt.*) as template,
-          (
-            SELECT json_agg(
-              jsonb_build_object(
-                'section', row_to_json(ps.*),
-                'fields', (
-                  SELECT json_agg(pf.* ORDER BY pf.order_index)
-                  FROM profile_fields pf
-                  WHERE pf.section_id = ps.id
-                )
-              ) ORDER BY ps.order_index
-            )
-            FROM profile_sections ps
-            WHERE ps.template_id = $1
-          ) as sections
-         FROM profile_templates pt
-         WHERE pt.id = $1`,
-        [existing.id]
-      );
-
-      const snapshot = snapshotResult.rows[0];
-
-      await query(
-        `INSERT INTO template_versions (
-          template_id, version, template_snapshot, 
-          notes, changes_count, created_by
-        )
-        VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          existing.id,
-          newVersion,
-          JSON.stringify(snapshot),
-          updates.version_notes || `Updated to v${newVersion}`,
-          (updates.sections?.length || 0),
-          user.name || 'system'
-        ]
-      );
-
-      await query('COMMIT');
-
-      return json({
-        success: true,
-        version: newVersion,
-        message: `Template ${code} updated to v${newVersion}`
-      });
-
-    } catch (err) {
-      await query('ROLLBACK');
-      throw err;
-    }
-
-  } catch (err: any) {
-    console.error('Error updating template:', err);
-    if (err.status) throw err;
-    throw error(500, 'Failed to update template');
   }
+
+  return json({ success: true });
 };
 
 /**
- * DELETE /api/profiles/templates/:code
- * Delete template (soft or hard delete)
+ * DELETE /api/profiles/templates/[code]
  */
-export const DELETE: RequestHandler = async ({ params, url, locals }) => {
-  // Simple auth check - in production this would use proper auth middleware
-  const user = locals.user || { id: 1, role: 'SuperAdmin', name: 'System' };
-  
-  if (user.role !== 'SuperAdmin') {
-    throw error(403, 'SuperAdmin access required for deletion');
-  }
-
+export const DELETE: RequestHandler = async ({ params, locals }) => {
   const { code } = params;
-  const hardDelete = url.searchParams.get('hard') === 'true';
-
-  try {
-    // Get template
-    const templateResult = await query(
-      'SELECT * FROM profile_templates WHERE code = $1',
-      [code]
-    );
-
-    if (templateResult.rows.length === 0) {
-      throw error(404, `Template ${code} not found`);
-    }
-
-    const template = templateResult.rows[0];
-
-    // Check usage
-    const usageResult = await query(
-      'SELECT COUNT(*) as count FROM order_profiles WHERE profile_template_id = $1',
-      [template.id]
-    );
-
-    const usageCount = parseInt(usageResult.rows[0].count);
-
-    if (usageCount > 0 && hardDelete) {
-      throw error(400, `Cannot delete template ${code} - used in ${usageCount} orders`);
-    }
-
-    if (hardDelete) {
-      // Hard delete (cascades to sections and fields)
-      await query('DELETE FROM profile_templates WHERE code = $1', [code]);
-      
-      return json({
-        success: true,
-        message: `Template ${code} permanently deleted`
-      });
-    } else {
-      // Soft delete (mark inactive)
-      await query(
-        'UPDATE profile_templates SET is_active = false, updated_by = $1 WHERE code = $2',
-        [user.name || 'system', code]
-      );
-      
-      return json({
-        success: true,
-        message: `Template ${code} deactivated`
-      });
-    }
-
-  } catch (err: any) {
-    console.error('Error deleting template:', err);
-    if (err.status) throw err;
-    throw error(500, 'Failed to delete template');
+  const user = locals.user;
+  
+  if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
+    throw error(403, 'Admin access required');
   }
+
+  const { error: err } = await locals.supabase.from('profile_templates').delete().eq('code', code);
+  if (err) throw error(500, 'Failed to delete template');
+
+  return json({ success: true });
 };

@@ -1,34 +1,47 @@
 // src/routes/api/calendar/capacity/+server.ts
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query } from '$lib/server/db/connection';
 
 /**
  * GET /api/calendar/capacity - Get capacity configuration
  */
-export const GET: RequestHandler = async () => {
+export const GET: RequestHandler = async ({ locals }) => {
   try {
-    // Get default capacity
-    const configResult = await query(
-      `SELECT default_capacity FROM capacity_config WHERE config_type = 'loading' AND is_active = true`
-    );
+    const { data: config, error: configError } = await locals.supabase
+        .from('capacity_config')
+        .select('id, default_capacity')
+        .eq('config_type', 'loading')
+        .eq('is_active', true)
+        .single();
 
-    const defaultCapacity = configResult.rowCount > 0 ? configResult.rows[0].default_capacity : 10;
+    // If not found, create default
+    let defaultConfig = config;
+    if (!config) {
+        const { data: newConfig } = await locals.supabase
+            .from('capacity_config')
+            .upsert({ config_type: 'loading', default_capacity: 10 }, { onConflict: 'config_type' })
+            .select()
+            .single();
+        defaultConfig = newConfig;
+    }
+
+    const defaultCapacity = defaultConfig?.default_capacity || 10;
+    const configId = defaultConfig?.id;
 
     // Get custom day capacities
-    const daysResult = await query(
-      `SELECT dc.date, dc.capacity 
-       FROM day_capacities dc
-       JOIN capacity_config cc ON cc.id = dc.config_id
-       WHERE cc.config_type = 'loading' AND cc.is_active = true`
-    );
-
     const customCapacities: Record<string, number> = {};
-    for (const row of daysResult.rows) {
-      const dateStr = row.date?.toISOString().slice(0, 10);
-      if (dateStr) {
-        customCapacities[dateStr] = row.capacity;
-      }
+    if (configId) {
+        const { data: days } = await locals.supabase
+            .from('day_capacities')
+            .select('date, capacity')
+            .eq('config_id', configId);
+
+        if (days) {
+            for (const row of days) {
+                // Ensure date string format
+                customCapacities[row.date] = row.capacity;
+            }
+        }
     }
 
     return json({
@@ -44,41 +57,38 @@ export const GET: RequestHandler = async () => {
 /**
  * PUT /api/calendar/capacity - Update capacity configuration
  */
-export const PUT: RequestHandler = async ({ request }) => {
+export const PUT: RequestHandler = async ({ request, locals }) => {
   const data = await request.json();
 
   try {
-    // Ensure config exists
-    await query(
-      `INSERT INTO capacity_config (config_type, default_capacity)
-       VALUES ('loading', 10)
-       ON CONFLICT (config_type) DO NOTHING`
-    );
+    // Get or create config
+    const { data: config } = await locals.supabase
+        .from('capacity_config')
+        .upsert({ config_type: 'loading', default_capacity: 10 }, { onConflict: 'config_type' })
+        .select('id')
+        .single();
 
-    // Update default capacity if provided
+    if (!config) throw new Error('Failed to get config');
+
+    // Update default capacity
     if (data.defaultCapacity !== undefined) {
-      await query(
-        `UPDATE capacity_config SET default_capacity = $1, updated_at = NOW()
-         WHERE config_type = 'loading'`,
-        [data.defaultCapacity]
-      );
+      await locals.supabase
+        .from('capacity_config')
+        .update({ default_capacity: data.defaultCapacity, updated_at: new Date().toISOString() })
+        .eq('id', config.id);
     }
 
-    // Update specific day capacity if provided
+    // Update specific day
     if (data.date && data.capacity !== undefined) {
-      const configResult = await query(
-        `SELECT id FROM capacity_config WHERE config_type = 'loading'`
-      );
-
-      if (configResult.rowCount > 0) {
-        const configId = configResult.rows[0].id;
-        await query(
-          `INSERT INTO day_capacities (config_id, date, capacity)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (config_id, date) DO UPDATE SET capacity = $3`,
-          [configId, data.date, data.capacity]
-        );
-      }
+        // Upsert day capacity
+        // Need to ensure unique constraint on (config_id, date) exists for upsert to work properly
+        await locals.supabase
+            .from('day_capacities')
+            .upsert({
+                config_id: config.id,
+                date: data.date,
+                capacity: data.capacity
+            }, { onConflict: 'config_id, date' });
     }
 
     return json({ success: true });
@@ -91,14 +101,25 @@ export const PUT: RequestHandler = async ({ request }) => {
 /**
  * DELETE /api/calendar/capacity - Reset capacity configuration
  */
-export const DELETE: RequestHandler = async () => {
+export const DELETE: RequestHandler = async ({ locals }) => {
   try {
-    await query(`UPDATE capacity_config SET default_capacity = 10 WHERE config_type = 'loading'`);
-    await query(
-      `DELETE FROM day_capacities WHERE config_id IN (
-        SELECT id FROM capacity_config WHERE config_type = 'loading'
-      )`
-    );
+    const { data: config } = await locals.supabase
+        .from('capacity_config')
+        .select('id')
+        .eq('config_type', 'loading')
+        .single();
+
+    if (config) {
+        await locals.supabase
+            .from('capacity_config')
+            .update({ default_capacity: 10 })
+            .eq('id', config.id);
+
+        await locals.supabase
+            .from('day_capacities')
+            .delete()
+            .eq('config_id', config.id);
+    }
 
     return json({ success: true });
   } catch (err) {

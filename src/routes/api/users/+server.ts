@@ -1,57 +1,50 @@
 // src/routes/api/users/+server.ts
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query, transaction } from '$lib/server/db/connection';
-import { getSessionUser, isAdmin } from '$lib/server/auth/session';
-import bcrypt from 'bcrypt';
+import { isAdmin } from '$lib/server/auth/session';
+import { supabaseAdmin } from '$lib/server/supabase-admin';
 
 /**
  * GET /api/users - List all users
  */
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
   const activeOnly = url.searchParams.get('active') !== 'false';
   const section = url.searchParams.get('section');
 
-  try {
-    let sql = 'SELECT id, username, display_name, primary_section, sections, roles, stations, is_active, last_login_at FROM users';
-    const conditions = [];
-    const params = [];
-    let paramIndex = 1;
+  let query = locals.supabase
+    .from('profiles')
+    .select('*')
+    .order('display_name', { ascending: true });
 
-    if (activeOnly) {
-      conditions.push(`is_active = $${paramIndex++}`);
-      params.push(true);
-    }
+  if (activeOnly) {
+    query = query.eq('is_active', true);
+  }
 
-    if (section) {
-      conditions.push(`sections @> $${paramIndex++}`);
-      params.push(JSON.stringify([section]));
-    }
+  if (section) {
+    query = query.contains('sections', [section]);
+  }
 
-    if (conditions.length > 0) {
-      sql += ` WHERE ${conditions.join(' AND ')}`;
-    }
-    sql += ' ORDER BY display_name ASC';
+  const { data, error } = await query;
 
-    const result = await query(sql, params);
-    const formattedUsers = result.rows.map(row => ({
-      id: row.id,
-      username: row.username,
-      name: row.display_name,
-      displayName: row.display_name,
-      primarySection: row.primary_section,
-      sections: row.sections,
-      roles: row.roles,
-      stations: row.stations || [],
-      isActive: row.is_active,
-      lastLoginAt: row.last_login_at
-    }));
-
-    return json(formattedUsers);
-  } catch (err) {
-    console.error('Failed to fetch users:', err);
+  if (error) {
+    console.error('Failed to fetch users:', error);
     return json([], { status: 500 });
   }
+
+  const formattedUsers = data.map(row => ({
+    id: row.id,
+    username: row.username,
+    name: row.display_name,
+    displayName: row.display_name,
+    primarySection: row.primary_section,
+    sections: row.sections,
+    roles: row.roles,
+    stations: row.stations || [],
+    isActive: row.is_active,
+    lastLoginAt: row.last_login_at
+  }));
+
+  return json(formattedUsers);
 };
 
 /**
@@ -73,34 +66,66 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     return json({ error: 'Password must be at least 8 characters' }, { status: 400 });
   }
 
-  try {
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(data.password, saltRounds);
+  if (!data.email) {
+      data.email = `${data.username}@example.com`;
+  }
 
-    const userProfile = await transaction(async (client) => {
-      const userResult = await client.query(
-        'INSERT INTO users (username, display_name, email, password_hash, primary_section, sections, roles, stations) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-        [data.username, data.displayName, data.email || null, hashedPassword, data.primarySection || 'Production', data.sections || ['Production'], data.roles || { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' }, data.stations || []]
-      );
-      const newUser = userResult.rows[0];
-      await client.query('INSERT INTO user_preferences (user_id) VALUES ($1)', [newUser.id]);
-      return newUser;
+  try {
+    // Use Admin Client to create user without affecting current session
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: data.email,
+        password: data.password,
+        user_metadata: {
+            username: data.username,
+            full_name: data.displayName
+        },
+        email_confirm: true // Auto confirm
     });
 
+    if (authError) {
+        throw authError;
+    }
+
+    if (!authData.user) {
+        throw new Error('Failed to create user');
+    }
+
+    // Now update the profile with extra fields
+    const { data: profile, error: profileError } = await locals.supabase
+        .from('profiles')
+        .update({
+            primary_section: data.primarySection || 'Production',
+            sections: data.sections || ['Production'],
+            roles: data.roles || { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' },
+            stations: data.stations || [],
+            is_active: true
+        })
+        .eq('id', authData.user.id)
+        .select()
+        .single();
+
+    if (profileError) {
+        throw profileError;
+    }
+
+    // Create preferences
+    await locals.supabase.from('user_preferences').insert({ user_id: authData.user.id });
+
     return json({
-      id: userProfile.id,
-      username: userProfile.username,
-      displayName: userProfile.display_name,
-      primarySection: userProfile.primary_section,
-      sections: userProfile.sections,
-      roles: userProfile.roles,
-      stations: userProfile.stations || []
+      id: profile.id,
+      username: profile.username,
+      displayName: profile.display_name,
+      primarySection: profile.primary_section,
+      sections: profile.sections,
+      roles: profile.roles,
+      stations: profile.stations || []
     }, { status: 201 });
+
   } catch (err: any) {
     console.error('Failed to create user:', err);
-    if (err.code === '23505') { // Unique violation
-      return json({ error: 'Username already exists' }, { status: 409 });
+    if (err.message?.includes('already registered')) {
+         return json({ error: 'Username/Email already exists' }, { status: 409 });
     }
-    return json({ error: 'Failed to create user' }, { status: 500 });
+    return json({ error: 'Failed to create user: ' + err.message }, { status: 500 });
   }
 };

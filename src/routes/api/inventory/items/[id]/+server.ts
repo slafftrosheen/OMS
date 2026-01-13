@@ -1,19 +1,21 @@
 // src/routes/api/inventory/items/[id]/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query } from '$lib/server/db/connection';
 
 /**
  * GET /api/inventory/items/[id] - Get single item
  */
-export const GET: RequestHandler = async ({ params }) => {
-  const result = await query('SELECT * FROM inventory_items WHERE id = $1', [params.id]);
+export const GET: RequestHandler = async ({ params, locals }) => {
+  const { data: row, error: fetchError } = await locals.supabase
+    .from('inventory_items')
+    .select('*')
+    .eq('id', params.id)
+    .single();
   
-  if (result.rows.length === 0) {
+  if (fetchError || !row) {
     throw error(404, 'Item not found');
   }
 
-  const row = result.rows[0];
   return json({
     id: row.id,
     sku: row.sku,
@@ -23,76 +25,60 @@ export const GET: RequestHandler = async ({ params }) => {
     group: row.item_group,
     subgroup: row.subgroup,
     unit: row.unit,
-    stock: parseFloat(row.stock),
-    min: parseFloat(row.min_stock),
-    thicknessMM: row.thickness_mm ? parseFloat(row.thickness_mm) : undefined,
+    stock: row.stock,
+    min: row.min_stock,
+    thicknessMM: row.thickness_mm,
     location: row.location,
     vendor: row.vendor,
     colorCode: row.color_code,
     barcode: row.barcode,
     note: row.note,
     leftover: row.leftover_data,
-    updatedAt: row.updated_at?.toISOString()
+    updatedAt: row.updated_at
   });
 };
 
 /**
  * PUT /api/inventory/items/[id] - Update item
  */
-export const PUT: RequestHandler = async ({ params, request }) => {
+export const PUT: RequestHandler = async ({ params, request, locals }) => {
   const data = await request.json();
 
-  const sql = `
-    UPDATE inventory_items SET
-      sku = COALESCE($2, sku),
-      name = COALESCE($3, name),
-      category = COALESCE($4, category),
-      section = COALESCE($5, section),
-      item_group = COALESCE($6, item_group),
-      subgroup = COALESCE($7, subgroup),
-      unit = COALESCE($8, unit),
-      stock = COALESCE($9, stock),
-      min_stock = COALESCE($10, min_stock),
-      thickness_mm = $11,
-      location = $12,
-      vendor = $13,
-      color_code = $14,
-      barcode = $15,
-      note = $16,
-      leftover_data = $17,
-      updated_at = NOW()
-    WHERE id = $1
-    RETURNING *
-  `;
+  const updates: any = { updated_at: new Date().toISOString() };
+  if (data.sku !== undefined) updates.sku = data.sku;
+  if (data.name !== undefined) updates.name = data.name;
+  if (data.category !== undefined) updates.category = data.category;
+  if (data.section !== undefined) updates.section = data.section;
+  if (data.group !== undefined) updates.item_group = data.group;
+  if (data.subgroup !== undefined) updates.subgroup = data.subgroup;
+  if (data.unit !== undefined) updates.unit = data.unit;
+  if (data.stock !== undefined) updates.stock = data.stock;
+  if (data.min !== undefined) updates.min_stock = data.min;
+  if (data.thicknessMM !== undefined) updates.thickness_mm = data.thicknessMM;
+  if (data.location !== undefined) updates.location = data.location;
+  if (data.vendor !== undefined) updates.vendor = data.vendor;
+  if (data.colorCode !== undefined) updates.color_code = data.colorCode;
+  if (data.barcode !== undefined) updates.barcode = data.barcode;
+  if (data.note !== undefined) updates.note = data.note;
+  if (data.leftover !== undefined) updates.leftover_data = data.leftover;
 
   try {
-    const result = await query(sql, [
-      params.id,
-      data.sku,
-      data.name,
-      data.category,
-      data.section,
-      data.group,
-      data.subgroup,
-      data.unit,
-      data.stock,
-      data.min,
-      data.thicknessMM ?? null,
-      data.location ?? null,
-      data.vendor ?? null,
-      data.colorCode ?? null,
-      data.barcode ?? null,
-      data.note ?? null,
-      data.leftover ? JSON.stringify(data.leftover) : null
-    ]);
+    const { data: updated, error: updateError } = await locals.supabase
+        .from('inventory_items')
+        .update(updates)
+        .eq('id', params.id)
+        .select()
+        .single();
 
-    if (result.rows.length === 0) {
-      throw error(404, 'Item not found');
+    if (updateError || !updated) {
+       if (updateError?.code === 'PGRST116' || !updated) throw error(404, 'Item not found');
+       throw updateError;
     }
 
-    return json(result.rows[0]);
+    return json(updated);
   } catch (err: any) {
     console.error('Failed to update item:', err);
+    if (err.status) throw err;
     throw error(500, 'Failed to update item');
   }
 };
@@ -100,11 +86,14 @@ export const PUT: RequestHandler = async ({ params, request }) => {
 /**
  * DELETE /api/inventory/items/[id] - Delete item
  */
-export const DELETE: RequestHandler = async ({ params }) => {
-  const result = await query('DELETE FROM inventory_items WHERE id = $1 RETURNING id', [params.id]);
+export const DELETE: RequestHandler = async ({ params, locals }) => {
+  const { error: deleteError } = await locals.supabase
+    .from('inventory_items')
+    .delete()
+    .eq('id', params.id);
   
-  if (result.rows.length === 0) {
-    throw error(404, 'Item not found');
+  if (deleteError) {
+     throw error(500, 'Failed to delete item');
   }
 
   return json({ success: true, id: params.id });

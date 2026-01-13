@@ -1,143 +1,181 @@
 // src/routes/api/files/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query, transaction } from '$lib/server/db/connection';
-import { saveFile, getMimeType } from '$lib/files/storage';
 
 /**
  * GET /api/files - List files with optional filters
  */
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
   const orderId = url.searchParams.get('orderId');
-  const category = url.searchParams.get('category');
   const limit = parseInt(url.searchParams.get('limit') || '50');
   const offset = parseInt(url.searchParams.get('offset') || '0');
 
-  let sql = `
-    SELECT id, original_name, filename as stored_name, mime_type, size_bytes as size, 
-           storage_path as path, uploaded_by, uploaded_at, metadata
-    FROM files
-    WHERE 1=1
-  `;
-  const params: any[] = [];
-  let idx = 1;
-
-  // Note: The current schema doesn't have order_id or category columns
-  // Files are linked to orders via a separate order_files table
-  // For now, return all files if orderId is provided (we'll need to join with order_files)
-  if (orderId) {
-    sql = `
-      SELECT f.id, f.original_name, f.filename as stored_name, f.mime_type, 
-             f.size_bytes as size, f.storage_path as path, f.uploaded_by, f.uploaded_at, f.metadata
-      FROM files f
-      LEFT JOIN order_files of ON of.file_id = f.id
-      LEFT JOIN draft_orders d ON d.id = of.draft_order_id
-      WHERE d.po_number = $${idx} OR d.id::text = $${idx}
-    `;
-    params.push(orderId);
-    idx++;
-  }
-
-  sql += ` ORDER BY uploaded_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
-  params.push(limit, offset);
-
   try {
-    const result = await query(sql, params);
-    const files = result.rows.map(row => ({
+    let query = locals.supabase
+      .from('files')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (orderId) {
+       // Join with order_files to filter by order.
+       // Supabase JS allows filtering by related table existence/criteria:
+       // .select('*, order_files!inner(draft_order_id)')
+       // .eq('order_files.draft_order_id', orderId)
+       // But wait, orderId can be PO Number too based on original code?
+       // "WHERE d.po_number = $${idx} OR d.id::text = $${idx}"
+       // If PO Number, we need to join draft_orders too.
+
+       // Complex join filtering in Supabase JS:
+       // We can fetch files that have order_files linked to the order.
+       // .select('*, order_files!inner(draft_orders!inner(id, po_number))')
+       // .or(`id.eq.${orderId},po_number.eq.${orderId}`, { foreignTable: 'order_files.draft_orders' })
+       // This syntax is tricky.
+
+       // Simplified approach: first resolve order ID if it's a PO Number.
+       let targetOrderId = orderId;
+       const { data: order } = await locals.supabase
+            .from('draft_orders')
+            .select('id')
+            .or(`id.eq.${orderId},po_number.eq.${orderId}`)
+            .maybeSingle(); // Use maybeSingle to avoid error if not found (just returns null)
+
+       if (order) {
+           targetOrderId = order.id;
+           // Now filter files by this order ID via order_files
+           // We need to filter files where id is in (select file_id from order_files where draft_order_id = targetOrderId)
+           // .in() accepts a list. We can't do subquery easily without RPC or two steps.
+           // Two steps:
+           const { data: fileIds } = await locals.supabase
+               .from('order_files')
+               .select('file_id')
+               .eq('draft_order_id', targetOrderId);
+
+           if (fileIds && fileIds.length > 0) {
+               query = query.in('id', fileIds.map(f => f.file_id));
+           } else {
+               return json([]); // No files for this order
+           }
+       } else {
+            // Order not found, so no files
+            return json([]);
+       }
+    }
+
+    const { data: files, error } = await query;
+
+    if (error) throw error;
+
+    const formattedFiles = files.map(row => ({
       id: row.id,
-      originalName: row.original_name,
-      storedName: row.stored_name,
-      mimeType: row.mime_type,
+      originalName: row.original_name || row.filename,
+      storedName: row.filename,
+      mimeType: row.mimetype,
       size: row.size,
-      path: row.path,
+      path: row.filepath,
       uploadedBy: row.uploaded_by,
-      uploadedAt: row.uploaded_at,
-      metadata: row.metadata
+      uploadedAt: row.created_at
     }));
 
-    return json(files);
+    return json(formattedFiles);
   } catch (err) {
     console.error('Failed to list files:', err);
-    // Return empty array instead of error for missing data
     return json([]);
   }
 };
 
 /**
  * POST /api/files - Upload file
+ * (Redundant to /api/files/upload but kept for compatibility)
  */
-export const POST: RequestHandler = async ({ request, cookies }) => {
-  try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    const orderId = formData.get('orderId') as string | null;
+export const POST: RequestHandler = async ({ request, locals }) => {
+    // Redirect logic to use the already refactored logic or reuse it.
+    // The previous refactor was in src/routes/api/files/upload/+server.ts.
+    // This endpoint seems to handle generic file upload and saving to DB.
+    // I will implement it similarly.
 
-    if (!file || !(file instanceof File)) {
-      throw error(400, 'No file provided');
+    const session = await locals.getSession();
+    if (!session) {
+         throw error(401, 'Unauthorized');
     }
 
-    // Get user from session (optional)
-    let uploadedBy: string | undefined;
-    const token = cookies.get('session');
-    if (token) {
-      const crypto = await import('crypto');
-      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-      const userResult = await query(
-        `SELECT u.username FROM users u
-         JOIN user_sessions s ON s.user_id = u.id
-         WHERE s.token_hash = $1 AND s.expires_at > NOW()`,
-        [tokenHash]
-      );
-      if (userResult.rowCount && userResult.rowCount > 0) {
-        uploadedBy = userResult.rows[0].username;
-      }
+    try {
+        const formData = await request.formData();
+        const file = formData.get('file') as File;
+        const orderId = formData.get('orderId') as string | null;
+
+        if (!file || !(file instanceof File)) {
+            throw error(400, 'No file provided');
+        }
+
+        // Upload to Storage
+        const ext = file.name.split('.').pop();
+        const uniqueName = crypto.randomUUID();
+        const fileName = `${uniqueName}.${ext}`;
+        const filePath = `general/${fileName}`; // Using 'general' category as default
+
+        const { error: uploadError } = await locals.supabase
+            .storage
+            .from('files')
+            .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        // Save to DB
+        const { data: fileRecord, error: dbError } = await locals.supabase
+            .from('files')
+            .insert({
+                filename: fileName,
+                original_name: file.name,
+                filepath: filePath,
+                mimetype: file.type,
+                size: file.size,
+                uploaded_by: session.user.id
+            })
+            .select()
+            .single();
+
+        if (dbError) {
+             // Cleanup storage
+             await locals.supabase.storage.from('files').remove([filePath]);
+             throw dbError;
+        }
+
+        // Link to Order if provided
+        if (orderId) {
+             // Check if order exists (by ID or PO)
+             const { data: order } = await locals.supabase
+                .from('draft_orders')
+                .select('id')
+                .or(`id.eq.${orderId},po_number.eq.${orderId}`)
+                .maybeSingle();
+
+             if (order) {
+                 await locals.supabase
+                    .from('order_files')
+                    .insert({
+                        draft_order_id: order.id,
+                        file_id: fileRecord.id,
+                        file_type: 'attachment', // Default type
+                        display_name: file.name
+                    });
+             }
+        }
+
+        return json({
+            id: fileRecord.id,
+            originalName: fileRecord.original_name,
+            storedName: fileRecord.filename,
+            mimeType: fileRecord.mimetype,
+            size: fileRecord.size,
+            path: fileRecord.filepath, // Should be public URL or path? Logic uses path.
+            uploadedBy: fileRecord.uploaded_by,
+            uploadedAt: fileRecord.created_at
+        }, { status: 201 });
+
+    } catch (err: any) {
+        console.error('File upload error:', err);
+        if (err.status) throw err;
+        throw error(500, err.message || 'Failed to upload file');
     }
-
-    // Read file buffer
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const mimeType = file.type || getMimeType(file.name);
-
-    // Save to filesystem
-    const metadata = await saveFile(buffer, file.name, {
-      mimeType,
-      uploadedBy,
-      orderId: orderId || undefined
-    });
-
-    // Save to database
-    const result = await query(`
-      INSERT INTO files (id, original_name, stored_name, mime_type, size, path, category, order_id, uploaded_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING *
-    `, [
-      metadata.id,
-      metadata.originalName,
-      metadata.storedName,
-      metadata.mimeType,
-      metadata.size,
-      metadata.path,
-      metadata.category,
-      orderId || null,
-      uploadedBy || null
-    ]);
-
-    const row = result.rows[0];
-    return json({
-      id: row.id,
-      originalName: row.original_name,
-      storedName: row.stored_name,
-      mimeType: row.mime_type,
-      size: row.size,
-      path: row.path,
-      category: row.category,
-      orderId: row.order_id,
-      uploadedBy: row.uploaded_by,
-      uploadedAt: row.uploaded_at
-    }, { status: 201 });
-
-  } catch (err: any) {
-    console.error('File upload error:', err);
-    if (err.status) throw err;
-    throw error(500, err.message || 'Failed to upload file');
-  }
 };
