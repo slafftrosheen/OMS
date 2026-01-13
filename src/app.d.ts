@@ -1,25 +1,14 @@
-/// <reference types="svelte" />
-/// <reference types="vite/client" />
+import type { Session, SupabaseClient } from '@supabase/supabase-js';
 
-// See https://kit.svelte.dev/docs/types#app
-// for information about these interfaces
 declare global {
   namespace App {
     interface Locals {
-      user?: {
-        id: number;
-        username: string;
-        name: string;
-        displayName: string;
-        primarySection: string;
-        sections: string[];
-        roles: Record<string, string>;
-        stations: string[];
-        role: string; // Computed highest role
-      };
+      supabase: SupabaseClient;
+      getSession: () => Promise<Session | null>;
+      user: import('$lib/server/auth/session').SessionUser | null;
     }
-    // interface Error {}
     // interface PageData {}
+    // interface Error {}
     // interface Platform {}
   }
 }

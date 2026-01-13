@@ -1,10 +1,8 @@
 // src/lib/server/auth/session.ts
-import { query } from '$lib/server/db/connection';
 import type { RequestEvent } from '@sveltejs/kit';
-import crypto from 'crypto';
 
 export interface SessionUser {
-  id: string;
+  id: string; // This will now be the UUID from Supabase
   email?: string;
   username: string;
   displayName: string;
@@ -15,45 +13,39 @@ export interface SessionUser {
 }
 
 /**
- * Get authenticated user from session cookie
+ * Get authenticated user from Supabase session
  */
 export async function getSessionUser(event: RequestEvent): Promise<SessionUser | null> {
-  const token = event.cookies.get('session');
-  if (!token) {
+  const session = await event.locals.getSession();
+  if (!session) {
     return null;
   }
 
-  try {
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    const result = await query(
-      `SELECT u.id, u.username, u.display_name, u.email, u.primary_section,
-              u.sections, u.roles, u.stations
-       FROM users u
-       JOIN user_sessions s ON s.user_id = u.id
-       WHERE s.token_hash = $1 AND s.expires_at > NOW() AND u.is_active = true`,
-      [tokenHash]
-    );
+  const { user: supabaseUser } = session;
+  const { data: profile, error } = await event.locals.supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', supabaseUser.id)
+    .single();
 
-    if (result.rows.length === 0) {
-      event.cookies.delete('session', { path: '/' });
-      return null;
-    }
-
-    const user = result.rows[0];
-    return {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      displayName: user.display_name,
-      primarySection: user.primary_section,
-      sections: user.sections,
-      roles: user.roles,
-      stations: user.stations || []
-    };
-  } catch (err) {
-    console.error('Session user fetch error:', err);
+  if (error || !profile) {
+    console.error('Profile fetch error:', error);
+    // If profile doesn't exist, we might want to return a basic user based on auth data
+    // or return null if profiles are strictly required.
+    // For now, let's return null if profile is missing, assuming migration will create profiles.
     return null;
   }
+
+  return {
+    id: profile.id,
+    email: supabaseUser.email,
+    username: profile.username,
+    displayName: profile.display_name,
+    primarySection: profile.primary_section,
+    sections: profile.sections,
+    roles: profile.roles,
+    stations: profile.stations || []
+  };
 }
 
 /**

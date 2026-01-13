@@ -1,18 +1,15 @@
 // src/routes/api/profiles/templates/import/+server.ts
-
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query } from '$lib/server/db/connection';
 
 /**
  * POST /api/profiles/templates/import
  * Import template from JSON
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
-  // Simple auth check - in production this would use proper auth middleware
-  const user = locals.user || { id: 1, role: 'Admin', name: 'System' };
+  const user = locals.user;
   
-  if (user.role !== 'Admin' && user.role !== 'SuperAdmin') {
+  if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
     throw error(403, 'Admin access required');
   }
 
@@ -23,177 +20,131 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       throw error(400, 'Invalid template data');
     }
 
-    // Validate structure
     if (!Array.isArray(importData.sections)) {
       throw error(400, 'Template must have sections array');
     }
 
     // Check if code exists
-    const existingResult = await query(
-      'SELECT id FROM profile_templates WHERE code = $1',
-      [importData.code]
-    );
+    const { data: existing } = await locals.supabase
+        .from('profile_templates')
+        .select('id')
+        .eq('code', importData.code)
+        .single();
 
-    if (existingResult.rows.length > 0 && !overwrite) {
+    if (existing && !overwrite) {
       throw error(409, `Template ${importData.code} already exists. Use overwrite=true to replace.`);
     }
 
-    await query('BEGIN');
+    let templateId = existing?.id;
 
-    try {
-      let templateId: number;
-
-      if (existingResult.rows.length > 0 && overwrite) {
-        // Delete existing and recreate
-        templateId = existingResult.rows[0].id;
-        await query('DELETE FROM profile_sections WHERE template_id = $1', [templateId]);
+    if (templateId && overwrite) {
+        // Delete sections (cascade deletes fields)
+        await locals.supabase.from('profile_sections').delete().eq('template_id', templateId);
         
-        await query(
-          `UPDATE profile_templates
-           SET name = $1,
-               description = $2,
-               metadata = $3,
-               updated_by = $4,
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = $5`,
-          [
-            importData.name,
-            importData.description || '',
-            JSON.stringify(importData.metadata || {}),
-            user.name || 'system',
-            templateId
-          ]
-        );
-      } else {
-        // Create new template
-        const templateResult = await query(
-          `INSERT INTO profile_templates (
-            code, name, description, version, is_active, metadata,
-            created_by, updated_by
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-          RETURNING id`,
-          [
-            importData.code,
-            importData.name,
-            importData.description || '',
-            '1.0',
-            importData.is_active !== false,
-            JSON.stringify(importData.metadata || {}),
-            user.name || 'system',
-            user.name || 'system'
-          ]
-        );
-        templateId = templateResult.rows[0].id;
-      }
+        // Update template
+        const { error: updateError } = await locals.supabase
+            .from('profile_templates')
+            .update({
+                name: importData.name,
+                description: importData.description || '',
+                metadata: importData.metadata || {},
+                updated_by: user.id,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', templateId);
 
-      // Import sections and fields
-      for (const section of importData.sections) {
-        const sectionResult = await query(
-          `INSERT INTO profile_sections (
-            template_id, name, display_name_en, display_name_ru, display_name_lv,
-            order_index, is_required, metadata
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-          RETURNING id`,
-          [
-            templateId,
-            section.name,
-            section.display_name_en,
-            section.display_name_ru || section.display_name_en,
-            section.display_name_lv || section.display_name_en,
-            section.order_index,
-            section.is_required || false,
-            JSON.stringify(section.metadata || {})
-          ]
-        );
+        if (updateError) throw updateError;
+    } else {
+        // Create new
+        const { data: newTemplate, error: insertError } = await locals.supabase
+            .from('profile_templates')
+            .insert({
+                code: importData.code,
+                name: importData.name,
+                description: importData.description || '',
+                version: 1, // integer
+                is_active: importData.is_active !== false,
+                metadata: importData.metadata || {},
+                created_by: user.id,
+                updated_by: user.id
+            })
+            .select()
+            .single();
 
-        const sectionId = sectionResult.rows[0].id;
+        if (insertError) throw insertError;
+        templateId = newTemplate.id;
+    }
 
-        // Import fields
+    // Import sections and fields
+    for (const section of importData.sections) {
+        const { data: newSection, error: sectionError } = await locals.supabase
+            .from('profile_sections')
+            .insert({
+                template_id: templateId,
+                name: section.name,
+                display_name_en: section.display_name_en,
+                display_name_ru: section.display_name_ru || section.display_name_en,
+                display_name_lv: section.display_name_lv || section.display_name_en,
+                order_index: section.order_index,
+                is_required: section.is_required || false,
+                metadata: section.metadata || {}
+            })
+            .select()
+            .single();
+
+        if (sectionError) throw sectionError;
+
         if (section.fields && Array.isArray(section.fields)) {
-          for (const field of section.fields) {
-            await query(
-              `INSERT INTO profile_fields (
-                section_id, field_key, field_type, label_en, label_ru, label_lv,
-                order_index, is_required, options, config,
-                validation_rules, conditional_logic, metadata
-              )
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-              [
-                sectionId,
-                field.field_key,
-                field.field_type,
-                field.label_en,
-                field.label_ru || field.label_en,
-                field.label_lv || field.label_en,
-                field.order_index,
-                field.is_required || false,
-                JSON.stringify(field.options || []),
-                JSON.stringify(field.config || {}),
-                JSON.stringify(field.validation_rules || []),
-                JSON.stringify(field.conditional_logic || []),
-                JSON.stringify(field.metadata || {})
-              ]
-            );
-          }
+            const fieldsToInsert = section.fields.map((field: any) => ({
+                section_id: newSection.id,
+                field_key: field.field_key,
+                field_type: field.field_type,
+                label_en: field.label_en,
+                label_ru: field.label_ru || field.label_en,
+                label_lv: field.label_lv || field.label_en,
+                order_index: field.order_index,
+                is_required: field.is_required || false,
+                options: field.options || [],
+                config: field.config || {},
+                validation_rules: field.validation_rules || [],
+                conditional_logic: field.conditional_logic || [],
+                metadata: field.metadata || {}
+            }));
+
+            const { error: fieldsError } = await locals.supabase
+                .from('profile_fields')
+                .insert(fieldsToInsert);
+
+            if (fieldsError) throw fieldsError;
         }
-      }
+    }
 
-      // Create version snapshot
-      const snapshotResult = await query(
-        `SELECT 
-          row_to_json(pt.*) as template,
-          (
-            SELECT json_agg(
-              jsonb_build_object(
-                'id', ps.id,
-                'name', ps.name,
-                'display_name_en', ps.display_name_en,
-                'fields', (
-                  SELECT json_agg(pf.* ORDER BY pf.order_index)
-                  FROM profile_fields pf
-                  WHERE pf.section_id = ps.id
-                )
-              ) ORDER BY ps.order_index
+    // Create version snapshot
+    const { data: fullTemplate } = await locals.supabase
+        .from('profile_templates')
+        .select(`
+            *,
+            sections:profile_sections(
+                *,
+                fields:profile_fields(*)
             )
-            FROM profile_sections ps
-            WHERE ps.template_id = $1
-          ) as sections
-         FROM profile_templates pt
-         WHERE pt.id = $1`,
-        [templateId]
-      );
+        `)
+        .eq('id', templateId)
+        .single();
 
-      const snapshot = snapshotResult.rows[0];
+    await locals.supabase.from('template_versions').insert({
+        template_id: templateId,
+        version: 1,
+        template_snapshot: fullTemplate,
+        notes: 'Imported template',
+        created_by: user.id
+    });
 
-      await query(
-        `INSERT INTO template_versions (
-          template_id, version, template_snapshot, notes, created_by
-        )
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (template_id, version) DO NOTHING`,
-        [
-          templateId,
-          '1.0',
-          JSON.stringify(snapshot),
-          'Imported template',
-          user.name || 'system'
-        ]
-      );
-
-      await query('COMMIT');
-
-      return json({
+    return json({
         success: true,
         templateId,
         message: `Template ${importData.code} imported successfully`
-      }, { status: 201 });
-
-    } catch (err) {
-      await query('ROLLBACK');
-      throw err;
-    }
+    }, { status: 201 });
 
   } catch (err: any) {
     console.error('Import error:', err);

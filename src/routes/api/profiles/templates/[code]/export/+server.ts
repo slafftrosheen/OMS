@@ -1,18 +1,15 @@
 // src/routes/api/profiles/templates/[code]/export/+server.ts
-
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query } from '$lib/server/db/connection';
 
 /**
  * GET /api/profiles/templates/:code/export
  * Export template as JSON
  */
 export const GET: RequestHandler = async ({ params, url, locals }) => {
-  // Simple auth check - in production this would use proper auth middleware
-  const user = locals.user || { id: 1, role: 'Admin', name: 'System' };
+  const user = locals.user;
   
-  if (user.role !== 'Admin' && user.role !== 'SuperAdmin') {
+  if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
     throw error(403, 'Admin access required');
   }
 
@@ -20,55 +17,38 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
   const includeVersions = url.searchParams.get('versions') === 'true';
 
   try {
-    // Get complete template
-    const templateResult = await query(
-      `SELECT 
-        pt.*,
-        json_agg(
-          json_build_object(
-            'name', ps.name,
-            'display_name_en', ps.display_name_en,
-            'display_name_ru', ps.display_name_ru,
-            'display_name_lv', ps.display_name_lv,
-            'order_index', ps.order_index,
-            'is_required', ps.is_required,
-            'metadata', ps.metadata,
-            'fields', (
-              SELECT json_agg(
-                json_build_object(
-                  'field_key', pf.field_key,
-                  'field_type', pf.field_type,
-                  'label_en', pf.label_en,
-                  'label_ru', pf.label_ru,
-                  'label_lv', pf.label_lv,
-                  'order_index', pf.order_index,
-                  'is_required', pf.is_required,
-                  'options', pf.options,
-                  'config', pf.config,
-                  'validation_rules', pf.validation_rules,
-                  'conditional_logic', pf.conditional_logic,
-                  'metadata', pf.metadata
-                ) ORDER BY pf.order_index
-              )
-              FROM profile_fields pf
-              WHERE pf.section_id = ps.id
+    // Get complete template with nested sections and fields
+    const { data: template, error: fetchError } = await locals.supabase
+        .from('profile_templates')
+        .select(`
+            *,
+            sections:profile_sections(
+                name, display_name_en, display_name_ru, display_name_lv,
+                order_index, is_required, metadata,
+                fields:profile_fields(
+                    field_key, field_type, label_en, label_ru, label_lv,
+                    order_index, is_required, options, config,
+                    validation_rules, conditional_logic, metadata
+                )
             )
-          ) ORDER BY ps.order_index
-        ) FILTER (WHERE ps.id IS NOT NULL) as sections
-       FROM profile_templates pt
-       LEFT JOIN profile_sections ps ON ps.template_id = pt.id
-       WHERE pt.code = $1
-       GROUP BY pt.id`,
-      [code]
-    );
+        `)
+        .eq('code', code)
+        .single();
 
-    if (templateResult.rows.length === 0) {
-      throw error(404, `Template ${code} not found`);
+    if (fetchError || !template) {
+        throw error(404, `Template ${code} not found`);
     }
 
-    const template = templateResult.rows[0];
+    // Sort sections and fields (Supabase join sorting is tricky, easier in JS here)
+    if (template.sections) {
+        template.sections.sort((a: any, b: any) => a.order_index - b.order_index);
+        for (const section of template.sections) {
+            if (section.fields) {
+                section.fields.sort((a: any, b: any) => a.order_index - b.order_index);
+            }
+        }
+    }
 
-    // Remove internal database fields
     const exportData: any = {
       code: template.code,
       name: template.name,
@@ -78,22 +58,19 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
       metadata: template.metadata,
       sections: template.sections,
       exported_at: new Date().toISOString(),
-      exported_by: user.name || 'system'
+      exported_by: user.username
     };
 
-    // Include version history if requested
     if (includeVersions) {
-      const versionsResult = await query(
-        `SELECT version, notes, created_at 
-         FROM template_versions 
-         WHERE template_id = $1 
-         ORDER BY created_at DESC`,
-        [template.id]
-      );
-      exportData.version_history = versionsResult.rows;
+        const { data: versions } = await locals.supabase
+            .from('template_versions')
+            .select('version, notes, created_at')
+            .eq('template_id', template.id)
+            .order('created_at', { ascending: false });
+
+        exportData.version_history = versions || [];
     }
 
-    // Return as downloadable JSON
     return new Response(JSON.stringify(exportData, null, 2), {
       headers: {
         'Content-Type': 'application/json',
