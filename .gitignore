@@ -1,22 +1,54 @@
-node_modules
-.DS_Store
-build
-.svelte-kit
+```
+# Dependencies
+node_modules/
 
-# Environment files
+# Build outputs
+dist/
+build/
+*.js.map
+*.tsbuildinfo
+
+# Environment variables
 .env
 .env.local
-.env.*.local
+*.env.*
 
-# Uploads
-uploads/
+# IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# Backup files
-*.bak
-*.bak2
+# Logs
+*.log
 
-# Large binary files in docs (PDFs, images)
-docs/*.pdf
-docs/*.png
-docs/*.jpg
-docs/*.jpeg
+# Python related
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Temporary files
+*.tmp
+*.temp
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+```
