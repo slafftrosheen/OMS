@@ -9,6 +9,15 @@ Production deployment instructions for Reclame OMS.
 | Node.js Server | Full control, SSR | Medium |
 | Docker | Containerized environments | Medium |
 | Static Hosting | GitHub Pages, Netlify | Low |
+| Supabase | Cloud Backend (Auth, DB, Storage) | Low |
+
+## Supabase Deployment
+
+For projects using Supabase as the backend:
+
+1.  **Migrations:** Manage database schema using Supabase Migrations. See [Supabase Migrations Guide](supabase-migrations.md) for details.
+2.  **Environment Variables:** Ensure `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` are set in your production environment.
+3.  **Edge Functions:** Deploy any Edge Functions using `supabase functions deploy`.
 
 ## Node.js Server Deployment
 
