@@ -7,9 +7,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "smoke-test": "vite build && vite preview",
-    "postinstall": "node scripts/ensure-untrack.mjs",
-    "test": "node packages/vitest/bin.js src tests"
+    "smoke-test": "vite build && vite preview"
   },
   "dependencies": {
     "@ericblade/quagga2": "^1.12.0",
