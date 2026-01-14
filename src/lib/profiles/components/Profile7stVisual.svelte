@@ -1,6 +1,22 @@
 <!-- src/lib/profiles/components/Profile7stVisual.svelte -->
 <!-- Clean, scalable work form -->
 <script lang="ts">
+  /**
+   * @file Profile7stVisual.svelte
+   * @description A detailed, multi-section form for configuring sign profiles.
+   * This component is designed to manage complex production specifications,
+   * breaking them down into logical sections like CNC, Bending, Painting, etc.
+   * It is highly interactive and emits events whenever the configuration changes.
+   *
+   * @component
+   * @props {ProfileConfiguration} configuration - The main object holding all the form's data.
+   *   It is structured by production station (e.g., CNC_FREZER, BENDER).
+   * @props {boolean} [readonly=false] - When true, all form inputs are disabled,
+   *   making the component a visual display of a profile's configuration.
+   *
+   * @emits change - Fired whenever any value in the `configuration` object is modified.
+   *   The event detail contains the entire updated `configuration` object.
+   */
   import { createEventDispatcher } from 'svelte';
   import MaterialSelect from './fields/MaterialSelect.svelte';
   import { 
@@ -9,12 +25,22 @@
     Sun, Moon, Check, X
   } from 'lucide-svelte';
   
+  /**
+   * @typedef {object} ColorValue
+   * @property {string} system - The color system (e.g., 'RAL', 'Pantone').
+   * @property {string} code - The color code within the system.
+   * @property {string} hex - The hexadecimal representation of the color.
+   */
   interface ColorValue {
     system: string;
     code: string;
     hex: string;
   }
   
+  /**
+   * @typedef {object} ProfileConfiguration
+   * @description The main data structure for the form, organized by production station.
+   */
   interface ProfileConfiguration {
     profileName?: string;
     signType: 'INTERIOR' | 'EXTERIOR';
@@ -112,6 +138,7 @@
   
   const defaultColor: ColorValue = { system: '', code: '', hex: '' };
   
+  // A baseline configuration to ensure all necessary properties are present.
   const defaultConfiguration: ProfileConfiguration = {
     profileName: 'New Profile',
     signType: 'EXTERIOR',
@@ -140,10 +167,17 @@
     }
   };
   
+  /** The configuration object for the profile form. */
   export let configuration: ProfileConfiguration = { ...defaultConfiguration };
+
+  /** If true, disables all inputs, making the form read-only. */
   export let readonly: boolean = false;
   
-  // Merge with defaults
+  /**
+   * Reactive statement to merge the incoming configuration with the default.
+   * This ensures that the component can handle partially-defined configuration objects
+   * without crashing due to missing nested properties.
+   */
   $: if (configuration) {
     configuration = {
       ...defaultConfiguration,
@@ -165,7 +199,7 @@
   
   const dispatch = createEventDispatcher();
   
-  // Material categories
+  // Pre-defined material categories for the MaterialSelect component.
   const faceMaterials = ['ACRYLIC_XT', 'ACRYLIC_GS', 'ACRYLIC_LED', 'ALU_SHEET', 'ALU_COMPOSITE', 'PVC_FOAM'];
   const backMaterials = ['ALU_SHEET', 'ALU_COMPOSITE', 'ACRYLIC_XT', 'PVC_FOAM'];
   const sidesMaterials = ['ALU_SHEET', 'ALU_PROFILE'];
@@ -176,11 +210,21 @@
   const wireCategories = ['WIRE', 'LED_ACCESSORY'];
   const frameMaterials = ['ALU_PROFILE', 'ALU_SHEET'];
   
+  /**
+   * Emits a 'change' event with the current configuration.
+   * This function is called after any user interaction that modifies the form data.
+   */
   function emit() {
     dispatch('change', configuration);
   }
   
-  // Extract short name from change event - prioritizes metadata
+  /**
+   * Extracts a short, display-friendly name from a material selection event.
+   * It prioritizes metadata from the event detail but falls back to the `getShortName` utility.
+   * @param {any} e - The change event from the MaterialSelect component.
+   * @param {string} fallbackCategory - The material category to use if the name cannot be determined from the event.
+   * @returns {string} The extracted short name.
+   */
   function extractShortName(e: any, fallbackCategory: string): string {
     return e.detail.shortName || 
            e.detail.material?.metadata?.short_name ||
@@ -188,36 +232,44 @@
            getShortName(e.detail.material?.code || e.detail.value, fallbackCategory);
   }
   
-  // Get contrasting text color for badges
+  /**
+   * Calculates a contrasting text color (black or white) for a given hex background.
+   * @param {string} hex - The hex color string (e.g., '#RRGGBB').
+   * @returns {string} '#000' for light backgrounds or '#fff' for dark backgrounds.
+   */
   function getTextColor(hex: string): string {
     if (!hex || hex.length < 4) return '#000';
     try {
       const r = parseInt(hex.slice(1,3), 16);
       const g = parseInt(hex.slice(3,5), 16);
       const b = parseInt(hex.slice(5,7), 16);
+      // Using the luminance formula to determine brightness.
       return (0.299*r + 0.587*g + 0.114*b) / 255 > 0.5 ? '#000' : '#fff';
     } catch {
       return '#000';
     }
   }
   
-  // Get short display name from material value - improved extraction
+  /**
+   * Generates a short, human-readable name from a material's full value string.
+   * This function contains specific logic for different material categories to extract
+   * the most relevant information (e.g., color codes for acrylics, dimensions for aluminum).
+   * @param {string} value - The full material value (e.g., 'ACRYLIC_XT_3N570').
+   * @param {string} [category] - The category of the material, used to apply specific parsing logic.
+   * @returns {string} A short, display-friendly name.
+   */
   function getShortName(value: string, category?: string): string {
     if (!value) return '';
     
     // For Oracal/Vinyl - show FULL code like 8500_064 (series_colorCode)
     if (category?.includes('ORACAL') || category?.includes('VINYL') || value.toLowerCase().includes('oracal')) {
-      // Match complete Oracal codes: 8500-064, 8500_064, 8500 064, etc.
       const fullMatch = value.match(/(\d{4})[-_\s]?(\d{2,3})/);
       if (fullMatch) return `${fullMatch[1]}_${fullMatch[2]}`;
-      // Try to extract from ORACAL_8500_064 format
       const oracalMatch = value.match(/ORACAL[_-]?(\d{4})[_-]?(\d{2,3})/i);
       if (oracalMatch) return `${oracalMatch[1]}_${oracalMatch[2]}`;
-      // Just series + color code at end
       const seriesMatch = value.match(/(\d{4})/);
       const colorMatch = value.match(/[-_](\d{2,3})(?:\s|$)/);
       if (seriesMatch && colorMatch) return `${seriesMatch[1]}_${colorMatch[1]}`;
-      // Fallback: try to get any 4-digit + 2-3 digit pattern
       const anyMatch = value.match(/\b(\d{4})\D+(\d{2,3})\b/);
       if (anyMatch) return `${anyMatch[1]}_${anyMatch[2]}`;
       return value.replace(/oracal\s*/i, '').replace(/vinyl\s*/i, '').trim().substring(0, 12).toUpperCase();
@@ -225,25 +277,20 @@
     
     // For acrylic - extract colorCode like 3N570, WN071, 0F00, WH10
     if (category?.includes('ACRYLIC') || value.toLowerCase().includes('acrylic') || value.toLowerCase().includes('plexi')) {
-      // Look for standard PLEXIGLAS colorCodes: 3N570, WN071, WH10, 0F00, 0E010, 7A670
-      // Format: 1-2 alphanumeric + N/F/H/A + 2-3 digits, OR 2 letters + 2 digits
       const codePatterns = [
-        /\b(\d[A-Z]\d{3})\b/i,       // 3N570, 0F00, 0E010
-        /\b([A-Z]{2}\d{2,3})\b/i,    // WN071, WH10, WN297
-        /\b(\d[A-Z]{2}\d{2})\b/i,    // 7A670
+        /\b(\d[A-Z]\d{3})\b/i,
+        /\b([A-Z]{2}\d{2,3})\b/i,
+        /\b(\d[A-Z]{2}\d{2})\b/i,
       ];
       for (const pattern of codePatterns) {
         const match = value.match(pattern);
         if (match) return match[1].toUpperCase();
       }
-      // Try extracting from PLEXIGLAS_XT_3N570 format
       const plexMatch = value.match(/(?:XT|GS|LED)[_-]?([A-Z0-9]{4,6})/i);
       if (plexMatch) return plexMatch[1].toUpperCase();
-      // Descriptive fallbacks
       if (value.toLowerCase().includes('opal')) return 'OPAL';
       if (value.toLowerCase().includes('clear') || value.includes('0F00')) return 'CLEAR';
       if (/white/i.test(value) && !/opal/i.test(value)) return 'WHITE';
-      // Last part might be the code
       const parts = value.split(/[-_\s]+/);
       const lastPart = parts[parts.length - 1];
       if (lastPart && /^[A-Z0-9]{4,6}$/i.test(lastPart)) return lastPart.toUpperCase();
@@ -252,13 +299,10 @@
     
     // For ALU - show ALU + thickness or dimensions
     if (category?.includes('ALU') || value.toLowerCase().includes('alu')) {
-      // Extract thickness like 1.5mm, 2.0mm
       const thicknessMatch = value.match(/([\d.,]+)\s*mm/i);
       if (thicknessMatch) return `ALU ${thicknessMatch[1].replace(',', '.')}`;
-      // Extract profile dimensions like 40x40, 20x20
       const profileMatch = value.match(/(\d+x\d+)/i);
       if (profileMatch) return `ALU ${profileMatch[1]}`;
-      // Extract from code like ALU_MILL_1_5 -> ALU 1.5
       const codeMatch = value.match(/ALU[_-]?(?:MILL|BRUSH|ANOD)?[_-]?(\d)[_-]?(\d)/i);
       if (codeMatch) return `ALU ${codeMatch[1]}.${codeMatch[2]}`;
       return 'ALU';
@@ -284,18 +328,16 @@
       if (pantoneMatch) return pantoneMatch[1].trim();
     }
     
-    // For LED modules - Brand + Color Temp (e.g., "BaltLed 4500K" or "Sloan 6500K")
+    // For LED modules - Brand + Color Temp (e.g., "BaltLed 4500K")
     if (category?.includes('LED')) {
       const parts: string[] = [];
       const brandMatch = value.match(/\b(BaltLed|Sloan|Samsung|Nichia|Osram|Cree|LemLux|LG|Seoul)\b/i);
       if (brandMatch) parts.push(brandMatch[1]);
       const tempMatch = value.match(/(\d{4})\s*[kK]/);
       if (tempMatch) parts.push(`${tempMatch[1]}K`);
-      // Color name as fallback
       const colorMatch = value.match(/\b(warm|cold|neutral|daylight|white|rgb)\b/i);
       if (colorMatch && parts.length < 2) parts.push(colorMatch[1].toUpperCase());
       if (parts.length > 0) return parts.join(' ');
-      // Wattage
       const wattMatch = value.match(/(\d+\.?\d*)\s*[wW]/);
       if (wattMatch) return `${wattMatch[1]}W`;
       return 'LED';
@@ -323,7 +365,7 @@
       return 'CABLE';
     }
     
-    // Default: try to find a code-like pattern
+    // Default fallback: try to find a code-like pattern or use the first word.
     const codePattern = value.match(/\b([A-Z0-9]{3,8})\b/i);
     if (codePattern && !/the|and|for|with|board|sheet|foam/i.test(codePattern[1])) {
       return codePattern[1].toUpperCase();
@@ -333,7 +375,7 @@
     return value.substring(0, 8).toUpperCase();
   }
   
-  // Check if any FRONT items are enabled
+  // A reactive variable to determine if the "FRONT" section should be expanded.
   $: hasFront = configuration.FRONT.face || configuration.FRONT.back || configuration.FRONT.sides;
 </script>
 
