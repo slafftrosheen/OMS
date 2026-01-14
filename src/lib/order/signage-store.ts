@@ -187,6 +187,24 @@ export async function approveChangeRequest(orderId: string, crId: string): Promi
   }
 }
 
+// Set badges
+export async function setBadges(orderId: string, badges: Badge[]): Promise<boolean> {
+  // TODO: Implement backend persistence for badges
+  // For now, we update the local store and log it.
+  console.log('setBadges called', orderId, badges);
+  ordersStore.update(orders =>
+    orders.map(o => o.id === orderId ? { ...o, badges } : o)
+  );
+  return true;
+}
+
+// Add redo flag
+export async function addRedoFlag(orderId: string, station: string, reason: string): Promise<boolean> {
+  // TODO: Implement backend persistence for redo flag
+  console.log('addRedoFlag called', orderId, station, reason);
+  return true;
+}
+
 // Create a new blank order, locally
 export function createNewOrder(): Order {
   const newId = `PO-${Date.now()}`;
