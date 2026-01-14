@@ -5,6 +5,6 @@ import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
 // Create a single supabase client for interacting with your database
 // This client has admin privileges and should only be used on the server
 export const supabaseAdmin = createClient(
-  PUBLIC_SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY || ''
+  PUBLIC_SUPABASE_URL || process?.env?.PUBLIC_SUPABASE_URL || '',
+  SUPABASE_SERVICE_ROLE_KEY || process?.env?.SUPABASE_SERVICE_ROLE_KEY || ''
 );
