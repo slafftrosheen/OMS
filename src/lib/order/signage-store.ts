@@ -124,32 +124,6 @@ export async function setLoadingDate(orderId: string, date: string): Promise<boo
   return result !== null;
 }
 
-// Badge management
-export async function setBadges(orderId: string, badges: Badge[]): Promise<boolean> {
-  // Badges are derived from status in the API, update via order update
-  ordersStore.update(orders =>
-    orders.map(o => o.id === orderId ? { ...o, badges } : o)
-  );
-  return true;
-}
-
-export async function addBadge(orderId: string, badge: Badge): Promise<boolean> {
-  const orders = get(ordersStore);
-  const order = orders.find(o => o.id === orderId);
-  if (!order) return false;
-  
-  const newBadges = [...order.badges, badge];
-  return setBadges(orderId, newBadges);
-}
-
-export async function removeBadge(orderId: string, badge: Badge): Promise<boolean> {
-  const orders = get(ordersStore);
-  const order = orders.find(o => o.id === orderId);
-  if (!order) return false;
-  
-  const newBadges = order.badges.filter(b => b !== badge);
-  return setBadges(orderId, newBadges);
-}
 
 // Transform API response to Order type
 function transformApiOrder(d: any): Order {
@@ -284,31 +258,3 @@ export async function setDefaultRevision(orderId: string, revisionId: string): P
   }
 }
 
-// Rework management
-export async function addRedoFlag(orderId: string, stage: string, reason: string): Promise<any | null> {
-  try {
-    const response = await fetch(`/api/draft-orders/${orderId}/redo-flags`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage, reason })
-    });
-    return response.ok ? await response.json() : null;
-  } catch (err) {
-    console.error('Failed to add redo flag:', err);
-    return null;
-  }
-}
-
-export async function clearRedoFlag(orderId: string, stage: string): Promise<boolean> {
-  try {
-    const response = await fetch(`/api/draft-orders/${orderId}/redo-flags`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage })
-    });
-    return response.ok;
-  } catch (err) {
-    console.error('Failed to clear redo flag:', err);
-    return false;
-  }
-}
