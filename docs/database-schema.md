@@ -44,7 +44,6 @@ Complete reference for the PostgreSQL database schema.
 | `010_pdf_annotations.sql` | PDF annotations and highlights |
 | `011_indexes.sql` | Performance-enhancing indexes |
 | `012_inventory_trigger.sql` | Inventory update trigger |
-| `011_indexes.sql` | Performance-enhancing indexes |
 
 ---
 

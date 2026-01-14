@@ -45,15 +45,6 @@ Reclame OMS is a full-stack order management system built with:
 - **Role-based Access**: SuperAdmin, StationLead, Operator, Viewer
 - **Modern UI**: Token-based design system, themes, accessibility
 
-## Default Users
-
-| Username | Password | Role |
-|----------|----------|------|
-| slav | 181188 | SuperAdmin |
-| admin | admin | SuperAdmin |
-| cnc | cnc123 | StationLead |
-| logistics | log123 | StationLead |
-
 ## License
 
 Proprietary - All rights reserved.
