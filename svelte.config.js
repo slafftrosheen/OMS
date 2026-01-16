@@ -28,8 +28,7 @@ const config = {
       handleHttpError: 'warn',
       handleMissingId: 'warn',
       handleUnseenRoutes: 'warn'
-    },
-    trailingSlash: 'never' // Ensure consistent URL handling
+    }
   }
 };
 
