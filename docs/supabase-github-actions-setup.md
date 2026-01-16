@@ -12,8 +12,9 @@ To use the Supabase deployment workflow, you need to configure the following sec
 2. `SUPABASE_DB_PASSWORD`: Your Supabase database password
    - Go to Project Settings → Database → Connection String to find this
 
-3. `SUPABASE_ACCESS_TOKEN`: (Optional) Your Supabase access token for the CLI
+3. `SUPABASE_ACCESS_TOKEN`: (Optional but recommended) Your Supabase access token for the CLI
    - Generate at https://supabase.com/dashboard/account/tokens
+   - If you have a token to add, store it securely as a GitHub Secret rather than hardcoding it anywhere
 
 ### How it Works
 
@@ -28,3 +29,7 @@ The workflow will:
 2. Navigate to "Secrets and variables" → "Actions"
 3. Add the required secrets mentioned above
 4. The workflow will automatically run on pushes to the main branch when database files are changed
+
+### Security Note
+
+Never commit access tokens or passwords directly to your codebase. Always use GitHub Secrets to store sensitive information like the `SUPABASE_ACCESS_TOKEN`. The token you have should be added to your GitHub repository's secrets section, not stored in any file.
