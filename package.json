@@ -7,7 +7,10 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "smoke-test": "vite build && vite preview"
+    "smoke-test": "vite build && vite preview",
+    "supabase:migrate:create": "bash scripts/supabase-migrate.sh create",
+    "supabase:migrate:list": "bash scripts/supabase-migrate.sh list",
+    "supabase:migrate:push": "bash scripts/supabase-migrate.sh push"
   },
   "dependencies": {
     "@ericblade/quagga2": "^1.12.0",

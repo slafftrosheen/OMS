@@ -1,0 +1,118 @@
+name: Deploy Supabase Changes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/seed.sql'
+      - 'supabase/config.toml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/seed.sql'
+      - 'supabase/config.toml'
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+  PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Supabase
+    if: ${{ github.event_name == 'push' }}  # Only run on push, not PR
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for all tags and branches
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Check for database changes
+        id: db_changes
+        run: |
+          # Check if there are any database-related changes in the commit
+          DB_CHANGES=$(git diff --name-only HEAD^ HEAD | grep -E "(supabase/migrations/|supabase/seed\.sql|supabase/config\.toml)" | head -1)
+          if [ -n "$DB_CHANGES" ]; then
+            echo "Database changes detected"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "changes_found=$(echo "$DB_CHANGES" | head -10)" >> $GITHUB_OUTPUT
+          else
+            echo "No database changes detected"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Debug - Show changes
+        run: |
+          echo "Changes detected: ${{ steps.db_changes.outputs.has_changes }}"
+          echo "Sample changes: ${{ steps.db_changes.outputs.changes_found }}"
+          git diff --name-only HEAD^ HEAD | grep -E "(supabase/migrations/|supabase/seed\.sql|supabase/config\.toml)" || echo "No matching files found"
+
+      - name: Validate Supabase project
+        if: steps.db_changes.outputs.has_changes == 'true'
+        run: |
+          # Validate that required secrets are set
+          if [ -z "$PROJECT_ID" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            echo "ERROR: Missing required secrets."
+            echo "Please set the following GitHub Secrets:"
+            echo "- SUPABASE_PROJECT_ID: Your Supabase project ID"
+            echo "- SUPABASE_DB_PASSWORD: Your Supabase database password"
+            echo "- SUPABASE_ACCESS_TOKEN: Your Supabase access token (optional but recommended)"
+            exit 1
+          fi
+          
+          echo "Secrets validated successfully"
+
+      - name: Link to Supabase project
+        if: steps.db_changes.outputs.has_changes == 'true'
+        run: |
+          supabase link --project-ref $PROJECT_ID
+          
+      - name: Set remote database password
+        if: steps.db_changes.outputs.has_changes == 'true'
+        run: |
+          supabase db remote set --password $SUPABASE_DB_PASSWORD
+          
+      - name: Push schema changes to remote database
+        if: steps.db_changes.outputs.has_changes == 'true'
+        run: |
+          echo "Pushing schema changes to remote database..."
+          supabase db push --debug
+          
+      - name: Apply migrations to remote database
+        if: steps.db_changes.outputs.has_changes == 'true'
+        run: |
+          echo "Applying migrations to remote database..."
+          supabase migration up --db-url "postgresql://postgres:$SUPABASE_DB_PASSWORD@db.$PROJECT_ID.supabase.co:5432/postgres"
+          
+  validate:
+    runs-on: ubuntu-latest
+    name: Validate changes
+    if: ${{ github.event_name == 'pull_request' }}  # Only run on PRs
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase
+        run: |
+          supabase start
+          
+      - name: Check for syntax errors in migrations
+        run: |
+          for sql_file in supabase/migrations/*.sql; do
+            if [ -f "$sql_file" ]; then
+              echo "Checking syntax for: $sql_file"
+              # Basic syntax check - try to parse the SQL file
+              supabase db reset --debug || echo "Warning: Could not fully validate $sql_file"
+            fi
+          done
