@@ -3,15 +3,20 @@
 
 echo "Seeding the OMS database with initial data..."
 
-# The seed script needs to be run against the remote Supabase database
-# Since we can't directly execute it via the CLI, you'll need to run it manually
-
-echo "Please run the following command to seed your database:"
+echo "Unfortunately, the Supabase CLI doesn't support direct file execution for remote databases."
 echo ""
-echo "supabase db remote exec < scripts/seed_database.sql --linked"
+echo "Please use one of the following methods to seed your database:"
 echo ""
-echo "If that doesn't work, you can also run the SQL commands directly in the Supabase SQL editor at:"
-echo "https://app.supabase.com/project/YOUR_PROJECT_ID/editor"
+echo "Method 1: Using Supabase Dashboard SQL Editor"
+echo "1. Go to your Supabase dashboard: https://app.supabase.com/project/YOUR_PROJECT_ID/editor"
+echo "2. Copy and paste the content of scripts/seed_database.sql"
+echo "3. Click 'Run'"
+echo ""
+echo "Method 2: Using a local PostgreSQL client (if you have the connection string)"
+echo "1. Get your database connection string from the Supabase dashboard"
+echo "2. Use a PostgreSQL client like pgAdmin, DBeaver, or command line psql"
+echo "3. Connect using your connection string"
+echo "4. Execute the SQL commands from scripts/seed_database.sql"
 echo ""
 echo "The seed script includes:"
 echo "- Essential materials data for plastics, metals, colors and films"
