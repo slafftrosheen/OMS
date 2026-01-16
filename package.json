@@ -30,6 +30,7 @@
     "svelte-i18n": "file:packages/svelte-i18n"
   },
   "devDependencies": {
+    "@sveltejs/adapter-vercel": "^6.3.0",
     "@sveltejs/vite-plugin-svelte": "^3.1.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.3.1",

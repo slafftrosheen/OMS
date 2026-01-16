@@ -1,24 +1,26 @@
 {
-  "version": 2,
-  "framework": "sveltekit",
-  "builds": [
+  "headers": [
     {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/[^.]+",
-      "dest": "/",
-      "status": 200
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET,POST,PUT,DELETE,OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
+      ]
     }
   ],
   "env": {
     "PUBLIC_SUPABASE_URL": "$PUBLIC_SUPABASE_URL",
-    "PUBLIC_SUPABASE_ANON_KEY": "$PUBLIC_SUPABASE_ANON_KEY"
+    "PUBLIC_SUPABASE_ANON_KEY": "$PUBLIC_SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY": "$SUPABASE_SERVICE_ROLE_KEY"
   }
 }
