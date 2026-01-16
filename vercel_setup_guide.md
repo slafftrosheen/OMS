@@ -29,13 +29,17 @@ Before deploying your OMS project to Vercel, ensure you have:
 ### Step 3: Add Environment Variables
 Click on "Environment Variables" and add the following:
 
-| Key | Value |
-|-----|-------|
-| `PUBLIC_SUPABASE_URL` | Your Supabase Project URL |
-| `PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Your Supabase service role key |
+| Key | Value | Include at Runtime |
+|-----|-------|-------------------|
+| `PUBLIC_SUPABASE_URL` | Your Supabase project URL | ✅ Checked |
+| `PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anon key | ✅ Checked |
+| `SUPABASE_SERVICE_ROLE_KEY` | Your Supabase service role key | ❌ Unchecked |
 
-⚠️ **Important**: Only `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` should be marked as "Include at runtime". The `SUPABASE_SERVICE_ROLE_KEY` should only be available during build time, so leave it without the "Include at runtime" checkbox checked.
+⚠️ **Important**: The "Include at runtime" setting determines when each variable is available:
+- `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY`: Should be available during both build and runtime (checked)
+- `SUPABASE_SERVICE_ROLE_KEY`: Should only be available during build time (unchecked) to keep it secure
+
+For detailed information about environment variable configuration, see [Vercel Environment Setup](./docs/vercel-environment-setup.md).
 
 ### Step 4: Deploy
 1. Click "Deploy" to start the deployment process
