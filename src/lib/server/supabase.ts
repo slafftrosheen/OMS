@@ -4,6 +4,13 @@ import { env } from '$env/dynamic/public';
 import type { RequestEvent } from '@sveltejs/kit';
 
 export const createSupabaseClient = (event: RequestEvent) => {
+  if (!env.PUBLIC_SUPABASE_URL) {
+    throw new Error('Missing environment variable: PUBLIC_SUPABASE_URL');
+  }
+  if (!env.PUBLIC_SUPABASE_ANON_KEY) {
+    throw new Error('Missing environment variable: PUBLIC_SUPABASE_ANON_KEY');
+  }
+
   return createServerClient(
     env.PUBLIC_SUPABASE_URL,
     env.PUBLIC_SUPABASE_ANON_KEY,
