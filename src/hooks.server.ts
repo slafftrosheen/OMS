@@ -1,5 +1,4 @@
 // src/hooks.server.ts
-import '$lib/server/supabase';
 import { getSessionUser } from '$lib/server/auth/session';
 import { createSupabaseClient } from '$lib/server/supabase';
 import type { Handle } from '@sveltejs/kit';
