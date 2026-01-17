@@ -21,18 +21,29 @@ export const createSupabaseClient = (event: RequestEvent) => {
   ).trim();
 
   if (!supabaseUrl) {
-    throw new Error('Missing environment variable: PUBLIC_SUPABASE_URL');
+    const keys = Object.keys(process?.env || {}).filter(k => k.includes('SUPABASE')).join(', ');
+    throw new Error(`Missing PUBLIC_SUPABASE_URL. Found keys: [${keys}]`);
   }
 
-  // Basic URL validation
+  // Strict URL validation
+  try {
+    new URL(supabaseUrl);
+  } catch (e) {
+    const preview = supabaseUrl.substring(0, 10) + '...';
+    throw new Error(`Invalid URL format for PUBLIC_SUPABASE_URL: "${preview}" (Length: ${supabaseUrl.length}). Error: ${(e as Error).message}`);
+  }
+
+  // Extra check for protocol (new URL accepts 'file:', etc)
   if (!/^https?:\/\//.test(supabaseUrl)) {
-    const preview = supabaseUrl.substring(0, 5) + '...';
-    throw new Error(`Invalid PUBLIC_SUPABASE_URL format. Value starts with: "${preview}". It must start with http:// or https://`);
+    throw new Error(`PUBLIC_SUPABASE_URL must start with http:// or https://. Got: "${supabaseUrl.substring(0, 10)}..."`);
   }
 
   if (!supabaseAnonKey) {
-    throw new Error('Missing environment variable: PUBLIC_SUPABASE_ANON_KEY');
+    throw new Error('Missing PUBLIC_SUPABASE_ANON_KEY');
   }
+
+  // Debug log to confirm what we are passing
+  console.log(`[Supabase] Initializing client with URL: ${supabaseUrl.substring(0, 12)}... (Length: ${supabaseUrl.length})`);
 
   return createServerClient(
     supabaseUrl,
