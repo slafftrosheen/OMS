@@ -4,16 +4,20 @@ import { env } from '$env/dynamic/public';
 import type { RequestEvent } from '@sveltejs/kit';
 
 export const createSupabaseClient = (event: RequestEvent) => {
-  if (!env.PUBLIC_SUPABASE_URL) {
+  // Fallback to process.env for server-side environments where dynamic env might miss
+  const supabaseUrl = env.PUBLIC_SUPABASE_URL || process?.env?.PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = env.PUBLIC_SUPABASE_ANON_KEY || process?.env?.PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl) {
     throw new Error('Missing environment variable: PUBLIC_SUPABASE_URL');
   }
-  if (!env.PUBLIC_SUPABASE_ANON_KEY) {
+  if (!supabaseAnonKey) {
     throw new Error('Missing environment variable: PUBLIC_SUPABASE_ANON_KEY');
   }
 
   return createServerClient(
-    env.PUBLIC_SUPABASE_URL,
-    env.PUBLIC_SUPABASE_ANON_KEY,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll: () => {
