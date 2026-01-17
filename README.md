@@ -1,4 +1,4 @@
-Reclame OMS — Source of Truth (SoT) v1.0
+Reclame OMS — Source of Truth (SoT) v1.1 - Supabase Integrated
 
 Scope. One canonical reference for Reclame OMS (Reclamefabriek’s order-management system). Covers brand and UX, functional flows, data model, accessibility, i18n, performance, deployment, QA, and contribution rules. Self-contained and agent-ready.
 
@@ -129,7 +129,7 @@ GitHub
 CSP: default-src 'self'; script-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.example.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'. Tighten as backend lands; avoid inline scripts where possible. 
 MDN Web Docs
 
-Strong referrer policy, HSTS (once on custom domain), and no third-party scripts without review.
+Strong referrer policy, HSTS (once on custom domain), and no third-party scripts without review. Supabase Row-Level Security (RLS) is enabled for all public tables.
 
 11) Analytics & Telemetry
 
@@ -147,7 +147,7 @@ svelte.dev
 
 UI: Tokenized CSS (brand.css), Lucide icons, Apex/ECharts for metrics.
 
-Backend (later): REST/WebSocket + Postgres/SQLite; object storage for files; workers for PDF/BOM extraction.
+Backend: Supabase (Postgres + Auth + Storage).
 
 CI: GH Actions build + Pages deploy with BASE_PATH=/reclame_OMS.
 

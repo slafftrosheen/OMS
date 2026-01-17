@@ -28,6 +28,23 @@ export const handle: Handle = async ({ event, resolve }) => {
     event.locals.user = null;
   }
 
+  // Protect API routes
+  if (event.url.pathname.startsWith('/api')) {
+    if (!session) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  } else if (!session && !event.url.pathname.startsWith('/login') && !event.url.pathname.startsWith('/auth')) {
+    // Protect UI routes (redirect to login)
+    // Excluding /login and /auth (callbacks)
+    return new Response(null, {
+        status: 303,
+        headers: { location: '/login' }
+    });
+  }
+
   return resolve(event, {
     filterSerializedResponseHeaders(name) {
       return name === 'content-range';

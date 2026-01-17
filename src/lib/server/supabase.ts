@@ -1,12 +1,12 @@
 import pkg from '@supabase/auth-helpers-sveltekit';
 const { createServerClient } = pkg;
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 import type { RequestEvent } from '@sveltejs/kit';
 
 export const createSupabaseClient = (event: RequestEvent) => {
   return createServerClient(
-    PUBLIC_SUPABASE_URL,
-    PUBLIC_SUPABASE_ANON_KEY,
+    env.PUBLIC_SUPABASE_URL,
+    env.PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll: () => {

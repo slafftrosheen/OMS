@@ -1,9 +1,9 @@
 # Reclame OMS Development Plan
 
 **Created:** 2025-12-16  
-**Last Updated:** 2025-12-17  
+**Last Updated:** 2026-01-17
 **Based on:** DATAANALYSIS.md System Analysis  
-**Status:** Active Development - Phase 5 ORDER WORKFLOW 🟢
+**Status:** Active Development - Phase 6 SECURITY & HARDENING 🟢
 
 ---
 
@@ -282,7 +282,26 @@ All material catalogues are seeded and ready:
 
 ---
 
-### 4.2 Comprehensive Testing ✅ PARTIAL
+## Phase 6: Supabase & Security Hardening (Jan 2026) ✅ DONE
+
+### 6.1 Supabase Integration & RLS ✅
+**Priority:** P0 | **Effort:** 2 days | **Impact:** Security | **Status:** DONE
+
+**Tasks:**
+- [x] Migrate to Supabase Auth (`auth.users`) + `profiles` table.
+- [x] Enable Row-Level Security (RLS) on all public tables.
+- [x] Define RLS policies for granular access control.
+- [x] Enforce server-side session checks in `src/hooks.server.ts`.
+- [x] Remove legacy mock data fallbacks in stores.
+
+**Implemented Files:**
+- `supabase/migrations/20260117000000_enable_rls.sql` - Comprehensive RLS policies.
+- `src/hooks.server.ts` - API and route protection.
+- `docs/database-schema.md` - Updated schema documentation.
+
+---
+
+## 4.2 Comprehensive Testing ✅ PARTIAL
 **Priority:** P3 | **Effort:** 1 week | **Impact:** Quality | **Status:** IN PROGRESS
 
 **Tasks:**
@@ -322,29 +341,16 @@ All material catalogues are seeded and ready:
 | Phase 2: Migration | ✅ Complete | 95% (AI config pending) |
 | Phase 3: Improvements | ✅ Complete | 100% |
 | Phase 4: Testing | ✅ Partial | 70% |
-| Phase 5: Order Workflow | 🟢 Ready | 90% |
+| Phase 5: Order Workflow | ✅ Complete | 100% |
+| Phase 6: Security | ✅ Complete | 100% |
 
-**Overall Progress: ~95%**
+**Overall Progress: ~98%**
 
-### Recent Updates (Dec 17, 2025):
-- ✅ SuperAdmin user created (slav/181188)
-- ✅ Full material catalogues added:
-  - ORACAL 8500 Translucent series
-  - RAL Classic color system
-  - Pantone Coated colors
-  - LED strips from Lemlux, BaltLed
-  - Mean Well PSU units
-  - 3D printing materials (FDM, Resin)
-  - Mounting hardware
-- ✅ Fixed text scaling UI overlap issues
-- ✅ Removed redundant components
-- ✅ Fixed TODOs in loads.ts (PO link/unlink)
-- ✅ Updated documentation with CHANGELOG
-- ✅ Cleaned up unused components
-- ✅ Order workflow ready for testing
-- ✅ Fixed order detail page null reference errors
-- ✅ Fixed cyclical dependency in order detail page
-- ✅ Removed duplicate floating action button (FAB)
+### Recent Updates (Jan 17, 2026):
+- ✅ Enable RLS on all tables.
+- ✅ Enforce authentication on all API routes.
+- ✅ Remove mock data fallbacks.
+- ✅ Cleanup legacy patch files.
 
 ### API Endpoints Verified:
 | Endpoint | Method | Status |
@@ -362,7 +368,9 @@ All material catalogues are seeded and ready:
 
 ## 🗄️ Database Migration Scripts
 
-### Required New Tables
+**NOTE:** The actual database schema is now managed via Supabase migrations (`supabase/migrations/*.sql`) using UUIDs and `auth.users`. The SQL below is kept for historical reference or legacy environments.
+
+### Required New Tables (Legacy)
 
 ```sql
 -- 1. Users table
