@@ -13,7 +13,7 @@
   import DensitySwitch from '$lib/topbar/DensitySwitch.svelte';
   import UserSwitch from '$lib/topbar/UserSwitch.svelte';
   import MobileNav from '$lib/topbar/MobileNav.svelte';
-  import Toaster from '$lib/ui/Toaster.svelte';
+  import Toast from '$lib/notify/Toast.svelte';
   import LiveRegion from '$lib/ui/LiveRegion.svelte';
   import { role } from '$lib/ui/RoleSwitch.svelte';
   import CommandPalette from '$lib/ui/CommandPalette.svelte';
@@ -222,7 +222,7 @@
     <MobileNav />
   {/if}
 
-  <Toaster />
+  <Toast />
   <LiveRegion />
   <CommandPalette open={searchOpen} onClose={closeSearch} />
   <Keybindings bind:open={showKb} />
