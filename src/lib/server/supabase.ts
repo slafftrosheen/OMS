@@ -21,11 +21,17 @@ export const createSupabaseClient = (event: RequestEvent) => {
   ).trim();
 
   if (!supabaseUrl) {
-    const keys = Object.keys(process?.env || {}).filter(k => k.includes('SUPABASE')).join(', ');
-    throw new Error(`Missing PUBLIC_SUPABASE_URL. Found keys: [${keys}]`);
+    throw new Error('Missing environment variable: PUBLIC_SUPABASE_URL');
   }
+
+  // Basic URL validation
+  if (!/^https?:\/\//.test(supabaseUrl)) {
+    const preview = supabaseUrl.substring(0, 5) + '...';
+    throw new Error(`Invalid PUBLIC_SUPABASE_URL format. Value starts with: "${preview}". It must start with http:// or https://`);
+  }
+
   if (!supabaseAnonKey) {
-    throw new Error('Missing PUBLIC_SUPABASE_ANON_KEY');
+    throw new Error('Missing environment variable: PUBLIC_SUPABASE_ANON_KEY');
   }
 
   return createServerClient(
