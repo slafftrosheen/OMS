@@ -13,10 +13,31 @@ import type { RequestHandler } from './$types';
  * Proxying auth request to Supabase (signInWithPassword):
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
-  const { email, password } = await request.json(); // Changed from username to email, as Supabase defaults to email
+  const body = await request.json();
+  let { email, password } = body;
+  const { username } = body;
 
-  if (!email || !password) {
-    return json({ error: 'Email and password required' }, { status: 400 });
+  if (!password) {
+    return json({ error: 'Password required' }, { status: 400 });
+  }
+
+  // If username provided but no email, lookup email
+  if (!email && username) {
+    const { data: profile } = await locals.supabase
+      .from('profiles')
+      .select('email')
+      .eq('username', username)
+      .single();
+    
+    if (profile && profile.email) {
+      email = profile.email;
+    } else {
+      return json({ error: 'Username not found' }, { status: 404 });
+    }
+  }
+
+  if (!email) {
+    return json({ error: 'Email or Username required' }, { status: 400 });
   }
 
   const { data, error } = await locals.supabase.auth.signInWithPassword({
