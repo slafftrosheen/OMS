@@ -56,10 +56,10 @@ export function hasRole(user: SessionUser, requiredRoles: string[]): boolean {
 }
 
 /**
- * Check if user is admin (SuperAdmin in Admin section)
+ * Check if user is admin (SuperAdmin or Admin in Admin section)
  */
 export function isAdmin(user: SessionUser): boolean {
-  return user.roles.Admin === 'SuperAdmin';
+  return user.roles.Admin === 'SuperAdmin' || user.roles.Admin === 'Admin';
 }
 
 /**

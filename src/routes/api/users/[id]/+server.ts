@@ -1,5 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { isAdmin } from '$lib/server/auth/session';
+import { supabaseAdmin } from '$lib/server/supabase-admin';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
   const { id } = params;
@@ -15,11 +17,12 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
   const data = await request.json();
   const currentUser = locals.user;
 
-  if (!currentUser || (currentUser.roles?.Admin !== 'Admin' && currentUser.roles?.Admin !== 'SuperAdmin')) {
+  if (!currentUser || !isAdmin(currentUser)) {
      throw error(403, 'Admin access required');
   }
 
-  const { data: updated, error: err } = await locals.supabase
+  // Use supabaseAdmin to bypass RLS for updating other users' profiles
+  const { data: updated, error: err } = await supabaseAdmin
     .from('profiles')
     .update({
         display_name: data.displayName,
@@ -33,19 +36,29 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
     .select()
     .single();
 
-  if (err) throw error(500, 'Failed to update user');
+  if (err) {
+      console.error('Failed to update user profile:', err);
+      throw error(500, 'Failed to update user');
+  }
 
   return json(updated);
 };
 
 export const DELETE: RequestHandler = async ({ params, locals }) => {
-    // Note: Deleting a user from profiles doesn't delete from auth.users.
-    // We should ideally use Admin API to delete user.
-    // If not possible, we can just mark as inactive or delete profile (which might break FKs).
-    // Best practice: mark inactive.
-
     const { id } = params;
-    const { error: err } = await locals.supabase.from('profiles').update({ is_active: false }).eq('id', id);
-    if (err) throw error(500, 'Failed to deactivate user');
+    const currentUser = locals.user;
+
+    if (!currentUser || !isAdmin(currentUser)) {
+        throw error(403, 'Admin access required');
+    }
+
+    // Use supabaseAdmin to bypass RLS for deactivating users
+    const { error: err } = await supabaseAdmin.from('profiles').update({ is_active: false }).eq('id', id);
+
+    if (err) {
+        console.error('Failed to deactivate user:', err);
+        throw error(500, 'Failed to deactivate user');
+    }
+
     return json({ success: true });
 };
