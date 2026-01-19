@@ -30,7 +30,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 
     // Protect API routes
     if (event.url.pathname.startsWith('/api')) {
-      if (!session) {
+      const isPublicAuth = event.url.pathname.startsWith('/api/auth');
+      const isPublicSignup = event.url.pathname === '/api/users' && event.request.method === 'POST';
+      const isPublicPreferences = event.url.pathname === '/api/preferences' && event.request.method === 'GET';
+
+      if (!session && !isPublicAuth && !isPublicSignup && !isPublicPreferences) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }

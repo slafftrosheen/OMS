@@ -73,7 +73,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 };
 
 /**
- * @description POST /api/users - Creates a new user. This is an admin-only endpoint.
+ * @description POST /api/users - Creates a new user.
+ * Supports public signup (with default limited roles) and admin-created users (with full control).
  *
  * @param {Request} request - The SvelteKit `Request` object.
  * @param {object} locals - The SvelteKit `locals` object, containing user session data.
@@ -82,22 +83,24 @@ export const GET: RequestHandler = async ({ url, locals }) => {
  * @body {string} displayName - The new user's display name.
  * @body {string} password - The new user's password (must be at least 8 characters).
  * @body {string} [email] - The new user's email. If not provided, a placeholder will be generated.
- * @body {string} [primarySection='Production'] - The user's primary section.
- * @body {string[]} [sections=['Production']] - A list of sections the user belongs to.
- * @body {object} [roles] - The user's roles for each section.
- * @body {string[]} [stations=[]] - A list of stations the user is assigned to.
+ * @body {string} [primarySection='Production'] - The user's primary section (Admin only).
+ * @body {string[]} [sections=['Production']] - A list of sections the user belongs to (Admin only).
+ * @body {object} [roles] - The user's roles for each section (Admin only).
+ * @body {string[]} [stations=[]] - A list of stations the user is assigned to (Admin only).
  *
  * @returns {Response} - A JSON response containing the newly created user object.
  *
  * @errors
  * - 400 Bad Request: If `username`, `displayName`, or `password` are missing or invalid.
- * - 403 Forbidden: If the requesting user is not an admin.
+ * - 403 Forbidden: If the requesting user is logged in but not an admin.
  * - 409 Conflict: If the username or email already exists.
  * - 500 Internal Server Error: If there is a failure during user creation.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
   const currentUser = locals.user;
-  if (!currentUser || !isAdmin(currentUser)) {
+  const isPublicSignup = !currentUser;
+
+  if (!isPublicSignup && !isAdmin(currentUser)) {
     return json({ error: 'Admin access required' }, { status: 403 });
   }
 
@@ -113,6 +116,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   if (!data.email) {
       data.email = `${data.username}@example.com`;
+  }
+
+  // Force defaults for public signup
+  if (isPublicSignup) {
+      data.primarySection = 'Production';
+      data.sections = ['Production'];
+      data.roles = { Admin: 'Viewer', Production: 'Viewer', Logistics: 'Viewer' };
+      data.stations = [];
   }
 
   try {
@@ -136,7 +147,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     }
 
     // Update the user's profile with additional fields.
-    const { data: profile, error: profileError } = await locals.supabase
+    const { data: profile, error: profileError } = await supabaseAdmin
         .from('profiles')
         .update({
             primary_section: data.primarySection || 'Production',
@@ -154,7 +165,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     }
 
     // Create a default set of preferences for the new user.
-    await locals.supabase.from('user_preferences').insert({ user_id: authData.user.id });
+    await supabaseAdmin.from('user_preferences').insert({ user_id: authData.user.id });
 
     return json({
       id: profile.id,
