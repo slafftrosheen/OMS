@@ -7,9 +7,7 @@ import type { RequestHandler } from './$types';
  */
 export const GET: RequestHandler = async ({ locals }) => {
   const session = await locals.getSession();
-  console.log('Preferences API - Session status:', !!session);
   if (!session) {
-    console.log('Returning default preferences for unauthenticated user');
     // Return defaults for anonymous users
     return json({
       theme: 'DarkVim',
