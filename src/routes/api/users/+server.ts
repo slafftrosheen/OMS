@@ -97,8 +97,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
   const currentUser = locals.user;
-  // Check if the request is coming from an admin
-  const isUserAdmin = currentUser && isAdmin(currentUser);
+  if (!currentUser || !isAdmin(currentUser)) {
+    return json({ error: 'Admin access required' }, { status: 403 });
+  }
 
   const data = await request.json();
 
@@ -134,28 +135,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         throw new Error('Failed to create user');
     }
 
-    // Prepare profile update data
-    // Restrict assignment of roles/sections to admin users only
-    const updateData: any = {
-        primary_section: 'Production',
-        sections: ['Production'],
-        roles: { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' },
-        stations: [],
-        is_active: true
-    };
-
-    if (isUserAdmin) {
-        if (data.primarySection) updateData.primary_section = data.primarySection;
-        if (data.sections) updateData.sections = data.sections;
-        if (data.roles) updateData.roles = data.roles;
-        if (data.stations) updateData.stations = data.stations;
-    }
-
     // Update the user's profile with additional fields.
-    // Use supabaseAdmin to bypass RLS since the new user (or anon) might not have permission to update it yet.
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const { data: profile, error: profileError } = await locals.supabase
         .from('profiles')
-        .update(updateData)
+        .update({
+            primary_section: data.primarySection || 'Production',
+            sections: data.sections || ['Production'],
+            roles: data.roles || { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' },
+            stations: data.stations || [],
+            is_active: true
+        })
         .eq('id', authData.user.id)
         .select()
         .single();
@@ -165,7 +154,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     }
 
     // Create a default set of preferences for the new user.
-    await supabaseAdmin.from('user_preferences').insert({ user_id: authData.user.id });
+    await locals.supabase.from('user_preferences').insert({ user_id: authData.user.id });
 
     return json({
       id: profile.id,
