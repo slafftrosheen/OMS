@@ -21,57 +21,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     return json({ error: 'Password required' }, { status: 400 });
   }
 
-  // If username provided but no email, lookup user ID first
+  // Supabase authentication requires email and password.
+  // If username is provided but no email, we cannot proceed with authentication
+  // because we can't retrieve the email from the auth.users table directly.
+  // The standard approach is to require email for login.
   if (!email && username) {
-    let profile;
-    let profileError;
-
-    try {
-      const result = await locals.supabase
-        .from('profiles')
-        .select('id, username')
-        .eq('username', username)
-        .single();
-
-      profile = result.data;
-      profileError = result.error;
-    } catch (err) {
-      console.error('Unexpected error during profile lookup:', err);
-      return json({ error: 'Database error during profile lookup' }, { status: 500 });
-    }
-
-    if (profileError && profileError.code !== 'PGRST116') { // PGRST116 is "The result contains 0 rows"
-      console.error('Profile lookup error:', profileError);
-      console.error('Error details:', {
-        code: profileError.code,
-        message: profileError.message,
-        hint: profileError.hint,
-        details: profileError.details
-      });
-      return json({ error: `Database error: ${profileError.message}` }, { status: 500 });
-    }
-
-    if (profile && profile.id) {
-      // Get email from auth.users table using the user ID
-      const { data: authUser, error: authError } = await locals.supabase
-        .from('auth.users')
-        .select('email')
-        .eq('id', profile.id)
-        .single();
-
-      if (authError) {
-        console.error('Auth user lookup error:', authError);
-        return json({ error: 'Database error retrieving user email' }, { status: 500 });
-      }
-
-      if (authUser && authUser.email) {
-        email = authUser.email;
-      } else {
-        return json({ error: 'Username not found' }, { status: 404 });
-      }
-    } else {
-      return json({ error: 'Username not found' }, { status: 404 });
-    }
+    return json({ error: 'Login requires email address. Please use your email instead of username.' }, { status: 400 });
   }
 
   if (!email) {
