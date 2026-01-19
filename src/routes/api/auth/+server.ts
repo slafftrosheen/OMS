@@ -23,12 +23,17 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   // If username provided but no email, lookup email
   if (!email && username) {
-    const { data: profile } = await locals.supabase
+    const { data: profile, error: profileError } = await locals.supabase
       .from('profiles')
       .select('email')
       .eq('username', username)
       .single();
-    
+
+    if (profileError && profileError.code !== 'PGRST116') { // PGRST116 is "The result contains 0 rows"
+      console.error('Profile lookup error:', profileError);
+      return json({ error: 'Database error' }, { status: 500 });
+    }
+
     if (profile && profile.email) {
       email = profile.email;
     } else {

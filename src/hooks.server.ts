@@ -28,9 +28,19 @@ export const handle: Handle = async ({ event, resolve }) => {
       event.locals.user = null;
     }
 
-    // Protect API routes
+    // Protect API routes (excluding public endpoints)
     if (event.url.pathname.startsWith('/api')) {
-      if (!session) {
+      // Allow public API routes without authentication
+      const publicApiRoutes = [
+        '/api/auth',
+        '/api/preferences' // Preferences API allows unauthenticated access for defaults
+      ];
+
+      const isPublicRoute = publicApiRoutes.some(route =>
+        event.url.pathname.startsWith(route)
+      );
+
+      if (!session && !isPublicRoute) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }

@@ -107,8 +107,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     return json({ error: 'Username and display name required' }, { status: 400 });
   }
 
-  if (!data.password || data.password.length < 8) {
-    return json({ error: 'Password must be at least 8 characters' }, { status: 400 });
+  if (!data.password) {
+    return json({ error: 'Password required' }, { status: 400 });
+  }
+
+  // Validate password strength: at least 8 chars with uppercase, lowercase, number, and special char
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+  if (!passwordRegex.test(data.password)) {
+    return json({
+      error: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character'
+    }, { status: 400 });
   }
 
   if (!data.email) {
@@ -135,22 +143,60 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         throw new Error('Failed to create user');
     }
 
-    // Update the user's profile with additional fields.
-    const { data: profile, error: profileError } = await locals.supabase
+    // Check if profile already exists
+    const { data: existingProfile, error: selectError } = await locals.supabase
         .from('profiles')
-        .update({
-            primary_section: data.primarySection || 'Production',
-            sections: data.sections || ['Production'],
-            roles: data.roles || { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' },
-            stations: data.stations || [],
-            is_active: true
-        })
+        .select('id')
         .eq('id', authData.user.id)
-        .select()
         .single();
 
-    if (profileError) {
-        throw profileError;
+    let profile;
+    // If no profile exists (PGRST116 is "The result contains 0 rows"), create a new one
+    if (selectError && selectError.code === 'PGRST116') {
+        // Profile doesn't exist, create it
+        const { data: newProfile, error: insertError } = await locals.supabase
+            .from('profiles')
+            .insert({
+                id: authData.user.id,
+                username: data.username,
+                display_name: data.displayName,
+                primary_section: data.primarySection || 'Production',
+                sections: data.sections || ['Production'],
+                roles: data.roles || { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' },
+                stations: data.stations || [],
+                is_active: true
+            })
+            .select()
+            .single();
+
+        if (insertError) {
+            throw insertError;
+        }
+        profile = newProfile;
+    } else if (selectError) {
+        // Some other error occurred
+        throw selectError;
+    } else {
+        // Profile exists, update it
+        const { data: updatedProfile, error: updateError } = await locals.supabase
+            .from('profiles')
+            .update({
+                username: data.username,
+                display_name: data.displayName,
+                primary_section: data.primarySection || 'Production',
+                sections: data.sections || ['Production'],
+                roles: data.roles || { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' },
+                stations: data.stations || [],
+                is_active: true
+            })
+            .eq('id', authData.user.id)
+            .select()
+            .single();
+
+        if (updateError) {
+            throw updateError;
+        }
+        profile = updatedProfile;
     }
 
     // Create a default set of preferences for the new user.

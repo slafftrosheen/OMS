@@ -38,7 +38,16 @@ export const GET: RequestHandler = async ({ locals }) => {
       // Create default preferences
       const { data: newPrefs, error: insertError } = await locals.supabase
         .from('user_preferences')
-        .insert({ user_id: userId })
+        .insert({
+          user_id: userId,
+          theme: 'DarkVim',
+          locale: 'en',
+          scale: 'normal',
+          density: 'cozy',
+          pdf_zoom: 1.0,
+          sidebar_collapsed: false,
+          notifications_enabled: true
+        })
         .select()
         .single();
 
@@ -48,13 +57,13 @@ export const GET: RequestHandler = async ({ locals }) => {
       }
 
       return json({
-        theme: 'DarkVim',
-        locale: 'en',
-        scale: 'normal',
-        density: 'cozy',
-        pdfZoom: 1.0,
-        sidebarCollapsed: false,
-        notificationsEnabled: true
+        theme: newPrefs.theme,
+        locale: newPrefs.locale,
+        scale: newPrefs.scale,
+        density: newPrefs.density,
+        pdfZoom: newPrefs.pdf_zoom,
+        sidebarCollapsed: newPrefs.sidebar_collapsed,
+        notificationsEnabled: newPrefs.notifications_enabled
       });
     }
 
@@ -102,17 +111,16 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
     }
 
     // Try update first
-    const { error: updateError, data: updatedData } = await locals.supabase
+    const { error: updateError, count } = await locals.supabase
         .from('user_preferences')
         .update(updates)
-        .eq('user_id', userId)
-        .select();
+        .eq('user_id', userId);
 
     if (updateError) {
         throw updateError;
     }
 
-    if (!updatedData || updatedData.length === 0) {
+    if (count === 0) {
         // Does not exist, create it
         const { error: insertError } = await locals.supabase
             .from('user_preferences')
