@@ -31,7 +31,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     if (profileError && profileError.code !== 'PGRST116') { // PGRST116 is "The result contains 0 rows"
       console.error('Profile lookup error:', profileError);
-      return json({ error: 'Database error' }, { status: 500 });
+      console.error('Error details:', {
+        code: profileError.code,
+        message: profileError.message,
+        hint: profileError.hint,
+        details: profileError.details
+      });
+      return json({ error: `Database error: ${profileError.message}` }, { status: 500 });
     }
 
     if (profile && profile.email) {
