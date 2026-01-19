@@ -162,60 +162,38 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         throw new Error('Failed to create user');
     }
 
-    // Check if profile already exists
-    const { data: existingProfile, error: selectError } = await locals.supabase
+    // Determine roles and other attributes based on whether it's self-registration or admin creation
+    const profileData = isSelfRegistration
+      ? {  // Default values for self-registered users
+          id: authData.user.id,
+          username: data.username,
+          display_name: data.displayName,
+          primary_section: 'Production',  // Default for self-registered users
+          sections: ['Production'],       // Default for self-registered users
+          roles: { Production: 'Operator' }, // Limited default role for self-registered users
+          stations: [],
+          is_active: true
+        }
+      : {  // Values for admin-created users (can include elevated privileges)
+          id: authData.user.id,
+          username: data.username,
+          display_name: data.displayName,
+          primary_section: data.primarySection || 'Production',
+          sections: data.sections || ['Production'],
+          roles: data.roles || { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' },
+          stations: data.stations || [],
+          is_active: true
+        };
+
+    // Create the user profile
+    const { data: profile, error: profileError } = await locals.supabase
         .from('profiles')
-        .select('id')
-        .eq('id', authData.user.id)
+        .insert(profileData)
+        .select()
         .single();
 
-    let profile;
-    // If no profile exists (PGRST116 is "The result contains 0 rows"), create a new one
-    if (selectError && selectError.code === 'PGRST116') {
-        // Profile doesn't exist, create it
-        const { data: newProfile, error: insertError } = await locals.supabase
-            .from('profiles')
-            .insert({
-                id: authData.user.id,
-                username: data.username,
-                display_name: data.displayName,
-                primary_section: data.primarySection || 'Production',
-                sections: data.sections || ['Production'],
-                roles: data.roles || { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' },
-                stations: data.stations || [],
-                is_active: true
-            })
-            .select()
-            .single();
-
-        if (insertError) {
-            throw insertError;
-        }
-        profile = newProfile;
-    } else if (selectError) {
-        // Some other error occurred
-        throw selectError;
-    } else {
-        // Profile exists, update it
-        const { data: updatedProfile, error: updateError } = await locals.supabase
-            .from('profiles')
-            .update({
-                username: data.username,
-                display_name: data.displayName,
-                primary_section: data.primarySection || 'Production',
-                sections: data.sections || ['Production'],
-                roles: data.roles || { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' },
-                stations: data.stations || [],
-                is_active: true
-            })
-            .eq('id', authData.user.id)
-            .select()
-            .single();
-
-        if (updateError) {
-            throw updateError;
-        }
-        profile = updatedProfile;
+    if (profileError) {
+        throw profileError;
     }
 
     // Create a default set of preferences for the new user.
