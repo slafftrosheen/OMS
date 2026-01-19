@@ -40,7 +40,15 @@ export const handle: Handle = async ({ event, resolve }) => {
         event.url.pathname.startsWith(route)
       );
 
+      console.log('API Route Check:', {
+        pathname: event.url.pathname,
+        hasSession: !!session,
+        isPublicRoute,
+        shouldBlock: !session && !isPublicRoute
+      });
+
       if (!session && !isPublicRoute) {
+        console.log('Blocking access to:', event.url.pathname);
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }
