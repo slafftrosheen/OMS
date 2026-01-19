@@ -21,7 +21,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     return json({ error: 'Password required' }, { status: 400 });
   }
 
-  // If username provided but no email, lookup email
+  // If username provided but no email, lookup user ID first
   if (!email && username) {
     let profile;
     let profileError;
@@ -29,7 +29,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     try {
       const result = await locals.supabase
         .from('profiles')
-        .select('email')
+        .select('id, username')
         .eq('username', username)
         .single();
 
@@ -51,8 +51,24 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       return json({ error: `Database error: ${profileError.message}` }, { status: 500 });
     }
 
-    if (profile && profile.email) {
-      email = profile.email;
+    if (profile && profile.id) {
+      // Get email from auth.users table using the user ID
+      const { data: authUser, error: authError } = await locals.supabase
+        .from('auth.users')
+        .select('email')
+        .eq('id', profile.id)
+        .single();
+
+      if (authError) {
+        console.error('Auth user lookup error:', authError);
+        return json({ error: 'Database error retrieving user email' }, { status: 500 });
+      }
+
+      if (authUser && authUser.email) {
+        email = authUser.email;
+      } else {
+        return json({ error: 'Username not found' }, { status: 404 });
+      }
     } else {
       return json({ error: 'Username not found' }, { status: 404 });
     }
