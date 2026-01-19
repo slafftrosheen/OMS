@@ -187,9 +187,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     // Create the user profile
     // Use supabaseAdmin to bypass RLS policies when creating profiles for new users
+    // Use upsert to handle potential duplicate attempts
     const { data: profile, error: profileError } = await supabaseAdmin
         .from('profiles')
-        .insert(profileData)
+        .upsert(profileData, { onConflict: 'id' })  // Upsert on ID conflict
         .select()
         .single();
 
@@ -199,7 +200,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     // Create a default set of preferences for the new user.
     // Use supabaseAdmin to bypass RLS policies when creating preferences for new users
-    await supabaseAdmin.from('user_preferences').insert({ user_id: authData.user.id });
+    // Use upsert to handle potential duplicate attempts
+    await supabaseAdmin.from('user_preferences').upsert({ user_id: authData.user.id }, { onConflict: 'user_id' });
 
     return json({
       id: profile.id,
