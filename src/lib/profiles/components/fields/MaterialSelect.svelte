@@ -195,17 +195,16 @@
     try {
       let url = `${base}/api/materials`;
       if (category) {
-        url += `?category=${category}`;
+        url += `?category=${encodeURIComponent(category)}`;
+      } else if (categories.length > 0) {
+        // Pass multiple categories as a comma-separated parameter
+        url += `?categories=${encodeURIComponent(categories.join(','))}`;
       }
       const res = await fetch(url);
       if (res.ok) {
-        let data = await res.json();
-        // Filter by categories if specified
-        if (categories.length > 0) {
-          data = data.filter((m: Material) => categories.includes(m.category));
-        }
-        materials = data;
-        filteredMaterials = data;
+        materials = await res.json();
+        // No need to filter client-side since API now handles filtering
+        filteredMaterials = materials;
       }
     } catch (err) {
       console.error('Failed to load materials:', err);
