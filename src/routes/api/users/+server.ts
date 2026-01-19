@@ -5,6 +5,19 @@ import { isAdmin } from '$lib/server/auth/session';
 import { supabaseAdmin } from '$lib/server/supabase-admin';
 
 /**
+ * Validates password strength requirements
+ */
+function isValidPassword(password: string): boolean {
+  const minLength = password.length >= 8;
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+  
+  return minLength && hasUpper && hasLower && hasNumber && hasSpecial;
+}
+
+/**
  * @description GET /api/users - Retrieves a list of all users.
  * This endpoint supports filtering by activity status and section.
  *
@@ -73,7 +86,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 };
 
 /**
- * @description POST /api/users - Creates a new user. This is an admin-only endpoint.
+ * @description POST /api/users - Creates a new user. This can be called by admins or for self-registration.
  *
  * @param {Request} request - The SvelteKit `Request` object.
  * @param {object} locals - The SvelteKit `locals` object, containing user session data.
@@ -82,26 +95,32 @@ export const GET: RequestHandler = async ({ url, locals }) => {
  * @body {string} displayName - The new user's display name.
  * @body {string} password - The new user's password (must be at least 8 characters).
  * @body {string} [email] - The new user's email. If not provided, a placeholder will be generated.
- * @body {string} [primarySection='Production'] - The user's primary section.
- * @body {string[]} [sections=['Production']] - A list of sections the user belongs to.
- * @body {object} [roles] - The user's roles for each section.
- * @body {string[]} [stations=[]] - A list of stations the user is assigned to.
+ * @body {string} [primarySection='Production'] - The user's primary section (admin-only).
+ * @body {string[]} [sections=['Production']] - A list of sections the user belongs to (admin-only).
+ * @body {object} [roles] - The user's roles for each section (admin-only).
+ * @body {string[]} [stations=[]] - A list of stations the user is assigned to (admin-only).
  *
  * @returns {Response} - A JSON response containing the newly created user object.
  *
  * @errors
  * - 400 Bad Request: If `username`, `displayName`, or `password` are missing or invalid.
- * - 403 Forbidden: If the requesting user is not an admin.
+ * - 403 Forbidden: If a non-admin user tries to assign roles, sections, or stations.
  * - 409 Conflict: If the username or email already exists.
  * - 500 Internal Server Error: If there is a failure during user creation.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
+  const data = await request.json();
+
+  // Check if this is an admin request vs. self-registration
   const currentUser = locals.user;
-  if (!currentUser || !isAdmin(currentUser)) {
-    return json({ error: 'Admin access required' }, { status: 403 });
+  const isAdminUser = currentUser && isAdmin(currentUser);
+
+  // For non-admin users trying to set roles/sections/stations, reject the request
+  if (!isAdminUser && (data.roles || data.sections || data.stations || data.primarySection)) {
+    return json({ error: 'Non-admin users cannot assign roles, sections, or stations' }, { status: 403 });
   }
 
-  const data = await request.json();
+  const isSelfRegistration = !isAdminUser;
 
   if (!data.username || !data.displayName) {
     return json({ error: 'Username and display name required' }, { status: 400 });

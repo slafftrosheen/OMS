@@ -56,9 +56,22 @@ export const createSupabaseClient = (event: RequestEvent) => {
         setAll: (cookiesToSet) => {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
-              event.cookies.set(name, value, options);
+              // Enhance cookie security options
+              const secureOptions = {
+                ...options,
+                // Ensure secure flag is set in production
+                secure: process.env.NODE_ENV === 'production',
+                // Explicitly set sameSite for CSRF protection
+                sameSite: 'lax' as const,
+                // HttpOnly for XSS protection
+                httpOnly: true,
+                // Path defaults to root
+                path: options.path || '/'
+              };
+              event.cookies.set(name, value, secureOptions);
             });
-          } catch {
+          } catch (e) {
+            console.error('Error setting cookies:', e);
             // This might happen if we are not in an action/endpoint where we can set cookies
           }
         }

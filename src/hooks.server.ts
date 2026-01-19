@@ -46,9 +46,13 @@ export const handle: Handle = async ({ event, resolve }) => {
           headers: { 'Content-Type': 'application/json' }
         });
       }
-    } else if (!session && !event.url.pathname.startsWith('/login') && !event.url.pathname.startsWith('/auth')) {
+    } else if (!session &&
+               !event.url.pathname.startsWith('/login') &&
+               !event.url.pathname.startsWith('/auth') &&
+               !event.url.pathname.startsWith('/api/auth') &&
+               !event.url.pathname.startsWith('/api/users')) {
       // Protect UI routes (redirect to login)
-      // Excluding /login and /auth (callbacks)
+      // Excluding /login and /auth (callbacks), and auth API endpoints for login/signup
       return new Response(null, {
           status: 303,
           headers: { location: '/login' }

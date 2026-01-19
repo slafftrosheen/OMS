@@ -1,58 +1,82 @@
-```
 # Dependencies
 node_modules/
-
-# Build outputs
-dist/
-build/
-*.js.map
-*.tsbuildinfo
 
 # Environment variables
 .env
 .env.local
-*.env.*
+.env.*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git/
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+.eggs/
+.installed.cfg
+lib/
+lib64/
+parts/
+sdist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
 
 # IDE specific
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# Logs
-*.log
-
-# Python related
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# Temporary files
-*.tmp
-*.temp
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
+*~
 
 # OS generated
 .DS_Store
 Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Icon?
+Network Trash Folder
+Temporary Items
+.apdisk
 
-# Compressed files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-```
-.qwen/
-gha-creds-*.json
+# Logs
+*.log
+
+# Runtime
+.pycache/
+$py.class
+
+# SvelteKit specific
+.output/
 .svelte-kit/
 .vercel/
+
+# Supabase
+.supabase/
