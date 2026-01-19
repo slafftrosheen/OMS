@@ -40,7 +40,7 @@ list_migrations() {
         echo -e "\nApplied migrations:"
         cat supabase/.branches/main/migrations.log 2>/dev/null || echo "No migrations log found"
     else
-        echo -e "\nNo local migrations log found. Run 'supabase db reset' to initialize."
+        echo -e "\nNo local migrations log found."
     fi
 }
 
