@@ -186,7 +186,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         };
 
     // Create the user profile
-    const { data: profile, error: profileError } = await locals.supabase
+    // Use supabaseAdmin to bypass RLS policies when creating profiles for new users
+    const { data: profile, error: profileError } = await supabaseAdmin
         .from('profiles')
         .insert(profileData)
         .select()
@@ -197,7 +198,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     }
 
     // Create a default set of preferences for the new user.
-    await locals.supabase.from('user_preferences').insert({ user_id: authData.user.id });
+    // Use supabaseAdmin to bypass RLS policies when creating preferences for new users
+    await supabaseAdmin.from('user_preferences').insert({ user_id: authData.user.id });
 
     return json({
       id: profile.id,
