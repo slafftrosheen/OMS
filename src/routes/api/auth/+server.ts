@@ -21,16 +21,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     return json({ error: 'Password required' }, { status: 400 });
   }
 
-  // Supabase authentication requires email and password.
-  // If username is provided but no email, we cannot proceed with authentication
-  // because we can't retrieve the email from the auth.users table directly.
-  // The standard approach is to require email for login.
+  // If email is not provided but username is, check if the username might actually be an email
+  // Many login forms use a single field that could contain either email or username
   if (!email && username) {
-    return json({ error: 'Login requires email address. Please use your email instead of username.' }, { status: 400 });
+    // Check if the "username" field contains an email address
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (emailRegex.test(username)) {
+      // If it looks like an email, treat it as such
+      email = username;
+    } else {
+      return json({ error: 'Please provide a valid email address.' }, { status: 400 });
+    }
   }
 
   if (!email) {
-    return json({ error: 'Email or Username required' }, { status: 400 });
+    return json({ error: 'Email required' }, { status: 400 });
   }
 
   const { data, error } = await locals.supabase.auth.signInWithPassword({
