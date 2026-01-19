@@ -30,7 +30,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 
     // Protect API routes
     if (event.url.pathname.startsWith('/api')) {
-      if (!session) {
+      // Allow access to auth endpoints and user creation (signup)
+      const isPublicApi =
+        event.url.pathname.startsWith('/api/auth') ||
+        (event.url.pathname.startsWith('/api/users') && event.request.method === 'POST');
+
+      if (!session && !isPublicApi) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }
