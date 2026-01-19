@@ -33,7 +33,8 @@ export const handle: Handle = async ({ event, resolve }) => {
       // Allow public API routes without authentication
       const publicApiRoutes = [
         '/api/auth',
-        '/api/preferences' // Preferences API allows unauthenticated access for defaults
+        '/api/preferences', // Preferences API allows unauthenticated access for defaults
+        '/api/users'        // Users API allows unauthenticated access for user registration
       ];
 
       const isPublicRoute = publicApiRoutes.some(route =>
