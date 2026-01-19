@@ -23,11 +23,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   // If username provided but no email, lookup email
   if (!email && username) {
-    const { data: profile, error: profileError } = await locals.supabase
-      .from('profiles')
-      .select('email')
-      .eq('username', username)
-      .single();
+    let profile;
+    let profileError;
+
+    try {
+      const result = await locals.supabase
+        .from('profiles')
+        .select('email')
+        .eq('username', username)
+        .single();
+
+      profile = result.data;
+      profileError = result.error;
+    } catch (err) {
+      console.error('Unexpected error during profile lookup:', err);
+      return json({ error: 'Database error during profile lookup' }, { status: 500 });
+    }
 
     if (profileError && profileError.code !== 'PGRST116') { // PGRST116 is "The result contains 0 rows"
       console.error('Profile lookup error:', profileError);
