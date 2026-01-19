@@ -16,7 +16,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   // Filter by multiple categories if provided (comma-separated)
   const categoriesParam = url.searchParams.get('categories');
   if (categoriesParam) {
-    const categories = categoriesParam.split(',');
+    const categories = categoriesParam.split(',').map(cat => cat.trim());
     query = query.in('category', categories);
   }
 
