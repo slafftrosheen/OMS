@@ -37,6 +37,7 @@ VALUES
 
 -- Create the first admin user (using the auth schema for proper Supabase integration)
 -- This requires the auth extension to be enabled in your Supabase project
+-- NOTE: Default password is intentionally weak for development only - CHANGE IN PRODUCTION
 INSERT INTO auth.users (
     id,
     instance_id,
@@ -73,7 +74,7 @@ VALUES (
     'authenticated',
     'authenticated',
     'admin@reclamefabriek.com',
-    crypt('Slaff181188', gen_salt('bf')),  -- Encrypted password
+    crypt('ChangeMe123!', gen_salt('bf')),  -- Default development password - CHANGE IN PRODUCTION
     NOW(),
     NULL,
     '',
@@ -95,7 +96,7 @@ VALUES (
     NULL,
     NULL,
     NULL,
-    '{"username": "Slaff", "display_name": "Slaff", "roles": {"Admin": "SuperAdmin", "Production": "Operator", "Logistics": "Viewer", "CAD": "Operator", "CNC": "Operator", "SANDING": "Operator", "BENDING": "Operator", "WELDING": "Operator", "PAINT": "Operator", "ASSEMBLY": "Operator", "QC": "Operator", "R&D": "Operator"}, "is_active": true}'
+    '{"username": "admin", "display_name": "Administrator", "roles": {"Admin": "SuperAdmin", "Production": "Operator", "Logistics": "Viewer", "CAD": "Operator", "CNC": "Operator", "SANDING": "Operator", "BENDING": "Operator", "WELDING": "Operator", "PAINT": "Operator", "ASSEMBLY": "Operator", "QC": "Operator", "R&D": "Operator"}, "is_active": true}'
 );
 
 -- Create the corresponding profile for the admin user
@@ -113,10 +114,10 @@ INSERT INTO public.profiles (
 )
 VALUES (
     '00000000-0000-0000-0000-000000000001',  -- Same UUID as the auth user
-    'Slaff',
-    'Slaff',
-    'Production',
-    ARRAY['Production', 'CAD', 'CNC', 'SANDING', 'BENDING', 'WELDING', 'PAINT', 'ASSEMBLY', 'QC', 'R&D']::TEXT[],
+    'admin',
+    'Administrator',
+    'Admin',
+    ARRAY['Admin', 'Production', 'Logistics', 'CAD', 'CNC', 'SANDING', 'BENDING', 'WELDING', 'PAINT', 'ASSEMBLY', 'QC', 'R&D']::TEXT[],
     '{"Admin": "SuperAdmin", "Production": "Operator", "Logistics": "Viewer", "CAD": "Operator", "CNC": "Operator", "SANDING": "Operator", "BENDING": "Operator", "WELDING": "Operator", "PAINT": "Operator", "ASSEMBLY": "Operator", "QC": "Operator", "R&D": "Operator"}',
     ARRAY[]::TEXT[],
     true,
