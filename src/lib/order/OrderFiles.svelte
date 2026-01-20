@@ -88,8 +88,8 @@
     }
   }
 
-  async function deleteFile(fileId: string) {
-    if (!confirm('Delete this file?')) return;
+  async function deleteFile(fileId: string, fileName: string) {
+    if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
     try {
       const res = await fetch(`${base}/api/files/${fileId}`, { method: 'DELETE' });
       if (res.ok) {
