@@ -1,6 +1,7 @@
 // src/routes/api/inventory/items/+server.ts
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { parsePaginationFromUrl, formatPaginatedResponse, calculatePagination } from '$lib/server/pagination';
 
 /**
  * GET /api/inventory/items - List all inventory items
@@ -10,24 +11,47 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const section = url.searchParams.get('section');
   const lowStock = url.searchParams.get('lowStock') === 'true';
   const search = url.searchParams.get('search');
+  const { page, limit } = parsePaginationFromUrl(url);
 
-  let query = locals.supabase
+  // First get the count for pagination
+  let countQuery = locals.supabase
     .from('inventory_items')
     .select('*')
     .order('updated_at', { ascending: false });
 
-  if (category) query = query.eq('category', category);
-  if (section) query = query.eq('section', section);
+  if (category) countQuery = countQuery.eq('category', category);
+  if (section) countQuery = countQuery.eq('section', section);
 
   if (search) {
-    query = query.or(`sku.ilike.%${search}%,name.ilike.%${search}%,location.ilike.%${search}%`);
+    countQuery = countQuery.or(`sku.ilike.%${search}%,name.ilike.%${search}%,location.ilike.%${search}%`);
   }
 
-  const { data, error } = await query;
+  const { count: totalCount, error: countError } = await countQuery;
+
+  if (countError) {
+    console.error('Failed to count inventory items:', countError);
+    return json({ data: [], pagination: calculatePagination(0) }, { status: 500 });
+  }
+
+  // Now get the actual data with pagination
+  let paginatedQuery = locals.supabase
+    .from('inventory_items')
+    .select('*')
+    .order('updated_at', { ascending: false })
+    .range((page - 1) * limit, page * limit - 1); // Apply pagination
+
+  if (category) paginatedQuery = paginatedQuery.eq('category', category);
+  if (section) paginatedQuery = paginatedQuery.eq('section', section);
+
+  if (search) {
+    paginatedQuery = paginatedQuery.or(`sku.ilike.%${search}%,name.ilike.%${search}%,location.ilike.%${search}%`);
+  }
+
+  const { data, error } = await paginatedQuery;
 
   if (error) {
     console.error('Failed to fetch inventory items:', error);
-    return json([], { status: 500 });
+    return json({ data: [], pagination: calculatePagination(0) }, { status: 500 });
   }
 
   let items = data.map(row => ({
@@ -55,7 +79,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       items = items.filter(i => i.stock <= i.min);
   }
 
-  return json(items);
+  const pagination = calculatePagination(totalCount || 0, { page, limit });
+
+  return json(formatPaginatedResponse(items, pagination));
 };
 
 /**

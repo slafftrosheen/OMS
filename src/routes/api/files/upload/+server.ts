@@ -1,7 +1,7 @@
 // src/routes/api/files/upload/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { uploadFile } from '$lib/server/storage';
+import { storageService } from '$lib/server/storage';
 
 /**
  * POST /api/files/upload - Upload file to storage (S3 or local fallback)
@@ -21,17 +21,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       throw error(400, 'No file provided');
     }
 
-    // Upload using storage helper
-    const storedName = await uploadFile(file, file.name, file.type);
-    const filePath = `${category}/${storedName}`;
+    // Convert File to Buffer
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Upload using storage service
+    const fileRecord = await storageService.storeFile(buffer, file.name, file.type, session.user.id);
 
     // Save metadata to database
-    const { data: fileRecord, error: dbError } = await locals.supabase
+    const { data: dbFileRecord, error: dbError } = await locals.supabase
       .from('files')
       .insert({
-        filename: storedName,
+        filename: fileRecord.storedName,
         original_name: file.name,
-        filepath: filePath,
+        filepath: fileRecord.path,
         mimetype: file.type,
         size: file.size,
         uploaded_by: session.user.id
@@ -41,19 +44,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     if (dbError) {
         console.error('Database insert error:', dbError);
-        // Note: deleteFile(storedName) should be called here for cleanup
+        // Attempt to clean up the uploaded file
+        await storageService.deleteFile(fileRecord.storedName);
         throw error(500, 'Failed to save file metadata');
     }
 
     return json({
-      id: fileRecord.id,
+      id: dbFileRecord.id,
       originalName: file.name,
-      storedName: storedName,
+      storedName: fileRecord.storedName,
       mimeType: file.type,
       size: file.size,
       category,
       uploadedBy: session.user.id,
-      uploadedAt: fileRecord.created_at
+      uploadedAt: dbFileRecord.created_at
     }, { status: 201 });
 
   } catch (err: any) {

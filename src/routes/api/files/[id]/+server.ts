@@ -1,7 +1,7 @@
 // src/routes/api/files/[id]/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getFileStream, deleteFile } from '$lib/server/storage';
+import { storageService } from '$lib/server/storage';
 
 /**
  * GET /api/files/[id] - Get file metadata or download file
@@ -21,14 +21,15 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
     }
 
     if (download) {
-        const stream = await getFileStream(file.filename);
+      // Get the file buffer from storage service
+      const fileBuffer = await storageService.retrieveFile(file.id, file.filename);
 
-        return new Response(stream as any, {
-            headers: {
-                'Content-Type': file.mimetype || 'application/octet-stream',
-                'Content-Disposition': `attachment; filename="${file.original_name || file.filename}"`
-            }
-        });
+      return new Response(fileBuffer, {
+        headers: {
+          'Content-Type': file.mimetype || 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${file.original_name || file.filename}"`
+        }
+      });
     }
 
     // Return metadata
@@ -65,7 +66,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
     }
 
     // Delete from Storage
-    await deleteFile(file.filename);
+    await storageService.deleteFile(file.filename);
 
     // Delete from Database
     const { error: dbError } = await locals.supabase

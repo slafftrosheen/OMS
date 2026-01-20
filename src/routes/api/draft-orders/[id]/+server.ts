@@ -115,12 +115,8 @@ export const PUT: RequestHandler = async (event) => {
 
     if (updateError) throw updateError;
 
-    // Update profiles
+    // Update profiles atomically to avoid race conditions
     if (data.profiles && Array.isArray(data.profiles)) {
-        // Delete existing
-        await event.locals.supabase.from('order_profiles').delete().eq('draft_order_id', order.id);
-
-        // Insert new
         const profilesToInsert = data.profiles.map((p: any) => ({
             draft_order_id: order.id,
             profile_template_id: p.profileTemplateId || null,
@@ -129,7 +125,13 @@ export const PUT: RequestHandler = async (event) => {
             notes: p.notes || ''
         }));
 
-        await event.locals.supabase.from('order_profiles').insert(profilesToInsert);
+        // Use a single transaction to replace all profiles for this order
+        const { error: profilesError } = await event.locals.supabase.rpc('replace_order_profiles', {
+            target_order_id: order.id,
+            new_profiles: profilesToInsert
+        });
+
+        if (profilesError) throw profilesError;
     }
 
     // Link new files

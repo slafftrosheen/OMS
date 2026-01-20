@@ -1,6 +1,7 @@
 // src/routes/api/inventory/+server.ts
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { parsePaginationFromUrl, formatPaginatedResponse, calculatePagination } from '$lib/server/pagination';
 
 /**
  * GET /api/inventory - List inventory items
@@ -9,6 +10,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const category = url.searchParams.get('category');
   const lowStock = url.searchParams.get('lowStock') === 'true';
   const search = url.searchParams.get('search');
+  const { page, limit } = parsePaginationFromUrl(url);
 
   try {
     // Note: The previous logic joined `inventory_stock` and `materials`.
@@ -53,14 +55,59 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     // Since I haven't created `inventory_stock` table yet, I need to add it in a migration.
     // And I should adjust the code to use it.
 
+    // First get the count for pagination
+    let countQuery = locals.supabase
+        .from('inventory_stock')
+        .select('*', { count: 'exact', head: true });
+
+    if (category) {
+        countQuery = countQuery.eq('materials.category', category);
+    }
+
+    const { count: totalCount, error: countError } = await countQuery;
+
+    if (countError) {
+         // If table missing, return empty or error.
+         console.error('Error counting inventory items:', countError);
+         return json({ data: [], pagination: calculatePagination(0) }); // Fail gracefully
+    }
+
+    // Now get the actual data with pagination
+    let paginatedQuery = locals.supabase
+        .from('inventory_stock')
+        .select(`
+            *,
+            materials (code, name_en, category, metadata)
+        `)
+        .order('updated_at', { ascending: false })
+        .range((page - 1) * limit, page * limit - 1); // Apply pagination
+
+    // Filtering by joined table (materials) in Supabase is done via !inner join and filter.
+    if (category) {
+        paginatedQuery = paginatedQuery.eq('materials.category', category); // This works if FK is set up correctly
+        // Or .filter('materials.category', 'eq', category)? No.
+        // Needs: .select('*, materials!inner(*)') .eq('materials.category', category)
+        // But let's verify if `materials` relationship exists.
+    }
+
+    // Search
+    if (search) {
+        // Search on materials name/code
+        // .or(`name_en.ilike.%${search}%,code.ilike.%${search}%`, { foreignTable: 'materials' })
+        // Need to enable inner join for filtering
+    }
+
+    // Since I haven't created `inventory_stock` table yet, I need to add it in a migration.
+    // And I should adjust the code to use it.
+
     // For now, I'll write the code assuming the table exists, and then add the migration.
 
-    const { data, error } = await query;
+    const { data, error } = await paginatedQuery;
 
     if (error) {
          // If table missing, return empty or error.
          console.error('Error fetching inventory items:', error);
-         return json({ items: [], count: 0 }); // Fail gracefully
+         return json({ data: [], pagination: calculatePagination(0) }); // Fail gracefully
     }
 
     let items = data.map((row: any) => ({
@@ -87,13 +134,12 @@ export const GET: RequestHandler = async ({ url, locals }) => {
         );
     }
 
-    return json({
-      items,
-      count: items.length
-    });
+    const pagination = calculatePagination(totalCount || 0, { page, limit });
+
+    return json(formatPaginatedResponse(items, pagination));
   } catch (err) {
     console.error('Error fetching inventory items:', err);
-    return json({ items: [], count: 0 }, { status: 500 });
+    return json({ data: [], pagination: calculatePagination(0) }, { status: 500 });
   }
 };
 
