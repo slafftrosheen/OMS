@@ -61,25 +61,38 @@
     
     <select bind:value={categoryFilter}>
       <option value="ALL">{$t('inventory.all_categories') || 'All Categories'}</option>
-      <option value="ACRYLIC">Acrylic</option>
-      <option value="ALUMINIUM">Aluminium</option>
-      <option value="STEEL">Steel</option>
-      <option value="ACP">ACP</option>
-      <option value="VINYL">Vinyl</option>
-      <option value="PAINT">Paint</option>
-      <option value="ADHESIVE">Adhesive</option>
-      <option value="HARDWARE">Hardware</option>
-      <option value="INSTRUMENT">Instrument</option>
-      <option value="ELECTRONICS">Electronics</option>
-      <option value="LED">LED Modules</option>
-      <option value="LED_STRIP">LED Strips</option>
-      <option value="PSU">Power Supplies</option>
-      <option value="3D_PRINTING">3D Printing</option>
-      <option value="RESIN">Resin</option>
-      <option value="FILAMENT">Filament</option>
-      <option value="SCREWS">Screws & Fasteners</option>
-      <option value="MOUNTING">Mounting</option>
-      <option value="CONSUMABLE">Consumables</option>
+      <optgroup label="Acrylics">
+        <option value="ACRYLIC_XT">Acrylic XT</option>
+        <option value="ACRYLIC_GS">Acrylic GS</option>
+        <option value="ACRYLIC_LED">Acrylic LED</option>
+        <option value="ACRYLIC_SPECIAL">Acrylic Special</option>
+      </optgroup>
+      <optgroup label="Metals">
+        <option value="ALU_SHEET">Alu Sheet</option>
+        <option value="ALU_COMPOSITE">Alu Composite (ACP)</option>
+        <option value="ALU_PROFILE">Alu Profile</option>
+        <option value="STEEL">Steel / Stainless</option>
+      </optgroup>
+      <optgroup label="Films & Vinyl">
+        <option value="VINYL_ORACAL">Vinyl Oracal</option>
+        <option value="VINYL_SPECIAL">Vinyl Special</option>
+      </optgroup>
+      <optgroup label="Paints">
+        <option value="PAINT_RAL">Paint RAL</option>
+        <option value="PAINT_PANTONE">Paint Pantone</option>
+      </optgroup>
+      <optgroup label="Electronics">
+        <option value="LED_MODULE">LED Module</option>
+        <option value="LED_STRIP">LED Strip</option>
+        <option value="PSU_MEANWELL">Power Supply</option>
+        <option value="WIRE">Wire / Cable</option>
+      </optgroup>
+      <optgroup label="Other">
+        <option value="PVC_FOAM">PVC Foam (Forex)</option>
+        <option value="HARDWARE">Hardware</option>
+        <option value="CONSUMABLE">Consumables</option>
+        <option value="3D_PRINTING">3D Printing</option>
+      </optgroup>
     </select>
   </div>
   

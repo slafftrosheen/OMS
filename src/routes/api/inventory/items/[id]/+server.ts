@@ -75,7 +75,27 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
        throw updateError;
     }
 
-    return json(updated);
+    // Return mapped item consistently
+    return json({
+      id: updated.id,
+      sku: updated.sku,
+      name: updated.name,
+      category: updated.category,
+      section: updated.section,
+      group: updated.item_group,
+      subgroup: updated.subgroup,
+      unit: updated.unit,
+      stock: updated.stock,
+      min: updated.min_stock,
+      thicknessMM: updated.thickness_mm,
+      location: updated.location,
+      vendor: updated.vendor,
+      colorCode: updated.color_code,
+      barcode: updated.barcode,
+      note: updated.note,
+      leftover: updated.leftover_data,
+      updatedAt: updated.updated_at
+    });
   } catch (err: any) {
     console.error('Failed to update item:', err);
     if (err.status) throw err;

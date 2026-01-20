@@ -19,15 +19,6 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   if (category) query = query.eq('category', category);
   if (section) query = query.eq('section', section);
 
-  // Note: Supabase JS filtering for column <= column is not directly supported via simple filter.
-  // We can use RPC or raw filtering if needed, or filter in JS if dataset is small.
-  // Or maybe query.filter('stock', 'lte', 'min_stock') ? No, 'lte' takes a value.
-  // We might need to filter after fetching if we can't use complex where clause or use raw SQL view.
-  // Or we can use `.not('min_stock', 'is', null)` and then...
-  // Actually PostgREST supports this via raw embedding, but supbase-js doesn't expose it easily?
-  // We can just filter in JS for now if dataset is small, or assume lowStock is handled client side.
-  // But let's try to be efficient.
-
   if (search) {
     query = query.or(`sku.ilike.%${search}%,name.ilike.%${search}%,location.ilike.%${search}%`);
   }
@@ -73,15 +64,6 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 export const POST: RequestHandler = async ({ request, locals }) => {
   const data = await request.json();
 
-  // If ID is not provided, let database gen random UUID if set to default, or we can provide one.
-  // The migration below will set id to uuid default gen_random_uuid().
-  // However, the original code allowed custom ID (string).
-  // If we want to keep custom ID support (e.g. legacy IDs), we should check if it's a UUID or text.
-  // The original code used `INV-${Date.now()}` which is not UUID.
-  // Supabase usually prefers UUID.
-  // I will assume we should migrate to UUIDs, but if we need to preserve IDs, we should use text primary key.
-  // Let's assume text primary key for inventory_items to be safe with `INV-` format.
-
   const { data: item, error } = await locals.supabase
     .from('inventory_items')
     .insert({
@@ -114,5 +96,25 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     return json({ error: 'Failed to create item' }, { status: 500 });
   }
 
-  return json(item, { status: 201 });
+  // Return mapped item
+  return json({
+    id: item.id,
+    sku: item.sku,
+    name: item.name,
+    category: item.category,
+    section: item.section,
+    group: item.item_group,
+    subgroup: item.subgroup,
+    unit: item.unit,
+    stock: item.stock,
+    min: item.min_stock,
+    thicknessMM: item.thickness_mm,
+    location: item.location,
+    vendor: item.vendor,
+    colorCode: item.color_code,
+    barcode: item.barcode,
+    note: item.note,
+    leftover: item.leftover_data,
+    updatedAt: item.updated_at
+  }, { status: 201 });
 };
