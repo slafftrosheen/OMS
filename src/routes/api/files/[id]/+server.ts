@@ -1,6 +1,7 @@
 // src/routes/api/files/[id]/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { getFileStream, deleteFile } from '$lib/server/storage';
 
 /**
  * GET /api/files/[id] - Get file metadata or download file
@@ -20,21 +21,11 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
     }
 
     if (download) {
-        // Download from Supabase Storage
-        const { data, error: downloadError } = await locals.supabase
-            .storage
-            .from('files')
-            .download(file.filepath);
+        const stream = await getFileStream(file.filename);
 
-        if (downloadError) {
-            console.error('Download error:', downloadError);
-            throw error(500, 'Failed to download file content');
-        }
-
-        return new Response(data, {
+        return new Response(stream as any, {
             headers: {
                 'Content-Type': file.mimetype || 'application/octet-stream',
-                'Content-Length': String(data.size),
                 'Content-Disposition': `attachment; filename="${file.original_name || file.filename}"`
             }
         });
@@ -65,7 +56,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
   try {
     const { data: file, error: fetchError } = await locals.supabase
       .from('files')
-      .select('filepath')
+      .select('filename')
       .eq('id', params.id)
       .single();
 
@@ -74,14 +65,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
     }
 
     // Delete from Storage
-    const { error: storageError } = await locals.supabase
-        .storage
-        .from('files')
-        .remove([file.filepath]);
-
-    if (storageError) {
-        console.warn('Failed to delete file from storage:', storageError);
-    }
+    await deleteFile(file.filename);
 
     // Delete from Database
     const { error: dbError } = await locals.supabase

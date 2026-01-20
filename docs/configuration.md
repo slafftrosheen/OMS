@@ -214,6 +214,20 @@ body {
 }
 ```
 
+## Database Seeding
+
+To seed the database with initial data (materials, admin user, etc.):
+
+1.  Set the `SEED_ADMIN_PASSWORD` environment variable to a strong password.
+2.  Run the seed script: `bash scripts/run_seed.sh`.
+3.  The script will generate a temporary SQL file with your password substituted.
+4.  Follow the instructions output by the script to execute the SQL in your Supabase project.
+
+```bash
+export SEED_ADMIN_PASSWORD="your_strong_password_here"
+bash scripts/run_seed.sh
+```
+
 ## Production Configuration Checklist
 
 ### Security

@@ -74,7 +74,7 @@ VALUES (
     'authenticated',
     'authenticated',
     'admin@reclamefabriek.com',
-    crypt('ChangeMe123!', gen_salt('bf')),  -- Default development password - CHANGE IN PRODUCTION
+    crypt('{{SEED_ADMIN_PASSWORD}}', gen_salt('bf')),  -- Placeholder replaced by seed script
     NOW(),
     NULL,
     '',

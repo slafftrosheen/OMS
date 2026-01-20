@@ -2,6 +2,13 @@
 import { getSessionUser } from '$lib/server/auth/session';
 import { createSupabaseClient } from '$lib/server/supabase';
 import type { Handle } from '@sveltejs/kit';
+import * as Sentry from '@sentry/sveltekit';
+
+// Initialize Sentry
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  tracesSampleRate: 0.1
+});
 
 export const handle: Handle = async ({ event, resolve }) => {
   try {
@@ -21,8 +28,6 @@ export const handle: Handle = async ({ event, resolve }) => {
     const session = await event.locals.getSession();
 
     if (session) {
-      // If we have a supabase session, we try to get our application user.
-      // We pass the event because getSessionUser might need to use the supabase client attached to the event.
       event.locals.user = await getSessionUser(event);
     } else {
       event.locals.user = null;
@@ -30,19 +35,23 @@ export const handle: Handle = async ({ event, resolve }) => {
 
     // Protect API routes (excluding public endpoints)
     if (event.url.pathname.startsWith('/api')) {
-      // Allow public API routes without authentication
       const publicApiRoutes = [
-        '/api/auth',
-        '/api/preferences', // Preferences API allows unauthenticated access for defaults
-        '/api/users'        // Users API allows unauthenticated access for user registration
+        '/api/auth/login',
+        '/api/auth/signup',
+        '/api/auth/callback',
+        '/api/healthz'
       ];
 
       const isPublicRoute = publicApiRoutes.some(route =>
-        event.url.pathname.startsWith(route)
+        event.url.pathname === route || event.url.pathname.startsWith(route + '/')
       );
 
       if (!session && !isPublicRoute) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        return new Response(JSON.stringify({ 
+          code: 'UNAUTHORIZED',
+          message: 'Unauthorized access',
+          timestamp: new Date().toISOString()
+        }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }
         });
@@ -50,23 +59,42 @@ export const handle: Handle = async ({ event, resolve }) => {
     } else if (!session &&
                !event.url.pathname.startsWith('/login') &&
                !event.url.pathname.startsWith('/auth') &&
-               !event.url.pathname.startsWith('/api/auth') &&
-               !event.url.pathname.startsWith('/api/users')) {
+               !event.url.pathname.startsWith('/api/auth')) {
       // Protect UI routes (redirect to login)
-      // Excluding /login and /auth (callbacks), and auth API endpoints for login/signup
       return new Response(null, {
           status: 303,
           headers: { location: '/login' }
       });
     }
 
-    return await resolve(event, {
+    const response = await resolve(event, {
       filterSerializedResponseHeaders(name) {
         return name === 'content-range';
       },
     });
+
+    // Security Headers
+    response.headers.set(
+      'Content-Security-Policy',
+      "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co"
+    );
+    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    response.headers.set('X-Frame-Options', 'DENY');
+    response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+
+    return response;
   } catch (err: any) {
     console.error('Critical Server Error in hooks:', err);
-    return new Response(`Server Error: ${err.message}`, { status: 500 });
+    Sentry.captureException(err);
+    
+    return new Response(JSON.stringify({ 
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'A critical server error occurred',
+      timestamp: new Date().toISOString()
+    }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 };

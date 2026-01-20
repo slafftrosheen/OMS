@@ -1,6 +1,9 @@
 // src/routes/api/draft-orders/[id]/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { validateRequest } from '$lib/server/validation';
+import { draftOrderUpdateSchema } from '$lib/server/schemas/draftOrders';
+import { requireOwnership } from '$lib/server/auth/permissions';
 
 /**
  * GET /api/draft-orders/[id] - Get single order with profiles
@@ -74,11 +77,13 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 /**
  * PUT /api/draft-orders/[id] - Update order
  */
-export const PUT: RequestHandler = async ({ params, request, locals }) => {
-  const data = await request.json();
+export const PUT: RequestHandler = async (event) => {
+  const { params, request } = event;
+  await requireOwnership(event, 'draft_orders', params.id, 'created_by');
+  const data = await validateRequest(request, draftOrderUpdateSchema);
 
   try {
-    const { data: order, error: findError } = await locals.supabase
+    const { data: order, error: findError } = await event.locals.supabase
         .from('draft_orders')
         .select('id')
         .or(`id.eq.${params.id},po_number.eq.${params.id}`)
@@ -86,12 +91,12 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 
     if (findError || !order) throw error(404, 'Order not found');
 
-    const updates: any = {
+    const updates: Record<string, unknown> = {
         updated_at: new Date().toISOString()
     };
-    if (data.clientName || data.client) updates.client = data.clientName || data.client;
+    if (data.clientName || data.client) updates.client = data.clientName ?? data.client;
     if (data.title) updates.title = data.title;
-    if (data.deadline || data.due) updates.due_date = data.deadline || data.due;
+    if (data.deadline || data.due) updates.due_date = data.deadline ?? data.due;
     // Allow clearing date if explicitly null
     if (data.loadingDate !== undefined) updates.loading_date = data.loadingDate;
     if (data.status) updates.status = data.status;
@@ -101,7 +106,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
     if (data.deliveryContact !== undefined) updates.delivery_contact = data.deliveryContact;
     if (data.deliveryPhone !== undefined) updates.delivery_phone = data.deliveryPhone;
 
-    const { data: updatedOrder, error: updateError } = await locals.supabase
+    const { data: updatedOrder, error: updateError } = await event.locals.supabase
         .from('draft_orders')
         .update(updates)
         .eq('id', order.id)
@@ -113,7 +118,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
     // Update profiles
     if (data.profiles && Array.isArray(data.profiles)) {
         // Delete existing
-        await locals.supabase.from('order_profiles').delete().eq('draft_order_id', order.id);
+        await event.locals.supabase.from('order_profiles').delete().eq('draft_order_id', order.id);
 
         // Insert new
         const profilesToInsert = data.profiles.map((p: any) => ({
@@ -124,7 +129,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
             notes: p.notes || ''
         }));
 
-        await locals.supabase.from('order_profiles').insert(profilesToInsert);
+        await event.locals.supabase.from('order_profiles').insert(profilesToInsert);
     }
 
     // Link new files
@@ -135,7 +140,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
             file_type: 'sketch',
             display_name: null
         }));
-        await locals.supabase.from('order_files').insert(filesToInsert);
+        await event.locals.supabase.from('order_files').insert(filesToInsert);
     }
 
     return json({
@@ -154,7 +159,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 
   } catch (err: any) {
     console.error('Failed to update order:', err);
-    if (err.status === 404) throw error(404, err.message);
+    if (err.status) throw err;
     throw error(500, 'Failed to update order');
   }
 };
@@ -162,11 +167,13 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 /**
  * PATCH /api/draft-orders/[id] - Partial update
  */
-export const PATCH: RequestHandler = async ({ params, request, locals }) => {
-  const data = await request.json();
+export const PATCH: RequestHandler = async (event) => {
+  const { params, request } = event;
+  await requireOwnership(event, 'draft_orders', params.id, 'created_by');
+  const data = await validateRequest(request, draftOrderUpdateSchema);
 
   try {
-     const { data: order, error: findError } = await locals.supabase
+     const { data: order, error: findError } = await event.locals.supabase
         .from('draft_orders')
         .select('id')
         .or(`id.eq.${params.id},po_number.eq.${params.id}`)
@@ -174,7 +181,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
     if (findError || !order) throw error(404, 'Order not found');
 
-    const updates: any = { updated_at: new Date().toISOString() };
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (data.loadingDate !== undefined) updates.loading_date = data.loadingDate;
     if (data.status !== undefined) updates.status = data.status;
     if (data.priority !== undefined) updates.priority = data.priority;
@@ -184,7 +191,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
        throw error(400, 'No fields to update');
     }
 
-    const { data: updatedOrder, error: updateError } = await locals.supabase
+    const { data: updatedOrder, error: updateError } = await event.locals.supabase
         .from('draft_orders')
         .update(updates)
         .eq('id', order.id)
@@ -211,9 +218,11 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 /**
  * DELETE /api/draft-orders/[id] - Delete order
  */
-export const DELETE: RequestHandler = async ({ params, locals }) => {
+export const DELETE: RequestHandler = async (event) => {
+  const { params } = event;
+  await requireOwnership(event, 'draft_orders', params.id, 'created_by');
   try {
-    const { data: deleted, error: deleteError } = await locals.supabase
+    const { data: deleted, error: deleteError } = await event.locals.supabase
         .from('draft_orders')
         .delete()
         .or(`id.eq.${params.id},po_number.eq.${params.id}`)

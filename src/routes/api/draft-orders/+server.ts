@@ -1,13 +1,16 @@
 // src/routes/api/draft-orders/+server.ts
-import { json, error } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
+import { json, type RequestHandler } from '@sveltejs/kit';
+import { getPagination } from '$lib/server/pagination';
+import { apiError } from '$lib/server/errors';
 
 /**
- * GET /api/draft-orders - List all draft orders
+ * GET /api/draft-orders - List all draft orders with pagination
  */
-export const GET: RequestHandler = async ({ locals }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
+  const { page, limit, offset } = getPagination(url);
+
   try {
-    const { data: orders, error: fetchError } = await locals.supabase
+    const { data: orders, count, error: fetchError } = await locals.supabase
       .from('draft_orders')
       .select(`
         *,
@@ -18,13 +21,16 @@ export const GET: RequestHandler = async ({ locals }) => {
           configuration,
           notes
         )
-      `)
+      `, { count: 'exact' })
+      .range(offset, offset + limit - 1)
       .order('created_at', { ascending: false });
 
-    if (fetchError) throw fetchError;
+    if (fetchError) {
+      apiError(500, 'INTERNAL_SERVER_ERROR', 'Failed to fetch orders');
+    }
 
     // Transform to match frontend expectations
-    const transformedOrders = orders.map(row => ({
+    const transformedOrders = (orders || []).map(row => ({
       id: row.id,
       poNumber: row.po_number,
       clientName: row.client,
@@ -41,10 +47,20 @@ export const GET: RequestHandler = async ({ locals }) => {
       updatedAt: row.updated_at
     }));
 
-    return json(transformedOrders);
+    return json({
+      data: transformedOrders,
+      pagination: {
+        page,
+        limit,
+        total: count,
+        totalPages: count ? Math.ceil(count / limit) : 0,
+        hasMore: count ? page * limit < count : false
+      }
+    });
   } catch (err) {
+    if ('status' in (err as any)) throw err;
     console.error('Error fetching draft orders:', err);
-    return json([], { status: 500 });
+    apiError(500, 'INTERNAL_SERVER_ERROR', 'Failed to fetch orders');
   }
 };
 
@@ -55,7 +71,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   const data = await request.json();
 
   if (!data.poNumber || !data.clientName) {
-    return json({ message: 'PO Number and Client Name are required' }, { status: 400 });
+    apiError(400, 'VALIDATION_ERROR', 'PO Number and Client Name are required');
   }
 
   try {
@@ -67,7 +83,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         .single();
 
     if (existing) {
-         return json({ message: 'PO Number already exists' }, { status: 409 });
+         apiError(409, 'INTERNAL_SERVER_ERROR', 'PO Number already exists');
     }
 
     // Insert order
@@ -85,7 +101,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         delivery_address: data.deliveryAddress || null,
         delivery_contact: data.deliveryContact || null,
         delivery_phone: data.deliveryPhone || null,
-        // delivery_preset_id: data.deliveryPresetId || null // Check if this column exists
       })
       .select()
       .single();
@@ -108,13 +123,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       if (profilesError) throw profilesError;
     }
 
-    // Insert files
-    // Assuming 'order_files' table exists. Check migration.
-    // In 001_initial_schema.sql (my version), I did not see order_files.
-    // It referenced cdr_file_id and pdf_file_id in draft_orders.
-    // But original code referenced `order_files`. I need to ensure `order_files` exists in Supabase.
-    // I'll add a migration for it if needed, or if it was omitted, I should create it.
-
     if (data.fileIds && Array.isArray(data.fileIds) && data.fileIds.length > 0) {
          const filesToInsert = data.fileIds.map((fileId: string) => ({
             draft_order_id: newOrder.id,
@@ -123,27 +131,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             display_name: null
          }));
 
-         // I need to make sure order_files table exists.
-         // Since I can't check schema in DB directly without `ls`, I'll assume I need to create it
-         // or if it fails, I'll know why.
-         // Based on original code: `INSERT INTO order_files`
-
          const { error: filesError } = await locals.supabase
             .from('order_files')
             .insert(filesToInsert);
 
          if (filesError) {
              console.error('Error inserting order files:', filesError);
-             // Proceeding without failing the whole request, but logging error.
          }
     }
 
     return json(newOrder, { status: 201 });
   } catch (err: any) {
+    if ('status' in (err as any)) throw err;
     console.error('Error creating draft order:', err);
-    if (err.code === '23505') { // Unique violation
-      return json({ message: 'PO Number already exists' }, { status: 409 });
+    if (err.code === '23505') {
+      apiError(409, 'INTERNAL_SERVER_ERROR', 'PO Number already exists');
     }
-    return json({ message: 'Failed to create order' }, { status: 500 });
+    apiError(500, 'INTERNAL_SERVER_ERROR', 'Failed to create order');
   }
 };

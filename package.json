@@ -13,6 +13,8 @@
     "supabase:migrate:push": "bash scripts/supabase-migrate.sh push"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.971.0",
+    "@aws-sdk/lib-storage": "^3.971.0",
     "@ericblade/quagga2": "^1.12.0",
     "@supabase/auth-helpers-sveltekit": "^0.15.0",
     "@supabase/supabase-js": "^2.90.1",
@@ -30,9 +32,12 @@
     "pg": "^8.16.3",
     "svelte": "^4.2.19",
     "svelte-apexcharts": "file:packages/svelte-apexcharts",
-    "svelte-i18n": "file:packages/svelte-i18n"
+    "svelte-i18n": "file:packages/svelte-i18n",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@sentry/node": "^8.0.0",
+    "@sentry/sveltekit": "^8.0.0",
     "@sveltejs/adapter-vercel": "^6.3.0",
     "@sveltejs/vite-plugin-svelte": "^3.1.2",
     "@testing-library/jest-dom": "^6.9.1",
