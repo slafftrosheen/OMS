@@ -88,8 +88,9 @@
     }
   }
 
-  async function deleteFile(fileId: string, fileName: string) {
-    if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
+  async function deleteFile(fileId: string, fileName?: string) {
+    const name = fileName || files.find(f => f.id === fileId)?.originalName || 'file';
+    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
     try {
       const res = await fetch(`${base}/api/files/${fileId}`, { method: 'DELETE' });
       if (res.ok) {
@@ -203,7 +204,7 @@
             <button class="btn-icon" on:click={() => downloadFile(file)} title="Download">
               <Download size={16} />
             </button>
-            <button class="btn-icon danger" on:click={() => deleteFile(file.id)} title="Delete">
+            <button class="btn-icon danger" on:click={() => deleteFile(file.id, file.originalName)} title="Delete">
               <Trash2 size={16} />
             </button>
           </div>
