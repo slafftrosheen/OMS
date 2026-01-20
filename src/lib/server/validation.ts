@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { error } from '@sveltejs/kit';
 
 /**
  * Generic validation function that takes a Zod schema and validates input data
@@ -17,16 +18,16 @@ export function validateData<T extends z.ZodSchema<any>>(
       success: true,
       data: parsed
     };
-  } catch (error) {
-    if (error instanceof z.ZodError) {
+  } catch (err) {
+    if (err instanceof z.ZodError) {
       const fieldErrors: Record<string, string[]> = {};
       
-      error.errors.forEach((err) => {
-        const field = err.path.join('.');
+      err.errors.forEach((e) => {
+        const field = e.path.join('.');
         if (!fieldErrors[field]) {
           fieldErrors[field] = [];
         }
-        fieldErrors[field].push(err.message);
+        fieldErrors[field].push(e.message);
       });
       
       return {
@@ -59,11 +60,11 @@ export function validateField<T extends z.ZodSchema<any>>(
       success: true,
       data: parsed
     };
-  } catch (error) {
-    if (error instanceof z.ZodError) {
+  } catch (err) {
+    if (err instanceof z.ZodError) {
       return {
         success: false,
-        error: error.errors[0]?.message || 'Invalid field'
+        error: err.errors[0]?.message || 'Invalid field'
       };
     }
     
@@ -72,4 +73,24 @@ export function validateField<T extends z.ZodSchema<any>>(
       error: 'Unknown validation error occurred'
     };
   }
+}
+
+/**
+ * Validate request body against a schema
+ */
+export async function validateRequest<T extends z.ZodSchema<any>>(
+  request: Request,
+  schema: T
+): Promise<z.infer<T>> {
+  const body = await request.json().catch(() => ({}));
+  const result = validateData(schema, body);
+
+  if (!result.success) {
+    throw error(400, {
+      message: 'Validation failed',
+      errors: result.errors
+    } as any);
+  }
+
+  return result.data!;
 }

@@ -52,6 +52,15 @@ export function parsePaginationFromUrl(url: URL): { page: number; limit: number 
 }
 
 /**
+ * Get pagination parameters including offset from URL
+ */
+export function getPagination(url: URL): { page: number; limit: number; offset: number } {
+  const { page, limit } = parsePaginationFromUrl(url);
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+}
+
+/**
  * Format paginated response
  */
 export interface PaginatedResponse<T> {

@@ -65,3 +65,25 @@ export const DraftOrderFilterSchema = z.object({
   limit: z.number().int().positive().max(1000).default(50),
   offset: z.number().int().nonnegative().default(0),
 });
+
+export const draftOrderUpdateSchema = z.object({
+  clientName: z.string().optional(),
+  client: z.string().optional(),
+  title: z.string().optional(),
+  deadline: z.string().nullable().optional(),
+  due: z.string().nullable().optional(),
+  loadingDate: z.string().nullable().optional(),
+  status: z.string().optional(),
+  notes: z.string().optional(),
+  priority: z.string().optional(),
+  deliveryAddress: z.string().nullable().optional(),
+  deliveryContact: z.string().nullable().optional(),
+  deliveryPhone: z.string().nullable().optional(),
+  profiles: z.array(z.object({
+    profileTemplateId: z.string().optional().nullable(),
+    quantity: z.number().optional(),
+    configuration: z.record(z.any()).optional(),
+    notes: z.string().optional()
+  })).optional(),
+  newFileIds: z.array(z.string()).optional()
+});

@@ -1,4 +1,4 @@
-```
+
 # Dependencies
 node_modules/
 
@@ -60,4 +60,6 @@ public/dist
 coverage/
 .nyc_output/
 istanbul.out
-```
+
+# Vercel
+.vercel/

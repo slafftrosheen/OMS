@@ -79,7 +79,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
  */
 export const PUT: RequestHandler = async (event) => {
   const { params, request } = event;
-  await requireOwnership(event, 'draft_orders', params.id, 'created_by');
+  await requireOwnership(event, params.id, 'draft_orders', 'created_by');
   const data = await validateRequest(request, draftOrderUpdateSchema);
 
   try {
@@ -171,7 +171,7 @@ export const PUT: RequestHandler = async (event) => {
  */
 export const PATCH: RequestHandler = async (event) => {
   const { params, request } = event;
-  await requireOwnership(event, 'draft_orders', params.id, 'created_by');
+  await requireOwnership(event, params.id, 'draft_orders', 'created_by');
   const data = await validateRequest(request, draftOrderUpdateSchema);
 
   try {
@@ -222,7 +222,7 @@ export const PATCH: RequestHandler = async (event) => {
  */
 export const DELETE: RequestHandler = async (event) => {
   const { params } = event;
-  await requireOwnership(event, 'draft_orders', params.id, 'created_by');
+  await requireOwnership(event, params.id, 'draft_orders', 'created_by');
   try {
     const { data: deleted, error: deleteError } = await event.locals.supabase
         .from('draft_orders')
