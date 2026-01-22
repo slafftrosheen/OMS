@@ -1,1 +1,0 @@
-import{w as e}from"./RFDOl37j.js";import"./BJR7jWGM.js";import"./BYA9GssW.js";const a=e(""),o=typeof window<"u",t=o&&localStorage.getItem("rf_role")||"Admin",s=e(t);s.subscribe(r=>{o&&localStorage.setItem("rf_role",r)});export{a as l,s as r};

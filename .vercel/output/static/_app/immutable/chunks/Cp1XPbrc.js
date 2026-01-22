@@ -1,0 +1,1 @@
+const T=["CAD","CNC","SANDING","BENDING","WELDING","PAINT","FILM_COATING","GLUEING","ASSEMBLY","QC","LOGISTICS"],S={NOT_STARTED:"stages.NOT_STARTED",QUEUED:"stages.QUEUED",IN_PROGRESS:"stages.IN_PROGRESS",BLOCKED:"stages.BLOCKED",REWORK:"stages.REWORK",COMPLETED:"stages.COMPLETED"};function t(){const E={};for(const s of T)E[s]="NOT_STARTED";return E}export{T as S,S as a,t as b};

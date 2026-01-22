@@ -8,14 +8,23 @@ function validateEnvironment() {
 	if (building) return;
 
 	const requiredEnvVars = [
-		'DATABASE_URL',
-		'SUPABASE_URL',
-		'SUPABASE_ANON_KEY'
+		'DATABASE_URL'
 	];
 
+	// Check for core required variables
 	const missingVars = requiredEnvVars.filter(
 		(varName) => !process.env[varName]
 	);
+
+	// Check for Supabase URL (allow private or public variant)
+	if (!process.env.SUPABASE_URL && !process.env.PUBLIC_SUPABASE_URL) {
+		missingVars.push('SUPABASE_URL (or PUBLIC_SUPABASE_URL)');
+	}
+
+	// Check for Supabase Anon Key (allow private or public variant)
+	if (!process.env.SUPABASE_ANON_KEY && !process.env.PUBLIC_SUPABASE_ANON_KEY) {
+		missingVars.push('SUPABASE_ANON_KEY (or PUBLIC_SUPABASE_ANON_KEY)');
+	}
 
 	if (missingVars.length > 0) {
 		throw new Error(

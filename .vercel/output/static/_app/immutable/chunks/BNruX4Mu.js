@@ -1,0 +1,1 @@
+import{w as n}from"./cmjwE9DU.js";const r=n([]);function a(t,i){const o=Math.random().toString(36).slice(2);r.update(e=>[{id:o,time:new Date().toISOString(),kind:t,text:i},...e].slice(0,100))}export{r as notices,a as push};
