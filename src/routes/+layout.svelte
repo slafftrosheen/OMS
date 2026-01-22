@@ -6,7 +6,6 @@
   
   import Logo from '$lib/brand/Logo.svelte';
   import NotificationsBell from '$lib/topbar/NotificationsBell.svelte';
-  import ChatPopover from '$lib/topbar/ChatPopover.svelte';
   import ThemeSwitch from '$lib/topbar/ThemeSwitch.svelte';
   import LangSwitch from '$lib/topbar/LangSwitch.svelte';
   import TextSizeSwitch from '$lib/topbar/TextSizeSwitch.svelte';
@@ -15,6 +14,7 @@
   import MobileNav from '$lib/topbar/MobileNav.svelte';
   import Toast from '$lib/notify/Toast.svelte';
   import LiveRegion from '$lib/ui/LiveRegion.svelte';
+  import ChatSidebar from '$lib/chat/ChatSidebar.svelte';
   import { role } from '$lib/ui/RoleSwitch.svelte';
   import CommandPalette from '$lib/ui/CommandPalette.svelte';
   import Keybindings from '$lib/help/Keybindings.svelte';
@@ -24,6 +24,7 @@
   import { setLocale } from '$lib/i18n';
   import { Menu, X, LayoutDashboard, ClipboardList, Calendar, Package, HelpCircle, Settings, Users, Boxes, MessageSquare, Bell } from 'lucide-svelte';
   import { currentUser, loadCurrentUser } from '$lib/auth/user-store';
+  import { initChatRealtime, toggleChat, unreadCount, isChatOpen } from '$lib/chat/chat-store';
 
   // Accept params prop to silence SvelteKit warning
   export let params = {};
@@ -57,6 +58,12 @@
     if (!user && !isPublicRoute) {
       goto(`${base}/login`);
       return;
+    }
+
+    // Initialize chat realtime if user is logged in
+    let stopChatRealtime: () => void;
+    if (user) {
+      stopChatRealtime = initChatRealtime();
     }
     
     // Apply query params for deep-linking preferences
@@ -115,6 +122,7 @@
     return () => {
       stopPreferenceSync?.();
       window.removeEventListener('keydown', handler);
+      if (stopChatRealtime) stopChatRealtime();
     };
   });
 
@@ -181,10 +189,7 @@
           <Package size={18} />
           <span>{$t('nav.inventory', { default: 'Inventory' })}</span>
         </a>
-        <a href="{base}/chat" class:active={currentPath.includes('/chat')} on:click={() => mobileMenuOpen = false}>
-          <MessageSquare size={18} />
-          <span>{$t('nav.chat', { default: 'Chat' })}</span>
-        </a>
+        <!-- Chat moved to sidebar -->
         <a href="{base}/faq" class:active={currentPath.includes('/faq')} on:click={() => mobileMenuOpen = false}>
           <HelpCircle size={18} />
           <span>{$t('nav.faq', { default: 'FAQ' })}</span>
@@ -207,7 +212,19 @@
         <div class="action-btn" title={$t('topbar.density', { default: 'Density' })}><DensitySwitch /></div>
         <div class="action-btn" title={$t('topbar.theme', { default: 'Theme' })}><ThemeSwitch /></div>
         <div class="action-btn" title={$t('ui.notifications', { default: 'Notifications' })}><NotificationsBell /></div>
-        <div class="action-btn" title={$t('ui.chat', { default: 'Chat' })}><ChatPopover /></div>
+        <button 
+          class="action-btn chat-toggle" 
+          class:active={$isChatOpen} 
+          title={$t('ui.chat', { default: 'Chat' })}
+          on:click={toggleChat}
+        >
+          <div class="icon-wrapper">
+            <MessageSquare size={20} />
+            {#if $unreadCount > 0}
+              <span class="badge">{$unreadCount > 9 ? '9+' : $unreadCount}</span>
+            {/if}
+          </div>
+        </button>
         <a href="{base}/settings" class="action-btn settings-btn" title={$t('nav.settings', { default: 'Settings' })}>
           <Settings size={20} />
         </a>
@@ -220,6 +237,7 @@
 
   {#if $currentUser}
     <MobileNav />
+    <ChatSidebar />
   {/if}
 
   <Toast />
@@ -237,6 +255,46 @@
   height: 1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
+}
+
+.chat-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+}
+
+.chat-toggle.active {
+  color: var(--primary, #3b82f6);
+  background: var(--bg-2);
+}
+
+.icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: var(--danger, #dc2626);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid var(--bg-1);
 }
 
 .skip-link {

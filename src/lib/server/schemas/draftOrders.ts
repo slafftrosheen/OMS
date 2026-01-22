@@ -34,6 +34,7 @@ export const DraftOrderSchema = z.object({
 
 // Schema for updating a draft order (all fields optional)
 export const UpdateDraftOrderSchema = DraftOrderSchema.partial();
+export const draftOrderUpdateSchema = UpdateDraftOrderSchema;
 
 // Schema for creating order profiles associated with a draft order
 export const OrderProfileSchema = z.object({

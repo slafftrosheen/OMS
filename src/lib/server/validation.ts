@@ -43,6 +43,28 @@ export function validateData<T extends z.ZodSchema<any>>(
 }
 
 /**
+ * Validate a request body against a schema
+ */
+export async function validateRequest<T extends z.ZodSchema<any>>(
+  request: Request,
+  schema: T
+): Promise<{
+  success: boolean;
+  data?: z.infer<T>;
+  errors?: Record<string, string[]>;
+}> {
+  try {
+    const json = await request.json();
+    return validateData(schema, json);
+  } catch (e) {
+    return {
+      success: false,
+      errors: { general: ['Invalid JSON body'] }
+    };
+  }
+}
+
+/**
  * Validate a specific field against a schema
  */
 export function validateField<T extends z.ZodSchema<any>>(

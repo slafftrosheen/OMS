@@ -68,3 +68,12 @@ export function formatPaginatedResponse<T>(
     pagination
   };
 }
+
+/**
+ * Get pagination parameters (page, limit, offset) from URL
+ */
+export function getPagination(url: URL): { page: number; limit: number; offset: number } {
+  const { page, limit } = parsePaginationFromUrl(url);
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+}

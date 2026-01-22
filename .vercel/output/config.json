@@ -1,0 +1,343 @@
+{
+	"version": 3,
+	"routes": [
+		{
+			"src": "/?",
+			"headers": {
+				"Location": "/login"
+			},
+			"status": 303
+		},
+		{
+			"src": "/calendar/?",
+			"headers": {
+				"Location": "/login"
+			},
+			"status": 303
+		},
+		{
+			"src": "/chat/?",
+			"headers": {
+				"Location": "/login"
+			},
+			"status": 303
+		},
+		{
+			"src": "/files/?",
+			"headers": {
+				"Location": "/login"
+			},
+			"status": 303
+		},
+		{
+			"src": "/inventory/?",
+			"headers": {
+				"Location": "/login"
+			},
+			"status": 303
+		},
+		{
+			"src": "/launchpad/?",
+			"headers": {
+				"Location": "/login"
+			},
+			"status": 303
+		},
+		{
+			"src": "/orders/?",
+			"headers": {
+				"Location": "/login"
+			},
+			"status": 303
+		},
+		{
+			"src": "/settings/?",
+			"headers": {
+				"Location": "/login"
+			},
+			"status": 303
+		},
+		{
+			"src": "/_app/immutable/.+",
+			"headers": {
+				"cache-control": "public, immutable, max-age=31536000"
+			}
+		},
+		{
+			"handle": "filesystem"
+		},
+		{
+			"src": "^/admin/dashboard/?(?:/__data.json)?$",
+			"dest": "/admin/dashboard"
+		},
+		{
+			"src": "^/admin/materials/?(?:/__data.json)?$",
+			"dest": "/admin/materials"
+		},
+		{
+			"src": "^/admin/users/?(?:/__data.json)?$",
+			"dest": "/admin/users"
+		},
+		{
+			"src": "^/api/ai/health/?(?:/__data.json)?$",
+			"dest": "/api/ai/health"
+		},
+		{
+			"src": "^/api/audit-log/?(?:/__data.json)?$",
+			"dest": "/api/audit-log"
+		},
+		{
+			"src": "^/api/auth/?(?:/__data.json)?$",
+			"dest": "/api/auth"
+		},
+		{
+			"src": "^/api/auth/password/?(?:/__data.json)?$",
+			"dest": "/api/auth/password"
+		},
+		{
+			"src": "^/api/calendar/?(?:/__data.json)?$",
+			"dest": "/api/calendar"
+		},
+		{
+			"src": "^/api/calendar/capacity/?(?:/__data.json)?$",
+			"dest": "/api/calendar/capacity"
+		},
+		{
+			"src": "^/api/calendar/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/api/calendar/[id]"
+		},
+		{
+			"src": "^/api/chat/?(?:/__data.json)?$",
+			"dest": "/api/chat"
+		},
+		{
+			"src": "^/api/chat/messages/?(?:/__data.json)?$",
+			"dest": "/api/chat/messages"
+		},
+		{
+			"src": "^/api/delivery-presets/?(?:/__data.json)?$",
+			"dest": "/api/delivery-presets"
+		},
+		{
+			"src": "^/api/draft-orders/?(?:/__data.json)?$",
+			"dest": "/api/draft-orders"
+		},
+		{
+			"src": "^/api/draft-orders/generate-po/?(?:/__data.json)?$",
+			"dest": "/api/draft-orders/generate-po"
+		},
+		{
+			"src": "^/api/draft-orders/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/api/draft-orders/[id]"
+		},
+		{
+			"src": "^/api/draft-orders/([^/]+?)/approve/?(?:/__data.json)?$",
+			"dest": "/api/draft-orders/[id]/approve"
+		},
+		{
+			"src": "^/api/draft-orders/([^/]+?)/change-requests/?(?:/__data.json)?$",
+			"dest": "/api/draft-orders/[id]/change-requests"
+		},
+		{
+			"src": "^/api/draft-orders/([^/]+?)/change-requests/([^/]+?)/approve/?(?:/__data.json)?$",
+			"dest": "/api/draft-orders/[id]/change-requests/[crId]/approve"
+		},
+		{
+			"src": "^/api/draft-orders/([^/]+?)/change-requests/([^/]+?)/decline/?(?:/__data.json)?$",
+			"dest": "/api/draft-orders/[id]/change-requests/[crId]/decline"
+		},
+		{
+			"src": "^/api/draft-orders/([^/]+?)/redo-flags/?(?:/__data.json)?$",
+			"dest": "/api/draft-orders/[id]/redo-flags"
+		},
+		{
+			"src": "^/api/draft-orders/([^/]+?)/reject/?(?:/__data.json)?$",
+			"dest": "/api/draft-orders/[id]/reject"
+		},
+		{
+			"src": "^/api/draft-orders/([^/]+?)/revisions/?(?:/__data.json)?$",
+			"dest": "/api/draft-orders/[id]/revisions"
+		},
+		{
+			"src": "^/api/faq/?(?:/__data.json)?$",
+			"dest": "/api/faq"
+		},
+		{
+			"src": "^/api/faq/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/api/faq/[slug]"
+		},
+		{
+			"src": "^/api/files/?(?:/__data.json)?$",
+			"dest": "/api/files"
+		},
+		{
+			"src": "^/api/files/upload/?(?:/__data.json)?$",
+			"dest": "/api/files/upload"
+		},
+		{
+			"src": "^/api/files/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/api/files/[id]"
+		},
+		{
+			"src": "^/api/healthz/?(?:/__data.json)?$",
+			"dest": "/api/healthz"
+		},
+		{
+			"src": "^/api/inventory/?(?:/__data.json)?$",
+			"dest": "/api/inventory"
+		},
+		{
+			"src": "^/api/inventory/items/?(?:/__data.json)?$",
+			"dest": "/api/inventory/items"
+		},
+		{
+			"src": "^/api/inventory/items/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/api/inventory/items/[id]"
+		},
+		{
+			"src": "^/api/inventory/movements/?(?:/__data.json)?$",
+			"dest": "/api/inventory/movements"
+		},
+		{
+			"src": "^/api/loading-days/?(?:/__data.json)?$",
+			"dest": "/api/loading-days"
+		},
+		{
+			"src": "^/api/loading-days/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/api/loading-days/[id]"
+		},
+		{
+			"src": "^/api/materials/?(?:/__data.json)?$",
+			"dest": "/api/materials"
+		},
+		{
+			"src": "^/api/materials/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/api/materials/[id]"
+		},
+		{
+			"src": "^/api/notifications/?(?:/__data.json)?$",
+			"dest": "/api/notifications"
+		},
+		{
+			"src": "^/api/preferences/?(?:/__data.json)?$",
+			"dest": "/api/preferences"
+		},
+		{
+			"src": "^/api/profiles/templates/?(?:/__data.json)?$",
+			"dest": "/api/profiles/templates"
+		},
+		{
+			"src": "^/api/profiles/templates/import/?(?:/__data.json)?$",
+			"dest": "/api/profiles/templates/import"
+		},
+		{
+			"src": "^/api/profiles/templates/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/api/profiles/templates/[code]"
+		},
+		{
+			"src": "^/api/profiles/templates/([^/]+?)/clone/?(?:/__data.json)?$",
+			"dest": "/api/profiles/templates/[code]/clone"
+		},
+		{
+			"src": "^/api/profiles/templates/([^/]+?)/export/?(?:/__data.json)?$",
+			"dest": "/api/profiles/templates/[code]/export"
+		},
+		{
+			"src": "^/api/profiles/templates/([^/]+?)/rollback/?(?:/__data.json)?$",
+			"dest": "/api/profiles/templates/[code]/rollback"
+		},
+		{
+			"src": "^/api/profiles/templates/([^/]+?)/versions/?(?:/__data.json)?$",
+			"dest": "/api/profiles/templates/[code]/versions"
+		},
+		{
+			"src": "^/api/profiles/validate/?(?:/__data.json)?$",
+			"dest": "/api/profiles/validate"
+		},
+		{
+			"src": "^/api/settings/?(?:/__data.json)?$",
+			"dest": "/api/settings"
+		},
+		{
+			"src": "^/api/station-log/?(?:/__data.json)?$",
+			"dest": "/api/station-log"
+		},
+		{
+			"src": "^/api/users/?(?:/__data.json)?$",
+			"dest": "/api/users"
+		},
+		{
+			"src": "^/api/users/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/api/users/[id]"
+		},
+		{
+			"src": "^/faq/?(?:/__data.json)?$",
+			"dest": "/faq"
+		},
+		{
+			"src": "^/faq/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/faq/[slug]"
+		},
+		{
+			"src": "^/help/?(?:/__data.json)?$",
+			"dest": "/help"
+		},
+		{
+			"src": "^/inventory/catalog/?(?:/__data.json)?$",
+			"dest": "/inventory/catalog"
+		},
+		{
+			"src": "^/inventory/movements/?(?:/__data.json)?$",
+			"dest": "/inventory/movements"
+		},
+		{
+			"src": "^/inventory/new/?(?:/__data.json)?$",
+			"dest": "/inventory/new"
+		},
+		{
+			"src": "^/inventory/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/inventory/[id]"
+		},
+		{
+			"src": "^/kanban/?(?:/__data.json)?$",
+			"dest": "/kanban"
+		},
+		{
+			"src": "^/login/?(?:/__data.json)?$",
+			"dest": "/login"
+		},
+		{
+			"src": "^/logistics/dashboard/?(?:/__data.json)?$",
+			"dest": "/logistics/dashboard"
+		},
+		{
+			"src": "^/notifications/?(?:/__data.json)?$",
+			"dest": "/notifications"
+		},
+		{
+			"src": "^/orders/new/?(?:/__data.json)?$",
+			"dest": "/orders/new"
+		},
+		{
+			"src": "^/orders/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/orders/[id]"
+		},
+		{
+			"src": "^/orders/([^/]+?)/edit/?(?:/__data.json)?$",
+			"dest": "/orders/[id]/edit"
+		},
+		{
+			"src": "^/orders/([^/]+?)/print/?(?:/__data.json)?$",
+			"dest": "/orders/[id]/print"
+		},
+		{
+			"src": "^/production/dashboard/?(?:/__data.json)?$",
+			"dest": "/production/dashboard"
+		},
+		{
+			"src": "/.*",
+			"dest": "/![-]/catchall"
+		}
+	],
+	"overrides": {}
+}
