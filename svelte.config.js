@@ -8,7 +8,7 @@ const config = {
   preprocess: vitePreprocess(),
   kit: {
     adapter: adapter({
-      // Use defaults to avoid conflicts with Vercel platform settings
+      runtime: 'nodejs20.x',
     }),
     alias: {
       '$lib': 'src/lib',
