@@ -52,8 +52,18 @@
     // Find initially selected material
     if (value) {
       selectedMaterial = materials.find(m => m.code === value || m.name_en === value) || null;
-      // If value exists but no material found, we're in custom mode
-      if (!selectedMaterial && value) {
+      
+      // If found, dispatch initial material data so parent can get metadata/thickness options
+      if (selectedMaterial) {
+        dispatch('change', { 
+          value, 
+          material: selectedMaterial,
+          hex: selectedMaterial.metadata?.hex || '',
+          shortName: selectedMaterial.metadata?.short_name || 
+                     selectedMaterial.metadata?.colorCode ||
+                     getShortName(selectedMaterial.code, selectedMaterial.category)
+        });
+      } else if (value) {
         customMode = true;
       }
     }

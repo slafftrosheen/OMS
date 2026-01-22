@@ -209,6 +209,11 @@
   const psuCategories = ['PSU_MEANWELL'];
   const wireCategories = ['WIRE', 'LED_ACCESSORY'];
   const frameMaterials = ['ALU_PROFILE', 'ALU_SHEET'];
+
+  // Local state for material thickness options
+  let faceThicknessOptions: number[] = [];
+  let backThicknessOptions: number[] = [];
+  let sidesThicknessOptions: number[] = [];
   
   /**
    * Emits a 'change' event with the current configuration.
@@ -423,7 +428,12 @@
               on:change={(e) => {
                 configuration.CNC_FREZER.faceHex = e.detail.hex;
                 configuration.CNC_FREZER.faceShort = extractShortName(e, 'ACRYLIC');
-                configuration.CNC_FREZER.faceThickness = e.detail.material?.thickness_options?.[0]?.toString() || configuration.CNC_FREZER.faceThickness || '';
+                faceThicknessOptions = e.detail.material?.thickness_options || [];
+                if (faceThicknessOptions.length > 0 && !faceThicknessOptions.includes(Number(configuration.CNC_FREZER.faceThickness))) {
+                   configuration.CNC_FREZER.faceThickness = faceThicknessOptions[0].toString();
+                } else if (!configuration.CNC_FREZER.faceThickness && faceThicknessOptions.length > 0) {
+                   configuration.CNC_FREZER.faceThickness = faceThicknessOptions[0].toString();
+                }
                 emit();
               }}
             />
@@ -434,9 +444,17 @@
               style:color={getTextColor(configuration.CNC_FREZER.faceHex || '#87CEEB')}>
               {configuration.CNC_FREZER.faceShort || getShortName(configuration.CNC_FREZER.face, 'ACRYLIC')}
             </span>
-            <input type="text" class="thickness-input" 
-              bind:value={configuration.CNC_FREZER.faceThickness}
-              disabled={readonly} on:input={emit} placeholder="mm" />
+            {#if faceThicknessOptions.length > 0}
+              <select class="thickness-select" bind:value={configuration.CNC_FREZER.faceThickness} disabled={readonly} on:change={emit}>
+                {#each faceThicknessOptions as opt}
+                  <option value={opt.toString()}>{opt} mm</option>
+                {/each}
+              </select>
+            {:else}
+              <input type="text" class="thickness-input" 
+                bind:value={configuration.CNC_FREZER.faceThickness}
+                disabled={readonly} on:input={emit} placeholder="mm" />
+            {/if}
           {/if}
         </div>
         
@@ -453,7 +471,12 @@
               on:change={(e) => {
                 configuration.CNC_FREZER.backHex = e.detail.hex;
                 configuration.CNC_FREZER.backShort = extractShortName(e, 'ALU');
-                configuration.CNC_FREZER.backThickness = e.detail.material?.thickness_options?.[0]?.toString() || configuration.CNC_FREZER.backThickness || '';
+                backThicknessOptions = e.detail.material?.thickness_options || [];
+                if (backThicknessOptions.length > 0 && !backThicknessOptions.includes(Number(configuration.CNC_FREZER.backThickness))) {
+                   configuration.CNC_FREZER.backThickness = backThicknessOptions[0].toString();
+                } else if (!configuration.CNC_FREZER.backThickness && backThicknessOptions.length > 0) {
+                   configuration.CNC_FREZER.backThickness = backThicknessOptions[0].toString();
+                }
                 emit();
               }}
             />
@@ -464,9 +487,17 @@
               style:color={getTextColor(configuration.CNC_FREZER.backHex || '#A0A0A0')}>
               {configuration.CNC_FREZER.backShort || getShortName(configuration.CNC_FREZER.back, 'ALU')}
             </span>
-            <input type="text" class="thickness-input" 
-              bind:value={configuration.CNC_FREZER.backThickness}
-              disabled={readonly} on:input={emit} placeholder="mm" />
+            {#if backThicknessOptions.length > 0}
+              <select class="thickness-select" bind:value={configuration.CNC_FREZER.backThickness} disabled={readonly} on:change={emit}>
+                {#each backThicknessOptions as opt}
+                  <option value={opt.toString()}>{opt} mm</option>
+                {/each}
+              </select>
+            {:else}
+              <input type="text" class="thickness-input" 
+                bind:value={configuration.CNC_FREZER.backThickness}
+                disabled={readonly} on:input={emit} placeholder="mm" />
+            {/if}
           {/if}
         </div>
         
@@ -509,7 +540,12 @@
               on:change={(e) => {
                 configuration.BENDER.sidesHex = e.detail.hex;
                 configuration.BENDER.sidesShort = extractShortName(e, 'ALU');
-                configuration.BENDER.sidesThickness = e.detail.material?.thickness_options?.[0]?.toString() || '';
+                sidesThicknessOptions = e.detail.material?.thickness_options || [];
+                if (sidesThicknessOptions.length > 0 && !sidesThicknessOptions.includes(Number(configuration.BENDER.sidesThickness))) {
+                   configuration.BENDER.sidesThickness = sidesThicknessOptions[0].toString();
+                } else if (!configuration.BENDER.sidesThickness && sidesThicknessOptions.length > 0) {
+                   configuration.BENDER.sidesThickness = sidesThicknessOptions[0].toString();
+                }
                 emit();
               }}
             />
@@ -520,6 +556,17 @@
               style:color={getTextColor(configuration.BENDER.sidesHex || '#A0A0A0')}>
               {configuration.BENDER.sidesShort || getShortName(configuration.BENDER.sides, 'ALU')}
             </span>
+            {#if sidesThicknessOptions.length > 0}
+              <select class="thickness-select" bind:value={configuration.BENDER.sidesThickness} disabled={readonly} on:change={emit}>
+                {#each sidesThicknessOptions as opt}
+                  <option value={opt.toString()}>{opt} mm</option>
+                {/each}
+              </select>
+            {:else}
+              <input type="text" class="thickness-input" 
+                bind:value={configuration.BENDER.sidesThickness}
+                disabled={readonly} on:input={emit} placeholder="mm" />
+            {/if}
           {/if}
         </div>
         
@@ -1194,16 +1241,38 @@
     align-items: center;
     justify-content: center;
     gap: var(--space-sm, 8px);
-    padding: var(--space-md, 12px) var(--space-lg, 16px);
+    padding: var(--space-md, 12px);
     border-radius: var(--radius-md, 6px);
     font-weight: 800;
-    font-size: 16px;
+    font-size: 14px;
     text-transform: uppercase;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     border: 2px solid rgba(0,0,0,0.1);
-    min-height: 48px;
+    height: 48px;
+    flex: 1;
+    min-width: 0;
+    box-sizing: border-box;
+    text-align: center;
   }
   
+  .thickness-select {
+    width: 100%;
+    padding: var(--space-xs, 4px) var(--space-sm, 6px);
+    border: 1px solid var(--border, #ccc);
+    border-radius: var(--radius-sm, 4px);
+    font-size: 12px;
+    font-weight: 600;
+    background: white;
+    cursor: pointer;
+  }
+  
+  .thickness-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+  }
+
   .no-badge-lg {
     display: flex;
     align-items: center;
@@ -1216,7 +1285,9 @@
     font-size: 14px;
     font-weight: 700;
     text-align: center;
-    min-height: 48px;
+    height: 48px;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   /* PSU TYPE */
