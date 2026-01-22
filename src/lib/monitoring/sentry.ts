@@ -1,0 +1,82 @@
+// src/lib/monitoring/sentry.ts
+import * as Sentry from '@sentry/sveltekit';
+import { dev } from '$app/environment';
+
+export function initSentry() {
+	if (dev) {
+		console.log('Sentry disabled in development');
+		return;
+	}
+
+	Sentry.init({
+		dsn: process.env.SENTRY_DSN,
+		environment: process.env.NODE_ENV || 'production',
+		
+		// Performance monitoring
+		tracesSampleRate: 0.1, // 10% of transactions
+		
+		// Session replay
+		replaysSessionSampleRate: 0.1,
+		replaysOnErrorSampleRate: 1.0,
+		
+		// Filter sensitive data
+		beforeSend(event, hint) {
+			// Remove sensitive data from breadcrumbs
+			if (event.breadcrumbs) {
+				event.breadcrumbs = event.breadcrumbs.map((breadcrumb) => {
+					if (breadcrumb.data) {
+						delete breadcrumb.data.password;
+						delete breadcrumb.data.token;
+						delete breadcrumb.data.session_token;
+					}
+					return breadcrumb;
+				});
+			}
+
+			// Remove sensitive headers
+			if (event.request?.headers) {
+				delete event.request.headers['authorization'];
+				delete event.request.headers['cookie'];
+			}
+
+			return event;
+		},
+		
+		// Ignore common errors
+		ignoreErrors: [
+			'Non-Error promise rejection captured',
+			'ResizeObserver loop limit exceeded',
+			'NetworkError',
+			'Load failed' // Common mobile network errors
+		]
+	});
+}
+
+// Enhanced error logging
+export function logError(
+	error: Error,
+	context?: Record<string, any>
+) {
+	if (dev) {
+		console.error('[ERROR]', error, context);
+		return;
+	}
+
+	Sentry.captureException(error, {
+		extra: context,
+		level: 'error'
+	});
+}
+
+// Performance monitoring
+export function startTransaction(
+	name: string,
+	op: string
+) {
+	if (dev) return null;
+
+	return Sentry.startTransaction({
+		name,
+		op
+	});
+}

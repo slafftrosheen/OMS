@@ -2,60 +2,77 @@
 	"version": 3,
 	"routes": [
 		{
-			"src": "/?",
-			"headers": {
-				"Location": "/login"
-			},
-			"status": 303
-		},
-		{
-			"src": "/calendar/?",
-			"headers": {
-				"Location": "/login"
-			},
-			"status": 303
-		},
-		{
-			"src": "/chat/?",
-			"headers": {
-				"Location": "/login"
-			},
-			"status": 303
-		},
-		{
-			"src": "/files/?",
-			"headers": {
-				"Location": "/login"
-			},
-			"status": 303
-		},
-		{
-			"src": "/inventory/?",
-			"headers": {
-				"Location": "/login"
-			},
-			"status": 303
-		},
-		{
 			"src": "/launchpad/?",
 			"headers": {
-				"Location": "/login"
+				"Location": "/orders"
 			},
-			"status": 303
+			"status": 302
 		},
 		{
-			"src": "/orders/?",
-			"headers": {
-				"Location": "/login"
-			},
-			"status": 303
+			"src": "/calendar",
+			"dest": "/calendar/"
 		},
 		{
-			"src": "/settings/?",
+			"src": "/calendar/",
+			"status": 308,
 			"headers": {
-				"Location": "/login"
-			},
-			"status": 303
+				"Location": "/calendar"
+			}
+		},
+		{
+			"src": "/chat",
+			"dest": "/chat/"
+		},
+		{
+			"src": "/chat/",
+			"status": 308,
+			"headers": {
+				"Location": "/chat"
+			}
+		},
+		{
+			"src": "/files",
+			"dest": "/files/"
+		},
+		{
+			"src": "/files/",
+			"status": 308,
+			"headers": {
+				"Location": "/files"
+			}
+		},
+		{
+			"src": "/inventory",
+			"dest": "/inventory/"
+		},
+		{
+			"src": "/inventory/",
+			"status": 308,
+			"headers": {
+				"Location": "/inventory"
+			}
+		},
+		{
+			"src": "/orders",
+			"dest": "/orders/"
+		},
+		{
+			"src": "/orders/",
+			"status": 308,
+			"headers": {
+				"Location": "/orders"
+			}
+		},
+		{
+			"src": "/settings",
+			"dest": "/settings/"
+		},
+		{
+			"src": "/settings/",
+			"status": 308,
+			"headers": {
+				"Location": "/settings"
+			}
 		},
 		{
 			"src": "/_app/immutable/.+",
@@ -215,6 +232,10 @@
 			"dest": "/api/materials/[id]"
 		},
 		{
+			"src": "^/api/metrics/?(?:/__data.json)?$",
+			"dest": "/api/metrics"
+		},
+		{
 			"src": "^/api/notifications/?(?:/__data.json)?$",
 			"dest": "/api/notifications"
 		},
@@ -315,6 +336,10 @@
 			"dest": "/notifications"
 		},
 		{
+			"src": "^/offline/?(?:/__data.json)?$",
+			"dest": "/offline"
+		},
+		{
 			"src": "^/orders/new/?(?:/__data.json)?$",
 			"dest": "/orders/new"
 		},
@@ -339,5 +364,27 @@
 			"dest": "/![-]/catchall"
 		}
 	],
-	"overrides": {}
+	"overrides": {
+		"index.html": {
+			"path": ""
+		},
+		"calendar.html": {
+			"path": "calendar"
+		},
+		"chat.html": {
+			"path": "chat"
+		},
+		"files.html": {
+			"path": "files"
+		},
+		"inventory.html": {
+			"path": "inventory"
+		},
+		"orders.html": {
+			"path": "orders"
+		},
+		"settings.html": {
+			"path": "settings"
+		}
+	}
 }

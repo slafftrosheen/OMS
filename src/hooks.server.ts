@@ -1,100 +1,218 @@
 // src/hooks.server.ts
-import { getSessionUser } from '$lib/server/auth/session';
-import { createSupabaseClient } from '$lib/server/supabase';
-import type { Handle } from '@sveltejs/kit';
-import * as Sentry from '@sentry/sveltekit';
+import { type Handle, type HandleServerError } from '@sveltejs/kit';
+import { sequence } from '@sveltejs/kit/hooks';
+import { dev, building } from '$app/environment';
 
-// Initialize Sentry
-Sentry.init({
-  dsn: process.env.SENTRY_DSN,
-  tracesSampleRate: 0.1
-});
+// Environment validation
+function validateEnvironment() {
+	if (building) return;
 
-export const handle: Handle = async ({ event, resolve }) => {
-  try {
-    event.locals.supabase = createSupabaseClient(event);
+	const requiredEnvVars = [
+		'DATABASE_URL',
+		'SUPABASE_URL',
+		'SUPABASE_ANON_KEY'
+	];
 
-    /**
-     * A convenience helper so we can just call await event.locals.getSession()
-     * instead of setting up the session manually.
-     */
-    event.locals.getSession = async () => {
-      const {
-        data: { session },
-      } = await event.locals.supabase.auth.getSession();
-      return session;
-    };
+	const missingVars = requiredEnvVars.filter(
+		(varName) => !process.env[varName]
+	);
 
-    const session = await event.locals.getSession();
+	if (missingVars.length > 0) {
+		throw new Error(
+			`Missing required environment variables: ${missingVars.join(', ')}`
+		);
+	}
 
-    if (session) {
-      event.locals.user = await getSessionUser(event);
-    } else {
-      event.locals.user = null;
-    }
+	// Check for insecure default credentials in production
+	if (!dev) {
+		const dangerousDefaults = [
+			{ key: 'DATABASE_URL', pattern: /password=admin|password=postgres|password=123456/ },
+			{ key: 'JWT_SECRET', pattern: /^(secret|test|dev)/i },
+			{ key: 'SESSION_SECRET', pattern: /^(secret|test|dev)/i }
+		];
 
-    // Protect API routes (excluding public endpoints)
-    if (event.url.pathname.startsWith('/api')) {
-      const publicApiRoutes = [
-        '/api/auth/login',
-        '/api/auth/signup',
-        '/api/auth/callback',
-        '/api/healthz'
-      ];
+		for (const { key, pattern } of dangerousDefaults) {
+			const value = process.env[key];
+			if (value && pattern.test(value)) {
+				throw new Error(
+					`❌ SECURITY ERROR: Production environment detected with insecure default credentials for ${key}. ` +
+					`Please update your environment variables before deployment.`
+				);
+			}
+		}
 
-      const isPublicRoute = publicApiRoutes.some(route =>
-        event.url.pathname === route || event.url.pathname.startsWith(route + '/')
-      );
+		console.log('✅ Environment validation passed');
+	}
+}
 
-      if (!session && !isPublicRoute) {
-        return new Response(JSON.stringify({ 
-          code: 'UNAUTHORIZED',
-          message: 'Unauthorized access',
-          timestamp: new Date().toISOString()
-        }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-    } else if (!session &&
-               !event.url.pathname.startsWith('/login') &&
-               !event.url.pathname.startsWith('/auth') &&
-               !event.url.pathname.startsWith('/api/auth')) {
-      // Protect UI routes (redirect to login)
-      return new Response(null, {
-          status: 303,
-          headers: { location: '/login' }
-      });
-    }
+// Run validation on startup
+validateEnvironment();
 
-    const response = await resolve(event, {
-      filterSerializedResponseHeaders(name) {
-        return name === 'content-range';
-      },
-    });
+// Security headers handler
+const securityHeaders: Handle = async ({ event, resolve }) => {
+	const response = await resolve(event);
 
-    // Security Headers
-    response.headers.set(
-      'Content-Security-Policy',
-      "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co"
-    );
-    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-    response.headers.set('X-Content-Type-Options', 'nosniff');
-    response.headers.set('X-Frame-Options', 'DENY');
-    response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+	// Content Security Policy
+	const cspDirectives = [
+		"default-src 'self'",
+		"script-src 'self' 'unsafe-inline' https://github.githubassets.com",
+		"style-src 'self' 'unsafe-inline'",
+		"img-src 'self' data: blob: https:",
+		"font-src 'self' data:",
+		"connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+		"media-src 'self' blob:",
+		"object-src 'none'",
+		"frame-ancestors 'none'",
+		"base-uri 'self'",
+		"form-action 'self'",
+		"upgrade-insecure-requests"
+	];
 
-    return response;
-  } catch (err: any) {
-    console.error('Critical Server Error in hooks:', err);
-    Sentry.captureException(err);
-    
-    return new Response(JSON.stringify({ 
-      code: 'INTERNAL_SERVER_ERROR',
-      message: 'A critical server error occurred',
-      timestamp: new Date().toISOString()
-    }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+	// Apply security headers
+	response.headers.set(
+		'Content-Security-Policy',
+		dev ? cspDirectives.join('; ').replace('upgrade-insecure-requests', '') : cspDirectives.join('; ')
+	);
+
+	// Strict Transport Security (HSTS) - only in production with HTTPS
+	if (!dev) {
+		response.headers.set(
+			'Strict-Transport-Security',
+			'max-age=31536000; includeSubDomains; preload'
+		);
+	}
+
+	// Other security headers
+	response.headers.set('X-Frame-Options', 'DENY');
+	response.headers.set('X-Content-Type-Options', 'nosniff');
+	response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+	response.headers.set('X-XSS-Protection', '1; mode=block');
+	response.headers.set(
+		'Permissions-Policy',
+		'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
+	);
+
+	// Remove server information
+	response.headers.delete('X-Powered-By');
+	response.headers.delete('Server');
+
+	return response;
+};
+
+// Authentication handler
+const authHandler: Handle = async ({ event, resolve }) => {
+	// Get session from cookie
+	const sessionToken = event.cookies.get('session_token');
+
+	if (sessionToken) {
+		try {
+			// Verify session with API
+			const response = await fetch(
+				new URL('/api/auth', event.url.origin),
+				{
+					method: 'GET',
+					headers: {
+						Cookie: `session_token=${sessionToken}`
+					}
+				}
+			);
+
+			if (response.ok) {
+				const { user } = await response.json();
+				event.locals.user = user;
+			}
+		} catch (error) {
+			console.error('Session verification failed:', error);
+		}
+	}
+
+	// Protect API routes
+	const isApiRoute = event.url.pathname.startsWith('/api');
+	const isPublicApi = ['/api/auth'].includes(event.url.pathname);
+
+	if (isApiRoute && !isPublicApi && !event.locals.user) {
+		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+			status: 401,
+			headers: { 'Content-Type': 'application/json' }
+		});
+	}
+
+	return resolve(event);
+};
+
+// Rate limiting handler
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+const rateLimitHandler: Handle = async ({ event, resolve }) => {
+	if (building) return resolve(event);
+
+	const ip = event.getClientAddress();
+	const now = Date.now();
+	const windowMs = 60000; // 1 minute
+	const maxRequests = 100;
+
+	// Clean up old entries
+	if (Math.random() < 0.01) {
+		for (const [key, value] of rateLimitMap.entries()) {
+			if (value.resetAt < now) {
+				rateLimitMap.delete(key);
+			}
+		}
+	}
+
+	const key = `${ip}:${event.url.pathname}`;
+	const record = rateLimitMap.get(key);
+
+	if (!record || record.resetAt < now) {
+		rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
+	} else {
+		record.count++;
+		if (record.count > maxRequests) {
+			return new Response('Too Many Requests', {
+				status: 429,
+				headers: {
+					'Retry-After': String(Math.ceil((record.resetAt - now) / 1000))
+				}
+			});
+		}
+	}
+
+	const response = await resolve(event);
+	response.headers.set('X-RateLimit-Limit', String(maxRequests));
+	response.headers.set(
+		'X-RateLimit-Remaining',
+		String(maxRequests - (record?.count || 0))
+	);
+
+	return response;
+};
+
+// Combine all handlers
+export const handle = sequence(
+	rateLimitHandler,
+	securityHeaders,
+	authHandler
+);
+
+// Global error handler with sanitization
+export const handleError: HandleServerError = async ({ error, event, status, message }) => {
+	const errorId = crypto.randomUUID();
+
+	// Log full error server-side
+	console.error('[ERROR]', {
+		id: errorId,
+		timestamp: new Date().toISOString(),
+		status,
+		path: event.url.pathname,
+		method: event.request.method,
+		user: event.locals.user?.id,
+		error: dev ? error : message,
+		stack: dev ? (error as Error)?.stack : undefined
+	});
+
+	// Return sanitized error to client
+	return {
+		message: dev ? message : 'An error occurred',
+		errorId: dev ? errorId : undefined
+	};
 };

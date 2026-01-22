@@ -32,6 +32,8 @@
   import OrderChat from '$lib/order/OrderChat.svelte';
   import OrderFiles from '$lib/order/OrderFiles.svelte';
   import Profile7stVisual from '$lib/profiles/components/Profile7stVisual.svelte';
+  import { realtimeOrderStore } from '$lib/order/realtime-order-store';
+  import PresenceIndicator from '$lib/realtime/PresenceIndicator.svelte';
   
   // Store and types
   import type { Order, Badge } from '$lib/order/types.signage';
@@ -55,6 +57,8 @@
   let rejecting = false;
   let showRejectModal = false;
   let rejectReason = '';
+  let cleanupPresence: (() => void) | null = null;
+  let cleanupRealtime: (() => void) | null = null;
 
   // Tabs
   let tab = 'overview';
@@ -135,6 +139,32 @@
     if (o?.file?.path) {
       setTimeout(() => renderPdfPreview(o!.file!.path), 100);
     }
+
+    // Realtime setup
+    realtimeOrderStore.init();
+    if (o) {
+        // Track presence
+        // We use currentUser from store
+        const user = get(currentUser);
+        if (user) {
+             cleanupPresence = realtimeOrderStore.trackPresence(o.id, 'viewing');
+        }
+        
+        const unsub = realtimeOrderStore.subscribe((state) => {
+            if (!o) return;
+            const updated = state.orders.get(o.id);
+            if (updated) {
+                 // Re-fetch to get full object with relations
+                 getOrder(o.id).then(fresh => { if(fresh) o = fresh; });
+            }
+        });
+        cleanupRealtime = unsub;
+    }
+  });
+
+  onDestroy(() => {
+      if (cleanupPresence) cleanupPresence();
+      if (cleanupRealtime) cleanupRealtime();
   });
 
   function createFallbackOrder(): Order {
@@ -430,6 +460,23 @@
         <h1>{o.id}</h1>
         <span class="client-name">{o.client}</span>
       </div>
+      
+      <!-- Connection Status -->
+      <div class="connection-status">
+        {#if $realtimeOrderStore.connectionStatus === 'connected'}
+          <span class="status-dot connected" title="Live"></span>
+        {:else if $realtimeOrderStore.connectionStatus === 'connecting'}
+          <span class="status-dot connecting" title="Connecting..."></span>
+        {:else}
+          <span class="status-dot disconnected" title="Offline"></span>
+        {/if}
+      </div>
+
+      <!-- Presence Indicator -->
+      {#if $currentUser}
+        <PresenceIndicator orderId={o.id} currentUserId={$currentUser.username} />
+      {/if}
+
       <div class="badges">
         {#each o.badges as badge}
           <span class="badge badge-{badge.toLowerCase()}">{badge}</span>
@@ -869,6 +916,34 @@
     display: flex;
     gap: 8px;
   }
+  
+  /* Connection Status */
+  .connection-status {
+    display: flex;
+    align-items: center;
+    margin-left: 12px;
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .status-dot.connected {
+    background: #10b981;
+    animation: pulse 2s infinite;
+  }
+  .status-dot.connecting {
+    background: #f59e0b;
+    animation: blink 1s infinite;
+  }
+  .status-dot.disconnected {
+    background: #6b7280;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  
   .badge {
     padding: 4px 10px;
     border-radius: 12px;
