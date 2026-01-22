@@ -5,6 +5,7 @@ import { users } from '$lib/users/user-store';
 import { createId } from '$lib/utils/id';
 import { base } from '$app/paths';
 import { createClient } from '@supabase/supabase-js';
+import { notify } from '$lib/notifications/store';
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -75,6 +76,13 @@ export function initChatRealtime() {
         if (!get(isChatOpen)) {
           unreadCount.update(n => n + 1);
           playSound();
+          
+          const author = get(users).find(u => String(u.id) === newMessage.authorId);
+          const authorName = author?.displayName || author?.username || 'User';
+          
+          notify(`New message from ${newMessage.authorId === 'system' ? 'System' : authorName}`, {
+            urgency: 'normal'
+          });
         }
       }
     })
