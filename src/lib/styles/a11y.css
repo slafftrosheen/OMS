@@ -1,0 +1,115 @@
+/* src/lib/styles/a11y.css */
+
+/* Screen reader only */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border-width: 0;
+}
+
+/* Skip to main content link */
+.skip-to-main {
+	position: absolute;
+	top: -40px;
+	left: 0;
+	z-index: 10000;
+	padding: 0.75rem 1.5rem;
+	background: var(--accent-1);
+	color: white;
+	text-decoration: none;
+	font-weight: 600;
+	border-radius: 0 0 8px 0;
+}
+
+.skip-to-main:focus {
+	top: 0;
+}
+
+/* Focus visible styles */
+*:focus-visible {
+	outline: 2px solid var(--focus);
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
+/* Remove outline for mouse users */
+*:focus:not(:focus-visible) {
+	outline: none;
+}
+
+/* High contrast mode support */
+ @media (prefers-contrast: high) {
+	:root {
+		--border: #000000;
+		--text: #000000;
+		--bg-0: #ffffff;
+	}
+
+	[data-theme="dark"] {
+		--border: #ffffff;
+		--text: #ffffff;
+		--bg-0: #000000;
+	}
+}
+
+/* Reduced motion */
+ @media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+/* Live region for announcements */
+#a11y-live-region {
+	position: absolute;
+	left: -10000px;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+}
+
+/* Improved focus for interactive elements */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+	outline: 2px solid var(--focus);
+	outline-offset: 2px;
+}
+
+/* Ensure sufficient touch target size */
+ @media (pointer: coarse) {
+	button,
+	a,
+	input[type="checkbox"],
+	input[type="radio"] {
+		min-height: 44px;
+		min-width: 44px;
+	}
+}
+
+/* Better text selection contrast */
+::selection {
+	background: var(--accent-1);
+	color: white;
+}
+
+/* Ensure proper heading hierarchy */
+h1 { font-size: 2rem; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.25rem; }
+h4 { font-size: 1.125rem; }
+h5 { font-size: 1rem; }
+h6 { font-size: 0.875rem; }

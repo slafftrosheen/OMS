@@ -1,0 +1,100 @@
+# .github/workflows/a11y-tests.yml
+name: Accessibility Tests
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+
+jobs:
+  a11y-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Start preview server
+        run: |
+          npm run preview &
+          sleep 5
+        env:
+          PORT: 4173
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run accessibility tests
+        run: npm run test:a11y
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a11y-test-results
+          path: test-results/
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('test-results/a11y-report.json', 'utf8'));
+            
+            const totalViolations = results.reduce((sum, page) => sum + page.violations.length, 0);
+            const criticalViolations = results.reduce((sum, page) => 
+              sum + page.violations.filter(v => v.impact === 'critical').length,
+            );
+            
+            const comment = `## ♿ Accessibility Test Results\n\n` +
+              `- **Total Violations:** ${totalViolations}\n` +
+              `- **Critical:** ${criticalViolations}\n` +
+              `- **Pages Tested:** ${results.length}\n\n` +
+              `${totalViolations === 0 ? '✅ No accessibility violations found!' : '⚠️ Please review and fix accessibility issues.'}\n\n` +
+              `[View full report](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  color-contrast:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check color contrasts
+        run: npm run test:contrast
+
+      - name: Upload contrast report
+        uses: actions/upload-artifact@v4
+        with:
+          name: contrast-report
+          path: test-results/contrast-report.json
