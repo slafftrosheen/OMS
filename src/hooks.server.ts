@@ -7,14 +7,7 @@ import { dev, building } from '$app/environment';
 function validateEnvironment() {
 	if (building) return;
 
-	const requiredEnvVars = [
-		'DATABASE_URL'
-	];
-
-	// Check for core required variables
-	const missingVars = requiredEnvVars.filter(
-		(varName) => !process.env[varName]
-	);
+	const missingVars = [];
 
 	// Check for Supabase URL (allow private or public variant)
 	if (!process.env.SUPABASE_URL && !process.env.PUBLIC_SUPABASE_URL) {
@@ -26,6 +19,11 @@ function validateEnvironment() {
 		missingVars.push('SUPABASE_ANON_KEY (or PUBLIC_SUPABASE_ANON_KEY)');
 	}
 
+	// Check for Supabase Service Role Key (required for server-side operations)
+	if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+		missingVars.push('SUPABASE_SERVICE_ROLE_KEY');
+	}
+
 	if (missingVars.length > 0) {
 		throw new Error(
 			`Missing required environment variables: ${missingVars.join(', ')}`
@@ -35,7 +33,6 @@ function validateEnvironment() {
 	// Check for insecure default credentials in production
 	if (!dev) {
 		const dangerousDefaults = [
-			{ key: 'DATABASE_URL', pattern: /password=admin|password=postgres|password=123456/ },
 			{ key: 'JWT_SECRET', pattern: /^(secret|test|dev)/i },
 			{ key: 'SESSION_SECRET', pattern: /^(secret|test|dev)/i }
 		];
@@ -43,9 +40,8 @@ function validateEnvironment() {
 		for (const { key, pattern } of dangerousDefaults) {
 			const value = process.env[key];
 			if (value && pattern.test(value)) {
-				throw new Error(
-					`❌ SECURITY ERROR: Production environment detected with insecure default credentials for ${key}. ` +
-					`Please update your environment variables before deployment.`
+				console.warn(
+					`⚠️  WARNING: Production environment detected with insecure default credentials for ${key}.`
 				);
 			}
 		}
