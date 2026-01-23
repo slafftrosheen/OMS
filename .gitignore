@@ -64,3 +64,4 @@ build
 coverage/
 .nyc_output/
 istanbul.out
+.vercel/
