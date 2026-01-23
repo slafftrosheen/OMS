@@ -2,6 +2,9 @@
 import { type Handle, type HandleServerError } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { dev, building } from '$app/environment';
+import { createServerClient } from '@supabase/ssr';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 
 // Environment validation
 function validateEnvironment() {
@@ -10,17 +13,17 @@ function validateEnvironment() {
 	const missingVars = [];
 
 	// Check for Supabase URL (allow private or public variant)
-	if (!process.env.SUPABASE_URL && !process.env.PUBLIC_SUPABASE_URL) {
+	if (!SUPABASE_URL && !PUBLIC_SUPABASE_URL) {
 		missingVars.push('SUPABASE_URL (or PUBLIC_SUPABASE_URL)');
 	}
 
 	// Check for Supabase Anon Key (allow private or public variant)
-	if (!process.env.SUPABASE_ANON_KEY && !process.env.PUBLIC_SUPABASE_ANON_KEY) {
+	if (!SUPABASE_ANON_KEY && !PUBLIC_SUPABASE_ANON_KEY) {
 		missingVars.push('SUPABASE_ANON_KEY (or PUBLIC_SUPABASE_ANON_KEY)');
 	}
 
 	// Check for Supabase Service Role Key (required for server-side operations)
-	if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+	if (!SUPABASE_SERVICE_ROLE_KEY) {
 		missingVars.push('SUPABASE_SERVICE_ROLE_KEY');
 	}
 
@@ -52,6 +55,49 @@ function validateEnvironment() {
 
 // Run validation on startup
 validateEnvironment();
+
+// Get the Supabase URL and Key (fallback to PUBLIC_ variants)
+const supabaseUrl = SUPABASE_URL || PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = SUPABASE_ANON_KEY || PUBLIC_SUPABASE_ANON_KEY;
+
+// Supabase client initialization
+const supabaseHandler: Handle = async ({ event, resolve }) => {
+	// Create Supabase client with cookie handling
+	event.locals.supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+		cookies: {
+			get: (key) => event.cookies.get(key),
+			set: (key, value, options) => {
+				event.cookies.set(key, value, { ...options, path: '/' });
+			},
+			remove: (key, options) => {
+				event.cookies.delete(key, { ...options, path: '/' });
+			}
+		}
+	});
+
+	// Helper function to get session
+	event.locals.getSession = async () => {
+		const {
+			data: { session }
+		} = await event.locals.supabase.auth.getSession();
+		return session;
+	};
+
+	// Get current session for event.locals.user
+	const session = await event.locals.getSession();
+	if (session) {
+		event.locals.user = {
+			id: session.user.id,
+			email: session.user.email
+		};
+	}
+
+	return resolve(event, {
+		filterSerializedResponseHeaders(name) {
+			return name === 'content-range';
+		}
+	});
+};
 
 // Security headers handler
 const securityHeaders: Handle = async ({ event, resolve }) => {
@@ -106,32 +152,7 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 
 // Authentication handler
 const authHandler: Handle = async ({ event, resolve }) => {
-	// Get session from cookie
-	const sessionToken = event.cookies.get('session_token');
-
-	if (sessionToken) {
-		try {
-			// Verify session with API
-			const response = await fetch(
-				new URL('/api/auth', event.url.origin),
-				{
-					method: 'GET',
-					headers: {
-						Cookie: `session_token=${sessionToken}`
-					}
-				}
-			);
-
-			if (response.ok) {
-				const { user } = await response.json();
-				event.locals.user = user;
-			}
-		} catch (error) {
-			console.error('Session verification failed:', error);
-		}
-	}
-
-	// Protect API routes
+	// Protect API routes (except public ones)
 	const isApiRoute = event.url.pathname.startsWith('/api');
 	const isPublicApi = ['/api/auth'].includes(event.url.pathname);
 
@@ -192,9 +213,10 @@ const rateLimitHandler: Handle = async ({ event, resolve }) => {
 	return response;
 };
 
-// Combine all handlers
+// Combine all handlers in correct order
 export const handle = sequence(
 	rateLimitHandler,
+	supabaseHandler, // Initialize Supabase BEFORE other handlers
 	securityHeaders,
 	authHandler
 );
