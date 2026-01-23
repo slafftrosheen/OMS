@@ -152,11 +152,28 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 
 // Authentication handler
 const authHandler: Handle = async ({ event, resolve }) => {
-	// Protect API routes (except public ones)
+	// Check if this is an API route
 	const isApiRoute = event.url.pathname.startsWith('/api');
-	const isPublicApi = ['/api/auth'].includes(event.url.pathname);
+	
+	if (!isApiRoute) {
+		return resolve(event);
+	}
 
-	if (isApiRoute && !isPublicApi && !event.locals.user) {
+	// Define public API routes that don't require authentication
+	const publicApiRoutes = [
+		{ path: '/api/auth', methods: ['GET', 'POST', 'DELETE'] },
+		{ path: '/api/users', methods: ['POST'] } // Allow signup
+	];
+
+	// Check if the current request matches any public route
+	const isPublicRoute = publicApiRoutes.some(route => {
+		const pathMatches = event.url.pathname === route.path;
+		const methodMatches = route.methods.includes(event.request.method);
+		return pathMatches && methodMatches;
+	});
+
+	// If it's not a public route and there's no user, block the request
+	if (!isPublicRoute && !event.locals.user) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
 			status: 401,
 			headers: { 'Content-Type': 'application/json' }
