@@ -52,14 +52,15 @@ jspm_packages/
 .vuepress/dist
 public/dist
 
-# SvelteKit specific
-.svelte-kit/
-.output/
+# SvelteKit
+.svelte-kit
+build
+
+# Vercel
+.vercel
+.vercel_build_output
 
 # Test coverage
 coverage/
 .nyc_output/
 istanbul.out
-
-# Vercel
-.vercel/
