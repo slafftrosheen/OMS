@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
-  import { Save, ArrowLeft, AlertCircle, Plus, Trash2, Upload, FileText, Eye, MapPin, Calendar, User, Phone, ChevronDown, ChevronLeft, ChevronRight, X, Image, ZoomIn, ZoomOut, Maximize2 } from 'lucide-svelte';
+  import { Save, ArrowLeft, AlertCircle, Plus, Trash2, Upload, FileText, Eye, MapPin, Calendar, User, Phone, ChevronDown, ChevronLeft, ChevronRight, X, Image, ZoomIn, ZoomOut, Maximize2, BookmarkPlus, BookOpen, Download } from 'lucide-svelte';
   import Profile7stVisual from '$lib/profiles/components/Profile7stVisual.svelte';
   import { createId } from '$lib/utils/id';
   import { currentUser } from '$lib/auth/user-store';
@@ -64,8 +64,25 @@
   }
   let uploadedFiles: FileWithPreview[] = [];
   let dragActive = false;
-  
+
   // Preview state
+
+  // Profile Presets
+  let profilePresets: Array<{
+    id: number;
+    name: string;
+    description: string;
+    profileCode: string;
+    configuration: any;
+    isPublic: boolean;
+  }> = [];
+  let showPresetModal = false;
+  let showSavePresetModal = false;
+  let selectedPresetForLoad: number | null = null;
+  let savePresetName = '';
+  let savePresetDescription = '';
+  let savePresetPublic = false;
+  let savingPreset = false;
   let selectedFileIndex: number | null = null;
   let previewZoom = 1;
   let previewContainer: HTMLElement;
@@ -179,17 +196,114 @@
       renderPdfPage(uploadedFiles[selectedFileIndex!].pdfDataUrl!, pdfCurrentPage);
     }, 200);
   }
-  
+
   function zoomIn() {
     previewZoom = Math.min(previewZoom + 0.25, 3);
   }
-  
+
   function zoomOut() {
     previewZoom = Math.max(previewZoom - 0.25, 0.5);
   }
-  
+
   function resetZoom() {
     previewZoom = 1;
+  }
+
+  async function loadProfilePresets() {
+    try {
+      const response = await fetch('/api/order-profile-presets');
+      if (response.ok) {
+        profilePresets = await response.json();
+      }
+    } catch (err) {
+      console.error('Failed to load profile presets:', err);
+    }
+  }
+
+  async function saveAsPreset(profileIndex: number) {
+    const profile = profiles[profileIndex];
+    savePresetName = profile.configuration.profileName || '';
+    savePresetDescription = '';
+    savePresetPublic = false;
+    selectedPresetForLoad = profileIndex;
+    showSavePresetModal = true;
+  }
+
+  async function confirmSavePreset() {
+    if (!savePresetName.trim() || selectedPresetForLoad === null) return;
+
+    savingPreset = true;
+    try {
+      const profile = profiles[selectedPresetForLoad];
+      const response = await fetch('/api/order-profile-presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: savePresetName,
+          description: savePresetDescription,
+          profileCode: 'P7st',
+          configuration: profile.configuration,
+          isPublic: savePresetPublic
+        })
+      });
+
+      if (response.ok) {
+        successMessage = 'Profile preset saved successfully!';
+        await loadProfilePresets();
+        closeSavePresetModal();
+      } else {
+        error = 'Failed to save preset';
+      }
+    } catch (err) {
+      console.error('Error saving preset:', err);
+      error = 'An error occurred while saving preset';
+    } finally {
+      savingPreset = false;
+    }
+  }
+
+  function loadPreset(presetId: number) {
+    const preset = profilePresets.find(p => p.id === presetId);
+    if (!preset) return;
+
+    const newProfile = {
+      id: createId(),
+      quantity: 1,
+      configuration: JSON.parse(JSON.stringify(preset.configuration)),
+      collapsed: false
+    };
+    profiles = [...profiles, newProfile];
+    showPresetModal = false;
+    successMessage = `Loaded preset: ${preset.name}`;
+    setTimeout(() => successMessage = '', 3000);
+  }
+
+  async function deletePreset(presetId: number) {
+    if (!confirm('Are you sure you want to delete this preset?')) return;
+
+    try {
+      const response = await fetch(`/api/order-profile-presets/${presetId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        successMessage = 'Preset deleted successfully';
+        await loadProfilePresets();
+      } else {
+        error = 'Failed to delete preset';
+      }
+    } catch (err) {
+      console.error('Error deleting preset:', err);
+      error = 'An error occurred while deleting preset';
+    }
+  }
+
+  function closeSavePresetModal() {
+    showSavePresetModal = false;
+    savePresetName = '';
+    savePresetDescription = '';
+    savePresetPublic = false;
+    selectedPresetForLoad = null;
   }
   
   // Profiles
@@ -239,9 +353,10 @@
   onMount(async () => {
     await Promise.all([
       generatePONumber(),
-      loadDeliveryPresets()
+      loadDeliveryPresets(),
+      loadProfilePresets()
     ]);
-    
+
     // Set default deadline to 2 weeks from now
     const date = new Date();
     date.setDate(date.getDate() + 14);
@@ -576,6 +691,10 @@
       </h2>
       <div class="profiles-actions">
         <span class="profile-count">{profiles.length} profile{profiles.length !== 1 ? 's' : ''}</span>
+        <button class="btn-secondary" on:click={() => showPresetModal = true}>
+          <BookOpen size={16} />
+          Load Preset
+        </button>
         <button class="btn-secondary" on:click={addProfile}>
           <Plus size={16} />
           Add Profile
@@ -603,6 +722,9 @@
               <label for="qty-{profile.id}">Qty:</label>
               <input type="number" id="qty-{profile.id}" bind:value={profile.quantity} min="1" max="100" class="qty-input" />
             </div>
+            <button class="btn-icon" on:click={() => saveAsPreset(i)} title="Save as Preset">
+              <BookmarkPlus size={16} />
+            </button>
             <button class="btn-icon" on:click={() => duplicateProfile(profile.id)} title="Duplicate">
               <Plus size={16} />
             </button>
@@ -909,6 +1031,114 @@
         </div>
       </section>
     </div>
+
+  <!-- Load Preset Modal -->
+  {#if showPresetModal}
+    <div class="modal-overlay" on:click={() => showPresetModal = false}>
+      <div class="modal" on:click|stopPropagation>
+        <div class="modal-header">
+          <h3>
+            <BookOpen size={20} />
+            Load Profile Preset
+          </h3>
+          <button class="btn-icon" on:click={() => showPresetModal = false}>
+            <X size={20} />
+          </button>
+        </div>
+        <div class="modal-body">
+          {#if profilePresets.length === 0}
+            <p class="empty-state">No saved presets yet. Create one by clicking "Save as Preset" on any profile.</p>
+          {:else}
+            <div class="preset-list">
+              {#each profilePresets as preset}
+                <div class="preset-item">
+                  <div class="preset-item-content">
+                    <div class="preset-item-header">
+                      <strong>{preset.name}</strong>
+                      {#if preset.isPublic}
+                        <span class="public-badge">Public</span>
+                      {/if}
+                    </div>
+                    {#if preset.description}
+                      <p class="preset-description">{preset.description}</p>
+                    {/if}
+                  </div>
+                  <div class="preset-item-actions">
+                    <button class="btn-icon" on:click={() => loadPreset(preset.id)} title="Load">
+                      <Download size={16} />
+                    </button>
+                    <button class="btn-icon danger" on:click={() => deletePreset(preset.id)} title="Delete">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Save Preset Modal -->
+  {#if showSavePresetModal}
+    <div class="modal-overlay" on:click={closeSavePresetModal}>
+      <div class="modal" on:click|stopPropagation>
+        <div class="modal-header">
+          <h3>
+            <BookmarkPlus size={20} />
+            Save Profile as Preset
+          </h3>
+          <button class="btn-icon" on:click={closeSavePresetModal}>
+            <X size={20} />
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="preset-name">Preset Name <span class="required">*</span></label>
+            <input
+              type="text"
+              id="preset-name"
+              bind:value={savePresetName}
+              placeholder="e.g., Standard Exterior Sign"
+              autofocus
+            />
+          </div>
+          <div class="form-group">
+            <label for="preset-description">Description</label>
+            <textarea
+              id="preset-description"
+              bind:value={savePresetDescription}
+              rows="3"
+              placeholder="Optional description of this preset..."
+            ></textarea>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" bind:checked={savePresetPublic} />
+              <span>Make this preset public (visible to all users)</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" on:click={closeSavePresetModal}>Cancel</button>
+          <button
+            class="btn-primary"
+            on:click={confirmSavePreset}
+            disabled={!savePresetName.trim() || savingPreset}
+          >
+            {#if savingPreset}
+              <span class="spinner"></span>
+              Saving...
+            {:else}
+              <BookmarkPlus size={18} />
+              Save Preset
+            {/if}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -1885,5 +2115,145 @@
       flex-direction: column;
       align-items: flex-start;
     }
+  }
+
+  /* Modal Styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+  }
+
+  .modal {
+    background: var(--bg-1, white);
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 600px;
+    width: 100%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border, #e5e7eb);
+  }
+
+  .modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-primary, #1a1a1a);
+  }
+
+  .modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border, #e5e7eb);
+  }
+
+  .preset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .preset-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    background: var(--bg-2, #f9fafb);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+
+  .preset-item:hover {
+    border-color: var(--accent-1, #ff6b35);
+    background: var(--bg-1, white);
+  }
+
+  .preset-item-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .preset-item-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .preset-item-header strong {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary, #1a1a1a);
+  }
+
+  .public-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    background: #dbeafe;
+    color: #2563eb;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .preset-description {
+    font-size: 13px;
+    color: var(--text-muted, #9ca3af);
+    margin: 0;
+  }
+
+  .preset-item-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .empty-state {
+    text-align: center;
+    color: var(--text-muted, #9ca3af);
+    padding: 40px 20px;
+    font-size: 14px;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-secondary, #374151);
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
   }
 </style>

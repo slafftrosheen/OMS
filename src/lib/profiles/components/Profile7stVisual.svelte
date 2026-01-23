@@ -19,8 +19,9 @@
    */
   import { createEventDispatcher } from 'svelte';
   import MaterialSelect from './fields/MaterialSelect.svelte';
-  import { 
-    AlertCircle, Zap, Power, Cable, Square, Droplets, 
+  import MaterialThicknessSelect from '$lib/components/MaterialThicknessSelect.svelte';
+  import {
+    AlertCircle, Zap, Power, Cable, Square, Droplets,
     Wrench, Paintbrush, Layers, Scissors, StickyNote,
     Sun, Moon, Check, X
   } from 'lucide-svelte';
@@ -439,22 +440,18 @@
             />
           </div>
           {#if configuration.CNC_FREZER.face}
-            <span class="material-badge-lg" 
-              style:background={configuration.CNC_FREZER.faceHex || '#87CEEB'} 
+            <span class="material-badge-lg"
+              style:background={configuration.CNC_FREZER.faceHex || '#87CEEB'}
               style:color={getTextColor(configuration.CNC_FREZER.faceHex || '#87CEEB')}>
               {configuration.CNC_FREZER.faceShort || getShortName(configuration.CNC_FREZER.face, 'ACRYLIC')}
             </span>
-            {#if faceThicknessOptions.length > 0}
-              <select class="thickness-select" bind:value={configuration.CNC_FREZER.faceThickness} disabled={readonly} on:change={emit}>
-                {#each faceThicknessOptions as opt}
-                  <option value={opt.toString()}>{opt} mm</option>
-                {/each}
-              </select>
-            {:else}
-              <input type="text" class="thickness-input" 
-                bind:value={configuration.CNC_FREZER.faceThickness}
-                disabled={readonly} on:input={emit} placeholder="mm" />
-            {/if}
+            <MaterialThicknessSelect
+              bind:value={configuration.CNC_FREZER.faceThickness}
+              materialType={configuration.CNC_FREZER.face.split('_')[0] || 'PVC'}
+              placeholder="Select thickness"
+              {readonly}
+              on:change={emit}
+            />
           {/if}
         </div>
         
@@ -482,22 +479,18 @@
             />
           </div>
           {#if configuration.CNC_FREZER.back}
-            <span class="material-badge-lg" 
-              style:background={configuration.CNC_FREZER.backHex || '#A0A0A0'} 
+            <span class="material-badge-lg"
+              style:background={configuration.CNC_FREZER.backHex || '#A0A0A0'}
               style:color={getTextColor(configuration.CNC_FREZER.backHex || '#A0A0A0')}>
               {configuration.CNC_FREZER.backShort || getShortName(configuration.CNC_FREZER.back, 'ALU')}
             </span>
-            {#if backThicknessOptions.length > 0}
-              <select class="thickness-select" bind:value={configuration.CNC_FREZER.backThickness} disabled={readonly} on:change={emit}>
-                {#each backThicknessOptions as opt}
-                  <option value={opt.toString()}>{opt} mm</option>
-                {/each}
-              </select>
-            {:else}
-              <input type="text" class="thickness-input" 
-                bind:value={configuration.CNC_FREZER.backThickness}
-                disabled={readonly} on:input={emit} placeholder="mm" />
-            {/if}
+            <MaterialThicknessSelect
+              bind:value={configuration.CNC_FREZER.backThickness}
+              materialType={configuration.CNC_FREZER.back.split('_')[0] || 'PVC'}
+              placeholder="Select thickness"
+              {readonly}
+              on:change={emit}
+            />
           {/if}
         </div>
         
@@ -551,22 +544,18 @@
             />
           </div>
           {#if configuration.BENDER.sides}
-            <span class="material-badge-lg" 
-              style:background={configuration.BENDER.sidesHex || '#A0A0A0'} 
+            <span class="material-badge-lg"
+              style:background={configuration.BENDER.sidesHex || '#A0A0A0'}
               style:color={getTextColor(configuration.BENDER.sidesHex || '#A0A0A0')}>
               {configuration.BENDER.sidesShort || getShortName(configuration.BENDER.sides, 'ALU')}
             </span>
-            {#if sidesThicknessOptions.length > 0}
-              <select class="thickness-select" bind:value={configuration.BENDER.sidesThickness} disabled={readonly} on:change={emit}>
-                {#each sidesThicknessOptions as opt}
-                  <option value={opt.toString()}>{opt} mm</option>
-                {/each}
-              </select>
-            {:else}
-              <input type="text" class="thickness-input" 
-                bind:value={configuration.BENDER.sidesThickness}
-                disabled={readonly} on:input={emit} placeholder="mm" />
-            {/if}
+            <MaterialThicknessSelect
+              bind:value={configuration.BENDER.sidesThickness}
+              materialType={configuration.BENDER.sides.split('_')[0] || 'ALU'}
+              placeholder="Select thickness"
+              {readonly}
+              on:change={emit}
+            />
           {/if}
         </div>
         
@@ -1236,6 +1225,87 @@
   }
 
   /* LARGE MATERIAL BADGE - 4x size */
+  /* Standardized Material Badges */
+  .material-badge,
+  .film-badge,
+  .color-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: var(--bg-2, #f3f4f6);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary, #374151);
+    white-space: nowrap;
+    min-height: 28px; /* Fixed height for consistency */
+    max-width: 100%; /* Prevent overflow */
+  }
+
+  .material-badge {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    border-color: #93c5fd;
+    color: #1e40af;
+  }
+
+  .film-badge {
+    background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+    border-color: #f9a8d4;
+    color: #be185d;
+  }
+
+  .color-badge {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border-color: #fcd34d;
+    color: #92400e;
+  }
+
+  .badge-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
+  }
+
+  .badge-remove {
+    background: transparent;
+    border: none;
+    padding: 0;
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: currentColor;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+  }
+
+  .badge-remove:hover {
+    opacity: 1;
+  }
+
+  /* Ensure all selectors show badges the same way */
+  .material-selector,
+  .film-selector,
+  .color-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .material-selector > select,
+  .film-selector > select,
+  .color-selector > .color-input-group {
+    flex: 1;
+    min-width: 120px;
+  }
+
   .material-badge-lg {
     display: flex;
     align-items: center;
@@ -1256,7 +1326,7 @@
     box-sizing: border-box;
     text-align: center;
   }
-  
+
   .thickness-select {
     width: 100%;
     padding: var(--space-xs, 4px) var(--space-sm, 6px);
@@ -1267,7 +1337,7 @@
     background: white;
     cursor: pointer;
   }
-  
+
   .thickness-select:focus {
     outline: none;
     border-color: #3b82f6;
