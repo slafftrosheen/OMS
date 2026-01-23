@@ -2,6 +2,8 @@
 import { type Handle, type HandleServerError } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { dev, building } from '$app/environment';
+import { createServerClient } from '@supabase/ssr';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
 
 // Environment validation
 function validateEnvironment() {
@@ -9,14 +11,14 @@ function validateEnvironment() {
 
 	const missingVars = [];
 
-	// Check for Supabase URL (allow private or public variant)
-	if (!process.env.SUPABASE_URL && !process.env.PUBLIC_SUPABASE_URL) {
-		missingVars.push('SUPABASE_URL (or PUBLIC_SUPABASE_URL)');
+	// Check for Supabase URL
+	if (!SUPABASE_URL) {
+		missingVars.push('SUPABASE_URL');
 	}
 
-	// Check for Supabase Anon Key (allow private or public variant)
-	if (!process.env.SUPABASE_ANON_KEY && !process.env.PUBLIC_SUPABASE_ANON_KEY) {
-		missingVars.push('SUPABASE_ANON_KEY (or PUBLIC_SUPABASE_ANON_KEY)');
+	// Check for Supabase Anon Key
+	if (!SUPABASE_ANON_KEY) {
+		missingVars.push('SUPABASE_ANON_KEY');
 	}
 
 	// Check for Supabase Service Role Key (required for server-side operations)
@@ -52,6 +54,37 @@ function validateEnvironment() {
 
 // Run validation on startup
 validateEnvironment();
+
+// Supabase handler - MUST BE FIRST
+const supabaseHandler: Handle = async ({ event, resolve }) => {
+	// Create a Supabase client specific to this request
+	event.locals.supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+		cookies: {
+			getAll() {
+				return event.cookies.getAll();
+			},
+			setAll(cookiesToSet) {
+				cookiesToSet.forEach(({ name, value, options }) =>
+					event.cookies.set(name, value, { ...options, path: '/' })
+				);
+			}
+		}
+	});
+
+	// Helper function to get the session
+	event.locals.getSession = async () => {
+		const {
+			data: { session }
+		} = await event.locals.supabase.auth.getSession();
+		return session;
+	};
+
+	return resolve(event, {
+		filterSerializedResponseHeaders(name) {
+			return name === 'content-range' || name === 'x-supabase-api-version';
+		}
+	});
+};
 
 // Security headers handler
 const securityHeaders: Handle = async ({ event, resolve }) => {
@@ -106,34 +139,37 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 
 // Authentication handler
 const authHandler: Handle = async ({ event, resolve }) => {
-	// Get session from cookie
-	const sessionToken = event.cookies.get('session_token');
+	// Get session using the helper we added
+	const session = await event.locals.getSession();
 
-	if (sessionToken) {
-		try {
-			// Verify session with API
-			const response = await fetch(
-				new URL('/api/auth', event.url.origin),
-				{
-					method: 'GET',
-					headers: {
-						Cookie: `session_token=${sessionToken}`
-					}
-				}
-			);
+	if (session?.user) {
+		// Fetch user profile from database
+		const { data: profile } = await event.locals.supabase
+			.from('profiles')
+			.select('*')
+			.eq('id', session.user.id)
+			.single();
 
-			if (response.ok) {
-				const { user } = await response.json();
-				event.locals.user = user;
-			}
-		} catch (error) {
-			console.error('Session verification failed:', error);
+		if (profile) {
+			event.locals.user = {
+				id: profile.id,
+				email: session.user.email,
+				username: profile.username,
+				displayName: profile.display_name,
+				primarySection: profile.primary_section,
+				sections: profile.sections,
+				roles: profile.roles,
+				stations: profile.stations || []
+			};
 		}
 	}
 
-	// Protect API routes
+	// Protect API routes (except public ones)
 	const isApiRoute = event.url.pathname.startsWith('/api');
-	const isPublicApi = ['/api/auth'].includes(event.url.pathname);
+	const isPublicApi = [
+		'/api/auth',
+		'/api/health'
+	].some(path => event.url.pathname.startsWith(path));
 
 	if (isApiRoute && !isPublicApi && !event.locals.user) {
 		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -192,11 +228,12 @@ const rateLimitHandler: Handle = async ({ event, resolve }) => {
 	return response;
 };
 
-// Combine all handlers
+// Combine all handlers - ORDER MATTERS!
 export const handle = sequence(
+	supabaseHandler, // MUST BE FIRST - initializes locals.supabase and locals.getSession
 	rateLimitHandler,
 	securityHeaders,
-	authHandler
+	authHandler // Uses locals.supabase and locals.getSession
 );
 
 // Global error handler with sanitization
