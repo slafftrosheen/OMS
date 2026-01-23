@@ -22,6 +22,7 @@
     "@aws-sdk/s3-request-presigner": "^3.972.0",
     "@ericblade/quagga2": "^1.12.0",
     "@supabase/auth-helpers-sveltekit": "^0.15.0",
+    "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.90.1",
     "@sveltejs/kit": "^2.7.4",
     "apexcharts": "file:packages/apexcharts",
