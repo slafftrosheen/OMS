@@ -1,221 +1,351 @@
-// static/service-worker.js
-const CACHE_NAME = 'oms-v1.1.0';
-const OFFLINE_URL = '/offline';
+/**
+ * Service Worker for OMS PWA
+ * Handles offline caching, background sync, and push notifications
+ */
 
-// Assets to cache immediately
-const PRECACHE_URLS = [
-	'/',
-	'/offline',
-	'/manifest.json',
-	'/icons/icon-192x192.png',
-	'/icons/icon-512x512.png'
+const CACHE_VERSION = 'oms-v1.0.0';
+const STATIC_CACHE = `${CACHE_VERSION}-static`;
+const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
+const IMAGE_CACHE = `${CACHE_VERSION}-images`;
+
+// Files to cache immediately
+const STATIC_ASSETS = [
+  '/',
+  '/offline',
+  '/manifest.json',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png',
+  // Add your main CSS and JS bundles here
 ];
 
-// API endpoints to cache
-const API_CACHE_PATTERNS = [
-	'/api/draft-orders',
-	'/api/inventory/items',
-	'/api/profiles/templates'
-];
+// Maximum cache sizes
+const MAX_DYNAMIC_CACHE_SIZE = 50;
+const MAX_IMAGE_CACHE_SIZE = 100;
 
-// Install event - cache essential assets
+// Install event - cache static assets
 self.addEventListener('install', (event) => {
-	console.log('[SW] Installing service worker');
-	
-	event.waitUntil(
-		caches.open(CACHE_NAME).then((cache) => {
-			console.log('[SW] Precaching assets');
-			return cache.addAll(PRECACHE_URLS);
-		})
-	);
-	
-	// Activate immediately
-	self.skipWaiting();
+  console.log('[Service Worker] Installing...');
+  
+  event.waitUntil(
+    caches.open(STATIC_CACHE)
+      .then((cache) => {
+        console.log('[Service Worker] Caching static assets');
+        return cache.addAll(STATIC_ASSETS);
+      })
+      .then(() => self.skipWaiting())
+  );
 });
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-	console.log('[SW] Activating service worker');
-	
-	event.waitUntil(
-		caches.keys().then((cacheNames) => {
-			return Promise.all(
-				cacheNames.map((cacheName) => {
-					if (cacheName !== CACHE_NAME) {
-						console.log('[SW] Deleting old cache:', cacheName);
-						return caches.delete(cacheName);
-					}
-				})
-			);
-		})
-	);
-	
-	// Take control immediately
-	self.clients.claim();
+  console.log('[Service Worker] Activating...');
+  
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => {
+        return Promise.all(
+          keys
+            .filter((key) => key.startsWith('oms-') && key !== STATIC_CACHE && key !== DYNAMIC_CACHE && key !== IMAGE_CACHE)
+            .map((key) => {
+              console.log('[Service Worker] Deleting old cache:', key);
+              return caches.delete(key);
+            })
+        );
+      })
+      .then(() => self.clients.claim())
+  );
 });
 
-// Fetch event - network first, fallback to cache
+// Fetch event - serve from cache with network fallback
 self.addEventListener('fetch', (event) => {
-	const { request } = event;
-	const url = new URL(request.url);
+  const { request } = event;
+  const url = new URL(request.url);
 
-	// Skip non-GET requests
-	if (request.method !== 'GET') {
-		return;
-	}
+  // Skip non-GET requests
+  if (request.method !== 'GET') {
+    return;
+  }
 
-	// Skip chrome extensions
-	if (url.protocol === 'chrome-extension:') {
-		return;
-	}
+  // Skip chrome extensions and other protocols
+  if (!url.protocol.startsWith('http')) {
+    return;
+  }
 
-	// API requests: Network first, cache fallback
-	if (url.pathname.startsWith('/api/')) {
-		event.respondWith(networkFirstStrategy(request));
-		return;
-	}
+  // API requests - network first, cache fallback
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(networkFirstStrategy(request));
+    return;
+  }
 
-	// Static assets: Cache first, network fallback
-	if (
-		url.pathname.startsWith('/icons/') ||
-		url.pathname.startsWith('/screenshots/') ||
-		url.pathname.endsWith('.css') ||
-		url.pathname.endsWith('.js') ||
-		url.pathname.endsWith('.png') ||
-		url.pathname.endsWith('.jpg') ||
-		url.pathname.endsWith('.svg')
-	) {
-		event.respondWith(cacheFirstStrategy(request));
-		return;
-	}
+  // Images - cache first, network fallback
+  if (request.destination === 'image') {
+    event.respondWith(cacheFirstStrategy(request, IMAGE_CACHE));
+    return;
+  }
 
-	// HTML pages: Network first, offline fallback
-	if (request.headers.get('accept').includes('text/html')) {
-		event.respondWith(htmlNetworkFirstStrategy(request));
-		return;
-	}
+  // Static assets - cache first
+  if (STATIC_ASSETS.some(asset => url.pathname === asset)) {
+    event.respondWith(cacheFirstStrategy(request, STATIC_CACHE));
+    return;
+  }
 
-	// Default: network only
-	event.respondWith(fetch(request));
+  // Everything else - network first
+  event.respondWith(networkFirstStrategy(request));
 });
 
-// Network first strategy (for API calls)
+// Network first strategy with cache fallback
 async function networkFirstStrategy(request) {
-	try {
-		const response = await fetch(request);
-		
-		// Cache successful responses
-		if (response.ok) {
-			const cache = await caches.open(CACHE_NAME);
-			cache.put(request, response.clone());
-		}
-		
-		return response;
-	} catch (error) {
-		// Network failed, try cache
-		const cached = await caches.match(request);
-		if (cached) {
-			console.log('[SW] Serving from cache (offline):', request.url);
-			return cached;
-		}
-		
-		// Return offline response for API calls
-		return new Response(
-			JSON.stringify({ error: 'Offline', cached: false }),
-			{
-				status: 503,
-				headers: { 'Content-Type': 'application/json' }
-			}
-		);
-	}
+  try {
+    const networkResponse = await fetch(request);
+    
+    if (networkResponse.ok) {
+      const cache = await caches.open(DYNAMIC_CACHE);
+      cache.put(request, networkResponse.clone());
+    }
+    
+    return networkResponse;
+  } catch (error) {
+    console.log('[Service Worker] Network failed, trying cache:', request.url);
+    
+    const cachedResponse = await caches.match(request);
+    
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+    
+    // Return offline page for navigation requests
+    if (request.mode === 'navigate') {
+      return caches.match('/offline');
+    }
+    
+    // Return a generic offline response
+    return new Response('Offline - content not available', {
+      status: 503,
+      statusText: 'Service Unavailable',
+      headers: new Headers({
+        'Content-Type': 'text/plain'
+      })
+    });
+  }
 }
 
-// Cache first strategy (for static assets)
-async function cacheFirstStrategy(request) {
-	const cached = await caches.match(request);
-	if (cached) {
-		return cached;
-	}
-
-	try {
-		const response = await fetch(request);
-		if (response.ok) {
-			const cache = await caches.open(CACHE_NAME);
-			cache.put(request, response.clone());
-		}
-		return response;
-	} catch (error) {
-		console.error('[SW] Failed to fetch:', request.url);
-		return new Response('Offline', { status: 503 });
-	}
+// Cache first strategy with network fallback
+async function cacheFirstStrategy(request, cacheName) {
+  const cachedResponse = await caches.match(request);
+  
+  if (cachedResponse) {
+    // Update cache in background
+    fetch(request).then((networkResponse) => {
+      if (networkResponse.ok) {
+        caches.open(cacheName).then((cache) => {
+          cache.put(request, networkResponse);
+        });
+      }
+    });
+    
+    return cachedResponse;
+  }
+  
+  try {
+    const networkResponse = await fetch(request);
+    
+    if (networkResponse.ok) {
+      const cache = await caches.open(cacheName);
+      cache.put(request, networkResponse.clone());
+      limitCacheSize(cacheName, cacheName === IMAGE_CACHE ? MAX_IMAGE_CACHE_SIZE : MAX_DYNAMIC_CACHE_SIZE);
+    }
+    
+    return networkResponse;
+  } catch (error) {
+    console.log('[Service Worker] Cache and network failed:', request.url);
+    throw error;
+  }
 }
 
-// HTML network first strategy
-async function htmlNetworkFirstStrategy(request) {
-	try {
-		const response = await fetch(request);
-		return response;
-	} catch (error) {
-		// Return offline page
-		const cached = await caches.match(OFFLINE_URL);
-		if (cached) {
-			return cached;
-		}
-		
-		return new Response('Offline', { status: 503 });
-	}
+// Limit cache size
+async function limitCacheSize(cacheName, maxItems) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  
+  if (keys.length > maxItems) {
+    await cache.delete(keys[0]);
+    limitCacheSize(cacheName, maxItems);
+  }
 }
 
-// Background sync for failed requests
+// Background sync for offline actions
 self.addEventListener('sync', (event) => {
-	if (event.tag === 'sync-orders') {
-		event.waitUntil(syncOrders());
-	}
+  console.log('[Service Worker] Background sync:', event.tag);
+  
+  if (event.tag === 'sync-orders') {
+    event.waitUntil(syncOrders());
+  } else if (event.tag === 'sync-photos') {
+    event.waitUntil(syncPhotos());
+  }
 });
 
 async function syncOrders() {
-	// Get pending orders from IndexedDB and sync
-	console.log('[SW] Syncing pending orders');
-	// Implementation depends on your offline storage strategy
+  try {
+    const db = await openIndexedDB();
+    const pendingOrders = await db.getAll('pendingOrders');
+    
+    for (const order of pendingOrders) {
+      try {
+        const response = await fetch('/api/orders', {
+          method: order.method || 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(order.data)
+        });
+        
+        if (response.ok) {
+          await db.delete('pendingOrders', order.id);
+          console.log('[Service Worker] Synced order:', order.id);
+        }
+      } catch (error) {
+        console.error('[Service Worker] Failed to sync order:', order.id, error);
+      }
+    }
+  } catch (error) {
+    console.error('[Service Worker] Sync orders error:', error);
+  }
+}
+
+async function syncPhotos() {
+  try {
+    const db = await openIndexedDB();
+    const pendingPhotos = await db.getAll('pendingPhotos');
+    
+    for (const photo of pendingPhotos) {
+      try {
+        const formData = new FormData();
+        formData.append('file', photo.file);
+        formData.append('orderId', photo.orderId);
+        formData.append('station', photo.station);
+        
+        const response = await fetch('/api/photos', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (response.ok) {
+          await db.delete('pendingPhotos', photo.id);
+          console.log('[Service Worker] Synced photo:', photo.id);
+        }
+      } catch (error) {
+        console.error('[Service Worker] Failed to sync photo:', photo.id, error);
+      }
+    }
+  } catch (error) {
+    console.error('[Service Worker] Sync photos error:', error);
+  }
 }
 
 // Push notifications
 self.addEventListener('push', (event) => {
-	const data = event.data.json();
-	
-	const options = {
-		body: data.body,
-		icon: '/icons/icon-192x192.png',
-		badge: '/icons/badge-72x72.png',
-		tag: data.tag || 'default',
-		requireInteraction: data.requireInteraction || false,
-		data: data.data || {}
-	};
-
-	event.waitUntil(
-		self.registration.showNotification(data.title, options)
-	);
+  console.log('[Service Worker] Push received');
+  
+  const data = event.data ? event.data.json() : {};
+  const title = data.title || 'OMS Notification';
+  const options = {
+    body: data.body || 'You have a new notification',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/badge-72x72.png',
+    tag: data.tag || 'default',
+    data: data.data || {},
+    actions: data.actions || [
+      {
+        action: 'view',
+        title: 'View'
+      },
+      {
+        action: 'dismiss',
+        title: 'Dismiss'
+      }
+    ],
+    vibrate: [200, 100, 200],
+    requireInteraction: data.requireInteraction || false
+  };
+  
+  event.waitUntil(
+    self.registration.showNotification(title, options)
+  );
 });
 
-// Notification click handler
+// Notification click
 self.addEventListener('notificationclick', (event) => {
-	event.notification.close();
+  console.log('[Service Worker] Notification clicked:', event.action);
+  
+  event.notification.close();
+  
+  if (event.action === 'view') {
+    const urlToOpen = event.notification.data.url || '/';
+    
+    event.waitUntil(
+      clients.matchAll({ type: 'window', includeUncontrolled: true })
+        .then((clientList) => {
+          // Check if there's already a window open
+          for (const client of clientList) {
+            if (client.url === urlToOpen && 'focus' in client) {
+              return client.focus();
+            }
+          }
+          
+          // Open new window
+          if (clients.openWindow) {
+            return clients.openWindow(urlToOpen);
+          }
+        })
+    );
+  }
+});
 
-	const urlToOpen = event.notification.data.url || '/';
+// Helper function to open IndexedDB
+function openIndexedDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('oms-offline', 1);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      
+      if (!db.objectStoreNames.contains('pendingOrders')) {
+        db.createObjectStore('pendingOrders', { keyPath: 'id', autoIncrement: true });
+      }
+      
+      if (!db.objectStoreNames.contains('pendingPhotos')) {
+        db.createObjectStore('pendingPhotos', { keyPath: 'id', autoIncrement: true });
+      }
+      
+      if (!db.objectStoreNames.contains('cachedOrders')) {
+        db.createObjectStore('cachedOrders', { keyPath: 'id' });
+      }
+    };
+  });
+}
 
-	event.waitUntil(
-		clients.matchAll({ type: 'window', includeUncontrolled: true })
-			.then((windowClients) => {
-				// Check if there's already a window open
-				for (const client of windowClients) {
-					if (client.url === urlToOpen && 'focus' in client) {
-						return client.focus();
-					}
-				}
-				// Open new window
-				if (clients.openWindow) {
-					return clients.openWindow(urlToOpen);
-				}
-			})
-	);
+// Message handler for communication with app
+self.addEventListener('message', (event) => {
+  console.log('[Service Worker] Message received:', event.data);
+  
+  if (event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  } else if (event.data.type === 'CLEAR_CACHE') {
+    event.waitUntil(
+      caches.keys().then((keys) => {
+        return Promise.all(
+          keys.map((key) => caches.delete(key))
+        );
+      })
+    );
+  } else if (event.data.type === 'CACHE_URLS') {
+    event.waitUntil(
+      caches.open(DYNAMIC_CACHE).then((cache) => {
+        return cache.addAll(event.data.urls);
+      })
+    );
+  }
 });

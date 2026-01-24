@@ -1,31 +1,32 @@
 <script lang="ts">
 /**
- * PWA Install Prompt Component
+ * PWA Update Available Prompt Component
  */
 
 import { createEventDispatcher } from 'svelte';
-import { Download, X } from 'lucide-svelte';
+import { RefreshCw, X } from 'lucide-svelte';
 
 const dispatch = createEventDispatcher();
 </script>
 
-<div class="install-prompt">
+<div class="update-prompt">
   <div class="prompt-content">
     <div class="prompt-icon">
-      <Download size={24} />
+      <RefreshCw size={20} />
     </div>
     
     <div class="prompt-text">
-      <strong>Install OMS App</strong>
-      <p>Install this app on your device for quick access and offline support</p>
+      <strong>Update Available</strong>
+      <p>A new version is available. Refresh to update.</p>
     </div>
 
     <div class="prompt-actions">
       <button 
         class="btn-primary"
-        on:click={() => dispatch('install')}
+        on:click={() => dispatch('update')}
       >
-        Install
+        <RefreshCw size={16} />
+        Refresh
       </button>
       
       <button 
@@ -40,24 +41,22 @@ const dispatch = createEventDispatcher();
 </div>
 
 <style>
-  .install-prompt {
+  .update-prompt {
     position: fixed;
-    bottom: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 1rem;
+    right: 1rem;
     z-index: 9999;
-    max-width: 500px;
-    width: calc(100% - 2rem);
-    animation: slideUp 0.3s ease-out;
+    max-width: 400px;
+    animation: slideDown 0.3s ease-out;
   }
 
-  @keyframes slideUp {
+  @keyframes slideDown {
     from {
-      transform: translateX(-50%) translateY(100%);
+      transform: translateY(-100%);
       opacity: 0;
     }
     to {
-      transform: translateX(-50%) translateY(0);
+      transform: translateY(0);
       opacity: 1;
     }
   }
@@ -74,11 +73,11 @@ const dispatch = createEventDispatcher();
   }
 
   .prompt-icon {
-    width: 48px;
-    height: 48px;
-    background: var(--accent-1, #3b82f6);
+    width: 40px;
+    height: 40px;
+    background: var(--ok, #10b981);
     color: white;
-    border-radius: 12px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -92,16 +91,15 @@ const dispatch = createEventDispatcher();
 
   .prompt-text strong {
     display: block;
-    font-size: 1rem;
+    font-size: 0.9375rem;
     color: var(--text, #111827);
     margin-bottom: 0.25rem;
   }
 
   .prompt-text p {
     margin: 0;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     color: var(--muted, #6b7280);
-    line-height: 1.4;
   }
 
   .prompt-actions {
@@ -124,7 +122,7 @@ const dispatch = createEventDispatcher();
   }
 
   .btn-primary {
-    background: var(--accent-1, #3b82f6);
+    background: var(--ok, #10b981);
     color: white;
   }
 
@@ -140,11 +138,5 @@ const dispatch = createEventDispatcher();
 
   .btn-ghost:hover {
     background: var(--bg-2, #f3f4f6);
-  }
-
-  @media (max-width: 640px) {
-    .prompt-text p {
-      display: none;
-    }
   }
 </style>

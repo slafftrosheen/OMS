@@ -1,153 +1,15 @@
-<script lang="ts">
-  import { base } from '$app/paths';
-  import { page } from '$app/stores';
-  import { onMount } from 'svelte';
-  import { goto, replaceState } from '$app/navigation';
-  
-  import Logo from '$lib/brand/Logo.svelte';
-  import NotificationsBell from '$lib/topbar/NotificationsBell.svelte';
-  import ThemeSwitch from '$lib/topbar/ThemeSwitch.svelte';
-  import LangSwitch from '$lib/topbar/LangSwitch.svelte';
-  import TextSizeSwitch from '$lib/topbar/TextSizeSwitch.svelte';
-  import DensitySwitch from '$lib/topbar/DensitySwitch.svelte';
-  import UserSwitch from '$lib/topbar/UserSwitch.svelte';
-  import MobileNav from '$lib/topbar/MobileNav.svelte';
-  import Toast from '$lib/notify/Toast.svelte';
-  import LiveRegion from '$lib/ui/LiveRegion.svelte';
-  import ChatSidebar from '$lib/chat/ChatSidebar.svelte';
-  import { role } from '$lib/ui/RoleSwitch.svelte';
-  import CommandPalette from '$lib/ui/CommandPalette.svelte';
-  import Keybindings from '$lib/help/Keybindings.svelte';
-  import { t } from 'svelte-i18n';
-  import { startPreferenceUrlSync } from '$lib/settings/url-sync';
-  import { ui } from '$lib/state/ui';
-  import { setLocale } from '$lib/i18n';
-  import { Menu, X, LayoutDashboard, ClipboardList, Calendar, Package, HelpCircle, Settings, Users, Boxes, MessageSquare, Bell } from 'lucide-svelte';
-  import { currentUser, loadCurrentUser } from '$lib/auth/user-store';
-  import { initChatRealtime, toggleChat, unreadCount, isChatOpen } from '$lib/chat/chat-store';
-
-  // Accept params prop to silence SvelteKit warning
-  export let params = {};
-
-  let searchOpen = false;
-  let showKb = false;
-  let mobileMenuOpen = false;
-  let authChecked = false;
-
-  // Public routes that don't require auth
-  const publicRoutes = ['/login', '/help'];
-
-  $: isPublicRoute = publicRoutes.some(r => $page.url.pathname === `${base}${r}` || $page.url.pathname === r);
-  $: isAdmin = $currentUser?.roles?.Admin === 'SuperAdmin';
-  $: currentPath = $page.url.pathname;
-
-  const openSearch = () => {
-    searchOpen = true;
-  };
-
-  const closeSearch = () => {
-    searchOpen = false;
-  };
-
-  onMount(async () => {
-    // Load current user from session
-    const user = await loadCurrentUser();
-    authChecked = true;
-    
-    // Redirect to login if not authenticated and not on public route
-    if (!user && !isPublicRoute) {
-      goto(`${base}/login`);
-      return;
-    }
-
-    // Initialize chat realtime if user is logged in
-    let stopChatRealtime: () => void;
-    if (user) {
-      stopChatRealtime = initChatRealtime();
-    }
-    
-    // Apply query params for deep-linking preferences
-    const q = new URLSearchParams(location.search);
-    const theme   = q.get('theme') as any;
-    const density = q.get('density') as any;
-    const lang    = q.get('lang');
-    const font    = q.get('font');
-
-    if (lang) setLocale(lang);
-    ui.update(p=>({
-      ...p,
-      theme:   theme   || p.theme,
-      density: density || p.density,
-      fontScale: font ? Math.max(0.85, Math.min(1.3, +font)) : p.fontScale
-    }));
-    
-    // Clean up URL params using SvelteKit's replaceState
-    if (theme || density || lang || font) {
-      const newUrl = new URL(location.href);
-      newUrl.searchParams.delete('theme');
-      newUrl.searchParams.delete('density');
-      newUrl.searchParams.delete('lang');
-      newUrl.searchParams.delete('font');
-      replaceState(newUrl.pathname + newUrl.search + newUrl.hash, {});
-    }
-    
-    const stopPreferenceSync = startPreferenceUrlSync();
-    const handler = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target?.isContentEditable) return;
-      const tag = target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      const adm = $role === 'Admin';
-      const key = e.key?.toLowerCase();
-      if (!key) return;
-      if ((e.metaKey || e.ctrlKey) && key === 'k') {
-        e.preventDefault();
-        openSearch();
-        return;
-      }
-      if (key === '?') {
-        e.preventDefault();
-        showKb = !showKb;
-        return;
-      }
-      if (!e.shiftKey) return;
-      if (adm && key === 'a') window.dispatchEvent(new CustomEvent('rf-approve-selected'));
-      if (adm && key === 'd') window.dispatchEvent(new CustomEvent('rf-decline-selected'));
-      if (adm && key === 'u') window.dispatchEvent(new CustomEvent('rf-attach-revision'));
-      if (!adm && key === 'n') window.dispatchEvent(new CustomEvent('rf-open-cr'));
-      if (!adm && key === 'l') window.dispatchEvent(new CustomEvent('rf-focus-quicklog'));
-    };
-
-    window.addEventListener('keydown', handler);
-    return () => {
-      stopPreferenceSync?.();
-      window.removeEventListener('keydown', handler);
-      if (stopChatRealtime) stopChatRealtime();
-    };
-  });
-
-  onMount(async () => {
-    if (import.meta.env.DEV) {
-      // axe is ~300KB — load only in dev
-      const axe = await import('axe-core'); // npm i axe-core -D
-      // Check only color contrast + focusable/focus-visible
-      axe.default
-        .run(document, {
-          runOnly: { type: 'rule', values: ['color-contrast', 'focus-order-semantics'] } // Removed 'focus-visible' as it's not a valid rule ID
-        })
-        .then((results) => {
-          if (results.violations.length) {
-            console.group('%cA11Y (axe)', 'color:#fff;background:#e11d48;padding:2px 6px;border-radius:4px');
-            results.violations.forEach((v) => console.warn(v.id, v.nodes.map((n) => n.target)));
-            console.groupEnd();
-          }
-        });
-    }
-  });
-</script>
-
 <svelte:head>
-  <link rel="stylesheet" href={`${base}/brand.css`}>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#3b82f6" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="OMS" />
+  <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16x16.png" />
+  <link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#3b82f6" />
+  <meta name="msapplication-TileColor" content="#3b82f6" />
+  <meta name="msapplication-config" content="/browserconfig.xml" />
 </svelte:head>
 
 {#if !authChecked}
@@ -212,9 +74,10 @@
         <div class="action-btn" title={$t('topbar.density', { default: 'Density' })}><DensitySwitch /></div>
         <div class="action-btn" title={$t('topbar.theme', { default: 'Theme' })}><ThemeSwitch /></div>
         <div class="action-btn" title={$t('ui.notifications', { default: 'Notifications' })}><NotificationsBell /></div>
-        <button 
-          class="action-btn chat-toggle" 
-          class:active={$isChatOpen} 
+        <div class="action-btn" title="Realtime Connection"><RealtimeConnection /></div>
+        <button
+          class="action-btn chat-toggle"
+          class:active={$isChatOpen}
           title={$t('ui.chat', { default: 'Chat' })}
           on:click={toggleChat}
         >
@@ -233,6 +96,24 @@
     </header>
   {/if}
 
+  {#if showInstallPrompt}
+    <InstallPrompt 
+      on:install={handleInstall}
+      on:dismiss={handleDismissInstall}
+    />
+  {/if}
+
+  {#if showUpdatePrompt}
+    <UpdatePrompt 
+      on:update={handleUpdate}
+      on:dismiss={handleDismissUpdate}
+    />
+  {/if}
+
+  {#if !isOnline}
+    <OfflineIndicator />
+  {/if}
+
   <main id="main" class="rf-page"><slot /></main>
 
   {#if $currentUser}
@@ -247,6 +128,261 @@
 {/if}
 
 <div id="rf-live" class="sr-only" aria-live="polite"></div>
+
+<script lang="ts">
+  import { base } from '$app/paths';
+  import { page } from '$app/stores';
+  import { onMount } from 'svelte';
+  import { goto, replaceState } from '$app/navigation';
+
+  import Logo from '$lib/brand/Logo.svelte';
+  import NotificationsBell from '$lib/topbar/NotificationsBell.svelte';
+  import ThemeSwitch from '$lib/topbar/ThemeSwitch.svelte';
+  import LangSwitch from '$lib/topbar/LangSwitch.svelte';
+  import TextSizeSwitch from '$lib/topbar/TextSizeSwitch.svelte';
+  import DensitySwitch from '$lib/topbar/DensitySwitch.svelte';
+  import UserSwitch from '$lib/topbar/UserSwitch.svelte';
+  import MobileNav from '$lib/topbar/MobileNav.svelte';
+  import Toast from '$lib/notify/Toast.svelte';
+  import LiveRegion from '$lib/ui/LiveRegion.svelte';
+  import ChatSidebar from '$lib/chat/ChatSidebar.svelte';
+  import RealtimeConnection from '$lib/realtime/RealtimeConnection.svelte';
+  import InstallPrompt from '$lib/pwa/InstallPrompt.svelte';
+  import UpdatePrompt from '$lib/pwa/UpdatePrompt.svelte';
+  import OfflineIndicator from '$lib/pwa/OfflineIndicator.svelte';
+  import { role } from '$lib/ui/RoleSwitch.svelte';
+  import CommandPalette from '$lib/ui/CommandPalette.svelte';
+  import Keybindings from '$lib/help/Keybindings.svelte';
+  import { t } from 'svelte-i18n';
+  import { startPreferenceUrlSync } from '$lib/settings/url-sync';
+  import { ui } from '$lib/state/ui';
+  import { setLocale } from '$lib/i18n';
+  import { Menu, X, LayoutDashboard, ClipboardList, Calendar, Package, HelpCircle, Settings, Users, Boxes, MessageSquare, Bell } from 'lucide-svelte';
+  import { currentUser, loadCurrentUser } from '$lib/auth/user-store';
+  import { initChatRealtime, toggleChat, unreadCount, isChatOpen } from '$lib/chat/chat-store';
+
+  // Accept params prop to silence SvelteKit warning
+  export let params = {};
+
+  let searchOpen = false;
+  let showKb = false;
+  let mobileMenuOpen = false;
+  let authChecked = false;
+  let deferredPrompt: any = null;
+  let showInstallPrompt = false;
+  let showUpdatePrompt = false;
+  let isOnline = true;
+
+  // Public routes that don't require auth
+  const publicRoutes = ['/login', '/help'];
+
+  $: isPublicRoute = publicRoutes.some(r => $page.url.pathname === `${base}${r}` || $page.url.pathname === r);
+  $: isAdmin = $currentUser?.roles?.Admin === 'SuperAdmin';
+  $: currentPath = $page.url.pathname;
+
+  const openSearch = () => {
+    searchOpen = true;
+  };
+
+  const closeSearch = () => {
+    searchOpen = false;
+  };
+
+  onMount(async () => {
+    // Load current user from session
+    const user = await loadCurrentUser();
+    authChecked = true;
+
+    // Redirect to login if not authenticated and not on public route
+    if (!user && !isPublicRoute) {
+      goto(`${base}/login`);
+      return;
+    }
+
+    // Initialize chat realtime if user is logged in
+    let stopChatRealtime: () => void;
+    if (user) {
+      stopChatRealtime = initChatRealtime();
+    }
+
+    // Apply query params for deep-linking preferences
+    const q = new URLSearchParams(location.search);
+    const theme   = q.get('theme') as any;
+    const density = q.get('density') as any;
+    const lang    = q.get('lang');
+    const font    = q.get('font');
+
+    if (lang) setLocale(lang);
+    ui.update(p=>({
+      ...p,
+      theme:   theme   || p.theme,
+      density: density || p.density,
+      fontScale: font ? Math.max(0.85, Math.min(1.3, +font)) : p.fontScale
+    }));
+
+    // Clean up URL params using SvelteKit's replaceState
+    if (theme || density || lang || font) {
+      const newUrl = new URL(location.href);
+      newUrl.searchParams.delete('theme');
+      newUrl.searchParams.delete('density');
+      newUrl.searchParams.delete('lang');
+      newUrl.searchParams.delete('font');
+      replaceState(newUrl.pathname + newUrl.search + newUrl.hash, {});
+    }
+
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.register('/service-worker.js', {
+          scope: '/'
+        });
+
+        console.log('Service Worker registered:', registration.scope);
+
+        // Check for updates
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // New service worker available
+                showUpdatePrompt = true;
+              }
+            });
+          }
+        });
+
+        // Check for updates on page load
+        registration.update();
+      } catch (error) {
+        console.error('Service Worker registration failed:', error);
+      }
+    }
+
+    // Handle install prompt
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      showInstallPrompt = true;
+    });
+
+    // Handle app installed
+    window.addEventListener('appinstalled', () => {
+      console.log('PWA installed');
+      showInstallPrompt = false;
+      deferredPrompt = null;
+    });
+
+    // Monitor online/offline status
+    isOnline = navigator.onLine;
+    
+    window.addEventListener('online', () => {
+      isOnline = true;
+      console.log('App is online');
+      
+      // Trigger background sync if service worker is available
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then(registration => {
+          if (registration.sync) {
+            registration.sync.register('sync-orders');
+            registration.sync.register('sync-photos');
+          }
+        });
+      }
+    });
+
+    window.addEventListener('offline', () => {
+      isOnline = false;
+      console.log('App is offline');
+    });
+
+    const stopPreferenceSync = startPreferenceUrlSync();
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const adm = $role === 'Admin';
+      const key = e.key?.toLowerCase();
+      if (!key) return;
+      if ((e.metaKey || e.ctrlKey) && key === 'k') {
+        e.preventDefault();
+        openSearch();
+        return;
+      }
+      if (key === '?') {
+        e.preventDefault();
+        showKb = !showKb;
+        return;
+      }
+      if (!e.shiftKey) return;
+      if (adm && key === 'a') window.dispatchEvent(new CustomEvent('rf-approve-selected'));
+      if (adm && key === 'd') window.dispatchEvent(new CustomEvent('rf-decline-selected'));
+      if (adm && key === 'u') window.dispatchEvent(new CustomEvent('rf-attach-revision'));
+      if (!adm && key === 'n') window.dispatchEvent(new CustomEvent('rf-open-cr'));
+      if (!adm && key === 'l') window.dispatchEvent(new CustomEvent('rf-focus-quicklog'));
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => {
+      stopPreferenceSync?.();
+      window.removeEventListener('keydown', handler);
+      if (stopChatRealtime) stopChatRealtime();
+    };
+  });
+
+  onMount(async () => {
+    if (import.meta.env.DEV) {
+      // axe is ~300KB — load only in dev
+      const axe = await import('axe-core'); // npm i axe-core -D
+      // Check only color contrast + focusable/focus-visible
+      axe.default
+        .run(document, {
+          runOnly: { type: 'rule', values: ['color-contrast', 'focus-order-semantics'] } // Removed 'focus-visible' as it's not a valid rule ID
+        })
+        .then((results) => {
+          if (results.violations.length) {
+            console.group('%cA11Y (axe)', 'color:#fff;background:#e11d48;padding:2px 6px;border-radius:4px');
+            results.violations.forEach((v) => console.warn(v.id, v.nodes.map((n) => n.target)));
+            console.groupEnd();
+          }
+        });
+    }
+  });
+
+  async function handleInstall() {
+    if (!deferredPrompt) return;
+
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+
+    console.log('Install prompt outcome:', outcome);
+    
+    showInstallPrompt = false;
+    deferredPrompt = null;
+  }
+
+  function handleDismissInstall() {
+    showInstallPrompt = false;
+    // Store dismissal to not show again for a while
+    localStorage.setItem('installPromptDismissed', Date.now().toString());
+  }
+
+  function handleUpdate() {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      // Tell service worker to skip waiting
+      navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+
+      // Reload page
+      window.location.reload();
+    }
+  }
+
+  function handleDismissUpdate() {
+    showUpdatePrompt = false;
+  }
+</script>
 
 <style>
 .sr-only {
@@ -464,16 +600,16 @@
     padding: 0 16px;
     height: 56px;
   }
-  
+
   .rf-topbar .brand { flex: 1; }
-  
+
   .rf-topbar .mobile-menu-btn {
     display: flex;
     align-items: center;
     justify-content: center;
     order: 3;
   }
-  
+
   .rf-topbar nav.main {
     position: absolute;
     top: 100%;
@@ -489,32 +625,32 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
     z-index: 100;
   }
-  
+
   .rf-topbar nav.main.mobile-open { display: flex; }
-  
+
   .rf-topbar nav.main a {
     padding: 14px 16px;
     border-radius: 8px;
   }
-  
+
   .rf-topbar nav.main a span { display: inline; }
-  
+
   .nav-divider {
     width: 100%;
     height: 1px;
     margin: 8px 0;
   }
-  
+
   .rf-topbar .actions {
     order: 2;
     gap: 2px;
   }
-  
+
   .rf-topbar .action-btn {
     width: 32px;
     height: 32px;
   }
-  
+
   /* Keep text size and theme visible on mobile, hide others */
   .rf-topbar .actions > :global(.action-btn):nth-child(n+3):not(:last-child):not(.settings-btn) {
     display: none;

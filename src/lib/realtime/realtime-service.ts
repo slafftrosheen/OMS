@@ -1,204 +1,259 @@
-// src/lib/realtime/realtime-service.ts
+/**
+ * Real-time Service
+ * Manages WebSocket connections for live order and notification updates
+ * Uses Supabase Realtime for pub/sub messaging
+ */
+
 import { supabase } from '$lib/supabase-client';
-import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { writable, get } from 'svelte/store';
-import { browser } from '$app/environment';
 
-export interface Presence {
-	userId: string;
-	username: string;
-	displayName: string;
-	orderId?: string;
-	action: 'viewing' | 'editing';
-	timestamp: number;
+export interface RealtimeOrderUpdate {
+  id: string;
+  action: 'created' | 'updated' | 'deleted';
+  order: any;
+  timestamp: string;
+  userId: string;
+  userName: string;
 }
 
-export interface OrderUpdate {
-	id: string;
-	type: 'stage_change' | 'assignment' | 'rework' | 'status_change' | 'comment';
-	payload: any;
-	userId: string;
-	username: string;
-	timestamp: string;
+export interface RealtimeNotification {
+  id: string;
+  type: 'order_update' | 'stage_change' | 'rework' | 'comment' | 'assignment';
+  title: string;
+  message: string;
+  orderId?: string;
+  userId: string;
+  timestamp: string;
+  read: boolean;
 }
+
+// Connection state store
+export const connectionState = writable<'connected' | 'disconnected' | 'connecting' | 'error'>('disconnected');
+
+// Real-time updates stores
+export const realtimeOrders = writable<RealtimeOrderUpdate[]>([]);
+export const realtimeNotifications = writable<RealtimeNotification[]>([]);
 
 class RealtimeService {
-	private channels: Map<string, RealtimeChannel> = new Map();
-	private presence = writable<Map<string, Presence>>(new Map());
-	private orderUpdates = writable<OrderUpdate[]>([]);
-	private connectionStatus = writable<'connected' | 'disconnected' | 'connecting'>('disconnected');
+  private orderChannel: RealtimeChannel | null = null;
+  private notificationChannel: RealtimeChannel | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 2000;
 
-	// Subscribe to order changes
-	subscribeToOrders(callback: (update: OrderUpdate) => void): () => void {
-		if (!browser) return () => {};
+  /**
+   * Initialize real-time subscriptions for a user
+   * @param userId - Current authenticated user ID
+   */
+  async connect(userId: string): Promise<void> {
+    if (!userId) {
+      console.error('[Realtime] Cannot connect without userId');
+      return;
+    }
 
-		const channelName = 'orders-channel';
-		let channel = this.channels.get(channelName);
+    connectionState.set('connecting');
 
-		if (!channel) {
-			channel = supabase
-				.channel(channelName)
-				.on(
-					'postgres_changes',
-					{
-						event: 'UPDATE',
-						schema: 'public',
-						table: 'draft_orders'
-					},
-					(payload: RealtimePostgresChangesPayload<any>) => {
-						const update: OrderUpdate = {
-							id: payload.new.id,
-							type: this.detectChangeType(payload.old, payload.new),
-							payload: payload.new,
-							userId: payload.new.updated_by || 'system',
-							username: payload.new.updated_by_name || 'System',
-							timestamp: new Date().toISOString()
-						};
-						callback(update);
-					}
-				)
-				.on(
-					'postgres_changes',
-					{
-						event: 'INSERT',
-						schema: 'public',
-						table: 'order_comments'
-					},
-					(payload: RealtimePostgresChangesPayload<any>) => {
-						const update: OrderUpdate = {
-							id: payload.new.order_id,
-							type: 'comment',
-							payload: payload.new,
-							userId: payload.new.user_id,
-							username: payload.new.username,
-							timestamp: payload.new.created_at
-						};
-						callback(update);
-					}
-				)
-				.subscribe((status) => {
-					this.connectionStatus.set(
-						status === 'SUBSCRIBED' ? 'connected' : 
-						status === 'CLOSED' ? 'disconnected' : 'connecting'
-					);
-				});
+    try {
+      // Subscribe to order updates
+      await this.subscribeToOrders(userId);
+      
+      // Subscribe to user notifications
+      await this.subscribeToNotifications(userId);
+      
+      connectionState.set('connected');
+      this.reconnectAttempts = 0;
+      
+      console.log('[Realtime] Connected successfully');
+    } catch (error) {
+      console.error('[Realtime] Connection error:', error);
+      connectionState.set('error');
+      this.handleReconnect(userId);
+    }
+  }
 
-			this.channels.set(channelName, channel);
-		}
+  /**
+   * Subscribe to order changes
+   */
+  private async subscribeToOrders(userId: string): Promise<void> {
+    this.orderChannel = supabase
+      .channel('orders')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'draft_orders'
+        },
+        (payload) => {
+          this.handleOrderChange(payload, userId);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Realtime] Subscribed to orders');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('[Realtime] Order subscription error:', status);
+          this.handleReconnect(userId);
+        }
+      });
+  }
 
-		// Return cleanup function
-		return () => {
-			if (channel) {
-				supabase.removeChannel(channel);
-				this.channels.delete(channelName);
-			}
-		};
-	}
+  /**
+   * Subscribe to user notifications
+   */
+  private async subscribeToNotifications(userId: string): Promise<void> {
+    this.notificationChannel = supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`
+        },
+        (payload) => {
+          this.handleNotification(payload);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Realtime] Subscribed to notifications');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('[Realtime] Notification subscription error:', status);
+          this.handleReconnect(userId);
+        }
+      });
+  }
 
-	// Track presence (who's viewing/editing what)
-	trackPresence(orderId: string, action: 'viewing' | 'editing', user: any): () => void {
-		if (!browser) return () => {};
+  /**
+   * Handle order change events
+   */
+  private handleOrderChange(payload: any, userId: string): void {
+    const update: RealtimeOrderUpdate = {
+      id: payload.new?.id || payload.old?.id,
+      action: payload.eventType === 'INSERT' ? 'created' : 
+              payload.eventType === 'UPDATE' ? 'updated' : 'deleted',
+      order: payload.new || payload.old,
+      timestamp: new Date().toISOString(),
+      userId: payload.new?.updated_by || payload.new?.created_by || 'system',
+      userName: 'Unknown User' // Will be enriched by component
+    };
 
-		const channelName = `presence-order-${orderId}`;
-		let channel = this.channels.get(channelName);
+    // Add to store
+    realtimeOrders.update(orders => [update, ...orders].slice(0, 100)); // Keep last 100
 
-		if (!channel) {
-			channel = supabase.channel(channelName, {
-				config: {
-					presence: {
-						key: user.id
-					}
-				}
-			});
+    // Emit custom event for components
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('orderUpdate', { detail: update }));
+    }
+  }
 
-			// Track presence changes
-			channel
-				.on('presence', { event: 'sync' }, () => {
-					const state = channel!.presenceState();
-					const presenceMap = new Map<string, Presence>();
+  /**
+   * Handle notification events
+   */
+  private handleNotification(payload: any): void {
+    const notification: RealtimeNotification = {
+      id: payload.new.id,
+      type: payload.new.type,
+      title: payload.new.title,
+      message: payload.new.message,
+      orderId: payload.new.order_id,
+      userId: payload.new.user_id,
+      timestamp: payload.new.created_at,
+      read: false
+    };
 
-					Object.entries(state).forEach(([userId, presences]: [string, any[]]) => {
-						const latest = presences[0];
-						presenceMap.set(userId, latest);
-					});
+    // Add to store
+    realtimeNotifications.update(notifs => [notification, ...notifs]);
 
-					this.presence.set(presenceMap);
-				})
-				.on('presence', { event: 'join' }, ({ key, newPresences }) => {
-					console.log('User joined:', key, newPresences);
-				})
-				.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-					console.log('User left:', key, leftPresences);
-				})
-				.subscribe(async (status) => {
-					if (status === 'SUBSCRIBED') {
-						// Track this user's presence
-						await channel!.track({
-							userId: user.id,
-							username: user.username,
-							displayName: user.displayName || user.username, // Corrected property name from display_name to displayName based on user-store
-							orderId,
-							action,
-							timestamp: Date.now()
-						});
-					}
-				});
+    // Show browser notification if permitted
+    this.showBrowserNotification(notification);
 
-			this.channels.set(channelName, channel);
-		}
+    // Emit custom event
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('notification', { detail: notification }));
+    }
+  }
 
-		// Return cleanup function
-		return () => {
-			if (channel) {
-				channel.untrack();
-				supabase.removeChannel(channel);
-				this.channels.delete(channelName);
-			}
-		};
-	}
+  /**
+   * Show browser notification
+   */
+  private showBrowserNotification(notification: RealtimeNotification): void {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        new Notification(notification.title, {
+          body: notification.message,
+          icon: '/favicon.png',
+          badge: '/favicon.png',
+          tag: notification.id
+        });
+      }
+    }
+  }
 
-	// Broadcast typing indicator
-	broadcastTyping(orderId: string, user: any) {
-		const channelName = `presence-order-${orderId}`;
-		const channel = this.channels.get(channelName);
+  /**
+   * Handle reconnection logic
+   */
+  private handleReconnect(userId: string): void {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('[Realtime] Max reconnection attempts reached');
+      connectionState.set('error');
+      return;
+    }
 
-		if (channel) {
-			channel.send({
-				type: 'broadcast',
-				event: 'typing',
-				payload: {
-					userId: user.id,
-					username: user.username,
-					timestamp: Date.now()
-				}
-			});
-		}
-	}
+    this.reconnectAttempts++;
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
 
-	private detectChangeType(oldData: any, newData: any): OrderUpdate['type'] {
-		if (oldData?.status !== newData?.status) return 'status_change';
-		if (JSON.stringify(oldData?.stages) !== JSON.stringify(newData?.stages)) return 'stage_change';
-		if (JSON.stringify(oldData?.assignees) !== JSON.stringify(newData?.assignees)) return 'assignment';
-		if (oldData?.rework_count !== newData?.rework_count) return 'rework';
-		return 'status_change';
-	}
+    console.log(`[Realtime] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
-	// Getters for stores
-	getPresence() {
-		return this.presence;
-	}
+    setTimeout(() => {
+      this.disconnect();
+      this.connect(userId);
+    }, delay);
+  }
 
-	getConnectionStatus() {
-		return this.connectionStatus;
-	}
+  /**
+   * Disconnect all channels
+   */
+  async disconnect(): Promise<void> {
+    if (this.orderChannel) {
+      await supabase.removeChannel(this.orderChannel);
+      this.orderChannel = null;
+    }
 
-	// Cleanup all channels
-	cleanup() {
-		this.channels.forEach((channel) => {
-			supabase.removeChannel(channel);
-		});
-		this.channels.clear();
-	}
+    if (this.notificationChannel) {
+      await supabase.removeChannel(this.notificationChannel);
+      this.notificationChannel = null;
+    }
+
+    connectionState.set('disconnected');
+    console.log('[Realtime] Disconnected');
+  }
+
+  /**
+   * Request browser notification permissions
+   */
+  async requestNotificationPermission(): Promise<NotificationPermission> {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return await Notification.requestPermission();
+    }
+    return 'denied';
+  }
+
+  /**
+   * Broadcast a custom message to all connected clients
+   */
+  async broadcast(channel: string, event: string, payload: any): Promise<void> {
+    const broadcastChannel = supabase.channel(channel);
+    await broadcastChannel.send({
+      type: 'broadcast',
+      event,
+      payload
+    });
+  }
 }
 
+// Singleton instance
 export const realtimeService = new RealtimeService();

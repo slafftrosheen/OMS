@@ -1,0 +1,116 @@
+<script lang="ts">
+/**
+ * Realtime Connection Component
+ * Manages WebSocket connection lifecycle and displays connection status
+ * Auto-connects when user is authenticated
+ */
+
+import { onMount, onDestroy } from 'svelte';
+import { realtimeService, connectionState } from './realtime-service';
+import { authStore } from '$lib/auth/auth-store'; // Adjust path as needed
+import { Wifi, WifiOff, AlertCircle } from 'lucide-svelte';
+
+let unsubscribe: (() => void) | null = null;
+let userId: string | null = null;
+
+onMount(async () => {
+  // Subscribe to auth state
+  const authUnsub = authStore.subscribe(auth => {
+    if (auth.user?.id && auth.user.id !== userId) {
+      userId = auth.user.id;
+      connectRealtime();
+    } else if (!auth.user && userId) {
+      disconnectRealtime();
+      userId = null;
+    }
+  });
+
+  // Request notification permission
+  await realtimeService.requestNotificationPermission();
+
+  return () => {
+    authUnsub();
+  };
+});
+
+onDestroy(() => {
+  disconnectRealtime();
+});
+
+async function connectRealtime() {
+  if (userId) {
+    await realtimeService.connect(userId);
+  }
+}
+
+async function disconnectRealtime() {
+  await realtimeService.disconnect();
+}
+
+async function retryConnection() {
+  if (userId) {
+    await realtimeService.disconnect();
+    await realtimeService.connect(userId);
+  }
+}
+
+$: statusIcon = $connectionState === 'connected' ? Wifi :
+                $connectionState === 'error' ? AlertCircle : WifiOff;
+$: statusColor = $connectionState === 'connected' ? 'var(--ok)' :
+                 $connectionState === 'error' ? 'var(--danger)' : 'var(--muted)';
+$: statusLabel = $connectionState === 'connected' ? 'Connected' :
+                 $connectionState === 'connecting' ? 'Connecting...' :
+                 $connectionState === 'error' ? 'Connection Error' : 'Disconnected';
+</script>
+
+<!-- Connection status indicator -->
+<div class="realtime-status" title={statusLabel}>
+  <svelte:component 
+    this={statusIcon} 
+    size={16} 
+    style="color: {statusColor}" 
+    aria-label={statusLabel}
+  />
+  
+  {#if $connectionState === 'error'}
+    <button 
+      class="retry-btn" 
+      on:click={retryConnection}
+      aria-label="Retry connection"
+    >
+      Retry
+    </button>
+  {/if}
+</div>
+
+<style>
+  .realtime-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+  }
+
+  .retry-btn {
+    font-size: 0.75rem;
+    padding: 0.125rem 0.5rem;
+    background: var(--accent-1);
+    color: var(--bg-0);
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .retry-btn:hover {
+    opacity: 0.8;
+  }
+
+  .retry-btn:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+</style>
