@@ -543,19 +543,19 @@
   async function saveOrder() {
     // Validation
     if (!clientName.trim()) {
-      error = 'Client Name is required';
+      error = $t('orders.new.messages.validation.client');
       return;
     }
     if (!poNumber.trim()) {
-      error = 'PO Number is required';
+      error = $t('orders.new.messages.validation.po');
       return;
     }
     if (uploadedFiles.length === 0) {
-      error = 'Please upload at least one file (CDR or PDF sketch)';
+      error = $t('orders.new.messages.validation.files');
       return;
     }
     if (!deliveryAddress.trim() && !selectedPresetId) {
-      error = 'Please select or enter a delivery address';
+      error = $t('orders.new.messages.validation.address');
       return;
     }
 
@@ -610,15 +610,15 @@
       });
 
       if (response.ok) {
-        successMessage = 'Draft order created successfully! Admin will be notified.';
+        successMessage = $t('orders.new.messages.success');
         setTimeout(() => goto('/orders'), 1500);
       } else {
         const res = await response.json();
-        error = res.message || 'Failed to save order';
+        error = res.message || $t('admin.users.messages.save_error');
       }
     } catch (err) {
       console.error('Error saving order:', err);
-      error = 'An unexpected error occurred';
+      error = $t('admin.users.messages.save_error');
     } finally {
       saving = false;
     }
@@ -640,26 +640,26 @@
     <div class="header-left">
       <a href="/orders" class="back-link">
         <ArrowLeft size={20} />
-        Back to Orders
+        {$t('orders.new.back')}
       </a>
-      <h1>Create Draft Order</h1>
+      <h1>{$t('orders.new.title')}</h1>
       {#if isSuperAdmin}
-        <span class="role-badge superadmin">SuperAdmin</span>
+        <span class="role-badge superadmin">{$t('roles.superadmin')}</span>
       {:else if isAdmin}
-        <span class="role-badge admin">Admin</span>
+        <span class="role-badge admin">{$t('roles.admin')}</span>
       {/if}
     </div>
     <div class="header-actions">
       <button class="btn-secondary" on:click={() => goto('/orders')}>
-        Cancel
+        {$t('actions.cancel')}
       </button>
       <button class="btn-primary" on:click={saveOrder} disabled={saving}>
         {#if saving}
           <span class="spinner"></span>
-          Saving...
+          {$t('actions.saving')}
         {:else}
           <Save size={18} />
-          Save Draft Order
+          {$t('orders.new.save')}
         {/if}
       </button>
     </div>
@@ -687,17 +687,17 @@
     <div class="profiles-header">
       <h2>
         <FileText size={20} />
-        Order Profiles
+        {$t('orders.new.sections.profiles')}
       </h2>
       <div class="profiles-actions">
-        <span class="profile-count">{profiles.length} profile{profiles.length !== 1 ? 's' : ''}</span>
+        <span class="profile-count">{profiles.length}</span>
         <button class="btn-secondary" on:click={() => showPresetModal = true}>
           <BookOpen size={16} />
-          Load Preset
+          {$t('orders.new.presets.load')}
         </button>
         <button class="btn-secondary" on:click={addProfile}>
           <Plus size={16} />
-          Add Profile
+          {$t('materials.add')}
         </button>
       </div>
     </div>
@@ -750,9 +750,9 @@
   <section class="card files-card full-width">
     <h2>
       <Upload size={20} />
-      Sketch Files <span class="required">*</span>
+      {$t('orders.new.sections.files')} <span class="required">*</span>
     </h2>
-    <p class="help-text">Upload PDF and CDR files with order sketches.</p>
+    <p class="help-text">{$t('orders.new.files.hint')}</p>
     
     <div class="files-layout">
       <div class="upload-section">
@@ -776,14 +776,14 @@
           />
           <label for="file-upload" class="upload-label">
             <Upload size={32} />
-            <span class="upload-text">Drag & drop or click</span>
-            <span class="upload-hint">PDF, CDR, AI, EPS, JPG, PNG</span>
+            <span class="upload-text">{$t('orders.new.files.drag_drop')}</span>
+            <span class="upload-hint">{$t('orders.new.files.formats')}</span>
           </label>
         </div>
         
         {#if uploadedFiles.length > 0}
           <div class="file-list">
-            <h3>Files ({uploadedFiles.length})</h3>
+            <h3>{$t('files.title')} ({uploadedFiles.length})</h3>
             <div class="file-list-items">
               {#each uploadedFiles as fileItem, i}
                 <div 
@@ -866,19 +866,19 @@
             {:else if selectedFile.type === 'pdf'}
               <div class="pdf-preview-placeholder">
                 <FileText size={48} />
-                <span>Loading PDF...</span>
+                <span>{$t('orders.new.files.loading_pdf')}</span>
               </div>
             {:else}
               <div class="preview-placeholder">
                 <FileText size={48} />
-                <span>No preview</span>
+                <span>{$t('orders.new.files.no_preview')}</span>
               </div>
             {/if}
           </div>
         {:else}
           <div class="no-preview">
             <Eye size={48} />
-            <span>Select a file to preview</span>
+            <span>{$t('orders.new.files.no_preview')}</span>
           </div>
         {/if}
       </div>
@@ -891,15 +891,15 @@
     <section class="card details-card">
       <h2>
         <FileText size={20} />
-        Order Details
+        {$t('orders.new.sections.details')}
       </h2>
       <div class="form-row">
         <div class="form-group">
-          <label for="poNumber">PO Number</label>
+          <label for="poNumber">{$t('orders.new.details.po')}</label>
           <input type="text" id="poNumber" bind:value={poNumber} readonly class="readonly" />
         </div>
         <div class="form-group">
-          <label for="priority">Priority</label>
+          <label for="priority">{$t('orders.new.details.priority')}</label>
           <select id="priority" bind:value={priority}>
             <option value="LOW">Low</option>
             <option value="NORMAL">Normal</option>
@@ -909,29 +909,29 @@
         </div>
       </div>
       <div class="form-group">
-        <label for="clientName">Client Name <span class="required">*</span></label>
-        <input type="text" id="clientName" bind:value={clientName} placeholder="Enter client name or select from presets" />
+        <label for="clientName">{$t('orders.new.details.client')} <span class="required">*</span></label>
+        <input type="text" id="clientName" bind:value={clientName} placeholder={$t('orders.new.details.client_placeholder')} />
       </div>
       <div class="form-row">
         <div class="form-group">
           <label for="deadline">
             <Calendar size={14} />
-            Delivery Date
+            {$t('orders.new.details.deadline')}
           </label>
           <input type="date" id="deadline" bind:value={deadline} />
         </div>
         <div class="form-group">
           <label for="loadingDate">
             <Calendar size={14} />
-            Loading Date
+            {$t('orders.new.details.loading')}
           </label>
-          <input type="date" id="loadingDate" bind:value={loadingDate} placeholder="Can be assigned later" />
-          <span class="help-text">Can be assigned later by admin</span>
+          <input type="date" id="loadingDate" bind:value={loadingDate} placeholder={$t('orders.new.details.loading_hint')} />
+          <span class="help-text">{$t('orders.new.details.loading_hint')}</span>
         </div>
       </div>
       <div class="form-group">
-        <label for="notes">Notes</label>
-        <textarea id="notes" bind:value={notes} rows="2" placeholder="Additional notes for production..."></textarea>
+        <label for="notes">{$t('orders.new.details.notes')}</label>
+        <textarea id="notes" bind:value={notes} rows="2" placeholder={$t('orders.new.details.notes_placeholder')}></textarea>
       </div>
     </section>
 
@@ -939,7 +939,7 @@
     <section class="card delivery-card">
       <h2>
           <MapPin size={20} />
-          Delivery Address
+          {$t('orders.new.sections.delivery')}
         </h2>
         
         <!-- Preset Selector -->
@@ -953,7 +953,7 @@
               {#if selectedPresetId}
                 {deliveryPresets.find(p => p.id === selectedPresetId)?.clientName} - {deliveryPresets.find(p => p.id === selectedPresetId)?.presetName}
               {:else}
-                Select from saved addresses...
+                {$t('orders.new.delivery.select_preset')}
               {/if}
               <ChevronDown size={16} />
             </button>
@@ -986,17 +986,17 @@
         <div class="manual-address-toggle">
           <label class="toggle-label">
             <input type="checkbox" bind:checked={useManualAddress} on:change={clearPreset} />
-            <span>Enter address manually</span>
+            <span>{$t('orders.new.delivery.manual')}</span>
           </label>
         </div>
 
         <div class="form-group">
-          <label for="deliveryAddress">Address <span class="required">*</span></label>
+          <label for="deliveryAddress">{$t('orders.new.delivery.address')} <span class="required">*</span></label>
           <textarea 
             id="deliveryAddress" 
             bind:value={deliveryAddress} 
             rows="3" 
-            placeholder="Street, City, Postal Code, Country"
+            placeholder={$t('orders.new.delivery.address_placeholder')}
             disabled={!useManualAddress && selectedPresetId !== null}
           ></textarea>
         </div>
@@ -1005,20 +1005,20 @@
           <div class="form-group">
             <label for="deliveryContact">
               <User size={14} />
-              Contact Person
+              {$t('orders.new.delivery.contact')}
             </label>
             <input 
               type="text" 
               id="deliveryContact" 
               bind:value={deliveryContact} 
-              placeholder="Name"
+              placeholder={$t('orders.new.delivery.contact')}
               disabled={!useManualAddress && selectedPresetId !== null}
             />
           </div>
           <div class="form-group">
             <label for="deliveryPhone">
               <Phone size={14} />
-              Phone
+              {$t('orders.new.delivery.phone')}
             </label>
             <input 
               type="tel" 

@@ -1,7 +1,7 @@
 <svelte:head>
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#3b82f6" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="OMS" />
   <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
@@ -162,6 +162,7 @@
   import { Menu, X, LayoutDashboard, ClipboardList, Calendar, Package, HelpCircle, Settings, Users, Boxes, MessageSquare, Bell } from 'lucide-svelte';
   import { currentUser, loadCurrentUser } from '$lib/auth/user-store';
   import { initChatRealtime, toggleChat, unreadCount, isChatOpen } from '$lib/chat/chat-store';
+  import { websocket } from '$lib/stores/websocket';
 
   // Accept params prop to silence SvelteKit warning
   export let params = {};
@@ -205,6 +206,7 @@
     let stopChatRealtime: () => void;
     if (user) {
       stopChatRealtime = initChatRealtime();
+      websocket.connect();
     }
 
     // Apply query params for deep-linking preferences
@@ -331,6 +333,7 @@
       stopPreferenceSync?.();
       window.removeEventListener('keydown', handler);
       if (stopChatRealtime) stopChatRealtime();
+      websocket.disconnect();
     };
   });
 
