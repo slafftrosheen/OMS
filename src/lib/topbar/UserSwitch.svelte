@@ -218,7 +218,7 @@
   background: rgba(239, 68, 68, 0.1);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
   .user-info {
     display: none;
   }

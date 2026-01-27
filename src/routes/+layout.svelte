@@ -69,9 +69,9 @@
         {/if}
       </nav>
       <div class="actions">
-        <div class="action-btn" title={$t('topbar.language', { default: 'Language' })}><LangSwitch /></div>
-        <div class="action-group text-size-group" title={$t('topbar.textSize', { default: 'Text Size' })}><TextSizeSwitch /></div>
-        <div class="action-btn" title={$t('topbar.density', { default: 'Density' })}><DensitySwitch /></div>
+        <div class="action-btn desktop-only" title={$t('topbar.language', { default: 'Language' })}><LangSwitch /></div>
+        <div class="action-group text-size-group desktop-only" title={$t('topbar.textSize', { default: 'Text Size' })}><TextSizeSwitch /></div>
+        <div class="action-btn desktop-only" title={$t('topbar.density', { default: 'Density' })}><DensitySwitch /></div>
         <div class="action-btn" title={$t('topbar.theme', { default: 'Theme' })}><ThemeSwitch /></div>
         <div class="action-btn" title={$t('ui.notifications', { default: 'Notifications' })}><NotificationsBell /></div>
         <div class="action-btn" title="Realtime Connection"><RealtimeConnection /></div>
@@ -117,7 +117,9 @@
   <main id="main" class="rf-page"><slot /></main>
 
   {#if $currentUser}
-    <MobileNav />
+    <div class="mobile-nav-wrapper">
+      <MobileNav />
+    </div>
     <ChatSidebar />
   {/if}
 
@@ -588,17 +590,15 @@
   background: var(--bg-2);
 }
 
-@media (max-width: 1024px) {
-  .rf-topbar { gap: 12px; }
-  .rf-topbar nav.main a span { display: none; }
-  .rf-topbar nav.main a { padding: 8px 10px; }
-  .nav-divider { margin: 0 4px; }
+.mobile-nav-wrapper {
+  display: none;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
   .rf-topbar {
     padding: 0 16px;
     height: 56px;
+    gap: 12px;
   }
 
   .rf-topbar .brand { flex: 1; }
@@ -651,9 +651,12 @@
     height: 32px;
   }
 
-  /* Keep text size and theme visible on mobile, hide others */
-  .rf-topbar .actions > :global(.action-btn):nth-child(n+3):not(:last-child):not(.settings-btn) {
-    display: none;
+  .desktop-only {
+    display: none !important;
+  }
+  
+  .mobile-nav-wrapper {
+    display: block;
   }
 }
 </style>
