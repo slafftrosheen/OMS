@@ -1,320 +1,232 @@
+<!-- src/lib/compare/ChangeRequestCard.svelte -->
 <script lang="ts">
-/**
- * Change Request Card Component
- * Displays a single CR with approval actions for admins
- */
+    import { createEventDispatcher } from 'svelte';
+    import type { ChangeRequest } from '$lib/stores/changeRequests';
+    
+    export let request: ChangeRequest;
+    export let canReview = false;
 
-import { createEventDispatcher } from 'svelte';
-import { Check, X, MessageSquare, Clock, CheckCircle, XCircle } from 'lucide-svelte';
-import type { ChangeRequest } from '$lib/types/change-request';
+    const dispatch = createEventDispatcher<{
+        approve: string;
+        reject: string;
+    }>();
 
-export let cr: ChangeRequest;
-export let isAdmin = false;
-
-const dispatch = createEventDispatcher();
-
-function formatDate(date: string) {
-  return new Date(date).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
-
-function getStatusIcon(status: string) {
-  switch (status) {
-    case 'approved': return CheckCircle;
-    case 'rejected': return XCircle;
-    case 'applied': return Check;
-    default: return Clock;
-  }
-}
-
-function getStatusColor(status: string) {
-  switch (status) {
-    case 'approved': return 'var(--ok)';
-    case 'rejected': return 'var(--danger)';
-    case 'applied': return 'var(--ok)';
-    default: return 'var(--warn)';
-  }
-}
-
-function handleApprove() {
-  dispatch('approve', { id: cr.id });
-}
-
-function handleReject() {
-  dispatch('reject', { id: cr.id });
-}
-
-function handleApply() {
-  dispatch('apply', { id: cr.id });
-}
-
-function viewDetails() {
-  dispatch('view', { id: cr.id });
-}
+    function formatValue(value: any): string {
+        if (typeof value === 'object') {
+            return JSON.stringify(value, null, 2);
+        }
+        return String(value);
+    }
 </script>
 
-<article class="cr-card" class:pending={cr.status === 'pending'}>
-  <header class="cr-header">
-    <div class="cr-title-row">
-      <h3 class="cr-title">{cr.title}</h3>
-      <div class="cr-status" style="color: {getStatusColor(cr.status)}">
-        <svelte:component this={getStatusIcon(cr.status)} size={16} />
-        <span>{cr.status}</span>
-      </div>
-    </div>
-    
-    <div class="cr-meta">
-      <span class="cr-station">{cr.station}</span>
-      <span class="cr-separator">•</span>
-      <span class="cr-author">by {cr.proposed_by_user?.email || 'Unknown'}</span>
-      <span class="cr-separator">•</span>
-      <time class="cr-date" datetime={cr.created_at}>
-        {formatDate(cr.created_at)}
-      </time>
-    </div>
-  </header>
+<article class="change-request" data-status={request.status}>
+    <header>
+        <h3>Change Request</h3>
+        <span class="status-badge" data-status={request.status}>
+            {request.status}
+        </span>
+    </header>
 
-  {#if cr.description}
-    <p class="cr-description">{cr.description}</p>
-  {/if}
+    <div class="changes">
+        <h4>Proposed Changes</h4>
+        {#each request.changes as change}
+            <div class="change-item">
+                <strong>{change.field}:</strong>
+                <div class="change-diff">
+                    <div class="old-value">
+                        <span class="label">Old:</span>
+                        <code>{formatValue(change.old_value)}</code>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="new-value">
+                        <span class="label">New:</span>
+                        <code>{formatValue(change.new_value)}</code>
+                    </div>
+                </div>
+            </div>
+        {/each}
+    </div>
 
-  <div class="cr-changes">
-    <h4 class="changes-title">Proposed Changes:</h4>
-    <dl class="changes-list">
-      {#each Object.entries(cr.changes) as [field, change]}
-        <div class="change-item">
-          <dt class="change-field">{field}:</dt>
-          <dd class="change-value">
-            <span class="old-value">{change.old}</span>
-            <span class="arrow">→</span>
-            <span class="new-value">{change.new}</span>
-          </dd>
+    {#if request.reason}
+        <div class="reason">
+            <strong>Reason:</strong>
+            <p>{request.reason}</p>
         </div>
-      {/each}
-    </dl>
-  </div>
-
-  <footer class="cr-footer">
-    <button class="btn-secondary" on:click={viewDetails}>
-      <MessageSquare size={16} />
-      View Details
-    </button>
-
-    {#if isAdmin && cr.status === 'pending'}
-      <div class="admin-actions">
-        <button class="btn-danger" on:click={handleReject}>
-          <X size={16} />
-          Reject
-        </button>
-        <button class="btn-success" on:click={handleApprove}>
-          <Check size={16} />
-          Approve
-        </button>
-      </div>
     {/if}
 
-    {#if isAdmin && cr.status === 'approved'}
-      <button class="btn-primary" on:click={handleApply}>
-        <Check size={16} />
-        Apply Changes
-      </button>
+    {#if canReview && request.status === 'pending'}
+        <footer class="actions">
+            <button
+                class="btn-approve"
+                on:click={() => dispatch('approve', request.id)}
+                aria-label="Approve change request"
+            >
+                Approve
+            </button>
+            <button
+                class="btn-reject"
+                on:click={() => dispatch('reject', request.id)}
+                aria-label="Reject change request"
+            >
+                Reject
+            </button>
+        </footer>
     {/if}
-  </footer>
 </article>
 
 <style>
-  .cr-card {
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1.5rem;
-    transition: box-shadow 0.2s;
-  }
+    .change-request {
+        border: 2px solid var(--border, #ddd);
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        background: var(--bg-1, #fff);
+    }
 
-  .cr-card.pending {
-    border-left: 3px solid var(--warn);
-  }
+    .change-request[data-status="approved"] {
+        border-color: var(--ok, #28a745);
+        background: var(--bg-0, #f0fff4);
+    }
 
-  .cr-card:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
+    .change-request[data-status="rejected"] {
+        border-color: var(--danger, #dc3545);
+        background: var(--bg-0, #fff5f5);
+    }
 
-  .cr-header {
-    margin-bottom: 1rem;
-  }
+    header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
 
-  .cr-title-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-  }
+    h3 {
+        margin: 0;
+        font-size: 1.25rem;
+    }
 
-  .cr-title {
-    font-size: 1.125rem;
-    font-weight: 600;
-    margin: 0;
-    color: var(--text);
-  }
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
 
-  .cr-status {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    text-transform: capitalize;
-  }
+    .status-badge[data-status="pending"] {
+        background: var(--warn, #ffc107);
+        color: #000;
+    }
 
-  .cr-meta {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    color: var(--muted);
-  }
+    .status-badge[data-status="approved"] {
+        background: var(--ok, #28a745);
+        color: #fff;
+    }
 
-  .cr-station {
-    font-weight: 500;
-    color: var(--accent-1);
-  }
+    .status-badge[data-status="rejected"] {
+        background: var(--danger, #dc3545);
+        color: #fff;
+    }
 
-  .cr-separator {
-    color: var(--muted);
-  }
+    .changes {
+        margin: 1rem 0;
+    }
 
-  .cr-description {
-    margin: 1rem 0;
-    color: var(--text);
-    line-height: 1.5;
-  }
+    .change-item {
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: var(--bg-0, #f8f9fa);
+        border-radius: 4px;
+    }
 
-  .cr-changes {
-    background: var(--bg-0);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 1rem;
-    margin: 1rem 0;
-  }
+    .change-diff {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 1rem;
+        margin-top: 0.5rem;
+    }
 
-  .changes-title {
-    font-size: 0.875rem;
-    font-weight: 600;
-    margin: 0 0 0.75rem 0;
-    color: var(--text);
-  }
+    .old-value code {
+        color: var(--danger, #dc3545);
+        text-decoration: line-through;
+    }
 
-  .changes-list {
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
+    .new-value code {
+        color: var(--ok, #28a745);
+        font-weight: 600;
+    }
 
-  .change-item {
-    display: flex;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-  }
+    code {
+        display: block;
+        padding: 0.5rem;
+        background: white;
+        border: 1px solid var(--border, #ddd);
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        white-space: pre-wrap;
+    }
 
-  .change-field {
-    font-weight: 500;
-    color: var(--muted);
-    min-width: 100px;
-  }
+    .arrow {
+        display: flex;
+        align-items: center;
+        font-size: 1.5rem;
+        color: var(--muted, #666);
+    }
 
-  .change-value {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
+    .actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border, #ddd);
+    }
 
-  .old-value {
-    color: var(--danger);
-    text-decoration: line-through;
-  }
+    button {
+        padding: 0.5rem 1.5rem;
+        border: none;
+        border-radius: 4px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
 
-  .arrow {
-    color: var(--muted);
-  }
+    button:focus-visible {
+        outline: 3px solid var(--focus, #ffd700);
+        outline-offset: 2px;
+    }
 
-  .new-value {
-    color: var(--ok);
-    font-weight: 500;
-  }
+    .btn-approve {
+        background: var(--ok, #28a745);
+        color: white;
+    }
 
-  .cr-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border);
-  }
+    .btn-approve:hover {
+        background: #218838;
+    }
 
-  .admin-actions {
-    display: flex;
-    gap: 0.5rem;
-  }
+    .btn-reject {
+        background: var(--danger, #dc3545);
+        color: white;
+    }
 
-  button {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 4px;
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
+    .btn-reject:hover {
+        background: #c82333;
+    }
 
-  .btn-secondary {
-    background: var(--bg-2);
-    color: var(--text);
-    border: 1px solid var(--border);
-  }
+    @media (prefers-reduced-motion: reduce) {
+        button {
+            transition: none;
+        }
+    }
 
-  .btn-secondary:hover {
-    background: var(--bg-1);
-  }
+    @media (max-width: 768px) {
+        .change-diff {
+            grid-template-columns: 1fr;
+        }
 
-  .btn-danger {
-    background: var(--danger);
-    color: white;
-  }
-
-  .btn-danger:hover {
-    opacity: 0.9;
-  }
-
-  .btn-success {
-    background: var(--ok);
-    color: white;
-  }
-
-  .btn-success:hover {
-    opacity: 0.9;
-  }
-
-  .btn-primary {
-    background: var(--accent-1);
-    color: white;
-  }
-
-  .btn-primary:hover {
-    opacity: 0.9;
-  }
-
-  button:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 2px;
-  }
+        .arrow {
+            transform: rotate(90deg);
+            justify-content: center;
+        }
+    }
 </style>

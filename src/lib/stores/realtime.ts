@@ -1,82 +1,62 @@
 // src/lib/stores/realtime.ts
 import { writable } from 'svelte/store';
-import { getWebSocketService, initializeWebSocketService } from '$lib/services/websocket-service';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface RealtimeState {
-  connected: boolean;
-  orders: any[];
-  notifications: any[];
+    connected: boolean;
+    channels: Map<string, RealtimeChannel>;
+    events: Array<{
+        id: string;
+        channel: string;
+        event: string;
+        payload: any;
+        timestamp: Date;
+    }>;
 }
 
-const initialState: RealtimeState = {
-  connected: false,
-  orders: [],
-  notifications: []
-};
+function createRealtimeStore() {
+    const { subscribe, update } = writable<RealtimeState>({
+        connected: false,
+        channels: new Map(),
+        events: []
+    });
 
-const createRealtimeStore = () => {
-  const { subscribe, set, update } = writable<RealtimeState>(initialState);
+    return {
+        subscribe,
+        setConnected: (connected: boolean) => {
+            update(state => ({ ...state, connected }));
+        },
+        addChannel: (name: string, channel: RealtimeChannel) => {
+            update(state => {
+                state.channels.set(name, channel);
+                return state;
+            });
+        },
+        removeChannel: (name: string) => {
+            update(state => {
+                state.channels.delete(name);
+                return state;
+            });
+        },
+        addEvent: (channel: string, event: string, payload: any) => {
+            update(state => ({
+                ...state,
+                events: [
+                    {
+                        id: `${Date.now()}-${Math.random()}`,
+                        channel,
+                        event,
+                        payload,
+                        timestamp: new Date()
+                    },
+                    ...state.events.slice(0, 99) // Keep last 100 events
+                ]
+            }));
+        },
+        clearEvents: () => {
+            update(state => ({ ...state, events: [] }));
+        }
+    };
+}
 
-  let wsInitialized = false;
-
-  const initWebSocket = () => {
-    if (wsInitialized) return;
-    
-    const ws = getWebSocketService();
-    if (!ws) {
-      // Initialize with default URL - in production this should come from env vars
-      const wsUrl = import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:8080';
-      initializeWebSocketService(wsUrl);
-    }
-    
-    const webSocket = getWebSocketService();
-    if (webSocket) {
-      webSocket.subscribe('order:updated', (order) => {
-        update(state => ({
-          ...state,
-          orders: state.orders.map(o => o.id === order.id ? order : o)
-        }));
-      });
-
-      webSocket.subscribe('notification:new', (notification) => {
-        update(state => ({
-          ...state,
-          notifications: [notification, ...state.notifications]
-        }));
-      });
-
-      webSocket.subscribe('connection:status', (status) => {
-        update(state => ({
-          ...state,
-          connected: status.connected
-        }));
-      });
-
-      // Connect to WebSocket
-      webSocket.connect().catch(console.error);
-      wsInitialized = true;
-    }
-  };
-
-  return {
-    subscribe,
-    set,
-    update,
-    initWebSocket,
-    send: (type: string, payload: any) => {
-      const webSocket = getWebSocketService();
-      if (webSocket) {
-        webSocket.send(type, payload);
-      }
-    },
-    disconnect: () => {
-      const webSocket = getWebSocketService();
-      if (webSocket) {
-        webSocket.disconnect();
-        wsInitialized = false;
-      }
-    }
-  };
-};
-
-export const realtimeStore = createRealtimeStore();
+export const realtime = createRealtimeStore();

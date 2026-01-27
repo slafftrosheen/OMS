@@ -5,56 +5,11 @@ import { dev, building } from '$app/environment';
 import { createServerClient } from '@supabase/ssr';
 import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-
-// Environment validation
-function validateEnvironment() {
-	if (building) return;
-
-	const missingVars = [];
-
-	// Check for Supabase URL (allow private or public variant)
-	if (!PUBLIC_SUPABASE_URL) {
-		missingVars.push('PUBLIC_SUPABASE_URL');
-	}
-
-	// Check for Supabase Anon Key (allow private or public variant)
-	if (!PUBLIC_SUPABASE_ANON_KEY) {
-		missingVars.push('PUBLIC_SUPABASE_ANON_KEY');
-	}
-
-	// Check for Supabase Service Role Key (required for server-side operations)
-	if (!SUPABASE_SERVICE_ROLE_KEY) {
-		missingVars.push('SUPABASE_SERVICE_ROLE_KEY');
-	}
-
-	if (missingVars.length > 0) {
-		throw new Error(
-			`Missing required environment variables: ${missingVars.join(', ')}`
-		);
-	}
-
-	// Check for insecure default credentials in production
-	if (!dev) {
-		const dangerousDefaults = [
-			{ key: 'JWT_SECRET', pattern: /^(secret|test|dev)/i },
-			{ key: 'SESSION_SECRET', pattern: /^(secret|test|dev)/i }
-		];
-
-		for (const { key, pattern } of dangerousDefaults) {
-			const value = process.env[key];
-			if (value && pattern.test(value)) {
-				console.warn(
-					`⚠️  WARNING: Production environment detected with insecure default credentials for ${key}.`
-				);
-			}
-		}
-
-		console.log('✅ Environment validation passed');
-	}
-}
+import { enforceEnvironmentSecurity } from '$lib/server/env-validator';
+import { logger } from '$lib/server/logger';
 
 // Run validation on startup
-validateEnvironment();
+enforceEnvironmentSecurity();
 
 // Get the Supabase URL and Key (fallback to PUBLIC_ variants)
 const supabaseUrl = PUBLIC_SUPABASE_URL;
@@ -106,23 +61,35 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 	// Content Security Policy
 	const cspDirectives = [
 		"default-src 'self'",
-		"script-src 'self' 'unsafe-inline' https://github.githubassets.com",
+		// In dev, we might need unsafe-inline for HMR or tools, but for production we aim for strictness.
+		// Retaining 'unsafe-inline' for styles for now as Svelte transitions often use them.
+		// If strict mode is required, hashes must be implemented.
+		"script-src 'self' 'unsafe-inline' https://github.githubassets.com https://unpkg.com", 
 		"style-src 'self' 'unsafe-inline'",
-		"img-src 'self' data: blob: https:",
+		"img-src 'self' data: blob: https: https://*.supabase.co",
 		"font-src 'self' data:",
 		"connect-src 'self' https://*.supabase.co wss://*.supabase.co",
-		"media-src 'self' blob:",
+		"media-src 'self' blob: data:",
 		"object-src 'none'",
 		"frame-ancestors 'none'",
 		"base-uri 'self'",
 		"form-action 'self'",
-		"upgrade-insecure-requests"
+		"upgrade-insecure-requests",
+		"block-all-mixed-content"
 	];
+	
+	if (dev) {
+		// Loosen CSP for development
+		const scriptSrcIndex = cspDirectives.findIndex(d => d.startsWith('script-src'));
+		if (scriptSrcIndex !== -1) {
+			cspDirectives[scriptSrcIndex] = "script-src 'self' 'unsafe-inline' https://github.githubassets.com https://unpkg.com";
+		}
+	}
 
 	// Apply security headers
 	response.headers.set(
 		'Content-Security-Policy',
-		dev ? cspDirectives.join('; ').replace('upgrade-insecure-requests', '') : cspDirectives.join('; ')
+		cspDirectives.join('; ')
 	);
 
 	// Strict Transport Security (HSTS) - only in production with HTTPS
@@ -162,7 +129,9 @@ const authHandler: Handle = async ({ event, resolve }) => {
 	// Define public API routes that don't require authentication
 	const publicApiRoutes = [
 		{ path: '/api/auth', methods: ['GET', 'POST', 'DELETE'] },
-		{ path: '/api/users', methods: ['POST'] } // Allow signup
+		{ path: '/api/users', methods: ['POST'] }, // Allow signup
+        { path: '/api/health', methods: ['GET'] },
+        { path: '/api/healthz', methods: ['GET'] }
 	];
 
 	// Check if the current request matches any public route
@@ -241,22 +210,28 @@ export const handle = sequence(
 // Global error handler with sanitization
 export const handleError: HandleServerError = async ({ error, event, status, message }) => {
 	const errorId = crypto.randomUUID();
+	
+    const context = {
+        errorId,
+        status,
+        path: event.url.pathname,
+        method: event.request.method,
+        userId: event.locals.user?.id,
+        userAgent: event.request.headers.get('user-agent'),
+        timestamp: new Date().toISOString()
+    };
 
-	// Log full error server-side
-	console.error('[ERROR]', {
-		id: errorId,
-		timestamp: new Date().toISOString(),
-		status,
-		path: event.url.pathname,
-		method: event.request.method,
-		user: event.locals.user?.id,
-		error: dev ? error : message,
-		stack: dev ? (error as Error)?.stack : undefined
-	});
+    // Log with appropriate level
+    if (status >= 500) {
+        logger.error('Server error', error as Error, context);
+    } else if (status >= 400) {
+        logger.warn(`Client error: ${message}`, context);
+    }
 
 	// Return sanitized error to client
 	return {
 		message: dev ? message : 'An error occurred',
-		errorId: dev ? errorId : undefined
+		errorId: dev ? errorId : undefined,
+		status
 	};
 };

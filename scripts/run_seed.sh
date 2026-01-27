@@ -6,10 +6,13 @@ set -e
 echo "🔐 OMS Database Seed Script"
 echo "=============================="
 
-# Check if we're in production
-if [ "$NODE_ENV" = "production" ]; then
-    echo "❌ ERROR: Seed script should not be run in production!"
-    echo "This script is for development and testing only."
+# CRITICAL: Prevent running in production
+if [ "$NODE_ENV" = "production" ] || [ "$VERCEL_ENV" = "production" ]; then
+    echo ""
+    echo "❌❌❌ CRITICAL ERROR ❌❌❌"
+    echo "Seed scripts are FORBIDDEN in production environments!"
+    echo "This would create test accounts with weak security."
+    echo ""
     exit 1
 fi
 
@@ -25,6 +28,20 @@ fi
 if [ -z "$DATABASE_URL" ]; then
     echo "❌ ERROR: DATABASE_URL not set"
     exit 1
+fi
+
+# Check for production-like domains
+if [[ "$PUBLIC_SUPABASE_URL" == *"prod"* ]] || [[ "$PUBLIC_SUPABASE_URL" == *"production"* ]]; then
+    echo ""
+    echo "⚠️  WARNING: Detected production-like Supabase URL"
+    echo "URL: $PUBLIC_SUPABASE_URL"
+    echo ""
+    read -p "Are you ABSOLUTELY SURE this is a dev database? (type 'dev-only'): " confirm
+    
+    if [ "$confirm" != "dev-only" ]; then
+        echo "Aborted for safety."
+        exit 1
+    fi
 fi
 
 echo ""

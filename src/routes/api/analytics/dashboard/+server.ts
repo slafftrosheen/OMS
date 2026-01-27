@@ -1,166 +1,76 @@
-/**
- * Dashboard Configuration API
- * Manage user dashboard layouts and widgets
- */
-
-import { json, error } from '@sveltejs/kit';
+// src/routes/api/analytics/dashboard/+server.ts
+import { json, error as svelteError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { createSupabaseClient } from '$lib/server/supabase';
+import { AnalyticsService } from '$lib/server/analytics/AnalyticsService';
 
-// GET /api/analytics/dashboard - Get user dashboards
-export const GET: RequestHandler = async ({ url, locals, event }) => {
-  const user = locals.user;
-  if (!user) throw error(401, 'Unauthorized');
+export const GET: RequestHandler = async ({ url, locals }) => {
+    const user = locals.user;
+    if (!user) {
+        throw svelteError(401, 'Unauthorized');
+    }
 
-  const defaultOnly = url.searchParams.get('default') === 'true';
+    // Parse time range from query params
+    const startParam = url.searchParams.get('start');
+    const endParam = url.searchParams.get('end');
+    const preset = url.searchParams.get('preset'); // 'today', 'week', 'month', 'quarter', 'year'
 
-  const supabase = createSupabaseClient(event);
+    let start: Date, end: Date;
 
-  let query = supabase
-    .from('dashboard_configs')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false });
+    if (preset) {
+        ({ start, end } = getPresetRange(preset));
+    } else if (startParam && endParam) {
+        start = new Date(startParam);
+        end = new Date(endParam);
+    } else {
+        // Default to last 30 days
+        end = new Date();
+        start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+    }
 
-  if (defaultOnly) {
-    query = query.eq('is_default', true);
-  }
+    const analytics = new AnalyticsService(locals.supabase);
 
-  const { data, error: dbError } = await query;
+    try {
+        const summary = await analytics.getDashboardSummary({ start, end });
 
-  if (dbError) {
-    console.error('[Dashboard API] Error:', dbError);
-    throw error(500, 'Failed to fetch dashboards');
-  }
-
-  return json({ data });
+        return json({
+            success: true,
+            data: summary,
+            timeRange: { start: start.toISOString(), end: end.toISOString() }
+        });
+    } catch (err) {
+        throw svelteError(500, 'Failed to generate analytics');
+    }
 };
 
-// POST /api/analytics/dashboard - Create dashboard
-export const POST: RequestHandler = async ({ request, locals, event }) => {
-  const user = locals.user;
-  if (!user) throw error(401, 'Unauthorized');
+function getPresetRange(preset: string): { start: Date; end: Date } {
+    const end = new Date();
+    let start: Date;
 
-  const body = await request.json();
-  const {
-    name,
-    description = null,
-    layout = [],
-    widgets = [],
-    refreshInterval = 30,
-    isDefault = false,
-    isPublic = false
-  } = body;
-
-  if (!name) {
-    throw error(400, 'Missing required field: name');
-  }
-
-  try {
-    const supabase = createSupabaseClient(event);
-
-    // If setting as default, unset other defaults
-    if (isDefault) {
-      await supabase
-        .from('dashboard_configs')
-        .update({ is_default: false })
-        .eq('user_id', user.id);
+    switch (preset) {
+        case 'today':
+            start = new Date(end);
+            start.setHours(0, 0, 0, 0);
+            break;
+        case 'week':
+            start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+            break;
+        case 'month':
+            start = new Date(end);
+            start.setDate(1);
+            start.setHours(0, 0, 0, 0);
+            break;
+        case 'quarter':
+            start = new Date(end);
+            start.setMonth(Math.floor(end.getMonth() / 3) * 3);
+            start.setDate(1);
+            start.setHours(0, 0, 0, 0);
+            break;
+        case 'year':
+            start = new Date(end.getFullYear(), 0, 1);
+            break;
+        default:
+            start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    const { data, error: dbError } = await supabase
-      .from('dashboard_configs')
-      .insert({
-        user_id: user.id,
-        name,
-        description,
-        layout,
-        widgets,
-        refresh_interval: refreshInterval,
-        is_default: isDefault,
-        is_public: isPublic
-      })
-      .select()
-      .single();
-
-    if (dbError) {
-      console.error('[Dashboard API] Create error:', dbError);
-      throw error(500, 'Failed to create dashboard');
-    }
-
-    return json({ data }, { status: 201 });
-
-  } catch (err) {
-    console.error('[Dashboard API] Error:', err);
-    throw error(500, 'Failed to create dashboard');
-  }
-};
-
-// PATCH /api/analytics/dashboard/[id] - Update dashboard
-export const PATCH: RequestHandler = async ({ params, request, locals, event }) => {
-  const user = locals.user;
-  if (!user) throw error(401, 'Unauthorized');
-
-  const body = await request.json();
-
-  try {
-    const supabase = createSupabaseClient(event);
-
-    // If setting as default, unset other defaults
-    if (body.isDefault === true) {
-      await supabase
-        .from('dashboard_configs')
-        .update({ is_default: false })
-        .eq('user_id', user.id)
-        .neq('id', params.id);
-    }
-
-    const { data, error: dbError } = await supabase
-      .from('dashboard_configs')
-      .update({
-        ...body,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', params.id)
-      .eq('user_id', user.id)
-      .select()
-      .single();
-
-    if (dbError) {
-      console.error('[Dashboard API] Update error:', dbError);
-      throw error(500, 'Failed to update dashboard');
-    }
-
-    return json({ data });
-
-  } catch (err) {
-    console.error('[Dashboard API] Error:', err);
-    throw error(500, 'Failed to update dashboard');
-  }
-};
-
-// DELETE /api/analytics/dashboard/[id]
-export const DELETE: RequestHandler = async ({ params, locals, event }) => {
-  const user = locals.user;
-  if (!user) throw error(401, 'Unauthorized');
-
-  try {
-    const supabase = createSupabaseClient(event);
-
-    const { error: dbError } = await supabase
-      .from('dashboard_configs')
-      .delete()
-      .eq('id', params.id)
-      .eq('user_id', user.id);
-
-    if (dbError) {
-      console.error('[Dashboard API] Delete error:', dbError);
-      throw error(500, 'Failed to delete dashboard');
-    }
-
-    return json({ success: true });
-
-  } catch (err) {
-    console.error('[Dashboard API] Error:', err);
-    throw error(500, 'Failed to delete dashboard');
-  }
-};
+    return { start, end };
+}
