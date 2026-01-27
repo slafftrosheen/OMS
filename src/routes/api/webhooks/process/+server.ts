@@ -3,7 +3,7 @@
  * Process pending webhooks and integration events (for cron jobs)
  */
 
-import { json, error } from ' @sveltejs/kit';
+import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { WebhookService } from '$lib/server/webhook-service';
 import { IntegrationService } from '$lib/server/integration-service';

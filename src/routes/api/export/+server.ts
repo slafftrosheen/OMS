@@ -10,7 +10,6 @@ import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { createObjectCsvWriter } from 'csv-writer';
 import { v4 as uuidv4 } from 'uuid';
-import fs from 'fs';
 
 // POST /api/export - Generate export
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -224,7 +223,7 @@ async function generateExcel(
   }
 
   // Add header row with styling
-  const headerRow = worksheet.addRow(columns.map(col => 
+  const headerRow = worksheet.addRow(columns.map(col =>
     col.replace(/_/g, ' ').toUpperCase()
   ));
 
@@ -241,20 +240,20 @@ async function generateExcel(
   data.forEach(row => {
     const values = columns.map(col => {
       const value = row[col];
-      
+
       // Format dates
       if (value && typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}/)) {
         return new Date(value);
       }
-      
+
       // Format objects/arrays
       if (typeof value === 'object' && value !== null) {
         return JSON.stringify(value);
       }
-      
+
       return value;
     });
-    
+
     worksheet.addRow(values);
   });
 
@@ -344,11 +343,11 @@ async function generatePDF(
       columns.forEach((col, i) => {
         let value = row[col];
         
-        if (value && typeof value === 'object') {
+        if (typeof value === 'object' && value !== null) {
           value = JSON.stringify(value);
         }
         
-        if (value && typeof value === 'string' && value.length > 30) {
+        if (typeof value === 'string' && value.length > 30) {
           value = value.substring(0, 27) + '...';
         }
 
@@ -395,7 +394,7 @@ async function generateCSV(data: any[], columns: string[]): Promise<Buffer> {
   }
 
   const csvWriter = createObjectCsvWriter({
-    path: 'temp.csv', // This is just a placeholder, we'll use writeBuffer
+    path: 'temp.csv', // This will be ignored since we're using writeBuffer
     header: columns.map(col => ({ id: col, title: col.replace(/_/g, ' ').toUpperCase() }))
   });
 
@@ -403,12 +402,12 @@ async function generateCSV(data: any[], columns: string[]): Promise<Buffer> {
     const record: any = {};
     columns.forEach(col => {
       let value = row[col];
-      
+
       // Flatten objects/arrays
       if (typeof value === 'object' && value !== null) {
         value = JSON.stringify(value);
       }
-      
+
       record[col] = value;
     });
     return record;
@@ -420,11 +419,11 @@ async function generateCSV(data: any[], columns: string[]): Promise<Buffer> {
       path: 'temp.csv',
       header: columns.map(col => ({ id: col, title: col.replace(/_/g, ' ').toUpperCase() }))
     });
-    
+
     writer.writeRecords(records)
       .then(() => {
-        const csvContent = fs.readFileSync('temp.csv', 'utf8');
-        fs.unlinkSync('temp.csv'); // Clean up temp file
+        const csvContent = require('fs').readFileSync('temp.csv', 'utf8');
+        require('fs').unlinkSync('temp.csv'); // Clean up temp file
         resolve(csvContent);
       })
       .catch(reject);

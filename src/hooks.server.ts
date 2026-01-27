@@ -3,7 +3,7 @@ import { type Handle, type HandleServerError } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { dev, building } from '$app/environment';
 import { createServerClient } from '@supabase/ssr';
-import { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
+import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 
 // Environment validation
@@ -13,13 +13,13 @@ function validateEnvironment() {
 	const missingVars = [];
 
 	// Check for Supabase URL (allow private or public variant)
-	if (!SUPABASE_URL && !PUBLIC_SUPABASE_URL) {
-		missingVars.push('SUPABASE_URL (or PUBLIC_SUPABASE_URL)');
+	if (!PUBLIC_SUPABASE_URL) {
+		missingVars.push('PUBLIC_SUPABASE_URL');
 	}
 
 	// Check for Supabase Anon Key (allow private or public variant)
-	if (!SUPABASE_ANON_KEY && !PUBLIC_SUPABASE_ANON_KEY) {
-		missingVars.push('SUPABASE_ANON_KEY (or PUBLIC_SUPABASE_ANON_KEY)');
+	if (!PUBLIC_SUPABASE_ANON_KEY) {
+		missingVars.push('PUBLIC_SUPABASE_ANON_KEY');
 	}
 
 	// Check for Supabase Service Role Key (required for server-side operations)
@@ -57,8 +57,8 @@ function validateEnvironment() {
 validateEnvironment();
 
 // Get the Supabase URL and Key (fallback to PUBLIC_ variants)
-const supabaseUrl = SUPABASE_URL || PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = SUPABASE_ANON_KEY || PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = PUBLIC_SUPABASE_ANON_KEY;
 
 // Supabase client initialization
 const supabaseHandler: Handle = async ({ event, resolve }) => {

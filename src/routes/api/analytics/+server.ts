@@ -5,10 +5,10 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { supabase } from '$lib/server/supabase';
+import { createSupabaseClient } from '$lib/server/supabase';
 
 // GET /api/analytics - Get analytics data
-export const GET: RequestHandler = async ({ url, locals }) => {
+export const GET: RequestHandler = async ({ url, locals, event }) => {
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
@@ -21,25 +21,25 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
     switch (type) {
       case 'kpis':
-        data = await fetchKPIs();
+        data = await fetchKPIs(event);
         break;
-      
+
       case 'trends':
-        data = await fetchTrends(parseInt(period));
+        data = await fetchTrends(event, parseInt(period));
         break;
-      
+
       case 'stations':
-        data = await fetchStationMetrics(station);
+        data = await fetchStationMetrics(event, station);
         break;
-      
+
       case 'loading':
-        data = await fetchLoadingMetrics(parseInt(period));
+        data = await fetchLoadingMetrics(event, parseInt(period));
         break;
-      
+
       case 'clients':
-        data = await fetchClientMetrics(parseInt(period));
+        data = await fetchClientMetrics(event, parseInt(period));
         break;
-      
+
       default:
         throw new Error('Invalid analytics type');
     }
@@ -53,7 +53,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 };
 
 // Fetch real-time KPIs
-async function fetchKPIs(): Promise<any> {
+async function fetchKPIs(event: any): Promise<any> {
+  const supabase = createSupabaseClient(event);
+
   const { data, error: dbError } = await supabase
     .from('realtime_kpis')
     .select('*')
@@ -63,7 +65,7 @@ async function fetchKPIs(): Promise<any> {
 
   // Calculate derived metrics
   const kpis = data || {};
-  
+
   return {
     orders: {
       total: kpis.total_orders || 0,
@@ -83,7 +85,7 @@ async function fetchKPIs(): Promise<any> {
       upcomingDays: kpis.upcoming_loading_days || 0,
       capacityUsed: kpis.upcoming_capacity_used || 0,
       capacityTotal: kpis.upcoming_capacity_total || 0,
-      capacityPercentage: kpis.upcoming_capacity_total > 0 
+      capacityPercentage: kpis.upcoming_capacity_total > 0
         ? Math.round((kpis.upcoming_capacity_used / kpis.upcoming_capacity_total) * 100)
         : 0
     },
@@ -98,7 +100,9 @@ async function fetchKPIs(): Promise<any> {
 }
 
 // Fetch order trends
-async function fetchTrends(days: number): Promise<any> {
+async function fetchTrends(event: any, days: number): Promise<any> {
+  const supabase = createSupabaseClient(event);
+
   const { data, error: dbError } = await supabase
     .from('order_trends')
     .select('*')
@@ -119,7 +123,9 @@ async function fetchTrends(days: number): Promise<any> {
 }
 
 // Fetch station metrics
-async function fetchStationMetrics(station?: string | null): Promise<any> {
+async function fetchStationMetrics(event: any, station?: string | null): Promise<any> {
+  const supabase = createSupabaseClient(event);
+
   let query = supabase
     .from('station_performance')
     .select('*')
@@ -137,7 +143,9 @@ async function fetchStationMetrics(station?: string | null): Promise<any> {
 }
 
 // Fetch loading metrics
-async function fetchLoadingMetrics(days: number): Promise<any> {
+async function fetchLoadingMetrics(event: any, days: number): Promise<any> {
+  const supabase = createSupabaseClient(event);
+
   const startDate = new Date();
   const endDate = new Date();
   endDate.setDate(endDate.getDate() + days);
@@ -161,7 +169,9 @@ async function fetchLoadingMetrics(days: number): Promise<any> {
 }
 
 // Fetch client metrics
-async function fetchClientMetrics(days: number): Promise<any> {
+async function fetchClientMetrics(event: any, days: number): Promise<any> {
+  const supabase = createSupabaseClient(event);
+
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
@@ -175,10 +185,10 @@ async function fetchClientMetrics(days: number): Promise<any> {
 
   // Group by client
   const clientGroups: Record<string, any> = {};
-  
+
   data?.forEach(order => {
     if (!order.client) return;
-    
+
     if (!clientGroups[order.client]) {
       clientGroups[order.client] = {
         name: order.client,
@@ -188,9 +198,9 @@ async function fetchClientMetrics(days: number): Promise<any> {
         draft: 0
       };
     }
-    
+
     clientGroups[order.client].totalOrders++;
-    
+
     if (order.status === 'completed') clientGroups[order.client].completed++;
     else if (order.status === 'in-progress') clientGroups[order.client].inProgress++;
     else if (order.status === 'draft') clientGroups[order.client].draft++;

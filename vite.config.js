@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [sveltekit()],
   build: {
     rollupOptions: {
-      external: ['bcrypt']
+      external: ['bcrypt', 'exceljs']
     }
   },
   test: {

@@ -1,9 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { createClient } from '@supabase/supabase-js';
-import { env } from '$env/dynamic/private';
-
-const supabase = createClient(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!);
+import { supabase } from '$lib/server/supabase';
 
 // GET - List all presets for current user
 export const GET: RequestHandler = async ({ locals }) => {

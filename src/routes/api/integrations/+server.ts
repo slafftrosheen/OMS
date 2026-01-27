@@ -3,7 +3,7 @@
  * Manage external service integrations
  */
 
-import { json, error } from ' @sveltejs/kit';
+import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabase } from '$lib/server/supabase';
 

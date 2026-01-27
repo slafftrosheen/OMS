@@ -1,8 +1,33 @@
 import pkg from '@supabase/auth-helpers-sveltekit';
 const { createServerClient } = pkg;
+import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/public';
 import { env as private_env } from '$env/dynamic/private';
 import type { RequestEvent } from '@sveltejs/kit';
+
+// Create a global Supabase client for server-side admin tasks
+const globalSupabaseUrl = (
+  env.PUBLIC_SUPABASE_URL || 
+  (private_env as any).PUBLIC_SUPABASE_URL || 
+  process?.env?.PUBLIC_SUPABASE_URL || 
+  ''
+).trim();
+
+const globalSupabaseKey = (
+  (private_env as any).SUPABASE_SERVICE_ROLE_KEY ||
+  process?.env?.SUPABASE_SERVICE_ROLE_KEY ||
+  env.PUBLIC_SUPABASE_ANON_KEY ||
+  (private_env as any).PUBLIC_SUPABASE_ANON_KEY ||
+  process?.env?.PUBLIC_SUPABASE_ANON_KEY ||
+  ''
+).trim();
+
+export const supabase = createClient(globalSupabaseUrl, globalSupabaseKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  }
+});
 
 export const createSupabaseClient = (event: RequestEvent) => {
   // Try multiple sources for environment variables

@@ -5,14 +5,16 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { supabase } from '$lib/server/supabase';
+import { createSupabaseClient } from '$lib/server/supabase';
 
 // GET /api/analytics/dashboard - Get user dashboards
-export const GET: RequestHandler = async ({ url, locals }) => {
+export const GET: RequestHandler = async ({ url, locals, event }) => {
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
   const defaultOnly = url.searchParams.get('default') === 'true';
+
+  const supabase = createSupabaseClient(event);
 
   let query = supabase
     .from('dashboard_configs')
@@ -35,7 +37,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 };
 
 // POST /api/analytics/dashboard - Create dashboard
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async ({ request, locals, event }) => {
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
@@ -55,6 +57,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   }
 
   try {
+    const supabase = createSupabaseClient(event);
+
     // If setting as default, unset other defaults
     if (isDefault) {
       await supabase
@@ -92,13 +96,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 };
 
 // PATCH /api/analytics/dashboard/[id] - Update dashboard
-export const PATCH: RequestHandler = async ({ params, request, locals }) => {
+export const PATCH: RequestHandler = async ({ params, request, locals, event }) => {
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
   const body = await request.json();
 
   try {
+    const supabase = createSupabaseClient(event);
+
     // If setting as default, unset other defaults
     if (body.isDefault === true) {
       await supabase
@@ -133,11 +139,13 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 };
 
 // DELETE /api/analytics/dashboard/[id]
-export const DELETE: RequestHandler = async ({ params, locals }) => {
+export const DELETE: RequestHandler = async ({ params, locals, event }) => {
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
   try {
+    const supabase = createSupabaseClient(event);
+
     const { error: dbError } = await supabase
       .from('dashboard_configs')
       .delete()

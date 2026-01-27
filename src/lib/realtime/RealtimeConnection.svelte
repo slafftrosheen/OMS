@@ -7,19 +7,19 @@
 
 import { onMount, onDestroy } from 'svelte';
 import { realtimeService, connectionState } from './realtime-service';
-import { authStore } from '$lib/auth/auth-store'; // Adjust path as needed
+import { currentUser } from '$lib/auth/user-store';
 import { Wifi, WifiOff, AlertCircle } from 'lucide-svelte';
 
 let unsubscribe: (() => void) | null = null;
 let userId: string | null = null;
 
 onMount(async () => {
-  // Subscribe to auth state
-  const authUnsub = authStore.subscribe(auth => {
-    if (auth.user?.id && auth.user.id !== userId) {
-      userId = auth.user.id;
+  // Subscribe to user state
+  const userUnsub = currentUser.subscribe(user => {
+    if (user?.id && user.id !== userId) {
+      userId = user.id;
       connectRealtime();
-    } else if (!auth.user && userId) {
+    } else if (!user && userId) {
       disconnectRealtime();
       userId = null;
     }
@@ -29,7 +29,7 @@ onMount(async () => {
   await realtimeService.requestNotificationPermission();
 
   return () => {
-    authUnsub();
+    userUnsub();
   };
 });
 

@@ -3,7 +3,7 @@
  * Handle audit logging and activity tracking
  */
 
-import { supabase } from '$lib/server/supabase';
+import { createSupabaseClient } from '$lib/server/supabase';
 
 export interface AuditLog {
   id: string;
@@ -61,6 +61,7 @@ export class AuditService {
    * Log an audit entry
    */
   static async logAudit(
+    event: any, // SvelteKit event object
     action: string,
     resourceType: string,
     resourceId?: string,
@@ -72,6 +73,8 @@ export class AuditService {
     errorMessage?: string
   ): Promise<string | null> {
     try {
+      const supabase = createSupabaseClient(event);
+
       const { data, error } = await supabase
         .rpc('log_audit', {
           p_action: action,
@@ -101,6 +104,7 @@ export class AuditService {
    * Log user activity
    */
   static async logActivity(
+    event: any, // SvelteKit event object
     activityType: string,
     targetType?: string,
     targetId?: string,
@@ -109,6 +113,8 @@ export class AuditService {
     metadata?: any
   ): Promise<string | null> {
     try {
+      const supabase = createSupabaseClient(event);
+
       const { data, error } = await supabase
         .rpc('log_activity', {
           p_activity_type: activityType,
@@ -135,6 +141,7 @@ export class AuditService {
    * Log security event
    */
   static async logSecurityEvent(
+    event: any, // SvelteKit event object
     eventType: string,
     description: string,
     severity: 'low' | 'medium' | 'high' | 'critical' = 'medium',
@@ -142,6 +149,8 @@ export class AuditService {
     metadata?: any
   ): Promise<string | null> {
     try {
+      const supabase = createSupabaseClient(event);
+
       const { data, error } = await supabase
         .rpc('log_security_event', {
           p_event_type: eventType,
@@ -166,17 +175,22 @@ export class AuditService {
   /**
    * Get audit logs with filters
    */
-  static async getAuditLogs(filters: {
-    userId?: string;
-    resourceType?: string;
-    action?: string;
-    startDate?: Date;
-    endDate?: Date;
-    status?: string;
-    limit?: number;
-    offset?: number;
-  }): Promise<{ data: AuditLog[]; total: number }> {
+  static async getAuditLogs(
+    event: any, // SvelteKit event object
+    filters: {
+      userId?: string;
+      resourceType?: string;
+      action?: string;
+      startDate?: Date;
+      endDate?: Date;
+      status?: string;
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<{ data: AuditLog[]; total: number }> {
     try {
+      const supabase = createSupabaseClient(event);
+
       let query = supabase
         .from('audit_logs')
         .select('*', { count: 'exact' })
@@ -230,15 +244,20 @@ export class AuditService {
   /**
    * Get activity logs
    */
-  static async getActivityLogs(filters: {
-    userId?: string;
-    activityType?: string;
-    startDate?: Date;
-    endDate?: Date;
-    limit?: number;
-    offset?: number;
-  }): Promise<{ data: ActivityLog[]; total: number }> {
+  static async getActivityLogs(
+    event: any, // SvelteKit event object
+    filters: {
+      userId?: string;
+      activityType?: string;
+      startDate?: Date;
+      endDate?: Date;
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<{ data: ActivityLog[]; total: number }> {
     try {
+      const supabase = createSupabaseClient(event);
+
       let query = supabase
         .from('activity_logs')
         .select('*', { count: 'exact' })
@@ -286,16 +305,21 @@ export class AuditService {
   /**
    * Get security events
    */
-  static async getSecurityEvents(filters: {
-    eventType?: string;
-    severity?: string;
-    resolved?: boolean;
-    startDate?: Date;
-    endDate?: Date;
-    limit?: number;
-    offset?: number;
-  }): Promise<{ data: SecurityEvent[]; total: number }> {
+  static async getSecurityEvents(
+    event: any, // SvelteKit event object
+    filters: {
+      eventType?: string;
+      severity?: string;
+      resolved?: boolean;
+      startDate?: Date;
+      endDate?: Date;
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<{ data: SecurityEvent[]; total: number }> {
     try {
+      const supabase = createSupabaseClient(event);
+
       let query = supabase
         .from('security_events')
         .select('*', { count: 'exact' })
@@ -319,21 +343,21 @@ export class AuditService {
       }
 
       return {
-        data: data?.map(event => ({
-          id: event.id,
-          eventType: event.event_type,
-          userId: event.user_id,
-          userEmail: event.user_email,
-          description: event.description,
-          severity: event.severity,
-          ipAddress: event.ip_address,
-          userAgent: event.user_agent,
-          metadata: event.metadata,
-          resolved: event.resolved,
-          resolvedBy: event.resolved_by,
-          resolvedAt: event.resolved_at,
-          resolutionNotes: event.resolution_notes,
-          createdAt: event.created_at
+        data: data?.map(securityEvent => ({
+          id: securityEvent.id,
+          eventType: securityEvent.event_type,
+          userId: securityEvent.user_id,
+          userEmail: securityEvent.user_email,
+          description: securityEvent.description,
+          severity: securityEvent.severity,
+          ipAddress: securityEvent.ip_address,
+          userAgent: securityEvent.user_agent,
+          metadata: securityEvent.metadata,
+          resolved: securityEvent.resolved,
+          resolvedBy: securityEvent.resolved_by,
+          resolvedAt: securityEvent.resolved_at,
+          resolutionNotes: securityEvent.resolution_notes,
+          createdAt: securityEvent.created_at
         })) || [],
         total: count || 0
       };
@@ -377,8 +401,10 @@ export class AuditService {
   /**
    * Get audit summary for dashboard
    */
-  static async getAuditSummary(): Promise<any> {
+  static async getAuditSummary(event: any): Promise<any> {
     try {
+      const supabase = createSupabaseClient(event);
+
       // Get recent activity counts
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -388,13 +414,13 @@ export class AuditService {
           .from('activity_logs')
           .select('*', { count: 'exact' })
           .gte('created_at', thirtyDaysAgo.toISOString()),
-        
+
         supabase
           .from('security_events')
           .select('*', { count: 'exact' })
           .gte('created_at', thirtyDaysAgo.toISOString())
           .eq('resolved', false),
-        
+
         supabase
           .from('audit_logs')
           .select(`
