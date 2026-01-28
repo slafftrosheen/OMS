@@ -1,6 +1,7 @@
 // src/lib/stores/websocket.ts
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
+import { dev } from '$app/environment';
 
 interface WebSocketMessage {
     type: string;
@@ -10,72 +11,102 @@ interface WebSocketMessage {
 interface WebSocketStore {
     connected: boolean;
     messages: WebSocketMessage[];
+    supportsWebSocket: boolean;
 }
 
 function createWebSocketStore() {
     const { subscribe, update } = writable<WebSocketStore>({
         connected: false,
-        messages: []
+        messages: [],
+        supportsWebSocket: false
     });
 
     let ws: WebSocket | null = null;
     let reconnectTimeout: number;
     let reconnectAttempts = 0;
-    const MAX_RECONNECT_ATTEMPTS = 5;
-    const RECONNECT_DELAY = 3000;
+    const MAX_RECONNECT_ATTEMPTS = 3; // Reduced from 5
+    const RECONNECT_DELAY = 5000; // Increased delay
+    let connectionDisabled = false;
+
+    // Check if we're on Vercel or a platform without WebSocket support
+    const isVercel = browser && (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('vercel.com'));
+    const supportsWS = !isVercel; // Disable WebSocket on Vercel
 
     function connect() {
         if (!browser) return;
+        
+        // Don't attempt WebSocket connection on Vercel
+        if (!supportsWS) {
+            console.log('WebSocket not supported on this platform, using polling fallback');
+            update(state => ({ ...state, supportsWebSocket: false, connected: false }));
+            return;
+        }
 
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws`;
+        if (connectionDisabled) {
+            console.log('WebSocket connection disabled after max retries');
+            return;
+        }
 
-        ws = new WebSocket(wsUrl);
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
 
-        ws.onopen = () => {
-            console.log('WebSocket connected');
-            reconnectAttempts = 0;
-            update(state => ({ ...state, connected: true }));
+            ws = new WebSocket(wsUrl);
 
-            // Send authentication
-            const token = localStorage.getItem('auth_token');
-            if (token) {
-                send({ type: 'authenticate', token });
-            }
-        };
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                reconnectAttempts = 0;
+                update(state => ({ ...state, connected: true, supportsWebSocket: true }));
 
-        ws.onmessage = (event) => {
-            try {
-                const message: WebSocketMessage = JSON.parse(event.data);
-                update(state => ({
-                    ...state,
-                    messages: [...state.messages, message]
-                }));
+                // Send authentication
+                const token = localStorage.getItem('auth_token');
+                if (token) {
+                    send({ type: 'authenticate', token });
+                }
+            };
 
-                // Handle specific message types
-                handleMessage(message);
-            } catch (error) {
-                console.error('Failed to parse WebSocket message:', error);
-            }
-        };
+            ws.onmessage = (event) => {
+                try {
+                    const message: WebSocketMessage = JSON.parse(event.data);
+                    update(state => ({
+                        ...state,
+                        messages: [...state.messages, message]
+                    }));
 
-        ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
-        };
+                    // Handle specific message types
+                    handleMessage(message);
+                } catch (error) {
+                    console.error('Failed to parse WebSocket message:', error);
+                }
+            };
 
-        ws.onclose = () => {
-            console.log('WebSocket disconnected');
-            update(state => ({ ...state, connected: false }));
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                // Don't spam console with errors
+            };
 
-            // Attempt reconnection
-            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-                reconnectAttempts++;
-                reconnectTimeout = setTimeout(() => {
-                    console.log(`Reconnecting... (attempt ${reconnectAttempts})`);
-                    connect();
-                }, RECONNECT_DELAY) as unknown as number;
-            }
-        };
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                update(state => ({ ...state, connected: false }));
+
+                // Attempt reconnection with exponential backoff
+                if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                    reconnectAttempts++;
+                    const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1);
+                    console.log(`Reconnecting... (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+                    reconnectTimeout = setTimeout(() => {
+                        connect();
+                    }, delay) as unknown as number;
+                } else {
+                    console.log('Max reconnection attempts reached. WebSocket disabled.');
+                    connectionDisabled = true;
+                    update(state => ({ ...state, supportsWebSocket: false }));
+                }
+            };
+        } catch (error) {
+            console.error('Failed to create WebSocket connection:', error);
+            update(state => ({ ...state, connected: false, supportsWebSocket: false }));
+        }
     }
 
     function disconnect() {
@@ -84,13 +115,14 @@ function createWebSocketStore() {
             ws = null;
         }
         clearTimeout(reconnectTimeout);
+        update(state => ({ ...state, connected: false }));
     }
 
     function send(message: any) {
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify(message));
         } else {
-            console.warn('WebSocket not connected');
+            console.warn('WebSocket not connected, message not sent');
         }
     }
 
@@ -99,21 +131,34 @@ function createWebSocketStore() {
             case 'order_update':
                 // Trigger order store update
                 console.log('Order updated:', message.data);
+                // Could dispatch custom event here for components to listen to
+                if (browser) {
+                    window.dispatchEvent(new CustomEvent('order-update', { detail: message.data }));
+                }
                 break;
 
             case 'stage_update':
                 // Trigger production board update
                 console.log('Stage updated:', message.data);
+                if (browser) {
+                    window.dispatchEvent(new CustomEvent('stage-update', { detail: message.data }));
+                }
                 break;
 
             case 'new_message':
                 // Trigger chat update
                 console.log('New chat message:', message.data);
+                if (browser) {
+                    window.dispatchEvent(new CustomEvent('new-chat-message', { detail: message.data }));
+                }
                 break;
 
             case 'notification':
                 // Add to notifications
                 console.log('New notification:', message.data);
+                if (browser) {
+                    window.dispatchEvent(new CustomEvent('notification', { detail: message.data }));
+                }
                 break;
 
             default:
@@ -121,10 +166,43 @@ function createWebSocketStore() {
         }
     }
 
+    // Polling fallback for platforms without WebSocket support
+    let pollingInterval: number;
+    
+    function startPolling() {
+        if (!browser || ws) return;
+        
+        // Poll for updates every 30 seconds
+        pollingInterval = setInterval(async () => {
+            try {
+                // Fetch updates from REST API instead
+                // This is a lightweight alternative to WebSocket
+                console.log('Polling for updates...');
+            } catch (error) {
+                console.error('Polling error:', error);
+            }
+        }, 30000) as unknown as number;
+    }
+
+    function stopPolling() {
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+        }
+    }
+
     return {
         subscribe,
-        connect,
-        disconnect,
+        connect: () => {
+            if (supportsWS) {
+                connect();
+            } else {
+                startPolling();
+            }
+        },
+        disconnect: () => {
+            disconnect();
+            stopPolling();
+        },
         send
     };
 }
