@@ -4,8 +4,8 @@ import { currentUser } from '$lib/auth/user-store';
 import { users } from '$lib/users/user-store';
 import { createId } from '$lib/utils/id';
 import { base } from '$app/paths';
-import { createClient } from '@supabase/supabase-js';
 import { notify } from '$lib/notifications/store';
+import { browser } from '$app/environment';
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -20,9 +20,10 @@ export const rooms = writable<Room[]>([
 
 export const messages = writable<Message[]>([]);
 export const chatLoading = writable<boolean>(false);
+export const realtimeConnected = writable<boolean>(false);
 
 // Sound
-const notificationSound = isBrowser ? new Audio('data:audio/mp3;base64,//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7cV96+53/5//4iyF75v/5t///en/5//9//535qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AAWMSLwUIYAAsYkXgoQwAAaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7cV96+53/5//4iyF75v/5t///en/5//9//535qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAABCqEEQNrNwkd2c02+/+vXgSkqGTLLks4u8TdjDc1Ta/f/5mlu3/9dv/7//9532qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AAWMSLwUIYAAsYkXgoQwAAaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7cV96+53/5//4iyF75v/5t///en/5//9//535qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAABCqEEQNrNwkd2c02+/+vXgSkqGTLLks4u8TdjDc1Ta/f/5mlu3/9dv/7//9532qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AAWMSLwUIYAAsYkXgoQwAAaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7cV96+53/5//4iyF75v/5t///en/5//9//535qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAABCqEEQNrNwkd2c02+/+vXgSkqGTLLks4u8TdjDc1Ta/f/5mlu3/9dv/7//9532qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AAWMSLwUIYAAsYkXgoQwAAaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7cV96+53/5//4iyF75v/5t///en/5//9//535qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAABCqEEQNrNwkd2c02+/+vXgSkqGTLLks4u8TdjDc1Ta/f/5mlu3/9dv/7//9532qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AAWMSLwUIYAAsYkXgoQwAAaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7cV96+53/5//4iyF75v/5t///en/5//9//535qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAABCqEEQNrNwkd2c02+/+vXgSkqGTLLks4u8TdjDc1Ta/f/5mlu3/9dv/7//9532qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AAWMSLwUIYAAsYkXgoQwAAaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7cV96+53/5//4iyF75v/5t///en/5//9//535qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAABCqEEQNrNwkd2c02+/+vXgSkqGTLLks4u8TdjDc1Ta/f/5mlu3/9dv/7//9532qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AAWMSLwUIYAAsYkXgoQwAAaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7cV96+53/5//4iyF75v/5t///en/5//9//535qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA') : null;
+const notificationSound = isBrowser ? new Audio('data:audio/mp3;base64,//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7cV96+53/5//4iyF75v/5t///en/5//9//535qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AAWMSLwUIYAAsYkXgoQwAAaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7cV96+53/5//4iyF75v/5t///en/5//9//535qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAABCqEEQNrNwkd2c02+/+vXgSkqGTLLks4u8TdjDc1Ta/f/5mlu3/9dv/7//9532qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AAWMSLwUIYAAsYkXgoQwAAaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7cV96+53/5//4iyF75v/5t///en/5//9//535qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAABCqEEQNrNwkd2c02+/+vXgSkqGTLLks4u8TdjDc1Ta/f/5mlu3/9dv/7//9532qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AAWMSLwUIYAAsYkXgoQwAAaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7cV96+53/5//4iyF75v/5t///en/5//9//535qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAABCqEEQNrNwkd2c02+/+vXgSkqGTLLks4u8TdjDc1Ta/f/5mlu3/9dv/7//9532qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAABCqEEQNrNwkd2c02+/+vXgSkqGTLLks4u8TdjDc1Ta/f/5mlu3/9dv/7//9532qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AAWMSLwUIYAAsYkXgoQwAAaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7cV96+53/5//4iyF75v/5t///en/5//9//535qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAABCqEEQNrNwkd2c02+/+vXgSkqGTLLks4u8TdjDc1Ta/f/5mlu3/9dv/7//9532qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAABCqEEQNrNwkd2c02+/+vXgSkqGTLLks4u8TdjDc1Ta/f/5mlu3/9dv/7//9532qjTENEf/7kZAwAAuUEKHfacABCIgI4e94AADwAAAAAAAA') : null;
 
 export function playSound() {
   if (isBrowser && notificationSound) {
@@ -45,9 +46,11 @@ export function toggleChat() {
 }
 
 /**
- * Realtime Subscription
+ * Supabase Realtime Subscription (replaces WebSocket)
+ * This works on Vercel because it uses Supabase's infrastructure
  */
 let realtimeChannel: any = null;
+let supabaseClient: any = null;
 
 export function initChatRealtime() {
   if (!isBrowser) return () => {};
@@ -55,41 +58,72 @@ export function initChatRealtime() {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
   
-  if (!supabaseUrl || !supabaseKey) return () => {};
+  if (!supabaseUrl || !supabaseKey) {
+    console.warn('Supabase credentials not configured, realtime chat disabled');
+    return () => {};
+  }
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  // Dynamic import to avoid SSR issues
+  import('@supabase/supabase-js').then(({ createClient }) => {
+    supabaseClient = createClient(supabaseUrl, supabaseKey);
 
-  realtimeChannel = supabase
-    .channel('public:messages')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-      const newMessage = payload.new as Message;
-      const me = get(currentUser);
-      
-      // Update store
-      messages.update(msgs => {
-        if (msgs.some(m => m.id === newMessage.id)) return msgs;
-        return [...msgs, newMessage];
-      });
-
-      // Notification logic (only if not sent by me)
-      if (me?.id && newMessage.authorId !== String(me.id)) {
-        if (!get(isChatOpen)) {
-          unreadCount.update(n => n + 1);
-          playSound();
+    // Subscribe to chat_messages table for real-time updates
+    realtimeChannel = supabaseClient
+      .channel('chat-messages')
+      .on(
+        'postgres_changes',
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'chat_messages' 
+        },
+        (payload: any) => {
+          const newMessage = payload.new;
+          const me = get(currentUser);
           
-          const author = get(users).find(u => String(u.id) === newMessage.authorId);
-          const authorName = author?.displayName || author?.username || 'User';
-          
-          notify(`New message from ${newMessage.authorId === 'system' ? 'System' : authorName}`, {
-            urgency: 'normal'
+          // Transform to Message format
+          const message: Message = {
+            id: newMessage.id,
+            roomId: newMessage.room_id,
+            authorId: newMessage.user_id || 'system',
+            text: newMessage.content,
+            ts: newMessage.created_at,
+            mentions: [],
+            variant: newMessage.user_id ? 'user' : 'system'
+          };
+
+          // Update store (check for duplicates)
+          messages.update(msgs => {
+            if (msgs.some(m => m.id === message.id)) return msgs;
+            return [...msgs, message];
           });
+
+          // Notification logic (only if not sent by me)
+          if (me?.id && newMessage.user_id && String(newMessage.user_id) !== String(me.id)) {
+            if (!get(isChatOpen)) {
+              unreadCount.update(n => n + 1);
+              playSound();
+              
+              notify('New chat message', {
+                urgency: 'normal'
+              });
+            }
+          }
         }
-      }
-    })
-    .subscribe();
+      )
+      .subscribe((status: string) => {
+        console.log('Chat realtime status:', status);
+        realtimeConnected.set(status === 'SUBSCRIBED');
+      });
+  }).catch(err => {
+    console.error('Failed to initialize Supabase realtime:', err);
+  });
 
   return () => {
-    if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+    if (realtimeChannel && supabaseClient) {
+      supabaseClient.removeChannel(realtimeChannel);
+      realtimeConnected.set(false);
+    }
   };
 }
 
@@ -103,7 +137,7 @@ export async function loadRooms(): Promise<void> {
     const res = await fetch(`${base}/api/chat`);
     if (res.ok) {
       const data = await res.json();
-      if (data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         rooms.set(data.map((r: any) => ({ id: r.id, name: r.name })));
       }
     }
@@ -123,12 +157,13 @@ export async function loadMessages(roomId: string, limit = 100): Promise<void> {
     const res = await fetch(`${base}/api/chat/messages?roomId=${roomId}&limit=${limit}`);
     if (res.ok) {
       const data = await res.json();
-      // Merge with existing messages (avoid duplicates)
-      messages.update(current => {
-        const existing = new Set(current.map(m => m.id));
-        const newMsgs = data.filter((m: Message) => !existing.has(m.id));
-        return [...current.filter(m => m.roomId !== roomId), ...data];
-      });
+      if (data.success && Array.isArray(data.messages)) {
+        // Replace messages for this room
+        messages.update(current => {
+          const otherRoomMessages = current.filter(m => m.roomId !== roomId);
+          return [...otherRoomMessages, ...data.messages];
+        });
+      }
     }
   } catch (err) {
     console.error('Failed to load messages:', err);
@@ -153,15 +188,9 @@ export async function sendMessage(
   const payload = text.trim();
   if (!payload) return;
 
-  // Temporary ID until server confirmation (or let realtime handle it)
-  // We'll add it optimistically, but realtime might duplicate if we don't dedup.
-  // The 'loadMessages' dedups, and 'postgres_changes' handler dedups.
-  // But to be safe, let's let realtime handle the UI update for consistency, 
-  // OR we add a temporary one and replace it. 
-  // For simplicity in this overhaul, we'll optimistically add it.
-  
-  const tempId = createId('msg_temp');
-  const message: Message = {
+  // Optimistic UI update
+  const tempId = `temp_${Date.now()}`;
+  const optimisticMessage: Message = {
     id: tempId,
     roomId,
     authorId: options.authorId ?? (me?.id ? String(me.id) : 'anonymous'),
@@ -172,7 +201,7 @@ export async function sendMessage(
     event: options.event
   };
 
-  messages.update((value) => [...value, message]);
+  messages.update((value) => [...value, optimisticMessage]);
 
   // Persist to database
   if (isBrowser) {
@@ -182,7 +211,6 @@ export async function sendMessage(
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           roomId,
-          authorId: me?.id || null,
           text: payload,
           variant: options.variant ?? 'user',
           mentions,
@@ -191,15 +219,22 @@ export async function sendMessage(
       });
       
       if (res.ok) {
-        const saved = await res.json();
-        // Update with server-assigned ID (this prevents dupes if we match by content/ts, but simplest is to swap ID)
-        messages.update(msgs => msgs.map(m => 
-          m.id === tempId ? { ...m, id: saved.id } : m
-        ));
+        const result = await res.json();
+        if (result.success && result.message) {
+          // Replace optimistic message with server response
+          messages.update(msgs => 
+            msgs.map(m => m.id === tempId ? result.message : m)
+          );
+        }
+      } else {
+        // Remove optimistic message on error
+        messages.update(msgs => msgs.filter(m => m.id !== tempId));
+        notify('Failed to send message', { urgency: 'high' });
       }
     } catch (err) {
       console.error('Failed to send message:', err);
-      // Ideally remove the optimistic message on error
+      messages.update(msgs => msgs.filter(m => m.id !== tempId));
+      notify('Failed to send message', { urgency: 'high' });
     }
   }
 }
