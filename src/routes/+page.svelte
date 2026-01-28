@@ -21,48 +21,61 @@
         loading = true;
 
         try {
-            // Load recent orders
-            // Note: orders.load() doesn't exist on the store definition from previous steps. 
-            // I'll fetch directly or assume orders are populated if 'orders' store handles loading on mount or via a layout load.
-            // For this implementation, I will assume we need to fetch them if the store doesn't have a load method exposed.
-            // However, looking at the plan, it uses `orders.load()`. I should check `src/lib/stores/orders.ts`.
-            // The previous `orders.ts` creation didn't include a `load` method, just state setters.
-            // I will implement a fetch here to populate the store or local state.
+            // Load recent orders - handle paginated response
+            const response = await fetch('/api/orders?limit=5&sort=created_at&direction=desc');
+            const result = await response.json();
             
-            const response = await fetch('/api/orders?limit=5&sort=created_at:desc');
-            const data = await response.json();
+            // Handle both paginated format { data: [], pagination: {} } and legacy format { success: true, orders: [] }
+            let ordersData = [];
+            if (Array.isArray(result.data)) {
+                // Paginated response format
+                ordersData = result.data;
+            } else if (Array.isArray(result.orders)) {
+                // Legacy format
+                ordersData = result.orders;
+            } else if (Array.isArray(result)) {
+                // Direct array format
+                ordersData = result;
+            }
             
-            if (data.success) {
-                // Populate store or local state
-                orders.setOrders(data.orders); // Assuming this updates the store
-                recentOrders = data.orders.slice(0, 5);
+            if (ordersData && ordersData.length > 0) {
+                orders.setOrders(ordersData);
+                recentOrders = ordersData.slice(0, 5);
+            } else {
+                orders.setOrders([]);
+                recentOrders = [];
             }
 
             // Load analytics data
-            const analyticsResponse = await fetch('/api/analytics/dashboard?preset=month');
-            const analyticsData = await analyticsResponse.json();
+            try {
+                const analyticsResponse = await fetch('/api/analytics/dashboard?preset=month');
+                if (analyticsResponse.ok) {
+                    const analyticsData = await analyticsResponse.json();
 
-            if (analyticsData.success) {
-                // Transform data for chart
-                // Assuming the API returns a structure we can map to labels and datasets
-                // For demonstration, I'll mock the structure based on the plan's expectation or adapt to what AnalyticsService returns.
-                // AnalyticsService returns `revenueByMonth` which is useful.
-                
-                const revenue = analyticsData.data.revenue;
-                chartData = {
-                    labels: revenue.revenueByMonth.map((d: any) => d.month),
-                    datasets: [
-                        {
-                            label: 'Revenue',
-                            data: revenue.revenueByMonth.map((d: any) => d.revenue),
-                            borderColor: '#10b981',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)'
+                    if (analyticsData.success && analyticsData.data) {
+                        const revenue = analyticsData.data.revenue;
+                        if (revenue && revenue.revenueByMonth) {
+                            chartData = {
+                                labels: revenue.revenueByMonth.map((d: any) => d.month),
+                                datasets: [
+                                    {
+                                        label: 'Revenue',
+                                        data: revenue.revenueByMonth.map((d: any) => d.revenue),
+                                        borderColor: '#10b981',
+                                        backgroundColor: 'rgba(16, 185, 129, 0.1)'
+                                    }
+                                ]
+                            };
                         }
-                    ]
-                };
+                    }
+                }
+            } catch (analyticsError) {
+                console.log('Analytics data not available:', analyticsError);
+                // Continue without analytics - not critical
             }
         } catch (error) {
             console.error('Failed to load dashboard data:', error);
+            orders.setError('Failed to load orders');
         } finally {
             loading = false;
         }
@@ -129,11 +142,13 @@
         </div>
 
         <!-- Charts Section -->
+        {#if chartData.datasets.length > 0}
         <div class="charts-section">
             <Card title="Orders Overview" padding="lg">
                 <LineChart data={chartData} title="Last 30 Days" height={300} />
             </Card>
         </div>
+        {/if}
 
         <!-- Recent Orders -->
         <section class="recent-orders">
@@ -354,7 +369,6 @@
         .stats-grid {
             grid-template-columns: repeat(2, 1fr);
         }
-
         .orders-grid {
             grid-template-columns: 1fr;
         }
