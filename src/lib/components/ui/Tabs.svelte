@@ -31,7 +31,7 @@
   </div>
   
   <div class="tab-content" role="tabpanel">
-    <slot name={activeTab} />
+    <slot />
   </div>
 </div>
 
