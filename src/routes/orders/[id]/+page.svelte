@@ -203,11 +203,11 @@
                     <Card title="Production Stages" padding="lg">
                         <div class="stages-grid">
                             {#each Object.entries(order.stages) as [stage, status]}
-                                <div class="stage-card" style="border-left-color: {getStatusColor(status as string)}">
+                                <div class="stage-card" style="border-left-color: {getStatusColor(String(status))}">
                                     <div class="stage-header">
                                         <h4 class="stage-name">{stage}</h4>
                                         <Badge variant={status === 'COMPLETED' ? 'success' : 'info'} size="sm">
-                                            {(status as string).replace('_', ' ')}
+                                            {String(status).replace('_', ' ')}
                                         </Badge>
                                     </div>
                                     <select
