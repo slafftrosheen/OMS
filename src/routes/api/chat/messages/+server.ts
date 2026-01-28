@@ -1,44 +1,108 @@
 // src/routes/api/chat/messages/+server.ts
-import { json, error as svelteError } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { ChatService } from '$lib/server/chat/ChatService';
 
+/**
+ * GET /api/chat/messages - Get messages for a room or order
+ * Supports both roomId (general chat) and orderId (order-specific chat)
+ */
 export const GET: RequestHandler = async ({ url, locals }) => {
-    const user = locals.user;
-    
-    // Allow unauthenticated access for now to prevent blocking
-    // In production, you should enforce authentication
-    
     const roomId = url.searchParams.get('roomId');
     const orderId = url.searchParams.get('orderId');
     const before = url.searchParams.get('before') || undefined;
-    const limit = parseInt(url.searchParams.get('limit') || '50');
+    const limit = parseInt(url.searchParams.get('limit') || '100');
 
-    // Handle room-based chat (general, workstations, etc.)
+    // Handle room-based chat (general, workstations, logistics)
     if (roomId && !orderId) {
         try {
-            // For now, return empty array for room-based chat
-            // This prevents the 400 error when opening the app
-            // In the future, implement proper room-based message storage
+            // Ensure database connection
+            if (!locals.supabase) {
+                console.error('Supabase client not available');
+                return json({ 
+                    success: true, 
+                    messages: [], 
+                    hasMore: false,
+                    error: 'Database not available'
+                });
+            }
+
+            // Fetch messages from chat_messages table
+            let query = locals.supabase
+                .from('chat_messages')
+                .select(`
+                    id,
+                    room_id,
+                    user_id,
+                    content,
+                    attachments,
+                    created_at,
+                    profiles:user_id (
+                        id,
+                        display_name,
+                        username,
+                        avatar_url
+                    )
+                `)
+                .eq('room_id', roomId)
+                .order('created_at', { ascending: false })
+                .limit(limit);
+
+            if (before) {
+                query = query.lt('created_at', before);
+            }
+
+            const { data: messages, error } = await query;
+
+            if (error) {
+                console.error('Error fetching room messages:', error);
+                return json({ 
+                    success: true,
+                    messages: [],
+                    hasMore: false,
+                    error: error.message
+                });
+            }
+
+            // Transform to expected format
+            const transformedMessages = (messages || []).map(msg => ({
+                id: msg.id,
+                roomId: msg.room_id,
+                authorId: msg.user_id || 'system',
+                text: msg.content,
+                ts: msg.created_at,
+                mentions: [],
+                variant: msg.user_id ? 'user' : 'system',
+                author: msg.profiles ? {
+                    id: msg.profiles.id,
+                    displayName: msg.profiles.display_name,
+                    username: msg.profiles.username,
+                    avatarUrl: msg.profiles.avatar_url
+                } : null
+            }));
+
+            // Reverse to get chronological order
+            transformedMessages.reverse();
+
             return json({
                 success: true,
-                messages: [],
-                hasMore: false,
-                roomId
+                messages: transformedMessages,
+                hasMore: messages ? messages.length === limit : false
             });
         } catch (err) {
-            console.error('Error fetching room messages:', err);
+            console.error('Unexpected error fetching room messages:', err);
             return json({ 
-                success: false, 
-                error: 'Failed to fetch messages',
-                messages: [] 
-            }, { status: 500 });
+                success: true,
+                messages: [],
+                hasMore: false
+            });
         }
     }
 
     // Handle order-specific chat
     if (orderId) {
-        if (!user) {
+        // Require authentication for order chat
+        if (!locals.user) {
             return json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -78,41 +142,78 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     }, { status: 400 });
 };
 
+/**
+ * POST /api/chat/messages - Send a message to a room or order
+ */
 export const POST: RequestHandler = async ({ request, locals }) => {
-    const user = locals.user;
-    
-    // Check authentication for posting messages
-    if (!user) {
-        return json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     try {
         const body = await request.json();
         const { roomId, orderId, text, authorId, variant, mentions, event } = body;
 
+        if (!text || text.trim().length === 0) {
+            return json({ error: 'Message text required' }, { status: 400 });
+        }
+
         // Handle room-based message
         if (roomId && !orderId) {
-            // For now, acknowledge but don't persist
-            // In the future, implement proper room-based message storage
+            if (!locals.supabase) {
+                return json({ error: 'Database not available' }, { status: 503 });
+            }
+
+            // Insert message into database
+            const { data: message, error } = await locals.supabase
+                .from('chat_messages')
+                .insert({
+                    room_id: roomId,
+                    user_id: locals.user?.id || null,
+                    content: text.trim(),
+                    attachments: []
+                })
+                .select(`
+                    id,
+                    room_id,
+                    user_id,
+                    content,
+                    created_at,
+                    profiles:user_id (
+                        id,
+                        display_name,
+                        username,
+                        avatar_url
+                    )
+                `)
+                .single();
+
+            if (error) {
+                console.error('Error saving room message:', error);
+                return json({ error: 'Failed to save message' }, { status: 500 });
+            }
+
+            // Return message in expected format
             return json({
                 success: true,
                 message: {
-                    id: `msg_${Date.now()}`,
-                    roomId,
-                    authorId: authorId || user.id,
-                    text,
-                    ts: new Date().toISOString(),
-                    variant: variant || 'user',
+                    id: message.id,
+                    roomId: message.room_id,
+                    authorId: message.user_id || 'system',
+                    text: message.content,
+                    ts: message.created_at,
                     mentions: mentions || [],
-                    event
+                    variant: message.user_id ? 'user' : 'system',
+                    author: message.profiles ? {
+                        id: message.profiles.id,
+                        displayName: message.profiles.display_name,
+                        username: message.profiles.username,
+                        avatarUrl: message.profiles.avatar_url
+                    } : null
                 }
             });
         }
 
         // Handle order-specific message
         if (orderId) {
-            if (!text) {
-                return json({ error: 'Message text required' }, { status: 400 });
+            if (!locals.user) {
+                return json({ error: 'Unauthorized' }, { status: 401 });
             }
 
             if (!locals.supabase) {
@@ -123,7 +224,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
             const chatMessage = await chatService.sendMessage(
                 orderId,
-                user.id,
+                locals.user.id,
                 text,
                 body.attachments,
                 body.replyTo
