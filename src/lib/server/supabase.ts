@@ -1,5 +1,4 @@
-import pkg from '@supabase/auth-helpers-sveltekit';
-const { createServerClient } = pkg;
+import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/public';
 import { env as private_env } from '$env/dynamic/private';
@@ -18,7 +17,7 @@ const globalSupabaseKey = (
   process?.env?.SUPABASE_SERVICE_ROLE_KEY ||
   env.PUBLIC_SUPABASE_ANON_KEY ||
   (private_env as any).PUBLIC_SUPABASE_ANON_KEY ||
-  process?.env?.PUBLIC_SUPABASE_ANON_KEY ||
+  process?.env?.PUBLIC_SUPABASE_ANON_KEY || 
   ''
 ).trim();
 
