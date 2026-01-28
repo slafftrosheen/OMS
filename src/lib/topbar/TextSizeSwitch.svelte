@@ -1,149 +1,103 @@
 <script lang="ts">
+  import { MinusCircle, PlusCircle, RotateCcw } from 'lucide-svelte';
   import { ui } from '$lib/state/ui';
-  import AArrowDown from 'lucide-svelte/icons/a-arrow-down';
-  import AArrowUp from 'lucide-svelte/icons/a-arrow-up';
-  import { onDestroy, onMount } from 'svelte';
+  import { t } from 'svelte-i18n';
 
-  const steps = [0.90, 1.00, 1.10, 1.20, 1.30];
-  const minScale = steps[0];
-  const maxScale = steps[steps.length - 1];
+  let fontScale = 1.0;
+  ui.subscribe(p => fontScale = p.fontScale);
 
-  let refreshZoom: (() => void) | null = null;
-  let currentScale = 1;
-  const unsubscribe = ui.subscribe(p => {
-    currentScale = p.fontScale;
-    refreshZoom?.();
-  });
-
-  onDestroy(unsubscribe);
-
-  $: canDecrement = currentScale > minScale + 0.001;
-  $: canIncrement = currentScale < maxScale - 0.001;
-
-  function inc() {
-    const next = steps.find(s => s > currentScale);
-    if (!next) return;
-    ui.update(p => ({ ...p, fontScale: next }));
+  function decrease() {
+    const newScale = Math.max(0.85, fontScale - 0.05);
+    ui.update(p => ({ ...p, fontScale: Math.round(newScale * 100) / 100 }));
   }
 
-  function dec() {
-    const next = [...steps].reverse().find(s => s < currentScale);
-    if (!next) return;
-    ui.update(p => ({ ...p, fontScale: next }));
+  function increase() {
+    const newScale = Math.min(1.3, fontScale + 0.05);
+    ui.update(p => ({ ...p, fontScale: Math.round(newScale * 100) / 100 }));
   }
 
-  onMount(() => {
-    if (typeof window === 'undefined') return;
-    const doc = document.documentElement;
-    const viewport = window.visualViewport;
+  function reset() {
+    ui.update(p => ({ ...p, fontScale: 1.0 }));
+  }
 
-    let raf = 0;
-    const apply = () => {
-      const zoom = viewport?.scale;
-      if (zoom && !Number.isNaN(zoom)) {
-        doc.style.setProperty('--text-zoom', zoom.toFixed(3));
-      } else {
-        const computed = parseFloat(getComputedStyle(doc).fontSize) || 16;
-        const baseline = currentScale ? computed / (16 * currentScale) : computed / 16;
-        doc.style.setProperty('--text-zoom', baseline.toFixed(3));
-      }
-    };
-
-    const schedule = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(apply);
-    };
-
-    apply();
-
-    const resizeEvents: Array<[EventTarget, string]> = [];
-
-    if (viewport) {
-      resizeEvents.push([viewport, 'resize'], [viewport, 'scroll']);
-    }
-    resizeEvents.push([window, 'resize']);
-
-    resizeEvents.forEach(([target, type]) => target.addEventListener(type, schedule, { passive: true }));
-
-    refreshZoom = schedule;
-
-    return () => {
-      resizeEvents.forEach(([target, type]) => target.removeEventListener(type, schedule));
-      cancelAnimationFrame(raf);
-      refreshZoom = null;
-    };
-  });
+  $: percentage = Math.round(fontScale * 100);
 </script>
 
-<div class="text-size-row">
+<div class="text-size-group">
   <button
-    class="text-size-btn"
-    aria-label="Smaller text"
-    on:click={dec}
-    disabled={!canDecrement}
+    class="size-btn"
+    on:click={decrease}
+    disabled={fontScale <= 0.85}
+    aria-label={$t('topbar.decreaseTextSize', { default: 'Decrease text size' })}
+    title="Decrease text size"
   >
-    <AArrowDown size={16} aria-hidden="true" />
+    <MinusCircle size={16} />
   </button>
-  <span class="text-size-label">{Math.round(currentScale * 100)}%</span>
+  
   <button
-    class="text-size-btn"
-    aria-label="Larger text"
-    on:click={inc}
-    disabled={!canIncrement}
+    class="size-display"
+    on:click={reset}
+    aria-label={$t('topbar.resetTextSize', { default: 'Reset text size' })}
+    title="Reset to 100%"
   >
-    <AArrowUp size={16} aria-hidden="true" />
+    <span>{percentage}%</span>
+  </button>
+  
+  <button
+    class="size-btn"
+    on:click={increase}
+    disabled={fontScale >= 1.3}
+    aria-label={$t('topbar.increaseTextSize', { default: 'Increase text size' })}
+    title="Increase text size"
+  >
+    <PlusCircle size={16} />
   </button>
 </div>
 
 <style>
-  .text-size-row {
+  .text-size-group {
     display: flex;
     align-items: center;
     gap: 2px;
-    flex-shrink: 0;
+    background: var(--bg-0);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2px;
+    height: 36px;
   }
 
-  .text-size-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-2);
-    min-width: 32px;
-    text-align: center;
-    user-select: none;
-    flex-shrink: 0;
-  }
-
-  .text-size-btn {
+  .size-btn,
+  .size-display {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
     height: 28px;
-    min-width: 28px;
-    min-height: 28px;
-    padding: 0;
+    padding: 0 8px;
     background: transparent;
     border: none;
     border-radius: 6px;
-    color: var(--text-2);
+    color: var(--text);
     cursor: pointer;
     transition: all 0.15s ease;
-    flex-shrink: 0;
+    font-size: 0.875rem;
   }
 
-  .text-size-btn:hover:not(:disabled) {
+  .size-btn:hover:not(:disabled) {
     background: var(--bg-2);
-    color: var(--text);
   }
 
-  .text-size-btn:disabled {
-    opacity: 0.3;
+  .size-btn:disabled {
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
-  .text-size-btn :global(svg) {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
+  .size-display {
+    min-width: 48px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .size-display:hover {
+    background: var(--bg-2);
   }
 </style>

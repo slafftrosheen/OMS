@@ -2,6 +2,7 @@
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#3b82f6" />
   <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="OMS" />
   <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
@@ -132,6 +133,8 @@
 <div id="rf-live" class="sr-only" aria-live="polite"></div>
 
 <script lang="ts">
+  import '../app.css';
+  import '$lib/styles/a11y.css';
   import { base } from '$app/paths';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
@@ -604,7 +607,15 @@
     gap: 12px;
   }
 
-  .rf-topbar .brand { flex: 1; }
+  .rf-topbar .brand { 
+    flex: 1;
+    order: 1;
+  }
+
+  .rf-topbar .actions {
+    order: 2;
+    gap: 4px;
+  }
 
   .rf-topbar .mobile-menu-btn {
     display: flex;
@@ -614,44 +625,46 @@
   }
 
   .rf-topbar nav.main {
-    position: absolute;
-    top: 100%;
+    position: fixed;
+    top: 56px;
     left: 0;
     right: 0;
+    bottom: 0;
     background: var(--bg-1);
-    border-bottom: 1px solid var(--border);
     flex-direction: column;
     align-items: stretch;
     gap: 0;
-    padding: 8px;
+    padding: 16px;
     display: none;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-    z-index: 100;
+    box-shadow: none;
+    z-index: 9999;
+    overflow-y: auto;
   }
 
-  .rf-topbar nav.main.mobile-open { display: flex; }
+  .rf-topbar nav.main.mobile-open { 
+    display: flex; 
+  }
 
   .rf-topbar nav.main a {
-    padding: 14px 16px;
-    border-radius: 8px;
+    padding: 16px;
+    border-radius: 12px;
+    font-size: 1rem;
   }
 
-  .rf-topbar nav.main a span { display: inline; }
+  .rf-topbar nav.main a span { 
+    display: inline; 
+  }
 
   .nav-divider {
     width: 100%;
     height: 1px;
-    margin: 8px 0;
-  }
-
-  .rf-topbar .actions {
-    order: 2;
-    gap: 2px;
+    margin: 12px 0;
   }
 
   .rf-topbar .action-btn {
     width: 32px;
     height: 32px;
+    min-width: 32px;
   }
 
   .desktop-only {
@@ -660,6 +673,18 @@
   
   .mobile-nav-wrapper {
     display: block;
+  }
+  
+  /* Backdrop for mobile menu */
+  .rf-topbar nav.main.mobile-open::before {
+    content: '';
+    position: fixed;
+    top: 56px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: -1;
   }
 }
 </style>
