@@ -573,6 +573,7 @@
     </div>
   {/if}
 </section>
+{/if}
 </ErrorBoundary>
 
 
