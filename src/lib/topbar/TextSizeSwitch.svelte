@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { MinusCircle, PlusCircle, RotateCcw } from 'lucide-svelte';
+  import { MinusCircle, PlusCircle } from 'lucide-svelte';
   import { ui } from '$lib/state/ui';
   import { t } from 'svelte-i18n';
 
