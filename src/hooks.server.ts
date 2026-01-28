@@ -230,8 +230,9 @@ export const handleError: HandleServerError = async ({ error, event, status, mes
 
 	// Return sanitized error to client
 	return {
-		message: dev ? message : 'An error occurred',
+		message: dev ? message : 'An error occurred. Please try again later.',
 		errorId: dev ? errorId : undefined,
-		status
+		status,
+        code: (error as any)?.code || 'UNKNOWN_ERROR'
 	};
 };

@@ -2,6 +2,7 @@
   export let params = {};
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
+  import { t } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/user-store';
   import { UserPlus, Edit2, Trash2, Key, Search, X, Check, AlertCircle } from 'lucide-svelte';
 
@@ -161,17 +162,17 @@
     }
 
     if (!formData.username || !formData.displayName) {
-      modalError = 'Username and display name are required';
+      modalError = $t('admin.users.messages.validation.required');
       return;
     }
 
     if (modalMode === 'create' && !formData.password) {
-      modalError = 'Password is required for new users';
+      modalError = $t('admin.users.messages.validation.password_required');
       return;
     }
 
     if (formData.sections.length === 0) {
-      modalError = 'At least one section must be selected';
+      modalError = $t('admin.users.messages.validation.section_required');
       return;
     }
 
@@ -200,12 +201,12 @@
         });
 
         if (res.ok) {
-          successMessage = 'User created successfully';
+          successMessage = $t('admin.users.messages.created');
           closeModal();
           await loadUsers();
         } else {
           const data = await res.json();
-          modalError = data.error || 'Failed to create user';
+          modalError = data.error || $t('admin.users.messages.save_error');
         }
       } else {
         const res = await fetch(`${base}/api/users/${editingUser!.id}`, {
@@ -215,12 +216,12 @@
         });
 
         if (res.ok) {
-          successMessage = 'User updated successfully';
+          successMessage = $t('admin.users.messages.updated');
           closeModal();
           await loadUsers();
         } else {
           const data = await res.json();
-          modalError = data.error || 'Failed to update user';
+          modalError = data.error || $t('admin.users.messages.save_error');
         }
       }
     } catch (e) {
@@ -234,7 +235,7 @@
 
   async function resetPassword() {
     if (!formData.password || formData.password.length < 8) {
-      modalError = 'Password must be at least 8 characters';
+      modalError = $t('admin.users.messages.validation.password_length');
       return;
     }
 
@@ -249,11 +250,11 @@
       });
 
       if (res.ok) {
-        successMessage = 'Password reset successfully';
+        successMessage = $t('admin.users.messages.password_reset');
         closeModal();
       } else {
         const data = await res.json();
-        modalError = data.error || 'Failed to reset password';
+        modalError = data.error || $t('admin.users.messages.save_error');
       }
     } catch (e) {
       modalError = 'Failed to connect to server';
@@ -265,15 +266,15 @@
   }
 
   async function deactivateUser(user: User) {
-    if (!confirm(`Are you sure you want to deactivate ${user.displayName}?`)) return;
+    if (!confirm($t('admin.users.messages.confirm_deactivate', { name: user.displayName }))) return;
 
     try {
       const res = await fetch(`${base}/api/users/${user.id}`, { method: 'DELETE' });
       if (res.ok) {
-        successMessage = 'User deactivated successfully';
+        successMessage = $t('admin.users.messages.deactivated');
         await loadUsers();
       } else {
-        error = 'Failed to deactivate user';
+        error = $t('admin.users.messages.save_error');
       }
     } catch (e) {
       error = 'Failed to connect to server';
@@ -290,11 +291,11 @@
         body: JSON.stringify({ isActive: true })
       });
       if (res.ok) {
-        successMessage = 'User reactivated successfully';
+        successMessage = $t('admin.users.messages.reactivated');
         await loadUsers();
       }
     } catch (e) {
-      error = 'Failed to reactivate user';
+      error = $t('admin.users.messages.save_error');
     }
 
     setTimeout(() => successMessage = '', 3000);
@@ -310,7 +311,7 @@
   }
 
   function formatDate(dateStr?: string) {
-    if (!dateStr) return 'Never';
+    if (!dateStr) return $t('admin.users.never');
     return new Date(dateStr).toLocaleDateString('en-GB', { 
       day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' 
     });
@@ -324,13 +325,13 @@
 <div class="users-page">
   <header class="page-header">
     <div>
-      <h1>User Management</h1>
-      <p class="subtitle">Manage system users, roles, and permissions</p>
+      <h1>{$t('admin.users.title')}</h1>
+      <p class="subtitle">{$t('admin.users.subtitle')}</p>
     </div>
     {#if canManageUsers}
       <button class="btn-primary" on:click={openCreateModal}>
         <UserPlus size={18} />
-        Add User
+        {$t('admin.users.add')}
       </button>
     {/if}
   </header>
@@ -352,29 +353,29 @@
   <div class="controls">
     <div class="search-box">
       <Search size={18} />
-      <input type="text" placeholder="Search users..." bind:value={searchQuery} />
+      <input type="text" placeholder={$t('a11y.search')} bind:value={searchQuery} />
     </div>
     <label class="checkbox-label">
       <input type="checkbox" bind:checked={showInactive} />
-      Show inactive users
+      {$t('admin.users.show_inactive')}
     </label>
   </div>
 
   {#if loading}
-    <div class="loading">Loading users...</div>
+    <div class="loading">{$t('admin.users.loading')}</div>
   {:else}
     <div class="users-table-wrapper">
       <table class="users-table">
         <thead>
           <tr>
-            <th>User</th>
-            <th>Section</th>
-            <th>Roles</th>
-            <th>Stations</th>
-            <th>Status</th>
-            <th>Last Login</th>
+            <th>{$t('admin.users.table.user')}</th>
+            <th>{$t('admin.users.table.section')}</th>
+            <th>{$t('admin.users.table.roles')}</th>
+            <th>{$t('admin.users.table.stations')}</th>
+            <th>{$t('admin.users.table.status')}</th>
+            <th>{$t('admin.users.table.last_login')}</th>
             {#if canManageUsers}
-              <th>Actions</th>
+              <th>{$t('admin.users.table.actions')}</th>
             {/if}
           </tr>
         </thead>
@@ -412,29 +413,29 @@
                     {/if}
                   </div>
                 {:else}
-                  <span class="no-stations">All stations</span>
+                  <span class="no-stations">{$t('admin.users.all_stations')}</span>
                 {/if}
               </td>
               <td>
                 <span class="status-badge" class:active={user.isActive} class:inactive={!user.isActive}>
-                  {user.isActive ? 'Active' : 'Inactive'}
+                  {user.isActive ? $t('admin.users.status.active') : $t('admin.users.status.inactive')}
                 </span>
               </td>
               <td class="date-cell">{formatDate(user.lastLoginAt)}</td>
               {#if canManageUsers}
                 <td class="actions-cell">
-                  <button class="btn-icon" title="Edit" on:click={() => openEditModal(user)}>
+                  <button class="btn-icon" title={$t('admin.users.edit')} on:click={() => openEditModal(user)}>
                     <Edit2 size={16} />
                   </button>
-                  <button class="btn-icon" title="Reset Password" on:click={() => openPasswordModal(user)}>
+                  <button class="btn-icon" title={$t('admin.users.reset_password')} on:click={() => openPasswordModal(user)}>
                     <Key size={16} />
                   </button>
                   {#if user.isActive}
-                    <button class="btn-icon btn-danger" title="Deactivate" on:click={() => deactivateUser(user)}>
+                    <button class="btn-icon btn-danger" title={$t('admin.users.status.inactive')} on:click={() => deactivateUser(user)}>
                       <Trash2 size={16} />
                     </button>
                   {:else}
-                    <button class="btn-icon btn-success" title="Reactivate" on:click={() => reactivateUser(user)}>
+                    <button class="btn-icon btn-success" title={$t('admin.users.status.active')} on:click={() => reactivateUser(user)}>
                       <Check size={16} />
                     </button>
                   {/if}
@@ -444,7 +445,7 @@
           {:else}
             <tr>
               <td colspan={canManageUsers ? 7 : 6} class="empty-state">
-                No users found
+                {$t('admin.users.no_users')}
               </td>
             </tr>
           {/each}
@@ -461,9 +462,9 @@
     <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
       <div class="modal-header">
         <h2>
-          {#if modalMode === 'create'}Add New User
-          {:else if modalMode === 'edit'}Edit User
-          {:else}Reset Password
+          {#if modalMode === 'create'}{$t('admin.users.add')}
+          {:else if modalMode === 'edit'}{$t('admin.users.edit')}
+          {:else}{$t('admin.users.reset_password')}
           {/if}
         </h2>
         <button class="btn-close" on:click={closeModal}>
@@ -481,62 +482,62 @@
       <div class="modal-body">
         {#if modalMode === 'password'}
           <div class="form-group">
-            <label for="new-password">New Password</label>
+            <label for="new-password">{$t('admin.users.form.new_password')}</label>
             <input 
               type="password" 
               id="new-password" 
               bind:value={formData.password}
-              placeholder="Enter new password (min 8 characters)"
+              placeholder={$t('admin.users.form.placeholders.new_password')}
             />
           </div>
         {:else}
           <div class="form-row">
             <div class="form-group">
-              <label for="username">Username</label>
+              <label for="username">{$t('admin.users.form.username')}</label>
               <input 
                 type="text" 
                 id="username" 
                 bind:value={formData.username}
                 disabled={modalMode === 'edit'}
-                placeholder="e.g. jsmith"
+                placeholder={$t('admin.users.form.placeholders.username')}
               />
             </div>
             <div class="form-group">
-              <label for="display-name">Display Name</label>
+              <label for="display-name">{$t('admin.users.form.display_name')}</label>
               <input 
                 type="text" 
                 id="display-name" 
                 bind:value={formData.displayName}
-                placeholder="e.g. John Smith"
+                placeholder={$t('admin.users.form.placeholders.display_name')}
               />
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label for="email">Email (optional)</label>
+              <label for="email">{$t('admin.users.form.email')}</label>
               <input 
                 type="email" 
                 id="email" 
                 bind:value={formData.email}
-                placeholder="john@example.com"
+                placeholder={$t('admin.users.form.placeholders.email')}
               />
             </div>
             {#if modalMode === 'create'}
               <div class="form-group">
-                <label for="password">Password</label>
+                <label for="password">{$t('admin.users.form.password')}</label>
                 <input 
                   type="password" 
                   id="password" 
                   bind:value={formData.password}
-                  placeholder="Min 8 characters"
+                  placeholder={$t('admin.users.form.placeholders.password')}
                 />
               </div>
             {/if}
           </div>
 
           <div class="form-group">
-            <label>Sections</label>
+            <label>{$t('admin.users.form.sections')}</label>
             <div class="checkbox-group">
               {#each allSections as section}
                 <label class="checkbox-item">
@@ -552,7 +553,7 @@
           </div>
 
           <div class="form-group">
-            <label for="primary-section">Primary Section</label>
+            <label for="primary-section">{$t('admin.users.form.primary_section')}</label>
             <select id="primary-section" bind:value={formData.primarySection}>
               {#each formData.sections as section}
                 <option value={section}>{section}</option>
@@ -561,7 +562,7 @@
           </div>
 
           <div class="form-group">
-            <label>Roles per Section</label>
+            <label>{$t('admin.users.form.roles_per_section')}</label>
             <div class="roles-grid">
               {#each formData.sections as section}
                 <div class="role-row">
@@ -577,7 +578,7 @@
           </div>
 
           <div class="form-group">
-            <label>Station Assignments (optional)</label>
+            <label>{$t('admin.users.form.station_assignments')}</label>
             <div class="checkbox-group stations-group">
               {#each allStations as station}
                 <label class="checkbox-item">
@@ -590,14 +591,14 @@
                 </label>
               {/each}
             </div>
-            <small>Leave empty for access to all stations</small>
+            <small>{$t('admin.users.form.all_stations_hint')}</small>
           </div>
 
           {#if modalMode === 'edit'}
             <div class="form-group">
               <label class="checkbox-item">
                 <input type="checkbox" bind:checked={formData.isActive} />
-                User is active
+                {$t('admin.users.form.is_active')}
               </label>
             </div>
           {/if}
@@ -606,10 +607,10 @@
 
       <div class="modal-footer">
         <button class="btn-secondary" on:click={closeModal} disabled={saving}>
-          Cancel
+          {$t('actions.cancel')}
         </button>
         <button class="btn-primary" on:click={saveUser} disabled={saving}>
-          {#if saving}Saving...{:else}Save{/if}
+          {#if saving}{$t('actions.saving')}{:else}{$t('ui.save')}{/if}
         </button>
       </div>
     </div>

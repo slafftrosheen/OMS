@@ -22,10 +22,22 @@
     try {
       const res = await fetch(`${base}/api/notifications?unreadOnly=true&limit=20`);
       if (res.ok) {
-        dbNotifications = await res.json();
+        const data = await res.json();
+        
+        // Handle both array and wrapped response formats
+        const notificationsData = Array.isArray(data) ? data : (data.notifications || data.data || []);
+        
+        // Ensure it's an array before assigning
+        if (Array.isArray(notificationsData)) {
+          dbNotifications = notificationsData;
+        } else {
+          console.error('Invalid notifications data format:', data);
+          dbNotifications = [];
+        }
       }
     } catch (err) {
       console.debug('Failed to load notifications:', err);
+      dbNotifications = [];
     }
   }
   
@@ -36,11 +48,14 @@
     return () => clearInterval(interval);
   });
   
-  $: allNotifications = [...noticesList, ...dbNotifications.map(n => ({
-    text: n.title,
-    kind: n.type,
-    time: n.createdAt
-  }))];
+  $: allNotifications = [
+    ...noticesList, 
+    ...(Array.isArray(dbNotifications) ? dbNotifications : []).map(n => ({
+      text: n.title,
+      kind: n.type,
+      time: n.createdAt
+    }))
+  ];
   
   $: count = allNotifications.length;
 </script>

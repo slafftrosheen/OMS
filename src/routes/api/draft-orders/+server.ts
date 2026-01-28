@@ -10,6 +10,16 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const { page, limit, offset } = getPagination(url);
 
   try {
+    // Ensure supabase client exists
+    if (!locals.supabase) {
+      console.error('Supabase client not initialized');
+      return json({ 
+        data: [], 
+        pagination: { page, limit, total: 0, totalPages: 0, hasMore: false },
+        error: 'Database connection not available'
+      }, { status: 503 });
+    }
+
     const { data: orders, count, error: fetchError } = await locals.supabase
       .from('draft_orders')
       .select(`
@@ -26,23 +36,32 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       .order('created_at', { ascending: false });
 
     if (fetchError) {
-      apiError(500, 'INTERNAL_SERVER_ERROR', 'Failed to fetch orders');
+      console.error('Supabase fetch error:', fetchError);
+      // Return empty array with error info instead of throwing
+      return json({ 
+        data: [], 
+        pagination: { page, limit, total: 0, totalPages: 0, hasMore: false },
+        error: fetchError.message 
+      }, { status: 500 });
     }
 
+    // Ensure orders is an array
+    const ordersArray = Array.isArray(orders) ? orders : [];
+
     // Transform to match frontend expectations
-    const transformedOrders = (orders || []).map(row => ({
+    const transformedOrders = ordersArray.map(row => ({
       id: row.id,
-      poNumber: row.po_number,
-      clientName: row.client,
-      title: row.title,
-      deadline: row.due_date,
-      loadingDate: row.loading_date,
-      status: row.status,
+      poNumber: row.po_number || 'N/A',
+      clientName: row.client || 'Unknown',
+      title: row.title || 'Untitled',
+      deadline: row.due_date || null,
+      loadingDate: row.loading_date || null,
+      status: row.status || 'draft',
       priority: row.priority || 'NORMAL',
-      deliveryAddress: row.delivery_address,
-      deliveryContact: row.delivery_contact,
-      deliveryPhone: row.delivery_phone,
-      profiles: row.profiles || [],
+      deliveryAddress: row.delivery_address || null,
+      deliveryContact: row.delivery_contact || null,
+      deliveryPhone: row.delivery_phone || null,
+      profiles: Array.isArray(row.profiles) ? row.profiles : [],
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
@@ -52,101 +71,21 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       pagination: {
         page,
         limit,
-        total: count,
+        total: count || 0,
         totalPages: count ? Math.ceil(count / limit) : 0,
         hasMore: count ? page * limit < count : false
       }
     });
   } catch (err) {
+    // Catch any unexpected errors
     if ('status' in (err as any)) throw err;
-    console.error('Error fetching draft orders:', err);
-    apiError(500, 'INTERNAL_SERVER_ERROR', 'Failed to fetch orders');
-  }
-};
-
-/**
- * POST /api/draft-orders - Create a new draft order
- */
-export const POST: RequestHandler = async ({ request, locals }) => {
-  const data = await request.json();
-
-  if (!data.poNumber || !data.clientName) {
-    apiError(400, 'VALIDATION_ERROR', 'PO Number and Client Name are required');
-  }
-
-  try {
-    // Check for existing PO number first
-    const { data: existing } = await locals.supabase
-        .from('draft_orders')
-        .select('id')
-        .eq('po_number', data.poNumber)
-        .single();
-
-    if (existing) {
-         apiError(409, 'INTERNAL_SERVER_ERROR', 'PO Number already exists');
-    }
-
-    // Insert order
-    const { data: newOrder, error: orderError } = await locals.supabase
-      .from('draft_orders')
-      .insert({
-        po_number: data.poNumber,
-        client: data.clientName,
-        title: data.title || `Order ${data.poNumber}`,
-        due_date: data.deadline || null,
-        loading_date: data.loadingDate || null,
-        status: 'draft',
-        notes: data.notes || '',
-        priority: data.priority || 'NORMAL',
-        delivery_address: data.deliveryAddress || null,
-        delivery_contact: data.deliveryContact || null,
-        delivery_phone: data.deliveryPhone || null,
-      })
-      .select()
-      .single();
-
-    if (orderError) throw orderError;
-
-    // Insert profiles
-    if (data.profiles && Array.isArray(data.profiles) && data.profiles.length > 0) {
-      const profilesToInsert = data.profiles.map((p: any) => ({
-        draft_order_id: newOrder.id,
-        quantity: p.quantity || 1,
-        configuration: p.configuration || {},
-        notes: p.notes || ''
-      }));
-
-      const { error: profilesError } = await locals.supabase
-        .from('order_profiles')
-        .insert(profilesToInsert);
-
-      if (profilesError) throw profilesError;
-    }
-
-    if (data.fileIds && Array.isArray(data.fileIds) && data.fileIds.length > 0) {
-         const filesToInsert = data.fileIds.map((fileId: string) => ({
-            draft_order_id: newOrder.id,
-            file_id: fileId,
-            file_type: 'sketch',
-            display_name: null
-         }));
-
-         const { error: filesError } = await locals.supabase
-            .from('order_files')
-            .insert(filesToInsert);
-
-         if (filesError) {
-             console.error('Error inserting order files:', filesError);
-         }
-    }
-
-    return json(newOrder, { status: 201 });
-  } catch (err: any) {
-    if ('status' in (err as any)) throw err;
-    console.error('Error creating draft order:', err);
-    if (err.code === '23505') {
-      apiError(409, 'INTERNAL_SERVER_ERROR', 'PO Number already exists');
-    }
-    apiError(500, 'INTERNAL_SERVER_ERROR', 'Failed to create order');
+    console.error('Unexpected error fetching draft orders:', err);
+    
+    // Return safe fallback response
+    return json({ 
+      data: [], 
+      pagination: { page, limit, total: 0, totalPages: 0, hasMore: false },
+      error: 'An unexpected error occurred' 
+    }, { status: 500 });
   }
 };

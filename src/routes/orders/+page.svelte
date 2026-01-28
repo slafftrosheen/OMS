@@ -5,6 +5,7 @@
   import { goto } from '$app/navigation';
   import Input from '$lib/ui/Input.svelte';
   import Tooltip from '$lib/ui/Tooltip.svelte';
+  import ErrorBoundary from '$lib/ui/ErrorBoundary.svelte';
   import type { Order, Station, Badge as BadgeCode } from '$lib/order/types';
   import { ordersStore } from '$lib/order/signage-store';
   import { blankStages, STATE_LABEL, type StageState } from '$lib/order/stages';
@@ -31,16 +32,39 @@
   };
 
   function toRow(order: Order): OrderRow {
+    // Defensive checks for undefined/null order
+    if (!order) {
+      console.warn('Received null/undefined order in toRow');
+      return {
+        id: 'N/A',
+        client: 'Unknown',
+        title: 'Unknown Order',
+        stages: [],
+        due: '',
+        loadingDate: '',
+        badges: [],
+        href: `${base}/orders/unknown`,
+        isDraft: false,
+        expanded: false
+      };
+    }
+
     const stagesMap = order.stages ?? blankStages();
+    
+    // Ensure stages is an object before converting to entries
+    const stagesEntries = stagesMap && typeof stagesMap === 'object' 
+      ? Object.entries(stagesMap) 
+      : [];
+
     return {
-      id: order.id,
-      client: order.client,
-      title: order.title,
-      stages: Object.entries(stagesMap) as [Station, StageState][],
-      due: order.due,
-      loadingDate: order.loadingDate ?? '',
-      badges: order.badges ?? [],
-      href: `${base}/orders/${order.id}`,
+      id: order.id || 'N/A',
+      client: order.client || 'Unknown',
+      title: order.title || 'Untitled',
+      stages: stagesEntries as [Station, StageState][],
+      due: order.due || '',
+      loadingDate: order.loadingDate || '',
+      badges: Array.isArray(order.badges) ? order.badges : [],
+      href: `${base}/orders/${encodeURIComponent(order.id || 'unknown')}`,
       isDraft: order.isDraft || false,
       expanded: false
     };
@@ -57,26 +81,33 @@
   let currentPage = 1;
   let itemsPerPage = 20;
 
+  // NEW: Add these state variables
+  let isLoading = true;
+  let errorMessage = '';
+  let hasLoadedOnce = false;
+
   $: qLower = q.trim().toLowerCase();
   $: {
-    let filtered = rows;
+    let filtered = rows || []; // Add null safety
     
     // Apply status filter
     if (statusFilter === 'draft') {
-      filtered = filtered.filter(r => r.isDraft);
+      filtered = filtered.filter(r => r?.isDraft);
     } else if (statusFilter === 'active') {
-      filtered = filtered.filter(r => !r.isDraft);
+      filtered = filtered.filter(r => !r?.isDraft);
     }
     
     // Apply search filter
     if (qLower) {
-      filtered = filtered.filter((row) =>
-        `${row.id} ${row.client} ${row.title}`.toLowerCase().includes(qLower)
-      );
+      filtered = filtered.filter((row) => {
+        if (!row) return false;
+        return `${row.id || ''} ${row.client || ''} ${row.title || ''}`.toLowerCase().includes(qLower);
+      });
     }
     
-    // Sort the filtered results
+    // Sort the filtered results with null safety
     visible = filtered.sort((a, b) => {
+      if (!a || !b) return 0;
       let av = a[sortKey] || '';
       let bv = b[sortKey] || '';
       const result = av > bv ? 1 : av < bv ? -1 : 0;
@@ -84,17 +115,18 @@
     });
   }
 
-  // Pagination
-  $: totalPages = Math.ceil(visible.length / itemsPerPage);
-  $: paginatedRows = visible.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  // Pagination with null safety
+  $: totalPages = Math.max(1, Math.ceil((visible?.length || 0) / itemsPerPage));
+  $: paginatedRows = (visible || []).slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   $: isSuperAdmin = $currentUser?.roles?.Admin === 'SuperAdmin';
   $: isAdmin = $currentUser?.primarySection === 'Admin' || isSuperAdmin;
   
-  // KPI Stats
-  $: totalOrders = rows.length;
-  $: draftOrders = rows.filter(r => r.isDraft).length;
-  $: urgentOrders = rows.filter(r => {
+  // KPI Stats with null safety
+  $: totalOrders = rows?.length || 0;
+  $: draftOrders = (rows || []).filter(r => r?.isDraft).length;
+  $: urgentOrders = (rows || []).filter(r => {
+    if (!r?.due) return false;
     const dueDate = new Date(r.due);
     const today = new Date();
     const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -104,38 +136,71 @@
 
   async function refresh() {
     refreshing = true;
+    errorMessage = ''; // Clear previous errors
+    
     try {
       const response = await fetch('/api/draft-orders');
-      if (response.ok) {
-        const data = await response.json();
-        const allOrders = data.map((d: any) => ({
-          id: d.poNumber,
-          title: d.title || d.clientName,
-          client: d.clientName,
-          due: d.deadline,
-          loadingDate: d.loadingDate,
-          badges: d.status === 'draft' ? ['DRAFT'] : [],
-          fields: [],
-          materials: [],
-          stages: {},
-          isDraft: d.status === 'draft',
-          profiles: d.profiles || []
-        }));
-        
-        ordersStore.set(allOrders);
-        
-        // Filter draft orders - only visible to Admin and SuperAdmin
-        const filteredOrders = isAdmin 
-          ? allOrders 
-          : allOrders.filter((order: any) => !order.isDraft);
-        
-        rows = filteredOrders.map(toRow);
-        currentPage = 1; // Reset to first page on refresh
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+      
+      const responseData = await response.json();
+      
+      // Check if there's an error in the response
+      if (responseData.error) {
+        throw new Error(responseData.error);
+      }
+      
+      // Handle both response formats: wrapped {data: [], pagination: {}} or plain array
+      const data = Array.isArray(responseData) ? responseData : (responseData.data || []);
+      
+      // Ensure data is an array before mapping
+      if (!Array.isArray(data)) {
+        console.error('Invalid data format received:', responseData);
+        errorMessage = 'Received invalid data format from server';
+        rows = [];
+        return;
+      }
+      
+      const allOrders = data.map((d: any) => ({
+        id: d.poNumber || d.id || 'N/A',
+        title: d.title || d.clientName || 'Untitled',
+        client: d.clientName || 'Unknown',
+        due: d.deadline || '',
+        loadingDate: d.loadingDate || '',
+        badges: d.status === 'draft' ? ['DRAFT'] : [],
+        fields: [],
+        materials: [],
+        stages: {},
+        isDraft: d.status === 'draft',
+        profiles: Array.isArray(d.profiles) ? d.profiles : []
+      }));
+      
+      ordersStore.set(allOrders);
+      
+      // Filter draft orders - only visible to Admin and SuperAdmin
+      const filteredOrders = isAdmin 
+        ? allOrders 
+        : allOrders.filter((order: any) => !order.isDraft);
+      
+      rows = filteredOrders.map(toRow);
+      currentPage = 1; // Reset to first page on refresh
+      hasLoadedOnce = true;
+      errorMessage = ''; // Clear error on success
+      
     } catch (err) {
       console.error('Failed to fetch orders:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error occurred';
+      errorMessage = `Failed to load orders: ${errorMsg}`;
+      
+      // Don't clear existing data if we had loaded successfully before
+      if (!hasLoadedOnce) {
+        rows = [];
+      }
     } finally {
       refreshing = false;
+      isLoading = false;
     }
   }
 
@@ -177,10 +242,34 @@
 
   onMount(() => {
     console.log('Orders page mounted');
+    isLoading = true;
     refresh();
   });
 </script>
 
+<ErrorBoundary componentName="Orders Page">
+<!-- Error Banner -->
+{#if errorMessage}
+  <div class="error-banner" role="alert">
+    <div class="error-content">
+      <AlertCircle size={20} />
+      <div class="error-text">
+        <strong>Error:</strong> {errorMessage}
+      </div>
+      <button class="error-close" on:click={() => errorMessage = ''} aria-label="Dismiss error">
+        ×
+      </button>
+    </div>
+  </div>
+{/if}
+
+<!-- Loading State -->
+{#if isLoading && !hasLoadedOnce}
+  <div class="loading-container">
+    <div class="spinner"></div>
+    <p>Loading orders...</p>
+  </div>
+{:else}
 <!-- Page Header with Actions -->
 <div class="page-header">
   <div class="header-left">
@@ -399,7 +488,28 @@
             {/if}
           {/each}
           {#if paginatedRows.length === 0}
-            <tr><td colspan="8" class="muted empty-message">{$t('orderLists.empty')}</td></tr>
+            <tr>
+              <td colspan="8" class="empty-message">
+                {#if isLoading}
+                  <div class="spinner" style="margin: 0 auto;"></div>
+                {:else if errorMessage}
+                  <div class="empty-state">
+                    <AlertCircle size={48} class="empty-state-icon" />
+                    <h3>Unable to load orders</h3>
+                    <p>There was a problem loading the orders list.</p>
+                    <button class="btn btn-primary" on:click={refresh}>
+                      Try Again
+                    </button>
+                  </div>
+                {:else}
+                  <div class="empty-state">
+                    <Package size={48} class="empty-state-icon" />
+                    <h3>{$t('orderLists.empty')}</h3>
+                    <p>No orders match your current filters.</p>
+                  </div>
+                {/if}
+              </td>
+            </tr>
           {/if}
         </tbody>
       </table>
@@ -463,7 +573,7 @@
     </div>
   {/if}
 </section>
-
+</ErrorBoundary>
 
 
 <style>
@@ -1000,5 +1110,120 @@
     .header-actions .btn {
       padding: 10px;
     }
+  }
+
+  /* Error Banner */
+  .error-banner {
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: var(--danger-light);
+    border-bottom: 2px solid var(--danger);
+    padding: var(--space-md);
+    animation: slideDown 0.3s ease;
+  }
+
+  @keyframes slideDown {
+    from {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .error-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    max-width: 1400px;
+    margin: 0 auto;
+    color: var(--danger);
+  }
+
+  .error-text {
+    flex: 1;
+    font-size: 0.9rem;
+  }
+
+  .error-text strong {
+    font-weight: 600;
+  }
+
+  .error-close {
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--danger);
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+  }
+
+  .error-close:hover {
+    background: var(--danger);
+    color: white;
+  }
+
+  /* Loading Container */
+  .loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    gap: var(--space-md);
+  }
+
+  .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .loading-container p {
+    color: var(--text-muted);
+    font-size: var(--font-size-lg);
+  }
+
+  /* Empty State Enhancement */
+  .empty-state {
+    text-align: center;
+    padding: var(--space-2xl) var(--space-lg);
+    color: var(--text-muted);
+  }
+
+  .empty-state-icon {
+    margin: 0 auto var(--space-lg);
+    opacity: 0.5;
+  }
+
+  .empty-state h3 {
+    font-size: var(--font-size-xl);
+    color: var(--text-1);
+    margin-bottom: var(--space-sm);
+  }
+
+  .empty-state p {
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-lg);
   }
 </style>

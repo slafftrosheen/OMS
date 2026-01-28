@@ -1,44 +1,74 @@
 // src/routes/api/search/+server.ts
-import { json, error as svelteError } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
-import { SearchService } from '$lib/server/search/SearchService';
+import { json, type RequestHandler } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
-    const user = locals.user;
-    if (!user) {
-        throw svelteError(401, 'Unauthorized');
+  const query = url.searchParams.get('q')?.trim() || '';
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '20'), 100);
+
+  if (!query) {
+    return json({ 
+      results: [], 
+      query: '', 
+      count: 0 
+    });
+  }
+
+  try {
+    if (!locals.supabase) {
+      return json({ 
+        results: [], 
+        query, 
+        count: 0,
+        error: 'Database not available'
+      }, { status: 503 });
     }
 
-    const query = url.searchParams.get('q');
-    if (!query) {
-        throw svelteError(400, 'Query parameter required');
+    const searchPattern = `%${query}%`;
+
+    // Search in orders
+    const { data: orders, error: ordersError } = await locals.supabase
+      .from('draft_orders')
+      .select('id, po_number, client, title, status, due_date')
+      .or(`po_number.ilike.${searchPattern},client.ilike.${searchPattern},title.ilike.${searchPattern}`)
+      .limit(limit);
+
+    if (ordersError) {
+      console.error('Search error:', ordersError);
+      return json({ 
+        results: [], 
+        query, 
+        count: 0,
+        error: ordersError.message 
+      }, { status: 500 });
     }
 
-    const filters = {
-        status: url.searchParams.get('status')?.split(','),
-        dateFrom: url.searchParams.get('dateFrom') || undefined,
-        dateTo: url.searchParams.get('dateTo') || undefined,
-        client: url.searchParams.get('client') || undefined
-    };
+    // Ensure orders is an array
+    const ordersArray = Array.isArray(orders) ? orders : [];
 
-    const limit = parseInt(url.searchParams.get('limit') || '50');
+    const results = ordersArray.map(order => ({
+      id: order.id,
+      type: 'order' as const,
+      title: order.title || order.client || order.po_number || 'Untitled',
+      subtitle: order.client || '',
+      poNumber: order.po_number || 'N/A',
+      status: order.status || 'unknown',
+      dueDate: order.due_date || null,
+      href: `/orders/${order.id}`
+    }));
 
-    const searchService = new SearchService(locals.supabase);
+    return json({
+      results,
+      query,
+      count: results.length
+    });
 
-    try {
-        const results = await searchService.search(query, filters, limit);
-
-        // Save search query
-        await searchService.saveSearchQuery(user.id, query, results.length);
-
-        return json({
-            success: true,
-            query,
-            results,
-            count: results.length
-        });
-    } catch (err) {
-        const error = err as Error;
-        throw svelteError(400, error.message);
-    }
+  } catch (error) {
+    console.error('Search error:', error);
+    return json({ 
+      results: [], 
+      query, 
+      count: 0,
+      error: 'Search failed'
+    }, { status: 500 });
+  }
 };
