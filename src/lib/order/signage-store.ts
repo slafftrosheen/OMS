@@ -1,49 +1,72 @@
 import type { Order, Badge } from './types';
 import { writable, get } from 'svelte/store';
+import { handleApiError, retryWithBackoff } from '$lib/utils/error-handler';
+import { notifySuccess, notifyError } from '$lib/notify/toast';
 
 // Store for orders
 export const ordersStore = writable<Order[]>([]);
 export const isLoading = writable<boolean>(false);
+export const lastError = writable<string | null>(null);
 
-// Fetch orders from API
+/**
+ * Fetch orders from API with retry logic
+ */
 export async function listOrders(): Promise<Order[]> {
   if (typeof window === 'undefined') return [];
   
   isLoading.set(true);
+  lastError.set(null);
+  
   try {
-    const response = await fetch('/api/draft-orders');
-    if (response.ok) {
-      const data = await response.json();
-      const orders = data.map((d: any) => transformApiOrder(d));
-      ordersStore.set(orders);
-      return orders;
-    }
+    const data = await retryWithBackoff(async () => {
+      const response = await fetch('/api/draft-orders');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    });
+    
+    const orders = data.map((d: any) => transformApiOrder(d));
+    ordersStore.set(orders);
+    return orders;
   } catch (err) {
-    console.error('Failed to fetch orders:', err);
+    const message = handleApiError(err, 'Failed to fetch orders');
+    lastError.set(message);
+    notifyError(message);
+    return [];
   } finally {
     isLoading.set(false);
   }
-  return [];
 }
 
-// Get single order by ID
+/**
+ * Get single order by ID
+ */
 export async function getOrder(id: string): Promise<Order | null> {
   if (typeof window === 'undefined') return null;
   
   try {
-    const response = await fetch(`/api/draft-orders/${id}`);
+    const response = await fetch(`/api/draft-orders/${encodeURIComponent(id)}`);
     if (response.ok) {
       const data = await response.json();
       return transformApiOrder(data);
+    } else if (response.status === 404) {
+      notifyError(`Order ${id} not found`);
+    } else {
+      throw new Error(`HTTP ${response.status}`);
     }
   } catch (err) {
-    console.error('Failed to fetch order:', err);
+    handleApiError(err, `Failed to fetch order ${id}`);
   }
   return null;
 }
 
-// Create new order
+/**
+ * Create new order
+ */
 export async function createOrder(seed: Partial<Order>): Promise<Order | null> {
+  isLoading.set(true);
+  
   try {
     const response = await fetch('/api/draft-orders', {
       method: 'POST',
@@ -62,18 +85,26 @@ export async function createOrder(seed: Partial<Order>): Promise<Order | null> {
       const data = await response.json();
       const order = transformApiOrder(data);
       ordersStore.update(orders => [order, ...orders]);
+      notifySuccess(`Order ${order.id} created successfully`);
       return order;
+    } else {
+      throw new Error(`HTTP ${response.status}`);
     }
   } catch (err) {
-    console.error('Failed to create order:', err);
+    const message = handleApiError(err, 'Failed to create order');
+    notifyError(message);
+    return null;
+  } finally {
+    isLoading.set(false);
   }
-  return null;
 }
 
-// Update order
+/**
+ * Update order
+ */
 export async function updateOrder(id: string, updates: Partial<Order>): Promise<Order | null> {
   try {
-    const response = await fetch(`/api/draft-orders/${id}`, {
+    const response = await fetch(`/api/draft-orders/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -93,39 +124,50 @@ export async function updateOrder(id: string, updates: Partial<Order>): Promise<
       ordersStore.update(orders =>
         orders.map(o => o.id === id ? { ...o, ...order } : o)
       );
+      notifySuccess(`Order ${id} updated`);
       return order;
+    } else {
+      throw new Error(`HTTP ${response.status}`);
     }
   } catch (err) {
-    console.error('Failed to update order:', err);
+    handleApiError(err, `Failed to update order ${id}`);
+    return null;
   }
-  return null;
 }
 
-// Delete order
+/**
+ * Delete order
+ */
 export async function deleteOrder(id: string): Promise<boolean> {
   try {
-    const response = await fetch(`/api/draft-orders/${id}`, {
+    const response = await fetch(`/api/draft-orders/${encodeURIComponent(id)}`, {
       method: 'DELETE'
     });
 
     if (response.ok) {
       ordersStore.update(orders => orders.filter(o => o.id !== id));
+      notifySuccess(`Order ${id} deleted`);
       return true;
+    } else {
+      throw new Error(`HTTP ${response.status}`);
     }
   } catch (err) {
-    console.error('Failed to delete order:', err);
+    handleApiError(err, `Failed to delete order ${id}`);
+    return false;
   }
-  return false;
 }
 
-// Set loading date
+/**
+ * Set loading date
+ */
 export async function setLoadingDate(orderId: string, date: string): Promise<boolean> {
   const result = await updateOrder(orderId, { loadingDate: date });
   return result !== null;
 }
 
-
-// Transform API response to Order type
+/**
+ * Transform API response to Order type
+ */
 function transformApiOrder(d: any): Order {
   return {
     id: d.poNumber || d.id,
@@ -133,79 +175,154 @@ function transformApiOrder(d: any): Order {
     client: d.clientName || d.client || '',
     due: d.deadline || d.due || '',
     loadingDate: d.loadingDate || '',
-    badges: d.status === 'draft' ? ['DRAFT'] : [],
-    fields: [],
-    materials: [],
-    stages: {},
+    badges: (d.badges || (d.status === 'draft' ? ['DRAFT'] : [])) as Badge[],
+    fields: d.fields || [],
+    materials: d.materials || [],
+    stages: d.stages || {},
     isDraft: d.status === 'draft',
     profiles: d.profiles || [],
-    isRD: false,
-    rdNotes: d.notes || '',
-    redo: [],
-    redoReasons: {},
-    redoStage: '',
-    redoReason: '',
-    progress: {},
-    cycles: [],
-    branches: [],
-    prs: [],
-    revisions: [],
-    defaultRevisionId: ''
+    isRD: d.isRD || false,
+    rdNotes: d.notes || d.rdNotes || '',
+    redo: d.redo || [],
+    redoReasons: d.redoReasons || {},
+    redoStage: d.redoStage || '',
+    redoReason: d.redoReason || '',
+    progress: d.progress || {},
+    cycles: d.cycles || [],
+    branches: d.branches || [],
+    prs: d.prs || [],
+    revisions: d.revisions || [],
+    defaultRevisionId: d.defaultRevisionId || '',
+    assignees: d.assignees || {}
   };
 }
 
-// Get order synchronously from store (for compatibility with existing code)
+/**
+ * Get order synchronously from store
+ */
 export function getOrderSync(id: string): Order | null {
   const orders = get(ordersStore);
   return orders.find(o => o.id === id) || null;
 }
 
-// Change request management
-export async function openChangeRequest(orderId: string, payload: { title: string; message: string; proposedChanges: any; }): Promise<any | null> {
+/**
+ * Change request management
+ */
+export async function openChangeRequest(
+  orderId: string,
+  payload: { title: string; message: string; proposedChanges: any }
+): Promise<any | null> {
   try {
-    const response = await fetch(`/api/draft-orders/${orderId}/change-requests`, {
+    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/change-requests`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    return response.ok ? await response.json() : null;
+    
+    if (response.ok) {
+      const data = await response.json();
+      notifySuccess('Change request created');
+      return data;
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
   } catch (err) {
-    console.error('Failed to open change request:', err);
+    handleApiError(err, 'Failed to open change request');
     return null;
   }
 }
 
 export async function approveChangeRequest(orderId: string, crId: string): Promise<boolean> {
   try {
-    const response = await fetch(`/api/draft-orders/${orderId}/change-requests/${crId}/approve`, {
-      method: 'POST'
-    });
-    return response.ok;
+    const response = await fetch(
+      `/api/draft-orders/${encodeURIComponent(orderId)}/change-requests/${encodeURIComponent(crId)}/approve`,
+      { method: 'POST' }
+    );
+    
+    if (response.ok) {
+      notifySuccess('Change request approved');
+      return true;
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
   } catch (err) {
-    console.error('Failed to approve change request:', err);
+    handleApiError(err, 'Failed to approve change request');
     return false;
   }
 }
 
-// Set badges
+export async function declineChangeRequest(orderId: string, crId: string): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `/api/draft-orders/${encodeURIComponent(orderId)}/change-requests/${encodeURIComponent(crId)}/decline`,
+      { method: 'POST' }
+    );
+    
+    if (response.ok) {
+      notifySuccess('Change request declined');
+      return true;
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  } catch (err) {
+    handleApiError(err, 'Failed to decline change request');
+    return false;
+  }
+}
+
+/**
+ * Set badges with backend persistence
+ */
 export async function setBadges(orderId: string, badges: Badge[]): Promise<boolean> {
-  // TODO: Implement backend persistence for badges
-  // For now, we update the local store and log it.
-  console.log('setBadges called', orderId, badges);
-  ordersStore.update(orders =>
-    orders.map(o => o.id === orderId ? { ...o, badges } : o)
-  );
-  return true;
+  try {
+    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/badges`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ badges })
+    });
+    
+    if (response.ok) {
+      ordersStore.update(orders =>
+        orders.map(o => o.id === orderId ? { ...o, badges } : o)
+      );
+      return true;
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  } catch (err) {
+    handleApiError(err, 'Failed to update badges');
+    return false;
+  }
 }
 
-// Add redo flag
+/**
+ * Add redo flag with backend persistence
+ */
 export async function addRedoFlag(orderId: string, station: string, reason: string): Promise<boolean> {
-  // TODO: Implement backend persistence for redo flag
-  console.log('addRedoFlag called', orderId, station, reason);
-  return true;
+  try {
+    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/redo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ station, reason, timestamp: new Date().toISOString() })
+    });
+    
+    if (response.ok) {
+      notifySuccess(`Rework added for ${station}`);
+      // Refresh the order
+      await getOrder(orderId);
+      return true;
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  } catch (err) {
+    handleApiError(err, 'Failed to add rework flag');
+    return false;
+  }
 }
 
-// Create a new blank order, locally
+/**
+ * Create a new blank order locally
+ */
 export function createNewOrder(): Order {
   const newId = `PO-${Date.now()}`;
   return {
@@ -217,7 +334,7 @@ export function createNewOrder(): Order {
     badges: ['DRAFT'],
     fields: [],
     materials: [],
-    stages: {}, // You might want to initialize with blankStages()
+    stages: {},
     isDraft: true,
     profiles: [],
     isRD: false,
@@ -231,48 +348,51 @@ export function createNewOrder(): Order {
     branches: [],
     prs: [],
     revisions: [],
-    defaultRevisionId: ''
+    defaultRevisionId: '',
+    assignees: {}
   };
 }
 
-export async function declineChangeRequest(orderId: string, crId: string): Promise<boolean> {
-  try {
-    const response = await fetch(`/api/draft-orders/${orderId}/change-requests/${crId}/decline`, {
-      method: 'POST'
-    });
-    return response.ok;
-  } catch (err) {
-    console.error('Failed to decline change request:', err);
-    return false;
-  }
-}
-
-// Revision management
+/**
+ * Revision management
+ */
 export async function addRevision(orderId: string, fileId: string, name: string): Promise<any | null> {
   try {
-    const response = await fetch(`/api/draft-orders/${orderId}/revisions`, {
+    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/revisions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileId, name })
     });
-    return response.ok ? await response.json() : null;
+    
+    if (response.ok) {
+      const data = await response.json();
+      notifySuccess('Revision added');
+      return data;
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
   } catch (err) {
-    console.error('Failed to add revision:', err);
+    handleApiError(err, 'Failed to add revision');
     return null;
   }
 }
 
 export async function setDefaultRevision(orderId: string, revisionId: string): Promise<boolean> {
   try {
-    const response = await fetch(`/api/draft-orders/${orderId}/revisions`, {
+    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/revisions`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ revisionId })
     });
-    return response.ok;
+    
+    if (response.ok) {
+      notifySuccess('Default revision updated');
+      return true;
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
   } catch (err) {
-    console.error('Failed to set default revision:', err);
+    handleApiError(err, 'Failed to set default revision');
     return false;
   }
 }
-
