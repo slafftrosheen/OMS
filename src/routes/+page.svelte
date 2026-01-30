@@ -3,7 +3,7 @@
     import { onMount } from 'svelte';
     import { goto } from '$app/navigation';
     import { currentProfile } from '$lib/stores/auth';
-    import { orders, orderStats } from '$lib/stores/orders';
+    // Removed broken import: import { orders, orderStats } from '$lib/stores/orders';
     import StatCard from '$lib/components/analytics/StatCard.svelte';
     import OrderCard from '$lib/components/orders/OrderCard.svelte';
     import LineChart from '$lib/components/analytics/LineChart.svelte';
@@ -11,6 +11,12 @@
     import Card from '$lib/components/ui/Card.svelte';
 
     let recentOrders: any[] = [];
+    let orderStats = {
+        total: 0,
+        active: 0,
+        completed: 0,
+        overdue: 0
+    };
     let chartData = {
         labels: [] as string[],
         datasets: []
@@ -21,61 +27,59 @@
         loading = true;
 
         try {
-            // Load recent orders - handle paginated response
-            const response = await fetch('/api/orders?limit=5&sort=created_at&direction=desc');
+            // Load recent orders
+            const response = await fetch('/api/orders?limit=5&sort_by=created_at&sort_order=desc');
             const result = await response.json();
-            
-            // Handle both paginated format { data: [], pagination: {} } and legacy format { success: true, orders: [] }
-            let ordersData = [];
-            if (Array.isArray(result.data)) {
-                // Paginated response format
-                ordersData = result.data;
-            } else if (Array.isArray(result.orders)) {
-                // Legacy format
-                ordersData = result.orders;
-            } else if (Array.isArray(result)) {
-                // Direct array format
-                ordersData = result;
-            }
-            
-            if (ordersData && ordersData.length > 0) {
-                orders.setOrders(ordersData);
-                recentOrders = ordersData.slice(0, 5);
+
+            // Handle new API format
+            if (result.data && Array.isArray(result.data)) {
+                recentOrders = result.data;
             } else {
-                orders.setOrders([]);
                 recentOrders = [];
             }
 
             // Load analytics data
             try {
-                const analyticsResponse = await fetch('/api/analytics/dashboard?preset=month');
+                const analyticsResponse = await fetch('/api/orders/analytics?timeframe=30d');
                 if (analyticsResponse.ok) {
                     const analyticsData = await analyticsResponse.json();
 
-                    if (analyticsData.success && analyticsData.data) {
-                        const revenue = analyticsData.data.revenue;
-                        if (revenue && revenue.revenueByMonth) {
-                            chartData = {
-                                labels: revenue.revenueByMonth.map((d: any) => d.month),
-                                datasets: [
-                                    {
-                                        label: 'Revenue',
-                                        data: revenue.revenueByMonth.map((d: any) => d.revenue),
-                                        borderColor: '#10b981',
-                                        backgroundColor: 'rgba(16, 185, 129, 0.1)'
-                                    }
-                                ]
-                            };
-                        }
+                    // Calculate stats from analytics data
+                    if (analyticsData.orders_by_status) {
+                        const byStatus = analyticsData.orders_by_status;
+                        orderStats.total = byStatus.reduce((acc: number, curr: any) => acc + curr.count, 0);
+                        orderStats.active = byStatus
+                            .filter((s: any) => ['active', 'in_progress', 'draft'].includes(s.status.toLowerCase()))
+                            .reduce((acc: number, curr: any) => acc + curr.count, 0);
+                        orderStats.completed = byStatus
+                            .filter((s: any) => s.status.toLowerCase() === 'completed')
+                            .reduce((acc: number, curr: any) => acc + curr.count, 0);
+                    }
+
+                    if (analyticsData.orders_at_risk) {
+                        orderStats.overdue = analyticsData.orders_at_risk.length;
+                    }
+
+                    // Chart data (using completion trend as a proxy for revenue/activity for now)
+                    if (analyticsData.completion_trend) {
+                        chartData = {
+                            labels: analyticsData.completion_trend.map((d: any) => d.date),
+                            datasets: [
+                                {
+                                    label: 'Completed Orders',
+                                    data: analyticsData.completion_trend.map((d: any) => d.count),
+                                    borderColor: '#10b981',
+                                    backgroundColor: 'rgba(16, 185, 129, 0.1)'
+                                }
+                            ]
+                        };
                     }
                 }
             } catch (analyticsError) {
                 console.log('Analytics data not available:', analyticsError);
-                // Continue without analytics - not critical
             }
         } catch (error) {
             console.error('Failed to load dashboard data:', error);
-            orders.setError('Failed to load orders');
         } finally {
             loading = false;
         }
@@ -100,7 +104,7 @@
             <h1 class="page-title">Dashboard</h1>
             <p class="page-subtitle">Welcome back, {$currentProfile?.username || 'User'}!</p>
         </div>
-        <Button variant="primary" on:click={() => goto('/orders/new')}>
+        <Button variant="primary" on:click={() => goto('/orders')}>
             + New Order
         </Button>
     </header>
@@ -115,29 +119,29 @@
         <div class="stats-grid">
             <StatCard
                 title="Total Orders"
-                value={$orderStats.total}
+                value={orderStats.total}
                 icon="📋"
                 variant="default"
             />
             <StatCard
                 title="Active Orders"
-                value={$orderStats.active}
+                value={orderStats.active}
                 icon="⚡"
                 variant="primary"
-                trend={{ value: 12, direction: 'up' }}
+                trend={{ value: 0, direction: 'up' }}
             />
             <StatCard
                 title="Completed"
-                value={$orderStats.completed}
+                value={orderStats.completed}
                 icon="✅"
                 variant="success"
             />
             <StatCard
                 title="Overdue"
-                value={$orderStats.overdue}
+                value={orderStats.overdue}
                 icon="⚠️"
                 variant="danger"
-                trend={{ value: 5, direction: 'down' }}
+                trend={{ value: 0, direction: 'down' }}
             />
         </div>
 
@@ -163,7 +167,7 @@
                 <Card>
                     <div class="empty-state">
                         <p class="empty-message">No active orders</p>
-                        <Button variant="primary" on:click={() => goto('/orders/new')}>
+                        <Button variant="primary" on:click={() => goto('/orders')}>
                             Create First Order
                         </Button>
                     </div>
@@ -181,7 +185,7 @@
         <section class="quick-actions">
             <h2 class="section-title">Quick Actions</h2>
             <div class="actions-grid">
-                <button class="action-card" on:click={() => goto('/orders/new')}>
+                <button class="action-card" on:click={() => goto('/orders')}>
                     <span class="action-icon">➕</span>
                     <h3 class="action-title">New Order</h3>
                     <p class="action-description">Create a new production order</p>
