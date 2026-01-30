@@ -26,6 +26,9 @@
     ? $rooms.filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : $rooms;
 
+  // Extract ID safely to avoid type casting in template
+  $: currentUserId = ($currentUser as any)?.id || '';
+
   function scrollToBottom() {
     if (scroller) {
       setTimeout(() => {
@@ -156,7 +159,7 @@
       <div class="sidebar-footer">
         <div class="user-info">
           <!-- Cast $currentUser to any to bypass potential type mismatch on id -->
-          <div class="user-avatar">{authorInitials(($currentUser as any).id)}</div>
+          <div class="user-avatar">{authorInitials(currentUserId)}</div>
           <div class="user-details">
             <span class="user-name">{$currentUser.displayName || $currentUser.username}</span>
             <span class="user-status">Online</span>
