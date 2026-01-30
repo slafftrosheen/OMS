@@ -1124,7 +1124,6 @@
               id="preset-name"
               bind:value={savePresetName}
               placeholder="e.g., Standard Exterior Sign"
-              autofocus
             />
           </div>
           <div class="form-group">

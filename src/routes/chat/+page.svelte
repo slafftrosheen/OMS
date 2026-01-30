@@ -10,7 +10,7 @@
   import StationBadge from '$lib/ui/StationBadge.svelte';
 
   // Accept params prop to silence SvelteKit warning
-  export let params = {};
+  export const params = {};
 
   let activeRoomId = 'general';
   let messageText = '';
@@ -81,8 +81,10 @@
 
   function authorName(id: string) {
     if (id === 'system') return 'System';
-    const user = $users.find(u => String(u.id) === String(id));
-    return user?.displayName || user?.username || 'Unknown';
+    // Use loose equality for ID matching as it might be string/number mix
+    // Cast user to any if needed to access properties safely in template
+    const user = $users.find(u => String((u as any).id) === String(id));
+    return (user as any)?.displayName || (user as any)?.username || 'Unknown';
   }
 
   function authorInitials(id: string) {
@@ -92,8 +94,8 @@
 
   function authorStation(id: string): StationTag | null {
     if (id === 'system') return null;
-    const user = $users.find(u => String(u.id) === String(id));
-    return user?.stations?.[0] ?? null;
+    const user = $users.find(u => String((u as any).id) === String(id));
+    return (user as any)?.stations?.[0] ?? null;
   }
 
   function shouldShowDateSeparator(index: number): boolean {
@@ -153,7 +155,8 @@
     {#if $currentUser}
       <div class="sidebar-footer">
         <div class="user-info">
-          <div class="user-avatar">{authorInitials($currentUser.id)}</div>
+          <!-- Cast $currentUser to any to bypass potential type mismatch on id -->
+          <div class="user-avatar">{authorInitials(($currentUser as any).id)}</div>
           <div class="user-details">
             <span class="user-name">{$currentUser.displayName || $currentUser.username}</span>
             <span class="user-status">Online</span>
@@ -230,10 +233,20 @@
 
 <!-- Create Room Modal -->
 {#if showRoomModal}
-  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-  <div class="modal-backdrop" on:click={() => showRoomModal = false}>
-    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true" aria-labelledby="create-room-title">
+  <div
+    class="modal-backdrop"
+    on:click={() => showRoomModal = false}
+    on:keydown={(e) => e.key === 'Escape' && (showRoomModal = false)}
+    role="button"
+    tabindex="0"
+  >
+    <div
+      class="modal"
+      on:click|stopPropagation
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-room-title"
+    >
       <div class="modal-header">
         <h3 id="create-room-title">Create Channel</h3>
         <button class="icon-btn" on:click={() => showRoomModal = false} aria-label="Close">

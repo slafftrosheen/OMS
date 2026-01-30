@@ -37,7 +37,19 @@ const mockTransformedOrder: Order = {
   badges: [],
   fields: [],
   materials: [],
-  stages: {},
+  stages: {
+    CAD: 'NOT_STARTED',
+    CNC: 'NOT_STARTED',
+    QC: 'NOT_STARTED',
+    SANDING: 'NOT_STARTED',
+    PAINT: 'NOT_STARTED',
+    ASSEMBLY: 'NOT_STARTED',
+    FILM_COATING: 'NOT_STARTED',
+    GLUEING: 'NOT_STARTED',
+    WELDING: 'NOT_STARTED',
+    BENDING: 'NOT_STARTED',
+    LOGISTICS: 'NOT_STARTED'
+  },
   isDraft: false,
   profiles: [],
   isRD: false,
@@ -46,12 +58,16 @@ const mockTransformedOrder: Order = {
   redoReasons: {},
   redoStage: '',
   redoReason: '',
-  progress: {},
+  progress: {
+    CAD: 0, CNC: 0, QC: 0, SANDING: 0, PAINT: 0, ASSEMBLY: 0, FILM_COATING: 0, GLUEING: 0, WELDING: 0, BENDING: 0, LOGISTICS: 0
+  },
   cycles: [],
   branches: [],
   prs: [],
   revisions: [],
   defaultRevisionId: '',
+  defaultBranch: 'main',
+  assignees: {},
 };
 
 
