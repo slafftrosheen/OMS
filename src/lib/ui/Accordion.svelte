@@ -25,7 +25,7 @@
       aria-labelledby={`hdr-${s.id}`} 
       hidden={openId!==s.id} 
       class="panel">
-      <slot name={s.id}/>
+      <slot {s} />
     </div>
   {/each}
 </div>

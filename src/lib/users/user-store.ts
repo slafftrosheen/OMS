@@ -32,6 +32,9 @@ const isBrowser = typeof window !== 'undefined';
 export const users = writable<User[]>([]);
 export const usersLoading = writable<boolean>(false);
 
+// Store for the currently selected user ID (for impersonation/switching in UI)
+export const currentUserId = writable<string | number>('');
+
 /**
  * Load users from database
  */

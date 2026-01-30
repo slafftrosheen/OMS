@@ -4,7 +4,7 @@
   import SearchIcon from 'lucide-svelte/icons/search';
   import BellIcon from 'lucide-svelte/icons/bell';
   import HelpCircle from 'lucide-svelte/icons/help-circle';
-  import { users, loadUsers } from '$lib/users/user-store';
+  import { users, loadUsers, currentUserId } from '$lib/users/user-store';
   import { currentUser } from '$lib/auth/user-store';
   import { unseenCount } from '$lib/notifications/count';
   import RoleSwitch from './RoleSwitch.svelte';
@@ -93,7 +93,7 @@
     <div class="user">
       <button class="user-btn" aria-haspopup="menu" aria-expanded={showUserMenu} on:click={toggleUserMenu}>
         <img src={`${base}/brand/avatar-default.svg`} alt="" class="avatar" />
-        <span class="name">{$currentUser?.name}</span>
+        <span class="name">{$currentUser?.displayName}</span>
       </button>
 
       {#if showUserMenu}

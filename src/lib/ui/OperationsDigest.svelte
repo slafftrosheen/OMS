@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { listOrders } from '$lib/order/signage-store';
+  import { ordersStore } from '$lib/order/signage-store';
   import { summarize } from '$lib/metrics/order-metrics';
   import {
     STATIONS,
@@ -17,8 +17,8 @@
   export let style = '';
   export let className = '';
 
-  const orders = listOrders();
-  const metrics = summarize(orders);
+  $: orders = $ordersStore;
+  $: metrics = summarize(orders);
 
   $: $t, $locale;
 
