@@ -333,8 +333,19 @@
 </div>
 
 {#if $showScanner}
-  <div class="modal-overlay" on:click={() => $showScanner = false}>
-    <div class="modal-content" on:click|stopPropagation>
+  <div
+    class="modal-overlay"
+    on:click={() => $showScanner = false}
+    on:keydown={(e) => e.key === 'Escape' && ($showScanner = false)}
+    role="button"
+    tabindex="0"
+  >
+    <div
+      class="modal-content"
+      on:click|stopPropagation
+      role="dialog"
+      aria-modal="true"
+    >
       <div class="modal-header">
         <h2>Scan Order QR Code</h2>
         <button class="close-btn" on:click={() => $showScanner = false}>×</button>

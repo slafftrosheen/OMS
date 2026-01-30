@@ -59,7 +59,7 @@ describe('signage-store', () => {
   beforeEach(() => {
     mockFetch = vi.fn();
     global.fetch = mockFetch;
-    global.window = {};
+    global.window = {} as any;
     ordersStore.set([]);
   });
 
@@ -191,7 +191,8 @@ describe('signage-store', () => {
     });
 
     it('should remove a badge from an order', async () => {
-      const orderWithBadge = { ...mockTransformedOrder, badges: ['URGENT'] as const };
+      // Cast badges to any or Badge[] to avoid readonly tuple error
+      const orderWithBadge = { ...mockTransformedOrder, badges: ['URGENT'] as any };
       ordersStore.set([orderWithBadge]);
       await removeBadge('PO-123', 'URGENT');
       const storeOrder = get(ordersStore).find((o) => o.id === 'PO-123');

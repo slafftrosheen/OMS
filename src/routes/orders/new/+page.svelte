@@ -9,14 +9,11 @@
   import { base } from '$app/paths';
 
   // Accept params prop to silence SvelteKit warning
-  export let params = {};
+  export const params = {};
 
-  // Declare pdfjsLib type for TypeScript
-  declare global {
-    interface Window {
-      pdfjsLib: any;
-    }
-  }
+  // Declaring global variable needs to be inside <script context="module"> or separate file
+  // but for quick fix within component, we can just cast window as any where needed
+  // or define it as an interface merging
 
   let saving = false;
   let error = '';
@@ -108,7 +105,9 @@
   let pdfPageCache: Map<string, any> = new Map();
   
   async function renderPdfPage(dataUrl: string, pageNum: number) {
-    if (typeof window === 'undefined' || !window.pdfjsLib) return;
+    // Cast window to any to access pdfjsLib without TS error
+    const win = window as any;
+    if (typeof window === 'undefined' || !win.pdfjsLib) return;
     if (pdfRendering) return;
     
     pdfRendering = true;
@@ -123,7 +122,7 @@
       // Load the PDF document (with caching)
       const cacheKey = dataUrl.substring(0, 100);
       if (!pdfDoc || !pdfPageCache.has(cacheKey)) {
-        pdfDoc = await window.pdfjsLib.getDocument({
+        pdfDoc = await win.pdfjsLib.getDocument({
           data: atob(dataUrl.split(',')[1]),
           cMapUrl: 'https://unpkg.com/pdfjs-dist@3.11.174/cmaps/',
           cMapPacked: true,
@@ -1034,8 +1033,20 @@
 
   <!-- Load Preset Modal -->
   {#if showPresetModal}
-    <div class="modal-overlay" on:click={() => showPresetModal = false}>
-      <div class="modal" on:click|stopPropagation>
+    <div
+      class="modal-overlay"
+      on:click={() => showPresetModal = false}
+      on:keydown={(e) => e.key === 'Escape' && (showPresetModal = false)}
+      role="button"
+      tabindex="0"
+    >
+      <div
+        class="modal"
+        on:click|stopPropagation
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="load-preset-title"
+      >
         <div class="modal-header">
           <h3>
             <BookOpen size={20} />
@@ -1082,10 +1093,22 @@
 
   <!-- Save Preset Modal -->
   {#if showSavePresetModal}
-    <div class="modal-overlay" on:click={closeSavePresetModal}>
-      <div class="modal" on:click|stopPropagation>
+    <div
+      class="modal-overlay"
+      on:click={closeSavePresetModal}
+      on:keydown={(e) => e.key === 'Escape' && closeSavePresetModal()}
+      role="button"
+      tabindex="0"
+    >
+      <div
+        class="modal"
+        on:click|stopPropagation
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="save-preset-title"
+      >
         <div class="modal-header">
-          <h3>
+          <h3 id="save-preset-title">
             <BookmarkPlus size={20} />
             Save Profile as Preset
           </h3>
@@ -1597,107 +1620,7 @@
     margin: 0 0 12px 0;
   }
 
-  .file-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 12px;
-  }
-
-  .file-item {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    padding: 12px;
-    background: var(--bg-subtle, #f9fafb);
-    border: 1px solid var(--border, #e5e7eb);
-    border-radius: 8px;
-    transition: all 0.2s;
-  }
-
-  .file-item:hover {
-    border-color: #ff6b35;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  }
-
-  .file-preview {
-    width: 100%;
-    aspect-ratio: 4/3;
-    border-radius: 6px;
-    overflow: hidden;
-    margin-bottom: 8px;
-    background: #f0f0f0;
-  }
-
-  .file-preview img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .file-icon {
-    width: 100%;
-    aspect-ratio: 4/3;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-    border-radius: 6px;
-    margin-bottom: 8px;
-    color: var(--text-muted, #9ca3af);
-  }
-
-  .file-type-badge {
-    font-size: 10px;
-    font-weight: 700;
-    padding: 2px 6px;
-    background: var(--text-muted, #9ca3af);
-    color: white;
-    border-radius: 4px;
-    margin-top: 4px;
-  }
-
-  .file-info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .file-name {
-    font-weight: 500;
-    font-size: 12px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--text-primary, #1a1a1a);
-  }
-
-  .file-size {
-    font-size: 11px;
-    color: var(--text-muted, #9ca3af);
-  }
-
-  .remove-file {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    background: white;
-    border: 1px solid var(--border, #e5e7eb);
-    border-radius: 50%;
-    padding: 4px;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-
-  .file-item:hover .remove-file {
-    opacity: 1;
-  }
-
-  .remove-file:hover {
-    background: #fee2e2;
-    border-color: #fecaca;
-    color: #dc2626;
-  }
+  /* File grid styles removed as unused */
 
   .btn-icon {
     display: flex;
@@ -1751,13 +1674,6 @@
     border-radius: 20px;
   }
 
-  .profiles-help {
-    color: var(--text-muted, #9ca3af);
-    font-size: 13px;
-    margin: 0 0 16px 0;
-    line-height: 1.5;
-  }
-
   .profile-card {
     transition: all 0.2s;
   }
@@ -1766,20 +1682,6 @@
     padding-bottom: 12px;
   }
 
-  .profile-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border, #e5e7eb);
-  }
-
-  .profile-card.collapsed .profile-header {
-    margin-bottom: 0;
-    padding-bottom: 0;
-    border-bottom: none;
-  }
 
   .collapse-toggle {
     background: transparent;
@@ -1820,12 +1722,6 @@
     border-radius: 4px;
   }
 
-  .profile-header h3 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
-  }
 
   .profile-actions {
     display: flex;
@@ -2067,10 +1963,7 @@
     font-size: 14px;
   }
 
-  .muted {
-    font-size: 12px;
-    opacity: 0.7;
-  }
+  /* .muted removed as unused */
 
   /* Profile Card Header - renamed to avoid conflict */
   .profile-card-header {
