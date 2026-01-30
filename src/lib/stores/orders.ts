@@ -1,178 +1,280 @@
-// src/lib/stores/orders.ts
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
+import type { Writable, Readable } from 'svelte/store';
 
 export interface Order {
-    id: string;
-    title: string;
-    client: string;
-    description?: string;
-    status: 'DRAFT' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
-    stages: Record<string, 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED' | 'SKIPPED'>;
-    due_date: string;
-    created_at: string;
-    completed_at?: string;
-    price?: number;
-    rework_count: number;
-    assigned_to?: string[];
-    created_by: string;
+  id: string;
+  po_number: string;
+  title: string;
+  client: string;
+  due_date: string;
+  loading_date?: string;
+  is_rd: boolean;
+  rd_notes?: string;
+  badges: string[];
+  status: 'draft' | 'active' | 'completed' | 'cancelled' | 'on_hold';
+  priority: number;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  // From order_summary view
+  completed_stages?: number;
+  in_progress_stages?: number;
+  blocked_stages?: number;
+  rework_stages?: number;
+  total_stages?: number;
+  progress_percentage?: number;
+  days_until_due?: number;
+  total_rework_count?: number;
+  current_station?: string;
+  assignee_count?: number;
+}
+
+export interface OrderDetail extends Order {
+  stages?: any[];
+  materials?: any[];
+  fields?: any[];
+  assignees?: any[];
+  rework_cycles?: any[];
+  revisions?: any[];
+  activity_log?: any[];
 }
 
 interface OrdersState {
-    orders: Order[];
-    loading: boolean;
-    error: string | null;
-    filters: {
-        status?: string[];
-        search?: string;
-        dateFrom?: string;
-        dateTo?: string;
-    };
-    sort: {
-        field: 'created_at' | 'due_date' | 'title' | 'status';
-        direction: 'asc' | 'desc';
-    };
+  items: Order[];
+  loading: boolean;
+  error: string | null;
+  total: number;
+  currentPage: number;
+  pageSize: number;
+  filters: OrderFilters;
 }
 
+interface OrderFilters {
+  status?: string;
+  station?: string;
+  search?: string;
+  is_rd?: boolean;
+  loading_date?: string;
+  priority?: number;
+}
+
+// Create base store
 function createOrdersStore() {
-    const { subscribe, set, update } = writable<OrdersState>({
-        orders: [],
-        loading: false,
-        error: null,
-        filters: {},
-        sort: { field: 'created_at', direction: 'desc' }
-    });
+  const initialState: OrdersState = {
+    items: [],
+    loading: false,
+    error: null,
+    total: 0,
+    currentPage: 1,
+    pageSize: 50,
+    filters: {}
+  };
 
-    return {
-        subscribe,
-        setOrders: (orders: Order[]) => {
-            update(state => ({ ...state, orders, loading: false, error: null }));
-        },
-        setLoading: (loading: boolean) => {
-            update(state => ({ ...state, loading }));
-        },
-        setError: (error: string | null) => {
-            update(state => ({ ...state, error, loading: false }));
-        },
-        addOrder: (order: Order) => {
-            update(state => ({
-                ...state,
-                orders: [order, ...state.orders]
-            }));
-        },
-        updateOrder: (id: string, updates: Partial<Order>) => {
-            update(state => ({
-                ...state,
-                orders: state.orders.map(o => 
-                    o.id === id ? { ...o, ...updates } : o
-                )
-            }));
-        },
-        removeOrder: (id: string) => {
-            update(state => ({
-                ...state,
-                orders: state.orders.filter(o => o.id !== id)
-            }));
-        },
-        setFilters: (filters: OrdersState['filters']) => {
-            update(state => ({ ...state, filters }));
-        },
-        setSort: (sort: OrdersState['sort']) => {
-            update(state => ({ ...state, sort }));
-        },
-        reset: () => {
-            set({
-                orders: [],
-                loading: false,
-                error: null,
-                filters: {},
-                sort: { field: 'created_at', direction: 'desc' }
-            });
+  const store: Writable<OrdersState> = writable(initialState);
+  const { subscribe, set, update } = store;
+
+  // Build query params from filters
+  function buildQueryParams(state: OrdersState): URLSearchParams {
+    const params = new URLSearchParams();
+
+    const offset = (state.currentPage - 1) * state.pageSize;
+    params.set('limit', state.pageSize.toString());
+    params.set('offset', offset.toString());
+
+    if (state.filters.status) params.set('status', state.filters.status);
+    if (state.filters.station) params.set('station', state.filters.station);
+    if (state.filters.search) params.set('search', state.filters.search);
+    if (state.filters.is_rd !== undefined) params.set('is_rd', state.filters.is_rd.toString());
+    if (state.filters.loading_date) params.set('loading_date', state.filters.loading_date);
+    if (state.filters.priority !== undefined) params.set('priority', state.filters.priority.toString());
+
+    return params;
+  }
+
+  return {
+    subscribe,
+
+    // Load orders with current filters
+    async load() {
+      update(state => ({ ...state, loading: true, error: null }));
+
+      try {
+        const state = get(store);
+        const params = buildQueryParams(state);
+
+        const response = await fetch(`/api/orders?${params}`);
+        if (!response.ok) throw new Error('Failed to fetch orders');
+
+        const result = await response.json();
+
+        update(s => ({
+          ...s,
+          items: result.data,
+          total: result.count,
+          loading: false
+        }));
+      } catch (err: any) {
+        update(state => ({
+          ...state,
+          loading: false,
+          error: err.message
+        }));
+      }
+    },
+
+    // Create new order
+    async create(orderData: Partial<Order>) {
+      update(state => ({ ...state, loading: true, error: null }));
+
+      try {
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData)
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to create order');
         }
-    };
+
+        const newOrder = await response.json();
+
+        update(state => ({
+          ...state,
+          items: [newOrder, ...state.items],
+          total: state.total + 1,
+          loading: false
+        }));
+
+        return newOrder;
+      } catch (err: any) {
+        update(state => ({
+          ...state,
+          loading: false,
+          error: err.message
+        }));
+        throw err;
+      }
+    },
+
+    // Update order
+    async update(id: string, updates: Partial<Order>) {
+      try {
+        const response = await fetch(`/api/orders/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates)
+        });
+
+        if (!response.ok) throw new Error('Failed to update order');
+
+        const updatedOrder = await response.json();
+
+        update(state => ({
+          ...state,
+          items: state.items.map(o => o.id === id ? { ...o, ...updatedOrder } : o)
+        }));
+
+        return updatedOrder;
+      } catch (err: any) {
+        update(state => ({ ...state, error: err.message }));
+        throw err;
+      }
+    },
+
+    // Delete (cancel) order
+    async delete(id: string) {
+      try {
+        const response = await fetch(`/api/orders/${id}`, {
+          method: 'DELETE'
+        });
+
+        if (!response.ok) throw new Error('Failed to delete order');
+
+        update(state => ({
+          ...state,
+          items: state.items.filter(o => o.id !== id),
+          total: state.total - 1
+        }));
+      } catch (err: any) {
+        update(state => ({ ...state, error: err.message }));
+        throw err;
+      }
+    },
+
+    // Set filters and reload
+    async setFilters(filters: OrderFilters) {
+      update(state => ({
+        ...state,
+        filters: { ...state.filters, ...filters },
+        currentPage: 1 // Reset to first page
+      }));
+      await this.load();
+    },
+
+    // Clear filters
+    async clearFilters() {
+      update(state => ({
+        ...state,
+        filters: {},
+        currentPage: 1
+      }));
+      await this.load();
+    },
+
+    // Pagination
+    async setPage(page: number) {
+      update(state => ({ ...state, currentPage: page }));
+      await this.load();
+    },
+
+    async nextPage() {
+      const state = get(store);
+      const maxPage = Math.ceil(state.total / state.pageSize);
+      if (state.currentPage < maxPage) {
+        await this.setPage(state.currentPage + 1);
+      }
+    },
+
+    async prevPage() {
+      const state = get(store);
+      if (state.currentPage > 1) {
+        await this.setPage(state.currentPage - 1);
+      }
+    },
+
+    // Get single order by ID
+    getById(id: string): Order | undefined {
+      return get(store).items.find(o => o.id === id);
+    },
+
+    // Reset store
+    reset() {
+      set(initialState);
+    }
+  };
 }
 
-export const orders = createOrdersStore();
+export const ordersStore = createOrdersStore();
 
-// Derived stores
-export const filteredOrders = derived(orders, $orders => {
-    let filtered = [...$orders.orders];
+// Derived stores for filtered views
+export const activeOrders: Readable<Order[]> = derived(
+  ordersStore,
+  $orders => $orders.items.filter(o => o.status === 'active')
+);
 
-    // Apply status filter
-    if ($orders.filters.status && $orders.filters.status.length > 0) {
-        filtered = filtered.filter(o => 
-            $orders.filters.status!.includes(o.status)
-        );
-    }
+export const blockedOrders: Readable<Order[]> = derived(
+  ordersStore,
+  $orders => $orders.items.filter(o => (o.blocked_stages || 0) > 0)
+);
 
-    // Apply search filter
-    if ($orders.filters.search) {
-        const search = $orders.filters.search.toLowerCase();
-        filtered = filtered.filter(o =>
-            o.title.toLowerCase().includes(search) ||
-            o.client.toLowerCase().includes(search) ||
-            o.description?.toLowerCase().includes(search)
-        );
-    }
+export const rdOrders: Readable<Order[]> = derived(
+  ordersStore,
+  $orders => $orders.items.filter(o => o.is_rd)
+);
 
-    // Apply date filters
-    if ($orders.filters.dateFrom) {
-        filtered = filtered.filter(o => 
-            new Date(o.created_at) >= new Date($orders.filters.dateFrom!)
-        );
-    }
-
-    if ($orders.filters.dateTo) {
-        filtered = filtered.filter(o => 
-            new Date(o.created_at) <= new Date($orders.filters.dateTo!)
-        );
-    }
-
-    // Apply sorting
-    filtered.sort((a, b) => {
-        const field = $orders.sort.field;
-        const aVal = a[field];
-        const bVal = b[field];
-
-        if (aVal === bVal) return 0;
-
-        const comparison = aVal < bVal ? -1 : 1;
-        return $orders.sort.direction === 'asc' ? comparison : -comparison;
-    });
-
-    return filtered;
-});
-
-export const orderStats = derived(orders, $orders => {
-    const stats = {
-        total: $orders.orders.length,
-        active: 0,
-        completed: 0,
-        onHold: 0,
-        cancelled: 0,
-        overdue: 0
-    };
-
-    const now = new Date();
-
-    $orders.orders.forEach(order => {
-        switch (order.status) {
-            case 'ACTIVE':
-                stats.active++;
-                if (new Date(order.due_date) < now) {
-                    stats.overdue++;
-                }
-                break;
-            case 'COMPLETED':
-                stats.completed++;
-                break;
-            case 'ON_HOLD':
-                stats.onHold++;
-                break;
-            case 'CANCELLED':
-                stats.cancelled++;
-                break;
-        }
-    });
-
-    return stats;
-});
+export const overdueOrders: Readable<Order[]> = derived(
+  ordersStore,
+  $orders => $orders.items.filter(o => (o.days_until_due || 0) < 0)
+);
