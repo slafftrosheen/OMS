@@ -44,7 +44,7 @@ function broadcast(
   postSystemEvent('workstations', `${headline} — ${body}`, event, mentions);
 }
 
-export function adminSendToRework(
+export async function adminSendToRework(
   orderId: string,
   station: StationTag,
   reason: ReworkReason,
@@ -52,7 +52,7 @@ export function adminSendToRework(
   admin = 'admin',
   mentions: string[] = []
 ) {
-  const order = getOrder(orderId);
+  const order = getOrderSync(orderId);
   if (!order) return;
 
   const idx = (order.cycles?.length || 0) + 1;
@@ -66,13 +66,15 @@ export function adminSendToRework(
   };
   const cycles = [...(order.cycles ?? []), cycle];
 
-  const prId = openChangeRequest(orderId, {
+  const pr = await openChangeRequest(orderId, {
     title: `${station}: rework (${reason})`,
-    author: admin,
     message: note,
-    proposed: { stages: { [station]: 'REWORK' }, cycles }
+    proposedChanges: { stages: { [station]: 'REWORK' }, cycles }
   });
-  approveChangeRequest(orderId, prId, admin);
+
+  if (pr && pr.id) {
+    await approveChangeRequest(orderId, pr.id);
+  }
 
   const reasonLabel = get(t)(REWORK_LABEL[reason]);
   notifyStation(orderId, order.title, station, 'notifications.rework_requested', { urgency: 'urgent' });
@@ -93,7 +95,7 @@ export function adminSendToRework(
   );
 }
 
-export function adminApplyStage(
+export async function adminApplyStage(
   orderId: string,
   station: StationTag,
   next: StageState,
@@ -101,16 +103,18 @@ export function adminApplyStage(
   admin = 'admin',
   mentions: string[] = []
 ) {
-  const prId = openChangeRequest(orderId, {
+  const pr = await openChangeRequest(orderId, {
     title: `${station} → ${next}`,
-    author: admin,
     message: note,
-    proposed: { stages: { [station]: next } }
+    proposedChanges: { stages: { [station]: next } }
   });
-  approveChangeRequest(orderId, prId, admin);
+
+  if (pr && pr.id) {
+    await approveChangeRequest(orderId, pr.id);
+  }
 
   if (next === 'COMPLETED') {
-    const order = getOrder(orderId);
+    const order = getOrderSync(orderId);
     if (!order) return;
     notifyStation(orderId, order.title, station, 'notifications.stage_completed');
     broadcast(
