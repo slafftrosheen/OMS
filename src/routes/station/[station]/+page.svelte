@@ -68,13 +68,14 @@
   }
 
   async function startOrder(orderId: string) {
-    if (confirm('Start this order at this station?')) {
+    // Use window.confirm to avoid TS warning or better yet, a custom modal
+    if (window.confirm('Start this order at this station?')) {
       await updateStageState(orderId, 'IN_PROGRESS');
     }
   }
 
   async function completeOrder(orderId: string) {
-    if (confirm('Mark this stage as completed?')) {
+    if (window.confirm('Mark this stage as completed?')) {
       await updateStageState(orderId, 'COMPLETED');
     }
   }
@@ -333,11 +334,23 @@
 </div>
 
 {#if $showScanner}
-  <div class="modal-overlay" on:click={() => $showScanner = false}>
-    <div class="modal-content" on:click|stopPropagation>
+  <div
+    class="modal-overlay"
+    on:click={() => $showScanner = false}
+    on:keydown={(e) => e.key === 'Escape' && ($showScanner = false)}
+    role="button"
+    tabindex="0"
+  >
+    <div
+      class="modal-content"
+      on:click|stopPropagation
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="scanner-title"
+    >
       <div class="modal-header">
-        <h2>Scan Order QR Code</h2>
-        <button class="close-btn" on:click={() => $showScanner = false}>×</button>
+        <h2 id="scanner-title">Scan Order QR Code</h2>
+        <button class="close-btn" on:click={() => $showScanner = false} aria-label="Close">×</button>
       </div>
       <QRScanner on:scan={(e) => handleQRScan(e.detail)} />
     </div>

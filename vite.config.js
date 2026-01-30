@@ -22,7 +22,7 @@ export default defineConfig({
     rollupOptions: {
       // Only external libraries should be Node.js-specific modules
       // that cannot run in the browser
-      external: ['bcrypt', 'exceljs']
+      external: ['bcrypt', 'exceljs', 'canvas']
       // Removed manualChunks for chart.js as it conflicts with external
       // Vite will automatically handle chunking for browser libraries
     }

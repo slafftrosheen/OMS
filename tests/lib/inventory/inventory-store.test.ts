@@ -46,7 +46,7 @@ describe('inventory-store', () => {
   beforeEach(() => {
     mockFetch = vi.fn();
     global.fetch = mockFetch;
-    global.window = {};
+    global.window = {} as any;
     items.set([]);
     movements.set([]);
   });

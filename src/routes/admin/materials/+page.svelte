@@ -21,6 +21,7 @@
       transparent?: boolean;
       translucent?: boolean;
       transmittance?: string;
+      [key: string]: any; // Allow other properties
     };
     created_at: string;
   }

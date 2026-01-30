@@ -37,7 +37,19 @@ const mockTransformedOrder: Order = {
   badges: [],
   fields: [],
   materials: [],
-  stages: {},
+  stages: {
+    CAD: 'NOT_STARTED',
+    CNC: 'NOT_STARTED',
+    QC: 'NOT_STARTED',
+    SANDING: 'NOT_STARTED',
+    PAINT: 'NOT_STARTED',
+    ASSEMBLY: 'NOT_STARTED',
+    FILM_COATING: 'NOT_STARTED',
+    GLUEING: 'NOT_STARTED',
+    WELDING: 'NOT_STARTED',
+    BENDING: 'NOT_STARTED',
+    LOGISTICS: 'NOT_STARTED'
+  },
   isDraft: false,
   profiles: [],
   isRD: false,
@@ -46,12 +58,16 @@ const mockTransformedOrder: Order = {
   redoReasons: {},
   redoStage: '',
   redoReason: '',
-  progress: {},
+  progress: {
+    CAD: 0, CNC: 0, QC: 0, SANDING: 0, PAINT: 0, ASSEMBLY: 0, FILM_COATING: 0, GLUEING: 0, WELDING: 0, BENDING: 0, LOGISTICS: 0
+  },
   cycles: [],
   branches: [],
   prs: [],
   revisions: [],
   defaultRevisionId: '',
+  defaultBranch: 'main',
+  assignees: {},
 };
 
 
@@ -59,7 +75,7 @@ describe('signage-store', () => {
   beforeEach(() => {
     mockFetch = vi.fn();
     global.fetch = mockFetch;
-    global.window = {};
+    global.window = {} as any;
     ordersStore.set([]);
   });
 
@@ -185,14 +201,17 @@ describe('signage-store', () => {
   describe('badge management', () => {
     it('should add a badge to an order', async () => {
       ordersStore.set([mockTransformedOrder]);
+      mockFetch.mockResolvedValue({ ok: true });
       await addBadge('PO-123', 'URGENT');
       const storeOrder = get(ordersStore).find((o) => o.id === 'PO-123');
       expect(storeOrder?.badges).toContain('URGENT');
     });
 
     it('should remove a badge from an order', async () => {
-      const orderWithBadge = { ...mockTransformedOrder, badges: ['URGENT'] as const };
+      // Cast badges to any or Badge[] to avoid readonly tuple error
+      const orderWithBadge = { ...mockTransformedOrder, badges: ['URGENT'] as any };
       ordersStore.set([orderWithBadge]);
+      mockFetch.mockResolvedValue({ ok: true });
       await removeBadge('PO-123', 'URGENT');
       const storeOrder = get(ordersStore).find((o) => o.id === 'PO-123');
       expect(storeOrder?.badges).not.toContain('URGENT');

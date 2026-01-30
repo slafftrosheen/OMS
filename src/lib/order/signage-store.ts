@@ -396,3 +396,49 @@ export async function setDefaultRevision(orderId: string, revisionId: string): P
     return false;
   }
 }
+
+/**
+ * Add a badge to an order
+ */
+export async function addBadge(orderId: string, badge: Badge): Promise<boolean> {
+  const order = getOrderSync(orderId);
+  if (!order) return false;
+
+  if (order.badges.includes(badge)) return true;
+
+  const newBadges = [...order.badges, badge];
+
+  // Use persistent update if possible
+  if (typeof fetch !== 'undefined') {
+    return await setBadges(orderId, newBadges);
+  } else {
+    // Fallback for tests/offline
+    ordersStore.update(orders =>
+      orders.map(o => o.id === orderId ? { ...o, badges: newBadges } : o)
+    );
+    return true;
+  }
+}
+
+/**
+ * Remove a badge from an order
+ */
+export async function removeBadge(orderId: string, badge: Badge): Promise<boolean> {
+  const order = getOrderSync(orderId);
+  if (!order) return false;
+
+  if (!order.badges.includes(badge)) return true;
+
+  const newBadges = order.badges.filter(b => b !== badge);
+
+  // Use persistent update if possible
+  if (typeof fetch !== 'undefined') {
+    return await setBadges(orderId, newBadges);
+  } else {
+    // Fallback for tests/offline
+    ordersStore.update(orders =>
+      orders.map(o => o.id === orderId ? { ...o, badges: newBadges } : o)
+    );
+    return true;
+  }
+}

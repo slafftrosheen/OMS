@@ -75,7 +75,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     }
 
     // Generate QR code image (browser-compatible)
-    const imageDataUrl = await QRCode.toDataURL(qrCode.qr_code, {
+    // Use SVG to avoid canvas dependency
+    const svgString = await QRCode.toString(qrCode.qr_code, {
+      type: 'svg',
       width: size,
       margin: 2,
       errorCorrectionLevel: 'M',
@@ -84,6 +86,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         light: '#FFFFFF'
       }
     });
+
+    const imageDataUrl = `data:image/svg+xml;base64,${Buffer.from(svgString).toString('base64')}`;
 
     return json({
       data: {

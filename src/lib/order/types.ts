@@ -148,6 +148,8 @@ export type Branch = {
 export type Order = {
   /** The unique identifier for the order, typically the PO number. */
   id: string;
+  /** Optional separate PO Number if different from ID */
+  poNumber?: string;
   /** The title or description of the order. */
   title: string;
   /** The client or customer for whom the order is being fulfilled. */
@@ -212,6 +214,8 @@ export type Order = {
   priority?: string;
   /** The manager responsible for the order. */
   manager?: string;
+  /** Assignments for specific stations. */
+  assignees?: Record<string, string>;
 };
 
 // Re-export stage-related types for easy access.

@@ -42,9 +42,9 @@ export class QRCodeService {
         };
 
         // Generate QR code image as data URL
-        const qrImage = await QRCode.toDataURL(JSON.stringify(qrContent), {
+        const svgString = await QRCode.toString(JSON.stringify(qrContent), {
             errorCorrectionLevel: 'H',
-            type: 'image/png',
+            type: 'svg',
             width: 400,
             margin: 2,
             color: {
@@ -52,6 +52,7 @@ export class QRCodeService {
                 light: '#FFFFFF'
             }
         });
+        const qrImage = `data:image/svg+xml;base64,${Buffer.from(svgString).toString('base64')}`;
 
         // Save to database
         const { data: qrRecord, error: insertError } = await this.supabase
@@ -96,10 +97,12 @@ export class QRCodeService {
             generated: new Date().toISOString()
         };
 
-        const qrImage = await QRCode.toDataURL(JSON.stringify(qrContent), {
+        const svgString = await QRCode.toString(JSON.stringify(qrContent), {
             errorCorrectionLevel: 'H',
+            type: 'svg',
             width: 300
         });
+        const qrImage = `data:image/svg+xml;base64,${Buffer.from(svgString).toString('base64')}`;
 
         const { data: qrRecord, error } = await this.supabase
             .from('qr_codes')

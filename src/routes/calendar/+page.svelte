@@ -10,7 +10,7 @@
   import { get } from 'svelte/store';
   
   // Accept params prop to silence SvelteKit warning
-  export let params = {};
+  export const params = {};
   
   let today = new Date();
   let y = today.getFullYear();
@@ -89,7 +89,7 @@
     }
   }
   
-  async function assignOrderToLoadingDate(orderId: number) {
+  async function assignOrderToLoadingDate(orderId: string | number) {
     if (!selectedDate) return;
     
     try {
@@ -110,7 +110,7 @@
     }
   }
   
-  async function removeOrderFromLoadingDate(orderId: number) {
+  async function removeOrderFromLoadingDate(orderId: string | number) {
     try {
       const response = await fetch(`/api/draft-orders/${orderId}`, {
         method: 'PATCH',
@@ -427,10 +427,20 @@
 
 <!-- Add Order Modal -->
 {#if showAddOrderModal}
-  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-  <div class="modal-overlay" on:click={() => showAddOrderModal = false}>
-    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true" aria-labelledby="add-order-title">
+  <div
+    class="modal-overlay"
+    on:click={() => showAddOrderModal = false}
+    on:keydown={(e) => e.key === 'Escape' && (showAddOrderModal = false)}
+    role="button"
+    tabindex="0"
+  >
+    <div
+      class="modal"
+      on:click|stopPropagation
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-order-title"
+    >
       <div class="modal-header">
         <h3 id="add-order-title">Add Order to {selectedDate}</h3>
         <button class="btn-icon" on:click={() => showAddOrderModal = false} aria-label="Close">
@@ -461,10 +471,20 @@
 
 <!-- New Loading Day Modal -->
 {#if showNewLoadingDayModal}
-  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-  <div class="modal-overlay" on:click={() => showNewLoadingDayModal = false}>
-    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true" aria-labelledby="loading-day-title">
+  <div
+    class="modal-overlay"
+    on:click={() => showNewLoadingDayModal = false}
+    on:keydown={(e) => e.key === 'Escape' && (showNewLoadingDayModal = false)}
+    role="button"
+    tabindex="0"
+  >
+    <div
+      class="modal"
+      on:click|stopPropagation
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="loading-day-title"
+    >
       <div class="modal-header">
         <h3 id="loading-day-title">Mark Loading Day - {selectedDate}</h3>
         <button class="btn-icon" on:click={() => showNewLoadingDayModal = false} aria-label="Close">
@@ -778,14 +798,7 @@
     color: var(--accent-1);
   }
   
-  .order-badges {
-    display: flex;
-    gap: var(--space-xs);
-  }
-  
-  .badge-text {
-    font-size: 0.65rem;
-  }
+  /* Unused .order-badges and .badge-text removed */
   
   .order-title {
     margin: 0 0 var(--space-sm) 0;
