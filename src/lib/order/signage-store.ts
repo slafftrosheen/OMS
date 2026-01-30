@@ -295,6 +295,22 @@ export async function setBadges(orderId: string, badges: Badge[]): Promise<boole
   }
 }
 
+export async function addBadge(id: string, badge: Badge): Promise<boolean> {
+  const order = getOrderSync(id);
+  if (!order) return false;
+  // Check if already exists to avoid duplicates
+  if (order.badges.includes(badge)) return true;
+  const newBadges = [...order.badges, badge];
+  return setBadges(id, newBadges);
+}
+
+export async function removeBadge(id: string, badge: Badge): Promise<boolean> {
+  const order = getOrderSync(id);
+  if (!order) return false;
+  const newBadges = order.badges.filter(b => b !== badge);
+  return setBadges(id, newBadges);
+}
+
 /**
  * Add redo flag with backend persistence
  */

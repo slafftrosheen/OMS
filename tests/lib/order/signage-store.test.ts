@@ -37,7 +37,19 @@ const mockTransformedOrder: Order = {
   badges: [],
   fields: [],
   materials: [],
-  stages: {},
+  stages: {
+    CAD: { status: 'idle', label: 'CAD', color: 'gray' },
+    CNC: { status: 'idle', label: 'CNC', color: 'gray' },
+    QC: { status: 'idle', label: 'QC', color: 'gray' },
+    SANDING: { status: 'idle', label: 'SANDING', color: 'gray' },
+    ASSEMBLY: { status: 'idle', label: 'ASSEMBLY', color: 'gray' },
+    PAINTING: { status: 'idle', label: 'PAINTING', color: 'gray' },
+    PACKING: { status: 'idle', label: 'PACKING', color: 'gray' },
+    SHIPPING: { status: 'idle', label: 'SHIPPING', color: 'gray' },
+    INSTALLATION: { status: 'idle', label: 'INSTALLATION', color: 'gray' },
+    INVOICING: { status: 'idle', label: 'INVOICING', color: 'gray' },
+    DONE: { status: 'idle', label: 'DONE', color: 'gray' }
+  },
   isDraft: false,
   profiles: [],
   isRD: false,
@@ -46,7 +58,19 @@ const mockTransformedOrder: Order = {
   redoReasons: {},
   redoStage: '',
   redoReason: '',
-  progress: {},
+  progress: {
+    CAD: 0,
+    CNC: 0,
+    QC: 0,
+    SANDING: 0,
+    ASSEMBLY: 0,
+    PAINTING: 0,
+    PACKING: 0,
+    SHIPPING: 0,
+    INSTALLATION: 0,
+    INVOICING: 0,
+    DONE: 0
+  },
   cycles: [],
   branches: [],
   prs: [],
@@ -59,7 +83,7 @@ describe('signage-store', () => {
   beforeEach(() => {
     mockFetch = vi.fn();
     global.fetch = mockFetch;
-    global.window = {};
+    global.window = {} as any;
     ordersStore.set([]);
   });
 
@@ -183,6 +207,14 @@ describe('signage-store', () => {
   });
 
   describe('badge management', () => {
+    beforeEach(() => {
+        // Ensure mock is set up for this suite
+        mockFetch.mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve(mockApiOrder),
+        });
+    });
+
     it('should add a badge to an order', async () => {
       ordersStore.set([mockTransformedOrder]);
       await addBadge('PO-123', 'URGENT');
@@ -191,7 +223,7 @@ describe('signage-store', () => {
     });
 
     it('should remove a badge from an order', async () => {
-      const orderWithBadge = { ...mockTransformedOrder, badges: ['URGENT'] as const };
+      const orderWithBadge = { ...mockTransformedOrder, badges: ['URGENT'] as any };
       ordersStore.set([orderWithBadge]);
       await removeBadge('PO-123', 'URGENT');
       const storeOrder = get(ordersStore).find((o) => o.id === 'PO-123');

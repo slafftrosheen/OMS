@@ -11,13 +11,6 @@
   // Accept params prop to silence SvelteKit warning
   export let params = {};
 
-  // Declare pdfjsLib type for TypeScript
-  declare global {
-    interface Window {
-      pdfjsLib: any;
-    }
-  }
-
   let saving = false;
   let error = '';
   let successMessage = '';

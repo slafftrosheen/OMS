@@ -11,6 +11,10 @@ declare global {
     // interface Error {}
     // interface Platform {}
   }
+
+  interface Window {
+    pdfjsLib: any;
+  }
 }
 
 export {};
