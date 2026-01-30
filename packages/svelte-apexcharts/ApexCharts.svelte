@@ -1,13 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
 
-  declare global {
-    interface Window {
-      ApexCharts?: any;
-      __apexchartsLoadPromise?: Promise<void> | undefined;
-    }
-  }
-
   export let type: string | undefined = undefined;
   export let options: Record<string, any> | undefined = undefined;
   export let series: any[] = [];
@@ -28,13 +21,14 @@
 
   function loadScript(): Promise<void> {
     if (typeof window === 'undefined') return Promise.resolve();
-    if (window.ApexCharts) return Promise.resolve();
-    if (window.__apexchartsLoadPromise) return window.__apexchartsLoadPromise;
+    const win = window as any;
+    if (win.ApexCharts) return Promise.resolve();
+    if (win.__apexchartsLoadPromise) return win.__apexchartsLoadPromise;
 
     const doc = getDocument();
     if (!doc) return Promise.resolve();
 
-    window.__apexchartsLoadPromise = new Promise<void>((resolve, reject) => {
+    win.__apexchartsLoadPromise = new Promise<void>((resolve, reject) => {
       const existing = doc.querySelector('script[data-apexcharts="true"]');
       const script = existing ?? doc.createElement('script');
 
@@ -53,7 +47,7 @@
         if (!existing && script.parentNode) {
           script.parentNode.removeChild(script);
         }
-        window.__apexchartsLoadPromise = undefined;
+        win.__apexchartsLoadPromise = undefined;
         reject(new Error('Failed to load ApexCharts from CDN'));
       };
 
