@@ -1,7 +1,7 @@
 <!-- src/lib/realtime/PresenceIndicator.svelte -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import type { Presence } from '$lib/realtime/realtime-service';
+	import type { Presence } from '$lib/order/realtime-order-store';
 
 	export let orderId: string;
 	export let currentUserId: string;

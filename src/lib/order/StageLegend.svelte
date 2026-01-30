@@ -42,7 +42,7 @@
             <span class="tag badge-warn" title={detail(station)}>x{count(station)} {$t('rework.x_repeat')}</span>
           {/if}
         </span>
-        <Badge tone={STATE_TONE[state]}>{get(t)(STATE_LABEL[state])}</Badge>
+        <Badge tone={STATE_TONE[state] === 'muted' ? 'neutral' : STATE_TONE[state]}>{get(t)(STATE_LABEL[state])}</Badge>
       </li>
     {/each}
   </ul>

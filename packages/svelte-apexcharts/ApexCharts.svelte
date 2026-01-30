@@ -61,9 +61,9 @@
       script.addEventListener('error', onError, { once: true });
 
       if (!existing) {
-        script.src = CDN_URL;
-        script.async = true;
-        script.dataset.apexcharts = 'true';
+        (script as HTMLScriptElement).src = CDN_URL;
+        (script as HTMLScriptElement).async = true;
+        (script as HTMLElement).dataset.apexcharts = 'true';
         doc.head.appendChild(script);
       }
     });
@@ -102,6 +102,7 @@
       await loadScript();
       const { default: ApexCharts } = await import('apexcharts');
       const config = buildConfig();
+      // @ts-ignore - ApexCharts constructor type mismatch
       chart = new ApexCharts(container, { ...config.options, series: config.series });
       await chart.render();
       mounted = true;

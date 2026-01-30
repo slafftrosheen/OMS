@@ -8,7 +8,10 @@ import { base } from '$app/paths';
 // Placeholder for Presence since it's not exported/implemented yet
 export type Presence = {
 	id: string;
-	user: any;
+	orderId: string;
+	userId: string;
+	action: 'viewing' | 'editing';
+	displayName: string;
 	onlineAt: string;
 };
 

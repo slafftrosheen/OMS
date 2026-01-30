@@ -1,7 +1,7 @@
 <!-- src/lib/order/OrderFilesAccessible.svelte -->
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Upload, File, Image, FileText, X, Download } from 'lucide-svelte';
+	import { Upload, File as FileIcon, Image, FileText, X, Download } from 'lucide-svelte';
 	import { focusManager } from '$lib/a11y/focus-manager';
 
 	export let orderId: string;
@@ -140,7 +140,7 @@
 	function getFileIcon(type: string) {
 		if (type.startsWith('image/')) return Image;
 		if (type === 'application/pdf') return FileText;
-		return File;
+		return FileIcon;
 	}
 </script>
 

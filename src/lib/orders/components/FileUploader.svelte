@@ -1,7 +1,7 @@
 <!-- src/lib/orders/components/FileUploader.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { Upload, X, File, Image as ImageIcon, CheckCircle, AlertCircle } from 'lucide-svelte';
+  import { Upload, X, File as FileIcon, Image as ImageIcon, CheckCircle, AlertCircle } from 'lucide-svelte';
 
   export let disabled: boolean = false;
   export let maxFileSize: number = 50 * 1024 * 1024; // 50MB
@@ -181,8 +181,8 @@
 
   function getFileIcon(type: string) {
     if (type.includes('image')) return ImageIcon;
-    if (type.includes('pdf')) return File;
-    return File;
+    if (type.includes('pdf')) return FileIcon;
+    return FileIcon;
   }
 
   function triggerFileInput() {

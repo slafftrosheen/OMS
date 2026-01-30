@@ -1,4 +1,4 @@
-<script lang="ts">
+<script context="module" lang="ts">
   export type MaterialRow = {
     id: string;
     type: 'Acrylic' | 'Aluminium' | 'Plastic' | 'ACP' | 'Film' | 'Other';
@@ -9,7 +9,9 @@
     dims?: { w?: number; h?: number };
     notes?: string;
   };
-  
+</script>
+
+<script lang="ts">
   export let rows: MaterialRow[] = [];
   export let onChange = (r: MaterialRow[]) => {};
   

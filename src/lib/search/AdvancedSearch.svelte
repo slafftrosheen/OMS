@@ -5,6 +5,7 @@
  */
 
 import { createEventDispatcher, onMount } from 'svelte';
+import { slide } from 'svelte/transition';
 import { 
   Search, 
   Filter, 
@@ -221,7 +222,7 @@ function handleKeydown(event: KeyboardEvent) {
         type="text"
         bind:value={query}
         on:keydown={handleKeydown}
-        on:input={(e) => loadSuggestions('recent', e.target.value)}
+        on:input={(e) => loadSuggestions('recent', (e.target as HTMLInputElement).value)}
         placeholder="Search orders, PO numbers, clients..."
         class="search-input"
         aria-label="Search query"
@@ -304,7 +305,7 @@ function handleKeydown(event: KeyboardEvent) {
             id="filter-client"
             type="text"
             bind:value={filters.client}
-            on:input={(e) => loadSuggestions('client', e.target.value)}
+            on:input={(e) => loadSuggestions('client', (e.target as HTMLInputElement).value)}
             placeholder="Client name..."
           />
         </div>
