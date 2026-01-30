@@ -65,6 +65,30 @@ function formatError(error) {
   return String(error);
 }
 
+function deepMatch(actual, expected) {
+    if (expected && typeof expected === 'object' && expected.asymmetricMatch) {
+        return expected.asymmetricMatch(actual);
+    }
+
+    if (actual === expected) return true;
+
+    if (typeof actual !== 'object' || actual === null || typeof expected !== 'object' || expected === null) {
+        return false;
+    }
+
+    if (Array.isArray(expected)) {
+        if (!Array.isArray(actual) || actual.length !== expected.length) return false;
+        return expected.every((val, i) => deepMatch(actual[i], val));
+    }
+
+    const keys = Object.keys(expected);
+    for (const key of keys) {
+        if (!deepMatch(actual[key], expected[key])) return false;
+    }
+
+    return true;
+}
+
 export function expect(actual) {
   return {
     toBe(expected) {
@@ -101,18 +125,7 @@ export function expect(actual) {
         const calls = actual.mock.calls;
         const matchingCall = calls.find(call => {
             if (call.length !== args.length) return false;
-            return call.every((arg, i) => {
-                const expected = args[i];
-                if (expected && typeof expected === 'object' && expected.asymmetricMatch) {
-                    return expected.asymmetricMatch(arg);
-                }
-                try {
-                    assert.deepStrictEqual(arg, expected);
-                    return true;
-                } catch {
-                    return false;
-                }
-            });
+            return call.every((arg, i) => deepMatch(arg, args[i]));
         });
         assert.ok(matchingCall, `Expected to have been called with ${JSON.stringify(args)}`);
     }
@@ -170,10 +183,6 @@ export async function runSuites({ reporter = console } = {}) {
         ancestors.unshift(curr);
         curr = curr.parent;
     }
-
-    // Run beforeEach for current suite's tests? No, typically we run parents' beforeEach first
-    // But in this structure, we just need to run them for each test in this suite
-    // Wait, nested describes.
 
     for (const test of suite.tests) {
       try {

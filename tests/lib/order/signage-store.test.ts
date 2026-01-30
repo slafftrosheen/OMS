@@ -201,6 +201,7 @@ describe('signage-store', () => {
   describe('badge management', () => {
     it('should add a badge to an order', async () => {
       ordersStore.set([mockTransformedOrder]);
+      mockFetch.mockResolvedValue({ ok: true });
       await addBadge('PO-123', 'URGENT');
       const storeOrder = get(ordersStore).find((o) => o.id === 'PO-123');
       expect(storeOrder?.badges).toContain('URGENT');
@@ -210,6 +211,7 @@ describe('signage-store', () => {
       // Cast badges to any or Badge[] to avoid readonly tuple error
       const orderWithBadge = { ...mockTransformedOrder, badges: ['URGENT'] as any };
       ordersStore.set([orderWithBadge]);
+      mockFetch.mockResolvedValue({ ok: true });
       await removeBadge('PO-123', 'URGENT');
       const storeOrder = get(ordersStore).find((o) => o.id === 'PO-123');
       expect(storeOrder?.badges).not.toContain('URGENT');

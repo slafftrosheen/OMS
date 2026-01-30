@@ -214,6 +214,8 @@ export type Order = {
   priority?: string;
   /** The manager responsible for the order. */
   manager?: string;
+  /** Assignments for specific stations. */
+  assignees?: Record<string, string>;
 };
 
 // Re-export stage-related types for easy access.
