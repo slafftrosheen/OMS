@@ -228,8 +228,12 @@
                       orders.filter(o => !o.loadingDate);
   $: monthName = new Date(y, m, 1).toLocaleDateString('en-US', { month: 'long' });
   
-  onMount(async () => {
-    await Promise.all([refreshOrders(), refreshLoadingDays()]);
+  onMount(() => {
+    // Initial data load
+    (async () => {
+      await Promise.all([refreshOrders(), refreshLoadingDays()]);
+    })();
+
     const handler = (event: StorageEvent) => {
       if (!event.key || event.key === 'rf_orders_vcs') {
         refreshOrders();

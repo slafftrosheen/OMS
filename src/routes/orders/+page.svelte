@@ -174,7 +174,12 @@
         materials: [],
         stages: {},
         isDraft: d.status === 'draft',
-        profiles: Array.isArray(d.profiles) ? d.profiles : []
+        profiles: Array.isArray(d.profiles) ? d.profiles : [],
+        defaultBranch: 'main',
+        branches: [],
+        prs: [],
+        revisions: [],
+        defaultRevisionId: ''
       }));
       
       ordersStore.set(allOrders);
