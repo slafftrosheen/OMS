@@ -194,78 +194,84 @@
     searchOpen = false;
   };
 
-  onMount(async () => {
-    // Load current user from session
-    const user = await loadCurrentUser();
-    authChecked = true;
-
-    // Redirect to login if not authenticated and not on public route
-    if (!user && !isPublicRoute) {
-      goto(`${base}/login`);
-      return;
-    }
-
-    // Initialize chat realtime if user is logged in
+  onMount(() => {
     let stopChatRealtime: () => void;
-    if (user) {
-      stopChatRealtime = initChatRealtime();
-      websocket.connect();
-    }
+    let stopPreferenceSync: () => void;
 
-    // Apply query params for deep-linking preferences
-    const q = new URLSearchParams(location.search);
-    const theme   = q.get('theme') as any;
-    const density = q.get('density') as any;
-    const lang    = q.get('lang');
-    const font    = q.get('font');
+    const init = async () => {
+      // Load current user from session
+      const user = await loadCurrentUser();
+      authChecked = true;
 
-    if (lang) setLocale(lang);
-    ui.update(p=>({
-      ...p,
-      theme:   theme   || p.theme,
-      density: density || p.density,
-      fontScale: font ? Math.max(0.85, Math.min(1.3, +font)) : p.fontScale
-    }));
-
-    // Clean up URL params using SvelteKit's replaceState
-    if (theme || density || lang || font) {
-      const newUrl = new URL(location.href);
-      newUrl.searchParams.delete('theme');
-      newUrl.searchParams.delete('density');
-      newUrl.searchParams.delete('lang');
-      newUrl.searchParams.delete('font');
-      replaceState(newUrl.pathname + newUrl.search + newUrl.hash, {});
-    }
-
-    // Register service worker
-    if ('serviceWorker' in navigator) {
-      try {
-        const registration = await navigator.serviceWorker.register('/service-worker.js', {
-          scope: '/'
-        });
-
-        console.log('Service Worker registered:', registration.scope);
-
-        // Check for updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // New service worker available
-                showUpdatePrompt = true;
-              }
-            });
-          }
-        });
-
-        // Check for updates on page load
-        registration.update();
-      } catch (error) {
-        console.error('Service Worker registration failed:', error);
+      // Redirect to login if not authenticated and not on public route
+      if (!user && !isPublicRoute) {
+        goto(`${base}/login`);
+        return;
       }
-    }
+
+      // Initialize chat realtime if user is logged in
+      if (user) {
+        stopChatRealtime = initChatRealtime();
+        websocket.connect();
+      }
+
+      // Apply query params for deep-linking preferences
+      const q = new URLSearchParams(location.search);
+      const theme   = q.get('theme') as any;
+      const density = q.get('density') as any;
+      const lang    = q.get('lang');
+      const font    = q.get('font');
+
+      if (lang) setLocale(lang);
+      ui.update(p=>({
+        ...p,
+        theme:   theme   || p.theme,
+        density: density || p.density,
+        fontScale: font ? Math.max(0.85, Math.min(1.3, +font)) : p.fontScale
+      }));
+
+      // Clean up URL params using SvelteKit's replaceState
+      if (theme || density || lang || font) {
+        const newUrl = new URL(location.href);
+        newUrl.searchParams.delete('theme');
+        newUrl.searchParams.delete('density');
+        newUrl.searchParams.delete('lang');
+        newUrl.searchParams.delete('font');
+        replaceState(newUrl.pathname + newUrl.search + newUrl.hash, {});
+      }
+
+      // Register service worker
+      if ('serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.register('/service-worker.js', {
+            scope: '/'
+          });
+
+          console.log('Service Worker registered:', registration.scope);
+
+          // Check for updates
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New service worker available
+                  showUpdatePrompt = true;
+                }
+              });
+            }
+          });
+
+          // Check for updates on page load
+          registration.update();
+        } catch (error) {
+          console.error('Service Worker registration failed:', error);
+        }
+      }
+    };
+
+    init();
 
     // Handle install prompt
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -291,9 +297,11 @@
       // Trigger background sync if service worker is available
       if (navigator.serviceWorker.controller) {
         navigator.serviceWorker.ready.then(registration => {
-          if (registration.sync) {
-            registration.sync.register('sync-orders');
-            registration.sync.register('sync-photos');
+          // Cast to any for Background Sync API
+          const reg = registration as any;
+          if (reg.sync) {
+            reg.sync.register('sync-orders');
+            reg.sync.register('sync-photos');
           }
         });
       }
@@ -304,7 +312,7 @@
       console.log('App is offline');
     });
 
-    const stopPreferenceSync = startPreferenceUrlSync();
+    stopPreferenceSync = startPreferenceUrlSync();
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target?.isContentEditable) return;

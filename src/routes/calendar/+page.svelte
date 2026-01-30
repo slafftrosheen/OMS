@@ -3,6 +3,7 @@
   import { t } from 'svelte-i18n';
   import { ordersStore } from '$lib/order/signage-store';
   import type { Order } from '$lib/order/types';
+  import { blankStages } from '$lib/order/stages';
   import { Calendar, ChevronLeft, ChevronRight, Plus, Truck, Download, Filter, X, Check } from 'lucide-svelte';
   import Badge from '$lib/ui/Badge.svelte';
   import { badgeTone } from '$lib/order/badges';
@@ -42,7 +43,7 @@
           badges: d.status === 'draft' ? ['DRAFT'] : [],
           fields: [],
           materials: [],
-          stages: {},
+          stages: blankStages(),
           isDraft: d.status === 'draft',
           profiles: d.profiles || []
         }));
@@ -438,6 +439,8 @@
     role="button"
     tabindex="0"
   >
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
     <div
       class="modal"
       on:click|stopPropagation
@@ -482,6 +485,8 @@
     role="button"
     tabindex="0"
   >
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
     <div
       class="modal"
       on:click|stopPropagation

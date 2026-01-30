@@ -27,10 +27,28 @@ let error: string | null = null;
 let showCreateModal = false;
 let showIntegrationModal = false;
 
-let newWebhook = {
+interface WebhookConfig {
+  name: string;
+  url: string;
+  events: string[];
+  authType: string;
+  authConfig: { token?: string; apiKey?: string; username?: string; password?: string };
+  headers: Record<string, string>;
+  timeoutSeconds: number;
+  retryEnabled: boolean;
+  maxRetries: number;
+}
+
+interface IntegrationConfig {
+  type: string;
+  name: string;
+  config: { webhook_url?: string };
+}
+
+let newWebhook: WebhookConfig = {
   name: '',
   url: '',
-  events: [] as string[],
+  events: [],
   authType: 'none',
   authConfig: {},
   headers: {},
@@ -39,7 +57,7 @@ let newWebhook = {
   maxRetries: 3
 };
 
-let newIntegration = {
+let newIntegration: IntegrationConfig = {
   type: 'slack',
   name: '',
   config: {}
@@ -147,6 +165,10 @@ async function testWebhook(id: string) {
   } catch (error) {
     alert('Test failed');
   }
+}
+
+function getIconForType(type: string) {
+  return integrationTypes.find(t => t.value === type)?.icon || '🔌';
 }
 
 function getStatusColor(status: string) {
