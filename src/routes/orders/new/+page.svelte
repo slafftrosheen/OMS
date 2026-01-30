@@ -1040,6 +1040,8 @@
       role="button"
       tabindex="0"
     >
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
       <div
         class="modal"
         on:click|stopPropagation
@@ -1100,6 +1102,8 @@
       role="button"
       tabindex="0"
     >
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
       <div
         class="modal"
         on:click|stopPropagation
