@@ -6,7 +6,7 @@
   import Input from '$lib/ui/Input.svelte';
   import Tooltip from '$lib/ui/Tooltip.svelte';
   import ErrorBoundary from '$lib/ui/ErrorBoundary.svelte';
-  import type { Order, Station, Badge as BadgeCode } from '$lib/order/types';
+  import type { Order, Station, Badge as BadgeCode, Badge } from '$lib/order/types';
   import { ordersStore } from '$lib/order/signage-store';
   import { blankStages, STATE_LABEL, type StageState } from '$lib/order/stages';
   import { TERMS } from '$lib/order/names';
@@ -169,12 +169,17 @@
         client: d.clientName || 'Unknown',
         due: d.deadline || '',
         loadingDate: d.loadingDate || '',
-        badges: d.status === 'draft' ? ['DRAFT'] : [],
+        badges: (d.status === 'draft' ? ['DRAFT'] : []) as Badge[],
         fields: [],
         materials: [],
         stages: {},
         isDraft: d.status === 'draft',
-        profiles: Array.isArray(d.profiles) ? d.profiles : []
+        profiles: Array.isArray(d.profiles) ? d.profiles : [],
+        defaultBranch: 'main',
+        branches: [],
+        prs: [],
+        revisions: [],
+        defaultRevisionId: ''
       }));
       
       ordersStore.set(allOrders);

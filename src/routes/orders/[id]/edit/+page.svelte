@@ -603,7 +603,7 @@
                   </div>
                   
                   <Profile7stVisual 
-                    bind:config={profile.configuration}
+                    bind:configuration={profile.configuration}
                     readonly={!canEdit}
                   />
                 </div>

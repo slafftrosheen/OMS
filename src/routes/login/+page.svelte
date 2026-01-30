@@ -93,7 +93,8 @@
       primarySection: data.user.primarySection,
       sections: data.user.sections,
       roles: data.user.roles,
-      stations: data.user.stations || []
+      stations: data.user.stations || [],
+      passwordHash: '' // Required by User interface but not used on client
     };
     
     currentUser.set(user);
