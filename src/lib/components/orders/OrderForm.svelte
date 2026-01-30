@@ -1,407 +1,585 @@
-<!-- src/lib/components/orders/OrderForm.svelte -->
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
-    import Input from '$lib/components/ui/Input.svelte';
-    import Button from '$lib/components/ui/Button.svelte';
-    import type { Order } from '$lib/stores/orders';
+  import { createEventDispatcher } from 'svelte';
+  import { t } from '$lib/i18n';
+  import type { Order } from '$lib/stores/orders';
 
-    export let order: Partial<Order> | null = null;
-    export let loading = false;
+  export let order: Partial<Order> = {};
+  export let mode: 'create' | 'edit' = 'create';
 
-    const dispatch = createEventDispatcher();
+  const dispatch = createEventDispatcher();
 
-    let formData = {
-        title: order?.title || '',
-        client: order?.client || '',
-        description: order?.description || '',
-        due_date: order?.due_date ? order.due_date.split('T')[0] : '',
-        price: order?.price || null,
-        stages: order?.stages || {
-            CAD: 'NOT_STARTED',
-            CNC: 'NOT_STARTED',
-            EDGE: 'NOT_STARTED',
-            ASSEMBLY: 'NOT_STARTED',
-            PAINT: 'NOT_STARTED',
-            PACKAGING: 'NOT_STARTED',
-            DELIVERY: 'NOT_STARTED'
-        }
-    };
+  let formData = {
+    po_number: order.po_number || '',
+    title: order.title || '',
+    client: order.client || '',
+    due_date: order.due_date || '',
+    loading_date: order.loading_date || '',
+    is_rd: order.is_rd || false,
+    rd_notes: order.rd_notes || '',
+    priority: order.priority || 5,
+    status: order.status || 'draft',
+    notes: order.notes || ''
+  };
 
-    let errors: Record<string, string> = {};
+  let materials: Array<{
+    material_type: string;
+    thickness: string;
+    color: string;
+    ral_code: string;
+    quantity: number;
+    unit: string;
+  }> = [];
 
-    const AVAILABLE_STAGES = [
-        'CAD',
-        'CNC',
-        'EDGE',
-        'ASSEMBLY',
-        'PAINT',
-        'PACKAGING',
-        'DELIVERY',
-        'QUALITY_CHECK'
-    ];
+  let errors: Record<string, string> = {};
+  let submitting = false;
 
-    function validate(): boolean {
-        errors = {};
+  function validate() {
+    errors = {};
 
-        if (!formData.title.trim()) {
-            errors.title = 'Title is required';
-        }
+    if (!formData.title) errors.title = 'Title is required';
+    if (!formData.client) errors.client = 'Client is required';
+    if (!formData.due_date) errors.due_date = 'Due date is required';
 
-        if (!formData.client.trim()) {
-            errors.client = 'Client name is required';
-        }
-
-        if (!formData.due_date) {
-            errors.due_date = 'Due date is required';
-        } else {
-            const dueDate = new Date(formData.due_date);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            if (dueDate < today) {
-                errors.due_date = 'Due date cannot be in the past';
-            }
-        }
-
-        if (formData.price !== null && formData.price < 0) {
-            errors.price = 'Price cannot be negative';
-        }
-
-        if (Object.keys(formData.stages).length === 0) {
-            errors.stages = 'At least one stage must be selected';
-        }
-
-        return Object.keys(errors).length === 0;
+    if (formData.priority < 0 || formData.priority > 10) {
+      errors.priority = 'Priority must be between 0 and 10';
     }
 
-    function toggleStage(stage: string) {
-        if (formData.stages[stage]) {
-            const { [stage]: removed, ...rest } = formData.stages;
-            formData.stages = rest;
-        } else {
-            formData.stages[stage] = 'NOT_STARTED';
-        }
+    return Object.keys(errors).length === 0;
+  }
+
+  function addMaterial() {
+    materials = [...materials, {
+      material_type: '',
+      thickness: '',
+      color: '',
+      ral_code: '',
+      quantity: 1,
+      unit: 'pcs'
+    }];
+  }
+
+  function removeMaterial(index: number) {
+    materials = materials.filter((_, i) => i !== index);
+  }
+
+  async function handleSubmit() {
+    if (!validate()) return;
+
+    submitting = true;
+
+    try {
+      const payload = {
+        ...formData,
+        materials: materials.filter(m => m.material_type)
+      };
+
+      dispatch('submit', payload);
+    } catch (err) {
+      console.error('Form submission error:', err);
+    } finally {
+      submitting = false;
     }
+  }
 
-    function handleSubmit() {
-        if (!validate()) return;
-
-        const submitData = {
-            ...formData,
-            due_date: new Date(formData.due_date).toISOString()
-        };
-
-        dispatch('submit', submitData);
-    }
-
-    function handleCancel() {
-        dispatch('cancel');
-    }
+  function handleCancel() {
+    dispatch('cancel');
+  }
 </script>
 
-<form on:submit|preventDefault={handleSubmit} class="order-form">
-    <div class="form-section">
-        <h3 class="section-title">Basic Information</h3>
-        
-        <div class="form-grid">
-            <Input
-                label="Order Title"
-                bind:value={formData.title}
-                placeholder="e.g., Kitchen Cabinet Set - Client Name"
-                error={errors.title}
-                required
-                fullWidth
-            />
+<form class="order-form" on:submit|preventDefault={handleSubmit}>
+  <div class="form-header">
+    <h2>{mode === 'create' ? $t('orders.create_new') : $t('orders.edit_order')}</h2>
+  </div>
 
-            <Input
-                label="Client Name"
-                bind:value={formData.client}
-                placeholder="e.g., John Doe Construction"
-                error={errors.client}
-                required
-                fullWidth
-            />
+  <div class="form-body">
+    <!-- Basic Information -->
+    <section class="form-section">
+      <h3>{$t('orders.basic_info')}</h3>
 
-            <Input
-                type="date"
-                label="Due Date"
-                bind:value={formData.due_date}
-                error={errors.due_date}
-                required
-                fullWidth
-            />
-
-            <Input
-                type="number"
-                label="Price (€)"
-                bind:value={formData.price}
-                placeholder="0.00"
-                error={errors.price}
-                hint="Optional - leave empty if not set"
-                fullWidth
-            />
+      <div class="form-row">
+        <div class="form-group">
+          <label for="po_number">
+            {$t('orders.po_number')}
+            <small class="optional">(optional)</small>
+          </label>
+          <input
+            id="po_number"
+            type="text"
+            bind:value={formData.po_number}
+            placeholder="PO-2026-001"
+          />
         </div>
 
-        <div class="form-field">
-            <label for="description" class="field-label">Description</label>
-            <textarea
-                id="description"
-                bind:value={formData.description}
-                placeholder="Detailed order description, specifications, special requirements..."
-                rows="4"
-                class="textarea"
-            ></textarea>
-            <p class="field-hint">Optional - provide any additional details</p>
+        <div class="form-group">
+          <label for="status">{$t('orders.status')}</label>
+          <select id="status" bind:value={formData.status}>
+            <option value="draft">Draft</option>
+            <option value="active">Active</option>
+            <option value="on_hold">On Hold</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
         </div>
-    </div>
+      </div>
 
-    <div class="form-section">
-        <h3 class="section-title">Production Stages</h3>
-        <p class="section-description">Select which stages are required for this order</p>
-        
-        {#if errors.stages}
-            <p class="error-message" role="alert">{errors.stages}</p>
+      <div class="form-group" class:has-error={errors.title}>
+        <label for="title">
+          {$t('orders.title')}
+          <span class="required">*</span>
+        </label>
+        <input
+          id="title"
+          type="text"
+          bind:value={formData.title}
+          placeholder="Large Format Signage"
+          required
+          aria-invalid={!!errors.title}
+          aria-describedby={errors.title ? 'title-error' : undefined}
+        />
+        {#if errors.title}
+          <span class="error-message" id="title-error">{errors.title}</span>
         {/if}
+      </div>
 
-        <div class="stages-grid">
-            {#each AVAILABLE_STAGES as stage}
-                <label class="stage-checkbox">
-                    <input
-                        type="checkbox"
-                        checked={!!formData.stages[stage]}
-                        on:change={() => toggleStage(stage)}
-                    />
-                    <span class="stage-label">{stage}</span>
-                    <span class="checkmark"></span>
-                </label>
-            {/each}
+      <div class="form-group" class:has-error={errors.client}>
+        <label for="client">
+          {$t('orders.client')}
+          <span class="required">*</span>
+        </label>
+        <input
+          id="client"
+          type="text"
+          bind:value={formData.client}
+          placeholder="ACME Corporation"
+          required
+          aria-invalid={!!errors.client}
+        />
+        {#if errors.client}
+          <span class="error-message">{errors.client}</span>
+        {/if}
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" class:has-error={errors.due_date}>
+          <label for="due_date">
+            {$t('orders.due_date')}
+            <span class="required">*</span>
+          </label>
+          <input
+            id="due_date"
+            type="date"
+            bind:value={formData.due_date}
+            required
+            min={new Date().toISOString().split('T')[0]}
+          />
+          {#if errors.due_date}
+            <span class="error-message">{errors.due_date}</span>
+          {/if}
         </div>
 
-        {#if Object.keys(formData.stages).length > 0}
-            <div class="selected-stages">
-                <p class="selected-label">Selected stages ({Object.keys(formData.stages).length}):</p>
-                <div class="stage-pills">
-                    {#each Object.keys(formData.stages) as stage}
-                        <span class="stage-pill">{stage}</span>
-                    {/each}
-                </div>
+        <div class="form-group">
+          <label for="loading_date">
+            {$t('orders.loading_date')}
+            <small class="optional">(optional)</small>
+          </label>
+          <input
+            id="loading_date"
+            type="date"
+            bind:value={formData.loading_date}
+            min={new Date().toISOString().split('T')[0]}
+          />
+        </div>
+      </div>
+
+      <div class="form-group" class:has-error={errors.priority}>
+        <label for="priority">
+          {$t('orders.priority')}
+          <span class="priority-value">{formData.priority}/10</span>
+        </label>
+        <input
+          id="priority"
+          type="range"
+          min="0"
+          max="10"
+          bind:value={formData.priority}
+          aria-valuemin="0"
+          aria-valuemax="10"
+          aria-valuenow={formData.priority}
+        />
+        {#if errors.priority}
+          <span class="error-message">{errors.priority}</span>
+        {/if}
+      </div>
+    </section>
+
+    <!-- R&D Section -->
+    <section class="form-section">
+      <div class="form-group checkbox-group">
+        <label>
+          <input
+            type="checkbox"
+            bind:checked={formData.is_rd}
+          />
+          <span>{$t('orders.rd_order')}</span>
+        </label>
+      </div>
+
+      {#if formData.is_rd}
+        <div class="form-group">
+          <label for="rd_notes">{$t('orders.rd_notes')}</label>
+          <textarea
+            id="rd_notes"
+            bind:value={formData.rd_notes}
+            rows="3"
+            placeholder="Experimental process, special materials, etc."
+          />
+        </div>
+      {/if}
+    </section>
+
+    <!-- Materials Section -->
+    <section class="form-section">
+      <div class="section-header">
+        <h3>{$t('orders.materials')}</h3>
+        <button type="button" class="btn btn-sm btn-outline" on:click={addMaterial}>
+          + Add Material
+        </button>
+      </div>
+
+      {#each materials as material, index (index)}
+        <div class="material-item">
+          <div class="material-header">
+            <span>Material {index + 1}</span>
+            <button
+              type="button"
+              class="btn-icon"
+              on:click={() => removeMaterial(index)}
+              aria-label="Remove material"
+            >
+              ×
+            </button>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Type</label>
+              <input type="text" bind:value={material.material_type} placeholder="Acrylic" />
             </div>
-        {/if}
-    </div>
 
-    <div class="form-actions">
-        <Button type="button" variant="ghost" on:click={handleCancel} disabled={loading}>
-            Cancel
-        </Button>
-        <Button type="submit" variant="primary" {loading}>
-            {order ? 'Update Order' : 'Create Order'}
-        </Button>
-    </div>
+            <div class="form-group">
+              <label>Thickness</label>
+              <input type="text" bind:value={material.thickness} placeholder="3mm" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Color</label>
+              <input type="text" bind:value={material.color} placeholder="Red" />
+            </div>
+
+            <div class="form-group">
+              <label>RAL Code</label>
+              <input type="text" bind:value={material.ral_code} placeholder="RAL 3020" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Quantity</label>
+              <input type="number" bind:value={material.quantity} min="0" step="0.01" />
+            </div>
+
+            <div class="form-group">
+              <label>Unit</label>
+              <select bind:value={material.unit}>
+                <option value="pcs">Pieces</option>
+                <option value="sqm">Square Meters</option>
+                <option value="lm">Linear Meters</option>
+                <option value="kg">Kilograms</option>
+                <option value="sheets">Sheets</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      {/each}
+    </section>
+
+    <!-- Notes Section -->
+    <section class="form-section">
+      <div class="form-group">
+        <label for="notes">{$t('orders.notes')}</label>
+        <textarea
+          id="notes"
+          bind:value={formData.notes}
+          rows="4"
+          placeholder="Additional instructions, special requirements, etc."
+        />
+      </div>
+    </section>
+  </div>
+
+  <div class="form-footer">
+    <button type="button" class="btn btn-outline" on:click={handleCancel} disabled={submitting}>
+      {$t('common.cancel')}
+    </button>
+    <button type="submit" class="btn btn-primary" disabled={submitting}>
+      {#if submitting}
+        {$t('common.saving')}...
+      {:else}
+        {mode === 'create' ? $t('common.create') : $t('common.save')}
+      {/if}
+    </button>
+  </div>
 </form>
 
 <style>
+  .order-form {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+    background: var(--bg-1);
+    padding: 2rem;
+    border-radius: 8px;
+  }
+
+  .form-header h2 {
+    margin: 0;
+    color: var(--text);
+  }
+
+  .form-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: var(--bg-0);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  .form-section h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.125rem;
+    color: var(--text);
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .form-group.has-error input,
+  .form-group.has-error select,
+  .form-group.has-error textarea {
+    border-color: var(--danger);
+  }
+
+  .form-group label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .required {
+    color: var(--danger);
+  }
+
+  .optional {
+    color: var(--muted);
+    font-weight: normal;
+  }
+
+  .priority-value {
+    margin-left: auto;
+    color: var(--accent-1);
+    font-weight: 700;
+  }
+
+  input[type="text"],
+  input[type="date"],
+  input[type="number"],
+  select,
+  textarea {
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 1rem;
+    background: var(--bg-1);
+    color: var(--text);
+    transition: border-color 0.2s ease;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    border-color: var(--accent-1);
+    box-shadow: 0 0 0 3px rgba(var(--accent-1-rgb), 0.1);
+  }
+
+  input[type="range"] {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-2);
+    border-radius: 4px;
+    outline: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: var(--accent-1);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: var(--accent-1);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+
+  .checkbox-group label {
+    flex-direction: row;
+    align-items: center;
+    cursor: pointer;
+  }
+
+  input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+  }
+
+  .error-message {
+    color: var(--danger);
+    font-size: 0.75rem;
+  }
+
+  .material-item {
+    padding: 1rem;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .material-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--danger);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+  }
+
+  .btn-icon:hover {
+    background: rgba(220, 53, 69, 0.1);
+  }
+
+  .form-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .btn-outline:hover:not(:disabled) {
+    background: var(--bg-2);
+    border-color: var(--accent-1);
+  }
+
+  .btn-primary {
+    background: var(--accent-1);
+    color: white;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent-2);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  @media (max-width: 768px) {
     .order-form {
-        display: flex;
-        flex-direction: column;
-        gap: 2rem;
+      padding: 1rem;
     }
 
-    .form-section {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
+    .form-row {
+      grid-template-columns: 1fr;
     }
-
-    .section-title {
-        font-size: 1.125rem;
-        font-weight: 600;
-        color: var(--color-text, #111827);
-        margin: 0;
-    }
-
-    .section-description {
-        font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
-        margin: 0;
-    }
-
-    .form-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1rem;
-    }
-
-    .form-field {
-        display: flex;
-        flex-direction: column;
-        gap: 0.375rem;
-    }
-
-    .field-label {
-        font-size: 0.875rem;
-        font-weight: 500;
-        color: var(--color-text, #333);
-    }
-
-    .textarea {
-        width: 100%;
-        padding: 0.5rem 0.75rem;
-        font-size: 1rem;
-        line-height: 1.5;
-        color: var(--color-text, #333);
-        background-color: var(--color-bg, white);
-        border: 1px solid var(--color-border, #ced4da);
-        border-radius: 0.375rem;
-        font-family: inherit;
-        resize: vertical;
-        transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    .textarea:focus {
-        outline: none;
-        border-color: var(--color-primary, #0066cc);
-        box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
-    }
-
-    .field-hint {
-        font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
-        margin: 0;
-    }
-
-    .error-message {
-        font-size: 0.875rem;
-        color: var(--color-danger, #dc3545);
-        margin: 0;
-        padding: 0.5rem;
-        background-color: #fee2e2;
-        border-radius: 0.25rem;
-    }
-
-    .stages-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 0.75rem;
-    }
-
-    .stage-checkbox {
-        position: relative;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.75rem;
-        border: 2px solid var(--color-border, #e5e7eb);
-        border-radius: 0.375rem;
-        cursor: pointer;
-        transition: all 0.15s ease;
-    }
-
-    .stage-checkbox:hover {
-        border-color: var(--color-primary, #0066cc);
-        background-color: var(--color-gray-50, #f9fafb);
-    }
-
-    .stage-checkbox input {
-        position: absolute;
-        opacity: 0;
-        cursor: pointer;
-    }
-
-    .stage-checkbox input:checked ~ .checkmark {
-        background-color: var(--color-primary, #0066cc);
-        border-color: var(--color-primary, #0066cc);
-    }
-
-    .stage-checkbox input:checked ~ .checkmark::after {
-        display: block;
-    }
-
-    .stage-checkbox input:focus-visible ~ .checkmark {
-        outline: 2px solid var(--color-primary, #0066cc);
-        outline-offset: 2px;
-    }
-
-    .stage-label {
-        font-size: 0.875rem;
-        font-weight: 500;
-        color: var(--color-text, #374151);
-        flex: 1;
-    }
-
-    .checkmark {
-        height: 1.25rem;
-        width: 1.25rem;
-        border: 2px solid var(--color-border, #d1d5db);
-        border-radius: 0.25rem;
-        position: relative;
-        transition: all 0.15s ease;
-    }
-
-    .checkmark::after {
-        content: "";
-        position: absolute;
-        display: none;
-        left: 0.35rem;
-        top: 0.15rem;
-        width: 0.375rem;
-        height: 0.625rem;
-        border: solid white;
-        border-width: 0 2px 2px 0;
-        transform: rotate(45deg);
-    }
-
-    .selected-stages {
-        padding: 1rem;
-        background-color: var(--color-gray-50, #f9fafb);
-        border-radius: 0.375rem;
-    }
-
-    .selected-label {
-        font-size: 0.875rem;
-        font-weight: 500;
-        color: var(--color-gray-700, #374151);
-        margin: 0 0 0.5rem 0;
-    }
-
-    .stage-pills {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-
-    .stage-pill {
-        display: inline-block;
-        padding: 0.375rem 0.75rem;
-        background-color: #dbeafe;
-        color: #1e40af;
-        font-size: 0.875rem;
-        font-weight: 500;
-        border-radius: 9999px;
-    }
-
-    .form-actions {
-        display: flex;
-        gap: 0.75rem;
-        justify-content: flex-end;
-        padding-top: 1rem;
-        border-top: 1px solid var(--color-border, #e5e7eb);
-    }
-
-    @media (max-width: 640px) {
-        .form-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .stages-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .form-actions {
-            flex-direction: column-reverse;
-        }
-
-        .form-actions :global(button) {
-            width: 100%;
-        }
-    }
+  }
 </style>

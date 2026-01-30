@@ -1,7 +1,7 @@
 <!-- src/lib/components/orders/OrderList.svelte -->
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
-    import { orders, filteredOrders, orderStats } from '$lib/stores/orders';
+    import { ordersStore as orders, filteredOrders, orderStats } from '$lib/stores/orders';
     import OrderCard from './OrderCard.svelte';
     import Input from '$lib/components/ui/Input.svelte';
     import Badge from '$lib/components/ui/Badge.svelte';
@@ -181,7 +181,7 @@
     {#if $filteredOrders.length > 0}
         <div class="list-footer">
             <p class="result-count">
-                Showing {$filteredOrders.length} of {$orders.orders.length} order{$orders.orders.length !== 1 ? 's' : ''}
+                Showing {$filteredOrders.length} of {$orders.total} order{$orders.total !== 1 ? 's' : ''}
             </p>
         </div>
     {/if}

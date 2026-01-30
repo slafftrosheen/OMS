@@ -3,7 +3,7 @@
     import { onMount } from 'svelte';
     import { goto } from '$app/navigation';
     import { currentProfile } from '$lib/stores/auth';
-    import { orders, orderStats } from '$lib/stores/orders';
+    import { ordersStore as orders, orderStats } from '$lib/stores/orders';
     import StatCard from '$lib/components/analytics/StatCard.svelte';
     import OrderCard from '$lib/components/orders/OrderCard.svelte';
     import LineChart from '$lib/components/analytics/LineChart.svelte';

@@ -1,62 +1,158 @@
-// src/lib/stores/realtime.ts
-import { writable } from 'svelte/store';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import { writable, get } from 'svelte/store';
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
+import { env } from '$env/dynamic/public';
+
+const supabaseUrl = env.PUBLIC_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 interface RealtimeState {
-    connected: boolean;
-    channels: Map<string, RealtimeChannel>;
-    events: Array<{
-        id: string;
-        channel: string;
-        event: string;
-        payload: any;
-        timestamp: Date;
-    }>;
+  connected: boolean;
+  channels: Map<string, RealtimeChannel>;
+  subscriptions: Map<string, any>;
 }
 
 function createRealtimeStore() {
-    const { subscribe, update } = writable<RealtimeState>({
-        connected: false,
-        channels: new Map(),
-        events: []
-    });
+  const initialState: RealtimeState = {
+    connected: false,
+    channels: new Map(),
+    subscriptions: new Map()
+  };
 
-    return {
-        subscribe,
-        setConnected: (connected: boolean) => {
-            update(state => ({ ...state, connected }));
-        },
-        addChannel: (name: string, channel: RealtimeChannel) => {
-            update(state => {
-                state.channels.set(name, channel);
-                return state;
-            });
-        },
-        removeChannel: (name: string) => {
-            update(state => {
-                state.channels.delete(name);
-                return state;
-            });
-        },
-        addEvent: (channel: string, event: string, payload: any) => {
-            update(state => ({
-                ...state,
-                events: [
-                    {
-                        id: `${Date.now()}-${Math.random()}`,
-                        channel,
-                        event,
-                        payload,
-                        timestamp: new Date()
-                    },
-                    ...state.events.slice(0, 99) // Keep last 100 events
-                ]
-            }));
-        },
-        clearEvents: () => {
-            update(state => ({ ...state, events: [] }));
-        }
-    };
+  const store = writable(initialState);
+  const { subscribe, update } = store;
+
+  return {
+    subscribe,
+
+    // Subscribe to order changes
+    subscribeToOrders(callback: (payload: RealtimePostgresChangesPayload<any>) => void) {
+      const channel = supabase
+        .channel('orders-channel')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'orders' },
+          callback
+        )
+        .subscribe((status) => {
+          console.log('Orders subscription status:', status);
+          update(state => ({
+            ...state,
+            connected: status === 'SUBSCRIBED'
+          }));
+        });
+
+      update(state => {
+        state.channels.set('orders', channel);
+        return state;
+      });
+
+      return () => {
+        channel.unsubscribe();
+        update(state => {
+          state.channels.delete('orders');
+          return state;
+        });
+      };
+    },
+
+    // Subscribe to specific order
+    subscribeToOrder(orderId: string, callback: (payload: RealtimePostgresChangesPayload<any>) => void) {
+      const channelName = `order-${orderId}`;
+
+      const channel = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'orders',
+            filter: `id=eq.${orderId}`
+          },
+          callback
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'order_stages',
+            filter: `order_id=eq.${orderId}`
+          },
+          callback
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'rework_cycles',
+            filter: `order_id=eq.${orderId}`
+          },
+          callback
+        )
+        .subscribe();
+
+      update(state => {
+        state.channels.set(channelName, channel);
+        return state;
+      });
+
+      return () => {
+        channel.unsubscribe();
+        update(state => {
+          state.channels.delete(channelName);
+          return state;
+        });
+      };
+    },
+
+    // Subscribe to station updates
+    subscribeToStation(station: string, callback: (payload: RealtimePostgresChangesPayload<any>) => void) {
+      const channelName = `station-${station}`;
+
+      const channel = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'order_stages',
+            filter: `station=eq.${station}`
+          },
+          callback
+        )
+        .subscribe();
+
+      update(state => {
+        state.channels.set(channelName, channel);
+        return state;
+      });
+
+      return () => {
+        channel.unsubscribe();
+        update(state => {
+          state.channels.delete(channelName);
+          return state;
+        });
+      };
+    },
+
+    // Unsubscribe from all channels
+    unsubscribeAll() {
+      const state = get(store);
+      state.channels.forEach(channel => channel.unsubscribe());
+      update(state => ({
+        ...state,
+        channels: new Map(),
+        connected: false
+      }));
+    }
+  };
 }
 
-export const realtime = createRealtimeStore();
+export const realtimeStore = createRealtimeStore();

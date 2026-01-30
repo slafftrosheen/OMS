@@ -1,371 +1,463 @@
-<!-- src/lib/components/orders/OrderCard.svelte -->
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
-    import Badge from '$lib/components/ui/Badge.svelte';
-    import type { Order } from '$lib/stores/orders';
+  import { createEventDispatcher } from 'svelte';
+  import type { Order } from '$lib/stores/orders';
+  import { t } from '$lib/i18n';
 
-    export let order: Order;
-    export let showActions = true;
+  export let order: Order;
+  export let compact = false;
+  export let showActions = true;
 
-    const dispatch = createEventDispatcher();
+  const dispatch = createEventDispatcher();
 
-    $: progress = calculateProgress(order.stages);
-    $: isOverdue = new Date(order.due_date) < new Date() && order.status !== 'COMPLETED';
-    $: daysRemaining = Math.ceil((new Date(order.due_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  $: daysUntilDue = order.days_until_due || 0;
+  $: isOverdue = daysUntilDue < 0;
+  $: isDueSoon = daysUntilDue >= 0 && daysUntilDue < 3;
+  $: urgencyClass = isOverdue ? 'overdue' : isDueSoon ? 'due-soon' : '';
 
-    function calculateProgress(stages: Record<string, string>): number {
-        const total = Object.keys(stages).length;
-        const completed = Object.values(stages).filter(s => s === 'COMPLETED').length;
-        return Math.round((completed / total) * 100);
+  $: progressColor =
+    (order.progress_percentage || 0) < 30 ? 'red' :
+    (order.progress_percentage || 0) < 70 ? 'orange' : 'green';
+
+  function handleClick() {
+    dispatch('click', order);
+  }
+
+  function handleEdit(e: Event) {
+    e.stopPropagation();
+    dispatch('edit', order);
+  }
+
+  function handleDelete(e: Event) {
+    e.stopPropagation();
+    if (confirm(`Delete order ${order.po_number}?`)) {
+      dispatch('delete', order);
     }
+  }
 
-    function getStatusVariant(status: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
-        const variants = {
-            'COMPLETED': 'success',
-            'ACTIVE': 'info',
-            'ON_HOLD': 'warning',
-            'CANCELLED': 'danger',
-            'DRAFT': 'neutral'
-        };
-        return variants[status as keyof typeof variants] || 'neutral';
-    }
-
-    function handleClick() {
-        dispatch('click', order);
-    }
-
-    function handleEdit(event: Event) {
-        event.stopPropagation();
-        dispatch('edit', order);
-    }
-
-    function handleDelete(event: Event) {
-        event.stopPropagation();
-        dispatch('delete', order);
-    }
+  function formatDate(date: string) {
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  }
 </script>
 
-<div class="order-card" on:click={handleClick} role="button" tabindex="0" on:keypress={(e) => e.key === 'Enter' && handleClick()}>
-    <div class="order-header">
-        <div class="order-info">
-            <h3 class="order-title">{order.title}</h3>
-            <p class="order-client">
-                <span class="icon">👤</span>
-                {order.client}
-            </p>
-        </div>
-        <Badge variant={getStatusVariant(order.status)}>
-            {order.status.replace('_', ' ')}
-        </Badge>
+<article
+  class="order-card {urgencyClass}"
+  class:compact
+  on:click={handleClick}
+  on:keydown={e => e.key === 'Enter' && handleClick()}
+  role="button"
+  tabindex="0"
+>
+  <header class="card-header">
+    <div class="title-section">
+      <h3>{order.title}</h3>
+      {#if order.po_number}
+        <span class="po-number">{order.po_number}</span>
+      {/if}
     </div>
 
-    <div class="order-body">
-        {#if order.description}
-            <p class="order-description">{order.description.substring(0, 100)}{order.description.length > 100 ? '...' : ''}</p>
+    <div class="badges">
+      {#if order.is_rd}
+        <span class="badge badge-rd" title="R&D Order">R&D</span>
+      {/if}
+      {#if order.badges}
+        {#each order.badges as badge}
+          <span class="badge badge-{badge.toLowerCase()}">{badge}</span>
+        {/each}
+      {/if}
+      <span class="badge badge-status badge-{order.status}">{order.status}</span>
+    </div>
+  </header>
+
+  <div class="card-body">
+    <div class="info-grid">
+      <div class="info-item">
+        <span class="label">{$t('orders.client')}:</span>
+        <span class="value">{order.client}</span>
+      </div>
+
+      <div class="info-item">
+        <span class="label">{$t('orders.due_date')}:</span>
+        <span class="value" class:text-danger={isOverdue} class:text-warning={isDueSoon}>
+          {formatDate(order.due_date)}
+          {#if daysUntilDue < 0}
+            <small class="text-danger">({Math.abs(daysUntilDue)}d overdue)</small>
+          {:else if daysUntilDue < 7}
+            <small class="text-warning">({daysUntilDue}d left)</small>
+          {/if}
+        </span>
+      </div>
+
+      {#if order.loading_date}
+        <div class="info-item">
+          <span class="label">{$t('orders.loading_date')}:</span>
+          <span class="value">{formatDate(order.loading_date)}</span>
+        </div>
+      {/if}
+
+      {#if !compact && order.current_station}
+        <div class="info-item">
+          <span class="label">{$t('orders.current_station')}:</span>
+          <span class="value">
+            <span class="station-badge">{order.current_station}</span>
+          </span>
+        </div>
+      {/if}
+
+      <div class="info-item">
+        <span class="label">{$t('orders.priority')}:</span>
+        <span class="value">
+          <span class="priority-indicator priority-{order.priority}">
+            {'★'.repeat(Math.min(order.priority, 5))}
+          </span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-section">
+      <div class="progress-header">
+        <span class="label">{$t('orders.progress')}:</span>
+        <span class="percentage">{(order.progress_percentage || 0).toFixed(0)}%</span>
+      </div>
+      <div class="progress-bar">
+        <div
+          class="progress-fill progress-{progressColor}"
+          style="width: {order.progress_percentage || 0}%"
+          role="progressbar"
+          aria-valuenow={order.progress_percentage || 0}
+          aria-valuemin="0"
+          aria-valuemax="100"
+        />
+      </div>
+      <div class="progress-details">
+        <small>
+          {order.completed_stages || 0}/{order.total_stages || 0} stages completed
+        </small>
+      </div>
+    </div>
+
+    <!-- Alert Indicators -->
+    {#if !compact}
+      <div class="alerts">
+        {#if (order.blocked_stages || 0) > 0}
+          <div class="alert alert-danger">
+            <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            {order.blocked_stages} blocked stage{order.blocked_stages > 1 ? 's' : ''}
+          </div>
         {/if}
 
-        <!-- Progress Bar -->
-        <div class="progress-section">
-            <div class="progress-header">
-                <span class="progress-label">Progress</span>
-                <span class="progress-value">{progress}%</span>
-            </div>
-            <div class="progress-bar">
-                <div class="progress-fill" style="width: {progress}%"></div>
-            </div>
-        </div>
-
-        <!-- Stage Pills -->
-        <div class="stages">
-            {#each Object.entries(order.stages) as [stage, status]}
-                <span class="stage-pill stage-{status.toLowerCase().replace('_', '-')}">
-                    {stage}
-                </span>
-            {/each}
-        </div>
-    </div>
-
-    <div class="order-footer">
-        <div class="order-meta">
-            <div class="meta-item" class:overdue={isOverdue}>
-                <span class="icon">📅</span>
-                <span class="meta-text">
-                    {new Date(order.due_date).toLocaleDateString()}
-                    {#if order.status === 'ACTIVE'}
-                        <span class="days-remaining">
-                            ({daysRemaining > 0 ? `${daysRemaining}d left` : 'Overdue'})
-                        </span>
-                    {/if}
-                </span>
-            </div>
-            
-            {#if order.price}
-                <div class="meta-item">
-                    <span class="icon">💰</span>
-                    <span class="meta-text">€{order.price.toLocaleString()}</span>
-                </div>
-            {/if}
-
-            {#if order.rework_count > 0}
-                <div class="meta-item rework">
-                    <span class="icon">🔄</span>
-                    <span class="meta-text">{order.rework_count} rework{order.rework_count > 1 ? 's' : ''}</span>
-                </div>
-            {/if}
-        </div>
-
-        {#if showActions}
-            <div class="order-actions">
-                <button class="action-btn" on:click={handleEdit} title="Edit order">
-                    <span aria-hidden="true">✏️</span>
-                    <span class="sr-only">Edit</span>
-                </button>
-                <button class="action-btn danger" on:click={handleDelete} title="Delete order">
-                    <span aria-hidden="true">🗑️</span>
-                    <span class="sr-only">Delete</span>
-                </button>
-            </div>
+        {#if (order.rework_stages || 0) > 0}
+          <div class="alert alert-warning">
+            <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            {order.rework_stages} rework needed
+          </div>
         {/if}
-    </div>
-</div>
+
+        {#if (order.total_rework_count || 0) > 0}
+          <div class="stat-badge">
+            <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+            {order.total_rework_count} total rework{order.total_rework_count > 1 ? 's' : ''}
+          </div>
+        {/if}
+
+        {#if (order.assignee_count || 0) > 0}
+          <div class="stat-badge">
+            <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            {order.assignee_count} assigned
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </div>
+
+  {#if showActions}
+    <footer class="card-footer">
+      <button class="btn btn-sm btn-outline" on:click={handleEdit}>
+        {$t('common.edit')}
+      </button>
+      <button class="btn btn-sm btn-outline btn-danger" on:click={handleDelete}>
+        {$t('common.delete')}
+      </button>
+    </footer>
+  {/if}
+</article>
 
 <style>
-    .order-card {
-        background: white;
-        border: 1px solid var(--color-border, #e5e7eb);
-        border-radius: 0.5rem;
-        padding: 1.25rem;
-        transition: all 0.15s ease;
-        cursor: pointer;
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-    }
+  .order-card {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+  }
 
-    .order-card:hover {
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
-                    0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        transform: translateY(-2px);
-        border-color: var(--color-primary, #0066cc);
-    }
+  .order-card:hover {
+    border-color: var(--accent-1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
 
-    .order-card:focus-visible {
-        outline: 2px solid var(--color-primary, #0066cc);
-        outline-offset: 2px;
-    }
+  .order-card:focus {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
 
-    .order-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 1rem;
-    }
+  .order-card.overdue {
+    border-left: 4px solid var(--danger);
+  }
 
-    .order-info {
-        flex: 1;
-        min-width: 0;
-    }
+  .order-card.due-soon {
+    border-left: 4px solid var(--warn);
+  }
 
-    .order-title {
-        font-size: 1.125rem;
-        font-weight: 600;
-        margin: 0 0 0.25rem 0;
-        color: var(--color-text, #111827);
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
+  .order-card.compact {
+    padding: 0.75rem;
+  }
 
-    .order-client {
-        font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
-        margin: 0;
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-    }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
 
-    .icon {
-        font-size: 1em;
-    }
+  .title-section h3 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.125rem;
+    color: var(--text);
+  }
 
-    .order-body {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-    }
+  .po-number {
+    font-size: 0.875rem;
+    color: var(--muted);
+    font-family: 'Courier New', monospace;
+  }
 
-    .order-description {
-        font-size: 0.875rem;
-        color: var(--color-gray-700, #374151);
-        margin: 0;
-        line-height: 1.5;
-    }
+  .badges {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
 
-    .progress-section {
-        display: flex;
-        flex-direction: column;
-        gap: 0.375rem;
-    }
+  .badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
 
-    .progress-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 0.75rem;
-        font-weight: 500;
-        color: var(--color-gray-600, #6b7280);
-    }
+  .badge-rd {
+    background: var(--accent-2);
+    color: white;
+  }
 
-    .progress-bar {
-        height: 0.5rem;
-        background-color: var(--color-gray-200, #e5e7eb);
-        border-radius: 9999px;
-        overflow: hidden;
-    }
+  .badge-status {
+    background: var(--bg-2);
+    color: var(--text);
+  }
 
-    .progress-fill {
-        height: 100%;
-        background: linear-gradient(90deg, #0066cc, #0052a3);
-        transition: width 0.3s ease;
-    }
+  .badge-draft { background: #6c757d; color: white; }
+  .badge-active { background: #28a745; color: white; }
+  .badge-completed { background: #007bff; color: white; }
+  .badge-cancelled { background: #dc3545; color: white; }
+  .badge-on_hold { background: #ffc107; color: black; }
 
-    .stages {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.375rem;
-    }
+  .card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
 
-    .stage-pill {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
-        border-radius: 0.25rem;
-        font-weight: 500;
-        white-space: nowrap;
-    }
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+  }
 
-    .stage-not-started {
-        background-color: #f3f4f6;
-        color: #6b7280;
-    }
+  .info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
 
-    .stage-in-progress {
-        background-color: #dbeafe;
-        color: #1e40af;
-    }
+  .info-item .label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
 
-    .stage-completed {
-        background-color: #dcfce7;
-        color: #166534;
-    }
+  .info-item .value {
+    font-size: 0.875rem;
+    color: var(--text);
+    font-weight: 500;
+  }
 
-    .stage-blocked {
-        background-color: #fee2e2;
-        color: #991b1b;
-    }
+  .text-danger { color: var(--danger); }
+  .text-warning { color: var(--warn); }
 
-    .stage-skipped {
-        background-color: #fef3c7;
-        color: #92400e;
-    }
+  .station-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: var(--accent-1);
+    color: white;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
 
-    .order-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 1rem;
-        padding-top: 0.75rem;
-        border-top: 1px solid var(--color-border, #e5e7eb);
-    }
+  .priority-indicator {
+    color: var(--warn);
+    font-size: 1rem;
+  }
 
-    .order-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1rem;
-        flex: 1;
-    }
+  .progress-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
 
-    .meta-item {
-        display: flex;
-        align-items: center;
-        gap: 0.375rem;
-        font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
-    }
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
 
-    .meta-item.overdue {
-        color: var(--color-danger, #dc3545);
-        font-weight: 500;
-    }
+  .progress-header .label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
 
-    .meta-item.rework {
-        color: var(--color-warning, #f59e0b);
-    }
+  .progress-header .percentage {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text);
+  }
 
-    .meta-text {
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-    }
+  .progress-bar {
+    height: 8px;
+    background: var(--bg-2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
 
-    .days-remaining {
-        font-size: 0.75rem;
-        font-weight: 500;
-    }
+  .progress-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+  }
 
-    .order-actions {
-        display: flex;
-        gap: 0.5rem;
-    }
+  .progress-red { background: var(--danger); }
+  .progress-orange { background: var(--warn); }
+  .progress-green { background: var(--ok); }
 
-    .action-btn {
-        background: none;
-        border: 1px solid var(--color-border, #e5e7eb);
-        padding: 0.375rem 0.5rem;
-        border-radius: 0.25rem;
-        cursor: pointer;
-        transition: all 0.15s ease;
-        font-size: 1rem;
-    }
+  .progress-details small {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
 
-    .action-btn:hover {
-        background-color: var(--color-gray-100, #f3f4f6);
-        border-color: var(--color-gray-300, #d1d5db);
-    }
+  .alerts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
 
-    .action-btn.danger:hover {
-        background-color: #fee2e2;
-        border-color: #fecaca;
-    }
+  .alert {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
 
-    .sr-only {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border-width: 0;
-    }
+  .alert-danger {
+    background: rgba(220, 53, 69, 0.1);
+    color: var(--danger);
+    border: 1px solid var(--danger);
+  }
 
-    @media (max-width: 640px) {
-        .stages {
-            max-width: 100%;
-            overflow-x: auto;
-            flex-wrap: nowrap;
-            padding-bottom: 0.25rem;
-        }
+  .alert-warning {
+    background: rgba(255, 193, 7, 0.1);
+    color: var(--warn);
+    border: 1px solid var(--warn);
+  }
 
-        .order-footer {
-            flex-direction: column;
-            align-items: flex-start;
-        }
+  .stat-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--bg-2);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
 
-        .order-actions {
-            width: 100%;
-            justify-content: flex-end;
-        }
-    }
+  .icon {
+    flex-shrink: 0;
+  }
+
+  .card-footer {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .btn {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .btn-outline:hover {
+    background: var(--bg-2);
+    border-color: var(--accent-1);
+  }
+
+  .btn-danger {
+    color: var(--danger);
+    border-color: var(--danger);
+  }
+
+  .btn-danger:hover {
+    background: rgba(220, 53, 69, 0.1);
+  }
 </style>
