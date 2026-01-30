@@ -1,4 +1,5 @@
-import type { Order, Badge } from './types';
+import type { Order, Badge, Station } from './types';
+import { blankStages, STATIONS } from './stages';
 import { writable, get } from 'svelte/store';
 import { handleApiError, retryWithBackoff } from '$lib/utils/error-handler';
 import { notifySuccess, notifyError } from '$lib/notify/toast';
@@ -178,7 +179,7 @@ function transformApiOrder(d: any): Order {
     badges: (d.badges || (d.status === 'draft' ? ['DRAFT'] : [])) as Badge[],
     fields: d.fields || [],
     materials: d.materials || [],
-    stages: d.stages || {},
+    stages: d.stages || blankStages(),
     isDraft: d.status === 'draft',
     profiles: d.profiles || [],
     isRD: d.isRD || false,
@@ -189,6 +190,7 @@ function transformApiOrder(d: any): Order {
     redoReason: d.redoReason || '',
     progress: d.progress || {},
     cycles: d.cycles || [],
+    defaultBranch: d.defaultBranch || 'main',
     branches: d.branches || [],
     prs: d.prs || [],
     revisions: d.revisions || [],
@@ -325,6 +327,12 @@ export async function addRedoFlag(orderId: string, station: string, reason: stri
  */
 export function createNewOrder(): Order {
   const newId = `PO-${Date.now()}`;
+
+  const initialProgress = STATIONS.reduce((acc, station) => {
+    acc[station] = 0;
+    return acc;
+  }, {} as Record<Station, number>);
+
   return {
     id: newId,
     title: 'New Order',
@@ -334,7 +342,7 @@ export function createNewOrder(): Order {
     badges: ['DRAFT'],
     fields: [],
     materials: [],
-    stages: {},
+    stages: blankStages(),
     isDraft: true,
     profiles: [],
     isRD: false,
@@ -343,8 +351,9 @@ export function createNewOrder(): Order {
     redoReasons: {},
     redoStage: '',
     redoReason: '',
-    progress: {},
+    progress: initialProgress,
     cycles: [],
+    defaultBranch: 'main',
     branches: [],
     prs: [],
     revisions: [],

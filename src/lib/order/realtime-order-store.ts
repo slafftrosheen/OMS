@@ -1,9 +1,16 @@
 // src/lib/order/realtime-order-store.ts
 import { writable, get } from 'svelte/store';
-import { realtimeService, type OrderUpdate, type Presence } from '$lib/realtime/realtime-service';
+import { realtimeService, connectionState, realtimeOrders, type RealtimeOrderUpdate } from '$lib/realtime/realtime-service';
 import { browser } from '$app/environment';
 import { currentUser } from '$lib/auth/user-store';
 import { base } from '$app/paths';
+
+// Placeholder for Presence since it's not exported/implemented yet
+export type Presence = {
+	id: string;
+	user: any;
+	onlineAt: string;
+};
 
 interface OrderState {
 	orders: Map<string, any>;
@@ -18,27 +25,32 @@ function createRealtimeOrderStore() {
 		conflicts: new Map()
 	});
 
-	const presence = realtimeService.getPresence();
-	const connectionStatus = realtimeService.getConnectionStatus();
+	// Mock presence store for now since it's not in realtime-service
+	const presence = writable<Presence[]>([]);
 
 	let unsubscribe: (() => void) | null = null;
 
 	return {
 		subscribe: state.subscribe,
 		presence,
-		connectionStatus,
+		connectionStatus: connectionState,
 
 		// Initialize real-time subscriptions
 		init() {
 			if (!browser || unsubscribe) return;
 
-			unsubscribe = realtimeService.subscribeToOrders((update) => {
-				this.handleOrderUpdate(update);
+			// Subscribe to the realtimeOrders store from the service
+			unsubscribe = realtimeOrders.subscribe((updates) => {
+				// Process the latest update if available
+				const latestUpdate = updates[0];
+				if (latestUpdate) {
+					this.handleOrderUpdate(latestUpdate);
+				}
 			});
 		},
 
 		// Handle incoming real-time updates
-		handleOrderUpdate(update: OrderUpdate) {
+		handleOrderUpdate(update: RealtimeOrderUpdate) {
 			const currentState = get(state);
 			const order = currentState.orders.get(update.id);
 
@@ -49,10 +61,10 @@ function createRealtimeOrderStore() {
 			const optimisticUpdate = currentState.optimisticUpdates.get(update.id);
 			if (optimisticUpdate) {
 				// Conflict detected - server update differs from our optimistic update
-				if (JSON.stringify(optimisticUpdate) !== JSON.stringify(update.payload)) {
+				if (JSON.stringify(optimisticUpdate) !== JSON.stringify(update.order)) {
 					currentState.conflicts.set(update.id, {
 						local: optimisticUpdate,
-						remote: update.payload,
+						remote: update.order,
 						timestamp: update.timestamp
 					});
 
@@ -65,7 +77,7 @@ function createRealtimeOrderStore() {
 			}
 
 			// Apply server update
-			currentState.orders.set(update.id, update.payload);
+			currentState.orders.set(update.id, update.order);
 			state.set(currentState);
 
 			// Show notification toast
@@ -100,7 +112,7 @@ function createRealtimeOrderStore() {
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
 						...changes,
-						updated_by: user?.id, // Assuming user object has id, need to verify typings if strictly typed
+						updated_by: (user as any)?.id,
 						updated_by_name: user?.displayName
 					})
 				});
@@ -154,32 +166,20 @@ function createRealtimeOrderStore() {
 		},
 
 		// Show toast notifications
-		showUpdateToast(update: OrderUpdate) {
+		showUpdateToast(update: RealtimeOrderUpdate) {
 			const user = get(currentUser);
-			// Assuming update.userId matches the user.id format (e.g. UUID)
-			// user store types: User usually doesn't have ID in the type definition in user-store.ts I read earlier?
-			// Let's re-read user-store.ts. It constructs User object.
-			// The user object in user-store.ts: { username, displayName, ... }
-			// It doesn't explicitly seem to have 'id'.
-			// But loadCurrentUser calls /api/auth which returns user.
-			// Let's assume for now we might not be able to check ID equality effectively if not present.
-			// But realtime service sends userId.
+			// Check if update is from current user
+			// RealtimeOrderUpdate has userId
+			// User object might not have id in its type definition, so casting for now
+			const currentUserId = (user as any)?.id;
 			
-			// If update.username matches current user's username, skip?
-			if (user && update.username === user.username) return; 
+			if (currentUserId && update.userId === currentUserId) return;
 
-			const messages: Record<string, string> = {
-				stage_change: `${update.username} updated stage for order ${update.id}`,
-				assignment: `${update.username} assigned order ${update.id}`,
-				rework: `${update.username} sent order ${update.id} to rework`,
-				status_change: `${update.username} changed status of order ${update.id}`,
-				comment: `${update.username} commented on order ${update.id}`
-			};
-
-			this.showToast(messages[update.type] || 'Order updated', 'info');
+			const message = `${update.userName} ${update.action} order ${update.id}`;
+			this.showToast(message, 'info');
 		},
 
-		showConflictToast(update: OrderUpdate) {
+		showConflictToast(update: RealtimeOrderUpdate) {
 			this.showToast(
 				`Conflict detected for order ${update.id}. Your changes may have been overwritten.`,
 				'warning'
@@ -198,19 +198,8 @@ function createRealtimeOrderStore() {
 
 		// Track presence for an order
 		trackPresence(orderId: string, action: 'viewing' | 'editing') {
-			const user = get(currentUser);
-			if (!user) return () => {};
-
-			// Need to pass an object with id for realtime service
-			// Since user object might not have id, we might use username as id or fetch it.
-			// Ideally /api/auth returns id.
-			// For now let's mock id with username if id missing
-			const userForPresence = { 
-				...user, 
-				id: (user as any).id || user.username 
-			};
-
-			return realtimeService.trackPresence(orderId, action, userForPresence);
+			// Stub implementation until Presence is supported in RealtimeService
+			return () => {};
 		},
 
 		// Cleanup
@@ -219,7 +208,7 @@ function createRealtimeOrderStore() {
 				unsubscribe();
 				unsubscribe = null;
 			}
-			realtimeService.cleanup();
+			// realtimeService.disconnect(); // Don't disconnect global service, just unsubscribe listener
 		}
 	};
 }
