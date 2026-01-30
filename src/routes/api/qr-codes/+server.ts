@@ -7,8 +7,6 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabase } from '$lib/server/supabase';
 import QRCode from 'qrcode';
-import JsBarcode from 'jsbarcode';
-import { createCanvas } from 'canvas';
 
 // GET /api/qr-codes - List QR codes
 export const GET: RequestHandler = async ({ url, locals }) => {
@@ -46,7 +44,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   if (!user) throw error(401, 'Unauthorized');
 
   const body = await request.json();
-  const { orderId, format = 'QR', size = 300 } = body;
+  const { orderId, size = 300 } = body;
 
   if (!orderId) {
     throw error(400, 'Missing required field: orderId');
@@ -57,7 +55,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     const { data: qrCodeId, error: dbError } = await supabase
       .rpc('generate_order_qr_code', {
         p_order_id: orderId,
-        p_format: format
+        p_format: 'QR'
       });
 
     if (dbError) {
@@ -76,30 +74,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       throw error(500, 'Failed to fetch generated QR code');
     }
 
-    // Generate QR code image
-    let imageDataUrl: string;
-
-    if (format === 'QR') {
-      imageDataUrl = await QRCode.toDataURL(qrCode.qr_code, {
-        width: size,
-        margin: 2,
-        errorCorrectionLevel: 'M',
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      });
-    } else {
-      // Generate barcode for other formats
-      const canvas = createCanvas(size, size / 2);
-      JsBarcode(canvas, qrCode.qr_code, {
-        format: format,
-        width: 2,
-        height: 50,
-        displayValue: true
-      });
-      imageDataUrl = canvas.toDataURL();
-    }
+    // Generate QR code image (browser-compatible)
+    const imageDataUrl = await QRCode.toDataURL(qrCode.qr_code, {
+      width: size,
+      margin: 2,
+      errorCorrectionLevel: 'M',
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
 
     return json({
       data: {
