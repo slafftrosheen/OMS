@@ -1,4 +1,4 @@
-import { register, init, getLocaleFromNavigator, locale, addMessages } from 'svelte-i18n';
+import { register, init, getLocaleFromNavigator, locale, addMessages, t } from 'svelte-i18n';
 import { base } from '$app/paths';
 import en from '../locales/en.json';
 
@@ -81,7 +81,7 @@ export function setLocale(code: LocaleCode | string) {
 }
 
 // Re-export locale for compatibility
-export { locale };
+export { locale, t };
 
 // Export available locales
 export const locales = SUPPORTED_LOCALES;

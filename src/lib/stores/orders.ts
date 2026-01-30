@@ -50,12 +50,14 @@ interface OrdersState {
 }
 
 interface OrderFilters {
-  status?: string;
+  status?: string | string[];
   station?: string;
   search?: string;
   is_rd?: boolean;
   loading_date?: string;
   priority?: number;
+  sort?: string;
+  order?: 'asc' | 'desc';
 }
 
 // Create base store
@@ -81,18 +83,43 @@ function createOrdersStore() {
     params.set('limit', state.pageSize.toString());
     params.set('offset', offset.toString());
 
-    if (state.filters.status) params.set('status', state.filters.status);
+    if (state.filters.status) {
+      if (Array.isArray(state.filters.status)) {
+        params.set('status', state.filters.status.join(','));
+      } else {
+        params.set('status', state.filters.status);
+      }
+    }
     if (state.filters.station) params.set('station', state.filters.station);
     if (state.filters.search) params.set('search', state.filters.search);
     if (state.filters.is_rd !== undefined) params.set('is_rd', state.filters.is_rd.toString());
     if (state.filters.loading_date) params.set('loading_date', state.filters.loading_date);
     if (state.filters.priority !== undefined) params.set('priority', state.filters.priority.toString());
+    if (state.filters.sort) params.set('sort_by', state.filters.sort);
+    if (state.filters.order) params.set('order', state.filters.order);
 
     return params;
   }
 
   return {
     subscribe,
+
+    // Set sorting
+    async setSort(sort: { field: string; direction: 'asc' | 'desc' }) {
+      update(state => ({
+        ...state,
+        filters: { ...state.filters, sort: sort.field, order: sort.direction }
+      }));
+      await this.load();
+    },
+
+    setOrders(items: Order[]) {
+      update(state => ({ ...state, items, total: items.length, loading: false, error: null }));
+    },
+
+    setError(error: string) {
+      update(state => ({ ...state, error, loading: false }));
+    },
 
     // Load orders with current filters
     async load() {
@@ -277,4 +304,20 @@ export const rdOrders: Readable<Order[]> = derived(
 export const overdueOrders: Readable<Order[]> = derived(
   ordersStore,
   $orders => $orders.items.filter(o => (o.days_until_due || 0) < 0)
+);
+
+// Exports for compatibility with OrderList.svelte
+export const filteredOrders: Readable<Order[]> = derived(
+  ordersStore,
+  $orders => $orders.items
+);
+
+export const orderStats: Readable<{total: number; active: number; completed: number; overdue: number}> = derived(
+  ordersStore,
+  $orders => ({
+    total: $orders.total,
+    active: $orders.items.filter(o => o.status === 'active').length,
+    completed: $orders.items.filter(o => o.status === 'completed').length,
+    overdue: $orders.items.filter(o => (o.days_until_due || 0) < 0).length
+  })
 );
