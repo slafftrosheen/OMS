@@ -110,6 +110,8 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
   if (!user) throw error(401, 'Unauthorized');
 
   const body = await request.json();
+  // Cast params to satisfy TS check for generic RouteParams
+  const { id } = params as { id: string };
 
   try {
     const { data, error: dbError } = await supabase
@@ -118,7 +120,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
         ...body,
         updated_at: new Date().toISOString()
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('created_by', user.id)
       .select()
       .single();
@@ -138,11 +140,14 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
+  // Cast params to satisfy TS check for generic RouteParams
+  const { id } = params as { id: string };
+
   try {
     const { error: dbError } = await supabase
       .from('webhook_endpoints')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('created_by', user.id);
 
     if (dbError) throw dbError;
