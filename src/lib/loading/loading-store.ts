@@ -135,7 +135,29 @@ export function upcoming(fromISO = new Date().toISOString().slice(0, 10)): Loadi
 }
 
 // Get usage info for a loading day (orders assigned to it)
-export async function usage(dateISO: string): Promise<{ assigned: number; carrier: string; orders: LoadingAssignment[] }> {
+// Synchronous version to be used in templates/computations
+export function usage(dateISO: string): { assigned: number; carrier: string; orders: LoadingAssignment[] } {
+  // Fallback: get from orders store synchronously since store should be populated
+  const orders = listOrders(); // listOrders is now sync and returns from store value
+  const matching = orders.filter(order => order.loadingDate === dateISO);
+  const day = getDay(dateISO);
+
+  return {
+    assigned: matching.length,
+    carrier: day?.carrier ?? '',
+    orders: matching.map(order => ({
+      id: order.id,
+      title: order.title,
+      client: order.client,
+      due: order.due,
+      badges: [...order.badges],
+      stages: order.stages
+    }))
+  };
+}
+
+// Async version if fresh data is strictly needed from API
+export async function fetchUsage(dateISO: string): Promise<{ assigned: number; carrier: string; orders: LoadingAssignment[] }> {
   try {
     const response = await fetch(`/api/loading-days/${dateISO}`);
     if (response.ok) {
@@ -156,24 +178,7 @@ export async function usage(dateISO: string): Promise<{ assigned: number; carrie
   } catch (err) {
     console.error('Failed to get usage:', err);
   }
-
-  // Fallback: get from orders store
-  const orders = await listOrders();
-  const matching = orders.filter(order => order.loadingDate === dateISO);
-  const day = getDay(dateISO);
-
-  return {
-    assigned: matching.length,
-    carrier: day?.carrier ?? '',
-    orders: matching.map(order => ({
-      id: order.id,
-      title: order.title,
-      client: order.client,
-      due: order.due,
-      badges: [...order.badges],
-      stages: order.stages
-    }))
-  };
+  return usage(dateISO);
 }
 
 // Backward compatibility exports

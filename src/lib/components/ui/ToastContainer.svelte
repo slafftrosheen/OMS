@@ -1,6 +1,6 @@
 <!-- src/lib/components/ui/ToastContainer.svelte -->
 <script lang="ts">
-    import { toasts } from '$lib/stores/notifications';
+    import { toasts } from '$lib/stores/toasts';
     import { fly, fade } from 'svelte/transition';
 
     const icons = {

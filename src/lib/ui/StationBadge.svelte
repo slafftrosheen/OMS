@@ -29,7 +29,11 @@
     PAINT: Paintbrush,
     ASSEMBLY: PackageCheck,
     QC: ShieldCheck,
-    LOGISTICS: Truck
+    LOGISTICS: Truck,
+    // Add missing stations to satisfy Record<StationTag, ...>
+    // Using generic icons for specialized stations for now
+    FILM_COATING: CircleDashed,
+    GLUEING: CircleDashed
   };
 
   $: icon = station ? icons[station] ?? CircleDashed : CircleDashed;

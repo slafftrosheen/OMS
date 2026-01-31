@@ -212,6 +212,16 @@ function handleKeydown(event: KeyboardEvent) {
     handleSearch();
   }
 }
+
+  function handleInput(e: Event) {
+    const target = e.target as HTMLInputElement;
+    loadSuggestions('recent', target.value);
+  }
+
+  function handleClientInput(e: Event) {
+    const target = e.target as HTMLInputElement;
+    loadSuggestions('client', target.value);
+  }
 </script>
 
 <div class="advanced-search">
@@ -222,7 +232,7 @@ function handleKeydown(event: KeyboardEvent) {
         type="text"
         bind:value={query}
         on:keydown={handleKeydown}
-        on:input={(e) => loadSuggestions('recent', (e.target as HTMLInputElement).value)}
+        on:input={handleInput}
         placeholder="Search orders, PO numbers, clients..."
         class="search-input"
         aria-label="Search query"
@@ -305,7 +315,7 @@ function handleKeydown(event: KeyboardEvent) {
             id="filter-client"
             type="text"
             bind:value={filters.client}
-            on:input={(e) => loadSuggestions('client', (e.target as HTMLInputElement).value)}
+            on:input={handleClientInput}
             placeholder="Client name..."
           />
         </div>

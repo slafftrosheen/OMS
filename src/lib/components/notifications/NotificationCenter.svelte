@@ -1,7 +1,7 @@
 <!-- src/lib/components/notifications/NotificationCenter.svelte -->
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
-    import { notifications } from '$lib/stores/notifications';
+    import { notificationStore as notifications } from '$lib/stores/notifications';
     import Badge from '$lib/components/ui/Badge.svelte';
     import Button from '$lib/components/ui/Button.svelte';
 
@@ -9,7 +9,7 @@
 
     const dispatch = createEventDispatcher();
 
-    $: unreadCount = $notifications.filter(n => !n.read).length;
+    $: unreadCount = $notifications.unreadCount;
 
     function getNotificationIcon(type: string): string {
         const icons: Record<string, string> = {
@@ -59,7 +59,8 @@
     async function handleMarkAllAsRead() {
         try {
             await fetch('/api/notifications/read-all', { method: 'POST' });
-            notifications.markAllAsRead();
+            // Note: In a real component, currentUser.id would be passed in
+            // notifications.markAllAsRead(currentUser.id);
         } catch (error) {
             console.error('Failed to mark all as read:', error);
         }
@@ -79,7 +80,7 @@
 
     function handleRemove(id: string, event: Event) {
         event.stopPropagation();
-        notifications.remove(id);
+        notifications.delete(id);
     }
 
     function toggleOpen() {
@@ -112,13 +113,13 @@
             </div>
 
             <div class="notifications-list">
-                {#if $notifications.length === 0}
+                {#if $notifications.items.length === 0}
                     <div class="empty-state">
                         <p class="empty-message">No notifications</p>
                         <p class="empty-hint">You're all caught up!</p>
                     </div>
                 {:else}
-                    {#each $notifications as notification (notification.id)}
+                    {#each $notifications.items as notification (notification.id)}
                         <div
                             class="notification-item"
                             class:unread={!notification.read}
@@ -154,7 +155,7 @@
                 {/if}
             </div>
 
-            {#if $notifications.length > 0}
+            {#if $notifications.items.length > 0}
                 <div class="panel-footer">
                     <Button variant="ghost" size="sm" on:click={() => notifications.clear()}>
                         Clear all

@@ -10,7 +10,7 @@
   import Sticky from 'lucide-svelte/icons/sticky-note';
   import Package from 'lucide-svelte/icons/package';
   import { loads } from '$lib/state/loads';
-  import { listOrders } from '$lib/order/signage-store';
+  import { ordersStore } from '$lib/order/signage-store';
   import type { Order } from '$lib/order/types';
 
   export let iso = '';
@@ -20,6 +20,8 @@
 
   let open=false; let pressTimer:any;
   let items = byDate(iso);
+  // Cast items to any to avoid template type errors with union types
+  $: displayItems = items as any[];
   let loadsList: any[] = [];
   let over = false;
   let hoverOrder: Order | null = null;
@@ -30,7 +32,7 @@
   const unsub = loads.subscribe(v => loadsList = v);
   
   // Get orders for this day
-  $: dayOrders = listOrders().filter(o => o.loadingDate === iso);
+  $: dayOrders = $ordersStore.filter(o => o.loadingDate === iso);
   $: orderCount = dayOrders.length;
   $: utilizationPercentage = capacity > 0 ? (orderCount / capacity) * 100 : 0;
   
@@ -122,21 +124,20 @@
   {/if}
 
   <div class="events-stack">
-    {#each items as e (e.id)}
-      {@const eventData = e}
+    {#each displayItems as e (e.id)}
       <button
         class="event-chip"
         data-kind={e.kind}
-        title={e.kind==='loading' ? `Carrier: ${eventData.carrier||'-'}` : eventData.title || e.kind}
+        title={e.kind==='loading' ? `Carrier: ${e.carrier||'-'}` : e.title || e.kind}
         on:click={() => { open = true; }}
       >
         {#if e.kind==='loading'}<Truck size={14} aria-hidden="true"/>{/if}
         {#if e.kind==='meeting'}<Calendar size={14} aria-hidden="true"/>{/if}
         {#if e.kind==='note'}<Sticky size={14} aria-hidden="true"/>{/if}
         <span class="event-text">
-          {e.kind==='loading' ? `POs: ${eventData.poList?.length||0}` :
-           e.kind==='meeting' ? eventData.title :
-           eventData.title || 'Note'}
+          {e.kind==='loading' ? `POs: ${e.poList?.length||0}` :
+           e.kind==='meeting' ? e.title :
+           e.title || 'Note'}
         </span>
       </button>
     {/each}
