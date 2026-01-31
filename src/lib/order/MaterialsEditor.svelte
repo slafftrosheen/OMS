@@ -1,10 +1,12 @@
+<script context="module" lang="ts">
+  export type MaterialRow = { key: string; label: string; value: string };
+</script>
+
 <script lang="ts">
   import Button from '$lib/ui/Button.svelte';
   import Input from '$lib/ui/Input.svelte';
   import { role } from '$lib/ui/RoleSwitch.svelte';
   import { t } from 'svelte-i18n';
-
-  export type MaterialRow = { key: string; label: string; value: string };
 
   export let items: MaterialRow[] = [];
   export let onPropose: (items: MaterialRow[]) => void = () => {};

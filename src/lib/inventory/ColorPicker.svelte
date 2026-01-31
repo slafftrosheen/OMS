@@ -48,7 +48,7 @@
         <input 
           bind:value={ralInput} 
           placeholder="e.g., RAL 9016"
-          pattern="RAL \d{{4}}"
+          pattern="RAL \d{4}"
         />
       </label>
     {/if}
@@ -71,7 +71,7 @@
           <input 
             bind:value={hexInput} 
             placeholder="FF5733"
-            pattern="[0-9A-Fa-f]{{6}}"
+          pattern="[0-9A-Fa-f]{6}"
             maxlength="6"
           />
           {#if hexInput.length === 6}

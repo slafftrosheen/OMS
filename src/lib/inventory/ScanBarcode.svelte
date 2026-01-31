@@ -17,7 +17,6 @@
       
       await Quagga.init({
         inputStream: {
-          name: 'Live',
           type: 'LiveStream',
           target: scannerContainer,
           constraints: {

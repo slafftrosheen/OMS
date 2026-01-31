@@ -89,9 +89,9 @@
         <div class="chat-current">
           <span class="chat-avatar" aria-hidden="true">{avatarInitial($currentUser.id)}</span>
           <div class="chat-current__info">
-            <strong>{$currentUser.name}</strong>
+            <strong>{$currentUser.displayName}</strong>
             {#if $currentUser.stations && $currentUser.stations[0]}
-              <StationBadge station={$currentUser.stations[0]} size="sm" tone="highlight" />
+              <StationBadge station={$currentUser.stations[0] as StationTag} size="sm" tone="highlight" />
             {/if}
           </div>
         </div>

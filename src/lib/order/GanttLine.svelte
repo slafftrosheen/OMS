@@ -1,10 +1,13 @@
+<script context="module" lang="ts">
+  export type GanttItem = { label: string; planned: [number, number]; actual?: [number, number] };
+</script>
+
 <script lang="ts">
   import { t } from 'svelte-i18n';
   import ApexCharts from 'svelte-apexcharts';
   import { withTheme } from '$lib/charts/theme';
   import { theme, type ThemeName } from '$lib/stores/theme';
 
-  export type GanttItem = { label: string; planned: [number, number]; actual?: [number, number] };
   export let items: GanttItem[] = [];
 
   let currentTheme: ThemeName = 'DarkVim';

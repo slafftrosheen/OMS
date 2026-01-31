@@ -11,7 +11,7 @@ import {
   CheckCircle, 
   MessageSquare, 
   Camera,
-  Tool,
+  Wrench as Tool,
   QrCode
 } from 'lucide-svelte';
 

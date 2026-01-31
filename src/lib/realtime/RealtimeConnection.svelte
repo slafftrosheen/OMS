@@ -13,7 +13,7 @@ import { Wifi, WifiOff, AlertCircle } from 'lucide-svelte';
 let unsubscribe: (() => void) | null = null;
 let userId: string | null = null;
 
-onMount(async () => {
+onMount(() => {
   // Subscribe to user state
   const userUnsub = currentUser.subscribe(user => {
     if (user?.id && user.id !== userId) {
@@ -26,7 +26,7 @@ onMount(async () => {
   });
 
   // Request notification permission
-  await realtimeService.requestNotificationPermission();
+  realtimeService.requestNotificationPermission().catch(console.error);
 
   return () => {
     userUnsub();

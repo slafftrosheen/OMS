@@ -87,6 +87,7 @@
     
     const data = await res.json();
     const user = {
+      id: data.user.id,
       username: data.user.username,
       displayName: data.user.displayName,
       email: data.user.email,

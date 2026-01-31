@@ -89,7 +89,7 @@ export type Commit = {
     fields: Field[];
     materials: Field[];
     badges: Badge[];
-    progress: Record<Station, number>;
+    progress: Partial<Record<Station, number>>;
     defaultRevisionId: string;
     loadingDate: string;
     stages: Partial<StageMap>;
