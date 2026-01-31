@@ -3,19 +3,23 @@
  * Handles offline caching, background sync, and push notifications
  */
 
-const CACHE_VERSION = 'oms-v1.0.0';
+const CACHE_VERSION = 'oms-v1.0.2';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
 
 // Files to cache immediately
+// NOTE: We do NOT cache '/' here because it refers to the App Shell (index.html)
+// which references immutable JS chunks that change with every build.
+// Caching '/' with a Cache-First strategy would cause the app to crash
+// after a new deployment because the cached HTML would point to missing JS files.
+// Instead, '/' is handled by the networkFirstStrategy below.
 const STATIC_ASSETS = [
-  '/',
   '/offline',
   '/manifest.json',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
-  // Add your main CSS and JS bundles here
+  // Add your main CSS and JS bundles here if they are stable
 ];
 
 // Maximum cache sizes
