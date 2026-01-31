@@ -62,7 +62,7 @@
       }
     });
 
-    return window.__apexchartsLoadPromise;
+    return (window as any).__apexchartsLoadPromise;
   }
 
   function buildConfig() {

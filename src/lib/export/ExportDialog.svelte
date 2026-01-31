@@ -134,6 +134,10 @@ function handleTemplateSelect(template: any) {
   }
 }
 
+function selectFormat(key: string) {
+  format = key as 'excel' | 'pdf' | 'csv';
+}
+
 function handleClose() {
   show = false;
   exportResult = null;
@@ -188,7 +192,7 @@ $: if (show) loadTemplates();
                 <button
                   class="format-option"
                   class:active={format === key}
-                  on:click={() => format = key}
+                  on:click={() => selectFormat(key)}
                 >
                   <svelte:component this={formatIcons[key]} size={24} />
                   <span>{label}</span>
