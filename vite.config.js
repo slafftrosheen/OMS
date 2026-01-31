@@ -21,7 +21,10 @@ export default defineConfig({
   build: {
     rollupOptions: {
       // Only external libraries should be Node.js-specific modules
-      // that cannot run in the browser
+      // that cannot run in the browser.
+      // - bcrypt: Node.js only, for server-side auth
+      // - exceljs: Large library used in server-side export endpoint
+      // - canvas: Node.js native module, used by qrcode (but we use svg mode/browser shim where possible)
       external: ['bcrypt', 'exceljs', 'canvas']
       // Removed manualChunks for chart.js as it conflicts with external
       // Vite will automatically handle chunking for browser libraries

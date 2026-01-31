@@ -23,8 +23,10 @@ Before deploying your OMS project to Vercel, ensure you have:
    - Framework Preset: SvelteKit (should be detected automatically)
    - Root Directory: `/` (root of your project)
    - Build Command: `npm run build` (detected automatically)
-   - Output Directory: `build` (from adapter-static)
+   - Output Directory: Leave default/empty (Do NOT set to `build`)
    - Install Command: `npm install` (detected automatically)
+
+   > **Note**: The project uses `@sveltejs/adapter-vercel` which automatically outputs to `.vercel/output`. Setting the Output Directory to `build` (as used by `adapter-static` or `adapter-node`) will cause 404 errors on Vercel.
 
 ### Step 3: Add Environment Variables
 Click on "Environment Variables" and add the following:
