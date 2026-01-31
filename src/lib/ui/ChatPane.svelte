@@ -79,6 +79,12 @@
       scroller.scrollTop = scroller.scrollHeight;
     }
   });
+
+  // Helper to safely access user station
+  function getUserStation(stations: string[] | undefined): StationTag | null {
+    if (!stations || stations.length === 0) return null;
+    return stations[0] as StationTag;
+  }
 </script>
 
 <div class="rf-panel chat-panel">
@@ -90,8 +96,8 @@
           <span class="chat-avatar" aria-hidden="true">{avatarInitial($currentUser.id)}</span>
           <div class="chat-current__info">
             <strong>{$currentUser.displayName}</strong>
-            {#if $currentUser.stations && $currentUser.stations[0]}
-              <StationBadge station={$currentUser.stations[0] as StationTag} size="sm" tone="highlight" />
+            {#if getUserStation($currentUser.stations)}
+              <StationBadge station={getUserStation($currentUser.stations)} size="sm" tone="highlight" />
             {/if}
           </div>
         </div>

@@ -18,7 +18,7 @@
   $: $users, $stationAssignments;
   $: suggestions = showList
     ? $users.filter((user) => {
-        if (picked.includes(user.id)) return false;
+        if (picked.includes(String(user.id))) return false;
         return user.name.toLowerCase().includes(query.toLowerCase());
       })
     : [];
@@ -27,7 +27,7 @@
 
   const normalizeHandle = (name: string) => name.replace(/\s+/g, '').toLowerCase();
 
-  const nameFromId = (id: string) => $users.find((user) => user.id === id)?.name ?? id;
+  const nameFromId = (id: string) => $users.find((user) => String(user.id) === id)?.name ?? id;
 
   const removeMention = (id: string) => {
     picked = picked.filter((item) => item !== id);
@@ -43,7 +43,7 @@
     const resolved: string[] = [];
     handles.forEach((handle) => {
       const user = $users.find((item) => normalizeHandle(item.name) === handle);
-      if (user) resolved.push(user.id);
+      if (user) resolved.push(String(user.id));
     });
     return resolved;
   };
@@ -90,7 +90,7 @@
   }
 
   function insertMention(id: string) {
-    const user = $users.find((item) => item.id === id);
+    const user = $users.find((item) => String(item.id) === id);
     if (!user) return;
     const handle = user.name.replace(/\s+/g, '');
     const before = value.slice(0, cursor).replace(/@[\w-]*$/i, `@${handle} `);
@@ -180,7 +180,7 @@
         class="mention-item"
         role="option"
         aria-selected="false"
-        on:click={() => insertMention(user.id)}
+        on:click={() => insertMention(String(user.id))}
       >
         @{user.name}
       </button>

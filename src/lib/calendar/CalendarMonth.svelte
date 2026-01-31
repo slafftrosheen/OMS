@@ -38,7 +38,7 @@
 
   let days: DayCell[] = [];
   let selectedISO: string | null = null;
-  const dispatch = createEventDispatcher<string>();
+  const dispatch = createEventDispatcher<{ selectDay: string }>();
   const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
   const todayISO = toISO(new Date());
   let currentLocale = 'en';
@@ -120,10 +120,13 @@
     void _tick;
     const stats = usage(iso);
     const day = listAll().find((item) => item.id === iso);
+    // Explicitly define the return type structure to satisfy TS check
     return {
       active: Boolean(day?.active),
       note: day?.note ?? '',
       carrier: day?.carrier ?? stats.carrier ?? '',
+      assigned: stats.assigned,
+      orders: stats.orders || [], // Ensure orders array exists
       ...stats
     };
   }

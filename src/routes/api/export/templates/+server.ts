@@ -98,11 +98,14 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
+  // Cast params to satisfy TS check for generic RouteParams
+  const { id } = params as { id: string };
+
   try {
     const { error: dbError } = await supabase
       .from('export_templates')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('created_by', user.id);
 
     if (dbError) {

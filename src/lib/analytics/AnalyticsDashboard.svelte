@@ -122,7 +122,9 @@ function getChangeIndicator(current: number, previous: number) {
       disabled={loading}
       aria-label="Refresh dashboard"
     >
-      <RefreshCw size={16} class:spinning={loading} />
+      <div class:spinning={loading}>
+        <RefreshCw size={16} />
+      </div>
       Refresh
     </button>
   </div>

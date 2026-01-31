@@ -212,7 +212,7 @@
                       <div class="message-meta">
                         <span class="author">{authorName(message.authorId)}</span>
                         {#if authorStation(message.authorId)}
-                          <StationBadge station={authorStation(message.authorId)} size="xs" />
+                          <StationBadge station={authorStation(message.authorId)} size="sm" />
                         {/if}
                         <span class="time">{formatTime(message.ts)}</span>
                       </div>
