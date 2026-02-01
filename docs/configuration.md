@@ -10,62 +10,78 @@ Create a `.env` file in the project root based on `.env.example`:
 cp .env.example .env
 ```
 
-### Database Configuration
+### Supabase Configuration (Required)
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DB_HOST` | Yes | `localhost` | PostgreSQL server hostname |
-| `DB_PORT` | No | `5432` | PostgreSQL server port |
-| `DB_NAME` | Yes | `reclame_oms` | Database name |
-| `DB_USER` | Yes | `reclame_admin` | Database user |
-| `DB_PASSWORD` | Yes | - | Database password |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PUBLIC_SUPABASE_URL` | Yes | Supabase project URL (public) |
+| `PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous key (public) |
+| `SUPABASE_URL` | Yes | Supabase project URL (server) |
+| `SUPABASE_ANON_KEY` | Yes | Supabase anonymous key (server) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (server-only, never expose) |
 
 ```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=reclame_oms
-DB_USER=reclame_admin
-DB_PASSWORD=your_secure_password_here
+# Supabase Configuration
+PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
+
+> ⚠️ **Security**: Never expose `SUPABASE_SERVICE_ROLE_KEY` to the client. It bypasses Row Level Security.
 
 ### Application Settings
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `PUBLIC_PREF_SYNC_ENDPOINT` | No | - | External preference sync URL |
+| `PUBLIC_APP_URL` | No | `http://localhost:5173` | Application base URL |
+| `PUBLIC_APP_NAME` | No | `OMS` | Application display name |
 | `NODE_ENV` | No | `development` | Environment mode |
 
 ```env
-PUBLIC_PREF_SYNC_ENDPOINT=
+PUBLIC_APP_URL=http://localhost:5173
+PUBLIC_APP_NAME="OMS - Order Management System"
 NODE_ENV=production
 ```
 
-## Connection Pool Configuration
+### Email Configuration (Optional)
 
-Database connection pool settings in `src/lib/server/db/connection.ts`:
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SMTP_HOST` | No | - | SMTP server hostname |
+| `SMTP_PORT` | No | `587` | SMTP server port |
+| `SMTP_USER` | No | - | SMTP username |
+| `SMTP_PASS` | No | - | SMTP password |
+| `SMTP_FROM` | No | - | Email sender address |
 
-```typescript
-const pool = new Pool({
-  host: env.DB_HOST || 'localhost',
-  port: parseInt(env.DB_PORT || '5432'),
-  database: env.DB_NAME || 'reclame_oms',
-  user: env.DB_USER || 'reclame_admin',
-  password: env.DB_PASSWORD,
-  
-  // Pool configuration
-  max: 20,                      // Maximum connections
-  idleTimeoutMillis: 30000,     // Close idle connections after 30s
-  connectionTimeoutMillis: 2000  // Fail connection after 2s
-});
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=noreply@yourcompany.com
 ```
 
-### Tuning for Production
+### S3/Storage Configuration (Optional)
 
-| Setting | Development | Production | Description |
-|---------|-------------|------------|-------------|
-| `max` | 10 | 20-50 | Max pool connections |
-| `idleTimeoutMillis` | 30000 | 60000 | Idle timeout |
-| `connectionTimeoutMillis` | 2000 | 5000 | Connection timeout |
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `S3_ENDPOINT` | No | - | S3-compatible endpoint URL |
+| `S3_REGION` | No | `us-east-1` | S3 region |
+| `S3_BUCKET` | No | - | S3 bucket name |
+| `S3_ACCESS_KEY_ID` | No | - | S3 access key |
+| `S3_SECRET_ACCESS_KEY` | No | - | S3 secret key |
+| `S3_PUBLIC_URL` | No | - | Public CDN URL for files |
+
+```env
+S3_ENDPOINT=https://your-minio-or-s3.com
+S3_REGION=us-east-1
+S3_BUCKET=oms-files
+S3_ACCESS_KEY_ID=your-access-key
+S3_SECRET_ACCESS_KEY=your-secret-key
+S3_PUBLIC_URL=https://cdn.yoursite.com
+```
 
 ## Session Configuration
 
@@ -232,23 +248,23 @@ bash scripts/run_seed.sh
 
 ### Security
 
-- [ ] **Set strong `DB_PASSWORD`:** Ensure that the database password is strong and has been changed from the default.
-- [ ] **Enable `secure: true` for cookies:** Ensure that the `secure` flag is enabled for all cookies in a production environment.
-- [ ] **Update default user password hashes:** Ensure that all default user password hashes have been updated.
-- [ ] **Remove Placeholder Passwords:** Remove any placeholder or default passwords for all users.
-- [ ] **Configure firewall rules for database:** Configure the firewall to restrict network access to the database.
+- [ ] **Configure Supabase RLS:** Ensure Row Level Security is enabled on all tables
+- [ ] **Protect service role key:** Never expose `SUPABASE_SERVICE_ROLE_KEY` to client code
+- [ ] **Enable `secure: true` for cookies:** Ensure that the `secure` flag is enabled for all cookies in production
+- [ ] **Update default user passwords:** Ensure all seeded user passwords are changed via Supabase Dashboard
+- [ ] **Review Supabase Auth settings:** Configure password policies and auth providers in Supabase Dashboard
 
 ### Performance
 
-- [ ] **Tune connection pool size for load:** Tune the connection pool size to handle the expected load.
-- [ ] **Enable PostgreSQL connection pooler (PgBouncer):** Enable a PostgreSQL connection pooler such as PgBouncer to improve performance.
-- [ ] **Configure appropriate indexes:** Configure appropriate indexes to improve database performance.
+- [ ] **Enable Supabase connection pooling:** Use Supabase's built-in connection pooling (Supavisor)
+- [ ] **Configure appropriate indexes:** Create indexes for frequently queried columns
+- [ ] **Enable caching:** Configure edge caching for static assets
 
 ### Monitoring
 
-- [ ] **Set up database connection monitoring:** Set up monitoring for database connections to identify and resolve any issues.
-- [ ] **Configure error logging:** Configure error logging to capture and analyze any errors that occur.
-- [ ] **Set up health check endpoints:** Set up health check endpoints to monitor the health of the application.
+- [ ] **Enable Supabase logging:** Review logs in Supabase Dashboard > Logs
+- [ ] **Configure error logging:** Set up error monitoring with Sentry or similar
+- [ ] **Set up health check endpoints:** Monitor application health and Supabase connectivity
 
 ## Troubleshooting Configuration Issues
 
@@ -269,17 +285,28 @@ bash scripts/run_seed.sh
 
 ## SvelteKit Configuration
 
+The application uses adaptive deployment based on environment:
+
 ### svelte.config.js
 
 ```javascript
-import adapter from '@sveltejs/adapter-auto';
+import adapterNode from '@sveltejs/adapter-node';
+import adapterVercel from '@sveltejs/adapter-vercel';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+
+const isVercel = !!process.env.VERCEL || !!process.env.VERCEL_URL;
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
   preprocess: vitePreprocess(),
   kit: {
-    adapter: adapter(),
+    adapter: isVercel
+      ? adapterVercel()
+      : adapterNode({
+          out: 'build',
+          precompress: true,
+          envPrefix: ''
+        }),
     alias: {
       '$lib': './src/lib'
     }
@@ -288,6 +315,10 @@ const config = {
 
 export default config;
 ```
+
+**Deployment adapters:**
+- **Vercel**: Automatically uses `@sveltejs/adapter-vercel` when deployed to Vercel
+- **Self-hosted**: Uses `@sveltejs/adapter-node` for Node.js deployment
 
 ### vite.config.js
 
@@ -306,24 +337,31 @@ export default defineConfig({
 
 ## Troubleshooting
 
-### Database Connection Issues
+### Supabase Connection Issues
 
 ```bash
-# Test connection
-PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c '\q'
+# Test Supabase connection (requires curl)
+curl -H "apikey: YOUR_ANON_KEY" \
+  "https://your-project.supabase.co/rest/v1/"
 
-# Check PostgreSQL status
-systemctl status postgresql
-
-# View PostgreSQL logs
-tail -f /var/log/postgresql/postgresql-14-main.log
+# Check if environment variables are set
+node -e "console.log('SUPABASE_URL:', !!process.env.SUPABASE_URL)"
 ```
+
+### Common Issues
+
+**"Invalid API key" error:**
+- Verify `PUBLIC_SUPABASE_ANON_KEY` matches your Supabase project settings
+
+**"Row Level Security policy violation" error:**
+- Ensure RLS policies are configured correctly for the affected table
+- Check if the user has the required permissions
 
 ### Environment Variable Issues
 
 ```bash
 # Verify environment variables are loaded
-node -e "console.log(process.env.DB_HOST)"
+node -e "console.log('SUPABASE_URL:', !!process.env.SUPABASE_URL)"
 
 # Check .env file is being read
 npm run dev -- --verbose
@@ -331,13 +369,8 @@ npm run dev -- --verbose
 
 ### Session Issues
 
-```sql
--- View active sessions
-SELECT * FROM user_sessions WHERE expires_at > NOW();
+With Supabase Auth, sessions are managed by Supabase. To troubleshoot:
 
--- Clear expired sessions
-DELETE FROM user_sessions WHERE expires_at <= NOW();
-
--- Force logout all users
-TRUNCATE user_sessions;
-```
+1. Check Supabase Dashboard > Authentication > Users for user status
+2. Review auth logs in Supabase Dashboard > Logs
+3. Clear local storage in browser to reset client-side session

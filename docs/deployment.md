@@ -47,21 +47,29 @@ npm run build
 ```bash
 # Create production environment file
 cat > .env << EOF
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=reclame_oms
-DB_USER=reclame_admin
-DB_PASSWORD=your_secure_production_password
+# Supabase Configuration (Required)
+PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Application Settings
+PUBLIC_APP_URL=https://your-domain.com
 NODE_ENV=production
 EOF
 ```
 
-### 3. Initialize Database
+### 3. Database Setup (Supabase)
+
+Database is managed through Supabase. Run migrations using:
 
 ```bash
-chmod +x scripts/init-database.sh
-./scripts/init-database.sh
+chmod +x scripts/supabase-migrate.sh
+./scripts/supabase-migrate.sh
 ```
+
+Or apply migrations manually via Supabase Dashboard > SQL Editor.
 
 ### 4. Start with PM2
 
@@ -330,7 +338,45 @@ jobs:
 
 ---
 
-## Database Setup
+## Database Setup (Supabase)
+
+This application uses Supabase for database, authentication, and storage. Follow these steps:
+
+### 1. Create Supabase Project
+
+1. Go to [supabase.com](https://supabase.com) and create a new project
+2. Wait for the project to be provisioned
+3. Note your project URL and API keys from Settings > API
+
+### 2. Run Migrations
+
+Use the migration script to apply database schema:
+
+```bash
+chmod +x scripts/supabase-migrate.sh
+./scripts/supabase-migrate.sh
+```
+
+Or apply migrations manually:
+1. Go to Supabase Dashboard > SQL Editor
+2. Run each migration file from `supabase/migrations/` in order
+
+### 3. Seed Initial Data
+
+```bash
+export SEED_ADMIN_PASSWORD="your_strong_password"
+bash scripts/run_seed.sh
+```
+
+### 4. Enable Row Level Security
+
+Ensure RLS is enabled on all tables for proper security. Check the Supabase Dashboard > Authentication > Policies.
+
+---
+
+## Legacy: Local PostgreSQL (Optional)
+
+For development without Supabase, you can set up a local PostgreSQL database:
 
 ### PostgreSQL Installation
 
@@ -355,24 +401,7 @@ GRANT ALL PRIVILEGES ON DATABASE reclame_oms TO reclame_admin;
 EOF
 ```
 
-### Configure Remote Access (if needed)
-
-```bash
-# Edit postgresql.conf
-listen_addresses = '*'
-
-# Edit pg_hba.conf
-host    reclame_oms    reclame_admin    10.0.0.0/8    scram-sha-256
-
-# Restart PostgreSQL
-systemctl restart postgresql
-```
-
-### Run Migrations
-
-```bash
-./scripts/init-database.sh
-```
+> ⚠️ **Note**: This is for local development only. Production deployments should use Supabase.
 
 ---
 
