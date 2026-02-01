@@ -1,5 +1,5 @@
 // src/lib/server/ai/AIService.ts
-import { logger } from '../logger';
+import { logger } from '../logging/logger';
 
 interface AIConfig {
     apiKey: string;

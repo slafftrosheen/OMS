@@ -1,7 +1,7 @@
 // src/lib/server/calendar/CalendarService.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
 import ical from 'ical-generator';
-import { logger } from '../logger';
+import { logger } from '../logging/logger';
 
 interface CalendarEvent {
     id: string;

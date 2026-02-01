@@ -1,5 +1,5 @@
 // src/lib/server/email/EmailService.ts
-import { logger } from '../logger';
+import { logger } from '../logging/logger';
 // Note: Assuming nodemailer is available or will be installed. 
 // If not, this serves as the architectural implementation to be enabled later.
 import nodemailer from 'nodemailer'; 

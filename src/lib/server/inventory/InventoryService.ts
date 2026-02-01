@@ -1,6 +1,6 @@
 // src/lib/server/inventory/InventoryService.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { logger } from '../logger';
+import { logger } from '../logging/logger';
 
 interface Material {
     id: string;

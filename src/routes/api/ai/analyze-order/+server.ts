@@ -2,7 +2,7 @@
 import { json, error as svelteError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { aiService } from '$lib/server/ai/AIService';
-import { logger } from '$lib/server/logger';
+import { logger } from '$lib/server/logging/logger';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
     const user = locals.user;

@@ -1,6 +1,6 @@
 // src/lib/server/analytics/AnalyticsService.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { logger } from '../logger';
+import { logger } from '../logging/logger';
 
 interface TimeRange {
     start: Date;

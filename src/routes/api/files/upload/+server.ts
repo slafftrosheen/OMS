@@ -2,7 +2,7 @@
 import { json, error as svelteError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { storageService } from '$lib/server/storage/StorageService';
-import { logger } from '$lib/server/logger';
+import { logger } from '$lib/server/logging/logger';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const ALLOWED_TYPES = [
