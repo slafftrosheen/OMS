@@ -1,7 +1,7 @@
 // src/routes/api/files/[id]/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { storageService } from '$lib/server/storage';
+import { storageService } from '$lib/server/storage/StorageService';
 
 /**
  * GET /api/files/[id] - Get file metadata or download file
