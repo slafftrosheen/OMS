@@ -139,9 +139,9 @@ Respect consent; no tracking in operator-only contexts unless strictly necessary
 
 12) Tech Stack & Hosting
 
-Frontend: SvelteKit + TypeScript; adapter-static for a demo build on GitHub Pages.
+Frontend: SvelteKit + TypeScript; adaptive deployment with adapter-vercel (Vercel) or adapter-node (self-hosted).
 
-Set kit.paths.base = '/reclame_OMS'; add .nojekyll; add 404 fallback. 
+Set environment variables for Supabase configuration. See docs/getting-started.md for setup instructions. 
 svelte.dev
 +1
 
@@ -149,7 +149,7 @@ UI: Tokenized CSS (brand.css), Lucide icons, Apex/ECharts for metrics.
 
 Backend: Supabase (Postgres + Auth + Storage).
 
-CI: GH Actions build + Pages deploy with BASE_PATH=/reclame_OMS.
+CI: GH Actions build + deploy to Vercel or self-hosted Node.js.
 
 13) Domain Model (Minimum Viable)
 type Station = 'CAD'|'CNC'|'SANDING'|'BENDING'|'WELDING'|'PAINT'|'ASSEMBLY'|'QC'|'LOGISTICS';
@@ -186,12 +186,14 @@ Assign Loading: Admin marks load days in Calendar â†’ orders select from list â†
 
 Revisions/Branches: uploading a new PDF with same PO adds a revision on the order (admin can promote as current).
 
-15) Deployment (GitHub Pages demo)
+15) Deployment
 
-adapter-static with base path; include a 404.html fallback so deep links work; add .nojekyll. 
-svelte.dev
+The application supports multiple deployment options:
+- **Vercel**: Automatic deployment with `adapter-vercel` 
+- **Self-hosted Node.js**: Using `adapter-node` for custom server deployment
+- **Docker**: Containerized deployment (see docker-compose.yml)
 
-GH Action: set BASE_PATH=/reclame_OMS during build (see Svelte docs example). 
+See docs/deployment.md for detailed instructions.
 svelte.dev
 
 16) Testing & Quality

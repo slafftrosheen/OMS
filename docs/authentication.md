@@ -4,114 +4,115 @@ Security model for Reclame OMS.
 
 ## Overview
 
-Reclame OMS uses session-based authentication with role-based access control (RBAC).
+Reclame OMS uses **Supabase Auth** with JWT-based authentication and role-based access control (RBAC). Supabase handles all authentication flows including user management, session handling, and token refresh.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    Authentication Flow                        │
+│                 Supabase Authentication Flow                  │
 ├──────────────────────────────────────────────────────────────┤
 │                                                               │
 │   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐  │
-│   │ Client  │───▶│ Login   │───▶│ Verify  │───▶│ Create  │  │
-│   │ Form    │    │ API     │    │ Creds   │    │ Session │  │
+│   │ Client  │───▶│ Supabase│───▶│ Verify  │───▶│ Return  │  │
+│   │ Form    │    │ Auth    │    │ Creds   │    │ JWT     │  │
 │   └─────────┘    └─────────┘    └─────────┘    └─────────┘  │
 │                                                      │        │
 │   ┌─────────┐    ┌─────────┐    ┌─────────┐         │        │
-│   │ Stored  │◀───│ Set     │◀───│ Generate│◀────────┘        │
-│   │ Cookie  │    │ Cookie  │    │ Token   │                  │
+│   │ Access  │◀───│ Refresh │◀───│ Session │◀────────┘        │
+│   │ APIs    │    │ Token   │    │ Stored  │                  │
 │   └─────────┘    └─────────┘    └─────────┘                  │
 │                                                               │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-## Session Management
+## Supabase Auth Configuration
 
-### Session Creation
-
-When a user logs in successfully:
-
-1. A random 32-byte token is generated
-2. Token is hashed with SHA-256 and stored in `user_sessions` table
-3. Plain token is set as HTTP-only cookie
-4. Session expires after 7 days
+### Client-Side Setup
 
 ```typescript
-// Token generation
-const token = crypto.randomBytes(32).toString('hex');
-const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+// src/lib/supabase.ts
+import { createClient } from '@supabase/supabase-js';
 
-// Cookie settings
-cookies.set('session', token, {
-  path: '/',
-  httpOnly: true,        // Not accessible via JavaScript
-  secure: true,          // HTTPS only in production
-  sameSite: 'lax',       // CSRF protection
-  maxAge: 7 * 24 * 60 * 60  // 7 days
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+```
+
+### Server-Side Setup
+
+```typescript
+// src/lib/server/supabase.ts
+import { createClient } from '@supabase/supabase-js';
+
+export const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+```
+
+## Authentication Methods
+
+### Sign In with Email/Password
+
+```typescript
+const { data, error } = await supabase.auth.signInWithPassword({
+  email: 'user@example.com',
+  password: 'password'
+});
+
+if (error) {
+  console.error('Login failed:', error.message);
+} else {
+  console.log('Logged in:', data.user);
+}
+```
+
+### Sign Out
+
+```typescript
+const { error } = await supabase.auth.signOut();
+```
+
+### Get Current User
+
+```typescript
+const { data: { user } } = await supabase.auth.getUser();
+```
+
+## Session Management
+
+Supabase handles sessions automatically with JWT tokens:
+
+- **Access Token**: Short-lived (1 hour default), used for API calls
+- **Refresh Token**: Long-lived, used to get new access tokens
+- **Session Storage**: Tokens stored in localStorage by default
+
+### Session Refresh
+
+Supabase automatically refreshes tokens before expiry:
+
+```typescript
+// Listen for auth state changes
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'TOKEN_REFRESHED') {
+    console.log('Token refreshed');
+  }
 });
 ```
 
-### Session Validation
+## Default Users
 
-On each authenticated request:
+For development, the following users are seeded (use the password set via `SEED_ADMIN_PASSWORD`):
 
-1. Read `session` cookie from request
-2. Hash the token
-3. Query database for matching session
-4. Verify session hasn't expired
-5. Update `last_activity_at` timestamp
+| Username | Role | Section |
+|----------|------|---------|
+| `boss` | SuperAdmin | Admin |
+| `admin` | SuperAdmin | Admin |
+| `cnc` | Operator | Production |
+| `sanding` | Operator | Production |
+| `logistics` | StationLead | Logistics |
 
-```sql
-SELECT u.id, u.username, u.roles
-FROM users u
-JOIN user_sessions s ON s.user_id = u.id
-WHERE s.token_hash = $1 
-  AND s.expires_at > NOW()
-  AND u.is_active = true
-```
-
-### Session Termination
-
-Sessions end when:
-
-- User logs out (explicit deletion)
-- Cookie expires (7 days)
-- Session expires in database
-- User account is deactivated
-
-```typescript
-// Logout
-const tokenHash = hash(cookies.get('session'));
-await query('DELETE FROM user_sessions WHERE token_hash = $1', [tokenHash]);
-cookies.delete('session');
-```
-
-## Password Storage
-
-### Hashing
-
-Passwords are hashed before storage. For production, use bcrypt:
-
-```typescript
-import bcrypt from 'bcrypt';
-
-// Hash password
-const hash = await bcrypt.hash(password, 10);
-
-// Verify password
-const valid = await bcrypt.compare(password, hash);
-```
-
-### Default Users
-
-Development seeds use placeholder hashes that accept any password:
-
-```sql
--- Placeholder (accepts any password in dev)
-INSERT INTO users (username, password_hash) 
-VALUES ('admin', '$2b$10$placeholder_admin_hash');
-```
-
-> ⚠️ **Production**: Replace all placeholder hashes with real bcrypt hashes.
+> ⚠️ **Production**: Ensure strong passwords are set for all users via Supabase Dashboard.
 
 ## Role-Based Access Control
 

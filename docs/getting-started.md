@@ -7,8 +7,8 @@ This guide walks you through setting up Reclame OMS for development or productio
 | Requirement | Version | Notes |
 |-------------|---------|-------|
 | Node.js | ≥18.x | LTS recommended |
-| PostgreSQL | ≥14.x | Required for data storage |
 | npm | ≥9.x | Comes with Node.js |
+| Supabase Account | - | For database, authentication, and storage |
 
 ## Installation
 
@@ -20,7 +20,13 @@ cd reclame_OMS
 npm install
 ```
 
-### 2. Environment Configuration
+### 2. Supabase Project Setup
+
+1. Create a new project at [supabase.com](https://supabase.com)
+2. Note your project URL and API keys from Settings > API
+3. Enable Row Level Security (RLS) on all tables
+
+### 3. Environment Configuration
 
 Copy the example environment file and configure:
 
@@ -28,51 +34,55 @@ Copy the example environment file and configure:
 cp .env.example .env
 ```
 
-Edit `.env` with your settings:
+Edit `.env` with your Supabase settings:
 
 ```env
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=reclame_oms
-DB_USER=reclame_admin
-DB_PASSWORD=your_secure_password
+# Supabase Configuration (Required)
+PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # Application Settings
-PUBLIC_PREF_SYNC_ENDPOINT=  # Optional: External preference sync URL
+PUBLIC_APP_URL=http://localhost:5173
+PUBLIC_APP_NAME="OMS - Order Management System"
+
+# Optional: Email Notifications (SMTP)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=noreply@yourcompany.com
 ```
 
-### 3. Database Setup
+### 4. Database Setup
 
-#### Option A: Automated Setup (Recommended)
+#### Option A: Using Supabase Migrations (Recommended)
+
+Run the Supabase migration script:
 
 ```bash
-chmod +x scripts/init-database.sh
-./scripts/init-database.sh
+chmod +x scripts/supabase-migrate.sh
+./scripts/supabase-migrate.sh
 ```
 
-This script will:
-- Create the database if it doesn't exist
-- Run all migrations in order
-- Seed initial data (materials, profiles, default users)
+This script will apply all database migrations to your Supabase project.
 
-#### Option B: Manual Setup
+#### Option B: Manual Setup via Supabase Dashboard
+
+1. Go to your Supabase Dashboard > SQL Editor
+2. Run the migration files in order from `supabase/migrations/`
+3. Run the seed script using `scripts/run_seed.sh`:
 
 ```bash
-# Create database
-createdb -U postgres reclame_oms
-
-# Run migrations manually
-psql -U reclame_admin -d reclame_oms -f src/lib/server/db/migrations/001_profiles_schema.sql
-psql -U reclame_admin -d reclame_oms -f src/lib/server/db/migrations/002_inventory_system.sql
-# ... continue for all migration files
-
-# Run seeds
-psql -U reclame_admin -d reclame_oms -f src/lib/server/db/seeds/001_field_types.sql
-# ... continue for all seed files
+export SEED_ADMIN_PASSWORD="your_strong_password_here"
+bash scripts/run_seed.sh
 ```
 
-### 4. Start Development Server
+See [Supabase Migrations Guide](supabase-migrations.md) for detailed instructions.
+
+### 5. Start Development Server
 
 ```bash
 npm run dev
@@ -80,7 +90,7 @@ npm run dev
 
 The application will be available at `http://localhost:5173`
 
-### 5. Default Login Credentials
+### 6. Default Login Credentials
 
 For development, the following users are seeded:
 
