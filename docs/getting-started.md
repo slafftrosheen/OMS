@@ -82,7 +82,7 @@ bash scripts/run_seed.sh
 
 See [Supabase Migrations Guide](supabase-migrations.md) for detailed instructions.
 
-### 4. Start Development Server
+### 5. Start Development Server
 
 ```bash
 npm run dev
@@ -90,7 +90,7 @@ npm run dev
 
 The application will be available at `http://localhost:5173`
 
-### 5. Default Login Credentials
+### 6. Default Login Credentials
 
 For development, the following users are seeded:
 
