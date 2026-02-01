@@ -9,7 +9,7 @@ const globalSupabaseUrl = (
   env.PUBLIC_SUPABASE_URL || 
   (private_env as any).PUBLIC_SUPABASE_URL || 
   process?.env?.PUBLIC_SUPABASE_URL || 
-  ''
+  'http://localhost'
 ).trim();
 
 const globalSupabaseKey = (
@@ -18,7 +18,7 @@ const globalSupabaseKey = (
   env.PUBLIC_SUPABASE_ANON_KEY ||
   (private_env as any).PUBLIC_SUPABASE_ANON_KEY ||
   process?.env?.PUBLIC_SUPABASE_ANON_KEY || 
-  ''
+  'anon-key'
 ).trim();
 
 export const supabase = createClient(globalSupabaseUrl, globalSupabaseKey, {

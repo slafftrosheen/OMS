@@ -56,7 +56,7 @@
     "pdfkit": "0.17.2",
     "pg": "^8.16.3",
     "qrcode": "^1.5.4",
-    "svelte": "^4.2.19",
+    "svelte": "^5.1.16",
     "svelte-apexcharts": "file:packages/svelte-apexcharts",
     "svelte-i18n": "file:packages/svelte-i18n",
     "zod": "^3.23.8"
