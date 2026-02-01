@@ -82,7 +82,7 @@
 
   {#if $loading}
     <div class="loading-state">
-      <div class="spinner" />
+      <div class="spinner"></div>
       <p>Loading analytics...</p>
     </div>
   {:else if $analytics}
@@ -167,7 +167,7 @@
             <div class="workload-stats">
               {#each workload as item}
                 <div class="workload-item">
-                  <span class="status-dot status-{item.status.toLowerCase()}" />
+                  <span class="status-dot status-{item.status.toLowerCase()}"></span>
                   <span class="status-label">{item.status}:</span>
                   <span class="status-count">{item.count}</span>
                 </div>

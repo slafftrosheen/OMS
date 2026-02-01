@@ -168,7 +168,6 @@
   import { websocket } from '$lib/stores/websocket';
 
   // Accept params prop to silence SvelteKit warning
-  export let params = {};
 
   let searchOpen = false;
   let showKb = false;

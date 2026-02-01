@@ -237,7 +237,7 @@
 
   {#if $loading}
     <div class="loading-state">
-      <div class="spinner" />
+        <div class="spinner"></div>
       <p>Loading orders...</p>
     </div>
   {:else if filteredOrders.length === 0}

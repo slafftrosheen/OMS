@@ -1047,6 +1047,7 @@
         on:click|stopPropagation
         role="dialog"
         aria-modal="true"
+        tabindex="-1"
         aria-labelledby="load-preset-title"
       >
         <div class="modal-header">
@@ -1109,6 +1110,7 @@
         on:click|stopPropagation
         role="dialog"
         aria-modal="true"
+        tabindex="-1"
         aria-labelledby="save-preset-title"
       >
         <div class="modal-header">

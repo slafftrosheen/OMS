@@ -1,5 +1,4 @@
 <script lang="ts">
-  export let params = {};
   import { base } from '$app/paths';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';

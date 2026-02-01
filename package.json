@@ -88,4 +88,10 @@
     "vite": "^5.4.10",
     "vitest": "file:packages/vitest"
   }
+  ,
+  "overrides": {
+    "svelte-apexcharts": {
+      "svelte": "^5.0.0"
+    }
+  }
 }
