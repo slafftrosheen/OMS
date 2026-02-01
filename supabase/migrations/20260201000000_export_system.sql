@@ -2,11 +2,13 @@
 -- This migration creates the export_history table and storage bucket for exports
 
 -- Export history table (used by existing API at /api/export)
+-- Note: template_id references export_templates table, but we use ALTER TABLE
+-- to add the constraint after both tables exist
 CREATE TABLE IF NOT EXISTS public.export_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     export_type TEXT NOT NULL CHECK (export_type IN ('orders', 'stations', 'loading_schedule', 'materials', 'inventory', 'analytics', 'custom')),
     format TEXT NOT NULL CHECK (format IN ('excel', 'pdf', 'csv', 'xlsx', 'json')),
-    template_id UUID,
+    template_id UUID, -- FK added after export_templates table creation
     filters JSONB DEFAULT '{}',
     file_name TEXT,
     file_path TEXT,
@@ -119,6 +121,8 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage RLS policies
+-- Expected folder structure for exports: exports/{user_id}/{filename}
+-- The API uploads files to 'exports/{user.id}/{fileName}'
 CREATE POLICY "Users can upload own exports"
 ON storage.objects FOR INSERT
 WITH CHECK (
