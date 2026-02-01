@@ -100,7 +100,66 @@
     "client": "Client",
     "title": "Title",
     "due": "Due",
-    "materials": "Materials"
+    "materials": "Materials",
+    "new": {
+      "title": "Create Draft",
+      "back": "Back to orders",
+      "save": "Save Draft",
+      "sections": {
+        "profiles": "Order Profiles",
+        "files": "Sketches and Files",
+        "details": "Order Details",
+        "delivery": "Delivery Address"
+      },
+      "files": {
+        "hint": "Upload PDF and CDR files with order sketches.",
+        "drag_drop": "Drag and drop or click",
+        "formats": "PDF, CDR, AI, EPS, JPG, PNG",
+        "preview": "Preview",
+        "no_preview": "Select a file to preview",
+        "loading_pdf": "Loading PDF..."
+      },
+      "details": {
+        "po": "PO Number",
+        "priority": "Priority",
+        "client": "Client",
+        "client_placeholder": "Enter name or select from presets",
+        "deadline": "Deadline",
+        "loading": "Loading Date",
+        "loading_hint": "Can be assigned later",
+        "notes": "Notes",
+        "notes_placeholder": "Additional notes for production..."
+      },
+      "delivery": {
+        "select_preset": "Select from saved addresses...",
+        "manual": "Enter address manually",
+        "address": "Address",
+        "address_placeholder": "Street, City, Postal Code, Country",
+        "contact": "Contact Person",
+        "phone": "Phone"
+      },
+      "presets": {
+        "load": "Load Preset",
+        "save_as": "Save as Preset",
+        "empty": "No saved presets. Create one by clicking 'Save as Preset' in the profile.",
+        "name": "Preset Name",
+        "description": "Description",
+        "public": "Make public (visible to all)",
+        "saved": "Preset saved successfully!",
+        "loaded": "Loaded preset: {name}",
+        "deleted": "Preset deleted",
+        "confirm_delete": "Are you sure you want to delete this preset?"
+      },
+      "messages": {
+        "success": "Draft created successfully! Admin has been notified.",
+        "validation": {
+          "client": "Client name is required",
+          "po": "PO number is required",
+          "files": "Upload at least one file (CDR or PDF)",
+          "address": "Select or enter a delivery address"
+        }
+      }
+    }
   },
   "print": {
     "due_label": "Due",
@@ -886,5 +945,99 @@
     "print_pack": "Print pack",
     "save": "Save",
     "discard": "Discard"
+  },
+  "auth": {
+    "login": "Log In",
+    "signup": "Sign Up",
+    "signIn": "Sign In",
+    "createAccount": "Create Account",
+    "signingIn": "Signing in...",
+    "creatingAccount": "Creating account...",
+    "username": "Username",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "usernamePlaceholder": "e.g. jsmith",
+    "emailPlaceholder": "john@example.com",
+    "passwordPlaceholder": "Enter your password",
+    "passwordPlaceholderNew": "Min 8 characters",
+    "confirmPasswordPlaceholder": "Repeat password",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "accountCreated": "Account created! You can now log in.",
+    "errors": {
+      "required": "Username and password are required",
+      "emailRequired": "Email is required for signup",
+      "passwordMismatch": "Passwords do not match",
+      "passwordLength": "Password must be at least 8 characters",
+      "invalidCredentials": "Invalid credentials",
+      "signupFailed": "Signup failed",
+      "connectionError": "Connection error. Please try again."
+    },
+    "subtitle": "Production Management System",
+    "footer": "© 2026 Reclame Factory"
+  },
+  "admin": {
+    "users": {
+      "title": "User Management",
+      "subtitle": "Manage users, roles, and permissions",
+      "add": "Add User",
+      "edit": "Edit User",
+      "reset_password": "Reset Password",
+      "status": {
+        "active": "Active",
+        "inactive": "Inactive"
+      },
+      "table": {
+        "user": "User",
+        "section": "Section",
+        "roles": "Roles",
+        "stations": "Stations",
+        "status": "Status",
+        "last_login": "Login",
+        "actions": "Actions"
+      },
+      "form": {
+        "username": "Username",
+        "display_name": "Display Name",
+        "email": "Email (optional)",
+        "password": "Password",
+        "new_password": "New Password",
+        "sections": "Sections",
+        "primary_section": "Primary Section",
+        "roles_per_section": "Roles per Section",
+        "station_assignments": "Station Assignments",
+        "all_stations_hint": "Leave empty for access to all stations",
+        "is_active": "User is active",
+        "placeholders": {
+          "username": "e.g. john",
+          "display_name": "e.g. John Smith",
+          "email": "john@example.com",
+          "password": "Min. 8 characters",
+          "new_password": "Enter new password (min. 8 characters)"
+        }
+      },
+      "messages": {
+        "created": "User created successfully",
+        "updated": "User updated successfully",
+        "password_reset": "Password reset successfully",
+        "deactivated": "User deactivated",
+        "reactivated": "User activated",
+        "confirm_deactivate": "Are you sure you want to deactivate {name}?",
+        "load_error": "Error loading users",
+        "save_error": "Error saving user",
+        "validation": {
+          "required": "Username and display name are required",
+          "password_required": "Password is required for new users",
+          "section_required": "Select at least one section",
+          "password_length": "Password must be at least 8 characters"
+        }
+      },
+      "show_inactive": "Show inactive",
+      "loading": "Loading users...",
+      "no_users": "No users found",
+      "never": "Never",
+      "all_stations": "All stations"
+    }
   }
 }
