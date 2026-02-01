@@ -1,5 +1,4 @@
 <script lang="ts">
-  export let params = {};
   import { base } from '$app/paths';
   import { currentUser } from '$lib/auth/user-store';
   import { can } from '$lib/auth/permission-utils';

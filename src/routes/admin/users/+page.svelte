@@ -1,5 +1,4 @@
 <script lang="ts">
-  export let params = {};
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
@@ -459,7 +458,13 @@
 {#if showModal}
   <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
   <div class="modal-backdrop" on:click={closeModal}>
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
+    <div 
+      class="modal" 
+      on:click|stopPropagation 
+      role="dialog" 
+      aria-modal="true"
+      tabindex="-1"
+    >
       <div class="modal-header">
         <h2>
           {#if modalMode === 'create'}{$t('admin.users.add')}
@@ -537,8 +542,8 @@
           </div>
 
           <div class="form-group">
-            <label>{$t('admin.users.form.sections')}</label>
-            <div class="checkbox-group">
+            <label id="sections-label">{$t('admin.users.form.sections')}</label>
+            <div class="checkbox-group" role="group" aria-labelledby="sections-label">
               {#each allSections as section}
                 <label class="checkbox-item">
                   <input 
@@ -562,8 +567,8 @@
           </div>
 
           <div class="form-group">
-            <label>{$t('admin.users.form.roles_per_section')}</label>
-            <div class="roles-grid">
+            <label id="roles-per-section-label">{$t('admin.users.form.roles_per_section')}</label>
+            <div class="roles-grid" role="group" aria-labelledby="roles-per-section-label">
               {#each formData.sections as section}
                 <div class="role-row">
                   <span class="role-section">{section}</span>
@@ -578,8 +583,8 @@
           </div>
 
           <div class="form-group">
-            <label>{$t('admin.users.form.station_assignments')}</label>
-            <div class="checkbox-group stations-group">
+            <label id="station-assignments-label">{$t('admin.users.form.station_assignments')}</label>
+            <div class="checkbox-group stations-group" role="group" aria-labelledby="station-assignments-label">
               {#each allStations as station}
                 <label class="checkbox-item">
                   <input 
@@ -596,10 +601,13 @@
 
           {#if modalMode === 'edit'}
             <div class="form-group">
-              <label class="checkbox-item">
-                <input type="checkbox" bind:checked={formData.isActive} />
-                {$t('admin.users.form.is_active')}
-              </label>
+              <label id="permissions-label">{$t('admin.users.form.permissions')}</label>
+              <div class="checkbox-group" role="group" aria-labelledby="permissions-label">
+                <label class="checkbox-item">
+                  <input type="checkbox" bind:checked={formData.isActive} />
+                  {$t('admin.users.form.is_active')}
+                </label>
+              </div>
             </div>
           {/if}
         {/if}

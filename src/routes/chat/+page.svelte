@@ -251,6 +251,7 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-room-title"
+      tabindex="-1"
     >
       <div class="modal-header">
         <h3 id="create-room-title">Create Channel</h3>

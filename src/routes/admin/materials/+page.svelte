@@ -465,7 +465,13 @@
 {#if showModal}
   <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
   <div class="modal-backdrop" on:click={closeModal}>
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
+    <div 
+      class="modal" 
+      on:click|stopPropagation 
+      role="dialog" 
+      aria-modal="true"
+      tabindex="-1"
+    >
       <div class="modal-header">
         <h2>{modalMode === 'create' ? 'Add Material' : 'Edit Material'}</h2>
         <button class="btn-close" on:click={closeModal}><X size={20} /></button>

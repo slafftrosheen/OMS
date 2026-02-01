@@ -1,5 +1,4 @@
 <script lang="ts">
-  export let params = {};
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import { Bell, BellRing, Check, CheckCheck, Trash2, Filter, RefreshCw, AlertTriangle, Info, Package, MessageSquare, Calendar, Settings } from 'lucide-svelte';
@@ -189,15 +188,22 @@
       </div>
     {:else}
       {#each filteredNotifications as notification (notification.id)}
-        <button 
+        <div 
           class="notification-card" 
           class:unread={!notification.isRead}
-          on:click={() => !notification.isRead && markAsRead([notification.id])}
+          role="article"
+          aria-label="Notification: {notification.title}"
         >
           <div class="notification-icon" data-type={notification.type}>
             <svelte:component this={getIcon(notification.type)} size={20} />
           </div>
-          <div class="notification-content">
+          <div 
+            class="notification-content"
+            role="button"
+            tabindex="0"
+            on:click={() => !notification.isRead && markAsRead([notification.id])}
+            on:keypress={(e) => e.key === 'Enter' && !notification.isRead && markAsRead([notification.id])}
+          >
             <h4>{notification.title}</h4>
             <p>{notification.message}</p>
             <div class="notification-meta">
@@ -207,10 +213,12 @@
               {/if}
             </div>
           </div>
-          <div class="notification-actions">
+          <div class="notification-actions" role="group" aria-label="Notification actions">
             {#if !notification.isRead}
               <button 
                 class="action-btn" 
+                type="button"
+                aria-label="Mark as read"
                 title="Mark as read"
                 on:click|stopPropagation={() => markAsRead([notification.id])}
               >
@@ -219,6 +227,8 @@
             {/if}
             <button 
               class="action-btn" 
+              type="button"
+              aria-label="Dismiss notification"
               title="Dismiss"
               on:click|stopPropagation={() => dismissNotification(notification.id)}
             >
@@ -228,7 +238,7 @@
           {#if notification.link}
             <a href={notification.link} class="notification-link">View →</a>
           {/if}
-        </button>
+        </div>
       {/each}
     {/if}
   </div>
@@ -430,6 +440,19 @@
     flex-direction: column;
     gap: 4px;
     min-width: 0;
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 4px;
+    transition: background 0.2s ease;
+  }
+
+  .notification-content:hover {
+    background: var(--bg-2);
+  }
+
+  .notification-content:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
   }
 
   .notification-content h4 {

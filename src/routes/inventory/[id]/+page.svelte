@@ -1,5 +1,4 @@
 <script lang="ts">
-  export let params = {};
   import { items, move, updateItem, removeItem, type Item } from '$lib/inventory/store';
   import { onDestroy } from 'svelte';
   import { base } from '$app/paths';

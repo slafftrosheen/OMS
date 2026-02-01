@@ -1,5 +1,4 @@
 <script lang="ts">
-  export let params = {};
   import { t } from 'svelte-i18n';
 </script>
 

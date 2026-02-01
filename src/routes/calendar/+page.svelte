@@ -447,6 +447,7 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-order-title"
+      tabindex="-1"
     >
       <div class="modal-header">
         <h3 id="add-order-title">Add Order to {selectedDate}</h3>
@@ -493,6 +494,7 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="loading-day-title"
+      tabindex="-1"
     >
       <div class="modal-header">
         <h3 id="loading-day-title">Mark Loading Day - {selectedDate}</h3>
