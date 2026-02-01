@@ -2,9 +2,9 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createHash } from 'crypto';
-import { logger } from '../logger';
+import { logger } from '../logging/logger';
 
-interface StorageConfig {
+export interface StorageConfig {
     endpoint: string;
     region: string;
     bucket: string;
@@ -13,14 +13,14 @@ interface StorageConfig {
     publicUrl?: string;
 }
 
-interface UploadOptions {
+export interface UploadOptions {
     contentType?: string;
     metadata?: Record<string, string>;
     acl?: 'private' | 'public-read';
     expiresIn?: number;
 }
 
-interface FileMetadata {
+export interface FileMetadata {
     key: string;
     size: number;
     contentType: string;

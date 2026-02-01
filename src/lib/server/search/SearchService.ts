@@ -1,6 +1,6 @@
 // src/lib/server/search/SearchService.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { logger } from '../logger';
+import { logger } from '../logging/logger';
 
 export interface SearchResult {
     id: string;

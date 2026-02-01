@@ -1,12 +1,13 @@
 /**
  * Restore API
  * Handle database restore operations
+ * Updated to use Supabase-compatible BackupService
  */
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabase } from '$lib/server/supabase';
-import { BackupService } from '$lib/server/backup-service';
+import { BackupService } from '$lib/server/backup/BackupService';
 import { PermissionsService } from '$lib/server/permissions-service';
 
 // POST /api/backup/restore - Initiate restore operation
@@ -21,9 +22,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     backupId, 
     tables = null, 
     overwriteExisting = false,
-    preserveCurrent = true,
-    restoreIndexes = true,
-    restoreConstraints = true
+    preserveCurrent = true
   } = body;
 
   if (!backupId) {
@@ -43,13 +42,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       throw error(404, 'Backup not found or not completed');
     }
 
+    // Create BackupService instance
+    const backupService = new BackupService(supabase);
+    
     // Start restore operation
-    const success = await BackupService.restoreBackup(backupId, {
+    const success = await backupService.restoreBackup(backupId, {
       tables,
       overwriteExisting,
-      preserveCurrent,
-      restoreIndexes,
-      restoreConstraints
+      preserveCurrent
     });
 
     if (!success) {

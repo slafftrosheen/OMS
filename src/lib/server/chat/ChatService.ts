@@ -1,6 +1,6 @@
 // src/lib/server/chat/ChatService.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { logger } from '../logger';
+import { logger } from '../logging/logger';
 
 interface ChatMessage {
     id: string;

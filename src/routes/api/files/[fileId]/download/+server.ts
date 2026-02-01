@@ -2,7 +2,7 @@
 import { error as svelteError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { storageService } from '$lib/server/storage/StorageService';
-import { logger } from '$lib/server/logger';
+import { logger } from '$lib/server/logging/logger';
 
 export const GET: RequestHandler = async ({ params, locals, url }) => {
     const user = locals.user;

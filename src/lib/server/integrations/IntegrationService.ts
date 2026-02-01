@@ -1,6 +1,6 @@
 // src/lib/server/integrations/IntegrationService.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { logger } from '../logger';
+import { logger } from '../logging/logger';
 
 export interface IntegrationConfig {
     id: string;

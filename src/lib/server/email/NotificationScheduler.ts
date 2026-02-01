@@ -1,7 +1,7 @@
 // src/lib/server/email/NotificationScheduler.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { emailService } from './EmailService';
-import { logger } from '../logger';
+import { logger } from '../logging/logger';
 import cron from 'node-cron';
 
 export class NotificationScheduler {

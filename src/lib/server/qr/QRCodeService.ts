@@ -1,7 +1,7 @@
 // src/lib/server/qr/QRCodeService.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
 import QRCode from 'qrcode';
-import { logger } from '../logger';
+import { logger } from '../logging/logger';
 
 interface QRCodeData {
     id: string;

@@ -6,7 +6,7 @@ import { createServerClient } from '@supabase/ssr';
 import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { enforceEnvironmentSecurity } from '$lib/server/env-validator';
-import { logger } from '$lib/server/logger';
+import { logger } from '$lib/server/logging/logger';
 
 // Run validation on startup
 enforceEnvironmentSecurity();

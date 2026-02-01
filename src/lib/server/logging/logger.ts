@@ -1,5 +1,17 @@
-// src/lib/server/logging/logger.ts
+/**
+ * Consolidated Logger Service
+ * 
+ * Provides structured logging with:
+ * - JSON format in production for log aggregators
+ * - Human-readable format in development
+ * - Log level filtering
+ * - Sentry integration (optional)
+ * 
+ * Replaces: src/lib/server/logger.ts (basic logger)
+ */
+
 import { dev } from '$app/environment';
+import * as Sentry from '@sentry/sveltekit';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
@@ -43,7 +55,8 @@ class Logger {
 				fatal: '💀'
 			}[entry.level];
 
-			return `${emoji} [${entry.level.toUpperCase()}] ${entry.message}`;
+			const contextStr = entry.context ? ` ${JSON.stringify(entry.context)}` : '';
+			return `${emoji} [${entry.level.toUpperCase()}] ${entry.message}${contextStr}`;
 		}
 
 		// JSON format for production (log aggregators)
@@ -69,6 +82,13 @@ class Logger {
 				break;
 			case 'warn':
 				console.warn(formatted);
+				// Send warnings to Sentry in production
+				if (!dev) {
+					Sentry.captureMessage(message, {
+						level: 'warning',
+						contexts: { custom: context }
+					});
+				}
 				break;
 			case 'error':
 			case 'fatal':
@@ -89,9 +109,38 @@ class Logger {
 		this.log('warn', message, context);
 	}
 
-	error(message: string, error?: Error, context?: Record<string, any>) {
+	error(message: string, error?: Error | Record<string, any>, context?: Record<string, any>) {
+		// Handle both error object and context parameter order
+		const actualError = error instanceof Error ? error : undefined;
+		const actualContext = error instanceof Error ? context : (error as Record<string, any>);
+
 		const entry: LogEntry = {
 			level: 'error',
+			timestamp: new Date().toISOString(),
+			message,
+			context: actualContext,
+			error: actualError
+				? {
+						name: actualError.name,
+						message: actualError.message,
+						stack: dev ? actualError.stack : undefined
+				  }
+				: undefined
+		};
+
+		console.error(this.format(entry));
+
+		// Send errors to Sentry in production
+		if (!dev) {
+			Sentry.captureException(actualError || new Error(message), {
+				contexts: { custom: actualContext }
+			});
+		}
+	}
+
+	fatal(message: string, error?: Error, context?: Record<string, any>) {
+		const entry: LogEntry = {
+			level: 'fatal',
 			timestamp: new Date().toISOString(),
 			message,
 			context,
@@ -105,6 +154,19 @@ class Logger {
 		};
 
 		console.error(this.format(entry));
+
+		// Send fatal errors to Sentry
+		if (!dev) {
+			Sentry.captureException(error || new Error(message), {
+				level: 'fatal',
+				contexts: { custom: context }
+			});
+		}
+
+		// Fatal errors should exit (but not in dev)
+		if (!dev) {
+			process.exit(1);
+		}
 	}
 
 	// Request logging middleware
