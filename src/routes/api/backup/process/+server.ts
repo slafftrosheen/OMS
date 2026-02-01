@@ -1,11 +1,12 @@
 /**
  * Backup Processing API
  * Handle scheduled backup processing and cleanup (for cron jobs)
+ * Updated to use Supabase-compatible BackupService
  */
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { BackupService } from '$lib/server/backup-service';
+import { BackupService } from '$lib/server/backup/BackupService';
 
 // POST /api/backup/process - Process scheduled backups and cleanup
 export const POST: RequestHandler = async ({ request }) => {
@@ -18,10 +19,10 @@ export const POST: RequestHandler = async ({ request }) => {
   }
 
   try {
-    // Process scheduled backups
+    // Process scheduled backups (static method)
     const backupsCreated = await BackupService.processScheduledBackups();
     
-    // Clean up expired backups
+    // Clean up expired backups (static method)
     const backupsDeleted = await BackupService.cleanupExpiredBackups();
 
     return json({

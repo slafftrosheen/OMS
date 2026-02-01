@@ -1,12 +1,13 @@
 /**
  * Backup API
  * Manage database backups and restore operations
+ * Updated to use Supabase-compatible BackupService
  */
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabase } from '$lib/server/supabase';
-import { BackupService } from '$lib/server/backup-service';
+import { BackupService } from '$lib/server/backup/BackupService';
 import { PermissionsService } from '$lib/server/permissions-service';
 
 // GET /api/backup - List backups
@@ -73,7 +74,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   }
 
   try {
-    const backupId = await BackupService.createBackup({
+    // Create BackupService instance with supabase client
+    const backupService = new BackupService(supabase);
+    
+    const backupId = await backupService.createBackup({
       configId,
       backupType,
       tables,
