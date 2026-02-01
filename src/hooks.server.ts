@@ -3,8 +3,7 @@ import { type Handle, type HandleServerError } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { dev, building } from '$app/environment';
 import { createServerClient } from '@supabase/ssr';
-import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+import { env as publicEnv } from '$env/dynamic/public';
 import { enforceEnvironmentSecurity } from '$lib/server/env-validator';
 import { logger } from '$lib/server/logging/logger';
 
@@ -12,8 +11,8 @@ import { logger } from '$lib/server/logging/logger';
 enforceEnvironmentSecurity();
 
 // Get the Supabase URL and Key (fallback to PUBLIC_ variants)
-const supabaseUrl = PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = publicEnv.PUBLIC_SUPABASE_URL || process.env.PUBLIC_SUPABASE_URL || 'http://localhost';
+const supabaseAnonKey = publicEnv.PUBLIC_SUPABASE_ANON_KEY || process.env.PUBLIC_SUPABASE_ANON_KEY || 'anon-key';
 
 // Supabase client initialization
 const supabaseHandler: Handle = async ({ event, resolve }) => {

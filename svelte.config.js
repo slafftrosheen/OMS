@@ -2,7 +2,7 @@ import adapterNode from '@sveltejs/adapter-node';
 import adapterVercel from '@sveltejs/adapter-vercel';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
-const isVercel = !!process.env.VERCEL || !!process.env.VERCEL_URL;
+const isVercel = true;
 
 console.log(`[svelte.config.js] Environment detection: isVercel=${isVercel}`);
 console.log(`[svelte.config.js] Selected adapter: ${isVercel ? '@sveltejs/adapter-vercel' : '@sveltejs/adapter-node'}`);
@@ -12,13 +12,7 @@ const config = {
   preprocess: vitePreprocess(),
 
   kit: {
-    adapter: isVercel
-        ? adapterVercel()
-        : adapterNode({
-            out: 'build',
-            precompress: true,
-            envPrefix: ''
-        }),
+    adapter: adapterVercel(),
 
     alias: {
       $lib: 'src/lib',
