@@ -91,4 +91,21 @@ export class SearchService {
             return [];
         }
     }
+
+    /**
+     * Get search suggestions based on partial query
+     */
+    async getSuggestions(query: string, limit = 5): Promise<string[]> {
+        if (!query || query.length < 2) return [];
+
+        try {
+            // Re-use search but extract titles
+            const results = await this.search(query, limit);
+            // Return unique titles
+            return Array.from(new Set(results.map(r => r.title)));
+        } catch (error) {
+            logger.error('Get suggestions failed', error as Error);
+            return [];
+        }
+    }
 }

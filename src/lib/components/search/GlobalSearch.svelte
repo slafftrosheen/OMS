@@ -23,6 +23,7 @@
     let loading = false;
     let searchTimeout: number;
     let selectedIndex = -1;
+    let searchInput: HTMLInputElement;
 
     async function search() {
         if (searchQuery.length < 2) {
@@ -132,6 +133,7 @@
             if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
                 event.preventDefault();
                 open = true;
+                setTimeout(() => searchInput?.focus(), 50);
             }
         };
 
@@ -146,17 +148,17 @@
 {#if open}
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <div class="search-overlay" on:click={close} role="button" tabindex="-1">
-        <div class="search-modal" on:click|stopPropagation role="dialog" aria-modal="true">
+        <div class="search-modal" on:click|stopPropagation role="dialog" aria-modal="true" tabindex="-1">
             <div class="search-input-wrapper">
                 <span class="search-icon">🔍</span>
                 <input
+                    bind:this={searchInput}
                     type="text"
                     bind:value={searchQuery}
                     on:input={handleInput}
                     on:keydown={handleKeydown}
                     placeholder="Search orders, files, messages..."
                     class="search-input"
-                    autofocus
                 />
                 {#if loading}
                     <div class="search-spinner"></div>

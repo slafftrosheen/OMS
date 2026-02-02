@@ -15,18 +15,17 @@ Getting Svelte diagnostics...
 [svelte.config.js] Environment detection: isVercel=true
 [svelte.config.js] Selected adapter: @sveltejs/adapter-vercel
 `config.kit.csrf.checkOrigin` has been deprecated in favour of `csrf.trustedOrigins`. It will be removed in a future version
-7:59:45 AM [vite-plugin-svelte] You are using Svelte 5.49.1 with vite-plugin-svelte@3. Active Svelte 5 support has moved to vite-plugin-svelte@4.
+8:30:04 AM [vite-plugin-svelte] You are using Svelte 5.49.1 with vite-plugin-svelte@3. Active Svelte 5 support has moved to vite-plugin-svelte@4.
 	To receive bug fixes and new features update your devDependencies to "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6" and install.
 	For framework integrations that depend on it, you might have to add an override:
 	"overrides": {"@sveltejs/vite-plugin-svelte": "^4.0.0-next.6"}
-/app/src/routes/+layout.ts:17:9
-Error: This comparison appears to be unintentional because the types 'ThemeName' and '"HighContrastVim"' have no overlap.
-    const th = params.get('theme') as ThemeName | null;
-    if (th === 'HighContrastVim') {
-      theme.set('HighContrast');
+/app/vite.config.js:1:23
+Error: Cannot find type definition file for 'vitest'.
+/// <reference types="vitest" />
+import { sveltekit } from '@sveltejs/kit/vite';
 
 
-/app/vite.config.js:33:3
+/app/vite.config.js:34:3
 Error: No overload matches this call.
   The last overload gave the following error.
     Object literal may only specify known properties, and 'test' does not exist in type 'UserConfigExport'.
@@ -35,137 +34,154 @@ Error: No overload matches this call.
     environment: 'jsdom'
 
 
-/app/src/lib/auth/permission-utils.test.js:19:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
-
-    expect(can(user, 'Admin', 'createOrder')).toBe(true);
-    expect(can(user, 'Admin', 'editInventory')).toBe(true);
-
-
 /app/src/lib/auth/permission-utils.test.js:20:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
+
     expect(can(user, 'Admin', 'createOrder')).toBe(true);
     expect(can(user, 'Admin', 'editInventory')).toBe(true);
-    expect(can(user, 'Admin', 'approveChange')).toBe(true);
 
 
 /app/src/lib/auth/permission-utils.test.js:21:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
+    expect(can(user, 'Admin', 'createOrder')).toBe(true);
+    expect(can(user, 'Admin', 'editInventory')).toBe(true);
+    expect(can(user, 'Admin', 'approveChange')).toBe(true);
+
+
+/app/src/lib/auth/permission-utils.test.js:22:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
     expect(can(user, 'Admin', 'editInventory')).toBe(true);
     expect(can(user, 'Admin', 'approveChange')).toBe(true);
     expect(can(user, 'Admin', 'assignLoading')).toBe(true);
 
 
-/app/src/lib/auth/permission-utils.test.js:22:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
+/app/src/lib/auth/permission-utils.test.js:23:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
     expect(can(user, 'Admin', 'approveChange')).toBe(true);
     expect(can(user, 'Admin', 'assignLoading')).toBe(true);
   });
 
 
-/app/src/lib/auth/permission-utils.test.js:40:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; stations: string[]; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; stations: string[]; }' but required in type 'User'.
-
-    expect(can(user, 'Production', 'viewOrders')).toBe(true);
-    expect(can(user, 'Production', 'updateOrder')).toBe(true);
-
-
-/app/src/lib/auth/permission-utils.test.js:41:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; stations: string[]; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; stations: string[]; }' but required in type 'User'.
-    expect(can(user, 'Production', 'viewOrders')).toBe(true);
-    expect(can(user, 'Production', 'updateOrder')).toBe(true);
-    expect(can(user, 'Production', 'assignLoading')).toBe(false);
-
-
 /app/src/lib/auth/permission-utils.test.js:42:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; stations: string[]; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; stations: string[]; }' but required in type 'User'.
-    expect(can(user, 'Production', 'updateOrder')).toBe(true);
-    expect(can(user, 'Production', 'assignLoading')).toBe(false);
-  });
-
-
-/app/src/lib/auth/permission-utils.test.js:59:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; stations: string[]; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
 
     expect(can(user, 'Production', 'viewOrders')).toBe(true);
     expect(can(user, 'Production', 'updateOrder')).toBe(true);
 
 
-/app/src/lib/auth/permission-utils.test.js:60:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
+/app/src/lib/auth/permission-utils.test.js:43:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; stations: string[]; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
+    expect(can(user, 'Production', 'viewOrders')).toBe(true);
+    expect(can(user, 'Production', 'updateOrder')).toBe(true);
+    expect(can(user, 'Production', 'assignLoading')).toBe(false);
+
+
+/app/src/lib/auth/permission-utils.test.js:44:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; stations: string[]; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
+    expect(can(user, 'Production', 'updateOrder')).toBe(true);
+    expect(can(user, 'Production', 'assignLoading')).toBe(false);
+  });
+
+
+/app/src/lib/auth/permission-utils.test.js:62:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
+
+    expect(can(user, 'Production', 'viewOrders')).toBe(true);
+    expect(can(user, 'Production', 'updateOrder')).toBe(true);
+
+
+/app/src/lib/auth/permission-utils.test.js:63:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
     expect(can(user, 'Production', 'viewOrders')).toBe(true);
     expect(can(user, 'Production', 'updateOrder')).toBe(true);
     expect(can(user, 'Production', 'assignLoading')).toBe(true);
 
 
-/app/src/lib/auth/permission-utils.test.js:61:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
+/app/src/lib/auth/permission-utils.test.js:64:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
     expect(can(user, 'Production', 'updateOrder')).toBe(true);
     expect(can(user, 'Production', 'assignLoading')).toBe(true);
   });
 
 
-/app/src/lib/auth/permission-utils.test.js:78:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
+/app/src/lib/auth/permission-utils.test.js:82:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
 
     expect(can(user, 'Production', 'viewOrders')).toBe(true);
     expect(can(user, 'Production', 'updateOrder')).toBe(false);
 
 
-/app/src/lib/auth/permission-utils.test.js:79:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
+/app/src/lib/auth/permission-utils.test.js:83:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
     expect(can(user, 'Production', 'viewOrders')).toBe(true);
     expect(can(user, 'Production', 'updateOrder')).toBe(false);
     expect(can(user, 'Production', 'assignLoading')).toBe(false);
 
 
-/app/src/lib/auth/permission-utils.test.js:80:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
+/app/src/lib/auth/permission-utils.test.js:84:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
     expect(can(user, 'Production', 'updateOrder')).toBe(false);
     expect(can(user, 'Production', 'assignLoading')).toBe(false);
   });
 
 
-/app/src/lib/auth/permission-utils.test.js:101:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
+/app/src/lib/auth/permission-utils.test.js:106:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
 
     expect(can(user, 'Admin', 'unknownFeature')).toBe(false);
   });
 
 
-/app/src/lib/auth/permission-utils.test.js:118:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
+/app/src/lib/auth/permission-utils.test.js:124:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
 
     expect(can(user, 'Logistics', 'viewCalendar')).toBe(true);
     expect(can(user, 'Logistics', 'updateCalendar')).toBe(true);
 
 
-/app/src/lib/auth/permission-utils.test.js:119:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
+/app/src/lib/auth/permission-utils.test.js:125:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
     expect(can(user, 'Logistics', 'viewCalendar')).toBe(true);
     expect(can(user, 'Logistics', 'updateCalendar')).toBe(true);
     expect(can(user, 'Logistics', 'exportManifest')).toBe(true);
 
 
-/app/src/lib/auth/permission-utils.test.js:120:16
-Error: Argument of type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Property 'id' is missing in type '{ username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' but required in type 'User'.
+/app/src/lib/auth/permission-utils.test.js:126:16
+Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
+  Types of property 'primarySection' are incompatible.
+    Type 'string' is not assignable to type 'Section'.
     expect(can(user, 'Logistics', 'updateCalendar')).toBe(true);
     expect(can(user, 'Logistics', 'exportManifest')).toBe(true);
   });
@@ -955,12 +971,6 @@ Error: Type '{ code: string; name: string; hex: string; rgb: number[]; cmyk: num
     const localColors = await import('../data/pantone-solid-coated.json');
     return localColors.default;
   }
-
-
-/app/src/lib/profiles/utils/index.ts:3:10
-Error: Module '"./pantone-loader"' has no exported member 'default'.
-export * from './generateProfilePDF';
-export { default as pantoneLoader } from './pantone-loader';
 
 
 /app/src/lib/pwa/pwa-service.ts:123:5
@@ -1761,13 +1771,6 @@ Error: Property 'permissionId' does not exist on type 'RouteParams'.
     const success = await PermissionsService.revokePermission(
       params.permissionId,
       user.id
-
-
-/app/src/routes/api/search/suggestions/+server.ts:20:49
-Error: Property 'getSuggestions' does not exist on type 'SearchService'.
-    try {
-        const suggestions = await searchService.getSuggestions(query);
-
 
 
 /app/src/routes/api/station-attachments/+server.ts:54:37
@@ -3128,22 +3131,6 @@ https://svelte.dev/e/a11y_no_redundant_roles (svelte)
             tabindex="0"
 
 
-/app/src/lib/components/AdvancedFilterBuilder.svelte:6:16
-Warn: Component has unused export property 'entity'. If it is for external reference only, please consider using `export const entity`
-https://svelte.dev/e/export_let_unused (svelte)
-    // svelte-ignore unused-export-let
-    export let entity: 'orders' | 'materials' | 'inventory' = 'orders';
-    // svelte-ignore unused-export-let
-
-
-/app/src/lib/components/AdvancedFilterBuilder.svelte:8:16
-Warn: Component has unused export property 'initialFilters'. If it is for external reference only, please consider using `export const initialFilters`
-https://svelte.dev/e/export_let_unused (svelte)
-    // svelte-ignore unused-export-let
-    export let initialFilters: any = {};
-
-
-
 /app/src/lib/components/Chat.svelte:110:9
 Warn: Self-closing HTML tags for non-void elements are ambiguous — use `<div ...></div>` rather than `<div ... />`
 https://svelte.dev/e/element_invalid_self_closing_tag (svelte)
@@ -3770,102 +3757,6 @@ https://svelte.dev/e/element_invalid_self_closing_tag (svelte)
                     muted
                 />
                 <canvas bind:this={canvasElement} style="display: none;"></canvas>
-
-
-/app/src/lib/components/search/GlobalSearch.svelte:149:9
-Warn: Elements with the 'dialog' interactive role must have a tabindex value
-https://svelte.dev/e/a11y_interactive_supports_focus (svelte)
-    <div class="search-overlay" on:click={close} role="button" tabindex="-1">
-        <div class="search-modal" on:click|stopPropagation role="dialog" aria-modal="true">
-            <div class="search-input-wrapper">
-                <span class="search-icon">🔍</span>
-                <input
-                    type="text"
-                    bind:value={searchQuery}
-                    on:input={handleInput}
-                    on:keydown={handleKeydown}
-                    placeholder="Search orders, files, messages..."
-                    class="search-input"
-                    autofocus
-                />
-                {#if loading}
-                    <div class="search-spinner"></div>
-                {/if}
-                <kbd class="search-kbd">ESC</kbd>
-            </div>
-
-            {#if suggestions.length > 0 && searchQuery.length > 0}
-                <div class="suggestions-section">
-                    <p class="section-label">Suggestions</p>
-                    <div class="suggestions-list">
-                        {#each suggestions as suggestion}
-                            <button
-                                class="suggestion-item"
-                                on:click={() => selectSuggestion(suggestion)}
-                            >
-                                {suggestion}
-                            </button>
-                        {/each}
-                    </div>
-                </div>
-            {/if}
-
-            {#if results.length > 0}
-                <div class="results-section">
-                    <p class="section-label">{results.length} result{results.length !== 1 ? 's' : ''}</p>
-                    <div class="results-list">
-                        {#each results as result, index (result.id)}
-                            <button
-                                class="result-item"
-                                class:selected={index === selectedIndex}
-                                on:click={() => navigateToResult(result)}
-                                on:mouseenter={() => selectedIndex = index}
-                            >
-                                <span class="result-icon">{getTypeIcon(result.type)}</span>
-                                <div class="result-content">
-                                    <div class="result-header">
-                                        <h4 class="result-title">{result.title}</h4>
-                                        <Badge variant={getTypeBadge(result.type)} size="sm">
-                                            {result.type}
-                                        </Badge>
-                                    </div>
-                                    {#if result.description}
-                                        <p class="result-description">{result.description}</p>
-                                    {/if}
-                                    {#if result.highlight}
-                                        <div class="result-highlight">
-                                            {@html result.highlight}
-                                        </div>
-                                    {/if}
-                                </div>
-                            </button>
-                        {/each}
-                    </div>
-                </div>
-            {:else if searchQuery.length >= 2 && !loading}
-                <div class="empty-results">
-                    <p class="empty-message">No results found for "{searchQuery}"</p>
-                    <p class="empty-hint">Try different keywords or check your spelling</p>
-                </div>
-            {/if}
-
-            <div class="search-footer">
-                <div class="search-shortcuts">
-                    <kbd>↑↓</kbd> Navigate
-                    <kbd>↵</kbd> Select
-                    <kbd>ESC</kbd> Close
-                </div>
-            </div>
-        </div>
-    </div>
-
-
-/app/src/lib/components/search/GlobalSearch.svelte:159:21
-Warn: Avoid using autofocus
-https://svelte.dev/e/a11y_autofocus (svelte)
-                    class="search-input"
-                    autofocus
-                />
 
 
 /app/src/lib/export/ExportDialog.svelte:152:3
@@ -5479,4 +5370,4 @@ https://svelte.dev/e/a11y_interactive_supports_focus (svelte)
 
 
 ====================================
-svelte-check found 187 errors and 212 warnings in 138 files
+svelte-check found 185 errors and 208 warnings in 133 files
