@@ -23,10 +23,16 @@ Before deploying your OMS project to Vercel, ensure you have:
    - Framework Preset: SvelteKit (should be detected automatically)
    - Root Directory: `/` (root of your project)
    - Build Command: `npm run build` (detected automatically)
-   - Output Directory: Leave default/empty (Do NOT set to `build`)
+   - **Output Directory: LEAVE EMPTY** (Do NOT set to `build`, `dist`, or any value)
    - Install Command: `npm install` (detected automatically)
 
-   > **Note**: The project uses `@sveltejs/adapter-vercel` which automatically outputs to `.vercel/output`. Setting the Output Directory to `build` (as used by `adapter-static` or `adapter-node`) will cause 404 errors on Vercel.
+   > ⚠️ **CRITICAL WARNING**: The project uses `@sveltejs/adapter-vercel` which automatically outputs to `.vercel/output`. 
+   > 
+   > **Setting the Output Directory to ANY VALUE (like `build`, `dist`, `.vercel/output`, etc.) will cause 404 errors for all JavaScript and CSS files.**
+   > 
+   > The Output Directory field **MUST be left completely empty** to work correctly.
+   > 
+   > If you're experiencing 404 errors, see `VERCEL_404_FIX.md` for detailed troubleshooting steps.
 
 ### Step 3: Add Environment Variables
 Click on "Environment Variables" and add the following:
@@ -97,11 +103,17 @@ Example: `https://your-project-name.vercel.app`
 1. **Build fails**: Check that all environment variables are properly set
 2. **Supabase connection fails**: Verify that your Supabase URL and keys are correct
 3. **Static adapter issues**: Make sure your SvelteKit app can work with static generation
+4. **404 errors on JavaScript/CSS files**: This is caused by incorrect Output Directory configuration
+   - Go to Project Settings → Build & Development Settings
+   - Ensure Output Directory is **completely empty**
+   - Clear build cache and redeploy
+   - See `VERCEL_404_FIX.md` for detailed fix instructions
 
 ### Debugging Tips:
 - Check the Vercel deployment logs for specific error messages
 - Ensure your app doesn't rely on server-only features that won't work with static generation
 - Verify that all routes can be prerendered or handle SSR appropriately
+- If seeing "Failed to fetch dynamically imported module" errors, check Output Directory configuration
 
 ## Environment Variables Reference
 
