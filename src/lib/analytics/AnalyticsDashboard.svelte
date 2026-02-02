@@ -575,6 +575,103 @@ function getChangeIndicator(current: number, previous: number) {
     }
   }
 
+    /* TODO: Implement HTML for these styles to enable detailed metrics
+    .customer-name {
+        flex: 1;
+        font-weight: 500;
+    }
+
+    .customer-revenue {
+        font-weight: 700;
+        color: #10b981;
+    }
+
+    .materials-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .materials-section {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .materials-section.warning {
+        background: #fffbeb;
+        border-color: #fbbf24;
+    }
+
+    .materials-section h3 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 15px 0;
+        font-size: 1rem;
+        font-weight: 600;
+    }
+
+    .materials-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .material-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        background: #f9fafb;
+        border-radius: 6px;
+    }
+
+    .materials-section.warning .material-item {
+        background: #fef3c7;
+    }
+
+    .material-item .count {
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+
+    .material-item .quantity {
+        color: #ef4444;
+        font-weight: 600;
+    }
+
+    .performance-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .perf-card {
+        background: white;
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+    }
+
+    .perf-card h4 {
+        margin: 0 0 10px 0;
+        font-size: 0.875rem;
+        color: #6b7280;
+        font-weight: 600;
+    }
+
+    .perf-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #3b82f6;
+    }
+    */
+
   @media (max-width: 768px) {
     .analytics-dashboard {
       padding: 1rem;
@@ -588,6 +685,35 @@ function getChangeIndicator(current: number, previous: number) {
     .kpi-grid {
       grid-template-columns: 1fr;
       gap: 1rem;
+    }
+
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .performance-metrics,
+    .materials-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+
+    .controls {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    select {
+        width: 100%;
+    }
+
+    .tabs {
+        overflow-x: auto;
+        white-space: nowrap;
     }
   }
 </style>
