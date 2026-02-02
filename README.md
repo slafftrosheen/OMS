@@ -6,6 +6,59 @@ Audience. Admins, workstation operators, logistics, designers/CAD, fabrication l
 
 Status. Living document; changes require a PR that explains the rationale.
 
+
+## Quick Setup
+
+### Prerequisites
+- Node.js 18+ and npm
+- A Supabase project ([create one here](https://app.supabase.com))
+
+### Installation
+
+1. **Clone and install dependencies:**
+   ```bash
+   git clone <repository-url>
+   cd OMS
+   npm install
+   ```
+
+2. **Configure environment variables:**
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Edit `.env` and add your Supabase credentials (get them from [Supabase Dashboard](https://app.supabase.com/project/_/settings/api)):
+   ```bash
+   PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+   ```
+   
+   **📖 Detailed setup guide:** See [docs/QUICK_SETUP.md](docs/QUICK_SETUP.md)
+   
+   **�� Full environment variables reference:** See [docs/environment-variables.md](docs/environment-variables.md)
+
+3. **Run database migrations:**
+   ```bash
+   # Requires Supabase CLI or use Supabase Dashboard
+   npm run supabase:migrate:push
+   ```
+
+4. **Start development server:**
+   ```bash
+   npm run dev
+   ```
+
+5. **Open in browser:** http://localhost:5173
+
+### Troubleshooting
+
+- **"Missing PUBLIC_SUPABASE_URL" error?** Check your `.env` file and restart the dev server
+- **Database connection issues?** Verify your Supabase credentials in the dashboard
+- **Build failures?** See [docs/QUICK_SETUP.md](docs/QUICK_SETUP.md) for common issues
+
+---
+
 1) Brand, Voice, Positioning
 
 What we are: An end-to-end production OS for visual signage: order intake → CAD → CNC → finishing (sanding/bending/welding/paint) → assembly → QC → logistics.
