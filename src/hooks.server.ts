@@ -157,10 +157,16 @@ const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const rateLimitHandler: Handle = async ({ event, resolve }) => {
 	if (building) return resolve(event);
 
+    // Get user ID if logged in (since this runs after supabaseHandler)
+    const userId = event.locals.user?.id;
 	const ip = event.getClientAddress();
+
+    // Identifier: Use UserID if available, else IP
+    const identifier = userId || ip;
+
 	const now = Date.now();
 	const windowMs = 60000; // 1 minute
-	const maxRequests = 100;
+	const maxRequests = userId ? 100 : 20; // 100 for auth users, 20 for anon
 
 	// Clean up old entries
 	if (Math.random() < 0.01) {
@@ -171,7 +177,7 @@ const rateLimitHandler: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	const key = `${ip}:${event.url.pathname}`;
+	const key = `${identifier}:${event.url.pathname}`;
 	const record = rateLimitMap.get(key);
 
 	if (!record || record.resetAt < now) {
@@ -179,9 +185,13 @@ const rateLimitHandler: Handle = async ({ event, resolve }) => {
 	} else {
 		record.count++;
 		if (record.count > maxRequests) {
-			return new Response('Too Many Requests', {
+			return new Response(JSON.stringify({
+                    error: 'Too many requests',
+                    message: 'Rate limit exceeded. Please try again later.'
+                }), {
 				status: 429,
 				headers: {
+                    'Content-Type': 'application/json',
 					'Retry-After': String(Math.ceil((record.resetAt - now) / 1000))
 				}
 			});
@@ -199,9 +209,10 @@ const rateLimitHandler: Handle = async ({ event, resolve }) => {
 };
 
 // Combine all handlers in correct order
+// NOTE: supabaseHandler MUST come first to populate event.locals.user for rateLimitHandler
 export const handle = sequence(
-	rateLimitHandler,
-	supabaseHandler, // Initialize Supabase BEFORE other handlers
+	supabaseHandler,
+    rateLimitHandler,
 	securityHeaders,
 	authHandler
 );

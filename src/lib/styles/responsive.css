@@ -1,0 +1,201 @@
+/* =====================================================
+   RESPONSIVE UTILITIES & MOBILE OPTIMIZATIONS
+   ===================================================== */
+
+/* Container Queries for Component-Level Responsiveness */
+@container (max-width: 600px) {
+    .responsive-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Mobile-First Breakpoints */
+:root {
+    --mobile-breakpoint: 480px;
+    --tablet-breakpoint: 768px;
+    --desktop-breakpoint: 1024px;
+    --wide-breakpoint: 1280px;
+}
+
+/* Responsive Grid System */
+.responsive-grid {
+    display: grid;
+    gap: var(--grid-gap, 1rem);
+}
+
+.grid-cols-1 { grid-template-columns: repeat(1, 1fr); }
+.grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+/* Mobile Utilities */
+@media (max-width: 768px) {
+    /* Hide on mobile */
+    .hide-mobile { display: none !important; }
+
+    /* Show only on mobile */
+    .show-mobile { display: block !important; }
+
+    /* Stack columns */
+    .stack-mobile {
+        flex-direction: column !important;
+    }
+
+    /* Full width on mobile */
+    .full-mobile {
+        width: 100% !important;
+    }
+
+    /* Adjust padding */
+    .page-container {
+        padding: 15px !important;
+    }
+
+    /* Mobile text sizes */
+    h1 { font-size: 1.75rem !important; }
+    h2 { font-size: 1.5rem !important; }
+    h3 { font-size: 1.25rem !important; }
+
+    /* Touch-friendly sizes */
+    button, .btn, input, select, textarea {
+        min-height: 44px;
+        font-size: 1rem;
+    }
+
+    /* Mobile tables */
+    .responsive-table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Card layout for tables */
+    .mobile-card-table tbody tr {
+        display: flex;
+        flex-direction: column;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+
+    .mobile-card-table tbody td {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border: none;
+    }
+
+    .mobile-card-table tbody td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: #6b7280;
+    }
+
+    .mobile-card-table thead {
+        display: none;
+    }
+}
+
+/* Tablet Optimizations */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .hide-tablet { display: none !important; }
+    .show-tablet { display: block !important; }
+
+    .grid-cols-3, .grid-cols-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Desktop Only */
+@media (min-width: 1025px) {
+    .hide-desktop { display: none !important; }
+    .show-desktop { display: block !important; }
+}
+
+/* Touch Device Optimizations */
+@media (hover: none) and (pointer: coarse) {
+    /* Larger tap targets */
+    a, button, .clickable {
+        padding: 12px 16px;
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    /* Remove hover effects */
+    *:hover {
+        transition: none;
+    }
+
+    /* Active state for touch feedback */
+    button:active, .btn:active {
+        transform: scale(0.95);
+        opacity: 0.8;
+    }
+}
+
+/* Landscape Mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+    .mobile-nav {
+        width: 240px;
+    }
+
+    .modal-content {
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .no-print { display: none !important; }
+
+    body {
+        background: white;
+        color: black;
+    }
+
+    .page-container {
+        max-width: 100%;
+        padding: 0;
+    }
+
+    a[href]::after {
+        content: " (" attr(href) ")";
+    }
+}
+
+/* Safe Area Insets (for notched devices) */
+@supports (padding: max(0px)) {
+    .safe-area-padding {
+        padding-left: max(15px, env(safe-area-inset-left));
+        padding-right: max(15px, env(safe-area-inset-right));
+        padding-bottom: max(15px, env(safe-area-inset-bottom));
+    }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-primary: #111827;
+        --bg-secondary: #1f2937;
+        --text-primary: #f9fafb;
+        --text-secondary: #d1d5db;
+        --border-color: #374151;
+    }
+
+    .dark-mode-support {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        border-color: var(--border-color);
+    }
+}
