@@ -27,32 +27,31 @@ AS $$
 BEGIN
     RETURN QUERY
 
-    -- Search Orders
+    -- Search Orders (using draft_orders table)
     (
         SELECT
             'order'::TEXT as entity_type,
             o.id as entity_id,
-            o.order_code as title,
-            o.customer as subtitle,
+            o.po_number as title,
+            o.client as subtitle,
             COALESCE(o.notes, '') as description,
             ('/orders/' || o.id::TEXT) as url,
             jsonb_build_object(
                 'status', o.status,
-                'priority', o.priority,
-                'due_date', o.due_date,
-                'progress', o.progress
+                'priority', COALESCE(o.priority, 'NORMAL'),
+                'due_date', o.due_date
             ) as metadata,
             (
-                similarity(o.order_code, p_query) * 2 +
-                similarity(o.customer, p_query) +
+                similarity(o.po_number, p_query) * 2 +
+                similarity(COALESCE(o.client, ''), p_query) +
                 similarity(COALESCE(o.notes, ''), p_query) * 0.5
             ) as relevance
-        FROM orders o
+        FROM draft_orders o
         WHERE
             'orders' = ANY(p_entity_types)
             AND (
-                o.order_code ILIKE '%' || p_query || '%'
-                OR o.customer ILIKE '%' || p_query || '%'
+                o.po_number ILIKE '%' || p_query || '%'
+                OR o.client ILIKE '%' || p_query || '%'
                 OR o.notes ILIKE '%' || p_query || '%'
             )
         ORDER BY relevance DESC
@@ -66,27 +65,30 @@ BEGIN
         SELECT
             'material'::TEXT as entity_type,
             m.id as entity_id,
-            m.name as title,
+            COALESCE(m.name_en, m.code) as title,
             m.category as subtitle,
-            COALESCE(m.description, '') as description,
+            '' as description,
             '/materials' as url,
             jsonb_build_object(
                 'category', m.category,
-                'type', m.type,
-                'unit', m.unit
+                'code', m.code
             ) as metadata,
             (
-                similarity(m.name, p_query) * 2 +
-                similarity(COALESCE(m.description, ''), p_query) +
-                similarity(m.category, p_query)
+                similarity(COALESCE(m.name_en, ''), p_query) * 2 +
+                similarity(COALESCE(m.name_ru, ''), p_query) +
+                similarity(COALESCE(m.name_lv, ''), p_query) +
+                similarity(m.category, p_query) +
+                similarity(m.code, p_query)
             ) as relevance
         FROM materials m
         WHERE
             'materials' = ANY(p_entity_types)
             AND (
-                m.name ILIKE '%' || p_query || '%'
-                OR m.description ILIKE '%' || p_query || '%'
+                m.name_en ILIKE '%' || p_query || '%'
+                OR m.name_ru ILIKE '%' || p_query || '%'
+                OR m.name_lv ILIKE '%' || p_query || '%'
                 OR m.category ILIKE '%' || p_query || '%'
+                OR m.code ILIKE '%' || p_query || '%'
             )
         ORDER BY relevance DESC
         LIMIT p_limit
@@ -100,24 +102,28 @@ BEGIN
             'inventory'::TEXT as entity_type,
             i.id as entity_id,
             i.name as title,
-            (i.quantity::TEXT || ' ' || i.unit) as subtitle,
-            COALESCE(i.notes, '') as description,
+            (COALESCE(ist.quantity, 0)::TEXT || ' ' || i.unit) as subtitle,
+            COALESCE(i.group_name || ' - ' || i.subgroup_name, '') as description,
             '/inventory' as url,
             jsonb_build_object(
-                'quantity', i.quantity,
+                'quantity', COALESCE(ist.quantity, 0),
                 'unit', i.unit,
-                'low_stock', i.quantity <= i.reorder_point
+                'low_stock', COALESCE(ist.quantity, 0) <= i.min_quantity
             ) as metadata,
             (
                 similarity(i.name, p_query) * 2 +
-                similarity(COALESCE(i.notes, ''), p_query)
+                similarity(COALESCE(i.group_name, ''), p_query) +
+                similarity(COALESCE(i.subgroup_name, ''), p_query)
             ) as relevance
         FROM inventory_items i
+        LEFT JOIN inventory_stock ist ON ist.item_id = i.id
         WHERE
             'inventory' = ANY(p_entity_types)
             AND (
                 i.name ILIKE '%' || p_query || '%'
-                OR i.notes ILIKE '%' || p_query || '%'
+                OR i.group_name ILIKE '%' || p_query || '%'
+                OR i.subgroup_name ILIKE '%' || p_query || '%'
+                OR i.sku ILIKE '%' || p_query || '%'
             )
         ORDER BY relevance DESC
         LIMIT p_limit
@@ -169,12 +175,11 @@ CREATE OR REPLACE FUNCTION search_orders_advanced(
 )
 RETURNS TABLE(
     id UUID,
-    order_code TEXT,
-    customer TEXT,
+    po_number TEXT,
+    client TEXT,
     status TEXT,
-    priority INTEGER,
-    due_date TIMESTAMP,
-    progress INTEGER,
+    priority TEXT,
+    due_date DATE,
     relevance FLOAT
 )
 LANGUAGE plpgsql
@@ -189,26 +194,25 @@ BEGIN
     v_sql := '
         SELECT
             o.id,
-            o.order_code,
-            o.customer,
+            o.po_number,
+            o.client,
             o.status,
             o.priority,
             o.due_date,
-            o.progress,
             (
-                similarity(o.order_code, $1) * 3 +
-                similarity(o.customer, $1) * 2 +
+                similarity(o.po_number, $1) * 3 +
+                similarity(COALESCE(o.client, ''''), $1) * 2 +
                 similarity(COALESCE(o.notes, ''''), $1) +
-                CASE WHEN o.order_code ILIKE $1 THEN 5 ELSE 0 END
+                CASE WHEN o.po_number ILIKE $1 THEN 5 ELSE 0 END
             ) as relevance
-        FROM orders o
+        FROM draft_orders o
         WHERE 1=1
     ';
 
     -- Add text search condition using parameter $1
     IF p_query IS NOT NULL AND length(trim(p_query)) > 0 THEN
         v_where_clauses := array_append(v_where_clauses,
-            '(o.order_code ILIKE ''%'' || $1 || ''%'' OR o.customer ILIKE ''%'' || $1 || ''%'' OR o.notes ILIKE ''%'' || $1 || ''%'')'
+            '(o.po_number ILIKE ''%'' || $1 || ''%'' OR o.client ILIKE ''%'' || $1 || ''%'' OR o.notes ILIKE ''%'' || $1 || ''%'')'
         );
     END IF;
 
@@ -295,11 +299,15 @@ END;
 $$;
 
 -- Create indexes for better search performance
-CREATE INDEX IF NOT EXISTS idx_orders_search_trgm
-    ON orders USING gin (order_code gin_trgm_ops, customer gin_trgm_ops, notes gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_draft_orders_search_trgm
+    ON draft_orders USING gin (po_number gin_trgm_ops, client gin_trgm_ops, notes gin_trgm_ops);
 
 CREATE INDEX IF NOT EXISTS idx_materials_search_trgm
-    ON materials USING gin (name gin_trgm_ops, description gin_trgm_ops);
+    ON materials USING gin (
+        COALESCE(name_en, '') gin_trgm_ops, 
+        COALESCE(name_ru, '') gin_trgm_ops, 
+        COALESCE(name_lv, '') gin_trgm_ops
+    );
 
 CREATE INDEX IF NOT EXISTS idx_inventory_search_trgm
     ON inventory_items USING gin (name gin_trgm_ops);

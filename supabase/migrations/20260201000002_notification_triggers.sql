@@ -1,5 +1,5 @@
 -- =====================================================
--- NOTIFICATION TRIGGERS & FUNCTIONS
+-- NOTIFICATION TRIGGERS & FUNCTIONS (Simplified for draft_orders)
 -- =====================================================
 
 -- Function to create notifications
@@ -22,18 +22,16 @@ BEGIN
         user_id,
         title,
         message,
-        type,
-        action_url,
-        metadata,
-        read
+        notification_type,
+        link,
+        created_at
     ) VALUES (
         p_user_id,
         p_title,
         p_message,
         p_type,
         p_action_url,
-        p_metadata,
-        FALSE
+        NOW()
     )
     RETURNING id INTO v_notification_id;
 
@@ -41,47 +39,17 @@ BEGIN
 END;
 $$;
 
--- Trigger: New order assigned
-CREATE OR REPLACE FUNCTION notify_order_assigned()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    v_assigned_user_id UUID;
-    v_order_code TEXT;
-BEGIN
-    -- Get assigned user if exists
-    v_assigned_user_id := NEW.assigned_to;
-    v_order_code := NEW.order_code;
+-- Note: The following triggers are commented out because they reference
+-- tables or columns that don't exist in the current schema:
+-- - draft_orders doesn't have assigned_to, order_code, or customer columns
+-- - Tables like order_comments, stage_photos, order_stages, order_materials don't exist
+-- 
+-- To enable these triggers, you would need to:
+-- 1. Add missing columns to draft_orders (assigned_to, order_code)
+-- 2. Create the missing tables (order_comments, stage_photos, etc.)
+-- 3. Uncomment and adapt the trigger functions below
 
-    IF v_assigned_user_id IS NOT NULL AND
-       (TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND OLD.assigned_to IS DISTINCT FROM NEW.assigned_to)) THEN
-
-        PERFORM create_notification(
-            v_assigned_user_id,
-            'New Order Assignment',
-            format('You have been assigned to order %s', v_order_code),
-            'info',
-            format('/orders/%s', NEW.id),
-            jsonb_build_object(
-                'order_id', NEW.id,
-                'order_code', v_order_code,
-                'event', 'order_assigned'
-            )
-        );
-    END IF;
-
-    RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER trigger_notify_order_assigned
-    AFTER INSERT OR UPDATE OF assigned_to ON orders
-    FOR EACH ROW
-    WHEN (NEW.assigned_to IS NOT NULL)
-    EXECUTE FUNCTION notify_order_assigned();
-
+/*
 -- Trigger: Order status changed
 CREATE OR REPLACE FUNCTION notify_order_status_change()
 RETURNS TRIGGER
@@ -95,15 +63,11 @@ BEGIN
     -- Only notify on status change
     IF TG_OP = 'UPDATE' AND OLD.status IS DISTINCT FROM NEW.status THEN
 
-        -- Collect users to notify: creator, assigned user, followers
+        -- Collect users to notify: creator only (assigned_to doesn't exist)
         v_notify_users := ARRAY[]::UUID[];
 
         IF NEW.created_by IS NOT NULL THEN
             v_notify_users := array_append(v_notify_users, NEW.created_by);
-        END IF;
-
-        IF NEW.assigned_to IS NOT NULL AND NEW.assigned_to != NEW.created_by THEN
-            v_notify_users := array_append(v_notify_users, NEW.assigned_to);
         END IF;
 
         -- Notify all relevant users
@@ -113,12 +77,12 @@ BEGIN
                 v_user_id,
                 'Order Status Updated',
                 format('Order %s status changed from %s to %s',
-                    NEW.order_code, OLD.status, NEW.status),
+                    NEW.po_number, OLD.status, NEW.status),
                 'info',
                 format('/orders/%s', NEW.id),
                 jsonb_build_object(
                     'order_id', NEW.id,
-                    'order_code', NEW.order_code,
+                    'po_number', NEW.po_number,
                     'old_status', OLD.status,
                     'new_status', NEW.status,
                     'event', 'status_change'
@@ -132,9 +96,10 @@ END;
 $$;
 
 CREATE TRIGGER trigger_notify_order_status_change
-    AFTER UPDATE OF status ON orders
+    AFTER UPDATE OF status ON draft_orders
     FOR EACH ROW
     EXECUTE FUNCTION notify_order_status_change();
+*/
 
 -- Trigger: Order due date approaching
 CREATE OR REPLACE FUNCTION check_approaching_deadlines()
@@ -145,32 +110,33 @@ AS $$
 DECLARE
     v_order RECORD;
 BEGIN
-    -- Find orders due within 24 hours
+    -- Find orders due within the next day
+    -- Note: due_date is a DATE field, so we compare dates
     FOR v_order IN
-        SELECT id, order_code, customer, due_date, assigned_to, created_by
-        FROM orders
+        SELECT id, po_number, client, due_date, created_by
+        FROM draft_orders
         WHERE due_date IS NOT NULL
-          AND due_date > NOW()
-          AND due_date <= NOW() + INTERVAL '24 hours'
+          AND due_date > CURRENT_DATE
+          AND due_date <= CURRENT_DATE + 1
           AND status NOT IN ('completed', 'cancelled')
           AND NOT EXISTS (
               SELECT 1 FROM notifications
-              WHERE metadata->>'order_id' = v_order.id::TEXT
-                AND metadata->>'event' = 'deadline_approaching'
+              WHERE link LIKE '%' || v_order.id::TEXT || '%'
+                AND title = 'Deadline Approaching'
                 AND created_at > NOW() - INTERVAL '24 hours'
           )
     LOOP
-        -- Notify assigned user
-        IF v_order.assigned_to IS NOT NULL THEN
+        -- Notify order creator
+        IF v_order.created_by IS NOT NULL THEN
             PERFORM create_notification(
-                v_order.assigned_to,
+                v_order.created_by,
                 'Deadline Approaching',
-                format('Order %s for %s is due soon!', v_order.order_code, v_order.customer),
+                format('Order %s for %s is due soon!', v_order.po_number, COALESCE(v_order.client, 'client')),
                 'warning',
                 format('/orders/%s', v_order.id),
                 jsonb_build_object(
                     'order_id', v_order.id,
-                    'order_code', v_order.order_code,
+                    'po_number', v_order.po_number,
                     'due_date', v_order.due_date,
                     'event', 'deadline_approaching'
                 )
@@ -179,119 +145,6 @@ BEGIN
     END LOOP;
 END;
 $$;
-
--- Trigger: New comment on order
-CREATE OR REPLACE FUNCTION notify_order_comment()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    v_order RECORD;
-    v_notify_users UUID[];
-    v_user_id UUID;
-    v_commenter_name TEXT;
-BEGIN
-    -- Get order details
-    SELECT o.*, u.full_name as commenter_name
-    INTO v_order
-    FROM orders o
-    LEFT JOIN auth.users u ON u.id = NEW.user_id
-    WHERE o.id = NEW.order_id;
-
-    IF NOT FOUND THEN
-        RETURN NEW;
-    END IF;
-
-    -- Get commenter name
-    SELECT COALESCE(raw_user_meta_data->>'full_name', email)
-    INTO v_commenter_name
-    FROM auth.users
-    WHERE id = NEW.user_id;
-
-    -- Collect users to notify (exclude commenter)
-    v_notify_users := ARRAY[]::UUID[];
-
-    IF v_order.created_by IS NOT NULL AND v_order.created_by != NEW.user_id THEN
-        v_notify_users := array_append(v_notify_users, v_order.created_by);
-    END IF;
-
-    IF v_order.assigned_to IS NOT NULL AND v_order.assigned_to != NEW.user_id
-       AND v_order.assigned_to != v_order.created_by THEN
-        v_notify_users := array_append(v_notify_users, v_order.assigned_to);
-    END IF;
-
-    -- Notify all relevant users
-    FOREACH v_user_id IN ARRAY v_notify_users
-    LOOP
-        PERFORM create_notification(
-            v_user_id,
-            'New Comment',
-            format('%s commented on order %s', v_commenter_name, v_order.order_code),
-            'info',
-            format('/orders/%s', v_order.id),
-            jsonb_build_object(
-                'order_id', v_order.id,
-                'order_code', v_order.order_code,
-                'comment_id', NEW.id,
-                'event', 'new_comment'
-            )
-        );
-    END LOOP;
-
-    RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER trigger_notify_order_comment
-    AFTER INSERT ON order_comments
-    FOR EACH ROW
-    EXECUTE FUNCTION notify_order_comment();
-
--- Trigger: Stage photos uploaded
-CREATE OR REPLACE FUNCTION notify_stage_photos()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    v_order RECORD;
-BEGIN
-    -- Get order details
-    SELECT o.*
-    INTO v_order
-    FROM orders o
-    WHERE o.id = NEW.order_id;
-
-    IF NOT FOUND THEN
-        RETURN NEW;
-    END IF;
-
-    -- Notify order creator if different from uploader
-    IF v_order.created_by IS NOT NULL AND v_order.created_by != NEW.uploaded_by THEN
-        PERFORM create_notification(
-            v_order.created_by,
-            'Production Photos Uploaded',
-            format('New photos uploaded for order %s at %s', v_order.order_code, NEW.station),
-            'success',
-            format('/orders/%s', v_order.id),
-            jsonb_build_object(
-                'order_id', v_order.id,
-                'order_code', v_order.order_code,
-                'station', NEW.station,
-                'event', 'photos_uploaded'
-            )
-        );
-    END IF;
-
-    RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER trigger_notify_stage_photos
-    AFTER INSERT ON stage_photos
-    FOR EACH ROW
-    EXECUTE FUNCTION notify_stage_photos();
 
 -- Trigger: Low inventory alert
 CREATE OR REPLACE FUNCTION check_low_inventory()
@@ -303,8 +156,9 @@ DECLARE
     v_item RECORD;
     v_admin_users UUID[];
     v_user_id UUID;
+    v_current_quantity NUMERIC;
 BEGIN
-    -- Get admin users (you need to define how admins are identified)
+    -- Get admin users
     SELECT array_agg(id)
     INTO v_admin_users
     FROM auth.users
@@ -312,34 +166,43 @@ BEGIN
 
     -- Find low inventory items
     FOR v_item IN
-        SELECT id, name, quantity, unit, reorder_point
-        FROM inventory_items
-        WHERE quantity <= reorder_point
+        SELECT 
+            ii.id, 
+            ii.name, 
+            COALESCE(ist.quantity, 0) as quantity, 
+            ii.unit, 
+            ii.min_quantity as reorder_point
+        FROM inventory_items ii
+        LEFT JOIN inventory_stock ist ON ist.item_id = ii.id
+        WHERE COALESCE(ist.quantity, 0) <= ii.min_quantity
+          AND ii.min_quantity > 0
           AND NOT EXISTS (
               SELECT 1 FROM notifications
-              WHERE metadata->>'item_id' = v_item.id::TEXT
-                AND metadata->>'event' = 'low_inventory'
+              WHERE title = 'Low Inventory Alert'
+                AND message LIKE '%' || ii.name || '%'
                 AND created_at > NOW() - INTERVAL '24 hours'
           )
     LOOP
         -- Notify admins
-        FOREACH v_user_id IN ARRAY v_admin_users
-        LOOP
-            PERFORM create_notification(
-                v_user_id,
-                'Low Inventory Alert',
-                format('Material "%s" is running low: %s %s remaining',
-                    v_item.name, v_item.quantity, v_item.unit),
-                'warning',
-                '/inventory',
-                jsonb_build_object(
-                    'item_id', v_item.id,
-                    'quantity', v_item.quantity,
-                    'reorder_point', v_item.reorder_point,
-                    'event', 'low_inventory'
-                )
-            );
-        END LOOP;
+        IF v_admin_users IS NOT NULL THEN
+            FOREACH v_user_id IN ARRAY v_admin_users
+            LOOP
+                PERFORM create_notification(
+                    v_user_id,
+                    'Low Inventory Alert',
+                    format('Material "%s" is running low: %s %s remaining',
+                        v_item.name, v_item.quantity, COALESCE(v_item.unit, 'units')),
+                    'warning',
+                    '/inventory',
+                    jsonb_build_object(
+                        'item_id', v_item.id,
+                        'quantity', v_item.quantity,
+                        'reorder_point', v_item.reorder_point,
+                        'event', 'low_inventory'
+                    )
+                );
+            END LOOP;
+        END IF;
     END LOOP;
 END;
 $$;
@@ -391,7 +254,7 @@ SECURITY DEFINER
 AS $$
 BEGIN
     DELETE FROM notifications
-    WHERE read = TRUE
+    WHERE is_read = TRUE
       AND created_at < NOW() - INTERVAL '30 days';
 END;
 $$;
