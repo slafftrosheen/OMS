@@ -87,7 +87,7 @@
         display:grid; place-items:center; padding:0 calc(var(--space-xs) + (var(--space-xxs) / 2)); }
 .dropdown{position:absolute;right:0;top:calc(100% + var(--space-sm));min-width:calc(320px * var(--font-scale, 1));background:var(--bg-0);
          border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:0 10px 24px color-mix(in oklab,var(--shadow-rgb) 35%,transparent);
-         padding:var(--space-sm);z-index:50}
+         padding:var(--space-sm);z-index:10000}
 .dropdown [role="menuitem"]{display:flex;justify-content:space-between;gap:var(--space-sm);padding:var(--space-tight);border-radius:var(--radius-sm)}
 .dropdown [role="menuitem"]:focus{outline:3px solid var(--focus)}
 

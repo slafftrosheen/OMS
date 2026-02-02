@@ -158,7 +158,7 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.2);
-  z-index: 200;
+  z-index: 10000;
   overflow: hidden;
 }
 
