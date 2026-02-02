@@ -2,11 +2,6 @@
     import { createEventDispatcher } from 'svelte';
     import { Filter, Plus, X, Save } from 'lucide-svelte';
 
-    // svelte-ignore unused-export-let
-    export let entity: 'orders' | 'materials' | 'inventory' = 'orders';
-    // svelte-ignore unused-export-let
-    export let initialFilters: any = {};
-
     const dispatch = createEventDispatcher();
 
     interface FilterCondition {
