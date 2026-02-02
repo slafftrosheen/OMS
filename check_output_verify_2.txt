@@ -15,7 +15,7 @@ Getting Svelte diagnostics...
 [svelte.config.js] Environment detection: isVercel=true
 [svelte.config.js] Selected adapter: @sveltejs/adapter-vercel
 `config.kit.csrf.checkOrigin` has been deprecated in favour of `csrf.trustedOrigins`. It will be removed in a future version
-8:33:49 AM [vite-plugin-svelte] You are using Svelte 5.49.1 with vite-plugin-svelte@3. Active Svelte 5 support has moved to vite-plugin-svelte@4.
+8:36:08 AM [vite-plugin-svelte] You are using Svelte 5.49.1 with vite-plugin-svelte@3. Active Svelte 5 support has moved to vite-plugin-svelte@4.
 	To receive bug fixes and new features update your devDependencies to "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6" and install.
 	For framework integrations that depend on it, you might have to add an override:
 	"overrides": {"@sveltejs/vite-plugin-svelte": "^4.0.0-next.6"}
@@ -32,159 +32,6 @@ Error: No overload matches this call.
   },
   test: {
     environment: 'jsdom'
-
-
-/app/src/lib/auth/permission-utils.test.js:20:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-
-    expect(can(user, 'Admin', 'createOrder')).toBe(true);
-    expect(can(user, 'Admin', 'editInventory')).toBe(true);
-
-
-/app/src/lib/auth/permission-utils.test.js:21:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-    expect(can(user, 'Admin', 'createOrder')).toBe(true);
-    expect(can(user, 'Admin', 'editInventory')).toBe(true);
-    expect(can(user, 'Admin', 'approveChange')).toBe(true);
-
-
-/app/src/lib/auth/permission-utils.test.js:22:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-    expect(can(user, 'Admin', 'editInventory')).toBe(true);
-    expect(can(user, 'Admin', 'approveChange')).toBe(true);
-    expect(can(user, 'Admin', 'assignLoading')).toBe(true);
-
-
-/app/src/lib/auth/permission-utils.test.js:23:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-    expect(can(user, 'Admin', 'approveChange')).toBe(true);
-    expect(can(user, 'Admin', 'assignLoading')).toBe(true);
-  });
-
-
-/app/src/lib/auth/permission-utils.test.js:42:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; stations: string[]; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-
-    expect(can(user, 'Production', 'viewOrders')).toBe(true);
-    expect(can(user, 'Production', 'updateOrder')).toBe(true);
-
-
-/app/src/lib/auth/permission-utils.test.js:43:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; stations: string[]; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-    expect(can(user, 'Production', 'viewOrders')).toBe(true);
-    expect(can(user, 'Production', 'updateOrder')).toBe(true);
-    expect(can(user, 'Production', 'assignLoading')).toBe(false);
-
-
-/app/src/lib/auth/permission-utils.test.js:44:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; stations: string[]; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-    expect(can(user, 'Production', 'updateOrder')).toBe(true);
-    expect(can(user, 'Production', 'assignLoading')).toBe(false);
-  });
-
-
-/app/src/lib/auth/permission-utils.test.js:62:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-
-    expect(can(user, 'Production', 'viewOrders')).toBe(true);
-    expect(can(user, 'Production', 'updateOrder')).toBe(true);
-
-
-/app/src/lib/auth/permission-utils.test.js:63:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-    expect(can(user, 'Production', 'viewOrders')).toBe(true);
-    expect(can(user, 'Production', 'updateOrder')).toBe(true);
-    expect(can(user, 'Production', 'assignLoading')).toBe(true);
-
-
-/app/src/lib/auth/permission-utils.test.js:64:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-    expect(can(user, 'Production', 'updateOrder')).toBe(true);
-    expect(can(user, 'Production', 'assignLoading')).toBe(true);
-  });
-
-
-/app/src/lib/auth/permission-utils.test.js:82:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-
-    expect(can(user, 'Production', 'viewOrders')).toBe(true);
-    expect(can(user, 'Production', 'updateOrder')).toBe(false);
-
-
-/app/src/lib/auth/permission-utils.test.js:83:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-    expect(can(user, 'Production', 'viewOrders')).toBe(true);
-    expect(can(user, 'Production', 'updateOrder')).toBe(false);
-    expect(can(user, 'Production', 'assignLoading')).toBe(false);
-
-
-/app/src/lib/auth/permission-utils.test.js:84:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-    expect(can(user, 'Production', 'updateOrder')).toBe(false);
-    expect(can(user, 'Production', 'assignLoading')).toBe(false);
-  });
-
-
-/app/src/lib/auth/permission-utils.test.js:106:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-
-    expect(can(user, 'Admin', 'unknownFeature')).toBe(false);
-  });
-
-
-/app/src/lib/auth/permission-utils.test.js:124:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-
-    expect(can(user, 'Logistics', 'viewCalendar')).toBe(true);
-    expect(can(user, 'Logistics', 'updateCalendar')).toBe(true);
-
-
-/app/src/lib/auth/permission-utils.test.js:125:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-    expect(can(user, 'Logistics', 'viewCalendar')).toBe(true);
-    expect(can(user, 'Logistics', 'updateCalendar')).toBe(true);
-    expect(can(user, 'Logistics', 'exportManifest')).toBe(true);
-
-
-/app/src/lib/auth/permission-utils.test.js:126:16
-Error: Argument of type '{ id: string; username: string; displayName: string; passwordHash: string; primarySection: string; sections: string[]; roles: { Admin: string; Production: string; Logistics: string; }; }' is not assignable to parameter of type 'User'.
-  Types of property 'primarySection' are incompatible.
-    Type 'string' is not assignable to type 'Section'.
-    expect(can(user, 'Logistics', 'updateCalendar')).toBe(true);
-    expect(can(user, 'Logistics', 'exportManifest')).toBe(true);
-  });
 
 
 /app/src/lib/auth/user-store.test.js:25:21
@@ -5370,4 +5217,4 @@ https://svelte.dev/e/a11y_interactive_supports_focus (svelte)
 
 
 ====================================
-svelte-check found 185 errors and 208 warnings in 133 files
+svelte-check found 168 errors and 208 warnings in 132 files
