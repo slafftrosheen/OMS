@@ -61,7 +61,7 @@
                 <div
                     class="progress-bar-fill"
                     style="width: {progress}%; background-color: {getStatusColor(order.status)}"
-                />
+                ></div>
             </div>
             <span class="progress-text">{Math.round(progress)}%</span>
         </div>
@@ -136,7 +136,10 @@
         width: fit-content;
     }
 
-    .chevron {
+    /* Using :global to avoid unused selector warning if component is unused,
+       but here it is used. The warning might be because Lucide icon classes are internal.
+       Actually, I'll just remove the specific class styling if it's simple color change */
+    :global(.chevron) {
         color: #9ca3af;
         flex-shrink: 0;
     }

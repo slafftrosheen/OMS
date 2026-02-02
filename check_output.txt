@@ -15,7 +15,7 @@ Getting Svelte diagnostics...
 [svelte.config.js] Environment detection: isVercel=true
 [svelte.config.js] Selected adapter: @sveltejs/adapter-vercel
 `config.kit.csrf.checkOrigin` has been deprecated in favour of `csrf.trustedOrigins`. It will be removed in a future version
-9:55:27 AM [vite-plugin-svelte] You are using Svelte 5.49.1 with vite-plugin-svelte@3. Active Svelte 5 support has moved to vite-plugin-svelte@4.
+10:28:21 AM [vite-plugin-svelte] You are using Svelte 5.49.1 with vite-plugin-svelte@3. Active Svelte 5 support has moved to vite-plugin-svelte@4.
 	To receive bug fixes and new features update your devDependencies to "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6" and install.
 	For framework integrations that depend on it, you might have to add an override:
 	"overrides": {"@sveltejs/vite-plugin-svelte": "^4.0.0-next.6"}
@@ -166,13 +166,6 @@ Error: Cannot find module '../../node_modules/svelte/src/runtime/ssr.js' or its 
 
 export * from '../../node_modules/svelte/src/runtime/ssr.js';
 
-
-
-/app/src/hooks.server.ts:43:3
-Error: Type '{ id: string; email: string; }' is missing the following properties from type 'SessionUser': username, displayName, primarySection, sections, and 2 more.
-	if (session) {
-		event.locals.user = {
-			id: session.user.id,
 
 
 /app/src/lib/a11y/testing-utils.ts:64:4
@@ -998,34 +991,6 @@ Error: Property 'raw' does not exist on type 'SupabaseClient<any, "public", "pub
 Error: Property 'raw' does not exist on type 'SupabaseClient<any, "public", "public", any, any>'.
             .select('*')
             .lte('current_stock', this.supabase.raw('min_stock'));
-
-
-
-/app/src/lib/stores/chat.ts:4:10
-Error: Module '"$env/static/public"' has no exported member 'PUBLIC_SUPABASE_URL'.
-import { createClient } from '@supabase/supabase-js';
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-
-
-
-/app/src/lib/stores/chat.ts:4:31
-Error: Module '"$env/static/public"' has no exported member 'PUBLIC_SUPABASE_ANON_KEY'.
-import { createClient } from '@supabase/supabase-js';
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-
-
-
-/app/src/lib/stores/notifications.ts:4:10
-Error: Module '"$env/static/public"' has no exported member 'PUBLIC_SUPABASE_URL'.
-import { createClient } from '@supabase/supabase-js';
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-
-
-
-/app/src/lib/stores/notifications.ts:4:31
-Error: Module '"$env/static/public"' has no exported member 'PUBLIC_SUPABASE_ANON_KEY'.
-import { createClient } from '@supabase/supabase-js';
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 
 
 
@@ -5244,4 +5209,4 @@ https://svelte.dev/e/a11y_interactive_supports_focus (svelte)
 
 
 ====================================
-svelte-check found 168 errors and 211 warnings in 134 files
+svelte-check found 163 errors and 211 warnings in 131 files
