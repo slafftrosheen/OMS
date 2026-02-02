@@ -409,9 +409,6 @@ BEGIN
     -- Do nothing for now
 END;
 $$;
-    END CASE;
-END;
-$$;
 
 -- =====================================================
 -- CONFLICT RESOLUTION FUNCTION

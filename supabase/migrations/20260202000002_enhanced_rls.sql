@@ -23,7 +23,10 @@ CREATE POLICY "Users can view orders they created" ON draft_orders
         OR EXISTS (
             SELECT 1 FROM profiles
             WHERE id = auth.uid() 
-            AND (roles->>'Admin' IN ('Admin', 'Manager') OR roles->>'Production' IN ('Admin', 'Manager'))
+            AND (
+                roles->>'Admin' IN ('Admin', 'Manager')
+                OR roles->>'Production' IN ('Admin', 'Manager')
+            )
         )
     );
 
@@ -40,7 +43,10 @@ CREATE POLICY "Users can update their orders" ON draft_orders
         OR EXISTS (
             SELECT 1 FROM profiles
             WHERE id = auth.uid() 
-            AND (roles->>'Admin' IN ('Admin', 'Manager') OR roles->>'Production' IN ('Admin', 'Manager'))
+            AND (
+                roles->>'Admin' IN ('Admin', 'Manager')
+                OR roles->>'Production' IN ('Admin', 'Manager')
+            )
         )
     );
 
@@ -57,7 +63,7 @@ CREATE POLICY "Admins can manage inventory" ON inventory_items
         EXISTS (
             SELECT 1 FROM profiles
             WHERE id = auth.uid() 
-            AND (roles->>'Admin' IN ('Admin', 'Manager'))
+            AND roles->>'Admin' IN ('Admin', 'Manager')
         )
     );
 

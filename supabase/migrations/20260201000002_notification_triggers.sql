@@ -20,16 +20,16 @@ DECLARE
 BEGIN
     INSERT INTO notifications (
         user_id,
-        notification_type,
         title,
         message,
+        notification_type,
         link,
         created_at
     ) VALUES (
         p_user_id,
-        p_type,
         p_title,
         p_message,
+        p_type,
         p_action_url,
         NOW()
     )
