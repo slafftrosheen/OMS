@@ -1,13 +1,6 @@
 import { writable, derived, get } from 'svelte/store';
 import type { Writable } from 'svelte/store';
-import { createClient } from '@supabase/supabase-js';
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-
-// Robust fallback for build environments
-const supabaseUrl = PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from '$lib/supabase-client';
 
 export interface Notification {
   id: string;
