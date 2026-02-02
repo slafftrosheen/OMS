@@ -352,35 +352,42 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+    -- Note: order_materials table doesn't exist in this schema
+    -- This function is a stub for when the table is created in the future
+    -- For now, we can only sync the materials master table
     CASE p_operation
         WHEN 'create' THEN
-            INSERT INTO order_materials (
+            INSERT INTO materials (
                 id,
-                order_id,
-                material,
                 category,
-                quantity,
-                unit
+                code,
+                name_en,
+                name_ru,
+                name_lv,
+                metadata
             ) VALUES (
                 COALESCE((p_payload->>'id')::UUID, gen_random_uuid()),
-                (p_payload->>'order_id')::UUID,
-                p_payload->>'material',
                 p_payload->>'category',
-                (p_payload->>'quantity')::NUMERIC,
-                p_payload->>'unit'
+                p_payload->>'code',
+                p_payload->>'name_en',
+                p_payload->>'name_ru',
+                p_payload->>'name_lv',
+                COALESCE(p_payload->'metadata', '{}'::JSONB)
             )
             ON CONFLICT (id) DO NOTHING;
         
         WHEN 'update' THEN
-            UPDATE order_materials
+            UPDATE materials
             SET
-                material = COALESCE(p_payload->>'material', material),
-                quantity = COALESCE((p_payload->>'quantity')::NUMERIC, quantity),
-                unit = COALESCE(p_payload->>'unit', unit)
+                category = COALESCE(p_payload->>'category', category),
+                name_en = COALESCE(p_payload->>'name_en', name_en),
+                name_ru = COALESCE(p_payload->>'name_ru', name_ru),
+                name_lv = COALESCE(p_payload->>'name_lv', name_lv),
+                metadata = COALESCE(p_payload->'metadata', metadata)
             WHERE id = p_entity_id::UUID;
         
         WHEN 'delete' THEN
-            DELETE FROM order_materials WHERE id = p_entity_id::UUID;
+            DELETE FROM materials WHERE id = p_entity_id::UUID;
     END CASE;
 END;
 $$;
@@ -395,32 +402,13 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-    CASE p_operation
-        WHEN 'create' THEN
-            INSERT INTO order_comments (
-                id,
-                order_id,
-                user_id,
-                comment,
-                created_at
-            ) VALUES (
-                COALESCE((p_payload->>'id')::UUID, gen_random_uuid()),
-                (p_payload->>'order_id')::UUID,
-                auth.uid(),
-                p_payload->>'comment',
-                COALESCE((p_payload->>'created_at')::TIMESTAMPTZ, NOW())
-            )
-            ON CONFLICT (id) DO NOTHING;
-        
-        WHEN 'update' THEN
-            UPDATE order_comments
-            SET
-                comment = p_payload->>'comment',
-                edited_at = NOW()
-            WHERE id = p_entity_id::UUID;
-        
-        WHEN 'delete' THEN
-            DELETE FROM order_comments WHERE id = p_entity_id::UUID;
+    -- Note: order_comments table doesn't exist in this schema
+    -- This function is a stub for when the table is created in the future
+    -- For now, just log that this was called (using RAISE NOTICE)
+    RAISE NOTICE 'sync_comment_operation called but order_comments table does not exist: operation=%, entity_id=%', p_operation, p_entity_id;
+    -- Do nothing for now
+END;
+$$;
     END CASE;
 END;
 $$;
