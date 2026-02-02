@@ -21,9 +21,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_order_analytics_daily_date_status
     ON order_analytics_daily(date, status);
 
 -- Refresh function
--- Note: The function will use non-concurrent refresh initially
--- Once concurrent indexes are created in the next migration, 
--- it can use CONCURRENTLY
+-- Note: Uses non-concurrent refresh to ensure it can run within transaction contexts.
+-- REFRESH MATERIALIZED VIEW CONCURRENTLY would require this function to run outside
+-- of a transaction block, which limits its usability.
 CREATE OR REPLACE FUNCTION refresh_analytics()
 RETURNS void
 LANGUAGE plpgsql
