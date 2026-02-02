@@ -110,13 +110,14 @@ AS $$
 DECLARE
     v_order RECORD;
 BEGIN
-    -- Find orders due within 24 hours
+    -- Find orders due within the next day
+    -- Note: due_date is a DATE field, so we compare dates
     FOR v_order IN
         SELECT id, po_number, client, due_date, created_by
         FROM draft_orders
         WHERE due_date IS NOT NULL
-          AND due_date > NOW()::DATE
-          AND due_date <= (NOW() + INTERVAL '24 hours')::DATE
+          AND due_date > CURRENT_DATE
+          AND due_date <= CURRENT_DATE + 1
           AND status NOT IN ('completed', 'cancelled')
           AND NOT EXISTS (
               SELECT 1 FROM notifications

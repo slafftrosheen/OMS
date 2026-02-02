@@ -25,7 +25,9 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_materials_category
     ON materials(category);
 
 -- Inventory performance
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_inventory_low_stock
+-- Note: This index helps with queries filtering items by min_quantity threshold
+-- For actual low stock queries, you may need to join with inventory_stock table
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_inventory_min_quantity
     ON inventory_items(min_quantity)
     WHERE min_quantity > 0;
 

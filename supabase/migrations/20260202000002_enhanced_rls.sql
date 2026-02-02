@@ -15,6 +15,9 @@ ALTER TABLE inventory_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 -- Draft Orders Policies
+-- Note: roles JSONB structure is {"Admin": "Viewer", "Production": "Operator", ...}
+-- where the key is the section and the value is the role level
+-- We check if roles->>'Admin' (the Admin section's role) is 'Admin' or 'Manager'
 DROP POLICY IF EXISTS "Users can view orders they created" ON draft_orders;
 CREATE POLICY "Users can view orders they created" ON draft_orders
     FOR SELECT
