@@ -87,7 +87,7 @@ async function processBatchOperations(
 
 async function processOrderOperation(supabase: any, op: BatchOperation, userId: string) {
     switch (op.operation) {
-        case 'create':
+        case 'create': {
             const { data: newOrder, error: createError } = await supabase
                 .from('orders')
                 .insert({ ...op.data, created_by: userId })
@@ -96,8 +96,9 @@ async function processOrderOperation(supabase: any, op: BatchOperation, userId: 
 
             if (createError) throw createError;
             return newOrder;
+        }
 
-        case 'update':
+        case 'update': {
             const { data: updatedOrder, error: updateError } = await supabase
                 .from('orders')
                 .update(op.data)
@@ -107,8 +108,9 @@ async function processOrderOperation(supabase: any, op: BatchOperation, userId: 
 
             if (updateError) throw updateError;
             return updatedOrder;
+        }
 
-        case 'delete':
+        case 'delete': {
             const { error: deleteError } = await supabase
                 .from('orders')
                 .delete()
@@ -116,6 +118,7 @@ async function processOrderOperation(supabase: any, op: BatchOperation, userId: 
 
             if (deleteError) throw deleteError;
             return { deleted: true, id: op.data.id };
+        }
 
         default:
             throw new Error(`Unknown operation: ${op.operation}`);
@@ -124,7 +127,7 @@ async function processOrderOperation(supabase: any, op: BatchOperation, userId: 
 
 async function processMaterialOperation(supabase: any, op: BatchOperation, userId: string) {
     switch (op.operation) {
-        case 'create':
+        case 'create': {
             const { data, error: createError } = await supabase
                 .from('order_materials')
                 .insert(op.data)
@@ -133,8 +136,9 @@ async function processMaterialOperation(supabase: any, op: BatchOperation, userI
 
             if (createError) throw createError;
             return data;
+        }
 
-        case 'update':
+        case 'update': {
             const { data: updated, error: updateError } = await supabase
                 .from('order_materials')
                 .update(op.data)
@@ -144,8 +148,9 @@ async function processMaterialOperation(supabase: any, op: BatchOperation, userI
 
             if (updateError) throw updateError;
             return updated;
+        }
 
-        case 'delete':
+        case 'delete': {
             const { error: deleteError } = await supabase
                 .from('order_materials')
                 .delete()
@@ -153,6 +158,7 @@ async function processMaterialOperation(supabase: any, op: BatchOperation, userI
 
             if (deleteError) throw deleteError;
             return { deleted: true, id: op.data.id };
+        }
 
         default:
             throw new Error(`Unknown operation: ${op.operation}`);
@@ -161,7 +167,7 @@ async function processMaterialOperation(supabase: any, op: BatchOperation, userI
 
 async function processStageOperation(supabase: any, op: BatchOperation, userId: string) {
     switch (op.operation) {
-        case 'create':
+        case 'create': {
             const { data, error: createError } = await supabase
                 .from('order_stages')
                 .insert({ ...op.data, updated_by: userId })
@@ -170,8 +176,9 @@ async function processStageOperation(supabase: any, op: BatchOperation, userId: 
 
             if (createError) throw createError;
             return data;
+        }
 
-        case 'update':
+        case 'update': {
             const { data: updated, error: updateError } = await supabase
                 .from('order_stages')
                 .update({ ...op.data, updated_by: userId })
@@ -181,8 +188,9 @@ async function processStageOperation(supabase: any, op: BatchOperation, userId: 
 
             if (updateError) throw updateError;
             return updated;
+        }
 
-        case 'delete':
+        case 'delete': {
             const { error: deleteError } = await supabase
                 .from('order_stages')
                 .delete()
@@ -190,6 +198,7 @@ async function processStageOperation(supabase: any, op: BatchOperation, userId: 
 
             if (deleteError) throw deleteError;
             return { deleted: true, id: op.data.id };
+        }
 
         default:
             throw new Error(`Unknown operation: ${op.operation}`);
