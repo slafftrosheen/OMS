@@ -4,6 +4,7 @@ import { can } from './permission-utils.js';
 describe('permission-utils', () => {
   it('SuperAdmin has all permissions in Admin section', () => {
     const user = {
+      id: 'test-boss',
       username: 'boss',
       displayName: 'Boss',
       passwordHash: 'hash',
@@ -24,6 +25,7 @@ describe('permission-utils', () => {
   
   it('Operator can view and update orders in Production', () => {
     const user = {
+      id: 'test-cnc',
       username: 'cnc',
       displayName: 'CNC Operator',
       passwordHash: 'hash',
@@ -44,6 +46,7 @@ describe('permission-utils', () => {
   
   it('StationLead can assign loading in Production', () => {
     const user = {
+      id: 'test-lead',
       username: 'lead',
       displayName: 'Station Lead',
       passwordHash: 'hash',
@@ -63,6 +66,7 @@ describe('permission-utils', () => {
   
   it('Viewer can only view, not edit', () => {
     const user = {
+      id: 'test-viewer',
       username: 'viewer',
       displayName: 'View Only',
       passwordHash: 'hash',
@@ -86,6 +90,7 @@ describe('permission-utils', () => {
   
   it('returns false for unknown feature', () => {
     const user = {
+      id: 'test-boss',
       username: 'boss',
       displayName: 'Boss',
       passwordHash: 'hash',
@@ -103,6 +108,7 @@ describe('permission-utils', () => {
   
   it('StationLead in Logistics can export manifest', () => {
     const user = {
+      id: 'test-logistics',
       username: 'logistics',
       displayName: 'Logistics Lead',
       passwordHash: 'hash',

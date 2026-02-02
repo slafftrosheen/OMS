@@ -13,11 +13,11 @@ export const load = async ({ url }) => {
       setLocale(lang as 'en' | 'ru' | 'lv');
     }
 
-    const th = params.get('theme') as ThemeName | null;
+    const th = params.get('theme');
     if (th === 'HighContrastVim') {
       theme.set('HighContrast');
     } else if (th && ['LightVim', 'DarkVim', 'HighContrast'].includes(th)) {
-      theme.set(th);
+      theme.set(th as ThemeName);
     }
 
     const sc = params.get('scale') as Scale | null;
