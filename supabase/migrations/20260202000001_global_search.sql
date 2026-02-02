@@ -175,12 +175,11 @@ CREATE OR REPLACE FUNCTION search_orders_advanced(
 )
 RETURNS TABLE(
     id UUID,
-    order_code TEXT,
-    customer TEXT,
+    po_number TEXT,
+    client TEXT,
     status TEXT,
-    priority INTEGER,
-    due_date TIMESTAMP,
-    progress INTEGER,
+    priority TEXT,
+    due_date DATE,
     relevance FLOAT
 )
 LANGUAGE plpgsql
@@ -195,26 +194,25 @@ BEGIN
     v_sql := '
         SELECT
             o.id,
-            o.order_code,
-            o.customer,
+            o.po_number,
+            o.client,
             o.status,
             o.priority,
             o.due_date,
-            o.progress,
             (
-                similarity(o.order_code, $1) * 3 +
-                similarity(o.customer, $1) * 2 +
+                similarity(o.po_number, $1) * 3 +
+                similarity(COALESCE(o.client, ''''), $1) * 2 +
                 similarity(COALESCE(o.notes, ''''), $1) +
-                CASE WHEN o.order_code ILIKE $1 THEN 5 ELSE 0 END
+                CASE WHEN o.po_number ILIKE $1 THEN 5 ELSE 0 END
             ) as relevance
-        FROM orders o
+        FROM draft_orders o
         WHERE 1=1
     ';
 
     -- Add text search condition using parameter $1
     IF p_query IS NOT NULL AND length(trim(p_query)) > 0 THEN
         v_where_clauses := array_append(v_where_clauses,
-            '(o.order_code ILIKE ''%'' || $1 || ''%'' OR o.customer ILIKE ''%'' || $1 || ''%'' OR o.notes ILIKE ''%'' || $1 || ''%'')'
+            '(o.po_number ILIKE ''%'' || $1 || ''%'' OR o.client ILIKE ''%'' || $1 || ''%'' OR o.notes ILIKE ''%'' || $1 || ''%'')'
         );
     END IF;
 
@@ -301,11 +299,15 @@ END;
 $$;
 
 -- Create indexes for better search performance
-CREATE INDEX IF NOT EXISTS idx_orders_search_trgm
-    ON orders USING gin (order_code gin_trgm_ops, customer gin_trgm_ops, notes gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_draft_orders_search_trgm
+    ON draft_orders USING gin (po_number gin_trgm_ops, client gin_trgm_ops, notes gin_trgm_ops);
 
 CREATE INDEX IF NOT EXISTS idx_materials_search_trgm
-    ON materials USING gin (name gin_trgm_ops, description gin_trgm_ops);
+    ON materials USING gin (
+        COALESCE(name_en, '') gin_trgm_ops, 
+        COALESCE(name_ru, '') gin_trgm_ops, 
+        COALESCE(name_lv, '') gin_trgm_ops
+    );
 
 CREATE INDEX IF NOT EXISTS idx_inventory_search_trgm
     ON inventory_items USING gin (name gin_trgm_ops);
