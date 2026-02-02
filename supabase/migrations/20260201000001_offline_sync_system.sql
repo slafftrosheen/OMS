@@ -305,37 +305,36 @@ AS $$
 BEGIN
     CASE p_operation
         WHEN 'create' THEN
-            INSERT INTO orders (
+            INSERT INTO draft_orders (
                 id,
-                order_code,
-                customer,
+                po_number,
+                client,
                 status,
-                total_price,
+                notes,
                 created_by,
                 created_at
             ) VALUES (
                 COALESCE((p_payload->>'id')::UUID, gen_random_uuid()),
-                p_payload->>'order_code',
-                p_payload->>'customer',
-                COALESCE(p_payload->>'status', 'pending'),
-                COALESCE((p_payload->>'total_price')::NUMERIC, 0),
+                p_payload->>'po_number',
+                p_payload->>'client',
+                COALESCE(p_payload->>'status', 'draft'),
+                p_payload->>'notes',
                 auth.uid(),
                 COALESCE((p_payload->>'created_at')::TIMESTAMPTZ, NOW())
             )
             ON CONFLICT (id) DO NOTHING;
         
         WHEN 'update' THEN
-            UPDATE orders
+            UPDATE draft_orders
             SET
-                customer = COALESCE(p_payload->>'customer', customer),
+                client = COALESCE(p_payload->>'client', client),
                 status = COALESCE(p_payload->>'status', status),
-                total_price = COALESCE((p_payload->>'total_price')::NUMERIC, total_price),
                 notes = COALESCE(p_payload->>'notes', notes),
                 updated_at = NOW()
             WHERE id = p_entity_id::UUID;
         
         WHEN 'delete' THEN
-            DELETE FROM orders WHERE id = p_entity_id::UUID;
+            DELETE FROM draft_orders WHERE id = p_entity_id::UUID;
         
         ELSE
             RAISE EXCEPTION 'Unknown operation: %', p_operation;
