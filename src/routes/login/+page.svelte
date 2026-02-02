@@ -4,16 +4,33 @@
   import { goto } from '$app/navigation';
   import { currentUser } from '$lib/auth/user-store';
   import { logAction } from '$lib/auth/audit-log';
-  import { Lock, User, AlertCircle, Loader2, Mail, BadgeCheck } from 'lucide-svelte';
+  import { Lock, User, AlertCircle, Loader2, Mail, BadgeCheck, Globe } from 'lucide-svelte';
+  import { t, locale } from 'svelte-i18n';
+  import { setLocale } from '$lib/i18n';
   
   let mode: 'login' | 'signup' = 'login';
-  let username = '';
   let email = '';
+  let username = '';  // Only used in signup
   let password = '';
   let confirmPassword = '';
   let errorMsg = '';
   let successMsg = '';
   let isLoading = false;
+  let langMenuOpen = false;
+  
+  const languages = [
+    { code: 'en', label: 'English', flag: '🇬🇧' },
+    { code: 'ru', label: 'Русский', flag: '🇷🇺' },
+    { code: 'lv', label: 'Latviešu', flag: '🇱🇻' }
+  ];
+  
+  $: currentLang = $locale || 'en';
+  $: currentFlag = languages.find(l => l.code === currentLang)?.flag || '🇬🇧';
+  
+  function changeLang(lang: string) {
+    setLocale(lang);
+    langMenuOpen = false;
+  }
   
   onMount(() => {
     const unsub = currentUser.subscribe(user => {
@@ -36,22 +53,22 @@
     errorMsg = '';
     successMsg = '';
 
-    if (!username || !password) {
-      errorMsg = 'Username and password are required';
+    if (!email || !password) {
+      errorMsg = $t('auth.errors.required');
       return;
     }
 
     if (mode === 'signup') {
-      if (!email) {
-        errorMsg = 'Email is required for signup';
+      if (!username) {
+        errorMsg = $t('auth.errors.usernameRequired');
         return;
       }
       if (password !== confirmPassword) {
-        errorMsg = 'Passwords do not match';
+        errorMsg = $t('auth.errors.passwordMismatch');
         return;
       }
       if (password.length < 8) {
-        errorMsg = 'Password must be at least 8 characters';
+        errorMsg = $t('auth.errors.passwordLength');
         return;
       }
     }
@@ -66,7 +83,7 @@
       }
     } catch (e: any) {
       console.error(e);
-      errorMsg = e.message || 'Connection error. Please try again.';
+      errorMsg = e.message || $t('auth.errors.connectionError');
     } finally {
       isLoading = false;
     }
@@ -76,12 +93,12 @@
     const res = await fetch(`${base}/api/auth`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ email, password })
     });
     
     if (!res.ok) {
       const data = await res.json();
-      throw new Error(data.error || 'Invalid credentials');
+      throw new Error(data.error || $t('auth.errors.invalidCredentials'));
     }
     
     const data = await res.json();
@@ -116,10 +133,10 @@
 
     if (!res.ok) {
       const data = await res.json();
-      throw new Error(data.error || 'Signup failed');
+      throw new Error(data.error || $t('auth.errors.signupFailed'));
     }
 
-    successMsg = 'Account created! You can now log in.';
+    successMsg = $t('auth.accountCreated');
     mode = 'login';
     password = '';
   }
@@ -129,18 +146,57 @@
       handleSubmit();
     }
   }
+  
+  function handleClickOutside(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.lang-menu')) {
+      langMenuOpen = false;
+    }
+  }
 </script>
 
 <svelte:head>
-  <title>{mode === 'login' ? 'Login' : 'Sign Up'} - Reclame OMS</title>
+  <title>{mode === 'login' ? $t('auth.login') : $t('auth.signup')} - Reclame OMS</title>
 </svelte:head>
 
+<svelte:window on:click={handleClickOutside} />
+
 <div class="login-container">
+  <div class="lang-selector">
+    <div class="lang-menu">
+      <button
+        class="lang-btn"
+        on:click|stopPropagation={() => langMenuOpen = !langMenuOpen}
+        aria-haspopup="menu"
+        aria-expanded={langMenuOpen}
+        aria-label={$t('topbar.language', { default: 'Language' })}
+      >
+        <Globe size={18} aria-hidden="true" />
+        <span class="flag">{currentFlag}</span>
+      </button>
+
+      {#if langMenuOpen}
+        <div class="dropdown" role="menu">
+          {#each languages as lang}
+            <button
+              role="menuitem"
+              class:active={currentLang === lang.code}
+              on:click|stopPropagation={() => changeLang(lang.code)}
+            >
+              <span class="flag">{lang.flag}</span>
+              <span>{lang.label}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  </div>
+
   <div class="login-card">
     <div class="logo-section">
       <div class="logo-icon">RF</div>
       <h1>Reclame OMS</h1>
-      <p class="subtitle">Production Management System</p>
+      <p class="subtitle">{$t('auth.subtitle')}</p>
     </div>
     
     {#if successMsg}
@@ -152,37 +208,37 @@
 
     <form on:submit|preventDefault={handleSubmit}>
       <div class="form-group">
-        <label for="username">
-          <User size={16} />
-          Username
+        <label for="email">
+          <Mail size={16} />
+          {$t('auth.email')}
         </label>
         <input 
-          id="username"
-          type="text"
-          bind:value={username} 
+          id="email"
+          type="email"
+          bind:value={email} 
           on:keypress={handleKeyPress}
           required 
           disabled={isLoading}
-          placeholder="e.g. jsmith"
-          autocomplete="username"
+          placeholder={$t('auth.emailPlaceholder')}
+          autocomplete="email"
         />
       </div>
 
       {#if mode === 'signup'}
         <div class="form-group">
-          <label for="email">
-            <Mail size={16} />
-            Email
+          <label for="username">
+            <User size={16} />
+            {$t('auth.username')}
           </label>
           <input 
-            id="email"
-            type="email"
-            bind:value={email} 
+            id="username"
+            type="text"
+            bind:value={username} 
             on:keypress={handleKeyPress}
             required 
             disabled={isLoading}
-            placeholder="john@example.com"
-            autocomplete="email"
+            placeholder={$t('auth.usernamePlaceholder')}
+            autocomplete="username"
           />
         </div>
       {/if}
@@ -190,7 +246,7 @@
       <div class="form-group">
         <label for="password">
           <Lock size={16} />
-          Password
+          {$t('auth.password')}
         </label>
         <input 
           id="password"
@@ -199,7 +255,7 @@
           on:keypress={handleKeyPress}
           required 
           disabled={isLoading}
-          placeholder={mode === 'signup' ? 'Min 8 characters' : 'Enter your password'}
+          placeholder={mode === 'signup' ? $t('auth.passwordPlaceholderNew') : $t('auth.passwordPlaceholder')}
           autocomplete={mode === 'login' ? 'current-password' : 'new-password'}
         />
       </div>
@@ -208,7 +264,7 @@
         <div class="form-group">
           <label for="confirm-password">
             <Lock size={16} />
-            Confirm Password
+            {$t('auth.confirmPassword')}
           </label>
           <input 
             id="confirm-password"
@@ -217,7 +273,7 @@
             on:keypress={handleKeyPress}
             required 
             disabled={isLoading}
-            placeholder="Repeat password"
+            placeholder={$t('auth.confirmPasswordPlaceholder')}
             autocomplete="new-password"
           />
         </div>
@@ -233,25 +289,25 @@
       <button type="submit" disabled={isLoading} class="submit-btn">
         {#if isLoading}
           <Loader2 size={18} class="spinner" />
-          {mode === 'login' ? 'Signing in...' : 'Creating account...'}
+          {mode === 'login' ? $t('auth.signingIn') : $t('auth.creatingAccount')}
         {:else}
-          {mode === 'login' ? 'Sign In' : 'Create Account'}
+          {mode === 'login' ? $t('auth.signIn') : $t('auth.createAccount')}
         {/if}
       </button>
     </form>
     
     <div class="toggle-section">
       <p>
-        {mode === 'login' ? "Don't have an account?" : "Already have an account?"}
+        {mode === 'login' ? $t('auth.noAccount') : $t('auth.haveAccount')}
         <button class="link-btn" on:click={toggleMode} disabled={isLoading}>
-          {mode === 'login' ? 'Sign Up' : 'Log In'}
+          {mode === 'login' ? $t('auth.signup') : $t('auth.login')}
         </button>
       </p>
     </div>
   </div>
   
   <div class="footer">
-    <p>&copy; 2026 Reclame Factory</p>
+    <p>{$t('auth.footer')}</p>
   </div>
 </div>
 
@@ -264,6 +320,94 @@
   justify-content: center;
   background: linear-gradient(135deg, var(--bg-0) 0%, var(--bg-1) 100%);
   padding: 20px;
+  position: relative;
+}
+
+.lang-selector {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+.lang-menu {
+  position: relative;
+}
+
+.lang-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 12px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lang-btn:hover,
+.lang-btn[aria-expanded="true"] {
+  background: var(--bg-2);
+  border-color: var(--accent, #3b82f6);
+}
+
+.flag {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 160px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  padding: 4px;
+  z-index: 10000;
+  animation: slideDown 0.15s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+  font-size: 0.875rem;
+}
+
+.dropdown button:hover {
+  background: var(--bg-2);
+}
+
+.dropdown button.active {
+  background: var(--accent, #3b82f6);
+  color: white;
+  font-weight: 600;
 }
 
 .login-card {

@@ -100,7 +100,66 @@
     "due": "Termiņš",
     "materials": "Materiāli",
     "rd_project": "R&D projekts",
-    "title": "Nosaukums"
+    "title": "Nosaukums",
+    "new": {
+      "title": "Izveidot melnrakstu",
+      "back": "Atpakaļ uz pasūtījumiem",
+      "save": "Saglabāt melnrakstu",
+      "sections": {
+        "profiles": "Pasūtījuma profili",
+        "files": "Skices un faili",
+        "details": "Pasūtījuma detaļas",
+        "delivery": "Piegādes adrese"
+      },
+      "files": {
+        "hint": "Augšupielādējiet PDF un CDR failus ar pasūtījuma skicēm.",
+        "drag_drop": "Velciet un nometiet vai noklikšķiniet",
+        "formats": "PDF, CDR, AI, EPS, JPG, PNG",
+        "preview": "Priekšskatījums",
+        "no_preview": "Izvēlieties failu priekšskatījumam",
+        "loading_pdf": "Ielādē PDF..."
+      },
+      "details": {
+        "po": "PO numurs",
+        "priority": "Prioritāte",
+        "client": "Klients",
+        "client_placeholder": "Ievadiet vārdu vai izvēlieties no priekšiestatījumiem",
+        "deadline": "Termiņš",
+        "loading": "Iekraušanas datums",
+        "loading_hint": "Var piešķirt vēlāk",
+        "notes": "Piezīmes",
+        "notes_placeholder": "Papildu piezīmes ražošanai..."
+      },
+      "delivery": {
+        "select_preset": "Izvēlieties no saglabātajām adresēm...",
+        "manual": "Ievadīt adresi manuāli",
+        "address": "Adrese",
+        "address_placeholder": "Iela, Pilsēta, Pasta indekss, Valsts",
+        "contact": "Kontaktpersona",
+        "phone": "Tālrunis"
+      },
+      "presets": {
+        "load": "Ielādēt priekšiestatījumu",
+        "save_as": "Saglabāt kā priekšiestatījumu",
+        "empty": "Nav saglabātu priekšiestatījumu. Izveidojiet to, noklikšķinot 'Saglabāt kā priekšiestatījumu' profilā.",
+        "name": "Priekšiestatījuma nosaukums",
+        "description": "Apraksts",
+        "public": "Padarīt publisku (redzams visiem)",
+        "saved": "Priekšiestatījums veiksmīgi saglabāts!",
+        "loaded": "Ielādēts priekšiestatījums: {name}",
+        "deleted": "Priekšiestatījums dzēsts",
+        "confirm_delete": "Vai tiešām vēlaties dzēst šo priekšiestatījumu?"
+      },
+      "messages": {
+        "success": "Melnraksts veiksmīgi izveidots! Administrators ir informēts.",
+        "validation": {
+          "client": "Klienta vārds ir obligāts",
+          "po": "PO numurs ir obligāts",
+          "files": "Augšupielādējiet vismaz vienu failu (CDR vai PDF)",
+          "address": "Izvēlieties vai ievadiet piegādes adresi"
+        }
+      }
+    }
   },
   "print": {
     "due_label": "Termiņš",
@@ -113,8 +172,27 @@
   "roles": {
     "label": "Loma",
     "superadmin": "Super Admins",
+    "stationlead": "Stacijas vadītājs",
+    "operator": "Operators",
+    "viewer": "Skatītājs",
     "admin": "Admins",
     "station": "Stacija"
+  },
+  "sections": {
+    "admin": "Administrācija",
+    "production": "Ražošana",
+    "logistics": "Loģistika"
+  },
+  "permissions": {
+    "create_order": "Izveidot pasūtījumu",
+    "edit_inventory": "Rediģēt krājumus",
+    "approve_change": "Apstiprināt izmaiņas",
+    "assign_loading": "Piešķirt iekraušanu",
+    "view_orders": "Skatīt pasūtījumus",
+    "update_order": "Atjaunināt pasūtījumu",
+    "view_calendar": "Skatīt kalendāru",
+    "update_calendar": "Atjaunināt kalendāru",
+    "export_manifest": "Eksportēt manifestu"
   },
   "order": {
     "overview": "Pārskats",
@@ -446,7 +524,11 @@
     "window_to": "Līdz",
     "attendees": "Dalībnieki",
     "location": "Vieta",
-    "notes": "Piezīmes"
+    "notes": "Piezīmes",
+    "over_capacity": "Pārsniegta kapacitāte",
+    "near_capacity": "Tuvu kapacitātei",
+    "capacity_label": "Kapacitāte",
+    "orders_assigned": "piešķirti pasūtījumi"
   },
   "calendar_page": {
     "tooltip": "Pārslēdziet administratora režīmu, lai atzīmētu iekraušanas dienas. Noklikšķiniet uz dienām, lai apskatītu vai piešķirtu pasūtījumus.",
@@ -461,6 +543,31 @@
     "export_ics": "Eksportēt ICS",
     "carrier_label": "Pārvadātājs",
     "note_label": "Piezīme"
+  },
+  "eventEditor": {
+    "createEvent": "Izveidot notikumu",
+    "editEvent": "Rediģēt notikumu",
+    "close": "Aizvērt",
+    "type": "Veids",
+    "typeLoading": "Iekraušana",
+    "typeMeeting": "Sanāksme",
+    "typeNote": "Piezīme",
+    "date": "Datums",
+    "carrier": "Pārvadātājs",
+    "carrierPlaceholder": "DHL / Pašu auto",
+    "notes": "Piezīmes",
+    "title": "Nosaukums",
+    "titlePlaceholderMeeting": "Projekta sanāksme / Objekta apmeklējums",
+    "titlePlaceholderNote": "Īsas piezīmes nosaukums",
+    "startTime": "Sākuma laiks",
+    "endTime": "Beigu laiks",
+    "location": "Vieta",
+    "locationPlaceholder": "Darbnīca / Klienta objekts",
+    "attendees": "Dalībnieki",
+    "attendeesPlaceholder": "Ar komatu atdalīti vārdi",
+    "notesPlaceholder": "Pievienojiet savu piezīmi šeit...",
+    "cancel": "Atcelt",
+    "save": "Saglabāt"
   },
   "orderform": {
     "title": "Jauns pasūtījums",
@@ -706,7 +813,15 @@
     "search_materials": "Meklēt materiālus...",
     "all_categories": "Visas kategorijas",
     "empty_filter": "Nav vienumu šim filtram.",
-    "in_stock": "Noliktavā"
+    "in_stock": "Noliktavā",
+    "sheet_metal": "Lokšņu metāls",
+    "composite": "Kompozīts",
+    "plastic": "Plastmasa",
+    "vinyl": "Vinils",
+    "finishing": "Apdare",
+    "hardware": "Furnitūra",
+    "usage_history": "Lietošanas vēsture",
+    "add_stock": "Pievienot krājumus"
   },
   "notifications": {
     "title": "Paziņojumi",
@@ -855,5 +970,100 @@
     "print_pack": "Drukāt komplektu",
     "save": "Saglabāt",
     "discard": "Atcelt"
+  },
+  "auth": {
+    "login": "Pieslēgties",
+    "signup": "Reģistrēties",
+    "signIn": "Ieiet",
+    "createAccount": "Izveidot kontu",
+    "signingIn": "Pieslēdzas...",
+    "creatingAccount": "Izveido kontu...",
+    "username": "Lietotājvārds",
+    "email": "E-pasts",
+    "password": "Parole",
+    "confirmPassword": "Apstiprināt paroli",
+    "usernamePlaceholder": "piem. jsmith",
+    "emailPlaceholder": "janis@piemers.lv",
+    "passwordPlaceholder": "Ievadiet paroli",
+    "passwordPlaceholderNew": "Min 8 rakstzīmes",
+    "confirmPasswordPlaceholder": "Atkārtojiet paroli",
+    "noAccount": "Nav konta?",
+    "haveAccount": "Jau ir konts?",
+    "accountCreated": "Konts izveidots! Tagad varat pieslēgties.",
+    "errors": {
+      "required": "E-pasts un parole ir obligāti",
+      "emailRequired": "E-pasts ir obligāts",
+      "usernameRequired": "Reģistrācijai nepieciešams lietotājvārds",
+      "passwordMismatch": "Paroles nesakrīt",
+      "passwordLength": "Parolei jābūt vismaz 8 rakstzīmēm",
+      "invalidCredentials": "Nepareizi pieslēgšanās dati",
+      "signupFailed": "Reģistrācija neizdevās",
+      "connectionError": "Savienojuma kļūda. Lūdzu, mēģiniet vēlreiz."
+    },
+    "subtitle": "Ražošanas vadības sistēma",
+    "footer": "© 2026 Reclame Factory"
+  },
+  "admin": {
+    "users": {
+      "title": "Lietotāju pārvaldība",
+      "subtitle": "Pārvaldīt lietotājus, lomas un atļaujas",
+      "add": "Pievienot lietotāju",
+      "edit": "Rediģēt lietotāju",
+      "reset_password": "Atiestatīt paroli",
+      "status": {
+        "active": "Aktīvs",
+        "inactive": "Neaktīvs"
+      },
+      "table": {
+        "user": "Lietotājs",
+        "section": "Sadaļa",
+        "roles": "Lomas",
+        "stations": "Stacijas",
+        "status": "Statuss",
+        "last_login": "Pieslēgšanās",
+        "actions": "Darbības"
+      },
+      "form": {
+        "username": "Lietotājvārds",
+        "display_name": "Attēlojamais vārds",
+        "email": "E-pasts (nav obligāts)",
+        "password": "Parole",
+        "new_password": "Jaunā parole",
+        "sections": "Sadaļas",
+        "primary_section": "Galvenā sadaļa",
+        "roles_per_section": "Lomas pa sadaļām",
+        "station_assignments": "Staciju piešķiršana",
+        "all_stations_hint": "Atstājiet tukšu, lai piekļūtu visām stacijām",
+        "is_active": "Lietotājs ir aktīvs",
+        "placeholders": {
+          "username": "piem. janis",
+          "display_name": "piem. Jānis Bērziņš",
+          "email": "janis@piemers.lv",
+          "password": "Min. 8 rakstzīmes",
+          "new_password": "Ievadiet jauno paroli (min. 8 rakstzīmes)"
+        }
+      },
+      "messages": {
+        "created": "Lietotājs veiksmīgi izveidots",
+        "updated": "Lietotājs veiksmīgi atjaunināts",
+        "password_reset": "Parole veiksmīgi atiestatīta",
+        "deactivated": "Lietotājs deaktivizēts",
+        "reactivated": "Lietotājs aktivizēts",
+        "confirm_deactivate": "Vai tiešām vēlaties deaktivizēt {name}?",
+        "load_error": "Kļūda ielādējot lietotājus",
+        "save_error": "Kļūda saglabājot lietotāju",
+        "validation": {
+          "required": "Lietotājvārds un attēlojamais vārds ir obligāti",
+          "password_required": "Parole ir obligāta jauniem lietotājiem",
+          "section_required": "Izvēlieties vismaz vienu sadaļu",
+          "password_length": "Parolei jābūt vismaz 8 rakstzīmēm"
+        }
+      },
+      "show_inactive": "Rādīt neaktīvos",
+      "loading": "Ielādē lietotājus...",
+      "no_users": "Lietotāji nav atrasti",
+      "never": "Nekad",
+      "all_stations": "Visas stacijas"
+    }
   }
 }

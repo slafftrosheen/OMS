@@ -235,8 +235,27 @@
   "roles": {
     "label": "Роль",
     "superadmin": "Супер Админ",
+    "stationlead": "Старший станции",
+    "operator": "Оператор",
+    "viewer": "Наблюдатель",
     "admin": "Админ",
     "station": "Станция"
+  },
+  "sections": {
+    "admin": "Администрация",
+    "production": "Производство",
+    "logistics": "Логистика"
+  },
+  "permissions": {
+    "create_order": "Создать заказ",
+    "edit_inventory": "Редактировать склад",
+    "approve_change": "Утвердить изменение",
+    "assign_loading": "Назначить загрузку",
+    "view_orders": "Просмотр заказов",
+    "update_order": "Обновить заказ",
+    "view_calendar": "Просмотр календаря",
+    "update_calendar": "Обновить календарь",
+    "export_manifest": "Экспорт манифеста"
   },
   "order": {
     "overview": "Обзор",
@@ -568,7 +587,11 @@
     "window_to": "До",
     "attendees": "Участники",
     "location": "Место",
-    "notes": "Примечания"
+    "notes": "Примечания",
+    "over_capacity": "Превышение вместимости",
+    "near_capacity": "Близко к пределу",
+    "capacity_label": "Вместимость",
+    "orders_assigned": "назначено заказов"
   },
   "calendar_page": {
     "tooltip": "Переключите режим администратора, чтобы отметить дни погрузки. Нажмите на дни, чтобы просмотреть или назначить заказы.",
@@ -583,6 +606,31 @@
     "export_ics": "Экспорт ICS",
     "carrier_label": "Перевозчик",
     "note_label": "Заметка"
+  },
+  "eventEditor": {
+    "createEvent": "Создать событие",
+    "editEvent": "Редактировать событие",
+    "close": "Закрыть",
+    "type": "Тип",
+    "typeLoading": "Погрузка",
+    "typeMeeting": "Встреча",
+    "typeNote": "Заметка",
+    "date": "Дата",
+    "carrier": "Перевозчик",
+    "carrierPlaceholder": "DHL / Свой транспорт",
+    "notes": "Заметки",
+    "title": "Название",
+    "titlePlaceholderMeeting": "Совещание / Визит на объект",
+    "titlePlaceholderNote": "Заголовок заметки",
+    "startTime": "Начало",
+    "endTime": "Окончание",
+    "location": "Место",
+    "locationPlaceholder": "Мастерская / Объект клиента",
+    "attendees": "Участники",
+    "attendeesPlaceholder": "Имена через запятую",
+    "notesPlaceholder": "Добавьте заметку здесь...",
+    "cancel": "Отмена",
+    "save": "Сохранить"
   },
   "orderform": {
     "title": "Новый заказ",
@@ -828,7 +876,15 @@
     "search_materials": "Поиск материалов...",
     "all_categories": "Все категории",
     "empty_filter": "Нет позиций по этому фильтру.",
-    "in_stock": "В наличии"
+    "in_stock": "В наличии",
+    "sheet_metal": "Листовой металл",
+    "composite": "Композит",
+    "plastic": "Пластик",
+    "vinyl": "Винил",
+    "finishing": "Отделка",
+    "hardware": "Фурнитура",
+    "usage_history": "История использования",
+    "add_stock": "Добавить запас"
   },
   "notifications": {
     "title": "Уведомления",
@@ -977,5 +1033,37 @@
     "print_pack": "Печать пакета",
     "save": "Сохранить",
     "discard": "Отменить"
+  },
+  "auth": {
+    "login": "Войти",
+    "signup": "Регистрация",
+    "signIn": "Вход",
+    "createAccount": "Создать аккаунт",
+    "signingIn": "Вход...",
+    "creatingAccount": "Создание аккаунта...",
+    "username": "Имя пользователя",
+    "email": "Эл. почта",
+    "password": "Пароль",
+    "confirmPassword": "Подтвердите пароль",
+    "usernamePlaceholder": "напр. ivanov",
+    "emailPlaceholder": "ivan@example.com",
+    "passwordPlaceholder": "Введите пароль",
+    "passwordPlaceholderNew": "Мин. 8 символов",
+    "confirmPasswordPlaceholder": "Повторите пароль",
+    "noAccount": "Нет аккаунта?",
+    "haveAccount": "Уже есть аккаунт?",
+    "accountCreated": "Аккаунт создан! Теперь вы можете войти.",
+    "errors": {
+      "required": "Эл. почта и пароль обязательны",
+      "emailRequired": "Эл. почта обязательна",
+      "usernameRequired": "Для регистрации требуется имя пользователя",
+      "passwordMismatch": "Пароли не совпадают",
+      "passwordLength": "Пароль должен быть не менее 8 символов",
+      "invalidCredentials": "Неверные учетные данные",
+      "signupFailed": "Ошибка регистрации",
+      "connectionError": "Ошибка соединения. Попробуйте снова."
+    },
+    "subtitle": "Система управления производством",
+    "footer": "© 2026 Reclame Factory"
   }
 }
