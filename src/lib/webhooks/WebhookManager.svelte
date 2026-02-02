@@ -337,6 +337,8 @@ function getStatusColor(status: string) {
 </div>
 
 {#if showCreateModal}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="modal-overlay" on:click={() => showCreateModal = false}>
     <div class="modal-content" on:click|stopPropagation>
       <h3>Create Webhook</h3>
@@ -419,6 +421,8 @@ function getStatusColor(status: string) {
 {/if}
 
 {#if showIntegrationModal}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="modal-overlay" on:click={() => showIntegrationModal = false}>
     <div class="modal-content" on:click|stopPropagation>
       <h3>Add Integration</h3>

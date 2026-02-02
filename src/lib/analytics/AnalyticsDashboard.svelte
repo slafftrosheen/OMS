@@ -575,6 +575,7 @@ function getChangeIndicator(current: number, previous: number) {
     }
   }
 
+    /* TODO: Implement HTML for these styles to enable detailed metrics
     .customer-name {
         flex: 1;
         font-weight: 500;
@@ -669,6 +670,7 @@ function getChangeIndicator(current: number, previous: number) {
         font-weight: 700;
         color: #3b82f6;
     }
+    */
 
   @media (max-width: 768px) {
     .analytics-dashboard {
