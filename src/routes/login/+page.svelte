@@ -9,8 +9,8 @@
   import { setLocale } from '$lib/i18n';
   
   let mode: 'login' | 'signup' = 'login';
-  let username = '';
   let email = '';
+  let username = '';  // Only used in signup
   let password = '';
   let confirmPassword = '';
   let errorMsg = '';
@@ -53,14 +53,14 @@
     errorMsg = '';
     successMsg = '';
 
-    if (!username || !password) {
+    if (!email || !password) {
       errorMsg = $t('auth.errors.required');
       return;
     }
 
     if (mode === 'signup') {
-      if (!email) {
-        errorMsg = $t('auth.errors.emailRequired');
+      if (!username) {
+        errorMsg = $t('auth.errors.usernameRequired');
         return;
       }
       if (password !== confirmPassword) {
@@ -93,7 +93,7 @@
     const res = await fetch(`${base}/api/auth`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ email, password })
     });
     
     if (!res.ok) {
@@ -208,37 +208,37 @@
 
     <form on:submit|preventDefault={handleSubmit}>
       <div class="form-group">
-        <label for="username">
-          <User size={16} />
-          {$t('auth.username')}
+        <label for="email">
+          <Mail size={16} />
+          {$t('auth.email')}
         </label>
         <input 
-          id="username"
-          type="text"
-          bind:value={username} 
+          id="email"
+          type="email"
+          bind:value={email} 
           on:keypress={handleKeyPress}
           required 
           disabled={isLoading}
-          placeholder={$t('auth.usernamePlaceholder')}
-          autocomplete="username"
+          placeholder={$t('auth.emailPlaceholder')}
+          autocomplete="email"
         />
       </div>
 
       {#if mode === 'signup'}
         <div class="form-group">
-          <label for="email">
-            <Mail size={16} />
-            {$t('auth.email')}
+          <label for="username">
+            <User size={16} />
+            {$t('auth.username')}
           </label>
           <input 
-            id="email"
-            type="email"
-            bind:value={email} 
+            id="username"
+            type="text"
+            bind:value={username} 
             on:keypress={handleKeyPress}
             required 
             disabled={isLoading}
-            placeholder={$t('auth.emailPlaceholder')}
-            autocomplete="email"
+            placeholder={$t('auth.usernamePlaceholder')}
+            autocomplete="username"
           />
         </div>
       {/if}

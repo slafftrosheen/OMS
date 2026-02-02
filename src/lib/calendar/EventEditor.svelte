@@ -2,6 +2,7 @@
   import { upsertLoad } from '$lib/state/loads';
   import { addEvent, updateEvent } from './store';
   import type { CalEvent, MeetingEvent, NoteEvent } from './types';
+  import { t } from 'svelte-i18n';
   
   export let dateISO: string;                 // yyyy-mm-dd
   export let event: CalEvent | null = null;   // edit path
@@ -66,42 +67,42 @@
 <div class="sheet" role="dialog" aria-modal="true" aria-label="Event">
   <div class="card">
     <div class="row" style="justify-content:space-between;align-items:center">
-      <strong>{event ? 'Edit' : 'Create'} Event</strong>
-      <button class="tag ghost" on:click={() => onClose ? onClose() : dispatchEvent(new CustomEvent('close'))}>Close</button>
+      <strong>{event ? $t('eventEditor.editEvent') : $t('eventEditor.createEvent')}</strong>
+      <button class="tag ghost" on:click={() => onClose ? onClose() : dispatchEvent(new CustomEvent('close'))}>{$t('eventEditor.close')}</button>
     </div>
 
-    <label>Type
+    <label>{$t('eventEditor.type')}
       <select bind:value={kind}>
-        <option value="loading">Loading</option>
-        <option value="meeting">Meeting</option>
-        <option value="note">Note</option>
+        <option value="loading">{$t('eventEditor.typeLoading')}</option>
+        <option value="meeting">{$t('eventEditor.typeMeeting')}</option>
+        <option value="note">{$t('eventEditor.typeNote')}</option>
       </select>
     </label>
 
-    <label>Date
+    <label>{$t('eventEditor.date')}
       <input type="date" bind:value={selectedDate} />
     </label>
 
     {#if kind === 'loading'}
-      <label>Carrier <input bind:value={carrier} placeholder="DHL / Own truck"/></label>
-      <label>Notes <textarea rows="3" bind:value={notes}/></label>
+      <label>{$t('eventEditor.carrier')} <input bind:value={carrier} placeholder={$t('eventEditor.carrierPlaceholder')}/></label>
+      <label>{$t('eventEditor.notes')} <textarea rows="3" bind:value={notes}/></label>
     {:else if kind === 'meeting'}
-      <label>Title <input bind:value={title} placeholder="Project sync / Site visit" required/></label>
+      <label>{$t('eventEditor.title')} <input bind:value={title} placeholder={$t('eventEditor.titlePlaceholderMeeting')} required/></label>
       <div class="row" style="gap:6px">
-        <label>Start time <input type="time" bind:value={startTime}></label>
-        <label>End time <input type="time" bind:value={endTime}></label>
+        <label>{$t('eventEditor.startTime')} <input type="time" bind:value={startTime}></label>
+        <label>{$t('eventEditor.endTime')} <input type="time" bind:value={endTime}></label>
       </div>
-      <label>Location <input bind:value={location} placeholder="Workshop / Customer site"/></label>
-      <label>Attendees <input bind:value={attendees} placeholder="Comma-separated names"/></label>
-      <label>Notes <textarea rows="3" bind:value={notes}/></label>
+      <label>{$t('eventEditor.location')} <input bind:value={location} placeholder={$t('eventEditor.locationPlaceholder')}/></label>
+      <label>{$t('eventEditor.attendees')} <input bind:value={attendees} placeholder={$t('eventEditor.attendeesPlaceholder')}/></label>
+      <label>{$t('eventEditor.notes')} <textarea rows="3" bind:value={notes}/></label>
     {:else}
-      <label>Title <input bind:value={title} placeholder="Quick note title"/></label>
-      <label>Notes <textarea rows="3" bind:value={notes} placeholder="Add your note here..."/></label>
+      <label>{$t('eventEditor.title')} <input bind:value={title} placeholder={$t('eventEditor.titlePlaceholderNote')}/></label>
+      <label>{$t('eventEditor.notes')} <textarea rows="3" bind:value={notes} placeholder={$t('eventEditor.notesPlaceholder')}/></label>
     {/if}
 
     <div class="row" style="justify-content:flex-end;gap:8px;margin-top:8px">
-      <button class="tag ghost" on:click={()=>onClose ? onClose() : dispatchEvent(new CustomEvent('close'))}>Cancel</button>
-      <button class="tag" on:click={save}>Save</button>
+      <button class="tag ghost" on:click={()=>onClose ? onClose() : dispatchEvent(new CustomEvent('close'))}>{$t('eventEditor.cancel')}</button>
+      <button class="tag" on:click={save}>{$t('eventEditor.save')}</button>
     </div>
   </div>
 </div>
