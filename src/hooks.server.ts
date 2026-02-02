@@ -6,18 +6,45 @@ import { createServerClient } from '@supabase/ssr';
 import { env as publicEnv } from '$env/dynamic/public';
 import { enforceEnvironmentSecurity } from '$lib/server/env-validator';
 import { logger } from '$lib/server/logging/logger';
+import type { SessionUser } from '$lib/server/auth/session';
 
 // Run validation on startup
 enforceEnvironmentSecurity();
 
-// Get the Supabase URL and Key (fallback to PUBLIC_ variants)
-const supabaseUrl = publicEnv.PUBLIC_SUPABASE_URL || process.env.PUBLIC_SUPABASE_URL || 'http://localhost';
-const supabaseAnonKey = publicEnv.PUBLIC_SUPABASE_ANON_KEY || process.env.PUBLIC_SUPABASE_ANON_KEY || 'anon-key';
+// Get the Supabase URL and Key
+// Prioritize environment variables, fallback to defaults
+let supabaseUrl = publicEnv?.PUBLIC_SUPABASE_URL || process.env.PUBLIC_SUPABASE_URL;
+let supabaseAnonKey = publicEnv?.PUBLIC_SUPABASE_ANON_KEY || process.env.PUBLIC_SUPABASE_ANON_KEY;
+
+// Fallback for build/dev if missing
+if (!supabaseUrl && (building || dev)) {
+    supabaseUrl = 'https://placeholder.supabase.co';
+    console.warn('⚠️ using placeholder Supabase URL');
+}
+if (!supabaseAnonKey && (building || dev)) {
+    supabaseAnonKey = 'placeholder-key';
+}
+
+// Ensure string type
+supabaseUrl = supabaseUrl || '';
+supabaseAnonKey = supabaseAnonKey || '';
 
 // Supabase client initialization
 const supabaseHandler: Handle = async ({ event, resolve }) => {
+    // Safety check for runtime
+    let url = supabaseUrl;
+    let key = supabaseAnonKey;
+
+    if (!url || !key) {
+        // If we still don't have credentials in runtime (not building), we might fail
+        // But let's try to use placeholder to avoid crash, logging error
+        if (!building) logger.error('Missing Supabase credentials in runtime');
+        url = url || 'https://placeholder.supabase.co';
+        key = key || 'placeholder-key';
+    }
+
 	// Create Supabase client with cookie handling
-	event.locals.supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+	event.locals.supabase = createServerClient(url, key, {
 		cookies: {
 			get: (key) => event.cookies.get(key),
 			set: (key, value, options) => {
@@ -40,10 +67,18 @@ const supabaseHandler: Handle = async ({ event, resolve }) => {
 	// Get current session for event.locals.user
 	const session = await event.locals.getSession();
 	if (session) {
+		// Populate minimal user info for request context
+        // Cast to SessionUser to satisfy type requirements
 		event.locals.user = {
 			id: session.user.id,
-			email: session.user.email
-		};
+			email: session.user.email,
+            username: session.user.email?.split('@')[0] || 'user',
+            displayName: session.user.email?.split('@')[0] || 'User',
+            primarySection: 'General',
+            sections: [],
+            roles: {},
+            stations: []
+		} as unknown as SessionUser;
 	}
 
 	return resolve(event, {
@@ -157,10 +192,16 @@ const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const rateLimitHandler: Handle = async ({ event, resolve }) => {
 	if (building) return resolve(event);
 
+    // Get user ID if logged in (since this runs after supabaseHandler)
+    const userId = event.locals.user?.id;
 	const ip = event.getClientAddress();
+
+    // Identifier: Use UserID if available, else IP
+    const identifier = userId || ip;
+
 	const now = Date.now();
 	const windowMs = 60000; // 1 minute
-	const maxRequests = 100;
+	const maxRequests = userId ? 100 : 20; // 100 for auth users, 20 for anon
 
 	// Clean up old entries
 	if (Math.random() < 0.01) {
@@ -171,7 +212,7 @@ const rateLimitHandler: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	const key = `${ip}:${event.url.pathname}`;
+	const key = `${identifier}:${event.url.pathname}`;
 	const record = rateLimitMap.get(key);
 
 	if (!record || record.resetAt < now) {
@@ -179,9 +220,13 @@ const rateLimitHandler: Handle = async ({ event, resolve }) => {
 	} else {
 		record.count++;
 		if (record.count > maxRequests) {
-			return new Response('Too Many Requests', {
+			return new Response(JSON.stringify({
+                    error: 'Too many requests',
+                    message: 'Rate limit exceeded. Please try again later.'
+                }), {
 				status: 429,
 				headers: {
+                    'Content-Type': 'application/json',
 					'Retry-After': String(Math.ceil((record.resetAt - now) / 1000))
 				}
 			});
@@ -199,9 +244,10 @@ const rateLimitHandler: Handle = async ({ event, resolve }) => {
 };
 
 // Combine all handlers in correct order
+// NOTE: supabaseHandler MUST come first to populate event.locals.user for rateLimitHandler
 export const handle = sequence(
-	rateLimitHandler,
-	supabaseHandler, // Initialize Supabase BEFORE other handlers
+	supabaseHandler,
+    rateLimitHandler,
 	securityHeaders,
 	authHandler
 );

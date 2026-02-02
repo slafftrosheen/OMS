@@ -1,0 +1,203 @@
+<script lang="ts">
+    import { Calendar, User, AlertCircle, ChevronRight } from 'lucide-svelte';
+    import type { Order } from '$lib/stores/orders';
+
+    export let order: Order;
+
+    function formatDate(date: string) {
+        return new Date(date).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric'
+        });
+    }
+
+    function getStatusColor(status: string) {
+        const colors: Record<string, string> = {
+            pending: '#f59e0b',
+            draft: '#9ca3af',
+            active: '#3b82f6',
+            in_progress: '#3b82f6',
+            completed: '#10b981',
+            cancelled: '#ef4444',
+            on_hold: '#f59e0b'
+        };
+        return colors[status] || '#6b7280';
+    }
+
+    function getPriorityLabel(priority: number) {
+        if (priority >= 8) return { label: 'High', color: '#ef4444' };
+        if (priority >= 5) return { label: 'Medium', color: '#f59e0b' };
+        return { label: 'Low', color: '#10b981' };
+    }
+
+    $: priority = getPriorityLabel(order.priority);
+    // Adapting fields to match src/lib/stores/orders.ts
+    $: progress = order.progress_percentage || 0;
+    $: customer = order.client;
+    $: code = order.po_number;
+    // Fallback for assignee since it's not in Order interface
+    $: assigneeName = (order as any).assigned_to_name || (order as any).assigned_to || (order.assignee_count ? `${order.assignee_count} Assignees` : null);
+</script>
+
+<a href="/orders/{order.id}" class="mobile-order-card">
+    <div class="card-header">
+        <div class="order-info">
+            <h3 class="order-code">{code}</h3>
+            <span
+                class="status-badge"
+                style="background-color: {getStatusColor(order.status)}20; color: {getStatusColor(order.status)}"
+            >
+                {order.status.replace('_', ' ')}
+            </span>
+        </div>
+        <ChevronRight size={20} class="chevron" />
+    </div>
+
+    <div class="card-body">
+        <p class="customer-name">{customer}</p>
+
+        <div class="progress-section">
+            <div class="progress-bar-container">
+                <div
+                    class="progress-bar-fill"
+                    style="width: {progress}%; background-color: {getStatusColor(order.status)}"
+                ></div>
+            </div>
+            <span class="progress-text">{Math.round(progress)}%</span>
+        </div>
+
+        <div class="meta-info">
+            {#if order.due_date}
+                <div class="meta-item">
+                    <Calendar size={14} />
+                    <span>{formatDate(order.due_date)}</span>
+                </div>
+            {/if}
+
+            {#if assigneeName}
+                <div class="meta-item">
+                    <User size={14} />
+                    <span>{assigneeName}</span>
+                </div>
+            {/if}
+
+            <div class="meta-item priority" style="color: {priority.color}">
+                <AlertCircle size={14} />
+                <span>{priority.label}</span>
+            </div>
+        </div>
+    </div>
+</a>
+
+<style>
+    .mobile-order-card {
+        display: block;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 15px;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.2s;
+    }
+
+    .mobile-order-card:active {
+        transform: scale(0.98);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+    }
+
+    .order-info {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .order-code {
+        margin: 0;
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #111827;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: capitalize;
+        width: fit-content;
+    }
+
+    /* Using :global to avoid unused selector warning if component is unused,
+       but here it is used. The warning might be because Lucide icon classes are internal.
+       Actually, I'll just remove the specific class styling if it's simple color change */
+    :global(.chevron) {
+        color: #9ca3af;
+        flex-shrink: 0;
+    }
+
+    .card-body {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .customer-name {
+        margin: 0;
+        font-size: 0.938rem;
+        color: #374151;
+    }
+
+    .progress-section {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .progress-bar-container {
+        flex: 1;
+        height: 6px;
+        background: #e5e7eb;
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        transition: width 0.3s ease;
+    }
+
+    .progress-text {
+        font-size: 0.813rem;
+        font-weight: 600;
+        color: #6b7280;
+        min-width: 35px;
+        text-align: right;
+    }
+
+    .meta-info {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.813rem;
+        color: #6b7280;
+    }
+
+    .meta-item.priority {
+        font-weight: 500;
+    }
+</style>

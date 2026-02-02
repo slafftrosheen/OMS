@@ -135,6 +135,7 @@
 <script lang="ts">
   import '../app.css';
   import '$lib/styles/a11y.css';
+  import '$lib/styles/responsive.css';
   import { base } from '$app/paths';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
