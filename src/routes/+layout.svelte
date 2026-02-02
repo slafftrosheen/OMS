@@ -126,7 +126,7 @@
 
   <Toast />
   <LiveRegion />
-  <CommandPalette open={searchOpen} onClose={closeSearch} />
+  <GlobalSearch bind:visible={searchOpen} />
   <Keybindings bind:open={showKb} />
 {/if}
 
@@ -156,7 +156,7 @@
   import UpdatePrompt from '$lib/pwa/UpdatePrompt.svelte';
   import OfflineIndicator from '$lib/pwa/OfflineIndicator.svelte';
   import { role } from '$lib/ui/RoleSwitch.svelte';
-  import CommandPalette from '$lib/ui/CommandPalette.svelte';
+  import GlobalSearch from '$lib/components/GlobalSearch.svelte';
   import Keybindings from '$lib/help/Keybindings.svelte';
   import { t } from 'svelte-i18n';
   import { startPreferenceUrlSync } from '$lib/settings/url-sync';
@@ -320,11 +320,7 @@
       const adm = $role === 'Admin';
       const key = e.key?.toLowerCase();
       if (!key) return;
-      if ((e.metaKey || e.ctrlKey) && key === 'k') {
-        e.preventDefault();
-        openSearch();
-        return;
-      }
+      // GlobalSearch handles Cmd+K internally
       if (key === '?') {
         e.preventDefault();
         showKb = !showKb;
