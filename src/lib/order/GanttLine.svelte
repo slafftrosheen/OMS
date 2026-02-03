@@ -8,10 +8,13 @@
   import { withTheme } from '$lib/charts/theme';
   import { theme, type ThemeName } from '$lib/stores/theme';
 
-  export let items: GanttItem[] = [];
+  let {
+    items = []
+  }: {
+    items?: GanttItem[];
+  } = $props();
 
-  let currentTheme: ThemeName = 'DarkVim';
-  $: currentTheme = $theme as ThemeName;
+  let currentTheme: ThemeName = $derived($theme as ThemeName);
 
   const baseOptions = {
     chart: { type: 'rangeBar', toolbar: { show: false } },
@@ -19,15 +22,15 @@
     xaxis: { type: 'datetime' as const }
   };
 
-  $: series = [
+  let series = $derived([
     { name: 'Planned', data: items.map((item) => ({ x: item.label, y: item.planned })) },
     {
       name: 'Actual',
       data: items.filter((item) => item.actual).map((item) => ({ x: item.label, y: item.actual as [number, number] }))
     }
-  ];
+  ]);
 
-  $: options = withTheme(baseOptions, currentTheme);
+  let options = $derived(withTheme(baseOptions, currentTheme));
 </script>
 
 <div class="card">

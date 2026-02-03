@@ -5,9 +5,15 @@ import type { StationCode } from '$lib/order/names';
 import { role } from '$lib/ui/RoleSwitch.svelte';
 import { t } from 'svelte-i18n';
 
-  export let value: Record<string, number> = {};
-  export let onPropose: (changes: Record<string, number>) => void = () => {};
-  export let onApplyAdmin: (changes: Record<string, number>) => void = () => {};
+  let {
+    value = {},
+    onPropose = () => {},
+    onApplyAdmin = () => {}
+  }: {
+    value?: Record<string, number>;
+    onPropose?: (changes: Record<string, number>) => void;
+    onApplyAdmin?: (changes: Record<string, number>) => void;
+  } = $props();
 
   const STATIONS = Object.keys(TERMS.stations) as StationCode[];
 
@@ -16,13 +22,15 @@ import { t } from 'svelte-i18n';
     return Object.fromEntries(entries) as Record<string, number>;
   }
 
-  let edited: Record<string, number> = baseState(value);
-  let lastValue = value;
+  let edited: Record<string, number> = $state(baseState(value));
+  let lastValue = $state(value);
 
-  $: if (lastValue !== value) {
-    lastValue = value;
-    edited = baseState(value);
-  }
+  $effect(() => {
+    if (lastValue !== value) {
+      lastValue = value;
+      edited = baseState(value);
+    }
+  });
 
   function reset() {
     edited = baseState(value);
@@ -53,12 +61,12 @@ import { t } from 'svelte-i18n';
     return out;
   }
 
-  $: pending = computeDiff();
-  $: hasChanges = Object.keys(pending).length > 0;
+  let pending = $derived(computeDiff());
+  let hasChanges = $derived(Object.keys(pending).length > 0);
 
   const sliderId = (station: string) => `progress-${station.toLowerCase()}`;
 
-  $: isAdmin = $role === 'Admin';
+  let isAdmin = $derived($role === 'Admin');
 </script>
 
 <div class="card">

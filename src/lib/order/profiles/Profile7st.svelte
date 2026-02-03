@@ -5,16 +5,24 @@
   import ColorSwatchSelector from '../form-elements/ColorSwatchSelector.svelte';
   import Input from '$lib/ui/Input.svelte';
 
-  export let data: any = {};
-  export let onRemove: () => void = () => {};
-  export let showRemove: boolean = true;
+  let {
+    data = $bindable({} as any),
+    onRemove = () => {},
+    showRemove = true
+  }: {
+    data?: any;
+    onRemove?: () => void;
+    showRemove?: boolean;
+  } = $props();
 
   // Initialize data structure with defaults
-  $: if (!data.lineFreezer) data.lineFreezer = { alu13: false, alu15: false, thickness: '', size: '', opalMaterial: '' };
-  $: if (!data.benderSides) data.benderSides = { opalMaterial: '', frontMaterial: '', sidesMaterial: '', color: '', print: false };
-  $: if (!data.painting) data.painting = { frameType: '', backMaterial: '', color: '', noLed: false, print: false };
-  $: if (!data.assembling) data.assembling = { ledType: '', waterproof: [], frameOptions: [], specialRequirements: [] };
-  $: if (!data.delivery) data.delivery = { deliveryDate: '' };
+  $effect(() => {
+    if (!data.lineFreezer) data.lineFreezer = { alu13: false, alu15: false, thickness: '', size: '', opalMaterial: '' };
+    if (!data.benderSides) data.benderSides = { opalMaterial: '', frontMaterial: '', sidesMaterial: '', color: '', print: false };
+    if (!data.painting) data.painting = { frameType: '', backMaterial: '', color: '', noLed: false, print: false };
+    if (!data.assembling) data.assembling = { ledType: '', waterproof: [], frameOptions: [], specialRequirements: [] };
+    if (!data.delivery) data.delivery = { deliveryDate: '' };
+  });
 
   // Material options
   const materialOptions = ['OPAL', 'ALU 1.3', 'ALU 1.5', 'FRONT', 'SIDES', 'BACK'];
@@ -64,7 +72,7 @@
       <button
         type="button"
         class="remove-btn"
-        on:click={onRemove}
+        onclick={onRemove}
         aria-label="Remove profile"
       >
         <X size={20} />

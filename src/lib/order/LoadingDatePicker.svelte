@@ -13,7 +13,9 @@
 
   let options: { value: string; label: string; full: boolean }[] = [];
 
-  $: loadOptions(upcoming());
+  $effect(() => {
+    loadOptions(upcoming());
+  });
 
   async function loadOptions(days: any[]) {
     const promises = days.map(async (day) => {
