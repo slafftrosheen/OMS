@@ -4,10 +4,17 @@
   import type { CalEvent, MeetingEvent, NoteEvent } from './types';
   import { t } from 'svelte-i18n';
   
-  export let dateISO: string;                 // yyyy-mm-dd
-  export let event: CalEvent | null = null;   // edit path
-  export let presetKind:'loading'|'meeting'|'note'='loading';
-  export let onClose = () => {};
+  let {
+    dateISO = '',
+    event = null as CalEvent | null,
+    presetKind = 'loading' as 'loading' | 'meeting' | 'note',
+    onClose = () => {}
+  } = $props<{
+    dateISO?: string;
+    event?: CalEvent | null;
+    presetKind?: 'loading' | 'meeting' | 'note';
+    onClose?: () => void;
+  }>();
 
   let kind = event?.kind ?? presetKind;
   let selectedDate = event?.date ?? dateISO;

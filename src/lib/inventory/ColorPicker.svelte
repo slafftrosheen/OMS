@@ -2,8 +2,10 @@
   import { Palette, Hash } from 'lucide-svelte';
   import type { ColorSpec } from './material-types';
   
-  export let value: ColorSpec | null = null;
-  export let onChange: (color: ColorSpec | null) => void;
+  let { value = $bindable<ColorSpec | null>(null), onChange }: {
+    value?: ColorSpec | null;
+    onChange: (color: ColorSpec | null) => void;
+  } = $props();
   
   let mode: 'RAL' | 'PANTONE' | 'HEX' | 'CUSTOM' = 'RAL';
   let ralInput = '';

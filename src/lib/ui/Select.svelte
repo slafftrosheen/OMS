@@ -1,7 +1,9 @@
 <script lang="ts">
-  export let value: string;
-  export let options: { label: string; value: string }[] = [];
-  export let ariaLabel = 'select';
+  let { value = $bindable<string>(''), options = [], ariaLabel = 'select' } = $props<{
+    value?: string;
+    options?: { label: string; value: string }[];
+    ariaLabel?: string;
+  }>();
 </script>
 
 <select bind:value aria-label={ariaLabel} class="rf-select">

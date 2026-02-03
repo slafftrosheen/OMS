@@ -1,11 +1,21 @@
 <script lang="ts">
-  export let value: string = '';
-  export let placeholder = '';
-  export let type: string = 'text';
-  export let ariaLabel = placeholder || 'input';
-  export let size: 'sm' | 'md' | 'lg' = 'md';
-  export let disabled = false;
-  export let error = false;
+  let {
+    value = $bindable<string>(''),
+    placeholder = '',
+    type = 'text',
+    ariaLabel = placeholder || 'input',
+    size = 'md' as 'sm' | 'md' | 'lg',
+    disabled = false,
+    error = false
+  } = $props<{
+    value?: string;
+    placeholder?: string;
+    type?: string;
+    ariaLabel?: string;
+    size?: 'sm' | 'md' | 'lg';
+    disabled?: boolean;
+    error?: boolean;
+  }>();
 
   const handleInput = (event: Event) => {
     const target = event.target as HTMLInputElement | null;
