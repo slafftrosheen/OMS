@@ -415,7 +415,7 @@ a:visited {
   z-index: 900 !important;
   gap: clamp(8px, 2vw, 20px) !important;
   flex-wrap: nowrap !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 /* Fix nav scrolling */
