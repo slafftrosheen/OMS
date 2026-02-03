@@ -426,10 +426,10 @@
               placeholder="Select..."
               allowCustom={true}
               {readonly}
-              on:change={(e) => {
-                configuration.CNC_FREZER.faceHex = e.detail.hex;
-                configuration.CNC_FREZER.faceShort = extractShortName(e, 'ACRYLIC');
-                faceThicknessOptions = e.detail.material?.thickness_options || [];
+              onchange={(data) => {
+                configuration.CNC_FREZER.faceHex = data.hex;
+                configuration.CNC_FREZER.faceShort = extractShortName(data, 'ACRYLIC');
+                faceThicknessOptions = data.material?.thickness_options || [];
                 if (faceThicknessOptions.length > 0 && !faceThicknessOptions.includes(Number(configuration.CNC_FREZER.faceThickness))) {
                    configuration.CNC_FREZER.faceThickness = faceThicknessOptions[0].toString();
                 } else if (!configuration.CNC_FREZER.faceThickness && faceThicknessOptions.length > 0) {
@@ -450,7 +450,7 @@
               materialType={configuration.CNC_FREZER.face.split('_')[0] || 'PVC'}
               placeholder="Select thickness"
               {readonly}
-              on:change={emit}
+              onchange={emit}
             />
           {/if}
         </div>
@@ -465,10 +465,10 @@
               placeholder="Select..."
               allowCustom={true}
               {readonly}
-              on:change={(e) => {
-                configuration.CNC_FREZER.backHex = e.detail.hex;
-                configuration.CNC_FREZER.backShort = extractShortName(e, 'ALU');
-                backThicknessOptions = e.detail.material?.thickness_options || [];
+              onchange={(data) => {
+                configuration.CNC_FREZER.backHex = data.hex;
+                configuration.CNC_FREZER.backShort = extractShortName(data, 'ALU');
+                backThicknessOptions = data.material?.thickness_options || [];
                 if (backThicknessOptions.length > 0 && !backThicknessOptions.includes(Number(configuration.CNC_FREZER.backThickness))) {
                    configuration.CNC_FREZER.backThickness = backThicknessOptions[0].toString();
                 } else if (!configuration.CNC_FREZER.backThickness && backThicknessOptions.length > 0) {
@@ -489,7 +489,7 @@
               materialType={configuration.CNC_FREZER.back.split('_')[0] || 'PVC'}
               placeholder="Select thickness"
               {readonly}
-              on:change={emit}
+              onchange={emit}
             />
           {/if}
         </div>
@@ -530,10 +530,10 @@
               placeholder="Select..."
               allowCustom={true}
               {readonly}
-              on:change={(e) => {
-                configuration.BENDER.sidesHex = e.detail.hex;
-                configuration.BENDER.sidesShort = extractShortName(e, 'ALU');
-                sidesThicknessOptions = e.detail.material?.thickness_options || [];
+              onchange={(data) => {
+                configuration.BENDER.sidesHex = data.hex;
+                configuration.BENDER.sidesShort = extractShortName(data, 'ALU');
+                sidesThicknessOptions = data.material?.thickness_options || [];
                 if (sidesThicknessOptions.length > 0 && !sidesThicknessOptions.includes(Number(configuration.BENDER.sidesThickness))) {
                    configuration.BENDER.sidesThickness = sidesThicknessOptions[0].toString();
                 } else if (!configuration.BENDER.sidesThickness && sidesThicknessOptions.length > 0) {
@@ -554,7 +554,7 @@
               materialType={configuration.BENDER.sides.split('_')[0] || 'ALU'}
               placeholder="Select thickness"
               {readonly}
-              on:change={emit}
+              onchange={emit}
             />
           {/if}
         </div>
@@ -595,9 +595,9 @@
                   placeholder="Select..."
                   allowCustom={true}
                   {readonly}
-                  on:change={(e) => {
-                    configuration.FRONT[`${part}FilmHex`] = e.detail.hex;
-                    configuration.FRONT[`${part}FilmShort`] = extractShortName(e, 'ORACAL');
+                  onchange={(data) => {
+                    configuration.FRONT[`${part}FilmHex`] = data.hex;
+                    configuration.FRONT[`${part}FilmShort`] = extractShortName(data, 'ORACAL');
                     emit();
                   }}
                 />
@@ -650,16 +650,16 @@
                   placeholder="RAL..."
                   allowCustom={true}
                   {readonly}
-                  on:change={(e) => {
-                    const material = e.detail.material;
+                  onchange={(data) => {
+                    const material = data.material;
                     if (material) {
                       configuration.PAINTING[`${item.key}Color`] = {
                         system: material.category === 'PAINT_RAL' ? 'RAL' : 'Pantone',
                         code: material.code.replace('RAL_', '').replace('PANTONE_', ''),
-                        hex: e.detail.hex || ''
+                        hex: data.hex || ''
                       };
-                    } else if (e.detail.value) {
-                      const code = e.detail.value.match(/\d{4}/)?.[0] || e.detail.value;
+                    } else if (data.value) {
+                      const code = data.value.match(/\d{4}/)?.[0] || data.value;
                       configuration.PAINTING[`${item.key}Color`] = { system: 'RAL', code, hex: '' };
                     }
                     emit();
@@ -716,9 +716,9 @@
                   allowCustom={true}
                   showColor={false}
                   {readonly}
-                  on:change={(e) => { 
-                    configuration.ASSEMBLING.ledModuleHex = e.detail.hex;
-                    configuration.ASSEMBLING.ledModuleShort = extractShortName(e, 'LED');
+                  onchange={(data) => { 
+                    configuration.ASSEMBLING.ledModuleHex = data.hex;
+                    configuration.ASSEMBLING.ledModuleShort = extractShortName(data, 'LED');
                     emit(); 
                   }}
                 />
@@ -763,8 +763,8 @@
                   allowCustom={true}
                   showColor={false}
                   {readonly}
-                  on:change={(e) => {
-                    configuration.ASSEMBLING.psuModelShort = extractShortName(e, 'PSU');
+                  onchange={(data) => {
+                    configuration.ASSEMBLING.psuModelShort = extractShortName(data, 'PSU');
                     emit();
                   }}
                 />
@@ -803,8 +803,8 @@
                   allowCustom={true}
                   showColor={false}
                   {readonly}
-                  on:change={(e) => {
-                    configuration.ASSEMBLING.cableTypeShort = extractShortName(e, 'WIRE');
+                  onchange={(data) => {
+                    configuration.ASSEMBLING.cableTypeShort = extractShortName(data, 'WIRE');
                     emit();
                   }}
                 />
@@ -843,9 +843,9 @@
                   placeholder="Select..."
                   allowCustom={true}
                   {readonly}
-                  on:change={(e) => { 
-                    configuration.ASSEMBLING.frameMaterialHex = e.detail.hex;
-                    configuration.ASSEMBLING.frameMaterialShort = extractShortName(e, 'ALU');
+                  onchange={(data) => { 
+                    configuration.ASSEMBLING.frameMaterialHex = data.hex;
+                    configuration.ASSEMBLING.frameMaterialShort = extractShortName(data, 'ALU');
                     emit(); 
                   }}
                 />

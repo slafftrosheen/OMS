@@ -4,7 +4,7 @@
     import { fade, fly } from 'svelte/transition';
 
     let {
-        open = false,
+        open = $bindable(false),
         title = null as string | null,
         size = 'md' as 'sm' | 'md' | 'lg' | 'xl',
         closeOnClickOutside = true,

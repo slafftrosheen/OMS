@@ -19,7 +19,7 @@
   }
 
   let {
-    value = '',
+    value = $bindable(''),
     category = '',
     categories = [] as string[],
     placeholder = 'Select...',
