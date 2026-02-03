@@ -1,41 +1,70 @@
 <!-- src/lib/components/ui/Input.svelte -->
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
+    let {
+        value = $bindable('') as string | number,
+        type = 'text' as 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'search' | 'date' | 'time',
+        label = null as string | null,
+        placeholder = '',
+        error = null as string | null,
+        hint = null as string | null,
+        disabled = false,
+        required = false,
+        readonly = false,
+        autocomplete = null as string | null,
+        id = null as string | null,
+        name = null as string | null,
+        icon = null as string | null,
+        iconPosition = 'left' as 'left' | 'right',
+        fullWidth = true,
+        oninput,
+        onchange,
+        onblur,
+        onfocus,
+        ...restProps
+    }: {
+        value?: string | number;
+        type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'search' | 'date' | 'time';
+        label?: string | null;
+        placeholder?: string;
+        error?: string | null;
+        hint?: string | null;
+        disabled?: boolean;
+        required?: boolean;
+        readonly?: boolean;
+        autocomplete?: string | null;
+        id?: string | null;
+        name?: string | null;
+        icon?: string | null;
+        iconPosition?: 'left' | 'right';
+        fullWidth?: boolean;
+        oninput?: (value: string | number) => void;
+        onchange?: (value: string | number) => void;
+        onblur?: (event: FocusEvent) => void;
+        onfocus?: (event: FocusEvent) => void;
+        [key: string]: any;
+    } = $props();
 
-    export let value: string | number = '';
-    export let type: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'search' | 'date' | 'time' = 'text';
-    export let label: string | null = null;
-    export let placeholder = '';
-    export let error: string | null = null;
-    export let hint: string | null = null;
-    export let disabled = false;
-    export let required = false;
-    export let readonly = false;
-    export let autocomplete: string | null = null;
-    export let id: string | null = null;
-    export let name: string | null = null;
-    export let icon: string | null = null;
-    export let iconPosition: 'left' | 'right' = 'left';
-    export let fullWidth = true;
-
-    const dispatch = createEventDispatcher();
     const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
 
     function handleInput(event: Event) {
         const target = event.target as HTMLInputElement;
         value = type === 'number' ? parseFloat(target.value) : target.value;
-        dispatch('input', value);
+        oninput?.(value);
     }
 
     function handleChange(event: Event) {
-        dispatch('change', value);
+        onchange?.(value);
     }
 
     function handleBlur(event: FocusEvent) {
-        dispatch('blur', event);
+        onblur?.(event);
     }
 
-    $: hasError = !!error;
+    function handleFocus(event: FocusEvent) {
+        onfocus?.(event);
+    }
+
+    let hasError = $derived(!!error);
 </script>
 
 <div class="input-group" class:input-full={fullWidth}>
@@ -65,13 +94,13 @@
             class:input-error={hasError}
             value={value}
             autocomplete={autocomplete}
-            on:input={handleInput}
-            on:change={handleChange}
-            on:blur={handleBlur}
-            on:focus
+            oninput={handleInput}
+            onchange={handleChange}
+            onblur={handleBlur}
+            onfocus={handleFocus}
             aria-invalid={hasError}
             aria-describedby={error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined}
-            {...$$restProps}
+            {...restProps}
         />
 
         {#if icon && iconPosition === 'right'}

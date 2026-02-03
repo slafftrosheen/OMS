@@ -1,20 +1,26 @@
 <!-- src/lib/components/qr/QRScanner.svelte -->
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
-    import { createEventDispatcher } from 'svelte';
     import Button from '$lib/components/ui/Button.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
 
-    export let open = false;
-    export let continuous = false;
-
-    const dispatch = createEventDispatcher();
+    let {
+        open = $bindable(false),
+        continuous = false,
+        onscan,
+        onclose
+    }: {
+        open?: boolean;
+        continuous?: boolean;
+        onscan?: (data: any) => void;
+        onclose?: () => void;
+    } = $props();
 
     let videoElement: HTMLVideoElement;
     let canvasElement: HTMLCanvasElement;
-    let stream: MediaStream | null = null;
-    let scanning = false;
-    let error: string | null = null;
+    let stream: MediaStream | null = $state(null);
+    let scanning = $state(false);
+    let error: string | null = $state(null);
     let scanInterval: number;
 
     async function startScanning() {
@@ -82,7 +88,7 @@
             const result = await response.json();
 
             if (result.success) {
-                dispatch('scan', result.data);
+                onscan?.(result.data);
                 
                 if (!continuous) {
                     open = false;
@@ -112,7 +118,7 @@
     function handleClose() {
         stopScanning();
         open = false;
-        dispatch('close');
+        onclose?.();
     }
 
     onMount(() => {
@@ -125,23 +131,25 @@
         stopScanning();
     });
 
-    $: if (open && !scanning) {
-        startScanning();
-    } else if (!open && scanning) {
-        stopScanning();
-    }
+    $effect(() => {
+        if (open && !scanning) {
+            startScanning();
+        } else if (!open && scanning) {
+            stopScanning();
+        }
+    });
 </script>
 
 <svelte:head>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </svelte:head>
 
-<Modal bind:open title="Scan QR Code" size="md" on:close={handleClose}>
+<Modal bind:open title="Scan QR Code" size="md" onclose={handleClose}>
     <div class="qr-scanner">
         {#if error}
             <div class="error-state">
                 <p class="error-message">⚠️ {error}</p>
-                <Button variant="primary" on:click={startScanning}>
+                <Button variant="primary" onclick={startScanning}>
                     Try Again
                 </Button>
             </div>
@@ -177,7 +185,7 @@
     </div>
 
     <svelte:fragment slot="footer">
-        <Button variant="ghost" on:click={handleClose}>
+        <Button variant="ghost" onclick={handleClose}>
             Cancel
         </Button>
     </svelte:fragment>

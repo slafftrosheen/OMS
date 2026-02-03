@@ -1,16 +1,26 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { fieldDiff } from './diff';
 
-  export let baseFields: Record<string, any> = {};
-  export let candidateFields: Record<string, any> = {};
-  export let fileList: { rev: string; name: string; size: number; date: string }[] = [];
-  export let canManage = false;
-  export let onUseAsCurrent = (rev: string) => {};
-  export let activeRev: string | null = null;
-  export let previewRev: string | null = null;
+  let {
+    baseFields = {} as Record<string, any>,
+    candidateFields = {} as Record<string, any>,
+    fileList = [] as { rev: string; name: string; size: number; date: string }[],
+    canManage = false,
+    onUseAsCurrent = (rev: string) => {},
+    activeRev = null as string | null,
+    previewRev = null as string | null,
+    onpreview
+  }: {
+    baseFields?: Record<string, any>;
+    candidateFields?: Record<string, any>;
+    fileList?: { rev: string; name: string; size: number; date: string }[];
+    canManage?: boolean;
+    onUseAsCurrent?: (rev: string) => void;
+    activeRev?: string | null;
+    previewRev?: string | null;
+    onpreview?: (rev: string) => void;
+  } = $props();
 
-  const dispatch = createEventDispatcher<{ preview: string }>();
   const changes = fieldDiff(baseFields, candidateFields);
 </script>
 
@@ -50,7 +60,7 @@
           <tr 
             class:active={f.rev === activeRev} 
             class:preview={f.rev === previewRev} 
-            on:click={() => dispatch('preview', f.rev)}
+            onclick={() => onpreview?.(f.rev)}
             role="row"
             tabindex="0"
             aria-selected={f.rev === previewRev}
@@ -64,7 +74,7 @@
               {#if canManage}
                 <button 
                   class="tag" 
-                  on:click|stopPropagation={() => onUseAsCurrent(f.rev)}
+                  onclick={(e) => { e.stopPropagation(); onUseAsCurrent(f.rev); }}
                   aria-label={`Set ${f.name} as current version`}
                 >
                   Use as current

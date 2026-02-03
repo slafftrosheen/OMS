@@ -1,15 +1,18 @@
 <!-- src/lib/components/notifications/NotificationCenter.svelte -->
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import { notificationStore as notifications } from '$lib/stores/notifications';
     import Badge from '$lib/components/ui/Badge.svelte';
     import Button from '$lib/components/ui/Button.svelte';
 
-    export let open = false;
+    let {
+        open = $bindable(false),
+        onnotificationclick
+    }: {
+        open?: boolean;
+        onnotificationclick?: (notification: any) => void;
+    } = $props();
 
-    const dispatch = createEventDispatcher();
-
-    $: unreadCount = $notifications.unreadCount;
+    let unreadCount = $derived($notifications.unreadCount);
 
     function getNotificationIcon(type: string): string {
         const icons: Record<string, string> = {
@@ -75,7 +78,7 @@
             window.location.href = notification.action_url;
         }
 
-        dispatch('notificationClick', notification);
+        onnotificationclick?.(notification);
     }
 
     function handleRemove(id: string, event: Event) {
@@ -89,7 +92,7 @@
 </script>
 
 <div class="notification-center">
-    <button class="notification-trigger" on:click={toggleOpen} aria-label="Open notifications">
+    <button class="notification-trigger" onclick={toggleOpen} aria-label="Open notifications">
         <span class="notification-icon">🔔</span>
         {#if unreadCount > 0}
             <Badge variant="danger" size="sm" class="notification-badge">
@@ -99,14 +102,14 @@
     </button>
 
     {#if open}
-        <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <div class="notification-overlay" on:click={toggleOpen} role="button" tabindex="-1"></div>
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <div class="notification-overlay" onclick={toggleOpen} role="button" tabindex="-1"></div>
         
         <div class="notification-panel">
             <div class="panel-header">
                 <h3 class="panel-title">Notifications</h3>
                 {#if unreadCount > 0}
-                    <button class="mark-all-read" on:click={handleMarkAllAsRead}>
+                    <button class="mark-all-read" onclick={handleMarkAllAsRead}>
                         Mark all as read
                     </button>
                 {/if}
@@ -123,10 +126,10 @@
                         <div
                             class="notification-item"
                             class:unread={!notification.read}
-                            on:click={() => handleNotificationClick(notification)}
+                            onclick={() => handleNotificationClick(notification)}
                             role="button"
                             tabindex="0"
-                            on:keypress={(e) => e.key === 'Enter' && handleNotificationClick(notification)}
+                            onkeypress={(e) => e.key === 'Enter' && handleNotificationClick(notification)}
                         >
                             <div
                                 class="notification-indicator"
@@ -145,7 +148,7 @@
 
                             <button
                                 class="notification-remove"
-                                on:click={(e) => handleRemove(notification.id, e)}
+                                onclick={(e) => handleRemove(notification.id, e)}
                                 aria-label="Remove notification"
                             >
                                 ✕
@@ -157,7 +160,7 @@
 
             {#if $notifications.items.length > 0}
                 <div class="panel-footer">
-                    <Button variant="ghost" size="sm" on:click={() => notifications.clear()}>
+                    <Button variant="ghost" size="sm" onclick={() => notifications.clear()}>
                         Clear all
                     </Button>
                 </div>

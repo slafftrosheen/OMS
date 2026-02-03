@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { createClient } from '@supabase/supabase-js';
   import { env } from '$env/dynamic/public';
 
@@ -7,17 +6,25 @@
     env.PUBLIC_SUPABASE_URL || import.meta.env.PUBLIC_SUPABASE_URL,
     env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.PUBLIC_SUPABASE_ANON_KEY
   );
-  const dispatch = createEventDispatcher();
 
-  export let orderId: string;
-  export let accept = '*';
-  export let maxSize = 10 * 1024 * 1024; // 10MB default
-  export let multiple = true;
+  let {
+    orderId,
+    accept = '*',
+    maxSize = 10 * 1024 * 1024,
+    multiple = true,
+    onupload
+  }: {
+    orderId: string;
+    accept?: string;
+    maxSize?: number;
+    multiple?: boolean;
+    onupload?: (files: any[]) => void;
+  } = $props();
 
-  let uploading = false;
-  let progress = 0;
-  let error = '';
-  let dragOver = false;
+  let uploading = $state(false);
+  let progress = $state(0);
+  let error = $state('');
+  let dragOver = $state(false);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -77,7 +84,7 @@
         progress = ((i + 1) / files.length) * 100;
       }
 
-      dispatch('upload', uploadedFiles);
+      onupload?.(uploadedFiles);
     } catch (err: any) {
       error = err.message;
       console.error('Upload error:', err);
@@ -88,6 +95,7 @@
   }
 
   function handleDrop(event: DragEvent) {
+    event.preventDefault();
     dragOver = false;
     handleFiles(event.dataTransfer?.files || null);
   }
@@ -108,9 +116,9 @@
   class:uploading
   role="region"
   aria-label="File Upload Drop Zone"
-  on:drop|preventDefault={handleDrop}
-  on:dragover|preventDefault={handleDragOver}
-  on:dragleave={handleDragLeave}
+  ondrop={handleDrop}
+  ondragover={handleDragOver}
+  ondragleave={handleDragLeave}
 >
   {#if uploading}
     <div class="upload-progress">
@@ -136,7 +144,7 @@
       type="file"
       {accept}
       {multiple}
-      on:change={(e) => handleFiles(e.currentTarget.files)}
+      onchange={(e) => handleFiles(e.currentTarget.files)}
       class="file-input"
     />
   {/if}

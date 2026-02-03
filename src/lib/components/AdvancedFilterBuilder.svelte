@@ -1,8 +1,13 @@
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import { Filter, Plus, X, Save } from 'lucide-svelte';
 
-    const dispatch = createEventDispatcher();
+    let {
+        onapply,
+        onclear
+    }: {
+        onapply?: (filters: Record<string, { operator: string; value: any }>) => void;
+        onclear?: () => void;
+    } = $props();
 
     interface FilterCondition {
         id: string;
@@ -11,9 +16,9 @@
         value: any;
     }
 
-    let conditions: FilterCondition[] = [
+    let conditions = $state<FilterCondition[]>([
         { id: crypto.randomUUID(), field: 'status', operator: 'equals', value: '' }
-    ];
+    ]);
 
     const orderFields = [
         { value: 'status', label: 'Status', type: 'select', options: ['pending', 'in_progress', 'completed', 'cancelled'] },
@@ -75,7 +80,7 @@
     }
 
     function applyFilters() {
-        const filters = {};
+        const filters: Record<string, { operator: string; value: any }> = {};
         conditions.forEach(condition => {
             if (condition.value) {
                 filters[condition.field] = {
@@ -84,14 +89,14 @@
                 };
             }
         });
-        dispatch('apply', filters);
+        onapply?.(filters);
     }
 
     function clearFilters() {
         conditions = [
             { id: crypto.randomUUID(), field: 'status', operator: 'equals', value: '' }
         ];
-        dispatch('clear');
+        onclear?.();
     }
 </script>
 
@@ -133,7 +138,7 @@
 
                 <button
                     class="remove-btn"
-                    on:click={() => removeCondition(condition.id)}
+                    onclick={() => removeCondition(condition.id)}
                     disabled={conditions.length === 1}
                     title="Remove condition"
                 >
@@ -144,16 +149,16 @@
     </div>
 
     <div class="builder-actions">
-        <button class="add-condition-btn" on:click={addCondition}>
+        <button class="add-condition-btn" onclick={addCondition}>
             <Plus size={16} />
             Add Condition
         </button>
 
         <div class="action-buttons">
-            <button class="clear-btn" on:click={clearFilters}>
+            <button class="clear-btn" onclick={clearFilters}>
                 Clear All
             </button>
-            <button class="apply-btn" on:click={applyFilters}>
+            <button class="apply-btn" onclick={applyFilters}>
                 <Filter size={16} />
                 Apply Filters
             </button>
