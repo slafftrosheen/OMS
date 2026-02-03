@@ -3,23 +3,23 @@
   import { page } from '$app/stores';
   import Icon from '$lib/ui/Icon.svelte';
 
-  export interface NavItem {
+  interface NavItem {
     path: string;
     label: string;
     icon?: any;
   }
 
-  export let items: NavItem[] = [
+  let { items = [
     { path: '/orders', label: 'Orders' },
     { path: '/calendar', label: 'Calendar' },
     { path: '/inventory', label: 'Inventory' },
     { path: '/', label: 'Dashboard' },
     { path: '/settings', label: 'Settings' }
-  ];
+  ] }: { items?: NavItem[] } = $props();
 
   const full = (p: string) => `${base}${p}`;
 
-  $: currentPath = ($page.url?.pathname ?? '').replace(base, '') || '/';
+  let currentPath = $derived(($page.url?.pathname ?? '').replace(base, '') || '/');
   const isActive = (path: string) => {
     if (!path || path === '/') return currentPath === '/';
     return currentPath === path || currentPath.startsWith(`${path}/`);

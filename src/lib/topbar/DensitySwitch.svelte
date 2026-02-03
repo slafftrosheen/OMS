@@ -6,10 +6,8 @@
 
   type Density = 'compact' | 'cozy' | 'comfortable';
   
-  let current: Density = 'cozy';
-  let isOpen = false;
-  
-  ui.subscribe(p => current = p.density);
+  let isOpen = $state(false);
+  let current = $derived(($ui).density as Density);
 
   function set(density: Density) {
     ui.update(p => ({ ...p, density }));
@@ -30,7 +28,7 @@
     { id: 'comfortable', icon: Maximize2, label: 'Comfortable' }
   ];
 
-  $: currentIcon = options.find(o => o.id === current)?.icon || Columns;
+  let currentIcon = $derived(options.find(o => o.id === current)?.icon || Columns);
 </script>
 
 <div class="density-menu" use:clickOutside={handleClickOutside}>

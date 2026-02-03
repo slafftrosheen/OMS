@@ -11,9 +11,12 @@
   import TextScaleQuick from '$lib/ui/TextScaleQuick.svelte';
   import { onMount } from 'svelte';
 
-  let showUserMenu = false, c = 0;
-  unseenCount.subscribe((v) => (c = v));
-  $: $currentUser, $users;
+  let showUserMenu = $state(false);
+  let c = $derived($unseenCount);
+  
+  // Keep store subscriptions active for template usage
+  let currentUserValue = $derived($currentUser);
+  let usersValue = $derived($users);
 
   onMount(() => {
     loadUsers();
@@ -21,13 +24,13 @@
 
   const logo = () => `${base}/logo.png`;
 
-  $: navItems = [
+  let navItems = $derived([
     { path: '/orders', label: $t('nav.orders'), icon: 'orders' },
     { path: '/calendar', label: $t('nav.calendar'), icon: 'calendar' },
     { path: '/inventory', label: $t('nav.inventory'), icon: 'inventory' },
     { path: '/', label: $t('nav.dashboard'), icon: 'home' },
     { path: '/settings', label: $t('nav.settings'), icon: 'settings' }
-  ];
+  ]);
 </script>
 
 <header class="brandbar">
