@@ -210,11 +210,9 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON public.audit_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON public.chat_messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_room_id ON public.chat_messages(room_id);
 
--- draft_orders
 -- Ensure audit columns exist before indexing
 ALTER TABLE IF EXISTS public.draft_orders
-    ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES auth.users(id);
-ALTER TABLE IF EXISTS public.draft_orders
+    ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES auth.users(id),
     ADD COLUMN IF NOT EXISTS updated_by UUID REFERENCES auth.users(id);
 
 CREATE INDEX IF NOT EXISTS idx_draft_orders_created_by_fk ON public.draft_orders(created_by);
