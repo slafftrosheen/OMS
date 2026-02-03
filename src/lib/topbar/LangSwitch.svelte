@@ -62,6 +62,7 @@
 <style>
   .lang-menu {
     position: relative;
+    z-index: 100;
   }
 
   .lang-btn {
@@ -99,7 +100,7 @@
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(var(--shadow-rgb, 0 0 0) / 0.18);
     padding: 4px;
-    z-index: 10000;
+    z-index: 10001;
     animation: slideDown 0.15s ease;
   }
 

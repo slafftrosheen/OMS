@@ -82,7 +82,7 @@
 <style>
 .user-menu {
   position: relative;
-  z-index: 1000;
+  z-index: 100;
 }
 
 .user-trigger {
@@ -176,7 +176,7 @@
   border-radius: 12px;
   box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.25), 
               0 0 0 1px rgba(0, 0, 0, 0.05);
-  z-index: 10000;
+  z-index: 10001;
   overflow: hidden;
   animation: dropdownSlide 0.2s ease;
 }
