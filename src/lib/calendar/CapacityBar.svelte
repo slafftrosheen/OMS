@@ -2,16 +2,20 @@
   import { t } from 'svelte-i18n';
   import { TrendingUp, AlertTriangle } from 'lucide-svelte';
   
-  export let current: number = 0;
-  export let capacity: number = 100;
-  export let unit: string = 'orders';
+  interface Props {
+    current?: number;
+    capacity?: number;
+    unit?: string;
+  }
   
-  $: percentage = capacity > 0 ? Math.min((current / capacity) * 100, 100) : 0;
-  $: status = percentage >= 100 ? 'over' : percentage >= 80 ? 'high' : 'normal';
-  $: statusColor = 
+  let { current = 0, capacity = 100, unit = 'orders' }: Props = $props();
+  
+  let percentage = $derived(capacity > 0 ? Math.min((current / capacity) * 100, 100) : 0);
+  let status = $derived(percentage >= 100 ? 'over' : percentage >= 80 ? 'high' : 'normal');
+  let statusColor = $derived(
     status === 'over' ? 'var(--danger)' : 
     status === 'high' ? 'var(--warn)' : 
-    'var(--ok)';
+    'var(--ok)');
 </script>
 
 <div class="capacity-bar" role="meter" 

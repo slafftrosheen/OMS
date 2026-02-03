@@ -13,28 +13,33 @@
   import { ordersStore } from '$lib/order/signage-store';
   import type { Order } from '$lib/order/types';
 
-  export let iso = '';
-  export let dayNum = 1;
-  export let canEdit = false;
-  export let capacity = 10; // Default capacity
+  interface Props {
+    iso?: string;
+    dayNum?: number;
+    canEdit?: boolean;
+    capacity?: number;
+  }
 
-  let open=false; let pressTimer:any;
+  let { iso = '', dayNum = 1, canEdit = false, capacity = 10 }: Props = $props();
+
+  let open = $state(false);
+  let pressTimer: any;
   let items = byDate(iso);
   // Cast items to any to avoid template type errors with union types
-  $: displayItems = items as any[];
-  let loadsList: any[] = [];
-  let over = false;
-  let hoverOrder: Order | null = null;
-  let hoverX = 0;
-  let hoverY = 0;
+  let displayItems = $derived(items as any[]);
+  let loadsList = $state<any[]>([]);
+  let over = $state(false);
+  let hoverOrder = $state<Order | null>(null);
+  let hoverX = $state(0);
+  let hoverY = $state(0);
   let hoverTimeout: any;
   
   const unsub = loads.subscribe(v => loadsList = v);
   
   // Get orders for this day
-  $: dayOrders = $ordersStore.filter(o => o.loadingDate === iso);
-  $: orderCount = dayOrders.length;
-  $: utilizationPercentage = capacity > 0 ? (orderCount / capacity) * 100 : 0;
+  let dayOrders = $derived($ordersStore.filter(o => o.loadingDate === iso));
+  let orderCount = $derived(dayOrders.length);
+  let utilizationPercentage = $derived(capacity > 0 ? (orderCount / capacity) * 100 : 0);
   
   onDestroy(() => {
     unsub?.();

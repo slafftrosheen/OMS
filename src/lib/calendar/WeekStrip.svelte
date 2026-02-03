@@ -3,15 +3,17 @@
   import DayCell from './DayCell.svelte';
   import { capacityConfig, type CapacityConfig } from './capacity-config';
   
-  export let year: number;
-  export let month: number;
+  interface Props {
+    year: number;
+    month: number;
+  }
   
-  let weekStart = dayjs().startOf('week');
-  let capacities: CapacityConfig;
+  let { year, month }: Props = $props();
   
-  const unsubCapacity = capacityConfig.subscribe(v => capacities = v);
+  let weekStart = $state(dayjs().startOf('week'));
+  let capacities = $derived($capacityConfig);
   
-  $: days = Array.from({length: 7}, (_, i) => weekStart.add(i, 'day'));
+  let days = $derived(Array.from({length: 7}, (_, i) => weekStart.add(i, 'day')));
   
   function prev() {
     weekStart = weekStart.subtract(7, 'day');

@@ -5,14 +5,18 @@
   import OrderBadge from './OrderBadge.svelte';
   import { User, Calendar, Package, FileText, AlertCircle } from 'lucide-svelte';
   
-  export let order: Order;
-  export let x: number = 0;
-  export let y: number = 0;
+  interface Props {
+    order: Order;
+    x?: number;
+    y?: number;
+  }
   
-  $: activeMaterials = order.materials?.filter(m => m.value) || [];
-  $: activeStages = Object.entries(order.stages || {})
+  let { order, x = 0, y = 0 }: Props = $props();
+  
+  let activeMaterials = $derived(order.materials?.filter(m => m.value) || []);
+  let activeStages = $derived(Object.entries(order.stages || {})
     .filter(([_, state]) => state === 'IN_PROGRESS' || state === 'COMPLETED')
-    .map(([station, state]) => ({ station, state }));
+    .map(([station, state]) => ({ station, state })));
 </script>
 
 <div 

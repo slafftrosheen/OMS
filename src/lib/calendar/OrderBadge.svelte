@@ -2,8 +2,12 @@
   import { AlertCircle, Beaker, Truck, Lock, CheckCircle, Clock } from 'lucide-svelte';
   import type { Badge } from '$lib/order/types';
   
-  export let badge: Badge;
-  export let size: 'sm' | 'md' = 'sm';
+  interface Props {
+    badge: Badge;
+    size?: 'sm' | 'md';
+  }
+  
+  let { badge, size = 'sm' }: Props = $props();
   
   const badgeConfig: Record<Badge, { icon: any; color: string; label: string }> = {
     URGENT: { icon: AlertCircle, color: 'var(--danger)', label: 'Urgent' },
@@ -17,8 +21,8 @@
     DRAFT: { icon: Clock, color: 'var(--muted)', label: 'Draft' }
   };
   
-  $: config = badgeConfig[badge] || { icon: Clock, color: 'var(--muted)', label: badge };
-  $: iconSize = size === 'sm' ? 12 : 14;
+  let config = $derived(badgeConfig[badge] || { icon: Clock, color: 'var(--muted)', label: badge });
+  let iconSize = $derived(size === 'sm' ? 12 : 14);
 </script>
 
 <span 
