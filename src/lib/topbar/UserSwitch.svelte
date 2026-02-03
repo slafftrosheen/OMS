@@ -48,7 +48,7 @@
       <span class="user-name">{me?.displayName || me?.username || 'User'}</span>
       <span class="user-role">{roleLabel}</span>
     </span>
-    <ChevronDown size={16} class="chevron" class:rotated={open} />
+    <ChevronDown size={16} class="chevron" data-rotated={open ? 'true' : 'false'} />
   </button>
   
   {#if open}
@@ -162,7 +162,7 @@
   transition: transform 0.2s ease;
 }
 
-:global(.chevron.rotated) {
+:global(.chevron[data-rotated="true"]) {
   transform: rotate(180deg);
 }
 

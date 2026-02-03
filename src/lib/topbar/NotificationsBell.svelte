@@ -67,7 +67,7 @@
   </button>
 
   {#if open}
-  <div class="dropdown mobile-sheet" role="menu" style="max-width:92vw" on:keydown={onKey}>
+  <div class="dropdown mobile-sheet" role="menu" tabindex="0" style="max-width:92vw" on:keydown={onKey}>
     {#if allNotifications.length===0}<div class="muted">No notifications.</div>{/if}
     {#each allNotifications as n}
       <button role="menuitem" class="row">
