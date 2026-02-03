@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { base } from '$app/paths';
   import { t, locale as activeLocale } from 'svelte-i18n';
   import {
@@ -27,22 +27,29 @@
   import { BADGE_ICONS, badgeTone as resolveBadgeTone } from '$lib/order/badges';
   import { capacityConfig, type CapacityConfig } from './capacity-config';
 
-  export let year: number;
-  export let month: number;
-  export let adminMode = false;
+  let {
+    year,
+    month,
+    adminMode = false,
+    onselectDay
+  }: {
+    year: number;
+    month: number;
+    adminMode?: boolean;
+    onselectDay?: (iso: string) => void;
+  } = $props();
 
   let capacities: CapacityConfig;
   const unsubCapacity = capacityConfig.subscribe(v => capacities = v);
 
   type DayCell = { d: Date; iso: string; inMonth: boolean };
 
-  let days: DayCell[] = [];
-  let selectedISO: string | null = null;
-  const dispatch = createEventDispatcher<{ selectDay: string }>();
+  let days: DayCell[] = $state([]);
+  let selectedISO: string | null = $state(null);
   const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
   const todayISO = toISO(new Date());
-  let currentLocale = 'en';
-  let ordersVersion = 0;
+  let currentLocale = $state('en');
+  let ordersVersion = $state(0);
 
   const statusIcons = {
     idle: CalendarClock,
@@ -51,8 +58,11 @@
   } as const;
   const legendKeys = Object.keys(statusIcons) as (keyof typeof statusIcons)[];
 
-  const unsubscribeLocale = activeLocale.subscribe((value) => {
-    currentLocale = value || 'en';
+  let unsubscribeLocale: (() => void) | undefined;
+  onMount(() => {
+    unsubscribeLocale = activeLocale.subscribe((value) => {
+      currentLocale = value || 'en';
+    });
   });
 
   function toISO(date: Date) {
@@ -72,8 +82,8 @@
     }
   }
 
-  onMount(build);
   onMount(() => {
+    build();
     const handleOrders = () => {
       ordersVersion += 1;
     };
@@ -86,19 +96,25 @@
       }
     };
   });
-  $: (year, month, adminMode, build());
+  
+  $effect(() => {
+    year; month; adminMode;
+    build();
+  });
 
-  $: if (days.length) {
-    const inMonth = days.filter((day) => day.inMonth);
-    if (selectedISO && !days.some((day) => day.iso === selectedISO)) {
-      selectedISO = null;
+  $effect(() => {
+    if (days.length) {
+      const inMonth = days.filter((day) => day.inMonth);
+      if (selectedISO && !days.some((day) => day.iso === selectedISO)) {
+        selectedISO = null;
+      }
+      if (!selectedISO && inMonth.length) {
+        const today = inMonth.find((day) => day.iso === todayISO);
+        const activeDay = inMonth.find((day) => meta(day.iso, ordersVersion).active);
+        selectedISO = (today ?? activeDay ?? inMonth[0])?.iso ?? null;
+      }
     }
-    if (!selectedISO && inMonth.length) {
-      const today = inMonth.find((day) => day.iso === todayISO);
-      const activeDay = inMonth.find((day) => meta(day.iso, ordersVersion).active);
-      selectedISO = (today ?? activeDay ?? inMonth[0])?.iso ?? null;
-    }
-  }
+  });
 
   onDestroy(() => {
     unsubscribeLocale?.();
@@ -108,12 +124,12 @@
   function clickDay(iso: string) {
     if (!adminMode) {
       selectedISO = iso;
-      dispatch('selectDay', iso);
+      onselectDay?.(iso);
       return;
     }
     toggleDay(iso);
     selectedISO = iso;
-    dispatch('selectDay', iso);
+    onselectDay?.(iso);
   }
 
   function meta(iso: string, _tick = ordersVersion) {

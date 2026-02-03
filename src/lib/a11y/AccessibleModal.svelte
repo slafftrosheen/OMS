@@ -1,27 +1,38 @@
 <!-- src/lib/a11y/AccessibleModal.svelte -->
 <script lang="ts">
-	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
 	import { X } from 'lucide-svelte';
 	import { focusManager } from '$lib/a11y/focus-manager';
 
-	export let open = false;
-	export let title: string;
-	export let description: string | undefined = undefined;
-	export let size: 'small' | 'medium' | 'large' = 'medium';
-	export let closeOnEscape = true;
-	export let closeOnBackdrop = true;
-
-	const dispatch = createEventDispatcher<{ close: void }>();
+	let {
+		open = false,
+		title,
+		description = undefined,
+		size = 'medium',
+		closeOnEscape = true,
+		closeOnBackdrop = true,
+		onclose
+	}: {
+		open?: boolean;
+		title: string;
+		description?: string | undefined;
+		size?: 'small' | 'medium' | 'large';
+		closeOnEscape?: boolean;
+		closeOnBackdrop?: boolean;
+		onclose?: () => void;
+	} = $props();
 
 	let modalElement: HTMLElement;
 	let releaseFocusTrap: (() => void) | undefined;
 
-	$: if (open && modalElement) {
-		handleOpen();
-	} else if (!open && releaseFocusTrap) {
-		handleClose();
-	}
+	$effect(() => {
+		if (open && modalElement) {
+			handleOpen();
+		} else if (!open && releaseFocusTrap) {
+			handleClose();
+		}
+	});
 
 	function handleOpen() {
 		// Save current focus
@@ -53,7 +64,7 @@
 
 	function close() {
 		open = false;
-		dispatch('close');
+		onclose?.();
 	}
 
 	function handleKeydown(e: KeyboardEvent) {

@@ -5,20 +5,29 @@
  */
 
 import { onMount, onDestroy } from 'svelte';
-import { createEventDispatcher } from 'svelte';
 import { Camera, CameraOff, Loader2, CheckCircle, AlertCircle } from 'lucide-svelte';
 
-const dispatch = createEventDispatcher();
-
-export let station: string | null = null;
-export let actionType: 'view' | 'stage_update' | 'photo' | 'comment' = 'view';
-export let autoClose = true;
+let {
+  station = null,
+  actionType = 'view',
+  autoClose = true,
+  onscanned,
+  onclose,
+  onmanualEntry
+}: {
+  station?: string | null;
+  actionType?: 'view' | 'stage_update' | 'photo' | 'comment';
+  autoClose?: boolean;
+  onscanned?: (data: { scan: any; order: any }) => void;
+  onclose?: () => void;
+  onmanualEntry?: () => void;
+} = $props();
 
 let videoElement: HTMLDivElement;
-let scanning = false;
-let scanResult: any = null;
-let error: string | null = null;
-let processing = false;
+let scanning = $state(false);
+let scanResult: any = $state(null);
+let error: string | null = $state(null);
+let processing = $state(false);
 
 onMount(() => {
   startScanner();
@@ -129,7 +138,7 @@ async function handleDetection(result: any) {
     stopScanner();
 
     // Emit scan event
-    dispatch('scanned', {
+    onscanned?.({
       scan: scanResult.scan,
       order: scanResult.order
     });
@@ -137,7 +146,7 @@ async function handleDetection(result: any) {
     // Auto-close after success
     if (autoClose) {
       setTimeout(() => {
-        dispatch('close');
+        onclose?.();
       }, 2000);
     }
 
@@ -149,12 +158,12 @@ async function handleDetection(result: any) {
 }
 
 function handleManualInput() {
-  dispatch('manualEntry');
+  onmanualEntry?.();
 }
 
 function handleClose() {
   stopScanner();
-  dispatch('close');
+  onclose?.();
 }
 </script>
 

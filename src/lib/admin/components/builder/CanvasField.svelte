@@ -1,12 +1,20 @@
 <!-- src/lib/admin/components/builder/CanvasField.svelte -->
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { GripVertical, Copy, Trash2 } from 'lucide-svelte';
 
-  export let field: any;
-  export let selected: boolean = false;
-
-  const dispatch = createEventDispatcher();
+  let {
+    field,
+    selected = false,
+    onselect,
+    onduplicate,
+    ondelete
+  }: {
+    field: any;
+    selected?: boolean;
+    onselect?: () => void;
+    onduplicate?: () => void;
+    ondelete?: () => void;
+  } = $props();
 
   const fieldTypeIcons: Record<string, string> = {
     'material_selector': '🔲',
@@ -31,12 +39,12 @@
 
   function handleClick(event: MouseEvent) {
     event.stopPropagation();
-    dispatch('select');
+    onselect?.();
   }
 
-  $: fieldLabel = field.label?.en || field.label_en || 'Field';
-  $: fieldType = field.fieldType || field.field_type || 'unknown';
-  $: isRequired = field.isRequired || field.is_required || false;
+  let fieldLabel = $derived(field.label?.en || field.label_en || 'Field');
+  let fieldType = $derived(field.fieldType || field.field_type || 'unknown');
+  let isRequired = $derived(field.isRequired || field.is_required || false);
 </script>
 
 <div 
@@ -61,14 +69,14 @@
   <div class="field-actions">
     <button 
       class="field-action-btn"
-      on:click|stopPropagation={() => dispatch('duplicate')}
+      onclick={(e: MouseEvent) => { e.stopPropagation(); onduplicate?.(); }}
       title="Duplicate"
     >
       <Copy size={12} />
     </button>
     <button 
       class="field-action-btn danger"
-      on:click|stopPropagation={() => dispatch('delete')}
+      onclick={(e: MouseEvent) => { e.stopPropagation(); ondelete?.(); }}
       title="Delete"
     >
       <Trash2 size={12} />

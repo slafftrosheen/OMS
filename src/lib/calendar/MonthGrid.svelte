@@ -1,16 +1,23 @@
 <script lang="ts">
   import dayjs from 'dayjs';
-  import { createEventDispatcher } from 'svelte';
   
-  export let year: number;
-  export let month: number; // 1-12
-  export let renderDay: (iso: string) => any; // slotless renderer (we reuse DayCell)
+  let {
+    year,
+    month,
+    renderDay,
+    onprevmonth,
+    onnextmonth
+  }: {
+    year: number;
+    month: number; // 1-12
+    renderDay: (iso: string) => any; // slotless renderer (we reuse DayCell)
+    onprevmonth?: () => void;
+    onnextmonth?: () => void;
+  } = $props();
   
-  const dispatch = createEventDispatcher();
-  
-  let start = dayjs(`${year}-${String(month).padStart(2,'0')}-01`);
-  let days = Array.from({length: start.daysInMonth()}, (_, i) => start.add(i, 'day'));
-  let active = 1;
+  let start = $state(dayjs(`${year}-${String(month).padStart(2,'0')}-01`));
+  let days = $state(Array.from({length: start.daysInMonth()}, (_, i) => start.add(i, 'day')));
+  let active = $state(1);
   
   function keyNav(e: KeyboardEvent) {
     const max = days.length;
@@ -24,12 +31,12 @@
     if (e.key === 'End') next = max;
     
     if (e.key === 'PageUp') {
-      dispatch('prevmonth');
+      onprevmonth?.();
       e.preventDefault();
       return;
     }
     if (e.key === 'PageDown') {
-      dispatch('nextmonth');
+      onnextmonth?.();
       e.preventDefault();
       return;
     }
@@ -43,11 +50,11 @@
     }
   }
   
-  $: {
+  $effect(() => {
     // Recalculate days when year or month changes
     start = dayjs(`${year}-${String(month).padStart(2,'0')}-01`);
     days = Array.from({length: start.daysInMonth()}, (_, i) => start.add(i, 'day'));
-  }
+  });
 </script>
 
 <div class="grid cal" style="grid-template-columns:repeat(7,1fr)" on:keydown={keyNav} role="grid" aria-label="Month">

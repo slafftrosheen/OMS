@@ -1,15 +1,19 @@
 <script lang="ts">
   import type { FAQTag } from '../types';
   import Badge from '$lib/ui/Badge.svelte';
-  import { createEventDispatcher } from 'svelte';
 
-  export let tags: FAQTag[] = [];
-  export let selectedTag: string | null = null;
-
-  const dispatch = createEventDispatcher<{ select: string | null }>();
+  let {
+    tags = [],
+    selectedTag = null,
+    onselect
+  }: {
+    tags?: FAQTag[];
+    selectedTag?: string | null;
+    onselect?: (slug: string | null) => void;
+  } = $props();
 
   const selectTag = (slug: string | null) => {
-    dispatch('select', slug);
+    onselect?.(slug);
   };
 </script>
 
