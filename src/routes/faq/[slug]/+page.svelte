@@ -12,7 +12,7 @@
   let error = false;
   let lang: 'en' | 'ru' | 'lv' = 'en';
 
-  $: slug = $page.params.slug;
+  let slug = $derived($page.params.slug);
 
   const getQuestion = (item: FAQItem, lang: 'en' | 'ru' | 'lv') => {
     if (lang === 'ru' && item.questionRu) return item.questionRu;

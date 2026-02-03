@@ -182,9 +182,9 @@
   // Public routes that don't require auth
   const publicRoutes = ['/login', '/help'];
 
-  $: isPublicRoute = publicRoutes.some(r => $page.url.pathname === `${base}${r}` || $page.url.pathname === r);
-  $: isAdmin = $currentUser?.roles?.Admin === 'SuperAdmin';
-  $: currentPath = $page.url.pathname;
+  let isPublicRoute = $derived(publicRoutes.some(r => $page.url.pathname === `${base}${r}` || $page.url.pathname === r));
+  let isAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
+  let currentPath = $derived($page.url.pathname);
 
   const openSearch = () => {
     searchOpen = true;

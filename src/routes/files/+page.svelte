@@ -13,7 +13,10 @@
       valid = false;
     }
   }
-  $: file, check();
+  $effect(() => {
+    file;
+    check();
+  });
 </script>
 
 <div class="row" style="justify-content:space-between">

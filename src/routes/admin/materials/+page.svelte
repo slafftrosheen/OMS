@@ -148,27 +148,27 @@
   const filamentCategories = ['RESIN_ANYCUBIC', 'RESIN_ELEGOO', 'RESIN_OTHER', 'FDM_PLA', 'FDM_PETG', 'FDM_ABS', 'FDM_ASA', 'FDM_TPU', 'FDM_OTHER'];
   const hardwareCategories = ['SCREWS', 'ANCHORS', 'BRACKETS', 'STANDOFFS', 'ADHESIVE', 'SEALANT'];
 
-  $: isElectronics = electronicsCategories.includes(formData.category);
-  $: isPaint = paintCategories.includes(formData.category);
-  $: isSheet = sheetCategories.includes(formData.category);
-  $: isFilament = filamentCategories.includes(formData.category);
-  $: isHardware = hardwareCategories.includes(formData.category);
+  let isElectronics = $derived(electronicsCategories.includes(formData.category));
+  let isPaint = $derived(paintCategories.includes(formData.category));
+  let isSheet = $derived(sheetCategories.includes(formData.category));
+  let isFilament = $derived(filamentCategories.includes(formData.category));
+  let isHardware = $derived(hardwareCategories.includes(formData.category));
 
-  $: canManage = $currentUser?.roles?.Admin === 'SuperAdmin';
+  let canManage = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
 
-  $: filteredMaterials = materials.filter(m => {
+  let filteredMaterials = $derived(materials.filter(m => {
     const matchesSearch = searchQuery === '' ||
       m.name_en?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.code.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === '' || m.category === categoryFilter;
     return matchesSearch && matchesCategory;
-  });
+  }));
 
-  $: groupedMaterials = filteredMaterials.reduce((acc, m) => {
+  let groupedMaterials = $derived(filteredMaterials.reduce((acc, m) => {
     if (!acc[m.category]) acc[m.category] = [];
     acc[m.category].push(m);
     return acc;
-  }, {} as Record<string, Material[]>);
+  }, {} as Record<string, Material[]>));
 
   onMount(async () => {
     await loadMaterials();

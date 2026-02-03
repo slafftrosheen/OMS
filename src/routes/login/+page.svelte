@@ -24,8 +24,8 @@
     { code: 'lv', label: 'Latviešu', flag: '🇱🇻' }
   ];
   
-  $: currentLang = $locale || 'en';
-  $: currentFlag = languages.find(l => l.code === currentLang)?.flag || '🇬🇧';
+  let currentLang = $derived($locale || 'en');
+  let currentFlag = $derived(languages.find(l => l.code === currentLang)?.flag || '🇬🇧');
   
   function changeLang(lang: string) {
     setLocale(lang);
