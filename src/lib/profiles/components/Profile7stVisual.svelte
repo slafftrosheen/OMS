@@ -177,28 +177,30 @@
   export let onchange: ((config: ProfileConfiguration) => void) | undefined = undefined;
   
   /**
-   * Reactive statement to merge the incoming configuration with the default.
+   * Effect to merge the incoming configuration with the default.
    * This ensures that the component can handle partially-defined configuration objects
    * without crashing due to missing nested properties.
    */
-  $: if (configuration) {
-    configuration = {
-      ...defaultConfiguration,
-      ...configuration,
-      CNC_FREZER: { ...defaultConfiguration.CNC_FREZER, ...(configuration.CNC_FREZER || {}) },
-      BENDER: { ...defaultConfiguration.BENDER, ...(configuration.BENDER || {}) },
-      FRONT: { ...defaultConfiguration.FRONT, ...(configuration.FRONT || {}) },
-      PAINTING: { 
-        ...defaultConfiguration.PAINTING, 
-        ...(configuration.PAINTING || {}),
-        faceColor: { ...defaultColor, ...(configuration.PAINTING?.faceColor || {}) },
-        sidesColor: { ...defaultColor, ...(configuration.PAINTING?.sidesColor || {}) },
-        backColor: { ...defaultColor, ...(configuration.PAINTING?.backColor || {}) },
-        frameColor: { ...defaultColor, ...(configuration.PAINTING?.frameColor || {}) }
-      },
-      ASSEMBLING: { ...defaultConfiguration.ASSEMBLING, ...(configuration.ASSEMBLING || {}) }
-    };
-  }
+  $effect(() => {
+    if (configuration) {
+      configuration = {
+        ...defaultConfiguration,
+        ...configuration,
+        CNC_FREZER: { ...defaultConfiguration.CNC_FREZER, ...(configuration.CNC_FREZER || {}) },
+        BENDER: { ...defaultConfiguration.BENDER, ...(configuration.BENDER || {}) },
+        FRONT: { ...defaultConfiguration.FRONT, ...(configuration.FRONT || {}) },
+        PAINTING: { 
+          ...defaultConfiguration.PAINTING, 
+          ...(configuration.PAINTING || {}),
+          faceColor: { ...defaultColor, ...(configuration.PAINTING?.faceColor || {}) },
+          sidesColor: { ...defaultColor, ...(configuration.PAINTING?.sidesColor || {}) },
+          backColor: { ...defaultColor, ...(configuration.PAINTING?.backColor || {}) },
+          frameColor: { ...defaultColor, ...(configuration.PAINTING?.frameColor || {}) }
+        },
+        ASSEMBLING: { ...defaultConfiguration.ASSEMBLING, ...(configuration.ASSEMBLING || {}) }
+      };
+    }
+  });
   
   // Pre-defined material categories for the MaterialSelect component.
   const faceMaterials = ['ACRYLIC_XT', 'ACRYLIC_GS', 'ACRYLIC_LED', 'ALU_SHEET', 'ALU_COMPOSITE', 'PVC_FOAM'];
@@ -381,8 +383,8 @@
     return value.substring(0, 8).toUpperCase();
   }
   
-  // A reactive variable to determine if the "FRONT" section should be expanded.
-  $: hasFront = configuration.FRONT.face || configuration.FRONT.back || configuration.FRONT.sides;
+  // A derived variable to determine if the "FRONT" section should be expanded.
+  let hasFront = $derived(configuration.FRONT.face || configuration.FRONT.back || configuration.FRONT.sides);
 </script>
 
 <div class="profile-form" class:readonly>

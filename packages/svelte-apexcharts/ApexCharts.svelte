@@ -139,14 +139,16 @@
     mounted = false;
   });
 
-  $: if (mounted && chart) {
-    void options;
-    void series;
-    void type;
-    void height;
-    void width;
-    updateChart();
-  }
+  $effect(() => {
+    if (mounted && chart) {
+      void options;
+      void series;
+      void type;
+      void height;
+      void width;
+      updateChart();
+    }
+  });
 </script>
 
 <div bind:this={container} data-apex-chart>
