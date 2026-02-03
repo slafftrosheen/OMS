@@ -1,7 +1,9 @@
 <script lang="ts">
   import dayjs from 'dayjs';
-  export let po = '';                 // PO id
-  export let onPick = (date:string)=>{}; // callback to parent
+  let { po = $bindable(''), onPick = (date:string)=>{} } = $props<{
+    po?: string;
+    onPick?: (date: string) => void;
+  }>(); // callback to parent
   let month = dayjs(); let open=true; let message='';
   function dates(){ const start=month.startOf('month'); return Array.from({length:month.daysInMonth()},(_,i)=>start.add(i,'day')); }
   function pick(d:string){ message = `Selected ${d}`; onPick(d); open=false; }

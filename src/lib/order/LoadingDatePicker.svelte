@@ -1,9 +1,15 @@
 <script lang="ts">
   import { upcoming, usage } from '$lib/loading/loading-store';
 
-  export let selected = '';
-  export let id: string | undefined = undefined;
-  export let ariaLabel = 'Loading date';
+  let {
+    selected = $bindable(''),
+    id = undefined as string | undefined,
+    ariaLabel = 'Loading date'
+  } = $props<{
+    selected?: string;
+    id?: string;
+    ariaLabel?: string;
+  }>();
 
   let options: { value: string; label: string; full: boolean }[] = [];
 

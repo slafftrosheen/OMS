@@ -12,8 +12,13 @@
   import { get } from 'svelte/store';
   import { t } from 'svelte-i18n';
 
-  export let open = false;
-  export let onClose: () => void = () => {};
+  let {
+    open = $bindable(false),
+    onClose = () => {}
+  } = $props<{
+    open?: boolean;
+    onClose?: () => void;
+  }>();
 
   type MaterialRow = {
     key: string;
