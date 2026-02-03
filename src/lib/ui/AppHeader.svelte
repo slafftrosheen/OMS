@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from '$app/paths';
-  import { createEventDispatcher, onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import SearchIcon from 'lucide-svelte/icons/search';
   import BellIcon from 'lucide-svelte/icons/bell';
   import HelpCircle from 'lucide-svelte/icons/help-circle';
@@ -15,30 +15,28 @@
   import TextScaleQuick from '$lib/ui/TextScaleQuick.svelte';
   import HelpOverlay from '$lib/ui/HelpOverlay.svelte';
 
-  const dispatch = createEventDispatcher<{ opensearch: void }>();
-  const openSearch = () => dispatch('opensearch');
+  let { onopensearch }: { onopensearch?: () => void } = $props();
+  const openSearch = () => onopensearch?.();
 
   onMount(() => {
     loadUsers();
   });
 
-  let showUserMenu = false;
-  let showHelp = false;
-  let notificationCount = 0;
+  let showUserMenu = $state(false);
+  let showHelp = $state(false);
+  let notificationCount = $state(0);
 
   const unsubscribeUnseen = unseenCount.subscribe((value) => (notificationCount = value));
   onDestroy(() => unsubscribeUnseen?.());
-
-  $: $currentUser, $users, $currentUserId;
 
   const logo = () => `${base}/logo.png`;
   const pickUser = (event: Event) => currentUserId.set((event.target as HTMLSelectElement).value);
 
   const toggleUserMenu = () => (showUserMenu = !showUserMenu);
 
-  $: notificationLabel = notificationCount
+  let notificationLabel = $derived(notificationCount
     ? `${$t('header.notifications.label')} (${$t('header.notifications.srCount', { count: notificationCount })})`
-    : $t('header.notifications.label');
+    : $t('header.notifications.label'));
 
   const roleLabel = (role: string) => {
     if (role === 'Admin') return $t('roles.admin');
@@ -46,13 +44,13 @@
     return role;
   };
 
-  $: navItems = [
+  let navItems = $derived([
     { path: '/orders', label: $t('nav.orders'), icon: 'orders' },
     { path: '/calendar', label: $t('nav.calendar'), icon: 'calendar' },
     { path: '/inventory', label: $t('nav.inventory'), icon: 'inventory' },
     { path: '/', label: $t('nav.dashboard'), icon: 'home' },
     { path: '/settings', label: $t('nav.settings'), icon: 'settings' }
-  ];
+  ]);
 </script>
 
 <header class="app-header">

@@ -1,16 +1,21 @@
 <!-- src/lib/orders/components/ProfileSelector.svelte -->
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { onMount } from 'svelte';
   import { ChevronDown } from 'lucide-svelte';
 
-  export let disabled: boolean = false;
-  export let selectedCode: string = '';
+  let {
+    disabled = false,
+    selectedCode = '',
+    onselected
+  }: {
+    disabled?: boolean;
+    selectedCode?: string;
+    onselected?: (profile: { code: string; name: string; description?: string }) => void;
+  } = $props();
 
-  const dispatch = createEventDispatcher();
-
-  let profiles: Array<{ code: string; name: string; description?: string }> = [];
-  let loading = false;
-  let isOpen = false;
+  let profiles: Array<{ code: string; name: string; description?: string }> = $state([]);
+  let loading = $state(false);
+  let isOpen = $state(false);
 
   onMount(async () => {
     await loadProfiles();
@@ -39,7 +44,7 @@
 
   function selectProfile(profile: any) {
     selectedCode = profile.code;
-    dispatch('selected', profile);
+    onselected?.(profile);
     isOpen = false;
   }
 
@@ -49,7 +54,7 @@
     }
   }
 
-  $: selectedProfile = profiles.find(p => p.code === selectedCode);
+  let selectedProfile = $derived(profiles.find(p => p.code === selectedCode));
 </script>
 
 <div class="profile-selector">

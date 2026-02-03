@@ -1,25 +1,30 @@
 <!-- src/lib/orders/components/FileUploader.svelte -->
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { Upload, X, File as FileIcon, Image as ImageIcon, CheckCircle, AlertCircle } from 'lucide-svelte';
 
-  export let disabled: boolean = false;
-  export let maxFileSize: number = 50 * 1024 * 1024; // 50MB
-  export let acceptedTypes: string[] = [
-    'application/coreldraw',
-    'application/vnd.corel-draw',
-    'application/x-vnd.corel.draw',
-    'application/pdf',
-    'image/jpeg',
-    'image/png',
-    'image/webp'
-  ];
+  let {
+    disabled = false,
+    maxFileSize = 50 * 1024 * 1024,
+    acceptedTypes = [
+      'application/coreldraw',
+      'application/vnd.corel-draw',
+      'application/x-vnd.corel.draw',
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/webp'
+    ],
+    onuploaded
+  }: {
+    disabled?: boolean;
+    maxFileSize?: number;
+    acceptedTypes?: string[];
+    onuploaded?: (data: Array<{ id: string; name: string; size: string; type: string; url: string }>) => void;
+  } = $props();
 
-  const dispatch = createEventDispatcher();
-
-  let isDragging = false;
-  let uploading = false;
-  let uploadProgress: Map<string, number> = new Map();
+  let isDragging = $state(false);
+  let uploading = $state(false);
+  let uploadProgress: Map<string, number> = $state(new Map());
   let uploadedFiles: Array<{
     id: string;
     name: string;
@@ -28,7 +33,7 @@
     url?: string;
     status: 'uploading' | 'success' | 'error';
     error?: string;
-  }> = [];
+  }> = $state([]);
 
   let fileInput: HTMLInputElement;
 
@@ -113,7 +118,7 @@
         if (xhr.status === 200) {
           const response = JSON.parse(xhr.responseText);
           updateFileStatus(fileId, 'success', response.url);
-          dispatch('uploaded', [{
+          onuploaded?.([{
             id: response.id,
             name: file.name,
             size: formatFileSize(file.size),

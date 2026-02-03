@@ -4,7 +4,6 @@
  * UI for generating exports with templates
  */
 
-import { createEventDispatcher } from 'svelte';
 import { 
   Download, 
   FileSpreadsheet, 
@@ -15,20 +14,26 @@ import {
   CheckCircle
 } from 'lucide-svelte';
 
-const dispatch = createEventDispatcher();
+let {
+  exportType = 'orders',
+  filters = {},
+  show = false,
+  onclose
+}: {
+  exportType?: 'orders' | 'stations' | 'loading_schedule';
+  filters?: Record<string, any>;
+  show?: boolean;
+  onclose?: () => void;
+} = $props();
 
-export let exportType: 'orders' | 'stations' | 'loading_schedule' = 'orders';
-export let filters = {};
-export let show = false;
-
-let format: 'excel' | 'pdf' | 'csv' = 'excel';
-let selectedColumns: string[] = [];
-let useTemplate = false;
-let selectedTemplate: any = null;
-let templates: any[] = [];
-let exporting = false;
-let exportResult: any = null;
-let error: string | null = null;
+let format: 'excel' | 'pdf' | 'csv' = $state('excel');
+let selectedColumns: string[] = $state([]);
+let useTemplate = $state(false);
+let selectedTemplate: any = $state(null);
+let templates: any[] = $state([]);
+let exporting = $state(false);
+let exportResult: any = $state(null);
+let error: string | null = $state(null);
 
 // Available columns based on export type
 const availableColumns: Record<string, string[]> = {
@@ -70,8 +75,10 @@ const formatLabels = {
   csv: 'CSV File'
 };
 
-$: columns = availableColumns[exportType] || [];
-$: if (selectedColumns.length === 0) selectedColumns = [...columns];
+let columns = $derived(availableColumns[exportType] || []);
+$effect(() => {
+  if (selectedColumns.length === 0) selectedColumns = [...columns];
+});
 
 async function loadTemplates() {
   try {
@@ -142,10 +149,12 @@ function handleClose() {
   show = false;
   exportResult = null;
   error = null;
-  dispatch('close');
+  onclose?.();
 }
 
-$: if (show) loadTemplates();
+$effect(() => {
+  if (show) loadTemplates();
+});
 </script>
 
 {#if show}

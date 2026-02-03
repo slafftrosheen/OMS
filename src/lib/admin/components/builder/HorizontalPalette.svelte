@@ -1,11 +1,10 @@
 <!-- src/lib/admin/components/builder/HorizontalPalette.svelte -->
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { GripVertical } from 'lucide-svelte';
 
-  const dispatch = createEventDispatcher();
+  let { oncomponentdrag }: { oncomponentdrag?: (component: any) => void } = $props();
 
-  let activeTab: 'sections' | 'fields' = 'sections';
+  let activeTab: 'sections' | 'fields' = $state('sections');
 
   const sectionTypes = [
     { type: 'section', label: 'CNC FREZER', icon: '⚙️', color: '#1a1a1a', desc: 'CNC milling operations' },
@@ -39,14 +38,14 @@
     if (!event.dataTransfer) return;
     event.dataTransfer.effectAllowed = 'copy';
     event.dataTransfer.setData('text/plain', JSON.stringify(component));
-    dispatch('componentdrag', component);
+    oncomponentdrag?.(component);
   }
 
-  $: groupedFields = fieldTypes.reduce((acc, field) => {
+  let groupedFields = $derived(fieldTypes.reduce((acc, field) => {
     if (!acc[field.category]) acc[field.category] = [];
     acc[field.category].push(field);
     return acc;
-  }, {} as Record<string, typeof fieldTypes>);
+  }, {} as Record<string, typeof fieldTypes>));
 </script>
 
 <div class="horizontal-palette">

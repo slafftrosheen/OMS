@@ -4,7 +4,7 @@
  * Complex query builder with saved filters
  */
 
-import { createEventDispatcher, onMount } from 'svelte';
+import { onMount } from 'svelte';
 import { slide } from 'svelte/transition';
 import { 
   Search, 
@@ -18,33 +18,38 @@ import {
   Clock
 } from 'lucide-svelte';
 
-const dispatch = createEventDispatcher();
+let {
+  initialQuery = '',
+  initialFilters = {},
+  onsearch
+}: {
+  initialQuery?: string;
+  initialFilters?: Record<string, any>;
+  onsearch?: (data: { results: any; pagination: any; query: string; filters: any }) => void;
+} = $props();
 
-export let initialQuery = '';
-export let initialFilters = {};
-
-let query = initialQuery;
-let filters = {
+let query = $state(initialQuery);
+let filters = $state({
   status: '',
   client: '',
   dateFrom: '',
   dateTo: '',
   assignee: '',
-  tags: [],
+  tags: [] as string[],
   ...initialFilters
-};
+});
 
-let showFilters = false;
-let showSaveDialog = false;
-let savedFilters: any[] = [];
-let recentSearches: any[] = [];
-let suggestions: any[] = [];
-let searching = false;
+let showFilters = $state(false);
+let showSaveDialog = $state(false);
+let savedFilters: any[] = $state([]);
+let recentSearches: any[] = $state([]);
+let suggestions: any[] = $state([]);
+let searching = $state(false);
 
-let filterName = '';
-let filterDescription = '';
-let saveAsPublic = false;
-let saveAsFavorite = false;
+let filterName = $state('');
+let filterDescription = $state('');
+let saveAsPublic = $state(false);
+let saveAsFavorite = $state(false);
 
 onMount(() => {
   loadSavedFilters();
@@ -110,7 +115,7 @@ async function handleSearch() {
 
     const result = await response.json();
     
-    dispatch('search', {
+    onsearch?.({
       results: result.data,
       pagination: result.pagination,
       query,
