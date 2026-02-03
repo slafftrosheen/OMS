@@ -167,14 +167,19 @@
     }
   };
   
-  /** The configuration object for the profile form. */
-  export let configuration: ProfileConfiguration = { ...defaultConfiguration };
-
-  /** If true, disables all inputs, making the form read-only. */
-  export let readonly: boolean = false;
-  
-  /** Callback for configuration changes. */
-  export let onchange: ((config: ProfileConfiguration) => void) | undefined = undefined;
+  /** Props for the profile form. */
+  let {
+    /** The configuration object for the profile form. */
+    configuration = $bindable({ ...defaultConfiguration }),
+    /** If true, disables all inputs, making the form read-only. */
+    readonly = false,
+    /** Callback for configuration changes. */
+    onchange
+  }: {
+    configuration?: ProfileConfiguration;
+    readonly?: boolean;
+    onchange?: (config: ProfileConfiguration) => void;
+  } = $props();
   
   /**
    * Effect to merge the incoming configuration with the default.
