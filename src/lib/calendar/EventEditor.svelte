@@ -5,9 +5,9 @@
   import { t } from 'svelte-i18n';
   
   let {
-    dateISO = $bindable<string>(''),
-    event = $bindable<CalEvent | null>(null),
-    presetKind = $bindable<'loading'|'meeting'|'note'>('loading'),
+    dateISO = '',
+    event = null as CalEvent | null,
+    presetKind = 'loading' as 'loading' | 'meeting' | 'note',
     onClose = () => {}
   } = $props<{
     dateISO?: string;

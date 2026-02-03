@@ -1,6 +1,6 @@
 <script lang="ts">
   import dayjs from 'dayjs';
-  let { po = $bindable(''), onPick = (date:string)=>{} } = $props<{
+  let { po = '', onPick = (date: string) => {} } = $props<{
     po?: string;
     onPick?: (date: string) => void;
   }>(); // callback to parent
