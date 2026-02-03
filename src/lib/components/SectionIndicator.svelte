@@ -4,9 +4,9 @@
   import { logAction } from '$lib/auth/audit-log';
   import type { Section } from '$lib/auth/types';
   
-  $: user = $currentUser;
-  $: activeSection = user?.primarySection;
-  $: sections = user?.sections ?? [];
+  let user = $derived($currentUser);
+  let activeSection = $derived(user?.primarySection);
+  let sections = $derived(user?.sections ?? []);
   
   function handleChange(event: Event) {
     const target = event.target as HTMLSelectElement;

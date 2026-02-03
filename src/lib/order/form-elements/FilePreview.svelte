@@ -2,11 +2,16 @@
   import { FileText } from 'lucide-svelte';
   import type { FileRef } from '../types';
 
-  export let file: FileRef | null = null;
-  export let previewUrl: string | null = null;
+  let {
+    file = null,
+    previewUrl = null
+  }: {
+    file?: FileRef | null;
+    previewUrl?: string | null;
+  } = $props();
 
-  $: isPdf = file?.kind === 'pdf' || file?.name.toLowerCase().endsWith('.pdf');
-  $: isCdr = file?.kind === 'cdr' || file?.name.toLowerCase().endsWith('.cdr');
+  let isPdf = $derived(file?.kind === 'pdf' || file?.name.toLowerCase().endsWith('.pdf'));
+  let isCdr = $derived(file?.kind === 'cdr' || file?.name.toLowerCase().endsWith('.cdr'));
 </script>
 
 {#if file}

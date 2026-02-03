@@ -3,8 +3,7 @@
   import { ui } from '$lib/state/ui';
   import { t } from 'svelte-i18n';
 
-  let fontScale = 1.0;
-  ui.subscribe(p => fontScale = p.fontScale);
+  let fontScale = $derived(($ui).fontScale);
 
   function decrease() {
     const newScale = Math.max(0.85, fontScale - 0.05);
@@ -20,7 +19,7 @@
     ui.update(p => ({ ...p, fontScale: 1.0 }));
   }
 
-  $: percentage = Math.round(fontScale * 100);
+  let percentage = $derived(Math.round(fontScale * 100));
 </script>
 
 <div class="text-size-group">

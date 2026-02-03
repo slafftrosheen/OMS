@@ -3,17 +3,23 @@
     import { onMount, onDestroy } from 'svelte';
     import Chart from 'chart.js/auto';
 
-    export let data: {
-        labels: string[];
-        datasets: Array<{
-            label: string;
-            data: number[];
-            borderColor?: string;
-            backgroundColor?: string;
-        }>;
-    };
-    export let title: string | null = null;
-    export let height = 300;
+    let { 
+        data, 
+        title = null, 
+        height = 300 
+    }: {
+        data: {
+            labels: string[];
+            datasets: Array<{
+                label: string;
+                data: number[];
+                borderColor?: string;
+                backgroundColor?: string;
+            }>;
+        };
+        title?: string | null;
+        height?: number;
+    } = $props();
 
     let canvasElement: HTMLCanvasElement;
     let chart: Chart | null = null;
@@ -61,10 +67,12 @@
         }
     });
 
-    $: if (chart) {
-        chart.data = data;
-        chart.update();
-    }
+    $effect(() => {
+        if (chart) {
+            chart.data = data;
+            chart.update();
+        }
+    });
 </script>
 
 <div class="chart-container" style="height: {height}px">

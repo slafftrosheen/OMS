@@ -1,15 +1,18 @@
 <!-- src/lib/compare/ChangeRequestCard.svelte -->
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import type { ChangeRequest } from '$lib/stores/changeRequests';
     
-    export let request: ChangeRequest;
-    export let canReview = false;
-
-    const dispatch = createEventDispatcher<{
-        approve: string;
-        reject: string;
-    }>();
+    let {
+        request,
+        canReview = false,
+        onapprove,
+        onreject
+    }: {
+        request: ChangeRequest;
+        canReview?: boolean;
+        onapprove?: (id: string) => void;
+        onreject?: (id: string) => void;
+    } = $props();
 
     function formatValue(value: any): string {
         if (typeof value === 'object') {
@@ -58,14 +61,14 @@
         <footer class="actions">
             <button
                 class="btn-approve"
-                on:click={() => dispatch('approve', request.id)}
+                onclick={() => onapprove?.(request.id)}
                 aria-label="Approve change request"
             >
                 Approve
             </button>
             <button
                 class="btn-reject"
-                on:click={() => dispatch('reject', request.id)}
+                onclick={() => onreject?.(request.id)}
                 aria-label="Reject change request"
             >
                 Reject

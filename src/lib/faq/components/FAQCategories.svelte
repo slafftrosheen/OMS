@@ -1,13 +1,18 @@
 <script lang="ts">
   import type { FAQCategory } from '../types';
   import * as Icons from 'lucide-svelte';
-  import { createEventDispatcher } from 'svelte';
 
-  export let categories: FAQCategory[] = [];
-  export let selectedId: number | null = null;
-  export let lang: 'en' | 'ru' | 'lv' = 'en';
-
-  const dispatch = createEventDispatcher<{ select: number | null }>();
+  let {
+    categories = [],
+    selectedId = null,
+    lang = 'en',
+    onselect
+  }: {
+    categories?: FAQCategory[];
+    selectedId?: number | null;
+    lang?: 'en' | 'ru' | 'lv';
+    onselect?: (id: number | null) => void;
+  } = $props();
 
   const getName = (cat: FAQCategory) => {
     if (lang === 'ru' && cat.nameRu) return cat.nameRu;
@@ -38,7 +43,7 @@
   };
 
   const selectCategory = (id: number | null) => {
-    dispatch('select', id);
+    onselect?.(id);
   };
 </script>
 

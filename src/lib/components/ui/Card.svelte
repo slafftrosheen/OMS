@@ -1,39 +1,60 @@
 <!-- src/lib/components/ui/Card.svelte -->
 <script lang="ts">
-    export let padding: 'none' | 'sm' | 'md' | 'lg' = 'md';
-    export let hoverable = false;
-    export let clickable = false;
-    export let href: string | null = null;
+    import type { Snippet } from 'svelte';
 
-    $: component = href ? 'a' : 'div';
-    $: classes = [
+    let { 
+        padding = 'md',
+        hoverable = false, 
+        clickable = false, 
+        href = null,
+        onclick,
+        header,
+        children,
+        footer,
+        ...restProps
+    }: { 
+        padding?: 'none' | 'sm' | 'md' | 'lg';
+        hoverable?: boolean;
+        clickable?: boolean;
+        href?: string | null;
+        onclick?: (e: MouseEvent) => void;
+        header?: Snippet;
+        children?: Snippet;
+        footer?: Snippet;
+        [key: string]: any;
+    } = $props();
+
+    let component = $derived(href ? 'a' : 'div');
+    let classes = $derived([
         'card',
         `card-padding-${padding}`,
         hoverable && 'card-hoverable',
         clickable && 'card-clickable'
-    ].filter(Boolean).join(' ');
+    ].filter(Boolean).join(' '));
 </script>
 
 <svelte:element
     this={component}
     {href}
     class={classes}
-    on:click
-    {...$$restProps}
+    {onclick}
+    {...restProps}
 >
-    {#if $$slots.header}
+    {#if header}
         <div class="card-header">
-            <slot name="header" />
+            {@render header()}
         </div>
     {/if}
 
     <div class="card-body">
-        <slot />
+        {#if children}
+            {@render children()}
+        {/if}
     </div>
 
-    {#if $$slots.footer}
+    {#if footer}
         <div class="card-footer">
-            <slot name="footer" />
+            {@render footer()}
         </div>
     {/if}
 </svelte:element>

@@ -8,7 +8,7 @@
   import { createId } from '$lib/utils/id';
   import { currentUser } from '$lib/auth/user-store';
 
-  export let data;
+  let { data } = $props();
 
   let loading = true;
   let saving = false;
@@ -53,10 +53,10 @@
   let profiles: ProfileItem[] = [];
 
   // Check permissions
-  $: isAdmin = $currentUser?.roles?.Admin === 'SuperAdmin' || $currentUser?.primarySection === 'Admin';
-  $: canEdit = isAdmin;
-  $: canApprove = isAdmin && status === 'draft';
-  $: canReject = isAdmin && status === 'draft';
+  let isAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin' || $currentUser?.primarySection === 'Admin');
+  let canEdit = $derived(isAdmin);
+  let canApprove = $derived(isAdmin && status === 'draft');
+  let canReject = $derived(isAdmin && status === 'draft');
 
   onMount(async () => {
     await loadOrder();

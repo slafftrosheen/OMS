@@ -1,36 +1,54 @@
 <!-- src/lib/admin/components/builder/CanvasSection.svelte -->
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { GripVertical, Plus, Copy, Trash2, MoreVertical } from 'lucide-svelte';
   import CanvasField from './CanvasField.svelte';
 
-  export let section: any;
-  export let selected: boolean = false;
-  export let dropTarget: boolean = false;
-  export let selectedFieldId: number | null = null;
+  let {
+    section,
+    selected = false,
+    dropTarget = false,
+    selectedFieldId = null,
+    onselect,
+    ondrop,
+    ondelete,
+    onduplicate,
+    onselectField,
+    ondeleteField,
+    onduplicateField
+  }: {
+    section: any;
+    selected?: boolean;
+    dropTarget?: boolean;
+    selectedFieldId?: number | null;
+    onselect?: () => void;
+    ondrop?: (data: { event: DragEvent }) => void;
+    ondelete?: () => void;
+    onduplicate?: () => void;
+    onselectField?: (data: { field: any }) => void;
+    ondeleteField?: (data: { fieldId: number }) => void;
+    onduplicateField?: (data: { field: any }) => void;
+  } = $props();
 
-  const dispatch = createEventDispatcher();
-
-  let showActions = false;
+  let showActions = $state(false);
 
   function handleSectionClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
     if (target === event.currentTarget || target.closest('.section-header')) {
-      dispatch('select');
+      onselect?.();
     }
   }
 
   function handleDrop(event: DragEvent) {
     event.preventDefault();
-    dispatch('drop', { event });
+    ondrop?.({ event });
   }
 
   function handleDragOver(event: DragEvent) {
     event.preventDefault();
   }
 
-  $: sectionDisplayName = section.displayName?.en || section.display_name_en || section.name;
-  $: headerColor = section.metadata?.color || section.icon ? '#1a1a1a' : '#1a1a1a';
+  let sectionDisplayName = $derived(section.displayName?.en || section.display_name_en || section.name);
+  let headerColor = $derived(section.metadata?.color || section.icon ? '#1a1a1a' : '#1a1a1a');
 </script>
 
 <div 
@@ -61,12 +79,12 @@
       </button>
 
       {#if showActions}
-        <div class="actions-dropdown" on:click|stopPropagation>
-          <button on:click={() => { dispatch('delete'); showActions = false; }}>
+        <div class="actions-dropdown" onclick={(e: MouseEvent) => e.stopPropagation()}>
+          <button onclick={() => { ondelete?.(); showActions = false; }}>
             <Trash2 size={14} />
             Delete
           </button>
-          <button on:click={() => { dispatch('duplicate'); showActions = false; }}>
+          <button onclick={() => { onduplicate?.(); showActions = false; }}>
             <Copy size={14} />
             Duplicate
           </button>
@@ -88,9 +106,9 @@
           <CanvasField
             {field}
             selected={selectedFieldId === field.id}
-            on:select={() => dispatch('selectField', { field })}
-            on:delete={() => dispatch('deleteField', { fieldId: field.id })}
-            on:duplicate={() => dispatch('duplicateField', { field })}
+            onselect={() => onselectField?.({ field })}
+            ondelete={() => ondeleteField?.({ fieldId: field.id })}
+            onduplicate={() => onduplicateField?.({ field })}
           />
         {/each}
       </div>

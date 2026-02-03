@@ -54,15 +54,15 @@
   const allRoles = ['SuperAdmin', 'StationLead', 'Operator', 'Viewer'];
   const allStations = ['CNC', 'SANDING', 'PAINTING', 'ASSEMBLY', 'WELDING', 'LOGISTICS', 'QUALITY'];
 
-  $: filteredUsers = users.filter(u => {
+  let filteredUsers = $derived(users.filter(u => {
     const matchesSearch = searchQuery === '' ||
       u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.displayName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesActive = showInactive || u.isActive;
     return matchesSearch && matchesActive;
-  });
+  }));
 
-  $: canManageUsers = $currentUser?.roles?.Admin === 'SuperAdmin';
+  let canManageUsers = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
 
   onMount(async () => {
     await loadUsers();

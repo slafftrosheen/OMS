@@ -3,11 +3,13 @@
   import { t } from 'svelte-i18n';
   import PdfAnnotationsLayer from './PdfAnnotationsLayer.svelte';
 
-  export let src = '';
-  export let maxScale = 3.0; // Allow higher zoom
-  export let defaultScale = 1.0;
-  export let po = ''; // For annotations
-  export let revision = 'current'; // For annotations
+  let { 
+    src = '', 
+    maxScale = 3.0, 
+    defaultScale = 1.0, 
+    po = '', 
+    revision = 'current' 
+  } = $props();
   
   let canvasEl;
   let pageNum = 1;
@@ -173,10 +175,12 @@
     };
   });
 
-  $: if (mounted && src && src !== lastSrc) {
-    lastSrc = src;
-    render(true).then(() => fitToWidth());
-  }
+  $effect(() => {
+    if (mounted && src && src !== lastSrc) {
+      lastSrc = src;
+      render(true).then(() => fitToWidth());
+    }
+  });
 </script>
 <div class="pdf-host" class:overlay={full} bind:this={hostEl}>
   <div class="pdf-controls" bind:this={container}>

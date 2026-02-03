@@ -1,10 +1,21 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   
-  export let value: string = '';
-  export let materialType: string = 'PVC';
-  export let placeholder: string = 'Select thickness';
-  export let disabled: boolean = false;
+  let {
+    value = $bindable(''),
+    materialType = 'PVC',
+    placeholder = 'Select thickness',
+    disabled = false,
+    readonly = false,
+    onchange
+  }: {
+    value?: string;
+    materialType?: string;
+    placeholder?: string;
+    disabled?: boolean;
+    readonly?: boolean;
+    onchange?: () => void;
+  } = $props();
 
   interface ThicknessOption {
     id: number;
@@ -14,8 +25,8 @@
     display_name: string;
   }
 
-  let options: ThicknessOption[] = [];
-  let loading = true;
+  let options: ThicknessOption[] = $state([]);
+  let loading = $state(true);
 
   onMount(async () => {
     await loadOptions();
@@ -35,12 +46,18 @@
     }
   }
 
-  $: if (materialType) {
-    loadOptions();
+  $effect(() => {
+    if (materialType) {
+      loadOptions();
+    }
+  });
+  
+  function handleChange() {
+    onchange?.();
   }
 </script>
 
-<select bind:value {disabled} class="thickness-select" class:loading>
+<select bind:value disabled={disabled || readonly} class="thickness-select" class:loading onchange={handleChange}>
   <option value="" disabled selected>{loading ? 'Loading...' : placeholder}</option>
   {#each options as option}
     <option value="{option.thickness}{option.unit}">

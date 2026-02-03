@@ -30,13 +30,13 @@
         return { label: 'Low', color: '#10b981' };
     }
 
-    $: priority = getPriorityLabel(order.priority);
+    let priority = $derived(getPriorityLabel(order.priority));
     // Adapting fields to match src/lib/stores/orders.ts
-    $: progress = order.progress_percentage || 0;
-    $: customer = order.client;
-    $: code = order.po_number;
+    let progress = $derived(order.progress_percentage || 0);
+    let customer = $derived(order.client);
+    let code = $derived(order.po_number);
     // Fallback for assignee since it's not in Order interface
-    $: assigneeName = (order as any).assigned_to_name || (order as any).assigned_to || (order.assignee_count ? `${order.assignee_count} Assignees` : null);
+    let assigneeName = $derived((order as any).assigned_to_name || (order as any).assigned_to || (order.assignee_count ? `${order.assignee_count} Assignees` : null));
 </script>
 
 <a href="/orders/{order.id}" class="mobile-order-card">

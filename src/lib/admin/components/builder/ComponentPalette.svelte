@@ -1,9 +1,8 @@
 <!-- src/lib/admin/components/builder/ComponentPalette.svelte -->
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { GripVertical } from 'lucide-svelte';
 
-  const dispatch = createEventDispatcher();
+  let { ondragstart }: { ondragstart?: (data: { event: DragEvent; component: any }) => void } = $props();
 
   const sectionTypes = [
     { type: 'section', label: 'CNC FREZER', icon: '⚙️', color: '#1a1a1a' },
@@ -32,7 +31,7 @@
   ];
 
   function startDrag(event: DragEvent, component: any) {
-    dispatch('dragstart', { event, component });
+    ondragstart?.({ event, component });
   }
 </script>
 

@@ -1,15 +1,18 @@
 <!-- src/lib/components/search/GlobalSearch.svelte -->
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import { onMount } from 'svelte';
     import Input from '$lib/components/ui/Input.svelte';
     import Badge from '$lib/components/ui/Badge.svelte';
 
-    export let open = false;
+    let { 
+        open = $bindable(false),
+        onclose
+    }: {
+        open?: boolean;
+        onclose?: () => void;
+    } = $props();
 
-    const dispatch = createEventDispatcher();
-
-    let searchQuery = '';
+    let searchQuery = $state('');
     let results: Array<{
         id: string;
         type: 'order' | 'file' | 'message' | 'material';
@@ -18,11 +21,11 @@
         url: string;
         highlight?: string;
         relevance: number;
-    }> = [];
-    let suggestions: string[] = [];
-    let loading = false;
+    }> = $state([]);
+    let suggestions: string[] = $state([]);
+    let loading = $state(false);
     let searchTimeout: number;
-    let selectedIndex = -1;
+    let selectedIndex = $state(-1);
     let searchInput: HTMLInputElement;
 
     async function search() {
@@ -124,7 +127,7 @@
         results = [];
         suggestions = [];
         selectedIndex = -1;
-        dispatch('close');
+        onclose?.();
     }
 
     onMount(() => {

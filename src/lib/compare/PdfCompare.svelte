@@ -32,12 +32,14 @@
   function jump(p:number){ page=p; L?.render(page); R?.render(page); }
 
   let prevLeft=''; let prevRight='';
-  $: if (left?.url && right?.url){
-    if (left.url!==prevLeft || right.url!==prevRight){
-      prevLeft = left.url; prevRight = right.url;
-      setup();
+  $effect(() => {
+    if (left?.url && right?.url){
+      if (left.url!==prevLeft || right.url!==prevRight){
+        prevLeft = left.url; prevRight = right.url;
+        setup();
+      }
     }
-  }
+  });
 
   onMount(()=>{
     const roL = new ResizeObserver(()=>ready && L?.render(page));

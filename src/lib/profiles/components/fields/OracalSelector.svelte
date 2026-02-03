@@ -3,17 +3,28 @@
   import { onMount } from 'svelte';
   import { Search } from 'lucide-svelte';
 
-  export let value: string = ''; // Selected color code
-  export let label: string = 'ORACAL Film';
-  export let series: string = '8500'; // Series number
-  export let required: boolean = false;
-  export let disabled: boolean = false;
-  export let showColorPreview: boolean = true;
+  interface Props {
+    value?: string; // Selected color code
+    label?: string;
+    series?: string; // Series number
+    required?: boolean;
+    disabled?: boolean;
+    showColorPreview?: boolean;
+  }
 
-  let searchQuery = '';
-  let oracalColors: any[] = [];
-  let filteredColors: any[] = [];
-  let selectedColor: any = null;
+  let {
+    value = $bindable(''),
+    label = 'ORACAL Film',
+    series = '8500',
+    required = false,
+    disabled = false,
+    showColorPreview = true
+  }: Props = $props();
+
+  let searchQuery = $state('');
+  let oracalColors: any[] = $state([]);
+  let filteredColors: any[] = $state([]);
+  let selectedColor: any = $state(null);
 
   // ORACAL 8500 colors from PDF
   const oracal8500Colors = [
@@ -79,13 +90,15 @@
     value = color.code;
   }
 
-  $: if (searchQuery !== undefined) {
-    filterColors();
-  }
+  $effect(() => {
+    if (searchQuery !== undefined) {
+      filterColors();
+    }
+  });
 
   // Group colors: popular first, then others
-  $: popularColors = filteredColors.filter(c => c.popular);
-  $: otherColors = filteredColors.filter(c => !c.popular);
+  let popularColors = $derived(filteredColors.filter(c => c.popular));
+  let otherColors = $derived(filteredColors.filter(c => !c.popular));
 </script>
 
 <div class="oracal-selector">

@@ -14,15 +14,21 @@
     type StationTag
   } from './stages';
 
-  export let value: StageMap = {} as StageMap;
-  export let onApplyAdmin: (station: StationTag, state: StageState, note?: string) => void = () => {};
-  export let onPropose: (station: StationTag, state: StageState, note?: string) => void = () => {};
+  let {
+    value = {} as StageMap,
+    onApplyAdmin = () => {},
+    onPropose = () => {}
+  }: {
+    value?: StageMap;
+    onApplyAdmin?: (station: StationTag, state: StageState, note?: string) => void;
+    onPropose?: (station: StationTag, state: StageState, note?: string) => void;
+  } = $props();
 
   const DEFAULT_STATE: StageState = 'NOT_STARTED';
 
-  let selected: Record<StationTag, StageState> = {} as Record<StationTag, StageState>;
-  let notes: Record<StationTag, string> = {} as Record<StationTag, string>;
-  let lastValue: StageMap = {} as StageMap;
+  let selected: Record<StationTag, StageState> = $state({} as Record<StationTag, StageState>);
+  let notes: Record<StationTag, string> = $state({} as Record<StationTag, string>);
+  let lastValue: StageMap = $state({} as StageMap);
 
   function init() {
     for (const station of STATIONS) {
@@ -35,11 +41,13 @@
 
   onMount(init);
 
-  $: if (lastValue !== value) {
-    init();
-  }
+  $effect(() => {
+    if (lastValue !== value) {
+      init();
+    }
+  });
 
-  $: isAdmin = $role === 'Admin';
+  let isAdmin = $derived($role === 'Admin');
 
   function optionsFor(station: StationTag): StageState[] {
     const current = value?.[station] ?? DEFAULT_STATE;

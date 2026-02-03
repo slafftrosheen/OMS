@@ -1,16 +1,7 @@
 <script lang="ts">
-  import { onMount, createEventDispatcher } from 'svelte';
+  import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { ChevronDown } from 'lucide-svelte';
-
-  export let value: string = '';
-  export let category: string = ''; // Filter by category
-  export let categories: string[] = []; // Multiple categories
-  export let placeholder: string = 'Select...';
-  export let readonly: boolean = false;
-  export let showColor: boolean = true;
-  export let allowCustom: boolean = false; // Allow custom text input
-  export let showValueInTrigger: boolean = false; // If true, show selected value in trigger (old behavior)
 
   interface Material {
     id: number;
@@ -27,7 +18,27 @@
     };
   }
 
-  const dispatch = createEventDispatcher();
+  let {
+    value = $bindable(''),
+    category = '',
+    categories = [] as string[],
+    placeholder = 'Select...',
+    readonly = false,
+    showColor = true,
+    allowCustom = false,
+    showValueInTrigger = false,
+    onchange
+  }: {
+    value?: string;
+    category?: string;
+    categories?: string[];
+    placeholder?: string;
+    readonly?: boolean;
+    showColor?: boolean;
+    allowCustom?: boolean;
+    showValueInTrigger?: boolean;
+    onchange?: (data: { value: string; material: Material | null; hex: string; shortName?: string }) => void;
+  } = $props();
 
   let materials: Material[] = [];
   let filteredMaterials: Material[] = [];
@@ -39,12 +50,12 @@
   let customMode = false; // For custom text input mode
 
   // Get hex color from selected material
-  $: hexColor = selectedMaterial?.metadata?.hex || '';
+  let hexColor = $derived(selectedMaterial?.metadata?.hex || '');
   
   // Get short name for display - priority: metadata.short_name > colorCode > code > name
-  $: shortName = selectedMaterial?.metadata?.short_name || 
+  let shortName = $derived(selectedMaterial?.metadata?.short_name || 
                  selectedMaterial?.metadata?.colorCode ||
-                 getShortName(selectedMaterial?.code || value, selectedMaterial?.category);
+                 getShortName(selectedMaterial?.code || value, selectedMaterial?.category));
 
   // Load materials on mount
   onMount(async () => {
@@ -53,9 +64,9 @@
     if (value) {
       selectedMaterial = materials.find(m => m.code === value || m.name_en === value) || null;
       
-      // If found, dispatch initial material data so parent can get metadata/thickness options
+      // If found, call onchange so parent can get metadata/thickness options
       if (selectedMaterial) {
-        dispatch('change', { 
+        onchange?.({ 
           value, 
           material: selectedMaterial,
           hex: selectedMaterial.metadata?.hex || '',
@@ -247,7 +258,7 @@
                   material.metadata?.colorCode ||
                   getShortName(material.code, material.category) ||
                   getShortName(value, material.category);
-    dispatch('change', { 
+    onchange?.({ 
       value, 
       material,
       hex: material.metadata?.hex || '',
@@ -259,7 +270,7 @@
     selectedMaterial = null;
     value = '';
     customMode = false;
-    dispatch('change', { value: '', material: null, hex: '' });
+    onchange?.({ value: '', material: null, hex: '' });
   }
 
   function toggleDropdown() {
@@ -289,8 +300,8 @@
   function handleCustomInput(e: Event) {
     const target = e.target as HTMLInputElement;
     value = target.value;
-    // For custom values, dispatch with custom hex if set
-    dispatch('change', { 
+    // For custom values, call onchange with custom hex if set
+    onchange?.({ 
       value, 
       material: null, 
       hex: customHex,
@@ -301,8 +312,8 @@
   function handleCustomColorChange(e: Event) {
     const target = e.target as HTMLInputElement;
     customHex = target.value;
-    // Re-dispatch with updated color
-    dispatch('change', { 
+    // Re-call onchange with updated color
+    onchange?.({ 
       value, 
       material: null, 
       hex: customHex,
@@ -317,14 +328,14 @@
   }
 
   // Group materials by category for display
-  $: groupedMaterials = filteredMaterials.reduce((acc, m) => {
+  let groupedMaterials = $derived(filteredMaterials.reduce((acc, m) => {
     const cat = m.category;
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(m);
     return acc;
-  }, {} as Record<string, Material[]>);
+  }, {} as Record<string, Material[]>));
 
-  $: categoryOrder = Object.keys(groupedMaterials).sort();
+  let categoryOrder = $derived(Object.keys(groupedMaterials).sort());
 </script>
 
 <svelte:window on:click={handleClickOutside} />

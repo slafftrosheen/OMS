@@ -1,18 +1,28 @@
 <!-- src/lib/components/files/FileUpload.svelte -->
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import Button from '$lib/components/ui/Button.svelte';
 
-    export let orderId: string;
-    export let accept = '*/*';
-    export let maxSize = 50 * 1024 * 1024; // 50MB
-    export let multiple = true;
+    let { 
+        orderId, 
+        accept = '*/*', 
+        maxSize = 50 * 1024 * 1024, 
+        multiple = true,
+        onerror,
+        oncomplete,
+        onuploaded
+    }: {
+        orderId: string;
+        accept?: string;
+        maxSize?: number;
+        multiple?: boolean;
+        onerror?: (data: { message: string }) => void;
+        oncomplete?: (data: { count: number }) => void;
+        onuploaded?: (file: any) => void;
+    } = $props();
 
-    const dispatch = createEventDispatcher();
-
-    let isDragging = false;
-    let uploading = false;
-    let uploadProgress = 0;
+    let isDragging = $state(false);
+    let uploading = $state(false);
+    let uploadProgress = $state(0);
     let fileInputElement: HTMLInputElement;
 
     const ALLOWED_TYPES = [
@@ -59,14 +69,14 @@
         // Validate files
         const validFiles = files.filter(file => {
             if (file.size > maxSize) {
-                dispatch('error', {
+                onerror?.({
                     message: `${file.name} is too large. Maximum size is ${formatBytes(maxSize)}`
                 });
                 return false;
             }
 
             if (!ALLOWED_TYPES.includes(file.type)) {
-                dispatch('error', {
+                onerror?.({
                     message: `${file.name} has an unsupported file type`
                 });
                 return false;
@@ -87,9 +97,9 @@
                 uploadProgress = ((i + 1) / validFiles.length) * 100;
             }
 
-            dispatch('complete', { count: validFiles.length });
+            oncomplete?.({ count: validFiles.length });
         } catch (error) {
-            dispatch('error', { message: 'Upload failed. Please try again.' });
+            onerror?.({ message: 'Upload failed. Please try again.' });
         } finally {
             uploading = false;
             uploadProgress = 0;
@@ -115,7 +125,7 @@
         }
 
         const data = await response.json();
-        dispatch('uploaded', data.file);
+        onuploaded?.(data.file);
     }
 
     function formatBytes(bytes: number): string {
@@ -178,7 +188,7 @@
     <div class="upload-actions">
         <Button
             variant="primary"
-            on:click={triggerFileInput}
+            onclick={triggerFileInput}
             disabled={uploading}
             loading={uploading}
         >

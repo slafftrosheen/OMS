@@ -22,21 +22,21 @@
   import type { StationTag } from '$lib/order/stages';
   import StationBadge from '$lib/ui/StationBadge.svelte';
 
-  let activeRoomId = 'general';
-  let messageText = '';
-  let scroller: HTMLDivElement | null = null;
-  let showRoomModal = false;
-  let newRoomName = '';
-  let searchQuery = '';
+  let activeRoomId = $state('general');
+  let messageText = $state('');
+  let scroller: HTMLDivElement | null = $state(null);
+  let showRoomModal = $state(false);
+  let newRoomName = $state('');
+  let searchQuery = $state('');
   
   // View state: 'list' | 'room'
-  let view: 'list' | 'room' = 'room';
+  let view: 'list' | 'room' = $state('room');
 
-  $: activeRoom = $rooms.find(r => r.id === activeRoomId) || $rooms[0];
-  $: roomMessages = $messages.filter(m => m.roomId === activeRoomId);
-  $: filteredRooms = searchQuery 
+  let activeRoom = $derived($rooms.find(r => r.id === activeRoomId) || $rooms[0]);
+  let roomMessages = $derived($messages.filter(m => m.roomId === activeRoomId));
+  let filteredRooms = $derived(searchQuery 
     ? $rooms.filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : $rooms;
+    : $rooms);
 
   function scrollToBottom() {
     if (scroller) {
@@ -119,9 +119,11 @@
   });
   
   // Scroll whenever messages change or sidebar opens
-  $: if ($isChatOpen && activeRoomId && $messages) {
-    scrollToBottom();
-  }
+  $effect(() => {
+    if ($isChatOpen && activeRoomId && $messages) {
+      scrollToBottom();
+    }
+  });
 </script>
 
 {#if $isChatOpen}

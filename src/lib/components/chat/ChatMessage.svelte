@@ -1,9 +1,8 @@
 <!-- src/lib/components/chat/ChatMessage.svelte -->
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import { currentProfile } from '$lib/stores/auth';
 
-    export let message: {
+    interface MessageType {
         id: string;
         userId: string;
         username: string;
@@ -12,10 +11,21 @@
         edited?: boolean;
         replyTo?: string;
         attachments?: string[];
-    };
-    export let isOwn = false;
+    }
 
-    const dispatch = createEventDispatcher();
+    let {
+        message,
+        isOwn = false,
+        onreply,
+        ondelete,
+        onedit
+    }: {
+        message: MessageType;
+        isOwn?: boolean;
+        onreply?: (msg: MessageType) => void;
+        ondelete?: (id: string) => void;
+        onedit?: (data: { id: string; message: string }) => void;
+    } = $props();
 
     let showActions = false;
     let isEditing = false;
@@ -46,7 +56,7 @@
     }
 
     function handleReply() {
-        dispatch('reply', message);
+        onreply?.(message);
     }
 
     function handleEdit() {
@@ -54,12 +64,12 @@
     }
 
     function handleDelete() {
-        dispatch('delete', message.id);
+        ondelete?.(message.id);
     }
 
     function saveEdit() {
         if (editedText.trim() && editedText !== message.message) {
-            dispatch('edit', { id: message.id, message: editedText });
+            onedit?.({ id: message.id, message: editedText });
         }
         isEditing = false;
     }

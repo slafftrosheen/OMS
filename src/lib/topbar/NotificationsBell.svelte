@@ -4,11 +4,10 @@
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   
-  let open = false;
-  let btn: HTMLButtonElement;
-  let noticesList: any[] = [];
-  let dbNotifications: any[] = [];
-  const unsubscribe = notices.subscribe(v => noticesList = v);
+  let open = $state(false);
+  let btn: HTMLButtonElement | undefined = $state();
+  let dbNotifications: any[] = $state([]);
+  let noticesList = $derived($notices);
   
   function onKey(e: KeyboardEvent) { 
     if (e.key === 'Escape') { 
@@ -48,16 +47,16 @@
     return () => clearInterval(interval);
   });
   
-  $: allNotifications = [
+  let allNotifications = $derived([
     ...noticesList, 
     ...(Array.isArray(dbNotifications) ? dbNotifications : []).map(n => ({
       text: n.title,
       kind: n.type,
       time: n.createdAt
     }))
-  ];
+  ]);
   
-  $: count = allNotifications.length;
+  let count = $derived(allNotifications.length);
 </script>
 
 <div class="menu">

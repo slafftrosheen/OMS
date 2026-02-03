@@ -4,28 +4,35 @@
  * Drag-and-drop photo uploader with preview and metadata entry
  */
 
-import { createEventDispatcher } from 'svelte';
 import { Upload, X, Image as ImageIcon, FileText, Loader2 } from 'lucide-svelte';
 
-export let orderId: string;
-export let station: string;
-export let stationLogId: string | null = null;
-export let maxFiles = 5;
-export let accept = 'image/jpeg,image/png,image/webp,application/pdf';
+let {
+  orderId,
+  station,
+  stationLogId = null,
+  maxFiles = 5,
+  accept = 'image/jpeg,image/png,image/webp,application/pdf',
+  onuploaded
+}: {
+  orderId: string;
+  station: string;
+  stationLogId?: string | null;
+  maxFiles?: number;
+  accept?: string;
+  onuploaded?: (data: { attachments: any[] }) => void;
+} = $props();
 
-const dispatch = createEventDispatcher();
-
-let files: File[] = [];
-let previews: string[] = [];
-let uploading = false;
-let uploadProgress = 0;
-let dragOver = false;
+let files: File[] = $state([]);
+let previews: string[] = $state([]);
+let uploading = $state(false);
+let uploadProgress = $state(0);
+let dragOver = $state(false);
 
 // Form fields
-let attachmentType = 'photo';
-let caption = '';
-let notes = '';
-let tags = '';
+let attachmentType = $state('photo');
+let caption = $state('');
+let notes = $state('');
+let tags = $state('');
 
 const typeOptions = [
   { value: 'photo', label: 'General Photo' },
@@ -127,7 +134,7 @@ async function handleUpload() {
       uploadProgress = Math.round(((i + 1) / files.length) * 100);
     }
 
-    dispatch('uploaded', { attachments: uploadedAttachments });
+    onuploaded?.({ attachments: uploadedAttachments });
     
     // Reset form
     files = [];

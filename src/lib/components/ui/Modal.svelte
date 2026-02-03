@@ -1,36 +1,47 @@
 <!-- src/lib/components/ui/Modal.svelte -->
 <script lang="ts">
-    import { createEventDispatcher, onMount } from 'svelte';
+    import { onMount } from 'svelte';
     import { fade, fly } from 'svelte/transition';
 
-    export let open = false;
-    export let title: string | null = null;
-    export let size: 'sm' | 'md' | 'lg' | 'xl' = 'md';
-    export let closeOnClickOutside = true;
-    export let closeOnEscape = true;
-    export let showCloseButton = true;
-
-    const dispatch = createEventDispatcher();
+    let {
+        open = $bindable(false),
+        title = null as string | null,
+        size = 'md' as 'sm' | 'md' | 'lg' | 'xl',
+        closeOnClickOutside = true,
+        closeOnEscape = true,
+        showCloseButton = true,
+        onclose
+    }: {
+        open?: boolean;
+        title?: string | null;
+        size?: 'sm' | 'md' | 'lg' | 'xl';
+        closeOnClickOutside?: boolean;
+        closeOnEscape?: boolean;
+        showCloseButton?: boolean;
+        onclose?: () => void;
+    } = $props();
 
     let dialogElement: HTMLDivElement;
-    let previousActiveElement: HTMLElement | null = null;
+    let previousActiveElement: HTMLElement | null = $state(null);
 
-    $: if (open) {
-        previousActiveElement = document.activeElement as HTMLElement;
-        setTimeout(() => {
-            const firstFocusable = dialogElement?.querySelector<HTMLElement>(
-                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-            );
-            firstFocusable?.focus();
-        }, 100);
-    } else {
-        previousActiveElement?.focus();
-        previousActiveElement = null;
-    }
+    $effect(() => {
+        if (open) {
+            previousActiveElement = document.activeElement as HTMLElement;
+            setTimeout(() => {
+                const firstFocusable = dialogElement?.querySelector<HTMLElement>(
+                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                );
+                firstFocusable?.focus();
+            }, 100);
+        } else {
+            previousActiveElement?.focus();
+            previousActiveElement = null;
+        }
+    });
 
     function close() {
         open = false;
-        dispatch('close');
+        onclose?.();
     }
 
     function handleBackdropClick(event: MouseEvent) {
@@ -69,10 +80,10 @@
     });
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 {#if open}
-    <div class="modal-backdrop" transition:fade={{ duration: 200 }} on:click={handleBackdropClick}>
+    <div class="modal-backdrop" transition:fade={{ duration: 200 }} onclick={handleBackdropClick}>
         <div
             bind:this={dialogElement}
             class="modal-dialog modal-{size}"
@@ -90,7 +101,7 @@
                         <button
                             type="button"
                             class="modal-close"
-                            on:click={close}
+                            onclick={close}
                             aria-label="Close modal"
                         >
                             <span aria-hidden="true">×</span>

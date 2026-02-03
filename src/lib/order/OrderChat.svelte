@@ -8,14 +8,18 @@
   import type { Message } from '$lib/chat/types';
   import { Send, MessageSquare } from 'lucide-svelte';
 
-  export let orderId: string;
-  export let orderTitle: string = '';
+  let {
+    orderId,
+    orderTitle = ''
+  }: {
+    orderId: string;
+    orderTitle?: string;
+  } = $props();
 
-  let chatContainer: HTMLElement;
-  let roomId: string;
+  let chatContainer: HTMLElement | undefined = $state();
   
-  $: roomId = `order-${orderId}`;
-  $: orderMessages = $messages.filter(m => m.roomId === roomId);
+  let roomId = $derived(`order-${orderId}`);
+  let orderMessages = $derived($messages.filter(m => m.roomId === roomId));
 
   const nameFromId = (id: string) => {
     if (id === 'system') return 'System';
@@ -58,12 +62,12 @@
   });
 
   // Group messages by date
-  $: groupedMessages = orderMessages.reduce((groups, msg) => {
+  let groupedMessages = $derived(orderMessages.reduce((groups, msg) => {
     const date = formatDate(msg.ts);
     if (!groups[date]) groups[date] = [];
     groups[date].push(msg);
     return groups;
-  }, {} as Record<string, Message[]>);
+  }, {} as Record<string, Message[]>));
 </script>
 
 <div class="order-chat">

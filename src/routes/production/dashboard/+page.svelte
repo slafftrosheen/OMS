@@ -5,7 +5,7 @@
   import { can } from '$lib/auth/permission-utils';
   import { t } from 'svelte-i18n';
   
-  $: user = $currentUser;
+  let user = $derived($currentUser);
 </script>
 
 <svelte:head>

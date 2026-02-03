@@ -3,8 +3,7 @@
   import { createItem, updateItem, type Item } from './store';
   import type { Section } from './types';
 
-  export let item: Partial<Item> = {};
-  export let onClose = () => {};
+  let { item = {}, onClose = () => {} }: { item?: Partial<Item>; onClose?: () => void } = $props();
 
   const sectionOptions: { id: Section; labelKey: string }[] = [
     { id: 'materials', labelKey: 'inventory.materials' },
@@ -16,9 +15,11 @@
 
   const isNew = !item.id;
 
-  $: if (!item.section) {
-    item.section = 'materials';
-  }
+  $effect(() => {
+    if (!item.section) {
+      item.section = 'materials';
+    }
+  });
 
   function save() {
     const payload = { ...item } as Partial<Item> & { id?: string };

@@ -54,13 +54,13 @@ async function retryConnection() {
   }
 }
 
-$: statusIcon = $connectionState === 'connected' ? Wifi :
-                $connectionState === 'error' ? AlertCircle : WifiOff;
-$: statusColor = $connectionState === 'connected' ? 'var(--ok)' :
-                 $connectionState === 'error' ? 'var(--danger)' : 'var(--muted)';
-$: statusLabel = $connectionState === 'connected' ? 'Connected' :
+let statusIcon = $derived($connectionState === 'connected' ? Wifi :
+                $connectionState === 'error' ? AlertCircle : WifiOff);
+let statusColor = $derived($connectionState === 'connected' ? 'var(--ok)' :
+                 $connectionState === 'error' ? 'var(--danger)' : 'var(--muted)');
+let statusLabel = $derived($connectionState === 'connected' ? 'Connected' :
                  $connectionState === 'connecting' ? 'Connecting...' :
-                 $connectionState === 'error' ? 'Connection Error' : 'Disconnected';
+                 $connectionState === 'error' ? 'Connection Error' : 'Disconnected');
 </script>
 
 <!-- Connection status indicator -->

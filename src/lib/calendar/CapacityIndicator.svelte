@@ -6,38 +6,42 @@
 
 import { AlertTriangle, Lock, CheckCircle } from 'lucide-svelte';
 
-export let current: number;
-export let max: number;
-export let warning: number;
-export let isLocked = false;
-export let unit = 'orders';
-export let showDetails = true;
+interface Props {
+  current: number;
+  max: number;
+  warning: number;
+  isLocked?: boolean;
+  unit?: string;
+  showDetails?: boolean;
+}
 
-$: percentage = Math.round((current / max) * 100);
-$: status = isLocked ? 'locked' : 
+let { current, max, warning, isLocked = false, unit = 'orders', showDetails = true }: Props = $props();
+
+let percentage = $derived(Math.round((current / max) * 100));
+let status = $derived(isLocked ? 'locked' : 
              current >= max ? 'full' : 
-             current >= warning ? 'warning' : 'ok';
+             current >= warning ? 'warning' : 'ok');
 
-$: statusColor = {
+let statusColor = $derived({
   'locked': 'var(--muted)',
   'full': 'var(--danger)',
   'warning': 'var(--warn)',
   'ok': 'var(--ok)'
-}[status];
+}[status]);
 
-$: statusIcon = {
+let statusIcon = $derived({
   'locked': Lock,
   'full': AlertTriangle,
   'warning': AlertTriangle,
   'ok': CheckCircle
-}[status];
+}[status]);
 
-$: statusLabel = {
+let statusLabel = $derived({
   'locked': 'Locked',
   'full': 'Full',
   'warning': 'Near Capacity',
   'ok': 'Available'
-}[status];
+}[status]);
 
 function getUnitLabel(count: number) {
   if (unit === 'orders') return count === 1 ? 'order' : 'orders';

@@ -13,14 +13,14 @@
     loadItems();
   });
   
-  $: filteredMaterials = $items.filter(mat => {
+  let filteredMaterials = $derived($items.filter(mat => {
     const matchesSearch = mat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          mat.sku?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === 'ALL' || mat.category === categoryFilter;
     const matchesLowStock = !showLowStockOnly || mat.stock <= mat.min;
     
     return matchesSearch && matchesCategory && matchesLowStock;
-  });
+  }));
 </script>
 
 <svelte:head>

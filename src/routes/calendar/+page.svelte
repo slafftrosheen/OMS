@@ -221,13 +221,13 @@
     downloadCSV(`loading-${selectedDate}.csv`, toCSV(rows, columns.map((column) => column.label)));
   }
   
-  $: days = getDaysInMonth(y, m);
-  $: selectedDayOrders = selectedDate ? getOrdersForDate(selectedDate) : [];
-  $: selectedLoadingDay = selectedDate ? getLoadingDayInfo(selectedDate) : null;
-  $: filteredOrders = filterStatus === 'all' ? orders :
+  let days = $derived(getDaysInMonth(y, m));
+  let selectedDayOrders = $derived(selectedDate ? getOrdersForDate(selectedDate) : []);
+  let selectedLoadingDay = $derived(selectedDate ? getLoadingDayInfo(selectedDate) : null);
+  let filteredOrders = $derived(filterStatus === 'all' ? orders :
                       filterStatus === 'scheduled' ? orders.filter(o => o.loadingDate) :
-                      orders.filter(o => !o.loadingDate);
-  $: monthName = new Date(y, m, 1).toLocaleDateString('en-US', { month: 'long' });
+                      orders.filter(o => !o.loadingDate));
+  let monthName = $derived(new Date(y, m, 1).toLocaleDateString('en-US', { month: 'long' }));
   
   onMount(() => {
     // Initial data load

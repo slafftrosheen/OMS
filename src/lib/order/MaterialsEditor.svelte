@@ -8,17 +8,25 @@
   import { role } from '$lib/ui/RoleSwitch.svelte';
   import { t } from 'svelte-i18n';
 
-  export let items: MaterialRow[] = [];
-  export let onPropose: (items: MaterialRow[]) => void = () => {};
-  export let onApplyAdmin: (items: MaterialRow[]) => void = () => {};
+  let {
+    items = [],
+    onPropose = () => {},
+    onApplyAdmin = () => {}
+  }: {
+    items?: MaterialRow[];
+    onPropose?: (items: MaterialRow[]) => void;
+    onApplyAdmin?: (items: MaterialRow[]) => void;
+  } = $props();
 
-  let rows: MaterialRow[] = items.map((item) => ({ ...item }));
-  let lastItems = items;
+  let rows: MaterialRow[] = $state(items.map((item) => ({ ...item })));
+  let lastItems = $state(items);
 
-  $: if (lastItems !== items) {
-    lastItems = items;
-    rows = items.map((item) => ({ ...item }));
-  }
+  $effect(() => {
+    if (lastItems !== items) {
+      lastItems = items;
+      rows = items.map((item) => ({ ...item }));
+    }
+  });
 
   function add() {
     const nextIndex = rows.length + 1;
@@ -41,7 +49,7 @@
     });
   }
 
-  $: hasChanges = !equals(rows, items);
+  let hasChanges = $derived(!equals(rows, items));
 
   function submitAdmin() {
     if (!hasChanges) return;
@@ -56,7 +64,7 @@
     rows = items.map((item) => ({ ...item }));
   }
 
-  $: isAdmin = $role === 'Admin';
+  let isAdmin = $derived($role === 'Admin');
 </script>
 
 <div class="card">

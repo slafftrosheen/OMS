@@ -1,35 +1,39 @@
 <script lang="ts">
-  export let columns: { key: string; label: string; width?: string }[] = [];
-  export let rows: any[] = [];
-  export let filterKey: string | null = null;
-  export let filterText: string = '';
+  interface Props {
+    columns?: { key: string; label: string; width?: string }[];
+    rows?: any[];
+    filterKey?: string | null;
+    filterText?: string;
+  }
 
-  let sortKey: string | null = null;
-  let sortAsc = true;
+  let { columns = [], rows = [], filterKey = null, filterText = '' }: Props = $props();
+
+  let sortKey: string | null = $state(null);
+  let sortAsc = $state(true);
 
   function setSort(k: string) {
     if (sortKey === k) sortAsc = !sortAsc;
     else { sortKey = k; sortAsc = true; }
   }
 
-  $: filtered = rows.filter(r => {
+  let filtered = $derived(rows.filter(r => {
     if (!filterKey || !filterText) return true;
     const v = String(r[filterKey] ?? '').toLowerCase();
     return v.includes(filterText.toLowerCase());
-  });
+  }));
 
-  $: sorted = [...filtered].sort((a, b) => {
+  let sorted = $derived([...filtered].sort((a, b) => {
     if (!sortKey) return 0;
     const av = a[sortKey], bv = b[sortKey];
     return (av > bv ? 1 : av < bv ? -1 : 0) * (sortAsc ? 1 : -1);
-  });
+  }));
 </script>
 
 <table class="rf-table">
   <thead>
     <tr>
       {#each columns as c}
-        <th style={`width:${c.width || 'auto'}`} on:click={() => setSort(c.key)} role="button" aria-label={`sort by ${c.label}`}>
+        <th style={`width:${c.width || 'auto'}`} onclick={() => setSort(c.key)} role="button" aria-label={`sort by ${c.label}`}>
           {c.label} {#if sortKey===c.key}{sortAsc?'▲':'▼'}{/if}
         </th>
       {/each}

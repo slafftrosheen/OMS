@@ -72,7 +72,6 @@
   let rows: OrderRow[] = [];
   let q = '';
   let visible: OrderRow[] = [];
-  let qLower = '';
   let sortKey: 'id' | 'client' | 'title' | 'due' | 'loadingDate' = 'due';
   let sortAsc = true;
   let statusFilter: 'all' | 'draft' | 'active' | 'completed' = 'all';
@@ -85,8 +84,9 @@
   let errorMessage = '';
   let hasLoadedOnce = false;
 
-  $: qLower = q.trim().toLowerCase();
-  $: {
+  let qLower = $derived(q.trim().toLowerCase());
+  
+  $effect(() => {
     let filtered = rows || []; // Add null safety
     
     // Apply status filter
@@ -112,26 +112,26 @@
       const result = av > bv ? 1 : av < bv ? -1 : 0;
       return sortAsc ? result : -result;
     });
-  }
+  });
 
   // Pagination with null safety
-  $: totalPages = Math.max(1, Math.ceil((visible?.length || 0) / itemsPerPage));
-  $: paginatedRows = (visible || []).slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  let totalPages = $derived(Math.max(1, Math.ceil((visible?.length || 0) / itemsPerPage)));
+  let paginatedRows = $derived((visible || []).slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage));
 
-  $: isSuperAdmin = $currentUser?.roles?.Admin === 'SuperAdmin';
-  $: isAdmin = $currentUser?.primarySection === 'Admin' || isSuperAdmin;
+  let isSuperAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
+  let isAdmin = $derived($currentUser?.primarySection === 'Admin' || isSuperAdmin);
   
   // KPI Stats with null safety
-  $: totalOrders = rows?.length || 0;
-  $: draftOrders = (rows || []).filter(r => r?.isDraft).length;
-  $: urgentOrders = (rows || []).filter(r => {
+  let totalOrders = $derived(rows?.length || 0);
+  let draftOrders = $derived((rows || []).filter(r => r?.isDraft).length);
+  let urgentOrders = $derived((rows || []).filter(r => {
     if (!r?.due) return false;
     const dueDate = new Date(r.due);
     const today = new Date();
     const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     return diffDays <= 3 && diffDays >= 0;
-  }).length;
-  $: activeOrders = totalOrders - draftOrders;
+  }).length);
+  let activeOrders = $derived(totalOrders - draftOrders);
 
   async function refresh() {
     refreshing = true;

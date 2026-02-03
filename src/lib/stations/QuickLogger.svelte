@@ -1,19 +1,23 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { logStage } from '$lib/orders/journal';
   
-  export let po = ''; 
-  export let station = 'CNC';
+  let {
+    po = '',
+    station = 'CNC',
+    onclose
+  }: {
+    po?: string;
+    station?: string;
+    onclose?: () => void;
+  } = $props();
   
-  let notes=''; 
-  let redo=false; 
-  let reason='recut';
-  
-  const dispatch = createEventDispatcher();
+  let notes = $state(''); 
+  let redo = $state(false); 
+  let reason = $state('recut');
   
   async function save(){
     await logStage(po, station, notes, redo ? reason : undefined);
-    dispatch('close');
+    onclose?.();
   }
 </script>
 
@@ -32,7 +36,7 @@
       </select>
     {/if}
     <div class="row" style="justify-content:flex-end;gap:8px">
-      <button class="tag ghost" on:click={()=>dispatch('close')}>Cancel</button>
+      <button class="tag ghost" on:click={()=>onclose?.()}>Cancel</button>
       <button class="tag" on:click={save}>Save</button>
     </div>
   </div>

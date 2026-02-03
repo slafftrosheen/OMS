@@ -1,40 +1,51 @@
 <!-- src/lib/components/ui/Button.svelte -->
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
-
-    export let variant: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline' = 'primary';
-    export let size: 'sm' | 'md' | 'lg' = 'md';
-    export let disabled = false;
-    export let loading = false;
-    export let type: 'button' | 'submit' | 'reset' = 'button';
-    export let fullWidth = false;
-    export let icon: string | null = null;
-    export let iconPosition: 'left' | 'right' = 'left';
-
-    const dispatch = createEventDispatcher();
+    let { 
+        variant = 'primary', 
+        size = 'md', 
+        disabled = false, 
+        loading = false, 
+        type = 'button', 
+        fullWidth = false, 
+        icon = null, 
+        iconPosition = 'left',
+        onclick,
+        ...restProps
+    }: {
+        variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
+        size?: 'sm' | 'md' | 'lg';
+        disabled?: boolean;
+        loading?: boolean;
+        type?: 'button' | 'submit' | 'reset';
+        fullWidth?: boolean;
+        icon?: string | null;
+        iconPosition?: 'left' | 'right';
+        onclick?: (event: MouseEvent) => void;
+        [key: string]: any;
+    } = $props();
 
     function handleClick(event: MouseEvent) {
         if (!disabled && !loading) {
-            dispatch('click', event);
+            onclick?.(event);
         }
     }
 
-    $: classes = [
+    let classes = $derived([
         'btn',
         `btn-${variant}`,
         `btn-${size}`,
         fullWidth && 'btn-full',
         disabled && 'btn-disabled',
         loading && 'btn-loading'
-    ].filter(Boolean).join(' ');
+    ].filter(Boolean).join(' '));
 </script>
 
 <button
     {type}
     class={classes}
     disabled={disabled || loading}
-    on:click={handleClick}
-    {...$$restProps}
+    onclick={handleClick}
+    {...restProps}
 >
     {#if loading}
         <span class="btn-spinner" aria-hidden="true"></span>

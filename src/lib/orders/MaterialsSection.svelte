@@ -3,7 +3,7 @@
   export let items: any[] = []; // bind from order
   function add(){ items = [...items, { type:'Acrylic', thicknessMM:3, colorSystem:'RAL', colorCode:'', qty:1 }]; }
   function del(i:number){ items = items.filter((_,ix)=>ix!==i); }
-  $: (items);  // bind outward
+  // items binding is handled by export let
 </script>
 
 <section class="card">

@@ -4,21 +4,34 @@
   import { Search, X, Palette } from 'lucide-svelte';
   import type { ColorSystem } from '$lib/profiles/types';
 
-  export let value: string = '';
-  export let label: string = 'RAL Color';
-  export let required: boolean = false;
-  export let disabled: boolean = false;
-  export let placeholder: string = 'Search RAL colors...';
-  export let showPreview: boolean = true;
-  export let previewSize: 'sm' | 'md' | 'lg' = 'md';
-  export let error: string | null = null;
+  interface Props {
+    value?: string;
+    label?: string;
+    required?: boolean;
+    disabled?: boolean;
+    placeholder?: string;
+    showPreview?: boolean;
+    previewSize?: 'sm' | 'md' | 'lg';
+    error?: string | null;
+  }
 
-  let colors: ColorSystem[] = [];
-  let filteredColors: ColorSystem[] = [];
-  let selectedColor: ColorSystem | null = null;
-  let searchQuery: string = '';
-  let loading = false;
-  let isOpen = false;
+  let {
+    value = $bindable(''),
+    label = 'RAL Color',
+    required = false,
+    disabled = false,
+    placeholder = 'Search RAL colors...',
+    showPreview = true,
+    previewSize = 'md',
+    error = null
+  }: Props = $props();
+
+  let colors: ColorSystem[] = $state([]);
+  let filteredColors: ColorSystem[] = $state([]);
+  let selectedColor: ColorSystem | null = $state(null);
+  let searchQuery: string = $state('');
+  let loading = $state(false);
+  let isOpen = $state(false);
 
   const previewSizes = {
     sm: '32px',
@@ -81,9 +94,11 @@
     }
   }
 
-  $: if (searchQuery !== undefined) {
-    filterColors();
-  }
+  $effect(() => {
+    if (searchQuery !== undefined) {
+      filterColors();
+    }
+  });
 </script>
 
 <div class="color-ral" class:disabled class:error={!!error}>

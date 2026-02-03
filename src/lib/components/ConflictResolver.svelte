@@ -112,7 +112,9 @@
         if (visible) loadConflicts();
     });
 
-    $: if (visible) loadConflicts();
+    $effect(() => {
+        if (visible) loadConflicts();
+    });
 </script>
 
 {#if visible}

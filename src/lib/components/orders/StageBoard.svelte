@@ -1,21 +1,25 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import type { OrderStage } from '$lib/types/database';
   import { t } from '$lib/i18n';
 
-  export let stages: OrderStage[] = [];
-  export let readonly = false;
-
-  const dispatch = createEventDispatcher();
+  let { 
+    stages = [], 
+    readonly = false,
+    onstageClick
+  }: {
+    stages?: OrderStage[];
+    readonly?: boolean;
+    onstageClick?: (stage: OrderStage) => void;
+  } = $props();
 
   const stationOrder = [
     'CAD', 'CNC', 'SANDING', 'BENDING',
     'WELDING', 'PAINT', 'ASSEMBLY', 'QC', 'LOGISTICS'
   ];
 
-  $: orderedStages = stationOrder
+  let orderedStages = $derived(stationOrder
     .map(station => stages.find(s => s.station === station))
-    .filter(Boolean) as OrderStage[];
+    .filter(Boolean) as OrderStage[]);
 
   function getStateClass(state: string) {
     const classes: Record<string, string> = {
@@ -43,7 +47,7 @@
 
   function handleStageClick(stage: OrderStage) {
     if (!readonly) {
-      dispatch('stageClick', stage);
+      onstageClick?.(stage);
     }
   }
 

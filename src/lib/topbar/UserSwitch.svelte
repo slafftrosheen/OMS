@@ -4,10 +4,10 @@
   import { base } from '$app/paths';
   import { User, Settings, LogOut, ChevronDown } from 'lucide-svelte';
   
-  let open = false;
-  let menuElement: HTMLDivElement;
+  let open = $state(false);
+  let menuElement: HTMLDivElement | undefined = $state();
   
-  $: me = $currentUser;
+  let me = $derived($currentUser);
   
   async function signOut() {
     open = false;
@@ -29,7 +29,7 @@
   const initials = (n: string | undefined) => 
     n?.split(' ').filter(Boolean).map(x => x[0]).slice(0, 2).join('').toUpperCase() || '?';
     
-  $: roleLabel = me?.roles?.[me?.primarySection || 'Admin'] || 'User';
+  let roleLabel = $derived(me?.roles?.[me?.primarySection || 'Admin'] || 'User');
 </script>
 
 <svelte:window on:click={handleClickOutside} />

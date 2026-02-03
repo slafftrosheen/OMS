@@ -1,20 +1,26 @@
 <!-- src/lib/components/production/StationBoard.svelte -->
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import Badge from '$lib/components/ui/Badge.svelte';
     import Card from '$lib/components/ui/Card.svelte';
 
-    export let station: string;
-    export let orders: Array<{
-        id: string;
-        title: string;
-        client: string;
-        status: string;
-        dueDate: string;
-        priority?: 'high' | 'medium' | 'low';
-    }> = [];
-
-    const dispatch = createEventDispatcher();
+    let {
+        station,
+        orders = [],
+        onorderclick,
+        onstatuschange
+    }: {
+        station: string;
+        orders?: Array<{
+            id: string;
+            title: string;
+            client: string;
+            status: string;
+            dueDate: string;
+            priority?: 'high' | 'medium' | 'low';
+        }>;
+        onorderclick?: (data: { orderId: string; station: string }) => void;
+        onstatuschange?: (data: { orderId: string; station: string; status: string }) => void;
+    } = $props();
 
     function getStatusColor(status: string): string {
         const colors: Record<string, string> = {
@@ -34,11 +40,11 @@
     }
 
     function handleOrderClick(orderId: string) {
-        dispatch('orderClick', { orderId, station });
+        onorderclick?.({ orderId, station });
     }
 
     function handleStatusChange(orderId: string, newStatus: string) {
-        dispatch('statusChange', { orderId, station, status: newStatus });
+        onstatuschange?.({ orderId, station, status: newStatus });
     }
 </script>
 
@@ -50,7 +56,7 @@
 
     <div class="orders-list">
         {#each orders as order (order.id)}
-            <Card padding="md" hoverable clickable on:click={() => handleOrderClick(order.id)}>
+            <Card padding="md" hoverable clickable onclick={() => handleOrderClick(order.id)}>
                 <div class="order-item">
                     <div class="order-main">
                         <div class="order-header-row">
@@ -69,8 +75,8 @@
                         <select
                             class="status-select"
                             value={order.status}
-                            on:change={(e) => handleStatusChange(order.id, e.currentTarget.value)}
-                            on:click|stopPropagation
+                            onchange={(e) => handleStatusChange(order.id, e.currentTarget.value)}
+                            onclick={(e) => e.stopPropagation()}
                             style="border-color: {getStatusColor(order.status)}"
                         >
                             <option value="NOT_STARTED">Not Started</option>

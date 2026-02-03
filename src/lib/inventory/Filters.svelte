@@ -1,16 +1,24 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { t } from 'svelte-i18n';
-  const d = createEventDispatcher();
-  export let query=''; 
-  export let section='all'; 
-  export let group=''; 
-  export let subgroup='';
+  
+  let { 
+    query = '', 
+    section = 'all', 
+    group = '', 
+    subgroup = '',
+    onchange
+  }: {
+    query?: string;
+    section?: string;
+    group?: string;
+    subgroup?: string;
+    onchange?: (data: { query: string; section: string; group: string; subgroup: string }) => void;
+  } = $props();
   
   const FILTER_SECTIONS = ['all', 'materials', 'leftovers', 'paints', 'tools', 'cons'];
   
   function fire(){ 
-    d('change',{ query, section, group, subgroup }); 
+    onchange?.({ query, section, group, subgroup }); 
   }
 </script>
 

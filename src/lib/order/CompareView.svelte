@@ -3,14 +3,26 @@
   import { TERMS } from '$lib/order/names';
   import { t } from 'svelte-i18n';
   import { get } from 'svelte/store';
-  export let leftTitle = get(t)('compare.before');
-  export let rightTitle = get(t)('compare.after');
-  export let leftFields: { key:string; label?:string; value?:string }[] = [];
-  export let rightFields: { key:string; label?:string; value?:string }[] = [];
-  export let leftMaterials: { key:string; label?:string; value?:string }[] = [];
-  export let rightMaterials: { key:string; label?:string; value?:string }[] = [];
-  export let leftStages: Record<string, string> = {};
-  export let rightStages: Record<string, string> = {};
+
+  let {
+    leftTitle = get(t)('compare.before'),
+    rightTitle = get(t)('compare.after'),
+    leftFields = [],
+    rightFields = [],
+    leftMaterials = [],
+    rightMaterials = [],
+    leftStages = {},
+    rightStages = {}
+  }: {
+    leftTitle?: string;
+    rightTitle?: string;
+    leftFields?: { key:string; label?:string; value?:string }[];
+    rightFields?: { key:string; label?:string; value?:string }[];
+    leftMaterials?: { key:string; label?:string; value?:string }[];
+    rightMaterials?: { key:string; label?:string; value?:string }[];
+    leftStages?: Record<string, string>;
+    rightStages?: Record<string, string>;
+  } = $props();
 
   type FieldEntry = { label?: string; value: string | undefined };
   function map(arr: { key: string; label?: string; value?: string }[]){
@@ -23,8 +35,8 @@
   function keys(a:Record<string,any>, b:Record<string,any>){
     return [...new Set([...Object.keys(a), ...Object.keys(b)])];
   }
-  $: fL = map(leftFields);    $: fR = map(rightFields);
-  $: mL = map(leftMaterials); $: mR = map(rightMaterials);
+  let fL = $derived(map(leftFields));    let fR = $derived(map(rightFields));
+  let mL = $derived(map(leftMaterials)); let mR = $derived(map(rightMaterials));
 
   function row(
     key:string,
@@ -37,8 +49,8 @@
     const label = a?.label || b?.label || key;
     return { key, label, a: left, b: right, changed };
   }
-  $: rowsFields    = keys(fL, fR).map(k => row(k, fL[k], fR[k]));
-  $: rowsMaterials = keys(mL, mR).map(k => row(k, mL[k], mR[k]));
+  let rowsFields    = $derived(keys(fL, fR).map(k => row(k, fL[k], fR[k])));
+  let rowsMaterials = $derived(keys(mL, mR).map(k => row(k, mL[k], mR[k])));
   function stageRow(key: string, left?: string, right?: string) {
     const normalize = (value?: string) => value ?? 'NOT_STARTED';
     const leftState = normalize(left);
@@ -49,7 +61,7 @@
     const rightKey = STATE_LABEL[rightState as keyof typeof STATE_LABEL];
     return { key, labelKey, leftKey, rightKey, changed };
   }
-  $: rowsStages = keys(leftStages, rightStages).map((k) => stageRow(k, leftStages[k], rightStages[k]));
+  let rowsStages = $derived(keys(leftStages, rightStages).map((k) => stageRow(k, leftStages[k], rightStages[k])));
 </script>
 
 <div class="card">

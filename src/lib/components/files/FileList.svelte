@@ -1,10 +1,9 @@
 <!-- src/lib/components/files/FileList.svelte -->
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import Badge from '$lib/components/ui/Badge.svelte';
     import Button from '$lib/components/ui/Button.svelte';
 
-    export let files: Array<{
+    type FileItem = {
         id: string;
         file_name: string;
         file_type: string;
@@ -13,9 +12,19 @@
         uploaded_by: string;
         created_at: string;
         url: string;
-    }> = [];
+    };
 
-    const dispatch = createEventDispatcher();
+    let { 
+        files = [],
+        ondownload,
+        ondelete,
+        onpreview
+    }: {
+        files?: FileItem[];
+        ondownload?: (file: FileItem) => void;
+        ondelete?: (file: FileItem) => void;
+        onpreview?: (file: FileItem) => void;
+    } = $props();
 
     function formatBytes(bytes: number): string {
         if (bytes === 0) return '0 Bytes';
@@ -41,19 +50,19 @@
         return 'warning';
     }
 
-    function handleDownload(file: any) {
-        dispatch('download', file);
+    function handleDownload(file: FileItem) {
+        ondownload?.(file);
         // Or directly download:
         window.open(`/api/files/${file.id}/download?redirect=true`, '_blank');
     }
 
-    function handleDelete(file: any) {
-        dispatch('delete', file);
+    function handleDelete(file: FileItem) {
+        ondelete?.(file);
     }
 
-    function handlePreview(file: any) {
+    function handlePreview(file: FileItem) {
         if (file.mime_type.startsWith('image/') || file.mime_type === 'application/pdf') {
-            dispatch('preview', file);
+            onpreview?.(file);
         }
     }
 

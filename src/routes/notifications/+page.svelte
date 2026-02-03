@@ -30,14 +30,14 @@
     { value: 'inventory', label: 'Inventory' }
   ];
 
-  $: filteredNotifications = notifications.filter(n => {
+  let filteredNotifications = $derived(notifications.filter(n => {
     if (filter === 'unread' && n.isRead) return false;
     if (filter === 'read' && !n.isRead) return false;
     if (typeFilter !== 'all' && n.type !== typeFilter) return false;
     return true;
-  });
+  }));
 
-  $: unreadCount = notifications.filter(n => !n.isRead).length;
+  let unreadCount = $derived(notifications.filter(n => !n.isRead).length);
 
   async function loadNotifications() {
     loading = true;

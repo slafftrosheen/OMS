@@ -7,7 +7,7 @@
   // import OrderCard from '$lib/components/orders/OrderCard.svelte';
   import QRScanner from '$lib/components/QRScanner.svelte';
 
-  $: station = $page.params.station.toUpperCase();
+  let station = $derived($page.params.station.toUpperCase());
 
   interface StationOrder {
     id: string;
@@ -121,15 +121,15 @@
     }
   }
 
-  $: filteredOrders = $orders.filter(order => {
+  let filteredOrders = $derived($orders.filter(order => {
     if ($filter === 'ALL') return true;
     return order.stage?.state === $filter;
-  });
+  }));
 
-  $: queuedCount = $orders.filter(o => o.stage?.state === 'QUEUED').length;
-  $: inProgressCount = $orders.filter(o => o.stage?.state === 'IN_PROGRESS').length;
-  $: blockedCount = $orders.filter(o => o.stage?.state === 'BLOCKED').length;
-  $: reworkCount = $orders.filter(o => o.stage?.state === 'REWORK').length;
+  let queuedCount = $derived($orders.filter(o => o.stage?.state === 'QUEUED').length);
+  let inProgressCount = $derived($orders.filter(o => o.stage?.state === 'IN_PROGRESS').length);
+  let blockedCount = $derived($orders.filter(o => o.stage?.state === 'BLOCKED').length);
+  let reworkCount = $derived($orders.filter(o => o.stage?.state === 'REWORK').length);
 
   onMount(async () => {
     await loadStationOrders();

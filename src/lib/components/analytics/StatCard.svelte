@@ -1,14 +1,23 @@
 <!-- src/lib/components/analytics/StatCard.svelte -->
 <script lang="ts">
-    export let title: string;
-    export let value: string | number;
-    export let subtitle: string | null = null;
-    export let trend: { value: number; direction: 'up' | 'down' } | null = null;
-    export let icon: string | null = null;
-    export let variant: 'default' | 'primary' | 'success' | 'warning' | 'danger' = 'default';
+    let { 
+        title, 
+        value, 
+        subtitle = null, 
+        trend = null, 
+        icon = null, 
+        variant = 'default' 
+    }: { 
+        title: string;
+        value: string | number;
+        subtitle?: string | null;
+        trend?: { value: number; direction: 'up' | 'down' } | null;
+        icon?: string | null;
+        variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger';
+    } = $props();
 
-    $: trendColor = trend?.direction === 'up' ? '#10b981' : '#ef4444';
-    $: trendIcon = trend?.direction === 'up' ? '↑' : '↓';
+    let trendColor = $derived(trend?.direction === 'up' ? '#10b981' : '#ef4444');
+    let trendIcon = $derived(trend?.direction === 'up' ? '↑' : '↓');
 </script>
 
 <div class="stat-card stat-{variant}">

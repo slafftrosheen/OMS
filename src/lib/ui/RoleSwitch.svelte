@@ -1,4 +1,4 @@
-<script context="module">
+<script module>
   import { writable } from 'svelte/store';
   const isBrowser = typeof window !== 'undefined';
   const seed = isBrowser ? localStorage.getItem('rf_role') || 'Admin' : 'Admin';
@@ -9,7 +9,7 @@
 <script>
   import { t } from 'svelte-i18n';
 
-  $: current = $role;
+  let current = $derived($role);
 
   const label = () => $t('roles.label');
   const admin = () => $t('roles.admin');
@@ -17,6 +17,6 @@
 </script>
 
 <div class="row" role="group" aria-label={label()}>
-  <button class="tag" aria-pressed={current==='Admin'} on:click={()=>role.set('Admin')}>{admin()}</button>
-  <button class="tag" aria-pressed={current==='Station'} on:click={()=>role.set('Station')}>{station()}</button>
+  <button class="tag" aria-pressed={current==='Admin'} onclick={()=>role.set('Admin')}>{admin()}</button>
+  <button class="tag" aria-pressed={current==='Station'} onclick={()=>role.set('Station')}>{station()}</button>
 </div>

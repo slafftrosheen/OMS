@@ -1,19 +1,23 @@
 <script lang="ts">
   import { Search } from 'lucide-svelte';
   import Input from '$lib/ui/Input.svelte';
-  import { createEventDispatcher } from 'svelte';
 
-  export let value = '';
-  export let placeholder = 'Search FAQs...';
-
-  const dispatch = createEventDispatcher<{ search: string }>();
+  let {
+    value = $bindable(''),
+    placeholder = 'Search FAQs...',
+    onsearch
+  }: {
+    value?: string;
+    placeholder?: string;
+    onsearch?: (query: string) => void;
+  } = $props();
 
   let debounceTimer: ReturnType<typeof setTimeout>;
 
   const handleInput = () => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      dispatch('search', value);
+      onsearch?.(value);
     }, 300);
   };
 </script>

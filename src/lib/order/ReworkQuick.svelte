@@ -4,11 +4,15 @@
   import Button from '$lib/ui/Button.svelte';
   import { t } from 'svelte-i18n';
 
-  export let onSend: (station: StationTag, reason: ReworkReason, note: string) => void = () => {};
+  let {
+    onSend = () => {}
+  }: {
+    onSend?: (station: StationTag, reason: ReworkReason, note: string) => void;
+  } = $props();
 
-  let station: StationTag = 'CNC';
-  let reason: ReworkReason = 'RECUT';
-  let note = '';
+  let station: StationTag = $state('CNC');
+  let reason: ReworkReason = $state('RECUT');
+  let note = $state('');
 
   const OPTIONS: Record<StationTag, ReworkReason[]> = {
     CAD: ['CUSTOM'],
@@ -24,9 +28,11 @@
     LOGISTICS: ['CUSTOM']
   };
 
-  $: if (!OPTIONS[station].includes(reason)) {
-    reason = OPTIONS[station][0];
-  }
+  $effect(() => {
+    if (!OPTIONS[station].includes(reason)) {
+      reason = OPTIONS[station][0];
+    }
+  });
 
   function send() {
     onSend(station, reason, note.trim());

@@ -5,25 +5,32 @@
   import { t } from 'svelte-i18n';
   import { TERMS } from '$lib/order/names';
 
-  export let value = '';
-  export let onCommit: (text: string, mentions: string[]) => void = () => {};
-  export let placeholder = 'Message (use @name to mention)';
+  interface Props {
+    value?: string;
+    onCommit?: (text: string, mentions: string[]) => void;
+    placeholder?: string;
+  }
+
+  let {
+    value = $bindable(''),
+    onCommit = () => {},
+    placeholder = 'Message (use @name to mention)'
+  }: Props = $props();
 
   let inputEl: HTMLTextAreaElement;
-  let cursor = 0;
-  let showList = false;
-  let query = '';
-  let picked: string[] = [];
+  let cursor = $state(0);
+  let showList = $state(false);
+  let query = $state('');
+  let picked: string[] = $state([]);
 
-  $: $users, $stationAssignments;
-  $: suggestions = showList
+  let suggestions = $derived(showList
     ? $users.filter((user) => {
         if (picked.includes(String(user.id))) return false;
         return user.name.toLowerCase().includes(query.toLowerCase());
       })
-    : [];
+    : []);
 
-  $: quickPresets = $stationAssignments;
+  let quickPresets = $derived($stationAssignments);
 
   const normalizeHandle = (name: string) => name.replace(/\s+/g, '').toLowerCase();
 

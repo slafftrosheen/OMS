@@ -8,7 +8,7 @@
     loadUsers();
   });
 
-  $: me = $currentUser;
+  let me = $derived($currentUser);
 </script>
 
 <div class="card">

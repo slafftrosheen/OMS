@@ -1,19 +1,21 @@
 <!-- src/lib/admin/components/builder/PropertiesPanel.svelte -->
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { Settings } from 'lucide-svelte';
 
-  export let element: any;
-  export let elementType: 'template' | 'section' | 'field' | null;
+  let {
+    element,
+    elementType,
+    onupdate
+  }: {
+    element: any;
+    elementType: 'template' | 'section' | 'field' | null;
+    onupdate?: (updates: Record<string, any>) => void;
+  } = $props();
 
-  const dispatch = createEventDispatcher();
-
-  let localElement = { ...element };
-
-  $: localElement = { ...element };
+  let localElement = $derived({ ...element });
 
   function updateProperty(key: string, value: any) {
-    dispatch('update', { [key]: value });
+    onupdate?.({ [key]: value });
   }
 
   function updateNestedProperty(path: string[], value: any) {
@@ -24,7 +26,7 @@
       current = current[path[i]];
     }
     current[path[path.length - 1]] = value;
-    dispatch('update', updates);
+    onupdate?.(updates);
   }
 </script>
 

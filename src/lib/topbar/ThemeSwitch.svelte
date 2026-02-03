@@ -8,10 +8,8 @@
 
   type Theme = 'LightVim' | 'DarkVim' | 'HighContrastVim';
   
-  let currentTheme: Theme = 'DarkVim';
-  let isOpen = false;
-  
-  ui.subscribe(p => currentTheme = p.theme as Theme);
+  let isOpen = $state(false);
+  let currentTheme = $derived(($ui).theme as Theme);
 
   function set(theme: Theme) {
     ui.update(p => ({ ...p, theme }));
@@ -32,7 +30,7 @@
     { id: 'HighContrastVim', icon: Contrast, label: 'High Contrast' }
   ];
 
-  $: currentIcon = themes.find(t => t.id === currentTheme)?.icon || Moon;
+  let currentIcon = $derived(themes.find(t => t.id === currentTheme)?.icon || Moon);
 </script>
 
 <div class="theme-menu" use:clickOutside={handleClickOutside}>

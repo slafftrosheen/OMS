@@ -5,17 +5,17 @@
 
   export let stock: InventoryStock;
 
-  $: stockPercentage = stock.minimumStockLevel
+  let stockPercentage = $derived(stock.minimumStockLevel
     ? (stock.quantityInStock / stock.minimumStockLevel) * 100
-    : 100;
+    : 100);
 
-  $: stockStatus = stockPercentage <= 25
+  let stockStatus = $derived(stockPercentage <= 25
     ? 'critical'
     : stockPercentage <= 50
     ? 'low'
     : stockPercentage <= 100
     ? 'warning'
-    : 'good';
+    : 'good');
 
   function handleAdjustStock(type: 'add' | 'remove') {
     // Dispatch event for stock adjustment

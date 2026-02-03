@@ -1,15 +1,19 @@
 <script lang="ts">
-  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { browser } from '$app/environment';
 
-  const dispatch = createEventDispatcher();
+  let {
+    onscan
+  }: {
+    onscan?: (data: string) => void;
+  } = $props();
 
   let videoElement: HTMLVideoElement;
   let canvasElement: HTMLCanvasElement;
   let stream: MediaStream | null = null;
-  let scanning = false;
-  let error = '';
-  let detectedCode = '';
+  let scanning = $state(false);
+  let error = $state('');
+  let detectedCode = $state('');
 
   // Simple QR detection using canvas and pattern matching
   // In production, use a library like jsQR
@@ -74,7 +78,7 @@
   function handleManualInput(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.value) {
-      dispatch('scan', input.value);
+      onscan?.(input.value);
     }
   }
 
@@ -95,7 +99,7 @@
       <input
         type="text"
         placeholder="ORDER:xxxxx-xxx"
-        on:change={handleManualInput}
+        onchange={handleManualInput}
         class="manual-input"
       />
     </div>
@@ -137,7 +141,7 @@
       <input
         type="text"
         placeholder="ORDER:xxxxx-xxx"
-        on:change={handleManualInput}
+        onchange={handleManualInput}
         class="manual-input"
       />
     </div>

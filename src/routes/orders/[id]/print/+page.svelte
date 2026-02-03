@@ -7,7 +7,7 @@
   import { t } from 'svelte-i18n';
   import type { Order } from '$lib/order/types.signage';
   
-  $: id = $page.params.id;
+  let id = $derived($page.params.id);
   
   let o: Order | null = null;
   
@@ -15,8 +15,8 @@
     o = await getOrder(id);
   });
   
-  $: materials = o?.materials || [];
-  $: stages = o?.stages ? STATIONS.map(s => ({ station: s, state: o.stages[s] })) : [];
+  let materials = $derived(o?.materials || []);
+  let stages = $derived(o?.stages ? STATIONS.map(s => ({ station: s, state: o.stages[s] })) : []);
 </script>
 
 {#if !o}

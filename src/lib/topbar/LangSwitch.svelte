@@ -4,10 +4,8 @@
   import { setLocale } from '$lib/i18n';
   import { clickOutside } from '$lib/utils/click-outside';
 
-  let isOpen = false;
-  let currentLang = 'en';
-  
-  locale.subscribe(l => currentLang = l || 'en');
+  let isOpen = $state(false);
+  let currentLang = $derived($locale || 'en');
 
   function toggle() {
     isOpen = !isOpen;
@@ -28,7 +26,7 @@
     { code: 'lv', label: 'Latviešu', flag: '🇱🇻' }
   ];
 
-  $: currentFlag = languages.find(l => l.code === currentLang)?.flag || '🇬🇧';
+  let currentFlag = $derived(languages.find(l => l.code === currentLang)?.flag || '🇬🇧');
 </script>
 
 <div class="lang-menu" use:clickOutside={handleClickOutside}>

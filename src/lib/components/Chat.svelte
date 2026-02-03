@@ -6,8 +6,8 @@
 
   export let orderId: string;
 
-  $: userId = $page.data.session?.user?.id;
-  $: userEmail = $page.data.session?.user?.email;
+  let userId = $derived($page.data.session?.user?.id);
+  let userEmail = $derived($page.data.session?.user?.email);
 
   let messageInput = '';
   let chatContainer: HTMLDivElement;
@@ -79,7 +79,7 @@
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
 
-  $: isOwnMessage = (message: any) => message.user_id === userId;
+  let isOwnMessage = $derived((message: any) => message.user_id === userId);
 
   onMount(async () => {
     await chatStore.load(orderId);
@@ -93,9 +93,11 @@
   });
 
   // Auto-scroll on new messages
-  $: if ($chatStore.messages.length) {
-    scrollToBottom();
-  }
+  $effect(() => {
+    if ($chatStore.messages.length) {
+      scrollToBottom();
+    }
+  });
 </script>
 
 <div class="chat-container">

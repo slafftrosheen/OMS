@@ -20,14 +20,14 @@
   let searchQuery = '';
   let pollingInterval: ReturnType<typeof setInterval>;
 
-  $: activeRoom = $rooms.find(r => r.id === activeRoomId) || $rooms[0];
-  $: roomMessages = $messages.filter(m => m.roomId === activeRoomId);
-  $: filteredRooms = searchQuery 
+  let activeRoom = $derived($rooms.find(r => r.id === activeRoomId) || $rooms[0]);
+  let roomMessages = $derived($messages.filter(m => m.roomId === activeRoomId));
+  let filteredRooms = $derived(searchQuery 
     ? $rooms.filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : $rooms;
+    : $rooms);
 
   // Extract ID safely to avoid type casting in template
-  $: currentUserId = ($currentUser as any)?.id || '';
+  let currentUserId = $derived(($currentUser as any)?.id || '');
 
   function scrollToBottom() {
     if (scroller) {

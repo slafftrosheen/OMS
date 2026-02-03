@@ -5,18 +5,22 @@
   import { TERMS } from '$lib/order/names';
   import type { StationCode } from '$lib/order/names';
 
-  export let onSubmit: (payload: { station: string; progress?: number; note?: string }) => void = () => {};
+  let {
+    onSubmit = () => {}
+  }: {
+    onSubmit?: (payload: { station: string; progress?: number; note?: string }) => void;
+  } = $props();
 
-  let station: StationCode = 'SANDING';
-  let progress = 0;
-  let note = '';
-  let noteInput: HTMLInputElement | null = null;
+  let station: StationCode = $state('SANDING');
+  let progress = $state(0);
+  let note = $state('');
+  let noteInput: HTMLInputElement | null = $state(null);
   const progressId = 'station-quick-progress';
 
-  $: stationOptions = Object.entries(TERMS.stations).map(([code, label]) => ({
+  let stationOptions = $derived(Object.entries(TERMS.stations).map(([code, label]) => ({
     label: $t(label),
     value: code as StationCode
-  }));
+  })));
 
   function clamp(value: number) {
     return Math.max(0, Math.min(100, value));

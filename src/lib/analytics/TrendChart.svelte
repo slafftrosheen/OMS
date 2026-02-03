@@ -6,8 +6,15 @@
 
 import { onMount } from 'svelte';
 
-export let data: any;
-export let height = 300;
+interface Props {
+  data: any;
+  height?: number;
+}
+
+let {
+  data,
+  height = 300
+}: Props = $props();
 
 let canvas: HTMLCanvasElement;
 
@@ -108,9 +115,11 @@ function drawChart() {
   }
 }
 
-$: if (canvas && data) {
-  drawChart();
-}
+$effect(() => {
+  if (canvas && data) {
+    drawChart();
+  }
+});
 </script>
 
 <div class="trend-chart">

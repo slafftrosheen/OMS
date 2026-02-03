@@ -76,15 +76,15 @@
       .sort((a, b) => a.title.localeCompare(b.title));
   }
 
-  $: filtered = list.filter((it) =>
+  let filtered = $derived(list.filter((it) =>
     [it.sku, it.name, it.category, it.location, it.colorCode, it.group, it.subgroup]
       .filter(Boolean)
       .join(' ')
       .toLowerCase()
       .includes(q.toLowerCase())
-  );
+  ));
 
-  $: grouped = buildStructure(currentTab);
+  let grouped = $derived(buildStructure(currentTab));
 
   let editing: any = null;
   let showImport = false;

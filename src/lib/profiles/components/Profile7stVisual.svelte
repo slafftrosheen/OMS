@@ -17,7 +17,6 @@
    * @emits change - Fired whenever any value in the `configuration` object is modified.
    *   The event detail contains the entire updated `configuration` object.
    */
-  import { createEventDispatcher } from 'svelte';
   import MaterialSelect from './fields/MaterialSelect.svelte';
   import MaterialThicknessSelect from '$lib/components/MaterialThicknessSelect.svelte';
   import {
@@ -168,37 +167,45 @@
     }
   };
   
-  /** The configuration object for the profile form. */
-  export let configuration: ProfileConfiguration = { ...defaultConfiguration };
-
-  /** If true, disables all inputs, making the form read-only. */
-  export let readonly: boolean = false;
+  /** Props for the profile form. */
+  let {
+    /** The configuration object for the profile form. */
+    configuration = $bindable({ ...defaultConfiguration }),
+    /** If true, disables all inputs, making the form read-only. */
+    readonly = false,
+    /** Callback for configuration changes. */
+    onchange
+  }: {
+    configuration?: ProfileConfiguration;
+    readonly?: boolean;
+    onchange?: (config: ProfileConfiguration) => void;
+  } = $props();
   
   /**
-   * Reactive statement to merge the incoming configuration with the default.
+   * Effect to merge the incoming configuration with the default.
    * This ensures that the component can handle partially-defined configuration objects
    * without crashing due to missing nested properties.
    */
-  $: if (configuration) {
-    configuration = {
-      ...defaultConfiguration,
-      ...configuration,
-      CNC_FREZER: { ...defaultConfiguration.CNC_FREZER, ...(configuration.CNC_FREZER || {}) },
-      BENDER: { ...defaultConfiguration.BENDER, ...(configuration.BENDER || {}) },
-      FRONT: { ...defaultConfiguration.FRONT, ...(configuration.FRONT || {}) },
-      PAINTING: { 
-        ...defaultConfiguration.PAINTING, 
-        ...(configuration.PAINTING || {}),
-        faceColor: { ...defaultColor, ...(configuration.PAINTING?.faceColor || {}) },
-        sidesColor: { ...defaultColor, ...(configuration.PAINTING?.sidesColor || {}) },
-        backColor: { ...defaultColor, ...(configuration.PAINTING?.backColor || {}) },
-        frameColor: { ...defaultColor, ...(configuration.PAINTING?.frameColor || {}) }
-      },
-      ASSEMBLING: { ...defaultConfiguration.ASSEMBLING, ...(configuration.ASSEMBLING || {}) }
-    };
-  }
-  
-  const dispatch = createEventDispatcher();
+  $effect(() => {
+    if (configuration) {
+      configuration = {
+        ...defaultConfiguration,
+        ...configuration,
+        CNC_FREZER: { ...defaultConfiguration.CNC_FREZER, ...(configuration.CNC_FREZER || {}) },
+        BENDER: { ...defaultConfiguration.BENDER, ...(configuration.BENDER || {}) },
+        FRONT: { ...defaultConfiguration.FRONT, ...(configuration.FRONT || {}) },
+        PAINTING: { 
+          ...defaultConfiguration.PAINTING, 
+          ...(configuration.PAINTING || {}),
+          faceColor: { ...defaultColor, ...(configuration.PAINTING?.faceColor || {}) },
+          sidesColor: { ...defaultColor, ...(configuration.PAINTING?.sidesColor || {}) },
+          backColor: { ...defaultColor, ...(configuration.PAINTING?.backColor || {}) },
+          frameColor: { ...defaultColor, ...(configuration.PAINTING?.frameColor || {}) }
+        },
+        ASSEMBLING: { ...defaultConfiguration.ASSEMBLING, ...(configuration.ASSEMBLING || {}) }
+      };
+    }
+  });
   
   // Pre-defined material categories for the MaterialSelect component.
   const faceMaterials = ['ACRYLIC_XT', 'ACRYLIC_GS', 'ACRYLIC_LED', 'ALU_SHEET', 'ALU_COMPOSITE', 'PVC_FOAM'];
@@ -221,7 +228,7 @@
    * This function is called after any user interaction that modifies the form data.
    */
   function emit() {
-    dispatch('change', configuration);
+    onchange?.(configuration);
   }
   
   /**
@@ -381,8 +388,8 @@
     return value.substring(0, 8).toUpperCase();
   }
   
-  // A reactive variable to determine if the "FRONT" section should be expanded.
-  $: hasFront = configuration.FRONT.face || configuration.FRONT.back || configuration.FRONT.sides;
+  // A derived variable to determine if the "FRONT" section should be expanded.
+  let hasFront = $derived(configuration.FRONT.face || configuration.FRONT.back || configuration.FRONT.sides);
 </script>
 
 <div class="profile-form" class:readonly>
@@ -426,10 +433,10 @@
               placeholder="Select..."
               allowCustom={true}
               {readonly}
-              on:change={(e) => {
-                configuration.CNC_FREZER.faceHex = e.detail.hex;
-                configuration.CNC_FREZER.faceShort = extractShortName(e, 'ACRYLIC');
-                faceThicknessOptions = e.detail.material?.thickness_options || [];
+              onchange={(data) => {
+                configuration.CNC_FREZER.faceHex = data.hex;
+                configuration.CNC_FREZER.faceShort = extractShortName(data, 'ACRYLIC');
+                faceThicknessOptions = data.material?.thickness_options || [];
                 if (faceThicknessOptions.length > 0 && !faceThicknessOptions.includes(Number(configuration.CNC_FREZER.faceThickness))) {
                    configuration.CNC_FREZER.faceThickness = faceThicknessOptions[0].toString();
                 } else if (!configuration.CNC_FREZER.faceThickness && faceThicknessOptions.length > 0) {
@@ -450,7 +457,7 @@
               materialType={configuration.CNC_FREZER.face.split('_')[0] || 'PVC'}
               placeholder="Select thickness"
               {readonly}
-              on:change={emit}
+              onchange={emit}
             />
           {/if}
         </div>
@@ -465,10 +472,10 @@
               placeholder="Select..."
               allowCustom={true}
               {readonly}
-              on:change={(e) => {
-                configuration.CNC_FREZER.backHex = e.detail.hex;
-                configuration.CNC_FREZER.backShort = extractShortName(e, 'ALU');
-                backThicknessOptions = e.detail.material?.thickness_options || [];
+              onchange={(data) => {
+                configuration.CNC_FREZER.backHex = data.hex;
+                configuration.CNC_FREZER.backShort = extractShortName(data, 'ALU');
+                backThicknessOptions = data.material?.thickness_options || [];
                 if (backThicknessOptions.length > 0 && !backThicknessOptions.includes(Number(configuration.CNC_FREZER.backThickness))) {
                    configuration.CNC_FREZER.backThickness = backThicknessOptions[0].toString();
                 } else if (!configuration.CNC_FREZER.backThickness && backThicknessOptions.length > 0) {
@@ -489,7 +496,7 @@
               materialType={configuration.CNC_FREZER.back.split('_')[0] || 'PVC'}
               placeholder="Select thickness"
               {readonly}
-              on:change={emit}
+              onchange={emit}
             />
           {/if}
         </div>
@@ -530,10 +537,10 @@
               placeholder="Select..."
               allowCustom={true}
               {readonly}
-              on:change={(e) => {
-                configuration.BENDER.sidesHex = e.detail.hex;
-                configuration.BENDER.sidesShort = extractShortName(e, 'ALU');
-                sidesThicknessOptions = e.detail.material?.thickness_options || [];
+              onchange={(data) => {
+                configuration.BENDER.sidesHex = data.hex;
+                configuration.BENDER.sidesShort = extractShortName(data, 'ALU');
+                sidesThicknessOptions = data.material?.thickness_options || [];
                 if (sidesThicknessOptions.length > 0 && !sidesThicknessOptions.includes(Number(configuration.BENDER.sidesThickness))) {
                    configuration.BENDER.sidesThickness = sidesThicknessOptions[0].toString();
                 } else if (!configuration.BENDER.sidesThickness && sidesThicknessOptions.length > 0) {
@@ -554,7 +561,7 @@
               materialType={configuration.BENDER.sides.split('_')[0] || 'ALU'}
               placeholder="Select thickness"
               {readonly}
-              on:change={emit}
+              onchange={emit}
             />
           {/if}
         </div>
@@ -595,9 +602,9 @@
                   placeholder="Select..."
                   allowCustom={true}
                   {readonly}
-                  on:change={(e) => {
-                    configuration.FRONT[`${part}FilmHex`] = e.detail.hex;
-                    configuration.FRONT[`${part}FilmShort`] = extractShortName(e, 'ORACAL');
+                  onchange={(data) => {
+                    configuration.FRONT[`${part}FilmHex`] = data.hex;
+                    configuration.FRONT[`${part}FilmShort`] = extractShortName(data, 'ORACAL');
                     emit();
                   }}
                 />
@@ -650,16 +657,16 @@
                   placeholder="RAL..."
                   allowCustom={true}
                   {readonly}
-                  on:change={(e) => {
-                    const material = e.detail.material;
+                  onchange={(data) => {
+                    const material = data.material;
                     if (material) {
                       configuration.PAINTING[`${item.key}Color`] = {
                         system: material.category === 'PAINT_RAL' ? 'RAL' : 'Pantone',
                         code: material.code.replace('RAL_', '').replace('PANTONE_', ''),
-                        hex: e.detail.hex || ''
+                        hex: data.hex || ''
                       };
-                    } else if (e.detail.value) {
-                      const code = e.detail.value.match(/\d{4}/)?.[0] || e.detail.value;
+                    } else if (data.value) {
+                      const code = data.value.match(/\d{4}/)?.[0] || data.value;
                       configuration.PAINTING[`${item.key}Color`] = { system: 'RAL', code, hex: '' };
                     }
                     emit();
@@ -716,9 +723,9 @@
                   allowCustom={true}
                   showColor={false}
                   {readonly}
-                  on:change={(e) => { 
-                    configuration.ASSEMBLING.ledModuleHex = e.detail.hex;
-                    configuration.ASSEMBLING.ledModuleShort = extractShortName(e, 'LED');
+                  onchange={(data) => { 
+                    configuration.ASSEMBLING.ledModuleHex = data.hex;
+                    configuration.ASSEMBLING.ledModuleShort = extractShortName(data, 'LED');
                     emit(); 
                   }}
                 />
@@ -763,8 +770,8 @@
                   allowCustom={true}
                   showColor={false}
                   {readonly}
-                  on:change={(e) => {
-                    configuration.ASSEMBLING.psuModelShort = extractShortName(e, 'PSU');
+                  onchange={(data) => {
+                    configuration.ASSEMBLING.psuModelShort = extractShortName(data, 'PSU');
                     emit();
                   }}
                 />
@@ -803,8 +810,8 @@
                   allowCustom={true}
                   showColor={false}
                   {readonly}
-                  on:change={(e) => {
-                    configuration.ASSEMBLING.cableTypeShort = extractShortName(e, 'WIRE');
+                  onchange={(data) => {
+                    configuration.ASSEMBLING.cableTypeShort = extractShortName(data, 'WIRE');
                     emit();
                   }}
                 />
@@ -843,9 +850,9 @@
                   placeholder="Select..."
                   allowCustom={true}
                   {readonly}
-                  on:change={(e) => { 
-                    configuration.ASSEMBLING.frameMaterialHex = e.detail.hex;
-                    configuration.ASSEMBLING.frameMaterialShort = extractShortName(e, 'ALU');
+                  onchange={(data) => { 
+                    configuration.ASSEMBLING.frameMaterialHex = data.hex;
+                    configuration.ASSEMBLING.frameMaterialShort = extractShortName(data, 'ALU');
                     emit(); 
                   }}
                 />
