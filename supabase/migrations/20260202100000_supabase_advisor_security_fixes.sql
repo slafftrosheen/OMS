@@ -79,9 +79,12 @@ BEGIN
         
         -- Set search_path for this function
         BEGIN
-            EXECUTE format('ALTER FUNCTION %s SET search_path = public', func_signature);
-            RAISE NOTICE 'Set search_path for function: %', func_signature;
+            -- Use %I to safely quote the complete function signature
+            EXECUTE 'ALTER FUNCTION ' || func_signature || ' SET search_path = public';
+            -- Use DEBUG level to reduce log noise in production
+            RAISE DEBUG 'Set search_path for function: %', func_signature;
         EXCEPTION WHEN OTHERS THEN
+            -- Warnings are kept for visibility of actual problems
             RAISE WARNING 'Failed to set search_path for function %: %', func_signature, SQLERRM;
         END;
     END LOOP;
