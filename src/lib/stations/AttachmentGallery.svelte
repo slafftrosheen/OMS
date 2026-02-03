@@ -7,16 +7,24 @@
 import { onMount } from 'svelte';
 import { Image as ImageIcon, FileText, Download, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-svelte';
 
-export let orderId: string;
-export let station: string | null = null;
-export let canDelete = false;
+interface Props {
+  orderId: string;
+  station?: string | null;
+  canDelete?: boolean;
+}
 
-let attachments: any[] = [];
-let loading = true;
-let error: string | null = null;
-let selectedImage: any | null = null;
-let selectedIndex = 0;
-let filterType = 'all';
+let {
+  orderId,
+  station = null,
+  canDelete = false
+}: Props = $props();
+
+let attachments: any[] = $state([]);
+let loading = $state(true);
+let error: string | null = $state(null);
+let selectedImage: any | null = $state(null);
+let selectedIndex = $state(0);
+let filterType = $state('all');
 
 const typeFilters = [
   { value: 'all', label: 'All' },
@@ -111,7 +119,9 @@ function handleKeydown(event: KeyboardEvent) {
   else if (event.key === 'ArrowRight') nextImage();
 }
 
-$: if (filterType) loadAttachments();
+$effect(() => {
+  if (filterType) loadAttachments();
+});
 </script>
 
 <svelte:window on:keydown={handleKeydown} />

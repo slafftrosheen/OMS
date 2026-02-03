@@ -1,18 +1,32 @@
 <!-- src/lib/profiles/components/fields/ButtonGroup.svelte -->
 <script lang="ts">
-  export let value: string = '';
-  export let options: string[] = [];
-  export let label: string = '';
-  export let required: boolean = false;
-  export let disabled: boolean = false;
-  export let visualStyle: 'buttons' | 'boxes' = 'buttons';
-  export let multiSelect: boolean = false;
-
-  let selectedValues: string[] = [];
-
-  $: if (!multiSelect && value) {
-    selectedValues = [value];
+  interface Props {
+    value?: string;
+    options?: string[];
+    label?: string;
+    required?: boolean;
+    disabled?: boolean;
+    visualStyle?: 'buttons' | 'boxes';
+    multiSelect?: boolean;
   }
+
+  let {
+    value = $bindable(''),
+    options = [],
+    label = '',
+    required = false,
+    disabled = false,
+    visualStyle = 'buttons',
+    multiSelect = false
+  }: Props = $props();
+
+  let selectedValues: string[] = $state([]);
+
+  $effect(() => {
+    if (!multiSelect && value) {
+      selectedValues = [value];
+    }
+  });
 
   function selectOption(option: string) {
     if (disabled) return;

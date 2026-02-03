@@ -15,13 +15,20 @@ import {
   QrCode
 } from 'lucide-svelte';
 
-export let orderId: string;
-export let station: string | null = null;
+interface Props {
+  orderId: string;
+  station?: string | null;
+}
 
-let logs: any[] = [];
-let loading = true;
-let error: string | null = null;
-let filterType = 'all';
+let {
+  orderId,
+  station = null
+}: Props = $props();
+
+let logs: any[] = $state([]);
+let loading = $state(true);
+let error: string | null = $state(null);
+let filterType = $state('all');
 
 const typeFilters = [
   { value: 'all', label: 'All' },
@@ -88,7 +95,9 @@ function getLogColor(log: any) {
   return 'var(--accent-1)';
 }
 
-$: if (filterType) loadLogs();
+$effect(() => {
+  if (filterType) loadLogs();
+});
 </script>
 
 <div class="station-timeline">

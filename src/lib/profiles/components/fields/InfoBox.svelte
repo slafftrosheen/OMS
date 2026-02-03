@@ -2,18 +2,27 @@
 <script lang="ts">
   import { AlertCircle, Info, AlertTriangle } from 'lucide-svelte';
 
-  export let content: string = '';
-  export let type: 'info' | 'warning' | 'danger' = 'info';
-  export let icon: string = 'alert-circle';
-  export let fullWidth: boolean = false;
+  interface Props {
+    content?: string;
+    type?: 'info' | 'warning' | 'danger';
+    icon?: string;
+    fullWidth?: boolean;
+  }
 
-  const iconMap = {
+  let {
+    content = '',
+    type = 'info',
+    icon = 'alert-circle',
+    fullWidth = false
+  }: Props = $props();
+
+  const iconMap: Record<string, typeof AlertCircle> = {
     'alert-circle': AlertCircle,
     'info': Info,
     'alert-triangle': AlertTriangle
   };
 
-  $: IconComponent = iconMap[icon] || AlertCircle;
+  let IconComponent = $derived(iconMap[icon] || AlertCircle);
 </script>
 
 <div class="info-box" class:info={type === 'info'} class:warning={type === 'warning'} class:danger={type === 'danger'} class:full-width={fullWidth}>

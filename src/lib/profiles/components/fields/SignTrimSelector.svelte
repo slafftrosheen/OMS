@@ -2,34 +2,46 @@
 <script lang="ts">
   import { Search } from 'lucide-svelte';
 
-  export let value: string = '';
-  export let colors: Record<string, { name: string; hex: string }> = {};
-  export let label: string = 'SignTrim Color';
-  export let required: boolean = false;
-  export let disabled: boolean = false;
+  interface Props {
+    value?: string;
+    colors?: Record<string, { name: string; hex: string }>;
+    label?: string;
+    required?: boolean;
+    disabled?: boolean;
+  }
 
-  let searchQuery = '';
-  let selectedColor: { code: string; name: string; hex: string } | null = null;
+  let {
+    value = $bindable(''),
+    colors = {},
+    label = 'SignTrim Color',
+    required = false,
+    disabled = false
+  }: Props = $props();
 
-  $: colorEntries = Object.entries(colors).map(([code, data]) => ({
+  let searchQuery = $state('');
+  let selectedColor: { code: string; name: string; hex: string } | null = $state(null);
+
+  let colorEntries = $derived(Object.entries(colors).map(([code, data]) => ({
     code,
     ...data
-  }));
+  })));
 
-  $: popularColors = colorEntries.filter(c => 
+  let popularColors = $derived(colorEntries.filter(c => 
     ['971', '785', '479', '155', '097', '300'].includes(c.code)
-  );
+  ));
 
-  $: filteredColors = searchQuery
+  let filteredColors = $derived(searchQuery
     ? colorEntries.filter(c =>
         c.code.includes(searchQuery) ||
         c.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : colorEntries;
+    : colorEntries);
 
-  $: if (value) {
-    selectedColor = colorEntries.find(c => c.code === value) || null;
-  }
+  $effect(() => {
+    if (value) {
+      selectedColor = colorEntries.find(c => c.code === value) || null;
+    }
+  });
 
   function selectColor(color: typeof colorEntries[0]) {
     selectedColor = color;
