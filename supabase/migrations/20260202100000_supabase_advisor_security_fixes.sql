@@ -79,7 +79,8 @@ BEGIN
         
         -- Set search_path for this function
         BEGIN
-            -- Use %I to safely quote the complete function signature
+            -- func_signature is already safely quoted using format('%I.%I()') above
+            -- pg_get_function_identity_arguments returns trusted system catalog data
             EXECUTE 'ALTER FUNCTION ' || func_signature || ' SET search_path = public';
             -- Use DEBUG level to reduce log noise in production
             RAISE DEBUG 'Set search_path for function: %', func_signature;
