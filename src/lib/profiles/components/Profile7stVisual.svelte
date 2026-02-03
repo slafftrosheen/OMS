@@ -17,7 +17,6 @@
    * @emits change - Fired whenever any value in the `configuration` object is modified.
    *   The event detail contains the entire updated `configuration` object.
    */
-  import { createEventDispatcher } from 'svelte';
   import MaterialSelect from './fields/MaterialSelect.svelte';
   import MaterialThicknessSelect from '$lib/components/MaterialThicknessSelect.svelte';
   import {
@@ -174,6 +173,9 @@
   /** If true, disables all inputs, making the form read-only. */
   export let readonly: boolean = false;
   
+  /** Callback for configuration changes. */
+  export let onchange: ((config: ProfileConfiguration) => void) | undefined = undefined;
+  
   /**
    * Reactive statement to merge the incoming configuration with the default.
    * This ensures that the component can handle partially-defined configuration objects
@@ -198,8 +200,6 @@
     };
   }
   
-  const dispatch = createEventDispatcher();
-  
   // Pre-defined material categories for the MaterialSelect component.
   const faceMaterials = ['ACRYLIC_XT', 'ACRYLIC_GS', 'ACRYLIC_LED', 'ALU_SHEET', 'ALU_COMPOSITE', 'PVC_FOAM'];
   const backMaterials = ['ALU_SHEET', 'ALU_COMPOSITE', 'ACRYLIC_XT', 'PVC_FOAM'];
@@ -221,7 +221,7 @@
    * This function is called after any user interaction that modifies the form data.
    */
   function emit() {
-    dispatch('change', configuration);
+    onchange?.(configuration);
   }
   
   /**

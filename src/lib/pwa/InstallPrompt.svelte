@@ -3,10 +3,9 @@
  * PWA Install Prompt Component
  */
 
-import { createEventDispatcher } from 'svelte';
 import { Download, X } from 'lucide-svelte';
 
-const dispatch = createEventDispatcher();
+let { oninstall, ondismiss }: { oninstall?: () => void; ondismiss?: () => void } = $props();
 </script>
 
 <div class="install-prompt">
@@ -23,14 +22,14 @@ const dispatch = createEventDispatcher();
     <div class="prompt-actions">
       <button 
         class="btn-primary"
-        on:click={() => dispatch('install')}
+        on:click={() => oninstall?.()}
       >
         Install
       </button>
       
       <button 
         class="btn-ghost"
-        on:click={() => dispatch('dismiss')}
+        on:click={() => ondismiss?.()}
         aria-label="Dismiss"
       >
         <X size={20} />

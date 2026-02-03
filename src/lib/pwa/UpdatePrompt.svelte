@@ -3,10 +3,9 @@
  * PWA Update Available Prompt Component
  */
 
-import { createEventDispatcher } from 'svelte';
 import { RefreshCw, X } from 'lucide-svelte';
 
-const dispatch = createEventDispatcher();
+let { onupdate, ondismiss }: { onupdate?: () => void; ondismiss?: () => void } = $props();
 </script>
 
 <div class="update-prompt">
@@ -23,7 +22,7 @@ const dispatch = createEventDispatcher();
     <div class="prompt-actions">
       <button 
         class="btn-primary"
-        on:click={() => dispatch('update')}
+        on:click={() => onupdate?.()}
       >
         <RefreshCw size={16} />
         Refresh
@@ -31,7 +30,7 @@ const dispatch = createEventDispatcher();
       
       <button 
         class="btn-ghost"
-        on:click={() => dispatch('dismiss')}
+        on:click={() => ondismiss?.()}
         aria-label="Dismiss"
       >
         <X size={20} />

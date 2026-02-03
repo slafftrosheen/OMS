@@ -1,13 +1,26 @@
 <!-- src/lib/profiles/components/fields/OracalCodeStack.svelte -->
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  let {
+    codes: initialCodes = [] as string[],
+    label = 'ORACAL Codes',
+    readonly = false,
+    maxCodes = 5,
+    onchange
+  }: {
+    codes?: string[];
+    label?: string;
+    readonly?: boolean;
+    maxCodes?: number;
+    onchange?: (codes: string[]) => void;
+  } = $props();
   
-  export let codes: string[] = [];
-  export let label: string = 'ORACAL Codes';
-  export let readonly: boolean = false;
-  export let maxCodes: number = 5;
+  // Local state to avoid mutating props
+  let localCodes = $state([...initialCodes]);
   
-  const dispatch = createEventDispatcher();
+  // Sync with prop changes
+  $effect(() => {
+    localCodes = [...initialCodes];
+  });
   
   // ORACAL 8500 colors lookup
   const oracalColors: Record<string, { name: string; hex: string }> = {
@@ -70,21 +83,21 @@
   }
   
   function updateCode(index: number, value: string) {
-    codes[index] = value;
-    codes = [...codes];
-    dispatch('change', codes);
+    localCodes[index] = value;
+    localCodes = [...localCodes];
+    onchange?.(localCodes);
   }
   
   function addCode() {
-    if (codes.length < maxCodes) {
-      codes = [...codes, ''];
-      dispatch('change', codes);
+    if (localCodes.length < maxCodes) {
+      localCodes = [...localCodes, ''];
+      onchange?.(localCodes);
     }
   }
   
   function removeCode(index: number) {
-    codes = codes.filter((_, i) => i !== index);
-    dispatch('change', codes);
+    localCodes = localCodes.filter((_, i) => i !== index);
+    onchange?.(localCodes);
   }
 </script>
 
@@ -94,7 +107,7 @@
   {/if}
   
   <div class="code-boxes">
-    {#each codes as code, i}
+    {#each localCodes as code, i}
       {@const bgColor = getOracalColor(code)}
       {@const textColor = getTextColor(bgColor)}
       <div class="code-box" style="background-color: {bgColor};">
@@ -109,7 +122,7 @@
             placeholder="8500-XXX"
             on:input={(e) => updateCode(i, e.currentTarget.value)}
           />
-          {#if codes.length > 1}
+          {#if localCodes.length > 1}
             <button 
               type="button"
               class="remove-btn"
@@ -124,7 +137,7 @@
       </div>
     {/each}
     
-    {#if !readonly && codes.length < maxCodes}
+    {#if !readonly && localCodes.length < maxCodes}
       <button 
         type="button"
         class="add-btn"

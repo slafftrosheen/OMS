@@ -1,13 +1,24 @@
 <!-- src/lib/components/chat/ChatInput.svelte -->
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import Button from '$lib/components/ui/Button.svelte';
 
-    export let placeholder = 'Type a message...';
-    export let disabled = false;
-    export let replyingTo: { id: string; username: string; message: string } | null = null;
-
-    const dispatch = createEventDispatcher();
+    let {
+        placeholder = 'Type a message...',
+        disabled = false,
+        replyingTo = null,
+        ontyping,
+        onsend,
+        oncancelReply,
+        onfileSelect
+    }: {
+        placeholder?: string;
+        disabled?: boolean;
+        replyingTo?: { id: string; username: string; message: string } | null;
+        ontyping?: (typing: boolean) => void;
+        onsend?: (data: { message: string; replyTo: string | undefined }) => void;
+        oncancelReply?: () => void;
+        onfileSelect?: (files: File[]) => void;
+    } = $props();
 
     let message = '';
     let textareaElement: HTMLTextAreaElement;
@@ -24,13 +35,13 @@
         // Typing indicator
         if (!isTyping) {
             isTyping = true;
-            dispatch('typing', true);
+            ontyping?.(true);
         }
 
         clearTimeout(typingTimeout);
         typingTimeout = setTimeout(() => {
             isTyping = false;
-            dispatch('typing', false);
+            ontyping?.(false);
         }, 1000) as unknown as number;
     }
 
@@ -45,7 +56,7 @@
         const trimmed = message.trim();
         if (!trimmed || disabled) return;
 
-        dispatch('send', {
+        onsend?.({
             message: trimmed,
             replyTo: replyingTo?.id
         });
@@ -58,15 +69,14 @@
     }
 
     function cancelReply() {
-        replyingTo = null;
-        dispatch('cancelReply');
+        oncancelReply?.();
     }
 
     function handleFileSelect(event: Event) {
         const input = event.target as HTMLInputElement;
         const files = input.files;
         if (files && files.length > 0) {
-            dispatch('fileSelect', Array.from(files));
+            onfileSelect?.(Array.from(files));
         }
     }
 </script>

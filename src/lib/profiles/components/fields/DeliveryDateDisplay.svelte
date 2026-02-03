@@ -1,29 +1,33 @@
 <!-- src/lib/profiles/components/fields/DeliveryDateDisplay.svelte -->
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  
-  export let date: string = ''; // ISO date string
-  export let label: string = 'DELIVERY';
-  export let readonly: boolean = false;
-  
-  const dispatch = createEventDispatcher();
+  let {
+    date = '',
+    label = 'DELIVERY',
+    readonly = false,
+    onchange
+  }: {
+    date?: string;
+    label?: string;
+    readonly?: boolean;
+    onchange?: (date: string) => void;
+  } = $props();
   
   let dateInput: HTMLInputElement;
   
-  $: parsedDate = date ? new Date(date) : null;
+  let parsedDate = $derived(date ? new Date(date) : null);
   
-  $: monthDay = parsedDate 
+  let monthDay = $derived(parsedDate 
     ? parsedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    : '— —';
+    : '— —');
   
-  $: year = parsedDate 
+  let year = $derived(parsedDate 
     ? parsedDate.getFullYear().toString()
-    : '—';
+    : '—');
   
   function handleDateChange(e: Event) {
     const input = e.target as HTMLInputElement;
     date = input.value;
-    dispatch('change', date);
+    onchange?.(date);
   }
   
   function openDatePicker() {

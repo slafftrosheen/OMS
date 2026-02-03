@@ -1,23 +1,38 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { t } from 'svelte-i18n';
   import type { ChangeRequest } from './types.signage';
-  export let items: ChangeRequest[] = [];
-  export let isAdmin = false;
-  export let onApprove: (id:string)=>void = ()=>{};
-  export let onDecline: (id:string)=>void = ()=>{};
-  export let selectedId: string | null = null;
 
-  const dispatch = createEventDispatcher<{
-    select: { id: string | null };
-    selectedId: string | null;
-  }>();
+  let {
+    items = [] as ChangeRequest[],
+    isAdmin = false,
+    onApprove = (_id: string) => {},
+    onDecline = (_id: string) => {},
+    selectedId: initialSelectedId = null as string | null,
+    onselect,
+    onselectedId
+  }: {
+    items?: ChangeRequest[];
+    isAdmin?: boolean;
+    onApprove?: (id: string) => void;
+    onDecline?: (id: string) => void;
+    selectedId?: string | null;
+    onselect?: (data: { id: string | null }) => void;
+    onselectedId?: (id: string | null) => void;
+  } = $props();
+
+  // Local state for selection
+  let localSelectedId = $state(initialSelectedId);
+  
+  // Sync with prop changes
+  $effect(() => {
+    localSelectedId = initialSelectedId;
+  });
 
   function toggle(id: string) {
-    const next = selectedId === id ? null : id;
-    selectedId = next;
-    dispatch('select', { id: next });
-    dispatch('selectedId', next);
+    const next = localSelectedId === id ? null : id;
+    localSelectedId = next;
+    onselect?.({ id: next });
+    onselectedId?.(next);
   }
 </script>
 
@@ -25,7 +40,7 @@
   <h3 style="margin:0 0 8px 0">{$t('order.changeRequests.heading')}</h3>
   <ul style="display:grid;gap:8px" aria-label={$t('order.changeRequests.heading')}>
     {#each items as p (p.id)}
-      {@const selected = selectedId === p.id}
+      {@const selected = localSelectedId === p.id}
       <li class="card" data-selected={selected} style="background:var(--bg-2);padding:10px">
         <div style="display:flex;justify-content:space-between;gap:12px">
           <div>

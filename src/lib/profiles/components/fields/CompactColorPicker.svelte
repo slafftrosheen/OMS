@@ -1,7 +1,7 @@
 <!-- src/lib/profiles/components/fields/CompactColorPicker.svelte -->
 <!-- A compact color picker for use in profile forms - uses existing catalog data -->
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { onMount } from 'svelte';
   import { Palette, X, ChevronDown } from 'lucide-svelte';
   
   // Import catalog data directly
@@ -9,12 +9,19 @@
   import oracalColors from '$lib/profiles/data/oracal-8500.json';
   import pantoneColors from '$lib/profiles/data/pantone-solid-coated.json';
   
-  export let value: { system: string; code: string; hex: string } = { system: '', code: '', hex: '' };
-  export let label: string = '';
-  export let readonly: boolean = false;
-  export let compact: boolean = true;
-  
-  const dispatch = createEventDispatcher();
+  let {
+    value = { system: '', code: '', hex: '' },
+    label = '',
+    readonly = false,
+    compact = true,
+    onchange
+  }: {
+    value?: { system: string; code: string; hex: string };
+    label?: string;
+    readonly?: boolean;
+    compact?: boolean;
+    onchange?: (value: { system: string; code: string; hex: string }) => void;
+  } = $props();
   
   let isOpen = false;
   let selectedSystem: 'RAL' | 'ORACAL' | 'PANTONE' = 'RAL';
@@ -46,24 +53,24 @@
     }
   }
   
-  $: colors = getColors();
-  $: filteredColors = searchQuery 
+  let colors = $derived(getColors());
+  let filteredColors = $derived(searchQuery 
     ? colors.filter((c: any) => 
         c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.name.toLowerCase().includes(searchQuery.toLowerCase())
       ).slice(0, 30)
-    : colors.slice(0, 30);
+    : colors.slice(0, 30));
   
   function selectColor(color: { code: string; name: string; hex: string }) {
     value = { system: selectedSystem, code: color.code, hex: color.hex };
     isOpen = false;
     searchQuery = '';
-    dispatch('change', value);
+    onchange?.(value);
   }
   
   function clearSelection() {
     value = { system: '', code: '', hex: '' };
-    dispatch('change', value);
+    onchange?.(value);
   }
   
   function getTextColor(hex: string): string {
