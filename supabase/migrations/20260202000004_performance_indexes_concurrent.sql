@@ -29,11 +29,11 @@ CREATE INDEX IF NOT EXISTS idx_materials_category
     ON materials(category);
 
 -- Inventory performance
--- Note: This index helps with queries filtering items by min_quantity threshold
+-- Note: This index helps with queries filtering items by min_stock threshold
 -- For actual low stock queries, you may need to join with inventory_stock table
-CREATE INDEX IF NOT EXISTS idx_inventory_min_quantity
-    ON inventory_items(min_quantity)
-    WHERE min_quantity > 0;
+CREATE INDEX IF NOT EXISTS idx_inventory_min_stock
+    ON inventory_items(min_stock)
+    WHERE min_stock > 0;
 
 -- Notifications performance
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
