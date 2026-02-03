@@ -5,7 +5,7 @@
   import { fly, fade } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
 
-  $: userId = $page.data.session?.user?.id;
+  let userId = $derived($page.data.session?.user?.id);
 
   let showDropdown = false;
   let unsubscribe: (() => void) | null = null;

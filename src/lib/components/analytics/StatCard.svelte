@@ -7,8 +7,8 @@
     export let icon: string | null = null;
     export let variant: 'default' | 'primary' | 'success' | 'warning' | 'danger' = 'default';
 
-    $: trendColor = trend?.direction === 'up' ? '#10b981' : '#ef4444';
-    $: trendIcon = trend?.direction === 'up' ? '↑' : '↓';
+    let trendColor = $derived(trend?.direction === 'up' ? '#10b981' : '#ef4444');
+    let trendIcon = $derived(trend?.direction === 'up' ? '↑' : '↓');
 </script>
 
 <div class="stat-card stat-{variant}">

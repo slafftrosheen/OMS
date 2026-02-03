@@ -173,10 +173,12 @@
     };
   });
 
-  $: if (mounted && src && src !== lastSrc) {
-    lastSrc = src;
-    render(true).then(() => fitToWidth());
-  }
+  $effect(() => {
+    if (mounted && src && src !== lastSrc) {
+      lastSrc = src;
+      render(true).then(() => fitToWidth());
+    }
+  });
 </script>
 <div class="pdf-host" class:overlay={full} bind:this={hostEl}>
   <div class="pdf-controls" bind:this={container}>

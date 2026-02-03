@@ -5,13 +5,13 @@
     export let rounded = true;
     export let dot = false;
 
-    $: classes = [
+    let classes = $derived([
         'badge',
         `badge-${variant}`,
         `badge-${size}`,
         rounded && 'badge-rounded',
         dot && 'badge-dot'
-    ].filter(Boolean).join(' ');
+    ].filter(Boolean).join(' '));
 </script>
 
 <span class={classes} {...$$restProps}>

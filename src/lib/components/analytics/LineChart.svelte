@@ -61,10 +61,12 @@
         }
     });
 
-    $: if (chart) {
-        chart.data = data;
-        chart.update();
-    }
+    $effect(() => {
+        if (chart) {
+            chart.data = data;
+            chart.update();
+        }
+    });
 </script>
 
 <div class="chart-container" style="height: {height}px">

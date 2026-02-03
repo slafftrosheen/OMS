@@ -67,13 +67,17 @@
         visible = false;
     }
 
-    $: if (query) {
-        performSearch(query);
-    }
+    $effect(() => {
+        if (query) {
+            performSearch(query);
+        }
+    });
 
-    $: if (visible && searchInput) {
-        setTimeout(() => searchInput.focus(), 50);
-    }
+    $effect(() => {
+        if (visible && searchInput) {
+            setTimeout(() => searchInput.focus(), 50);
+        }
+    });
 
     onMount(() => {
         const handleGlobalKeydown = (e: KeyboardEvent) => {

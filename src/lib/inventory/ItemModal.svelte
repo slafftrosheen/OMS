@@ -16,9 +16,11 @@
 
   const isNew = !item.id;
 
-  $: if (!item.section) {
-    item.section = 'materials';
-  }
+  $effect(() => {
+    if (!item.section) {
+      item.section = 'materials';
+    }
+  });
 
   function save() {
     const payload = { ...item } as Partial<Item> & { id?: string };

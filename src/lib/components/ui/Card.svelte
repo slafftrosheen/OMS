@@ -5,13 +5,13 @@
     export let clickable = false;
     export let href: string | null = null;
 
-    $: component = href ? 'a' : 'div';
-    $: classes = [
+    let component = $derived(href ? 'a' : 'div');
+    let classes = $derived([
         'card',
         `card-padding-${padding}`,
         hoverable && 'card-hoverable',
         clickable && 'card-clickable'
-    ].filter(Boolean).join(' ');
+    ].filter(Boolean).join(' '));
 </script>
 
 <svelte:element

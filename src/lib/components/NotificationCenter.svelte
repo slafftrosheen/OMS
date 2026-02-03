@@ -75,9 +75,9 @@
         return date.toLocaleDateString();
     }
 
-    $: filteredNotifications = filter === 'unread'
+    let filteredNotifications = $derived(filter === 'unread'
         ? notifications.filter(n => !n.read)
-        : notifications;
+        : notifications);
 
     onMount(() => {
         return () => {

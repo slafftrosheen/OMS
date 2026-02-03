@@ -21,13 +21,17 @@
     return `rf_pdf_notes_${po}_${revision}`;
   }
   
-  $: localStorage.setItem(key(), JSON.stringify(notes));
+  $effect(() => {
+    localStorage.setItem(key(), JSON.stringify(notes));
+  });
 
   let placing = false;
   let rects: { id: string; x: number; y: number; w: number; h: number }[] =
     JSON.parse(localStorage.getItem(key() + '_rects') || '[]');
   
-  $: localStorage.setItem(key() + '_rects', JSON.stringify(rects));
+  $effect(() => {
+    localStorage.setItem(key() + '_rects', JSON.stringify(rects));
+  });
 
   function onDblClick(e: MouseEvent) {
     const el = e.currentTarget as HTMLElement;

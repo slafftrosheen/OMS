@@ -40,13 +40,13 @@
         { value: 'status', label: 'Status' }
     ];
 
-    $: {
+    $effect(() => {
         orders.setFilters({
             search: searchQuery,
             status: selectedStatuses.length > 0 ? selectedStatuses : undefined
         });
         orders.setSort({ field: sortField, direction: sortDirection });
-    }
+    });
 
     function toggleStatus(status: string) {
         if (selectedStatuses.includes(status)) {

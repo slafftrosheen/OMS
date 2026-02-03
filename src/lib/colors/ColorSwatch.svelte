@@ -4,7 +4,7 @@
 
   export let color: ColorSpec;
 
-  $: hex = resolveHex(color);
+  let hex = $derived(resolveHex(color));
 </script>
 
 <div class="sw" aria-label={`${color.system} ${color.code}`}>
