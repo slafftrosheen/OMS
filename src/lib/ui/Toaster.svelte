@@ -1,13 +1,12 @@
 <script lang="ts">
   import { toasts, type Toast } from '$lib/stores/toast';
-  let list: Toast[] = [];
-const colors = {
-  info: 'linear-gradient(90deg,var(--accent-2),var(--accent-1))',
-  success: 'linear-gradient(90deg,var(--ok), color-mix(in oklab, var(--ok) 65%, var(--ink-0, var(--text))))',
-  warning: 'linear-gradient(90deg,var(--warn), color-mix(in oklab, var(--warn) 70%, var(--ink-0, var(--text))))',
-  error: 'linear-gradient(90deg,var(--danger), color-mix(in oklab, var(--danger) 65%, var(--ink-0, var(--text))))'
-};
-  $: $toasts, list = $toasts;
+  const colors = {
+    info: 'linear-gradient(90deg,var(--accent-2),var(--accent-1))',
+    success: 'linear-gradient(90deg,var(--ok), color-mix(in oklab, var(--ok) 65%, var(--ink-0, var(--text))))',
+    warning: 'linear-gradient(90deg,var(--warn), color-mix(in oklab, var(--warn) 70%, var(--ink-0, var(--text))))',
+    error: 'linear-gradient(90deg,var(--danger), color-mix(in oklab, var(--danger) 65%, var(--ink-0, var(--text))))'
+  };
+  let list: Toast[] = $derived($toasts);
 </script>
 
 <style>

@@ -6,12 +6,16 @@
   import StationBadge from '$lib/ui/StationBadge.svelte';
   import { BellRing, AlertTriangle, Clock } from 'lucide-svelte';
 
-  export let items: NotificationItem[] = [];
+  interface Props {
+    items?: NotificationItem[];
+  }
 
-  $: feed = Array.isArray(items) && items.length ? items : $notifications;
+  let { items = [] }: Props = $props();
 
-  let stationFilter: 'all' | StationTag = 'all';
-  let urgencyFilter: 'all' | 'urgent' | 'normal' = 'all';
+  let feed = $derived(Array.isArray(items) && items.length ? items : $notifications);
+
+  let stationFilter: 'all' | StationTag = $state('all');
+  let urgencyFilter: 'all' | 'urgent' | 'normal' = $state('all');
 
   const stationOptions = STATIONS;
   const stationLabel = (code: StationTag) => $t(TERMS.stations[code]);
@@ -20,19 +24,19 @@
     value === 'urgent' ? $t('notifications.urgency.urgent') : $t('notifications.urgency.normal');
 
   function applyFilters(list: NotificationItem[]) {
-    let filtered = list;
+    let result = list;
     if (stationFilter !== 'all') {
-      filtered = filtered.filter((item) => item.station === stationFilter);
+      result = result.filter((item) => item.station === stationFilter);
     }
     if (urgencyFilter !== 'all') {
-      filtered = filtered.filter((item) => item.urgency === urgencyFilter);
+      result = result.filter((item) => item.urgency === urgencyFilter);
     }
-    return filtered;
+    return result;
   }
 
-  $: filtered = applyFilters(feed);
-  $: pinned = filtered.filter((item) => item.pinned);
-  $: unpinned = filtered.filter((item) => !item.pinned);
+  let filtered = $derived(applyFilters(feed));
+  let pinned = $derived(filtered.filter((item) => item.pinned));
+  let unpinned = $derived(filtered.filter((item) => !item.pinned));
 
   function handlePin(id: string) {
     markSeen(id);
@@ -82,8 +86,8 @@
           data-urgency={item.urgency}
           data-seen={item.seen}
           aria-label={`${item.text} ${item.ts}`}
-          on:mouseenter={() => handleSeen(item.id)}
-          on:focusin={() => handleSeen(item.id)}
+          onmouseenter={() => handleSeen(item.id)}
+          onfocusin={() => handleSeen(item.id)}
         >
         <header class="notif-head">
           <span class="notif-icon" aria-hidden="true">
@@ -108,7 +112,7 @@
           <button
             class="pin"
             type="button"
-            on:click={() => handlePin(item.id)}
+            onclick={() => handlePin(item.id)}
             aria-pressed={item.pinned}
             aria-label={$t('notifications.unpin_label')}
           >★</button>
@@ -127,8 +131,8 @@
         data-urgency={item.urgency}
         data-seen={item.seen}
         aria-label={`${item.text} ${item.ts}`}
-        on:mouseenter={() => handleSeen(item.id)}
-        on:focusin={() => handleSeen(item.id)}
+        onmouseenter={() => handleSeen(item.id)}
+        onfocusin={() => handleSeen(item.id)}
       >
         <header class="notif-head">
           <span class="notif-icon" aria-hidden="true">
@@ -153,7 +157,7 @@
           <button
             class="pin"
             type="button"
-            on:click={() => handlePin(item.id)}
+            onclick={() => handlePin(item.id)}
             aria-pressed={item.pinned}
             aria-label={item.pinned ? $t('notifications.unpin_label') : $t('notifications.pin_label')}
           >{item.pinned ? '★' : '☆'}</button>

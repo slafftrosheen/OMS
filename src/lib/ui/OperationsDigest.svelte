@@ -14,22 +14,24 @@
   import type { Order } from '$lib/order/types.signage';
   import { t, locale } from 'svelte-i18n';
 
-  export let style = '';
-  export let className = '';
+  interface Props {
+    style?: string;
+    className?: string;
+  }
 
-  $: orders = $ordersStore;
-  $: metrics = summarize(orders);
+  let { style = '', className = '' }: Props = $props();
 
-  $: $t, $locale;
+  let orders = $derived($ordersStore);
+  let metrics = $derived(summarize(orders));
 
-  $: formatterShort = new Intl.DateTimeFormat($locale || undefined, {
+  let formatterShort = $derived(new Intl.DateTimeFormat($locale || undefined, {
     month: 'short',
     day: 'numeric'
-  });
-  $: formatterLong = new Intl.DateTimeFormat($locale || undefined, {
+  }));
+  let formatterLong = $derived(new Intl.DateTimeFormat($locale || undefined, {
     month: 'long',
     day: 'numeric'
-  });
+  }));
 
   function parseDate(value?: string | null) {
     if (!value) return null;
@@ -58,7 +60,7 @@
 
   const stageOrder = STAGE_SEQUENCE;
 
-  $: upcomingLoads = (() => {
+  let upcomingLoads = $derived((() => {
     const groups = new Map<string, Order[]>();
     for (const order of orders) {
       const date = parseDate(order.loadingDate);
@@ -76,9 +78,9 @@
       date,
       orders: groups.get(key) ?? []
     };
-  })();
+  })());
 
-  $: dueSoon = orders
+  let dueSoon = $derived(orders
     .map((order) => {
       const dueDate = parseDate(order.due);
       if (!dueDate) return null;
@@ -88,22 +90,22 @@
     })
     .filter(Boolean)
     .sort((a, b) => (a!.dueDate.getTime() - b!.dueDate.getTime()))
-    .slice(0, 4) as { order: Order; dueDate: Date; days: number }[];
+    .slice(0, 4) as { order: Order; dueDate: Date; days: number }[]);
 
-  $: blockedOrders = orders
+  let blockedOrders = $derived(orders
     .map((order) => {
       const station = STATIONS.find((code) => order.stages?.[code] === 'BLOCKED');
       return station ? { order, station } : null;
     })
-    .filter(Boolean) as { order: Order; station: StationTag }[];
+    .filter(Boolean) as { order: Order; station: StationTag }[]);
 
-  $: reworkWatch = Object.entries(metrics.reworkCounts)
+  let reworkWatch = $derived(Object.entries(metrics.reworkCounts)
     .map(([station, count]) => ({ station: station as StationTag, count }))
     .filter((entry) => entry.count > 0)
     .sort((a, b) => b.count - a.count)
-    .slice(0, 3);
+    .slice(0, 3));
 
-  $: stationMatrix = STATIONS.map((station) => {
+  let stationMatrix = $derived(STATIONS.map((station) => {
     const totals = stageOrder
       .map((state) => ({
         state,
@@ -111,7 +113,7 @@
       }))
       .filter((entry) => entry.count > 0);
     return { station, totals };
-  });
+  }));
 </script>
 
 <section class={`card digest ${className}`} style={style}>

@@ -2,10 +2,16 @@
   import { tick } from 'svelte';
   import { trap } from '$lib/a11y/focus-trap';
 
-  export let open = false;
-  export let title = '';
-  export let onClose: () => void = () => {};
-  let panel: HTMLDivElement | null = null;
+  interface Props {
+    open?: boolean;
+    title?: string;
+    onClose?: () => void;
+    children?: import('svelte').Snippet;
+    footer?: import('svelte').Snippet;
+  }
+
+  let { open = false, title = '', onClose = () => {}, children, footer }: Props = $props();
+  let panel: HTMLDivElement | null = $state(null);
   let previouslyFocused: HTMLElement | null = null;
 
   function backdrop(e: MouseEvent){ if(e.target === e.currentTarget) onClose(); }
@@ -17,25 +23,27 @@
     }
   }
 
-  $: if (open) {
-    if (typeof document !== 'undefined') {
-      previouslyFocused = document.activeElement as HTMLElement | null;
-      tick().then(() => {
-        if (!panel) return;
-        const focusTarget = panel.querySelector<HTMLElement>(
-          '[autofocus], button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        );
-        focusTarget?.focus();
-      });
+  $effect(() => {
+    if (open) {
+      if (typeof document !== 'undefined') {
+        previouslyFocused = document.activeElement as HTMLElement | null;
+        tick().then(() => {
+          if (!panel) return;
+          const focusTarget = panel.querySelector<HTMLElement>(
+            '[autofocus], button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          );
+          focusTarget?.focus();
+        });
+      }
+    } else if (previouslyFocused) {
+      previouslyFocused.focus?.();
+      previouslyFocused = null;
     }
-  } else if (previouslyFocused) {
-    previouslyFocused.focus?.();
-    previouslyFocused = null;
-  }
+  });
 </script>
 
 {#if open}
-  <div class="shade" role="button" tabindex="0" on:click={backdrop} on:keydown={backdropKey}>
+  <div class="shade" role="button" tabindex="0" onclick={backdrop} onkeydown={backdropKey}>
     <div
       class="panel"
       role="dialog"
@@ -44,9 +52,9 @@
       bind:this={panel}
       use:trap
     >
-      <header><h3>{title}</h3><button class="x" on:click={onClose} aria-label="Close">✕</button></header>
-      <section><slot /></section>
-      <footer><slot name="footer" /></footer>
+      <header><h3>{title}</h3><button class="x" onclick={onClose} aria-label="Close">✕</button></header>
+      <section>{@render children?.()}</section>
+      <footer>{@render footer?.()}</footer>
     </div>
   </div>
 {/if}

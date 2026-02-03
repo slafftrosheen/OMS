@@ -1,7 +1,11 @@
 <script lang="ts">
-  export let value: number | string = 0; // 0..100
-  export let label = '';
-  export let valueText: string | undefined = undefined;
+  interface Props {
+    value?: number | string;
+    label?: string;
+    valueText?: string | undefined;
+  }
+
+  let { value = 0, label = '', valueText = undefined }: Props = $props();
 
   const clamp = (input: number) => Math.min(100, Math.max(0, input));
   const toFiniteNumber = (input: unknown) => {
@@ -13,12 +17,12 @@
     return 0;
   };
 
-  $: rawValue = toFiniteNumber(value);
-  $: numericValue = clamp(rawValue);
-  $: displayValue = Number.isInteger(numericValue) ? `${Math.trunc(numericValue)}` : numericValue.toFixed(1);
-  $: computedValueText = valueText ?? `${displayValue}% complete`;
-  $: accessibleLabel = label ? `${label} – ${computedValueText}` : computedValueText;
-  $: visibleSummary = label ? `${label} ${displayValue}%` : `${displayValue}%`;
+  let rawValue = $derived(toFiniteNumber(value));
+  let numericValue = $derived(clamp(rawValue));
+  let displayValue = $derived(Number.isInteger(numericValue) ? `${Math.trunc(numericValue)}` : numericValue.toFixed(1));
+  let computedValueText = $derived(valueText ?? `${displayValue}% complete`);
+  let accessibleLabel = $derived(label ? `${label} – ${computedValueText}` : computedValueText);
+  let visibleSummary = $derived(label ? `${label} ${displayValue}%` : `${displayValue}%`);
 </script>
 
 <div

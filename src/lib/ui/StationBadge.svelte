@@ -15,10 +15,14 @@
     CircleDashed
   } from 'lucide-svelte';
 
-  export let station: StationTag | null | undefined = null;
-  export let label: string | null = null;
-  export let size: 'sm' | 'md' = 'sm';
-  export let tone: 'default' | 'highlight' = 'default';
+  interface Props {
+    station?: StationTag | null | undefined;
+    label?: string | null;
+    size?: 'sm' | 'md';
+    tone?: 'default' | 'highlight';
+  }
+
+  let { station = null, label = null, size = 'sm', tone = 'default' }: Props = $props();
 
   const icons: Record<StationTag, typeof PenTool> = {
     CAD: PenTool,
@@ -30,16 +34,14 @@
     ASSEMBLY: PackageCheck,
     QC: ShieldCheck,
     LOGISTICS: Truck,
-    // Add missing stations to satisfy Record<StationTag, ...>
-    // Using generic icons for specialized stations for now
     FILM_COATING: CircleDashed,
     GLUEING: CircleDashed
   };
 
-  $: icon = station ? icons[station] ?? CircleDashed : CircleDashed;
-  $: text = label ?? (station ? $t(TERMS.stations[station]) : '');
-  $: show = Boolean(station || label);
-  $: sizeClass = size === 'md' ? 'station-badge--md' : 'station-badge--sm';
+  let icon = $derived(station ? icons[station] ?? CircleDashed : CircleDashed);
+  let text = $derived(label ?? (station ? $t(TERMS.stations[station]) : ''));
+  let show = $derived(Boolean(station || label));
+  let sizeClass = $derived(size === 'md' ? 'station-badge--md' : 'station-badge--sm');
 </script>
 
 {#if show}

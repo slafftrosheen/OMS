@@ -1,20 +1,19 @@
 <script lang="ts">
   import { HelpCircle } from 'lucide-svelte';
-  import { onDestroy } from 'svelte';
   import { ui } from '$lib/state/ui';
-  
-  export let text: string = '';
-  export let position: 'top' | 'bottom' | 'left' | 'right' = 'top';
-  
-  let showTooltip = false;
+
+  interface Props {
+    text?: string;
+    position?: 'top' | 'bottom' | 'left' | 'right';
+  }
+
+  let { text = '', position = 'top' }: Props = $props();
+
+  let showTooltip = $state(false);
   let timeoutId: number;
-  let fontScale = 1;
   const tooltipId = `tooltip-${Math.random().toString(36).slice(2)}`;
-  const unsubscribe = ui.subscribe((prefs) => {
-    fontScale = prefs.fontScale;
-  });
-  onDestroy(unsubscribe);
-  $: iconSize = 18 * fontScale;
+  let fontScale = $derived($ui.fontScale);
+  let iconSize = $derived(18 * fontScale);
   
   function handleMouseEnter() {
     timeoutId = window.setTimeout(() => {
@@ -33,10 +32,10 @@
     type="button"
     class="tooltip-trigger"
     aria-describedby={tooltipId}
-    on:mouseenter={handleMouseEnter}
-    on:mouseleave={handleMouseLeave}
-    on:focus={handleMouseEnter}
-    on:blur={handleMouseLeave}
+    onmouseenter={handleMouseEnter}
+    onmouseleave={handleMouseLeave}
+    onfocus={handleMouseEnter}
+    onblur={handleMouseLeave}
   >
     <HelpCircle size={iconSize} class="tooltip-icon" aria-hidden="true" />
     <span class="sr-only">{text}</span>

@@ -3,8 +3,7 @@
   import { fly } from 'svelte/transition';
   import { X } from 'lucide-svelte';
 
-  // Auto-subscribe to the store
-  $: toasts = $notifications;
+  let toasts = $derived($notifications);
 </script>
 
 <div class="toast-container">
@@ -18,7 +17,7 @@
       <div class="content">
         <span class="message">{toast.message}</span>
       </div>
-      <button class="close" on:click={() => notifications.remove(toast.id)}>
+      <button class="close" onclick={() => notifications.remove(toast.id)}>
         <X size={16} />
       </button>
     </div>

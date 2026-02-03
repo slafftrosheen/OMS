@@ -9,17 +9,15 @@
   import type { StationTag, ReworkReason } from '$lib/order/stages';
   import StationBadge from '$lib/ui/StationBadge.svelte';
 
-  $: $rooms, $messages, $users, $currentUser, $t;
-
-  let activeRoomId = 'general';
-  let scroller: HTMLDivElement | null = null;
+  let activeRoomId = $state('general');
+  let scroller: HTMLDivElement | null = $state(null);
 
   onMount(() => {
     loadUsers();
   });
 
-  $: activeRoom = $rooms.find((room) => room.id === activeRoomId) || $rooms[0];
-  $: roomMessages = $messages.filter((message) => message.roomId === activeRoomId);
+  let activeRoom = $derived($rooms.find((room) => room.id === activeRoomId) || $rooms[0]);
+  let roomMessages = $derived($messages.filter((message) => message.roomId === activeRoomId));
 
   function formatTime(iso: string) {
     const date = new Date(iso);
@@ -80,7 +78,6 @@
     }
   });
 
-  // Helper to safely access user station
   function getUserStation(stations: string[] | undefined): StationTag | null {
     if (!stations || stations.length === 0) return null;
     return stations[0] as StationTag;
@@ -112,7 +109,7 @@
           role="tab"
           aria-selected={room.id === activeRoomId}
           tabindex={room.id === activeRoomId ? 0 : -1}
-          on:click={() => selectRoom(room.id)}
+          onclick={() => selectRoom(room.id)}
         >
           {room.name}
         </button>

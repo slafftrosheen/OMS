@@ -5,9 +5,13 @@
   import { searchOrders } from '$lib/search/global-search';
   import { t } from 'svelte-i18n';
 
-  export let open = false;
-  export let onClose = () => {};
-  let q = '';
+  interface Props {
+    open?: boolean;
+    onClose?: () => void;
+  }
+
+  let { open = false, onClose = () => {} }: Props = $props();
+  let q = $state('');
 
   const withBase = (path: string) => {
     if (!base) return path;
@@ -15,42 +19,46 @@
     return `${base}${path}`;
   };
 
-  $: trimmed = q.trim();
-  $: hits = open && trimmed ? searchOrders(trimmed) : [];
-  $: if (!open) q = '';
+  let trimmed = $derived(q.trim());
+  let hits = $derived(open && trimmed ? searchOrders(trimmed) : []);
+  $effect(() => {
+    if (!open) q = '';
+  });
 
   const toHref = (id: string) => withBase(`/orders/${id}`);
 </script>
 
 <Modal {open} title={$t('commands.title')} {onClose}>
-  <Input bind:value={q} placeholder={$t('commands.placeholder')} ariaLabel={$t('commands.aria')} />
-  <div style="margin-top:10px;display:grid;gap:6px;max-height:300px;overflow:auto">
-    {#if trimmed && hits.length===0}
-      <div class="muted">{$t('commands.no_matches')}</div>
-    {:else if !trimmed}
-      <div class="muted">{$t('commands.start_typing')}</div>
-    {:else}
-      {#each hits as hit}
-        <a
-          class="tag"
-          href={toHref(hit.id)}
-          on:click={onClose}
-          on:keydown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              onClose();
-            }
-          }}
-        >
-          <div style="display:flex;flex-direction:column;align-items:flex-start">
-            <span><b>{hit.title}</b></span>
-            <span class="muted">{hit.id} • {hit.client}</span>
-            <span class="muted" style="font-size:0.8rem">{$t('commands.match_label')}: {hit.where.join(', ')}</span>
-          </div>
-        </a>
-      {/each}
-    {/if}
-  </div>
-  <svelte:fragment slot="footer">
+  {#snippet children()}
+    <Input bind:value={q} placeholder={$t('commands.placeholder')} ariaLabel={$t('commands.aria')} />
+    <div style="margin-top:10px;display:grid;gap:6px;max-height:300px;overflow:auto">
+      {#if trimmed && hits.length===0}
+        <div class="muted">{$t('commands.no_matches')}</div>
+      {:else if !trimmed}
+        <div class="muted">{$t('commands.start_typing')}</div>
+      {:else}
+        {#each hits as hit}
+          <a
+            class="tag"
+            href={toHref(hit.id)}
+            onclick={onClose}
+            onkeydown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                onClose();
+              }
+            }}
+          >
+            <div style="display:flex;flex-direction:column;align-items:flex-start">
+              <span><b>{hit.title}</b></span>
+              <span class="muted">{hit.id} • {hit.client}</span>
+              <span class="muted" style="font-size:0.8rem">{$t('commands.match_label')}: {hit.where.join(', ')}</span>
+            </div>
+          </a>
+        {/each}
+      {/if}
+    </div>
+  {/snippet}
+  {#snippet footer()}
     <span class="muted">{$t('commands.tip')}</span>
-  </svelte:fragment>
+  {/snippet}
 </Modal>
