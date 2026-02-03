@@ -52,93 +52,43 @@ CREATE POLICY "Users can delete own search history"
 -- malicious users from hijacking function execution
 
 -- Set search_path for all SECURITY DEFINER functions
--- Note: Using DO blocks because ALTER FUNCTION doesn't support IF EXISTS
+-- Uses dynamic SQL to handle all function overloads automatically
 DO $$
+DECLARE
+    func_record RECORD;
+    func_signature TEXT;
 BEGIN
-    -- check_approaching_deadlines
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'check_approaching_deadlines') THEN
-        ALTER FUNCTION public.check_approaching_deadlines() SET search_path = public;
-    END IF;
-    
-    -- check_low_inventory
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'check_low_inventory') THEN
-        ALTER FUNCTION public.check_low_inventory() SET search_path = public;
-    END IF;
-    
-    -- cleanup_expired_exports
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'cleanup_expired_exports') THEN
-        ALTER FUNCTION public.cleanup_expired_exports() SET search_path = public;
-    END IF;
-    
-    -- cleanup_old_notifications
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'cleanup_old_notifications') THEN
-        ALTER FUNCTION public.cleanup_old_notifications() SET search_path = public;
-    END IF;
-    
-    -- cleanup_old_sync_data
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'cleanup_old_sync_data') THEN
-        ALTER FUNCTION public.cleanup_old_sync_data() SET search_path = public;
-    END IF;
-    
-    -- create_notification
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'create_notification') THEN
-        ALTER FUNCTION public.create_notification(UUID, TEXT, TEXT, TEXT, TEXT, JSONB) SET search_path = public;
-    END IF;
-    
-    -- global_search
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'global_search') THEN
-        ALTER FUNCTION public.global_search(TEXT, TEXT[], INTEGER) SET search_path = public;
-    END IF;
-    
-    -- process_sync_queue_batch
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'process_sync_queue_batch') THEN
-        ALTER FUNCTION public.process_sync_queue_batch(TEXT, JSONB) SET search_path = public;
-    END IF;
-    
-    -- refresh_analytics
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'refresh_analytics') THEN
-        ALTER FUNCTION public.refresh_analytics() SET search_path = public;
-    END IF;
-    
-    -- resolve_sync_conflict
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'resolve_sync_conflict') THEN
-        ALTER FUNCTION public.resolve_sync_conflict(UUID, TEXT, JSONB) SET search_path = public;
-    END IF;
-    
-    -- search_orders_advanced
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'search_orders_advanced') THEN
-        ALTER FUNCTION public.search_orders_advanced(TEXT, JSONB, TEXT, TEXT, INTEGER, INTEGER) SET search_path = public;
-    END IF;
-    
-    -- send_bulk_notification
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'send_bulk_notification') THEN
-        ALTER FUNCTION public.send_bulk_notification(UUID[], TEXT, TEXT, TEXT, TEXT) SET search_path = public;
-    END IF;
-    
-    -- sync_comment_operation
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'sync_comment_operation') THEN
-        ALTER FUNCTION public.sync_comment_operation(TEXT, TEXT, JSONB) SET search_path = public;
-    END IF;
-    
-    -- sync_material_operation
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'sync_material_operation') THEN
-        ALTER FUNCTION public.sync_material_operation(TEXT, TEXT, JSONB) SET search_path = public;
-    END IF;
-    
-    -- sync_order_operation
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'sync_order_operation') THEN
-        ALTER FUNCTION public.sync_order_operation(TEXT, TEXT, JSONB) SET search_path = public;
-    END IF;
-    
-    -- sync_user_email
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'sync_user_email') THEN
-        ALTER FUNCTION public.sync_user_email() SET search_path = public;
-    END IF;
-    
-    -- update_updated_at_column
-    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'update_updated_at_column') THEN
-        ALTER FUNCTION public.update_updated_at_column() SET search_path = public;
-    END IF;
+    -- Loop through all SECURITY DEFINER functions in the public schema
+    FOR func_record IN 
+        SELECT 
+            n.nspname as schema_name,
+            p.proname as function_name,
+            pg_get_function_identity_arguments(p.oid) as function_args,
+            p.oid as function_oid
+        FROM pg_proc p
+        JOIN pg_namespace n ON p.pronamespace = n.oid
+        WHERE n.nspname = 'public'
+        AND p.prosecdef = true  -- SECURITY DEFINER functions only
+    LOOP
+        -- Build the function signature for ALTER FUNCTION
+        IF func_record.function_args = '' THEN
+            func_signature := format('%I.%I()', func_record.schema_name, func_record.function_name);
+        ELSE
+            func_signature := format('%I.%I(%s)', func_record.schema_name, func_record.function_name, func_record.function_args);
+        END IF;
+        
+        -- Set search_path for this function
+        BEGIN
+            -- func_signature is already safely quoted using format('%I.%I()') above
+            -- pg_get_function_identity_arguments returns trusted system catalog data
+            EXECUTE 'ALTER FUNCTION ' || func_signature || ' SET search_path = public';
+            -- Use DEBUG level to reduce log noise in production
+            RAISE DEBUG 'Set search_path for function: %', func_signature;
+        EXCEPTION WHEN OTHERS THEN
+            -- Warnings are kept for visibility of actual problems
+            RAISE WARNING 'Failed to set search_path for function %: %', func_signature, SQLERRM;
+        END;
+    END LOOP;
 END $$;
 
 -- =====================================================
