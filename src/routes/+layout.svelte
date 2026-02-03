@@ -483,7 +483,6 @@
   height: 60px;
   background: var(--bg-1);
   border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(12px);
 }
 
 .rf-topbar .brand {
