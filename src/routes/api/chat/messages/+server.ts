@@ -30,20 +30,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
             // Fetch messages from chat_messages table
             let query = locals.supabase
                 .from('chat_messages')
-                .select(`
-                    id,
-                    room_id,
-                    user_id,
-                    content,
-                    attachments,
-                    created_at,
-                    profiles:user_id (
-                        id,
-                        display_name,
-                        username,
-                        avatar_url
-                    )
-                `)
+                .select('id, room_id, user_id, content, attachments, created_at')
                 .eq('room_id', roomId)
                 .order('created_at', { ascending: false })
                 .limit(limit);
@@ -64,6 +51,21 @@ export const GET: RequestHandler = async ({ url, locals }) => {
                 });
             }
 
+            // Get unique user IDs and fetch profiles
+            const userIds = [...new Set(messages?.map(m => m.user_id).filter(Boolean))];
+            let profiles: Record<string, any> = {};
+            
+            if (userIds.length > 0) {
+                const { data: profileData } = await locals.supabase
+                    .from('profiles')
+                    .select('id, display_name, username, avatar_url')
+                    .in('id', userIds);
+                
+                profiles = Object.fromEntries(
+                    (profileData || []).map(p => [p.id, p])
+                );
+            }
+
             // Transform to expected format
             const transformedMessages = (messages || []).map(msg => ({
                 id: msg.id,
@@ -73,11 +75,11 @@ export const GET: RequestHandler = async ({ url, locals }) => {
                 ts: msg.created_at,
                 mentions: [],
                 variant: msg.user_id ? 'user' : 'system',
-                author: msg.profiles ? {
-                    id: msg.profiles.id,
-                    displayName: msg.profiles.display_name,
-                    username: msg.profiles.username,
-                    avatarUrl: msg.profiles.avatar_url
+                author: msg.user_id && profiles[msg.user_id] ? {
+                    id: profiles[msg.user_id].id,
+                    displayName: profiles[msg.user_id].display_name,
+                    username: profiles[msg.user_id].username,
+                    avatarUrl: profiles[msg.user_id].avatar_url
                 } : null
             }));
 
@@ -169,24 +171,31 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                     content: text.trim(),
                     attachments: []
                 })
-                .select(`
-                    id,
-                    room_id,
-                    user_id,
-                    content,
-                    created_at,
-                    profiles:user_id (
-                        id,
-                        display_name,
-                        username,
-                        avatar_url
-                    )
-                `)
+                .select('id, room_id, user_id, content, created_at')
                 .single();
 
             if (error) {
                 console.error('Error saving room message:', error);
                 return json({ error: 'Failed to save message' }, { status: 500 });
+            }
+
+            // Fetch profile for the user
+            let author = null;
+            if (message.user_id) {
+                const { data: profile } = await locals.supabase
+                    .from('profiles')
+                    .select('id, display_name, username, avatar_url')
+                    .eq('id', message.user_id)
+                    .single();
+                
+                if (profile) {
+                    author = {
+                        id: profile.id,
+                        displayName: profile.display_name,
+                        username: profile.username,
+                        avatarUrl: profile.avatar_url
+                    };
+                }
             }
 
             // Return message in expected format
@@ -200,12 +209,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                     ts: message.created_at,
                     mentions: mentions || [],
                     variant: message.user_id ? 'user' : 'system',
-                    author: message.profiles ? {
-                        id: message.profiles.id,
-                        displayName: message.profiles.display_name,
-                        username: message.profiles.username,
-                        avatarUrl: message.profiles.avatar_url
-                    } : null
+                    author
                 }
             });
         }
