@@ -9,8 +9,8 @@
 </script>
 
 {#if open}
-<div class="cmd" role="dialog" aria-modal="true" aria-label={$t('help.title') || 'Keyboard shortcuts'} on:click={close} on:keydown={close}>
-  <div class="panel" on:click|stopPropagation on:keydown|stopPropagation role="document">
+<div class="cmd" role="dialog" tabindex="0" aria-modal="true" aria-label={$t('help.title') || 'Keyboard shortcuts'} on:click={close} on:keydown={close}>
+  <div class="panel" on:click|stopPropagation on:keydown|stopPropagation role="document" tabindex="0">
     <h3>{$t('help.title') || 'Shortcuts'}</h3>
     <ul>
       <li><b>Ctrl/Cmd + K</b> — Command palette</li>
