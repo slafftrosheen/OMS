@@ -213,6 +213,8 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_room_id ON public.chat_messages(roo
 -- draft_orders
 -- Ensure audit columns exist before indexing
 ALTER TABLE IF EXISTS public.draft_orders
+    ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES auth.users(id);
+ALTER TABLE IF EXISTS public.draft_orders
     ADD COLUMN IF NOT EXISTS updated_by UUID REFERENCES auth.users(id);
 
 CREATE INDEX IF NOT EXISTS idx_draft_orders_created_by_fk ON public.draft_orders(created_by);
