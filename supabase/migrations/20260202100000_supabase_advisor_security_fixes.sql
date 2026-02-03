@@ -51,61 +51,95 @@ CREATE POLICY "Users can delete own search history"
 -- Set search_path for all SECURITY DEFINER functions to prevent
 -- malicious users from hijacking function execution
 
--- check_approaching_deadlines
-ALTER FUNCTION IF EXISTS public.check_approaching_deadlines() SET search_path = public;
-
--- check_low_inventory
-ALTER FUNCTION IF EXISTS public.check_low_inventory() SET search_path = public;
-
--- cleanup_expired_exports
-ALTER FUNCTION IF EXISTS public.cleanup_expired_exports() SET search_path = public;
-
--- cleanup_old_notifications
-ALTER FUNCTION IF EXISTS public.cleanup_old_notifications() SET search_path = public;
-
--- cleanup_old_sync_data
-ALTER FUNCTION IF EXISTS public.cleanup_old_sync_data() SET search_path = public;
-
--- create_notification
-ALTER FUNCTION IF EXISTS public.create_notification(UUID, TEXT, TEXT, TEXT, TEXT, JSONB) SET search_path = public;
-
--- global_search
-ALTER FUNCTION IF EXISTS public.global_search(TEXT, TEXT[], INTEGER) SET search_path = public;
-
--- process_sync_queue_batch
-ALTER FUNCTION IF EXISTS public.process_sync_queue_batch(TEXT, JSONB) SET search_path = public;
-
--- refresh_analytics
-ALTER FUNCTION IF EXISTS public.refresh_analytics() SET search_path = public;
-
--- resolve_sync_conflict
-ALTER FUNCTION IF EXISTS public.resolve_sync_conflict(UUID, TEXT, JSONB) SET search_path = public;
-
--- search_orders_advanced
-ALTER FUNCTION IF EXISTS public.search_orders_advanced(TEXT, JSONB, TEXT, TEXT, INTEGER, INTEGER) SET search_path = public;
-
--- send_bulk_notification
-ALTER FUNCTION IF EXISTS public.send_bulk_notification(UUID[], TEXT, TEXT, TEXT, TEXT) SET search_path = public;
-
--- sync_comment_operation
-ALTER FUNCTION IF EXISTS public.sync_comment_operation(TEXT, TEXT, JSONB) SET search_path = public;
-
--- sync_material_operation
-ALTER FUNCTION IF EXISTS public.sync_material_operation(TEXT, TEXT, JSONB) SET search_path = public;
-
--- sync_order_operation
-ALTER FUNCTION IF EXISTS public.sync_order_operation(TEXT, TEXT, JSONB) SET search_path = public;
-
--- sync_user_email - check if this function exists first
+-- Set search_path for all SECURITY DEFINER functions
+-- Note: Using DO blocks because ALTER FUNCTION doesn't support IF EXISTS
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'sync_user_email') THEN
+    -- check_approaching_deadlines
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'check_approaching_deadlines') THEN
+        ALTER FUNCTION public.check_approaching_deadlines() SET search_path = public;
+    END IF;
+    
+    -- check_low_inventory
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'check_low_inventory') THEN
+        ALTER FUNCTION public.check_low_inventory() SET search_path = public;
+    END IF;
+    
+    -- cleanup_expired_exports
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'cleanup_expired_exports') THEN
+        ALTER FUNCTION public.cleanup_expired_exports() SET search_path = public;
+    END IF;
+    
+    -- cleanup_old_notifications
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'cleanup_old_notifications') THEN
+        ALTER FUNCTION public.cleanup_old_notifications() SET search_path = public;
+    END IF;
+    
+    -- cleanup_old_sync_data
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'cleanup_old_sync_data') THEN
+        ALTER FUNCTION public.cleanup_old_sync_data() SET search_path = public;
+    END IF;
+    
+    -- create_notification
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'create_notification') THEN
+        ALTER FUNCTION public.create_notification(UUID, TEXT, TEXT, TEXT, TEXT, JSONB) SET search_path = public;
+    END IF;
+    
+    -- global_search
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'global_search') THEN
+        ALTER FUNCTION public.global_search(TEXT, TEXT[], INTEGER) SET search_path = public;
+    END IF;
+    
+    -- process_sync_queue_batch
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'process_sync_queue_batch') THEN
+        ALTER FUNCTION public.process_sync_queue_batch(TEXT, JSONB) SET search_path = public;
+    END IF;
+    
+    -- refresh_analytics
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'refresh_analytics') THEN
+        ALTER FUNCTION public.refresh_analytics() SET search_path = public;
+    END IF;
+    
+    -- resolve_sync_conflict
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'resolve_sync_conflict') THEN
+        ALTER FUNCTION public.resolve_sync_conflict(UUID, TEXT, JSONB) SET search_path = public;
+    END IF;
+    
+    -- search_orders_advanced
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'search_orders_advanced') THEN
+        ALTER FUNCTION public.search_orders_advanced(TEXT, JSONB, TEXT, TEXT, INTEGER, INTEGER) SET search_path = public;
+    END IF;
+    
+    -- send_bulk_notification
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'send_bulk_notification') THEN
+        ALTER FUNCTION public.send_bulk_notification(UUID[], TEXT, TEXT, TEXT, TEXT) SET search_path = public;
+    END IF;
+    
+    -- sync_comment_operation
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'sync_comment_operation') THEN
+        ALTER FUNCTION public.sync_comment_operation(TEXT, TEXT, JSONB) SET search_path = public;
+    END IF;
+    
+    -- sync_material_operation
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'sync_material_operation') THEN
+        ALTER FUNCTION public.sync_material_operation(TEXT, TEXT, JSONB) SET search_path = public;
+    END IF;
+    
+    -- sync_order_operation
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'sync_order_operation') THEN
+        ALTER FUNCTION public.sync_order_operation(TEXT, TEXT, JSONB) SET search_path = public;
+    END IF;
+    
+    -- sync_user_email
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'sync_user_email') THEN
         ALTER FUNCTION public.sync_user_email() SET search_path = public;
     END IF;
+    
+    -- update_updated_at_column
+    IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'update_updated_at_column') THEN
+        ALTER FUNCTION public.update_updated_at_column() SET search_path = public;
+    END IF;
 END $$;
-
--- update_updated_at_column (may already be fixed but ensure it's set)
-ALTER FUNCTION IF EXISTS public.update_updated_at_column() SET search_path = public;
 
 -- =====================================================
 -- 4. MATERIALIZED VIEW IN API
