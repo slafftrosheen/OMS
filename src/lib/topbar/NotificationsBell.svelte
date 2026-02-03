@@ -80,14 +80,14 @@
 </div>
 
 <style>
-.menu{position:relative}
+.menu{position:relative; z-index:1000;}
 .icon{position:relative;border:1px solid var(--border);border-radius:999px;background:var(--bg-0);width:var(--control-xs);height:var(--control-xs);display:grid;place-items:center}
 .nbadge{ position:absolute; top:calc(var(--space-tight) * -1); right:calc(var(--space-tight) * -1); min-width:var(--icon-size);height:var(--icon-size);
         border-radius:var(--radius-full); background:var(--error, var(--danger)); color:var(--ink-0, var(--text)); font-size:calc(0.7rem * var(--font-scale, 1));
         display:grid; place-items:center; padding:0 calc(var(--space-xs) + (var(--space-xxs) / 2)); }
 .dropdown{position:absolute;right:0;top:calc(100% + var(--space-sm));min-width:calc(320px * var(--font-scale, 1));background:var(--bg-0);
          border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:0 10px 24px color-mix(in oklab,var(--shadow-rgb) 35%,transparent);
-         padding:var(--space-sm);z-index:10000}
+         padding:var(--space-sm);z-index:10000;max-height:500px;overflow:hidden}
 .dropdown [role="menuitem"]{display:flex;justify-content:space-between;gap:var(--space-sm);padding:var(--space-tight);border-radius:var(--radius-sm)}
 .dropdown [role="menuitem"]:focus{outline:3px solid var(--focus)}
 

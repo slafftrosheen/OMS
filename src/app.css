@@ -175,6 +175,48 @@ html {
   z-index: 1;
 }
 
+/* =====================================================
+   Z-INDEX HIERARCHY FIX
+   ===================================================== */
+
+.rf-topbar {
+  z-index: 100 !important;
+}
+
+.rf-topbar .actions {
+  z-index: 101 !important;
+}
+
+[class*="dropdown"],
+[class*="-dropdown"],
+[role="menu"] {
+  z-index: 10000 !important;
+}
+
+[role="dialog"],
+.modal,
+.overlay {
+  z-index: 9999 !important;
+}
+
+.toast,
+.notification-toast {
+  z-index: 99999 !important;
+}
+
+.rf-topbar nav.main.mobile-open {
+  z-index: 9999 !important;
+}
+
+.rf-page {
+  position: relative;
+  z-index: 1;
+}
+
+.chat-sidebar {
+  z-index: 500;
+}
+
 /* Additional utility classes */
 .text-xs { font-size: var(--font-size-xs, 0.75rem); }
 .text-sm { font-size: var(--font-size-sm, 0.875rem); }
