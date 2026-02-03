@@ -338,7 +338,7 @@
     display: flex;
     flex-direction: column;
     gap: 2rem;
-    max-width: 900px;
+    max-width: 1100px;
     margin: 0 auto;
     background: var(--bg-1);
     padding: 2rem;
@@ -573,13 +573,36 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
-  @media (max-width: 768px) {
+  /* Tablet breakpoint - iPad landscape (1024px and below) */
+  @media (max-width: 1024px) {
     .order-form {
-      padding: 1rem;
+      max-width: 100%;
+      padding: 1.5rem;
     }
 
     .form-row {
       grid-template-columns: 1fr;
+    }
+
+    .form-section {
+      padding: 1.25rem;
+    }
+  }
+
+  /* Mobile breakpoint */
+  @media (max-width: 640px) {
+    .order-form {
+      padding: 1rem;
+    }
+
+    .form-section {
+      padding: 1rem;
+    }
+
+    .section-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.75rem;
     }
   }
 </style>
