@@ -38,7 +38,9 @@
 
   onMount(loadAnalytics);
 
-  $: if ($timeframe) loadAnalytics();
+  $effect(() => {
+    if ($timeframe) loadAnalytics();
+  });
 </script>
 
 <svelte:head>

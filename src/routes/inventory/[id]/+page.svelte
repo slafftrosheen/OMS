@@ -17,7 +17,7 @@
   import Clock from 'lucide-svelte/icons/clock';
 
   // Get id from URL params via page store
-  $: itemId = $page.params.id;
+  let itemId = $derived($page.params.id);
 
   let item: Item | undefined;
   let editMode = false;
@@ -32,12 +32,14 @@
 
   onDestroy(() => unsubscribe?.());
 
-  $: if (!item && browser && itemId) {
-    // Item not found after store loaded
-    setTimeout(() => {
-      if (!item) goto(`${base}/inventory`);
-    }, 500);
-  }
+  $effect(() => {
+    if (!item && browser && itemId) {
+      // Item not found after store loaded
+      setTimeout(() => {
+        if (!item) goto(`${base}/inventory`);
+      }, 500);
+    }
+  });
 
   let adjustAmount = 1;
   let adjustNote = '';

@@ -13,7 +13,7 @@
     import QRCodeDisplay from '$lib/components/qr/QRCodeDisplay.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
 
-    $: orderId = $page.params.id;
+    let orderId = $derived($page.params.id);
 
     let order: any = null;
     let files: any[] = [];

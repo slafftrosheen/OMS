@@ -1,6 +1,5 @@
 <script lang="ts">
-  export let po: string;
-  export let revision: string = 'current';
+  let { po, revision = 'current' }: { po: string; revision?: string } = $props();
   
   // Fallback for crypto.randomUUID for older browsers
   function generateId() {

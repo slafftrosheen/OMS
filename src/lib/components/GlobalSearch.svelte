@@ -3,7 +3,7 @@
     import { Search, FileText, Package, Inbox, User, X, Loader2 } from 'lucide-svelte';
     import { debounce } from '$lib/utils';
 
-    export let visible = false;
+    let { visible = false }: { visible?: boolean } = $props();
 
     let query = '';
     let results: any[] = [];

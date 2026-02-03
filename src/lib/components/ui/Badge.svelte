@@ -1,9 +1,18 @@
 <!-- src/lib/components/ui/Badge.svelte -->
 <script lang="ts">
-    export let variant: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'neutral' = 'neutral';
-    export let size: 'sm' | 'md' | 'lg' = 'md';
-    export let rounded = true;
-    export let dot = false;
+    let { 
+        variant = 'neutral', 
+        size = 'md', 
+        rounded = true, 
+        dot = false,
+        ...restProps 
+    }: { 
+        variant?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+        size?: 'sm' | 'md' | 'lg';
+        rounded?: boolean;
+        dot?: boolean;
+        [key: string]: any;
+    } = $props();
 
     let classes = $derived([
         'badge',
@@ -14,7 +23,7 @@
     ].filter(Boolean).join(' '));
 </script>
 
-<span class={classes} {...$$restProps}>
+<span class={classes} {...restProps}>
     {#if dot}
         <span class="badge-dot-indicator" aria-hidden="true"></span>
     {/if}

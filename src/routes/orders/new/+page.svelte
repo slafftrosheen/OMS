@@ -189,12 +189,14 @@
   
   // Re-render when zoom changes - debounced
   let zoomTimeout: ReturnType<typeof setTimeout>;
-  $: if (selectedFileIndex !== null && uploadedFiles[selectedFileIndex]?.type === 'pdf' && uploadedFiles[selectedFileIndex]?.pdfDataUrl && previewZoom) {
-    clearTimeout(zoomTimeout);
-    zoomTimeout = setTimeout(() => {
-      renderPdfPage(uploadedFiles[selectedFileIndex!].pdfDataUrl!, pdfCurrentPage);
-    }, 200);
-  }
+  $effect(() => {
+    if (selectedFileIndex !== null && uploadedFiles[selectedFileIndex]?.type === 'pdf' && uploadedFiles[selectedFileIndex]?.pdfDataUrl && previewZoom) {
+      clearTimeout(zoomTimeout);
+      zoomTimeout = setTimeout(() => {
+        renderPdfPage(uploadedFiles[selectedFileIndex!].pdfDataUrl!, pdfCurrentPage);
+      }, 200);
+    }
+  });
 
   function zoomIn() {
     previewZoom = Math.min(previewZoom + 0.25, 3);
@@ -346,8 +348,8 @@
   ];
 
   // Check if user is SuperAdmin
-  $: isSuperAdmin = $currentUser?.roles?.Admin === 'SuperAdmin';
-  $: isAdmin = $currentUser?.primarySection === 'Admin' || isSuperAdmin;
+  let isSuperAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
+  let isAdmin = $derived($currentUser?.primarySection === 'Admin' || isSuperAdmin);
 
   onMount(async () => {
     await Promise.all([
@@ -406,13 +408,13 @@
   }
 
   // Group presets by client
-  $: groupedPresets = deliveryPresets.reduce((acc, preset) => {
+  let groupedPresets = $derived(deliveryPresets.reduce((acc, preset) => {
     if (!acc[preset.clientName]) {
       acc[preset.clientName] = [];
     }
     acc[preset.clientName].push(preset);
     return acc;
-  }, {} as Record<string, DeliveryPreset[]>);
+  }, {} as Record<string, DeliveryPreset[]>));
 
   function addProfile() {
     const newProfile = {
