@@ -80,7 +80,7 @@
 </div>
 
 <style>
-.menu{position:relative; z-index:1000;}
+.menu{position:relative;}
 .icon{position:relative;border:1px solid var(--border);border-radius:999px;background:var(--bg-0);width:var(--control-xs);height:var(--control-xs);display:grid;place-items:center}
 .nbadge{ position:absolute; top:calc(var(--space-tight) * -1); right:calc(var(--space-tight) * -1); min-width:var(--icon-size);height:var(--icon-size);
         border-radius:var(--radius-full); background:var(--error, var(--danger)); color:var(--ink-0, var(--text)); font-size:calc(0.7rem * var(--font-scale, 1));
