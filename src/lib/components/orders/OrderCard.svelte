@@ -1,36 +1,46 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import type { Order } from '$lib/stores/orders';
   import { t } from '$lib/i18n';
 
-  export let order: Order;
-  export let compact = false;
-  export let showActions = true;
+  let { 
+    order, 
+    compact = false, 
+    showActions = true,
+    onclick,
+    onedit,
+    ondelete
+  }: {
+    order: Order;
+    compact?: boolean;
+    showActions?: boolean;
+    onclick?: (order: Order) => void;
+    onedit?: (order: Order) => void;
+    ondelete?: (order: Order) => void;
+  } = $props();
 
-  const dispatch = createEventDispatcher();
+  let daysUntilDue = $derived(order.days_until_due || 0);
+  let isOverdue = $derived(daysUntilDue < 0);
+  let isDueSoon = $derived(daysUntilDue >= 0 && daysUntilDue < 3);
+  let urgencyClass = $derived(isOverdue ? 'overdue' : isDueSoon ? 'due-soon' : '');
 
-  $: daysUntilDue = order.days_until_due || 0;
-  $: isOverdue = daysUntilDue < 0;
-  $: isDueSoon = daysUntilDue >= 0 && daysUntilDue < 3;
-  $: urgencyClass = isOverdue ? 'overdue' : isDueSoon ? 'due-soon' : '';
-
-  $: progressColor =
+  let progressColor = $derived(
     (order.progress_percentage || 0) < 30 ? 'red' :
-    (order.progress_percentage || 0) < 70 ? 'orange' : 'green';
+    (order.progress_percentage || 0) < 70 ? 'orange' : 'green'
+  );
 
   function handleClick() {
-    dispatch('click', order);
+    onclick?.(order);
   }
 
   function handleEdit(e: Event) {
     e.stopPropagation();
-    dispatch('edit', order);
+    onedit?.(order);
   }
 
   function handleDelete(e: Event) {
     e.stopPropagation();
     if (confirm(`Delete order ${order.po_number}?`)) {
-      dispatch('delete', order);
+      ondelete?.(order);
     }
   }
 

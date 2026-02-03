@@ -1,20 +1,29 @@
 <!-- src/lib/components/orders/OrderList.svelte -->
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import { ordersStore as orders, filteredOrders, orderStats } from '$lib/stores/orders';
     import OrderCard from './OrderCard.svelte';
     import Input from '$lib/components/ui/Input.svelte';
     import Badge from '$lib/components/ui/Badge.svelte';
+    import type { Order } from '$lib/stores/orders';
 
-    export let showFilters = true;
-    export let showStats = true;
+    let { 
+        showFilters = true, 
+        showStats = true,
+        onorderClick,
+        onorderEdit,
+        onorderDelete
+    }: {
+        showFilters?: boolean;
+        showStats?: boolean;
+        onorderClick?: (order: Order) => void;
+        onorderEdit?: (order: Order) => void;
+        onorderDelete?: (order: Order) => void;
+    } = $props();
 
-    const dispatch = createEventDispatcher();
-
-    let searchQuery = '';
-    let selectedStatuses: string[] = [];
-    let sortField: 'created_at' | 'due_date' | 'title' | 'status' = 'created_at';
-    let sortDirection: 'asc' | 'desc' = 'desc';
+    let searchQuery = $state('');
+    let selectedStatuses: string[] = $state([]);
+    let sortField: 'created_at' | 'due_date' | 'title' | 'status' = $state('created_at');
+    let sortDirection: 'asc' | 'desc' = $state('desc');
 
     const STATUS_OPTIONS = [
         { value: 'ACTIVE', label: 'Active', variant: 'info' },
@@ -54,16 +63,16 @@
         sortDirection = 'desc';
     }
 
-    function handleOrderClick(event: CustomEvent) {
-        dispatch('orderClick', event.detail);
+    function handleOrderClick(order: Order) {
+        onorderClick?.(order);
     }
 
-    function handleOrderEdit(event: CustomEvent) {
-        dispatch('orderEdit', event.detail);
+    function handleOrderEdit(order: Order) {
+        onorderEdit?.(order);
     }
 
-    function handleOrderDelete(event: CustomEvent) {
-        dispatch('orderDelete', event.detail);
+    function handleOrderDelete(order: Order) {
+        onorderDelete?.(order);
     }
 </script>
 
@@ -170,9 +179,9 @@
             {#each $filteredOrders as order (order.id)}
                 <OrderCard
                     {order}
-                    on:click={handleOrderClick}
-                    on:edit={handleOrderEdit}
-                    on:delete={handleOrderDelete}
+                    onclick={handleOrderClick}
+                    onedit={handleOrderEdit}
+                    ondelete={handleOrderDelete}
                 />
             {/each}
         {/if}

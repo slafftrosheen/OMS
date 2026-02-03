@@ -1,14 +1,20 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { t } from '$lib/i18n';
   import type { Order } from '$lib/stores/orders';
 
-  export let order: Partial<Order> = {};
-  export let mode: 'create' | 'edit' = 'create';
+  let { 
+    order = {}, 
+    mode = 'create',
+    onsubmit,
+    oncancel
+  }: {
+    order?: Partial<Order>;
+    mode?: 'create' | 'edit';
+    onsubmit?: (data: any) => void;
+    oncancel?: () => void;
+  } = $props();
 
-  const dispatch = createEventDispatcher();
-
-  let formData = {
+  let formData = $state({
     po_number: order.po_number || '',
     title: order.title || '',
     client: order.client || '',
@@ -19,7 +25,7 @@
     priority: order.priority || 5,
     status: order.status || 'draft',
     notes: order.notes || ''
-  };
+  });
 
   let materials: Array<{
     material_type: string;
@@ -28,10 +34,10 @@
     ral_code: string;
     quantity: number;
     unit: string;
-  }> = [];
+  }> = $state([]);
 
-  let errors: Record<string, string> = {};
-  let submitting = false;
+  let errors: Record<string, string> = $state({});
+  let submitting = $state(false);
 
   function validate() {
     errors = {};
@@ -73,7 +79,7 @@
         materials: materials.filter(m => m.material_type)
       };
 
-      dispatch('submit', payload);
+      onsubmit?.(payload);
     } catch (err) {
       console.error('Form submission error:', err);
     } finally {
@@ -82,7 +88,7 @@
   }
 
   function handleCancel() {
-    dispatch('cancel');
+    oncancel?.();
   }
 </script>
 
