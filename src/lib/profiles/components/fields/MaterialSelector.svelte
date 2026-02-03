@@ -4,7 +4,7 @@
   import { ChevronDown, AlertCircle, CheckCircle, Package } from 'lucide-svelte';
   import type { Material } from '$lib/profiles/types';
 
-  export let value: string = '';
+  let value = $bindable('');
   export let options: string[] = []; // Material codes to filter by
   export let label: string = 'Material';
   export let required: boolean = false;
