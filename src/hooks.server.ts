@@ -174,7 +174,7 @@ const authHandler: Handle = async ({ event, resolve }) => {
         { path: '/api/health', methods: ['GET'] },
         { path: '/api/healthz', methods: ['GET'] },
 		{ path: '/api/preferences', methods: ['GET'] }, // Returns defaults for anonymous users
-		{ path: '/api/materials', methods: ['GET'] } // Read-only materials data
+		{ path: '/api/materials', methods: ['GET'] }, // Read-only materials data
 	];
 
 	// Check if the current request matches any public route

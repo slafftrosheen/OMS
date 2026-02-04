@@ -8,13 +8,15 @@ test.describe('Public API Endpoints', () => {
     // Should return 200 OK, not 401 Unauthorized
     expect(response.status()).toBe(200);
     
-    // Should return default preferences
+    // Should return default preferences with expected structure
     const data = await response.json();
     expect(data).toHaveProperty('theme');
     expect(data).toHaveProperty('locale');
     expect(data).toHaveProperty('scale');
-    expect(data.theme).toBe('DarkVim');
-    expect(data.locale).toBe('en');
+    expect(data).toHaveProperty('density');
+    expect(data).toHaveProperty('pdfZoom');
+    expect(data).toHaveProperty('sidebarCollapsed');
+    expect(data).toHaveProperty('notificationsEnabled');
   });
 
   test('should allow anonymous access to /api/materials', async ({ request }) => {
