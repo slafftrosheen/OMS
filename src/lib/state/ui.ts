@@ -31,7 +31,7 @@ export const ui = writable<Prefs>(init);
 
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 let hasSyncedOnce = false;
-let lastSynced: Prefs | null = init;
+let lastSynced: Prefs | null = null;
 
 async function syncPrefsToServer(p: Prefs) {
   if (!isBrowser) return;
