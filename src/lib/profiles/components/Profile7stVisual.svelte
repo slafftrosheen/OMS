@@ -219,11 +219,11 @@
   const frameMaterials = ['ALU_PROFILE', 'ALU_SHEET'];
 
   // Local state for material thickness options
-  let faceThicknessOptions: number[] = [];
-  let backThicknessOptions: number[] = [];
-  let sidesThicknessOptions: number[] = [];
+  let faceThicknessOptions: number[] = $state([]);
+  let backThicknessOptions: number[] = $state([]);
+  let sidesThicknessOptions: number[] = $state([]);
   
-  let updatingMaterial = false;
+  let updatingMaterial = $state(false);
 
   /**
    * Emits a 'change' event with the current configuration.

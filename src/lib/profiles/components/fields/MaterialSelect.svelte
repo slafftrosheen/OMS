@@ -1,4 +1,4 @@
-<script lang="ts" context="module">
+<script module lang="ts">
   // Add caching outside component instance
   // We need to define the Material interface here as well or use any if not exported
   interface MaterialCacheEntry {
@@ -51,18 +51,18 @@
     onchange?: (data: { value: string; material: Material | null; hex: string; shortName?: string }) => void;
   } = $props();
 
-  let materials: Material[] = [];
-  let filteredMaterials: Material[] = [];
-  let loading = true;
-  let open = false;
-  let search = '';
-  let selectedMaterial: Material | null = null;
+  let materials: Material[] = $state([]);
+  let filteredMaterials: Material[] = $state([]);
+  let loading = $state(true);
+  let open = $state(false);
+  let search = $state('');
+  let selectedMaterial: Material | null = $state(null);
   let dropdownRef: HTMLElement;
-  let customMode = false; // For custom text input mode
+  let customMode = $state(false); // For custom text input mode
 
   let onchangeTimeout: ReturnType<typeof setTimeout>;
-  let isSelecting = false; // Prevent re-entry
-  let hasInitialized = false;
+  let isSelecting = false; // Prevent re-entry (doesn't need to be reactive)
+  let hasInitialized = false; // (doesn't need to be reactive)
 
   // Get hex color from selected material
   let hexColor = $derived(selectedMaterial?.metadata?.hex || '');
@@ -328,7 +328,7 @@
   }
   
   // Custom color for custom values
-  let customHex = '';
+  let customHex = $state('');
   
   function handleCustomInput(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -371,7 +371,7 @@
   let categoryOrder = $derived(Object.keys(groupedMaterials).sort());
 </script>
 
-<svelte:window on:click={handleClickOutside} />
+<svelte:window onclick={handleClickOutside} />
 
 <div class="material-select" bind:this={dropdownRef}>
   {#if customMode}
@@ -381,7 +381,7 @@
         type="color"
         class="custom-color-picker"
         bind:value={customHex}
-        on:input={handleCustomColorChange}
+        oninput={handleCustomColorChange}
         title="Pick color for custom value"
         disabled={readonly}
       />
@@ -389,11 +389,11 @@
         type="text"
         class="custom-text-input"
         bind:value
-        on:input={handleCustomInput}
+        oninput={handleCustomInput}
         placeholder="Enter custom value..."
         disabled={readonly}
       />
-      <button type="button" class="btn-switch-mode" on:click={() => { customMode = false; }} title="Switch to material picker">
+      <button type="button" class="btn-switch-mode" onclick={() => { customMode = false; }} title="Switch to material picker">
         <ChevronDown size={14} />
       </button>
     </div>
@@ -404,7 +404,7 @@
       class:open
       class:has-value={value && showValueInTrigger}
       disabled={readonly}
-      on:click={toggleDropdown}
+      onclick={toggleDropdown}
     >
       {#if showValueInTrigger && (selectedMaterial || value)}
         <span class="selected-value">
@@ -426,14 +426,14 @@
         <input
           type="text"
           bind:value={search}
-          on:input={filterMaterials}
+          oninput={filterMaterials}
           placeholder="Search materials..."
           class="search-input"
         />
       </div>
       
       {#if allowCustom}
-        <button type="button" class="custom-option" on:click={enterCustomMode}>
+        <button type="button" class="custom-option" onclick={enterCustomMode}>
           ✏️ Enter custom value...
         </button>
       {/if}
@@ -452,7 +452,7 @@
                   type="button"
                   class="option"
                   class:selected={selectedMaterial?.id === material.id}
-                  on:click={() => selectMaterial(material)}
+                  onclick={() => selectMaterial(material)}
                 >
                   {#if showColor && material.metadata?.hex}
                     <span class="color-dot" style="background-color: {material.metadata.hex}"></span>
