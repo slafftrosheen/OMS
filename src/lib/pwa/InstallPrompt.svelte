@@ -5,7 +5,7 @@
 
 import { Download, X } from 'lucide-svelte';
 
-let { oninstall, ondismiss }: { oninstall?: () => void; ondismiss?: () => void } = $props();
+let { onInstall, onDismiss }: { onInstall?: () => void; onDismiss?: () => void } = $props();
 </script>
 
 <div class="install-prompt">
@@ -22,14 +22,14 @@ let { oninstall, ondismiss }: { oninstall?: () => void; ondismiss?: () => void }
     <div class="prompt-actions">
       <button 
         class="btn-primary"
-        on:click={() => oninstall?.()}
+        onclick={() => onInstall?.()}
       >
         Install
       </button>
       
       <button 
         class="btn-ghost"
-        on:click={() => ondismiss?.()}
+        onclick={() => onDismiss?.()}
         aria-label="Dismiss"
       >
         <X size={20} />

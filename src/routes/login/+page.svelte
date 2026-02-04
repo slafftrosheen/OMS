@@ -8,15 +8,15 @@
   import { t, locale } from 'svelte-i18n';
   import { setLocale } from '$lib/i18n';
   
-  let mode: 'login' | 'signup' = 'login';
-  let email = '';
-  let username = '';  // Only used in signup
-  let password = '';
-  let confirmPassword = '';
-  let errorMsg = '';
-  let successMsg = '';
-  let isLoading = false;
-  let langMenuOpen = false;
+  let mode: 'login' | 'signup' = $state('login');
+  let email = $state('');
+  let username = $state('');  // Only used in signup
+  let password = $state('');
+  let confirmPassword = $state('');
+  let errorMsg = $state('');
+  let successMsg = $state('');
+  let isLoading = $state(false);
+  let langMenuOpen = $state(false);
   
   const languages = [
     { code: 'en', label: 'English', flag: '🇬🇧' },
@@ -159,14 +159,17 @@
   <title>{mode === 'login' ? $t('auth.login') : $t('auth.signup')} - Reclame OMS</title>
 </svelte:head>
 
-<svelte:window on:click={handleClickOutside} />
+<svelte:window onclick={handleClickOutside} />
 
 <div class="login-container">
   <div class="lang-selector">
     <div class="lang-menu">
       <button
         class="lang-btn"
-        on:click|stopPropagation={() => langMenuOpen = !langMenuOpen}
+        onclick={(event) => {
+          event.stopPropagation();
+          langMenuOpen = !langMenuOpen;
+        }}
         aria-haspopup="menu"
         aria-expanded={langMenuOpen}
         aria-label={$t('topbar.language', { default: 'Language' })}
@@ -181,7 +184,10 @@
             <button
               role="menuitem"
               class:active={currentLang === lang.code}
-              on:click|stopPropagation={() => changeLang(lang.code)}
+              onclick={(event) => {
+                event.stopPropagation();
+                changeLang(lang.code);
+              }}
             >
               <span class="flag">{lang.flag}</span>
               <span>{lang.label}</span>
@@ -206,7 +212,10 @@
       </div>
     {/if}
 
-    <form on:submit|preventDefault={handleSubmit}>
+    <form onsubmit={(event) => {
+      event.preventDefault();
+      handleSubmit();
+    }}>
       <div class="form-group">
         <label for="email">
           <Mail size={16} />
@@ -216,7 +225,7 @@
           id="email"
           type="email"
           bind:value={email} 
-          on:keypress={handleKeyPress}
+          onkeypress={handleKeyPress}
           required 
           disabled={isLoading}
           placeholder={$t('auth.emailPlaceholder')}
@@ -234,7 +243,7 @@
             id="username"
             type="text"
             bind:value={username} 
-            on:keypress={handleKeyPress}
+            onkeypress={handleKeyPress}
             required 
             disabled={isLoading}
             placeholder={$t('auth.usernamePlaceholder')}
@@ -252,7 +261,7 @@
           id="password"
           type="password" 
           bind:value={password} 
-          on:keypress={handleKeyPress}
+          onkeypress={handleKeyPress}
           required 
           disabled={isLoading}
           placeholder={mode === 'signup' ? $t('auth.passwordPlaceholderNew') : $t('auth.passwordPlaceholder')}
@@ -270,7 +279,7 @@
             id="confirm-password"
             type="password" 
             bind:value={confirmPassword} 
-            on:keypress={handleKeyPress}
+            onkeypress={handleKeyPress}
             required 
             disabled={isLoading}
             placeholder={$t('auth.confirmPasswordPlaceholder')}
@@ -299,7 +308,7 @@
     <div class="toggle-section">
       <p>
         {mode === 'login' ? $t('auth.noAccount') : $t('auth.haveAccount')}
-        <button class="link-btn" on:click={toggleMode} disabled={isLoading}>
+        <button class="link-btn" onclick={toggleMode} disabled={isLoading}>
           {mode === 'login' ? $t('auth.signup') : $t('auth.login')}
         </button>
       </p>
