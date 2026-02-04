@@ -3,7 +3,7 @@
   "buildCommand": "rm -rf .svelte-kit .vercel/output && npm run build",
   "headers": [
     {
-      "source": "/(.*).html",
+      "source": "/(.*)\\.html",
       "headers": [
         {
           "key": "Cache-Control",
