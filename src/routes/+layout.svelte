@@ -208,7 +208,9 @@
 
       // Load current user from session
       const user = await loadCurrentUser();
-      authChecked = true;
+      if (!routeIsPublic) {
+        authChecked = true;
+      }
 
       // Redirect to login if not authenticated and not on public route
       if (!user && !routeIsPublic) {
@@ -282,11 +284,11 @@
 
     // Handle install prompt
     window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
       const dismissedAt = Number(localStorage.getItem('installPromptDismissed') || 0);
       if (Date.now() - dismissedAt <= INSTALL_PROMPT_COOLDOWN_MS) {
         return;
       }
-      e.preventDefault();
       deferredPrompt = e;
       showInstallPrompt = true;
     });
