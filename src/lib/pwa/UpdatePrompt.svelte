@@ -5,7 +5,7 @@
 
 import { RefreshCw, X } from 'lucide-svelte';
 
-let { onupdate, ondismiss }: { onupdate?: () => void; ondismiss?: () => void } = $props();
+let { onUpdate, onDismiss }: { onUpdate?: () => void; onDismiss?: () => void } = $props();
 </script>
 
 <div class="update-prompt">
@@ -22,7 +22,7 @@ let { onupdate, ondismiss }: { onupdate?: () => void; ondismiss?: () => void } =
     <div class="prompt-actions">
       <button 
         class="btn-primary"
-        on:click={() => onupdate?.()}
+        onclick={() => onUpdate?.()}
       >
         <RefreshCw size={16} />
         Refresh
@@ -30,7 +30,7 @@ let { onupdate, ondismiss }: { onupdate?: () => void; ondismiss?: () => void } =
       
       <button 
         class="btn-ghost"
-        on:click={() => ondismiss?.()}
+        onclick={() => onDismiss?.()}
         aria-label="Dismiss"
       >
         <X size={20} />

@@ -20,15 +20,15 @@
   </div>
 {:else if isPublicRoute || $currentUser}
   <a href="#main" class="tag skip-link"
-    on:focus={(e) => (e.currentTarget.style.cssText='position:fixed;top:8px;left:8px;z-index:1000')}
-    on:blur={(e) => (e.currentTarget.style.cssText='position:absolute;left:-9999px;top:-9999px')}>
+    onfocus={(e) => (e.currentTarget.style.cssText='position:fixed;top:8px;left:8px;z-index:1000')}
+    onblur={(e) => (e.currentTarget.style.cssText='position:absolute;left:-9999px;top:-9999px')}>
     {$t('a11y.skip')}
   </a>
 
   {#if $currentUser}
     <header class="rf-topbar">
       <a href="{base}/" class="brand"><Logo /></a>
-      <button class="mobile-menu-btn" on:click={() => mobileMenuOpen = !mobileMenuOpen} aria-label={$t('header.toggle_menu')} aria-expanded={mobileMenuOpen}>
+      <button class="mobile-menu-btn" onclick={() => mobileMenuOpen = !mobileMenuOpen} aria-label={$t('header.toggle_menu')} aria-expanded={mobileMenuOpen}>
         {#if mobileMenuOpen}
           <X size={24} />
         {:else}
@@ -36,34 +36,34 @@
         {/if}
       </button>
       <nav class="main" class:mobile-open={mobileMenuOpen}>
-        <a href="{base}/" class:active={currentPath === base || currentPath === base + '/'} on:click={() => mobileMenuOpen = false}>
+        <a href="{base}/" class:active={currentPath === base || currentPath === base + '/'} onclick={() => mobileMenuOpen = false}>
           <LayoutDashboard size={18} />
           <span>{$t('nav.dashboard', { default: 'Dashboard' })}</span>
         </a>
-        <a href="{base}/orders" class:active={currentPath.includes('/orders')} on:click={() => mobileMenuOpen = false}>
+        <a href="{base}/orders" class:active={currentPath.includes('/orders')} onclick={() => mobileMenuOpen = false}>
           <ClipboardList size={18} />
           <span>{$t('nav.orders', { default: 'Orders' })}</span>
         </a>
-        <a href="{base}/calendar" class:active={currentPath.includes('/calendar')} on:click={() => mobileMenuOpen = false}>
+        <a href="{base}/calendar" class:active={currentPath.includes('/calendar')} onclick={() => mobileMenuOpen = false}>
           <Calendar size={18} />
           <span>{$t('nav.calendar', { default: 'Calendar' })}</span>
         </a>
-        <a href="{base}/inventory" class:active={currentPath.includes('/inventory')} on:click={() => mobileMenuOpen = false}>
+        <a href="{base}/inventory" class:active={currentPath.includes('/inventory')} onclick={() => mobileMenuOpen = false}>
           <Package size={18} />
           <span>{$t('nav.inventory', { default: 'Inventory' })}</span>
         </a>
         <!-- Chat moved to sidebar -->
-        <a href="{base}/faq" class:active={currentPath.includes('/faq')} on:click={() => mobileMenuOpen = false}>
+        <a href="{base}/faq" class:active={currentPath.includes('/faq')} onclick={() => mobileMenuOpen = false}>
           <HelpCircle size={18} />
           <span>{$t('nav.faq', { default: 'FAQ' })}</span>
         </a>
         {#if isAdmin}
           <div class="nav-divider"></div>
-          <a href="{base}/admin/users" class:active={currentPath.includes('/admin/users')} on:click={() => mobileMenuOpen = false}>
+          <a href="{base}/admin/users" class:active={currentPath.includes('/admin/users')} onclick={() => mobileMenuOpen = false}>
             <Users size={18} />
             <span>Users</span>
           </a>
-          <a href="{base}/admin/materials" class:active={currentPath.includes('/admin/materials')} on:click={() => mobileMenuOpen = false}>
+          <a href="{base}/admin/materials" class:active={currentPath.includes('/admin/materials')} onclick={() => mobileMenuOpen = false}>
             <Boxes size={18} />
             <span>Materials</span>
           </a>
@@ -80,7 +80,7 @@
           class="action-btn chat-toggle"
           class:active={$isChatOpen}
           title={$t('ui.chat', { default: 'Chat' })}
-          on:click={toggleChat}
+          onclick={toggleChat}
         >
           <div class="icon-wrapper">
             <MessageSquare size={20} />
@@ -99,15 +99,15 @@
 
   {#if showInstallPrompt}
     <InstallPrompt 
-      on:install={handleInstall}
-      on:dismiss={handleDismissInstall}
+      onInstall={handleInstall}
+      onDismiss={handleDismissInstall}
     />
   {/if}
 
   {#if showUpdatePrompt}
     <UpdatePrompt 
-      on:update={handleUpdate}
-      on:dismiss={handleDismissUpdate}
+      onUpdate={handleUpdate}
+      onDismiss={handleDismissUpdate}
     />
   {/if}
 
@@ -115,7 +115,7 @@
     <OfflineIndicator />
   {/if}
 
-  <main id="main" class="rf-page"><slot /></main>
+  <main id="main" class="rf-page">{@render children?.()}</main>
 
   {#if $currentUser}
     <div class="mobile-nav-wrapper">
@@ -169,18 +169,20 @@
   import { websocket } from '$lib/stores/websocket';
 
   // Accept params prop to silence SvelteKit warning
+  let { children } = $props();
 
-  let searchOpen = false;
-  let showKb = false;
-  let mobileMenuOpen = false;
-  let authChecked = false;
-  let deferredPrompt: any = null;
-  let showInstallPrompt = false;
-  let showUpdatePrompt = false;
-  let isOnline = true;
+  let searchOpen = $state(false);
+  let showKb = $state(false);
+  let mobileMenuOpen = $state(false);
+  let authChecked = $state(false);
+  let deferredPrompt: any = $state(null);
+  let showInstallPrompt = $state(false);
+  let showUpdatePrompt = $state(false);
+  let isOnline = $state(true);
 
   // Public routes that don't require auth
   const publicRoutes = ['/login', '/help'];
+  const INSTALL_PROMPT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
   let isPublicRoute = $derived(publicRoutes.some(r => $page.url.pathname === `${base}${r}` || $page.url.pathname === r));
   let isAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
@@ -277,7 +279,10 @@
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       deferredPrompt = e;
-      showInstallPrompt = true;
+      const dismissedAt = Number(localStorage.getItem('installPromptDismissed') || 0);
+      if (Date.now() - dismissedAt > INSTALL_PROMPT_COOLDOWN_MS) {
+        showInstallPrompt = true;
+      }
     });
 
     // Handle app installed
