@@ -201,12 +201,17 @@
     let stopPreferenceSync: () => void;
 
     const init = async () => {
+      const routeIsPublic = isPublicRoute;
+      if (routeIsPublic) {
+        authChecked = true;
+      }
+
       // Load current user from session
       const user = await loadCurrentUser();
       authChecked = true;
 
       // Redirect to login if not authenticated and not on public route
-      if (!user && !isPublicRoute) {
+      if (!user && !routeIsPublic) {
         goto(`${base}/login`);
         return;
       }
@@ -277,12 +282,13 @@
 
     // Handle install prompt
     window.addEventListener('beforeinstallprompt', (e) => {
+      const dismissedAt = Number(localStorage.getItem('installPromptDismissed') || 0);
+      if (Date.now() - dismissedAt <= INSTALL_PROMPT_COOLDOWN_MS) {
+        return;
+      }
       e.preventDefault();
       deferredPrompt = e;
-      const dismissedAt = Number(localStorage.getItem('installPromptDismissed') || 0);
-      if (Date.now() - dismissedAt > INSTALL_PROMPT_COOLDOWN_MS) {
-        showInstallPrompt = true;
-      }
+      showInstallPrompt = true;
     });
 
     // Handle app installed
@@ -382,6 +388,7 @@
 
   function handleDismissInstall() {
     showInstallPrompt = false;
+    deferredPrompt = null;
     // Store dismissal to not show again for a while
     localStorage.setItem('installPromptDismissed', Date.now().toString());
   }
