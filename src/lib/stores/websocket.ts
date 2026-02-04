@@ -220,6 +220,7 @@ function createWebSocketStore() {
         }
         isPolling = false; // Reset flag
         pollingErrorCount = 0; // Reset error count
+        console.log('Polling stopped');
     }
 
     // Singleton pattern - only allow one connection
