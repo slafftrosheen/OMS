@@ -48,6 +48,15 @@
   let selectedMaterial: Material | null = null;
   let dropdownRef: HTMLElement;
   let customMode = false; // For custom text input mode
+  
+  // Re-entry guards and debouncing to prevent reactive infinite loops
+  let onchangeTimeout: ReturnType<typeof setTimeout>;
+  let isSelecting = false;
+  let hasInitialized = false;
+  
+  // Client-side cache for materials (module-level)
+  const materialsCache = new Map<string, { data: Material[], timestamp: number }>();
+  const CACHE_TTL = 60000; // 1 minute
 
   // Get hex color from selected material
   let hexColor = $derived(selectedMaterial?.metadata?.hex || '');
@@ -60,23 +69,18 @@
   // Load materials on mount
   onMount(async () => {
     await loadMaterials();
-    // Find initially selected material
-    if (value) {
+    
+    // Find initially selected material but DON'T call onchange on initial load
+    // This prevents reactive infinite loops when parent components re-render
+    if (value && !hasInitialized) {
       selectedMaterial = materials.find(m => m.code === value || m.name_en === value) || null;
       
-      // If found, call onchange so parent can get metadata/thickness options
-      if (selectedMaterial) {
-        onchange?.({ 
-          value, 
-          material: selectedMaterial,
-          hex: selectedMaterial.metadata?.hex || '',
-          shortName: selectedMaterial.metadata?.short_name || 
-                     selectedMaterial.metadata?.colorCode ||
-                     getShortName(selectedMaterial.code, selectedMaterial.category)
-        });
-      } else if (value) {
+      // Only mark as custom if not found AND value exists
+      if (!selectedMaterial && value) {
         customMode = true;
       }
+      
+      hasInitialized = true;
     }
   });
   
@@ -221,11 +225,27 @@
         // Pass multiple categories as a comma-separated parameter
         url += `?categories=${encodeURIComponent(categories.join(','))}`;
       }
+      
+      // Check cache first
+      const cached = materialsCache.get(url);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        materials = cached.data;
+        filteredMaterials = materials;
+        loading = false;
+        return;
+      }
+      
       const res = await fetch(url);
       if (res.ok) {
         materials = await res.json();
         // No need to filter client-side since API now handles filtering
         filteredMaterials = materials;
+        
+        // Cache the results
+        materialsCache.set(url, {
+          data: materials,
+          timestamp: Date.now()
+        });
       }
     } catch (err) {
       console.error('Failed to load materials:', err);
@@ -248,22 +268,32 @@
   }
 
   function selectMaterial(material: Material) {
+    if (isSelecting) return; // Prevent concurrent selections
+    
+    isSelecting = true;
     selectedMaterial = material;
     value = material.name_en || material.code;
     open = false;
     search = '';
     customMode = false;
+    
     // Priority: metadata.short_name > metadata.colorCode > extracted from code > extracted from name
     const short = material.metadata?.short_name || 
                   material.metadata?.colorCode ||
                   getShortName(material.code, material.category) ||
                   getShortName(value, material.category);
-    onchange?.({ 
-      value, 
-      material,
-      hex: material.metadata?.hex || '',
-      shortName: short
-    });
+    
+    // Debounce onchange to prevent rapid-fire updates
+    clearTimeout(onchangeTimeout);
+    onchangeTimeout = setTimeout(() => {
+      onchange?.({ 
+        value, 
+        material,
+        hex: material.metadata?.hex || '',
+        shortName: short
+      });
+      isSelecting = false;
+    }, 50); // 50ms debounce
   }
 
   function clearSelection() {
