@@ -169,12 +169,15 @@ function createWebSocketStore() {
     // Polling fallback for platforms without WebSocket support
     let pollingInterval: number | null = null;
     let isPolling = false; // Flag to prevent duplicate intervals
+    let pollingErrorCount = 0;
+    const MAX_POLLING_ERRORS = 5;
     
     function startPolling() {
         if (!browser || ws || isPolling) return; // Check flag
         
         console.log('Starting polling fallback (WebSocket not available)');
         isPolling = true; // Set flag
+        pollingErrorCount = 0; // Reset error count
         
         // Poll for updates every 2 minutes
         pollingInterval = setInterval(async () => {
@@ -191,11 +194,21 @@ function createWebSocketStore() {
                 
                 if (response.ok) {
                     const updates = await response.json();
+                    pollingErrorCount = 0; // Reset on success
                     // Process updates...
+                } else {
+                    pollingErrorCount++;
+                    console.error('Polling failed with status:', response.status);
                 }
             } catch (error) {
+                pollingErrorCount++;
                 console.error('Polling error:', error);
-                // Don't spam console - maybe stop polling after repeated failures
+                
+                // Stop polling after repeated failures to prevent resource waste
+                if (pollingErrorCount >= MAX_POLLING_ERRORS) {
+                    console.error('Max polling errors reached. Stopping polling.');
+                    stopPolling();
+                }
             }
         }, 120000) as unknown as number; // Changed from 30000 to 120000 (2 minutes)
     }
@@ -206,6 +219,7 @@ function createWebSocketStore() {
             pollingInterval = null;
         }
         isPolling = false; // Reset flag
+        pollingErrorCount = 0; // Reset error count
     }
 
     // Singleton pattern - only allow one connection

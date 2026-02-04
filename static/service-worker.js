@@ -195,7 +195,9 @@ async function syncOrders() {
     
     getAllRequest.onsuccess = async () => {
       const pendingOrders = getAllRequest.result;
+      const syncedOrderIds = [];
       
+      // Sync all orders first
       for (const order of pendingOrders) {
         try {
           const response = await fetch('/api/orders', {
@@ -207,15 +209,19 @@ async function syncOrders() {
           });
           
           if (response.ok) {
-            // Delete synced order
-            const deleteTransaction = db.transaction(['pendingOrders'], 'readwrite');
-            const deleteStore = deleteTransaction.objectStore('pendingOrders');
-            deleteStore.delete(order.id);
+            syncedOrderIds.push(order.id);
             console.log('[Service Worker] Synced order:', order.id);
           }
         } catch (error) {
           console.error('[Service Worker] Failed to sync order:', order.id, error);
         }
+      }
+      
+      // Delete synced orders after all fetches complete
+      if (syncedOrderIds.length > 0) {
+        const deleteTransaction = db.transaction(['pendingOrders'], 'readwrite');
+        const deleteStore = deleteTransaction.objectStore('pendingOrders');
+        syncedOrderIds.forEach(id => deleteStore.delete(id));
       }
     };
     
@@ -238,7 +244,9 @@ async function syncPhotos() {
     
     getAllRequest.onsuccess = async () => {
       const pendingPhotos = getAllRequest.result;
+      const syncedPhotoIds = [];
       
+      // Sync all photos first
       for (const photo of pendingPhotos) {
         try {
           const formData = new FormData();
@@ -252,15 +260,19 @@ async function syncPhotos() {
           });
           
           if (response.ok) {
-            // Delete synced photo
-            const deleteTransaction = db.transaction(['pendingPhotos'], 'readwrite');
-            const deleteStore = deleteTransaction.objectStore('pendingPhotos');
-            deleteStore.delete(photo.id);
+            syncedPhotoIds.push(photo.id);
             console.log('[Service Worker] Synced photo:', photo.id);
           }
         } catch (error) {
           console.error('[Service Worker] Failed to sync photo:', photo.id, error);
         }
+      }
+      
+      // Delete synced photos after all fetches complete
+      if (syncedPhotoIds.length > 0) {
+        const deleteTransaction = db.transaction(['pendingPhotos'], 'readwrite');
+        const deleteStore = deleteTransaction.objectStore('pendingPhotos');
+        syncedPhotoIds.forEach(id => deleteStore.delete(id));
       }
     };
     
