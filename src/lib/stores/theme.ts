@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { base } from '$app/paths';
+import { loadPreferences } from '$lib/preferences';
 
 export type ThemeName = 'LightVim' | 'DarkVim' | 'HighContrast';
 const THEME_KEY = 'rf_theme';
@@ -13,6 +14,8 @@ const initial: ThemeName = (normalized as ThemeName) || 'DarkVim';
 export const theme = writable<ThemeName>(initial);
 
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+let hasSyncedOnce = false;
+let lastSynced: ThemeName | null = initial;
 
 async function syncThemeToServer(t: ThemeName) {
   if (!isBrowser) return;
@@ -42,11 +45,13 @@ if (isBrowser) {
   apply(initial);
   
   // Load from server
-  fetch(`${base}/api/preferences`)
-    .then(res => res.ok ? res.json() : null)
+  loadPreferences()
     .then(prefs => {
       if (prefs?.theme) {
-        theme.set(prefs.theme as ThemeName);
+        lastSynced = prefs.theme as ThemeName;
+        if (prefs.theme !== initial) {
+          theme.set(prefs.theme as ThemeName);
+        }
       }
     })
     .catch(() => {});
@@ -54,6 +59,15 @@ if (isBrowser) {
 
 theme.subscribe((t) => {
   apply(t);
+  if (!hasSyncedOnce) {
+    hasSyncedOnce = true;
+    lastSynced = t;
+    return;
+  }
+  if (t === lastSynced) {
+    return;
+  }
+  lastSynced = t;
   // Debounce server sync
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(() => syncThemeToServer(t), 500);

@@ -1,6 +1,6 @@
 {
   "framework": "sveltekit",
-  "buildCommand": "rm -rf .svelte-kit .vercel/output && npm run build",
+  "buildCommand": "rm -rf .svelte-kit .vercel/output build && npm run build",
   "headers": [
     {
       "source": "/(.*)\\.html",

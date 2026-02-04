@@ -1,5 +1,6 @@
 import { register, init, getLocaleFromNavigator, locale, addMessages, t } from 'svelte-i18n';
 import { base } from '$app/paths';
+import { loadPreferences } from '$lib/preferences';
 import en from '../locales/en.json';
 
 const KEY = 'rf_locale';
@@ -48,15 +49,12 @@ export async function setupI18n(defaultLocale: LocaleCode = 'en') {
   // Load from server and sync if different
   if (typeof window !== 'undefined') {
     try {
-      const res = await fetch(`${base}/api/preferences`);
-      if (res.ok) {
-        const prefs = await res.json();
-        if (prefs?.locale && prefs.locale !== initial) {
-          const serverLocale = normalizeLocale(prefs.locale, defaultLocale);
-          locale.set(serverLocale);
-          localStorage.setItem(KEY, serverLocale);
-          document.documentElement.lang = serverLocale;
-        }
+      const prefs = await loadPreferences();
+      if (prefs?.locale && prefs.locale !== initial) {
+        const serverLocale = normalizeLocale(prefs.locale, defaultLocale);
+        locale.set(serverLocale);
+        localStorage.setItem(KEY, serverLocale);
+        document.documentElement.lang = serverLocale;
       }
     } catch (err) {
       console.debug('Failed to load locale from server:', err);
