@@ -232,17 +232,17 @@
   }
   
   /**
-   * Extracts a short, display-friendly name from a material selection event.
-   * It prioritizes metadata from the event detail but falls back to the `getShortName` utility.
-   * @param {any} e - The change event from the MaterialSelect component.
-   * @param {string} fallbackCategory - The material category to use if the name cannot be determined from the event.
+   * Extracts a short, display-friendly name from a material selection data.
+   * It prioritizes metadata from the data but falls back to the `getShortName` utility.
+   * @param {any} data - The change data from the MaterialSelect component.
+   * @param {string} fallbackCategory - The material category to use if the name cannot be determined from the data.
    * @returns {string} The extracted short name.
    */
-  function extractShortName(e: any, fallbackCategory: string): string {
-    return e.detail.shortName || 
-           e.detail.material?.metadata?.short_name ||
-           e.detail.material?.metadata?.colorCode || 
-           getShortName(e.detail.material?.code || e.detail.value, fallbackCategory);
+  function extractShortName(data: any, fallbackCategory: string): string {
+    return data.shortName || 
+           data.material?.metadata?.short_name ||
+           data.material?.metadata?.colorCode || 
+           getShortName(data.material?.code || data.value, fallbackCategory);
   }
   
   /**
