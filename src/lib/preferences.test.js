@@ -21,7 +21,7 @@ describe('loadPreferences', () => {
     const first = loadPreferences();
     const second = loadPreferences();
 
-    expect(global.fetch.mock.calls.length).toBe(1);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
 
     resolveFetch(response);
 
@@ -41,7 +41,7 @@ describe('loadPreferences', () => {
     const first = await loadPreferences();
     const second = await loadPreferences();
 
-    expect(global.fetch.mock.calls.length).toBe(1);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(first).toEqual({ locale: 'en' });
     expect(second).toEqual({ locale: 'en' });
   });
