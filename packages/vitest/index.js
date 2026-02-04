@@ -128,6 +128,10 @@ export function expect(actual) {
             return call.every((arg, i) => deepMatch(arg, args[i]));
         });
         assert.ok(matchingCall, `Expected to have been called with ${JSON.stringify(args)}`);
+    },
+    toHaveBeenCalledTimes(expected) {
+        const calls = actual.mock?.calls || [];
+        assert.strictEqual(calls.length, expected);
     }
   };
 }

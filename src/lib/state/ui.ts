@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { base } from '$app/paths';
+import { loadPreferences } from '$lib/preferences';
 
 type Prefs = {
   theme: 'LightVim'|'DarkVim'|'HighContrastVim',
@@ -29,6 +30,8 @@ const init: Prefs = {
 export const ui = writable<Prefs>(init);
 
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+let hasSyncedOnce = false;
+let lastSynced: Prefs | null = init;
 
 async function syncPrefsToServer(p: Prefs) {
   if (!isBrowser) return;
@@ -61,15 +64,28 @@ ui.subscribe(p => {
   localStorage.setItem('rf_density', p.density);
   localStorage.setItem('rf_font', String(p.fontScale));
   
+  if (!hasSyncedOnce) {
+    hasSyncedOnce = true;
+    lastSynced = p;
+    return;
+  }
+  if (lastSynced && isSamePrefs(lastSynced, p)) {
+    return;
+  }
+  lastSynced = { ...p };
+
   // Debounce server sync
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(() => syncPrefsToServer(p), 500);
 });
 
+function isSamePrefs(a: Prefs, b: Prefs) {
+  return a.theme === b.theme && a.density === b.density && a.fontScale === b.fontScale;
+}
+
 // Load from server on init
 if (isBrowser) {
-  fetch(`${base}/api/preferences`)
-    .then(res => res.ok ? res.json() : null)
+  loadPreferences()
     .then(prefs => {
       if (prefs) {
         ui.update(current => ({

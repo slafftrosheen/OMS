@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import { base } from '$app/paths';
+import { loadPreferences } from '$lib/preferences';
 
 export type Scale = 'sm' | 'md' | 'lg' | 'xl';
 
@@ -52,15 +53,23 @@ const initial = readInitialScale();
 
 export const scale = writable<Scale>(initial);
 
+let hasSyncedOnce = false;
+let lastSynced: Scale | null = initial;
+let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+
 if (browser) {
   applyScale(initial);
   
   // Load from server and sync
-  fetch(`${base}/api/preferences`)
-    .then(res => res.ok ? res.json() : null)
+  loadPreferences()
     .then(prefs => {
       if (prefs?.scale && prefs.scale in SCALE_TO_REM) {
-        scale.set(prefs.scale as Scale);
+        const nextScale = prefs.scale as Scale;
+        if (nextScale !== initial) {
+          lastSynced = nextScale;
+          hasSyncedOnce = true;
+          scale.set(nextScale);
+        }
       }
     })
     .catch(() => {});
@@ -68,5 +77,15 @@ if (browser) {
 
 scale.subscribe((value) => {
   applyScale(value);
-  syncScaleToServer(value);
+  if (!hasSyncedOnce) {
+    hasSyncedOnce = true;
+    lastSynced = value;
+    return;
+  }
+  if (value === lastSynced) {
+    return;
+  }
+  lastSynced = value;
+  if (syncTimeout) clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(() => syncScaleToServer(value), 500);
 });
