@@ -30,7 +30,7 @@ const SYNC_QUEUE_KEY = 'oms_sync_queue';
 const DEVICE_ID_KEY = 'oms_device_id';
 
 export const syncStatus = writable<SyncStatus>({
-  online: navigator.onLine,
+  online: typeof navigator !== 'undefined' ? navigator.onLine : true,
   syncing: false,
   queueLength: 0,
   lastSync: null,
