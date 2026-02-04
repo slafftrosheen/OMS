@@ -167,41 +167,70 @@ function createWebSocketStore() {
     }
 
     // Polling fallback for platforms without WebSocket support
-    let pollingInterval: number;
+    let pollingInterval: number | null = null;
+    let isPolling = false; // Flag to prevent duplicate intervals
     
     function startPolling() {
-        if (!browser || ws) return;
+        if (!browser || ws || isPolling) return; // Check flag
         
-        // Poll for updates every 30 seconds
+        console.log('Starting polling fallback (WebSocket not available)');
+        isPolling = true; // Set flag
+        
+        // Poll for updates every 2 minutes
         pollingInterval = setInterval(async () => {
             try {
                 // Fetch updates from REST API instead
                 // This is a lightweight alternative to WebSocket
                 console.log('Polling for updates...');
+                
+                // Actually fetch data here instead of just logging
+                const response = await fetch('/api/updates', {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    const updates = await response.json();
+                    // Process updates...
+                }
             } catch (error) {
                 console.error('Polling error:', error);
+                // Don't spam console - maybe stop polling after repeated failures
             }
-        }, 30000) as unknown as number;
+        }, 120000) as unknown as number; // Changed from 30000 to 120000 (2 minutes)
     }
 
     function stopPolling() {
         if (pollingInterval) {
             clearInterval(pollingInterval);
+            pollingInterval = null;
         }
+        isPolling = false; // Reset flag
     }
+
+    // Singleton pattern - only allow one connection
+    let initialized = false;
 
     return {
         subscribe,
         connect: () => {
+            if (initialized) {
+                console.log('WebSocket store already initialized');
+                return;
+            }
+            initialized = true;
+            
             if (supportsWS) {
                 connect();
             } else {
+                update(state => ({ ...state, supportsWebSocket: false }));
                 startPolling();
             }
         },
         disconnect: () => {
             disconnect();
             stopPolling();
+            initialized = false;
         },
         send
     };

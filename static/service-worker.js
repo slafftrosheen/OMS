@@ -187,26 +187,41 @@ self.addEventListener('sync', (event) => {
 async function syncOrders() {
   try {
     const db = await openIndexedDB();
-    const pendingOrders = await db.getAll('pendingOrders');
+    const transaction = db.transaction(['pendingOrders'], 'readwrite');
+    const store = transaction.objectStore('pendingOrders');
     
-    for (const order of pendingOrders) {
-      try {
-        const response = await fetch('/api/orders', {
-          method: order.method || 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(order.data)
-        });
-        
-        if (response.ok) {
-          await db.delete('pendingOrders', order.id);
-          console.log('[Service Worker] Synced order:', order.id);
+    // Get all pending orders
+    const getAllRequest = store.getAll();
+    
+    getAllRequest.onsuccess = async () => {
+      const pendingOrders = getAllRequest.result;
+      
+      for (const order of pendingOrders) {
+        try {
+          const response = await fetch('/api/orders', {
+            method: order.method || 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(order.data)
+          });
+          
+          if (response.ok) {
+            // Delete synced order
+            const deleteTransaction = db.transaction(['pendingOrders'], 'readwrite');
+            const deleteStore = deleteTransaction.objectStore('pendingOrders');
+            deleteStore.delete(order.id);
+            console.log('[Service Worker] Synced order:', order.id);
+          }
+        } catch (error) {
+          console.error('[Service Worker] Failed to sync order:', order.id, error);
         }
-      } catch (error) {
-        console.error('[Service Worker] Failed to sync order:', order.id, error);
       }
-    }
+    };
+    
+    getAllRequest.onerror = () => {
+      console.error('[Service Worker] Failed to get pending orders:', getAllRequest.error);
+    };
   } catch (error) {
     console.error('[Service Worker] Sync orders error:', error);
   }
@@ -215,28 +230,43 @@ async function syncOrders() {
 async function syncPhotos() {
   try {
     const db = await openIndexedDB();
-    const pendingPhotos = await db.getAll('pendingPhotos');
+    const transaction = db.transaction(['pendingPhotos'], 'readwrite');
+    const store = transaction.objectStore('pendingPhotos');
     
-    for (const photo of pendingPhotos) {
-      try {
-        const formData = new FormData();
-        formData.append('file', photo.file);
-        formData.append('orderId', photo.orderId);
-        formData.append('station', photo.station);
-        
-        const response = await fetch('/api/photos', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (response.ok) {
-          await db.delete('pendingPhotos', photo.id);
-          console.log('[Service Worker] Synced photo:', photo.id);
+    // Get all pending photos
+    const getAllRequest = store.getAll();
+    
+    getAllRequest.onsuccess = async () => {
+      const pendingPhotos = getAllRequest.result;
+      
+      for (const photo of pendingPhotos) {
+        try {
+          const formData = new FormData();
+          formData.append('file', photo.file);
+          formData.append('orderId', photo.orderId);
+          formData.append('station', photo.station);
+          
+          const response = await fetch('/api/photos', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (response.ok) {
+            // Delete synced photo
+            const deleteTransaction = db.transaction(['pendingPhotos'], 'readwrite');
+            const deleteStore = deleteTransaction.objectStore('pendingPhotos');
+            deleteStore.delete(photo.id);
+            console.log('[Service Worker] Synced photo:', photo.id);
+          }
+        } catch (error) {
+          console.error('[Service Worker] Failed to sync photo:', photo.id, error);
         }
-      } catch (error) {
-        console.error('[Service Worker] Failed to sync photo:', photo.id, error);
       }
-    }
+    };
+    
+    getAllRequest.onerror = () => {
+      console.error('[Service Worker] Failed to get pending photos:', getAllRequest.error);
+    };
   } catch (error) {
     console.error('[Service Worker] Sync photos error:', error);
   }
