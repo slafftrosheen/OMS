@@ -12,7 +12,7 @@ describe('websocket-store', () => {
   let originalSetInterval: typeof setInterval;
   let originalClearInterval: typeof clearInterval;
   let intervalIds: number[] = [];
-  let intervalCallbacks: Map<number, Function> = new Map();
+  let intervalCallbacks: Map<number, () => void | Promise<void>> = new Map();
   let nextIntervalId = 1;
 
   beforeEach(async () => {
@@ -26,7 +26,7 @@ describe('websocket-store', () => {
     intervalCallbacks = new Map();
     nextIntervalId = 1;
 
-    global.setInterval = vi.fn((callback: Function, delay: number) => {
+    global.setInterval = vi.fn((callback: () => void | Promise<void>, _delay: number) => {
       const id = nextIntervalId++;
       intervalIds.push(id);
       intervalCallbacks.set(id, callback);
