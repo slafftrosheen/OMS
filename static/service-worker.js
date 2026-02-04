@@ -194,7 +194,7 @@ async function syncOrders() {
     const getAllRequest = store.getAll();
     
     getAllRequest.onsuccess = async () => {
-      const pendingOrders = getAllRequest.result || [];
+      const pendingOrders = getAllRequest.result ?? [];
       
       if (pendingOrders.length === 0) {
         console.log('[Service Worker] No pending orders to sync');
@@ -249,7 +249,7 @@ async function syncPhotos() {
     const getAllRequest = store.getAll();
     
     getAllRequest.onsuccess = async () => {
-      const pendingPhotos = getAllRequest.result || [];
+      const pendingPhotos = getAllRequest.result ?? [];
       
       if (pendingPhotos.length === 0) {
         console.log('[Service Worker] No pending photos to sync');
