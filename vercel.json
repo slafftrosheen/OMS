@@ -1,4 +1,4 @@
 {
   "framework": "sveltekit",
-  "buildCommand": "npm run build"
+  "buildCommand": "rm -rf .svelte-kit .vercel/output && npm run build"
 }
