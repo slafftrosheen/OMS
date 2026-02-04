@@ -201,15 +201,20 @@
     let stopPreferenceSync: () => void;
 
     const init = async () => {
-      const routeIsPublic = isPublicRoute;
-      authChecked = routeIsPublic;
-
       // Load current user from session
-      const user = await loadCurrentUser();
-      authChecked = true;
+      const userPromise = loadCurrentUser();
+      if (isPublicRoute) {
+        // Allow public routes to render while auth loads.
+        authChecked = true;
+      }
+      const user = await userPromise;
+      if (!authChecked) {
+        // Private routes wait for auth before rendering.
+        authChecked = true;
+      }
 
       // Redirect to login if not authenticated and not on public route
-      if (!user && !routeIsPublic) {
+      if (!user && !isPublicRoute) {
         goto(`${base}/login`);
         return;
       }
@@ -283,6 +288,7 @@
       e.preventDefault();
       const dismissedAt = Number(localStorage.getItem('installPromptDismissed') || 0);
       if (Date.now() - dismissedAt <= INSTALL_PROMPT_COOLDOWN_MS) {
+        showInstallPrompt = false;
         return;
       }
       deferredPrompt = e;
