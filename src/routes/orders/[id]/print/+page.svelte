@@ -9,14 +9,14 @@
   
   let id = $derived($page.params.id);
   
-  let o: Order | null = null;
+  let o: Order | null = $state(null);
   
   onMount(async () => {
     o = await getOrder(id);
   });
   
   let materials = $derived(o?.materials || []);
-  let stages = $derived(o?.stages ? STATIONS.map(s => ({ station: s, state: o.stages[s] })) : []);
+  let stages = $derived(o?.stages ? STATIONS.map(s => ({ station: s, state: o!.stages[s] })) : []);
 </script>
 
 {#if !o}

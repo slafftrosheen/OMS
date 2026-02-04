@@ -10,25 +10,25 @@
 
   let { data } = $props();
 
-  let loading = true;
-  let saving = false;
-  let error = '';
-  let successMessage = '';
+  let loading = $state(true);
+  let saving = $state(false);
+  let error = $state('');
+  let successMessage = $state('');
   
   // Order Details
   let orderId: number;
-  let clientName = '';
-  let poNumber = '';
-  let deadline = '';
-  let loadingDate = '';
-  let notes = '';
-  let priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' = 'NORMAL';
-  let status: string = 'draft';
+  let clientName = $state('');
+  let poNumber = $state('');
+  let deadline = $state('');
+  let loadingDate = $state('');
+  let notes = $state('');
+  let priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' = $state('NORMAL');
+  let status: string = $state('draft');
   
   // Delivery Address
-  let deliveryAddress = '';
-  let deliveryContact = '';
-  let deliveryPhone = '';
+  let deliveryAddress = $state('');
+  let deliveryContact = $state('');
+  let deliveryPhone = $state('');
   
   // Files
   interface OrderFile {
@@ -38,8 +38,8 @@
     fileType: string;
     uploadedAt: string;
   }
-  let existingFiles: OrderFile[] = [];
-  let newFiles: File[] = [];
+  let existingFiles: OrderFile[] = $state([]);
+  let newFiles: File[] = $state([]);
   
   // Profiles
   type ProfileItem = {
@@ -50,7 +50,7 @@
     collapsed: boolean;
   };
 
-  let profiles: ProfileItem[] = [];
+  let profiles: ProfileItem[] = $state([]);
 
   // Check permissions
   let isAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin' || $currentUser?.primarySection === 'Admin');
@@ -341,19 +341,19 @@
     </div>
     <div class="header-actions">
       {#if canReject}
-        <button class="btn btn-danger" on:click={rejectOrder} disabled={saving}>
+        <button class="btn btn-danger" onclick={rejectOrder} disabled={saving}>
           <XCircle size={18} />
           Reject
         </button>
       {/if}
       {#if canApprove}
-        <button class="btn btn-success" on:click={approveOrder} disabled={saving}>
+        <button class="btn btn-success" onclick={approveOrder} disabled={saving}>
           <CheckCircle size={18} />
           Approve
         </button>
       {/if}
       {#if canEdit}
-        <button class="btn btn-primary" on:click={saveOrder} disabled={saving}>
+        <button class="btn btn-primary" onclick={saveOrder} disabled={saving}>
           <Save size={18} />
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
@@ -527,7 +527,7 @@
                 type="file" 
                 accept=".pdf,.cdr,.ai,.eps,.jpg,.jpeg,.png,.svg"
                 multiple
-                on:change={handleFileSelect}
+                onchange={handleFileSelect}
               />
               <Upload size={24} />
               <span>Click or drag files here</span>
@@ -540,7 +540,7 @@
                   <li class="file-item">
                     <FileText size={18} />
                     <span class="file-name">{file.name}</span>
-                    <button class="remove-file" on:click={() => removeNewFile(i)}>
+                    <button class="remove-file" onclick={() => removeNewFile(i)}>
                       <Trash2 size={16} />
                     </button>
                   </li>
@@ -556,7 +556,7 @@
         <div class="section-header">
           <h2>Order Profiles ({profiles.length})</h2>
           {#if canEdit}
-            <button class="btn btn-secondary" on:click={addProfile}>
+            <button class="btn btn-secondary" onclick={addProfile}>
               <Plus size={18} />
               Add Profile
             </button>
@@ -566,8 +566,9 @@
         <div class="profiles-list">
           {#each profiles as profile, index (profile.id)}
             <div class="profile-card" class:collapsed={profile.collapsed}>
-              <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-              <div class="profile-header" on:click={() => toggleProfileCollapse(profile.id)}>
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div class="profile-header" onclick={() => toggleProfileCollapse(profile.id)}>
                 <div class="profile-title">
                   <span class="profile-index">#{index + 1}</span>
                   <span class="profile-name">{profile.configuration?.profileName || 'Untitled Profile'}</span>
@@ -577,7 +578,7 @@
                   {#if canEdit && profiles.length > 1}
                     <button 
                       class="action-btn danger" 
-                      on:click|stopPropagation={() => removeProfile(profile.id)}
+                      onclick={(e) => { e.stopPropagation(); removeProfile(profile.id); }}
                       title="Remove profile"
                     >
                       <Trash2 size={16} />

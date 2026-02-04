@@ -15,17 +15,17 @@
   // but for quick fix within component, we can just cast window as any where needed
   // or define it as an interface merging
 
-  let saving = false;
-  let error = '';
-  let successMessage = '';
+  let saving = $state(false);
+  let error = $state('');
+  let successMessage = $state('');
   
   // Order Details
-  let clientName = '';
-  let poNumber = '';
-  let deadline = '';
-  let loadingDate = '';
-  let notes = '';
-  let priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' = 'NORMAL';
+  let clientName = $state('');
+  let poNumber = $state('');
+  let deadline = $state('');
+  let loadingDate = $state('');
+  let notes = $state('');
+  let priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' = $state('NORMAL');
   
   // Delivery Address
   interface DeliveryPreset {
@@ -44,13 +44,13 @@
     isDefault: boolean;
   }
   
-  let deliveryPresets: DeliveryPreset[] = [];
-  let selectedPresetId: number | null = null;
-  let deliveryAddress = '';
-  let deliveryContact = '';
-  let deliveryPhone = '';
-  let useManualAddress = false;
-  let showPresetDropdown = false;
+  let deliveryPresets: DeliveryPreset[] = $state([]);
+  let selectedPresetId: number | null = $state(null);
+  let deliveryAddress = $state('');
+  let deliveryContact = $state('');
+  let deliveryPhone = $state('');
+  let useManualAddress = $state(false);
+  let showPresetDropdown = $state(false);
   
   // Files with preview
   interface FileWithPreview {
@@ -59,8 +59,8 @@
     pdfDataUrl?: string; // For PDF preview
     type: 'pdf' | 'cdr' | 'image' | 'other';
   }
-  let uploadedFiles: FileWithPreview[] = [];
-  let dragActive = false;
+  let uploadedFiles: FileWithPreview[] = $state([]);
+  let dragActive = $state(false);
 
   // Preview state
 
@@ -72,20 +72,20 @@
     profileCode: string;
     configuration: any;
     isPublic: boolean;
-  }> = [];
-  let showPresetModal = false;
-  let showSavePresetModal = false;
-  let selectedPresetForLoad: number | null = null;
-  let savePresetName = '';
-  let savePresetDescription = '';
-  let savePresetPublic = false;
-  let savingPreset = false;
-  let selectedFileIndex: number | null = null;
-  let previewZoom = 1;
-  let previewContainer: HTMLElement;
-  let pdfCanvas: HTMLCanvasElement;
-  let pdfCurrentPage = 1;
-  let pdfTotalPages = 1;
+  }> = $state([]);
+  let showPresetModal = $state(false);
+  let showSavePresetModal = $state(false);
+  let selectedPresetForLoad: number | null = $state(null);
+  let savePresetName = $state('');
+  let savePresetDescription = $state('');
+  let savePresetPublic = $state(false);
+  let savingPreset = $state(false);
+  let selectedFileIndex: number | null = $state(null);
+  let previewZoom = $state(1);
+  let previewContainer: HTMLElement | undefined = $state();
+  let pdfCanvas: HTMLCanvasElement | undefined = $state();
+  let pdfCurrentPage = $state(1);
+  let pdfTotalPages = $state(1);
   let pdfDoc: any = null;
   
   function selectFile(index: number) {
@@ -343,9 +343,9 @@
     }
   };
 
-  let profiles: ProfileItem[] = [
+  let profiles: ProfileItem[] = $state([
     { id: createId(), quantity: 1, configuration: JSON.parse(JSON.stringify(defaultConfiguration)), collapsed: false }
-  ];
+  ]);
 
   // Check if user is SuperAdmin
   let isSuperAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
@@ -651,10 +651,10 @@
       {/if}
     </div>
     <div class="header-actions">
-      <button class="btn-secondary" on:click={() => goto('/orders')}>
+      <button class="btn-secondary" onclick={() => goto('/orders')}>
         {$t('actions.cancel')}
       </button>
-      <button class="btn-primary" on:click={saveOrder} disabled={saving}>
+      <button class="btn-primary" onclick={saveOrder} disabled={saving}>
         {#if saving}
           <span class="spinner"></span>
           {$t('actions.saving')}
@@ -670,7 +670,7 @@
     <div class="error-banner">
       <AlertCircle size={18} />
       {error}
-      <button class="close-btn" on:click={() => error = ''}>
+      <button class="close-btn" onclick={() => error = ''}>
         <X size={16} />
       </button>
     </div>
@@ -692,11 +692,11 @@
       </h2>
       <div class="profiles-actions">
         <span class="profile-count">{profiles.length}</span>
-        <button class="btn-secondary" on:click={() => showPresetModal = true}>
+        <button class="btn-secondary" onclick={() => showPresetModal = true}>
           <BookOpen size={16} />
           {$t('orders.new.presets.load')}
         </button>
-        <button class="btn-secondary" on:click={addProfile}>
+        <button class="btn-secondary" onclick={addProfile}>
           <Plus size={16} />
           {$t('materials.add')}
         </button>
@@ -709,7 +709,7 @@
           <button 
             class="collapse-toggle" 
             class:rotated={profile.collapsed}
-            on:click={() => toggleProfileCollapse(profile.id)}
+            onclick={() => toggleProfileCollapse(profile.id)}
             title={profile.collapsed ? 'Expand' : 'Collapse'}
           >
             <ChevronDown size={20} />
@@ -723,14 +723,14 @@
               <label for="qty-{profile.id}">Qty:</label>
               <input type="number" id="qty-{profile.id}" bind:value={profile.quantity} min="1" max="100" class="qty-input" />
             </div>
-            <button class="btn-icon" on:click={() => saveAsPreset(i)} title="Save as Preset">
+            <button class="btn-icon" onclick={() => saveAsPreset(i)} title="Save as Preset">
               <BookmarkPlus size={16} />
             </button>
-            <button class="btn-icon" on:click={() => duplicateProfile(profile.id)} title="Duplicate">
+            <button class="btn-icon" onclick={() => duplicateProfile(profile.id)} title="Duplicate">
               <Plus size={16} />
             </button>
             {#if profiles.length > 1}
-              <button class="btn-icon danger" on:click={() => removeProfile(profile.id)} title="Remove">
+              <button class="btn-icon danger" onclick={() => removeProfile(profile.id)} title="Remove">
                 <Trash2 size={16} />
               </button>
             {/if}
@@ -760,10 +760,10 @@
         <div 
           class="file-upload-area"
           class:drag-active={dragActive}
-          on:dragenter={handleDragEnter}
-          on:dragleave={handleDragLeave}
-          on:dragover={handleDragOver}
-          on:drop={handleDrop}
+          ondragenter={handleDragEnter}
+          ondragleave={handleDragLeave}
+          ondragover={handleDragOver}
+          ondrop={handleDrop}
           role="button"
           tabindex="0"
         >
@@ -772,7 +772,7 @@
             id="file-upload" 
             multiple 
             accept=".pdf,.cdr,.ai,.eps,.jpg,.jpeg,.png"
-            on:change={handleFileSelect}
+            onchange={handleFileSelect}
             style="display: none;"
           />
           <label for="file-upload" class="upload-label">
@@ -790,8 +790,8 @@
                 <div 
                   class="file-list-item" 
                   class:selected={selectedFileIndex === i}
-                  on:click={() => selectFile(i)}
-                  on:keydown={(e) => e.key === 'Enter' && selectFile(i)}
+                  onclick={() => selectFile(i)}
+                  onkeydown={(e) => e.key === 'Enter' && selectFile(i)}
                   role="button"
                   tabindex="0"
                 >
@@ -810,11 +810,11 @@
                   </div>
                   <div class="file-list-actions">
                     {#if fileItem.type === 'pdf' || fileItem.type === 'image'}
-                      <button class="btn-icon-sm" on:click|stopPropagation={() => selectFile(i)} title="Preview">
+                      <button class="btn-icon-sm" onclick={(e) => { e.stopPropagation(); selectFile(i); }} title="Preview">
                         <Eye size={14} />
                       </button>
                     {/if}
-                    <button class="btn-icon-sm danger" on:click|stopPropagation={() => removeFile(i)} title="Remove">
+                    <button class="btn-icon-sm danger" onclick={(e) => { e.stopPropagation(); removeFile(i); }} title="Remove">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -833,23 +833,23 @@
             <span class="preview-filename">{selectedFile.file.name}</span>
             <div class="preview-controls">
               {#if selectedFile.type === 'pdf' && pdfTotalPages > 1}
-                <button class="btn-icon-sm" on:click={prevPdfPage} disabled={pdfCurrentPage <= 1} title="Previous Page">
+                <button class="btn-icon-sm" onclick={prevPdfPage} disabled={pdfCurrentPage <= 1} title="Previous Page">
                   <ChevronLeft size={16} />
                 </button>
                 <span class="page-indicator">{pdfCurrentPage} / {pdfTotalPages}</span>
-                <button class="btn-icon-sm" on:click={nextPdfPage} disabled={pdfCurrentPage >= pdfTotalPages} title="Next Page">
+                <button class="btn-icon-sm" onclick={nextPdfPage} disabled={pdfCurrentPage >= pdfTotalPages} title="Next Page">
                   <ChevronRight size={16} />
                 </button>
                 <span class="divider">|</span>
               {/if}
-              <button class="btn-icon-sm" on:click={zoomOut} title="Zoom Out" disabled={previewZoom <= 0.5}>
+              <button class="btn-icon-sm" onclick={zoomOut} title="Zoom Out" disabled={previewZoom <= 0.5}>
                 <ZoomOut size={16} />
               </button>
               <span class="zoom-level">{Math.round(previewZoom * 100)}%</span>
-              <button class="btn-icon-sm" on:click={zoomIn} title="Zoom In" disabled={previewZoom >= 3}>
+              <button class="btn-icon-sm" onclick={zoomIn} title="Zoom In" disabled={previewZoom >= 3}>
                 <ZoomIn size={16} />
               </button>
-              <button class="btn-icon-sm" on:click={resetZoom} title="Reset">
+              <button class="btn-icon-sm" onclick={resetZoom} title="Reset">
                 <Maximize2 size={16} />
               </button>
             </div>
@@ -949,7 +949,7 @@
             <button 
               class="preset-dropdown-trigger"
               class:active={showPresetDropdown}
-              on:click={() => showPresetDropdown = !showPresetDropdown}
+              onclick={() => showPresetDropdown = !showPresetDropdown}
             >
               {#if selectedPresetId}
                 {deliveryPresets.find(p => p.id === selectedPresetId)?.clientName} - {deliveryPresets.find(p => p.id === selectedPresetId)?.presetName}
@@ -968,7 +968,7 @@
                       <button 
                         class="preset-option"
                         class:selected={selectedPresetId === preset.id}
-                        on:click={() => selectPreset(preset)}
+                        onclick={() => selectPreset(preset)}
                       >
                         <span class="preset-name">{preset.presetName}</span>
                         <span class="preset-address">{preset.addressLine1}, {preset.city}</span>
@@ -986,7 +986,7 @@
 
         <div class="manual-address-toggle">
           <label class="toggle-label">
-            <input type="checkbox" bind:checked={useManualAddress} on:change={clearPreset} />
+            <input type="checkbox" bind:checked={useManualAddress} onchange={clearPreset} />
             <span>{$t('orders.new.delivery.manual')}</span>
           </label>
         </div>
@@ -1037,16 +1037,16 @@
   {#if showPresetModal}
     <div
       class="modal-overlay"
-      on:click={() => showPresetModal = false}
-      on:keydown={(e) => e.key === 'Escape' && (showPresetModal = false)}
+      onclick={() => showPresetModal = false}
+      onkeydown={(e) => e.key === 'Escape' && (showPresetModal = false)}
       role="button"
       tabindex="0"
     >
-      <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <div
         class="modal"
-        on:click|stopPropagation
+        onclick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         tabindex="-1"
@@ -1057,7 +1057,7 @@
             <BookOpen size={20} />
             Load Profile Preset
           </h3>
-          <button class="btn-icon" on:click={() => showPresetModal = false}>
+          <button class="btn-icon" onclick={() => showPresetModal = false}>
             <X size={20} />
           </button>
         </div>
@@ -1080,10 +1080,10 @@
                     {/if}
                   </div>
                   <div class="preset-item-actions">
-                    <button class="btn-icon" on:click={() => loadPreset(preset.id)} title="Load">
+                    <button class="btn-icon" onclick={() => loadPreset(preset.id)} title="Load">
                       <Download size={16} />
                     </button>
-                    <button class="btn-icon danger" on:click={() => deletePreset(preset.id)} title="Delete">
+                    <button class="btn-icon danger" onclick={() => deletePreset(preset.id)} title="Delete">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -1100,16 +1100,16 @@
   {#if showSavePresetModal}
     <div
       class="modal-overlay"
-      on:click={closeSavePresetModal}
-      on:keydown={(e) => e.key === 'Escape' && closeSavePresetModal()}
+      onclick={closeSavePresetModal}
+      onkeydown={(e) => e.key === 'Escape' && closeSavePresetModal()}
       role="button"
       tabindex="0"
     >
-      <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <div
         class="modal"
-        on:click|stopPropagation
+        onclick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         tabindex="-1"
@@ -1120,7 +1120,7 @@
             <BookmarkPlus size={20} />
             Save Profile as Preset
           </h3>
-          <button class="btn-icon" on:click={closeSavePresetModal}>
+          <button class="btn-icon" onclick={closeSavePresetModal}>
             <X size={20} />
           </button>
         </div>
@@ -1151,10 +1151,10 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary" on:click={closeSavePresetModal}>Cancel</button>
+          <button class="btn-secondary" onclick={closeSavePresetModal}>Cancel</button>
           <button
             class="btn-primary"
-            on:click={confirmSavePreset}
+            onclick={confirmSavePreset}
             disabled={!savePresetName.trim() || savingPreset}
           >
             {#if savingPreset}
