@@ -92,6 +92,13 @@ const supabaseHandler: Handle = async ({ event, resolve }) => {
 const securityHeaders: Handle = async ({ event, resolve }) => {
 	const response = await resolve(event);
 
+	// Cache control for HTML pages to prevent stale version issues
+	// This ensures browsers always revalidate HTML, preventing 404s for JS chunks
+	const contentType = response.headers.get('content-type') || '';
+	if (contentType.includes('text/html')) {
+		response.headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
+	}
+
 	// Content Security Policy
 	const cspDirectives = [
 		"default-src 'self'",
