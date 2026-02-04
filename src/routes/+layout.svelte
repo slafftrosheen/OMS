@@ -202,8 +202,16 @@
 
     const init = async () => {
       // Load current user from session
-      const user = await loadCurrentUser();
-      authChecked = true;
+      const userPromise = loadCurrentUser();
+      if (isPublicRoute) {
+        // Allow public routes to render while auth loads.
+        authChecked = true;
+      }
+      const user = await userPromise;
+      if (!authChecked) {
+        // Private routes wait for auth before rendering.
+        authChecked = true;
+      }
 
       // Redirect to login if not authenticated and not on public route
       if (!user && !isPublicRoute) {
@@ -278,11 +286,13 @@
     // Handle install prompt
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
-      deferredPrompt = e;
       const dismissedAt = Number(localStorage.getItem('installPromptDismissed') || 0);
-      if (Date.now() - dismissedAt > INSTALL_PROMPT_COOLDOWN_MS) {
-        showInstallPrompt = true;
+      if (Date.now() - dismissedAt <= INSTALL_PROMPT_COOLDOWN_MS) {
+        showInstallPrompt = false;
+        return;
       }
+      deferredPrompt = e;
+      showInstallPrompt = true;
     });
 
     // Handle app installed
@@ -382,6 +392,7 @@
 
   function handleDismissInstall() {
     showInstallPrompt = false;
+    deferredPrompt = null;
     // Store dismissal to not show again for a while
     localStorage.setItem('installPromptDismissed', Date.now().toString());
   }
