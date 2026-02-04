@@ -202,15 +202,11 @@
 
     const init = async () => {
       const routeIsPublic = isPublicRoute;
-      if (routeIsPublic) {
-        authChecked = true;
-      }
+      authChecked = routeIsPublic;
 
       // Load current user from session
       const user = await loadCurrentUser();
-      if (!routeIsPublic) {
-        authChecked = true;
-      }
+      authChecked = true;
 
       // Redirect to login if not authenticated and not on public route
       if (!user && !routeIsPublic) {
