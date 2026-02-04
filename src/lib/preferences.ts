@@ -11,9 +11,7 @@ type Preferences = {
   notificationsEnabled?: boolean;
   customSettings?: {
     fontScale?: number;
-    [key: string]: any;
   };
-  [key: string]: any;
 };
 
 // cachedPreferences: undefined = not loaded, null = failed/empty, object = loaded data

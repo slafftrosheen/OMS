@@ -65,8 +65,9 @@ if (browser) {
     .then(prefs => {
       if (prefs?.scale && prefs.scale in SCALE_TO_REM) {
         const nextScale = prefs.scale as Scale;
-        lastSynced = nextScale;
         if (nextScale !== initial) {
+          lastSynced = nextScale;
+          hasSyncedOnce = true;
           scale.set(nextScale);
         }
       }

@@ -49,8 +49,9 @@ if (isBrowser) {
     .then(prefs => {
       if (prefs?.theme) {
         const nextTheme = prefs.theme as ThemeName;
-        lastSynced = nextTheme;
         if (nextTheme !== initial) {
+          lastSynced = nextTheme;
+          hasSyncedOnce = true;
           theme.set(nextTheme);
         }
       }

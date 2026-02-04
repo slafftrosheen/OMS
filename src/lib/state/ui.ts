@@ -69,12 +69,7 @@ ui.subscribe(p => {
     lastSynced = p;
     return;
   }
-  if (
-    lastSynced &&
-    lastSynced.theme === p.theme &&
-    lastSynced.density === p.density &&
-    lastSynced.fontScale === p.fontScale
-  ) {
+  if (lastSynced && isSamePrefs(lastSynced, p)) {
     return;
   }
   lastSynced = { ...p };
@@ -83,6 +78,10 @@ ui.subscribe(p => {
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(() => syncPrefsToServer(p), 500);
 });
+
+function isSamePrefs(a: Prefs, b: Prefs) {
+  return a.theme === b.theme && a.density === b.density && a.fontScale === b.fontScale;
+}
 
 // Load from server on init
 if (isBrowser) {
