@@ -1,8 +1,5 @@
-<script lang="ts">
-  import { onMount } from 'svelte';
-  import { base } from '$app/paths';
-  import { ChevronDown } from 'lucide-svelte';
-
+<script lang="ts" context="module">
+  // Module-level cache shared across all MaterialSelect instances
   interface Material {
     id: number;
     category: string;
@@ -17,6 +14,15 @@
       [key: string]: any;
     };
   }
+  
+  const materialsCache = new Map<string, { data: Material[], timestamp: number }>();
+  const CACHE_TTL = 60000; // 1 minute
+</script>
+
+<script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
+  import { base } from '$app/paths';
+  import { ChevronDown } from 'lucide-svelte';
 
   let {
     value = $bindable(''),
@@ -54,9 +60,10 @@
   let isSelecting = false;
   let hasInitialized = false;
   
-  // Client-side cache for materials (module-level)
-  const materialsCache = new Map<string, { data: Material[], timestamp: number }>();
-  const CACHE_TTL = 60000; // 1 minute
+  // Cleanup on component destroy
+  onDestroy(() => {
+    clearTimeout(onchangeTimeout);
+  });
 
   // Get hex color from selected material
   let hexColor = $derived(selectedMaterial?.metadata?.hex || '');

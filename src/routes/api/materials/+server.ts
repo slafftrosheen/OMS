@@ -2,6 +2,9 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+  
   try {
     let query = locals.supabase
       .from('materials')
@@ -21,12 +24,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       query = query.in('category', categories);
     }
 
-    // Add timeout using AbortController
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
     const { data: materials, error } = await query.abortSignal(controller.signal);
-    clearTimeout(timeoutId);
 
     if (error) {
       console.error('Materials query error:', error);
@@ -37,6 +35,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   } catch (err) {
     console.error('Materials API error:', err);
     return json({ error: 'Failed to load materials', materials: [] }, { status: 500 });
+  } finally {
+    clearTimeout(timeoutId);
   }
 };
 
