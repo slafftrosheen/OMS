@@ -1,7 +1,20 @@
 import { browser } from '$app/environment';
 import { base } from '$app/paths';
 
-type Preferences = Record<string, any>;
+type Preferences = {
+  theme?: string;
+  locale?: string;
+  scale?: string;
+  density?: string;
+  pdfZoom?: number;
+  sidebarCollapsed?: boolean;
+  notificationsEnabled?: boolean;
+  customSettings?: {
+    fontScale?: number;
+    [key: string]: any;
+  };
+  [key: string]: any;
+};
 
 // cachedPreferences: undefined = not loaded, null = failed/empty, object = loaded data
 let cachedPreferences: Preferences | null | undefined;

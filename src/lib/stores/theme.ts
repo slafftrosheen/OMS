@@ -48,9 +48,10 @@ if (isBrowser) {
   loadPreferences()
     .then(prefs => {
       if (prefs?.theme) {
-        lastSynced = prefs.theme as ThemeName;
-        if (prefs.theme !== initial) {
-          theme.set(prefs.theme as ThemeName);
+        const nextTheme = prefs.theme as ThemeName;
+        lastSynced = nextTheme;
+        if (nextTheme !== initial) {
+          theme.set(nextTheme);
         }
       }
     })
