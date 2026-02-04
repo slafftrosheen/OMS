@@ -15,7 +15,7 @@ export const theme = writable<ThemeName>(initial);
 
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 let hasSyncedOnce = false;
-let lastSynced: ThemeName | null = null;
+let lastSynced: ThemeName | null = initial;
 
 async function syncThemeToServer(t: ThemeName) {
   if (!isBrowser) return;

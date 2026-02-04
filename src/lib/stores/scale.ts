@@ -54,7 +54,7 @@ const initial = readInitialScale();
 export const scale = writable<Scale>(initial);
 
 let hasSyncedOnce = false;
-let lastSynced: Scale | null = null;
+let lastSynced: Scale | null = initial;
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 
 if (browser) {

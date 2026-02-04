@@ -36,10 +36,10 @@ export async function loadPreferences(): Promise<Preferences | null> {
   }
 
   const pending = inFlight;
-  const result = await pending;
-  cachedPreferences = result;
-
-  if (inFlight === pending) {
+  try {
+    const result = await pending;
+    cachedPreferences = result;
+  } finally {
     inFlight = null;
   }
 
