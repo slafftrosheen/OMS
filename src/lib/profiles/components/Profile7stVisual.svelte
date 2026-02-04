@@ -223,6 +223,8 @@
   let backThicknessOptions: number[] = [];
   let sidesThicknessOptions: number[] = [];
   
+  let updatingMaterial = false;
+
   /**
    * Emits a 'change' event with the current configuration.
    * This function is called after any user interaction that modifies the form data.
@@ -434,6 +436,9 @@
               allowCustom={true}
               {readonly}
               onchange={(data) => {
+                if (updatingMaterial) return;
+                updatingMaterial = true;
+
                 configuration.CNC_FREZER.faceHex = data.hex;
                 configuration.CNC_FREZER.faceShort = extractShortName(data, 'ACRYLIC');
                 faceThicknessOptions = data.material?.thickness_options || [];
@@ -442,7 +447,11 @@
                 } else if (!configuration.CNC_FREZER.faceThickness && faceThicknessOptions.length > 0) {
                    configuration.CNC_FREZER.faceThickness = faceThicknessOptions[0].toString();
                 }
-                emit();
+
+                setTimeout(() => {
+                  emit();
+                  updatingMaterial = false;
+                }, 100);
               }}
             />
           </div>
@@ -473,6 +482,9 @@
               allowCustom={true}
               {readonly}
               onchange={(data) => {
+                if (updatingMaterial) return;
+                updatingMaterial = true;
+
                 configuration.CNC_FREZER.backHex = data.hex;
                 configuration.CNC_FREZER.backShort = extractShortName(data, 'ALU');
                 backThicknessOptions = data.material?.thickness_options || [];
@@ -481,7 +493,11 @@
                 } else if (!configuration.CNC_FREZER.backThickness && backThicknessOptions.length > 0) {
                    configuration.CNC_FREZER.backThickness = backThicknessOptions[0].toString();
                 }
-                emit();
+
+                setTimeout(() => {
+                  emit();
+                  updatingMaterial = false;
+                }, 100);
               }}
             />
           </div>
@@ -538,6 +554,9 @@
               allowCustom={true}
               {readonly}
               onchange={(data) => {
+                if (updatingMaterial) return;
+                updatingMaterial = true;
+
                 configuration.BENDER.sidesHex = data.hex;
                 configuration.BENDER.sidesShort = extractShortName(data, 'ALU');
                 sidesThicknessOptions = data.material?.thickness_options || [];
@@ -546,7 +565,11 @@
                 } else if (!configuration.BENDER.sidesThickness && sidesThicknessOptions.length > 0) {
                    configuration.BENDER.sidesThickness = sidesThicknessOptions[0].toString();
                 }
-                emit();
+
+                setTimeout(() => {
+                  emit();
+                  updatingMaterial = false;
+                }, 100);
               }}
             />
           </div>
