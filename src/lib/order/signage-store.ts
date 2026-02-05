@@ -19,7 +19,7 @@ export async function listOrders(): Promise<Order[]> {
   lastError.set(null);
   
   try {
-    const data = await retryWithBackoff(async () => {
+    const responseData = await retryWithBackoff(async () => {
       const response = await fetch('/api/draft-orders');
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -27,7 +27,15 @@ export async function listOrders(): Promise<Order[]> {
       return response.json();
     });
     
-    const orders = data.map((d: any) => transformApiOrder(d));
+    const rawOrders = Array.isArray(responseData)
+      ? responseData
+      : Array.isArray(responseData?.data)
+        ? responseData.data
+        : Array.isArray(responseData?.orders)
+          ? responseData.orders
+          : [];
+
+    const orders = rawOrders.map((d: any) => transformApiOrder(d));
     ordersStore.set(orders);
     return orders;
   } catch (err) {

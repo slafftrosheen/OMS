@@ -32,7 +32,12 @@
     try {
       const response = await fetch('/api/draft-orders');
       if (response.ok) {
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = Array.isArray(responseData)
+          ? responseData
+          : Array.isArray(responseData?.data)
+            ? responseData.data
+            : [];
         orders = data.map((d: any) => ({
           id: d.id,
           poNumber: d.poNumber,
