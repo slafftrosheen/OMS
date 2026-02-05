@@ -19,7 +19,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
   try {
     let query = supabase
-      .from('order_summary')
+      .from('ordersummary')
       .select('*', { count: 'exact' });
 
     // Apply filters
@@ -176,7 +176,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     // Fetch complete order with relations
     const { data: completeOrder } = await supabase
-      .from('order_summary')
+      .from('ordersummary')
       .select('*')
       .eq('id', order.id)
       .single();
