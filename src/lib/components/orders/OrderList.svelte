@@ -163,7 +163,7 @@
             <div class="error-state">
                 <p class="error-message">⚠️ {$orders.error}</p>
             </div>
-        {:else if $filteredOrders.length === 0}
+        {:else if ($filteredOrders?.length ?? 0) === 0}
             <div class="empty-state">
                 {#if searchQuery || selectedStatuses.length > 0}
                     <p class="empty-message">No orders match your filters</p>
@@ -176,7 +176,7 @@
                 {/if}
             </div>
         {:else}
-            {#each $filteredOrders as order (order.id)}
+            {#each $filteredOrders ?? [] as order (order.id)}
                 <OrderCard
                     {order}
                     onclick={handleOrderClick}
@@ -187,10 +187,10 @@
         {/if}
     </div>
 
-    {#if $filteredOrders.length > 0}
+    {#if ($filteredOrders?.length ?? 0) > 0}
         <div class="list-footer">
             <p class="result-count">
-                Showing {$filteredOrders.length} of {$orders.total} order{$orders.total !== 1 ? 's' : ''}
+                Showing {$filteredOrders?.length ?? 0} of {$orders.total} order{$orders.total !== 1 ? 's' : ''}
             </p>
         </div>
     {/if}

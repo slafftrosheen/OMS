@@ -4,6 +4,7 @@
  * Uses Supabase Realtime for pub/sub messaging
  */
 
+import { env } from '$env/dynamic/public';
 import { supabase } from '$lib/supabase-client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { writable, get } from 'svelte/store';
@@ -35,6 +36,10 @@ export const connectionState = writable<'connected' | 'disconnected' | 'connecti
 export const realtimeOrders = writable<RealtimeOrderUpdate[]>([]);
 export const realtimeNotifications = writable<RealtimeNotification[]>([]);
 
+const supabaseUrl = env.PUBLIC_SUPABASE_URL || import.meta.env.PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
 class RealtimeService {
   private orderChannel: RealtimeChannel | null = null;
   private notificationChannel: RealtimeChannel | null = null;
@@ -49,6 +54,12 @@ class RealtimeService {
   async connect(userId: string): Promise<void> {
     if (!userId) {
       console.error('[Realtime] Cannot connect without userId');
+      return;
+    }
+
+    if (!isSupabaseConfigured) {
+      console.warn('[Realtime] Supabase credentials not configured, realtime disabled');
+      connectionState.set('disconnected');
       return;
     }
 

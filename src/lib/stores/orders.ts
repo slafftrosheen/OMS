@@ -133,11 +133,17 @@ function createOrdersStore() {
         if (!response.ok) throw new Error('Failed to fetch orders');
 
         const result = await response.json();
+        const items = Array.isArray(result?.data)
+          ? result.data
+          : Array.isArray(result)
+            ? result
+            : [];
+        const total = typeof result?.count === 'number' ? result.count : items.length;
 
         update(s => ({
           ...s,
-          items: result.data,
-          total: result.count,
+          items,
+          total,
           loading: false
         }));
       } catch (err: any) {

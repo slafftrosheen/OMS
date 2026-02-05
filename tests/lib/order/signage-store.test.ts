@@ -94,6 +94,19 @@ describe('signage-store', () => {
       expect(get(ordersStore)).toHaveLength(1);
     });
 
+    it('should handle wrapped order responses', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: [mockApiOrder] }),
+      });
+
+      const orders = await listOrders();
+
+      expect(orders).toHaveLength(1);
+      expect(orders[0].id).toBe('PO-123');
+      expect(get(ordersStore)).toHaveLength(1);
+    });
+
     it('should handle fetch errors gracefully', async () => {
       mockFetch.mockRejectedValue(new Error('Network error'));
 
