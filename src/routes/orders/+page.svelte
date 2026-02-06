@@ -31,7 +31,6 @@
   };
 
   function toRow(order: Order): OrderRow {
-    // Defensive checks for undefined/null order
     if (!order) {
       console.warn('Received null/undefined order in toRow');
       return {
@@ -49,8 +48,6 @@
     }
 
     const stagesMap = order.stages ?? blankStages();
-    
-    // Ensure stages is an object before converting to entries
     const stagesEntries = stagesMap && typeof stagesMap === 'object' 
       ? Object.entries(stagesMap) 
       : [];
@@ -79,24 +76,24 @@
   let currentPage = 1;
   let itemsPerPage = 20;
 
-  // NEW: Add these state variables
   let isLoading = true;
   let errorMessage = '';
   let hasLoadedOnce = false;
+  
+  // Add flag to prevent concurrent refresh calls
+  let isRefreshing = false;
 
   let qLower = $derived(q.trim().toLowerCase());
   
   $effect(() => {
-    let filtered = rows || []; // Add null safety
+    let filtered = rows || [];
     
-    // Apply status filter
     if (statusFilter === 'draft') {
       filtered = filtered.filter(r => r?.isDraft);
     } else if (statusFilter === 'active') {
       filtered = filtered.filter(r => !r?.isDraft);
     }
     
-    // Apply search filter
     if (qLower) {
       filtered = filtered.filter((row) => {
         if (!row) return false;
@@ -104,7 +101,6 @@
       });
     }
     
-    // Sort the filtered results with null safety
     visible = filtered.sort((a, b) => {
       if (!a || !b) return 0;
       let av = a[sortKey] || '';
@@ -114,14 +110,12 @@
     });
   });
 
-  // Pagination with null safety
   let totalPages = $derived(Math.max(1, Math.ceil((visible?.length || 0) / itemsPerPage)));
   let paginatedRows = $derived((visible || []).slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage));
 
   let isSuperAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
   let isAdmin = $derived($currentUser?.primarySection === 'Admin' || isSuperAdmin);
   
-  // KPI Stats with null safety
   let totalOrders = $derived(rows?.length || 0);
   let draftOrders = $derived((rows || []).filter(r => r?.isDraft).length);
   let urgentOrders = $derived((rows || []).filter(r => {
@@ -134,10 +128,18 @@
   let activeOrders = $derived(totalOrders - draftOrders);
 
   async function refresh() {
+    // Prevent concurrent refresh calls
+    if (isRefreshing) {
+      console.log('Refresh already in progress, skipping...');
+      return;
+    }
+    
+    isRefreshing = true;
     refreshing = true;
-    errorMessage = ''; // Clear previous errors
+    errorMessage = '';
     
     try {
+      console.log('Fetching draft orders...');
       const response = await fetch('/api/draft-orders');
       
       if (!response.ok) {
@@ -145,16 +147,14 @@
       }
       
       const responseData = await response.json();
+      console.log('Received data:', responseData);
       
-      // Check if there's an error in the response
       if (responseData.error) {
         throw new Error(responseData.error);
       }
       
-      // Handle both response formats: wrapped {data: [], pagination: {}} or plain array
       const data = Array.isArray(responseData) ? responseData : (responseData.data || []);
       
-      // Ensure data is an array before mapping
       if (!Array.isArray(data)) {
         console.error('Invalid data format received:', responseData);
         errorMessage = 'Received invalid data format from server';
@@ -162,6 +162,7 @@
         return;
       }
       
+      console.log(`Processing ${data.length} orders...`);
       const allOrders = data.map((d: any) => ({
         id: d.poNumber || d.id || 'N/A',
         title: d.title || d.clientName || 'Untitled',
@@ -183,28 +184,30 @@
       
       ordersStore.set(allOrders);
       
-      // Filter draft orders - only visible to Admin and SuperAdmin
+      // Filter based on current user role
       const filteredOrders = isAdmin 
         ? allOrders 
         : allOrders.filter((order: any) => !order.isDraft);
       
       rows = filteredOrders.map(toRow);
-      currentPage = 1; // Reset to first page on refresh
+      currentPage = 1;
       hasLoadedOnce = true;
-      errorMessage = ''; // Clear error on success
+      errorMessage = '';
+      console.log(`✅ Successfully loaded ${rows.length} orders`);
       
     } catch (err) {
-      console.error('Failed to fetch orders:', err);
+      console.error('❌ Failed to fetch orders:', err);
       const errorMsg = err instanceof Error ? err.message : 'Unknown error occurred';
       errorMessage = `Failed to load orders: ${errorMsg}`;
       
-      // Don't clear existing data if we had loaded successfully before
       if (!hasLoadedOnce) {
         rows = [];
       }
     } finally {
       refreshing = false;
       isLoading = false;
+      isRefreshing = false;
+      console.log('Refresh complete, isLoading:', isLoading);
     }
   }
 
@@ -230,7 +233,6 @@
   const stationLabel = (code: Station) => $t(TERMS.stations[code]);
   const badgeLabel = (badge: BadgeCode) => $t(TERMS.badges[badge]);
   
-  // Export functions
   function exportToPDF() {
     const csvContent = visible.map(row => 
       `${row.id},${row.client},${row.title},${row.due},${row.loadingDate || 'N/A'}`
@@ -245,14 +247,13 @@
   }
 
   onMount(() => {
-    console.log('Orders page mounted');
+    console.log('📦 Orders page mounted');
     isLoading = true;
     refresh();
   });
 </script>
 
 <ErrorBoundary componentName="Orders Page">
-<!-- Error Banner -->
 {#if errorMessage}
   <div class="error-banner" role="alert">
     <div class="error-content">
@@ -267,14 +268,12 @@
   </div>
 {/if}
 
-<!-- Loading State -->
 {#if isLoading && !hasLoadedOnce}
   <div class="loading-container">
     <div class="spinner"></div>
     <p>Loading orders...</p>
   </div>
 {:else}
-<!-- Page Header with Actions -->
 <div class="page-header">
   <div class="header-left">
     <h1 class="page-title">{$t('orderLists.title')}</h1>
@@ -298,7 +297,6 @@
   </div>
 </div>
 
-<!-- KPI Stats Cards -->
 <div class="kpi-section">
   <KpiCard 
     title="Total Orders" 
@@ -325,7 +323,6 @@
 </div>
 
 <section class="card orders-card">
-  <!-- Filter Bar -->
   <div class="filter-bar">
     <div class="filter-left">
       <div class="search-box">
@@ -351,7 +348,6 @@
     </div>
   </div>
 
-  <!-- Orders Table -->
   <div class="table-wrapper">
     <div class="rf-scroll" style="max-height:60vh">
       <table class="rf-table orders-table">
@@ -520,7 +516,6 @@
     </div>
   </div>
 
-  <!-- Pagination -->
   {#if totalPages > 1}
     <div class="pagination">
       <div class="pagination-info">
@@ -580,9 +575,7 @@
 {/if}
 </ErrorBoundary>
 
-
 <style>
-  /* Page Header */
   .page-header {
     display: flex;
     justify-content: space-between;
@@ -618,7 +611,6 @@
     flex-wrap: wrap;
   }
 
-  /* Buttons */
   .btn {
     display: inline-flex;
     align-items: center;
@@ -679,7 +671,6 @@
     to { transform: rotate(360deg); }
   }
 
-  /* KPI Section */
   .kpi-section {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -687,13 +678,11 @@
     margin-bottom: var(--space-lg);
   }
 
-  /* Orders Card */
   .orders-card {
     padding: 0;
     overflow: hidden;
   }
 
-  /* Filter Bar */
   .filter-bar {
     display: flex;
     justify-content: space-between;
@@ -771,7 +760,6 @@
     align-items: center;
   }
 
-  /* Table Wrapper */
   .table-wrapper {
     overflow-x: auto;
   }
@@ -821,7 +809,6 @@
     background: color-mix(in oklab, var(--warning, #f59e0b) 10%, transparent);
   }
 
-  /* PO Cell */
   .po-cell {
     display: flex;
     align-items: center;
@@ -854,7 +841,6 @@
     white-space: nowrap;
   }
 
-  /* Expand Button */
   .expand-btn {
     background: transparent;
     border: none;
@@ -871,7 +857,6 @@
     color: var(--text);
   }
 
-  /* Badges Cell */
   .badges-cell {
     display: flex;
     flex-wrap: wrap;
@@ -889,7 +874,6 @@
     }
   }
 
-  /* Actions Cell */
   .actions-cell {
     display: flex;
     gap: 4px;
@@ -912,7 +896,6 @@
     color: var(--text);
   }
 
-  /* Expanded Row */
   .expanded-row {
     background: var(--bg-2);
   }
@@ -969,7 +952,6 @@
     color: var(--text-muted);
   }
 
-  /* Pagination */
   .pagination {
     display: flex;
     justify-content: space-between;
@@ -1046,7 +1028,6 @@
     cursor: pointer;
   }
 
-  /* Mobile responsive */
   @media (max-width: 1024px) {
     .page-header {
       flex-direction: column;
@@ -1089,7 +1070,6 @@
       justify-content: center;
     }
     
-    /* Hide less important columns on mobile */
     .orders-table th:nth-child(4),
     .orders-table td:nth-child(4),
     .orders-table th:nth-child(5),
@@ -1117,7 +1097,6 @@
     }
   }
 
-  /* Error Banner */
   .error-banner {
     position: fixed;
     top: 60px;
@@ -1181,7 +1160,6 @@
     color: white;
   }
 
-  /* Loading Container */
   .loading-container {
     display: flex;
     flex-direction: column;
@@ -1200,16 +1178,11 @@
     animation: spin 0.8s linear infinite;
   }
 
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
   .loading-container p {
     color: var(--text-muted);
     font-size: var(--font-size-lg);
   }
 
-  /* Empty State Enhancement */
   .empty-state {
     text-align: center;
     padding: var(--space-2xl) var(--space-lg);
