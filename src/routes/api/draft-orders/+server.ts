@@ -20,22 +20,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       }, { status: 503 });
     }
 
+    // Simplified query without embedded profiles join
     const { data: orders, count, error: fetchError } = await locals.supabase
       .from('draft_orders')
-      .select(`
-        *,
-        profiles:order_profiles(
-          id,
-          profile_template_id,
-          quantity1,
-          quantity2,
-          quantity3,
-          quantity4,
-          configuration,
-          notes,
-          order_index
-        )
-      `, { count: 'exact' })
+      .select('*', { count: 'exact' })
       .range(offset, offset + limit - 1)
       .order('created_at', { ascending: false });
 
@@ -65,10 +53,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       deliveryAddress: row.delivery_address || null,
       deliveryContact: row.delivery_contact || null,
       deliveryPhone: row.delivery_phone || null,
-      profiles: Array.isArray(row.profiles) ? row.profiles.map((profile: any) => ({
-        ...profile,
-        totalQuantity: (profile.quantity1 || 0) + (profile.quantity2 || 0) + (profile.quantity3 || 0) + (profile.quantity4 || 0)
-      })) : [],
+      profiles: [], // Empty array for now - profiles can be loaded separately if needed
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
