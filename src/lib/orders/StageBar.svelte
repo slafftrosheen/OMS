@@ -1,7 +1,11 @@
 <script lang="ts">
   import StagePill from './StagePill.svelte';
   
-  export let progress: Array<{stage: string, done: boolean, redo: string | null}> = []; // [{stage:'CAD',done:true, redo:null}, ...]
+  let {
+    progress = []
+  }: {
+    progress?: Array<{stage: string, done: boolean, redo: string | null}>;
+  } = $props();
 </script>
 
 <div class="wrap">

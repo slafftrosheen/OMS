@@ -3,8 +3,10 @@
   import PdfFrame from '$lib/pdf/PdfFrame.svelte';
   import Input from '$lib/ui/Input.svelte';
   import { t } from 'svelte-i18n';
-  let file = `${base}/files/PO-250375_ABTB-BIJEN_4500mm.pdf`;
-  let valid = true;
+  
+  let file = $state(`${base}/files/PO-250375_ABTB-BIJEN_4500mm.pdf`);
+  let valid = $state(true);
+  
   async function check() {
     try {
       const res = await fetch(file, { method:'HEAD' });
@@ -13,6 +15,7 @@
       valid = false;
     }
   }
+  
   $effect(() => {
     file;
     check();
