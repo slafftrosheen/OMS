@@ -786,11 +786,11 @@
                   </div>
                   <div class="file-list-actions">
                     {#if fileItem.type === 'pdf' || fileItem.type === 'image'}
-                      <button class="btn-icon-sm" onclick|stopPropagation={() => selectFile(i)} title="Preview">
+                      <button class="btn-icon-sm" onclick={(e) => { e.stopPropagation(); selectFile(i); }} title="Preview">
                         <Eye size={14} />
                       </button>
                     {/if}
-                    <button class="btn-icon-sm danger" onclick|stopPropagation={() => removeFile(i)} title="Remove">
+                    <button class="btn-icon-sm danger" onclick={(e) => { e.stopPropagation(); removeFile(i); }} title="Remove">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -1022,7 +1022,7 @@
       <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
       <div
         class="modal"
-        onclick|stopPropagation
+        onclick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         tabindex="-1"
@@ -1085,7 +1085,7 @@
       <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
       <div
         class="modal"
-        onclick|stopPropagation
+        onclick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         tabindex="-1"
