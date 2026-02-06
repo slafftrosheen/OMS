@@ -17,6 +17,12 @@
   let errorStack = $state('');
   
   function handleError(event: ErrorEvent) {
+    // Ignore AbortErrors - they're expected when navigation/requests are cancelled
+    if (event.error?.name === 'AbortError') {
+      event.preventDefault();
+      return;
+    }
+    
     console.error(`Error in ${componentName}:`, event.error);
     hasError = true;
     errorMessage = event.error?.message || 'An unexpected error occurred';
@@ -25,6 +31,12 @@
   }
   
   function handlePromiseRejection(event: PromiseRejectionEvent) {
+    // Ignore AbortErrors - they're expected when navigation/requests are cancelled
+    if (event.reason?.name === 'AbortError') {
+      event.preventDefault();
+      return;
+    }
+    
     console.error(`Unhandled promise rejection in ${componentName}:`, event.reason);
     hasError = true;
     errorMessage = event.reason?.message || 'An unexpected error occurred';
