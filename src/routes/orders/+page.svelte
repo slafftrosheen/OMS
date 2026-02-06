@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from '$app/paths';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import Input from '$lib/ui/Input.svelte';
   import Tooltip from '$lib/ui/Tooltip.svelte';
@@ -82,29 +82,38 @@
 
   let qLower = $derived(q.trim().toLowerCase());
   
-  // FIXED: Use untrack to prevent rows mutation from triggering the effect
+  // FIXED: Use untrack to prevent infinite loops
   $effect(() => {
-    let filtered = rows || [];
+    // Read reactive dependencies
+    const query = qLower;
+    const filter = statusFilter;
+    const key = sortKey;
+    const asc = sortAsc;
     
-    if (statusFilter === 'draft') {
-      filtered = filtered.filter(r => r?.isDraft);
-    } else if (statusFilter === 'active') {
-      filtered = filtered.filter(r => !r?.isDraft);
-    }
-    
-    if (qLower) {
-      filtered = filtered.filter((row) => {
-        if (!row) return false;
-        return `${row.id || ''} ${row.client || ''} ${row.title || ''}`.toLowerCase().includes(qLower);
+    // Use untrack for the actual filtering/sorting logic
+    untrack(() => {
+      let filtered = rows || [];
+      
+      if (filter === 'draft') {
+        filtered = filtered.filter(r => r?.isDraft);
+      } else if (filter === 'active') {
+        filtered = filtered.filter(r => !r?.isDraft);
+      }
+      
+      if (query) {
+        filtered = filtered.filter((row) => {
+          if (!row) return false;
+          return `${row.id || ''} ${row.client || ''} ${row.title || ''}`.toLowerCase().includes(query);
+        });
+      }
+      
+      visible = filtered.sort((a, b) => {
+        if (!a || !b) return 0;
+        let av = a[key] || '';
+        let bv = b[key] || '';
+        const result = av > bv ? 1 : av < bv ? -1 : 0;
+        return asc ? result : -result;
       });
-    }
-    
-    visible = filtered.sort((a, b) => {
-      if (!a || !b) return 0;
-      let av = a[sortKey] || '';
-      let bv = b[sortKey] || '';
-      const result = av > bv ? 1 : av < bv ? -1 : 0;
-      return sortAsc ? result : -result;
     });
   });
 
@@ -205,7 +214,7 @@
     } finally {
       refreshing = false;
       isRefreshing = false;
-      isLoading = false; // Double-set to ensure reactivity
+      isLoading = false;
       console.log('🏁 Refresh complete. isLoading:', isLoading, 'hasLoadedOnce:', hasLoadedOnce);
     }
   }
@@ -223,13 +232,10 @@
     }
   }
 
-  // FIXED: Don't mutate rows in this function
   function toggleExpand(rowId: string) {
-    // Create new array to avoid mutating in effect's scope
-    const newRows = rows.map(row => 
+    rows = rows.map(row => 
       row.id === rowId ? { ...row, expanded: !row.expanded } : row
     );
-    rows = newRows;
   }
 
   const stationLabel = (code: Station) => $t(TERMS.stations[code]);
