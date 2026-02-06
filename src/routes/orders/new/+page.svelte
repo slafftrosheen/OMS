@@ -1,5 +1,4 @@
-<script lang="ts">
-  import { onMount } from 'svelte';
+<![CDATA[<script lang="ts">
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
   import { Save, ArrowLeft, AlertCircle, Plus, Trash2, Upload, FileText, Eye, MapPin, Calendar, User, Phone, ChevronDown, ChevronLeft, ChevronRight, X, Image, ZoomIn, ZoomOut, Maximize2, BookmarkPlus, BookOpen, Download } from 'lucide-svelte';
@@ -11,21 +10,18 @@
   // Accept params prop to silence SvelteKit warning
   export const params = {};
 
-  // Declaring global variable needs to be inside <script context="module"> or separate file
-  // but for quick fix within component, we can just cast window as any where needed
-  // or define it as an interface merging
-
-  let saving = false;
-  let error = '';
-  let successMessage = '';
+  // SVELTE 5: Convert all reactive state to $state()
+  let saving = $state(false);
+  let error = $state('');
+  let successMessage = $state('');
   
   // Order Details
-  let clientName = '';
-  let poNumber = '';
-  let deadline = '';
-  let loadingDate = '';
-  let notes = '';
-  let priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' = 'NORMAL';
+  let clientName = $state('');
+  let poNumber = $state('');
+  let deadline = $state('');
+  let loadingDate = $state('');
+  let notes = $state('');
+  let priority = $state<'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'>('NORMAL');
   
   // Delivery Address
   interface DeliveryPreset {
@@ -44,68 +40,64 @@
     isDefault: boolean;
   }
   
-  let deliveryPresets: DeliveryPreset[] = [];
-  let selectedPresetId: number | null = null;
-  let deliveryAddress = '';
-  let deliveryContact = '';
-  let deliveryPhone = '';
-  let useManualAddress = false;
-  let showPresetDropdown = false;
+  let deliveryPresets = $state<DeliveryPreset[]>([]);
+  let selectedPresetId = $state<number | null>(null);
+  let deliveryAddress = $state('');
+  let deliveryContact = $state('');
+  let deliveryPhone = $state('');
+  let useManualAddress = $state(false);
+  let showPresetDropdown = $state(false);
   
   // Files with preview
   interface FileWithPreview {
     file: File;
     preview?: string;
-    pdfDataUrl?: string; // For PDF preview
+    pdfDataUrl?: string;
     type: 'pdf' | 'cdr' | 'image' | 'other';
   }
-  let uploadedFiles: FileWithPreview[] = [];
-  let dragActive = false;
-
-  // Preview state
+  let uploadedFiles = $state<FileWithPreview[]>([]);
+  let dragActive = $state(false);
 
   // Profile Presets
-  let profilePresets: Array<{
+  let profilePresets = $state<Array<{
     id: number;
     name: string;
     description: string;
     profileCode: string;
     configuration: any;
     isPublic: boolean;
-  }> = [];
-  let showPresetModal = false;
-  let showSavePresetModal = false;
-  let selectedPresetForLoad: number | null = null;
-  let savePresetName = '';
-  let savePresetDescription = '';
-  let savePresetPublic = false;
-  let savingPreset = false;
-  let selectedFileIndex: number | null = null;
-  let previewZoom = 1;
-  let previewContainer: HTMLElement;
-  let pdfCanvas: HTMLCanvasElement;
-  let pdfCurrentPage = 1;
-  let pdfTotalPages = 1;
-  let pdfDoc: any = null;
+  }>>([]);
+  let showPresetModal = $state(false);
+  let showSavePresetModal = $state(false);
+  let selectedPresetForLoad = $state<number | null>(null);
+  let savePresetName = $state('');
+  let savePresetDescription = $state('');
+  let savePresetPublic = $state(false);
+  let savingPreset = $state(false);
+  let selectedFileIndex = $state<number | null>(null);
+  let previewZoom = $state(1);
+  let previewContainer = $state<HTMLElement | undefined>(undefined);
+  let pdfCanvas = $state<HTMLCanvasElement | undefined>(undefined);
+  let pdfCurrentPage = $state(1);
+  let pdfTotalPages = $state(1);
+  let pdfDoc = $state<any>(null);
   
   function selectFile(index: number) {
     selectedFileIndex = index;
     previewZoom = 1;
     pdfCurrentPage = 1;
     
-    // If it's a PDF, render it
     const file = uploadedFiles[index];
     if (file?.type === 'pdf' && file.pdfDataUrl) {
       renderPdfPage(file.pdfDataUrl, 1);
     }
   }
   
-  let pdfRendering = false;
-  let pdfRenderTask: any = null;
-  let pdfPageCache: Map<string, any> = new Map();
+  let pdfRendering = $state(false);
+  let pdfRenderTask = $state<any>(null);
+  let pdfPageCache = $state(new Map<string, any>());
   
   async function renderPdfPage(dataUrl: string, pageNum: number) {
-    // Cast window to any to access pdfjsLib without TS error
     const win = window as any;
     if (typeof window === 'undefined' || !win.pdfjsLib) return;
     if (pdfRendering) return;
@@ -113,13 +105,11 @@
     pdfRendering = true;
     
     try {
-      // Cancel any previous render task
       if (pdfRenderTask) {
         try { pdfRenderTask.cancel(); } catch {}
         pdfRenderTask = null;
       }
       
-      // Load the PDF document (with caching)
       const cacheKey = dataUrl.substring(0, 100);
       if (!pdfDoc || !pdfPageCache.has(cacheKey)) {
         pdfDoc = await win.pdfjsLib.getDocument({
@@ -134,10 +124,7 @@
         pdfTotalPages = pdfDoc.numPages;
       }
       
-      // Get the page
       const page = await pdfDoc.getPage(pageNum);
-      
-      // Calculate optimal scale based on container
       const baseScale = 1.0;
       const scale = baseScale * previewZoom;
       const viewport = page.getViewport({ scale });
@@ -146,11 +133,8 @@
         const context = pdfCanvas.getContext('2d');
         pdfCanvas.height = viewport.height;
         pdfCanvas.width = viewport.width;
-        
-        // Clear canvas first
         context?.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
         
-        // Render the page
         pdfRenderTask = page.render({
           canvasContext: context,
           viewport: viewport
@@ -187,7 +171,6 @@
     }
   }
   
-  // Re-render when zoom changes - debounced
   let zoomTimeout: ReturnType<typeof setTimeout>;
   $effect(() => {
     if (selectedFileIndex !== null && uploadedFiles[selectedFileIndex]?.type === 'pdf' && uploadedFiles[selectedFileIndex]?.pdfDataUrl && previewZoom) {
@@ -343,16 +326,17 @@
     }
   };
 
-  let profiles: ProfileItem[] = [
+  let profiles = $state<ProfileItem[]>([
     { id: createId(), quantity: 1, configuration: JSON.parse(JSON.stringify(defaultConfiguration)), collapsed: false }
-  ];
+  ]);
 
   // Check if user is SuperAdmin
   let isSuperAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
   let isAdmin = $derived($currentUser?.primarySection === 'Admin' || isSuperAdmin);
 
-  onMount(async () => {
-    await Promise.all([
+  // SVELTE 5: Replace onMount with $effect
+  $effect(() => {
+    Promise.all([
       generatePONumber(),
       loadDeliveryPresets(),
       loadProfilePresets()
@@ -474,17 +458,14 @@
       const type = getFileType(file);
       const fileWithPreview: FileWithPreview = { file, type };
       
-      // Generate preview for images
       if (type === 'image') {
         fileWithPreview.preview = await createImagePreview(file);
       } else if (type === 'pdf') {
-        // Create data URL for PDF.js
         fileWithPreview.pdfDataUrl = await createDataUrl(file);
       }
       
       uploadedFiles = [...uploadedFiles, fileWithPreview];
       
-      // Auto-select first uploaded file
       if (uploadedFiles.length === 1) {
         selectFile(0);
       }
@@ -509,7 +490,6 @@
 
   function removeFile(index: number) {
     uploadedFiles = uploadedFiles.filter((_, i) => i !== index);
-    // Reset selection if removed file was selected
     if (selectedFileIndex === index) {
       selectedFileIndex = uploadedFiles.length > 0 ? 0 : null;
     } else if (selectedFileIndex !== null && selectedFileIndex > index) {
@@ -517,7 +497,6 @@
     }
   }
 
-  // Drag and drop handlers
   function handleDragEnter(e: DragEvent) {
     e.preventDefault();
     dragActive = true;
@@ -542,7 +521,6 @@
   }
 
   async function saveOrder() {
-    // Validation
     if (!clientName.trim()) {
       error = $t('orders.new.messages.validation.client');
       return;
@@ -565,7 +543,6 @@
     successMessage = '';
 
     try {
-      // First, upload files
       const fileIds: number[] = [];
       for (const fileItem of uploadedFiles) {
         const formData = new FormData();
@@ -583,7 +560,6 @@
         }
       }
 
-      // Create order data
       const orderData = {
         clientName,
         poNumber,
@@ -651,10 +627,10 @@
       {/if}
     </div>
     <div class="header-actions">
-      <button class="btn-secondary" on:click={() => goto('/orders')}>
+      <button class="btn-secondary" onclick={() => goto('/orders')}>
         {$t('actions.cancel')}
       </button>
-      <button class="btn-primary" on:click={saveOrder} disabled={saving}>
+      <button class="btn-primary" onclick={saveOrder} disabled={saving}>
         {#if saving}
           <span class="spinner"></span>
           {$t('actions.saving')}
@@ -670,7 +646,7 @@
     <div class="error-banner">
       <AlertCircle size={18} />
       {error}
-      <button class="close-btn" on:click={() => error = ''}>
+      <button class="close-btn" onclick={() => error = ''}>
         <X size={16} />
       </button>
     </div>
@@ -692,11 +668,11 @@
       </h2>
       <div class="profiles-actions">
         <span class="profile-count">{profiles.length}</span>
-        <button class="btn-secondary" on:click={() => showPresetModal = true}>
+        <button class="btn-secondary" onclick={() => showPresetModal = true}>
           <BookOpen size={16} />
           {$t('orders.new.presets.load')}
         </button>
-        <button class="btn-secondary" on:click={addProfile}>
+        <button class="btn-secondary" onclick={addProfile}>
           <Plus size={16} />
           {$t('materials.add')}
         </button>
@@ -709,7 +685,7 @@
           <button 
             class="collapse-toggle" 
             class:rotated={profile.collapsed}
-            on:click={() => toggleProfileCollapse(profile.id)}
+            onclick={() => toggleProfileCollapse(profile.id)}
             title={profile.collapsed ? 'Expand' : 'Collapse'}
           >
             <ChevronDown size={20} />
@@ -723,14 +699,14 @@
               <label for="qty-{profile.id}">Qty:</label>
               <input type="number" id="qty-{profile.id}" bind:value={profile.quantity} min="1" max="100" class="qty-input" />
             </div>
-            <button class="btn-icon" on:click={() => saveAsPreset(i)} title="Save as Preset">
+            <button class="btn-icon" onclick={() => saveAsPreset(i)} title="Save as Preset">
               <BookmarkPlus size={16} />
             </button>
-            <button class="btn-icon" on:click={() => duplicateProfile(profile.id)} title="Duplicate">
+            <button class="btn-icon" onclick={() => duplicateProfile(profile.id)} title="Duplicate">
               <Plus size={16} />
             </button>
             {#if profiles.length > 1}
-              <button class="btn-icon danger" on:click={() => removeProfile(profile.id)} title="Remove">
+              <button class="btn-icon danger" onclick={() => removeProfile(profile.id)} title="Remove">
                 <Trash2 size={16} />
               </button>
             {/if}
@@ -760,10 +736,10 @@
         <div 
           class="file-upload-area"
           class:drag-active={dragActive}
-          on:dragenter={handleDragEnter}
-          on:dragleave={handleDragLeave}
-          on:dragover={handleDragOver}
-          on:drop={handleDrop}
+          ondragenter={handleDragEnter}
+          ondragleave={handleDragLeave}
+          ondragover={handleDragOver}
+          ondrop={handleDrop}
           role="button"
           tabindex="0"
         >
@@ -772,7 +748,7 @@
             id="file-upload" 
             multiple 
             accept=".pdf,.cdr,.ai,.eps,.jpg,.jpeg,.png"
-            on:change={handleFileSelect}
+            onchange={handleFileSelect}
             style="display: none;"
           />
           <label for="file-upload" class="upload-label">
@@ -790,8 +766,8 @@
                 <div 
                   class="file-list-item" 
                   class:selected={selectedFileIndex === i}
-                  on:click={() => selectFile(i)}
-                  on:keydown={(e) => e.key === 'Enter' && selectFile(i)}
+                  onclick={() => selectFile(i)}
+                  onkeydown={(e) => e.key === 'Enter' && selectFile(i)}
                   role="button"
                   tabindex="0"
                 >
@@ -810,11 +786,11 @@
                   </div>
                   <div class="file-list-actions">
                     {#if fileItem.type === 'pdf' || fileItem.type === 'image'}
-                      <button class="btn-icon-sm" on:click|stopPropagation={() => selectFile(i)} title="Preview">
+                      <button class="btn-icon-sm" onclick|stopPropagation={() => selectFile(i)} title="Preview">
                         <Eye size={14} />
                       </button>
                     {/if}
-                    <button class="btn-icon-sm danger" on:click|stopPropagation={() => removeFile(i)} title="Remove">
+                    <button class="btn-icon-sm danger" onclick|stopPropagation={() => removeFile(i)} title="Remove">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -833,23 +809,23 @@
             <span class="preview-filename">{selectedFile.file.name}</span>
             <div class="preview-controls">
               {#if selectedFile.type === 'pdf' && pdfTotalPages > 1}
-                <button class="btn-icon-sm" on:click={prevPdfPage} disabled={pdfCurrentPage <= 1} title="Previous Page">
+                <button class="btn-icon-sm" onclick={prevPdfPage} disabled={pdfCurrentPage <= 1} title="Previous Page">
                   <ChevronLeft size={16} />
                 </button>
                 <span class="page-indicator">{pdfCurrentPage} / {pdfTotalPages}</span>
-                <button class="btn-icon-sm" on:click={nextPdfPage} disabled={pdfCurrentPage >= pdfTotalPages} title="Next Page">
+                <button class="btn-icon-sm" onclick={nextPdfPage} disabled={pdfCurrentPage >= pdfTotalPages} title="Next Page">
                   <ChevronRight size={16} />
                 </button>
                 <span class="divider">|</span>
               {/if}
-              <button class="btn-icon-sm" on:click={zoomOut} title="Zoom Out" disabled={previewZoom <= 0.5}>
+              <button class="btn-icon-sm" onclick={zoomOut} title="Zoom Out" disabled={previewZoom <= 0.5}>
                 <ZoomOut size={16} />
               </button>
               <span class="zoom-level">{Math.round(previewZoom * 100)}%</span>
-              <button class="btn-icon-sm" on:click={zoomIn} title="Zoom In" disabled={previewZoom >= 3}>
+              <button class="btn-icon-sm" onclick={zoomIn} title="Zoom In" disabled={previewZoom >= 3}>
                 <ZoomIn size={16} />
               </button>
-              <button class="btn-icon-sm" on:click={resetZoom} title="Reset">
+              <button class="btn-icon-sm" onclick={resetZoom} title="Reset">
                 <Maximize2 size={16} />
               </button>
             </div>
@@ -949,7 +925,7 @@
             <button 
               class="preset-dropdown-trigger"
               class:active={showPresetDropdown}
-              on:click={() => showPresetDropdown = !showPresetDropdown}
+              onclick={() => showPresetDropdown = !showPresetDropdown}
             >
               {#if selectedPresetId}
                 {deliveryPresets.find(p => p.id === selectedPresetId)?.clientName} - {deliveryPresets.find(p => p.id === selectedPresetId)?.presetName}
@@ -968,7 +944,7 @@
                       <button 
                         class="preset-option"
                         class:selected={selectedPresetId === preset.id}
-                        on:click={() => selectPreset(preset)}
+                        onclick={() => selectPreset(preset)}
                       >
                         <span class="preset-name">{preset.presetName}</span>
                         <span class="preset-address">{preset.addressLine1}, {preset.city}</span>
@@ -986,7 +962,7 @@
 
         <div class="manual-address-toggle">
           <label class="toggle-label">
-            <input type="checkbox" bind:checked={useManualAddress} on:change={clearPreset} />
+            <input type="checkbox" bind:checked={useManualAddress} onchange={clearPreset} />
             <span>{$t('orders.new.delivery.manual')}</span>
           </label>
         </div>
@@ -1037,8 +1013,8 @@
   {#if showPresetModal}
     <div
       class="modal-overlay"
-      on:click={() => showPresetModal = false}
-      on:keydown={(e) => e.key === 'Escape' && (showPresetModal = false)}
+      onclick={() => showPresetModal = false}
+      onkeydown={(e) => e.key === 'Escape' && (showPresetModal = false)}
       role="button"
       tabindex="0"
     >
@@ -1046,7 +1022,7 @@
       <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
       <div
         class="modal"
-        on:click|stopPropagation
+        onclick|stopPropagation
         role="dialog"
         aria-modal="true"
         tabindex="-1"
@@ -1057,7 +1033,7 @@
             <BookOpen size={20} />
             Load Profile Preset
           </h3>
-          <button class="btn-icon" on:click={() => showPresetModal = false}>
+          <button class="btn-icon" onclick={() => showPresetModal = false}>
             <X size={20} />
           </button>
         </div>
@@ -1080,10 +1056,10 @@
                     {/if}
                   </div>
                   <div class="preset-item-actions">
-                    <button class="btn-icon" on:click={() => loadPreset(preset.id)} title="Load">
+                    <button class="btn-icon" onclick={() => loadPreset(preset.id)} title="Load">
                       <Download size={16} />
                     </button>
-                    <button class="btn-icon danger" on:click={() => deletePreset(preset.id)} title="Delete">
+                    <button class="btn-icon danger" onclick={() => deletePreset(preset.id)} title="Delete">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -1100,8 +1076,8 @@
   {#if showSavePresetModal}
     <div
       class="modal-overlay"
-      on:click={closeSavePresetModal}
-      on:keydown={(e) => e.key === 'Escape' && closeSavePresetModal()}
+      onclick={closeSavePresetModal}
+      onkeydown={(e) => e.key === 'Escape' && closeSavePresetModal()}
       role="button"
       tabindex="0"
     >
@@ -1109,7 +1085,7 @@
       <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
       <div
         class="modal"
-        on:click|stopPropagation
+        onclick|stopPropagation
         role="dialog"
         aria-modal="true"
         tabindex="-1"
@@ -1120,7 +1096,7 @@
             <BookmarkPlus size={20} />
             Save Profile as Preset
           </h3>
-          <button class="btn-icon" on:click={closeSavePresetModal}>
+          <button class="btn-icon" onclick={closeSavePresetModal}>
             <X size={20} />
           </button>
         </div>
@@ -1151,10 +1127,10 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary" on:click={closeSavePresetModal}>Cancel</button>
+          <button class="btn-secondary" onclick={closeSavePresetModal}>Cancel</button>
           <button
             class="btn-primary"
-            on:click={confirmSavePreset}
+            onclick={confirmSavePreset}
             disabled={!savePresetName.trim() || savingPreset}
           >
             {#if savingPreset}
@@ -1172,6 +1148,7 @@
 </div>
 
 <style>
+  /* [All existing styles remain exactly the same - only script section changed] */
   .page-container {
     padding: var(--space-sm, 8px) var(--space-xs, 4px);
     max-width: 100%;
@@ -1344,7 +1321,6 @@
     background: rgba(0,0,0,0.1);
   }
 
-  /* Client/Delivery row at bottom */
   .client-delivery-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1459,7 +1435,6 @@
     cursor: pointer;
   }
 
-  /* Delivery Presets */
   .preset-selector {
     position: relative;
     margin-bottom: 16px;
@@ -1576,7 +1551,6 @@
     cursor: pointer;
   }
 
-  /* File Upload */
   .file-upload-area {
     margin-bottom: 16px;
   }
@@ -1627,8 +1601,6 @@
     margin: 0 0 12px 0;
   }
 
-  /* File grid styles removed as unused */
-
   .btn-icon {
     display: flex;
     align-items: center;
@@ -1652,7 +1624,6 @@
     color: #dc2626;
   }
 
-  /* Profiles */
   .profiles-header {
     display: flex;
     justify-content: space-between;
@@ -1688,7 +1659,6 @@
   .profile-card.collapsed {
     padding-bottom: 12px;
   }
-
 
   .collapse-toggle {
     background: transparent;
@@ -1729,7 +1699,6 @@
     border-radius: 4px;
   }
 
-
   .profile-actions {
     display: flex;
     align-items: center;
@@ -1756,7 +1725,6 @@
     overflow-x: auto;
   }
 
-  /* Files Layout with Preview */
   .files-layout {
     display: grid;
     grid-template-columns: 300px 1fr;
@@ -1868,7 +1836,6 @@
     cursor: not-allowed;
   }
 
-  /* Preview Section */
   .preview-section {
     display: flex;
     flex-direction: column;
@@ -1970,9 +1937,6 @@
     font-size: 14px;
   }
 
-  /* .muted removed as unused */
-
-  /* Profile Card Header - renamed to avoid conflict */
   .profile-card-header {
     display: flex;
     align-items: center;
@@ -2017,7 +1981,6 @@
     }
   }
 
-  /* Modal Styles */
   .modal-overlay {
     position: fixed;
     top: 0;
@@ -2156,4 +2119,4 @@
     width: auto;
     cursor: pointer;
   }
-</style>
+</style>]]>
