@@ -1,7 +1,11 @@
 <script lang="ts">
   import { t } from 'svelte-i18n';
 
-  export let stages: { name: string; value: number }[] = [];
+  let {
+    stages = []
+  }: {
+    stages?: { name: string; value: number }[];
+  } = $props();
 </script>
 
 <section class="card" aria-labelledby="progress-legend" aria-describedby="progress-desc">

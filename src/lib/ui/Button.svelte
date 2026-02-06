@@ -1,19 +1,36 @@
 <script lang="ts">
-  export let variant: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success' = 'primary';
-  export let size: 'sm' | 'md' | 'lg' = 'md';
-  export let disabled = false;
-  export let type: 'button' | 'submit' = 'button';
-  export let loading = false;
+  import type { Snippet } from 'svelte';
+
+  let {
+    variant = 'primary',
+    size = 'md',
+    disabled = false,
+    type = 'button',
+    loading = false,
+    onclick,
+    children
+  }: {
+    variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
+    size?: 'sm' | 'md' | 'lg';
+    disabled?: boolean;
+    type?: 'button' | 'submit';
+    loading?: boolean;
+    onclick?: (e: MouseEvent) => void;
+    children?: Snippet;
+  } = $props();
 </script>
 
 <button {type} disabled={disabled || loading}
   class="btn-root"
   data-variant={variant}
-  data-size={size}>
+  data-size={size}
+  {onclick}>
   {#if loading}
     <span class="spinner"></span>
   {/if}
-  <slot />
+  {#if children}
+    {@render children()}
+  {/if}
 </button>
 
 <style>

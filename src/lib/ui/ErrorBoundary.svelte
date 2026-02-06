@@ -2,12 +2,19 @@
   import { onMount, onDestroy } from 'svelte';
   import { AlertTriangle, RefreshCw, Home } from 'lucide-svelte';
   import { base } from '$app/paths';
+  import type { Snippet } from 'svelte';
   
-  export let componentName = 'Component';
+  let {
+    componentName = 'Component',
+    children
+  }: {
+    componentName?: string;
+    children?: Snippet;
+  } = $props();
   
-  let hasError = false;
-  let errorMessage = '';
-  let errorStack = '';
+  let hasError = $state(false);
+  let errorMessage = $state('');
+  let errorStack = $state('');
   
   function handleError(event: ErrorEvent) {
     console.error(`Error in ${componentName}:`, event.error);
@@ -59,7 +66,7 @@
       </details>
       
       <div class="error-actions">
-        <button class="btn btn-primary" on:click={reload}>
+        <button class="btn btn-primary" onclick={reload}>
           <RefreshCw size={18} />
           Reload Page
         </button>
@@ -67,7 +74,7 @@
           <Home size={18} />
           Go Home
         </a>
-        <button class="btn btn-ghost" on:click={reset}>
+        <button class="btn btn-ghost" onclick={reset}>
           Dismiss
         </button>
       </div>
@@ -78,7 +85,9 @@
     </div>
   </div>
 {:else}
-  <slot />
+  {#if children}
+    {@render children()}
+  {/if}
 {/if}
 
 <style>

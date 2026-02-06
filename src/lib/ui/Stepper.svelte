@@ -1,5 +1,9 @@
 <script lang="ts">
-  export let steps: { name: string; done?: boolean }[] = [];
+  let {
+    steps = []
+  }: {
+    steps?: { name: string; done?: boolean }[];
+  } = $props();
 </script>
 
 <div class="stepper">

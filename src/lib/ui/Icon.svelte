@@ -16,8 +16,13 @@
     | 'assets'
     | 'stations';
 
-  export let name: IconName = 'home';
-  export let label: string | undefined;
+  let {
+    name = 'home',
+    label = undefined
+  }: {
+    name?: IconName;
+    label?: string;
+  } = $props();
 
   const map: Record<IconName, typeof Home> = {
     home: Home,
@@ -29,7 +34,7 @@
     stations: Building
   };
 
-  const C = map[name] ?? Home;
+  let C = $derived(map[name] ?? Home);
 </script>
 
-<svelte:component this={C} aria-hidden={label ? undefined : true} aria-label={label} />
+<C aria-hidden={label ? undefined : true} aria-label={label} />

@@ -1,9 +1,15 @@
 <script lang="ts">
-  export let tabs: { id: string; label: string }[] = [];
-  export let active = tabs[0]?.id ?? '';
-  export let onChange: (id: string) => void = () => {};
+  let {
+    tabs = [],
+    active = $bindable(tabs[0]?.id ?? ''),
+    onChange = () => {}
+  }: {
+    tabs?: { id: string; label: string }[];
+    active?: string;
+    onChange?: (id: string) => void;
+  } = $props();
 
-  let buttons: (HTMLButtonElement | undefined)[] = [];
+  let buttons: (HTMLButtonElement | undefined)[] = $state([]);
 
   function select(id: string){
     active = id;
@@ -51,8 +57,8 @@
       tabindex={active===t.id ? 0 : -1}
       type="button"
       class="tag"
-      on:click={() => select(t.id)}
-      on:keydown={(e)=>onKey(e,i)}
+      onclick={() => select(t.id)}
+      onkeydown={(e)=>onKey(e,i)}
       use:focusRegister={{ index: i }}>
       {t.label}
     </button>

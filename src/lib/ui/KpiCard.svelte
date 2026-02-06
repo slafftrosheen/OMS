@@ -1,15 +1,27 @@
 <script lang="ts">
-  export let title = '';
-  export let value: string | number = '';
-  export let icon: any = null;
-  export let trend: 'up' | 'down' | 'neutral' | null = null;
-  export let trendValue: string = '';
+  import type { Component } from 'svelte';
+
+  let {
+    title = '',
+    value = '',
+    icon = null,
+    trend = null,
+    trendValue = ''
+  }: {
+    title?: string;
+    value?: string | number;
+    icon?: Component | null;
+    trend?: 'up' | 'down' | 'neutral' | null;
+    trendValue?: string;
+  } = $props();
+
+  let IconComponent = $derived(icon);
 </script>
 
 <div class="kpi-card">
-  {#if icon}
+  {#if IconComponent}
     <div class="kpi-icon">
-      <svelte:component this={icon} size={22} />
+      <IconComponent size={22} />
     </div>
   {/if}
   <div class="kpi-content">

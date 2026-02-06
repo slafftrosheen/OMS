@@ -1,10 +1,24 @@
 <script lang="ts">
-  export let tone: 'neutral'|'info'|'success'|'warn'|'danger'|'primary' = 'neutral';
-  export let label = '';
-  export let size: 'sm' | 'md' | 'lg' = 'md';
+  import type { Snippet } from 'svelte';
+
+  let {
+    tone = 'neutral',
+    label = '',
+    size = 'md',
+    children
+  }: {
+    tone?: 'neutral'|'info'|'success'|'warn'|'danger'|'primary';
+    label?: string;
+    size?: 'sm' | 'md' | 'lg';
+    children?: Snippet;
+  } = $props();
 </script>
 
-<span class="badge" data-tone={tone} data-size={size} role="status" aria-label={label || tone}><slot /></span>
+<span class="badge" data-tone={tone} data-size={size} role="status" aria-label={label || tone}>
+  {#if children}
+    {@render children()}
+  {/if}
+</span>
 
 <style>
 .badge {
