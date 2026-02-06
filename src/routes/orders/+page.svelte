@@ -81,7 +81,7 @@
 
   let qLower = $derived(q.trim().toLowerCase());
   
-  // FIXED: Use $derived instead of $effect to avoid infinite loops
+  // FIXED: Use toSorted() or slice().sort() to avoid mutating the array
   let visible = $derived.by(() => {
     let filtered = rows || [];
     
@@ -98,7 +98,8 @@
       });
     }
     
-    return filtered.sort((a, b) => {
+    // Use toSorted() (ES2023) or slice().sort() to avoid mutating the original array
+    return filtered.toSorted((a, b) => {
       if (!a || !b) return 0;
       let av = a[sortKey] || '';
       let bv = b[sortKey] || '';
