@@ -1,4 +1,4 @@
-<![CDATA[<script lang="ts">
+<script lang="ts">
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
   import { Save, ArrowLeft, AlertCircle, Plus, Trash2, Upload, FileText, Eye, MapPin, Calendar, User, Phone, ChevronDown, ChevronLeft, ChevronRight, X, Image, ZoomIn, ZoomOut, Maximize2, BookmarkPlus, BookOpen, Download } from 'lucide-svelte';
@@ -2119,4 +2119,4 @@
     width: auto;
     cursor: pointer;
   }
-</style>]]>
+</style>
