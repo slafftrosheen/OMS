@@ -1,5 +1,9 @@
 <script lang="ts">
-  export let title: string;
+  let {
+    title
+  }: {
+    title: string;
+  } = $props();
 </script>
 
 <div class="section-header">

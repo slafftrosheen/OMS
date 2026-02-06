@@ -1,5 +1,9 @@
 <script lang="ts">
-  export let label: string = 'Profile 7st';
+  let {
+    label = 'Profile 7st'
+  }: {
+    label?: string;
+  } = $props();
 </script>
 
 <div class="profile-badge">

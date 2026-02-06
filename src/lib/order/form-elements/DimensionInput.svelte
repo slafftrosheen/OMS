@@ -1,10 +1,19 @@
 <script lang="ts">
-  export let value: string = '';
-  export let label: string = 'Dimension';
-  export let unit: string = 'mm';
-  export let placeholder: string = '0';
-  export let required: boolean = false;
-  export let min: number = 0;
+  let {
+    value = $bindable(''),
+    label = 'Dimension',
+    unit = 'mm',
+    placeholder = '0',
+    required = false,
+    min = 0
+  }: {
+    value?: string;
+    label?: string;
+    unit?: string;
+    placeholder?: string;
+    required?: boolean;
+    min?: number;
+  } = $props();
 
   function handleInput(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -31,7 +40,7 @@
       {min}
       step="any"
       class="dim-input"
-      on:input={handleInput}
+      oninput={handleInput}
     />
     <span class="unit">{unit}</span>
   </div>

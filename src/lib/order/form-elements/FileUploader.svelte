@@ -2,13 +2,21 @@
   import { Upload, X } from 'lucide-svelte';
   import type { FileRef } from '../types';
 
-  export let accept: string = '.cdr,.pdf';
-  export let label: string = 'Upload File';
-  export let onFileSelected: (file: File) => void = () => {};
-  export let currentFile: FileRef | null = null;
-  export let onClear: () => void = () => {};
+  let {
+    accept = '.cdr,.pdf',
+    label = 'Upload File',
+    onFileSelected = () => {},
+    currentFile = null,
+    onClear = () => {}
+  }: {
+    accept?: string;
+    label?: string;
+    onFileSelected?: (file: File) => void;
+    currentFile?: FileRef | null;
+    onClear?: () => void;
+  } = $props();
 
-  let isDragging = false;
+  let isDragging = $state(false);
   let fileInput: HTMLInputElement;
 
   function handleDragOver(e: DragEvent) {
@@ -71,19 +79,19 @@
   class="file-uploader"
   class:dragging={isDragging}
   class:has-file={currentFile}
-  on:dragover={handleDragOver}
-  on:dragleave={handleDragLeave}
-  on:drop={handleDrop}
-  on:click={handleClick}
+  ondragover={handleDragOver}
+  ondragleave={handleDragLeave}
+  ondrop={handleDrop}
+  onclick={handleClick}
   role="button"
   tabindex="0"
-  on:keydown={(e) => e.key === 'Enter' && handleClick()}
+  onkeydown={(e) => e.key === 'Enter' && handleClick()}
 >
   <input
     type="file"
     bind:this={fileInput}
     {accept}
-    on:change={handleFileInput}
+    onchange={handleFileInput}
     style="display: none;"
   />
   
@@ -93,7 +101,7 @@
       <button
         type="button"
         class="clear-btn"
-        on:click={handleClear}
+        onclick={handleClear}
         aria-label="Clear file"
       >
         <X size={16} />

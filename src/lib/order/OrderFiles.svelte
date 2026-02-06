@@ -4,8 +4,13 @@
   import { base } from '$app/paths';
   import { Upload, File, FileText, Image, Trash2, Download, FolderOpen, RefreshCw } from 'lucide-svelte';
 
-  export let orderId: string;
-  export let compact: boolean = false;
+  let {
+    orderId,
+    compact = false
+  }: {
+    orderId: string;
+    compact?: boolean;
+  } = $props();
 
   type OrderFile = {
     id: string;
@@ -19,10 +24,10 @@
     uploadedAt: string;
   };
 
-  let files: OrderFile[] = [];
-  let loading = false;
-  let uploading = false;
-  let dragOver = false;
+  let files = $state<OrderFile[]>([]);
+  let loading = $state(false);
+  let uploading = $state(false);
+  let dragOver = $state(false);
   let fileInput: HTMLInputElement;
 
   const formatSize = (bytes: number) => {
@@ -142,7 +147,7 @@
       <h3>{$t('files.order_files', { default: 'Order Files' })}</h3>
       <span class="file-count">{files.length} files</span>
     </div>
-    <button class="btn-icon" on:click={loadFiles} disabled={loading} title="Refresh">
+    <button class="btn-icon" onclick={loadFiles} disabled={loading} title="Refresh">
       <span class:spinning={loading}><RefreshCw size={16} /></span>
     </button>
   </header>
@@ -151,19 +156,19 @@
     class="drop-zone" 
     class:drag-over={dragOver}
     class:uploading
-    on:drop={handleDrop}
-    on:dragover={handleDragOver}
-    on:dragleave={handleDragLeave}
+    ondrop={handleDrop}
+    ondragover={handleDragOver}
+    ondragleave={handleDragLeave}
     role="button"
     tabindex="0"
-    on:click={() => fileInput?.click()}
-    on:keydown={(e) => e.key === 'Enter' && fileInput?.click()}
+    onclick={() => fileInput?.click()}
+    onkeydown={(e) => e.key === 'Enter' && fileInput?.click()}
   >
     <input
       type="file"
       multiple
       bind:this={fileInput}
-      on:change={handleFileSelect}
+      onchange={handleFileSelect}
       style="display: none"
     />
     {#if uploading}
@@ -190,9 +195,10 @@
       </div>
     {:else}
       {#each files as file (file.id)}
+        {@const IconComponent = getFileIcon(file.mimeType)}
         <div class="file-item">
           <div class="file-icon">
-            <svelte:component this={getFileIcon(file.mimeType)} size={20} />
+            <IconComponent size={20} />
           </div>
           <div class="file-info">
             <span class="file-name" title={file.originalName}>{file.originalName}</span>
@@ -201,10 +207,10 @@
             </span>
           </div>
           <div class="file-actions">
-            <button class="btn-icon" on:click={() => downloadFile(file)} title="Download">
+            <button class="btn-icon" onclick={() => downloadFile(file)} title="Download">
               <Download size={16} />
             </button>
-            <button class="btn-icon danger" on:click={() => deleteFile(file.id, file.originalName)} title="Delete">
+            <button class="btn-icon danger" onclick={() => deleteFile(file.id, file.originalName)} title="Delete">
               <Trash2 size={16} />
             </button>
           </div>

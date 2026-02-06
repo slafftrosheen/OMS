@@ -1,8 +1,17 @@
 <script lang="ts">
-  export let value: string[] = [];
-  export let label: string = 'Select Options';
-  export let options: { id: string; label: string; icon?: any }[] = [];
-  export let multiSelect: boolean = true;
+  import type { Component } from 'svelte';
+
+  let {
+    value = $bindable([]),
+    label = 'Select Options',
+    options = [],
+    multiSelect = true
+  }: {
+    value?: string[];
+    label?: string;
+    options?: { id: string; label: string; icon?: Component }[];
+    multiSelect?: boolean;
+  } = $props();
 
   function toggleOption(optionId: string) {
     if (multiSelect) {
@@ -25,15 +34,16 @@
   <label class="label">{label}</label>
   <div class="options-grid">
     {#each options as option}
+      {@const IconComponent = option.icon}
       <button
         type="button"
         class="option-item"
         class:active={isSelected(option.id)}
-        on:click={() => toggleOption(option.id)}
+        onclick={() => toggleOption(option.id)}
         title={option.label}
       >
-        {#if option.icon}
-          <svelte:component this={option.icon} size={20} aria-hidden="true" />
+        {#if IconComponent}
+          <IconComponent size={20} aria-hidden="true" />
         {/if}
         <span class="option-label">{option.label}</span>
       </button>

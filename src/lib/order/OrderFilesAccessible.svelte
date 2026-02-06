@@ -4,17 +4,22 @@
 	import { Upload, File as FileIcon, Image, FileText, X, Download } from 'lucide-svelte';
 	import { focusManager } from '$lib/a11y/focus-manager';
 
-	export let orderId: string;
-	export let files: any[] = [];
+	let {
+		orderId,
+		files = $bindable([])
+	}: {
+		orderId: string;
+		files?: any[];
+	} = $props();
 
-	let uploading = false;
-	let dragOver = false;
+	let uploading = $state(false);
+	let dragOver = $state(false);
 	let fileInput: HTMLInputElement;
-	let uploadProgress = 0;
-	let uploadStatus = '';
+	let uploadProgress = $state(0);
+	let uploadStatus = $state('');
 
 	// Keyboard navigation for file list
-	let selectedIndex = 0;
+	let selectedIndex = $state(0);
 
 	function handleFileSelect(e: Event) {
 		const input = e.target as HTMLInputElement;
@@ -156,14 +161,14 @@
 	<div
 		class="upload-area"
 		class:drag-over={dragOver}
-		on:dragover|preventDefault={() => (dragOver = true)}
-		on:dragleave={() => (dragOver = false)}
-		on:drop={handleDrop}
+		ondragover={(e) => { e.preventDefault(); dragOver = true; }}
+		ondragleave={() => (dragOver = false)}
+		ondrop={handleDrop}
 		role="button"
 		tabindex="0"
 		aria-label="Upload files by clicking or dragging files here"
-		on:click={() => fileInput.click()}
-		on:keydown={(e) => {
+		onclick={() => fileInput.click()}
+		onkeydown={(e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				fileInput.click();
@@ -175,7 +180,7 @@
 			type="file"
 			multiple
 			accept=".pdf,.png,.jpg,.jpeg,.cdr,.ai"
-			on:change={handleFileSelect}
+			onchange={handleFileSelect}
 			class="sr-only"
 			aria-describedby="upload-instructions"
 		/>
@@ -212,16 +217,17 @@
 			</p>
 
 			{#each files as file, index}
+				{@const IconComponent = getFileIcon(file.type)}
 				<div
 					class="file-item"
 					data-file-index={index}
 					role="listitem"
 					tabindex="0"
 					aria-label="{file.name}, {(file.size / 1024).toFixed(1)} KB, uploaded {new Date(file.created_at).toLocaleDateString()}"
-					on:keydown={(e) => handleKeyDown(e, index)}
+					onkeydown={(e) => handleKeyDown(e, index)}
 				>
 					<div class="file-icon" aria-hidden="true">
-						<svelte:component this={getFileIcon(file.type)} size={24} />
+						<IconComponent size={24} />
 					</div>
 
 					<div class="file-info">
@@ -235,7 +241,7 @@
 					<div class="file-actions">
 						<button
 							class="btn-icon"
-							on:click|stopPropagation={() => downloadFile(file)}
+							onclick={(e) => { e.stopPropagation(); downloadFile(file); }}
 							aria-label="Download {file.name}"
 							title="Download"
 						>
@@ -244,7 +250,7 @@
 
 						<button
 							class="btn-icon btn-danger"
-							on:click|stopPropagation={() => deleteFile(file.id, index)}
+							onclick={(e) => { e.stopPropagation(); deleteFile(file.id, index); }}
 							aria-label="Delete {file.name}"
 							title="Delete"
 						>
