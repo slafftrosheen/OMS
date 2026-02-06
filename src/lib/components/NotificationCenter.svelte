@@ -4,12 +4,16 @@
     import { Bell, Check, CheckCheck, X, Clock, AlertCircle, Info } from 'lucide-svelte';
     import type { Notification } from '$lib/notifications/NotificationService';
 
-    export let visible = false;
+    let {
+        visible = $bindable(false)
+    }: {
+        visible?: boolean;
+    } = $props();
 
-    let notifications: Notification[] = [];
-    let unreadCount = 0;
-    let filter: 'all' | 'unread' = 'all';
-    let loading = false;
+    let notifications = $state<Notification[]>([]);
+    let unreadCount = $state(0);
+    let filter = $state<'all' | 'unread'>('all');
+    let loading = $state(false);
 
     const unsubscribe = notificationService.getNotifications().subscribe(n => {
         notifications = n;
@@ -88,7 +92,7 @@
 </script>
 
 <div class="notification-trigger">
-    <button class="bell-button" on:click={() => visible = !visible}>
+    <button class="bell-button" onclick={() => visible = !visible}>
         <Bell size={20} />
         {#if unreadCount > 0}
             <span class="badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
@@ -96,16 +100,16 @@
     </button>
 
     {#if visible}
-        <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-        <!-- svelte-ignore a11y-no-static-element-interactions -->
-        <div class="notification-panel" on:click|stopPropagation>
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="notification-panel" onclick={(e) => e.stopPropagation()}>
             <div class="panel-header">
                 <h3>Notifications</h3>
                 {#if unreadCount > 0}
                     <button
                         class="mark-all-btn"
-                        on:click={markAllAsRead}
+                        onclick={markAllAsRead}
                         disabled={loading}
                     >
                         <CheckCheck size={16} />
@@ -117,13 +121,13 @@
             <div class="filter-tabs">
                 <button
                     class:active={filter === 'all'}
-                    on:click={() => filter = 'all'}
+                    onclick={() => filter = 'all'}
                 >
                     All ({notifications.length})
                 </button>
                 <button
                     class:active={filter === 'unread'}
-                    on:click={() => filter = 'unread'}
+                    onclick={() => filter = 'unread'}
                 >
                     Unread ({unreadCount})
                 </button>
@@ -137,16 +141,17 @@
                     </div>
                 {:else}
                     {#each filteredNotifications as notification}
-                        <!-- svelte-ignore a11y-click-events-have-key-events -->
-                        <!-- svelte-ignore a11y-no-static-element-interactions -->
+                        {@const IconComponent = getIcon(notification.type)}
+                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                        <!-- svelte-ignore a11y_no_static_element_interactions -->
                         <div
                             class="notification-item"
                             class:unread={!notification.read}
                             class:clickable={!!notification.action_url}
-                            on:click={() => handleNotificationClick(notification)}
+                            onclick={() => handleNotificationClick(notification)}
                         >
                             <div class="notif-icon {getTypeClass(notification.type)}">
-                                <svelte:component this={getIcon(notification.type)} size={16} />
+                                <IconComponent size={16} />
                             </div>
 
                             <div class="notif-content">
@@ -161,7 +166,7 @@
                             {#if !notification.read}
                                 <button
                                     class="mark-read-btn"
-                                    on:click|stopPropagation={() => markAsRead(notification.id)}
+                                    onclick={(e) => { e.stopPropagation(); markAsRead(notification.id); }}
                                     title="Mark as read"
                                 >
                                     <Check size={16} />
