@@ -27,9 +27,13 @@ export const GET: RequestHandler = async ({ url, locals }) => {
         profiles:order_profiles(
           id,
           profile_template_id,
-          quantity,
+          quantity1,
+          quantity2,
+          quantity3,
+          quantity4,
           configuration,
-          notes
+          notes,
+          order_index
         )
       `, { count: 'exact' })
       .range(offset, offset + limit - 1)
@@ -57,11 +61,14 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       deadline: row.due_date || null,
       loadingDate: row.loading_date || null,
       status: row.status || 'draft',
-      priority: row.priority || 'NORMAL',
+      priority: row.priority || 'normal',
       deliveryAddress: row.delivery_address || null,
       deliveryContact: row.delivery_contact || null,
       deliveryPhone: row.delivery_phone || null,
-      profiles: Array.isArray(row.profiles) ? row.profiles : [],
+      profiles: Array.isArray(row.profiles) ? row.profiles.map((profile: any) => ({
+        ...profile,
+        totalQuantity: (profile.quantity1 || 0) + (profile.quantity2 || 0) + (profile.quantity3 || 0) + (profile.quantity4 || 0)
+      })) : [],
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
