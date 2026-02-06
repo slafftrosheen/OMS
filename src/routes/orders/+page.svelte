@@ -32,7 +32,6 @@
 
   function toRow(order: Order): OrderRow {
     if (!order) {
-      console.warn('Received null/undefined order in toRow');
       return {
         id: 'N/A',
         client: 'Unknown',
@@ -66,22 +65,20 @@
     };
   }
 
-  let rows: OrderRow[] = [];
-  let q = '';
-  let visible: OrderRow[] = [];
-  let sortKey: 'id' | 'client' | 'title' | 'due' | 'loadingDate' = 'due';
-  let sortAsc = true;
-  let statusFilter: 'all' | 'draft' | 'active' | 'completed' = 'all';
-  let refreshing = false;
-  let currentPage = 1;
-  let itemsPerPage = 20;
-
-  let isLoading = true;
-  let errorMessage = '';
-  let hasLoadedOnce = false;
-  
-  // Add flag to prevent concurrent refresh calls
-  let isRefreshing = false;
+  // Use Svelte 5 $state rune for proper reactivity
+  let rows = $state<OrderRow[]>([]);
+  let q = $state('');
+  let visible = $state<OrderRow[]>([]);
+  let sortKey = $state<'id' | 'client' | 'title' | 'due' | 'loadingDate'>('due');
+  let sortAsc = $state(true);
+  let statusFilter = $state<'all' | 'draft' | 'active' | 'completed'>('all');
+  let refreshing = $state(false);
+  let currentPage = $state(1);
+  let itemsPerPage = $state(20);
+  let isLoading = $state(true);
+  let errorMessage = $state('');
+  let hasLoadedOnce = $state(false);
+  let isRefreshing = $state(false);
 
   let qLower = $derived(q.trim().toLowerCase());
   
@@ -128,9 +125,8 @@
   let activeOrders = $derived(totalOrders - draftOrders);
 
   async function refresh() {
-    // Prevent concurrent refresh calls
     if (isRefreshing) {
-      console.log('Refresh already in progress, skipping...');
+      console.log('🔒 Refresh already in progress, skipping...');
       return;
     }
     
@@ -139,7 +135,7 @@
     errorMessage = '';
     
     try {
-      console.log('Fetching draft orders...');
+      console.log('📡 Fetching draft orders...');
       const response = await fetch('/api/draft-orders');
       
       if (!response.ok) {
@@ -147,7 +143,7 @@
       }
       
       const responseData = await response.json();
-      console.log('Received data:', responseData);
+      console.log('📦 Received data:', responseData);
       
       if (responseData.error) {
         throw new Error(responseData.error);
@@ -156,13 +152,13 @@
       const data = Array.isArray(responseData) ? responseData : (responseData.data || []);
       
       if (!Array.isArray(data)) {
-        console.error('Invalid data format received:', responseData);
+        console.error('❌ Invalid data format:', responseData);
         errorMessage = 'Received invalid data format from server';
         rows = [];
         return;
       }
       
-      console.log(`Processing ${data.length} orders...`);
+      console.log(`⚙️ Processing ${data.length} orders...`);
       const allOrders = data.map((d: any) => ({
         id: d.poNumber || d.id || 'N/A',
         title: d.title || d.clientName || 'Untitled',
@@ -184,7 +180,6 @@
       
       ordersStore.set(allOrders);
       
-      // Filter based on current user role
       const filteredOrders = isAdmin 
         ? allOrders 
         : allOrders.filter((order: any) => !order.isDraft);
@@ -193,11 +188,14 @@
       currentPage = 1;
       hasLoadedOnce = true;
       errorMessage = '';
-      console.log(`✅ Successfully loaded ${rows.length} orders`);
+      
+      // Force DOM update
+      isLoading = false;
+      console.log('✅ Successfully loaded', rows.length, 'orders');
       
     } catch (err) {
       console.error('❌ Failed to fetch orders:', err);
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error occurred';
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
       errorMessage = `Failed to load orders: ${errorMsg}`;
       
       if (!hasLoadedOnce) {
@@ -205,9 +203,9 @@
       }
     } finally {
       refreshing = false;
-      isLoading = false;
       isRefreshing = false;
-      console.log('Refresh complete, isLoading:', isLoading);
+      isLoading = false; // Double-set to ensure reactivity
+      console.log('🏁 Refresh complete. isLoading:', isLoading, 'hasLoadedOnce:', hasLoadedOnce);
     }
   }
 
@@ -247,8 +245,7 @@
   }
 
   onMount(() => {
-    console.log('📦 Orders page mounted');
-    isLoading = true;
+    console.log('🚀 Orders page mounted');
     refresh();
   });
 </script>
@@ -261,7 +258,7 @@
       <div class="error-text">
         <strong>Error:</strong> {errorMessage}
       </div>
-      <button class="error-close" on:click={() => errorMessage = ''} aria-label="Dismiss error">
+      <button class="error-close" onclick={() => errorMessage = ''} aria-label="Dismiss error">
         ×
       </button>
     </div>
@@ -281,16 +278,16 @@
   </div>
   <div class="header-actions">
     {#if isSuperAdmin}
-      <button class="btn btn-primary" on:click={createNewOrder}>
+      <button class="btn btn-primary" onclick={createNewOrder}>
         <Plus size={18} />
         Create Draft Order
       </button>
     {/if}
-    <button class="btn btn-secondary" on:click={refresh} disabled={refreshing}>
+    <button class="btn btn-secondary" onclick={refresh} disabled={refreshing}>
       <span class:spinning={refreshing}><RefreshCw size={18} /></span>
       Refresh
     </button>
-    <button class="btn btn-ghost" on:click={exportToPDF}>
+    <button class="btn btn-ghost" onclick={exportToPDF}>
       <Download size={18} />
       Export
     </button>
@@ -330,14 +327,14 @@
         <Input bind:value={q} placeholder={$t('orderLists.filter_placeholder')} ariaLabel={$t('orderLists.filter_label')} />
       </div>
       <div class="status-filters">
-        <button class="filter-btn" class:active={statusFilter === 'all'} on:click={() => { statusFilter = 'all'; currentPage = 1; }}>
+        <button class="filter-btn" class:active={statusFilter === 'all'} onclick={() => { statusFilter = 'all'; currentPage = 1; }}>
           All ({rows.length})
         </button>
-        <button class="filter-btn" class:active={statusFilter === 'active'} on:click={() => { statusFilter = 'active'; currentPage = 1; }}>
+        <button class="filter-btn" class:active={statusFilter === 'active'} onclick={() => { statusFilter = 'active'; currentPage = 1; }}>
           Active ({activeOrders})
         </button>
         {#if isAdmin}
-          <button class="filter-btn" class:active={statusFilter === 'draft'} on:click={() => { statusFilter = 'draft'; currentPage = 1; }}>
+          <button class="filter-btn" class:active={statusFilter === 'draft'} onclick={() => { statusFilter = 'draft'; currentPage = 1; }}>
             Drafts ({draftOrders})
           </button>
         {/if}
@@ -355,27 +352,27 @@
           <tr>
             <th style="width:40px"></th>
             <th style="width:120px">
-              <button class="tag ghost" data-sort={sortKey === 'id' ? (sortAsc ? 'asc' : 'desc') : ''} on:click={() => toggleSort('id')}>
+              <button class="tag ghost" data-sort={sortKey === 'id' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('id')}>
                 {$t('orderLists.headers.po')}
               </button>
             </th>
             <th style="width:140px">
-              <button class="tag ghost" data-sort={sortKey === 'client' ? (sortAsc ? 'asc' : 'desc') : ''} on:click={() => toggleSort('client')}>
+              <button class="tag ghost" data-sort={sortKey === 'client' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('client')}>
                 {$t('orderLists.headers.client')}
               </button>
             </th>
             <th>
-              <button class="tag ghost" data-sort={sortKey === 'title' ? (sortAsc ? 'asc' : 'desc') : ''} on:click={() => toggleSort('title')}>
+              <button class="tag ghost" data-sort={sortKey === 'title' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('title')}>
                 {$t('orderLists.headers.title')}
               </button>
             </th>
             <th style="width:110px">
-              <button class="tag ghost" data-sort={sortKey === 'loadingDate' ? (sortAsc ? 'asc' : 'desc') : ''} on:click={() => toggleSort('loadingDate')}>
+              <button class="tag ghost" data-sort={sortKey === 'loadingDate' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('loadingDate')}>
                 {$t('orderLists.headers.loading')}
               </button>
             </th>
             <th style="width:100px">
-              <button class="tag ghost" data-sort={sortKey === 'due' ? (sortAsc ? 'asc' : 'desc') : ''} on:click={() => toggleSort('due')}>
+              <button class="tag ghost" data-sort={sortKey === 'due' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('due')}>
                 {$t('orderLists.headers.due')}
               </button>
             </th>
@@ -389,7 +386,7 @@
               <td>
                 <button 
                   class="expand-btn" 
-                  on:click={() => toggleExpand(row.id)}
+                  onclick={() => toggleExpand(row.id)}
                   aria-expanded={row.expanded}
                   aria-label={row.expanded ? 'Collapse' : 'Expand'}>
                   {row.expanded ? '▼' : '▶'}
@@ -401,11 +398,11 @@
                     href={row.href} 
                     class="order-link"
                     draggable="true"
-                    on:dragstart={(e) => {
+                    ondragstart={(e) => {
                       e.dataTransfer?.setData('text/plain', row.id);
                       dragging.set({ type: 'po', po: row.id });
                     }}
-                    on:dragend={() => dragging.set(null)}
+                    ondragend={() => dragging.set(null)}
                     aria-grabbed="true"
                     aria-label={`Drag ${row.id} to a loading day`}>
                     {row.id}
@@ -497,7 +494,7 @@
                     <AlertCircle size={48} class="empty-state-icon" />
                     <h3>Unable to load orders</h3>
                     <p>There was a problem loading the orders list.</p>
-                    <button class="btn btn-primary" on:click={refresh}>
+                    <button class="btn btn-primary" onclick={refresh}>
                       Try Again
                     </button>
                   </div>
@@ -525,7 +522,7 @@
         <button 
           class="pagination-btn" 
           disabled={currentPage === 1}
-          on:click={() => currentPage = 1}
+          onclick={() => currentPage = 1}
           title="First page"
         >
           ««
@@ -533,7 +530,7 @@
         <button 
           class="pagination-btn" 
           disabled={currentPage === 1}
-          on:click={() => currentPage--}
+          onclick={() => currentPage--}
           title="Previous page"
         >
           <ChevronLeft size={18} />
@@ -544,7 +541,7 @@
         <button 
           class="pagination-btn" 
           disabled={currentPage === totalPages}
-          on:click={() => currentPage++}
+          onclick={() => currentPage++}
           title="Next page"
         >
           <ChevronRight size={18} />
@@ -552,7 +549,7 @@
         <button 
           class="pagination-btn" 
           disabled={currentPage === totalPages}
-          on:click={() => currentPage = totalPages}
+          onclick={() => currentPage = totalPages}
           title="Last page"
         >
           »»
@@ -561,7 +558,7 @@
       <div class="items-per-page">
         <label>
           <span>Per page:</span>
-          <select bind:value={itemsPerPage} on:change={() => currentPage = 1}>
+          <select bind:value={itemsPerPage} onchange={() => currentPage = 1}>
             <option value={10}>10</option>
             <option value={20}>20</option>
             <option value={50}>50</option>
