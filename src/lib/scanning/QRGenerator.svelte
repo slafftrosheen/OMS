@@ -6,14 +6,18 @@
 
 import { Download, Printer, RefreshCw } from 'lucide-svelte';
 
-export let orderId: string;
-export let poNumber: string;
+  interface Props {
+    orderId: string;
+    poNumber: string;
+  }
 
-let loading = false;
-let qrCode: any = null;
-let error: string | null = null;
-let format: 'QR' | 'CODE128' = 'QR';
-let size = 300;
+  let { orderId, poNumber }: Props = $props();
+
+let loading = $state(false);
+let qrCode: any = $state(null);
+let error: string | null = $state(null);
+let format: 'QR' | 'CODE128' = $state('QR');
+let size = $state(300);
 
 async function generateQRCode() {
   loading = true;
@@ -132,7 +136,7 @@ function printQRCode() {
 
     <button 
       class="btn-primary"
-      on:click={generateQRCode}
+      onclick={generateQRCode}
       disabled={loading}
     >
       {#if loading}
@@ -162,11 +166,11 @@ function printQRCode() {
       </div>
 
       <div class="qr-actions">
-        <button class="btn-secondary" on:click={downloadQRCode}>
+        <button class="btn-secondary" onclick={downloadQRCode}>
           <Download size={16} />
           Download
         </button>
-        <button class="btn-secondary" on:click={printQRCode}>
+        <button class="btn-secondary" onclick={printQRCode}>
           <Printer size={16} />
           Print
         </button>

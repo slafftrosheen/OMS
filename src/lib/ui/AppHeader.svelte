@@ -65,7 +65,7 @@
   </div>
 
   <div class="app-header__actions" role="group" aria-label={$t('header.actions')}>
-    <button class="tag" type="button" on:click={openSearch} aria-label={$t('a11y.search')} title={$t('a11y.search')}>
+    <button class="tag" type="button" onclick={openSearch} aria-label={$t('a11y.search')} title={$t('a11y.search')}>
       <SearchIcon aria-hidden="true" focusable="false" width={18} height={18} />
       <span class="sr-only">{$t('a11y.search')}</span>
     </button>
@@ -78,7 +78,7 @@
 
     <RoleSwitch />
 
-    <button class="tag" title="Help" on:click={()=>showHelp=true}>
+    <button class="tag" title="Help" onclick={()=>showHelp=true}>
       <HelpCircle aria-hidden="true" width={18} height={18} />
     </button>
 
@@ -89,7 +89,7 @@
     </a>
 
     <div class="user">
-      <button class="user-btn" aria-haspopup="menu" aria-expanded={showUserMenu} on:click={toggleUserMenu}>
+      <button class="user-btn" aria-haspopup="menu" aria-expanded={showUserMenu} onclick={toggleUserMenu}>
         <img src={`${base}/brand/avatar-default.svg`} alt="" class="avatar" />
         <span class="name">{$currentUser?.displayName}</span>
       </button>
@@ -98,7 +98,7 @@
         <div class="menu" role="menu" aria-label={$t('header.user.label')}>
           <div class="menu-row"><b>{$t('header.user.label')}</b></div>
           <div class="menu-row">
-            <select class="rf-input" on:change={pickUser} bind:value={$currentUserId} aria-label={$t('header.user.switch')}>
+            <select class="rf-input" onchange={pickUser} bind:value={$currentUserId} aria-label={$t('header.user.switch')}>
               {#each $users as u}
                 <option value={u.id}>{u.name} — {roleLabel(u.role)}</option>
               {/each}

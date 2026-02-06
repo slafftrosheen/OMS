@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { preventDefault } from 'svelte/legacy';
+
   import { t } from '$lib/i18n';
   import type { Order } from '$lib/stores/orders';
 
@@ -92,7 +94,7 @@
   }
 </script>
 
-<form class="order-form" on:submit|preventDefault={handleSubmit}>
+<form class="order-form" onsubmit={preventDefault(handleSubmit)}>
   <div class="form-header">
     <h2>{mode === 'create' ? $t('orders.create_new') : $t('orders.edit_order')}</h2>
   </div>
@@ -238,7 +240,7 @@
             bind:value={formData.rd_notes}
             rows="3"
             placeholder="Experimental process, special materials, etc."
-          />
+></textarea>
         </div>
       {/if}
     </section>
@@ -247,7 +249,7 @@
     <section class="form-section">
       <div class="section-header">
         <h3>{$t('orders.materials')}</h3>
-        <button type="button" class="btn btn-sm btn-outline" on:click={addMaterial}>
+        <button type="button" class="btn btn-sm btn-outline" onclick={addMaterial}>
           + Add Material
         </button>
       </div>
@@ -259,7 +261,7 @@
             <button
               type="button"
               class="btn-icon"
-              on:click={() => removeMaterial(index)}
+              onclick={() => removeMaterial(index)}
               aria-label="Remove material"
             >
               ×
@@ -320,13 +322,13 @@
           bind:value={formData.notes}
           rows="4"
           placeholder="Additional instructions, special requirements, etc."
-        />
+></textarea>
       </div>
     </section>
   </div>
 
   <div class="form-footer">
-    <button type="button" class="btn btn-outline" on:click={handleCancel} disabled={submitting}>
+    <button type="button" class="btn btn-outline" onclick={handleCancel} disabled={submitting}>
       {$t('common.cancel')}
     </button>
     <button type="submit" class="btn btn-primary" disabled={submitting}>

@@ -11,7 +11,7 @@
 		duration?: number;
 	}
 
-	let toasts: Toast[] = [];
+	let toasts: Toast[] = $state([]);
 
 	onMount(() => {
 		// Listen for toast events
@@ -56,18 +56,19 @@
 
 <div class="toast-container" aria-live="polite" aria-atomic="true">
 	{#each toasts as toast (toast.id)}
+		{@const SvelteComponent = getIcon(toast.type)}
 		<div
 			class="toast toast-{toast.type}"
 			transition:fly={{ y: 50, duration: 300 }}
 			role="alert"
 		>
 			<div class="toast-icon">
-				<svelte:component this={getIcon(toast.type)} size={20} />
+				<SvelteComponent size={20} />
 			</div>
 			<div class="toast-message">{toast.message}</div>
 			<button
 				class="toast-close"
-				on:click={() => removeToast(toast.id)}
+				onclick={() => removeToast(toast.id)}
 				aria-label="Close notification"
 			>
 				<X size={16} />

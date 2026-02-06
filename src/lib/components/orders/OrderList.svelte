@@ -118,7 +118,7 @@
                         <button
                             class="status-filter"
                             class:active={selectedStatuses.includes(option.value)}
-                            on:click={() => toggleStatus(option.value)}
+                            onclick={() => toggleStatus(option.value)}
                         >
                             <Badge variant={option.variant} size="sm">
                                 {option.label}
@@ -137,7 +137,7 @@
                     
                     <button
                         class="sort-direction"
-                        on:click={() => sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'}
+                        onclick={() => sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'}
                         title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
                     >
                         {sortDirection === 'asc' ? '↑' : '↓'}
@@ -145,7 +145,7 @@
                 </div>
 
                 {#if searchQuery || selectedStatuses.length > 0}
-                    <button class="clear-filters" on:click={clearFilters}>
+                    <button class="clear-filters" onclick={clearFilters}>
                         Clear Filters
                     </button>
                 {/if}
@@ -167,7 +167,7 @@
             <div class="empty-state">
                 {#if searchQuery || selectedStatuses.length > 0}
                     <p class="empty-message">No orders match your filters</p>
-                    <button class="clear-filters-btn" on:click={clearFilters}>
+                    <button class="clear-filters-btn" onclick={clearFilters}>
                         Clear Filters
                     </button>
                 {:else}

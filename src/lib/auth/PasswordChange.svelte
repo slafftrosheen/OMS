@@ -1,16 +1,18 @@
 <script lang="ts">
+  import { preventDefault } from 'svelte/legacy';
+
   import { base } from '$app/paths';
   import { Lock, Check, AlertCircle, Eye, EyeOff } from 'lucide-svelte';
   import { t } from 'svelte-i18n';
 
-  let currentPassword = '';
-  let newPassword = '';
-  let confirmPassword = '';
-  let saving = false;
-  let error = '';
-  let success = '';
-  let showCurrent = false;
-  let showNew = false;
+  let currentPassword = $state('');
+  let newPassword = $state('');
+  let confirmPassword = $state('');
+  let saving = $state(false);
+  let error = $state('');
+  let success = $state('');
+  let showCurrent = $state(false);
+  let showNew = $state(false);
 
   async function changePassword() {
     error = '';
@@ -78,7 +80,7 @@
     </div>
   {/if}
 
-  <form on:submit|preventDefault={changePassword}>
+  <form onsubmit={preventDefault(changePassword)}>
     <div class="form-group">
       <label for="current-password">{$t('settings.password.current', { default: 'Current Password' })}</label>
       <div class="password-input">
@@ -87,7 +89,7 @@
         {:else}
           <input type="password" id="current-password" bind:value={currentPassword} />
         {/if}
-        <button type="button" class="toggle-visibility" on:click={() => showCurrent = !showCurrent}>
+        <button type="button" class="toggle-visibility" onclick={() => showCurrent = !showCurrent}>
           {#if showCurrent}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
         </button>
       </div>
@@ -101,7 +103,7 @@
         {:else}
           <input type="password" id="new-password" bind:value={newPassword} />
         {/if}
-        <button type="button" class="toggle-visibility" on:click={() => showNew = !showNew}>
+        <button type="button" class="toggle-visibility" onclick={() => showNew = !showNew}>
           {#if showNew}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
         </button>
       </div>

@@ -63,9 +63,10 @@ function getUnitLabel(count: number) {
   </div>
 
   {#if showDetails}
+    {@const SvelteComponent = statusIcon}
     <div class="capacity-details">
       <div class="capacity-status" style="color: {statusColor}">
-        <svelte:component this={statusIcon} size={16} />
+        <SvelteComponent size={16} />
         <span>{statusLabel}</span>
       </div>
       

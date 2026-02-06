@@ -1,6 +1,13 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+  const bubble = createBubbler();
   import { t } from 'svelte-i18n';
-  export let open = false;
+  interface Props {
+    open?: boolean;
+  }
+
+  let { open = $bindable(false) }: Props = $props();
   
   function close(e: MouseEvent | KeyboardEvent) {
     if (e instanceof KeyboardEvent && e.key !== 'Escape') return;
@@ -9,8 +16,8 @@
 </script>
 
 {#if open}
-<div class="cmd" role="dialog" tabindex="0" aria-modal="true" aria-label={$t('help.title') || 'Keyboard shortcuts'} on:click={close} on:keydown={close}>
-  <div class="panel" on:click|stopPropagation on:keydown|stopPropagation role="document" tabindex="0">
+<div class="cmd" role="dialog" tabindex="0" aria-modal="true" aria-label={$t('help.title') || 'Keyboard shortcuts'} onclick={close} onkeydown={close}>
+  <div class="panel" onclick={stopPropagation(bubble('click'))} onkeydown={stopPropagation(bubble('keydown'))} role="document" tabindex="0">
     <h3>{$t('help.title') || 'Shortcuts'}</h3>
     <ul>
       <li><b>Ctrl/Cmd + K</b> — Command palette</li>
@@ -19,7 +26,7 @@
       <li><b>F</b> — Focus search/filter in lists</li>
     </ul>
     <div style="text-align:right;margin-top:12px">
-      <button class="tag" on:click={()=>open=false}>Close</button>
+      <button class="tag" onclick={()=>open=false}>Close</button>
     </div>
   </div>
 </div>

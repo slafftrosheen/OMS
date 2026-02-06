@@ -112,18 +112,18 @@
         playsinline
         autoplay
         muted
-      />
+></video>
 
       <!-- Hidden canvas for processing -->
-      <canvas bind:this={canvasElement} class="hidden-canvas" />
+      <canvas bind:this={canvasElement} class="hidden-canvas"></canvas>
 
       <!-- Scanning overlay -->
       <div class="scanning-overlay">
         <div class="scan-area">
-          <div class="corner corner-tl" />
-          <div class="corner corner-tr" />
-          <div class="corner corner-bl" />
-          <div class="corner corner-br" />
+          <div class="corner corner-tl"></div>
+          <div class="corner corner-tr"></div>
+          <div class="corner corner-bl"></div>
+          <div class="corner corner-br"></div>
         </div>
         <p class="scan-instruction">Position QR code within frame</p>
       </div>

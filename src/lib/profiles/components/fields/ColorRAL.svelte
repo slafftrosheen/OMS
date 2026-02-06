@@ -1,5 +1,7 @@
 <!-- src/lib/profiles/components/fields/ColorRAL.svelte -->
 <script lang="ts">
+  import { stopPropagation } from 'svelte/legacy';
+
   import { onMount } from 'svelte';
   import { Search, X, Palette } from 'lucide-svelte';
   import type { ColorSystem } from '$lib/profiles/types';
@@ -126,7 +128,7 @@
       class="picker-button"
       class:open={isOpen}
       class:has-value={!!selectedColor}
-      on:click={togglePicker}
+      onclick={togglePicker}
       {disabled}
     >
       {#if loading}
@@ -149,7 +151,7 @@
         <button
           type="button"
           class="clear-button"
-          on:click|stopPropagation={clearSelection}
+          onclick={stopPropagation(clearSelection)}
           title="Clear selection"
         >
           <X size={16} />
@@ -175,7 +177,7 @@
               type="button"
               class="color-item"
               class:selected={color.code === value}
-              on:click={() => selectColor(color)}
+              onclick={() => selectColor(color)}
               title="{color.name} (RAL {color.code})"
             >
               <div 

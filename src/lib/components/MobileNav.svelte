@@ -3,7 +3,13 @@
     import { Menu, X, Home, Package, Inbox, BarChart3, Users, Settings } from 'lucide-svelte';
     import { slide } from 'svelte/transition';
 
-    export let open = false;
+    interface Props {
+        open?: boolean;
+        actions?: import('svelte').Snippet;
+        footer?: import('svelte').Snippet;
+    }
+
+    let { open = $bindable(false), actions, footer }: Props = $props();
 
     const navItems = [
         { href: '/dashboard', icon: Home, label: 'Dashboard' },
@@ -25,7 +31,7 @@
 
 <!-- Mobile Header -->
 <div class="mobile-header">
-    <button class="menu-toggle" on:click={() => open = !open}>
+    <button class="menu-toggle" onclick={() => open = !open}>
         {#if open}
             <X size={24} />
         {:else}
@@ -38,19 +44,19 @@
     </div>
 
     <div class="header-actions">
-        <slot name="actions" />
+        {@render actions?.()}
     </div>
 </div>
 
 <!-- Mobile Sidebar -->
 {#if open}
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div class="mobile-overlay" on:click={() => open = false} transition:slide></div>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="mobile-overlay" onclick={() => open = false} transition:slide></div>
     <nav class="mobile-nav" transition:slide={{ axis: 'x' }}>
         <div class="nav-header">
             <h2>Menu</h2>
-            <button class="close-btn" on:click={() => open = false}>
+            <button class="close-btn" onclick={() => open = false}>
                 <X size={20} />
             </button>
         </div>
@@ -61,16 +67,16 @@
                     href={item.href}
                     class="nav-item"
                     class:active={isActive(item.href)}
-                    on:click={handleNavClick}
+                    onclick={handleNavClick}
                 >
-                    <svelte:component this={item.icon} size={20} />
+                    <item.icon size={20} />
                     <span>{item.label}</span>
                 </a>
             {/each}
         </div>
 
         <div class="nav-footer">
-            <slot name="footer" />
+            {@render footer?.()}
         </div>
     </nav>
 {/if}

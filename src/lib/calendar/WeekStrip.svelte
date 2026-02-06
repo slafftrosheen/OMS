@@ -30,9 +30,9 @@
 
 <div class="cal-weekstrip">
   <div class="row" style="justify-content:space-between;margin-bottom:8px">
-    <button class="tag" on:click={prev}>◀</button>
+    <button class="tag" onclick={prev}>◀</button>
     <strong>{weekStart.format('MMM D')} - {weekStart.add(6, 'day').format('MMM D, YYYY')}</strong>
-    <button class="tag" on:click={next}>▶</button>
+    <button class="tag" onclick={next}>▶</button>
   </div>
   <div class="week-grid">
     {#each days as d}

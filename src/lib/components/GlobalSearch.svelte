@@ -1,4 +1,7 @@
 <script lang="ts">
+    import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+    const bubble = createBubbler();
     import { onMount } from 'svelte';
     import { Search, FileText, Package, Inbox, User, X, Loader2 } from 'lucide-svelte';
     import { debounce } from '$lib/utils';
@@ -93,16 +96,16 @@
 </script>
 
 {#if visible}
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div class="search-overlay" on:click={() => { visible = false; }}>
-        <div class="search-modal" on:click|stopPropagation>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="search-overlay" onclick={() => { visible = false; }}>
+        <div class="search-modal" onclick={stopPropagation(bubble('click'))}>
             <div class="search-header">
                 <Search size={20} />
                 <input
                     bind:this={searchInput}
                     bind:value={query}
-                    on:keydown={handleKeydown}
+                    onkeydown={handleKeydown}
                     placeholder="Search orders, materials, inventory, users..."
                     class="search-input"
                 />
@@ -111,7 +114,7 @@
                         <Loader2 size={20} />
                     </div>
                 {/if}
-                <button class="close-btn" on:click={() => { visible = false; }}>
+                <button class="close-btn" onclick={() => { visible = false; }}>
                     <X size={20} />
                 </button>
             </div>
@@ -124,16 +127,17 @@
                     </div>
                 {:else if results.length > 0}
                     {#each results as result, index}
+                        {@const SvelteComponent = entityIcons[result.entity_type] || FileText}
                         <button
                             class="result-item"
                             class:selected={index === selectedIndex}
-                            on:click={() => navigateTo(result)}
+                            onclick={() => navigateTo(result)}
                         >
                             <div
                                 class="result-icon"
                                 style="background-color: {entityColors[result.entity_type]}20; color: {entityColors[result.entity_type]}"
                             >
-                                <svelte:component this={entityIcons[result.entity_type] || FileText} size={20} />
+                                <SvelteComponent size={20} />
                             </div>
 
                             <div class="result-content">

@@ -25,7 +25,7 @@
 <div class="text-size-group">
   <button
     class="size-btn"
-    on:click={decrease}
+    onclick={decrease}
     disabled={fontScale <= 0.85}
     aria-label={$t('topbar.decreaseTextSize', { default: 'Decrease text size' })}
     title="Decrease text size"
@@ -35,7 +35,7 @@
   
   <button
     class="size-display"
-    on:click={reset}
+    onclick={reset}
     aria-label={$t('topbar.resetTextSize', { default: 'Reset text size' })}
     title="Reset to 100%"
   >
@@ -44,7 +44,7 @@
   
   <button
     class="size-btn"
-    on:click={increase}
+    onclick={increase}
     disabled={fontScale >= 1.3}
     aria-label={$t('topbar.increaseTextSize', { default: 'Increase text size' })}
     title="Increase text size"

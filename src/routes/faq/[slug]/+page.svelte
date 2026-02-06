@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import type { FAQItem } from '$lib/faq/types';
   import Badge from '$lib/ui/Badge.svelte';
@@ -12,7 +12,7 @@
   let error = false;
   let lang: 'en' | 'ru' | 'lv' = 'en';
 
-  let slug = $derived($page.params.slug);
+  let slug = $derived(page.params.slug);
 
   const getQuestion = (item: FAQItem, lang: 'en' | 'ru' | 'lv') => {
     if (lang === 'ru' && item.questionRu) return item.questionRu;
@@ -30,7 +30,7 @@
     loading = true;
     error = false;
     try {
-      const urlLang = $page.url.searchParams.get('lang');
+      const urlLang = page.url.searchParams.get('lang');
       if (urlLang && ['en', 'ru', 'lv'].includes(urlLang)) {
         lang = urlLang as 'en' | 'ru' | 'lv';
       }

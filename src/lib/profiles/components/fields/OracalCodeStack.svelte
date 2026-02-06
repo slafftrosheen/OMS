@@ -120,14 +120,14 @@
             style="color: {textColor};"
             value={code}
             placeholder="8500-XXX"
-            on:input={(e) => updateCode(i, e.currentTarget.value)}
+            oninput={(e) => updateCode(i, e.currentTarget.value)}
           />
           {#if localCodes.length > 1}
             <button 
               type="button"
               class="remove-btn"
               style="color: {textColor};"
-              on:click={() => removeCode(i)}
+              onclick={() => removeCode(i)}
               title="Remove code"
             >
               ×
@@ -141,7 +141,7 @@
       <button 
         type="button"
         class="add-btn"
-        on:click={addCode}
+        onclick={addCode}
         title="Add code"
       >
         +

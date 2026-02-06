@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { page } from '$app/stores';
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+  const bubble = createBubbler();
+  import { page } from '$app/state';
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
   import { realtimeStore } from '$lib/stores/realtime';
@@ -7,7 +10,7 @@
   // import OrderCard from '$lib/components/orders/OrderCard.svelte';
   import QRScanner from '$lib/components/QRScanner.svelte';
 
-  let station = $derived($page.params.station.toUpperCase());
+  let station = $derived(page.params.station.toUpperCase());
 
   interface StationOrder {
     id: string;
@@ -178,7 +181,7 @@
     </div>
 
     <div class="header-actions">
-      <button class="btn btn-primary" on:click={() => $showScanner = true}>
+      <button class="btn btn-primary" onclick={() => $showScanner = true}>
         <svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
           <line x1="9" y1="9" x2="15" y2="9"/>
@@ -187,7 +190,7 @@
         </svg>
         Scan QR
       </button>
-      <button class="btn btn-outline" on:click={loadStationOrders}>
+      <button class="btn btn-outline" onclick={loadStationOrders}>
         <svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
           <polyline points="23 4 23 10 17 10"/>
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -201,35 +204,35 @@
     <button
       class="filter-btn"
       class:active={$filter === 'ALL'}
-      on:click={() => $filter = 'ALL'}
+      onclick={() => $filter = 'ALL'}
     >
       All ({$orders.length})
     </button>
     <button
       class="filter-btn"
       class:active={$filter === 'QUEUED'}
-      on:click={() => $filter = 'QUEUED'}
+      onclick={() => $filter = 'QUEUED'}
     >
       Queued ({queuedCount})
     </button>
     <button
       class="filter-btn"
       class:active={$filter === 'IN_PROGRESS'}
-      on:click={() => $filter = 'IN_PROGRESS'}
+      onclick={() => $filter = 'IN_PROGRESS'}
     >
       In Progress ({inProgressCount})
     </button>
     <button
       class="filter-btn"
       class:active={$filter === 'BLOCKED'}
-      on:click={() => $filter = 'BLOCKED'}
+      onclick={() => $filter = 'BLOCKED'}
     >
       Blocked ({blockedCount})
     </button>
     <button
       class="filter-btn"
       class:active={$filter === 'REWORK'}
-      on:click={() => $filter = 'REWORK'}
+      onclick={() => $filter = 'REWORK'}
     >
       Rework ({reworkCount})
     </button>
@@ -294,31 +297,31 @@
 
           <div class="order-actions">
             {#if order.stage?.state === 'QUEUED' || order.stage?.state === 'NOT_STARTED'}
-              <button class="btn btn-sm btn-success" on:click={() => startOrder(order.id)}>
+              <button class="btn btn-sm btn-success" onclick={() => startOrder(order.id)}>
                 ▶️ Start
               </button>
             {/if}
 
             {#if order.stage?.state === 'IN_PROGRESS'}
-              <button class="btn btn-sm btn-success" on:click={() => completeOrder(order.id)}>
+              <button class="btn btn-sm btn-success" onclick={() => completeOrder(order.id)}>
                 ✓ Complete
               </button>
-              <button class="btn btn-sm btn-warning" on:click={() => requestRework(order.id)}>
+              <button class="btn btn-sm btn-warning" onclick={() => requestRework(order.id)}>
                 🔄 Rework
               </button>
-              <button class="btn btn-sm btn-danger" on:click={() => blockOrder(order.id)}>
+              <button class="btn btn-sm btn-danger" onclick={() => blockOrder(order.id)}>
                 🚫 Block
               </button>
             {/if}
 
             {#if order.stage?.state === 'BLOCKED'}
-              <button class="btn btn-sm btn-primary" on:click={() => updateStageState(order.id, 'IN_PROGRESS')}>
+              <button class="btn btn-sm btn-primary" onclick={() => updateStageState(order.id, 'IN_PROGRESS')}>
                 ▶️ Resume
               </button>
             {/if}
 
             {#if order.stage?.state === 'REWORK'}
-              <button class="btn btn-sm btn-primary" on:click={() => updateStageState(order.id, 'IN_PROGRESS')}>
+              <button class="btn btn-sm btn-primary" onclick={() => updateStageState(order.id, 'IN_PROGRESS')}>
                 🔧 Start Rework
               </button>
             {/if}
@@ -336,23 +339,23 @@
 {#if $showScanner}
   <div
     class="modal-overlay"
-    on:click={() => $showScanner = false}
-    on:keydown={(e) => e.key === 'Escape' && ($showScanner = false)}
+    onclick={() => $showScanner = false}
+    onkeydown={(e) => e.key === 'Escape' && ($showScanner = false)}
     role="button"
     tabindex="0"
   >
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="modal-content"
-      on:click|stopPropagation
+      onclick={stopPropagation(bubble('click'))}
       role="dialog"
       aria-modal="true"
       aria-labelledby="scanner-title"
     >
       <div class="modal-header">
         <h2 id="scanner-title">Scan Order QR Code</h2>
-        <button class="close-btn" on:click={() => $showScanner = false} aria-label="Close">×</button>
+        <button class="close-btn" onclick={() => $showScanner = false} aria-label="Close">×</button>
       </div>
       <QRScanner on:scan={(e) => handleQRScan(e.detail)} />
     </div>

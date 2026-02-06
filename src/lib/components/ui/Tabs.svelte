@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { 
+  let { children, 
     tabs = [], 
     activeTab = $bindable(tabs[0]?.id || ''),
     onchange
@@ -23,10 +23,10 @@
         aria-selected={activeTab === tab.id}
         class="tab"
         class:active={activeTab === tab.id}
-        on:click={() => selectTab(tab.id)}
+        onclick={() => selectTab(tab.id)}
       >
         {#if tab.icon}
-          <svelte:component this={tab.icon} size={16} />
+          <tab.icon size={16} />
         {/if}
         <span>{tab.label}</span>
       </button>
@@ -34,7 +34,7 @@
   </div>
   
   <div class="tab-content" role="tabpanel">
-    <slot />
+    {@render children?.()}
   </div>
 </div>
 

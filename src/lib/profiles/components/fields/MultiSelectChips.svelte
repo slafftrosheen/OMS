@@ -2,13 +2,25 @@
 <script lang="ts">
   import { X } from 'lucide-svelte';
 
-  export let value: string[] = [];
-  export let options: string[] = [];
-  export let label: string = 'Select options';
-  export let required: boolean = false;
-  export let disabled: boolean = false;
-  export let maxSelections: number | null = null;
-  export let error: string | null = null;
+  interface Props {
+    value?: string[];
+    options?: string[];
+    label?: string;
+    required?: boolean;
+    disabled?: boolean;
+    maxSelections?: number | null;
+    error?: string | null;
+  }
+
+  let {
+    value = $bindable([]),
+    options = [],
+    label = 'Select options',
+    required = false,
+    disabled = false,
+    maxSelections = null,
+    error = null
+  }: Props = $props();
 
   function toggleOption(option: string) {
     if (disabled) return;
@@ -48,7 +60,7 @@
         class="chip"
         class:selected={value.includes(option)}
         class:disabled-chip={maxSelections && value.length >= maxSelections && !value.includes(option)}
-        on:click={() => toggleOption(option)}
+        onclick={() => toggleOption(option)}
         {disabled}
       >
         {option}
@@ -69,7 +81,7 @@
             <button
               type="button"
               class="remove-button"
-              on:click={() => removeOption(selected)}
+              onclick={() => removeOption(selected)}
               title="Remove {selected}"
             >
               <X size={12} />

@@ -3,11 +3,11 @@
   import { updateItem, findItemBySku } from './store';
   import Quagga from '@ericblade/quagga2';
   
-  let scannerContainer: HTMLDivElement;
-  let code = '';
-  let scanning = false;
+  let scannerContainer: HTMLDivElement = $state();
+  let code = $state('');
+  let scanning = $state(false);
   let lastScanned = '';
-  let status = 'Ready to scan';
+  let status = $state('Ready to scan');
   
   async function startScanner() {
     if (scanning) return;
@@ -109,16 +109,16 @@
   
   <div class="row" style="gap:6px;margin-top:8px">
     {#if !scanning}
-      <button class="tag" on:click={startScanner}>Start scanner</button>
+      <button class="tag" onclick={startScanner}>Start scanner</button>
     {:else}
-      <button class="tag" on:click={stopScanner}>Stop scanner</button>
+      <button class="tag" onclick={stopScanner}>Stop scanner</button>
     {/if}
     <input 
       placeholder="Type SKU…" 
       bind:value={code} 
-      on:keydown={handleKeydown}
+      onkeydown={handleKeydown}
     >
-    <button class="tag" on:click={applyCode}>Apply</button>
+    <button class="tag" onclick={applyCode}>Apply</button>
   </div>
 </section>
 

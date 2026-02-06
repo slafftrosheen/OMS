@@ -1,6 +1,8 @@
 <!-- src/lib/profiles/components/fields/CompactColorPicker.svelte -->
 <!-- A compact color picker for use in profile forms - uses existing catalog data -->
 <script lang="ts">
+  import { stopPropagation } from 'svelte/legacy';
+
   import { onMount } from 'svelte';
   import { Palette, X, ChevronDown } from 'lucide-svelte';
   
@@ -111,13 +113,13 @@
     type="button"
     class="picker-trigger"
     style={value.hex ? `background-color: ${value.hex}; color: ${getTextColor(value.hex)}; border-color: ${value.hex};` : ''}
-    on:click={togglePicker}
+    onclick={togglePicker}
     disabled={readonly}
   >
     {#if value.code}
       <span class="selected-code">{value.system} {value.code}</span>
       {#if !readonly}
-        <button type="button" class="clear-btn" on:click|stopPropagation={clearSelection}>
+        <button type="button" class="clear-btn" onclick={stopPropagation(clearSelection)}>
           <X size={12} />
         </button>
       {/if}
@@ -136,19 +138,19 @@
           type="button"
           class="system-tab"
           class:active={selectedSystem === 'RAL'}
-          on:click={() => { selectedSystem = 'RAL'; searchQuery = ''; }}
+          onclick={() => { selectedSystem = 'RAL'; searchQuery = ''; }}
         >RAL</button>
         <button
           type="button"
           class="system-tab"
           class:active={selectedSystem === 'ORACAL'}
-          on:click={() => { selectedSystem = 'ORACAL'; searchQuery = ''; }}
+          onclick={() => { selectedSystem = 'ORACAL'; searchQuery = ''; }}
         >ORACAL</button>
         <button
           type="button"
           class="system-tab"
           class:active={selectedSystem === 'PANTONE'}
-          on:click={() => { selectedSystem = 'PANTONE'; searchQuery = ''; }}
+          onclick={() => { selectedSystem = 'PANTONE'; searchQuery = ''; }}
         >PANTONE</button>
       </div>
       
@@ -170,7 +172,7 @@
             class="color-swatch"
             style="background-color: {color.hex}; color: {getTextColor(color.hex)};"
             title="{color.name} ({color.code})"
-            on:click={() => selectColor(color)}
+            onclick={() => selectColor(color)}
           >
             <span class="swatch-code">{color.code}</span>
           </button>

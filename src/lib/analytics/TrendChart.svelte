@@ -128,7 +128,7 @@ $effect(() => {
     width={800}
     height={height}
     style="width: 100%; height: {height}px;"
-  />
+></canvas>
 
   <div class="chart-legend">
     <div class="legend-item">

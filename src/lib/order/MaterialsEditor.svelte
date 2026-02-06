@@ -1,4 +1,4 @@
-<script context="module" lang="ts">
+<script module lang="ts">
   export type MaterialRow = { key: string; label: string; value: string };
 </script>
 
@@ -74,10 +74,10 @@
       <Input bind:value={r.key} placeholder={$t('materialsEditor.key')} ariaLabel={$t('materialsEditor.key')} />
       <Input bind:value={r.label} placeholder={$t('materialsEditor.label')} ariaLabel={$t('materialsEditor.label')} />
       <Input bind:value={r.value} placeholder={$t('materialsEditor.value')} ariaLabel={$t('materialsEditor.value')} />
-      <button class="tag" type="button" on:click={() => del(i)} aria-label={$t('materialsEditor.delete')}>–</button>
+      <button class="tag" type="button" onclick={() => del(i)} aria-label={$t('materialsEditor.delete')}>–</button>
     {/each}
     <div style="grid-column:1 / -1">
-      <button class="tag" type="button" on:click={add} aria-label={$t('materialsEditor.add')}>+ {$t('materialsEditor.add')}</button>
+      <button class="tag" type="button" onclick={add} aria-label={$t('materialsEditor.add')}>+ {$t('materialsEditor.add')}</button>
     </div>
   </div>
   <div class="row" style="margin-top:8px">

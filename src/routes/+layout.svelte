@@ -137,7 +137,7 @@
   import '$lib/styles/a11y.css';
   import '$lib/styles/responsive.css';
   import { base } from '$app/paths';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { onMount } from 'svelte';
   import { goto, replaceState } from '$app/navigation';
 
@@ -184,9 +184,9 @@
   const publicRoutes = ['/login', '/help'];
   const INSTALL_PROMPT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
-  let isPublicRoute = $derived(publicRoutes.some(r => $page.url.pathname === `${base}${r}` || $page.url.pathname === r));
+  let isPublicRoute = $derived(publicRoutes.some(r => page.url.pathname === `${base}${r}` || page.url.pathname === r));
   let isAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
-  let currentPath = $derived($page.url.pathname);
+  let currentPath = $derived(page.url.pathname);
 
   const openSearch = () => {
     searchOpen = true;

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { stopPropagation } from 'svelte/legacy';
+
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import { Bell, BellRing, Check, CheckCheck, Trash2, Filter, RefreshCw, AlertTriangle, Info, Package, MessageSquare, Calendar, Settings } from 'lucide-svelte';
@@ -140,16 +142,16 @@
       {/if}
     </div>
     <div class="header-actions">
-      <button class="btn btn-ghost" on:click={loadNotifications} disabled={loading}>
+      <button class="btn btn-ghost" onclick={loadNotifications} disabled={loading}>
         <span class:spinning={loading}><RefreshCw size={18} /></span>
       </button>
       {#if unreadCount > 0}
-        <button class="btn btn-secondary" on:click={markAllAsRead}>
+        <button class="btn btn-secondary" onclick={markAllAsRead}>
           <CheckCheck size={18} />
           Mark all read
         </button>
       {/if}
-      <button class="btn btn-ghost" on:click={clearAllRead} title="Clear all read notifications">
+      <button class="btn btn-ghost" onclick={clearAllRead} title="Clear all read notifications">
         <Trash2 size={18} />
       </button>
     </div>
@@ -157,13 +159,13 @@
 
   <div class="filters">
     <div class="filter-tabs">
-      <button class="filter-tab" class:active={filter === 'all'} on:click={() => filter = 'all'}>
+      <button class="filter-tab" class:active={filter === 'all'} onclick={() => filter = 'all'}>
         All ({notifications.length})
       </button>
-      <button class="filter-tab" class:active={filter === 'unread'} on:click={() => filter = 'unread'}>
+      <button class="filter-tab" class:active={filter === 'unread'} onclick={() => filter = 'unread'}>
         Unread ({unreadCount})
       </button>
-      <button class="filter-tab" class:active={filter === 'read'} on:click={() => filter = 'read'}>
+      <button class="filter-tab" class:active={filter === 'read'} onclick={() => filter = 'read'}>
         Read ({notifications.length - unreadCount})
       </button>
     </div>
@@ -188,6 +190,7 @@
       </div>
     {:else}
       {#each filteredNotifications as notification (notification.id)}
+        {@const SvelteComponent = getIcon(notification.type)}
         <div 
           class="notification-card" 
           class:unread={!notification.isRead}
@@ -195,14 +198,14 @@
           aria-label="Notification: {notification.title}"
         >
           <div class="notification-icon" data-type={notification.type}>
-            <svelte:component this={getIcon(notification.type)} size={20} />
+            <SvelteComponent size={20} />
           </div>
           <div 
             class="notification-content"
             role="button"
             tabindex="0"
-            on:click={() => !notification.isRead && markAsRead([notification.id])}
-            on:keypress={(e) => e.key === 'Enter' && !notification.isRead && markAsRead([notification.id])}
+            onclick={() => !notification.isRead && markAsRead([notification.id])}
+            onkeypress={(e) => e.key === 'Enter' && !notification.isRead && markAsRead([notification.id])}
           >
             <h4>{notification.title}</h4>
             <p>{notification.message}</p>
@@ -220,7 +223,7 @@
                 type="button"
                 aria-label="Mark as read"
                 title="Mark as read"
-                on:click|stopPropagation={() => markAsRead([notification.id])}
+                onclick={stopPropagation(() => markAsRead([notification.id]))}
               >
                 <Check size={16} />
               </button>
@@ -230,7 +233,7 @@
               type="button"
               aria-label="Dismiss notification"
               title="Dismiss"
-              on:click|stopPropagation={() => dismissNotification(notification.id)}
+              onclick={stopPropagation(() => dismissNotification(notification.id))}
             >
               <Trash2 size={16} />
             </button>

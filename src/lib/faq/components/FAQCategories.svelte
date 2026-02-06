@@ -51,23 +51,24 @@
   <button
     class="category-btn"
     class:active={selectedId === null}
-    on:click={() => selectCategory(null)}
+    onclick={() => selectCategory(null)}
     type="button"
   >
-    <svelte:component this={Icons.Grid} size={20} />
+    <Icons.Grid size={20} />
     <div class="category-content">
       <span class="category-name">All Categories</span>
     </div>
   </button>
 
   {#each categories as category (category.id)}
+    {@const SvelteComponent = getIcon(category.icon)}
     <button
       class="category-btn"
       class:active={selectedId === category.id}
-      on:click={() => selectCategory(category.id)}
+      onclick={() => selectCategory(category.id)}
       type="button"
     >
-      <svelte:component this={getIcon(category.icon)} size={20} />
+      <SvelteComponent size={20} />
       <div class="category-content">
         <span class="category-name">{getName(category)}</span>
         {#if getDescription(category)}

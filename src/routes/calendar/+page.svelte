@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+  const bubble = createBubbler();
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import { ordersStore } from '$lib/order/signage-store';
@@ -262,11 +265,11 @@
       <h1>Loading Schedule</h1>
     </div>
     <div class="topbar-right">
-      <button class="btn-secondary" on:click={() => selectedDate && (showNewLoadingDayModal = true)} disabled={!selectedDate}>
+      <button class="btn-secondary" onclick={() => selectedDate && (showNewLoadingDayModal = true)} disabled={!selectedDate}>
         <Plus size={18} />
         Mark Loading Day
       </button>
-      <button class="btn-ghost" on:click={exportDayCSV} disabled={!selectedDate}>
+      <button class="btn-ghost" onclick={exportDayCSV} disabled={!selectedDate}>
         <Download size={18} />
         Export CSV
       </button>
@@ -278,11 +281,11 @@
     <!-- Left: Calendar -->
     <div class="calendar-section">
       <div class="calendar-header">
-        <button class="nav-btn" on:click={prev}>
+        <button class="nav-btn" onclick={prev}>
           <ChevronLeft size={20} />
         </button>
         <h2 class="month-title">{monthName} {y}</h2>
-        <button class="nav-btn" on:click={next}>
+        <button class="nav-btn" onclick={next}>
           <ChevronRight size={20} />
         </button>
       </div>
@@ -310,7 +313,7 @@
               class:selected={selectedDate === dateStr}
               class:has-loading={isLoading}
               class:has-orders={dayOrders.length > 0}
-              on:click={() => selectDate(day)}
+              onclick={() => selectDate(day)}
             >
               <span class="day-number">{day.getDate()}</span>
               {#if dayOrders.length > 0}
@@ -352,7 +355,7 @@
             <div class="empty-state">
               <Calendar size={48} />
               <p>No orders scheduled for this date</p>
-              <button class="btn-secondary" on:click={openAddOrderModal}>
+              <button class="btn-secondary" onclick={openAddOrderModal}>
                 <Plus size={18} />
                 Add Order to Schedule
               </button>
@@ -364,7 +367,7 @@
                   <div class="order-header">
                     <span class="order-id">{order.poNumber || order.id}</span>
                     <div class="order-actions">
-                      <button class="btn-icon-sm" on:click={() => removeOrderFromLoadingDate(order.id)} title="Remove from schedule">
+                      <button class="btn-icon-sm" onclick={() => removeOrderFromLoadingDate(order.id)} title="Remove from schedule">
                         <X size={14} />
                       </button>
                     </div>
@@ -377,7 +380,7 @@
                 </div>
               {/each}
             </div>
-            <button class="btn-secondary add-more-btn" on:click={openAddOrderModal}>
+            <button class="btn-secondary add-more-btn" onclick={openAddOrderModal}>
               <Plus size={16} />
               Add More Orders
             </button>
@@ -400,21 +403,21 @@
         <button
           class="filter-btn"
           class:active={filterStatus === 'all'}
-          on:click={() => filterStatus = 'all'}
+          onclick={() => filterStatus = 'all'}
         >
           All ({orders.length})
         </button>
         <button
           class="filter-btn"
           class:active={filterStatus === 'scheduled'}
-          on:click={() => filterStatus = 'scheduled'}
+          onclick={() => filterStatus = 'scheduled'}
         >
           Scheduled ({orders.filter(o => o.loadingDate).length})
         </button>
         <button
           class="filter-btn"
           class:active={filterStatus === 'unscheduled'}
-          on:click={() => filterStatus = 'unscheduled'}
+          onclick={() => filterStatus = 'unscheduled'}
         >
           Unscheduled ({orders.filter(o => !o.loadingDate).length})
         </button>
@@ -439,16 +442,16 @@
 {#if showAddOrderModal}
   <div
     class="modal-overlay"
-    on:click={() => showAddOrderModal = false}
-    on:keydown={(e) => e.key === 'Escape' && (showAddOrderModal = false)}
+    onclick={() => showAddOrderModal = false}
+    onkeydown={(e) => e.key === 'Escape' && (showAddOrderModal = false)}
     role="button"
     tabindex="0"
   >
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="modal"
-      on:click|stopPropagation
+      onclick={stopPropagation(bubble('click'))}
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-order-title"
@@ -456,7 +459,7 @@
     >
       <div class="modal-header">
         <h3 id="add-order-title">Add Order to {selectedDate}</h3>
-        <button class="btn-icon" on:click={() => showAddOrderModal = false} aria-label="Close">
+        <button class="btn-icon" onclick={() => showAddOrderModal = false} aria-label="Close">
           <X size={20} />
         </button>
       </div>
@@ -466,7 +469,7 @@
         {:else}
           <div class="available-orders">
             {#each availableOrders as order}
-              <button class="available-order" on:click={() => assignOrderToLoadingDate(order.id)}>
+              <button class="available-order" onclick={() => assignOrderToLoadingDate(order.id)}>
                 <div class="order-info">
                   <span class="order-po">{order.poNumber || order.id}</span>
                   <span class="order-client">{order.client}</span>
@@ -486,16 +489,16 @@
 {#if showNewLoadingDayModal}
   <div
     class="modal-overlay"
-    on:click={() => showNewLoadingDayModal = false}
-    on:keydown={(e) => e.key === 'Escape' && (showNewLoadingDayModal = false)}
+    onclick={() => showNewLoadingDayModal = false}
+    onkeydown={(e) => e.key === 'Escape' && (showNewLoadingDayModal = false)}
     role="button"
     tabindex="0"
   >
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="modal"
-      on:click|stopPropagation
+      onclick={stopPropagation(bubble('click'))}
       role="dialog"
       aria-modal="true"
       aria-labelledby="loading-day-title"
@@ -503,7 +506,7 @@
     >
       <div class="modal-header">
         <h3 id="loading-day-title">Mark Loading Day - {selectedDate}</h3>
-        <button class="btn-icon" on:click={() => showNewLoadingDayModal = false} aria-label="Close">
+        <button class="btn-icon" onclick={() => showNewLoadingDayModal = false} aria-label="Close">
           <X size={20} />
         </button>
       </div>
@@ -518,8 +521,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-ghost" on:click={() => showNewLoadingDayModal = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
-        <button class="btn-secondary" on:click={createLoadingDay}>
+        <button class="btn-ghost" onclick={() => showNewLoadingDayModal = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
+        <button class="btn-secondary" onclick={createLoadingDay}>
           <Truck size={16} />
           Create Loading Day
         </button>

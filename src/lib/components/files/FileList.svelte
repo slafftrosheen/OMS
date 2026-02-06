@@ -113,7 +113,7 @@
                         {#if canPreview(file.mime_type)}
                             <button
                                 class="action-btn"
-                                on:click={() => handlePreview(file)}
+                                onclick={() => handlePreview(file)}
                                 title="Preview"
                             >
                                 👁️
@@ -122,7 +122,7 @@
                         
                         <button
                             class="action-btn"
-                            on:click={() => handleDownload(file)}
+                            onclick={() => handleDownload(file)}
                             title="Download"
                         >
                             ⬇️
@@ -130,7 +130,7 @@
                         
                         <button
                             class="action-btn danger"
-                            on:click={() => handleDelete(file)}
+                            onclick={() => handleDelete(file)}
                             title="Delete"
                         >
                             🗑️

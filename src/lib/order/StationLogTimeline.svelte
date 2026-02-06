@@ -1,8 +1,12 @@
 <script lang="ts">
   import type { StationLog } from './types.signage';
   import { t } from 'svelte-i18n';
-  export let logs: StationLog[] = [];
-  export let id: string | undefined = undefined;
+  interface Props {
+    logs?: StationLog[];
+    id?: string | undefined;
+  }
+
+  let { logs = [], id = undefined }: Props = $props();
 </script>
 
 <section class="card" id={id} aria-label={$t('terms.stationLogs')}>

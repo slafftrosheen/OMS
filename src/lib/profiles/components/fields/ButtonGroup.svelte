@@ -81,7 +81,7 @@
         class:selected={selectedValues.includes(option)}
         class:box-style={visualStyle === 'boxes'}
         style={visualStyle === 'boxes' ? `background-color: ${bgColor}; color: ${textColor}; border: 2px solid ${selectedValues.includes(option) ? '#000' : '#ccc'};` : ''}
-        on:click={() => selectOption(option)}
+        onclick={() => selectOption(option)}
         {disabled}
       >
         {option}

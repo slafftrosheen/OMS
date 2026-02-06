@@ -5,7 +5,7 @@
 	import { X } from 'lucide-svelte';
 	import { focusManager } from '$lib/a11y/focus-manager';
 
-	let {
+	let { children, footer,
 		open = false,
 		title,
 		description = undefined,
@@ -87,12 +87,12 @@
 </script>
 
 {#if open}
-	<!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 	<div
 		class="modal-backdrop"
 		transition:fade={{ duration: 200 }}
-		on:click={handleBackdropClick}
-		on:keydown={handleKeydown}
+		onclick={handleBackdropClick}
+		onkeydown={handleKeydown}
 	>
 		<div
 			bind:this={modalElement}
@@ -107,7 +107,7 @@
 				<h2 id="modal-title" class="modal-title">{title}</h2>
 				<button
 					class="modal-close"
-					on:click={close}
+					onclick={close}
 					aria-label="Close dialog"
 					type="button"
 				>
@@ -122,11 +122,11 @@
 			{/if}
 
 			<div class="modal-body">
-				<slot />
+				{@render children?.()}
 			</div>
 
 			<div class="modal-footer">
-				<slot name="footer" />
+				{@render footer?.()}
 			</div>
 		</div>
 	</div>

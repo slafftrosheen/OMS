@@ -49,7 +49,7 @@
 </script>
 
 <div class="delivery-date">
-  <div class="date-display" on:click={openDatePicker} on:keydown={(e) => e.key === 'Enter' && openDatePicker()} role="button" tabindex="0" class:readonly>
+  <div class="date-display" onclick={openDatePicker} onkeydown={(e) => e.key === 'Enter' && openDatePicker()} role="button" tabindex="0" class:readonly>
     <div class="month-day">{monthDay}</div>
     <div class="divider">/</div>
     <div class="year">{year}</div>
@@ -61,7 +61,7 @@
       bind:this={dateInput}
       class="hidden-input"
       value={date}
-      on:change={handleDateChange}
+      onchange={handleDateChange}
     />
   {/if}
 </div>

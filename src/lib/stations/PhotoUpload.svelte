@@ -167,9 +167,9 @@ function handleDragLeave() {
   <div 
     class="drop-zone" 
     class:drag-over={dragOver}
-    on:drop={handleDrop}
-    on:dragover={handleDragOver}
-    on:dragleave={handleDragLeave}
+    ondrop={handleDrop}
+    ondragover={handleDragOver}
+    ondragleave={handleDragLeave}
     role="button"
     tabindex="0"
     aria-label="Drop files here or click to browse"
@@ -181,7 +181,7 @@ function handleDragLeave() {
       type="file"
       multiple
       {accept}
-      on:change={handleFileSelect}
+      onchange={handleFileSelect}
       aria-label="Select files"
     />
   </div>
@@ -203,7 +203,7 @@ function handleDragLeave() {
           </div>
           <button
             class="remove-btn"
-            on:click={() => removeFile(i)}
+            onclick={() => removeFile(i)}
             aria-label="Remove {file.name}"
             disabled={uploading}
           >
@@ -243,7 +243,7 @@ function handleDragLeave() {
           placeholder="Detailed notes or observations"
           rows="3"
           disabled={uploading}
-        />
+></textarea>
       </div>
 
       <div class="form-group">
@@ -268,10 +268,10 @@ function handleDragLeave() {
           </div>
         </div>
       {:else}
-        <button class="btn-secondary" on:click={() => { files = []; previews = []; }}>
+        <button class="btn-secondary" onclick={() => { files = []; previews = []; }}>
           Cancel
         </button>
-        <button class="btn-primary" on:click={handleUpload}>
+        <button class="btn-primary" onclick={handleUpload}>
           <Upload size={16} />
           Upload {files.length} {files.length === 1 ? 'File' : 'Files'}
         </button>

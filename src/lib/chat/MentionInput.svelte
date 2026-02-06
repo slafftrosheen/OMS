@@ -133,7 +133,7 @@
         <button
           type="button"
           class="tag quick-chip"
-          on:click={() => applyPreset(preset.userIds)}
+          onclick={() => applyPreset(preset.userIds)}
           aria-label={$t('chat.quick_mentions_station', { station: $t(TERMS.stations[preset.station]) })}
           title={names}
         >
@@ -154,7 +154,7 @@
         <button
           type="button"
           class="chip-remove"
-          on:click={() => removeMention(id)}
+          onclick={() => removeMention(id)}
           aria-label={$t('chat.remove_mention', { name: nameFromId(id) })}
         >
           ×
@@ -170,14 +170,14 @@
   bind:this={inputEl}
   bind:value
   placeholder={placeholder}
-  on:input={handleInput}
-  on:click={() => {
+  oninput={handleInput}
+  onclick={() => {
     updateCursor();
     updateMentionState();
   }}
-  on:keyup={updateCursor}
-  on:keydown={handleKeydown}
-/>
+  onkeyup={updateCursor}
+  onkeydown={handleKeydown}
+></textarea>
 
 {#if showList && suggestions.length > 0}
   <div class="mention-list card" role="listbox">
@@ -187,7 +187,7 @@
         class="mention-item"
         role="option"
         aria-selected="false"
-        on:click={() => insertMention(String(user.id))}
+        onclick={() => insertMention(String(user.id))}
       >
         @{user.name}
       </button>

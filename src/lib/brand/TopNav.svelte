@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from '$app/paths';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import Icon from '$lib/ui/Icon.svelte';
 
   interface NavItem {
@@ -19,7 +19,7 @@
 
   const full = (p: string) => `${base}${p}`;
 
-  let currentPath = $derived(($page.url?.pathname ?? '').replace(base, '') || '/');
+  let currentPath = $derived((page.url?.pathname ?? '').replace(base, '') || '/');
   const isActive = (path: string) => {
     if (!path || path === '/') return currentPath === '/';
     return currentPath === path || currentPath.startsWith(`${path}/`);
@@ -41,7 +41,7 @@
             {#if typeof it.icon === 'string'}
               <Icon name={it.icon} aria-hidden="true" />
             {:else}
-              <svelte:component this={it.icon} aria-hidden="true" />
+              <it.icon aria-hidden="true" />
             {/if}
           {/if}
           {it.label}

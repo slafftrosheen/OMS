@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+  const bubble = createBubbler();
 /**
  * Advanced Search Component
  * Complex query builder with saved filters
@@ -236,8 +239,8 @@ function handleKeydown(event: KeyboardEvent) {
       <input
         type="text"
         bind:value={query}
-        on:keydown={handleKeydown}
-        on:input={handleInput}
+        onkeydown={handleKeydown}
+        oninput={handleInput}
         placeholder="Search orders, PO numbers, clients..."
         class="search-input"
         aria-label="Search query"
@@ -246,7 +249,7 @@ function handleKeydown(event: KeyboardEvent) {
       {#if query || hasActiveFilters()}
         <button 
           class="clear-btn"
-          on:click={clearFilters}
+          onclick={clearFilters}
           aria-label="Clear search"
         >
           <X size={16} />
@@ -256,7 +259,7 @@ function handleKeydown(event: KeyboardEvent) {
       <button 
         class="filter-toggle-btn"
         class:active={showFilters}
-        on:click={() => showFilters = !showFilters}
+        onclick={() => showFilters = !showFilters}
         aria-label="Toggle filters"
         aria-expanded={showFilters}
       >
@@ -268,7 +271,7 @@ function handleKeydown(event: KeyboardEvent) {
 
       <button 
         class="search-btn"
-        on:click={handleSearch}
+        onclick={handleSearch}
         disabled={searching || (!query && !hasActiveFilters())}
         aria-label="Search"
       >
@@ -285,7 +288,7 @@ function handleKeydown(event: KeyboardEvent) {
         {#each savedFilters.slice(0, 3) as filter}
           <button
             class="saved-filter-chip"
-            on:click={() => applyFilter(filter)}
+            onclick={() => applyFilter(filter)}
             title={filter.description || filter.name}
           >
             {#if filter.is_favorite}
@@ -320,7 +323,7 @@ function handleKeydown(event: KeyboardEvent) {
             id="filter-client"
             type="text"
             bind:value={filters.client}
-            on:input={handleClientInput}
+            oninput={handleClientInput}
             placeholder="Client name..."
           />
         </div>
@@ -345,14 +348,14 @@ function handleKeydown(event: KeyboardEvent) {
       </div>
 
       <div class="filters-actions">
-        <button class="btn-secondary" on:click={clearFilters}>
+        <button class="btn-secondary" onclick={clearFilters}>
           Clear All
         </button>
-        <button class="btn-secondary" on:click={() => showSaveDialog = true}>
+        <button class="btn-secondary" onclick={() => showSaveDialog = true}>
           <Save size={14} />
           Save Filter
         </button>
-        <button class="btn-primary" on:click={handleSearch}>
+        <button class="btn-primary" onclick={handleSearch}>
           Apply Filters
         </button>
       </div>
@@ -364,7 +367,7 @@ function handleKeydown(event: KeyboardEvent) {
       {#each suggestions as suggestion}
         <button
           class="suggestion-item"
-          on:click={() => {
+          onclick={() => {
             if (suggestion.type === 'client') {
               filters.client = suggestion.value;
             } else {
@@ -386,13 +389,13 @@ function handleKeydown(event: KeyboardEvent) {
 </div>
 
 {#if showSaveDialog}
-  <div class="modal-overlay" on:click={() => showSaveDialog = false}>
-    <div class="modal-content" on:click|stopPropagation>
+  <div class="modal-overlay" onclick={() => showSaveDialog = false}>
+    <div class="modal-content" onclick={stopPropagation(bubble('click'))}>
       <div class="modal-header">
         <h3>Save Search Filter</h3>
         <button 
           class="close-btn"
-          on:click={() => showSaveDialog = false}
+          onclick={() => showSaveDialog = false}
           aria-label="Close"
         >
           <X size={20} />
@@ -446,10 +449,10 @@ function handleKeydown(event: KeyboardEvent) {
       </div>
 
       <div class="modal-actions">
-        <button class="btn-secondary" on:click={() => showSaveDialog = false}>
+        <button class="btn-secondary" onclick={() => showSaveDialog = false}>
           Cancel
         </button>
-        <button class="btn-primary" on:click={saveFilter}>
+        <button class="btn-primary" onclick={saveFilter}>
           <Save size={14} />
           Save Filter
         </button>

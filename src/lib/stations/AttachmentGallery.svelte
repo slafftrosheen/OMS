@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+  const bubble = createBubbler();
 /**
  * Attachment Gallery Component
  * Displays photo grid with lightbox and filtering
@@ -124,7 +127,7 @@ $effect(() => {
 });
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 <div class="attachment-gallery">
   <div class="gallery-header">
@@ -135,7 +138,7 @@ $effect(() => {
           role="tab"
           class="filter-tab"
           class:active={filterType === filter.value}
-          on:click={() => filterType = filter.value}
+          onclick={() => filterType = filter.value}
           aria-selected={filterType === filter.value}
         >
           {filter.label}
@@ -156,7 +159,7 @@ $effect(() => {
         <div class="gallery-item" role="listitem">
           <button
             class="thumbnail"
-            on:click={() => openLightbox(attachment, i)}
+            onclick={() => openLightbox(attachment, i)}
             aria-label="View {attachment.file_name}"
           >
             {#if attachment.file_type.startsWith('image/')}
@@ -185,7 +188,7 @@ $effect(() => {
           {#if canDelete}
             <button
               class="delete-btn"
-              on:click={() => deleteAttachment(attachment.id)}
+              onclick={() => deleteAttachment(attachment.id)}
               aria-label="Delete attachment"
             >
               <Trash2 size={16} />
@@ -198,15 +201,15 @@ $effect(() => {
 </div>
 
 {#if selectedImage}
-  <div class="lightbox" on:click={closeLightbox} role="dialog" aria-modal="true">
-    <div class="lightbox-content" on:click|stopPropagation>
-      <button class="lightbox-close" on:click={closeLightbox} aria-label="Close">
+  <div class="lightbox" onclick={closeLightbox} role="dialog" aria-modal="true">
+    <div class="lightbox-content" onclick={stopPropagation(bubble('click'))}>
+      <button class="lightbox-close" onclick={closeLightbox} aria-label="Close">
         <X size={24} />
       </button>
 
       <button 
         class="lightbox-nav prev" 
-        on:click={previousImage}
+        onclick={previousImage}
         disabled={selectedIndex === 0}
         aria-label="Previous image"
       >
@@ -219,7 +222,7 @@ $effect(() => {
 
       <button 
         class="lightbox-nav next" 
-        on:click={nextImage}
+        onclick={nextImage}
         disabled={selectedIndex === attachments.filter(a => a.file_type.startsWith('image/')).length - 1}
         aria-label="Next image"
       >

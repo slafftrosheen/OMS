@@ -100,7 +100,7 @@
             class="color-box"
             class:selected={selectedColor?.code === color.code}
             style="background-color: {color.hex}; color: {getTextColor(color.hex)}; border: 2px solid {selectedColor?.code === color.code ? '#000' : '#999'};"
-            on:click={() => selectColor(color)}
+            onclick={() => selectColor(color)}
             {disabled}
             title="SIGNTRIM {color.name} {color.code}"
           >
@@ -121,7 +121,7 @@
           class="color-box"
           class:selected={selectedColor?.code === color.code}
           style="background-color: {color.hex}; color: {getTextColor(color.hex)}; border: 2px solid {selectedColor?.code === color.code ? '#000' : '#ccc'};"
-          on:click={() => selectColor(color)}
+          onclick={() => selectColor(color)}
           {disabled}
           title="SIGNTRIM {color.name} {color.code}"
         >

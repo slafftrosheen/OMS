@@ -1,3 +1,5 @@
+<!-- @migration-task Error while migrating Svelte code: `$bindable()` can only be used inside a `$props()` declaration
+https://svelte.dev/e/bindable_invalid_location -->
 <!-- src/lib/components/ui/Input.svelte -->
 <script lang="ts">
     let {

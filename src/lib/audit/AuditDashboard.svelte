@@ -18,16 +18,16 @@ import {
 } from 'lucide-svelte';
 import { AuditService } from '$lib/server/audit-service';
 
-let auditSummary: any = null;
-let loading = true;
-let error: string | null = null;
-let activeTab: 'activity' | 'security' | 'logs' = 'activity';
-let filters = {
+let auditSummary: any = $state(null);
+let loading = $state(true);
+let error: string | null = $state(null);
+let activeTab: 'activity' | 'security' | 'logs' = $state('activity');
+let filters = $state({
   dateRange: '7d',
   user: '',
   action: '',
   resource: ''
-};
+});
 
 onMount(() => {
   loadSummary();
@@ -68,11 +68,11 @@ function refreshData() {
     </div>
 
     <div class="header-actions">
-      <button class="btn-secondary" on:click={refreshData}>
+      <button class="btn-secondary" onclick={refreshData}>
         <Clock size={16} />
         Refresh
       </button>
-      <button class="btn-primary" on:click={exportLogs}>
+      <button class="btn-primary" onclick={exportLogs}>
         <Download size={16} />
         Export Logs
       </button>
@@ -122,7 +122,7 @@ function refreshData() {
       <button 
         class="tab-btn"
         class:active={activeTab === 'activity'}
-        on:click={() => activeTab = 'activity'}
+        onclick={() => activeTab = 'activity'}
       >
         <Activity size={16} />
         Activity
@@ -130,7 +130,7 @@ function refreshData() {
       <button 
         class="tab-btn"
         class:active={activeTab === 'security'}
-        on:click={() => activeTab = 'security'}
+        onclick={() => activeTab = 'security'}
       >
         <Shield size={16} />
         Security
@@ -138,7 +138,7 @@ function refreshData() {
       <button 
         class="tab-btn"
         class:active={activeTab === 'logs'}
-        on:click={() => activeTab = 'logs'}
+        onclick={() => activeTab = 'logs'}
       >
         <Eye size={16} />
         Audit Logs

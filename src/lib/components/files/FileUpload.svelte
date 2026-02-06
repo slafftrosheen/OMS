@@ -146,13 +146,13 @@
         class="drop-zone"
         class:dragging={isDragging}
         class:uploading={uploading}
-        on:dragover={handleDragOver}
-        on:dragleave={handleDragLeave}
-        on:drop={handleDrop}
+        ondragover={handleDragOver}
+        ondragleave={handleDragLeave}
+        ondrop={handleDrop}
         role="button"
         tabindex="0"
-        on:click={triggerFileInput}
-        on:keypress={(e) => e.key === 'Enter' && triggerFileInput()}
+        onclick={triggerFileInput}
+        onkeypress={(e) => e.key === 'Enter' && triggerFileInput()}
     >
         {#if uploading}
             <div class="upload-progress">
@@ -179,7 +179,7 @@
             type="file"
             {accept}
             {multiple}
-            on:change={handleFileSelect}
+            onchange={handleFileSelect}
             style="display: none;"
             disabled={uploading}
         />

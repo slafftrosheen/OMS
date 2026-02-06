@@ -2,9 +2,13 @@
   import PdfViewer from '$lib/pdf/PdfViewer.svelte';
   import { t } from 'svelte-i18n';
 
-  export let src = '';
-  export let po = '';
-  export let revision = 'current';
+  interface Props {
+    src?: string;
+    po?: string;
+    revision?: string;
+  }
+
+  let { src = '', po = '', revision = 'current' }: Props = $props();
 </script>
 
 <div class="pdf-frame card">

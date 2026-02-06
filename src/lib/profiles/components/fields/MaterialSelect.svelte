@@ -1,4 +1,4 @@
-<script lang="ts" context="module">
+<script lang="ts" module>
   // Module-level cache shared across all MaterialSelect instances
   interface Material {
     id: number;
@@ -375,7 +375,7 @@
   let categoryOrder = $derived(Object.keys(groupedMaterials).sort());
 </script>
 
-<svelte:window on:click={handleClickOutside} />
+<svelte:window onclick={handleClickOutside} />
 
 <div class="material-select" bind:this={dropdownRef}>
   {#if customMode}
@@ -385,7 +385,7 @@
         type="color"
         class="custom-color-picker"
         bind:value={customHex}
-        on:input={handleCustomColorChange}
+        oninput={handleCustomColorChange}
         title="Pick color for custom value"
         disabled={readonly}
       />
@@ -393,11 +393,11 @@
         type="text"
         class="custom-text-input"
         bind:value
-        on:input={handleCustomInput}
+        oninput={handleCustomInput}
         placeholder="Enter custom value..."
         disabled={readonly}
       />
-      <button type="button" class="btn-switch-mode" on:click={() => { customMode = false; }} title="Switch to material picker">
+      <button type="button" class="btn-switch-mode" onclick={() => { customMode = false; }} title="Switch to material picker">
         <ChevronDown size={14} />
       </button>
     </div>
@@ -408,7 +408,7 @@
       class:open
       class:has-value={value && showValueInTrigger}
       disabled={readonly}
-      on:click={toggleDropdown}
+      onclick={toggleDropdown}
     >
       {#if showValueInTrigger && (selectedMaterial || value)}
         <span class="selected-value">
@@ -430,14 +430,14 @@
         <input
           type="text"
           bind:value={search}
-          on:input={filterMaterials}
+          oninput={filterMaterials}
           placeholder="Search materials..."
           class="search-input"
         />
       </div>
       
       {#if allowCustom}
-        <button type="button" class="custom-option" on:click={enterCustomMode}>
+        <button type="button" class="custom-option" onclick={enterCustomMode}>
           ✏️ Enter custom value...
         </button>
       {/if}
@@ -456,7 +456,7 @@
                   type="button"
                   class="option"
                   class:selected={selectedMaterial?.id === material.id}
-                  on:click={() => selectMaterial(material)}
+                  onclick={() => selectMaterial(material)}
                 >
                   {#if showColor && material.metadata?.hex}
                     <span class="color-dot" style="background-color: {material.metadata.hex}"></span>

@@ -4,7 +4,11 @@
 	import { a11yTester } from '$lib/a11y/testing-utils';
 	import { AlertCircle, CheckCircle, Info } from 'lucide-svelte';
 
-	export let theme: 'light' | 'dark' | 'high-contrast' = 'light';
+	interface Props {
+		theme?: 'light' | 'dark' | 'high-contrast';
+	}
+
+	let { theme = 'light' }: Props = $props();
 
 	let results: Array<{
 		pair: string;
@@ -14,7 +18,7 @@
 		AA: boolean;
 		AAA: boolean;
 		status: 'pass' | 'warn' | 'fail';
-	}> = [];
+	}> = $state([]);
 
 	const themeColors: Record<string, Record<string, string>> = {
 		light: {
@@ -87,9 +91,10 @@
 
 	<div class="results">
 		{#each results as result}
+			{@const SvelteComponent = getStatusIcon(result.status)}
 			<div class="result-item result-{result.status}">
 				<div class="result-icon">
-					<svelte:component this={getStatusIcon(result.status)} size={20} />
+					<SvelteComponent size={20} />
 				</div>
 
 				<div class="result-info">

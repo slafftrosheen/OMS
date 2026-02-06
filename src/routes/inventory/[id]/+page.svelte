@@ -4,7 +4,7 @@
   import { base } from '$app/paths';
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { t } from 'svelte-i18n';
   import ArrowLeft from 'lucide-svelte/icons/arrow-left';
   import Save from 'lucide-svelte/icons/save';
@@ -17,7 +17,7 @@
   import Clock from 'lucide-svelte/icons/clock';
 
   // Get id from URL params via page store
-  let itemId = $derived($page.params.id);
+  let itemId = $derived(page.params.id);
 
   let item: Item | undefined;
   let editMode = false;
@@ -75,14 +75,14 @@
     {#if item}
       <div class="header-actions">
         {#if editMode}
-          <button class="btn-secondary" on:click={() => editMode = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
-          <button class="btn-primary" on:click={saveChanges}>
+          <button class="btn-secondary" onclick={() => editMode = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
+          <button class="btn-primary" onclick={saveChanges}>
             <Save size={16} />
             Save Changes
           </button>
         {:else}
-          <button class="btn-secondary" on:click={() => editMode = true}>{$t('inventory.editItem', { default: 'Edit' })}</button>
-          <button class="btn-danger" on:click={deleteItem}>
+          <button class="btn-secondary" onclick={() => editMode = true}>{$t('inventory.editItem', { default: 'Edit' })}</button>
+          <button class="btn-danger" onclick={deleteItem}>
             <Trash size={16} />
             Delete
           </button>
@@ -176,11 +176,11 @@
         <div class="stock-actions">
           <div class="adjust-controls">
             <div class="adjust-amount">
-              <button class="amount-btn" on:click={() => adjustAmount = Math.max(1, adjustAmount - 1)}>
+              <button class="amount-btn" onclick={() => adjustAmount = Math.max(1, adjustAmount - 1)}>
                 <Minus size={16} />
               </button>
               <input type="number" min="1" bind:value={adjustAmount} class="amount-input" />
-              <button class="amount-btn" on:click={() => adjustAmount += 1}>
+              <button class="amount-btn" onclick={() => adjustAmount += 1}>
                 <Plus size={16} />
               </button>
             </div>
@@ -192,11 +192,11 @@
             />
           </div>
           <div class="adjust-buttons">
-            <button class="btn-success" on:click={() => adjust('IN')}>
+            <button class="btn-success" onclick={() => adjust('IN')}>
               <Plus size={16} />
               Add Stock
             </button>
-            <button class="btn-warning" on:click={() => adjust('OUT')}>
+            <button class="btn-warning" onclick={() => adjust('OUT')}>
               <Minus size={16} />
               Remove Stock
             </button>

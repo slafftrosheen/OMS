@@ -1,3 +1,4 @@
+<!-- @migration-task Error while migrating Svelte code: Can't migrate code with afterUpdate. Please migrate by hand. -->
 <!-- src/lib/components/chat/ChatContainer.svelte -->
 <script lang="ts">
     import { onMount, afterUpdate } from 'svelte';

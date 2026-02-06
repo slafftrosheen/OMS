@@ -26,7 +26,7 @@
             </div>
             <button
                 class="toast-close"
-                on:click={() => toasts.dismiss(toast.id)}
+                onclick={() => toasts.dismiss(toast.id)}
                 aria-label="Dismiss notification"
             >
                 ×

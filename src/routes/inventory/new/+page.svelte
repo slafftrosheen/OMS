@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { preventDefault } from 'svelte/legacy';
+
   import { t } from 'svelte-i18n';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
@@ -8,7 +10,7 @@
   import Save from 'lucide-svelte/icons/save';
   import Package from 'lucide-svelte/icons/package';
 
-  let item: Partial<Item> = {
+  let item: Partial<Item> = $state({
     section: 'materials',
     group: '',
     subgroup: '',
@@ -23,9 +25,9 @@
     barcode: '',
     colorCode: '',
     hexColor: '#000000'
-  };
+  });
 
-  let saving = false;
+  let saving = $state(false);
 
   const sectionOptions: { id: Section; label: string; icon: string }[] = [
     { id: 'materials', label: 'Materials', icon: '📦' },
@@ -75,7 +77,7 @@
       </div>
     </div>
 
-    <form on:submit|preventDefault={save}>
+    <form onsubmit={preventDefault(save)}>
       <!-- Section Selection -->
       <div class="form-section">
         <h2 class="section-title">{$t('inventory.section', { default: 'Section' })}</h2>
@@ -85,7 +87,7 @@
               type="button"
               class="section-option"
               class:active={item.section === section.id}
-              on:click={() => item.section = section.id}
+              onclick={() => item.section = section.id}
             >
               <span class="section-icon">{section.icon}</span>
               <span class="section-label">{$t(`inventory.${section.id}`, { default: section.label })}</span>

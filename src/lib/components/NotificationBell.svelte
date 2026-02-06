@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { notificationStore, unreadNotifications } from '$lib/stores/notifications';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { fly, fade } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
 
-  let userId = $derived($page.data.session?.user?.id);
+  let userId = $derived(page.data.session?.user?.id);
 
   let showDropdown = false;
   let unsubscribe: (() => void) | null = null;
@@ -94,7 +94,7 @@
   <button
     class="notification-bell"
     class:has-unread={$notificationStore.unreadCount > 0}
-    on:click={() => showDropdown = !showDropdown}
+    onclick={() => showDropdown = !showDropdown}
     aria-label="Notifications"
     aria-expanded={showDropdown}
   >
@@ -120,7 +120,7 @@
         {#if $notificationStore.unreadCount > 0}
           <button
             class="mark-all-read"
-            on:click={() => notificationStore.markAllAsRead(userId)}
+            onclick={() => notificationStore.markAllAsRead(userId)}
           >
             Mark all read
           </button>
@@ -141,7 +141,7 @@
             <button
               class="notification-item"
               class:unread={!notification.read}
-              on:click={() => handleNotificationClick(notification)}
+              onclick={() => handleNotificationClick(notification)}
               transition:fade={{ duration: 150 }}
             >
               <div
@@ -160,7 +160,7 @@
               </div>
 
               {#if !notification.read}
-                <div class="unread-indicator" />
+                <div class="unread-indicator"></div>
               {/if}
             </button>
           {/each}

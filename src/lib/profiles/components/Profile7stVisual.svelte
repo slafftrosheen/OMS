@@ -401,16 +401,16 @@
         bind:value={configuration.profileName} 
         placeholder="Profile Name"
         disabled={readonly}
-        on:input={emit}
+        oninput={emit}
       />
     </div>
     <div class="sign-toggle">
       <button type="button" class:active={configuration.signType === 'EXTERIOR'}
-        disabled={readonly} on:click={() => { configuration.signType = 'EXTERIOR'; emit(); }}>
+        disabled={readonly} onclick={() => { configuration.signType = 'EXTERIOR'; emit(); }}>
         <Sun size={14} /> OUTDOOR
       </button>
       <button type="button" class:active={configuration.signType === 'INTERIOR'}
-        disabled={readonly} on:click={() => { configuration.signType = 'INTERIOR'; emit(); }}>
+        disabled={readonly} onclick={() => { configuration.signType = 'INTERIOR'; emit(); }}>
         <Moon size={14} /> INDOOR
       </button>
     </div>
@@ -504,11 +504,11 @@
         <!-- Options -->
         <div class="options">
           <label class="option" class:active={configuration.CNC_FREZER.laser}>
-            <input type="checkbox" bind:checked={configuration.CNC_FREZER.laser} disabled={readonly} on:change={emit} />
+            <input type="checkbox" bind:checked={configuration.CNC_FREZER.laser} disabled={readonly} onchange={emit} />
             <Scissors size={12} /> LASER
           </label>
           <label class="option" class:active={configuration.CNC_FREZER.print3d}>
-            <input type="checkbox" bind:checked={configuration.CNC_FREZER.print3d} disabled={readonly} on:change={emit} />
+            <input type="checkbox" bind:checked={configuration.CNC_FREZER.print3d} disabled={readonly} onchange={emit} />
             <Layers size={12} /> 3D
           </label>
         </div>
@@ -519,7 +519,7 @@
           {/if}
           <StickyNote size={12} class="note-placeholder-icon" />
           <textarea class="notes" bind:value={configuration.CNC_FREZER.notes} 
-            disabled={readonly} on:input={emit} placeholder="Notes..." rows="2"></textarea>
+            disabled={readonly} oninput={emit} placeholder="Notes..." rows="2"></textarea>
         </div>
       </div>
     </div>
@@ -570,7 +570,7 @@
           <label>DEPTH</label>
           <input type="number" class="depth-input" 
             bind:value={configuration.BENDER.depth}
-            disabled={readonly} on:input={emit} min="30" max="500" />
+            disabled={readonly} oninput={emit} min="30" max="500" />
         </div>
         
         <div class="notes-field" class:has-note={configuration.BENDER.notes}>
@@ -579,7 +579,7 @@
           {/if}
           <StickyNote size={12} class="note-placeholder-icon" />
           <textarea class="notes" bind:value={configuration.BENDER.notes} 
-            disabled={readonly} on:input={emit} placeholder="Notes..." rows="2"></textarea>
+            disabled={readonly} oninput={emit} placeholder="Notes..." rows="2"></textarea>
         </div>
       </div>
     </div>
@@ -591,7 +591,7 @@
         {#each ['face', 'back', 'sides'] as part}
           <div class="inline-field">
             <label class="toggle-label" class:active={configuration.FRONT[part]}>
-              <input type="checkbox" bind:checked={configuration.FRONT[part]} disabled={readonly} on:change={emit} />
+              <input type="checkbox" bind:checked={configuration.FRONT[part]} disabled={readonly} onchange={emit} />
               {part.toUpperCase()}
             </label>
             {#if configuration.FRONT[part]}
@@ -618,7 +618,7 @@
               </div>
               <input type="text" class="custom-input" 
                 bind:value={configuration.FRONT[`${part}Custom`]}
-                disabled={readonly} on:input={emit} placeholder="Custom..." />
+                disabled={readonly} oninput={emit} placeholder="Custom..." />
             {/if}
           </div>
         {/each}
@@ -629,7 +629,7 @@
           {/if}
           <StickyNote size={12} class="note-placeholder-icon" />
           <textarea class="notes" bind:value={configuration.FRONT.notes} 
-            disabled={readonly} on:input={emit} placeholder="Notes..." rows="2"></textarea>
+            disabled={readonly} oninput={emit} placeholder="Notes..." rows="2"></textarea>
         </div>
       </div>
     </div>
@@ -647,7 +647,7 @@
           ] as item}
             <div class="paint-item" class:inactive={!configuration.PAINTING[item.key]}>
               <label class="paint-label" class:active={configuration.PAINTING[item.key]}>
-                <input type="checkbox" bind:checked={configuration.PAINTING[item.key]} disabled={readonly} on:change={emit} />
+                <input type="checkbox" bind:checked={configuration.PAINTING[item.key]} disabled={readonly} onchange={emit} />
                 {item.label}
               </label>
               {#if configuration.PAINTING[item.key]}
@@ -681,7 +681,7 @@
                 {/if}
                 <input type="text" class="custom-input" 
                   bind:value={configuration.PAINTING[`${item.key}Custom`]}
-                  disabled={readonly} on:input={emit} placeholder="Custom..." />
+                  disabled={readonly} oninput={emit} placeholder="Custom..." />
               {:else}
                 <span class="no-badge">NO</span>
               {/if}
@@ -695,7 +695,7 @@
           {/if}
           <StickyNote size={12} class="note-placeholder-icon" />
           <textarea class="notes" bind:value={configuration.PAINTING.notes} 
-            disabled={readonly} on:input={emit} placeholder="Notes..." rows="2"></textarea>
+            disabled={readonly} oninput={emit} placeholder="Notes..." rows="2"></textarea>
         </div>
       </div>
     </div>
@@ -710,7 +710,7 @@
           <div class="assembly-item">
             <div class="item-header">
               <label class="toggle-label" class:active={configuration.ASSEMBLING.led}>
-                <input type="checkbox" bind:checked={configuration.ASSEMBLING.led} disabled={readonly} on:change={emit} />
+                <input type="checkbox" bind:checked={configuration.ASSEMBLING.led} disabled={readonly} onchange={emit} />
                 <Zap size={14} /> LED
               </label>
             </div>
@@ -747,18 +747,18 @@
           <div class="assembly-item">
             <div class="item-header">
               <label class="toggle-label" class:active={configuration.ASSEMBLING.psu}>
-                <input type="checkbox" bind:checked={configuration.ASSEMBLING.psu} disabled={readonly} on:change={emit} />
+                <input type="checkbox" bind:checked={configuration.ASSEMBLING.psu} disabled={readonly} onchange={emit} />
                 <Power size={14} /> PSU
               </label>
             </div>
             {#if configuration.ASSEMBLING.psu}
               <div class="psu-type">
                 <label class:active={configuration.ASSEMBLING.psuType === 'regular'}>
-                  <input type="radio" bind:group={configuration.ASSEMBLING.psuType} value="regular" disabled={readonly} on:change={emit} />
+                  <input type="radio" bind:group={configuration.ASSEMBLING.psuType} value="regular" disabled={readonly} onchange={emit} />
                   <Sun size={12} /> Regular
                 </label>
                 <label class:active={configuration.ASSEMBLING.psuType === 'dimmable'}>
-                  <input type="radio" bind:group={configuration.ASSEMBLING.psuType} value="dimmable" disabled={readonly} on:change={emit} />
+                  <input type="radio" bind:group={configuration.ASSEMBLING.psuType} value="dimmable" disabled={readonly} onchange={emit} />
                   <Moon size={12} /> Dimmable
                 </label>
               </div>
@@ -785,7 +785,7 @@
                 </span>
               {/if}
               <input type="text" class="custom-input" bind:value={configuration.ASSEMBLING.psuMounting}
-                disabled={readonly} on:input={emit} placeholder="Mounting..." />
+                disabled={readonly} oninput={emit} placeholder="Mounting..." />
             {:else}
               <span class="no-badge-lg"><X size={14} /> NO PSU</span>
             {/if}
@@ -795,14 +795,14 @@
           <div class="assembly-item">
             <div class="item-header">
               <label class="toggle-label" class:active={configuration.ASSEMBLING.cables}>
-                <input type="checkbox" bind:checked={configuration.ASSEMBLING.cables} disabled={readonly} on:change={emit} />
+                <input type="checkbox" bind:checked={configuration.ASSEMBLING.cables} disabled={readonly} onchange={emit} />
                 <Cable size={14} /> CABLES
               </label>
             </div>
             {#if configuration.ASSEMBLING.cables}
               <div class="cable-row">
                 <input type="text" class="length-input" bind:value={configuration.ASSEMBLING.cablesLength}
-                  disabled={readonly} on:input={emit} placeholder="2m" />
+                  disabled={readonly} oninput={emit} placeholder="2m" />
                 <MaterialSelect
                   bind:value={configuration.ASSEMBLING.cableType}
                   categories={wireCategories}
@@ -826,7 +826,7 @@
                 </span>
               {/if}
               <label class="wago-label" class:active={configuration.ASSEMBLING.cablesWago}>
-                <input type="checkbox" bind:checked={configuration.ASSEMBLING.cablesWago} disabled={readonly} on:change={emit} />
+                <input type="checkbox" bind:checked={configuration.ASSEMBLING.cablesWago} disabled={readonly} onchange={emit} />
                 <span class="wago-badge">{configuration.ASSEMBLING.cablesWago ? '✓' : ''} WAGO</span>
               </label>
             {:else}
@@ -838,7 +838,7 @@
           <div class="assembly-item">
             <div class="item-header">
               <label class="toggle-label" class:active={configuration.ASSEMBLING.frame}>
-                <input type="checkbox" bind:checked={configuration.ASSEMBLING.frame} disabled={readonly} on:change={emit} />
+                <input type="checkbox" bind:checked={configuration.ASSEMBLING.frame} disabled={readonly} onchange={emit} />
                 <Square size={14} /> FRAME
               </label>
             </div>
@@ -867,11 +867,11 @@
               {/if}
               <div class="frame-options">
                 <label class="opt waterholes" class:active={configuration.ASSEMBLING.frameWaterholes}>
-                  <input type="checkbox" bind:checked={configuration.ASSEMBLING.frameWaterholes} disabled={readonly} on:change={emit} />
+                  <input type="checkbox" bind:checked={configuration.ASSEMBLING.frameWaterholes} disabled={readonly} onchange={emit} />
                   <Droplets size={12} /> WATER
                 </label>
                 <label class="opt warning" class:active={configuration.ASSEMBLING.frameMountingHoles}>
-                  <input type="checkbox" bind:checked={configuration.ASSEMBLING.frameMountingHoles} disabled={readonly} on:change={emit} />
+                  <input type="checkbox" bind:checked={configuration.ASSEMBLING.frameMountingHoles} disabled={readonly} onchange={emit} />
                   <AlertCircle size={12} /> MOUNT
                 </label>
               </div>
@@ -884,7 +884,7 @@
         <!-- Bottom options -->
         <div class="assembly-extras">
           <label class="extra" class:active={configuration.ASSEMBLING.shablon}>
-            <input type="checkbox" bind:checked={configuration.ASSEMBLING.shablon} disabled={readonly} on:change={emit} />
+            <input type="checkbox" bind:checked={configuration.ASSEMBLING.shablon} disabled={readonly} onchange={emit} />
             <Layers size={14} /> SHABLON
           </label>
           {#if !configuration.ASSEMBLING.frameWaterholes && configuration.ASSEMBLING.frame}
@@ -898,7 +898,7 @@
           {/if}
           <StickyNote size={12} class="note-placeholder-icon" />
           <textarea class="notes" bind:value={configuration.ASSEMBLING.notes} 
-            disabled={readonly} on:input={emit} placeholder="Notes..." rows="2"></textarea>
+            disabled={readonly} oninput={emit} placeholder="Notes..." rows="2"></textarea>
         </div>
       </div>
     </div>

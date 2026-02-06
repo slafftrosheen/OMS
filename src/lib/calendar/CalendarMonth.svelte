@@ -259,7 +259,7 @@
           data-today={day.iso === todayISO}
           data-selected={day.iso === selectedISO}
           aria-label={describeDay(day)}
-          on:click={() => clickDay(day.iso)}>
+          onclick={() => clickDay(day.iso)}>
           <div class="cell__header">
             <span class="cell__date">{day.d.getDate()}</span>
             {#if info.active}
@@ -295,9 +295,10 @@
   <ul class="legend" aria-label={$t('calendar.legend.title')}>
     {#each legendKeys as key (key)}
       {@const icon = statusIcons[key]}
+      {@const SvelteComponent = icon}
       <li class="legend__item" data-tone={key}>
         <span class="legend__chip">
-          <svelte:component this={icon} size={14} aria-hidden="true" />
+          <SvelteComponent size={14} aria-hidden="true" />
         </span>
         <span>{$t(`calendar.legend.${key}`)}</span>
       </li>
@@ -370,8 +371,9 @@
                   {#each order.badges as badge (badge)}
                     {@const label = badgeLabel(badge)}
                     {@const icon = badgeIconComponent(badge)}
+                    {@const SvelteComponent_1 = icon}
                     <span class="day-order__badge" data-tone={badgeToneFor(badge)} aria-label={label}>
-                      <svelte:component this={icon} size={12} aria-hidden="true" />
+                      <SvelteComponent_1 size={12} aria-hidden="true" />
                       <span>{label}</span>
                     </span>
                   {/each}
@@ -401,7 +403,7 @@
           class="rf-input"
           type="text"
           value={info.carrier}
-          on:change={(event) => handleCarrierChange(event, currentISO)}
+          onchange={(event) => handleCarrierChange(event, currentISO)}
         />
       </label>
       <label>
@@ -410,7 +412,7 @@
           class="rf-input"
           type="text"
           value={info.note}
-          on:change={(event) => handleNoteChange(event, currentISO)}
+          onchange={(event) => handleNoteChange(event, currentISO)}
         />
       </label>
     </div>

@@ -2,9 +2,13 @@
   import type { FAQItem } from '../types';
   import FAQCard from './FAQCard.svelte';
 
-  export let items: FAQItem[] = [];
-  export let lang: 'en' | 'ru' | 'lv' = 'en';
-  export let emptyMessage = 'No FAQ items found';
+  interface Props {
+    items?: FAQItem[];
+    lang?: 'en' | 'ru' | 'lv';
+    emptyMessage?: string;
+  }
+
+  let { items = [], lang = 'en', emptyMessage = 'No FAQ items found' }: Props = $props();
 </script>
 
 <div class="faq-list">

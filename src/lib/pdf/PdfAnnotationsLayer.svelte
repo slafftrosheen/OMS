@@ -79,10 +79,10 @@
 
 <div
   class="annos"
-  on:dblclick={onDblClick}
-  on:mousedown={onDown}
-  on:mousemove={onMove}
-  on:mouseup={onUp}>
+  ondblclick={onDblClick}
+  onmousedown={onDown}
+  onmousemove={onMove}
+  onmouseup={onUp}>
   {#each rects as r}
     <div
       class="rect"
@@ -92,12 +92,12 @@
 
   {#each notes as n}
     <div class="note" style={`left:${n.x * 100}%;top:${n.y * 100}%`}>
-      <textarea bind:value={n.text} placeholder="Note…" />
+      <textarea bind:value={n.text} placeholder="Note…"></textarea>
     </div>
   {/each}
   
   <div class="toolbar small">
-    <button class="tag ghost" on:click={addRect}>Add rectangle</button>
+    <button class="tag ghost" onclick={addRect}>Add rectangle</button>
   </div>
 </div>
 

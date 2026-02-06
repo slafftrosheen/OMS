@@ -1,3 +1,5 @@
+<!-- @migration-task Error while migrating Svelte code: Mixing old (on:change) and new syntaxes for event handling is not allowed. Use only the onchange syntax
+https://svelte.dev/e/mixed_event_handler_syntaxes -->
 <script lang="ts">
   import { X } from 'lucide-svelte';
   import MaterialSelector from '../form-elements/MaterialSelector.svelte';

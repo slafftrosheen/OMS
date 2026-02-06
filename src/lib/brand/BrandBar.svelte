@@ -1,3 +1,5 @@
+<!-- @migration-task Error while migrating Svelte code: `$currentUserId` is an illegal variable name. To reference a global variable called `$currentUserId`, use `globalThis.$currentUserId`
+https://svelte.dev/e/global_reference_invalid -->
 <script lang="ts">
   import { base } from '$app/paths';
   import { users, loadUsers } from '$lib/users/user-store';

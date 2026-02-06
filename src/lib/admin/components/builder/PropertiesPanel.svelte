@@ -46,7 +46,7 @@
           <input
             type="text"
             value={localElement.code || ''}
-            on:input={(e) => updateProperty('code', e.currentTarget.value)}
+            oninput={(e) => updateProperty('code', e.currentTarget.value)}
             placeholder="P9"
           />
         </div>
@@ -55,7 +55,7 @@
           <input
             type="text"
             value={localElement.name || ''}
-            on:input={(e) => updateProperty('name', e.currentTarget.value)}
+            oninput={(e) => updateProperty('name', e.currentTarget.value)}
             placeholder="Profile Name"
           />
         </div>
@@ -63,7 +63,7 @@
           <label>Description</label>
           <textarea
             value={localElement.description || ''}
-            on:input={(e) => updateProperty('description', e.currentTarget.value)}
+            oninput={(e) => updateProperty('description', e.currentTarget.value)}
             rows="3"
           ></textarea>
         </div>
@@ -72,7 +72,7 @@
           <input
             type="text"
             value={localElement.version || '1.0'}
-            on:input={(e) => updateProperty('version', e.currentTarget.value)}
+            oninput={(e) => updateProperty('version', e.currentTarget.value)}
           />
         </div>
       </div>
@@ -86,7 +86,7 @@
           <input
             type="text"
             value={localElement.name || ''}
-            on:input={(e) => updateProperty('name', e.currentTarget.value)}
+            oninput={(e) => updateProperty('name', e.currentTarget.value)}
             placeholder="SECTION_NAME"
           />
         </div>
@@ -95,7 +95,7 @@
           <input
             type="text"
             value={localElement.displayName?.en || localElement.display_name_en || ''}
-            on:input={(e) => updateNestedProperty(['displayName', 'en'], e.currentTarget.value)}
+            oninput={(e) => updateNestedProperty(['displayName', 'en'], e.currentTarget.value)}
           />
         </div>
         <div class="form-field">
@@ -103,7 +103,7 @@
           <input
             type="text"
             value={localElement.displayName?.ru || localElement.display_name_ru || ''}
-            on:input={(e) => updateNestedProperty(['displayName', 'ru'], e.currentTarget.value)}
+            oninput={(e) => updateNestedProperty(['displayName', 'ru'], e.currentTarget.value)}
           />
         </div>
         <div class="form-field">
@@ -111,7 +111,7 @@
           <input
             type="text"
             value={localElement.displayName?.lv || localElement.display_name_lv || ''}
-            on:input={(e) => updateNestedProperty(['displayName', 'lv'], e.currentTarget.value)}
+            oninput={(e) => updateNestedProperty(['displayName', 'lv'], e.currentTarget.value)}
           />
         </div>
         <div class="form-field">
@@ -119,7 +119,7 @@
             <input
               type="checkbox"
               checked={localElement.isRequired || localElement.is_required || false}
-              on:change={(e) => updateProperty('isRequired', e.currentTarget.checked)}
+              onchange={(e) => updateProperty('isRequired', e.currentTarget.checked)}
             />
             Required Section
           </label>
@@ -129,7 +129,7 @@
           <input
             type="text"
             value={localElement.icon || ''}
-            on:input={(e) => updateProperty('icon', e.currentTarget.value)}
+            oninput={(e) => updateProperty('icon', e.currentTarget.value)}
             placeholder="⚙️"
           />
         </div>
@@ -144,7 +144,7 @@
           <input
             type="text"
             value={localElement.fieldKey || localElement.field_key || ''}
-            on:input={(e) => updateProperty('fieldKey', e.currentTarget.value)}
+            oninput={(e) => updateProperty('fieldKey', e.currentTarget.value)}
             placeholder="field_name"
           />
         </div>
@@ -152,7 +152,7 @@
           <label>Field Type</label>
           <select
             value={localElement.fieldType || localElement.field_type || 'text_input'}
-            on:change={(e) => updateProperty('fieldType', e.currentTarget.value)}
+            onchange={(e) => updateProperty('fieldType', e.currentTarget.value)}
           >
             <option value="material_selector">Material Selector</option>
             <option value="thickness_selector">Thickness Selector</option>
@@ -175,7 +175,7 @@
           <input
             type="text"
             value={localElement.label?.en || localElement.label_en || ''}
-            on:input={(e) => updateNestedProperty(['label', 'en'], e.currentTarget.value)}
+            oninput={(e) => updateNestedProperty(['label', 'en'], e.currentTarget.value)}
           />
         </div>
         <div class="form-field">
@@ -183,7 +183,7 @@
           <input
             type="text"
             value={localElement.label?.ru || localElement.label_ru || ''}
-            on:input={(e) => updateNestedProperty(['label', 'ru'], e.currentTarget.value)}
+            oninput={(e) => updateNestedProperty(['label', 'ru'], e.currentTarget.value)}
           />
         </div>
         <div class="form-field">
@@ -191,7 +191,7 @@
           <input
             type="text"
             value={localElement.label?.lv || localElement.label_lv || ''}
-            on:input={(e) => updateNestedProperty(['label', 'lv'], e.currentTarget.value)}
+            oninput={(e) => updateNestedProperty(['label', 'lv'], e.currentTarget.value)}
           />
         </div>
         <div class="form-field">
@@ -199,7 +199,7 @@
             <input
               type="checkbox"
               checked={localElement.isRequired || localElement.is_required || false}
-              on:change={(e) => updateProperty('isRequired', e.currentTarget.checked)}
+              onchange={(e) => updateProperty('isRequired', e.currentTarget.checked)}
             />
             Required Field
           </label>
@@ -211,7 +211,7 @@
             <label>Options (one per line)</label>
             <textarea
               value={(localElement.options || []).join('\n')}
-              on:input={(e) => updateProperty('options', e.currentTarget.value.split('\n').filter(Boolean))}
+              oninput={(e) => updateProperty('options', e.currentTarget.value.split('\n').filter(Boolean))}
               rows="5"
               placeholder="Option 1&#10;Option 2&#10;Option 3"
             ></textarea>
@@ -224,7 +224,7 @@
             <input
               type="number"
               value={localElement.config?.min || 0}
-              on:input={(e) => updateNestedProperty(['config', 'min'], parseFloat(e.currentTarget.value))}
+              oninput={(e) => updateNestedProperty(['config', 'min'], parseFloat(e.currentTarget.value))}
             />
           </div>
           <div class="form-field">
@@ -232,7 +232,7 @@
             <input
               type="number"
               value={localElement.config?.max || 100}
-              on:input={(e) => updateNestedProperty(['config', 'max'], parseFloat(e.currentTarget.value))}
+              oninput={(e) => updateNestedProperty(['config', 'max'], parseFloat(e.currentTarget.value))}
             />
           </div>
           <div class="form-field">
@@ -240,7 +240,7 @@
             <input
               type="number"
               value={localElement.config?.step || 1}
-              on:input={(e) => updateNestedProperty(['config', 'step'], parseFloat(e.currentTarget.value))}
+              oninput={(e) => updateNestedProperty(['config', 'step'], parseFloat(e.currentTarget.value))}
             />
           </div>
           <div class="form-field">
@@ -248,7 +248,7 @@
             <input
               type="text"
               value={localElement.config?.unit || 'mm'}
-              on:input={(e) => updateNestedProperty(['config', 'unit'], e.currentTarget.value)}
+              oninput={(e) => updateNestedProperty(['config', 'unit'], e.currentTarget.value)}
             />
           </div>
         {/if}
@@ -258,7 +258,7 @@
             <label>Info Content</label>
             <textarea
               value={localElement.config?.content || ''}
-              on:input={(e) => updateNestedProperty(['config', 'content'], e.currentTarget.value)}
+              oninput={(e) => updateNestedProperty(['config', 'content'], e.currentTarget.value)}
               rows="4"
             ></textarea>
           </div>

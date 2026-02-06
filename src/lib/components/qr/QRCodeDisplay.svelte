@@ -3,13 +3,17 @@
     import { onMount } from 'svelte';
     import Button from '$lib/components/ui/Button.svelte';
 
-    export let orderId: string;
-    export let station: string | null = null;
-    export let size = 300;
+    interface Props {
+        orderId: string;
+        station?: string | null;
+        size?: number;
+    }
 
-    let qrCodeImage: string | null = null;
-    let loading = false;
-    let error: string | null = null;
+    let { orderId, station = null, size = 300 }: Props = $props();
+
+    let qrCodeImage: string | null = $state(null);
+    let loading = $state(false);
+    let error: string | null = $state(null);
 
     async function generateQRCode() {
         loading = true;

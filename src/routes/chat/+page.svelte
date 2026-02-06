@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+  const bubble = createBubbler();
   import { onMount, onDestroy } from 'svelte';
   import { t } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/user-store';
@@ -129,7 +132,7 @@
   <aside class="chat-sidebar">
     <div class="sidebar-header">
       <h2>Chat</h2>
-      <button class="icon-btn" on:click={() => showRoomModal = true} title="Create Room">
+      <button class="icon-btn" onclick={() => showRoomModal = true} title="Create Room">
         <Plus size={20} />
       </button>
     </div>
@@ -146,7 +149,7 @@
           <button 
             class="room-item" 
             class:active={room.id === activeRoomId}
-            on:click={() => selectRoom(room.id)}
+            onclick={() => selectRoom(room.id)}
           >
             <Hash size={16} />
             <span class="room-name">{room.name}</span>
@@ -238,16 +241,16 @@
 {#if showRoomModal}
   <div
     class="modal-backdrop"
-    on:click={() => showRoomModal = false}
-    on:keydown={(e) => e.key === 'Escape' && (showRoomModal = false)}
+    onclick={() => showRoomModal = false}
+    onkeydown={(e) => e.key === 'Escape' && (showRoomModal = false)}
     role="button"
     tabindex="0"
   >
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="modal"
-      on:click|stopPropagation
+      onclick={stopPropagation(bubble('click'))}
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-room-title"
@@ -255,7 +258,7 @@
     >
       <div class="modal-header">
         <h3 id="create-room-title">Create Channel</h3>
-        <button class="icon-btn" on:click={() => showRoomModal = false} aria-label="Close">
+        <button class="icon-btn" onclick={() => showRoomModal = false} aria-label="Close">
           <X size={20} />
         </button>
       </div>
@@ -266,13 +269,13 @@
             type="text" 
             placeholder="e.g. production-updates"
             bind:value={newRoomName}
-            on:keydown={(e) => e.key === 'Enter' && createRoom()}
+            onkeydown={(e) => e.key === 'Enter' && createRoom()}
           />
         </label>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-ghost" on:click={() => showRoomModal = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
-        <button class="btn btn-primary" on:click={createRoom} disabled={!newRoomName.trim()}>
+        <button class="btn btn-ghost" onclick={() => showRoomModal = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
+        <button class="btn btn-primary" onclick={createRoom} disabled={!newRoomName.trim()}>
           Create Channel
         </button>
       </div>

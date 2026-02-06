@@ -1,3 +1,5 @@
+<!-- @migration-task Error while migrating Svelte code: Mixing old (on:click) and new syntaxes for event handling is not allowed. Use only the onclick syntax
+https://svelte.dev/e/mixed_event_handler_syntaxes -->
 <!-- src/lib/admin/components/builder/CanvasSection.svelte -->
 <script lang="ts">
   import { GripVertical, Plus, Copy, Trash2, MoreVertical } from 'lucide-svelte';

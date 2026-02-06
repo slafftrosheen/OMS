@@ -88,7 +88,7 @@
                 <span class="reply-label">Replying to {replyingTo.username}</span>
                 <p class="reply-message">{replyingTo.message.substring(0, 100)}{replyingTo.message.length > 100 ? '...' : ''}</p>
             </div>
-            <button class="reply-cancel" on:click={cancelReply} aria-label="Cancel reply">
+            <button class="reply-cancel" onclick={cancelReply} aria-label="Cancel reply">
                 ✕
             </button>
         </div>
@@ -100,7 +100,7 @@
                 id="file-input"
                 type="file"
                 multiple
-                on:change={handleFileSelect}
+                onchange={handleFileSelect}
                 style="display: none;"
             />
             📎
@@ -109,14 +109,14 @@
         <textarea
             bind:this={textareaElement}
             bind:value={message}
-            on:input={handleInput}
-            on:keydown={handleKeydown}
+            oninput={handleInput}
+            onkeydown={handleKeydown}
             {placeholder}
             {disabled}
             class="message-input"
             rows="1"
             aria-label="Message input"
-        />
+></textarea>
 
         <Button
             variant="primary"

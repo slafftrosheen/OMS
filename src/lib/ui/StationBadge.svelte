@@ -45,8 +45,9 @@
 </script>
 
 {#if show}
+  {@const SvelteComponent = icon}
   <span class={`station-badge ${sizeClass}`} data-tone={tone} data-station={station || 'generic'}>
-    <svelte:component this={icon} size={size === 'md' ? 16 : 14} aria-hidden="true" />
+    <SvelteComponent size={size === 'md' ? 16 : 14} aria-hidden="true" />
     <span class="station-badge__label">{text}</span>
   </span>
 {/if}

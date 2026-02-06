@@ -27,7 +27,7 @@
 
 <div class="info-box" class:info={type === 'info'} class:warning={type === 'warning'} class:danger={type === 'danger'} class:full-width={fullWidth}>
   <div class="icon">
-    <svelte:component this={IconComponent} size={20} />
+    <IconComponent size={20} />
   </div>
   <div class="content">
     {@html content}

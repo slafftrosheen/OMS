@@ -7,7 +7,7 @@
 import { syncStatus, syncQueue, syncNow } from '$lib/pwa/sync-manager';
 import { WifiOff, Wifi, RefreshCw, AlertCircle } from 'lucide-svelte';
 
-let showDetails = false;
+let showDetails = $state(false);
 
 function handleSync() {
     syncNow();
@@ -28,8 +28,8 @@ function handleKeydown(event: KeyboardEvent) {
 <div class="offline-indicator" class:offline={!$syncStatus.online}>
     <button 
         class="status-btn" 
-        on:click={toggleDetails}
-        on:keydown={handleKeydown}
+        onclick={toggleDetails}
+        onkeydown={handleKeydown}
         aria-expanded={showDetails}
         aria-label={$syncStatus.online ? 'Online status' : 'Offline status'}
     >
@@ -79,7 +79,7 @@ function handleKeydown(event: KeyboardEvent) {
             {#if $syncStatus.queueLength > 0 && $syncStatus.online}
                 <button 
                     class="sync-btn" 
-                    on:click={handleSync}
+                    onclick={handleSync}
                     disabled={$syncStatus.syncing}
                 >
                     <RefreshCw size={14} class={$syncStatus.syncing ? 'spinning' : ''} />

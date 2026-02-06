@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+  const bubble = createBubbler();
 /**
  * Webhook Manager Component
  * UI for managing webhooks and integrations
@@ -19,13 +22,13 @@ import {
   Upload
 } from 'lucide-svelte';
 
-let webhooks: any[] = [];
-let integrations: any[] = [];
+let webhooks: any[] = $state([]);
+let integrations: any[] = $state([]);
 let loading = true;
-let error: string | null = null;
+let error: string | null = $state(null);
 
-let showCreateModal = false;
-let showIntegrationModal = false;
+let showCreateModal = $state(false);
+let showIntegrationModal = $state(false);
 
 interface WebhookConfig {
   name: string;
@@ -45,7 +48,7 @@ interface IntegrationConfig {
   config: { webhook_url?: string };
 }
 
-let newWebhook: WebhookConfig = {
+let newWebhook: WebhookConfig = $state({
   name: '',
   url: '',
   events: [],
@@ -55,13 +58,13 @@ let newWebhook: WebhookConfig = {
   timeoutSeconds: 30,
   retryEnabled: true,
   maxRetries: 3
-};
+});
 
-let newIntegration: IntegrationConfig = {
+let newIntegration: IntegrationConfig = $state({
   type: 'slack',
   name: '',
   config: {}
-};
+});
 
 const availableEvents = [
   'order.created',
@@ -189,11 +192,11 @@ function getStatusColor(status: string) {
       Webhooks & Integrations
     </h2>
     <div class="header-actions">
-      <button class="btn-primary" on:click={() => showCreateModal = true}>
+      <button class="btn-primary" onclick={() => showCreateModal = true}>
         <Plus size={16} />
         Add Webhook
       </button>
-      <button class="btn-secondary" on:click={() => showIntegrationModal = true}>
+      <button class="btn-secondary" onclick={() => showIntegrationModal = true}>
         <Plus size={16} />
         Add Integration
       </button>
@@ -215,7 +218,7 @@ function getStatusColor(status: string) {
       <div class="empty-state">
         <Webhook size={48} />
         <p>No webhooks configured</p>
-        <button class="btn-primary" on:click={() => showCreateModal = true}>
+        <button class="btn-primary" onclick={() => showCreateModal = true}>
           Create Webhook
         </button>
       </div>
@@ -261,13 +264,13 @@ function getStatusColor(status: string) {
             </div>
 
             <div class="card-actions">
-              <button class="btn-icon" on:click={() => testWebhook(webhook.id)} title="Test">
+              <button class="btn-icon" onclick={() => testWebhook(webhook.id)} title="Test">
                 <Play size={16} />
               </button>
               <button class="btn-icon" title="Edit">
                 <Settings size={16} />
               </button>
-              <button class="btn-icon btn-danger" on:click={() => deleteWebhook(webhook.id)} title="Delete">
+              <button class="btn-icon btn-danger" onclick={() => deleteWebhook(webhook.id)} title="Delete">
                 <Trash2 size={16} />
               </button>
             </div>
@@ -288,7 +291,7 @@ function getStatusColor(status: string) {
       <div class="empty-state">
         <span class="integration-icon">💬</span>
         <p>No integrations configured</p>
-        <button class="btn-primary" on:click={() => showIntegrationModal = true}>
+        <button class="btn-primary" onclick={() => showIntegrationModal = true}>
           Connect Integration
         </button>
       </div>
@@ -337,10 +340,10 @@ function getStatusColor(status: string) {
 </div>
 
 {#if showCreateModal}
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <div class="modal-overlay" on:click={() => showCreateModal = false}>
-    <div class="modal-content" on:click|stopPropagation>
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-overlay" onclick={() => showCreateModal = false}>
+    <div class="modal-content" onclick={stopPropagation(bubble('click'))}>
       <h3>Create Webhook</h3>
 
       <div class="form-group">
@@ -413,18 +416,18 @@ function getStatusColor(status: string) {
       </div>
 
       <div class="form-actions">
-        <button class="btn-secondary" on:click={() => showCreateModal = false}>Cancel</button>
-        <button class="btn-primary" on:click={createWebhook}>Create</button>
+        <button class="btn-secondary" onclick={() => showCreateModal = false}>Cancel</button>
+        <button class="btn-primary" onclick={createWebhook}>Create</button>
       </div>
     </div>
   </div>
 {/if}
 
 {#if showIntegrationModal}
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <div class="modal-overlay" on:click={() => showIntegrationModal = false}>
-    <div class="modal-content" on:click|stopPropagation>
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-overlay" onclick={() => showIntegrationModal = false}>
+    <div class="modal-content" onclick={stopPropagation(bubble('click'))}>
       <h3>Add Integration</h3>
 
       <div class="form-group">
@@ -459,7 +462,7 @@ function getStatusColor(status: string) {
       {/if}
 
       <div class="form-actions">
-        <button class="btn-secondary" on:click={() => showIntegrationModal = false}>Cancel</button>
+        <button class="btn-secondary" onclick={() => showIntegrationModal = false}>Cancel</button>
         <button class="btn-primary">Connect</button>
       </div>
     </div>

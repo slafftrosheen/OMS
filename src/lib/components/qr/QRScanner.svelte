@@ -161,7 +161,7 @@
                     autoplay
                     playsinline
                     muted
-                />
+></video>
                 <canvas bind:this={canvasElement} style="display: none;"></canvas>
                 
                 <div class="scanner-overlay">
@@ -184,11 +184,13 @@
         {/if}
     </div>
 
-    <svelte:fragment slot="footer">
-        <Button variant="ghost" onclick={handleClose}>
-            Cancel
-        </Button>
-    </svelte:fragment>
+    {#snippet footer()}
+    
+            <Button variant="ghost" onclick={handleClose}>
+                Cancel
+            </Button>
+        
+    {/snippet}
 </Modal>
 
 <style>

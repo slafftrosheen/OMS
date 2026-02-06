@@ -75,7 +75,7 @@
   <div class="card">
     <div class="row" style="justify-content:space-between;align-items:center">
       <strong>{event ? $t('eventEditor.editEvent') : $t('eventEditor.createEvent')}</strong>
-      <button class="tag ghost" on:click={() => onClose ? onClose() : dispatchEvent(new CustomEvent('close'))}>{$t('eventEditor.close')}</button>
+      <button class="tag ghost" onclick={() => onClose ? onClose() : dispatchEvent(new CustomEvent('close'))}>{$t('eventEditor.close')}</button>
     </div>
 
     <label>{$t('eventEditor.type')}
@@ -92,7 +92,7 @@
 
     {#if kind === 'loading'}
       <label>{$t('eventEditor.carrier')} <input bind:value={carrier} placeholder={$t('eventEditor.carrierPlaceholder')}/></label>
-      <label>{$t('eventEditor.notes')} <textarea rows="3" bind:value={notes}/></label>
+      <label>{$t('eventEditor.notes')} <textarea rows="3" bind:value={notes}></textarea></label>
     {:else if kind === 'meeting'}
       <label>{$t('eventEditor.title')} <input bind:value={title} placeholder={$t('eventEditor.titlePlaceholderMeeting')} required/></label>
       <div class="row" style="gap:6px">
@@ -101,15 +101,15 @@
       </div>
       <label>{$t('eventEditor.location')} <input bind:value={location} placeholder={$t('eventEditor.locationPlaceholder')}/></label>
       <label>{$t('eventEditor.attendees')} <input bind:value={attendees} placeholder={$t('eventEditor.attendeesPlaceholder')}/></label>
-      <label>{$t('eventEditor.notes')} <textarea rows="3" bind:value={notes}/></label>
+      <label>{$t('eventEditor.notes')} <textarea rows="3" bind:value={notes}></textarea></label>
     {:else}
       <label>{$t('eventEditor.title')} <input bind:value={title} placeholder={$t('eventEditor.titlePlaceholderNote')}/></label>
-      <label>{$t('eventEditor.notes')} <textarea rows="3" bind:value={notes} placeholder={$t('eventEditor.notesPlaceholder')}/></label>
+      <label>{$t('eventEditor.notes')} <textarea rows="3" bind:value={notes} placeholder={$t('eventEditor.notesPlaceholder')}></textarea></label>
     {/if}
 
     <div class="row" style="justify-content:flex-end;gap:8px;margin-top:8px">
-      <button class="tag ghost" on:click={()=>onClose ? onClose() : dispatchEvent(new CustomEvent('close'))}>{$t('eventEditor.cancel')}</button>
-      <button class="tag" on:click={save}>{$t('eventEditor.save')}</button>
+      <button class="tag ghost" onclick={()=>onClose ? onClose() : dispatchEvent(new CustomEvent('close'))}>{$t('eventEditor.cancel')}</button>
+      <button class="tag" onclick={save}>{$t('eventEditor.save')}</button>
     </div>
   </div>
 </div>

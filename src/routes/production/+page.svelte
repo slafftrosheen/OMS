@@ -8,9 +8,9 @@
 
     const STATIONS = ['CAD', 'CNC', 'EDGE', 'ASSEMBLY', 'PAINT', 'PACKAGING', 'DELIVERY'];
 
-    let stationOrders: Record<string, any[]> = {};
-    let loading = true;
-    let showScanner = false;
+    let stationOrders: Record<string, any[]> = $state({});
+    let loading = $state(true);
+    let showScanner = $state(false);
 
     async function loadProductionData() {
         loading = true;

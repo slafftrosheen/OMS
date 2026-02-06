@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import type { FAQListResponse } from '$lib/faq/types';
   import FAQSearch from '$lib/faq/components/FAQSearch.svelte';
   import FAQCategories from '$lib/faq/components/FAQCategories.svelte';
@@ -8,18 +8,18 @@
   import FAQList from '$lib/faq/components/FAQList.svelte';
   import { BookOpen } from 'lucide-svelte';
 
-  let data: FAQListResponse = {
+  let data: FAQListResponse = $state({
     items: [],
     total: 0,
     categories: [],
     tags: []
-  };
+  });
 
-  let loading = true;
-  let selectedCategoryId: number | null = null;
-  let selectedTag: string | null = null;
-  let searchQuery = '';
-  let lang: 'en' | 'ru' | 'lv' = 'en';
+  let loading = $state(true);
+  let selectedCategoryId: number | null = $state(null);
+  let selectedTag: string | null = $state(null);
+  let searchQuery = $state('');
+  let lang: 'en' | 'ru' | 'lv' = $state('en');
 
   async function loadFAQs() {
     loading = true;
@@ -59,7 +59,7 @@
 
   onMount(() => {
     // Get lang from URL or localStorage
-    const urlLang = $page.url.searchParams.get('lang');
+    const urlLang = page.url.searchParams.get('lang');
     if (urlLang && ['en', 'ru', 'lv'].includes(urlLang)) {
       lang = urlLang as 'en' | 'ru' | 'lv';
     }

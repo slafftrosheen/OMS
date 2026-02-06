@@ -68,7 +68,7 @@
     "@sentry/sveltekit": "^8.0.0",
     "@sveltejs/adapter-node": "^5.5.2",
     "@sveltejs/adapter-vercel": "^6.3.1",
-    "@sveltejs/vite-plugin-svelte": "^3.1.2",
+    "@sveltejs/vite-plugin-svelte": "^4.0.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.3.1",
     "@types/bcrypt": "^6.0.0",
@@ -81,14 +81,13 @@
     "globals": "^17.2.0",
     "jsdom": "^27.4.0",
     "supabase": "^2.72.4",
-    "svelte-check": "^3.4.0",
+    "svelte-check": "^4.0.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.0.0",
+    "typescript": "^5.5.0",
     "typescript-eslint": "^8.54.0",
     "vite": "^5.4.10",
     "vitest": "file:packages/vitest"
-  }
-  ,
+  },
   "overrides": {
     "svelte-apexcharts": {
       "svelte": "^5.0.0"

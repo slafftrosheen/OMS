@@ -32,7 +32,7 @@
   aria-invalid={error}
   class="rf-input"
   data-size={size}
-  on:input={handleInput} />
+  oninput={handleInput} />
 
 <style>
   .rf-input {

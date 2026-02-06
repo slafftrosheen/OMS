@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+  const bubble = createBubbler();
 /**
  * Backup Dashboard Component
  * Manage backups, restores, and system health
@@ -20,21 +23,21 @@ import {
   Server
 } from 'lucide-svelte';
 
-let backups: any[] = [];
-let statistics: any = null;
-let loading = true;
-let creating = false;
-let error: string | null = null;
-let showCreateModal = false;
+let backups: any[] = $state([]);
+let statistics: any = $state(null);
+let loading = $state(true);
+let creating = $state(false);
+let error: string | null = $state(null);
+let showCreateModal = $state(false);
 
-let newBackup = {
+let newBackup = $state({
   name: '',
   type: 'full',
   scheduleEnabled: false,
   scheduleInterval: 24,
   retentionDays: 30,
   includeAttachments: true
-};
+});
 
 onMount(() => {
   loadBackups();
@@ -204,7 +207,7 @@ function getLogIcon(status: string) {
       Backup & Restore
     </h1>
     <div class="header-actions">
-      <button class="btn-primary" on:click={() => showCreateModal = true}>
+      <button class="btn-primary" onclick={() => showCreateModal = true}>
         <Play size={16} />
         Create Backup
       </button>
@@ -279,7 +282,7 @@ function getLogIcon(status: string) {
       <div class="empty-state">
         <Database size={48} />
         <p>No backups found</p>
-        <button class="btn-primary" on:click={() => showCreateModal = true}>
+        <button class="btn-primary" onclick={() => showCreateModal = true}>
           Create First Backup
         </button>
       </div>
@@ -299,11 +302,11 @@ function getLogIcon(status: string) {
           </thead>
           <tbody>
             {#each backups as backup}
+              {@const SvelteComponent = getLogIcon(backup.status)}
               <tr>
                 <td>
                   <div class="status-cell">
-                    <svelte:component 
-                      this={getLogIcon(backup.status)} 
+                    <SvelteComponent 
                       size={16} 
                       style="color: {getStatusColor(backup.status)}"
                     />
@@ -324,7 +327,7 @@ function getLogIcon(status: string) {
                     {#if backup.status === 'completed'}
                       <button 
                         class="btn-icon"
-                        on:click={() => restoreBackup(backup.id)}
+                        onclick={() => restoreBackup(backup.id)}
                         title="Restore"
                       >
                         <Upload size={16} />
@@ -332,7 +335,7 @@ function getLogIcon(status: string) {
                     {/if}
                     <button 
                       class="btn-icon"
-                      on:click={() => deleteBackup(backup.id)}
+                      onclick={() => deleteBackup(backup.id)}
                       title="Delete"
                     >
                       <Trash2 size={16} />
@@ -349,8 +352,8 @@ function getLogIcon(status: string) {
 </div>
 
 {#if showCreateModal}
-  <div class="modal-overlay" on:click={() => showCreateModal = false}>
-    <div class="modal-content" on:click|stopPropagation>
+  <div class="modal-overlay" onclick={() => showCreateModal = false}>
+    <div class="modal-content" onclick={stopPropagation(bubble('click'))}>
       <h3>Create Backup</h3>
 
       <div class="form-group">
@@ -417,12 +420,12 @@ function getLogIcon(status: string) {
       </div>
 
       <div class="modal-actions">
-        <button class="btn-secondary" on:click={() => showCreateModal = false}>
+        <button class="btn-secondary" onclick={() => showCreateModal = false}>
           Cancel
         </button>
         <button 
           class="btn-primary" 
-          on:click={createBackup}
+          onclick={createBackup}
           disabled={creating || !newBackup.name.trim()}
         >
           {#if creating}

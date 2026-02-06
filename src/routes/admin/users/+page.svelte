@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+  const bubble = createBubbler();
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
@@ -328,7 +331,7 @@
       <p class="subtitle">{$t('admin.users.subtitle')}</p>
     </div>
     {#if canManageUsers}
-      <button class="btn-primary" on:click={openCreateModal}>
+      <button class="btn-primary" onclick={openCreateModal}>
         <UserPlus size={18} />
         {$t('admin.users.add')}
       </button>
@@ -423,18 +426,18 @@
               <td class="date-cell">{formatDate(user.lastLoginAt)}</td>
               {#if canManageUsers}
                 <td class="actions-cell">
-                  <button class="btn-icon" title={$t('admin.users.edit')} on:click={() => openEditModal(user)}>
+                  <button class="btn-icon" title={$t('admin.users.edit')} onclick={() => openEditModal(user)}>
                     <Edit2 size={16} />
                   </button>
-                  <button class="btn-icon" title={$t('admin.users.reset_password')} on:click={() => openPasswordModal(user)}>
+                  <button class="btn-icon" title={$t('admin.users.reset_password')} onclick={() => openPasswordModal(user)}>
                     <Key size={16} />
                   </button>
                   {#if user.isActive}
-                    <button class="btn-icon btn-danger" title={$t('admin.users.status.inactive')} on:click={() => deactivateUser(user)}>
+                    <button class="btn-icon btn-danger" title={$t('admin.users.status.inactive')} onclick={() => deactivateUser(user)}>
                       <Trash2 size={16} />
                     </button>
                   {:else}
-                    <button class="btn-icon btn-success" title={$t('admin.users.status.active')} on:click={() => reactivateUser(user)}>
+                    <button class="btn-icon btn-success" title={$t('admin.users.status.active')} onclick={() => reactivateUser(user)}>
                       <Check size={16} />
                     </button>
                   {/if}
@@ -456,11 +459,11 @@
 
 <!-- Modal -->
 {#if showModal}
-  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-  <div class="modal-backdrop" on:click={closeModal}>
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="modal-backdrop" onclick={closeModal}>
     <div 
       class="modal" 
-      on:click|stopPropagation 
+      onclick={stopPropagation(bubble('click'))} 
       role="dialog" 
       aria-modal="true"
       tabindex="-1"
@@ -472,7 +475,7 @@
           {:else}{$t('admin.users.reset_password')}
           {/if}
         </h2>
-        <button class="btn-close" on:click={closeModal}>
+        <button class="btn-close" onclick={closeModal}>
           <X size={20} />
         </button>
       </div>
@@ -549,7 +552,7 @@
                   <input 
                     type="checkbox" 
                     checked={formData.sections.includes(section)}
-                    on:change={() => toggleSection(section)}
+                    onchange={() => toggleSection(section)}
                   />
                   {section}
                 </label>
@@ -590,7 +593,7 @@
                   <input 
                     type="checkbox" 
                     checked={formData.stations.includes(station)}
-                    on:change={() => toggleStation(station)}
+                    onchange={() => toggleStation(station)}
                   />
                   {station}
                 </label>
@@ -614,10 +617,10 @@
       </div>
 
       <div class="modal-footer">
-        <button class="btn-secondary" on:click={closeModal} disabled={saving}>
+        <button class="btn-secondary" onclick={closeModal} disabled={saving}>
           {$t('actions.cancel')}
         </button>
-        <button class="btn-primary" on:click={saveUser} disabled={saving}>
+        <button class="btn-primary" onclick={saveUser} disabled={saving}>
           {#if saving}{$t('actions.saving')}{:else}{$t('ui.save')}{/if}
         </button>
       </div>

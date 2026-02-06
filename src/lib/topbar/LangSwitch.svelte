@@ -32,7 +32,7 @@
 <div class="lang-menu" use:clickOutside={handleClickOutside}>
   <button
     class="lang-btn"
-    on:click={toggle}
+    onclick={toggle}
     aria-haspopup="menu"
     aria-expanded={isOpen}
     aria-label={$t('topbar.language', { default: 'Language' })}
@@ -47,7 +47,7 @@
         <button
           role="menuitem"
           class:active={currentLang === lang.code}
-          on:click={() => changeLang(lang.code)}
+          onclick={() => changeLang(lang.code)}
         >
           <span class="flag">{lang.flag}</span>
           <span>{lang.label}</span>

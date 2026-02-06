@@ -33,7 +33,7 @@
       type="button"
       class="chip"
       aria-pressed={$theme === value}
-      on:click={() => selectTheme(value)}
+      onclick={() => selectTheme(value)}
       title={$t(labelKey)}
     >
       <Icon aria-hidden="true" focusable="false" />

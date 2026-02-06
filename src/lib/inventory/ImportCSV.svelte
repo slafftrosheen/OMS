@@ -3,7 +3,7 @@
   import type { Section } from './types';
   import { t } from 'svelte-i18n';
   
-  let text=''; 
+  let text=$state(''); 
   
   function parse(){
     // columns: section,group,subgroup,sku,name,unit,stock,min,location
@@ -36,7 +36,7 @@
   <h3>{$t('inventory.import.title')}</h3>
   <textarea rows="6" bind:value={text} placeholder={$t('inventory.import.placeholder')}></textarea>
   <div class="row" style="justify-content:flex-end">
-    <button class="tag" on:click={parse}>{$t('inventory.import.import_button')}</button>
+    <button class="tag" onclick={parse}>{$t('inventory.import.import_button')}</button>
   </div>
 </section>
 

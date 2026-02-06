@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { preventDefault } from 'svelte/legacy';
+
 /**
  * Notification Preferences Component
  * User interface for managing email notification settings
@@ -7,11 +9,11 @@
 import { onMount } from 'svelte';
 import { Bell, BellOff, Clock, Mail, Save, Check } from 'lucide-svelte';
 
-let preferences: any = null;
-let loading = true;
-let saving = false;
-let saved = false;
-let error: string | null = null;
+let preferences: any = $state(null);
+let loading = $state(true);
+let saving = $state(false);
+let saved = $state(false);
+let error: string | null = $state(null);
 
 onMount(() => {
   loadPreferences();
@@ -83,7 +85,7 @@ async function savePreferences() {
   {:else if error}
     <div class="error" role="alert">{error}</div>
   {:else if preferences}
-    <form on:submit|preventDefault={savePreferences}>
+    <form onsubmit={preventDefault(savePreferences)}>
       <!-- Global Settings -->
       <section class="preferences-section">
         <h3>

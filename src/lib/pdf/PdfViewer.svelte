@@ -188,25 +188,25 @@
       <strong>PDF</strong>
       <div class="row">
         <div class="row">
-          <button class="tag" on:click={prev} disabled={pageNum <= 1}>{$t('pdf.prev')}</button>
+          <button class="tag" onclick={prev} disabled={pageNum <= 1}>{$t('pdf.prev')}</button>
           <div class="tag">{$t('pdf.page', { current: pageNum, total: pageCount })}</div>
-          <button class="tag" on:click={next} disabled={pageNum >= pageCount}>{$t('pdf.next')}</button>
+          <button class="tag" onclick={next} disabled={pageNum >= pageCount}>{$t('pdf.next')}</button>
         </div>
         <div class="row">
           <button
             class="tag"
-            on:click={() => setZoom(scale - 0.2)}
+            onclick={() => setZoom(scale - 0.2)}
             disabled={scale <= 0.5}>-
           </button>
           <div class="tag">{Math.round(scale * 100)}%</div>
           <button
             class="tag"
-            on:click={() => setZoom(scale + 0.2)}
+            onclick={() => setZoom(scale + 0.2)}
             disabled={scale >= maxScale}>+
           </button>
-          <button class="tag" on:click={fitToWidth}>Fit</button>
+          <button class="tag" onclick={fitToWidth}>Fit</button>
         </div>
-        <button class="tag" on:click={()=>full=!full}>{full?'Close':'Full screen'}</button>
+        <button class="tag" onclick={()=>full=!full}>{full?'Close':'Full screen'}</button>
       </div>
     </div>
   </div>

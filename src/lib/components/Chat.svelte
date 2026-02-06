@@ -1,3 +1,5 @@
+<!-- @migration-task Error while migrating Svelte code: Cannot use `export let` in runes mode — use `$props()` instead
+https://svelte.dev/e/legacy_export_invalid -->
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { chatStore } from '$lib/stores/chat';

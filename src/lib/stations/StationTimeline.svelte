@@ -109,7 +109,7 @@ $effect(() => {
           role="tab"
           class="filter-tab"
           class:active={filterType === filter.value}
-          on:click={() => filterType = filter.value}
+          onclick={() => filterType = filter.value}
           aria-selected={filterType === filter.value}
         >
           {filter.label}
@@ -127,10 +127,10 @@ $effect(() => {
   {:else}
     <div class="timeline-track">
       {#each logs as log, i (log.id)}
+        {@const SvelteComponent = getLogIcon(log.log_type)}
         <div class="timeline-item">
           <div class="timeline-marker" style="border-color: {getLogColor(log)}">
-            <svelte:component 
-              this={getLogIcon(log.log_type)} 
+            <SvelteComponent 
               size={20}
               style="color: {getLogColor(log)}"
             />

@@ -2,19 +2,34 @@
 <script lang="ts">
   import { Minus, Plus, ChevronDown } from 'lucide-svelte';
 
-  export let value: number = 0;
-  export let label: string = 'Thickness';
-  export let required: boolean = false;
-  export let disabled: boolean = false;
-  export let unit: string = 'mm';
-  export let step: number = 0.5;
-  export let min: number = 0;
-  export let max: number = 100;
-  export let standardOptions: number[] = []; // e.g., [1.5, 2, 3, 5, 10]
-  export let error: string | null = null;
+  interface Props {
+    value?: number;
+    label?: string;
+    required?: boolean;
+    disabled?: boolean;
+    unit?: string;
+    step?: number;
+    min?: number;
+    max?: number;
+    standardOptions?: number[]; // e.g., [1.5, 2, 3, 5, 10]
+    error?: string | null;
+  }
 
-  let isDropdownOpen = false;
-  let inputElement: HTMLInputElement;
+  let {
+    value = $bindable(0),
+    label = 'Thickness',
+    required = false,
+    disabled = false,
+    unit = 'mm',
+    step = 0.5,
+    min = 0,
+    max = 100,
+    standardOptions = [],
+    error = null
+  }: Props = $props();
+
+  let isDropdownOpen = $state(false);
+  let inputElement: HTMLInputElement = $state();
 
   function increment() {
     const newValue = Number((value + step).toFixed(2));
@@ -62,7 +77,7 @@
     <button
       type="button"
       class="control-button"
-      on:click={decrement}
+      onclick={decrement}
       {disabled}
       title="Decrease"
     >
@@ -74,7 +89,7 @@
         bind:this={inputElement}
         type="number"
         bind:value
-        on:input={handleInput}
+        oninput={handleInput}
         {min}
         {max}
         {step}
@@ -87,7 +102,7 @@
     <button
       type="button"
       class="control-button"
-      on:click={increment}
+      onclick={increment}
       {disabled}
       title="Increase"
     >
@@ -99,7 +114,7 @@
         <button
           type="button"
           class="dropdown-toggle"
-          on:click={toggleDropdown}
+          onclick={toggleDropdown}
           {disabled}
           title="Standard thicknesses"
         >
@@ -113,7 +128,7 @@
                 type="button"
                 class="dropdown-item"
                 class:active={value === thickness}
-                on:click={() => selectStandard(thickness)}
+                onclick={() => selectStandard(thickness)}
               >
                 {thickness}{unit}
               </button>

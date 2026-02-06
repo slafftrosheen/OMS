@@ -65,7 +65,7 @@
         <button
           class="stage-card stage-{getStateClass(stage.state)}"
           class:readonly
-          on:click={() => handleStageClick(stage)}
+          onclick={() => handleStageClick(stage)}
           disabled={readonly}
           aria-label="{stage.station} - {stage.state}"
         >

@@ -7,8 +7,8 @@
 
   type Kind = 'all' | 'loading' | 'meeting' | 'note';
 
-  let entries: any[] = [];
-  let kind: Kind = 'all';
+  let entries: any[] = $state([]);
+  let kind: Kind = $state('all');
   let loadsList: any[] = [];
 
   const unsubscribe = calEvents.subscribe((value) => {
@@ -22,7 +22,7 @@
     unsubLoads?.();
   });
   
-  let dragOverDate: string | null = null;
+  let dragOverDate: string | null = $state(null);
   
   function onDragOver(e: DragEvent, dateISO: string) {
     if (!e.dataTransfer) return;
@@ -82,9 +82,9 @@
       class="row" 
       class:dragover={dragOverDate === e.date}
       style="justify-content:space-between"
-      on:dragover={(ev) => onDragOver(ev, e.date)}
-      on:drop={(ev) => onDrop(ev, e.date)}
-      on:dragleave={() => dragOverDate = null}
+      ondragover={(ev) => onDragOver(ev, e.date)}
+      ondrop={(ev) => onDrop(ev, e.date)}
+      ondragleave={() => dragOverDate = null}
       aria-dropeffect="copy"
       aria-label={`Day ${e.date} — drop PO here`}>
       <div>

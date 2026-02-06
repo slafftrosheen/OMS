@@ -56,8 +56,8 @@
 <article
   class="order-card {urgencyClass}"
   class:compact
-  on:click={handleClick}
-  on:keydown={e => e.key === 'Enter' && handleClick()}
+  onclick={handleClick}
+  onkeydown={e => e.key === 'Enter' && handleClick()}
   role="button"
   tabindex="0"
 >
@@ -141,7 +141,7 @@
           aria-valuenow={order.progress_percentage || 0}
           aria-valuemin="0"
           aria-valuemax="100"
-        />
+></div>
       </div>
       <div class="progress-details">
         <small>
@@ -196,10 +196,10 @@
 
   {#if showActions}
     <footer class="card-footer">
-      <button class="btn btn-sm btn-outline" on:click={handleEdit}>
+      <button class="btn btn-sm btn-outline" onclick={handleEdit}>
         {$t('common.edit')}
       </button>
-      <button class="btn btn-sm btn-outline btn-danger" on:click={handleDelete}>
+      <button class="btn btn-sm btn-outline btn-danger" onclick={handleDelete}>
         {$t('common.delete')}
       </button>
     </footer>

@@ -3,7 +3,7 @@
   import { base } from '$app/paths';
   import { HelpCircle, ChevronDown, ChevronRight } from 'lucide-svelte';
   
-  let expandedItems: Set<string> = new Set(['q1']);
+  let expandedItems: Set<string> = $state(new Set(['q1']));
   
   const faqs = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6'];
   
@@ -29,7 +29,7 @@
       <div class="faq-item">
         <button 
           class="faq-question" 
-          on:click={() => toggleItem(faqKey)}
+          onclick={() => toggleItem(faqKey)}
           aria-expanded={isExpanded}>
           <span class="faq-icon">
             {#if isExpanded}

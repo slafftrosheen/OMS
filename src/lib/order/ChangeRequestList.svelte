@@ -56,15 +56,15 @@
               class="tag"
               class:is-active={selected}
               aria-pressed={selected}
-              on:click={() => toggle(p.id)}
+              onclick={() => toggle(p.id)}
             >
               {$t('compare.heading')}
             </button>
             {#if isAdmin && p.status==='open'}
-              <button class="tag" on:click={()=>onApprove(p.id)} aria-label={$t('terms.approve')}>
+              <button class="tag" onclick={()=>onApprove(p.id)} aria-label={$t('terms.approve')}>
                 {$t('terms.approve')}
               </button>
-              <button class="tag" on:click={()=>onDecline(p.id)} aria-label={$t('terms.decline')}>
+              <button class="tag" onclick={()=>onDecline(p.id)} aria-label={$t('terms.decline')}>
                 {$t('terms.decline')}
               </button>
             {/if}

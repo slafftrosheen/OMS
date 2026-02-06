@@ -1,6 +1,6 @@
 <!-- src/lib/components/ui/Badge.svelte -->
 <script lang="ts">
-    let { 
+    let { children, 
         variant = 'neutral', 
         size = 'md', 
         rounded = true, 
@@ -27,7 +27,7 @@
     {#if dot}
         <span class="badge-dot-indicator" aria-hidden="true"></span>
     {/if}
-    <slot />
+    {@render children?.()}
 </span>
 
 <style>

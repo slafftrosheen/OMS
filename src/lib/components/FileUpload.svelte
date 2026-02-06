@@ -122,10 +122,10 @@
 >
   {#if uploading}
     <div class="upload-progress">
-      <div class="spinner" />
+      <div class="spinner"></div>
       <p>Uploading... {progress.toFixed(0)}%</p>
       <div class="progress-bar">
-        <div class="progress-fill" style="width: {progress}%" />
+        <div class="progress-fill" style="width: {progress}%"></div>
       </div>
     </div>
   {:else}

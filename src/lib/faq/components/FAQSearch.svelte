@@ -27,7 +27,7 @@
   <input 
     type="search"
     bind:value
-    on:input={handleInput}
+    oninput={handleInput}
     {placeholder}
     class="search-input"
     aria-label="Search FAQs"

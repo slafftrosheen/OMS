@@ -422,7 +422,8 @@
                     {#each row.badges as badge}
                       {@const label = badgeLabel(badge)}
                       <Badge tone={badgeTone(badge)} label={label}>
-                        <svelte:component this={BADGE_ICONS[badge]} aria-hidden="true" />
+                        {@const SvelteComponent = BADGE_ICONS[badge]}
+                        <SvelteComponent aria-hidden="true" />
                         <span class="badge-text">{label}</span>
                       </Badge>
                     {/each}
@@ -469,7 +470,8 @@
                           {#each row.badges as badge}
                             {@const label = badgeLabel(badge)}
                             <Badge tone={badgeTone(badge)} label={label}>
-                              <svelte:component this={BADGE_ICONS[badge]} aria-hidden="true" />
+                              {@const SvelteComponent_1 = BADGE_ICONS[badge]}
+                              <SvelteComponent_1 aria-hidden="true" />
                               <span>{label}</span>
                             </Badge>
                           {/each}

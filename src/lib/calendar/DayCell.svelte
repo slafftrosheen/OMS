@@ -107,18 +107,18 @@
   tabindex="0" 
   aria-label={`Day ${iso} — ${orderCount} orders — drop PO here`}
   aria-dropeffect="copy"
-  on:pointerdown={onDown} 
-  on:pointerup={onUp} 
-  on:pointerleave={onUp}
-  on:dragover={onDragOver}
-  on:drop={onDrop}
-  on:dragenter={() => over = true}
-  on:dragleave={() => over = false}
+  onpointerdown={onDown} 
+  onpointerup={onUp} 
+  onpointerleave={onUp}
+  ondragover={onDragOver}
+  ondrop={onDrop}
+  ondragenter={() => over = true}
+  ondragleave={() => over = false}
 >
   <div class="day-header">
     <div class="day-num">{dayNum}</div>
     {#if canEdit}
-      <button class="tag ghost sm" title="Add entry" on:click={() => (open = true)}>+</button>
+      <button class="tag ghost sm" title="Add entry" onclick={() => (open = true)}>+</button>
     {/if}
   </div>
 
@@ -134,7 +134,7 @@
         class="event-chip"
         data-kind={e.kind}
         title={e.kind==='loading' ? `Carrier: ${e.carrier||'-'}` : e.title || e.kind}
-        on:click={() => { open = true; }}
+        onclick={() => { open = true; }}
       >
         {#if e.kind==='loading'}<Truck size={14} aria-hidden="true"/>{/if}
         {#if e.kind==='meeting'}<Calendar size={14} aria-hidden="true"/>{/if}
@@ -150,10 +150,10 @@
     {#each dayOrders.slice(0, 3) as order (order.id)}
       <button
         class="order-card"
-        on:mouseenter={(e) => handleOrderHover(order, e)}
-        on:mouseleave={handleOrderLeave}
-        on:focus={(e) => handleOrderHover(order, e)}
-        on:blur={handleOrderLeave}
+        onmouseenter={(e) => handleOrderHover(order, e)}
+        onmouseleave={handleOrderLeave}
+        onfocus={(e) => handleOrderHover(order, e)}
+        onblur={handleOrderLeave}
         aria-label={`Order PO-${order.id}: ${order.title}`}
       >
         <div class="order-card-header">

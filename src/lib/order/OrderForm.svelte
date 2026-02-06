@@ -176,13 +176,13 @@
     role="button"
     tabindex="0"
     aria-label={$t('orderform.close')}
-    on:click={handleBackdrop}
-    on:keydown={handleBackdropKey}
+    onclick={handleBackdrop}
+    onkeydown={handleBackdropKey}
   >
     <div class="panel" role="dialog" aria-modal="true" aria-label={$t('orderform.title')}>
       <header>
         <h3>{$t('orderform.title')}</h3>
-        <button class="x" on:click={close} aria-label={$t('orderform.close')}>✕</button>
+        <button class="x" onclick={close} aria-label={$t('orderform.close')}>✕</button>
       </header>
 
       <section class="grid" style="grid-template-columns:1.2fr 1fr; gap:12px">
@@ -268,13 +268,13 @@
 
                 <div class="row full" style="align-items:center; gap:6px">
                   <ColorSwatch color={row.color} />
-                <button class="tag" type="button" on:click={() => deleteRow(index)} aria-label={$t('orderform.remove')}>
+                <button class="tag" type="button" onclick={() => deleteRow(index)} aria-label={$t('orderform.remove')}>
                   {$t('orderform.remove_short')}
                 </button>
                 </div>
               {/each}
               <div class="full">
-                <button class="tag" type="button" on:click={addRow}>
+                <button class="tag" type="button" onclick={addRow}>
                   {$t('orderform.add_section')}
                 </button>
               </div>

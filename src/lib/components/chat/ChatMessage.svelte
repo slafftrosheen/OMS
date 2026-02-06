@@ -92,8 +92,8 @@
 <div
     class="chat-message"
     class:own={isOwn}
-    on:mouseenter={() => showActions = true}
-    on:mouseleave={() => showActions = false}
+    onmouseenter={() => showActions = true}
+    onmouseleave={() => showActions = false}
 >
     {#if !isOwn}
         <div class="avatar">
@@ -113,14 +113,14 @@
             {#if isEditing}
                 <textarea
                     bind:value={editedText}
-                    on:keydown={handleKeydown}
+                    onkeydown={handleKeydown}
                     class="edit-textarea"
                     rows="3"
                     autofocus
-                />
+></textarea>
                 <div class="edit-actions">
-                    <button class="edit-btn save" on:click={saveEdit}>Save</button>
-                    <button class="edit-btn cancel" on:click={cancelEdit}>Cancel</button>
+                    <button class="edit-btn save" onclick={saveEdit}>Save</button>
+                    <button class="edit-btn cancel" onclick={cancelEdit}>Cancel</button>
                 </div>
             {:else}
                 <p class="message-text">{message.message}</p>
@@ -149,14 +149,14 @@
 
         {#if showActions && !isEditing}
             <div class="message-actions">
-                <button class="action-btn" on:click={handleReply} title="Reply">
+                <button class="action-btn" onclick={handleReply} title="Reply">
                     💬
                 </button>
                 {#if isOwn}
-                    <button class="action-btn" on:click={handleEdit} title="Edit">
+                    <button class="action-btn" onclick={handleEdit} title="Edit">
                         ✏️
                     </button>
-                    <button class="action-btn danger" on:click={handleDelete} title="Delete">
+                    <button class="action-btn danger" onclick={handleDelete} title="Delete">
                         🗑️
                     </button>
                 {/if}

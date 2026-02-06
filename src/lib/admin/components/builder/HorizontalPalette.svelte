@@ -54,14 +54,14 @@
     <button 
       class="tab"
       class:active={activeTab === 'sections'}
-      on:click={() => activeTab = 'sections'}
+      onclick={() => activeTab = 'sections'}
     >
       📐 Sections
     </button>
     <button 
       class="tab"
       class:active={activeTab === 'fields'}
-      on:click={() => activeTab = 'fields'}
+      onclick={() => activeTab = 'fields'}
     >
       🧩 Fields
     </button>
@@ -75,7 +75,7 @@
           <div
             class="component-card section-card"
             draggable="true"
-            on:dragstart={(e) => startDrag(e, section)}
+            ondragstart={(e) => startDrag(e, section)}
             style="border-top: 4px solid {section.color};"
             title={section.desc}
             role="button"
@@ -97,7 +97,7 @@
               <div
                 class="component-card field-card"
                 draggable="true"
-                on:dragstart={(e) => startDrag(e, field)}
+                ondragstart={(e) => startDrag(e, field)}
                 title={field.fieldType}
                 role="button"
                 tabindex="0"

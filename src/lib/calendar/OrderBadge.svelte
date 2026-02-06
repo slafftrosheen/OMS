@@ -33,7 +33,7 @@
   title={config.label}
   aria-label={`Order badge: ${config.label}`}
 >
-  <svelte:component this={config.icon} size={iconSize} aria-hidden="true" />
+  <config.icon size={iconSize} aria-hidden="true" />
   <span class="badge-label">{config.label}</span>
 </span>
 

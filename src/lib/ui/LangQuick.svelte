@@ -10,9 +10,9 @@
 
   const languages: LanguageCode[] = ['en', 'ru', 'lv'];
 
-  let open = false;
-  let wrapper: HTMLDivElement | null = null;
-  let trigger: HTMLButtonElement | null = null;
+  let open = $state(false);
+  let wrapper: HTMLDivElement | null = $state(null);
+  let trigger: HTMLButtonElement | null = $state(null);
   let items: HTMLButtonElement[] = [];
 
   function registerItem(node: HTMLButtonElement) {
@@ -129,14 +129,14 @@
   });
 </script>
 
-<div class="menu-wrap" bind:this={wrapper} on:focusout={handleFocusOut}>
+<div class="menu-wrap" bind:this={wrapper} onfocusout={handleFocusOut}>
   <button
     class="chip"
     type="button"
     aria-haspopup="menu"
     aria-expanded={open}
-    on:click={toggleMenu}
-    on:keydown={handleTriggerKeydown}
+    onclick={toggleMenu}
+    onkeydown={handleTriggerKeydown}
     bind:this={trigger}
     title={$t('header.language.label')}
   >
@@ -150,7 +150,7 @@
       role="menu"
       aria-label={$t('header.language.label')}
       tabindex="-1"
-      on:keydown={handleMenuKeydown}
+      onkeydown={handleMenuKeydown}
     >
       {#each languages as code}
         <button
@@ -160,7 +160,7 @@
           aria-checked={$locale === code}
           data-lang={code}
           use:registerItem
-          on:click={() => selectLanguage(code)}
+          onclick={() => selectLanguage(code)}
         >
           <span>{$t(`header.language.options.${code}`)}</span>
           <span class="mini" aria-hidden="true">{code.toUpperCase()}</span>

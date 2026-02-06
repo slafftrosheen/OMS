@@ -57,7 +57,7 @@
   });
 </script>
 
-<div class="grid cal" style="grid-template-columns:repeat(7,1fr)" on:keydown={keyNav} role="grid" aria-label="Month">
+<div class="grid cal" style="grid-template-columns:repeat(7,1fr)" onkeydown={keyNav} role="grid" aria-label="Month">
   {#each days as d, i}
     <button 
       id={`d-${i+1}`} 

@@ -61,12 +61,13 @@ let statusColor = $derived($connectionState === 'connected' ? 'var(--ok)' :
 let statusLabel = $derived($connectionState === 'connected' ? 'Connected' :
                  $connectionState === 'connecting' ? 'Connecting...' :
                  $connectionState === 'error' ? 'Connection Error' : 'Disconnected');
+
+  const SvelteComponent = $derived(statusIcon);
 </script>
 
 <!-- Connection status indicator -->
 <div class="realtime-status" title={statusLabel}>
-  <svelte:component 
-    this={statusIcon} 
+  <SvelteComponent 
     size={16} 
     style="color: {statusColor}" 
     aria-label={statusLabel}
@@ -75,7 +76,7 @@ let statusLabel = $derived($connectionState === 'connected' ? 'Connected' :
   {#if $connectionState === 'error'}
     <button 
       class="retry-btn" 
-      on:click={retryConnection}
+      onclick={retryConnection}
       aria-label="Retry connection"
     >
       Retry

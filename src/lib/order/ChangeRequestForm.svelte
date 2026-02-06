@@ -4,12 +4,16 @@
   import { t } from 'svelte-i18n';
   import { get } from 'svelte/store';
 
-  export let onCreate: (title:string, changes: StationLog['changes'], message?:string)=>void = ()=>{};
+  interface Props {
+    onCreate?: (title:string, changes: StationLog['changes'], message?:string)=>void;
+  }
+
+  let { onCreate = ()=>{} }: Props = $props();
   const dueId = 'change-request-due';
   const sandingId = 'change-request-sanding';
-  let title = ''; let message = '';
-  let due = ''; let sanding = 0; let note = '';
-  let titleInput: HTMLInputElement | null = null;
+  let title = $state(''); let message = $state('');
+  let due = $state(''); let sanding = $state(0); let note = $state('');
+  let titleInput: HTMLInputElement | null = $state(null);
 
   function submit(){
     const translate = get(t);

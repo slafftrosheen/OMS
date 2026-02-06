@@ -61,12 +61,12 @@
 
 <div class="menu">
   <button bind:this={btn} class="icon" aria-haspopup="menu" aria-expanded={open}
-          aria-label={`Notifications ${count}`} on:click={()=>open=!open}>
+          aria-label={`Notifications ${count}`} onclick={()=>open=!open}>
     <Bell aria-hidden="true"/>{#if count}<span class="nbadge" aria-label="{count} unread">{count}</span>{/if}
   </button>
 
   {#if open}
-  <div class="dropdown mobile-sheet" role="menu" tabindex="0" style="max-width:92vw" on:keydown={onKey}>
+  <div class="dropdown mobile-sheet" role="menu" tabindex="0" style="max-width:92vw" onkeydown={onKey}>
     {#if allNotifications.length===0}<div class="muted">No notifications.</div>{/if}
     {#each allNotifications as n}
       <button role="menuitem" class="row">

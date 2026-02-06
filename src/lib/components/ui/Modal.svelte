@@ -3,7 +3,7 @@
     import { onMount } from 'svelte';
     import { fade, fly } from 'svelte/transition';
 
-    let {
+    let { children, footer,
         open = $bindable(false),
         title = null as string | null,
         size = 'md' as 'sm' | 'md' | 'lg' | 'xl',
@@ -111,12 +111,12 @@
             {/if}
 
             <div class="modal-body">
-                <slot />
+                {@render children?.()}
             </div>
 
-            {#if $$slots.footer}
+            {#if footer}
                 <div class="modal-footer">
-                    <slot name="footer" />
+                    {@render footer?.()}
                 </div>
             {/if}
         </div>

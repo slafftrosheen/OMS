@@ -2,13 +2,25 @@
 <script lang="ts">
   import { Ruler } from 'lucide-svelte';
 
-  export let value: { width?: number; height?: number; depth?: number } = {};
-  export let label: string = 'Dimensions';
-  export let required: boolean = false;
-  export let disabled: boolean = false;
-  export let unit: string = 'mm';
-  export let fields: string[] = ['width', 'height']; // Which dimensions to show
-  export let error: string | null = null;
+  interface Props {
+    value?: { width?: number; height?: number; depth?: number };
+    label?: string;
+    required?: boolean;
+    disabled?: boolean;
+    unit?: string;
+    fields?: string[]; // Which dimensions to show
+    error?: string | null;
+  }
+
+  let {
+    value = $bindable({}),
+    label = 'Dimensions',
+    required = false,
+    disabled = false,
+    unit = 'mm',
+    fields = ['width', 'height'],
+    error = null
+  }: Props = $props();
 
   const labels: Record<string, string> = {
     width: 'Width',
@@ -41,7 +53,7 @@
           <input
             type="number"
             value={value[field] || ''}
-            on:input={(e) => handleInput(field, e)}
+            oninput={(e) => handleInput(field, e)}
             placeholder="0"
             {disabled}
             class="dimension-value"

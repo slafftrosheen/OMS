@@ -29,17 +29,19 @@
   ];
 
   let currentIcon = $derived(options.find(o => o.id === current)?.icon || Columns);
+
+  const SvelteComponent = $derived(currentIcon);
 </script>
 
 <div class="density-menu" use:clickOutside={handleClickOutside}>
   <button 
     class="density-btn"
-    on:click={toggle}
+    onclick={toggle}
     aria-haspopup="menu"
     aria-expanded={isOpen}
     aria-label={$t('topbar.density', { default: 'Density' })}
   >
-    <svelte:component this={currentIcon} size={18} aria-hidden="true" />
+    <SvelteComponent size={18} aria-hidden="true" />
   </button>
   
   {#if isOpen}
@@ -48,9 +50,9 @@
         <button
           role="menuitem"
           class:active={current === option.id}
-          on:click={() => set(option.id)}
+          onclick={() => set(option.id)}
         >
-          <svelte:component this={option.icon} size={16} />
+          <option.icon size={16} />
           <span>{option.label}</span>
         </button>
       {/each}

@@ -147,7 +147,7 @@
           <button
             class="color-item"
             class:selected={selectedColor?.code === color.code}
-            on:click={() => selectColor(color)}
+            onclick={() => selectColor(color)}
             style="background-color: {color.hex}; border: 2px solid {selectedColor?.code === color.code ? '#000' : '#ccc'};"
             title="{color.name} ({color.code})"
             {disabled}
@@ -173,7 +173,7 @@
           <button
             class="color-item"
             class:selected={selectedColor?.code === color.code}
-            on:click={() => selectColor(color)}
+            onclick={() => selectColor(color)}
             style="background-color: {color.hex}; border: 2px solid {selectedColor?.code === color.code ? '#000' : '#ccc'};"
             title="{color.name} ({color.code})"
             {disabled}

@@ -36,7 +36,7 @@
       <label for="section-switch" class="sr-only">Current Section</label>
       <select 
         id="section-switch"
-        on:change={handleChange}
+        onchange={handleChange}
         aria-label="Switch section"
       >
         {#each sections as section}

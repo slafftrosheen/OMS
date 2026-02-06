@@ -23,7 +23,7 @@
 		</p>
 
 		<div class="offline-actions">
-			<button class="btn-retry" on:click={handleRetry}>
+			<button class="btn-retry" onclick={handleRetry}>
 				<RefreshCw size={20} />
 				Try Again
 			</button>

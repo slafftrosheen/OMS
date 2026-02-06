@@ -33,7 +33,7 @@
       <Package size={24} />
       <h1>{$t('inventory.catalog') || 'Material Catalog'}</h1>
     </div>
-    <button class="btn primary" on:click={() => {/* Open add material modal */}}>
+    <button class="btn primary" onclick={() => {/* Open add material modal */}}>
       <Plus size={16} />
       {$t('inventory.add_material') || 'Add Material'}
     </button>
@@ -43,7 +43,7 @@
     <div class="alert-banner">
       <AlertCircle size={20} />
       <span>{$lowStock.length} {$t('inventory.low_stock_items') || 'materials low in stock'}</span>
-      <button class="btn sm" on:click={() => showLowStockOnly = !showLowStockOnly}>
+      <button class="btn sm" onclick={() => showLowStockOnly = !showLowStockOnly}>
         {showLowStockOnly ? ($t('inventory.show_all') || 'Show All') : ($t('inventory.show_alerts') || 'Show Alerts Only')}
       </button>
     </div>
@@ -133,7 +133,7 @@
         <Package size={48} />
         <p>No materials found</p>
         {#if searchQuery || categoryFilter !== 'ALL'}
-          <button class="btn ghost" on:click={() => { searchQuery = ''; categoryFilter = 'ALL'; }}>
+          <button class="btn ghost" onclick={() => { searchQuery = ''; categoryFilter = 'ALL'; }}>
             Clear Filters
           </button>
         {/if}

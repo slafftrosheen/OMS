@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { preventDefault } from 'svelte/legacy';
+
   import { t } from 'svelte-i18n';
   import { createItem, updateItem, type Item } from './store';
   import type { Section } from './types';
@@ -38,11 +40,11 @@
 </script>
 
 <div class="sheet" role="dialog" aria-modal="true" aria-label={isNew ? $t('inventory.newItem') : $t('inventory.editItem')}>
-  <form class="card" on:submit|preventDefault={save}>
+  <form class="card" onsubmit={preventDefault(save)}>
     <header class="row" style="justify-content:space-between">
       <strong>{isNew ? $t('inventory.newItem') : $t('inventory.editItem')}</strong>
       <div class="row">
-        <button class="tag ghost" type="button" on:click={onClose}>{$t('actions.cancel')}</button>
+        <button class="tag ghost" type="button" onclick={onClose}>{$t('actions.cancel')}</button>
         <button class="tag" type="submit">{$t('inventory.save')}</button>
       </div>
     </header>

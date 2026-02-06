@@ -18,15 +18,19 @@ import {
   RefreshCw
 } from 'lucide-svelte';
 
-export let refreshInterval = 30; // seconds
+  interface Props {
+    refreshInterval?: number; // seconds
+  }
 
-let kpis: any = null;
-let trends: any = null;
-let stationMetrics: any = null;
-let loadingMetrics: any = null;
-let loading = true;
-let error: string | null = null;
-let lastRefresh: Date | null = null;
+  let { refreshInterval = 30 }: Props = $props();
+
+let kpis: any = $state(null);
+let trends: any = $state(null);
+let stationMetrics: any = $state(null);
+let loadingMetrics: any = $state(null);
+let loading = $state(true);
+let error: string | null = $state(null);
+let lastRefresh: Date | null = $state(null);
 let refreshTimer: number | null = null;
 
 onMount(() => {
@@ -118,7 +122,7 @@ function getChangeIndicator(current: number, previous: number) {
 
     <button 
       class="refresh-btn"
-      on:click={handleRefresh}
+      onclick={handleRefresh}
       disabled={loading}
       aria-label="Refresh dashboard"
     >
@@ -138,7 +142,7 @@ function getChangeIndicator(current: number, previous: number) {
     <div class="error-state">
       <AlertCircle size={48} />
       <p>{error}</p>
-      <button class="btn-primary" on:click={loadDashboard}>
+      <button class="btn-primary" onclick={loadDashboard}>
         Try Again
       </button>
     </div>

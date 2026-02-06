@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+  const bubble = createBubbler();
   import { currentUser, logout } from '$lib/auth/user-store';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
@@ -32,16 +35,16 @@
   let roleLabel = $derived(me?.roles?.[me?.primarySection || 'Admin'] || 'User');
 </script>
 
-<svelte:window on:click={handleClickOutside} />
+<svelte:window onclick={handleClickOutside} />
 
 <div class="user-menu" bind:this={menuElement}>
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
   <button 
     class="user-trigger" 
     class:active={open}
     aria-haspopup="menu" 
     aria-expanded={open}
-    on:click={toggleMenu}
+    onclick={toggleMenu}
   >
     <span class="avatar">{initials(me?.displayName || me?.username)}</span>
     <span class="user-info">
@@ -52,8 +55,8 @@
   </button>
   
   {#if open}
-    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-    <div class="dropdown" role="menu" on:click|stopPropagation>
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div class="dropdown" role="menu" onclick={stopPropagation(bubble('click'))}>
       <div class="dropdown-header">
         <span class="avatar-lg">{initials(me?.displayName || me?.username)}</span>
         <div class="dropdown-user-info">
@@ -64,14 +67,14 @@
       
       <div class="dropdown-divider"></div>
       
-      <a href={`${base}/settings`} class="dropdown-item" on:click={() => open = false}>
+      <a href={`${base}/settings`} class="dropdown-item" onclick={() => open = false}>
         <Settings size={16} />
         <span>Settings</span>
       </a>
       
       <div class="dropdown-divider"></div>
       
-      <button class="dropdown-item logout" on:click={signOut}>
+      <button class="dropdown-item logout" onclick={signOut}>
         <LogOut size={16} />
         Sign out
       </button>

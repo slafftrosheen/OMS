@@ -1,9 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   
-  export let render: (host: HTMLElement) => (() => void) | void;
+  interface Props {
+    render: (host: HTMLElement) => (() => void) | void;
+  }
+
+  let { render }: Props = $props();
   
-  let host: HTMLElement;
+  let host: HTMLElement = $state();
   let cleanup = () => {};
   
   onMount(() => {

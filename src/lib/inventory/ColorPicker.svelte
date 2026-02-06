@@ -37,10 +37,10 @@
   </div>
   
   <div class="mode-selector">
-    <button class:active={mode === 'RAL'} on:click={() => mode = 'RAL'}>RAL</button>
-    <button class:active={mode === 'PANTONE'} on:click={() => mode = 'PANTONE'}>Pantone</button>
-    <button class:active={mode === 'HEX'} on:click={() => mode = 'HEX'}>HEX</button>
-    <button class:active={mode === 'CUSTOM'} on:click={() => mode = 'CUSTOM'}>Custom</button>
+    <button class:active={mode === 'RAL'} onclick={() => mode = 'RAL'}>RAL</button>
+    <button class:active={mode === 'PANTONE'} onclick={() => mode = 'PANTONE'}>Pantone</button>
+    <button class:active={mode === 'HEX'} onclick={() => mode = 'HEX'}>HEX</button>
+    <button class:active={mode === 'CUSTOM'} onclick={() => mode = 'CUSTOM'}>Custom</button>
   </div>
   
   <div class="input-section">
@@ -102,8 +102,8 @@
   </div>
   
   <div class="modal-actions">
-    <button class="btn primary" on:click={handleSubmit}>Add Color</button>
-    <button class="btn ghost" on:click={() => onChange(null)}>Cancel</button>
+    <button class="btn primary" onclick={handleSubmit}>Add Color</button>
+    <button class="btn ghost" onclick={() => onChange(null)}>Cancel</button>
   </div>
 </div>
 

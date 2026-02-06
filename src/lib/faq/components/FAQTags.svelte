@@ -24,7 +24,7 @@
       <button
         class="tag-btn"
         class:active={selectedTag === tag.slug}
-        on:click={() => selectTag(selectedTag === tag.slug ? null : tag.slug)}
+        onclick={() => selectTag(selectedTag === tag.slug ? null : tag.slug)}
         type="button"
       >
         {tag.name}

@@ -65,7 +65,7 @@
       type="button"
       class="selector-button"
       class:open={isOpen}
-      on:click={toggleDropdown}
+      onclick={toggleDropdown}
       {disabled}
     >
       {#if loading}
@@ -85,7 +85,7 @@
             type="button"
             class="profile-option"
             class:selected={profile.code === selectedCode}
-            on:click={() => selectProfile(profile)}
+            onclick={() => selectProfile(profile)}
           >
             <div class="profile-name">{profile.name}</div>
             <div class="profile-code">{profile.code}</div>

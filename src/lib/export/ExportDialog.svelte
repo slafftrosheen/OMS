@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+  const bubble = createBubbler();
 /**
  * Export Dialog Component
  * UI for generating exports with templates
@@ -158,14 +161,14 @@ $effect(() => {
 </script>
 
 {#if show}
-  <div class="modal-overlay" on:click={handleClose}>
-    <div class="modal-content" on:click|stopPropagation>
+  <div class="modal-overlay" onclick={handleClose}>
+    <div class="modal-content" onclick={stopPropagation(bubble('click'))}>
       <div class="modal-header">
         <h3>
           <Download size={20} />
           Export {exportType.replace('_', ' ')}
         </h3>
-        <button class="close-btn" on:click={handleClose} aria-label="Close">
+        <button class="close-btn" onclick={handleClose} aria-label="Close">
           <X size={20} />
         </button>
       </div>
@@ -198,12 +201,13 @@ $effect(() => {
             <h4>Select Format</h4>
             <div class="format-options">
               {#each Object.entries(formatLabels) as [key, label]}
+                {@const SvelteComponent = formatIcons[key]}
                 <button
                   class="format-option"
                   class:active={format === key}
-                  on:click={() => selectFormat(key)}
+                  onclick={() => selectFormat(key)}
                 >
-                  <svelte:component this={formatIcons[key]} size={24} />
+                  <SvelteComponent size={24} />
                   <span>{label}</span>
                 </button>
               {/each}
@@ -227,7 +231,7 @@ $effect(() => {
                     <button
                       class="template-item"
                       class:active={selectedTemplate?.id === template.id}
-                      on:click={() => handleTemplateSelect(template)}
+                      onclick={() => handleTemplateSelect(template)}
                     >
                       <div class="template-info">
                         <strong>{template.name}</strong>
@@ -271,14 +275,14 @@ $effect(() => {
       </div>
 
       <div class="modal-actions">
-        <button class="btn-secondary" on:click={handleClose}>
+        <button class="btn-secondary" onclick={handleClose}>
           {exportResult ? 'Close' : 'Cancel'}
         </button>
         
         {#if !exportResult}
           <button 
             class="btn-primary"
-            on:click={handleExport}
+            onclick={handleExport}
             disabled={exporting || selectedColumns.length === 0}
           >
             {#if exporting}

@@ -4,21 +4,31 @@
   import type { Material } from '$lib/profiles/types';
   import plexiglasData from '$lib/profiles/data/plexiglas-materials.json';
 
-  export let value: {
+  
+  interface Props {
+    value?: {
     materialId?: number;
     materialCode?: string;
     thickness?: number;
-  } = {};
-  
-  export let label: string = 'Material';
-  export let required: boolean = false;
-  export let disabled: boolean = false;
-  export let materialTypes: string[] = ['ACRYLIC', 'ALUMINUM', 'PVC']; // Which material types to allow
+  };
+    label?: string;
+    required?: boolean;
+    disabled?: boolean;
+    materialTypes?: string[]; // Which material types to allow
+  }
 
-  let selectedType: 'ACRYLIC' | 'ALUMINUM' | 'PVC' | null = null;
-  let acrylicMaterials: any[] = [];
-  let selectedMaterial: any | null = null;
-  let thickness: number | null = null;
+  let {
+    value = $bindable({}),
+    label = 'Material',
+    required = false,
+    disabled = false,
+    materialTypes = ['ACRYLIC', 'ALUMINUM', 'PVC']
+  }: Props = $props();
+
+  let selectedType: 'ACRYLIC' | 'ALUMINUM' | 'PVC' | null = $state(null);
+  let acrylicMaterials: any[] = $state([]);
+  let selectedMaterial: any | null = $state(null);
+  let thickness: number | null = $state(null);
 
   // Preset thicknesses for each material type
   const aluminumThicknesses = [1.0, 1.2, 1.3, 1.5, 2.0, 3.0];
@@ -159,7 +169,7 @@
         type="button"
         class="type-button"
         class:active={selectedType === type}
-        on:click={() => selectMaterialType(type)}
+        onclick={() => selectMaterialType(type)}
         {disabled}
       >
         {#if type === 'ACRYLIC'}
@@ -187,7 +197,7 @@
                 class="acrylic-option"
                 class:selected={selectedMaterial?.code === material.code}
                 style="background-color: {material.hex}; border: 2px solid {selectedMaterial?.code === material.code ? '#000' : '#ccc'}; color: {getTextColor(material.hex)};"
-                on:click={() => selectAcrylicMaterial(material)}
+                onclick={() => selectAcrylicMaterial(material)}
                 title={material.colorName}
               >
                 <span class="material-code">
@@ -208,7 +218,7 @@
                     type="button"
                     class="thickness-option"
                     class:selected={thickness === t}
-                    on:click={() => selectThickness(t)}
+                    onclick={() => selectThickness(t)}
                   >
                     {t}mm
                   </button>
@@ -228,7 +238,7 @@
                 type="button"
                 class="thickness-option"
                 class:selected={thickness === t}
-                on:click={() => selectThickness(t)}
+                onclick={() => selectThickness(t)}
               >
                 {t}mm
               </button>
@@ -241,7 +251,7 @@
             step="0.1"
             min="0.5"
             max="5"
-            on:change={(e) => {
+            onchange={(e) => {
               const val = parseFloat(e.currentTarget.value);
               if (!isNaN(val)) selectThickness(val);
             }}
@@ -258,7 +268,7 @@
                 type="button"
                 class="thickness-option"
                 class:selected={thickness === t}
-                on:click={() => selectThickness(t)}
+                onclick={() => selectThickness(t)}
               >
                 {t}mm
               </button>

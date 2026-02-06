@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { preventDefault } from 'svelte/legacy';
+
   import MessageSquare from 'lucide-svelte/icons/message-square';
   import { messages, sendMessage, rooms } from '$lib/chat/chat-store';
   
@@ -29,18 +31,18 @@
 
 <div class="menu">
   <button bind:this={btn} class="icon" aria-haspopup="dialog" aria-expanded={open} aria-label="Open chat"
-          on:click={()=>open=!open}><MessageSquare aria-hidden="true"/></button>
+          onclick={()=>open=!open}><MessageSquare aria-hidden="true"/></button>
 
   {#if open}
-  <div class="sheet mobile-sheet" role="dialog" aria-modal="true" aria-label="Team chat" style="min-width:360px;max-width:92vw" on:keydown={onKey}>
+  <div class="sheet mobile-sheet" role="dialog" aria-modal="true" aria-label="Team chat" style="min-width:360px;max-width:92vw" onkeydown={onKey}>
     <div class="panel card">
       <header class="row" style="justify-content:space-between"><strong>Team chat</strong>
-        <button class="tag ghost" on:click={()=>{open=false;btn?.focus();}}>Close</button>
+        <button class="tag ghost" onclick={()=>{open=false;btn?.focus();}}>Close</button>
       </header>
       <div class="log" role="log" aria-live="polite">
         {#each chat as m}<div class="msg"><b>{m.authorId}</b><span class="muted">{new Date(m.ts).toLocaleTimeString()}</span><div>{m.text}</div></div>{/each}
       </div>
-      <form class="row" on:submit|preventDefault={send}><input aria-label="Message" bind:value={text}/><button class="tag">Send</button></form>
+      <form class="row" onsubmit={preventDefault(send)}><input aria-label="Message" bind:value={text}/><button class="tag">Send</button></form>
     </div>
   </div>
   {/if}

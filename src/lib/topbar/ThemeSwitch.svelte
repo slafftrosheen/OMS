@@ -31,17 +31,19 @@
   ];
 
   let currentIcon = $derived(themes.find(t => t.id === currentTheme)?.icon || Moon);
+
+  const SvelteComponent = $derived(currentIcon);
 </script>
 
 <div class="theme-menu" use:clickOutside={handleClickOutside}>
   <button 
     class="theme-btn" 
-    on:click={toggle}
+    onclick={toggle}
     aria-haspopup="menu" 
     aria-expanded={isOpen} 
     aria-label={$t('topbar.theme', { default: 'Theme' })}
   >
-    <svelte:component this={currentIcon} size={18} aria-hidden="true" />
+    <SvelteComponent size={18} aria-hidden="true" />
   </button>
   
   {#if isOpen}
@@ -50,9 +52,9 @@
         <button 
           role="menuitem" 
           class:active={currentTheme === theme.id}
-          on:click={() => set(theme.id)}
+          onclick={() => set(theme.id)}
         >
-          <svelte:component this={theme.icon} size={16} />
+          <theme.icon size={16} />
           <span>{theme.label}</span>
         </button>
       {/each}

@@ -1,3 +1,5 @@
+<!-- @migration-task Error while migrating Svelte code: Cannot use `export let` in runes mode — use `$props()` instead
+https://svelte.dev/e/legacy_export_invalid -->
 <!-- src/lib/inventory/components/MaterialStockCard.svelte -->
 <script lang="ts">
   import type { InventoryStock } from '$lib/inventory/types';

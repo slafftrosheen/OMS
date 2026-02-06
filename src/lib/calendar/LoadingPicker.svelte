@@ -15,15 +15,15 @@
     <div class="row" style="justify-content:space-between">
       <strong>Loading date</strong>
       <div class="row">
-        <button class="tag" on:click={()=>month = month.subtract(1,'month')}>◀</button>
+        <button class="tag" onclick={()=>month = month.subtract(1,'month')}>◀</button>
         <span>{month.format('YYYY MMM')}</span>
-        <button class="tag" on:click={()=>month = month.add(1,'month')}>▶</button>
+        <button class="tag" onclick={()=>month = month.add(1,'month')}>▶</button>
       </div>
     </div>
     <div class="grid" style="grid-template-columns:repeat(7,1fr);margin-top:8px">
       {#each dates() as d}
         {#key d.format('YYYY-MM-DD')}
-        <button class="tile" on:click={()=>pick(d.format('YYYY-MM-DD'))}
+        <button class="tile" onclick={()=>pick(d.format('YYYY-MM-DD'))}
           aria-label={`Select ${d.format('YYYY MMM DD')}`}>
           <div>{d.date()}</div>
         </button>

@@ -1,12 +1,23 @@
 <script lang="ts">
   import { t } from 'svelte-i18n';
   import type { Branch } from './types';
-  export let branches: Branch[] = [];
-  export let defaultBranch = 'main';
-  export let onSetDefault: (name:string)=>void = ()=>{};
-  export let onDelete: (name:string)=>void = ()=>{};
-  export let onRollback: (name:string, commitId:string)=>void = ()=>{};
-  export let id: string | undefined = undefined;
+  interface Props {
+    branches?: Branch[];
+    defaultBranch?: string;
+    onSetDefault?: (name:string)=>void;
+    onDelete?: (name:string)=>void;
+    onRollback?: (name:string, commitId:string)=>void;
+    id?: string | undefined;
+  }
+
+  let {
+    branches = [],
+    defaultBranch = 'main',
+    onSetDefault = ()=>{},
+    onDelete = ()=>{},
+    onRollback = ()=>{},
+    id = undefined
+  }: Props = $props();
 </script>
 
 <div class="card" id={id}>
@@ -33,13 +44,13 @@
             <td>{b.commits.length}</td>
             <td class="row" style="gap:6px">
               {#if b.name!==defaultBranch}
-                <button class="tag" on:click={()=>onSetDefault(b.name)}>{$t('branches.set_default')}</button>
-                <button class="tag" on:click={()=>onDelete(b.name)}>{$t('branches.delete')}</button>
+                <button class="tag" onclick={()=>onSetDefault(b.name)}>{$t('branches.set_default')}</button>
+                <button class="tag" onclick={()=>onDelete(b.name)}>{$t('branches.delete')}</button>
               {/if}
               {#if b.commits.length>0}
                 <button
                   class="tag"
-                  on:click={() => onRollback(b.name, b.commits[b.commits.length - 1].id)}>
+                  onclick={() => onRollback(b.name, b.commits[b.commits.length - 1].id)}>
                   {$t('branches.rollback')}
                 </button>
               {/if}

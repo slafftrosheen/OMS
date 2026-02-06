@@ -4,21 +4,34 @@
   import { ChevronDown, AlertCircle, CheckCircle, Package } from 'lucide-svelte';
   import type { Material } from '$lib/profiles/types';
 
-  export let value: string = '';
-  export let options: string[] = []; // Material codes to filter by
-  export let label: string = 'Material';
-  export let required: boolean = false;
-  export let disabled: boolean = false;
-  export let placeholder: string = 'Select material...';
-  export let checkInventory: boolean = true;
-  export let error: string | null = null;
+  interface Props {
+    value?: string;
+    options?: string[]; // Material codes to filter by
+    label?: string;
+    required?: boolean;
+    disabled?: boolean;
+    placeholder?: string;
+    checkInventory?: boolean;
+    error?: string | null;
+  }
+
+  let {
+    value = $bindable(''),
+    options = [],
+    label = 'Material',
+    required = false,
+    disabled = false,
+    placeholder = 'Select material...',
+    checkInventory = true,
+    error = null
+  }: Props = $props();
 
   let materials: Material[] = [];
-  let filteredMaterials: Material[] = [];
-  let selectedMaterial: Material | null = null;
-  let loading = false;
-  let inventoryStatus: Record<string, { inStock: boolean; quantity: number }> = {};
-  let isOpen = false;
+  let filteredMaterials: Material[] = $state([]);
+  let selectedMaterial: Material | null = $state(null);
+  let loading = $state(false);
+  let inventoryStatus: Record<string, { inStock: boolean; quantity: number }> = $state({});
+  let isOpen = $state(false);
 
   onMount(async () => {
     await loadMaterials();
@@ -100,7 +113,7 @@
       type="button"
       class="selector-button" 
       class:open={isOpen}
-      on:click={toggleDropdown}
+      onclick={toggleDropdown}
       {disabled}
     >
       {#if loading}
@@ -119,9 +132,9 @@
           {#if checkInventory}
             {@const status = inventoryStatus[selectedMaterial.code]}
             {#if status}
+              {@const SvelteComponent = getInventoryStatusIcon(selectedMaterial.code)}
               <div class="inventory-badge" class:in-stock={status.inStock}>
-                <svelte:component 
-                  this={getInventoryStatusIcon(selectedMaterial.code)} 
+                <SvelteComponent 
                   size={14} 
                 />
                 {status.inStock ? 'In Stock' : 'Low Stock'}
@@ -142,7 +155,7 @@
             type="button"
             class="material-option"
             class:selected={material.code === value}
-            on:click={() => selectMaterial(material)}
+            onclick={() => selectMaterial(material)}
           >
             <div 
               class="material-swatch" 

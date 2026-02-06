@@ -10,12 +10,12 @@
     import Button from '$lib/components/ui/Button.svelte';
     import Card from '$lib/components/ui/Card.svelte';
 
-    let recentOrders: any[] = [];
-    let chartData = {
+    let recentOrders: any[] = $state([]);
+    let chartData = $state({
         labels: [] as string[],
         datasets: []
-    };
-    let loading = true;
+    });
+    let loading = $state(true);
 
     async function loadDashboardData() {
         loading = true;
@@ -181,25 +181,25 @@
         <section class="quick-actions">
             <h2 class="section-title">Quick Actions</h2>
             <div class="actions-grid">
-                <button class="action-card" on:click={() => goto('/orders/new')}>
+                <button class="action-card" onclick={() => goto('/orders/new')}>
                     <span class="action-icon">➕</span>
                     <h3 class="action-title">New Order</h3>
                     <p class="action-description">Create a new production order</p>
                 </button>
 
-                <button class="action-card" on:click={() => goto('/production')}>
+                <button class="action-card" onclick={() => goto('/production')}>
                     <span class="action-icon">🏭</span>
                     <h3 class="action-title">Production Board</h3>
                     <p class="action-description">View production workflow</p>
                 </button>
 
-                <button class="action-card" on:click={() => goto('/materials')}>
+                <button class="action-card" onclick={() => goto('/materials')}>
                     <span class="action-icon">📦</span>
                     <h3 class="action-title">Materials</h3>
                     <p class="action-description">Manage inventory</p>
                 </button>
 
-                <button class="action-card" on:click={() => goto('/analytics')}>
+                <button class="action-card" onclick={() => goto('/analytics')}>
                     <span class="action-icon">📊</span>
                     <h3 class="action-title">Analytics</h3>
                     <p class="action-description">View reports</p>

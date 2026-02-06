@@ -1,6 +1,6 @@
 <!-- src/lib/components/ui/Button.svelte -->
 <script lang="ts">
-    let { 
+    let { children, 
         variant = 'primary', 
         size = 'md', 
         disabled = false, 
@@ -53,7 +53,7 @@
         <span class="btn-icon btn-icon-left" aria-hidden="true">{icon}</span>
     {/if}
     
-    <slot />
+    {@render children?.()}
     
     {#if !loading && icon && iconPosition === 'right'}
         <span class="btn-icon btn-icon-right" aria-hidden="true">{icon}</span>

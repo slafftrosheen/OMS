@@ -2,10 +2,19 @@
   import type { Revision } from './types';
   import { t } from 'svelte-i18n';
 
-  export let items: Revision[] = [];
-  export let currentId = '';
-  export let onUse: (id:string)=>void = ()=>{};
-  export let canManage = false;
+  interface Props {
+    items?: Revision[];
+    currentId?: string;
+    onUse?: (id:string)=>void;
+    canManage?: boolean;
+  }
+
+  let {
+    items = [],
+    currentId = '',
+    onUse = ()=>{},
+    canManage = false
+  }: Props = $props();
 </script>
 
 <div class="card">
@@ -22,7 +31,7 @@
             {#if currentId===r.id}
               <span class="tag">{$t('revisions.active')}</span>
             {:else if canManage}
-              <button class="tag" on:click={()=>onUse(r.id)} aria-label={$t('revisions.use')}>{$t('revisions.use')}</button>
+              <button class="tag" onclick={()=>onUse(r.id)} aria-label={$t('revisions.use')}>{$t('revisions.use')}</button>
             {/if}
             <a class="tag" href={r.file.path} target="_blank" rel="noreferrer">{$t('revisions.download')}</a>
           </div>

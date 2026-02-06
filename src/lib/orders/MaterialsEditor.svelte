@@ -1,4 +1,4 @@
-<script context="module" lang="ts">
+<script module lang="ts">
   export type MaterialRow = {
     id: string;
     type: 'Acrylic' | 'Aluminium' | 'Plastic' | 'ACP' | 'Film' | 'Other';
@@ -12,8 +12,12 @@
 </script>
 
 <script lang="ts">
-  export let rows: MaterialRow[] = [];
-  export let onChange = (r: MaterialRow[]) => {};
+  interface Props {
+    rows?: MaterialRow[];
+    onChange?: any;
+  }
+
+  let { rows = $bindable([]), onChange = (r: MaterialRow[]) => {} }: Props = $props();
   
   function add() {
     rows = [...rows, { id: crypto.randomUUID(), type: 'Acrylic', colorSystem: 'None', qty: 1 }];
@@ -67,7 +71,7 @@
 
 <div class="row materials-head">
   <h3>Materials</h3>
-  <button class="tag" on:click={add}>Add material</button>
+  <button class="tag" onclick={add}>Add material</button>
 </div>
 
 <table class="rf-table">
@@ -87,7 +91,7 @@
     {#each rows as r (r.id)}
       <tr>
         <td>
-          <select bind:value={r.type} on:change={(e) => handleTypeChange(r.id, e)}>
+          <select bind:value={r.type} onchange={(e) => handleTypeChange(r.id, e)}>
             <option>Acrylic</option>
             <option>Aluminium</option>
             <option>Plastic</option>
@@ -102,11 +106,11 @@
             min="0" 
             step="0.5" 
             bind:value={r.thicknessMM} 
-            on:change={(e) => handleThicknessChange(r.id, e)}
+            onchange={(e) => handleThicknessChange(r.id, e)}
           />
         </td>
         <td>
-          <select bind:value={r.colorSystem} on:change={(e) => handleColorSystemChange(r.id, e)}>
+          <select bind:value={r.colorSystem} onchange={(e) => handleColorSystemChange(r.id, e)}>
             <option>None</option>
             <option>RAL</option>
             <option>Pantone</option>
@@ -117,7 +121,7 @@
           <input 
             placeholder={r.colorSystem === 'HEX' ? '#RRGGBB' : r.colorSystem === 'RAL' ? 'RAL 3020' : 'e.g., 186 C'}
             bind:value={r.colorCode} 
-            on:input={(e) => handleColorCodeInput(r.id, e)}
+            oninput={(e) => handleColorCodeInput(r.id, e)}
           />
         </td>
         <td>
@@ -126,7 +130,7 @@
             min="1" 
             step="1" 
             bind:value={r.qty} 
-            on:change={(e) => handleQtyChange(r.id, e)}
+            onchange={(e) => handleQtyChange(r.id, e)}
           />
         </td>
         <td class="row dims">
@@ -136,7 +140,7 @@
             step="1"
             placeholder="W"
             value={r.dims?.w}
-            on:change={(e) => handleWidthChange(r.id, e, r.dims)}
+            onchange={(e) => handleWidthChange(r.id, e, r.dims)}
           />
           <input
             type="number"
@@ -144,17 +148,17 @@
             step="1"
             placeholder="H"
             value={r.dims?.h}
-            on:change={(e) => handleHeightChange(r.id, e, r.dims)}
+            onchange={(e) => handleHeightChange(r.id, e, r.dims)}
           />
         </td>
         <td>
           <input 
             value={r.notes || ''} 
-            on:change={(e) => handleNotesChange(r.id, e)}
+            onchange={(e) => handleNotesChange(r.id, e)}
           />
         </td>
         <td>
-          <button class="icon warn" aria-label="Remove row" on:click={() => rm(r.id)}>✕</button>
+          <button class="icon warn" aria-label="Remove row" onclick={() => rm(r.id)}>✕</button>
         </td>
       </tr>
     {/each}

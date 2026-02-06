@@ -44,7 +44,7 @@
         <div
           class="palette-item section-item"
           draggable="true"
-          on:dragstart={(e) => startDrag(e, section)}
+          ondragstart={(e) => startDrag(e, section)}
           style="border-left: 4px solid {section.color};"
           role="button"
           tabindex="0"
@@ -65,7 +65,7 @@
         <div
           class="palette-item field-item"
           draggable="true"
-          on:dragstart={(e) => startDrag(e, field)}
+          ondragstart={(e) => startDrag(e, field)}
           title={field.description}
           role="button"
           tabindex="0"

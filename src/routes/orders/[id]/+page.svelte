@@ -1,6 +1,6 @@
 <!-- src/routes/orders/[id]/+page.svelte -->
 <script lang="ts">
-    import { page } from '$app/stores';
+    import { page } from '$app/state';
     import { goto } from '$app/navigation';
     import { onMount } from 'svelte';
     import Button from '$lib/components/ui/Button.svelte';
@@ -13,7 +13,7 @@
     import QRCodeDisplay from '$lib/components/qr/QRCodeDisplay.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
 
-    let orderId = $derived($page.params.id);
+    let orderId = $derived(page.params.id);
 
     let order: any = null;
     let files: any[] = [];
@@ -213,7 +213,7 @@
                                     <select
                                         class="stage-status-select"
                                         value={status}
-                                        on:change={(e) => updateStageStatus(stage, e.currentTarget.value)}
+                                        onchange={(e) => updateStageStatus(stage, e.currentTarget.value)}
                                     >
                                         <option value="NOT_STARTED">Not Started</option>
                                         <option value="IN_PROGRESS">In Progress</option>

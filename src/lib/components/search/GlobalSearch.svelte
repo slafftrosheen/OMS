@@ -1,5 +1,8 @@
 <!-- src/lib/components/search/GlobalSearch.svelte -->
 <script lang="ts">
+    import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+    const bubble = createBubbler();
     import { onMount } from 'svelte';
     import Input from '$lib/components/ui/Input.svelte';
     import Badge from '$lib/components/ui/Badge.svelte';
@@ -149,17 +152,17 @@
 </script>
 
 {#if open}
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <div class="search-overlay" on:click={close} role="button" tabindex="-1">
-        <div class="search-modal" on:click|stopPropagation role="dialog" aria-modal="true" tabindex="-1">
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div class="search-overlay" onclick={close} role="button" tabindex="-1">
+        <div class="search-modal" onclick={stopPropagation(bubble('click'))} role="dialog" aria-modal="true" tabindex="-1">
             <div class="search-input-wrapper">
                 <span class="search-icon">🔍</span>
                 <input
                     bind:this={searchInput}
                     type="text"
                     bind:value={searchQuery}
-                    on:input={handleInput}
-                    on:keydown={handleKeydown}
+                    oninput={handleInput}
+                    onkeydown={handleKeydown}
                     placeholder="Search orders, files, messages..."
                     class="search-input"
                 />
@@ -176,7 +179,7 @@
                         {#each suggestions as suggestion}
                             <button
                                 class="suggestion-item"
-                                on:click={() => selectSuggestion(suggestion)}
+                                onclick={() => selectSuggestion(suggestion)}
                             >
                                 {suggestion}
                             </button>
@@ -193,8 +196,8 @@
                             <button
                                 class="result-item"
                                 class:selected={index === selectedIndex}
-                                on:click={() => navigateToResult(result)}
-                                on:mouseenter={() => selectedIndex = index}
+                                onclick={() => navigateToResult(result)}
+                                onmouseenter={() => selectedIndex = index}
                             >
                                 <span class="result-icon">{getTypeIcon(result.type)}</span>
                                 <div class="result-content">

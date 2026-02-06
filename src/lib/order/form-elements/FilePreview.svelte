@@ -21,7 +21,7 @@
         src={previewUrl}
         title="PDF Preview"
         class="pdf-frame"
-      />
+></iframe>
     {:else if isCdr}
       <div class="cdr-placeholder">
         <FileText size={48} aria-hidden="true" />

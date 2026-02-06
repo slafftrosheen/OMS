@@ -1,5 +1,7 @@
 <!-- src/lib/orders/components/FileUploader.svelte -->
 <script lang="ts">
+  import { stopPropagation } from 'svelte/legacy';
+
   import { Upload, X, File as FileIcon, Image as ImageIcon, CheckCircle, AlertCircle } from 'lucide-svelte';
 
   let {
@@ -201,20 +203,20 @@
   <div 
     class="drop-zone"
     class:dragging={isDragging}
-    on:dragover={handleDragOver}
-    on:dragleave={handleDragLeave}
-    on:drop={handleDrop}
-    on:click={triggerFileInput}
+    ondragover={handleDragOver}
+    ondragleave={handleDragLeave}
+    ondrop={handleDrop}
+    onclick={triggerFileInput}
     role="button"
     tabindex="0"
-    on:keydown={(e) => e.key === 'Enter' && triggerFileInput()}
+    onkeydown={(e) => e.key === 'Enter' && triggerFileInput()}
   >
     <input
       bind:this={fileInput}
       type="file"
       multiple
       accept={acceptedExtensions.join(',')}
-      on:change={handleFileSelect}
+      onchange={handleFileSelect}
       style="display: none;"
       {disabled}
     />
@@ -231,9 +233,10 @@
   {#if uploadedFiles.length > 0}
     <div class="files-list">
       {#each uploadedFiles as file (file.id)}
+        {@const SvelteComponent = getFileIcon(file.type)}
         <div class="file-item" class:error={file.status === 'error'}>
           <div class="file-icon">
-            <svelte:component this={getFileIcon(file.type)} size={20} />
+            <SvelteComponent size={20} />
           </div>
 
           <div class="file-details">
@@ -268,7 +271,7 @@
           {#if file.status !== 'uploading'}
             <button
               class="remove-btn"
-              on:click|stopPropagation={() => removeFile(file.id)}
+              onclick={stopPropagation(() => removeFile(file.id))}
               title="Remove file"
               type="button"
             >

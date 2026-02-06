@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
+
+  const bubble = createBubbler();
   import { onMount, onDestroy } from 'svelte';
   import { fade, slide, fly } from 'svelte/transition';
   import { t } from 'svelte-i18n';
@@ -128,7 +131,7 @@
 
 {#if $isChatOpen}
   <!-- Backdrop for mobile/tablet -->
-  <div class="sidebar-backdrop" on:click={toggleChat} transition:fade={{ duration: 200 }}></div>
+  <div class="sidebar-backdrop" onclick={toggleChat} transition:fade={{ duration: 200 }}></div>
 
   <aside class="chat-drawer" transition:fly={{ x: 400, duration: 300 }}>
     
@@ -136,7 +139,7 @@
     <header class="drawer-header">
       <div class="header-title">
         {#if view === 'room'}
-          <button class="back-btn" on:click={() => view = 'list'}>
+          <button class="back-btn" onclick={() => view = 'list'}>
             <Hash size={18} />
           </button>
           <h3>#{activeRoom?.name || 'Chat'}</h3>
@@ -146,11 +149,11 @@
       </div>
       <div class="header-actions">
         {#if view === 'list'}
-          <button class="icon-btn" on:click={() => showRoomModal = true} title="New Channel">
+          <button class="icon-btn" onclick={() => showRoomModal = true} title="New Channel">
             <Plus size={18} />
           </button>
         {/if}
-        <button class="icon-btn close-btn" on:click={toggleChat} title="Close Chat">
+        <button class="icon-btn close-btn" onclick={toggleChat} title="Close Chat">
           <X size={20} />
         </button>
       </div>
@@ -172,7 +175,7 @@
               <button 
                 class="room-item" 
                 class:active={room.id === activeRoomId}
-                on:click={() => selectRoom(room.id)}
+                onclick={() => selectRoom(room.id)}
               >
                 <div class="room-icon"><Hash size={16} /></div>
                 <div class="room-info">
@@ -247,11 +250,11 @@
 
 <!-- Create Room Modal -->
 {#if showRoomModal}
-  <div class="modal-backdrop" on:click={() => showRoomModal = false}>
-    <div class="modal" on:click|stopPropagation role="dialog">
+  <div class="modal-backdrop" onclick={() => showRoomModal = false}>
+    <div class="modal" onclick={stopPropagation(bubble('click'))} role="dialog">
       <div class="modal-header">
         <h3>Create Channel</h3>
-        <button on:click={() => showRoomModal = false}><X size={18} /></button>
+        <button onclick={() => showRoomModal = false}><X size={18} /></button>
       </div>
       <div class="modal-body">
         <label>Channel Name
@@ -259,8 +262,8 @@
         </label>
       </div>
       <div class="modal-footer">
-        <button class="btn-ghost" on:click={() => showRoomModal = false}>Cancel</button>
-        <button class="btn-primary" on:click={createRoom} disabled={!newRoomName.trim()}>Create</button>
+        <button class="btn-ghost" onclick={() => showRoomModal = false}>Cancel</button>
+        <button class="btn-primary" onclick={createRoom} disabled={!newRoomName.trim()}>Create</button>
       </div>
     </div>
   </div>

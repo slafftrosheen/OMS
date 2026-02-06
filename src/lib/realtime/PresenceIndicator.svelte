@@ -3,14 +3,18 @@
 	import { onMount, onDestroy } from 'svelte';
 	import type { Presence } from '$lib/order/realtime-order-store';
 
-	export let orderId: string;
-	export let currentUserId: string;
 
-	let viewers: Presence[] = [];
-	let editors: Presence[] = [];
+	let viewers: Presence[] = $state([]);
+	let editors: Presence[] = $state([]);
 
 	// Import from realtime order store
 	import { realtimeOrderStore } from '$lib/order/realtime-order-store';
+	interface Props {
+		orderId: string;
+		currentUserId: string;
+	}
+
+	let { orderId, currentUserId }: Props = $props();
 
 	onMount(() => {
 		// Subscribe to presence updates

@@ -18,9 +18,9 @@
   type Theme = 'LightVim' | 'DarkVim' | 'HighContrastVim';
   type Density = 'compact' | 'cozy' | 'comfortable';
 
-  let currentTheme: Theme = 'DarkVim';
-  let currentDensity: Density = 'cozy';
-  let currentFontScale: number = 1.0;
+  let currentTheme: Theme = $state('DarkVim');
+  let currentDensity: Density = $state('cozy');
+  let currentFontScale: number = $state(1.0);
 
   ui.subscribe(p => {
     currentTheme = p.theme as Theme;
@@ -92,10 +92,10 @@
               class:active={currentTheme === theme.id}
               role="radio"
               aria-checked={currentTheme === theme.id}
-              on:click={() => setTheme(theme.id)}
+              onclick={() => setTheme(theme.id)}
             >
               <div class="theme-icon">
-                <svelte:component this={theme.icon} size={20} />
+                <theme.icon size={20} />
               </div>
               <span>{theme.label}</span>
             </button>
@@ -123,7 +123,7 @@
               class:active={Math.abs(currentFontScale - scale.value) < 0.01}
               role="radio"
               aria-checked={Math.abs(currentFontScale - scale.value) < 0.01}
-              on:click={() => setFontScale(scale.value)}
+              onclick={() => setFontScale(scale.value)}
             >
               {scale.label}
             </button>
@@ -146,7 +146,7 @@
               class:active={currentDensity === density.id}
               role="radio"
               aria-checked={currentDensity === density.id}
-              on:click={() => setDensity(density.id)}
+              onclick={() => setDensity(density.id)}
             >
               <span class="density-label">{density.label}</span>
               <span class="density-desc">{density.desc}</span>
@@ -167,7 +167,7 @@
         <label class="setting-label" for="locale-select">
           <span class="label-text">{$t('settings.interfaceLanguage', { default: 'Interface Language' })}</span>
         </label>
-        <select id="locale-select" class="rf-select" value={$locale} on:change={handleLocale}>
+        <select id="locale-select" class="rf-select" value={$locale} onchange={handleLocale}>
           {#each locales as loc}
             <option value={loc}>{loc === 'en' ? 'English' : loc === 'lv' ? 'Latviešu' : loc === 'ru' ? 'Русский' : loc}</option>
           {/each}

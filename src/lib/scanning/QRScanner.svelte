@@ -170,7 +170,7 @@ function handleClose() {
 <div class="qr-scanner">
   <div class="scanner-header">
     <h3>Scan QR Code</h3>
-    <button class="close-btn" on:click={handleClose} aria-label="Close scanner">
+    <button class="close-btn" onclick={handleClose} aria-label="Close scanner">
       <CameraOff size={20} />
     </button>
   </div>
@@ -219,12 +219,12 @@ function handleClose() {
   {/if}
 
   <div class="scanner-actions">
-    <button class="btn-secondary" on:click={handleManualInput}>
+    <button class="btn-secondary" onclick={handleManualInput}>
       Manual Entry
     </button>
     
     {#if !scanning && !scanResult}
-      <button class="btn-primary" on:click={startScanner}>
+      <button class="btn-primary" onclick={startScanner}>
         <Camera size={16} />
         Start Camera
       </button>

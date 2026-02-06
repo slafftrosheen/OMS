@@ -36,8 +36,8 @@
       </select>
     {/if}
     <div class="row" style="justify-content:flex-end;gap:8px">
-      <button class="tag ghost" on:click={()=>onclose?.()}>Cancel</button>
-      <button class="tag" on:click={save}>Save</button>
+      <button class="tag ghost" onclick={()=>onclose?.()}>Cancel</button>
+      <button class="tag" onclick={save}>Save</button>
     </div>
   </div>
 </div>
