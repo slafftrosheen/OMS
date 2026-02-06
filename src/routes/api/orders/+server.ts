@@ -11,7 +11,6 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const status = url.searchParams.get('status');
   const station = url.searchParams.get('station');
   const search = url.searchParams.get('search');
-  const isRd = url.searchParams.get('is_rd');
   const loadingDate = url.searchParams.get('loading_date');
   const priority = url.searchParams.get('priority');
   const limit = parseInt(url.searchParams.get('limit') || '50');
@@ -19,14 +18,13 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
   try {
     let query = supabase
-      .from('order_summary')
+      .from('ordersummary')
       .select('*', { count: 'exact' });
 
     // Apply filters
     if (status) query = query.eq('status', status);
-    if (isRd === 'true') query = query.eq('is_rd', true);
     if (loadingDate) query = query.eq('loading_date', loadingDate);
-    if (priority) query = query.eq('priority', parseInt(priority));
+    if (priority) query = query.eq('priority', priority);
 
     // Station filter (requires current_station)
     if (station) query = query.eq('current_station', station);
@@ -81,19 +79,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     // Create order
     const { data: order, error: orderError } = await supabase
-      .from('orders')
+      .from('draft_orders')
       .insert({
         po_number: body.po_number,
         title: body.title,
         client: body.client,
         due_date: body.due_date,
         loading_date: body.loading_date,
-        is_rd: body.is_rd || false,
-        rd_notes: body.rd_notes,
-        priority: body.priority || 0,
+        priority: body.priority || 'normal',
         status: body.status || 'draft',
         notes: body.notes,
-        badges: body.badges || [],
+        delivery_address: body.delivery_address,
+        delivery_contact: body.delivery_contact,
+        delivery_phone: body.delivery_phone,
+        delivery_preset_id: body.delivery_preset_id,
         created_by: session.user.id
       })
       .select()
@@ -107,7 +106,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // Add materials if provided
     if (body.materials && Array.isArray(body.materials)) {
       const materials = body.materials.map((m: any, idx: number) => ({
-        order_id: order.id,
+        draft_order_id: order.id,
         material_type: m.material_type,
         material_category: m.material_category,
         thickness: m.thickness,
@@ -137,7 +136,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // Add custom fields if provided
     if (body.fields && Array.isArray(body.fields)) {
       const fields = body.fields.map((f: any, idx: number) => ({
-        order_id: order.id,
+        draft_order_id: order.id,
         key: f.key,
         label: f.label,
         value: f.value,
@@ -158,10 +157,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // Assign users if provided
     if (body.assignees && Array.isArray(body.assignees)) {
       const assignees = body.assignees.map((a: any) => ({
-        order_id: order.id,
-        station: a.station,
-        user_id: a.user_id,
-        role: a.role || 'worker',
+        draft_order_id: order.id,
+        assignee_id: a.assignee_id ?? a.user_id,
         assigned_by: session.user.id
       }));
 
@@ -176,7 +173,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     // Fetch complete order with relations
     const { data: completeOrder } = await supabase
-      .from('order_summary')
+      .from('ordersummary')
       .select('*')
       .eq('id', order.id)
       .single();
