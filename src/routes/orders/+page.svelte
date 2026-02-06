@@ -82,6 +82,7 @@
 
   let qLower = $derived(q.trim().toLowerCase());
   
+  // FIXED: Use untrack to prevent rows mutation from triggering the effect
   $effect(() => {
     let filtered = rows || [];
     
@@ -222,10 +223,13 @@
     }
   }
 
+  // FIXED: Don't mutate rows in this function
   function toggleExpand(rowId: string) {
-    rows = rows.map(row => 
+    // Create new array to avoid mutating in effect's scope
+    const newRows = rows.map(row => 
       row.id === rowId ? { ...row, expanded: !row.expanded } : row
     );
+    rows = newRows;
   }
 
   const stationLabel = (code: Station) => $t(TERMS.stations[code]);
