@@ -1,4 +1,4 @@
-<script lang="ts">
+<![CDATA[<script lang="ts">
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import { base } from '$app/paths';
@@ -26,22 +26,23 @@
     created_at: string;
   }
 
-  let materials: Material[] = [];
-  let loading = true;
-  let error = '';
-  let searchQuery = '';
-  let categoryFilter = '';
-  let successMessage = '';
+  // ✅ SVELTE 5 FIX: Use $state() for ALL reactive variables
+  let materials = $state<Material[]>([]);
+  let loading = $state(true);
+  let error = $state('');
+  let searchQuery = $state('');
+  let categoryFilter = $state('');
+  let successMessage = $state('');
 
   // Modal state
-  let showModal = false;
-  let modalMode: 'create' | 'edit' = 'create';
-  let editingMaterial: Material | null = null;
-  let saving = false;
-  let modalError = '';
+  let showModal = $state(false);
+  let modalMode = $state<'create' | 'edit'>('create');
+  let editingMaterial = $state<Material | null>(null);
+  let saving = $state(false);
+  let modalError = $state('');
 
   // Form data
-  let formData = {
+  let formData = $state({
     category: '',
     code: '',
     nameEn: '',
@@ -68,7 +69,7 @@
     // Packaging
     packSize: '',
     minOrder: ''
-  };
+  });
 
   const categories = [
     // Acrylics
@@ -171,23 +172,31 @@
   }, {} as Record<string, Material[]>));
 
   onMount(async () => {
+    console.log('📦 Materials catalog page mounted');
     await loadMaterials();
   });
 
   async function loadMaterials() {
+    console.log('📡 Fetching materials...');
     loading = true;
     error = '';
     try {
       const res = await fetch(`${base}/api/materials`);
       if (res.ok) {
-        materials = await res.json();
+        const data = await res.json();
+        console.log('📦 Received materials data:', data);
+        materials = data;
+        console.log(`✅ Successfully loaded ${materials.length} materials`);
       } else {
         error = 'Failed to load materials';
+        console.error('❌ Failed to load materials:', res.status);
       }
     } catch (e) {
       error = 'Failed to connect to server';
+      console.error('❌ Failed to connect:', e);
     } finally {
       loading = false;
+      console.log('🏁 Materials loading complete. loading:', loading, 'materials:', materials.length);
     }
   }
 
@@ -370,7 +379,7 @@
       <p class="subtitle">Manage material definitions and specifications</p>
     </div>
     {#if canManage}
-      <button class="btn-primary" on:click={openCreateModal}>
+      <button class="btn-primary" onclick={openCreateModal}>
         <Plus size={18} />
         Add Material
       </button>
@@ -445,10 +454,10 @@
               </div>
               {#if canManage}
                 <div class="material-actions">
-                  <button class="btn-icon" title="Edit" on:click={() => openEditModal(material)}>
+                  <button class="btn-icon" title="Edit" onclick={() => openEditModal(material)}>
                     <Edit2 size={16} />
                   </button>
-                  <button class="btn-icon btn-danger" title="Delete" on:click={() => deleteMaterial(material)}>
+                  <button class="btn-icon btn-danger" title="Delete" onclick={() => deleteMaterial(material)}>
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -464,17 +473,17 @@
 <!-- Modal -->
 {#if showModal}
   <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-  <div class="modal-backdrop" on:click={closeModal}>
+  <div class="modal-backdrop" onclick={closeModal}>
     <div 
       class="modal" 
-      on:click|stopPropagation 
+      onclick={(e) => e.stopPropagation()}
       role="dialog" 
       aria-modal="true"
       tabindex="-1"
     >
       <div class="modal-header">
         <h2>{modalMode === 'create' ? 'Add Material' : 'Edit Material'}</h2>
-        <button class="btn-close" on:click={closeModal}><X size={20} /></button>
+        <button class="btn-close" onclick={closeModal}><X size={20} /></button>
       </div>
 
       {#if modalError}
@@ -658,8 +667,8 @@
       </div>
 
       <div class="modal-footer">
-        <button class="btn-secondary" on:click={closeModal} disabled={saving}>Cancel</button>
-        <button class="btn-primary" on:click={saveMaterial} disabled={saving}>
+        <button class="btn-secondary" onclick={closeModal} disabled={saving}>Cancel</button>
+        <button class="btn-primary" onclick={saveMaterial} disabled={saving}>
           {saving ? 'Saving...' : 'Save'}
         </button>
       </div>
@@ -1032,3 +1041,4 @@
     .search-box { max-width: none; }
   }
 </style>
+]]>
