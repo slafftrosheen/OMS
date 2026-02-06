@@ -81,7 +81,7 @@
 
   let qLower = $derived(q.trim().toLowerCase());
   
-  // FIXED: Use toSorted() or slice().sort() to avoid mutating the array
+  // Use slice().sort() instead of toSorted() for browser compatibility
   let visible = $derived.by(() => {
     let filtered = rows || [];
     
@@ -98,8 +98,8 @@
       });
     }
     
-    // Use toSorted() (ES2023) or slice().sort() to avoid mutating the original array
-    return filtered.toSorted((a, b) => {
+    // Use slice() to create a copy, then sort it
+    return filtered.slice().sort((a, b) => {
       if (!a || !b) return 0;
       let av = a[sortKey] || '';
       let bv = b[sortKey] || '';
