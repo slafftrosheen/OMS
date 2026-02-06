@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from '$app/paths';
-  import { onMount, untrack } from 'svelte';
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import Input from '$lib/ui/Input.svelte';
   import Tooltip from '$lib/ui/Tooltip.svelte';
@@ -68,7 +68,6 @@
   // Use Svelte 5 $state rune for proper reactivity
   let rows = $state<OrderRow[]>([]);
   let q = $state('');
-  let visible = $state<OrderRow[]>([]);
   let sortKey = $state<'id' | 'client' | 'title' | 'due' | 'loadingDate'>('due');
   let sortAsc = $state(true);
   let statusFilter = $state<'all' | 'draft' | 'active' | 'completed'>('all');
@@ -82,38 +81,29 @@
 
   let qLower = $derived(q.trim().toLowerCase());
   
-  // FIXED: Use untrack to prevent infinite loops
-  $effect(() => {
-    // Read reactive dependencies
-    const query = qLower;
-    const filter = statusFilter;
-    const key = sortKey;
-    const asc = sortAsc;
+  // FIXED: Use $derived instead of $effect to avoid infinite loops
+  let visible = $derived.by(() => {
+    let filtered = rows || [];
     
-    // Use untrack for the actual filtering/sorting logic
-    untrack(() => {
-      let filtered = rows || [];
-      
-      if (filter === 'draft') {
-        filtered = filtered.filter(r => r?.isDraft);
-      } else if (filter === 'active') {
-        filtered = filtered.filter(r => !r?.isDraft);
-      }
-      
-      if (query) {
-        filtered = filtered.filter((row) => {
-          if (!row) return false;
-          return `${row.id || ''} ${row.client || ''} ${row.title || ''}`.toLowerCase().includes(query);
-        });
-      }
-      
-      visible = filtered.sort((a, b) => {
-        if (!a || !b) return 0;
-        let av = a[key] || '';
-        let bv = b[key] || '';
-        const result = av > bv ? 1 : av < bv ? -1 : 0;
-        return asc ? result : -result;
+    if (statusFilter === 'draft') {
+      filtered = filtered.filter(r => r?.isDraft);
+    } else if (statusFilter === 'active') {
+      filtered = filtered.filter(r => !r?.isDraft);
+    }
+    
+    if (qLower) {
+      filtered = filtered.filter((row) => {
+        if (!row) return false;
+        return `${row.id || ''} ${row.client || ''} ${row.title || ''}`.toLowerCase().includes(qLower);
       });
+    }
+    
+    return filtered.sort((a, b) => {
+      if (!a || !b) return 0;
+      let av = a[sortKey] || '';
+      let bv = b[sortKey] || '';
+      const result = av > bv ? 1 : av < bv ? -1 : 0;
+      return sortAsc ? result : -result;
     });
   });
 
@@ -199,7 +189,6 @@
       hasLoadedOnce = true;
       errorMessage = '';
       
-      // Force DOM update
       isLoading = false;
       console.log('✅ Successfully loaded', rows.length, 'orders');
       
