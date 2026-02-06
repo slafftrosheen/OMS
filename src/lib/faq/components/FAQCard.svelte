@@ -3,9 +3,15 @@
   import Badge from '$lib/ui/Badge.svelte';
   import { Eye } from 'lucide-svelte';
 
-  export let item: FAQItem;
-  export let lang: 'en' | 'ru' | 'lv' = 'en';
-  export let showAnswer = false;
+  let {
+    item,
+    lang = 'en',
+    showAnswer = false
+  }: {
+    item: FAQItem;
+    lang?: 'en' | 'ru' | 'lv';
+    showAnswer?: boolean;
+  } = $props();
 
   const getQuestion = (item: FAQItem, lang: 'en' | 'ru' | 'lv') => {
     if (lang === 'ru' && item.questionRu) return item.questionRu;
@@ -19,7 +25,7 @@
     return item.answerEn;
   };
 
-  let expanded = showAnswer;
+  let expanded = $state(showAnswer);
   const toggle = () => {
     expanded = !expanded;
   };
@@ -28,7 +34,7 @@
 <article class="faq-card" class:expanded>
   <button 
     class="faq-header" 
-    on:click={toggle}
+    onclick={toggle}
     aria-expanded={expanded}
     type="button"
   >

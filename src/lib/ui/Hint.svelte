@@ -1,17 +1,31 @@
 <script lang="ts">
-  export let text = '';
+  import type { Snippet } from 'svelte';
+
+  let {
+    text = '',
+    children
+  }: {
+    text?: string;
+    children?: Snippet;
+  } = $props();
+
   let id = `tt-${Math.random().toString(36).slice(2)}`;
-  let show = false;
+  let show = $state(false);
 </script>
 
 <span
   class="hint-wrap"
-  on:mouseenter={() => (show = true)}
-  on:mouseleave={() => (show = false)}
-  on:focus={() => (show = true)}
-  on:blur={() => (show = false)}
+  onmouseenter={() => (show = true)}
+  onmouseleave={() => (show = false)}
+  onfocus={() => (show = true)}
+  onblur={() => (show = false)}
+  role="group"
 >
-  <slot aria-describedby={id}></slot>
+  {#if children}
+    <span aria-describedby={id}>
+      {@render children()}
+    </span>
+  {/if}
   {#if show}
     <span role="tooltip" id={id} class="hint">{text}</span>
   {/if}

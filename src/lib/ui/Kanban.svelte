@@ -1,5 +1,9 @@
 <script lang="ts">
-  export let lanes: { name: string; items: { id: string; title: string }[] }[] = [];
+  let {
+    lanes = []
+  }: {
+    lanes?: { name: string; items: { id: string; title: string }[] }[];
+  } = $props();
 </script>
 
 <div class="kanban">

@@ -1,13 +1,18 @@
 <script lang="ts">
-  export let onClose = ()=>{};
-  let open=true;
+  let {
+    onClose = () => {}
+  }: {
+    onClose?: () => void;
+  } = $props();
+
+  let open = $state(true);
   function close(){ open=false; onClose(); }
   function onKey(e:KeyboardEvent){ if(e.key==='Escape') close(); }
 </script>
 
 {#if open}
 <div class="sheet">
-  <div class="card" role="dialog" aria-modal="true" aria-label="Interface help" on:keydown={onKey} tabindex="0">
+  <div class="card" role="dialog" aria-modal="true" aria-label="Interface help" onkeydown={onKey} tabindex="0">
     <h3>Quick help</h3>
     <ul>
       <li><b>Theme</b>: Light / Dark / High-contrast (3:1 non-text contrast).</li>
@@ -17,7 +22,7 @@
       <li><b>Orders</b>: "Change loading date…" respects capacity slots.</li>
       <li><b>Inventory</b>: Low stock triggers notification + toast.</li>
     </ul>
-    <div class="row" style="justify-content:flex-end"><button class="tag" on:click={close}>Close</button></div>
+    <div class="row" style="justify-content:flex-end"><button class="tag" onclick={close}>Close</button></div>
   </div>
 </div>
 {/if}

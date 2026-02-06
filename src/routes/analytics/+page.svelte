@@ -54,28 +54,28 @@
       <button
         class="timeframe-btn"
         class:active={$timeframe === '7d'}
-        on:click={() => $timeframe = '7d'}
+        onclick={() => $timeframe = '7d'}
       >
         Last 7 Days
       </button>
       <button
         class="timeframe-btn"
         class:active={$timeframe === '30d'}
-        on:click={() => $timeframe = '30d'}
+        onclick={() => $timeframe = '30d'}
       >
         Last 30 Days
       </button>
       <button
         class="timeframe-btn"
         class:active={$timeframe === '90d'}
-        on:click={() => $timeframe = '90d'}
+        onclick={() => $timeframe = '90d'}
       >
         Last 90 Days
       </button>
       <button
         class="timeframe-btn"
         class:active={$timeframe === '1y'}
-        on:click={() => $timeframe = '1y'}
+        onclick={() => $timeframe = '1y'}
       >
         Last Year
       </button>
@@ -192,7 +192,7 @@
                 <div
                   class="rework-bar-fill"
                   style="width: {(item.count / $analytics.top_rework_stations[0].count) * 100}%"
-                />
+                ></div>
               </div>
               <span class="rework-count">{item.count}</span>
             </div>

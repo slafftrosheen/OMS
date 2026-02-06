@@ -1,8 +1,15 @@
 <script lang="ts">
-  export let label: string;
-  export let variant: 'white' | 'black' | 'red' | 'orange' = 'white';
-  export let active: boolean = false;
-  export let onClick: () => void = () => {};
+  let {
+    label,
+    variant = 'white',
+    active = false,
+    onClick = () => {}
+  }: {
+    label: string;
+    variant?: 'white' | 'black' | 'red' | 'orange';
+    active?: boolean;
+    onClick?: () => void;
+  } = $props();
 </script>
 
 <button
@@ -12,7 +19,7 @@
   class:red={variant === 'red'}
   class:orange={variant === 'orange'}
   class:active
-  on:click={onClick}
+  onclick={onClick}
   type="button"
 >
   {label}

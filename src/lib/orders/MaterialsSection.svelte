@@ -1,14 +1,19 @@
 <script lang="ts">
   import { RAL, PANTONE } from '$lib/colors/palettes';
-  export let items: any[] = []; // bind from order
+  
+  let {
+    items = $bindable([])
+  }: {
+    items?: any[];
+  } = $props();
+
   function add(){ items = [...items, { type:'Acrylic', thicknessMM:3, colorSystem:'RAL', colorCode:'', qty:1 }]; }
   function del(i:number){ items = items.filter((_,ix)=>ix!==i); }
-  // items binding is handled by export let
 </script>
 
 <section class="card">
   <div class="row materials-head">
-    <h3>Materials</h3><button class="tag" on:click={add}>Add</button>
+    <h3>Materials</h3><button class="tag" onclick={add}>Add</button>
   </div>
   <div class="rf-table">
     <div class="thead">
@@ -38,7 +43,7 @@
             (m.colorSystem==='PANTONE' && PANTONE.find(x=>x.code===m.colorCode)?.hex) || '#eee'}"></div>
       <input type="number" min="0" bind:value={m.qty}>
       <input bind:value={m.notes} placeholder="">
-      <button class="tag ghost" on:click={()=>del(i)}>Delete</button>
+      <button class="tag ghost" onclick={()=>del(i)}>Delete</button>
     </div>
     {/each}
   </div>

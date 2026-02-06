@@ -1,9 +1,16 @@
 <!-- src/lib/profiles/components/fields/ToggleSwitch.svelte -->
 <script lang="ts">
-  export let value: boolean = false;
-  export let label: string = 'Toggle';
-  export let disabled: boolean = false;
-  export let error: string | null = null;
+  let {
+    value = $bindable(false),
+    label = 'Toggle',
+    disabled = false,
+    error = null
+  }: {
+    value?: boolean;
+    label?: string;
+    disabled?: boolean;
+    error?: string | null;
+  } = $props();
 
   function toggle() {
     if (!disabled) {
@@ -21,7 +28,7 @@
     type="button"
     class="switch"
     class:active={value}
-    on:click={toggle}
+    onclick={toggle}
     {disabled}
     role="switch"
     aria-checked={value}

@@ -1,9 +1,17 @@
 <script lang="ts">
-  export let value: string = '';
-  export let label: string = 'Material';
-  export let options: string[] = [];
-  export let placeholder: string = 'Select material';
-  export let required: boolean = false;
+  let {
+    value = $bindable(''),
+    label = 'Material',
+    options = [],
+    placeholder = 'Select material',
+    required = false
+  }: {
+    value?: string;
+    label?: string;
+    options?: string[];
+    placeholder?: string;
+    required?: boolean;
+  } = $props();
 </script>
 
 <div class="material-selector">

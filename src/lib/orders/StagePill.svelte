@@ -1,7 +1,13 @@
 <script lang="ts">
-  export let stage = 'CNC';     // CAD, CNC, Sanding, Bending, Welding, Paint, Assembly, QC, Delivery
-  export let done  = false;
-  export let redo: string | null = null;      // 'resand' | 'recut' | 'repaint' | ...
+  let {
+    stage = 'CNC',     // CAD, CNC, Sanding, Bending, Welding, Paint, Assembly, QC, Delivery
+    done = false,
+    redo = null       // 'resand' | 'recut' | 'repaint' | ...
+  }: {
+    stage?: string;
+    done?: boolean;
+    redo?: string | null;
+  } = $props();
 </script>
 
 <span class="pill" data-done={done} data-redo={!!redo} title={redo ? `Redo: ${redo}` : stage}>

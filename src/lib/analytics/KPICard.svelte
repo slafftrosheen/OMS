@@ -4,21 +4,32 @@
  * Display single KPI metric with icon and trend
  */
 
-import type { ComponentType } from 'svelte';
+import type { Component } from 'svelte';
 
-export let title: string;
-export let value: number | string;
-export let icon: ComponentType;
-export let trend: string = '';
-export let color: string = 'var(--accent-1)';
-export let suffix: string = '';
+let {
+  title,
+  value,
+  icon,
+  trend = '',
+  color = 'var(--accent-1)',
+  suffix = ''
+}: {
+  title: string;
+  value: number | string;
+  icon: Component;
+  trend?: string;
+  color?: string;
+  suffix?: string;
+} = $props();
+
+let IconComponent = $derived(icon);
 </script>
 
 <div class="kpi-card">
   <div class="card-header">
     <span class="card-title">{title}</span>
     <div class="card-icon" style="background-color: {color};">
-      <svelte:component this={icon} size={20} />
+      <IconComponent size={20} />
     </div>
   </div>
 

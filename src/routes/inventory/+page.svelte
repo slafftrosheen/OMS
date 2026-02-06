@@ -109,15 +109,15 @@
       />
     </div>
     <div class="row">
-      <button class="tag" on:click={()=>showImport=!showImport}>
+      <button class="tag" onclick={()=>showImport=!showImport}>
         <Upload size={14} aria-hidden="true" />
         {$t('inv.import') || 'Bulk import'}
       </button>
-      <button class="tag" on:click={()=>showScan=!showScan}>
+      <button class="tag" onclick={()=>showScan=!showScan}>
         <ScanBarcodeIcon size={14} aria-hidden="true" />
         {$t('inv.scan') || 'Scan barcode'}
       </button>
-      <button class="tag" on:click={exportCSV}>
+      <button class="tag" onclick={exportCSV}>
         <Download size={14} aria-hidden="true" />
         Export CSV
       </button>
@@ -165,13 +165,13 @@
       <details class="group-section" open>
         <summary class="group-summary">
           <span>{g.title}</span>
-          <button class="tag" on:click|stopPropagation={() => handleCreateItem(currentTab, g.title)}><Plus size={14} aria-hidden="true"/> {$t('inventory.add')}</button>
+          <button class="tag" onclick={() => handleCreateItem(currentTab, g.title)}><Plus size={14} aria-hidden="true"/> {$t('inventory.add')}</button>
         </summary>
         {#each g.subgroups as sub (sub.id)}
           <details class="sub-section" open>
             <summary class="sub-summary">
               <span>{sub.title}</span>
-              <button class="tag" on:click|stopPropagation={() => handleCreateItem(currentTab, g.title, sub.title)}><Plus size={14} aria-hidden="true"/> {$t('inventory.add')}</button>
+              <button class="tag" onclick={() => handleCreateItem(currentTab, g.title, sub.title)}><Plus size={14} aria-hidden="true"/> {$t('inventory.add')}</button>
             </summary>
             <div class="table-wrap">
               <table class="rf-table">
@@ -204,7 +204,7 @@
                       <td data-label={$t('inventory.headers.location')}>{it.location || '—'}</td>
                       <td class="actions-cell">
                         <a href={`${base}/inventory/${it.id}`} class="icon-btn" aria-label={`Edit ${it.name}`}><Edit size={16} aria-hidden="true"/></a>
-                        <button class="icon-btn warn" aria-label={`Delete ${it.name}`} on:click={() => { if (confirm(`Delete ${it.name}?`)) removeItem(it.id); }}><Trash size={16} aria-hidden="true"/></button>
+                        <button class="icon-btn warn" aria-label={`Delete ${it.name}`} onclick={() => { if (confirm(`Delete ${it.name}?`)) removeItem(it.id); }}><Trash size={16} aria-hidden="true"/></button>
                       </td>
                     </tr>
                   {/each}

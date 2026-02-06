@@ -1,10 +1,17 @@
 <script lang="ts">
-  export let value: string = '';
-  export let label: string = 'Color';
-  export let colors: { code: string; hex: string; name?: string }[] = [];
-  export let allowCustom: boolean = false;
+  let {
+    value = $bindable(''),
+    label = 'Color',
+    colors = [],
+    allowCustom = false
+  }: {
+    value?: string;
+    label?: string;
+    colors?: { code: string; hex: string; name?: string }[];
+    allowCustom?: boolean;
+  } = $props();
 
-  let customColor = '';
+  let customColor = $state('');
 
   function selectColor(code: string, hex: string) {
     value = code;
@@ -27,10 +34,10 @@
         class="color-swatch"
         class:active={value === color.code}
         style="--swatch-color: {color.hex}"
-        on:click={() => selectColor(color.code, color.hex)}
+        onclick={() => selectColor(color.code, color.hex)}
         title={color.name || color.code}
       >
-        <span class="swatch-box" />
+        <span class="swatch-box"></span>
         <span class="swatch-label">{color.code}</span>
       </button>
     {/each}
@@ -40,7 +47,7 @@
       <input
         type="text"
         bind:value={customColor}
-        on:input={handleCustomInput}
+        oninput={handleCustomInput}
         placeholder="Custom color code"
         class="rf-input"
       />

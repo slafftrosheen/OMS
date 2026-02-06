@@ -5,8 +5,13 @@
   import { TERMS } from './names';
   import { BADGE_ICONS, BADGE_ORDER, badgeTone } from './badges';
 
-  export let value: BadgeType[] = [];
-  export let onChange: (badges: BadgeType[]) => void = () => {};
+  let {
+    value = [],
+    onChange = () => {}
+  }: {
+    value?: BadgeType[];
+    onChange?: (badges: BadgeType[]) => void;
+  } = $props();
 
   const allBadges: BadgeType[] = BADGE_ORDER;
 
@@ -28,9 +33,10 @@
   <div class="row" style="flex-wrap:wrap;gap:6px">
     {#each allBadges as badge}
       {@const label = $t(TERMS.badges[badge])}
-      <button class="tag" aria-pressed={value.includes(badge)} aria-label={label} on:click={() => toggle(badge)}>
+      {@const IconComponent = BADGE_ICONS[badge]}
+      <button class="tag" aria-pressed={value.includes(badge)} aria-label={label} onclick={() => toggle(badge)}>
         <Badge tone={toneFor(badge)} label={label}>
-          <svelte:component this={BADGE_ICONS[badge]} size={14} aria-hidden="true" />
+          <IconComponent size={14} aria-hidden="true" />
           <span>{label}</span>
         </Badge>
       </button>

@@ -2,13 +2,23 @@
 <script lang="ts">
   import { ChevronDown } from 'lucide-svelte';
 
-  export let value: string = '';
-  export let options: string[] = [];
-  export let label: string = 'Select';
-  export let required: boolean = false;
-  export let disabled: boolean = false;
-  export let placeholder: string = 'Select an option...';
-  export let error: string | null = null;
+  let {
+    value = $bindable(''),
+    options = [],
+    label = 'Select',
+    required = false,
+    disabled = false,
+    placeholder = 'Select an option...',
+    error = null
+  }: {
+    value?: string;
+    options?: string[];
+    label?: string;
+    required?: boolean;
+    disabled?: boolean;
+    placeholder?: string;
+    error?: string | null;
+  } = $props();
 </script>
 
 <div class="dropdown" class:disabled class:error={!!error}>

@@ -1,6 +1,15 @@
 <script lang="ts">
-  export let sections:{id:string; title:string}[]=[];
-  let openId = sections[0]?.id || '';
+  import type { Snippet } from 'svelte';
+
+  let {
+    sections = [],
+    children
+  }: {
+    sections?: {id:string; title:string}[];
+    children?: Snippet<[{s: {id:string; title:string}}]>;
+  } = $props();
+
+  let openId = $state(sections[0]?.id || '');
   
   function toggle(id:string){ 
     openId = openId===id ? '' : id; 
@@ -15,7 +24,7 @@
         aria-expanded={openId===s.id} 
         aria-controls={`sect-${s.id}`} 
         id={`hdr-${s.id}`} 
-        on:click={()=>toggle(s.id)}>
+        onclick={()=>toggle(s.id)}>
         {s.title}
       </button>
     </h3>
@@ -25,7 +34,9 @@
       aria-labelledby={`hdr-${s.id}`} 
       hidden={openId!==s.id} 
       class="panel">
-      <slot {s} />
+      {#if children}
+        {@render children({s})}
+      {/if}
     </div>
   {/each}
 </div>

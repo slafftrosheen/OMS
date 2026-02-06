@@ -2,7 +2,11 @@
   import type { ColorSpec } from './color-systems';
   import { resolveHex } from './color-systems';
 
-  export let color: ColorSpec;
+  let {
+    color
+  }: {
+    color: ColorSpec;
+  } = $props();
 
   let hex = $derived(resolveHex(color));
 </script>

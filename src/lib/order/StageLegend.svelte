@@ -5,8 +5,13 @@
   import { get } from 'svelte/store';
   import Badge from '$lib/ui/Badge.svelte';
 
-  export let stages: StageMap = {} as StageMap;
-  export let cycles: StageCycle[] = [];
+  let {
+    stages = {} as StageMap,
+    cycles = []
+  }: {
+    stages?: StageMap;
+    cycles?: StageCycle[];
+  } = $props();
 
   function count(station: StationTag) {
     return cycles.filter((cycle) => cycle.station === station).length;
