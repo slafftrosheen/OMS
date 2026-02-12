@@ -2,7 +2,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { goto } from '$app/navigation';
-    import { currentProfile } from '$lib/stores/auth';
+    import { getCurrentProfile } from '$lib/stores/auth';
     import { ordersStore as orders, orderStats } from '$lib/stores/orders';
     import StatCard from '$lib/components/analytics/StatCard.svelte';
     import OrderCard from '$lib/components/orders/OrderCard.svelte';
@@ -81,7 +81,7 @@
         }
     }
 
-    function handleOrderClick(event: CustomEvent) {
+    function handleOrderClick(event: CustomEvent<any>) {
         goto(`/orders/${event.detail.id}`);
     }
 
@@ -98,9 +98,9 @@
     <header class="dashboard-header">
         <div>
             <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle">Welcome back, {$currentProfile?.username || 'User'}!</p>
+            <p class="page-subtitle">Welcome back, {getCurrentProfile()?.username || 'User'}!</p>
         </div>
-        <Button variant="primary" on:click={() => goto('/orders/new')}>
+        <Button variant="primary" onclick={() => goto('/orders/new')}>
             + New Order
         </Button>
     </header>
@@ -154,7 +154,7 @@
         <section class="recent-orders">
             <div class="section-header">
                 <h2 class="section-title">Active Orders</h2>
-                <Button variant="ghost" on:click={() => goto('/orders')}>
+                <Button variant="ghost" onclick={() => goto('/orders')}>
                     View All →
                 </Button>
             </div>
@@ -163,7 +163,7 @@
                 <Card>
                     <div class="empty-state">
                         <p class="empty-message">No active orders</p>
-                        <Button variant="primary" on:click={() => goto('/orders/new')}>
+                        <Button variant="primary" onclick={() => goto('/orders/new')}>
                             Create First Order
                         </Button>
                     </div>
@@ -171,7 +171,7 @@
             {:else}
                 <div class="orders-grid">
                     {#each recentOrders as order (order.id)}
-                        <OrderCard {order} on:click={handleOrderClick} showActions={false} />
+                        <OrderCard {order} onclick={handleOrderClick} showActions={false} />
                     {/each}
                 </div>
             {/if}

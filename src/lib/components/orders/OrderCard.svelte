@@ -2,9 +2,9 @@
   import type { Order } from '$lib/stores/orders';
   import { t } from '$lib/i18n';
 
-  let { 
-    order, 
-    compact = false, 
+  let {
+    order,
+    compact = false,
     showActions = true,
     onclick,
     onedit,
@@ -13,7 +13,7 @@
     order: Order;
     compact?: boolean;
     showActions?: boolean;
-    onclick?: (order: Order) => void;
+    onclick?: (event: CustomEvent<Order>) => void;
     onedit?: (order: Order) => void;
     ondelete?: (order: Order) => void;
   } = $props();
@@ -29,7 +29,10 @@
   );
 
   function handleClick() {
-    onclick?.(order);
+    if (onclick) {
+      const event = new CustomEvent('click', { detail: order });
+      onclick(event as any);
+    }
   }
 
   function handleEdit(e: Event) {

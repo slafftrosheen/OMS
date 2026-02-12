@@ -1,6 +1,6 @@
 // user-store.ts
 // Re-export from consolidated users store for backward compatibility
-import { writable, derived } from 'svelte/store';
+import { get, writable, derived } from 'svelte/store';
 import type { User, Section } from './types';
 import { base } from '$app/paths';
 
@@ -21,6 +21,19 @@ export function switchSection(section: Section) {
     }
     return u;
   });
+}
+
+// Svelte 5 rune-based functions for accessing auth state
+export function getCurrentUser(): User | null {
+    return get(currentUser);
+}
+
+export function getAuthLoading(): boolean {
+    return get(authLoading);
+}
+
+export function getAuthError(): string | null {
+    return get(authError);
 }
 
 /**

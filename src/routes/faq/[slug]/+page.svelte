@@ -7,10 +7,10 @@
   import Button from '$lib/ui/Button.svelte';
   import { ArrowLeft, Eye, Calendar, Tag } from 'lucide-svelte';
 
-  let item: FAQItem | null = null;
-  let loading = true;
-  let error = false;
-  let lang: 'en' | 'ru' | 'lv' = 'en';
+  let item: FAQItem | null = $state(null);
+  let loading = $state(true);
+  let error = $state(false);
+  let lang: 'en' | 'ru' | 'lv' = $state('en');
 
   let slug = $derived(page.params.slug);
 

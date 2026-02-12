@@ -1,7 +1,5 @@
 <!-- src/lib/components/chat/ChatMessage.svelte -->
 <script lang="ts">
-    import { currentProfile } from '$lib/stores/auth';
-
     interface MessageType {
         id: string;
         userId: string;

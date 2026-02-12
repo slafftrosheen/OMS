@@ -18,9 +18,9 @@
   import PackagePlus from 'lucide-svelte/icons/package-plus';
   import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
 
-  let q = '';
-  let list: Item[] = [];
-  let low: Item[] = [];
+  let q = $state('');
+  let list: Item[] = $state([]);
+  let low: Item[] = $state([]);
 
   const unsubItems = items.subscribe((value) => (list = value));
   const unsubLow = lowStock.subscribe((value) => (low = value));
@@ -40,7 +40,7 @@
     {id:'3dprinting', label: $t('inventory.3dprinting', { default: '3D Printing' })}
   ];
   
-  let currentTab: Section = 'materials';
+  let currentTab: Section = $state('materials');
   
   function handleTabChange(id: string) {
     currentTab = id as Section;
@@ -86,9 +86,9 @@
 
   let grouped = $derived(buildStructure(currentTab));
 
-  let editing: any = null;
-  let showImport = false;
-  let showScan = false;
+  let editing: any = $state(null);
+  let showImport = $state(false);
+  let showScan = $state(false);
 
   function handleCreateItem(section: Section, group: string, subgroup = '') {
     editing = { section, group, subgroup };

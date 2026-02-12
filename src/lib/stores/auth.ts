@@ -1,5 +1,5 @@
 // src/lib/stores/auth.ts
-import { writable, derived } from 'svelte/store';
+import { get, writable, derived } from 'svelte/store';
 import type { User, Session } from '@supabase/supabase-js';
 
 export interface UserProfile {
@@ -62,11 +62,11 @@ export const isAuthenticated = derived(auth, $auth => !!$auth.user);
 export const currentUser = derived(auth, $auth => $auth.user);
 export const currentProfile = derived(auth, $auth => $auth.profile);
 
-export const isAdmin = derived(auth, $auth => 
+export const isAdmin = derived(auth, $auth =>
     !!$auth.profile?.roles?.Admin
 );
 
-export const isSuperAdmin = derived(auth, $auth => 
+export const isSuperAdmin = derived(auth, $auth =>
     $auth.profile?.roles?.Admin === 'SuperAdmin'
 );
 
@@ -75,3 +75,32 @@ export const hasRole = derived(auth, $auth => ({
     production: !!$auth.profile?.roles?.Production,
     design: !!$auth.profile?.roles?.Design
 }));
+
+// Svelte 5 rune-based functions for accessing auth state
+export function getAuth(): AuthState {
+    return get(auth);
+}
+
+export function getIsAuthenticated(): boolean {
+    return get(isAuthenticated);
+}
+
+export function getCurrentUser(): User | null {
+    return get(currentUser);
+}
+
+export function getCurrentProfile(): UserProfile | null {
+    return get(currentProfile);
+}
+
+export function getIsAdmin(): boolean {
+    return get(isAdmin);
+}
+
+export function getIsSuperAdmin(): boolean {
+    return get(isSuperAdmin);
+}
+
+export function getHasRole(): { admin: boolean; production: boolean; design: boolean } {
+    return get(hasRole);
+}

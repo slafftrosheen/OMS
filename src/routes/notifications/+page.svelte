@@ -19,10 +19,10 @@
     readAt: string | null;
   }
 
-  let notifications: Notification[] = [];
-  let loading = true;
-  let filter: 'all' | 'unread' | 'read' = 'all';
-  let typeFilter: string = 'all';
+  let notifications: Notification[] = $state([]);
+  let loading = $state(true);
+  let filter: 'all' | 'unread' | 'read' = $state('all');
+  let typeFilter: string = $state('all');
 
   const notificationTypes = [
     { value: 'all', label: 'All Types' },

@@ -1,9 +1,13 @@
-<!-- @migration-task Error while migrating Svelte code: Mixing old (on:click) and new syntaxes for event handling is not allowed. Use only the onclick syntax
-https://svelte.dev/e/mixed_event_handler_syntaxes -->
 <!-- src/lib/admin/components/builder/CanvasSection.svelte -->
 <script lang="ts">
-  import { GripVertical, Plus, Copy, Trash2, MoreVertical } from 'lucide-svelte';
-  import CanvasField from './CanvasField.svelte';
+  import {
+    GripVertical,
+    Plus,
+    Copy,
+    Trash2,
+    MoreVertical,
+  } from "lucide-svelte";
+  import CanvasField from "./CanvasField.svelte";
 
   let {
     section,
@@ -16,7 +20,7 @@ https://svelte.dev/e/mixed_event_handler_syntaxes -->
     onduplicate,
     onselectField,
     ondeleteField,
-    onduplicateField
+    onduplicateField,
   }: {
     section: any;
     selected?: boolean;
@@ -35,7 +39,7 @@ https://svelte.dev/e/mixed_event_handler_syntaxes -->
 
   function handleSectionClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    if (target === event.currentTarget || target.closest('.section-header')) {
+    if (target === event.currentTarget || target.closest(".section-header")) {
       onselect?.();
     }
   }
@@ -49,44 +53,64 @@ https://svelte.dev/e/mixed_event_handler_syntaxes -->
     event.preventDefault();
   }
 
-  let sectionDisplayName = $derived(section.displayName?.en || section.display_name_en || section.name);
-  let headerColor = $derived(section.metadata?.color || section.icon ? '#1a1a1a' : '#1a1a1a');
+  let sectionDisplayName = $derived(
+    section.displayName?.en || section.display_name_en || section.name,
+  );
+  let headerColor = $derived(
+    section.metadata?.color || section.icon ? "#1a1a1a" : "#1a1a1a",
+  );
 </script>
 
-<div 
+<div
   class="canvas-section"
   class:selected
   class:drop-target={dropTarget}
-  on:click={handleSectionClick}
-  on:drop={handleDrop}
-  on:dragover={handleDragOver}
+  onclick={handleSectionClick}
+  ondrop={handleDrop}
+  ondragover={handleDragOver}
   role="button"
   tabindex="0"
 >
   <!-- Section Header -->
-  <div 
+  <div
     class="section-header"
     style="background-color: {headerColor};"
     draggable="true"
   >
     <GripVertical size={16} class="drag-handle" />
     <span class="section-name">{sectionDisplayName}</span>
-    
+
     <div class="section-header-actions">
-      <button 
+      <button
         class="header-action-btn"
-        on:click|stopPropagation={() => showActions = !showActions}
+        onclick={(e) => {
+          e.stopPropagation();
+          showActions = !showActions;
+        }}
       >
         <MoreVertical size={16} />
       </button>
 
       {#if showActions}
-        <div class="actions-dropdown" onclick={(e: MouseEvent) => e.stopPropagation()}>
-          <button onclick={() => { ondelete?.(); showActions = false; }}>
+        <div
+          class="actions-dropdown"
+          onclick={(e: MouseEvent) => e.stopPropagation()}
+        >
+          <button
+            onclick={() => {
+              ondelete?.();
+              showActions = false;
+            }}
+          >
             <Trash2 size={14} />
             Delete
           </button>
-          <button onclick={() => { onduplicate?.(); showActions = false; }}>
+          <button
+            onclick={() => {
+              onduplicate?.();
+              showActions = false;
+            }}
+          >
             <Copy size={14} />
             Duplicate
           </button>
@@ -117,7 +141,7 @@ https://svelte.dev/e/mixed_event_handler_syntaxes -->
     {/if}
 
     <!-- Add Field Button -->
-    <button class="add-field-btn" on:click|stopPropagation>
+    <button class="add-field-btn" onclick={(e) => e.stopPropagation()}>
       <Plus size={16} />
       Add Field
     </button>
@@ -137,7 +161,7 @@ https://svelte.dev/e/mixed_event_handler_syntaxes -->
   }
 
   .canvas-section.selected {
-    border-color: #667EEA;
+    border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
   }
 
@@ -270,8 +294,8 @@ https://svelte.dev/e/mixed_event_handler_syntaxes -->
   }
 
   .add-field-btn:hover {
-    border-color: #667EEA;
-    color: #667EEA;
-    background: #EEF2FF;
+    border-color: #667eea;
+    color: #667eea;
+    background: #eef2ff;
   }
 </style>

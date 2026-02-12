@@ -15,13 +15,13 @@
   // Accept params prop to silence SvelteKit warning
   export const params = {};
 
-  let activeRoomId = 'general';
-  let messageText = '';
-  let scroller: HTMLDivElement | null = null;
-  let showRoomModal = false;
-  let newRoomName = '';
-  let searchQuery = '';
-  let pollingInterval: ReturnType<typeof setInterval>;
+  let activeRoomId = $state('general');
+  let messageText = $state('');
+  let scroller: HTMLDivElement | null = $state(null);
+  let showRoomModal = $state(false);
+  let newRoomName = $state('');
+  let searchQuery = $state('');
+  let pollingInterval: ReturnType<typeof setInterval> = $state(undefined);
 
   let activeRoom = $derived($rooms.find(r => r.id === activeRoomId) || $rooms[0]);
   let roomMessages = $derived($messages.filter(m => m.roomId === activeRoomId));

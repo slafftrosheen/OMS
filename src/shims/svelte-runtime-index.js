@@ -1,7 +1,2 @@
-import * as runtime from '../../node_modules/svelte/src/runtime/index.js';
-
-export * from '../../node_modules/svelte/src/runtime/index.js';
-
-export const untrack = runtime.untrack ?? ((fn) => fn());
-
-export default runtime;
+// Svelte 5 runtime shims - these are no longer needed in Svelte 5
+// This file can be removed or replaced with empty content

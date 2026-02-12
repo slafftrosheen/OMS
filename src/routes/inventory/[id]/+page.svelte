@@ -19,10 +19,10 @@
   // Get id from URL params via page store
   let itemId = $derived(page.params.id);
 
-  let item: Item | undefined;
-  let editMode = false;
-  let editedItem: Partial<Item> = {};
-  
+  let item: Item | undefined = $state(undefined);
+  let editMode = $state(false);
+  let editedItem: Partial<Item> = $state({});
+
   const unsubscribe = items.subscribe((list) => {
     item = list.find((x) => x.id === itemId);
     if (item) {
@@ -41,8 +41,8 @@
     }
   });
 
-  let adjustAmount = 1;
-  let adjustNote = '';
+  let adjustAmount = $state(1);
+  let adjustNote = $state('');
 
   function adjust(kind: 'IN' | 'OUT') {
     if (!item || adjustAmount <= 0) return;

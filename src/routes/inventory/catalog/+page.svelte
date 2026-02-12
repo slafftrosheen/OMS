@@ -5,9 +5,9 @@
   import { t } from 'svelte-i18n';
   import type { Category } from '$lib/inventory/types';
   
-  let searchQuery = '';
-  let categoryFilter: Category | 'ALL' = 'ALL';
-  let showLowStockOnly = false;
+  let searchQuery = $state('');
+  let categoryFilter: Category | 'ALL' = $state('ALL');
+  let showLowStockOnly = $state(false);
   
   onMount(() => {
     loadItems();

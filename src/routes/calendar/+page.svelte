@@ -17,19 +17,19 @@
   export const params = {};
   
   let today = new Date();
-  let y = today.getFullYear();
-  let m = today.getMonth();
-  let selectedDate: string | null = null;
-  let orders: Order[] = [];
-  let loadingDays: any[] = [];
-  let filterStatus: 'all' | 'scheduled' | 'unscheduled' = 'all';
-  
+  let y = $state(today.getFullYear());
+  let m = $state(today.getMonth());
+  let selectedDate: string | null = $state(null);
+  let orders: Order[] = $state([]);
+  let loadingDays: any[] = $state([]);
+  let filterStatus: 'all' | 'scheduled' | 'unscheduled' = $state('all');
+
   // Modal state
-  let showAddOrderModal = false;
-  let showNewLoadingDayModal = false;
-  let newLoadingDayCarrier = '';
-  let newLoadingDayNote = '';
-  let availableOrders: Order[] = [];
+  let showAddOrderModal = $state(false);
+  let showNewLoadingDayModal = $state(false);
+  let newLoadingDayCarrier = $state('');
+  let newLoadingDayNote = $state('');
+  let availableOrders: Order[] = $state([]);
   
   async function refreshOrders() {
     try {

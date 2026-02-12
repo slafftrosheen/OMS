@@ -9,7 +9,7 @@
   
   let id = $derived(page.params.id);
   
-  let o: Order | null = null;
+  let o: Order | null = $state(null);
   
   onMount(async () => {
     o = await getOrder(id);
