@@ -135,8 +135,19 @@
   function updateMaterialAndThickness(rowIndex: number, newMaterial: string) {
     materials[rowIndex].material = newMaterial;
     
-    // Reset thickness when material changes
-    materials[rowIndex].thickness = '';
+    // Automatically select the lowest available thickness when material changes
+    const availableThicknesses = getThicknessOptionsForMaterial(newMaterial);
+    if (availableThicknesses.length > 0) {
+      // Sort thicknesses numerically and select the lowest
+      const lowestThickness = Math.min(...availableThicknesses);
+      materials[rowIndex].thickness = String(lowestThickness);
+    } else {
+      materials[rowIndex].thickness = '';
+    }
+  }
+
+  function updateThicknessDisplay(rowIndex: number) {
+    // This function can be used to update any display logic if needed
   }
 
   function isHexValid(value: string | undefined) {
@@ -304,6 +315,7 @@
                   class="rf-select" 
                   bind:value={row.thickness}
                   disabled={!row.material}
+                  on:change={() => updateThicknessDisplay(index)}
                 >
                   <option value="">{$t('orderform.thickness_placeholder')}</option>
                   {#if row.material && allMaterialsLoaded}
