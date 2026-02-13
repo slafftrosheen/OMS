@@ -9,8 +9,9 @@
   import LoadingDatePicker from '$lib/order/LoadingDatePicker.svelte';
   import { createOrder } from '$lib/order/signage-store';
   import { blankStages } from '$lib/order/stages';
-  import { get } from 'svelte/store';
   import { t } from 'svelte-i18n';
+  import { materials } from '$lib/materials/materialsStore';
+  import { onMount } from 'svelte';
 
   let {
     open = $bindable(false),
@@ -28,6 +29,18 @@
     color: ColorSpec;
   };
 
+  // Define Material type to match the store
+  type Material = {
+    id: string;
+    category: string;
+    code: string;
+    name_en: string;
+    name_ru?: string;
+    name_lv?: string;
+    thickness_options: number[];
+    metadata: Record<string, any>;
+  };
+
   let id = '';
   let title = '';
   let client = '';
@@ -37,35 +50,47 @@
   let isRD = false;
   let rdNotes = '';
 
-  function createDefaultMaterials(): MaterialRow[] {
-    const translate = get(t);
+  const defaultMaterials = $derived([
+    {
+      key: 'face',
+      label: $t('orderform.defaults.face'),
+      material: $t('orderform.defaults.acrylic'),
+      thickness: $t('orderform.defaults.thickness_3mm'),
+      color: { system: 'RAL', code: 'RAL 9016' }
+    },
+    {
+      key: 'back',
+      label: $t('orderform.defaults.back'),
+      material: $t('orderform.defaults.acp'),
+      thickness: $t('orderform.defaults.thickness_3mm'),
+      color: { system: 'RAL', code: 'RAL 9005' }
+    },
+    {
+      key: 'frame',
+      label: $t('orderform.defaults.face_frame'),
+      material: $t('orderform.defaults.aluminum'),
+      thickness: $t('orderform.defaults.thickness_2mm'),
+      color: { system: 'Other', code: $t('orderform.defaults.natural') }
+    }
+  ]);
 
-    return [
-      {
-        key: 'face',
-        label: translate('orderform.defaults.face'),
-        material: translate('orderform.defaults.acrylic'),
-        thickness: translate('orderform.defaults.thickness_3mm'),
-        color: { system: 'RAL', code: 'RAL 9016' }
-      },
-      {
-        key: 'back',
-        label: translate('orderform.defaults.back'),
-        material: translate('orderform.defaults.acp'),
-        thickness: translate('orderform.defaults.thickness_3mm'),
-        color: { system: 'RAL', code: 'RAL 9005' }
-      },
-      {
-        key: 'frame',
-        label: translate('orderform.defaults.face_frame'),
-        material: translate('orderform.defaults.aluminum'),
-        thickness: translate('orderform.defaults.thickness_2mm'),
-        color: { system: 'Other', code: translate('orderform.defaults.natural') }
-      }
-    ];
+  function createDefaultMaterials(): MaterialRow[] {
+    // Return a copy of the reactive default materials
+    return defaultMaterials.map(material => ({ ...material }));
   }
 
   let materials: MaterialRow[] = createDefaultMaterials();
+  let availableMaterials: Material[] = $state([]);
+  let allMaterialsLoaded = $state(false);
+
+  onMount(async () => {
+    // Load materials from the store
+    await materials.load();
+    materials.subscribe((loadedMaterials) => {
+      availableMaterials = loadedMaterials;
+      allMaterialsLoaded = true;
+    })();
+  });
 
   function resetForm() {
     id = '';
@@ -85,7 +110,7 @@
       ...materials,
       {
         key: `part_${index}`,
-        label: get(t)('orderform.defaults.part'),
+        label: $t('orderform.defaults.part'),
         material: '',
         thickness: '',
         color: { system: 'HEX', code: '', hex: '#888888' }
@@ -95,6 +120,23 @@
 
   function deleteRow(index: number) {
     materials = materials.filter((_, i) => i !== index);
+  }
+
+  function getThicknessOptionsForMaterial(materialCode: string): number[] {
+    if (!allMaterialsLoaded) return [];
+    
+    const material = availableMaterials.find(m => 
+      m.code === materialCode || m.name_en === materialCode
+    );
+    
+    return material ? material.thickness_options || [] : [];
+  }
+
+  function updateMaterialAndThickness(rowIndex: number, newMaterial: string) {
+    materials[rowIndex].material = newMaterial;
+    
+    // Reset thickness when material changes
+    materials[rowIndex].thickness = '';
   }
 
   function isHexValid(value: string | undefined) {
@@ -112,14 +154,15 @@
     onClose();
   }
 
-  function create() {
+  async function create() {
     if (!id.trim() || !title.trim() || !client.trim() || !pdfPath.trim()) return;
 
-    const translate = get(t);
-
+    // For Svelte 5, we need to handle translations differently
+    // We'll use the global $t function which should be available
+    // This requires the t store to be properly configured globally
     const fields = [
-      { key: 'due', label: translate('orderform.due'), value: due },
-      { key: 'loading', label: translate('orderform.loading'), value: loadingDate || '' }
+      { key: 'due', label: $t('orderform.due'), value: due },
+      { key: 'loading', label: $t('orderform.loading'), value: loadingDate || '' }
     ];
 
     const mats = materials.map((item) => ({
@@ -145,7 +188,7 @@
       loadingDate,
       file: {
         id: crypto.randomUUID(),
-        name: pdfPath.split('/').pop() || get(t)('orderform.pdf_default_name'),
+        name: pdfPath.split('/').pop() || $t('orderform.pdf_default_name'),
         path: pdfPath,
         kind: 'pdf'
       }
@@ -237,8 +280,41 @@
             <div class="materials-grid">
               {#each materials as row, index}
                 <Input bind:value={row.label} placeholder={$t('orderform.section_label')} />
-                <Input bind:value={row.material} placeholder={$t('orderform.material_label')} />
-                <Input bind:value={row.thickness} placeholder={$t('orderform.thickness_placeholder')} />
+                
+                <!-- Material selection dropdown -->
+                <select 
+                  class="rf-select" 
+                  bind:value={row.material}
+                  on:change={() => updateMaterialAndThickness(index, row.material)}
+                >
+                  <option value="">{$t('orderform.material_label')}</option>
+                  {#if allMaterialsLoaded}
+                    {#each availableMaterials as material}
+                      <option value={material.code || material.name_en}>
+                        {material.name_en} ({material.code})
+                      </option>
+                    {/each}
+                  {:else}
+                    <option value="">Loading materials...</option>
+                  {/if}
+                </select>
+                
+                <!-- Thickness selection dropdown, populated based on selected material -->
+                <select 
+                  class="rf-select" 
+                  bind:value={row.thickness}
+                  disabled={!row.material}
+                >
+                  <option value="">{$t('orderform.thickness_placeholder')}</option>
+                  {#if row.material && allMaterialsLoaded}
+                    {#each getThicknessOptionsForMaterial(row.material) as thickness}
+                      <option value={thickness}>
+                        {thickness}mm
+                      </option>
+                    {/each}
+                  {/if}
+                </select>
+                
                 <select class="rf-select" bind:value={row.color.system}>
                   <option value="RAL">{$t('orderform.color_system.ral')}</option>
                   <option value="Pantone">{$t('orderform.color_system.pantone')}</option>
