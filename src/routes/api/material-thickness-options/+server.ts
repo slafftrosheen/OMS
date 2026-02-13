@@ -24,7 +24,7 @@ function normalizeMaterialType(materialType: string): string {
     return 'WOOD';
   } else if (upperType.includes('STEEL') || upperType.includes('METAL')) {
     return 'STEEL';
-  } else if (upperType.includes('FILM') || upperType.includes('ORACAL') || upperType.includes('PRINT'))) {
+  } else if (upperType.includes('FILM') || upperType.includes('ORACAL') || upperType.includes('PRINT')) {
     return 'FILM';
   }
   
