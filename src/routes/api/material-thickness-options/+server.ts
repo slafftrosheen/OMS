@@ -55,14 +55,20 @@ export const GET: RequestHandler = async ({ url }) => {
     }
   }
 
-  const { data: options, error: dbError } = await query;
+  try {
+    const { data: options, error: dbError } = await query;
 
-  if (dbError) {
-    console.error('Error fetching thickness options:', dbError);
+    if (dbError) {
+      console.error('Error fetching thickness options:', dbError);
+      console.error('Material type param:', materialTypeParam);
+      console.error('Normalized type:', materialTypeParam ? normalizeMaterialType(materialTypeParam) : 'N/A');
+      return json([], { status: 200 }); // Return empty array instead of throwing
+    }
+
+    return json(options || []);
+  } catch (err) {
+    console.error('Unexpected error in material-thickness-options API:', err);
     console.error('Material type param:', materialTypeParam);
-    console.error('Normalized type:', normalizeMaterialType(materialTypeParam));
-    throw error(500, 'Failed to fetch thickness options');
+    return json([], { status: 200 }); // Return empty array to prevent 503
   }
-
-  return json(options);
 };
