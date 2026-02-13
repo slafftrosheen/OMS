@@ -69,16 +69,21 @@
   }
 </script>
 
-{#if hasLoadedOnce && value && !loading}
-  <div class="selected-thickness">
-    <span class="thickness-value">{value}</span>
-  </div>
+{#if hasLoadedOnce && options.length > 0 && !loading}
+  <select bind:value disabled={disabled || readonly} class="thickness-select" onchange={handleChange}>
+    <option value="" disabled selected>Select thickness</option>
+    {#each options as option}
+      <option value="{option.thickness}{option.unit}">
+        {option.thickness}mm - {option.display_name}
+      </option>
+    {/each}
+  </select>
 {:else}
   <select bind:value disabled={disabled || readonly} class="thickness-select" class:loading onchange={handleChange}>
     <option value="" disabled selected>{loading ? 'Loading...' : placeholder}</option>
     {#each options as option}
       <option value="{option.thickness}{option.unit}">
-        {option.display_name}
+        {option.thickness}mm - {option.display_name}
       </option>
     {/each}
   </select>
