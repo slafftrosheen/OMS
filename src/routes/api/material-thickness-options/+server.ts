@@ -44,7 +44,15 @@ export const GET: RequestHandler = async ({ url }) => {
 
   if (materialTypeParam) {
     const normalizedType = normalizeMaterialType(materialTypeParam);
-    query = query.ilike('material_type', `%${normalizedType}%`); // Use ilike for case-insensitive partial match
+    
+    // If normalization returns a known material type, use exact match
+    const knownMaterialTypes = ['ACRYLIC', 'PVC', 'ALUMINUM', 'DIBOND', 'MDF', 'WOOD', 'STEEL', 'FILM'];
+    if (knownMaterialTypes.includes(normalizedType)) {
+      query = query.ilike('material_type', normalizedType);
+    } else {
+      // For other cases, use partial match
+      query = query.ilike('material_type', `%${normalizedType}%`);
+    }
   }
 
   const { data: options, error: dbError } = await query;
@@ -52,6 +60,7 @@ export const GET: RequestHandler = async ({ url }) => {
   if (dbError) {
     console.error('Error fetching thickness options:', dbError);
     console.error('Material type param:', materialTypeParam);
+    console.error('Normalized type:', normalizeMaterialType(materialTypeParam));
     throw error(500, 'Failed to fetch thickness options');
   }
 
