@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
-  import { currentUser } from '$lib/auth/authState';
+  import { currentUser } from '$lib/auth/authState.svelte';
   import { UserPlus, Edit2, Trash2, Key, Search, X, Check, AlertCircle } from 'lucide-svelte';
 
   interface User {

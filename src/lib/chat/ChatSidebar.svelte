@@ -3,7 +3,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { fade, slide, fly } from 'svelte/transition';
   import { t } from 'svelte-i18n';
-  import { currentUser } from '$lib/auth/authState';
+  import { currentUser } from '$lib/auth/authState.svelte';
   import { 
     rooms, 
     messages, 

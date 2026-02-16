@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ordersStore } from '$lib/order/orderState';
+  import { ordersStore } from '$lib/order/orderState.svelte';
   import { summarize } from '$lib/metrics/order-metrics';
   import {
     STATIONS,

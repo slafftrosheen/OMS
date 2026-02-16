@@ -1,6 +1,6 @@
 <script lang="ts">
   import { MinusCircle, PlusCircle } from 'lucide-svelte';
-  import { ui } from '$lib/state/appState';
+  import { ui } from '$lib/state/appState.svelte';
   import { t } from 'svelte-i18n';
 
   let fontScale = $derived(($ui).fontScale);

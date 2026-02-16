@@ -6,13 +6,13 @@
   import Tooltip from '$lib/ui/Tooltip.svelte';
   import ErrorBoundary from '$lib/ui/ErrorBoundary.svelte';
   import type { Order, Station, Badge as BadgeCode } from '$lib/order/types';
-  import { orderState } from '$lib/order/orderState';
+  import { orderState } from '$lib/order/orderState.svelte';
   import { blankStages, STATE_LABEL, type StageState } from '$lib/order/stages';
   import { TERMS } from '$lib/order/names';
   import { t } from 'svelte-i18n';
   import { BADGE_ICONS, badgeTone } from '$lib/order/badges';
   import Badge from '$lib/ui/Badge.svelte';
-  import { currentUser } from '$lib/auth/authState';
+  import { currentUser } from '$lib/auth/authState.svelte';
   import { dragging } from '$lib/dnd';
   import { Plus, Download, Activity, AlertCircle, FilePlus, Filter, RefreshCw, Eye, Edit, Trash2, MoreVertical, Search, ChevronLeft, ChevronRight, Package } from 'lucide-svelte';
   import KpiCard from '$lib/ui/KpiCard.svelte';

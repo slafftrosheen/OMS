@@ -1,5 +1,5 @@
 // Loading days calendar store - PostgreSQL backed via API
-import { listOrders, ordersStore } from '$lib/order/orderState';
+import { listOrders, ordersStore } from '$lib/order/orderState.svelte';
 import type { Badge, StageMap } from '$lib/order/types';
 import { writable, get } from 'svelte/store';
 

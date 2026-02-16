@@ -10,7 +10,7 @@
   import Sticky from 'lucide-svelte/icons/sticky-note';
   import Package from 'lucide-svelte/icons/package';
   import { loads } from '$lib/state/loads';
-  import { ordersStore } from '$lib/order/orderState';
+  import { ordersStore } from '$lib/order/orderState.svelte';
   import type { Order } from '$lib/order/types';
 
   interface Props {

@@ -2,7 +2,7 @@
   import Sun from 'lucide-svelte/icons/sun';
   import Moon from 'lucide-svelte/icons/moon';
   import Contrast from 'lucide-svelte/icons/contrast';
-  import { ui } from '$lib/state/appState';
+  import { ui } from '$lib/state/appState.svelte';
   import { t } from 'svelte-i18n';
   import { clickOutside } from '$lib/utils/click-outside';
 

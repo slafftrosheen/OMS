@@ -7,7 +7,7 @@
   import { Save, ArrowLeft, AlertCircle, Plus, Trash2, Upload, FileText, Eye, Calendar, User, CheckCircle, XCircle, Clock } from 'lucide-svelte';
   import Profile7stVisual from '$lib/profiles/components/Profile7stVisual.svelte';
   import { createId } from '$lib/utils/id';
-  import { currentUser } from '$lib/auth/authState';
+  import { currentUser } from '$lib/auth/authState.svelte';
 
   let { data } = $props();
 

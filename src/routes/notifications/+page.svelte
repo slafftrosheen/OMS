@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import { Bell, BellRing, Check, CheckCheck, Trash2, Filter, RefreshCw, AlertTriangle, Info, Package, MessageSquare, Calendar, Settings } from 'lucide-svelte';
-  import { currentUser } from '$lib/auth/authState';
+  import { currentUser } from '$lib/auth/authState.svelte';
 
   interface Notification {
     id: number;

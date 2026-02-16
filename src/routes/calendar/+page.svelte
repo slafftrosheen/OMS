@@ -2,7 +2,7 @@
 
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
-  import { ordersStore } from '$lib/order/orderState';
+  import { ordersStore } from '$lib/order/orderState.svelte';
   import type { Order } from '$lib/order/types';
   import { blankStages } from '$lib/order/stages';
   import { Calendar, ChevronLeft, ChevronRight, Plus, Truck, Download, Filter, X, Check } from 'lucide-svelte';

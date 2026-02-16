@@ -1,4 +1,4 @@
-import { listOrders } from '$lib/order/orderState';
+import { listOrders } from '$lib/order/orderState.svelte';
 
 /**
  * @typedef {Object} SearchHit
