@@ -2,7 +2,6 @@
   import Button from '$lib/ui/Button.svelte';
   import type { StationLog } from './types.signage';
   import { t } from 'svelte-i18n';
-  import { get } from 'svelte/store';
 
   interface Props {
     onCreate?: (title:string, changes: StationLog['changes'], message?:string)=>void;
@@ -15,8 +14,10 @@
   let due = $state(''); let sanding = $state(0); let note = $state('');
   let titleInput: HTMLInputElement | null = $state(null);
 
+  const changeRequestTitle = $derived($t('terms.changeRequest'));
+  const stationNoteLabel = $derived($t('order.station_note'));
+
   function submit(){
-    const translate = get(t);
     const changes: StationLog['changes'] = {};
     let hasChange = false;
     if (due) {
@@ -29,12 +30,12 @@
     }
     const trimmedNote = note.trim();
     if (trimmedNote) {
-      const fields = [{ key:'station_note', label: translate('order.station_note'), value: trimmedNote }];
+      const fields = [{ key:'station_note', label: stationNoteLabel, value: trimmedNote }];
       changes.fields = fields;
       hasChange = true;
     }
     if (!hasChange) return;
-    onCreate(title || translate('terms.changeRequest'), changes, message || undefined);
+    onCreate(title || changeRequestTitle, changes, message || undefined);
     title=''; message=''; due=''; sanding=0; note='';
   }
 

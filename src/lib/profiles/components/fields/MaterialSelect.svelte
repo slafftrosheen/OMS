@@ -431,7 +431,7 @@
 
 <svelte:window onclick={handleClickOutside} />
 
-<div class="material-select" bind:this={dropdownRef}>
+<div class="material-select" class:open bind:this={dropdownRef}>
   {#if customMode}
     <!-- Custom text input mode with color picker -->
     <div class="custom-mode">
@@ -550,6 +550,10 @@
   .material-select {
     position: relative;
     width: 100%;
+  }
+
+  .material-select.open {
+    z-index: 100;
   }
 
   .select-trigger {

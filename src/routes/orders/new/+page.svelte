@@ -106,7 +106,9 @@
     
     try {
       if (pdfRenderTask) {
-        try { pdfRenderTask.cancel(); } catch {}
+        try { pdfRenderTask.cancel(); } catch (error) {
+          console.warn('Error cancelling PDF render task:', error);
+        }
         pdfRenderTask = null;
       }
       

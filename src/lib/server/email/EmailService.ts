@@ -90,6 +90,35 @@ export class EmailService {
             `
         });
     }
+
+    /**
+     * Send low stock alert
+     */
+    async sendLowStockAlert(to: string, data: { 
+        materials: Array<{ 
+            name: string; 
+            currentStock: number; 
+            minStock: number; 
+            unit: string;
+            url: string;
+        }>;
+        summary: string;
+    }): Promise<void> {
+        const materialsHtml = data.materials.map(m => 
+            `<li><strong>${m.name}</strong>: ${m.currentStock} ${m.unit} (min: ${m.min_stock})</li>`
+        ).join('');
+
+        await this.sendEmail({
+            to,
+            subject: `🚨 Low Stock Alert`,
+            html: `
+                <h1 style="color: #ff9800;">Low Stock Alert</h1>
+                <p>The following materials are below minimum stock levels:</p>
+                <ul>${materialsHtml}</ul>
+                <p><a href="${data.materials[0]?.url}">View Inventory</a></p>
+            `
+        });
+    }
 }
 
 export const emailService = new EmailService();

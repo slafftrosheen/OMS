@@ -213,21 +213,22 @@
     selectedDate = formatDate(date);
   }
   
-  function exportDayCSV() {
-    if (!selectedDate) return;
-    const dayOrders = getOrdersForDate(selectedDate);
-    const translate = get(t);
-    const columns = [
-      { label: translate('calendar.columns.po') || 'PO', value: (order: Order) => order.poNumber || order.id },
-      { label: translate('calendar.columns.client') || 'Client', value: (order: Order) => order.client },
-      { label: translate('calendar.columns.title') || 'Title', value: (order: Order) => order.title },
-      { label: translate('calendar.columns.due') || 'Due', value: (order: Order) => order.due }
-    ];
-    const rows = dayOrders.map((order) =>
-      Object.fromEntries(columns.map((column) => [column.label, column.value(order)]))
-    );
-    downloadCSV(`loading-${selectedDate}.csv`, toCSV(rows, columns.map((column) => column.label)));
-  }
+  const exportDayCSV = $derived(() => {
+    return () => {
+      if (!selectedDate) return;
+      const dayOrders = getOrdersForDate(selectedDate);
+      const columns = [
+        { label: $t('calendar.columns.po') || 'PO', value: (order: Order) => order.poNumber || order.id },
+        { label: $t('calendar.columns.client') || 'Client', value: (order: Order) => order.client },
+        { label: $t('calendar.columns.title') || 'Title', value: (order: Order) => order.title },
+        { label: $t('calendar.columns.due') || 'Due', value: (order: Order) => order.due }
+      ];
+      const rows = dayOrders.map((order) =>
+        Object.fromEntries(columns.map((column) => [column.label, column.value(order)]))
+      );
+      downloadCSV(`loading-${selectedDate}.csv`, toCSV(rows, columns.map((column) => column.label)));
+    };
+  });
   
   let days = $derived(getDaysInMonth(y, m));
   let selectedDayOrders = $derived(selectedDate ? getOrdersForDate(selectedDate) : []);
@@ -269,7 +270,7 @@
         <Plus size={18} />
         Mark Loading Day
       </button>
-      <button class="btn-ghost" onclick={exportDayCSV} disabled={!selectedDate}>
+      <button class="btn-ghost" onclick={() => exportDayCSV()} disabled={!selectedDate}>
         <Download size={18} />
         Export CSV
       </button>

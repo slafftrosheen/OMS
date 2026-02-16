@@ -530,6 +530,14 @@
       configuration.FRONT.back ||
       configuration.FRONT.sides,
   );
+
+  let isRoundFrame = $derived(
+    configuration.ASSEMBLING.frameMaterial?.toLowerCase().includes("tube") ||
+      configuration.ASSEMBLING.frameMaterial?.toLowerCase().includes("round") ||
+      configuration.ASSEMBLING.frameMaterial?.toLowerCase().includes(" d") ||
+      configuration.ASSEMBLING.frameMaterial?.startsWith("D") ||
+      configuration.ASSEMBLING.frameMaterialShort?.startsWith("D"),
+  );
 </script>
 
 <div class="profile-form" class:readonly>
@@ -621,7 +629,7 @@
               )}
             >
               {configuration.CNC_FREZER.faceShort ||
-                getShortName(configuration.CNC_FREZER.face, "ACRYLIC")}
+                getShortName(configuration.CNC_FREZER.face, "ACRYLIC")}{#if configuration.CNC_FREZER.faceThickness}/{configuration.CNC_FREZER.faceThickness}{/if}
             </span>
             <MaterialThicknessSelect
               bind:value={configuration.CNC_FREZER.faceThickness}
@@ -679,7 +687,7 @@
               )}
             >
               {configuration.CNC_FREZER.backShort ||
-                getShortName(configuration.CNC_FREZER.back, "ALU")}
+                getShortName(configuration.CNC_FREZER.back, "ALU")}{#if configuration.CNC_FREZER.backThickness}/{configuration.CNC_FREZER.backThickness}{/if}
             </span>
             <MaterialThicknessSelect
               bind:value={configuration.CNC_FREZER.backThickness}
@@ -779,7 +787,7 @@
               )}
             >
               {configuration.BENDER.sidesShort ||
-                getShortName(configuration.BENDER.sides, "ALU")}
+                getShortName(configuration.BENDER.sides, "ALU")}{#if configuration.BENDER.sidesThickness}/{configuration.BENDER.sidesThickness}{/if}
             </span>
             <MaterialThicknessSelect
               bind:value={configuration.BENDER.sidesThickness}
@@ -1261,8 +1269,19 @@
                   )}
                 >
                   <Square size={16} />
-                  {configuration.ASSEMBLING.frameMaterialShort || "ALU"}
+                  {configuration.ASSEMBLING.frameMaterialShort || "ALU"}{#if configuration.ASSEMBLING.frameDimensions}/{configuration.ASSEMBLING.frameDimensions}{/if}
                 </span>
+                <div class="field">
+                  <label>{isRoundFrame ? "DIAMETER (mm)" : "FRAME SIZE"}</label>
+                  <input
+                    type="text"
+                    bind:value={configuration.ASSEMBLING.frameDimensions}
+                    placeholder={isRoundFrame ? "e.g. D20" : "e.g. 40x40"}
+                    disabled={readonly}
+                    oninput={emit}
+                    class="custom-input"
+                  />
+                </div>
               {/if}
               <div class="frame-options">
                 <label
@@ -1341,7 +1360,7 @@
     background: var(--bg-1, #fff);
     border: 1px solid var(--border, #e0e0e0);
     border-radius: var(--radius-md, 8px);
-    overflow: hidden;
+    overflow: visible;
   }
 
   .profile-form.readonly {
@@ -1415,6 +1434,12 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .section:focus-within {
+    z-index: 10;
   }
 
   .section-sm {

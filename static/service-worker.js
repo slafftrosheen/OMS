@@ -88,6 +88,12 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(cacheFirstStrategy(request, STATIC_CACHE));
     return;
   }
+  
+  // Handle static assets with _app path
+  if (url.pathname.includes('_app/immutable')) {
+    event.respondWith(cacheFirstStrategy(request, STATIC_CACHE));
+    return;
+  }
 
   // Everything else - network first
   event.respondWith(networkFirstStrategy(request));

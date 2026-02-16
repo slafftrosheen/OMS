@@ -95,5 +95,7 @@ if (isBrowser) {
         }));
       }
     })
-    .catch(() => {});
+    .catch((error) => {
+      console.warn('Failed to load preferences for UI state:', error);
+    });
 }
