@@ -25,6 +25,20 @@
     disabled = false,
     materialTypes = ['ACRYLIC', 'ALUMINUM', 'PVC', 'ALU_PROFILE']
   }: Props = $props();
+  
+  // Track if we're updating from parent to avoid circular updates
+  let isUpdatingFromParent = $state(false);
+  
+  // Handle updates from parent
+  $effect(() => {
+    isUpdatingFromParent = true;
+    // Update internal state from value prop
+    if (value.materialCode) {
+      // We'll update internal state in loadExistingSelection
+    }
+    thickness = value.thickness || null;
+    isUpdatingFromParent = false;
+  });
 
   let selectedType: 'ACRYLIC' | 'ALUMINUM' | 'PVC' | 'ALU_PROFILE' | null = $state(null);
   let acrylicMaterials: any[] = $state([]);
@@ -101,11 +115,15 @@
   }
 
   function selectAcrylicMaterial(material: any) {
+    if (isUpdatingFromParent) return;
+    
     selectedMaterial = material;
     value = { ...value, materialCode: material.code };
   }
 
   function selectThickness(t: number) {
+    if (isUpdatingFromParent) return;
+    
     thickness = t;
     let newValue = { ...value, thickness: t };
 
@@ -124,6 +142,8 @@
   }
 
   function selectSectionSize(size: string) {
+    if (isUpdatingFromParent) return;
+    
     sectionSize = size;
     
     // For ALU_PROFILE, use the section size in material code
@@ -333,6 +353,8 @@
                 class="size-option"
                 class:selected={selectedMaterial?.code === material.code}
                 onclick={() => {
+                  if (isUpdatingFromParent) return;
+                  
                   selectedMaterial = material;
                   value = { ...value, materialCode: material.code };
                   // Extract section size from material name if it contains size info
