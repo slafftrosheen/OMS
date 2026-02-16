@@ -64,21 +64,16 @@ const supabaseHandler: Handle = async ({ event, resolve }) => {
 		return session;
 	};
 
-	// Get current session for event.locals.user
+	// Get current session and populate user info from profile
 	const session = await event.locals.getSession();
 	if (session) {
-		// Populate minimal user info for request context
-		// Cast to SessionUser to satisfy type requirements
-		event.locals.user = {
-			id: session.user.id,
-			email: session.user.email,
-			username: session.user.email?.split('@')[0] || 'user',
-			displayName: session.user.email?.split('@')[0] || 'User',
-			primarySection: 'General',
-			sections: [],
-			roles: {},
-			stations: []
-		} as unknown as SessionUser;
+		try {
+			const { getSessionUser } = await import('$lib/server/auth/session');
+			event.locals.user = await getSessionUser(event);
+		} catch (e) {
+			logger.error('Failed to load user profile in hooks', e as Error);
+			event.locals.user = null;
+		}
 	}
 
 	return resolve(event, {

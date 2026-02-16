@@ -75,30 +75,59 @@
     return (window as any).__apexchartsLoadPromise;
   }
 
-  function buildConfig() {
-    const baseOptions = options ?? {};
-    const baseChart = baseOptions.chart ?? {};
-    const chartConfig = {
-      ...baseChart,
-      ...(type ? { type } : {}),
-      ...(height !== undefined ? { height } : {}),
-      ...(width !== undefined ? { width } : {})
-    };
+    function buildConfig() {
 
-    const mergedOptions: Record<string, any> = {
-      ...baseOptions,
-      chart: chartConfig
-    };
+      // Use $state.snapshot to strip Svelte 5 proxies, as ApexCharts tries to modify these objects
 
-    if (Object.keys(chartConfig).length === 0) {
-      delete mergedOptions.chart;
+      const baseOptions = $state.snapshot(options) ?? {};
+
+      const baseSeries = $state.snapshot(series) ?? [];
+
+      
+
+      const baseChart = baseOptions.chart ?? {};
+
+      const chartConfig = {
+
+        ...baseChart,
+
+        ...(type ? { type } : {}),
+
+        ...(height !== undefined ? { height } : {}),
+
+        ...(width !== undefined ? { width } : {})
+
+      };
+
+  
+
+      const mergedOptions: Record<string, any> = {
+
+        ...baseOptions,
+
+        chart: chartConfig
+
+      };
+
+  
+
+      if (Object.keys(chartConfig).length === 0) {
+
+        delete mergedOptions.chart;
+
+      }
+
+  
+
+      return {
+
+        options: mergedOptions,
+
+        series: Array.isArray(baseSeries) ? baseSeries : []
+
+      };
+
     }
-
-    return {
-      options: mergedOptions,
-      series: Array.isArray(series) ? series : []
-    };
-  }
 
   async function createChart() {
     if (typeof window === 'undefined' || !container) return;
@@ -154,25 +183,6 @@
     }
   });
 </script>
-
-<div bind:this={container} data-apex-chart>
-  {#if error}
-    <div class="apexcharts-error" role="alert">{error}</div>
-  {/if}
-</div>
-
-<style>
-  div[data-apex-chart] {
-    width: 100%;
-  }
-
-  .apexcharts-error {
-    color: var(--muted, #8e8ea0);
-    font-size: 0.85rem;
-    padding: 8px;
-  }
-</style>
-
 
 <div bind:this={container} data-apex-chart>
   {#if error}

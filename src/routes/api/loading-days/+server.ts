@@ -7,8 +7,18 @@ export const GET: RequestHandler = async ({ locals }) => {
 };
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-  const data = await request.json();
-  const { data: day, error } = await locals.supabase.from('loading_days').insert(data).select().single();
-  if (error) return json({ error: 'Failed' }, { status: 500 });
-  return json(day);
+  try {
+    const data = await request.json();
+    const { data: day, error } = await locals.supabase.from('loading_days').insert(data).select().single();
+    
+    if (error) {
+      console.error('Error inserting loading day:', error);
+      return json({ error: error.message }, { status: 400 }); // Return 400 instead of 500 for DB errors usually
+    }
+    
+    return json(day);
+  } catch (err: any) {
+    console.error('Unexpected error in POST /api/loading-days:', err);
+    return json({ error: err.message || 'Internal Server Error' }, { status: 500 });
+  }
 };
