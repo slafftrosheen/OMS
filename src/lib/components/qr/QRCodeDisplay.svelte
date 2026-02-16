@@ -113,7 +113,7 @@
     {:else if error}
         <div class="error-state">
             <p class="error-message">⚠️ {error}</p>
-            <Button variant="primary" on:click={generateQRCode}>
+            <Button variant="primary" onclick={generateQRCode}>
                 Retry
             </Button>
         </div>
@@ -134,10 +134,10 @@
             </div>
 
             <div class="qr-actions">
-                <Button variant="outline" size="sm" on:click={downloadQRCode}>
+                <Button variant="outline" size="sm" onclick={downloadQRCode}>
                     📥 Download
                 </Button>
-                <Button variant="outline" size="sm" on:click={printQRCode}>
+                <Button variant="outline" size="sm" onclick={printQRCode}>
                     🖨️ Print
                 </Button>
             </div>

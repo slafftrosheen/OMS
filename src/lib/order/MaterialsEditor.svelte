@@ -82,9 +82,9 @@
   </div>
   <div class="row" style="margin-top:8px">
     {#if isAdmin}
-      <Button on:click={submitAdmin} disabled={!hasChanges}>{$t('materialsEditor.applyAdmin')}</Button>
+      <Button onclick={submitAdmin} disabled={!hasChanges}>{$t('materialsEditor.applyAdmin')}</Button>
     {:else}
-      <Button on:click={submitCR} disabled={!hasChanges}>{$t('materialsEditor.propose')}</Button>
+      <Button onclick={submitCR} disabled={!hasChanges}>{$t('materialsEditor.propose')}</Button>
     {/if}
   </div>
 </div>

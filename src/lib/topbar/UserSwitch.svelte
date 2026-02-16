@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { createBubbler, stopPropagation } from 'svelte/legacy';
 
-  const bubble = createBubbler();
   import { currentUser, logout } from '$lib/auth/user-store';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';

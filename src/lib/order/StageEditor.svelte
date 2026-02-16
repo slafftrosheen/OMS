@@ -113,7 +113,7 @@
           placeholder={$t('rework.note')}
         ></textarea>
         <div class="row" style="justify-content:flex-end;margin-top:8px">
-          <Button on:click={() => submit(station)} disabled={selected[station] === current}>
+          <Button onclick={() => submit(station)} disabled={selected[station] === current}>
             {isAdmin ? $t('stageEditor.apply') : $t('stageEditor.propose')}
           </Button>
         </div>

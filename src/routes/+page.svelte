@@ -81,8 +81,8 @@
         }
     }
 
-    function handleOrderClick(event: CustomEvent<any>) {
-        goto(`/orders/${event.detail.id}`);
+    function handleOrderClick(order: any) {
+        goto(`/orders/${order.id}`);
     }
 
     onMount(() => {

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { preventDefault } from 'svelte/legacy';
 
   import { t } from '$lib/i18n';
   import type { Order } from '$lib/stores/orders';

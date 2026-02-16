@@ -1,59 +1,100 @@
 import type { Order, Badge, Station } from './types';
 import { blankStages, STATIONS } from './stages';
-import { writable, get } from 'svelte/store';
 import { handleApiError, retryWithBackoff } from '$lib/utils/error-handler';
 import { notifySuccess, notifyError } from '$lib/notify/toast';
 
-// Store for orders
-export const ordersStore = writable<Order[]>([]);
-export const isLoading = writable<boolean>(false);
-export const lastError = writable<string | null>(null);
+const isBrowser = typeof window !== 'undefined';
+
+class OrderState {
+  orders = $state<Order[]>([]);
+  loading = $state<boolean>(false);
+  lastError = $state<string | null>(null);
+
+  constructor() {
+    if (isBrowser) {
+      this.load();
+    }
+  }
+
+  async load() {
+    this.loading = true;
+    this.lastError = null;
+    try {
+      const responseData = await retryWithBackoff(async () => {
+        const response = await fetch('/api/draft-orders');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      });
+      const rawOrders = Array.isArray(responseData) ? responseData : (responseData?.data || responseData?.orders || []);
+      this.orders = rawOrders.map((d: any) => transformApiOrder(d));
+    } catch (err) {
+      this.lastError = handleApiError(err, 'Failed to fetch orders');
+      notifyError(this.lastError);
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  addOrder(order: Order) {
+    this.orders = [order, ...this.orders];
+  }
+
+  updateOrder(id: string, updated: Order) {
+    this.orders = this.orders.map(o => o.id === id ? updated : o);
+  }
+
+  removeOrder(id: string) {
+    this.orders = this.orders.filter(o => o.id !== id);
+  }
+}
+
+export const orderState = new OrderState();
+
+// Backward compatibility stores
+export const ordersStore = {
+  subscribe: (fn: (orders: Order[]) => void) => {
+    const cleanup = $effect.root(() => {
+      $effect(() => { fn(orderState.orders); });
+    });
+    return cleanup;
+  },
+  set: (orders: Order[]) => { orderState.orders = orders; },
+  update: (fn: (orders: Order[]) => Order[]) => { orderState.orders = fn(orderState.orders); }
+};
+
+export const isLoading = {
+  subscribe: (fn: (l: boolean) => void) => {
+    const cleanup = $effect.root(() => {
+      $effect(() => { fn(orderState.loading); });
+    });
+    return cleanup;
+  },
+  set: (l: boolean) => { orderState.loading = l; }
+};
+
+export const lastError = {
+  subscribe: (fn: (e: string | null) => void) => {
+    const cleanup = $effect.root(() => {
+      $effect(() => { fn(orderState.lastError); });
+    });
+    return cleanup;
+  },
+  set: (e: string | null) => { orderState.lastError = e; }
+};
 
 /**
  * Fetch orders from API with retry logic
  */
 export async function listOrders(): Promise<Order[]> {
-  if (typeof window === 'undefined') return [];
-  
-  isLoading.set(true);
-  lastError.set(null);
-  
-  try {
-    const responseData = await retryWithBackoff(async () => {
-      const response = await fetch('/api/draft-orders');
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      return response.json();
-    });
-    
-    const rawOrders = Array.isArray(responseData)
-      ? responseData
-      : Array.isArray(responseData?.data)
-        ? responseData.data
-        : Array.isArray(responseData?.orders)
-          ? responseData.orders
-          : [];
-
-    const orders = rawOrders.map((d: any) => transformApiOrder(d));
-    ordersStore.set(orders);
-    return orders;
-  } catch (err) {
-    const message = handleApiError(err, 'Failed to fetch orders');
-    lastError.set(message);
-    notifyError(message);
-    return [];
-  } finally {
-    isLoading.set(false);
-  }
+  await orderState.load();
+  return orderState.orders;
 }
 
 /**
  * Get single order by ID
  */
 export async function getOrder(id: string): Promise<Order | null> {
-  if (typeof window === 'undefined') return null;
-  
+  if (!isBrowser) return null;
   try {
     const response = await fetch(`/api/draft-orders/${encodeURIComponent(id)}`);
     if (response.ok) {
@@ -74,8 +115,7 @@ export async function getOrder(id: string): Promise<Order | null> {
  * Create new order
  */
 export async function createOrder(seed: Partial<Order>): Promise<Order | null> {
-  isLoading.set(true);
-  
+  orderState.loading = true;
   try {
     const response = await fetch('/api/draft-orders', {
       method: 'POST',
@@ -93,7 +133,7 @@ export async function createOrder(seed: Partial<Order>): Promise<Order | null> {
     if (response.ok) {
       const data = await response.json();
       const order = transformApiOrder(data);
-      ordersStore.update(orders => [order, ...orders]);
+      orderState.addOrder(order);
       notifySuccess(`Order ${order.id} created successfully`);
       return order;
     } else {
@@ -104,7 +144,7 @@ export async function createOrder(seed: Partial<Order>): Promise<Order | null> {
     notifyError(message);
     return null;
   } finally {
-    isLoading.set(false);
+    orderState.loading = false;
   }
 }
 
@@ -130,9 +170,7 @@ export async function updateOrder(id: string, updates: Partial<Order>): Promise<
     if (response.ok) {
       const data = await response.json();
       const order = transformApiOrder(data);
-      ordersStore.update(orders =>
-        orders.map(o => o.id === id ? { ...o, ...order } : o)
-      );
+      orderState.updateOrder(id, order);
       notifySuccess(`Order ${id} updated`);
       return order;
     } else {
@@ -154,7 +192,7 @@ export async function deleteOrder(id: string): Promise<boolean> {
     });
 
     if (response.ok) {
-      ordersStore.update(orders => orders.filter(o => o.id !== id));
+      orderState.removeOrder(id);
       notifySuccess(`Order ${id} deleted`);
       return true;
     } else {
@@ -211,8 +249,7 @@ function transformApiOrder(d: any): Order {
  * Get order synchronously from store
  */
 export function getOrderSync(id: string): Order | null {
-  const orders = get(ordersStore);
-  return orders.find(o => o.id === id) || null;
+  return orderState.orders.find(o => o.id === id) || null;
 }
 
 /**
@@ -292,9 +329,7 @@ export async function setBadges(orderId: string, badges: Badge[]): Promise<boole
     });
     
     if (response.ok) {
-      ordersStore.update(orders =>
-        orders.map(o => o.id === orderId ? { ...o, badges } : o)
-      );
+      orderState.orders = orderState.orders.map(o => o.id === orderId ? { ...o, badges } : o);
       return true;
     } else {
       throw new Error(`HTTP ${response.status}`);
@@ -430,9 +465,7 @@ export async function addBadge(orderId: string, badge: Badge): Promise<boolean> 
     return await setBadges(orderId, newBadges);
   } else {
     // Fallback for tests/offline
-    ordersStore.update(orders =>
-      orders.map(o => o.id === orderId ? { ...o, badges: newBadges } : o)
-    );
+    orderState.orders = orderState.orders.map(o => o.id === orderId ? { ...o, badges: newBadges } : o);
     return true;
   }
 }
@@ -453,9 +486,8 @@ export async function removeBadge(orderId: string, badge: Badge): Promise<boolea
     return await setBadges(orderId, newBadges);
   } else {
     // Fallback for tests/offline
-    ordersStore.update(orders =>
-      orders.map(o => o.id === orderId ? { ...o, badges: newBadges } : o)
-    );
+    orderState.orders = orderState.orders.map(o => o.id === orderId ? { ...o, badges: newBadges } : o);
     return true;
   }
 }
+

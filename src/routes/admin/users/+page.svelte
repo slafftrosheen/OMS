@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { createBubbler, stopPropagation } from 'svelte/legacy';
 
-  const bubble = createBubbler();
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';

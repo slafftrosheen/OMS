@@ -1,4 +1,3 @@
-import { writable } from 'svelte/store';
 import { base } from '$app/paths';
 import { loadPreferences } from '$lib/preferences';
 
@@ -20,82 +19,123 @@ function normalizeTheme(theme: string | null): Prefs['theme'] {
   return 'DarkVim';
 }
 
-// Use localStorage for instant initial load
-const init: Prefs = {
-  theme: normalizeTheme(isBrowser ? localStorage.getItem('rf_theme') : null),
-  density: (isBrowser ? localStorage.getItem('rf_density') : null) as any || 'cozy',
-  fontScale: +(isBrowser ? localStorage.getItem('rf_font') || '1.0' : '1.0')
+class UIState {
+  theme = $state<Prefs['theme']>(normalizeTheme(isBrowser ? localStorage.getItem('rf_theme') : null));
+  density = $state<Prefs['density']>((isBrowser ? localStorage.getItem('rf_density') : null) as any || 'cozy');
+  fontScale = $state<number>(+(isBrowser ? localStorage.getItem('rf_font') || '1.0' : '1.0'));
+
+  private syncTimeout: ReturnType<typeof setTimeout> | null = null;
+  private lastSynced: Prefs | null = null;
+
+  constructor() {
+    if (isBrowser) {
+      // Set initial document attributes
+      this.updateDocument();
+      this.loadFromServer();
+    }
+  }
+
+  updateDocument() {
+    if (!isBrowser) return;
+    document.documentElement.dataset.theme = this.theme;
+    document.documentElement.dataset.density = this.density;
+    document.documentElement.style.setProperty('--font-scale', String(this.fontScale));
+    
+    localStorage.setItem('rf_theme', this.theme);
+    localStorage.setItem('rf_density', this.density);
+    localStorage.setItem('rf_font', String(this.fontScale));
+  }
+
+  async loadFromServer() {
+    try {
+      const prefs = await loadPreferences();
+      if (prefs) {
+        this.theme = normalizeTheme(prefs.theme || this.theme);
+        this.density = (prefs.density as any) || this.density;
+        this.fontScale = prefs.customSettings?.fontScale || this.fontScale;
+        this.updateDocument();
+      }
+    } catch (error) {
+      console.warn('Failed to load preferences for UI state:', error);
+    }
+  }
+
+  async syncToServer() {
+    if (!isBrowser) return;
+    
+    const current: Prefs = {
+      theme: this.theme,
+      density: this.density,
+      fontScale: this.fontScale
+    };
+
+    if (this.lastSynced && 
+        this.lastSynced.theme === current.theme && 
+        this.lastSynced.density === current.density && 
+        this.lastSynced.fontScale === current.fontScale) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${base}/api/preferences`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          theme: current.theme,
+          density: current.density,
+          customSettings: { fontScale: current.fontScale }
+        })
+      });
+      if (res.ok) {
+        this.lastSynced = { ...current };
+      }
+    } catch (err) {
+      // Ignore sync errors
+    }
+  }
+
+  triggerSync() {
+    this.updateDocument();
+    if (this.syncTimeout) clearTimeout(this.syncTimeout);
+    this.syncTimeout = setTimeout(() => this.syncToServer(), 500);
+  }
+}
+
+// Global UI state instance
+export const uiState = new UIState();
+
+// Backward compatibility wrapper (deprecated)
+export const ui = {
+  subscribe: (fn: (p: Prefs) => void) => {
+    // Svelte 5 effect to simulate store subscription for legacy components
+    const cleanup = $effect.root(() => {
+      $effect(() => {
+        fn({
+          theme: uiState.theme,
+          density: uiState.density,
+          fontScale: uiState.fontScale
+        });
+      });
+    });
+    return cleanup;
+  },
+  update: (fn: (p: Prefs) => Prefs) => {
+    const current: Prefs = {
+      theme: uiState.theme,
+      density: uiState.density,
+      fontScale: uiState.fontScale
+    };
+    const next = fn(current);
+    uiState.theme = next.theme;
+    uiState.density = next.density;
+    uiState.fontScale = next.fontScale;
+    uiState.triggerSync();
+  },
+  set: (next: Prefs) => {
+    uiState.theme = next.theme;
+    uiState.density = next.density;
+    uiState.fontScale = next.fontScale;
+    uiState.triggerSync();
+  }
 };
 
-export const ui = writable<Prefs>(init);
-
-let syncTimeout: ReturnType<typeof setTimeout> | null = null;
-let hasSyncedOnce = false;
-let lastSynced: Prefs | null = init;
-
-async function syncPrefsToServer(p: Prefs) {
-  if (!isBrowser) return;
-  try {
-    const res = await fetch(`${base}/api/preferences`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        theme: p.theme,
-        density: p.density,
-        customSettings: { fontScale: p.fontScale }
-      })
-    });
-    // Silently ignore 401 - user not logged in
-    if (!res.ok && res.status !== 401) {
-      console.debug('Failed to sync UI preferences');
-    }
-  } catch (err) {
-    // Network error - silently ignore
-  }
-}
-
-ui.subscribe(p => {
-  if (!isBrowser) return;
-  document.documentElement.dataset.theme   = p.theme;
-  document.documentElement.dataset.density = p.density;
-  document.documentElement.style.setProperty('--font-scale', String(p.fontScale));
-  // Keep localStorage as cache for instant load
-  localStorage.setItem('rf_theme', p.theme);
-  localStorage.setItem('rf_density', p.density);
-  localStorage.setItem('rf_font', String(p.fontScale));
-  
-  if (!hasSyncedOnce) {
-    hasSyncedOnce = true;
-    lastSynced = p;
-    return;
-  }
-  if (lastSynced && isSamePrefs(lastSynced, p)) {
-    return;
-  }
-  lastSynced = { ...p };
-
-  // Debounce server sync
-  if (syncTimeout) clearTimeout(syncTimeout);
-  syncTimeout = setTimeout(() => syncPrefsToServer(p), 500);
-});
-
-function isSamePrefs(a: Prefs, b: Prefs) {
-  return a.theme === b.theme && a.density === b.density && a.fontScale === b.fontScale;
-}
-
-// Load from server on init
-if (isBrowser) {
-  loadPreferences()
-    .then(prefs => {
-      if (prefs) {
-        ui.update(current => ({
-          theme: prefs.theme || current.theme,
-          density: prefs.density || current.density,
-          fontScale: prefs.customSettings?.fontScale || current.fontScale
-        }));
-      }
-    })
-    .catch((error) => {
-      console.warn('Failed to load preferences for UI state:', error);
-    });
-}

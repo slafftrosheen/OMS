@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { createBubbler, stopPropagation } from 'svelte/legacy';
 
-  const bubble = createBubbler();
   import { onMount, onDestroy } from 'svelte';
   import { t } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/user-store';

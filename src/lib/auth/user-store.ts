@@ -1,155 +1,148 @@
 // user-store.ts
-// Re-export from consolidated users store for backward compatibility
-import { get, writable, derived } from 'svelte/store';
-import type { User, Section } from './types';
 import { base } from '$app/paths';
+import type { User, Section } from './types';
 
 const isBrowser = typeof window !== 'undefined';
 
-// Main current user store
-export const currentUser = writable<User | null>(null);
+class AuthState {
+  user = $state<User | null>(null);
+  loading = $state<boolean>(false);
+  error = $state<string | null>(null);
 
-// Auth loading state
-export const authLoading = writable<boolean>(false);
-export const authError = writable<string | null>(null);
-
-// Utility for switching section
-export function switchSection(section: Section) {
-  currentUser.update(u => {
-    if (u && u.sections.includes(section)) {
-      return { ...u, primarySection: section };
+  constructor() {
+    if (isBrowser) {
+      this.load();
     }
-    return u;
-  });
-}
+  }
 
-// Svelte 5 rune-based functions for accessing auth state
-export function getCurrentUser(): User | null {
-    return get(currentUser);
-}
+  setUser(u: User | null) {
+    this.user = u;
+  }
 
-export function getAuthLoading(): boolean {
-    return get(authLoading);
-}
+  setLoading(l: boolean) {
+    this.loading = l;
+  }
 
-export function getAuthError(): string | null {
-    return get(authError);
-}
+  setError(e: string | null) {
+    this.error = e;
+  }
 
-/**
- * Load current user from session with timeout
- * @param timeoutMs - Maximum time to wait for auth check (default: 10000ms)
- */
-export async function loadCurrentUser(timeoutMs = 10000): Promise<User | null> {
-  if (!isBrowser) return null;
-  
-  authLoading.set(true);
-  authError.set(null);
+  async load(timeoutMs = 10000): Promise<User | null> {
+    if (!isBrowser) return null;
+    
+    this.setLoading(true);
+    this.setError(null);
 
-  // Create a timeout promise
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error('Auth check timeout')), timeoutMs);
-  });
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Auth check timeout')), timeoutMs);
+    });
 
-  // Create the fetch promise
-  const fetchPromise = async (): Promise<User | null> => {
-    try {
-      const res = await fetch(`${base}/api/auth`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include', // Ensure cookies are sent
-        // Add cache prevention
-        cache: 'no-cache'
-      });
+    const fetchPromise = async (): Promise<User | null> => {
+      try {
+        const res = await fetch(`${base}/api/auth`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          cache: 'no-cache'
+        });
 
-      if (!res.ok) {
-        if (res.status === 401) {
-          // Not authenticated - this is normal
-          console.log('User not authenticated');
-          currentUser.set(null);
-          authLoading.set(false);
-          return null;
+        if (!res.ok) {
+          if (res.status === 401) {
+            this.setUser(null);
+            this.setLoading(false);
+            return null;
+          }
+          const errorText = await res.text().catch(() => 'Unknown error');
+          throw new Error(`Auth check failed: ${res.status} ${errorText}`);
+        }
+
+        const data = await res.json();
+        if (data.user) {
+          const user: User = {
+            ...data.user,
+            passwordHash: ''
+          };
+          this.setUser(user);
+          this.setLoading(false);
+          return user;
         }
         
-        // Other errors
-        const errorText = await res.text().catch(() => 'Unknown error');
-        throw new Error(`Auth check failed: ${res.status} ${errorText}`);
+        this.setUser(null);
+        this.setLoading(false);
+        return null;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        this.setError(errorMessage);
+        this.setUser(null);
+        this.setLoading(false);
+        return null;
       }
+    };
 
-      const data = await res.json();
-      
-      if (data.user) {
-        const user: User = {
-          id: data.user.id,
-          username: data.user.username,
-          displayName: data.user.displayName,
-          email: data.user.email,
-          avatarUrl: data.user.avatarUrl,
-          passwordHash: '',
-          primarySection: data.user.primarySection,
-          sections: data.user.sections || [],
-          roles: data.user.roles || {},
-          stations: data.user.stations || []
-        };
-        
-        currentUser.set(user);
-        authLoading.set(false);
-        return user;
-      }
-      
-      // No user in response
-      currentUser.set(null);
-      authLoading.set(false);
-      return null;
+    try {
+      return await Promise.race([fetchPromise(), timeoutPromise]);
     } catch (err) {
-      // Network or parsing error
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.error('Failed to load current user:', errorMessage);
-      authError.set(errorMessage);
-      currentUser.set(null);
-      authLoading.set(false);
+      const errorMessage = err instanceof Error ? err.message : 'Auth check failed';
+      this.setError(errorMessage);
+      this.setUser(null);
+      this.setLoading(false);
       return null;
     }
-  };
+  }
 
-  try {
-    // Race between fetch and timeout
-    return await Promise.race([fetchPromise(), timeoutPromise]);
-  } catch (err) {
-    // Timeout or other error
-    const errorMessage = err instanceof Error ? err.message : 'Auth check failed';
-    console.error('Auth check error:', errorMessage);
-    authError.set(errorMessage);
-    currentUser.set(null);
-    authLoading.set(false);
-    return null;
+  async logout(): Promise<void> {
+    if (!isBrowser) return;
+    try {
+      await fetch(`${base}/api/auth`, { method: 'DELETE', credentials: 'include' });
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
+    this.setUser(null);
+    this.setError(null);
   }
 }
 
-/**
- * Logout current user
- */
-export async function logout(): Promise<void> {
-  if (!isBrowser) return;
-  
-  try {
-    await fetch(`${base}/api/auth`, { 
-      method: 'DELETE',
-      credentials: 'include' 
+export const authState = new AuthState();
+
+// Backward compatibility wrappers
+export const currentUser = {
+  subscribe: (fn: (u: User | null) => void) => {
+    const cleanup = $effect.root(() => {
+      $effect(() => { fn(authState.user); });
     });
-  } catch (err) {
-    console.error('Logout failed:', err);
+    return cleanup;
+  },
+  set: (u: User | null) => authState.setUser(u),
+  update: (fn: (u: User | null) => User | null) => authState.setUser(fn(authState.user))
+};
+
+export const authLoading = {
+  subscribe: (fn: (l: boolean) => void) => {
+    const cleanup = $effect.root(() => {
+      $effect(() => { fn(authState.loading); });
+    });
+    return cleanup;
   }
-  
-  currentUser.set(null);
-  authError.set(null);
+};
+
+export const authError = {
+  subscribe: (fn: (e: string | null) => void) => {
+    const cleanup = $effect.root(() => {
+      $effect(() => { fn(authState.error); });
+    });
+    return cleanup;
+  }
+};
+
+export function switchSection(section: Section) {
+  if (authState.user && authState.user.sections.includes(section)) {
+    authState.user = { ...authState.user, primarySection: section };
+  }
 }
 
-/**
- * Refresh current user (force reload from server)
- */
-export async function refreshCurrentUser(): Promise<User | null> {
-  return loadCurrentUser();
-}
+export function getCurrentUser() { return authState.user; }
+export function getAuthLoading() { return authState.loading; }
+export function getAuthError() { return authState.error; }
+export function loadCurrentUser(timeoutMs?: number) { return authState.load(timeoutMs); }
+export async function logout() { return authState.logout(); }
+export async function refreshCurrentUser() { return authState.load(); }

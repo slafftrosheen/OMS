@@ -65,8 +65,6 @@
     
     if (onClose) {
       onClose();
-    } else {
-      dispatchEvent(new CustomEvent('close'));
     }
   }
 </script>
@@ -75,7 +73,7 @@
   <div class="card">
     <div class="row" style="justify-content:space-between;align-items:center">
       <strong>{event ? $t('eventEditor.editEvent') : $t('eventEditor.createEvent')}</strong>
-      <button class="tag ghost" onclick={() => onClose ? onClose() : dispatchEvent(new CustomEvent('close'))}>{$t('eventEditor.close')}</button>
+      <button class="tag ghost" onclick={() => onClose()}>{$t('eventEditor.close')}</button>
     </div>
 
     <label>{$t('eventEditor.type')}
@@ -108,7 +106,7 @@
     {/if}
 
     <div class="row" style="justify-content:flex-end;gap:8px;margin-top:8px">
-      <button class="tag ghost" onclick={()=>onClose ? onClose() : dispatchEvent(new CustomEvent('close'))}>{$t('eventEditor.cancel')}</button>
+      <button class="tag ghost" onclick={()=>onClose()}>{$t('eventEditor.cancel')}</button>
       <button class="tag" onclick={save}>{$t('eventEditor.save')}</button>
     </div>
   </div>

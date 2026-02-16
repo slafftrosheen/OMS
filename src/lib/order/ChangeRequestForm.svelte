@@ -78,5 +78,5 @@
       />
     </div>
   </div>
-  <div class="row" style="margin-top:8px"><Button on:click={submit}>{$t('order.submit')}</Button></div>
+  <div class="row" style="margin-top:8px"><Button onclick={submit}>{$t('order.submit')}</Button></div>
 </div>

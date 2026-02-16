@@ -13,7 +13,7 @@
     order: Order;
     compact?: boolean;
     showActions?: boolean;
-    onclick?: (event: CustomEvent<Order>) => void;
+    onclick?: (order: Order) => void;
     onedit?: (order: Order) => void;
     ondelete?: (order: Order) => void;
   } = $props();
@@ -29,10 +29,7 @@
   );
 
   function handleClick() {
-    if (onclick) {
-      const event = new CustomEvent('click', { detail: order });
-      onclick(event as any);
-    }
+    onclick?.(order);
   }
 
   function handleEdit(e: Event) {

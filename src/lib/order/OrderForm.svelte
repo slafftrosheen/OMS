@@ -10,7 +10,7 @@
   import { createOrder } from '$lib/order/signage-store';
   import { blankStages } from '$lib/order/stages';
   import { t } from 'svelte-i18n';
-  import { materials } from '$lib/materials/materialsStore';
+  import { materials as materialsStore } from '$lib/materials/materialsStore';
   import { onMount } from 'svelte';
 
   let {
@@ -41,14 +41,14 @@
     metadata: Record<string, any>;
   };
 
-  let id = '';
-  let title = '';
-  let client = '';
-  let due = new Date().toISOString().slice(0, 10);
-  let loadingDate = '';
-  let pdfPath = '';
-  let isRD = false;
-  let rdNotes = '';
+  let id = $state('');
+  let title = $state('');
+  let client = $state('');
+  let due = $state(new Date().toISOString().slice(0, 10));
+  let loadingDate = $state('');
+  let pdfPath = $state('');
+  let isRD = $state(false);
+  let rdNotes = $state('');
 
   const defaultMaterials = $derived([
     {
@@ -79,17 +79,18 @@
     return defaultMaterials.map(material => ({ ...material }));
   }
 
-  let materials: MaterialRow[] = createDefaultMaterials();
+  let materials: MaterialRow[] = $state(createDefaultMaterials());
   let availableMaterials: Material[] = $state([]);
   let allMaterialsLoaded = $state(false);
 
   onMount(async () => {
     // Load materials from the store
-    await materials.load();
-    materials.subscribe((loadedMaterials) => {
+    await materialsStore.load();
+    const unsub = materialsStore.subscribe((loadedMaterials) => {
       availableMaterials = loadedMaterials;
       allMaterialsLoaded = true;
-    })();
+    });
+    return unsub;
   });
 
   function resetForm() {
@@ -296,7 +297,7 @@
                 <select 
                   class="rf-select" 
                   bind:value={row.material}
-                  on:change={() => updateMaterialAndThickness(index, row.material)}
+                  onchange={() => updateMaterialAndThickness(index, row.material)}
                 >
                   <option value="">{$t('orderform.material_label')}</option>
                   {#if allMaterialsLoaded}
@@ -315,7 +316,7 @@
                   class="rf-select" 
                   bind:value={row.thickness}
                   disabled={!row.material}
-                  on:change={() => updateThicknessDisplay(index)}
+                  onchange={() => updateThicknessDisplay(index)}
                 >
                   <option value="">{$t('orderform.thickness_placeholder')}</option>
                   {#if row.material && allMaterialsLoaded}
@@ -372,8 +373,8 @@
       </section>
 
       <footer class="row" style="justify-content:flex-end; gap:8px; margin-top:10px">
-        <Button variant="ghost" on:click={close}>{$t('actions.cancel')}</Button>
-        <Button on:click={create}>{$t('orderform.create')}</Button>
+        <Button variant="ghost" onclick={close}>{$t('actions.cancel')}</Button>
+        <Button onclick={create}>{$t('orderform.create')}</Button>
       </footer>
     </div>
   </div>

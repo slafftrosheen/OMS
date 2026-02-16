@@ -81,7 +81,7 @@
     <div class="error-state">
       <h1>FAQ Not Found</h1>
       <p>The FAQ item you're looking for doesn't exist or has been removed.</p>
-      <Button on:click={() => goto('/faq')}>
+      <Button onclick={() => goto('/faq')}>
         <ArrowLeft size={18} />
         Back to FAQs
       </Button>
@@ -89,7 +89,7 @@
   {:else}
     <div class="faq-detail-container">
       <div class="faq-breadcrumb">
-        <Button variant="ghost" on:click={() => goto('/faq')}>
+        <Button variant="ghost" onclick={() => goto('/faq')}>
           <ArrowLeft size={18} />
           Back to FAQs
         </Button>

@@ -110,7 +110,7 @@
     {:else if !order}
         <div class="error-state">
             <p class="error-message">Order not found</p>
-            <Button variant="primary" on:click={() => goto("/orders")}>
+            <Button variant="primary" onclick={() => goto("/orders")}>
                 Back to Orders
             </Button>
         </div>
@@ -118,7 +118,7 @@
         <!-- Header -->
         <header class="order-header">
             <div class="header-left">
-                <Button variant="ghost" on:click={() => goto("/orders")}>
+                <Button variant="ghost" onclick={() => goto("/orders")}>
                     ← Back
                 </Button>
                 <div class="header-info">
@@ -131,12 +131,12 @@
                 </div>
             </div>
             <div class="header-actions">
-                <Button variant="outline" on:click={() => (showQRModal = true)}>
+                <Button variant="outline" onclick={() => (showQRModal = true)}>
                     📱 QR Code
                 </Button>
                 <Button
                     variant="primary"
-                    on:click={() => goto(`/orders/${orderId}/edit`)}
+                    onclick={() => goto(`/orders/${orderId}/edit`)}
                 >
                     ✏️ Edit
                 </Button>
@@ -275,12 +275,12 @@
                     <Card title="Upload Files" padding="lg">
                         <FileUpload
                             {orderId}
-                            on:uploaded={handleFileUploaded}
+                            onuploaded={handleFileUploaded}
                         />
                     </Card>
 
                     <Card title="Uploaded Files" padding="lg">
-                        <FileList {files} on:delete={handleDeleteFile} />
+                        <FileList {files} ondelete={handleDeleteFile} />
                     </Card>
                 </div>
             {:else if activeTab === "chat"}

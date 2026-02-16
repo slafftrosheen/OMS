@@ -1,7 +1,4 @@
 <script lang="ts">
-  import { createBubbler, stopPropagation } from 'svelte/legacy';
-
-  const bubble = createBubbler();
   import { page } from '$app/state';
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
@@ -348,7 +345,7 @@
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="modal-content"
-      onclick={stopPropagation(bubble('click'))}
+      onclick={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
       aria-labelledby="scanner-title"
@@ -357,7 +354,7 @@
         <h2 id="scanner-title">Scan Order QR Code</h2>
         <button class="close-btn" onclick={() => $showScanner = false} aria-label="Close">×</button>
       </div>
-      <QRScanner on:scan={(e) => handleQRScan(e.detail)} />
+      <QRScanner onscan={(e) => handleQRScan(e.detail)} />
     </div>
   </div>
 {/if}

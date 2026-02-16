@@ -1,20 +1,28 @@
-<!-- @migration-task Error while migrating Svelte code: Cannot use `export let` in runes mode — use `$props()` instead
-https://svelte.dev/e/legacy_export_invalid -->
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
 
-  export let type: string | undefined = undefined;
-  export let options: Record<string, any> | undefined = undefined;
-  export let series: any[] = [];
-  export let height: number | string | undefined = undefined;
-  export let width: number | string | undefined = undefined;
+  interface Props {
+    type?: string;
+    options?: Record<string, any>;
+    series?: any[];
+    height?: number | string;
+    width?: number | string;
+  }
+
+  let { 
+    type = undefined, 
+    options = {}, 
+    series = [], 
+    height = undefined, 
+    width = undefined 
+  }: Props = $props();
 
   const CDN_URL = 'https://cdn.jsdelivr.net/npm/apexcharts@3.49.1/dist/apexcharts.min.js';
 
-  let container: HTMLDivElement;
+  let container: HTMLDivElement | undefined = $state(undefined);
   let chart: any = null;
-  let mounted = false;
-  let error: string | null = null;
+  let mounted = $state(false);
+  let error = $state<string | null>(null);
 
   function getDocument(): Document | undefined {
     if (typeof document === 'undefined') return undefined;
@@ -133,25 +141,38 @@ https://svelte.dev/e/legacy_export_invalid -->
     };
   });
 
-  onDestroy(() => {
-    if (chart) {
-      chart.destroy();
-      chart = null;
-    }
-    mounted = false;
-  });
-
   $effect(() => {
+    // React to prop changes
+    const _opts = options;
+    const _series = series;
+    const _type = type;
+    const _height = height;
+    const _width = width;
+    
     if (mounted && chart) {
-      void options;
-      void series;
-      void type;
-      void height;
-      void width;
-      updateChart();
+      untrack(() => updateChart());
     }
   });
 </script>
+
+<div bind:this={container} data-apex-chart>
+  {#if error}
+    <div class="apexcharts-error" role="alert">{error}</div>
+  {/if}
+</div>
+
+<style>
+  div[data-apex-chart] {
+    width: 100%;
+  }
+
+  .apexcharts-error {
+    color: var(--muted, #8e8ea0);
+    font-size: 0.85rem;
+    padding: 8px;
+  }
+</style>
+
 
 <div bind:this={container} data-apex-chart>
   {#if error}

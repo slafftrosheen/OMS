@@ -1,6 +1,5 @@
 <!-- src/lib/orders/components/FileUploader.svelte -->
 <script lang="ts">
-  import { stopPropagation } from 'svelte/legacy';
 
   import { Upload, X, File as FileIcon, Image as ImageIcon, CheckCircle, AlertCircle } from 'lucide-svelte';
 
