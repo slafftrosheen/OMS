@@ -56,6 +56,23 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       href: `/orders/${order.id}`
     }));
 
+    // Log search history asynchronously
+    (async () => {
+      try {
+        const session = await locals.getSession();
+        if (session?.user?.id) {
+          await locals.supabase.from('search_history').insert({
+            user_id: session.user.id,
+            query: query,
+            results_count: results.length,
+            filters: {} // Can add filters later if needed
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to log search history:', err);
+      }
+    })();
+
     return json({
       results,
       query,

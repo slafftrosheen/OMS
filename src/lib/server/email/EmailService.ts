@@ -40,8 +40,19 @@ export class EmailService {
      */
     async sendEmail(options: EmailOptions): Promise<boolean> {
         if (!this.enabled) {
-            logger.debug('Email skipped (service disabled)', { to: options.to, subject: options.subject });
-            return false;
+            // Dev mode: Log email to console
+            logger.info('[Email Dev Mode] Simulating email send', { 
+                to: options.to, 
+                subject: options.subject,
+                textPreview: options.text?.substring(0, 100) || 'No text content',
+                htmlPreview: options.html?.substring(0, 100) || 'No HTML content'
+            });
+            console.log('--- EMAIL CONTENT START ---');
+            console.log(`To: ${options.to}`);
+            console.log(`Subject: ${options.subject}`);
+            console.log(`Body: ${options.text || options.html}`);
+            console.log('--- EMAIL CONTENT END ---');
+            return true;
         }
 
         try {

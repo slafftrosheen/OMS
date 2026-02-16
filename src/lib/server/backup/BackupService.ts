@@ -222,78 +222,72 @@ export class BackupService {
   /**
    * Process scheduled backups
    */
-  static async processScheduledBackups(): Promise<number> {
+  async processScheduledBackups(): Promise<number> {
     logger.info('Processing scheduled backups');
     
-    // This would typically query a backup_configs table to determine which backups to run
-    // For now, we'll implement a basic version that creates a backup based on a schedule
+    // Fetch active backup configurations
+    // Note: Assuming a 'backup_configs' table exists or using a simple heuristic for now
+    // Since we don't have a backup_configs table in the migration, we'll rely on hardcoded logic 
+    // or system metadata if available. For this implementation, we'll keep it simple.
     
-    // Example: Check for daily backups that need to run
     const now = new Date();
     const hour = now.getHours();
-    const dayOfWeek = now.getDay(); // Sunday = 0, Monday = 1, etc.
+    const dayOfWeek = now.getDay(); // Sunday = 0
     
-    // Simple scheduling logic - run daily at 2 AM, weekly on Sundays at 3 AM
-    const shouldRunDaily = hour === 2; // Daily at 2 AM
-    const shouldRunWeekly = dayOfWeek === 0 && hour === 3; // Weekly on Sunday at 3 AM
+    // Simple scheduling: Daily at 2 AM, Weekly on Sunday at 3 AM
+    const runDaily = hour === 2;
+    const runWeekly = dayOfWeek === 0 && hour === 3;
     
     let backupsCreated = 0;
     
-    if (shouldRunDaily) {
-      // Create a daily backup instance and run it
-      // In a real implementation, you'd fetch configurations from a database
-      logger.info('Running scheduled daily backup');
+    try {
+      if (runDaily) {
+        logger.info('Running scheduled daily backup');
+        await this.createBackup({ 
+          backupType: 'incremental',
+          tables: ['orders', 'station_logs'] // Frequent changes
+        });
+        backupsCreated++;
+      }
       
-      // For now, we'll just simulate creating a backup
-      // In a real implementation, you'd need to inject the Supabase client
-      backupsCreated++;
+      if (runWeekly) {
+        logger.info('Running scheduled weekly backup');
+        await this.createBackup({ 
+          backupType: 'full',
+          // Default tables will be used
+        });
+        backupsCreated++;
+      }
+    } catch (error) {
+      logger.error('Scheduled backup failed', { error });
     }
     
-    if (shouldRunWeekly) {
-      // Create a weekly backup instance and run it
-      logger.info('Running scheduled weekly backup');
-      
-      // For now, we'll just simulate creating a backup
-      // In a real implementation, you'd need to inject the Supabase client
-      backupsCreated++;
-    }
-    
-    logger.info('Scheduled backup processing completed', { backupsCreated });
     return backupsCreated;
   }
 
   /**
    * Clean up expired backups
    */
-  static async cleanupExpiredBackups(): Promise<number> {
-    logger.info('Cleaning up expired backups');
-    
-    // In a real implementation, you would:
-    // 1. Query backup_history table for backups older than retention period
-    // 2. Delete those backups from storage
-    // 3. Remove records from backup_history table
-    
-    // For now, we'll implement a basic version that removes backups older than 30 days
-    // This would require a Supabase client instance to access the database
+  async cleanupExpiredBackups(retentionDays = 30): Promise<number> {
+    logger.info('Cleaning up expired backups', { retentionDays });
     
     try {
-      // Calculate cutoff date (30 days ago)
       const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - 30);
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
       
-      // In a real implementation, you would query the database like this:
-      /*
-      const { data: expiredBackups, error } = await supabase
+      // Find expired backups
+      const { data: expiredBackups, error } = await this.supabase
         .from('backup_history')
         .select('id, file_path')
-        .lt('created_at', cutoffDate.toISOString());
+        .lt('created_at', cutoffDate.toISOString())
+        .eq('status', 'completed'); // Only clean up completed ones
       
       if (error) {
         logger.error('Failed to fetch expired backups', { error });
-        return 0;
+        throw error;
       }
       
-      if (!expiredBackups) {
+      if (!expiredBackups || expiredBackups.length === 0) {
         return 0;
       }
       
@@ -301,31 +295,27 @@ export class BackupService {
       for (const backup of expiredBackups) {
         try {
           // Delete from storage
-          await storageService.delete(backup.file_path);
+          if (backup.file_path) {
+             await storageService.delete(backup.file_path);
+          }
           
-          // Delete from database
-          await supabase
+          // Delete record from database
+          await this.supabase
             .from('backup_history')
             .delete()
             .eq('id', backup.id);
             
           deletedCount++;
-        } catch (deleteError) {
+        } catch (err) {
           logger.error('Failed to delete expired backup', { 
             backupId: backup.id, 
-            error: deleteError 
+            error: err 
           });
         }
       }
-      */
       
-      // For now, we'll just log that this would happen
-      logger.info('Expired backup cleanup completed', { 
-        cutoffDate: cutoffDate.toISOString(),
-        wouldDeleteCount: 0 // Would be the actual count in real implementation
-      });
-      
-      return 0; // Would return actual deleted count in real implementation
+      logger.info('Expired backup cleanup completed', { deletedCount });
+      return deletedCount;
     } catch (error) {
       logger.error('Expired backup cleanup failed', { error });
       throw new Error(error instanceof Error ? error.message : 'Cleanup failed');
