@@ -158,11 +158,11 @@
     } else if (selectedType === 'ALUMINUM' && selectedMaterial && thickness) {
       return `${selectedMaterial.code || 'ALU'}/${thickness}mm`;
     } else if (selectedType === 'ALUMINUM' && thickness) {
-      return `ALU ${thickness}`;
+      return `ALU/${thickness}mm`;
     } else if (selectedType === 'PVC' && selectedMaterial && thickness) {
       return `${selectedMaterial.code || 'PVC'}/${thickness}mm`;
     } else if (selectedType === 'PVC' && thickness) {
-      return `PVC ${thickness}`;
+      return `PVC/${thickness}mm`;
     } else if (selectedType === 'ALU_PROFILE' && selectedMaterial) {
       // Show profile code or name
       return selectedMaterial.code || selectedMaterial.name_en || 'ALU_PROFILE';
