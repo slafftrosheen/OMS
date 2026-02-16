@@ -98,47 +98,38 @@
     selectedMaterial = null;
     thickness = null;
     sectionSize = null;
-    updateValue();
   }
 
   function selectAcrylicMaterial(material: any) {
     selectedMaterial = material;
-    value.materialCode = material.code;
-    updateValue();
+    value = { ...value, materialCode: material.code };
   }
 
   function selectThickness(t: number) {
     thickness = t;
-    value.thickness = t;
+    value = { ...value, thickness: t };
 
     // For materials with selected material, use the material code
     if (selectedMaterial) {
-      value.materialCode = selectedMaterial.code;
+      value = { ...value, materialCode: selectedMaterial.code };
     } 
     // For ALU and PVC without selected material, generate material code
     else if (selectedType === 'ALUMINUM') {
-      value.materialCode = `ALU_${t}`;
+      value = { ...value, materialCode: `ALU_${t}` };
     } else if (selectedType === 'PVC') {
-      value.materialCode = `PVC_WHITE_${t}`;
+      value = { ...value, materialCode: `PVC_WHITE_${t}` };
     }
-
-    updateValue();
   }
 
   function selectSectionSize(size: string) {
     sectionSize = size;
-    value.sectionSize = size;
     
     // For ALU_PROFILE, use the section size in material code
     if (selectedType === 'ALU_PROFILE' && selectedMaterial) {
-      value.materialCode = selectedMaterial.code;
+      value = { ...value, sectionSize: size, materialCode: selectedMaterial.code };
+    } else {
+      value = { ...value, sectionSize: size };
     }
-
-    updateValue();
-  }
-
-  function updateValue() {
-    value = { ...value };
   }
 
   function getMaterialBoxColor(): string {
@@ -338,13 +329,12 @@
                 class:selected={selectedMaterial?.code === material.code}
                 onclick={() => {
                   selectedMaterial = material;
-                  value.materialCode = material.code;
+                  value = { ...value, materialCode: material.code };
                   // Extract section size from material name if it contains size info
                   const sizeMatch = material.name_en.match(/(\d+x\d+)/i);
                   if (sizeMatch) {
                     selectSectionSize(sizeMatch[0]);
                   }
-                  updateValue();
                 }}
               >
                 {material.name_en}
