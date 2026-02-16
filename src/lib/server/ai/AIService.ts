@@ -112,25 +112,34 @@ class AIService {
             throw new Error('AI service not configured');
         }
 
-        const systemPrompt = `You are an AI assistant for a manufacturing order management system. 
-Your role is to analyze orders and suggest optimal workflow stages, timeline, and identify potential risks.
+        const systemPrompt = `You are an AI expert assistant for an advertising fabrication shop (Reclame Fabriek). 
+Your role is to analyze fabrication orders and suggest optimal workflow stages, estimated timelines, and identify technical risks.
 
-Available workflow stages: CAD (Design), CNC (Cutting), EDGE (Edge Banding), ASSEMBLY, PAINT, PACKAGING, DELIVERY
+Available fabrication stages: 
+- CAD: Design and technical preparation
+- CNC: Milling or laser cutting (Acrylic, PVC, Dibond, Aluminum)
+- SANDING: Post-processing cut edges
+- BENDING: Heat bending or profile bending
+- WELDING: For metal structures
+- PAINT: Spray painting or powder coating
+- ASSEMBLY: Final joining, LED installation, and bonding
+- QC: Quality control inspection
+- LOGISTICS: Packaging and delivery prep
 
-Respond in JSON format with:
-- summary: Brief order overview
-- suggestedStages: Object with stage names as keys and suggested status ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED') as values
-- estimatedDuration: Total estimated days
-- risks: Array of potential issues
-- recommendations: Array of actionable suggestions`;
+Respond in strict JSON format with:
+- summary: Professional technical overview of the project
+- suggestedStages: Object with stage names as keys and suggested status ('NOT_STARTED')
+- estimatedDuration: Total estimated working days
+- risks: Array of potential technical issues (e.g., bonding compatibility, material thickness vs bending radius)
+- recommendations: Array of actionable fabrication suggestions`;
 
-        const userPrompt = `Analyze this order:
+        const userPrompt = `Analyze this fabrication order:
 Title: ${orderData.title}
 Client: ${orderData.client}
 Due Date: ${orderData.dueDate}
-${orderData.description ? `Description: ${orderData.description}` : ''}
-${orderData.materials ? `Materials: ${orderData.materials.join(', ')}` : ''}
-${orderData.files ? `Files: ${orderData.files.map(f => f.name).join(', ')}` : ''}`;
+${orderData.description ? `Technical Specs: ${orderData.description}` : ''}
+${orderData.materials ? `Planned Materials: ${orderData.materials.join(', ')}` : ''}
+${orderData.files ? `Reference Files: ${orderData.files.map(f => f.name).join(', ')}` : ''}`;
 
         try {
             const response = await this.chat([
