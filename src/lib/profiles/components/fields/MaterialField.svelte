@@ -271,7 +271,7 @@
                   onclick={() => {
                     selectThickness(t);
                     selectedMaterial = material;
-                    value.materialCode = material.code;
+                    value = { ...value, materialCode: material.code };
                   }}
                 >
                   {t}mm
@@ -307,7 +307,7 @@
                   onclick={() => {
                     selectThickness(t);
                     selectedMaterial = material;
-                    value.materialCode = material.code;
+                    value = { ...value, materialCode: material.code };
                   }}
                 >
                   {t}mm
