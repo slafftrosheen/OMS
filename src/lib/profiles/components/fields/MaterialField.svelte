@@ -12,7 +12,6 @@
     thickness?: number;
     sectionSize?: string;
   };
-    onValueChange?: (value: any) => void;
     label?: string;
     required?: boolean;
     disabled?: boolean;
@@ -21,7 +20,6 @@
 
   let {
     value = $bindable({}),
-    onValueChange = (v: any) => {},
     label = 'Material',
     required = false,
     disabled = false,
@@ -104,9 +102,7 @@
 
   function selectAcrylicMaterial(material: any) {
     selectedMaterial = material;
-    const newValue = { ...value, materialCode: material.code };
-    value = newValue;
-    onValueChange(newValue);
+    value = { ...value, materialCode: material.code };
   }
 
   function selectThickness(t: number) {
@@ -125,7 +121,6 @@
     }
     
     value = newValue;
-    onValueChange(newValue);
   }
 
   function selectSectionSize(size: string) {
@@ -140,7 +135,6 @@
     }
     
     value = newValue;
-    onValueChange(newValue);
   }
 
   function getMaterialBoxColor(): string {
@@ -340,9 +334,7 @@
                 class:selected={selectedMaterial?.code === material.code}
                 onclick={() => {
                   selectedMaterial = material;
-                  const newValue = { ...value, materialCode: material.code };
-                  value = newValue;
-                  onValueChange(newValue);
+                  value = { ...value, materialCode: material.code };
                   // Extract section size from material name if it contains size info
                   const sizeMatch = material.name_en.match(/(\d+x\d+)/i);
                   if (sizeMatch) {
