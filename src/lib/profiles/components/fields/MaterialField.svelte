@@ -10,6 +10,7 @@
     materialId?: number;
     materialCode?: string;
     thickness?: number;
+    sectionSize?: string;
   };
     label?: string;
     required?: boolean;
@@ -22,13 +23,17 @@
     label = 'Material',
     required = false,
     disabled = false,
-    materialTypes = ['ACRYLIC', 'ALUMINUM', 'PVC']
+    materialTypes = ['ACRYLIC', 'ALUMINUM', 'PVC', 'ALU_PROFILE']
   }: Props = $props();
 
-  let selectedType: 'ACRYLIC' | 'ALUMINUM' | 'PVC' | null = $state(null);
+  let selectedType: 'ACRYLIC' | 'ALUMINUM' | 'PVC' | 'ALU_PROFILE' | null = $state(null);
   let acrylicMaterials: any[] = $state([]);
+  let aluminumMaterials: any[] = $state([]);
+  let pvcMaterials: any[] = $state([]);
+  let aluProfileMaterials: any[] = $state([]);
   let selectedMaterial: any | null = $state(null);
   let thickness: number | null = $state(null);
+  let sectionSize: string | null = $state(null); // For ALU_PROFILE
 
   // Preset thicknesses for each material type
   const aluminumThicknesses = [1.0, 1.2, 1.3, 1.5, 2.0, 3.0];
@@ -45,25 +50,26 @@
 
   async function loadMaterials() {
     try {
-      // Load acrylic materials from local JSON (PLEXIGLAS)
-      acrylicMaterials = plexiglasData;
-      
-      // Try to fetch from API if available
-      try {
-        const response = await fetch('/api/materials?category=ACRYLIC_XT,ACRYLIC_GS');
-        if (response.ok) {
-          const data = await response.json();
-          // Use API data if available, otherwise keep JSON data
-          if (data.items && data.items.length > 0) {
-            acrylicMaterials = data.items;
-          }
-        }
-      } catch (err) {
-        // Fallback to local JSON data (already loaded)
-        console.log('Using local PLEXIGLAS data');
+      // Load all material types from API
+      const response = await fetch('/api/materials');
+      if (response.ok) {
+        const data = await response.json();
+        const allMaterials = Array.isArray(data) ? data : (data.items || []);
+
+        // Separate materials by category
+        acrylicMaterials = allMaterials.filter(m => m.category === 'ACRYLIC_XT' || m.category === 'ACRYLIC_GS');
+        aluminumMaterials = allMaterials.filter(m => m.category === 'ALU_SHEET' || m.category === 'ALUMINUM');
+        pvcMaterials = allMaterials.filter(m => m.category === 'PVC');
+        aluProfileMaterials = allMaterials.filter(m => m.category === 'ALU_PROFILE');
+      } else {
+        // Fallback to local JSON data for acrylic
+        acrylicMaterials = plexiglasData;
+        console.warn('Using fallback data for materials');
       }
     } catch (err) {
       console.error('Failed to load materials:', err);
+      // Fallback to local JSON data for acrylic
+      acrylicMaterials = plexiglasData;
     }
   }
 
@@ -72,18 +78,26 @@
     if (value.materialCode?.includes('PLEXIGLAS')) {
       selectedType = 'ACRYLIC';
       selectedMaterial = acrylicMaterials.find(m => m.code === value.materialCode);
+    } else if (value.materialCode?.startsWith('ALU') && value.materialCode?.includes('PROFILE')) {
+      selectedType = 'ALU_PROFILE';
+      selectedMaterial = aluProfileMaterials.find(m => m.code === value.materialCode);
+      // For ALU_PROFILE, use sectionSize instead of thickness
+      sectionSize = value.sectionSize || null;
     } else if (value.materialCode?.startsWith('ALU')) {
       selectedType = 'ALUMINUM';
+      selectedMaterial = aluminumMaterials.find(m => m.code === value.materialCode);
     } else if (value.materialCode?.startsWith('PVC')) {
       selectedType = 'PVC';
+      selectedMaterial = pvcMaterials.find(m => m.code === value.materialCode);
     }
     thickness = value.thickness || null;
   }
 
-  function selectMaterialType(type: 'ACRYLIC' | 'ALUMINUM' | 'PVC') {
+  function selectMaterialType(type: 'ACRYLIC' | 'ALUMINUM' | 'PVC' | 'ALU_PROFILE') {
     selectedType = type;
     selectedMaterial = null;
     thickness = null;
+    sectionSize = null;
     updateValue();
   }
 
@@ -96,17 +110,30 @@
   function selectThickness(t: number) {
     thickness = t;
     value.thickness = t;
-    
-    // For ALU and PVC, generate material code
-    if (selectedType === 'ALUMINUM') {
+
+    // For materials with selected material, use the material code
+    if (selectedMaterial) {
+      value.materialCode = selectedMaterial.code;
+    } 
+    // For ALU and PVC without selected material, generate material code
+    else if (selectedType === 'ALUMINUM') {
       value.materialCode = `ALU_${t}`;
     } else if (selectedType === 'PVC') {
       value.materialCode = `PVC_WHITE_${t}`;
-    } else if (selectedType === 'ACRYLIC' && selectedMaterial) {
-      // Update thickness for acrylic
-      value.thickness = t;
     }
+
+    updateValue();
+  }
+
+  function selectSectionSize(size: string) {
+    sectionSize = size;
+    value.sectionSize = size;
     
+    // For ALU_PROFILE, use the section size in material code
+    if (selectedType === 'ALU_PROFILE' && selectedMaterial) {
+      value.materialCode = selectedMaterial.code;
+    }
+
     updateValue();
   }
 
@@ -116,7 +143,7 @@
 
   function getMaterialBoxColor(): string {
     if (!selectedType) return '#E5E7EB';
-    
+
     if (selectedType === 'ACRYLIC' && selectedMaterial) {
       // Return hex color from material data
       return selectedMaterial.hex || selectedMaterial.metadata?.hex || '#F5F5F0';
@@ -124,21 +151,30 @@
       return '#C0C0C0'; // Silver
     } else if (selectedType === 'PVC') {
       return '#FFFFFF'; // White
+    } else if (selectedType === 'ALU_PROFILE') {
+      return '#A9A9A9'; // Darker gray for profiles
     }
     return '#E5E7EB';
   }
 
   function getMaterialDisplayText(): string {
     if (!selectedType) return 'Select Material';
-    
+
     if (selectedType === 'ACRYLIC' && selectedMaterial) {
-      // Show code like "WN071" or colored name
+      // Show code like "WN071" or colored name with thickness
       const code = selectedMaterial.colorCode || selectedMaterial.code.replace('PLEXIGLAS_XT_', '').replace('PLEXIGLAS_GS_', '');
-      return code;
+      return thickness ? `${code}/${thickness}mm` : code;
+    } else if (selectedType === 'ALUMINUM' && selectedMaterial && thickness) {
+      return `${selectedMaterial.code || 'ALU'}/${thickness}mm`;
     } else if (selectedType === 'ALUMINUM' && thickness) {
       return `ALU ${thickness}`;
+    } else if (selectedType === 'PVC' && selectedMaterial && thickness) {
+      return `${selectedMaterial.code || 'PVC'}/${thickness}mm`;
     } else if (selectedType === 'PVC' && thickness) {
       return `PVC ${thickness}`;
+    } else if (selectedType === 'ALU_PROFILE' && selectedMaterial) {
+      // Show profile code or name
+      return selectedMaterial.code || selectedMaterial.name_en || 'ALU_PROFILE';
     }
     return selectedType;
   }
@@ -178,6 +214,8 @@
           <span class="type-icon">⚙️</span> Aluminum
         {:else if type === 'PVC'}
           <span class="type-icon">📦</span> PVC
+        {:else if type === 'ALU_PROFILE'}
+          <span class="type-icon">🔧</span> Alu Profile
         {/if}
       </button>
     {/each}
@@ -213,7 +251,7 @@
             <div class="thickness-selector" style="margin-top: var(--space-md, 12px);">
               <p class="helper-text">Select thickness:</p>
               <div class="thickness-grid">
-                {#each selectedMaterial.thicknessOptions || acrylicThicknesses as t}
+                {#each selectedMaterial.thickness_options || selectedMaterial.thicknessOptions || acrylicThicknesses as t}
                   <button
                     type="button"
                     class="thickness-option"
@@ -233,15 +271,21 @@
         <div class="thickness-selector">
           <p class="helper-text">Select thickness:</p>
           <div class="thickness-grid">
-            {#each aluminumThicknesses as t}
-              <button
-                type="button"
-                class="thickness-option"
-                class:selected={thickness === t}
-                onclick={() => selectThickness(t)}
-              >
-                {t}mm
-              </button>
+            {#each aluminumMaterials as material}
+              {#each material.thickness_options as t}
+                <button
+                  type="button"
+                  class="thickness-option"
+                  class:selected={thickness === t}
+                  onclick={() => {
+                    selectThickness(t);
+                    selectedMaterial = material;
+                    value.materialCode = material.code;
+                  }}
+                >
+                  {t}mm
+                </button>
+              {/each}
             {/each}
           </div>
           <input
@@ -263,16 +307,61 @@
         <div class="thickness-selector">
           <p class="helper-text">PVC White - Select thickness:</p>
           <div class="thickness-grid">
-            {#each pvcThicknesses as t}
+            {#each pvcMaterials as material}
+              {#each material.thickness_options as t}
+                <button
+                  type="button"
+                  class="thickness-option"
+                  class:selected={thickness === t}
+                  onclick={() => {
+                    selectThickness(t);
+                    selectedMaterial = material;
+                    value.materialCode = material.code;
+                  }}
+                >
+                  {t}mm
+                </button>
+              {/each}
+            {/each}
+          </div>
+        </div>
+
+      {:else if selectedType === 'ALU_PROFILE'}
+        <!-- Show ALU_PROFILE section size selector -->
+        <div class="alu-profile-selector">
+          <p class="helper-text">Select profile size:</p>
+          <div class="size-grid">
+            {#each aluProfileMaterials as material}
               <button
                 type="button"
-                class="thickness-option"
-                class:selected={thickness === t}
-                onclick={() => selectThickness(t)}
+                class="size-option"
+                class:selected={selectedMaterial?.code === material.code}
+                onclick={() => {
+                  selectedMaterial = material;
+                  value.materialCode = material.code;
+                  // Extract section size from material name if it contains size info
+                  const sizeMatch = material.name_en.match(/(\d+x\d+)/i);
+                  if (sizeMatch) {
+                    selectSectionSize(sizeMatch[0]);
+                  }
+                  updateValue();
+                }}
               >
-                {t}mm
+                {material.name_en}
               </button>
             {/each}
+          </div>
+          
+          <!-- Alternative manual input for section size -->
+          <div class="section-size-input">
+            <label>Or enter custom section size:</label>
+            <input
+              type="text"
+              class="custom-section-size"
+              placeholder="e.g., 20x20, 40x40, 60x40"
+              value={sectionSize || ''}
+              oninput={(e) => selectSectionSize(e.currentTarget.value)}
+            />
           </div>
         </div>
       {/if}
@@ -280,15 +369,15 @@
   {/if}
 
   <!-- Step 3: Visual Result Box (PDF Style) -->
-  {#if selectedType && (selectedMaterial || thickness)}
+  {#if selectedType && (selectedMaterial || thickness || sectionSize)}
     <div class="material-result-box">
       <div
         class="material-box"
         style="background-color: {getMaterialBoxColor()}; color: {getTextColor(getMaterialBoxColor())};"
       >
         <span class="material-display">{getMaterialDisplayText()}</span>
-        {#if thickness}
-          <span class="thickness-display">{thickness}mm</span>
+        {#if selectedType === 'ALU_PROFILE' && sectionSize}
+          <span class="section-size-display">{sectionSize}</span>
         {/if}
       </div>
     </div>
@@ -443,6 +532,55 @@
     font-size: var(--text-sm, 0.875rem);
   }
 
+  /* ALU Profile Selector */
+  .alu-profile-selector {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm, 8px);
+  }
+
+  .size-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: var(--space-xs, 4px);
+    margin-bottom: var(--space-sm, 8px);
+  }
+
+  .size-option {
+    padding: var(--space-sm, 8px);
+    background: var(--bg-1, #ffffff);
+    border: 2px solid var(--border, #e5e7eb);
+    border-radius: var(--radius-md, 6px);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: var(--text-xs, 0.75rem);
+    text-align: center;
+  }
+
+  .size-option:hover {
+    border-color: var(--primary, #3b82f6);
+  }
+
+  .size-option.selected {
+    background: var(--primary, #3b82f6);
+    border-color: var(--primary, #3b82f6);
+    color: white;
+  }
+
+  .section-size-input {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs, 4px);
+  }
+
+  .custom-section-size {
+    width: 100%;
+    padding: var(--space-sm, 8px);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: var(--radius-md, 6px);
+    font-size: var(--text-sm, 0.875rem);
+  }
+
   /* Result Box (PDF Style) */
   .material-result-box {
     padding: var(--space-md, 12px);
@@ -469,5 +607,14 @@
   .thickness-display {
     font-size: var(--text-xs, 0.75rem);
     opacity: 0.8;
+  }
+  
+  .section-size-display {
+    font-size: var(--text-xs, 0.75rem);
+    opacity: 0.8;
+    background: var(--primary, #3b82f6);
+    color: white;
+    padding: 2px 6px;
+    border-radius: var(--radius-full, 9999px);
   }
 </style>
