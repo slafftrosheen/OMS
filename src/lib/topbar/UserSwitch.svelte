@@ -1,6 +1,6 @@
 <script lang="ts">
 
-  import { currentUser, logout } from '$lib/auth/user-store';
+  import { currentUser, logout } from '$lib/auth/authState';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
   import { User, Settings, LogOut, ChevronDown } from 'lucide-svelte';

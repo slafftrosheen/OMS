@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ordersStore } from '$lib/order/signage-store';
+  import { ordersStore } from '$lib/order/orderState';
   import { summarize } from '$lib/metrics/order-metrics';
   import {
     STATIONS,

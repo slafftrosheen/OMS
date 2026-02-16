@@ -7,7 +7,7 @@
 
 import { onMount, onDestroy } from 'svelte';
 import { realtimeService, connectionState } from './realtime-service';
-import { currentUser } from '$lib/auth/user-store';
+import { currentUser } from '$lib/auth/authState';
 import { Wifi, WifiOff, AlertCircle } from 'lucide-svelte';
 
 let unsubscribe: (() => void) | null = null;

@@ -1,5 +1,6 @@
 // user-store.ts
 import { base } from '$app/paths';
+import { writable } from 'svelte/store';
 import type { User, Section } from './types';
 
 const isBrowser = typeof window !== 'undefined';
@@ -17,14 +18,17 @@ class AuthState {
 
   setUser(u: User | null) {
     this.user = u;
+    syncToLegacy();
   }
 
   setLoading(l: boolean) {
     this.loading = l;
+    syncToLegacy();
   }
 
   setError(e: string | null) {
     this.error = e;
+    syncToLegacy();
   }
 
   async load(timeoutMs = 10000): Promise<User | null> {
@@ -104,39 +108,35 @@ class AuthState {
 
 export const authState = new AuthState();
 
-// Backward compatibility wrappers
+// Backward compatibility stores
+const userLegacy = writable<User | null>(authState.user);
+const loadingLegacy = writable<boolean>(authState.loading);
+const errorLegacy = writable<string | null>(authState.error);
+
+function syncToLegacy() {
+  userLegacy.set(authState.user);
+  loadingLegacy.set(authState.loading);
+  errorLegacy.set(authState.error);
+}
+
 export const currentUser = {
-  subscribe: (fn: (u: User | null) => void) => {
-    const cleanup = $effect.root(() => {
-      $effect(() => { fn(authState.user); });
-    });
-    return cleanup;
-  },
+  subscribe: userLegacy.subscribe,
   set: (u: User | null) => authState.setUser(u),
   update: (fn: (u: User | null) => User | null) => authState.setUser(fn(authState.user))
 };
 
 export const authLoading = {
-  subscribe: (fn: (l: boolean) => void) => {
-    const cleanup = $effect.root(() => {
-      $effect(() => { fn(authState.loading); });
-    });
-    return cleanup;
-  }
+  subscribe: loadingLegacy.subscribe
 };
 
 export const authError = {
-  subscribe: (fn: (e: string | null) => void) => {
-    const cleanup = $effect.root(() => {
-      $effect(() => { fn(authState.error); });
-    });
-    return cleanup;
-  }
+  subscribe: errorLegacy.subscribe
 };
 
 export function switchSection(section: Section) {
   if (authState.user && authState.user.sections.includes(section)) {
     authState.user = { ...authState.user, primarySection: section };
+    syncToLegacy();
   }
 }
 

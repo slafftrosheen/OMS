@@ -2,7 +2,7 @@
   import { base } from '$app/paths';
   import { page } from '$app/state';
   import { onMount } from 'svelte';
-  import { getOrder } from '$lib/order/signage-store';
+  import { getOrder } from '$lib/order/orderState';
   import { STATIONS, STATE_LABEL } from '$lib/order/stages';
   import { t } from 'svelte-i18n';
   import type { Order } from '$lib/order/types.signage';

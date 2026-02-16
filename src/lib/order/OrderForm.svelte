@@ -7,7 +7,7 @@
   import type { ColorSpec } from '$lib/colors/color-systems';
   import { isKnownRal } from '$lib/colors/color-systems';
   import LoadingDatePicker from '$lib/order/LoadingDatePicker.svelte';
-  import { createOrder } from '$lib/order/signage-store';
+  import { createOrder } from '$lib/order/orderState';
   import { blankStages } from '$lib/order/stages';
   import { t } from 'svelte-i18n';
   import { materials as materialsStore } from '$lib/materials/materialsStore';

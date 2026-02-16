@@ -2,7 +2,7 @@
 
   import { onMount, onDestroy } from 'svelte';
   import { t } from 'svelte-i18n';
-  import { currentUser } from '$lib/auth/user-store';
+  import { currentUser } from '$lib/auth/authState';
   import { rooms, messages, sendMessage, loadRooms, loadMessages, ensureRoom } from '$lib/chat/chat-store';
   import { users, loadUsers } from '$lib/users/user-store';
   import { Send, Plus, Hash, Users, Settings, Search, Smile, Paperclip, MoreVertical, Bell, BellOff, X } from 'lucide-svelte';

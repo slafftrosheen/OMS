@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import { base } from '$app/paths';
-  import { currentUser } from '$lib/auth/user-store';
+  import { currentUser } from '$lib/auth/authState';
   import { Package, Plus, Edit2, Trash2, Search, X, Check, AlertCircle, ChevronDown } from 'lucide-svelte';
 
   interface Material {

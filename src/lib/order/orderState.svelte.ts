@@ -2,6 +2,7 @@ import type { Order, Badge, Station } from './types';
 import { blankStages, STATIONS } from './stages';
 import { handleApiError, retryWithBackoff } from '$lib/utils/error-handler';
 import { notifySuccess, notifyError } from '$lib/notify/toast';
+import { writable } from 'svelte/store';
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -19,6 +20,7 @@ class OrderState {
   async load() {
     this.loading = true;
     this.lastError = null;
+    syncToLegacy();
     try {
       const responseData = await retryWithBackoff(async () => {
         const response = await fetch('/api/draft-orders');
@@ -32,54 +34,53 @@ class OrderState {
       notifyError(this.lastError);
     } finally {
       this.loading = false;
+      syncToLegacy();
     }
   }
 
   addOrder(order: Order) {
     this.orders = [order, ...this.orders];
+    syncToLegacy();
   }
 
   updateOrder(id: string, updated: Order) {
     this.orders = this.orders.map(o => o.id === id ? updated : o);
+    syncToLegacy();
   }
 
   removeOrder(id: string) {
     this.orders = this.orders.filter(o => o.id !== id);
+    syncToLegacy();
   }
 }
 
 export const orderState = new OrderState();
 
 // Backward compatibility stores
+const ordersLegacy = writable<Order[]>(orderState.orders);
+const loadingLegacy = writable<boolean>(orderState.loading);
+const errorLegacy = writable<string | null>(orderState.lastError);
+
+function syncToLegacy() {
+  ordersLegacy.set(orderState.orders);
+  loadingLegacy.set(orderState.loading);
+  errorLegacy.set(orderState.lastError);
+}
+
 export const ordersStore = {
-  subscribe: (fn: (orders: Order[]) => void) => {
-    const cleanup = $effect.root(() => {
-      $effect(() => { fn(orderState.orders); });
-    });
-    return cleanup;
-  },
-  set: (orders: Order[]) => { orderState.orders = orders; },
-  update: (fn: (orders: Order[]) => Order[]) => { orderState.orders = fn(orderState.orders); }
+  subscribe: ordersLegacy.subscribe,
+  set: (orders: Order[]) => { orderState.orders = orders; syncToLegacy(); },
+  update: (fn: (orders: Order[]) => Order[]) => { orderState.orders = fn(orderState.orders); syncToLegacy(); }
 };
 
 export const isLoading = {
-  subscribe: (fn: (l: boolean) => void) => {
-    const cleanup = $effect.root(() => {
-      $effect(() => { fn(orderState.loading); });
-    });
-    return cleanup;
-  },
-  set: (l: boolean) => { orderState.loading = l; }
+  subscribe: loadingLegacy.subscribe,
+  set: (l: boolean) => { orderState.loading = l; syncToLegacy(); }
 };
 
 export const lastError = {
-  subscribe: (fn: (e: string | null) => void) => {
-    const cleanup = $effect.root(() => {
-      $effect(() => { fn(orderState.lastError); });
-    });
-    return cleanup;
-  },
-  set: (e: string | null) => { orderState.lastError = e; }
+  subscribe: errorLegacy.subscribe,
+  set: (e: string | null) => { orderState.lastError = e; syncToLegacy(); }
 };
 
 /**
@@ -116,6 +117,7 @@ export async function getOrder(id: string): Promise<Order | null> {
  */
 export async function createOrder(seed: Partial<Order>): Promise<Order | null> {
   orderState.loading = true;
+  syncToLegacy();
   try {
     const response = await fetch('/api/draft-orders', {
       method: 'POST',
@@ -145,6 +147,7 @@ export async function createOrder(seed: Partial<Order>): Promise<Order | null> {
     return null;
   } finally {
     orderState.loading = false;
+    syncToLegacy();
   }
 }
 
@@ -330,6 +333,7 @@ export async function setBadges(orderId: string, badges: Badge[]): Promise<boole
     
     if (response.ok) {
       orderState.orders = orderState.orders.map(o => o.id === orderId ? { ...o, badges } : o);
+      syncToLegacy();
       return true;
     } else {
       throw new Error(`HTTP ${response.status}`);
@@ -466,6 +470,7 @@ export async function addBadge(orderId: string, badge: Badge): Promise<boolean> 
   } else {
     // Fallback for tests/offline
     orderState.orders = orderState.orders.map(o => o.id === orderId ? { ...o, badges: newBadges } : o);
+    syncToLegacy();
     return true;
   }
 }
@@ -487,7 +492,7 @@ export async function removeBadge(orderId: string, badge: Badge): Promise<boolea
   } else {
     // Fallback for tests/offline
     orderState.orders = orderState.orders.map(o => o.id === orderId ? { ...o, badges: newBadges } : o);
+    syncToLegacy();
     return true;
   }
 }
-

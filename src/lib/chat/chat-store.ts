@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store';
 import type { Room, Message, SystemMessageEvent } from './types';
-import { currentUser } from '$lib/auth/user-store';
+import { currentUser } from '$lib/auth/authState';
 import { users } from '$lib/users/user-store';
 import { createId } from '$lib/utils/id';
 import { base } from '$app/paths';

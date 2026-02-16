@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Minimize2, Maximize2, Columns } from 'lucide-svelte';
-  import { ui } from '$lib/state/ui';
+  import { ui } from '$lib/state/appState';
   import { t } from 'svelte-i18n';
   import { clickOutside } from '$lib/utils/click-outside';
 

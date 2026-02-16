@@ -1,6 +1,6 @@
 <script lang="ts">
   import { users, loadUsers } from './user-store';
-  import { currentUser } from '$lib/auth/user-store';
+  import { currentUser } from '$lib/auth/authState';
   import { t } from 'svelte-i18n';
   import { onMount } from 'svelte';
 

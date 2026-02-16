@@ -1,7 +1,7 @@
 <script lang="ts">
   import { base } from "$app/paths";
   import { users, loadUsers, currentUserId } from "$lib/users/user-store";
-  import { currentUser } from "$lib/auth/user-store";
+  import { currentUser } from "$lib/auth/authState";
   import { unseenCount } from "$lib/notifications/count";
   import { t } from "svelte-i18n";
   import BellIcon from "lucide-svelte/icons/bell";

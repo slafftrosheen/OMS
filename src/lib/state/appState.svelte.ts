@@ -1,5 +1,6 @@
 import { base } from '$app/paths';
 import { loadPreferences } from '$lib/preferences';
+import { writable } from 'svelte/store';
 
 type Prefs = {
   theme: 'LightVim'|'DarkVim'|'HighContrastVim',
@@ -54,6 +55,7 @@ class UIState {
         this.density = (prefs.density as any) || this.density;
         this.fontScale = prefs.customSettings?.fontScale || this.fontScale;
         this.updateDocument();
+        syncToLegacy();
       }
     } catch (error) {
       console.warn('Failed to load preferences for UI state:', error);
@@ -104,21 +106,23 @@ class UIState {
 // Global UI state instance
 export const uiState = new UIState();
 
-// Backward compatibility wrapper (deprecated)
+// Backward compatibility store
+const legacyStore = writable<Prefs>({
+  theme: uiState.theme,
+  density: uiState.density,
+  fontScale: uiState.fontScale
+});
+
+function syncToLegacy() {
+  legacyStore.set({
+    theme: uiState.theme,
+    density: uiState.density,
+    fontScale: uiState.fontScale
+  });
+}
+
 export const ui = {
-  subscribe: (fn: (p: Prefs) => void) => {
-    // Svelte 5 effect to simulate store subscription for legacy components
-    const cleanup = $effect.root(() => {
-      $effect(() => {
-        fn({
-          theme: uiState.theme,
-          density: uiState.density,
-          fontScale: uiState.fontScale
-        });
-      });
-    });
-    return cleanup;
-  },
+  subscribe: legacyStore.subscribe,
   update: (fn: (p: Prefs) => Prefs) => {
     const current: Prefs = {
       theme: uiState.theme,
@@ -129,13 +133,14 @@ export const ui = {
     uiState.theme = next.theme;
     uiState.density = next.density;
     uiState.fontScale = next.fontScale;
+    syncToLegacy();
     uiState.triggerSync();
   },
   set: (next: Prefs) => {
     uiState.theme = next.theme;
     uiState.density = next.density;
     uiState.fontScale = next.fontScale;
+    syncToLegacy();
     uiState.triggerSync();
   }
 };
-
