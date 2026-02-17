@@ -8,17 +8,29 @@
   let searchQuery = $state('');
   let categoryFilter: Category | 'ALL' = $state('ALL');
   let showLowStockOnly = $state(false);
+  let materialList = $state<any[]>([]);
+  let lowStockList = $state<any[]>([]);
 
   onMount(() => {
-    loadMaterials();
+    loadMaterials().then(data => materialList = data);
   });
 
-  let filteredMaterials = $derived($materials.filter(mat => {
+  // Subscribe to store updates
+  $effect(() => {
+    const unsubMaterials = materials.subscribe(value => materialList = value);
+    const unsubLowStock = lowStock.subscribe(value => lowStockList = value);
+    return () => {
+      unsubMaterials();
+      unsubLowStock();
+    };
+  });
+
+  let filteredMaterials = $derived(materialList.filter(mat => {
     const matchesSearch = (mat.name_en || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                          mat.sku?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === 'ALL' || mat.category === categoryFilter;
     const matchesLowStock = !showLowStockOnly || mat.stock <= mat.min_stock;
-    
+
     return matchesSearch && matchesCategory && matchesLowStock;
   }));
 </script>
@@ -39,10 +51,10 @@
     </button>
   </div>
   
-  {#if $lowStock.length > 0}
+  {#if lowStockList.length > 0}
     <div class="alert-banner">
       <AlertCircle size={20} />
-      <span>{$lowStock.length} {$t('inventory.low_stock_items') || 'materials low in stock'}</span>
+      <span>{lowStockList.length} {$t('inventory.low_stock_items') || 'materials low in stock'}</span>
       <button class="btn sm" onclick={() => showLowStockOnly = !showLowStockOnly}>
         {showLowStockOnly ? ($t('inventory.show_all') || 'Show All') : ($t('inventory.show_alerts') || 'Show Alerts Only')}
       </button>
