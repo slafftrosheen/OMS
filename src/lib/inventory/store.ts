@@ -1,4 +1,4 @@
-import { derived, get, writable } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 import type { Category, Material, Movement, MovementKind, Section, Unit } from './types';
 
 // Re-export types for convenience
