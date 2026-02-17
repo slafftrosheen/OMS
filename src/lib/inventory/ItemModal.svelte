@@ -1,10 +1,10 @@
 <script lang="ts">
 
   import { t } from 'svelte-i18n';
-  import { createItem, updateItem, type Item } from './store';
+  import { createMaterial, updateMaterial, type Material } from './store';
   import type { Section } from './types';
 
-  let { item = {}, onClose = () => {} }: { item?: Partial<Item>; onClose?: () => void } = $props();
+  let { material = {}, onClose = () => {} }: { material?: Partial<Material>; onClose?: () => void } = $props();
 
   const sectionOptions: { id: Section; labelKey: string }[] = [
     { id: 'materials', labelKey: 'inventory.materials' },
@@ -14,25 +14,25 @@
     { id: 'cons', labelKey: 'inventory.consumables' }
   ];
 
-  const isNew = !item.id;
+  const isNew = !material.id;
 
   $effect(() => {
-    if (!item.section) {
-      item.section = 'materials';
+    if (!material.section) {
+      material.section = 'materials';
     }
   });
 
   function save() {
-    const payload = { ...item } as Partial<Item> & { id?: string };
+    const payload = { ...material } as Partial<Material> & { id?: string };
     const section = (payload.section as Section) ?? 'materials';
     payload.section = section;
 
     if (isNew) {
       const { id: _id, ...rest } = payload;
-      createItem(rest);
-    } else if (item.id) {
-      const { id: _id, ...rest } = payload as Item;
-      updateItem(item.id, rest);
+      createMaterial(rest);
+    } else if (material.id) {
+      const { id: _id, ...rest } = payload as Material;
+      updateMaterial(material.id, rest);
     }
     onClose();
   }
@@ -51,7 +51,7 @@
     <div class="grid" style="--cols:2">
       <label>
         {$t('inventory.section')}
-        <select bind:value={item.section}>
+        <select bind:value={material.section}>
           {#each sectionOptions as option}
             <option value={option.id}>{$t(option.labelKey)}</option>
           {/each}
@@ -59,58 +59,58 @@
       </label>
       <label>
         {$t('inventory.group')}
-        <input bind:value={item.group} placeholder={$t('inventory.modal.group_placeholder')} />
+        <input bind:value={material.item_group} placeholder={$t('inventory.modal.group_placeholder')} />
       </label>
       <label>
         {$t('inventory.modal.subgroup_label')}
-        <input bind:value={item.subgroup} placeholder={$t('inventory.modal.subgroup_placeholder')} />
+        <input bind:value={material.subgroup} placeholder={$t('inventory.modal.subgroup_placeholder')} />
       </label>
       <label>
         {$t('inventory.modal.sku_label')}
-        <input bind:value={item.sku} />
+        <input bind:value={material.sku} />
       </label>
       <label>
         {$t('inventory.headers.name')}
-        <input bind:value={item.name} />
+        <input bind:value={material.name_en} />
       </label>
       <label>
         {$t('inventory.headers.unit')}
-        <input bind:value={item.unit} placeholder={$t('inventory.modal.unit_placeholder')} />
+        <input bind:value={material.unit} placeholder={$t('inventory.modal.unit_placeholder')} />
       </label>
       <label>
         {$t('inventory.headers.stock')}
-        <input type="number" min="0" bind:value={item.stock} />
+        <input type="number" min="0" bind:value={material.stock} />
       </label>
       <label>
         {$t('inventory.headers.minimum')}
-        <input type="number" min="0" bind:value={item.min} />
+        <input type="number" min="0" bind:value={material.min_stock} />
       </label>
       <label>
         {$t('inventory.headers.location')}
-        <input bind:value={item.location} placeholder={$t('inventory.modal.location_placeholder')} />
+        <input bind:value={material.location} placeholder={$t('inventory.modal.location_placeholder')} />
       </label>
       <label>
         {$t('inventory.labels.color', { default: 'Color Code' })}
-        <input bind:value={item.colorCode} placeholder="e.g., RAL 9010" />
+        <input bind:value={material.color_code} placeholder="e.g., RAL 9010" />
       </label>
       <label>
         {$t('inventory.hexColor', { default: 'Color (Hex)' })}
         <div class="color-input-row">
-          <input type="color" bind:value={item.hexColor} class="color-picker" />
-          <input bind:value={item.hexColor} placeholder="#000000" class="color-text" />
+          <input type="color" bind:value={material.hex_color} class="color-picker" />
+          <input bind:value={material.hex_color} placeholder="#000000" class="color-text" />
         </div>
       </label>
       <label>
         {$t('inventory.modal.supplier_label')}
-        <input bind:value={item.supplier} />
+        <input bind:value={material.supplier} />
       </label>
       <label>
         {$t('inventory.modal.price_label')}
-        <input type="number" step="0.01" bind:value={item.price} />
+        <input type="number" step="0.01" bind:value={material.price} />
       </label>
       <label>
         {$t('inventory.modal.barcode_label')}
-        <input bind:value={item.barcode} placeholder={$t('inventory.modal.barcode_placeholder')} />
+        <input bind:value={material.barcode} placeholder={$t('inventory.modal.barcode_placeholder')} />
       </label>
     </div>
   </form>

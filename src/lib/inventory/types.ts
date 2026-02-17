@@ -1,7 +1,5 @@
 // src/lib/inventory/types.ts
 
-import type { Material, ColorSystem } from '$lib/profiles/types';
-
 // ============================================================================
 // Core inventory types used by store
 // ============================================================================
@@ -140,7 +138,7 @@ export interface Item {
 
 export interface Movement {
   id: string;
-  itemId: string;
+  materialId: string;
   kind: MovementKind;
   qty: number;
   unit: Unit;
@@ -321,6 +319,20 @@ export interface MaterialUsage {
   usageDate: string;
   recordedBy: string;
   notes?: string;
+}
+
+/**
+ * Color system entry (RAL, PANTONE, ORACAL)
+ */
+export interface ColorSystem {
+  id: number;
+  systemType: 'RAL' | 'PANTONE' | 'ORACAL' | 'HEX';
+  code: string;
+  name: string;
+  hexValue: string;
+  rgb: { r: number; g: number; b: number };
+  cmyk?: { c: number; m: number; y: number; k: number };
+  finish?: 'matte' | 'gloss' | 'metallic' | 'satin';
 }
 
 /**

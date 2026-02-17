@@ -1,7 +1,7 @@
-import type { Item } from './types';
-export function toCSV(items: Item[]): string {
-  const headers = ['id','sku','name','category','unit','stock','min','location','colorCode','thicknessMM','updatedAt'];
-  const rows = items.map(i => headers.map(h => JSON.stringify((i as any)[h] ?? '')).join(','));
+import type { Material } from './types';
+export function toCSV(materials: Material[]): string {
+  const headers = ['id','sku','name_en','category','unit','stock','min_stock','location','color_code','thickness_mm','updated_at'];
+  const rows = materials.map(m => headers.map(h => JSON.stringify((m as any)[h] ?? '')).join(','));
   return [headers.join(','), ...rows].join('\n');
 }
 export function downloadCSV(name:string, csv:string){

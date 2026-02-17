@@ -103,24 +103,24 @@
         </div>
         
         <div class="material-info">
-          <h3>{material.name}</h3>
+          <h3>{material.name_en || material.code}</h3>
           <div class="material-brand">{material.sku}</div>
-          
+
           <div class="material-specs">
-            {#if material.thicknessMM}
-              <span class="spec-tag">{material.thicknessMM}mm</span>
+            {#if material.thickness_mm}
+              <span class="spec-tag">{material.thickness_mm}mm</span>
             {/if}
             <span class="spec-tag">{material.category}</span>
           </div>
-          
+
           <div class="stock-info">
             <span class="stock-label">{$t('inventory.in_stock') || 'In Stock'}:</span>
             <span class="stock-value">
               {material.stock} {material.unit}
             </span>
           </div>
-          
-          {#if material.stock <= material.min}
+
+          {#if material.stock <= material.min_stock}
             <div class="low-stock-badge">
               <AlertCircle size={14} />
               {$t('inventory.low_stock') || 'Low Stock'}
