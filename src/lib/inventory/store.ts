@@ -356,7 +356,7 @@ export function movementStats(options: MovementFilterOptions = {}): MovementStat
 
 export function inventorySummary(): InventorySummary {
   const all = get(materials);
-  const low = get(lowStock);
+  const low = getLowStockMaterials();
   const categories: Record<Category, { total: number; lowStock: number }> = {
     ACRYLIC: { total: 0, lowStock: 0 },
     ALUMINIUM: { total: 0, lowStock: 0 },
