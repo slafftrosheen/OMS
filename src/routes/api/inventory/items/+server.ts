@@ -27,10 +27,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
   if (category) countQuery = countQuery.eq('category', category);
   if (section) countQuery = countQuery.eq('section', section);
-  countQuery = countQuery.not('sku', 'is', null); // Only items with SKU (inventory items)
+  // Don't filter by SKU - show all materials
 
   if (search) {
-    countQuery = countQuery.or(`sku.ilike.%${search}%,name_en.ilike.%${search}%,location.ilike.%${search}%`);
+    countQuery = countQuery.or(`sku.ilike.%${search}%,name_en.ilike.%${search}%,location.ilike.%${search}%,code.ilike.%${search}%`);
   }
 
   const { count: totalCount, error: countError } = await countQuery;
@@ -49,10 +49,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
   if (category) paginatedQuery = paginatedQuery.eq('category', category);
   if (section) paginatedQuery = paginatedQuery.eq('section', section);
-  paginatedQuery = paginatedQuery.not('sku', 'is', null); // Only items with SKU
+  // Don't filter by SKU - show all materials
 
   if (search) {
-    paginatedQuery = paginatedQuery.or(`sku.ilike.%${search}%,name_en.ilike.%${search}%,location.ilike.%${search}%`);
+    paginatedQuery = paginatedQuery.or(`sku.ilike.%${search}%,name_en.ilike.%${search}%,location.ilike.%${search}%,code.ilike.%${search}%`);
   }
 
   const { data, error } = await paginatedQuery;

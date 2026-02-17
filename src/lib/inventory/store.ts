@@ -85,7 +85,9 @@ export async function loadMaterials(): Promise<Material[]> {
   try {
     const response = await fetch('/api/inventory/items');
     if (response.ok) {
-      const data = await response.json();
+      const result = await response.json();
+      // Handle both paginated response and direct array
+      const data = result.data || result;
       materials.set(data);
       return data;
     }
