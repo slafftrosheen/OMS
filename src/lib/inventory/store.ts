@@ -280,10 +280,13 @@ export function movementsForMaterial(materialId: string) {
   return get(movements).filter((movement) => movement.materialId === materialId);
 }
 
-export const lowStock = derived(materials, ($materials) => $materials.filter((m) => m.stock <= m.min_stock));
+// Use a function instead of derived to avoid initialization order issues
+export function getLowStockMaterials(): Material[] {
+  return get(materials).filter((m) => m.stock <= m.min_stock);
+}
 
 export function listLowStock() {
-  return get(lowStock);
+  return getLowStockMaterials();
 }
 
 export function searchMaterials(query: string, options: SearchOptions = {}) {

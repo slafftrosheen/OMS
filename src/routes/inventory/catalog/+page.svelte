@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { materials, loadMaterials, lowStock } from '$lib/inventory/store';
+  import { materials, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
   import { Package, Plus, Search, AlertCircle } from 'lucide-svelte';
   import { t } from 'svelte-i18n';
   import type { Category } from '$lib/inventory/types';
@@ -16,13 +16,13 @@
   });
 
   // Subscribe to store updates
-  $effect(() => {
-    const unsubMaterials = materials.subscribe(value => materialList = value);
-    const unsubLowStock = lowStock.subscribe(value => lowStockList = value);
-    return () => {
-      unsubMaterials();
-      unsubLowStock();
-    };
+  onMount(() => {
+    const unsubMaterials = materials.subscribe(value => {
+      materialList = value;
+      lowStockList = getLowStockMaterials();
+    });
+    lowStockList = getLowStockMaterials();
+    return () => unsubMaterials();
   });
 
   let filteredMaterials = $derived(materialList.filter(mat => {

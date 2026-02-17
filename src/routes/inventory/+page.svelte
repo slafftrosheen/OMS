@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { materials, lowStock, createMaterial, updateMaterial, removeMaterial, loadMaterials } from '$lib/inventory/store';
+  import { materials, lowStock, createMaterial, updateMaterial, removeMaterial, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
   import type { Material, Section } from '$lib/inventory/types';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
@@ -29,16 +29,19 @@
 
   // Subscribe to store updates
   let unsubMaterials: (() => void) | null = null;
-  let unsubLow: (() => void) | null = null;
   
   onMount(() => {
-    unsubMaterials = materials.subscribe((value) => (list = value));
-    unsubLow = lowStock.subscribe((value) => (low = value));
+    unsubMaterials = materials.subscribe((value) => {
+      list = value;
+      // Update low stock when materials change
+      low = getLowStockMaterials();
+    });
+    // Initial low stock calculation
+    low = getLowStockMaterials();
   });
 
   onDestroy(() => {
     unsubMaterials?.();
-    unsubLow?.();
   });
 
   const tabs = [
