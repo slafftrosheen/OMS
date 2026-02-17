@@ -3,19 +3,17 @@
  * Handles offline caching, background sync, and push notifications
  */
 
-const CACHE_VERSION = 'oms-v1.0.0';
+const CACHE_VERSION = 'oms-v1.0.1'; // Bumped version to force cache clear
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
 
 // Files to cache immediately
 const STATIC_ASSETS = [
-  '/',
   '/offline',
   '/manifest.json',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
-  // Add your main CSS and JS bundles here
 ];
 
 // Maximum cache sizes
@@ -25,27 +23,20 @@ const MAX_IMAGE_CACHE_SIZE = 100;
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
   console.log('[Service Worker] Installing...');
-  
-  event.waitUntil(
-    caches.open(STATIC_CACHE)
-      .then((cache) => {
-        console.log('[Service Worker] Caching static assets');
-        return cache.addAll(STATIC_ASSETS);
-      })
-      .then(() => self.skipWaiting())
-  );
+  // Skip waiting to avoid serving old code
+  self.skipWaiting();
 });
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   console.log('[Service Worker] Activating...');
-  
+
   event.waitUntil(
     caches.keys()
       .then((keys) => {
         return Promise.all(
           keys
-            .filter((key) => key.startsWith('oms-') && key !== STATIC_CACHE && key !== DYNAMIC_CACHE && key !== IMAGE_CACHE)
+            .filter((key) => key.startsWith('oms-'))
             .map((key) => {
               console.log('[Service Worker] Deleting old cache:', key);
               return caches.delete(key);
@@ -56,7 +47,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache with network fallback
+// Fetch event - serve from network, cache fallback ONLY for static assets
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -71,32 +62,37 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API requests - network first, cache fallback
+  // API requests - network only, no caching
   if (url.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(request).catch(() => {
+      return new Response(JSON.stringify({ error: 'Offline' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }));
+    return;
+  }
+
+  // JS and CSS - network only, don't cache (prevents stale code)
+  if (request.destination === 'script' || request.destination === 'style') {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  // HTML - network first, cache fallback
+  if (request.destination === 'document' || url.pathname.endsWith('.html')) {
     event.respondWith(networkFirstStrategy(request));
     return;
   }
 
-  // Images - cache first, network fallback
+  // Images - cache first
   if (request.destination === 'image') {
     event.respondWith(cacheFirstStrategy(request, IMAGE_CACHE));
     return;
   }
 
-  // Static assets - cache first
-  if (STATIC_ASSETS.some(asset => url.pathname === asset)) {
-    event.respondWith(cacheFirstStrategy(request, STATIC_CACHE));
-    return;
-  }
-  
-  // Handle static assets with _app path
-  if (url.pathname.includes('_app/immutable')) {
-    event.respondWith(cacheFirstStrategy(request, STATIC_CACHE));
-    return;
-  }
-
-  // Everything else - network first
-  event.respondWith(networkFirstStrategy(request));
+  // Everything else - network only
+  event.respondWith(fetch(request));
 });
 
 // Network first strategy with cache fallback
