@@ -1,4 +1,4 @@
-import { items, movements, recordMovement, getItem } from '$lib/inventory/store';
+import { materials, movements, recordMovement, getMaterial } from '$lib/inventory/store';
 import type { Movement } from '$lib/inventory/types';
 import type { Order } from './types';
 import { get } from 'svelte/store';
@@ -9,19 +9,19 @@ import { get } from 'svelte/store';
  */
 export async function consumeMaterialsForOrder(order: Order, username: string): Promise<void> {
   if (!order.materials || order.materials.length === 0) return;
-  
+
   for (const mat of order.materials) {
     if (!mat.value) continue;
-    
+
     // Extract quantity and material ID (format: "materialId:colorId:quantity")
     const parts = mat.value.split(':');
-    
+
     if (parts.length >= 2) {
       const [materialId, quantityStr] = parts;
       const quantity = parseFloat(quantityStr);
-      
+
       if (!materialId || !quantity || isNaN(quantity)) continue;
-      
+
       await recordMovement(materialId, 'OUT', quantity, {
         by: username,
         refPO: order.id,
@@ -43,19 +43,19 @@ export function getMaterialsForOrder(orderId: string): Movement[] {
  */
 export function checkMaterialAvailability(order: Order): boolean {
   if (!order.materials || order.materials.length === 0) return true;
-  
+
   for (const mat of order.materials) {
     if (!mat.value) continue;
-    
+
     const parts = mat.value.split(':');
     if (parts.length >= 2) {
       const [materialId, quantityStr] = parts;
       const requiredQty = parseFloat(quantityStr);
-      
+
       if (isNaN(requiredQty)) continue;
-      
-      const item = getItem(materialId);
-      if (!item || item.stock < requiredQty) {
+
+      const material = getMaterial(materialId);
+      if (!material || material.stock < requiredQty) {
         return false;
       }
     }
@@ -72,15 +72,15 @@ export function getOrderMaterialSummary(orderId: string): {
   movements: Movement[];
 } {
   const orderMovements = getMaterialsForOrder(orderId);
-  const allItems = get(items);
-  
+  const allMaterials = get(materials);
+
   let totalCost = 0;
   orderMovements.forEach(m => {
-    const item = allItems.find(i => i.id === m.itemId);
+    const material = allMaterials.find(mat => mat.id === m.materialId);
     // Cost calculation would need price per unit from inventory
     // For now, just count materials
   });
-  
+
   return {
     totalMaterials: orderMovements.length,
     totalCost,

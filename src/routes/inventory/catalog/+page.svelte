@@ -1,23 +1,23 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { items, loadItems, lowStock } from '$lib/inventory/store';
+  import { materials, loadMaterials, lowStock } from '$lib/inventory/store';
   import { Package, Plus, Search, AlertCircle } from 'lucide-svelte';
   import { t } from 'svelte-i18n';
   import type { Category } from '$lib/inventory/types';
-  
+
   let searchQuery = $state('');
   let categoryFilter: Category | 'ALL' = $state('ALL');
   let showLowStockOnly = $state(false);
-  
+
   onMount(() => {
-    loadItems();
+    loadMaterials();
   });
-  
-  let filteredMaterials = $derived($items.filter(mat => {
-    const matchesSearch = mat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+
+  let filteredMaterials = $derived($materials.filter(mat => {
+    const matchesSearch = (mat.name_en || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                          mat.sku?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === 'ALL' || mat.category === categoryFilter;
-    const matchesLowStock = !showLowStockOnly || mat.stock <= mat.min;
+    const matchesLowStock = !showLowStockOnly || mat.stock <= mat.min_stock;
     
     return matchesSearch && matchesCategory && matchesLowStock;
   }));
