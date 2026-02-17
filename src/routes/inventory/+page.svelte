@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { materials, lowStock, createMaterial, updateMaterial, removeMaterial } from '$lib/inventory/store';
+  import { materials, lowStock, createMaterial, updateMaterial, removeMaterial, loadMaterials } from '$lib/inventory/store';
   import type { Material, Section } from '$lib/inventory/types';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
-  import { onDestroy } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { toCSV, downloadCSV } from '$lib/inventory/export';
   import Tabs from '$lib/ui/Tabs.svelte';
   import ItemModal from '$lib/inventory/ItemModal.svelte';
@@ -22,8 +22,19 @@
   let list: Material[] = $state([]);
   let low: Material[] = $state([]);
 
-  const unsubMaterials = materials.subscribe((value) => (list = value));
-  const unsubLow = lowStock.subscribe((value) => (low = value));
+  // Load materials on mount
+  onMount(async () => {
+    await loadMaterials();
+  });
+
+  // Subscribe to store updates
+  let unsubMaterials: (() => void) | null = null;
+  let unsubLow: (() => void) | null = null;
+  
+  onMount(() => {
+    unsubMaterials = materials.subscribe((value) => (list = value));
+    unsubLow = lowStock.subscribe((value) => (low = value));
+  });
 
   onDestroy(() => {
     unsubMaterials?.();
