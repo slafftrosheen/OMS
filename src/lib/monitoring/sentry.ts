@@ -1,6 +1,7 @@
 // src/lib/monitoring/sentry.ts
 import * as Sentry from '@sentry/sveltekit';
 import { dev } from '$app/environment';
+import { env as publicEnv } from '$env/dynamic/public';
 
 export function initSentry() {
 	if (dev) {
@@ -8,9 +9,17 @@ export function initSentry() {
 		return;
 	}
 
+    // Try to get DSN from various sources
+    const dsn = publicEnv?.PUBLIC_SENTRY_DSN || (typeof process !== 'undefined' ? process.env?.SENTRY_DSN : undefined);
+
+    if (!dsn) {
+        console.warn('Sentry DSN not found. Sentry integration is disabled.');
+        return;
+    }
+
 	Sentry.init({
-		dsn: process.env.SENTRY_DSN,
-		environment: process.env.NODE_ENV || 'production',
+		dsn,
+		environment: (typeof process !== 'undefined' ? process.env?.NODE_ENV : undefined) || 'production',
 		
 		// Performance monitoring
 		tracesSampleRate: 0.1, // 10% of transactions

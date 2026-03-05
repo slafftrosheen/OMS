@@ -1,6 +1,7 @@
 /**
  * Centralized error handling utilities
  */
+import { dev } from '$app/environment';
 
 export interface ErrorContext {
   action: string;
@@ -128,31 +129,66 @@ export function safeJsonParse<T>(json: string, fallback: T): T {
 }
 
 /**
- * Log error to monitoring service (placeholder for integration)
+ * Log error to monitoring service
  */
 export async function logError(error: Error | AppError, context?: Record<string, any>) {
-  // In production, send to error tracking service (Sentry, Rollbar, etc.)
   const errorData = {
     message: error.message,
     stack: error.stack,
     context: context || {},
     timestamp: new Date().toISOString(),
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
-    url: typeof window !== 'undefined' ? window.location.href : 'unknown'
+    url: typeof window !== 'undefined' ? window.location.href : 'unknown',
+    appContext: error instanceof AppError ? error.context : undefined
   };
   
-  if (error instanceof AppError) {
-    Object.assign(errorData, { appContext: error.context });
+  if (dev) {
+    console.error('Error logged (dev):', errorData);
+    return;
   }
-  
-  console.error('Error logged:', errorData);
-  
-  // TODO: Integrate with monitoring service
-  // await fetch('/api/errors', {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify(errorData)
-  // });
+
+  try {
+    // If we're on the server, we can log directly using the server-side logger
+    // This avoids issues with relative URLs and fetch
+    if (typeof window === 'undefined') {
+      try {
+        const { logger } = await import('$lib/server/logging/logger');
+        const reportedError = {
+          name: error instanceof AppError ? 'AppError' : error.name || 'Error',
+          message: error.message,
+          stack: error.stack
+        };
+        logger.error(`[Server-side] ${error.message}`, reportedError as any, {
+          ...errorData.context,
+          ...errorData.appContext,
+          reportedTimestamp: errorData.timestamp,
+          userAgent: errorData.userAgent,
+          url: errorData.url
+        });
+        return;
+      } catch (importErr) {
+        // If we can't import the logger, fall back to fetch
+        console.warn('Could not log directly on server, falling back to fetch', importErr);
+      }
+    }
+
+    // Send to internal error reporting API
+    // This endpoint handles forwarding to Sentry and server-side logging
+    // Note: Relative URLs only work in the browser or SvelteKit's fetch
+    const response = await fetch('/api/errors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(errorData)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to log error: ${response.statusText}`);
+    }
+  } catch (e) {
+    // Fallback if the monitoring service or API is unavailable
+    console.error('Failed to report error to monitoring service:', e);
+    console.error('Original error:', errorData);
+  }
 }
 
 /**
