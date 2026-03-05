@@ -184,6 +184,8 @@ export async function updateOrder(id: string, updates: Partial<Order>): Promise<
       notifySuccess(`Order ${id} updated`);
       return order;
     } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
   } catch (err) {
     handleApiError(err, `Failed to update order ${id}`);
     return null;
