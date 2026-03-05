@@ -21,17 +21,30 @@ function normalizeTheme(theme: string | null): Prefs['theme'] {
 }
 
 class UIState {
-  theme = $state<Prefs['theme']>(normalizeTheme(isBrowser ? localStorage.getItem('rf_theme') : null));
-  density = $state<Prefs['density']>((isBrowser ? localStorage.getItem('rf_density') : null) as any || 'cozy');
-  fontScale = $state<number>(+(isBrowser ? localStorage.getItem('rf_font') || '1.0' : '1.0'));
+  theme = $state<Prefs['theme']>('DarkVim'); // Default SSR safe value
+  density = $state<Prefs['density']>('cozy'); // Default SSR safe value
+  fontScale = $state<number>(1.0); // Default SSR safe value
 
   private syncTimeout: ReturnType<typeof setTimeout> | null = null;
   private lastSynced: Prefs | null = null;
 
   constructor() {
     if (isBrowser) {
-      // Set initial document attributes
-      this.updateDocument();
+      // Defer reading localStorage until after hydration
+      setTimeout(() => {
+        const localTheme = localStorage.getItem('rf_theme');
+        if (localTheme) this.theme = normalizeTheme(localTheme);
+        
+        const localDensity = localStorage.getItem('rf_density');
+        if (localDensity) this.density = localDensity as Prefs['density'];
+        
+        const localFont = localStorage.getItem('rf_font');
+        if (localFont) this.fontScale = parseFloat(localFont) || 1.0;
+        
+        // Update document after hydrating from localStorage
+        this.updateDocument();
+      }, 0);
+      
       this.loadFromServer();
     }
   }

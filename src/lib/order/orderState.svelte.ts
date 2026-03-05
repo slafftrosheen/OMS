@@ -13,6 +13,14 @@ class OrderState {
 
   constructor() {
     if (isBrowser) {
+      // Automatically syncs to legacy store whenever ANY deeply nested property changes
+      $effect.root(() => {
+        $effect(() => {
+          ordersLegacy.set(this.orders);
+          loadingLegacy.set(this.loading);
+          errorLegacy.set(this.lastError);
+        });
+      });
       this.load();
     }
   }
@@ -20,7 +28,6 @@ class OrderState {
   async load() {
     this.loading = true;
     this.lastError = null;
-    syncToLegacy();
     try {
       const responseData = await retryWithBackoff(async () => {
         const response = await fetch('/api/draft-orders');
@@ -34,23 +41,25 @@ class OrderState {
       notifyError(this.lastError);
     } finally {
       this.loading = false;
-      syncToLegacy();
     }
   }
 
   addOrder(order: Order) {
     this.orders = [order, ...this.orders];
-    syncToLegacy();
   }
 
   updateOrder(id: string, updated: Order) {
-    this.orders = this.orders.map(o => o.id === id ? updated : o);
-    syncToLegacy();
+    const index = this.orders.findIndex(o => o.id === id);
+    if (index !== -1) {
+      this.orders[index] = updated;
+    }
   }
 
   removeOrder(id: string) {
-    this.orders = this.orders.filter(o => o.id !== id);
-    syncToLegacy();
+    const index = this.orders.findIndex(o => o.id === id);
+    if (index !== -1) {
+      this.orders.splice(index, 1);
+    }
   }
 }
 
@@ -117,7 +126,6 @@ export async function getOrder(id: string): Promise<Order | null> {
  */
 export async function createOrder(seed: Partial<Order>): Promise<Order | null> {
   orderState.loading = true;
-  syncToLegacy();
   try {
     const response = await fetch('/api/draft-orders', {
       method: 'POST',
@@ -147,7 +155,6 @@ export async function createOrder(seed: Partial<Order>): Promise<Order | null> {
     return null;
   } finally {
     orderState.loading = false;
-    syncToLegacy();
   }
 }
 
@@ -177,8 +184,6 @@ export async function updateOrder(id: string, updates: Partial<Order>): Promise<
       notifySuccess(`Order ${id} updated`);
       return order;
     } else {
-      throw new Error(`HTTP ${response.status}`);
-    }
   } catch (err) {
     handleApiError(err, `Failed to update order ${id}`);
     return null;
@@ -332,8 +337,10 @@ export async function setBadges(orderId: string, badges: Badge[]): Promise<boole
     });
     
     if (response.ok) {
-      orderState.orders = orderState.orders.map(o => o.id === orderId ? { ...o, badges } : o);
-      syncToLegacy();
+      const index = orderState.orders.findIndex(o => o.id === orderId);
+      if (index !== -1) {
+        orderState.orders[index].badges = badges;
+      }
       return true;
     } else {
       throw new Error(`HTTP ${response.status}`);
@@ -469,8 +476,10 @@ export async function addBadge(orderId: string, badge: Badge): Promise<boolean> 
     return await setBadges(orderId, newBadges);
   } else {
     // Fallback for tests/offline
-    orderState.orders = orderState.orders.map(o => o.id === orderId ? { ...o, badges: newBadges } : o);
-    syncToLegacy();
+    const index = orderState.orders.findIndex(o => o.id === orderId);
+    if (index !== -1) {
+      orderState.orders[index].badges = newBadges;
+    }
     return true;
   }
 }
@@ -491,8 +500,10 @@ export async function removeBadge(orderId: string, badge: Badge): Promise<boolea
     return await setBadges(orderId, newBadges);
   } else {
     // Fallback for tests/offline
-    orderState.orders = orderState.orders.map(o => o.id === orderId ? { ...o, badges: newBadges } : o);
-    syncToLegacy();
+    const index = orderState.orders.findIndex(o => o.id === orderId);
+    if (index !== -1) {
+      orderState.orders[index].badges = newBadges;
+    }
     return true;
   }
 }
