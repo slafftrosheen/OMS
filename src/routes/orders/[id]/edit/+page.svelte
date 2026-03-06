@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { stopPropagation } from 'svelte/legacy';
 
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -8,29 +7,29 @@
   import { Save, ArrowLeft, AlertCircle, Plus, Trash2, Upload, FileText, Eye, Calendar, User, CheckCircle, XCircle, Clock } from 'lucide-svelte';
   import Profile7stVisual from '$lib/profiles/components/Profile7stVisual.svelte';
   import { createId } from '$lib/utils/id';
-  import { currentUser } from '$lib/auth/user-store';
+  import { currentUser } from '$lib/auth/authState.svelte';
 
   let { data } = $props();
 
-  let loading = true;
-  let saving = false;
-  let error = '';
-  let successMessage = '';
+  let loading = $state(true);
+  let saving = $state(false);
+  let error = $state('');
+  let successMessage = $state('');
   
   // Order Details
   let orderId: number;
-  let clientName = '';
-  let poNumber = '';
-  let deadline = '';
-  let loadingDate = '';
-  let notes = '';
-  let priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' = 'NORMAL';
-  let status: string = 'draft';
+  let clientName = $state('');
+  let poNumber = $state('');
+  let deadline = $state('');
+  let loadingDate = $state('');
+  let notes = $state('');
+  let priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' = $state('NORMAL');
+  let status: string = $state('draft');
   
   // Delivery Address
-  let deliveryAddress = '';
-  let deliveryContact = '';
-  let deliveryPhone = '';
+  let deliveryAddress = $state('');
+  let deliveryContact = $state('');
+  let deliveryPhone = $state('');
   
   // Files
   interface OrderFile {
@@ -40,8 +39,8 @@
     fileType: string;
     uploadedAt: string;
   }
-  let existingFiles: OrderFile[] = [];
-  let newFiles: File[] = [];
+  let existingFiles: OrderFile[] = $state([]);
+  let newFiles: File[] = $state([]);
   
   // Profiles
   type ProfileItem = {
@@ -52,7 +51,7 @@
     collapsed: boolean;
   };
 
-  let profiles: ProfileItem[] = [];
+  let profiles: ProfileItem[] = $state([]);
 
   // Check permissions
   let isAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin' || $currentUser?.primarySection === 'Admin');

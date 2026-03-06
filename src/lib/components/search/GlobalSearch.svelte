@@ -1,8 +1,6 @@
 <!-- src/lib/components/search/GlobalSearch.svelte -->
 <script lang="ts">
-    import { createBubbler, stopPropagation } from 'svelte/legacy';
 
-    const bubble = createBubbler();
     import { onMount } from 'svelte';
     import Input from '$lib/components/ui/Input.svelte';
     import Badge from '$lib/components/ui/Badge.svelte';

@@ -2,7 +2,6 @@
   import { STATE_LABEL, STATE_TONE, STATIONS, type StageCycle, type StageMap, type StationTag } from './stages';
   import { TERMS } from '$lib/order/names';
   import { t } from 'svelte-i18n';
-  import { get } from 'svelte/store';
   import Badge from '$lib/ui/Badge.svelte';
 
   let {
@@ -17,21 +16,26 @@
     return cycles.filter((cycle) => cycle.station === station).length;
   }
 
+  const reworkReasons = $derived(
+    cycles.map(cycle => ({
+      ...cycle,
+      label: $t(`rework.reasons.${cycle.reason}`)
+    }))
+  );
+
   function detail(station: StationTag) {
-    const translate = get(t);
-    return cycles
+    return reworkReasons
       .filter((cycle) => cycle.station === station)
       .map((cycle) => {
-        const label = translate(`rework.reasons.${cycle.reason}`);
         const suffix = cycle.note ? ` – ${cycle.note}` : '';
-        return `${cycle.idx}. ${label}${suffix}`;
+        return `${cycle.idx}. ${cycle.label}${suffix}`;
       })
       .join('\n');
   }
 
   function stationLabel(station: StationTag) {
     const name = TERMS.stations as Record<string, string>;
-    return get(t)(name?.[station] ?? station);
+    return $t(name?.[station] ?? station);
   }
 </script>
 
@@ -47,7 +51,7 @@
             <span class="tag badge-warn" title={detail(station)}>x{count(station)} {$t('rework.x_repeat')}</span>
           {/if}
         </span>
-        <Badge tone={STATE_TONE[state] === 'muted' ? 'neutral' : STATE_TONE[state]}>{get(t)(STATE_LABEL[state])}</Badge>
+        <Badge tone={STATE_TONE[state] === 'muted' ? 'neutral' : STATE_TONE[state]}>{$t(STATE_LABEL[state])}</Badge>
       </li>
     {/each}
   </ul>

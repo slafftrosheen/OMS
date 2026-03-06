@@ -1,5 +1,5 @@
 // Loading days calendar store - PostgreSQL backed via API
-import { listOrders } from '$lib/order/signage-store';
+import { listOrders, ordersStore } from '$lib/order/orderState.svelte';
 import type { Badge, StageMap } from '$lib/order/types';
 import { writable, get } from 'svelte/store';
 
@@ -137,8 +137,8 @@ export function upcoming(fromISO = new Date().toISOString().slice(0, 10)): Loadi
 // Get usage info for a loading day (orders assigned to it)
 // Synchronous version to be used in templates/computations
 export function usage(dateISO: string): { assigned: number; carrier: string; orders: LoadingAssignment[] } {
-  // Fallback: get from orders store synchronously since store should be populated
-  const orders = listOrders(); // listOrders is now sync and returns from store value
+  // Get from orders store synchronously since store should be populated
+  const orders = get(ordersStore);
   const matching = orders.filter(order => order.loadingDate === dateISO);
   const day = getDay(dateISO);
 

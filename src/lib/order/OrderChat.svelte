@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { t } from 'svelte-i18n';
-  import { currentUser } from '$lib/auth/user-store';
+  import { currentUser } from '$lib/auth/authState.svelte';
   import { users } from '$lib/users/user-store';
   import MentionInput from '$lib/chat/MentionInput.svelte';
   import { messages, sendMessage, loadMessages, ensureRoom } from '$lib/chat/chat-store';

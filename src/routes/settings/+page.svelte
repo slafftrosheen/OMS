@@ -1,6 +1,6 @@
 <script lang="ts">
   export const params = {};
-  import { ui } from '$lib/state/ui';
+  import { ui } from '$lib/state/appState.svelte';
   import PasswordChange from '$lib/auth/PasswordChange.svelte';
   import { t, locale } from 'svelte-i18n';
   import { setLocale, locales } from '$lib/i18n';

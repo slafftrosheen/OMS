@@ -1,20 +1,21 @@
 <!-- src/lib/profiles/components/fields/MaterialField.svelte -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, derived } from 'svelte';
   import type { Material } from '$lib/profiles/types';
   import plexiglasData from '$lib/profiles/data/plexiglas-materials.json';
 
-  
   interface Props {
     value?: {
-    materialId?: number;
-    materialCode?: string;
-    thickness?: number;
-  };
+      materialId?: number;
+      materialCode?: string;
+      thickness?: number;
+      sectionSize?: string;
+      diameter?: number;
+    };
     label?: string;
     required?: boolean;
     disabled?: boolean;
-    materialTypes?: string[]; // Which material types to allow
+    materialTypes?: string[];
   }
 
   let {
@@ -22,15 +23,27 @@
     label = 'Material',
     required = false,
     disabled = false,
-    materialTypes = ['ACRYLIC', 'ALUMINUM', 'PVC']
+    materialTypes = ['ACRYLIC', 'ALUMINUM', 'PVC', 'ALU_PROFILE'],
   }: Props = $props();
 
-  let selectedType: 'ACRYLIC' | 'ALUMINUM' | 'PVC' | null = $state(null);
+  let selectedType: 'ACRYLIC' | 'ALUMINUM' | 'PVC' | 'ALU_PROFILE' | null = $state(null);
   let acrylicMaterials: any[] = $state([]);
+  let aluminumMaterials: any[] = $state([]);
+  let pvcMaterials: any[] = $state([]);
+  let aluProfileMaterials: any[] = $state([]);
   let selectedMaterial: any | null = $state(null);
   let thickness: number | null = $state(null);
+  let sectionSize: string | null = $state(null);
+  let diameter: number | null = $state(null);
 
-  // Preset thicknesses for each material type
+  let squareAluProfiles = $derived(
+    aluProfileMaterials.filter(m => !m.name_en?.toLowerCase().includes('tube') && !m.name_en?.toLowerCase().includes('d'))
+  );
+
+  let roundAluProfiles = $derived(
+    aluProfileMaterials.filter(m => m.name_en?.toLowerCase().includes('tube') || m.name_en?.toLowerCase().includes('d'))
+  );
+
   const aluminumThicknesses = [1.0, 1.2, 1.3, 1.5, 2.0, 3.0];
   const pvcThicknesses = [3, 5, 8, 10, 12, 15, 18, 19];
   const acrylicThicknesses = [2, 3, 4, 5, 6, 8, 10];
@@ -38,113 +51,122 @@
   onMount(async () => {
     await loadMaterials();
     if (value.materialCode) {
-      // Load existing selection
       await loadExistingSelection();
     }
   });
 
   async function loadMaterials() {
     try {
-      // Load acrylic materials from local JSON (PLEXIGLAS)
-      acrylicMaterials = plexiglasData;
-      
-      // Try to fetch from API if available
-      try {
-        const response = await fetch('/api/materials?category=ACRYLIC_XT,ACRYLIC_GS');
-        if (response.ok) {
-          const data = await response.json();
-          // Use API data if available, otherwise keep JSON data
-          if (data.items && data.items.length > 0) {
-            acrylicMaterials = data.items;
-          }
-        }
-      } catch (err) {
-        // Fallback to local JSON data (already loaded)
-        console.log('Using local PLEXIGLAS data');
+      const response = await fetch('/api/materials');
+      if (response.ok) {
+        const data = await response.json();
+        const allMaterials = Array.isArray(data) ? data : (data.items || []);
+        acrylicMaterials = allMaterials.filter(m => m.category === 'ACRYLIC_XT' || m.category === 'ACRYLIC_GS');
+        aluminumMaterials = allMaterials.filter(m => m.category === 'ALU_SHEET' || m.category === 'ALUMINUM');
+        pvcMaterials = allMaterials.filter(m => m.category === 'PVC');
+        aluProfileMaterials = allMaterials.filter(m => m.category === 'ALU_PROFILE');
+      } else {
+        acrylicMaterials = plexiglasData;
+        console.warn('Using fallback data for materials');
       }
     } catch (err) {
       console.error('Failed to load materials:', err);
+      acrylicMaterials = plexiglasData;
     }
   }
 
   async function loadExistingSelection() {
-    // Determine material type from code
     if (value.materialCode?.includes('PLEXIGLAS')) {
       selectedType = 'ACRYLIC';
       selectedMaterial = acrylicMaterials.find(m => m.code === value.materialCode);
+    } else if (value.materialCode?.startsWith('ALU') && value.materialCode?.includes('PROFILE')) {
+      selectedType = 'ALU_PROFILE';
+      selectedMaterial = aluProfileMaterials.find(m => m.code === value.materialCode);
+      sectionSize = value.sectionSize || null;
+      diameter = value.diameter || null;
     } else if (value.materialCode?.startsWith('ALU')) {
       selectedType = 'ALUMINUM';
+      selectedMaterial = aluminumMaterials.find(m => m.code === value.materialCode);
     } else if (value.materialCode?.startsWith('PVC')) {
       selectedType = 'PVC';
+      selectedMaterial = pvcMaterials.find(m => m.code === value.materialCode);
     }
     thickness = value.thickness || null;
   }
 
-  function selectMaterialType(type: 'ACRYLIC' | 'ALUMINUM' | 'PVC') {
+  function selectMaterialType(type: 'ACRYLIC' | 'ALUMINUM' | 'PVC' | 'ALU_PROFILE') {
     selectedType = type;
     selectedMaterial = null;
     thickness = null;
+    sectionSize = null;
+    diameter = null;
     updateValue();
   }
 
-  function selectAcrylicMaterial(material: any) {
+  function selectMaterial(material: any) {
     selectedMaterial = material;
-    value.materialCode = material.code;
     updateValue();
   }
 
   function selectThickness(t: number) {
     thickness = t;
-    value.thickness = t;
-    
-    // For ALU and PVC, generate material code
-    if (selectedType === 'ALUMINUM') {
-      value.materialCode = `ALU_${t}`;
-    } else if (selectedType === 'PVC') {
-      value.materialCode = `PVC_WHITE_${t}`;
-    } else if (selectedType === 'ACRYLIC' && selectedMaterial) {
-      // Update thickness for acrylic
-      value.thickness = t;
-    }
-    
+    updateValue();
+  }
+
+  function selectSectionSize(size: string) {
+    sectionSize = size;
+    updateValue();
+  }
+  
+  function selectDiameter(d: number) {
+    diameter = d;
     updateValue();
   }
 
   function updateValue() {
-    value = { ...value };
+    let newValue: any = {
+      materialCode: selectedMaterial?.code,
+      thickness,
+      sectionSize,
+      diameter,
+    };
+    value = newValue;
   }
 
   function getMaterialBoxColor(): string {
     if (!selectedType) return '#E5E7EB';
-    
     if (selectedType === 'ACRYLIC' && selectedMaterial) {
-      // Return hex color from material data
       return selectedMaterial.hex || selectedMaterial.metadata?.hex || '#F5F5F0';
     } else if (selectedType === 'ALUMINUM') {
-      return '#C0C0C0'; // Silver
+      return '#C0C0C0';
     } else if (selectedType === 'PVC') {
-      return '#FFFFFF'; // White
+      return '#FFFFFF';
+    } else if (selectedType === 'ALU_PROFILE') {
+      return '#A9A9A9';
     }
     return '#E5E7EB';
   }
 
   function getMaterialDisplayText(): string {
-    if (!selectedType) return 'Select Material';
-    
-    if (selectedType === 'ACRYLIC' && selectedMaterial) {
-      // Show code like "WN071" or colored name
-      const code = selectedMaterial.colorCode || selectedMaterial.code.replace('PLEXIGLAS_XT_', '').replace('PLEXIGLAS_GS_', '');
-      return code;
-    } else if (selectedType === 'ALUMINUM' && thickness) {
-      return `ALU ${thickness}`;
-    } else if (selectedType === 'PVC' && thickness) {
-      return `PVC ${thickness}`;
+    if (!selectedMaterial) return 'Select Material';
+
+    const code = selectedMaterial.colorCode || selectedMaterial.code;
+
+    if (selectedType === 'ACRYLIC') {
+      return thickness ? `${code}/${thickness}mm` : code;
     }
-    return selectedType;
+    if (selectedType === 'ALUMINUM' || selectedType === 'PVC') {
+      return thickness ? `${code}/${thickness}mm` : code;
+    }
+    if (selectedType === 'ALU_PROFILE') {
+      if (sectionSize) return `${code}/${sectionSize}`;
+      if (diameter) return `${code}/D${diameter}`;
+      return code;
+    }
+    return selectedMaterial.name_en || code;
   }
 
   function getTextColor(bgHex: string): string {
-    // Calculate luminance to determine if text should be white or black
     const hex = bgHex.replace('#', '');
     const r = parseInt(hex.substr(0, 2), 16);
     const g = parseInt(hex.substr(2, 2), 16);
@@ -157,12 +179,9 @@
 <div class="material-field">
   <label class="label">
     {label}
-    {#if required}
-      <span class="required">*</span>
-    {/if}
+    {#if required}<span class="required">*</span>{/if}
   </label>
 
-  <!-- Step 1: Material Type Selection -->
   <div class="material-type-selector">
     {#each materialTypes as type}
       <button
@@ -172,22 +191,18 @@
         onclick={() => selectMaterialType(type)}
         {disabled}
       >
-        {#if type === 'ACRYLIC'}
-          <span class="type-icon">🔲</span> Acrylic
-        {:else if type === 'ALUMINUM'}
-          <span class="type-icon">⚙️</span> Aluminum
-        {:else if type === 'PVC'}
-          <span class="type-icon">📦</span> PVC
+        {#if type === 'ACRYLIC'} <span class="type-icon">🔲</span> Acrylic
+        {:else if type === 'ALUMINUM'} <span class="type-icon">⚙️</span> Aluminum
+        {:else if type === 'PVC'} <span class="type-icon">📦</span> PVC
+        {:else if type === 'ALU_PROFILE'} <span class="type-icon">🔧</span> Alu Profile
         {/if}
       </button>
     {/each}
   </div>
 
-  <!-- Step 2: Specific Material/Thickness Selection -->
   {#if selectedType}
     <div class="material-details">
       {#if selectedType === 'ACRYLIC'}
-        <!-- Show PLEXIGLAS codes -->
         <div class="acrylic-grid">
           <p class="helper-text">Select PLEXIGLAS® code:</p>
           <div class="acrylic-options">
@@ -196,100 +211,75 @@
                 type="button"
                 class="acrylic-option"
                 class:selected={selectedMaterial?.code === material.code}
-                style="background-color: {material.hex}; border: 2px solid {selectedMaterial?.code === material.code ? '#000' : '#ccc'}; color: {getTextColor(material.hex)};"
-                onclick={() => selectAcrylicMaterial(material)}
+                style="background-color: {material.hex}; color: {getTextColor(material.hex)};"
+                onclick={() => selectMaterial(material)}
                 title={material.colorName}
               >
-                <span class="material-code">
-                  {material.colorCode}
-                </span>
+                <span class="material-code">{material.colorCode}</span>
                 <span class="material-name">{material.colorName}</span>
               </button>
             {/each}
           </div>
-          
-          <!-- Thickness selection for acrylic -->
           {#if selectedMaterial}
-            <div class="thickness-selector" style="margin-top: var(--space-md, 12px);">
+            <div class="thickness-selector">
               <p class="helper-text">Select thickness:</p>
               <div class="thickness-grid">
-                {#each selectedMaterial.thicknessOptions || acrylicThicknesses as t}
-                  <button
-                    type="button"
-                    class="thickness-option"
-                    class:selected={thickness === t}
-                    onclick={() => selectThickness(t)}
-                  >
-                    {t}mm
-                  </button>
+                {#each selectedMaterial.thickness_options || acrylicThicknesses as t}
+                  <button type="button" class:selected={thickness === t} onclick={() => selectThickness(t)}>{t}mm</button>
                 {/each}
               </div>
             </div>
           {/if}
         </div>
-
       {:else if selectedType === 'ALUMINUM'}
-        <!-- Show thickness selector -->
         <div class="thickness-selector">
           <p class="helper-text">Select thickness:</p>
           <div class="thickness-grid">
             {#each aluminumThicknesses as t}
-              <button
-                type="button"
-                class="thickness-option"
-                class:selected={thickness === t}
-                onclick={() => selectThickness(t)}
-              >
-                {t}mm
-              </button>
+              <button type="button" class:selected={thickness === t} onclick={() => selectThickness(t)}>{t}mm</button>
             {/each}
           </div>
-          <input
-            type="number"
-            class="custom-thickness"
-            placeholder="Custom..."
-            step="0.1"
-            min="0.5"
-            max="5"
-            onchange={(e) => {
-              const val = parseFloat(e.currentTarget.value);
-              if (!isNaN(val)) selectThickness(val);
-            }}
-          />
         </div>
-
       {:else if selectedType === 'PVC'}
-        <!-- Show PVC thickness selector -->
         <div class="thickness-selector">
           <p class="helper-text">PVC White - Select thickness:</p>
           <div class="thickness-grid">
             {#each pvcThicknesses as t}
-              <button
-                type="button"
-                class="thickness-option"
-                class:selected={thickness === t}
-                onclick={() => selectThickness(t)}
-              >
-                {t}mm
-              </button>
+              <button type="button" class:selected={thickness === t} onclick={() => selectThickness(t)}>{t}mm</button>
             {/each}
+          </div>
+        </div>
+      {:else if selectedType === 'ALU_PROFILE'}
+        <div class="alu-profile-selector">
+          <p class="helper-text">Select Square Profile:</p>
+          <div class="size-grid">
+            {#each squareAluProfiles as material}
+              <button type="button" class="size-option" class:selected={selectedMaterial?.code === material.code} onclick={() => selectMaterial(material)}>{material.name_en}</button>
+            {/each}
+          </div>
+          <div class="section-size-input">
+            <label>Enter section size:</label>
+            <input type="text" placeholder="e.g., 20x20" bind:value={sectionSize} oninput={updateValue}/>
+          </div>
+          <p class="helper-text">Select Round Profile (Tube):</p>
+          <div class="size-grid">
+            {#each roundAluProfiles as material}
+              <button type="button" class="size-option" class:selected={selectedMaterial?.code === material.code} onclick={() => selectMaterial(material)}>{material.name_en}</button>
+            {/each}
+          </div>
+          <div class="section-size-input">
+            <label>Enter diameter (mm):</label>
+            <input type="number" placeholder="e.g., 20" bind:value={diameter} oninput={updateValue}/>
           </div>
         </div>
       {/if}
     </div>
   {/if}
 
-  <!-- Step 3: Visual Result Box (PDF Style) -->
-  {#if selectedType && (selectedMaterial || thickness)}
+  {#if selectedMaterial}
     <div class="material-result-box">
-      <div
-        class="material-box"
-        style="background-color: {getMaterialBoxColor()}; color: {getTextColor(getMaterialBoxColor())};"
-      >
+      <div class="material-box" style="background-color: {getMaterialBoxColor()}; color: {getTextColor(getMaterialBoxColor())};">
         <span class="material-display">{getMaterialDisplayText()}</span>
-        {#if thickness}
-          <span class="thickness-display">{thickness}mm</span>
-        {/if}
       </div>
     </div>
   {/if}
@@ -301,173 +291,74 @@
     flex-direction: column;
     gap: var(--space-md, 12px);
   }
-
   .label {
-    font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
   }
-
   .required {
     color: var(--danger, #dc2626);
   }
-
-  /* Type Selector */
   .material-type-selector {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: var(--space-sm, 8px);
   }
-
   .type-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-xs, 4px);
     padding: var(--space-md, 12px);
-    background: var(--bg-2, #f9fafb);
     border: 2px solid var(--border, #e5e7eb);
     border-radius: var(--radius-md, 6px);
-    cursor: pointer;
-    transition: all 0.15s ease;
+    background: var(--bg-2, #f9fafb);
     font-weight: 600;
+    cursor: pointer;
   }
-
-  .type-button:hover:not(:disabled) {
-    border-color: var(--primary, #3b82f6);
-    background: var(--bg-3, #f3f4f6);
-  }
-
   .type-button.active {
     border-color: var(--primary, #3b82f6);
     background: var(--primary, #3b82f6);
     color: white;
   }
-
-  .type-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .type-icon {
-    font-size: var(--text-lg, 1.125rem);
-  }
-
-  /* Material Details */
   .material-details {
     padding: var(--space-md, 12px);
     background: var(--bg-2, #f9fafb);
     border-radius: var(--radius-md, 6px);
-    border: 1px solid var(--border, #e5e7eb);
   }
-
-  .helper-text {
-    margin: 0 0 var(--space-sm, 8px) 0;
-    font-size: var(--text-sm, 0.875rem);
-    color: var(--text-muted, #6b7280);
-  }
-
-  /* Acrylic Grid */
   .acrylic-options {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     gap: var(--space-sm, 8px);
   }
-
   .acrylic-option {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
     padding: var(--space-sm, 8px);
     border-radius: var(--radius-md, 6px);
     cursor: pointer;
-    transition: all 0.15s ease;
-    min-height: 60px;
   }
-
-  .acrylic-option:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
-
-  .acrylic-option.selected {
-    box-shadow: 0 0 0 3px var(--primary, #3b82f6);
-  }
-
-  .material-code {
-    font-family: var(--font-mono, monospace);
-    font-weight: 700;
-    font-size: var(--text-sm, 0.875rem);
-  }
-
-  .material-name {
-    font-size: 10px;
-    text-align: center;
-    line-height: 1.2;
-  }
-
-  /* Thickness Selector */
   .thickness-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
     gap: var(--space-xs, 4px);
-    margin-bottom: var(--space-sm, 8px);
   }
-
-  .thickness-option {
+  .size-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: var(--space-xs, 4px);
+  }
+  .size-option, .thickness-option {
     padding: var(--space-sm, 8px);
-    background: var(--bg-1, #ffffff);
     border: 2px solid var(--border, #e5e7eb);
     border-radius: var(--radius-md, 6px);
     cursor: pointer;
-    transition: all 0.15s ease;
-    font-weight: 600;
   }
-
-  .thickness-option:hover {
+  .size-option.selected, .thickness-option.selected, .acrylic-option.selected {
     border-color: var(--primary, #3b82f6);
+    box-shadow: 0 0 0 2px var(--primary, #3b82f6);
   }
-
-  .thickness-option.selected {
-    background: var(--primary, #3b82f6);
-    border-color: var(--primary, #3b82f6);
-    color: white;
-  }
-
-  .custom-thickness {
-    width: 100%;
-    padding: var(--space-sm, 8px);
-    border: 1px solid var(--border, #e5e7eb);
-    border-radius: var(--radius-md, 6px);
-    font-size: var(--text-sm, 0.875rem);
-  }
-
-  /* Result Box (PDF Style) */
   .material-result-box {
     padding: var(--space-md, 12px);
-    background: var(--bg-2, #f9fafb);
+    background: var(--bg-3, #f3f4f6);
     border-radius: var(--radius-md, 6px);
   }
-
   .material-box {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-sm, 8px);
     padding: var(--space-sm, 8px) var(--space-lg, 16px);
-    border: 2px solid #000;
     border-radius: var(--radius-sm, 4px);
     font-weight: 700;
-    font-size: var(--text-md, 1rem);
-    box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-  }
-
-  .material-display {
-    font-family: var(--font-mono, monospace);
-  }
-
-  .thickness-display {
-    font-size: var(--text-xs, 0.75rem);
-    opacity: 0.8;
+    display: inline-block;
   }
 </style>

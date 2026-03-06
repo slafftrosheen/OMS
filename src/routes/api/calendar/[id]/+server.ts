@@ -24,8 +24,8 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     }
 
     let poList: string[] = [];
-    let carrier, windowStart, windowEnd;
-    let startTime, endTime, location, attendees;
+    let carrier: string | null = null, windowStart: string | null = null, windowEnd: string | null = null;
+    let startTime: string | null = null, endTime: string | null = null, location: string | null = null, attendees: string[] | null = null;
 
     if (event.kind === 'loading' && event.loading_events) {
        const le = Array.isArray(event.loading_events) ? event.loading_events[0] : event.loading_events;

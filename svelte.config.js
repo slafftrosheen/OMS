@@ -9,10 +9,17 @@ console.log(`[svelte.config.js] Selected adapter: ${isVercel ? '@sveltejs/adapte
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
-  preprocess: vitePreprocess(),
+  preprocess: vitePreprocess,
 
   kit: {
-    adapter: adapterVercel(),
+    adapter: adapterVercel({
+      // Enable streaming for better performance
+      streaming: true,
+      // Precompress assets
+      precompress: true,
+      // Use a supported runtime version
+      runtime: 'nodejs20.x'
+    }),
 
     alias: {
       $lib: 'src/lib',

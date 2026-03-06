@@ -241,11 +241,6 @@ Revisions/Branches: uploading a new PDF with same PO adds a revision on the orde
 
 15) Deployment
 
-The application supports multiple deployment options:
-- **Vercel**: Automatic deployment with `adapter-vercel` (see `vercel_setup_guide.md`)
-  - ⚠️ **Important**: If experiencing 404 errors, see `VERCEL_404_FIX.md`
-- **Self-hosted Node.js**: Using `adapter-node` for custom server deployment
-- **Docker**: Containerized deployment (see docker-compose.yml)
 
 See docs/deployment.md for detailed instructions.
 svelte.dev

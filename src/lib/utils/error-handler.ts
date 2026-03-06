@@ -189,6 +189,18 @@ export async function logError(error: Error | AppError, context?: Record<string,
     console.error('Failed to report error to monitoring service:', e);
     console.error('Original error:', errorData);
   }
+  
+  console.error('Error logged:', errorData);
+  
+  // In a production environment, uncomment and configure the following:
+  // await fetch('/api/errors', {
+  //   method: 'POST',
+  //   headers: { 'Content-Type': 'application/json' },
+  //   body: JSON.stringify(errorData)
+  // });
+  
+  // For now, we'll log to the console as a fallback
+  console.error('Error logged to monitoring service (simulated)', errorData);
 }
 
 /**

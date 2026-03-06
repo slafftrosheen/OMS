@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { preventDefault } from 'svelte/legacy';
 
   import { base } from '$app/paths';
   import { Lock, Check, AlertCircle, Eye, EyeOff } from 'lucide-svelte';

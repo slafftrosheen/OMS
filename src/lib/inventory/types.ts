@@ -1,14 +1,12 @@
 // src/lib/inventory/types.ts
 
-import type { Material, ColorSystem } from '$lib/profiles/types';
-
 // ============================================================================
 // Core inventory types used by store
 // ============================================================================
 
 export type Section = 'materials' | 'leftovers' | 'paints' | 'tools' | 'cons' | 'electronics' | '3dprinting';
 
-export type Category = 
+export type Category =
   | 'ACRYLIC'
   | 'ALUMINIUM'
   | 'STEEL'
@@ -29,7 +27,7 @@ export type Category =
   | 'MOUNTING'
   | 'CONSUMABLE';
 
-export type Unit = 
+export type Unit =
   | 'pcs'
   | 'PCS'
   | 'm'
@@ -58,6 +56,62 @@ export interface Leftover {
   bin?: string;
 }
 
+/**
+ * Unified Material type - combines materials and inventory_items
+ * This is the primary type for all material/inventory operations
+ */
+export interface Material {
+  // Core identification
+  id: string;
+  sku?: string;
+  code: string;
+  category: Category;
+  
+  // Multilingual names
+  name_en?: string;
+  name_ru?: string;
+  name_lv?: string;
+  
+  // Physical specifications
+  thickness_options?: number[];
+  thickness_mm?: number;
+  
+  // Inventory management
+  stock: number;
+  min_stock: number;
+  max_stock?: number;
+  unit: Unit;
+  location?: string;
+  
+  // Supplier info
+  vendor?: string;
+  supplier?: string;
+  
+  // Visual/Color
+  color_code?: string;
+  hex_color?: string;
+  
+  // Organization
+  section?: Section;
+  item_group?: string;
+  subgroup?: string;
+  
+  // Additional data
+  barcode?: string;
+  price?: number;
+  note?: string;
+  leftover_data?: Leftover;
+  metadata?: Record<string, any>;
+  
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Legacy Item interface - kept for backwards compatibility
+ * @deprecated Use Material instead
+ */
 export interface Item {
   id: string;
   sku: string;
@@ -84,7 +138,7 @@ export interface Item {
 
 export interface Movement {
   id: string;
-  itemId: string;
+  materialId: string;
   kind: MovementKind;
   qty: number;
   unit: Unit;
@@ -265,6 +319,20 @@ export interface MaterialUsage {
   usageDate: string;
   recordedBy: string;
   notes?: string;
+}
+
+/**
+ * Color system entry (RAL, PANTONE, ORACAL)
+ */
+export interface ColorSystem {
+  id: number;
+  systemType: 'RAL' | 'PANTONE' | 'ORACAL' | 'HEX';
+  code: string;
+  name: string;
+  hexValue: string;
+  rgb: { r: number; g: number; b: number };
+  cmyk?: { c: number; m: number; y: number; k: number };
+  finish?: 'matte' | 'gloss' | 'metallic' | 'satin';
 }
 
 /**

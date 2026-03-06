@@ -1,6 +1,5 @@
 <!-- src/lib/profiles/components/fields/ColorRAL.svelte -->
 <script lang="ts">
-  import { stopPropagation } from 'svelte/legacy';
 
   import { onMount } from 'svelte';
   import { Search, X, Palette } from 'lucide-svelte';

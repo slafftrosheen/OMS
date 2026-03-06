@@ -4,7 +4,7 @@
   import { Save, ArrowLeft, AlertCircle, Plus, Trash2, Upload, FileText, Eye, MapPin, Calendar, User, Phone, ChevronDown, ChevronLeft, ChevronRight, X, Image, ZoomIn, ZoomOut, Maximize2, BookmarkPlus, BookOpen, Download } from 'lucide-svelte';
   import Profile7stVisual from '$lib/profiles/components/Profile7stVisual.svelte';
   import { createId } from '$lib/utils/id';
-  import { currentUser } from '$lib/auth/user-store';
+  import { currentUser } from '$lib/auth/authState.svelte';
   import { base } from '$app/paths';
 
   // Accept params prop to silence SvelteKit warning
@@ -106,7 +106,9 @@
     
     try {
       if (pdfRenderTask) {
-        try { pdfRenderTask.cancel(); } catch {}
+        try { pdfRenderTask.cancel(); } catch (error) {
+          console.warn('Error cancelling PDF render task:', error);
+        }
         pdfRenderTask = null;
       }
       

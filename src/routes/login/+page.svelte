@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
-  import { currentUser } from '$lib/auth/user-store';
+  import { currentUser } from '$lib/auth/authState.svelte';
   import { logAction } from '$lib/auth/audit-log';
   import { Lock, User, AlertCircle, Loader2, Mail, BadgeCheck, Globe } from 'lucide-svelte';
   import { t, locale } from 'svelte-i18n';

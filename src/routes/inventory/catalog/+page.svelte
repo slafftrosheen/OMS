@@ -1,24 +1,36 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { items, loadItems, lowStock } from '$lib/inventory/store';
+  import { materials, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
   import { Package, Plus, Search, AlertCircle } from 'lucide-svelte';
   import { t } from 'svelte-i18n';
   import type { Category } from '$lib/inventory/types';
-  
-  let searchQuery = '';
-  let categoryFilter: Category | 'ALL' = 'ALL';
-  let showLowStockOnly = false;
-  
+
+  let searchQuery = $state('');
+  let categoryFilter: Category | 'ALL' = $state('ALL');
+  let showLowStockOnly = $state(false);
+  let materialList = $state<any[]>([]);
+  let lowStockList = $state<any[]>([]);
+
   onMount(() => {
-    loadItems();
+    loadMaterials().then(data => materialList = data);
   });
-  
-  let filteredMaterials = $derived($items.filter(mat => {
-    const matchesSearch = mat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+
+  // Subscribe to store updates
+  onMount(() => {
+    const unsubMaterials = materials.subscribe(value => {
+      materialList = value;
+      lowStockList = getLowStockMaterials();
+    });
+    lowStockList = getLowStockMaterials();
+    return () => unsubMaterials();
+  });
+
+  let filteredMaterials = $derived(materialList.filter(mat => {
+    const matchesSearch = (mat.name_en || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                          mat.sku?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === 'ALL' || mat.category === categoryFilter;
-    const matchesLowStock = !showLowStockOnly || mat.stock <= mat.min;
-    
+    const matchesLowStock = !showLowStockOnly || mat.stock <= mat.min_stock;
+
     return matchesSearch && matchesCategory && matchesLowStock;
   }));
 </script>
@@ -39,10 +51,10 @@
     </button>
   </div>
   
-  {#if $lowStock.length > 0}
+  {#if lowStockList.length > 0}
     <div class="alert-banner">
       <AlertCircle size={20} />
-      <span>{$lowStock.length} {$t('inventory.low_stock_items') || 'materials low in stock'}</span>
+      <span>{lowStockList.length} {$t('inventory.low_stock_items') || 'materials low in stock'}</span>
       <button class="btn sm" onclick={() => showLowStockOnly = !showLowStockOnly}>
         {showLowStockOnly ? ($t('inventory.show_all') || 'Show All') : ($t('inventory.show_alerts') || 'Show Alerts Only')}
       </button>
@@ -103,24 +115,24 @@
         </div>
         
         <div class="material-info">
-          <h3>{material.name}</h3>
+          <h3>{material.name_en || material.code}</h3>
           <div class="material-brand">{material.sku}</div>
-          
+
           <div class="material-specs">
-            {#if material.thicknessMM}
-              <span class="spec-tag">{material.thicknessMM}mm</span>
+            {#if material.thickness_mm}
+              <span class="spec-tag">{material.thickness_mm}mm</span>
             {/if}
             <span class="spec-tag">{material.category}</span>
           </div>
-          
+
           <div class="stock-info">
             <span class="stock-label">{$t('inventory.in_stock') || 'In Stock'}:</span>
             <span class="stock-value">
               {material.stock} {material.unit}
             </span>
           </div>
-          
-          {#if material.stock <= material.min}
+
+          {#if material.stock <= material.min_stock}
             <div class="low-stock-badge">
               <AlertCircle size={14} />
               {$t('inventory.low_stock') || 'Low Stock'}

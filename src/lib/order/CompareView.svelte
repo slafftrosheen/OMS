@@ -2,11 +2,10 @@
   import { STATE_LABEL } from '$lib/order/stages';
   import { TERMS } from '$lib/order/names';
   import { t } from 'svelte-i18n';
-  import { get } from 'svelte/store';
 
   let {
-    leftTitle = get(t)('compare.before'),
-    rightTitle = get(t)('compare.after'),
+    leftTitle,
+    rightTitle,
     leftFields = [],
     rightFields = [],
     leftMaterials = [],
@@ -23,6 +22,18 @@
     leftStages?: Record<string, string>;
     rightStages?: Record<string, string>;
   } = $props();
+
+  const defaultLeftTitle = $derived($t('compare.before'));
+  const defaultRightTitle = $derived($t('compare.after'));
+
+  $effect(() => {
+    if (leftTitle === undefined) {
+      leftTitle = defaultLeftTitle;
+    }
+    if (rightTitle === undefined) {
+      rightTitle = defaultRightTitle;
+    }
+  });
 
   type FieldEntry = { label?: string; value: string | undefined };
   function map(arr: { key: string; label?: string; value?: string }[]){

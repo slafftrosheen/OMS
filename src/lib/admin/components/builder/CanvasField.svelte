@@ -1,15 +1,13 @@
-<!-- @migration-task Error while migrating Svelte code: Mixing old (on:click) and new syntaxes for event handling is not allowed. Use only the onclick syntax
-https://svelte.dev/e/mixed_event_handler_syntaxes -->
 <!-- src/lib/admin/components/builder/CanvasField.svelte -->
 <script lang="ts">
-  import { GripVertical, Copy, Trash2 } from 'lucide-svelte';
+  import { GripVertical, Copy, Trash2 } from "lucide-svelte";
 
   let {
     field,
     selected = false,
     onselect,
     onduplicate,
-    ondelete
+    ondelete,
   }: {
     field: any;
     selected?: boolean;
@@ -19,24 +17,24 @@ https://svelte.dev/e/mixed_event_handler_syntaxes -->
   } = $props();
 
   const fieldTypeIcons: Record<string, string> = {
-    'material_selector': '🔲',
-    'material_field': '🔲',
-    'thickness_selector': '📏',
-    'color_ral': '🎨',
-    'color_pantone': '🌈',
-    'color_oracal': '📋',
-    'dropdown': '▼',
-    'button_group': '🔘',
-    'toggle': '⚡',
-    'numeric_input': '🔢',
-    'number': '🔢',
-    'text_input': '📝',
-    'text': '📝',
-    'textarea': '📄',
-    'date_input': '📅',
-    'date': '📅',
-    'multi_select_chips': '🏷️',
-    'info_box': 'ℹ️'
+    material_selector: "🔲",
+    material_field: "🔲",
+    thickness_selector: "📏",
+    color_ral: "🎨",
+    color_pantone: "🌈",
+    color_oracal: "📋",
+    dropdown: "▼",
+    button_group: "🔘",
+    toggle: "⚡",
+    numeric_input: "🔢",
+    number: "🔢",
+    text_input: "📝",
+    text: "📝",
+    textarea: "📄",
+    date_input: "📅",
+    date: "📅",
+    multi_select_chips: "🏷️",
+    info_box: "ℹ️",
   };
 
   function handleClick(event: MouseEvent) {
@@ -44,23 +42,23 @@ https://svelte.dev/e/mixed_event_handler_syntaxes -->
     onselect?.();
   }
 
-  let fieldLabel = $derived(field.label?.en || field.label_en || 'Field');
-  let fieldType = $derived(field.fieldType || field.field_type || 'unknown');
+  let fieldLabel = $derived(field.label?.en || field.label_en || "Field");
+  let fieldType = $derived(field.fieldType || field.field_type || "unknown");
   let isRequired = $derived(field.isRequired || field.is_required || false);
 </script>
 
-<div 
+<div
   class="canvas-field"
   class:selected
   draggable="true"
-  on:click={handleClick}
+  onclick={handleClick}
   role="button"
   tabindex="0"
 >
   <GripVertical size={12} class="drag-handle" />
-  
+
   <span class="field-icon">
-    {fieldTypeIcons[fieldType] || '❓'}
+    {fieldTypeIcons[fieldType] || "❓"}
   </span>
 
   <div class="field-info">
@@ -69,16 +67,22 @@ https://svelte.dev/e/mixed_event_handler_syntaxes -->
   </div>
 
   <div class="field-actions">
-    <button 
+    <button
       class="field-action-btn"
-      onclick={(e: MouseEvent) => { e.stopPropagation(); onduplicate?.(); }}
+      onclick={(e: MouseEvent) => {
+        e.stopPropagation();
+        onduplicate?.();
+      }}
       title="Duplicate"
     >
       <Copy size={12} />
     </button>
-    <button 
+    <button
       class="field-action-btn danger"
-      onclick={(e: MouseEvent) => { e.stopPropagation(); ondelete?.(); }}
+      onclick={(e: MouseEvent) => {
+        e.stopPropagation();
+        ondelete?.();
+      }}
       title="Delete"
     >
       <Trash2 size={12} />
@@ -105,13 +109,13 @@ https://svelte.dev/e/mixed_event_handler_syntaxes -->
   }
 
   .canvas-field:hover {
-    border-color: #667EEA;
+    border-color: #667eea;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 
   .canvas-field.selected {
-    border-color: #667EEA;
-    background: #EEF2FF;
+    border-color: #667eea;
+    background: #eef2ff;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
   }
 
@@ -151,7 +155,7 @@ https://svelte.dev/e/mixed_event_handler_syntaxes -->
   .field-type {
     font-size: 10px;
     color: #6b7280;
-    font-family: 'Courier New', monospace;
+    font-family: "Courier New", monospace;
   }
 
   .field-actions {
@@ -180,8 +184,8 @@ https://svelte.dev/e/mixed_event_handler_syntaxes -->
   }
 
   .field-action-btn:hover {
-    border-color: #667EEA;
-    color: #667EEA;
+    border-color: #667eea;
+    color: #667eea;
   }
 
   .field-action-btn.danger:hover {

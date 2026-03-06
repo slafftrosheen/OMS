@@ -1,18 +1,18 @@
 <script lang="ts">
   import { base } from '$app/paths';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import Input from '$lib/ui/Input.svelte';
   import Tooltip from '$lib/ui/Tooltip.svelte';
   import ErrorBoundary from '$lib/ui/ErrorBoundary.svelte';
   import type { Order, Station, Badge as BadgeCode } from '$lib/order/types';
-  import { ordersStore } from '$lib/order/signage-store';
+  import { orderState } from '$lib/order/orderState.svelte';
   import { blankStages, STATE_LABEL, type StageState } from '$lib/order/stages';
   import { TERMS } from '$lib/order/names';
   import { t } from 'svelte-i18n';
   import { BADGE_ICONS, badgeTone } from '$lib/order/badges';
   import Badge from '$lib/ui/Badge.svelte';
-  import { currentUser } from '$lib/auth/user-store';
+  import { currentUser } from '$lib/auth/authState.svelte';
   import { dragging } from '$lib/dnd';
   import { Plus, Download, Activity, AlertCircle, FilePlus, Filter, RefreshCw, Eye, Edit, Trash2, MoreVertical, Search, ChevronLeft, ChevronRight, Package } from 'lucide-svelte';
   import KpiCard from '$lib/ui/KpiCard.svelte';
@@ -74,13 +74,26 @@
   let refreshing = $state(false);
   let currentPage = $state(1);
   let itemsPerPage = $state(20);
-  let isLoading = $state(true);
-  let errorMessage = $state('');
   let hasLoadedOnce = $state(false);
-  let isRefreshing = $state(false);
 
   let qLower = $derived(q.trim().toLowerCase());
   
+  // Update local rows when orderState.orders changes
+  $effect(() => {
+    const orders = orderState.orders;
+    const filtered = isAdmin 
+      ? orders 
+      : orders.filter((order: any) => !order.isDraft);
+    
+    untrack(() => {
+      rows = filtered.map(toRow);
+      hasLoadedOnce = true;
+    });
+  });
+
+  let isLoading = $derived(orderState.loading);
+  let errorMessage = $derived(orderState.lastError || '');
+
   // Use slice().sort() instead of toSorted() for browser compatibility
   let visible = $derived.by(() => {
     let filtered = rows || [];
@@ -126,87 +139,9 @@
   let activeOrders = $derived(totalOrders - draftOrders);
 
   async function refresh() {
-    if (isRefreshing) {
-      console.log('🔒 Refresh already in progress, skipping...');
-      return;
-    }
-    
-    isRefreshing = true;
     refreshing = true;
-    errorMessage = '';
-    
-    try {
-      console.log('📡 Fetching draft orders...');
-      const response = await fetch('/api/draft-orders');
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const responseData = await response.json();
-      console.log('📦 Received data:', responseData);
-      
-      if (responseData.error) {
-        throw new Error(responseData.error);
-      }
-      
-      const data = Array.isArray(responseData) ? responseData : (responseData.data || []);
-      
-      if (!Array.isArray(data)) {
-        console.error('❌ Invalid data format:', responseData);
-        errorMessage = 'Received invalid data format from server';
-        rows = [];
-        return;
-      }
-      
-      console.log(`⚙️ Processing ${data.length} orders...`);
-      const allOrders = data.map((d: any) => ({
-        id: d.poNumber || d.id || 'N/A',
-        title: d.title || d.clientName || 'Untitled',
-        client: d.clientName || 'Unknown',
-        due: d.deadline || '',
-        loadingDate: d.loadingDate || '',
-        badges: (d.status === 'draft' ? ['DRAFT'] : []) as BadgeCode[],
-        fields: [],
-        materials: [],
-        stages: blankStages(),
-        isDraft: d.status === 'draft',
-        profiles: Array.isArray(d.profiles) ? d.profiles : [],
-        defaultBranch: 'main',
-        branches: [],
-        prs: [],
-        revisions: [],
-        defaultRevisionId: ''
-      }));
-      
-      ordersStore.set(allOrders);
-      
-      const filteredOrders = isAdmin 
-        ? allOrders 
-        : allOrders.filter((order: any) => !order.isDraft);
-      
-      rows = filteredOrders.map(toRow);
-      currentPage = 1;
-      hasLoadedOnce = true;
-      errorMessage = '';
-      
-      isLoading = false;
-      console.log('✅ Successfully loaded', rows.length, 'orders');
-      
-    } catch (err) {
-      console.error('❌ Failed to fetch orders:', err);
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-      errorMessage = `Failed to load orders: ${errorMsg}`;
-      
-      if (!hasLoadedOnce) {
-        rows = [];
-      }
-    } finally {
-      refreshing = false;
-      isRefreshing = false;
-      isLoading = false;
-      console.log('🏁 Refresh complete. isLoading:', isLoading, 'hasLoadedOnce:', hasLoadedOnce);
-    }
+    await orderState.load();
+    refreshing = false;
   }
 
   function createNewOrder() {

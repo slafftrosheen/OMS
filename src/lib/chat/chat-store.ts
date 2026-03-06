@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store';
 import type { Room, Message, SystemMessageEvent } from './types';
-import { currentUser } from '$lib/auth/user-store';
+import { currentUser } from '$lib/auth/authState.svelte';
 import { users } from '$lib/users/user-store';
 import { createId } from '$lib/utils/id';
 import { base } from '$app/paths';
@@ -229,12 +229,12 @@ export async function sendMessage(
       } else {
         // Remove optimistic message on error
         messages.update(msgs => msgs.filter(m => m.id !== tempId));
-        notify('Failed to send message', { urgency: 'high' });
+        notify('Failed to send message', { urgency: 'urgent' });
       }
     } catch (err) {
       console.error('Failed to send message:', err);
       messages.update(msgs => msgs.filter(m => m.id !== tempId));
-      notify('Failed to send message', { urgency: 'high' });
+      notify('Failed to send message', { urgency: 'urgent' });
     }
   }
 }

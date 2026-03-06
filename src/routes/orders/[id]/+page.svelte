@@ -1,32 +1,32 @@
 <!-- src/routes/orders/[id]/+page.svelte -->
 <script lang="ts">
-    import { page } from '$app/state';
-    import { goto } from '$app/navigation';
-    import { onMount } from 'svelte';
-    import Button from '$lib/components/ui/Button.svelte';
-    import Card from '$lib/components/ui/Card.svelte';
-    import Badge from '$lib/components/ui/Badge.svelte';
-    import Tabs from '$lib/components/ui/Tabs.svelte';
-    import ChatContainer from '$lib/components/chat/ChatContainer.svelte';
-    import FileUpload from '$lib/components/files/FileUpload.svelte';
-    import FileList from '$lib/components/files/FileList.svelte';
-    import QRCodeDisplay from '$lib/components/qr/QRCodeDisplay.svelte';
-    import Modal from '$lib/components/ui/Modal.svelte';
+    import { page } from "$app/state";
+    import { goto } from "$app/navigation";
+    import { onMount } from "svelte";
+    import Button from "$lib/components/ui/Button.svelte";
+    import Card from "$lib/components/ui/Card.svelte";
+    import Badge from "$lib/components/ui/Badge.svelte";
+    import Tabs from "$lib/components/ui/Tabs.svelte";
+    import ChatContainer from "$lib/components/chat/ChatContainer.svelte";
+    import FileUpload from "$lib/components/files/FileUpload.svelte";
+    import FileList from "$lib/components/files/FileList.svelte";
+    import QRCodeDisplay from "$lib/components/qr/QRCodeDisplay.svelte";
+    import Modal from "$lib/components/ui/Modal.svelte";
 
     let orderId = $derived(page.params.id);
 
-    let order: any = null;
-    let files: any[] = [];
-    let loading = true;
-    let showQRModal = false;
-    let activeTab = 'overview';
+    let order: any = $state(null);
+    let files: any[] = $state([]);
+    let loading = $state(true);
+    let showQRModal = $state(false);
+    let activeTab = $state("overview");
 
     const tabs = [
-        { id: 'overview', label: 'Overview' },
-        { id: 'stages', label: 'Production Stages' },
-        { id: 'files', label: 'Files' },
-        { id: 'chat', label: 'Discussion' },
-        { id: 'timeline', label: 'Timeline' }
+        { id: "overview", label: "Overview" },
+        { id: "stages", label: "Production Stages" },
+        { id: "files", label: "Files" },
+        { id: "chat", label: "Discussion" },
+        { id: "timeline", label: "Timeline" },
     ];
 
     async function loadOrderData() {
@@ -35,7 +35,7 @@
         try {
             const [orderRes, filesRes] = await Promise.all([
                 fetch(`/api/orders/${orderId}`),
-                fetch(`/api/files?order_id=${orderId}`)
+                fetch(`/api/files?order_id=${orderId}`),
             ]);
 
             const orderData = await orderRes.json();
@@ -49,7 +49,7 @@
                 files = filesData.files;
             }
         } catch (error) {
-            console.error('Failed to load order:', error);
+            console.error("Failed to load order:", error);
         } finally {
             loading = false;
         }
@@ -58,9 +58,9 @@
     async function updateStageStatus(stage: string, status: string) {
         try {
             const response = await fetch(`/api/orders/${orderId}/stages`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ stage, status })
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ stage, status }),
             });
 
             if (response.ok) {
@@ -68,7 +68,7 @@
                 order = order; // Trigger reactivity
             }
         } catch (error) {
-            console.error('Failed to update stage:', error);
+            console.error("Failed to update stage:", error);
         }
     }
 
@@ -78,18 +78,18 @@
 
     function handleDeleteFile(event: CustomEvent) {
         const fileId = event.detail.id;
-        files = files.filter(f => f.id !== fileId);
+        files = files.filter((f) => f.id !== fileId);
     }
 
     function getStatusColor(status: string): string {
         const colors: Record<string, string> = {
-            'NOT_STARTED': '#6b7280',
-            'IN_PROGRESS': '#3b82f6',
-            'COMPLETED': '#10b981',
-            'BLOCKED': '#ef4444',
-            'SKIPPED': '#f59e0b'
+            NOT_STARTED: "#6b7280",
+            IN_PROGRESS: "#3b82f6",
+            COMPLETED: "#10b981",
+            BLOCKED: "#ef4444",
+            SKIPPED: "#f59e0b",
         };
-        return colors[status] || '#6b7280';
+        return colors[status] || "#6b7280";
     }
 
     onMount(() => {
@@ -110,7 +110,7 @@
     {:else if !order}
         <div class="error-state">
             <p class="error-message">Order not found</p>
-            <Button variant="primary" on:click={() => goto('/orders')}>
+            <Button variant="primary" onclick={() => goto("/orders")}>
                 Back to Orders
             </Button>
         </div>
@@ -118,21 +118,26 @@
         <!-- Header -->
         <header class="order-header">
             <div class="header-left">
-                <Button variant="ghost" on:click={() => goto('/orders')}>
+                <Button variant="ghost" onclick={() => goto("/orders")}>
                     ← Back
                 </Button>
                 <div class="header-info">
                     <h1 class="order-title">{order.title}</h1>
-                    <Badge variant={order.status === 'ACTIVE' ? 'info' : 'success'}>
+                    <Badge
+                        variant={order.status === "ACTIVE" ? "info" : "success"}
+                    >
                         {order.status}
                     </Badge>
                 </div>
             </div>
             <div class="header-actions">
-                <Button variant="outline" on:click={() => showQRModal = true}>
+                <Button variant="outline" onclick={() => (showQRModal = true)}>
                     📱 QR Code
                 </Button>
-                <Button variant="primary" on:click={() => goto(`/orders/${orderId}/edit`)}>
+                <Button
+                    variant="primary"
+                    onclick={() => goto(`/orders/${orderId}/edit`)}
+                >
                     ✏️ Edit
                 </Button>
             </div>
@@ -149,20 +154,30 @@
             <Card padding="md">
                 <div class="info-card-content">
                     <span class="info-label">Due Date</span>
-                    <span class="info-value">{new Date(order.due_date).toLocaleDateString()}</span>
+                    <span class="info-value"
+                        >{new Date(order.due_date).toLocaleDateString()}</span
+                    >
                 </div>
             </Card>
             <Card padding="md">
                 <div class="info-card-content">
                     <span class="info-label">Price</span>
-                    <span class="info-value">€{order.price?.toLocaleString() || 'N/A'}</span>
+                    <span class="info-value"
+                        >€{order.price?.toLocaleString() || "N/A"}</span
+                    >
                 </div>
             </Card>
             <Card padding="md">
                 <div class="info-card-content">
                     <span class="info-label">Progress</span>
                     <span class="info-value">
-                        {Math.round((Object.values(order.stages).filter(s => s === 'COMPLETED').length / Object.keys(order.stages).length) * 100)}%
+                        {Math.round(
+                            (Object.values(order.stages).filter(
+                                (s) => s === "COMPLETED",
+                            ).length /
+                                Object.keys(order.stages).length) *
+                                100,
+                        )}%
                     </span>
                 </div>
             </Card>
@@ -170,10 +185,12 @@
 
         <!-- Tabs Content -->
         <Tabs {tabs} bind:activeTab>
-            {#if activeTab === 'overview'}
+            {#if activeTab === "overview"}
                 <div class="tab-content">
                     <Card title="Description" padding="lg">
-                        <p class="description-text">{order.description || 'No description provided'}</p>
+                        <p class="description-text">
+                            {order.description || "No description provided"}
+                        </p>
                     </Card>
 
                     <Card title="Order Details" padding="lg">
@@ -184,11 +201,19 @@
                             </div>
                             <div class="detail-item">
                                 <dt>Created</dt>
-                                <dd>{new Date(order.created_at).toLocaleString()}</dd>
+                                <dd>
+                                    {new Date(
+                                        order.created_at,
+                                    ).toLocaleString()}
+                                </dd>
                             </div>
                             <div class="detail-item">
                                 <dt>Last Updated</dt>
-                                <dd>{new Date(order.updated_at).toLocaleString()}</dd>
+                                <dd>
+                                    {new Date(
+                                        order.updated_at,
+                                    ).toLocaleString()}
+                                </dd>
                             </div>
                             <div class="detail-item">
                                 <dt>Reworks</dt>
@@ -197,27 +222,46 @@
                         </dl>
                     </Card>
                 </div>
-
-            {:else if activeTab === 'stages'}
+            {:else if activeTab === "stages"}
                 <div class="tab-content">
                     <Card title="Production Stages" padding="lg">
                         <div class="stages-grid">
                             {#each Object.entries(order.stages) as [stage, status]}
-                                <div class="stage-card" style="border-left-color: {getStatusColor(String(status))}">
+                                <div
+                                    class="stage-card"
+                                    style="border-left-color: {getStatusColor(
+                                        String(status),
+                                    )}"
+                                >
                                     <div class="stage-header">
                                         <h4 class="stage-name">{stage}</h4>
-                                        <Badge variant={status === 'COMPLETED' ? 'success' : 'info'} size="sm">
-                                            {String(status).replace('_', ' ')}
+                                        <Badge
+                                            variant={status === "COMPLETED"
+                                                ? "success"
+                                                : "info"}
+                                            size="sm"
+                                        >
+                                            {String(status).replace("_", " ")}
                                         </Badge>
                                     </div>
                                     <select
                                         class="stage-status-select"
                                         value={status}
-                                        onchange={(e) => updateStageStatus(stage, e.currentTarget.value)}
+                                        onchange={(e) =>
+                                            updateStageStatus(
+                                                stage,
+                                                e.currentTarget.value,
+                                            )}
                                     >
-                                        <option value="NOT_STARTED">Not Started</option>
-                                        <option value="IN_PROGRESS">In Progress</option>
-                                        <option value="COMPLETED">Completed</option>
+                                        <option value="NOT_STARTED"
+                                            >Not Started</option
+                                        >
+                                        <option value="IN_PROGRESS"
+                                            >In Progress</option
+                                        >
+                                        <option value="COMPLETED"
+                                            >Completed</option
+                                        >
                                         <option value="BLOCKED">Blocked</option>
                                         <option value="SKIPPED">Skipped</option>
                                     </select>
@@ -226,27 +270,29 @@
                         </div>
                     </Card>
                 </div>
-
-            {:else if activeTab === 'files'}
+            {:else if activeTab === "files"}
                 <div class="tab-content">
                     <Card title="Upload Files" padding="lg">
-                        <FileUpload {orderId} on:uploaded={handleFileUploaded} />
+                        <FileUpload
+                            {orderId}
+                            onuploaded={handleFileUploaded}
+                        />
                     </Card>
 
                     <Card title="Uploaded Files" padding="lg">
-                        <FileList {files} on:delete={handleDeleteFile} />
+                        <FileList {files} ondelete={handleDeleteFile} />
                     </Card>
                 </div>
-
-            {:else if activeTab === 'chat'}
+            {:else if activeTab === "chat"}
                 <div class="tab-content-full">
                     <ChatContainer {orderId} />
                 </div>
-
-            {:else if activeTab === 'timeline'}
+            {:else if activeTab === "timeline"}
                 <div class="tab-content">
                     <Card title="Order Timeline" padding="lg">
-                        <p class="coming-soon">Timeline feature coming soon...</p>
+                        <p class="coming-soon">
+                            Timeline feature coming soon...
+                        </p>
                     </Card>
                 </div>
             {/if}
@@ -289,7 +335,9 @@
     }
 
     @keyframes spin {
-        to { transform: rotate(360deg); }
+        to {
+            transform: rotate(360deg);
+        }
     }
 
     .error-message {

@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { items, lowStock, createItem, updateItem, removeItem } from '$lib/inventory/store';
-  import type { Item, Section } from '$lib/inventory/types';
+  import { materials, lowStock, createMaterial, updateMaterial, removeMaterial, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
+  import type { Material, Section } from '$lib/inventory/types';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
-  import { onDestroy } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { toCSV, downloadCSV } from '$lib/inventory/export';
   import Tabs from '$lib/ui/Tabs.svelte';
   import ItemModal from '$lib/inventory/ItemModal.svelte';
@@ -18,16 +18,30 @@
   import PackagePlus from 'lucide-svelte/icons/package-plus';
   import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
 
-  let q = '';
-  let list: Item[] = [];
-  let low: Item[] = [];
+  let q = $state('');
+  let list: Material[] = $state([]);
+  let low: Material[] = $state([]);
 
-  const unsubItems = items.subscribe((value) => (list = value));
-  const unsubLow = lowStock.subscribe((value) => (low = value));
+  // Load materials on mount
+  onMount(async () => {
+    await loadMaterials();
+  });
+
+  // Subscribe to store updates
+  let unsubMaterials: (() => void) | null = null;
+  
+  onMount(() => {
+    unsubMaterials = materials.subscribe((value) => {
+      list = value;
+      // Update low stock when materials change
+      low = getLowStockMaterials();
+    });
+    // Initial low stock calculation
+    low = getLowStockMaterials();
+  });
 
   onDestroy(() => {
-    unsubItems?.();
-    unsubLow?.();
+    unsubMaterials?.();
   });
 
   const tabs = [
@@ -39,18 +53,18 @@
     {id:'electronics', label: $t('inventory.electronics', { default: 'Electronics' })},
     {id:'3dprinting', label: $t('inventory.3dprinting', { default: '3D Printing' })}
   ];
-  
-  let currentTab: Section = 'materials';
-  
+
+  let currentTab: Section = $state('materials');
+
   function handleTabChange(id: string) {
     currentTab = id as Section;
   }
-  
+
   function buildStructure(section: Section) {
     const sectionItems = filtered.filter((item) => (item.section || 'materials') === section);
-    const groupMap = new Map<string, Map<string, Item[]>>();
+    const groupMap = new Map<string, Map<string, Material[]>>();
     for (const item of sectionItems) {
-      const group = item.group || 'General';
+      const group = item.item_group || 'General';
       const subgroup = item.subgroup || 'General';
       if (!groupMap.has(group)) {
         groupMap.set(group, new Map());
@@ -69,7 +83,7 @@
           .map(([subName, items]) => ({
             id: `${section}-${groupName}-${subName}`,
             title: subName,
-            items: items.sort((a, b) => a.name.localeCompare(b.name))
+            items: items.sort((a, b) => (a.name_en || '').localeCompare(b.name_en || ''))
           }))
           .sort((a, b) => a.title.localeCompare(b.title))
       }))
@@ -77,7 +91,7 @@
   }
 
   let filtered = $derived(list.filter((it) =>
-    [it.sku, it.name, it.category, it.location, it.colorCode, it.group, it.subgroup]
+    [it.sku, it.name_en, it.category, it.location, it.color_code, it.item_group, it.subgroup]
       .filter(Boolean)
       .join(' ')
       .toLowerCase()
@@ -86,12 +100,12 @@
 
   let grouped = $derived(buildStructure(currentTab));
 
-  let editing: any = null;
-  let showImport = false;
-  let showScan = false;
+  let editing: any = $state(null);
+  let showImport = $state(false);
+  let showScan = $state(false);
 
   function handleCreateItem(section: Section, group: string, subgroup = '') {
-    editing = { section, group, subgroup };
+    editing = { section, item_group: group, subgroup };
   }
   function exportCSV(){ downloadCSV(`inventory-${new Date().toISOString().slice(0,10)}.csv`, toCSV(list)); }
 </script>
@@ -141,7 +155,7 @@
     <strong>{$t('inventory.low_stock')}</strong>
     <div class="row" style="flex-wrap:wrap;gap:8px">
       {#each low as it}
-        <span class="tag" title={$t('inventory.minimum_label', { value: it.min })}>
+        <span class="tag" title={$t('inventory.minimum_label', { value: it.min_stock })}>
           {it.sku}: {it.stock} {it.unit}
         </span>
       {/each}
@@ -188,23 +202,23 @@
                 </thead>
                 <tbody>
                   {#each sub.items as it (it.id)}
-                    <tr class:low-stock={it.stock <= it.min}>
+                    <tr class:low-stock={it.stock <= it.min_stock}>
                       <td data-label={$t('inventory.headers.sku')}>
                         <a href={`${base}/inventory/${it.id}`} class="sku-link">
-                          {#if it.hexColor}
-                            <span class="color-swatch" style="background-color: {it.hexColor}"></span>
+                          {#if it.hex_color}
+                            <span class="color-swatch" style="background-color: {it.hex_color}"></span>
                           {/if}
                           {it.sku}
                         </a>
                       </td>
-                      <td data-label={$t('inventory.headers.name')}>{it.name}</td>
+                      <td data-label={$t('inventory.headers.name')}>{it.name_en || it.code}</td>
                       <td data-label={$t('inventory.headers.unit')}>{it.unit}</td>
-                      <td data-label={$t('inventory.headers.stock')} class:stock-low={it.stock <= it.min}>{it.stock}</td>
-                      <td data-label={$t('inventory.headers.minimum')}>{it.min}</td>
+                      <td data-label={$t('inventory.headers.stock')} class:stock-low={it.stock <= it.min_stock}>{it.stock}</td>
+                      <td data-label={$t('inventory.headers.minimum')}>{it.min_stock}</td>
                       <td data-label={$t('inventory.headers.location')}>{it.location || '—'}</td>
                       <td class="actions-cell">
-                        <a href={`${base}/inventory/${it.id}`} class="icon-btn" aria-label={`Edit ${it.name}`}><Edit size={16} aria-hidden="true"/></a>
-                        <button class="icon-btn warn" aria-label={`Delete ${it.name}`} onclick={() => { if (confirm(`Delete ${it.name}?`)) removeItem(it.id); }}><Trash size={16} aria-hidden="true"/></button>
+                        <a href={`${base}/inventory/${it.id}`} class="icon-btn" aria-label={`Edit ${it.name_en || it.code}`}><Edit size={16} aria-hidden="true"/></a>
+                        <button class="icon-btn warn" aria-label={`Delete ${it.name_en || it.code}`} onclick={() => { if (confirm(`Delete ${it.name_en || it.code}?`)) removeMaterial(it.id); }}><Trash size={16} aria-hidden="true"/></button>
                       </td>
                     </tr>
                   {/each}

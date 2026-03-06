@@ -1,7 +1,6 @@
 <!-- src/lib/profiles/components/fields/CompactColorPicker.svelte -->
 <!-- A compact color picker for use in profile forms - uses existing catalog data -->
 <script lang="ts">
-  import { stopPropagation } from 'svelte/legacy';
 
   import { onMount } from 'svelte';
   import { Palette, X, ChevronDown } from 'lucide-svelte';

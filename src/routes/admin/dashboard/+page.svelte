@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from '$app/paths';
-  import { currentUser } from '$lib/auth/user-store';
+  import { currentUser } from '$lib/auth/authState.svelte';
   import { can } from '$lib/auth/permission-utils';
   import { t } from 'svelte-i18n';
   

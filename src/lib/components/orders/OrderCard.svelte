@@ -2,9 +2,9 @@
   import type { Order } from '$lib/stores/orders';
   import { t } from '$lib/i18n';
 
-  let { 
-    order, 
-    compact = false, 
+  let {
+    order,
+    compact = false,
     showActions = true,
     onclick,
     onedit,

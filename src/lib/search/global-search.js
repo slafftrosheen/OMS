@@ -1,4 +1,4 @@
-import { listOrders } from '$lib/order/signage-store';
+import { listOrders } from '$lib/order/orderState.svelte';
 
 /**
  * @typedef {Object} SearchHit

@@ -1,12 +1,16 @@
-<!-- @migration-task Error while migrating Svelte code: Cannot use `export let` in runes mode — use `$props()` instead
-https://svelte.dev/e/legacy_export_invalid -->
 <script lang="ts">
-    import { onMount } from 'svelte';
-    import { AlertTriangle, Check, X, GitMerge, ArrowRight } from 'lucide-svelte';
-    import { supabase } from '$lib/supabase-client';
-    import { toasts } from '$lib/stores/toast';
+    import { onMount } from "svelte";
+    import {
+        AlertTriangle,
+        Check,
+        X,
+        GitMerge,
+        ArrowRight,
+    } from "lucide-svelte";
+    import { supabase } from "$lib/supabase-client";
+    import { toasts } from "$lib/stores/toast";
 
-    export let visible = false;
+    let { visible = $bindable(false) }: { visible?: boolean } = $props();
 
     interface Conflict {
         id: string;
@@ -19,22 +23,23 @@ https://svelte.dev/e/legacy_export_invalid -->
 
     let conflicts: Conflict[] = [];
     let selectedConflict: Conflict | null = null;
-    let resolutionStrategy: 'client_wins' | 'server_wins' | 'merge' = 'server_wins';
+    let resolutionStrategy: "client_wins" | "server_wins" | "merge" =
+        "server_wins";
     let mergedData: Record<string, unknown> | null = null;
     let loading = false;
 
     async function loadConflicts() {
         try {
             const { data, error } = await supabase
-                .from('sync_conflicts')
-                .select('*')
-                .eq('resolved', false)
-                .order('created_at', { ascending: false });
+                .from("sync_conflicts")
+                .select("*")
+                .eq("resolved", false)
+                .order("created_at", { ascending: false });
 
             if (error) throw error;
             conflicts = data || [];
         } catch (err) {
-            console.error('Failed to load conflicts:', err);
+            console.error("Failed to load conflicts:", err);
         }
     }
 
@@ -43,20 +48,28 @@ https://svelte.dev/e/legacy_export_invalid -->
 
         loading = true;
         try {
-            const { error } = await supabase.rpc('resolve_sync_conflict', {
+            const { error } = await supabase.rpc("resolve_sync_conflict", {
                 p_conflict_id: selectedConflict.id,
                 p_resolution_strategy: resolutionStrategy,
-                p_merged_data: resolutionStrategy === 'merge' ? mergedData : null
+                p_merged_data:
+                    resolutionStrategy === "merge" ? mergedData : null,
             });
 
             if (error) throw error;
 
-            toasts.push({ message: 'Conflict resolved successfully', kind: 'success' });
+            toasts.push({
+                message: "Conflict resolved successfully",
+                kind: "success",
+            });
             selectedConflict = null;
             await loadConflicts();
         } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-            toasts.push({ message: 'Failed to resolve conflict: ' + errorMessage, kind: 'error' });
+            const errorMessage =
+                err instanceof Error ? err.message : "Unknown error";
+            toasts.push({
+                message: "Failed to resolve conflict: " + errorMessage,
+                kind: "error",
+            });
         } finally {
             loading = false;
         }
@@ -64,20 +77,21 @@ https://svelte.dev/e/legacy_export_invalid -->
 
     function selectConflict(conflict: Conflict) {
         selectedConflict = conflict;
-        resolutionStrategy = 'server_wins';
-        
+        resolutionStrategy = "server_wins";
+
         // Initialize merged data with server version
         mergedData = { ...conflict.server_version };
     }
 
-    function updateMergedField(key: string, source: 'client' | 'server') {
+    function updateMergedField(key: string, source: "client" | "server") {
         if (!selectedConflict || !mergedData) return;
-        
+
         mergedData = {
             ...mergedData,
-            [key]: source === 'client' 
-                ? selectedConflict.client_version[key] 
-                : selectedConflict.server_version[key]
+            [key]:
+                source === "client"
+                    ? selectedConflict.client_version[key]
+                    : selectedConflict.server_version[key],
         };
     }
 
@@ -94,7 +108,7 @@ https://svelte.dev/e/legacy_export_invalid -->
     }
 
     function handleBackdropKeydown(event: KeyboardEvent) {
-        if (event.key === 'Escape') {
+        if (event.key === "Escape") {
             close();
         }
     }
@@ -104,7 +118,7 @@ https://svelte.dev/e/legacy_export_invalid -->
     }
 
     function handleConflictKeydown(event: KeyboardEvent, conflict: Conflict) {
-        if (event.key === 'Enter' || event.key === ' ') {
+        if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             selectConflict(conflict);
         }
@@ -120,167 +134,203 @@ https://svelte.dev/e/legacy_export_invalid -->
 </script>
 
 {#if visible}
-<div 
-    class="modal-backdrop" 
-    on:click={handleBackdropClick}
-    on:keydown={handleBackdropKeydown}
-    role="button"
-    tabindex="0"
->
-    <div 
-        class="modal" 
-        on:click={handleModalClick}
-        on:keydown
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="conflict-resolver-title"
-        tabindex="-1"
+    <div
+        class="modal-backdrop"
+        onclick={handleBackdropClick}
+        onkeydown={handleBackdropKeydown}
+        role="button"
+        tabindex="0"
     >
-        <div class="modal-header">
-            <h2 id="conflict-resolver-title"><AlertTriangle size={24} /> Sync Conflicts ({conflicts.length})</h2>
-            <button class="close-btn" on:click={close} aria-label="Close">×</button>
-        </div>
+        <div
+            class="modal"
+            onclick={handleModalClick}
+            onkeydown={() => {}}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="conflict-resolver-title"
+            tabindex="-1"
+        >
+            <div class="modal-header">
+                <h2 id="conflict-resolver-title">
+                    <AlertTriangle size={24} /> Sync Conflicts ({conflicts.length})
+                </h2>
+                <button class="close-btn" onclick={close} aria-label="Close"
+                    >×</button
+                >
+            </div>
 
-        <div class="modal-body">
-            {#if conflicts.length === 0}
-                <div class="no-conflicts">
-                    <Check size={48} />
-                    <p>No sync conflicts</p>
-                </div>
-            {:else if !selectedConflict}
-                <div class="conflicts-list">
-                    {#each conflicts as conflict (conflict.id)}
-                        <div 
-                            class="conflict-item" 
-                            on:click={() => handleConflictClick(conflict)}
-                            on:keydown={(e) => handleConflictKeydown(e, conflict)}
-                            role="button"
-                            tabindex="0"
-                        >
-                            <div class="conflict-icon">
-                                <AlertTriangle size={20} />
-                            </div>
-                            <div class="conflict-info">
-                                <strong>{conflict.entity_type}</strong>
-                                <small>{new Date(conflict.created_at).toLocaleString()}</small>
-                            </div>
-                            <ArrowRight size={16} />
-                        </div>
-                    {/each}
-                </div>
-            {:else}
-                <div class="conflict-resolver">
-                    <div class="resolver-header">
-                        <button class="back-btn" on:click={() => selectedConflict = null}>
-                            ← Back
-                        </button>
-                        <h3>Resolve {selectedConflict.entity_type} Conflict</h3>
+            <div class="modal-body">
+                {#if conflicts.length === 0}
+                    <div class="no-conflicts">
+                        <Check size={48} />
+                        <p>No sync conflicts</p>
                     </div>
-
-                    <div class="resolution-options">
-                        <label class="option">
-                            <input 
-                                type="radio" 
-                                bind:group={resolutionStrategy} 
-                                value="client_wins"
-                            />
-                            <span>Use My Version</span>
-                        </label>
-                        <label class="option">
-                            <input 
-                                type="radio" 
-                                bind:group={resolutionStrategy} 
-                                value="server_wins"
-                            />
-                            <span>Use Server Version</span>
-                        </label>
-                        <label class="option">
-                            <input 
-                                type="radio" 
-                                bind:group={resolutionStrategy} 
-                                value="merge"
-                            />
-                            <span>Merge Manually</span>
-                        </label>
+                {:else if !selectedConflict}
+                    <div class="conflicts-list">
+                        {#each conflicts as conflict (conflict.id)}
+                            <div
+                                class="conflict-item"
+                                onclick={() => handleConflictClick(conflict)}
+                                onkeydown={(e) =>
+                                    handleConflictKeydown(e, conflict)}
+                                role="button"
+                                tabindex="0"
+                            >
+                                <div class="conflict-icon">
+                                    <AlertTriangle size={20} />
+                                </div>
+                                <div class="conflict-info">
+                                    <strong>{conflict.entity_type}</strong>
+                                    <small
+                                        >{new Date(
+                                            conflict.created_at,
+                                        ).toLocaleString()}</small
+                                    >
+                                </div>
+                                <ArrowRight size={16} />
+                            </div>
+                        {/each}
                     </div>
-
-                    <div class="versions-comparison">
-                        <div class="version-panel">
-                            <h4>Your Version</h4>
-                            <div class="version-content">
-                                {#each Object.entries(selectedConflict.client_version) as [key, value] (key)}
-                                    <div class="field">
-                                        <span class="field-key">{key}:</span>
-                                        <span class="field-value">{JSON.stringify(value)}</span>
-                                        {#if resolutionStrategy === 'merge'}
-                                            <button 
-                                                class="use-btn"
-                                                on:click={() => updateMergedField(key, 'client')}
-                                            >
-                                                Use
-                                            </button>
-                                        {/if}
-                                    </div>
-                                {/each}
-                            </div>
+                {:else}
+                    <div class="conflict-resolver">
+                        <div class="resolver-header">
+                            <button
+                                class="back-btn"
+                                onclick={() => (selectedConflict = null)}
+                            >
+                                ← Back
+                            </button>
+                            <h3>
+                                Resolve {selectedConflict.entity_type} Conflict
+                            </h3>
                         </div>
 
-                        <div class="version-panel">
-                            <h4>Server Version</h4>
-                            <div class="version-content">
-                                {#each Object.entries(selectedConflict.server_version) as [key, value] (key)}
-                                    <div class="field">
-                                        <span class="field-key">{key}:</span>
-                                        <span class="field-value">{JSON.stringify(value)}</span>
-                                        {#if resolutionStrategy === 'merge'}
-                                            <button 
-                                                class="use-btn"
-                                                on:click={() => updateMergedField(key, 'server')}
-                                            >
-                                                Use
-                                            </button>
-                                        {/if}
-                                    </div>
-                                {/each}
-                            </div>
+                        <div class="resolution-options">
+                            <label class="option">
+                                <input
+                                    type="radio"
+                                    bind:group={resolutionStrategy}
+                                    value="client_wins"
+                                />
+                                <span>Use My Version</span>
+                            </label>
+                            <label class="option">
+                                <input
+                                    type="radio"
+                                    bind:group={resolutionStrategy}
+                                    value="server_wins"
+                                />
+                                <span>Use Server Version</span>
+                            </label>
+                            <label class="option">
+                                <input
+                                    type="radio"
+                                    bind:group={resolutionStrategy}
+                                    value="merge"
+                                />
+                                <span>Merge Manually</span>
+                            </label>
                         </div>
 
-                        {#if resolutionStrategy === 'merge' && mergedData}
-                            <div class="version-panel merged">
-                                <h4><GitMerge size={16} /> Merged Result</h4>
+                        <div class="versions-comparison">
+                            <div class="version-panel">
+                                <h4>Your Version</h4>
                                 <div class="version-content">
-                                    {#each Object.entries(mergedData) as [key, value] (key)}
+                                    {#each Object.entries(selectedConflict.client_version) as [key, value] (key)}
                                         <div class="field">
-                                            <span class="field-key">{key}:</span>
-                                            <span class="field-value">{JSON.stringify(value)}</span>
+                                            <span class="field-key">{key}:</span
+                                            >
+                                            <span class="field-value"
+                                                >{JSON.stringify(value)}</span
+                                            >
+                                            {#if resolutionStrategy === "merge"}
+                                                <button
+                                                    class="use-btn"
+                                                    onclick={() =>
+                                                        updateMergedField(
+                                                            key,
+                                                            "client",
+                                                        )}
+                                                >
+                                                    Use
+                                                </button>
+                                            {/if}
                                         </div>
                                     {/each}
                                 </div>
                             </div>
-                        {/if}
-                    </div>
 
-                    <div class="resolver-actions">
-                        <button 
-                            class="resolve-btn"
-                            on:click={resolveConflict}
-                            disabled={loading}
-                        >
-                            {loading ? 'Resolving...' : 'Resolve Conflict'}
-                        </button>
+                            <div class="version-panel">
+                                <h4>Server Version</h4>
+                                <div class="version-content">
+                                    {#each Object.entries(selectedConflict.server_version) as [key, value] (key)}
+                                        <div class="field">
+                                            <span class="field-key">{key}:</span
+                                            >
+                                            <span class="field-value"
+                                                >{JSON.stringify(value)}</span
+                                            >
+                                            {#if resolutionStrategy === "merge"}
+                                                <button
+                                                    class="use-btn"
+                                                    onclick={() =>
+                                                        updateMergedField(
+                                                            key,
+                                                            "server",
+                                                        )}
+                                                >
+                                                    Use
+                                                </button>
+                                            {/if}
+                                        </div>
+                                    {/each}
+                                </div>
+                            </div>
+
+                            {#if resolutionStrategy === "merge" && mergedData}
+                                <div class="version-panel merged">
+                                    <h4>
+                                        <GitMerge size={16} /> Merged Result
+                                    </h4>
+                                    <div class="version-content">
+                                        {#each Object.entries(mergedData) as [key, value] (key)}
+                                            <div class="field">
+                                                <span class="field-key"
+                                                    >{key}:</span
+                                                >
+                                                <span class="field-value"
+                                                    >{JSON.stringify(
+                                                        value,
+                                                    )}</span
+                                                >
+                                            </div>
+                                        {/each}
+                                    </div>
+                                </div>
+                            {/if}
+                        </div>
+
+                        <div class="resolver-actions">
+                            <button
+                                class="resolve-btn"
+                                onclick={resolveConflict}
+                                disabled={loading}
+                            >
+                                {loading ? "Resolving..." : "Resolve Conflict"}
+                            </button>
+                        </div>
                     </div>
-                </div>
-            {/if}
+                {/if}
+            </div>
         </div>
     </div>
-</div>
 {/if}
 
 <style>
     .modal-backdrop {
         position: fixed;
         inset: 0;
-        background: rgba(0,0,0,0.5);
+        background: rgba(0, 0, 0, 0.5);
         display: flex;
         align-items: center;
         justify-content: center;

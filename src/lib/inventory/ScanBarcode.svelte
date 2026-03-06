@@ -1,20 +1,20 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { updateItem, findItemBySku } from './store';
+  import { updateMaterial, findMaterialBySku } from './store';
   import Quagga from '@ericblade/quagga2';
-  
+
   let scannerContainer: HTMLDivElement = $state();
   let code = $state('');
   let scanning = $state(false);
   let lastScanned = '';
   let status = $state('Ready to scan');
-  
+
   async function startScanner() {
     if (scanning) return;
-    
+
     try {
       status = 'Initializing camera...';
-      
+
       await Quagga.init({
         inputStream: {
           type: 'LiveStream',
@@ -38,18 +38,18 @@
         locate: true,
         frequency: 10
       });
-      
+
       Quagga.start();
       scanning = true;
       status = 'Scanning... Point at barcode';
-      
+
       Quagga.onDetected(handleDetected);
     } catch (err) {
       console.error('Scanner init failed:', err);
       status = 'Camera access denied or not available';
     }
   }
-  
+
   function stopScanner() {
     if (!scanning) return;
     Quagga.stop();
@@ -57,42 +57,42 @@
     scanning = false;
     status = 'Scanner stopped';
   }
-  
+
   function handleDetected(result: any) {
     const detected = result.codeResult.code;
-    
+
     // Debounce: ignore same code within 2 seconds
     if (detected === lastScanned) return;
     lastScanned = detected;
     setTimeout(() => { lastScanned = ''; }, 2000);
-    
+
     code = detected;
     status = `Detected: ${detected}`;
-    
+
     // Auto-apply if item found
-    const item = findItemBySku(detected);
-    if (item) {
+    const material = findMaterialBySku(detected);
+    if (material) {
       applyCode();
     }
   }
-  
+
   async function applyCode() {
     if (!code.trim()) return;
-    
-    const item = findItemBySku(code);
-    if (item) {
-      await updateItem(item.id, { stock: item.stock + 1 });
-      status = `✓ Added +1 to ${item.name} (${item.sku}) - Stock: ${item.stock + 1}`;
+
+    const material = findMaterialBySku(code);
+    if (material) {
+      await updateMaterial(material.id, { stock: material.stock + 1 });
+      status = `✓ Added +1 to ${material.name_en || material.code} (${material.sku}) - Stock: ${material.stock + 1}`;
     } else {
-      status = `✗ Item not found: ${code}`;
+      status = `✗ Material not found: ${code}`;
     }
     code = '';
   }
-  
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') applyCode();
   }
-  
+
   onDestroy(() => {
     if (scanning) stopScanner();
   });
