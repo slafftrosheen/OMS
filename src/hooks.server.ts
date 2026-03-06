@@ -7,6 +7,11 @@ import { env as publicEnv } from '$env/dynamic/public';
 import { enforceEnvironmentSecurity } from '$lib/server/env-validator';
 import { logger } from '$lib/server/logging/logger';
 import type { SessionUser } from '$lib/server/auth/session';
+import { initSentry } from '$lib/monitoring/sentry';
+import * as Sentry from '@sentry/sveltekit';
+
+// Initialize Sentry
+initSentry();
 
 // Run validation on startup
 enforceEnvironmentSecurity();
@@ -253,8 +258,10 @@ const rateLimitHandler: Handle = async ({ event, resolve }) => {
 };
 
 // Combine all handlers in correct order
-// NOTE: supabaseHandler MUST come first to populate event.locals.user for rateLimitHandler
+// NOTE: Sentry.sentryHandle MUST be first for performance tracing
+// NOTE: supabaseHandler MUST come first among custom handlers to populate event.locals.user for rateLimitHandler
 export const handle = sequence(
+	Sentry.sentryHandle(),
 	supabaseHandler,
 	rateLimitHandler,
 	securityHeaders,
@@ -262,7 +269,7 @@ export const handle = sequence(
 );
 
 // Global error handler with sanitization
-export const handleError: HandleServerError = async ({ error, event, status, message }) => {
+const customHandleError: HandleServerError = async ({ error, event, status, message }) => {
 	const errorId = crypto.randomUUID();
 
 	const context = {
@@ -290,3 +297,5 @@ export const handleError: HandleServerError = async ({ error, event, status, mes
 		code: (error as any)?.code || 'UNKNOWN_ERROR'
 	};
 };
+
+export const handleError = Sentry.handleErrorWithSentry(customHandleError);
