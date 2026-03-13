@@ -1,16 +1,15 @@
-import { get, writable } from 'svelte/store';
-import type { Category, Material, Movement, MovementKind, Section, Unit } from './types';
+import { derived, get, writable } from 'svelte/store';
+import type { Category, Item, Movement, MovementKind, Section, Unit } from './types';
 
 // Re-export types for convenience
-export type { Category, Material, Movement, MovementKind, Section, Unit } from './types';
+export type { Category, Item, Movement, MovementKind, Section, Unit } from './types';
 
-export type NewMaterialInput = Omit<Material, 'id' | 'created_at' | 'updated_at'> & {
+export type NewItemInput = Omit<Item, 'id' | 'updatedAt'> & {
   id?: string;
-  created_at?: string;
-  updated_at?: string;
+  updatedAt?: string;
 };
 
-export type MaterialUpdate = Partial<Omit<Material, 'id'>> & { updated_at?: string };
+export type ItemUpdate = Partial<Omit<Item, 'id'>> & { updatedAt?: string };
 
 export type MovementOptions = {
   by?: string;
@@ -21,10 +20,10 @@ export type MovementOptions = {
 
 export type SearchField =
   | 'sku'
-  | 'name_en'
+  | 'name'
   | 'category'
   | 'location'
-  | 'color_code'
+  | 'colorCode'
   | 'vendor';
 
 export type SearchOptions = {
@@ -38,7 +37,7 @@ export type CsvOptions = {
 };
 
 export type MovementFilterOptions = {
-  materialId?: string;
+  itemId?: string;
   kind?: MovementKind | MovementKind[];
   from?: string;
   to?: string;
@@ -59,12 +58,12 @@ export type MovementStats = {
   total: number;
   byKind: Record<MovementKind, number>;
   unitQuantities: MovementQuantityBreakdown;
-  materialsAffected: number;
+  itemsAffected: number;
 };
 
 export type InventorySummary = {
-  totalMaterials: number;
-  lowStockMaterials: number;
+  totalItems: number;
+  lowStockItems: number;
   categories: Record<Category, { total: number; lowStock: number }>;
   latestUpdate: string | null;
 };
@@ -73,26 +72,24 @@ export type SectionId = Section;
 export const SECTIONS: SectionId[] = ['materials', 'leftovers', 'paints', 'tools', 'cons', 'electronics', '3dprinting'];
 
 // Svelte stores for reactive UI
-export const materials = writable<Material[]>([]);
+export const items = writable<Item[]>([]);
 export const movements = writable<Movement[]>([]);
 export const isLoading = writable<boolean>(false);
 
-// Load materials from API
-export async function loadMaterials(): Promise<Material[]> {
+// Load items from API
+export async function loadItems(): Promise<Item[]> {
   if (typeof window === 'undefined') return [];
 
   isLoading.set(true);
   try {
     const response = await fetch('/api/inventory/items');
     if (response.ok) {
-      const result = await response.json();
-      // Handle both paginated response and direct array
-      const data = result.data || result;
-      materials.set(data);
+      const data = await response.json();
+      items.set(data);
       return data;
     }
   } catch (err) {
-    console.error('Failed to load materials:', err);
+    console.error('Failed to load inventory items:', err);
   } finally {
     isLoading.set(false);
   }
@@ -116,17 +113,17 @@ export async function loadMovements(limit = 50): Promise<Movement[]> {
   return [];
 }
 
-export function getMaterial(materialId: string) {
-  return get(materials).find((material) => material.id === materialId) ?? null;
+export function getItem(itemId: string) {
+  return get(items).find((item) => item.id === itemId) ?? null;
 }
 
-export function findMaterialBySku(sku: string) {
+export function findItemBySku(sku: string) {
   const needle = sku.trim().toLowerCase();
   if (!needle) return null;
-  return get(materials).find((material) => material.sku?.toLowerCase() === needle) ?? null;
+  return get(items).find((item) => item.sku.toLowerCase() === needle) ?? null;
 }
 
-export async function addMaterial(input: NewMaterialInput): Promise<Material | null> {
+export async function addItem(input: NewItemInput): Promise<Item | null> {
   try {
     const response = await fetch('/api/inventory/items', {
       method: 'POST',
@@ -135,36 +132,35 @@ export async function addMaterial(input: NewMaterialInput): Promise<Material | n
     });
 
     if (response.ok) {
-      const newMaterial = await response.json();
-      materials.update((list) => [newMaterial, ...list]);
-      return newMaterial;
+      const newItem = await response.json();
+      items.update((list) => [newItem, ...list]);
+      return newItem;
     }
   } catch (err) {
-    console.error('Failed to add material:', err);
+    console.error('Failed to add item:', err);
   }
   return null;
 }
 
-export async function createMaterial(partial: Partial<Material> = {}): Promise<Material | null> {
-  const newMaterial: Partial<Material> = {
+export async function createItem(partial: Partial<Item> = {}): Promise<Item | null> {
+  const newItem: Partial<Item> = {
     sku: '',
-    code: 'INV-' + Date.now(),
-    name_en: '',
+    name: '',
     category: 'HARDWARE',
     section: 'materials',
-    item_group: 'General',
+    group: 'General',
     subgroup: 'General',
     unit: 'PCS',
     stock: 0,
-    min_stock: 0,
+    min: 0,
     ...partial
   };
-  return addMaterial(newMaterial as NewMaterialInput);
+  return addItem(newItem as NewItemInput);
 }
 
-export async function updateMaterial(materialId: string, patch: MaterialUpdate): Promise<Material | null> {
+export async function updateItem(itemId: string, patch: ItemUpdate): Promise<Item | null> {
   try {
-    const response = await fetch(`/api/inventory/items/${materialId}`, {
+    const response = await fetch(`/api/inventory/items/${itemId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch)
@@ -172,41 +168,41 @@ export async function updateMaterial(materialId: string, patch: MaterialUpdate):
 
     if (response.ok) {
       const updated = await response.json();
-      materials.update((list) =>
-        list.map((material) => (material.id === materialId ? { ...material, ...updated } : material))
+      items.update((list) =>
+        list.map((item) => (item.id === itemId ? { ...item, ...updated } : item))
       );
       return updated;
     }
   } catch (err) {
-    console.error('Failed to update material:', err);
+    console.error('Failed to update item:', err);
   }
   return null;
 }
 
-export async function removeMaterial(materialId: string): Promise<boolean> {
+export async function removeItem(itemId: string): Promise<boolean> {
   try {
-    const response = await fetch(`/api/inventory/items/${materialId}`, {
+    const response = await fetch(`/api/inventory/items/${itemId}`, {
       method: 'DELETE'
     });
 
     if (response.ok) {
-      materials.update((list) => list.filter((material) => material.id !== materialId));
-      movements.update((records) => records.filter((m) => m.materialId !== materialId));
+      items.update((list) => list.filter((item) => item.id !== itemId));
+      movements.update((records) => records.filter((m) => m.itemId !== itemId));
       return true;
     }
   } catch (err) {
-    console.error('Failed to remove material:', err);
+    console.error('Failed to remove item:', err);
   }
   return false;
 }
 
 export async function recordMovement(
-  materialId: string,
+  itemId: string,
   kind: MovementKind,
   qty: number,
   options: MovementOptions = {}
 ): Promise<Movement | null> {
-  const target = getMaterial(materialId);
+  const target = getItem(itemId);
   if (!target) return null;
 
   try {
@@ -214,7 +210,7 @@ export async function recordMovement(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        materialId,
+        itemId,
         kind,
         qty,
         unit: options.unit ?? target.unit,
@@ -228,17 +224,17 @@ export async function recordMovement(
       const result = await response.json();
 
       // Update local store with new stock
-      materials.update((list) =>
-        list.map((material) => {
-          if (material.id !== materialId) return material;
-          return { ...material, stock: result.newStock, updated_at: new Date().toISOString() };
+      items.update((list) =>
+        list.map((item) => {
+          if (item.id !== itemId) return item;
+          return { ...item, stock: result.newStock, updatedAt: new Date().toISOString() };
         })
       );
 
       // Add movement to local store
       const movement: Movement = {
         id: result.id,
-        materialId,
+        itemId,
         kind,
         qty,
         unit: result.unit,
@@ -257,18 +253,18 @@ export async function recordMovement(
   return null;
 }
 
-export async function move(materialId: string, kind: MovementKind, qty: number, by = 'admin', note?: string) {
-  const result = await recordMovement(materialId, kind, qty, { by, note });
+export async function move(itemId: string, kind: MovementKind, qty: number, by = 'admin', note?: string) {
+  const result = await recordMovement(itemId, kind, qty, { by, note });
 
   if (result) {
-    const material = getMaterial(materialId);
-    if (material && material.stock <= material.min_stock) {
+    const item = getItem(itemId);
+    if (item && item.stock <= item.min) {
       Promise.all([
         import('$lib/stores/toast'),
         import('$lib/notify/bus')
       ]).then(([{ announce }, { push }]) => {
-        announce(`Low stock: ${material.sku} (${material.stock} ${material.unit})`, 'warning');
-        push('warn', `Low stock: ${material.sku} (${material.stock} ${material.unit})`);
+        announce(`Low stock: ${item.sku} (${item.stock} ${item.unit})`, 'warning');
+        push('warn', `Low stock: ${item.sku} (${item.stock} ${item.unit})`);
       });
     }
   }
@@ -276,29 +272,26 @@ export async function move(materialId: string, kind: MovementKind, qty: number, 
   return result;
 }
 
-export function movementsForMaterial(materialId: string) {
-  return get(movements).filter((movement) => movement.materialId === materialId);
+export function movementsForItem(itemId: string) {
+  return get(movements).filter((movement) => movement.itemId === itemId);
 }
 
-// Use a function instead of derived to avoid initialization order issues
-export function getLowStockMaterials(): Material[] {
-  return get(materials).filter((m) => m.stock <= m.min_stock);
-}
+export const lowStock = derived(items, ($items) => $items.filter((it) => it.stock <= it.min));
 
 export function listLowStock() {
-  return getLowStockMaterials();
+  return get(lowStock);
 }
 
-export function searchMaterials(query: string, options: SearchOptions = {}) {
-  const defaultFields: SearchField[] = ['sku', 'name_en', 'category', 'location', 'color_code', 'vendor'];
+export function searchItems(query: string, options: SearchOptions = {}) {
+  const defaultFields: SearchField[] = ['sku', 'name', 'category', 'location', 'colorCode', 'vendor'];
   const { caseSensitive = false, fields = defaultFields } = options;
   const trimmed = query.trim();
-  if (!trimmed) return get(materials);
+  if (!trimmed) return get(items);
   const needle = caseSensitive ? trimmed : trimmed.toLowerCase();
-  const haystack = get(materials);
-  return haystack.filter((material) =>
+  const haystack = get(items);
+  return haystack.filter((item) =>
     fields.some((field) => {
-      const raw = material[field];
+      const raw = item[field];
       if (raw == null) return false;
       const text = String(raw);
       const target = caseSensitive ? text : text.toLowerCase();
@@ -323,7 +316,7 @@ export function filterMovements(options: MovementFilterOptions = {}) {
   const to = options.to ?? null;
 
   return get(movements).filter((movement) => {
-    if (options.materialId && movement.materialId !== options.materialId) return false;
+    if (options.itemId && movement.itemId !== options.itemId) return false;
     if (allowedKinds && !allowedKinds.includes(movement.kind)) return false;
     if (from && movement.at < from) return false;
     if (to && movement.at > to) return false;
@@ -339,7 +332,7 @@ export function movementStats(options: MovementFilterOptions = {}): MovementStat
 
   for (const record of sample) {
     byKind[record.kind] += 1;
-    touched.add(record.materialId);
+    touched.add(record.itemId);
     if (!unitQuantities[record.unit]) {
       unitQuantities[record.unit] = { IN: 0, OUT: 0, ADJUST: 0 };
     }
@@ -350,13 +343,13 @@ export function movementStats(options: MovementFilterOptions = {}): MovementStat
     total: sample.length,
     byKind,
     unitQuantities,
-    materialsAffected: touched.size
+    itemsAffected: touched.size
   };
 }
 
 export function inventorySummary(): InventorySummary {
-  const all = get(materials);
-  const low = getLowStockMaterials();
+  const all = get(items);
+  const low = get(lowStock);
   const categories: Record<Category, { total: number; lowStock: number }> = {
     ACRYLIC: { total: 0, lowStock: 0 },
     ALUMINIUM: { total: 0, lowStock: 0 },
@@ -381,42 +374,42 @@ export function inventorySummary(): InventorySummary {
 
   let latest: string | null = null;
 
-  for (const material of all) {
-    const bucket = categories[material.category];
+  for (const item of all) {
+    const bucket = categories[item.category];
     if (bucket) {
       bucket.total += 1;
     }
-    if (!latest || material.updated_at > latest) {
-      latest = material.updated_at;
+    if (!latest || item.updatedAt > latest) {
+      latest = item.updatedAt;
     }
   }
 
-  for (const material of low) {
-    const bucket = categories[material.category];
+  for (const item of low) {
+    const bucket = categories[item.category];
     if (bucket) {
       bucket.lowStock += 1;
     }
   }
 
   return {
-    totalMaterials: all.length,
-    lowStockMaterials: low.length,
+    totalItems: all.length,
+    lowStockItems: low.length,
     categories,
     latestUpdate: latest
   };
 }
 
-export function materialsByCategory(category: Category) {
-  return get(materials).filter((material) => material.category === category);
+export function itemsByCategory(category: Category) {
+  return get(items).filter((item) => item.category === category);
 }
 
-export function recentlyUpdatedMaterials(fromISO: string): Material[] {
+export function recentlyUpdatedItems(fromISO: string): Item[] {
   if (!fromISO) return [];
-  return get(materials).filter((material) => material.updated_at >= fromISO);
+  return get(items).filter((item) => item.updatedAt >= fromISO);
 }
 
-export function resetInventory(next: Material[]) {
-  materials.set(next);
+export function resetInventory(next: Item[]) {
+  items.set(next);
   movements.set([]);
 }
 
@@ -425,43 +418,43 @@ export function exportInventoryCsv(options: CsvOptions = {}) {
   const header = [
     'id',
     'sku',
-    'name_en',
+    'name',
     'category',
     'unit',
     'stock',
-    'min_stock',
+    'min',
     'location',
     'vendor',
     'note',
-    'color_code',
-    'thickness_mm',
-    'leftover_data.lengthMM',
-    'leftover_data.widthMM',
-    'leftover_data.heightMM',
-    'leftover_data.weightKG',
-    'leftover_data.bin',
-    'updated_at'
+    'colorCode',
+    'thicknessMM',
+    'leftover.lengthMM',
+    'leftover.widthMM',
+    'leftover.heightMM',
+    'leftover.weightKG',
+    'leftover.bin',
+    'updatedAt'
   ];
 
-  const rows = get(materials).map((material) => [
-    material.id,
-    material.sku || '',
-    material.name_en || '',
-    material.category,
-    material.unit,
-    material.stock,
-    material.min_stock,
-    material.location ?? '',
-    material.vendor ?? '',
-    material.note ?? '',
-    material.color_code ?? '',
-    material.thickness_mm ?? '',
-    (material.leftover_data as any)?.lengthMM ?? '',
-    (material.leftover_data as any)?.widthMM ?? '',
-    (material.leftover_data as any)?.heightMM ?? '',
-    (material.leftover_data as any)?.weightKG ?? '',
-    (material.leftover_data as any)?.bin ?? '',
-    material.updated_at
+  const rows = get(items).map((item) => [
+    item.id,
+    item.sku,
+    item.name,
+    item.category,
+    item.unit,
+    item.stock,
+    item.min,
+    item.location ?? '',
+    item.vendor ?? '',
+    item.note ?? '',
+    item.colorCode ?? '',
+    item.thicknessMM ?? '',
+    item.leftover?.lengthMM ?? '',
+    item.leftover?.widthMM ?? '',
+    item.leftover?.heightMM ?? '',
+    item.leftover?.weightKG ?? '',
+    item.leftover?.bin ?? '',
+    item.updatedAt
   ]);
 
   const escape = (value: unknown) => {
@@ -477,15 +470,3 @@ export function exportInventoryCsv(options: CsvOptions = {}) {
   }
   return lines.join('\n');
 }
-
-// Backwards compatibility aliases
-export const getItem = getMaterial;
-export const findItemBySku = findMaterialBySku;
-export const addItem = addMaterial;
-export const createItem = createMaterial;
-export const updateItem = updateMaterial;
-export const removeItem = removeMaterial;
-export const searchItems = searchMaterials;
-export const itemsByCategory = materialsByCategory;
-export const recentlyUpdatedItems = recentlyUpdatedMaterials;
-export const movementsForItem = movementsForMaterial;

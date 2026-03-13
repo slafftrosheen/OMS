@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
 
+  const bubble = createBubbler();
 /**
  * Attachment Gallery Component
  * Displays photo grid with lightbox and filtering

@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
 
+  const bubble = createBubbler();
   import { onMount, onDestroy } from 'svelte';
   import { t } from 'svelte-i18n';
-  import { currentUser } from '$lib/auth/authState.svelte';
+  import { currentUser } from '$lib/auth/user-store';
   import { rooms, messages, sendMessage, loadRooms, loadMessages, ensureRoom } from '$lib/chat/chat-store';
   import { users, loadUsers } from '$lib/users/user-store';
   import { Send, Plus, Hash, Users, Settings, Search, Smile, Paperclip, MoreVertical, Bell, BellOff, X } from 'lucide-svelte';
@@ -13,13 +15,13 @@
   // Accept params prop to silence SvelteKit warning
   export const params = {};
 
-  let activeRoomId = $state('general');
-  let messageText = $state('');
-  let scroller: HTMLDivElement | null = $state(null);
-  let showRoomModal = $state(false);
-  let newRoomName = $state('');
-  let searchQuery = $state('');
-  let pollingInterval: ReturnType<typeof setInterval> = $state(undefined);
+  let activeRoomId = 'general';
+  let messageText = '';
+  let scroller: HTMLDivElement | null = null;
+  let showRoomModal = false;
+  let newRoomName = '';
+  let searchQuery = '';
+  let pollingInterval: ReturnType<typeof setInterval>;
 
   let activeRoom = $derived($rooms.find(r => r.id === activeRoomId) || $rooms[0]);
   let roomMessages = $derived($messages.filter(m => m.roomId === activeRoomId));

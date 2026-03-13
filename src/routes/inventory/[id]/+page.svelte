@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { materials, move, updateMaterial, removeMaterial, type Material } from '$lib/inventory/store';
+  import { items, move, updateItem, removeItem, type Item } from '$lib/inventory/store';
   import { onDestroy } from 'svelte';
   import { base } from '$app/paths';
   import { browser } from '$app/environment';
@@ -17,62 +17,62 @@
   import Clock from 'lucide-svelte/icons/clock';
 
   // Get id from URL params via page store
-  let materialId = $derived(page.params.id);
+  let itemId = $derived(page.params.id);
 
-  let material: Material | undefined = $state(undefined);
-  let editMode = $state(false);
-  let editedMaterial: Partial<Material> = $state({});
+  let item: Item | undefined;
+  let editMode = false;
+  let editedItem: Partial<Item> = {};
 
-  const unsubscribe = materials.subscribe((list) => {
-    material = list.find((x) => x.id === materialId);
-    if (material) {
-      editedMaterial = { ...material };
+  const unsubscribe = items.subscribe((list) => {
+    item = list.find((x) => x.id === itemId);
+    if (item) {
+      editedItem = { ...item };
     }
   });
 
   onDestroy(() => unsubscribe?.());
 
   $effect(() => {
-    if (!material && browser && materialId) {
-      // Material not found after store loaded
+    if (!item && browser && itemId) {
+      // Item not found after store loaded
       setTimeout(() => {
-        if (!material) goto(`${base}/inventory`);
+        if (!item) goto(`${base}/inventory`);
       }, 500);
     }
   });
 
-  let adjustAmount = $state(1);
-  let adjustNote = $state('');
+  let adjustAmount = 1;
+  let adjustNote = '';
 
   function adjust(kind: 'IN' | 'OUT') {
-    if (!material || adjustAmount <= 0) return;
-    move(material.id, kind, adjustAmount, 'user', adjustNote || undefined);
+    if (!item || adjustAmount <= 0) return;
+    move(item.id, kind, adjustAmount, 'user', adjustNote || undefined);
     adjustAmount = 1;
     adjustNote = '';
   }
 
   async function saveChanges() {
-    if (!material || !editedMaterial) return;
-    await updateMaterial(material.id, editedMaterial);
+    if (!item || !editedItem) return;
+    await updateItem(item.id, editedItem);
     editMode = false;
   }
 
-  async function deleteMaterial() {
-    if (!material) return;
-    if (confirm(`Delete "${material.name_en_en || material.code}"? This cannot be undone.`)) {
-      await removeMaterial(material.id);
+  async function deleteItem() {
+    if (!item) return;
+    if (confirm(`Delete "${item.name}"? This cannot be undone.`)) {
+      await removeItem(item.id);
       goto(`${base}/inventory`);
     }
   }
 </script>
 
-<div class="material-page">
+<div class="item-page">
   <header class="page-header">
     <a href="{base}/inventory" class="back-link">
       <ArrowLeft size={20} />
       <span>{$t('inventory.actions.back', { default: 'Back to Inventory' })}</span>
     </a>
-    {#if material}
+    {#if item}
       <div class="header-actions">
         {#if editMode}
           <button class="btn-secondary" onclick={() => editMode = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
@@ -91,13 +91,13 @@
     {/if}
   </header>
 
-  {#if material}
-    <div class="material-container">
+  {#if item}
+    <div class="item-container">
       <!-- Main Info Card -->
       <div class="info-card main-info">
         <div class="info-header">
-          {#if material.hex_color}
-            <div class="color-preview" style="background-color: {material.hex_color}"></div>
+          {#if item.hexColor}
+            <div class="color-preview" style="background-color: {item.hexColor}"></div>
           {:else}
             <div class="icon-preview">
               <Package size={32} />
@@ -105,56 +105,56 @@
           {/if}
           <div class="info-title">
             {#if editMode}
-              <input class="edit-input title-input" bind:value={editedMaterial.name_en} placeholder="Material name" />
-              <input class="edit-input sku-input" bind:value={editedMaterial.sku} placeholder="SKU" />
+              <input class="edit-input title-input" bind:value={editedItem.name} placeholder="Item name" />
+              <input class="edit-input sku-input" bind:value={editedItem.sku} placeholder="SKU" />
             {:else}
-              <h1>{material.name_en}</h1>
-              <span class="sku">{material.sku}</span>
+              <h1>{item.name}</h1>
+              <span class="sku">{item.sku}</span>
             {/if}
           </div>
         </div>
 
         <div class="info-grid">
-          <div class="info-material">
+          <div class="info-item">
             <Tag size={16} />
-            <span class="info-label">{$t('inventory.item_group', { default: 'Category' })}</span>
+            <span class="info-label">{$t('inventory.group', { default: 'Category' })}</span>
             {#if editMode}
-              <input class="edit-input" bind:value={editedMaterial.item_group} />
+              <input class="edit-input" bind:value={editedItem.group} />
             {:else}
-              <span class="info-value">{material.item_group || material.category}</span>
+              <span class="info-value">{item.group || item.category}</span>
             {/if}
           </div>
           
-          <div class="info-material">
+          <div class="info-item">
             <MapPin size={16} />
             <span class="info-label">{$t('inventory.headers.location', { default: 'Location' })}</span>
             {#if editMode}
-              <input class="edit-input" bind:value={editedMaterial.location} />
+              <input class="edit-input" bind:value={editedItem.location} />
             {:else}
-              <span class="info-value">{material.location || '—'}</span>
+              <span class="info-value">{item.location || '—'}</span>
             {/if}
           </div>
 
-          <div class="info-material">
+          <div class="info-item">
             <Clock size={16} />
             <span class="info-label">{$t('inventory.labels.updated', { default: 'Last Updated' })}</span>
-            <span class="info-value">{new Date(material.updated_at).toLocaleString()}</span>
+            <span class="info-value">{new Date(item.updatedAt).toLocaleString()}</span>
           </div>
         </div>
 
-        {#if material.color_code}
+        {#if item.colorCode}
           <div class="color-info">
-            <span class="color-code">{material.color_code}</span>
-            {#if material.hex_color}
-              <span class="hex-value">{material.hex_color}</span>
+            <span class="color-code">{item.colorCode}</span>
+            {#if item.hexColor}
+              <span class="hex-value">{item.hexColor}</span>
             {/if}
           </div>
         {/if}
 
-        {#if material.note}
-          <div class="material-note">
+        {#if item.note}
+          <div class="item-note">
             <strong>Notes:</strong>
-            <p>{material.note}</p>
+            <p>{item.note}</p>
           </div>
         {/if}
       </div>
@@ -164,12 +164,12 @@
         <h2>{$t('inventory.labels.stock', { default: 'Stock' })}</h2>
         
         <div class="stock-display">
-          <div class="stock-current" class:low={material.stock <= material.min_stock}>
-            <span class="stock-number">{material.stock}</span>
-            <span class="stock-unit">{material.unit}</span>
+          <div class="stock-current" class:low={item.stock <= item.min}>
+            <span class="stock-number">{item.stock}</span>
+            <span class="stock-unit">{item.unit}</span>
           </div>
-          <div class="stock-min_stock">
-            Min: {material.min_stock} {material.unit}
+          <div class="stock-min">
+            Min: {item.min} {item.unit}
           </div>
         </div>
 
@@ -179,7 +179,7 @@
               <button class="amount-btn" onclick={() => adjustAmount = Math.max(1, adjustAmount - 1)}>
                 <Minus size={16} />
               </button>
-              <input type="number" min_stock="1" bind:value={adjustAmount} class="amount-input" />
+              <input type="number" min="1" bind:value={adjustAmount} class="amount-input" />
               <button class="amount-btn" onclick={() => adjustAmount += 1}>
                 <Plus size={16} />
               </button>
@@ -205,32 +205,32 @@
       </div>
 
       <!-- Details Card -->
-      {#if material.supplier || material.price || material.barcode || material.thickness_mm}
+      {#if item.supplier || item.price || item.barcode || item.thicknessMM}
         <div class="info-card details-card">
           <h2>{$t('inventory.supplierInfo', { default: 'Details' })}</h2>
           <div class="details-grid">
-            {#if material.supplier}
-              <div class="detail-material">
+            {#if item.supplier}
+              <div class="detail-item">
                 <span class="detail-label">Supplier</span>
-                <span class="detail-value">{material.supplier}</span>
+                <span class="detail-value">{item.supplier}</span>
               </div>
             {/if}
-            {#if material.price}
-              <div class="detail-material">
+            {#if item.price}
+              <div class="detail-item">
                 <span class="detail-label">Price</span>
-                <span class="detail-value">€{material.price.toFixed(2)}</span>
+                <span class="detail-value">€{item.price.toFixed(2)}</span>
               </div>
             {/if}
-            {#if material.barcode}
-              <div class="detail-material">
+            {#if item.barcode}
+              <div class="detail-item">
                 <span class="detail-label">Barcode</span>
-                <span class="detail-value mono">{material.barcode}</span>
+                <span class="detail-value mono">{item.barcode}</span>
               </div>
             {/if}
-            {#if material.thickness_mm}
-              <div class="detail-material">
+            {#if item.thicknessMM}
+              <div class="detail-item">
                 <span class="detail-label">Thickness</span>
-                <span class="detail-value">{material.thickness_mm} mm</span>
+                <span class="detail-value">{item.thicknessMM} mm</span>
               </div>
             {/if}
           </div>
@@ -240,13 +240,13 @@
   {:else}
     <div class="loading-state">
       <div class="spinner"></div>
-      <p>Loading material...</p>
+      <p>Loading item...</p>
     </div>
   {/if}
 </div>
 
 <style>
-.material-page {
+.item-page {
   max-width: 900px;
   margin: 0 auto;
   padding: var(--space-lg);
@@ -281,7 +281,7 @@
   gap: var(--space-sm);
 }
 
-.material-container {
+.item-container {
   display: grid;
   gap: var(--space-lg);
 }
@@ -370,13 +370,13 @@
   gap: var(--space-lg);
 }
 
-.info-material {
+.info-item {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
 }
 
-.info-material > :global(svg) {
+.info-item > :global(svg) {
   color: var(--muted);
 }
 
@@ -410,7 +410,7 @@
   font-family: monospace;
 }
 
-.material-note {
+.item-note {
   margin-top: var(--space-lg);
   padding: var(--space-md);
   background: var(--bg-0);
@@ -418,7 +418,7 @@
   border-left: 3px solid var(--accent-1, var(--brand));
 }
 
-.material-note p {
+.item-note p {
   margin: var(--space-xs) 0 0 0;
   color: var(--muted);
 }
@@ -453,7 +453,7 @@
   color: var(--muted);
 }
 
-.stock-min_stock {
+.stock-min {
   color: var(--muted);
   padding: var(--space-xs) var(--space-sm);
   background: var(--bg-0);
@@ -519,7 +519,7 @@
 
 .note-input {
   flex: 1;
-  min_stock-width: 150px;
+  min-width: 150px;
   padding: var(--space-sm) var(--space-md);
   background: var(--bg-0);
   border: 1px solid var(--border);
@@ -539,7 +539,7 @@
   gap: var(--space-lg);
 }
 
-.detail-material {
+.detail-item {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
@@ -639,7 +639,7 @@
 }
 
 @media (max-width: 600px) {
-  .material-page {
+  .item-page {
     padding: var(--space-md);
   }
 

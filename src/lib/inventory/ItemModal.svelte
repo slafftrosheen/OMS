@@ -1,14 +1,9 @@
 <script lang="ts">
-
   import { t } from 'svelte-i18n';
-  import { createMaterial, updateMaterial, type Material } from './store';
+  import { createItem, updateItem, type Item } from './store';
   import type { Section } from './types';
 
-  // Accept both 'material' and 'item' props for backwards compatibility
-  let { material, item, onClose = () => {} }: { material?: Partial<Material>; item?: Partial<Material>; onClose?: () => void } = $props();
-  
-  // Use material if provided, otherwise fall back to item
-  let data = $state<Partial<Material>>(material || item || {});
+  let { item = {}, onClose = () => {} }: { item?: Partial<Item>; onClose?: () => void } = $props();
 
   const sectionOptions: { id: Section; labelKey: string }[] = [
     { id: 'materials', labelKey: 'inventory.materials' },
@@ -18,32 +13,32 @@
     { id: 'cons', labelKey: 'inventory.consumables' }
   ];
 
-  const isNew = !data.id;
+  const isNew = !item.id;
 
   $effect(() => {
-    if (!data.section) {
-      data.section = 'materials';
+    if (!item.section) {
+      item.section = 'materials';
     }
   });
 
   function save() {
-    const payload = { ...data } as Partial<Material> & { id?: string };
+    const payload = { ...item } as Partial<Item> & { id?: string };
     const section = (payload.section as Section) ?? 'materials';
     payload.section = section;
 
     if (isNew) {
       const { id: _id, ...rest } = payload;
-      createMaterial(rest);
-    } else if (data.id) {
-      const { id: _id, ...rest } = payload as Material;
-      updateMaterial(data.id, rest);
+      createItem(rest);
+    } else if (item.id) {
+      const { id: _id, ...rest } = payload as Item;
+      updateItem(item.id, rest);
     }
     onClose();
   }
 </script>
 
 <div class="sheet" role="dialog" aria-modal="true" aria-label={isNew ? $t('inventory.newItem') : $t('inventory.editItem')}>
-  <form class="card" onsubmit={preventDefault(save)}>
+  <form class="card" onsubmit={(e) => { e.preventDefault(); save(); }}>
     <header class="row" style="justify-content:space-between">
       <strong>{isNew ? $t('inventory.newItem') : $t('inventory.editItem')}</strong>
       <div class="row">
@@ -55,7 +50,7 @@
     <div class="grid" style="--cols:2">
       <label>
         {$t('inventory.section')}
-        <select bind:value={data.section}>
+        <select bind:value={item.section}>
           {#each sectionOptions as option}
             <option value={option.id}>{$t(option.labelKey)}</option>
           {/each}
@@ -63,58 +58,58 @@
       </label>
       <label>
         {$t('inventory.group')}
-        <input bind:value={data.item_group} placeholder={$t('inventory.modal.group_placeholder')} />
+        <input bind:value={item.group} placeholder={$t('inventory.modal.group_placeholder')} />
       </label>
       <label>
         {$t('inventory.modal.subgroup_label')}
-        <input bind:value={data.subgroup} placeholder={$t('inventory.modal.subgroup_placeholder')} />
+        <input bind:value={item.subgroup} placeholder={$t('inventory.modal.subgroup_placeholder')} />
       </label>
       <label>
         {$t('inventory.modal.sku_label')}
-        <input bind:value={data.sku} />
+        <input bind:value={item.sku} />
       </label>
       <label>
         {$t('inventory.headers.name')}
-        <input bind:value={data.name_en} />
+        <input bind:value={item.name} />
       </label>
       <label>
         {$t('inventory.headers.unit')}
-        <input bind:value={data.unit} placeholder={$t('inventory.modal.unit_placeholder')} />
+        <input bind:value={item.unit} placeholder={$t('inventory.modal.unit_placeholder')} />
       </label>
       <label>
         {$t('inventory.headers.stock')}
-        <input type="number" min="0" bind:value={data.stock} />
+        <input type="number" min="0" bind:value={item.stock} />
       </label>
       <label>
         {$t('inventory.headers.minimum')}
-        <input type="number" min="0" bind:value={data.min_stock} />
+        <input type="number" min="0" bind:value={item.min} />
       </label>
       <label>
         {$t('inventory.headers.location')}
-        <input bind:value={data.location} placeholder={$t('inventory.modal.location_placeholder')} />
+        <input bind:value={item.location} placeholder={$t('inventory.modal.location_placeholder')} />
       </label>
       <label>
         {$t('inventory.labels.color', { default: 'Color Code' })}
-        <input bind:value={data.color_code} placeholder="e.g., RAL 9010" />
+        <input bind:value={item.colorCode} placeholder="e.g., RAL 9010" />
       </label>
       <label>
         {$t('inventory.hexColor', { default: 'Color (Hex)' })}
         <div class="color-input-row">
-          <input type="color" bind:value={data.hex_color} class="color-picker" />
-          <input bind:value={data.hex_color} placeholder="#000000" class="color-text" />
+          <input type="color" bind:value={item.hexColor} class="color-picker" />
+          <input bind:value={item.hexColor} placeholder="#000000" class="color-text" />
         </div>
       </label>
       <label>
         {$t('inventory.modal.supplier_label')}
-        <input bind:value={data.supplier} />
+        <input bind:value={item.supplier} />
       </label>
       <label>
         {$t('inventory.modal.price_label')}
-        <input type="number" step="0.01" bind:value={data.price} />
+        <input type="number" step="0.01" bind:value={item.price} />
       </label>
       <label>
         {$t('inventory.modal.barcode_label')}
-        <input bind:value={data.barcode} placeholder={$t('inventory.modal.barcode_placeholder')} />
+        <input bind:value={item.barcode} placeholder={$t('inventory.modal.barcode_placeholder')} />
       </label>
     </div>
   </form>

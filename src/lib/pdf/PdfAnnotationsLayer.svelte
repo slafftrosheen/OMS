@@ -13,8 +13,9 @@
     });
   }
   
-  let notes: { id: string; x: number; y: number; text: string }[] =
-    JSON.parse(localStorage.getItem(key()) || '[]');
+  let notes = $state<{ id: string; x: number; y: number; text: string }[]>(
+    JSON.parse(localStorage.getItem(key()) || '[]')
+  );
   
   function key() {
     return `rf_pdf_notes_${po}_${revision}`;
@@ -24,9 +25,10 @@
     localStorage.setItem(key(), JSON.stringify(notes));
   });
 
-  let placing = false;
-  let rects: { id: string; x: number; y: number; w: number; h: number }[] =
-    JSON.parse(localStorage.getItem(key() + '_rects') || '[]');
+  let placing = $state(false);
+  let rects = $state<{ id: string; x: number; y: number; w: number; h: number }[]>(
+    JSON.parse(localStorage.getItem(key() + '_rects') || '[]')
+  );
   
   $effect(() => {
     localStorage.setItem(key() + '_rects', JSON.stringify(rects));

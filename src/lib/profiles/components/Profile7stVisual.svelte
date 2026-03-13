@@ -17,25 +17,13 @@
    * @emits change - Fired whenever any value in the `configuration` object is modified.
    *   The event detail contains the entire updated `configuration` object.
    */
-  import MaterialSelect from "./fields/MaterialSelect.svelte";
-  import MaterialThicknessSelect from "$lib/components/MaterialThicknessSelect.svelte";
+  import MaterialSelect from './fields/MaterialSelect.svelte';
+  import MaterialThicknessSelect from '$lib/components/MaterialThicknessSelect.svelte';
   import {
-    AlertCircle,
-    Zap,
-    Power,
-    Cable,
-    Square,
-    Droplets,
-    Wrench,
-    Paintbrush,
-    Layers,
-    Scissors,
-    StickyNote,
-    Sun,
-    Moon,
-    Check,
-    X,
-  } from "lucide-svelte";
+    AlertCircle, Zap, Power, Cable, Square, Droplets,
+    Wrench, Paintbrush, Layers, Scissors, StickyNote,
+    Sun, Moon, Check, X
+  } from 'lucide-svelte';
 
   /**
    * @typedef {object} ColorValue
@@ -55,7 +43,7 @@
    */
   interface ProfileConfiguration {
     profileName?: string;
-    signType: "INTERIOR" | "EXTERIOR";
+    signType: 'INTERIOR' | 'EXTERIOR';
 
     CNC_FREZER: {
       face: string;
@@ -125,7 +113,7 @@
       psu: boolean;
       psuModel: string;
       psuModelShort?: string;
-      psuType: "regular" | "dimmable";
+      psuType: 'regular' | 'dimmable';
       psuMounting?: string;
 
       cables: boolean;
@@ -148,62 +136,35 @@
     };
   }
 
-  const defaultColor: ColorValue = { system: "", code: "", hex: "" };
+  const defaultColor: ColorValue = { system: '', code: '', hex: '' };
 
   // A baseline configuration to ensure all necessary properties are present.
   const defaultConfiguration: ProfileConfiguration = {
-    profileName: "New Profile",
-    signType: "EXTERIOR",
-    CNC_FREZER: { face: "", back: "", laser: false, print3d: false, notes: "" },
-    BENDER: { sides: "", depth: 100, notes: "" },
+    profileName: 'New Profile',
+    signType: 'EXTERIOR',
+    CNC_FREZER: { face: '', back: '', laser: false, print3d: false, notes: '' },
+    BENDER: { sides: '', depth: 100, notes: '' },
     FRONT: {
-      face: false,
-      faceFilm: "",
-      faceCustom: "",
-      back: false,
-      backFilm: "",
-      backCustom: "",
-      sides: false,
-      sidesFilm: "",
-      sidesCustom: "",
-      notes: "",
+      face: false, faceFilm: '', faceCustom: '',
+      back: false, backFilm: '', backCustom: '',
+      sides: false, sidesFilm: '', sidesCustom: '',
+      notes: ''
     },
     PAINTING: {
-      face: false,
-      faceColor: { ...defaultColor },
-      faceCustom: "",
-      sides: true,
-      sidesColor: { ...defaultColor },
-      sidesCustom: "",
-      back: false,
-      backColor: { ...defaultColor },
-      backCustom: "",
-      frame: false,
-      frameColor: { ...defaultColor },
-      frameCustom: "",
-      notes: "",
+      face: false, faceColor: { ...defaultColor }, faceCustom: '',
+      sides: true, sidesColor: { ...defaultColor }, sidesCustom: '',
+      back: false, backColor: { ...defaultColor }, backCustom: '',
+      frame: false, frameColor: { ...defaultColor }, frameCustom: '',
+      notes: ''
     },
     ASSEMBLING: {
-      led: true,
-      ledModule: "",
-      ledCustom: "",
-      psu: true,
-      psuModel: "",
-      psuType: "regular",
-      psuMounting: "",
-      cables: true,
-      cableType: "",
-      cablesLength: "2m",
-      cablesWago: false,
-      frame: true,
-      frameMaterial: "",
-      frameDimensions: "40x40x2",
-      frameCustom: "",
-      frameWaterholes: true,
-      frameMountingHoles: false,
-      shablon: false,
-      notes: "",
-    },
+      led: true, ledModule: '', ledCustom: '',
+      psu: true, psuModel: '', psuType: 'regular', psuMounting: '',
+      cables: true, cableType: '', cablesLength: '2m', cablesWago: false,
+      frame: true, frameMaterial: '', frameDimensions: '40x40x2', frameCustom: '',
+      frameWaterholes: true, frameMountingHoles: false,
+      shablon: false, notes: ''
+    }
   };
 
   /** Props for the profile form. */
@@ -213,105 +174,49 @@
     /** If true, disables all inputs, making the form read-only. */
     readonly = false,
     /** Callback for configuration changes. */
-    onchange,
+    onchange
   }: {
     configuration?: ProfileConfiguration;
     readonly?: boolean;
     onchange?: (config: ProfileConfiguration) => void;
   } = $props();
 
-  import { untrack } from "svelte";
-
   /**
    * Effect to merge the incoming configuration with the default.
    * This ensures that the component can handle partially-defined configuration objects
    * without crashing due to missing nested properties.
-   * Uses untrack() to prevent infinite loop when modifying configuration.
-   */
-  /**
-   * Effect to merge the incoming configuration with the default.
-   * This ensures that the component can handle partially-defined configuration objects
-   * without crashing due to missing nested properties.
-   * Uses JSON comparison to prevent infinite loops when updating configuration.
    */
   $effect(() => {
-    // Read configuration to create dependency
-    const currentConfig = configuration;
-    if (currentConfig) {
-      // Create the new merged configuration
-      const newConfig: ProfileConfiguration = {
+    if (configuration) {
+      configuration = {
         ...defaultConfiguration,
-        ...currentConfig,
-        CNC_FREZER: {
-          ...defaultConfiguration.CNC_FREZER,
-          ...(currentConfig.CNC_FREZER || {}),
-        },
-        BENDER: {
-          ...defaultConfiguration.BENDER,
-          ...(currentConfig.BENDER || {}),
-        },
-        FRONT: {
-          ...defaultConfiguration.FRONT,
-          ...(currentConfig.FRONT || {}),
-        },
+        ...configuration,
+        CNC_FREZER: { ...defaultConfiguration.CNC_FREZER, ...(configuration.CNC_FREZER || {}) },
+        BENDER: { ...defaultConfiguration.BENDER, ...(configuration.BENDER || {}) },
+        FRONT: { ...defaultConfiguration.FRONT, ...(configuration.FRONT || {}) },
         PAINTING: {
           ...defaultConfiguration.PAINTING,
-          ...(currentConfig.PAINTING || {}),
-          faceColor: {
-            ...defaultColor,
-            ...(currentConfig.PAINTING?.faceColor || {}),
-          },
-          sidesColor: {
-            ...defaultColor,
-            ...(currentConfig.PAINTING?.sidesColor || {}),
-          },
-          backColor: {
-            ...defaultColor,
-            ...(currentConfig.PAINTING?.backColor || {}),
-          },
-          frameColor: {
-            ...defaultColor,
-            ...(currentConfig.PAINTING?.frameColor || {}),
-          },
+          ...(configuration.PAINTING || {}),
+          faceColor: { ...defaultColor, ...(configuration.PAINTING?.faceColor || {}) },
+          sidesColor: { ...defaultColor, ...(configuration.PAINTING?.sidesColor || {}) },
+          backColor: { ...defaultColor, ...(configuration.PAINTING?.backColor || {}) },
+          frameColor: { ...defaultColor, ...(configuration.PAINTING?.frameColor || {}) }
         },
-        ASSEMBLING: {
-          ...defaultConfiguration.ASSEMBLING,
-          ...(currentConfig.ASSEMBLING || {}),
-        },
+        ASSEMBLING: { ...defaultConfiguration.ASSEMBLING, ...(configuration.ASSEMBLING || {}) }
       };
-
-      // Only update if actually different to prevent infinite loops
-      // Simple JSON stringify is sufficient for configuration objects like this
-      if (JSON.stringify(currentConfig) !== JSON.stringify(newConfig)) {
-        untrack(() => {
-          configuration = newConfig;
-        });
-      }
     }
   });
 
   // Pre-defined material categories for the MaterialSelect component.
-  const faceMaterials = [
-    "ACRYLIC_XT",
-    "ACRYLIC_GS",
-    "ACRYLIC_LED",
-    "ALU_SHEET",
-    "ALU_COMPOSITE",
-    "PVC_FOAM",
-  ];
-  const backMaterials = [
-    "ALU_SHEET",
-    "ALU_COMPOSITE",
-    "ACRYLIC_XT",
-    "PVC_FOAM",
-  ];
-  const sidesMaterials = ["ALU_SHEET", "ALU_PROFILE"];
-  const filmCategories = ["VINYL_ORACAL"];
-  const paintCategories = ["PAINT_RAL", "PAINT_PANTONE"];
-  const ledCategories = ["LED_MODULE", "LED_STRIP"];
-  const psuCategories = ["PSU_MEANWELL"];
-  const wireCategories = ["WIRE", "LED_ACCESSORY"];
-  const frameMaterials = ["ALU_PROFILE", "ALU_SHEET"];
+  const faceMaterials = ['ACRYLIC_XT', 'ACRYLIC_GS', 'ACRYLIC_LED', 'ALU_SHEET', 'ALU_COMPOSITE', 'PVC_FOAM'];
+  const backMaterials = ['ALU_SHEET', 'ALU_COMPOSITE', 'ACRYLIC_XT', 'PVC_FOAM'];
+  const sidesMaterials = ['ALU_SHEET', 'ALU_PROFILE'];
+  const filmCategories = ['VINYL_ORACAL'];
+  const paintCategories = ['PAINT_RAL', 'PAINT_PANTONE'];
+  const ledCategories = ['LED_MODULE', 'LED_STRIP'];
+  const psuCategories = ['PSU_MEANWELL'];
+  const wireCategories = ['WIRE', 'LED_ACCESSORY'];
+  const frameMaterials = ['ALU_PROFILE', 'ALU_SHEET'];
 
   // Local state for material thickness options
   let faceThicknessOptions: number[] = [];
@@ -334,12 +239,10 @@
    * @returns {string} The extracted short name.
    */
   function extractShortName(data: any, fallbackCategory: string): string {
-    return (
-      data.shortName ||
-      data.material?.metadata?.short_name ||
-      data.material?.metadata?.colorCode ||
-      getShortName(data.material?.code || data.value, fallbackCategory)
-    );
+    return data.shortName ||
+           data.material?.metadata?.short_name ||
+           data.material?.metadata?.colorCode ||
+           getShortName(data.material?.code || data.value, fallbackCategory);
   }
 
   /**
@@ -348,15 +251,15 @@
    * @returns {string} '#000' for light backgrounds or '#fff' for dark backgrounds.
    */
   function getTextColor(hex: string): string {
-    if (!hex || hex.length < 4) return "#000";
+    if (!hex || hex.length < 4) return '#000';
     try {
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
+      const r = parseInt(hex.slice(1,3), 16);
+      const g = parseInt(hex.slice(3,5), 16);
+      const b = parseInt(hex.slice(5,7), 16);
       // Using the luminance formula to determine brightness.
-      return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5 ? "#000" : "#fff";
+      return (0.299*r + 0.587*g + 0.114*b) / 255 > 0.5 ? '#000' : '#fff';
     } catch {
-      return "#000";
+      return '#000';
     }
   }
 
@@ -369,38 +272,24 @@
    * @returns {string} A short, display-friendly name.
    */
   function getShortName(value: string, category?: string): string {
-    if (!value) return "";
+    if (!value) return '';
 
     // For Oracal/Vinyl - show FULL code like 8500_064 (series_colorCode)
-    if (
-      category?.includes("ORACAL") ||
-      category?.includes("VINYL") ||
-      value.toLowerCase().includes("oracal")
-    ) {
+    if (category?.includes('ORACAL') || category?.includes('VINYL') || value.toLowerCase().includes('oracal')) {
       const fullMatch = value.match(/(\d{4})[-_\s]?(\d{2,3})/);
       if (fullMatch) return `${fullMatch[1]}_${fullMatch[2]}`;
       const oracalMatch = value.match(/ORACAL[_-]?(\d{4})[_-]?(\d{2,3})/i);
       if (oracalMatch) return `${oracalMatch[1]}_${oracalMatch[2]}`;
       const seriesMatch = value.match(/(\d{4})/);
       const colorMatch = value.match(/[-_](\d{2,3})(?:\s|$)/);
-      if (seriesMatch && colorMatch)
-        return `${seriesMatch[1]}_${colorMatch[1]}`;
+      if (seriesMatch && colorMatch) return `${seriesMatch[1]}_${colorMatch[1]}`;
       const anyMatch = value.match(/\b(\d{4})\D+(\d{2,3})\b/);
       if (anyMatch) return `${anyMatch[1]}_${anyMatch[2]}`;
-      return value
-        .replace(/oracal\s*/i, "")
-        .replace(/vinyl\s*/i, "")
-        .trim()
-        .substring(0, 12)
-        .toUpperCase();
+      return value.replace(/oracal\s*/i, '').replace(/vinyl\s*/i, '').trim().substring(0, 12).toUpperCase();
     }
 
     // For acrylic - extract colorCode like 3N570, WN071, 0F00, WH10
-    if (
-      category?.includes("ACRYLIC") ||
-      value.toLowerCase().includes("acrylic") ||
-      value.toLowerCase().includes("plexi")
-    ) {
+    if (category?.includes('ACRYLIC') || value.toLowerCase().includes('acrylic') || value.toLowerCase().includes('plexi')) {
       const codePatterns = [
         /\b(\d[A-Z]\d{3})\b/i,
         /\b([A-Z]{2}\d{2,3})\b/i,
@@ -412,132 +301,95 @@
       }
       const plexMatch = value.match(/(?:XT|GS|LED)[_-]?([A-Z0-9]{4,6})/i);
       if (plexMatch) return plexMatch[1].toUpperCase();
-      if (value.toLowerCase().includes("opal")) return "OPAL";
-      if (value.toLowerCase().includes("clear") || value.includes("0F00"))
-        return "CLEAR";
-      if (/white/i.test(value) && !/opal/i.test(value)) return "WHITE";
+      if (value.toLowerCase().includes('opal')) return 'OPAL';
+      if (value.toLowerCase().includes('clear') || value.includes('0F00')) return 'CLEAR';
+      if (/white/i.test(value) && !/opal/i.test(value)) return 'WHITE';
       const parts = value.split(/[-_\s]+/);
       const lastPart = parts[parts.length - 1];
-      if (lastPart && /^[A-Z0-9]{4,6}$/i.test(lastPart))
-        return lastPart.toUpperCase();
-      return "PLEX";
+      if (lastPart && /^[A-Z0-9]{4,6}$/i.test(lastPart)) return lastPart.toUpperCase();
+      return 'PLEX';
     }
 
     // For ALU - show ALU + thickness or dimensions
-    if (category?.includes("ALU") || value.toLowerCase().includes("alu")) {
+    if (category?.includes('ALU') || value.toLowerCase().includes('alu')) {
       const thicknessMatch = value.match(/([\d.,]+)\s*mm/i);
-      if (thicknessMatch) return `ALU ${thicknessMatch[1].replace(",", ".")}`;
+      if (thicknessMatch) return `ALU ${thicknessMatch[1].replace(',', '.')}`;
       const profileMatch = value.match(/(\d+x\d+)/i);
       if (profileMatch) return `ALU ${profileMatch[1]}`;
-      const codeMatch = value.match(
-        /ALU[_-]?(?:MILL|BRUSH|ANOD)?[_-]?(\d)[_-]?(\d)/i,
-      );
+      const codeMatch = value.match(/ALU[_-]?(?:MILL|BRUSH|ANOD)?[_-]?(\d)[_-]?(\d)/i);
       if (codeMatch) return `ALU ${codeMatch[1]}.${codeMatch[2]}`;
-      return "ALU";
+      return 'ALU';
     }
 
     // For PVC
-    if (
-      category?.includes("PVC") ||
-      value.toLowerCase().includes("pvc") ||
-      value.toLowerCase().includes("forex")
-    ) {
+    if (category?.includes('PVC') || value.toLowerCase().includes('pvc') || value.toLowerCase().includes('forex')) {
       const thicknessMatch = value.match(/(\d+)\s*mm/i);
       if (thicknessMatch) return `PVC ${thicknessMatch[1]}`;
-      if (value.toLowerCase().includes("forex")) return "FOREX";
-      return "PVC";
+      if (value.toLowerCase().includes('forex')) return 'FOREX';
+      return 'PVC';
     }
 
     // For RAL paint - just the 4-digit code
-    if (category?.includes("RAL") || value.toLowerCase().includes("ral")) {
+    if (category?.includes('RAL') || value.toLowerCase().includes('ral')) {
       const ralMatch = value.match(/\b(\d{4})\b/);
       if (ralMatch) return ralMatch[1];
     }
 
     // For Pantone
-    if (
-      category?.includes("PANTONE") ||
-      value.toLowerCase().includes("pantone")
-    ) {
+    if (category?.includes('PANTONE') || value.toLowerCase().includes('pantone')) {
       const pantoneMatch = value.match(/(\d+\s*[A-Z]*)/i);
       if (pantoneMatch) return pantoneMatch[1].trim();
     }
 
     // For LED modules - Brand + Color Temp (e.g., "BaltLed 4500K")
-    if (category?.includes("LED")) {
+    if (category?.includes('LED')) {
       const parts: string[] = [];
-      const brandMatch = value.match(
-        /\b(BaltLed|Sloan|Samsung|Nichia|Osram|Cree|LemLux|LG|Seoul)\b/i,
-      );
+      const brandMatch = value.match(/\b(BaltLed|Sloan|Samsung|Nichia|Osram|Cree|LemLux|LG|Seoul)\b/i);
       if (brandMatch) parts.push(brandMatch[1]);
       const tempMatch = value.match(/(\d{4})\s*[kK]/);
       if (tempMatch) parts.push(`${tempMatch[1]}K`);
-      const colorMatch = value.match(
-        /\b(warm|cold|neutral|daylight|white|rgb)\b/i,
-      );
-      if (colorMatch && parts.length < 2)
-        parts.push(colorMatch[1].toUpperCase());
-      if (parts.length > 0) return parts.join(" ");
+      const colorMatch = value.match(/\b(warm|cold|neutral|daylight|white|rgb)\b/i);
+      if (colorMatch && parts.length < 2) parts.push(colorMatch[1].toUpperCase());
+      if (parts.length > 0) return parts.join(' ');
       const wattMatch = value.match(/(\d+\.?\d*)\s*[wW]/);
       if (wattMatch) return `${wattMatch[1]}W`;
-      return "LED";
+      return 'LED';
     }
 
     // For PSU - Brand + Watts (e.g., "MeanWell 100W")
-    if (category?.includes("PSU")) {
+    if (category?.includes('PSU')) {
       const parts: string[] = [];
-      const brandMatch = value.match(
-        /\b(MeanWell|Mean\s*Well|Philips|Inventronics|Osram|Tridonic)\b/i,
-      );
-      if (brandMatch) parts.push(brandMatch[1].replace(/\s+/g, ""));
+      const brandMatch = value.match(/\b(MeanWell|Mean\s*Well|Philips|Inventronics|Osram|Tridonic)\b/i);
+      if (brandMatch) parts.push(brandMatch[1].replace(/\s+/g, ''));
       const wattMatch = value.match(/(\d+)\s*[wW]/);
       if (wattMatch) parts.push(`${wattMatch[1]}W`);
-      if (parts.length > 0) return parts.join(" ");
-      return "PSU";
+      if (parts.length > 0) return parts.join(' ');
+      return 'PSU';
     }
 
     // For Cables/Wire - Dimensions + Color (e.g., "2x0.75 BLACK")
-    if (category?.includes("WIRE") || category?.includes("CABLE")) {
+    if (category?.includes('WIRE') || category?.includes('CABLE')) {
       const parts: string[] = [];
       const dimsMatch = value.match(/(\d+x[\d.,]+)/i);
       if (dimsMatch) parts.push(dimsMatch[1]);
-      const colorMatch = value.match(
-        /\b(black|white|red|blue|green|grey|gray)\b/i,
-      );
+      const colorMatch = value.match(/\b(black|white|red|blue|green|grey|gray)\b/i);
       if (colorMatch) parts.push(colorMatch[1].toUpperCase());
-      if (parts.length > 0) return parts.join(" ");
-      return "CABLE";
+      if (parts.length > 0) return parts.join(' ');
+      return 'CABLE';
     }
 
     // Default fallback: try to find a code-like pattern or use the first word.
     const codePattern = value.match(/\b([A-Z0-9]{3,8})\b/i);
-    if (
-      codePattern &&
-      !/the|and|for|with|board|sheet|foam/i.test(codePattern[1])
-    ) {
+    if (codePattern && !/the|and|for|with|board|sheet|foam/i.test(codePattern[1])) {
       return codePattern[1].toUpperCase();
     }
-    const words = value
-      .split(/[\s_-]+/)
-      .filter((w) => w.length > 1 && !/the|and|for|with/i.test(w));
+    const words = value.split(/[\s_-]+/).filter(w => w.length > 1 && !/the|and|for|with/i.test(w));
     if (words.length > 0) return words[0].substring(0, 8).toUpperCase();
     return value.substring(0, 8).toUpperCase();
   }
 
   // A derived variable to determine if the "FRONT" section should be expanded.
-  let hasFront = $derived(
-    configuration.FRONT.face ||
-      configuration.FRONT.back ||
-      configuration.FRONT.sides,
-  );
-
-  let isRoundFrame = $derived(
-    configuration.ASSEMBLING.frameMaterial?.toLowerCase().includes("tube") ||
-      configuration.ASSEMBLING.frameMaterial?.toLowerCase().includes("round") ||
-      configuration.ASSEMBLING.frameMaterial?.toLowerCase().includes(" d") ||
-      configuration.ASSEMBLING.frameMaterial?.startsWith("D") ||
-      configuration.ASSEMBLING.frameMaterialShort?.startsWith("D"),
-  );
+  let hasFront = $derived(configuration.FRONT.face || configuration.FRONT.back || configuration.FRONT.sides);
 </script>
 
 <div class="profile-form" class:readonly>
@@ -553,26 +405,12 @@
       />
     </div>
     <div class="sign-toggle">
-      <button
-        type="button"
-        class:active={configuration.signType === "EXTERIOR"}
-        disabled={readonly}
-        onclick={() => {
-          configuration.signType = "EXTERIOR";
-          emit();
-        }}
-      >
+      <button type="button" class:active={configuration.signType === 'EXTERIOR'}
+        disabled={readonly} onclick={() => { configuration.signType = 'EXTERIOR'; emit(); }}>
         <Sun size={14} /> OUTDOOR
       </button>
-      <button
-        type="button"
-        class:active={configuration.signType === "INTERIOR"}
-        disabled={readonly}
-        onclick={() => {
-          configuration.signType = "INTERIOR";
-          emit();
-        }}
-      >
+      <button type="button" class:active={configuration.signType === 'INTERIOR'}
+        disabled={readonly} onclick={() => { configuration.signType = 'INTERIOR'; emit(); }}>
         <Moon size={14} /> INDOOR
       </button>
     </div>
@@ -580,6 +418,7 @@
 
   <!-- MAIN GRID -->
   <div class="form-grid">
+
     <!-- CNC FREZER -->
     <div class="section">
       <div class="section-title"><Scissors size={12} /> CNC FREZER</div>
@@ -596,45 +435,26 @@
               {readonly}
               onchange={(data) => {
                 configuration.CNC_FREZER.faceHex = data.hex;
-                configuration.CNC_FREZER.faceShort = extractShortName(
-                  data,
-                  "ACRYLIC",
-                );
+                configuration.CNC_FREZER.faceShort = extractShortName(data, 'ACRYLIC');
                 faceThicknessOptions = data.material?.thickness_options || [];
-                if (
-                  faceThicknessOptions.length > 0 &&
-                  !faceThicknessOptions.includes(
-                    Number(configuration.CNC_FREZER.faceThickness),
-                  )
-                ) {
-                  configuration.CNC_FREZER.faceThickness =
-                    faceThicknessOptions[0].toString();
-                } else if (
-                  !configuration.CNC_FREZER.faceThickness &&
-                  faceThicknessOptions.length > 0
-                ) {
-                  configuration.CNC_FREZER.faceThickness =
-                    faceThicknessOptions[0].toString();
+                if (faceThicknessOptions.length > 0 && !faceThicknessOptions.includes(Number(configuration.CNC_FREZER.faceThickness))) {
+                   configuration.CNC_FREZER.faceThickness = faceThicknessOptions[0].toString();
+                } else if (!configuration.CNC_FREZER.faceThickness && faceThicknessOptions.length > 0) {
+                   configuration.CNC_FREZER.faceThickness = faceThicknessOptions[0].toString();
                 }
                 emit();
               }}
             />
           </div>
           {#if configuration.CNC_FREZER.face}
-            <span
-              class="material-badge-lg"
-              style:background={configuration.CNC_FREZER.faceHex || "#87CEEB"}
-              style:color={getTextColor(
-                configuration.CNC_FREZER.faceHex || "#87CEEB",
-              )}
-            >
-              {configuration.CNC_FREZER.faceShort ||
-                getShortName(configuration.CNC_FREZER.face, "ACRYLIC")}{#if configuration.CNC_FREZER.faceThickness}/{configuration.CNC_FREZER.faceThickness}{/if}
+            <span class="material-badge-lg"
+              style:background={configuration.CNC_FREZER.faceHex || '#87CEEB'}
+              style:color={getTextColor(configuration.CNC_FREZER.faceHex || '#87CEEB')}>
+              {configuration.CNC_FREZER.faceShort || getShortName(configuration.CNC_FREZER.face, 'ACRYLIC')}
             </span>
             <MaterialThicknessSelect
               bind:value={configuration.CNC_FREZER.faceThickness}
-              materialType={configuration.CNC_FREZER.face.split("_")[0] ||
-                "PVC"}
+              materialType={configuration.CNC_FREZER.face.split('_')[0] || 'PVC'}
               placeholder="Select thickness"
               {readonly}
               onchange={emit}
@@ -654,45 +474,26 @@
               {readonly}
               onchange={(data) => {
                 configuration.CNC_FREZER.backHex = data.hex;
-                configuration.CNC_FREZER.backShort = extractShortName(
-                  data,
-                  "ALU",
-                );
+                configuration.CNC_FREZER.backShort = extractShortName(data, 'ALU');
                 backThicknessOptions = data.material?.thickness_options || [];
-                if (
-                  backThicknessOptions.length > 0 &&
-                  !backThicknessOptions.includes(
-                    Number(configuration.CNC_FREZER.backThickness),
-                  )
-                ) {
-                  configuration.CNC_FREZER.backThickness =
-                    backThicknessOptions[0].toString();
-                } else if (
-                  !configuration.CNC_FREZER.backThickness &&
-                  backThicknessOptions.length > 0
-                ) {
-                  configuration.CNC_FREZER.backThickness =
-                    backThicknessOptions[0].toString();
+                if (backThicknessOptions.length > 0 && !backThicknessOptions.includes(Number(configuration.CNC_FREZER.backThickness))) {
+                   configuration.CNC_FREZER.backThickness = backThicknessOptions[0].toString();
+                } else if (!configuration.CNC_FREZER.backThickness && backThicknessOptions.length > 0) {
+                   configuration.CNC_FREZER.backThickness = backThicknessOptions[0].toString();
                 }
                 emit();
               }}
             />
           </div>
           {#if configuration.CNC_FREZER.back}
-            <span
-              class="material-badge-lg"
-              style:background={configuration.CNC_FREZER.backHex || "#A0A0A0"}
-              style:color={getTextColor(
-                configuration.CNC_FREZER.backHex || "#A0A0A0",
-              )}
-            >
-              {configuration.CNC_FREZER.backShort ||
-                getShortName(configuration.CNC_FREZER.back, "ALU")}{#if configuration.CNC_FREZER.backThickness}/{configuration.CNC_FREZER.backThickness}{/if}
+            <span class="material-badge-lg"
+              style:background={configuration.CNC_FREZER.backHex || '#A0A0A0'}
+              style:color={getTextColor(configuration.CNC_FREZER.backHex || '#A0A0A0')}>
+              {configuration.CNC_FREZER.backShort || getShortName(configuration.CNC_FREZER.back, 'ALU')}
             </span>
             <MaterialThicknessSelect
               bind:value={configuration.CNC_FREZER.backThickness}
-              materialType={configuration.CNC_FREZER.back.split("_")[0] ||
-                "PVC"}
+              materialType={configuration.CNC_FREZER.back.split('_')[0] || 'PVC'}
               placeholder="Select thickness"
               {readonly}
               onchange={emit}
@@ -703,41 +504,22 @@
         <!-- Options -->
         <div class="options">
           <label class="option" class:active={configuration.CNC_FREZER.laser}>
-            <input
-              type="checkbox"
-              bind:checked={configuration.CNC_FREZER.laser}
-              disabled={readonly}
-              onchange={emit}
-            />
+            <input type="checkbox" bind:checked={configuration.CNC_FREZER.laser} disabled={readonly} onchange={emit} />
             <Scissors size={12} /> LASER
           </label>
           <label class="option" class:active={configuration.CNC_FREZER.print3d}>
-            <input
-              type="checkbox"
-              bind:checked={configuration.CNC_FREZER.print3d}
-              disabled={readonly}
-              onchange={emit}
-            />
+            <input type="checkbox" bind:checked={configuration.CNC_FREZER.print3d} disabled={readonly} onchange={emit} />
             <Layers size={12} /> 3D
           </label>
         </div>
 
-        <div
-          class="notes-field"
-          class:has-note={configuration.CNC_FREZER.notes}
-        >
+        <div class="notes-field" class:has-note={configuration.CNC_FREZER.notes}>
           {#if configuration.CNC_FREZER.notes}
             <span class="note-icon"><AlertCircle size={14} /></span>
           {/if}
           <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.CNC_FREZER.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
+          <textarea class="notes" bind:value={configuration.CNC_FREZER.notes}
+            disabled={readonly} oninput={emit} placeholder="Notes..." rows="2"></textarea>
         </div>
       </div>
     </div>
@@ -757,41 +539,26 @@
               {readonly}
               onchange={(data) => {
                 configuration.BENDER.sidesHex = data.hex;
-                configuration.BENDER.sidesShort = extractShortName(data, "ALU");
+                configuration.BENDER.sidesShort = extractShortName(data, 'ALU');
                 sidesThicknessOptions = data.material?.thickness_options || [];
-                if (
-                  sidesThicknessOptions.length > 0 &&
-                  !sidesThicknessOptions.includes(
-                    Number(configuration.BENDER.sidesThickness),
-                  )
-                ) {
-                  configuration.BENDER.sidesThickness =
-                    sidesThicknessOptions[0].toString();
-                } else if (
-                  !configuration.BENDER.sidesThickness &&
-                  sidesThicknessOptions.length > 0
-                ) {
-                  configuration.BENDER.sidesThickness =
-                    sidesThicknessOptions[0].toString();
+                if (sidesThicknessOptions.length > 0 && !sidesThicknessOptions.includes(Number(configuration.BENDER.sidesThickness))) {
+                   configuration.BENDER.sidesThickness = sidesThicknessOptions[0].toString();
+                } else if (!configuration.BENDER.sidesThickness && sidesThicknessOptions.length > 0) {
+                   configuration.BENDER.sidesThickness = sidesThicknessOptions[0].toString();
                 }
                 emit();
               }}
             />
           </div>
           {#if configuration.BENDER.sides}
-            <span
-              class="material-badge-lg"
-              style:background={configuration.BENDER.sidesHex || "#A0A0A0"}
-              style:color={getTextColor(
-                configuration.BENDER.sidesHex || "#A0A0A0",
-              )}
-            >
-              {configuration.BENDER.sidesShort ||
-                getShortName(configuration.BENDER.sides, "ALU")}{#if configuration.BENDER.sidesThickness}/{configuration.BENDER.sidesThickness}{/if}
+            <span class="material-badge-lg"
+              style:background={configuration.BENDER.sidesHex || '#A0A0A0'}
+              style:color={getTextColor(configuration.BENDER.sidesHex || '#A0A0A0')}>
+              {configuration.BENDER.sidesShort || getShortName(configuration.BENDER.sides, 'ALU')}
             </span>
             <MaterialThicknessSelect
               bind:value={configuration.BENDER.sidesThickness}
-              materialType={configuration.BENDER.sides.split("_")[0] || "ALU"}
+              materialType={configuration.BENDER.sides.split('_')[0] || 'ALU'}
               placeholder="Select thickness"
               {readonly}
               onchange={emit}
@@ -801,15 +568,9 @@
 
         <div class="depth-box">
           <label>DEPTH</label>
-          <input
-            type="number"
-            class="depth-input"
+          <input type="number" class="depth-input"
             bind:value={configuration.BENDER.depth}
-            disabled={readonly}
-            oninput={emit}
-            min="30"
-            max="500"
-          />
+            disabled={readonly} oninput={emit} min="30" max="500" />
         </div>
 
         <div class="notes-field" class:has-note={configuration.BENDER.notes}>
@@ -817,36 +578,20 @@
             <span class="note-icon"><AlertCircle size={14} /></span>
           {/if}
           <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.BENDER.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
+          <textarea class="notes" bind:value={configuration.BENDER.notes}
+            disabled={readonly} oninput={emit} placeholder="Notes..." rows="2"></textarea>
         </div>
       </div>
     </div>
 
     <!-- FRONT (Film) -->
     <div class="section" class:collapsed={!hasFront}>
-      <div class="section-title">
-        <Layers size={12} /> FRONT <span class="hint">(Film)</span>
-      </div>
+      <div class="section-title"><Layers size={12} /> FRONT <span class="hint">(Film)</span></div>
       <div class="section-content">
-        {#each ["face", "back", "sides"] as part}
+        {#each ['face', 'back', 'sides'] as part}
           <div class="inline-field">
-            <label
-              class="toggle-label"
-              class:active={configuration.FRONT[part]}
-            >
-              <input
-                type="checkbox"
-                bind:checked={configuration.FRONT[part]}
-                disabled={readonly}
-                onchange={emit}
-              />
+            <label class="toggle-label" class:active={configuration.FRONT[part]}>
+              <input type="checkbox" bind:checked={configuration.FRONT[part]} disabled={readonly} onchange={emit} />
               {part.toUpperCase()}
             </label>
             {#if configuration.FRONT[part]}
@@ -859,38 +604,21 @@
                   {readonly}
                   onchange={(data) => {
                     configuration.FRONT[`${part}FilmHex`] = data.hex;
-                    configuration.FRONT[`${part}FilmShort`] = extractShortName(
-                      data,
-                      "ORACAL",
-                    );
+                    configuration.FRONT[`${part}FilmShort`] = extractShortName(data, 'ORACAL');
                     emit();
                   }}
                 />
                 {#if configuration.FRONT[`${part}Film`]}
-                  <span
-                    class="material-badge-lg"
-                    style:background={configuration.FRONT[`${part}FilmHex`] ||
-                      "var(--bg-2)"}
-                    style:color={getTextColor(
-                      configuration.FRONT[`${part}FilmHex`] || "#f0f0f0",
-                    )}
-                  >
-                    {configuration.FRONT[`${part}FilmShort`] ||
-                      getShortName(
-                        configuration.FRONT[`${part}Film`],
-                        "ORACAL",
-                      )}
+                  <span class="material-badge-lg"
+                    style:background={configuration.FRONT[`${part}FilmHex`] || 'var(--bg-2)'}
+                    style:color={getTextColor(configuration.FRONT[`${part}FilmHex`] || '#f0f0f0')}>
+                    {configuration.FRONT[`${part}FilmShort`] || getShortName(configuration.FRONT[`${part}Film`], 'ORACAL')}
                   </span>
                 {/if}
               </div>
-              <input
-                type="text"
-                class="custom-input"
+              <input type="text" class="custom-input"
                 bind:value={configuration.FRONT[`${part}Custom`]}
-                disabled={readonly}
-                oninput={emit}
-                placeholder="Custom..."
-              />
+                disabled={readonly} oninput={emit} placeholder="Custom..." />
             {/if}
           </div>
         {/each}
@@ -900,14 +628,8 @@
             <span class="note-icon"><AlertCircle size={14} /></span>
           {/if}
           <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.FRONT.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
+          <textarea class="notes" bind:value={configuration.FRONT.notes}
+            disabled={readonly} oninput={emit} placeholder="Notes..." rows="2"></textarea>
         </div>
       </div>
     </div>
@@ -917,28 +639,20 @@
       <div class="section-title"><Paintbrush size={12} /> PAINTING</div>
       <div class="section-content">
         <div class="paint-grid">
-          {#each [{ key: "face", label: "FRONT" }, { key: "sides", label: "SIDES" }, { key: "back", label: "BACK" }, { key: "frame", label: "FRAME" }] as item}
-            <div
-              class="paint-item"
-              class:inactive={!configuration.PAINTING[item.key]}
-            >
-              <label
-                class="paint-label"
-                class:active={configuration.PAINTING[item.key]}
-              >
-                <input
-                  type="checkbox"
-                  bind:checked={configuration.PAINTING[item.key]}
-                  disabled={readonly}
-                  onchange={emit}
-                />
+          {#each [
+            { key: 'face', label: 'FRONT' },
+            { key: 'sides', label: 'SIDES' },
+            { key: 'back', label: 'BACK' },
+            { key: 'frame', label: 'FRAME' }
+          ] as item}
+            <div class="paint-item" class:inactive={!configuration.PAINTING[item.key]}>
+              <label class="paint-label" class:active={configuration.PAINTING[item.key]}>
+                <input type="checkbox" bind:checked={configuration.PAINTING[item.key]} disabled={readonly} onchange={emit} />
                 {item.label}
               </label>
               {#if configuration.PAINTING[item.key]}
                 <MaterialSelect
-                  value={configuration.PAINTING[`${item.key}Color`].code
-                    ? `RAL ${configuration.PAINTING[`${item.key}Color`].code}`
-                    : ""}
+                  value={configuration.PAINTING[`${item.key}Color`].code ? `RAL ${configuration.PAINTING[`${item.key}Color`].code}` : ''}
                   categories={paintCategories}
                   placeholder="RAL..."
                   allowCustom={true}
@@ -947,45 +661,27 @@
                     const material = data.material;
                     if (material) {
                       configuration.PAINTING[`${item.key}Color`] = {
-                        system:
-                          material.category === "PAINT_RAL" ? "RAL" : "Pantone",
-                        code: material.code
-                          .replace("RAL_", "")
-                          .replace("PANTONE_", ""),
-                        hex: data.hex || "",
+                        system: material.category === 'PAINT_RAL' ? 'RAL' : 'Pantone',
+                        code: material.code.replace('RAL_', '').replace('PANTONE_', ''),
+                        hex: data.hex || ''
                       };
                     } else if (data.value) {
                       const code = data.value.match(/\d{4}/)?.[0] || data.value;
-                      configuration.PAINTING[`${item.key}Color`] = {
-                        system: "RAL",
-                        code,
-                        hex: "",
-                      };
+                      configuration.PAINTING[`${item.key}Color`] = { system: 'RAL', code, hex: '' };
                     }
                     emit();
                   }}
                 />
                 {#if configuration.PAINTING[`${item.key}Color`].code}
-                  <span
-                    class="ral-badge"
-                    style:background={configuration.PAINTING[`${item.key}Color`]
-                      .hex || "#4A5568"}
-                    style:color={getTextColor(
-                      configuration.PAINTING[`${item.key}Color`].hex ||
-                        "#4A5568",
-                    )}
-                  >
+                  <span class="ral-badge"
+                    style:background={configuration.PAINTING[`${item.key}Color`].hex || '#4A5568'}
+                    style:color={getTextColor(configuration.PAINTING[`${item.key}Color`].hex || '#4A5568')}>
                     {configuration.PAINTING[`${item.key}Color`].code}
                   </span>
                 {/if}
-                <input
-                  type="text"
-                  class="custom-input"
+                <input type="text" class="custom-input"
                   bind:value={configuration.PAINTING[`${item.key}Custom`]}
-                  disabled={readonly}
-                  oninput={emit}
-                  placeholder="Custom..."
-                />
+                  disabled={readonly} oninput={emit} placeholder="Custom..." />
               {:else}
                 <span class="no-badge">NO</span>
               {/if}
@@ -998,14 +694,8 @@
             <span class="note-icon"><AlertCircle size={14} /></span>
           {/if}
           <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.PAINTING.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
+          <textarea class="notes" bind:value={configuration.PAINTING.notes}
+            disabled={readonly} oninput={emit} placeholder="Notes..." rows="2"></textarea>
         </div>
       </div>
     </div>
@@ -1015,19 +705,12 @@
       <div class="section-title"><Wrench size={12} /> ASSEMBLING</div>
       <div class="section-content">
         <div class="assembly-grid-2x2">
+
           <!-- LED -->
           <div class="assembly-item">
             <div class="item-header">
-              <label
-                class="toggle-label"
-                class:active={configuration.ASSEMBLING.led}
-              >
-                <input
-                  type="checkbox"
-                  bind:checked={configuration.ASSEMBLING.led}
-                  disabled={readonly}
-                  onchange={emit}
-                />
+              <label class="toggle-label" class:active={configuration.ASSEMBLING.led}>
+                <input type="checkbox" bind:checked={configuration.ASSEMBLING.led} disabled={readonly} onchange={emit} />
                 <Zap size={14} /> LED
               </label>
             </div>
@@ -1042,26 +725,17 @@
                   {readonly}
                   onchange={(data) => {
                     configuration.ASSEMBLING.ledModuleHex = data.hex;
-                    configuration.ASSEMBLING.ledModuleShort = extractShortName(
-                      data,
-                      "LED",
-                    );
+                    configuration.ASSEMBLING.ledModuleShort = extractShortName(data, 'LED');
                     emit();
                   }}
                 />
               </div>
               {#if configuration.ASSEMBLING.ledModule}
-                <span
-                  class="material-badge-lg"
-                  style:background={configuration.ASSEMBLING.ledModuleHex ||
-                    "#fbbf24"}
-                  style:color={getTextColor(
-                    configuration.ASSEMBLING.ledModuleHex || "#fbbf24",
-                  )}
-                >
+                <span class="material-badge-lg"
+                  style:background={configuration.ASSEMBLING.ledModuleHex || '#fbbf24'}
+                  style:color={getTextColor(configuration.ASSEMBLING.ledModuleHex || '#fbbf24')}>
                   <Zap size={16} />
-                  {configuration.ASSEMBLING.ledModuleShort ||
-                    getShortName(configuration.ASSEMBLING.ledModule, "LED")}
+                  {configuration.ASSEMBLING.ledModuleShort || getShortName(configuration.ASSEMBLING.ledModule, 'LED')}
                 </span>
               {/if}
             {:else}
@@ -1072,43 +746,19 @@
           <!-- PSU -->
           <div class="assembly-item">
             <div class="item-header">
-              <label
-                class="toggle-label"
-                class:active={configuration.ASSEMBLING.psu}
-              >
-                <input
-                  type="checkbox"
-                  bind:checked={configuration.ASSEMBLING.psu}
-                  disabled={readonly}
-                  onchange={emit}
-                />
+              <label class="toggle-label" class:active={configuration.ASSEMBLING.psu}>
+                <input type="checkbox" bind:checked={configuration.ASSEMBLING.psu} disabled={readonly} onchange={emit} />
                 <Power size={14} /> PSU
               </label>
             </div>
             {#if configuration.ASSEMBLING.psu}
               <div class="psu-type">
-                <label
-                  class:active={configuration.ASSEMBLING.psuType === "regular"}
-                >
-                  <input
-                    type="radio"
-                    bind:group={configuration.ASSEMBLING.psuType}
-                    value="regular"
-                    disabled={readonly}
-                    onchange={emit}
-                  />
+                <label class:active={configuration.ASSEMBLING.psuType === 'regular'}>
+                  <input type="radio" bind:group={configuration.ASSEMBLING.psuType} value="regular" disabled={readonly} onchange={emit} />
                   <Sun size={12} /> Regular
                 </label>
-                <label
-                  class:active={configuration.ASSEMBLING.psuType === "dimmable"}
-                >
-                  <input
-                    type="radio"
-                    bind:group={configuration.ASSEMBLING.psuType}
-                    value="dimmable"
-                    disabled={readonly}
-                    onchange={emit}
-                  />
+                <label class:active={configuration.ASSEMBLING.psuType === 'dimmable'}>
+                  <input type="radio" bind:group={configuration.ASSEMBLING.psuType} value="dimmable" disabled={readonly} onchange={emit} />
                   <Moon size={12} /> Dimmable
                 </label>
               </div>
@@ -1121,33 +771,21 @@
                   showColor={false}
                   {readonly}
                   onchange={(data) => {
-                    configuration.ASSEMBLING.psuModelShort = extractShortName(
-                      data,
-                      "PSU",
-                    );
+                    configuration.ASSEMBLING.psuModelShort = extractShortName(data, 'PSU');
                     emit();
                   }}
                 />
               </div>
               {#if configuration.ASSEMBLING.psuModel}
-                <span
-                  class="material-badge-lg"
+                <span class="material-badge-lg"
                   style:background="#6366f1"
-                  style:color="#fff"
-                >
+                  style:color="#fff">
                   <Power size={16} />
-                  {configuration.ASSEMBLING.psuModelShort ||
-                    getShortName(configuration.ASSEMBLING.psuModel, "PSU")}
+                  {configuration.ASSEMBLING.psuModelShort || getShortName(configuration.ASSEMBLING.psuModel, 'PSU')}
                 </span>
               {/if}
-              <input
-                type="text"
-                class="custom-input"
-                bind:value={configuration.ASSEMBLING.psuMounting}
-                disabled={readonly}
-                oninput={emit}
-                placeholder="Mounting..."
-              />
+              <input type="text" class="custom-input" bind:value={configuration.ASSEMBLING.psuMounting}
+                disabled={readonly} oninput={emit} placeholder="Mounting..." />
             {:else}
               <span class="no-badge-lg"><X size={14} /> NO PSU</span>
             {/if}
@@ -1156,29 +794,15 @@
           <!-- CABLES -->
           <div class="assembly-item">
             <div class="item-header">
-              <label
-                class="toggle-label"
-                class:active={configuration.ASSEMBLING.cables}
-              >
-                <input
-                  type="checkbox"
-                  bind:checked={configuration.ASSEMBLING.cables}
-                  disabled={readonly}
-                  onchange={emit}
-                />
+              <label class="toggle-label" class:active={configuration.ASSEMBLING.cables}>
+                <input type="checkbox" bind:checked={configuration.ASSEMBLING.cables} disabled={readonly} onchange={emit} />
                 <Cable size={14} /> CABLES
               </label>
             </div>
             {#if configuration.ASSEMBLING.cables}
               <div class="cable-row">
-                <input
-                  type="text"
-                  class="length-input"
-                  bind:value={configuration.ASSEMBLING.cablesLength}
-                  disabled={readonly}
-                  oninput={emit}
-                  placeholder="2m"
-                />
+                <input type="text" class="length-input" bind:value={configuration.ASSEMBLING.cablesLength}
+                  disabled={readonly} oninput={emit} placeholder="2m" />
                 <MaterialSelect
                   bind:value={configuration.ASSEMBLING.cableType}
                   categories={wireCategories}
@@ -1187,40 +811,23 @@
                   showColor={false}
                   {readonly}
                   onchange={(data) => {
-                    configuration.ASSEMBLING.cableTypeShort = extractShortName(
-                      data,
-                      "WIRE",
-                    );
+                    configuration.ASSEMBLING.cableTypeShort = extractShortName(data, 'WIRE');
                     emit();
                   }}
                 />
               </div>
               {#if configuration.ASSEMBLING.cableType || configuration.ASSEMBLING.cablesLength}
-                <span
-                  class="material-badge-lg"
+                <span class="material-badge-lg"
                   style:background="#374151"
-                  style:color="#fff"
-                >
+                  style:color="#fff">
                   <Cable size={16} />
-                  {configuration.ASSEMBLING.cablesLength || ""}
-                  {configuration.ASSEMBLING.cableTypeShort
-                    ? ` ${configuration.ASSEMBLING.cableTypeShort}`
-                    : ""}
+                  {configuration.ASSEMBLING.cablesLength || ''}
+                  {configuration.ASSEMBLING.cableTypeShort ? ` ${configuration.ASSEMBLING.cableTypeShort}` : ''}
                 </span>
               {/if}
-              <label
-                class="wago-label"
-                class:active={configuration.ASSEMBLING.cablesWago}
-              >
-                <input
-                  type="checkbox"
-                  bind:checked={configuration.ASSEMBLING.cablesWago}
-                  disabled={readonly}
-                  onchange={emit}
-                />
-                <span class="wago-badge"
-                  >{configuration.ASSEMBLING.cablesWago ? "✓" : ""} WAGO</span
-                >
+              <label class="wago-label" class:active={configuration.ASSEMBLING.cablesWago}>
+                <input type="checkbox" bind:checked={configuration.ASSEMBLING.cablesWago} disabled={readonly} onchange={emit} />
+                <span class="wago-badge">{configuration.ASSEMBLING.cablesWago ? '✓' : ''} WAGO</span>
               </label>
             {:else}
               <span class="no-badge-lg"><X size={14} /> NO CABLES</span>
@@ -1230,16 +837,8 @@
           <!-- FRAME -->
           <div class="assembly-item">
             <div class="item-header">
-              <label
-                class="toggle-label"
-                class:active={configuration.ASSEMBLING.frame}
-              >
-                <input
-                  type="checkbox"
-                  bind:checked={configuration.ASSEMBLING.frame}
-                  disabled={readonly}
-                  onchange={emit}
-                />
+              <label class="toggle-label" class:active={configuration.ASSEMBLING.frame}>
+                <input type="checkbox" bind:checked={configuration.ASSEMBLING.frame} disabled={readonly} onchange={emit} />
                 <Square size={14} /> FRAME
               </label>
             </div>
@@ -1253,59 +852,26 @@
                   {readonly}
                   onchange={(data) => {
                     configuration.ASSEMBLING.frameMaterialHex = data.hex;
-                    configuration.ASSEMBLING.frameMaterialShort =
-                      extractShortName(data, "ALU");
+                    configuration.ASSEMBLING.frameMaterialShort = extractShortName(data, 'ALU');
                     emit();
                   }}
                 />
               </div>
               {#if configuration.ASSEMBLING.frameMaterial}
-                <span
-                  class="material-badge-lg"
-                  style:background={configuration.ASSEMBLING.frameMaterialHex ||
-                    "#9ca3af"}
-                  style:color={getTextColor(
-                    configuration.ASSEMBLING.frameMaterialHex || "#9ca3af",
-                  )}
-                >
+                <span class="material-badge-lg"
+                  style:background={configuration.ASSEMBLING.frameMaterialHex || '#9ca3af'}
+                  style:color={getTextColor(configuration.ASSEMBLING.frameMaterialHex || '#9ca3af')}>
                   <Square size={16} />
-                  {configuration.ASSEMBLING.frameMaterialShort || "ALU"}{#if configuration.ASSEMBLING.frameDimensions}/{configuration.ASSEMBLING.frameDimensions}{/if}
+                  {configuration.ASSEMBLING.frameMaterialShort || 'ALU'}
                 </span>
-                <div class="field">
-                  <label>{isRoundFrame ? "DIAMETER (mm)" : "FRAME SIZE"}</label>
-                  <input
-                    type="text"
-                    bind:value={configuration.ASSEMBLING.frameDimensions}
-                    placeholder={isRoundFrame ? "e.g. D20" : "e.g. 40x40"}
-                    disabled={readonly}
-                    oninput={emit}
-                    class="custom-input"
-                  />
-                </div>
               {/if}
               <div class="frame-options">
-                <label
-                  class="opt waterholes"
-                  class:active={configuration.ASSEMBLING.frameWaterholes}
-                >
-                  <input
-                    type="checkbox"
-                    bind:checked={configuration.ASSEMBLING.frameWaterholes}
-                    disabled={readonly}
-                    onchange={emit}
-                  />
+                <label class="opt waterholes" class:active={configuration.ASSEMBLING.frameWaterholes}>
+                  <input type="checkbox" bind:checked={configuration.ASSEMBLING.frameWaterholes} disabled={readonly} onchange={emit} />
                   <Droplets size={12} /> WATER
                 </label>
-                <label
-                  class="opt warning"
-                  class:active={configuration.ASSEMBLING.frameMountingHoles}
-                >
-                  <input
-                    type="checkbox"
-                    bind:checked={configuration.ASSEMBLING.frameMountingHoles}
-                    disabled={readonly}
-                    onchange={emit}
-                  />
+                <label class="opt warning" class:active={configuration.ASSEMBLING.frameMountingHoles}>
+                  <input type="checkbox" bind:checked={configuration.ASSEMBLING.frameMountingHoles} disabled={readonly} onchange={emit} />
                   <AlertCircle size={12} /> MOUNT
                 </label>
               </div>
@@ -1318,12 +884,7 @@
         <!-- Bottom options -->
         <div class="assembly-extras">
           <label class="extra" class:active={configuration.ASSEMBLING.shablon}>
-            <input
-              type="checkbox"
-              bind:checked={configuration.ASSEMBLING.shablon}
-              disabled={readonly}
-              onchange={emit}
-            />
+            <input type="checkbox" bind:checked={configuration.ASSEMBLING.shablon} disabled={readonly} onchange={emit} />
             <Layers size={14} /> SHABLON
           </label>
           {#if !configuration.ASSEMBLING.frameWaterholes && configuration.ASSEMBLING.frame}
@@ -1331,22 +892,13 @@
           {/if}
         </div>
 
-        <div
-          class="notes-field"
-          class:has-note={configuration.ASSEMBLING.notes}
-        >
+        <div class="notes-field" class:has-note={configuration.ASSEMBLING.notes}>
           {#if configuration.ASSEMBLING.notes}
             <span class="note-icon"><AlertCircle size={14} /></span>
           {/if}
           <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.ASSEMBLING.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
+          <textarea class="notes" bind:value={configuration.ASSEMBLING.notes}
+            disabled={readonly} oninput={emit} placeholder="Notes..." rows="2"></textarea>
         </div>
       </div>
     </div>
@@ -1355,18 +907,14 @@
 
 <style>
   .profile-form {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-      sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: var(--bg-1, #fff);
     border: 1px solid var(--border, #e0e0e0);
     border-radius: var(--radius-md, 8px);
-    overflow: visible;
+    overflow: hidden;
   }
 
-  .profile-form.readonly {
-    pointer-events: none;
-    opacity: 0.85;
-  }
+  .profile-form.readonly { pointer-events: none; opacity: 0.85; }
 
   /* HEADER */
   .form-header {
@@ -1381,7 +929,7 @@
   }
 
   .profile-name input {
-    background: #e91e63;
+    background: #E91E63;
     color: white;
     border: none;
     padding: var(--space-sm, 8px) var(--space-md, 14px);
@@ -1391,9 +939,7 @@
     min-width: 150px;
   }
 
-  .profile-name input::placeholder {
-    color: rgba(255, 255, 255, 0.7);
-  }
+  .profile-name input::placeholder { color: rgba(255,255,255,0.7); }
 
   .sign-toggle {
     display: flex;
@@ -1434,31 +980,16 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
-    position: relative;
-    z-index: 1;
   }
 
-  .section:focus-within {
-    z-index: 10;
-  }
+  .section-sm { min-width: 140px; }
+  .section-lg { min-width: 240px; }
+  .section-xl { min-width: 350px; grid-column: span 2; }
 
-  .section-sm {
-    min-width: 140px;
-  }
-  .section-lg {
-    min-width: 240px;
-  }
-  .section-xl {
-    min-width: 350px;
-    grid-column: span 2;
-  }
-
-  .section.collapsed {
-    opacity: 0.6;
-  }
+  .section.collapsed { opacity: 0.6; }
 
   .section-title {
-    background: #4a5568;
+    background: #4A5568;
     color: white;
     padding: var(--space-sm, 8px) var(--space-md, 12px);
     font-size: 11px;
@@ -1514,7 +1045,7 @@
     text-transform: uppercase;
     white-space: nowrap;
     flex-shrink: 0;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(0,0,0,0.1);
   }
 
   .thickness-input {
@@ -1554,9 +1085,7 @@
   }
 
   .depth-input::-webkit-outer-spin-button,
-  .depth-input::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-  }
+  .depth-input::-webkit-inner-spin-button { -webkit-appearance: none; }
 
   /* OPTIONS */
   .options {
@@ -1578,14 +1107,8 @@
     background: var(--bg-2, #f5f5f5);
   }
 
-  .option.active {
-    background: #dbeafe;
-    color: #1d4ed8;
-  }
-  .option input {
-    width: 14px;
-    height: 14px;
-  }
+  .option.active { background: #dbeafe; color: #1d4ed8; }
+  .option input { width: 14px; height: 14px; }
 
   /* INLINE FIELDS */
   .inline-field {
@@ -1596,9 +1119,7 @@
     border-bottom: 1px solid var(--border, #eee);
   }
 
-  .inline-field:last-of-type {
-    border-bottom: none;
-  }
+  .inline-field:last-of-type { border-bottom: none; }
 
   .toggle-label {
     display: flex;
@@ -1610,13 +1131,8 @@
     cursor: pointer;
   }
 
-  .toggle-label.active {
-    color: #1f2937;
-  }
-  .toggle-label input {
-    width: 14px;
-    height: 14px;
-  }
+  .toggle-label.active { color: #1f2937; }
+  .toggle-label input { width: 14px; height: 14px; }
 
   .inline-controls {
     display: flex;
@@ -1657,9 +1173,7 @@
     border-radius: 6px;
   }
 
-  .paint-item.inactive {
-    opacity: 0.6;
-  }
+  .paint-item.inactive { opacity: 0.6; }
 
   .paint-label {
     display: flex;
@@ -1671,13 +1185,8 @@
     cursor: pointer;
   }
 
-  .paint-label.active {
-    color: #1f2937;
-  }
-  .paint-label input {
-    width: 14px;
-    height: 14px;
-  }
+  .paint-label.active { color: #1f2937; }
+  .paint-label input { width: 14px; height: 14px; }
 
   .ral-badge {
     padding: 8px 12px;
@@ -1698,10 +1207,7 @@
     text-align: center;
   }
 
-  .no-badge.small {
-    font-size: 9px;
-    padding: 4px 6px;
-  }
+  .no-badge.small { font-size: 9px; padding: 4px 6px; }
 
   /* ASSEMBLY 2x2 GRID */
   .assembly-grid-2x2 {
@@ -1820,7 +1326,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    border: 2px solid rgba(0, 0, 0, 0.1);
+    border: 2px solid rgba(0,0,0,0.1);
     height: 48px;
     flex: 1;
     min-width: 0;
@@ -1883,14 +1389,12 @@
   }
 
   .psu-type label.active {
-    background: #4a5568;
+    background: #4A5568;
     color: white;
-    border-color: #4a5568;
+    border-color: #4A5568;
   }
 
-  .psu-type input {
-    display: none;
-  }
+  .psu-type input { display: none; }
 
   /* CABLES */
   .cable-row {
@@ -1918,9 +1422,7 @@
     cursor: pointer;
   }
 
-  .wago-label input {
-    display: none;
-  }
+  .wago-label input { display: none; }
 
   .wago-badge {
     background: #e5e5e5;
@@ -1966,19 +1468,9 @@
     border: 1px solid var(--border, #ddd);
   }
 
-  .opt input {
-    display: none;
-  }
-  .opt.waterholes.active {
-    background: #d1fae5;
-    color: #059669;
-    border-color: #059669;
-  }
-  .opt.warning.active {
-    background: #fee2e2;
-    color: #dc2626;
-    border-color: #dc2626;
-  }
+  .opt input { display: none; }
+  .opt.waterholes.active { background: #d1fae5; color: #059669; border-color: #059669; }
+  .opt.warning.active { background: #fee2e2; color: #dc2626; border-color: #dc2626; }
 
   /* EXTRAS */
   .assembly-extras {
@@ -2002,13 +1494,8 @@
     cursor: pointer;
   }
 
-  .extra.active {
-    background: #4a5568;
-    color: white;
-  }
-  .extra input {
-    display: none;
-  }
+  .extra.active { background: #4A5568; color: white; }
+  .extra input { display: none; }
 
   /* INPUTS */
   .custom-input {
@@ -2056,19 +1543,13 @@
   }
 
   @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.5;
-    }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
   }
 
   .notes {
     width: 100%;
-    padding: var(--space-sm, 8px) var(--space-sm, 8px) var(--space-sm, 8px)
-      var(--space-xl, 28px);
+    padding: var(--space-sm, 8px) var(--space-sm, 8px) var(--space-sm, 8px) var(--space-xl, 28px);
     border: 1px dashed var(--border, #ddd);
     border-radius: var(--radius-sm, 4px);
     font-size: 12px;
@@ -2092,9 +1573,7 @@
 
   /* RESPONSIVE */
   @media (max-width: 1400px) {
-    .section-xl {
-      grid-column: span 1;
-    }
+    .section-xl { grid-column: span 1; }
   }
 
   @media (max-width: 900px) {

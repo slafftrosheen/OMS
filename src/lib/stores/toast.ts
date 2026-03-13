@@ -13,7 +13,7 @@ function createToasts() {
 
   function push(t: Omit<Toast, 'id'>) {
     const id = crypto.randomUUID();
-    const toast = { id, ttl: 3500, kind: 'info' as const, ...t };
+    const toast = { id, ttl: 3500, kind: 'info', ...t };
     update((arr) => [...arr, toast]);
     if (toast.ttl) {
       setTimeout(() => dismiss(id), toast.ttl);

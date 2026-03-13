@@ -1,40 +1,32 @@
+<!-- @migration-task Error while migrating Svelte code: Cannot use `export let` in runes mode — use `$props()` instead
+https://svelte.dev/e/legacy_export_invalid -->
 <!-- src/lib/inventory/components/MaterialStockCard.svelte -->
 <script lang="ts">
-  import type { InventoryStock } from "$lib/inventory/types";
-  import {
-    AlertTriangle,
-    TrendingDown,
-    Package,
-    Plus,
-    Minus,
-  } from "lucide-svelte";
+  import type { InventoryStock } from '$lib/inventory/types';
+  import { AlertTriangle, TrendingDown, Package, Plus, Minus } from 'lucide-svelte';
 
-  let { stock }: { stock: InventoryStock } = $props();
+  export let stock: InventoryStock;
 
-  let stockPercentage = $derived(
-    stock.minimumStockLevel
-      ? (stock.quantityInStock / stock.minimumStockLevel) * 100
-      : 100,
-  );
+  let stockPercentage = $derived(stock.minimumStockLevel
+    ? (stock.quantityInStock / stock.minimumStockLevel) * 100
+    : 100);
 
-  let stockStatus = $derived(
-    stockPercentage <= 25
-      ? "critical"
-      : stockPercentage <= 50
-        ? "low"
-        : stockPercentage <= 100
-          ? "warning"
-          : "good",
-  );
+  let stockStatus = $derived(stockPercentage <= 25
+    ? 'critical'
+    : stockPercentage <= 50
+    ? 'low'
+    : stockPercentage <= 100
+    ? 'warning'
+    : 'good');
 
-  function handleAdjustStock(type: "add" | "remove") {
+  function handleAdjustStock(type: 'add' | 'remove') {
     // Dispatch event for stock adjustment
     console.log(`${type} stock for`, stock);
   }
 
   function handleReorder() {
     // Dispatch event to create purchase order
-    console.log("Reorder", stock);
+    console.log('Reorder', stock);
   }
 </script>
 
@@ -47,13 +39,13 @@
       {/if}
     </div>
     <div class="stock-badge" data-status={stockStatus}>
-      {#if stockStatus === "critical"}
+      {#if stockStatus === 'critical'}
         <AlertTriangle size={16} />
         Critical
-      {:else if stockStatus === "low"}
+      {:else if stockStatus === 'low'}
         <TrendingDown size={16} />
         Low
-      {:else if stockStatus === "warning"}
+      {:else if stockStatus === 'warning'}
         <Package size={16} />
         Warning
       {:else}
@@ -80,11 +72,11 @@
     <div class="thresholds">
       <div class="threshold">
         <span class="label">Minimum:</span>
-        <span class="value">{stock.minimumStockLevel || "N/A"}</span>
+        <span class="value">{stock.minimumStockLevel || 'N/A'}</span>
       </div>
       <div class="threshold">
         <span class="label">Reorder at:</span>
-        <span class="value">{stock.reorderPoint || "N/A"}</span>
+        <span class="value">{stock.reorderPoint || 'N/A'}</span>
       </div>
     </div>
 
@@ -104,16 +96,18 @@
   </div>
 
   <div class="stock-actions">
-    <button class="tag" onclick={() => handleAdjustStock("add")}>
+    <button class="tag" on:click={() => handleAdjustStock('add')}>
       <Plus size={14} />
       Add Stock
     </button>
-    <button class="tag" onclick={() => handleAdjustStock("remove")}>
+    <button class="tag" on:click={() => handleAdjustStock('remove')}>
       <Minus size={14} />
       Remove
     </button>
-    {#if stockStatus === "critical" || stockStatus === "low"}
-      <button class="rf-btn" onclick={handleReorder}> Reorder Now </button>
+    {#if stockStatus === 'critical' || stockStatus === 'low'}
+      <button class="rf-btn" on:click={handleReorder}>
+        Reorder Now
+      </button>
     {/if}
   </div>
 </div>

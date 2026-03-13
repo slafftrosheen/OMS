@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { stopPropagation } from 'svelte/legacy';
 
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import { Bell, BellRing, Check, CheckCheck, Trash2, Filter, RefreshCw, AlertTriangle, Info, Package, MessageSquare, Calendar, Settings } from 'lucide-svelte';
-  import { currentUser } from '$lib/auth/authState.svelte';
+  import { currentUser } from '$lib/auth/user-store';
 
   interface Notification {
     id: number;
@@ -18,10 +19,10 @@
     readAt: string | null;
   }
 
-  let notifications: Notification[] = $state([]);
-  let loading = $state(true);
-  let filter: 'all' | 'unread' | 'read' = $state('all');
-  let typeFilter: string = $state('all');
+  let notifications: Notification[] = [];
+  let loading = true;
+  let filter: 'all' | 'unread' | 'read' = 'all';
+  let typeFilter: string = 'all';
 
   const notificationTypes = [
     { value: 'all', label: 'All Types' },

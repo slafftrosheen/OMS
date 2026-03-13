@@ -1,28 +1,20 @@
+<!-- @migration-task Error while migrating Svelte code: Cannot use `export let` in runes mode — use `$props()` instead
+https://svelte.dev/e/legacy_export_invalid -->
 <script lang="ts">
-  import { onDestroy, onMount, untrack } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
 
-  interface Props {
-    type?: string;
-    options?: Record<string, any>;
-    series?: any[];
-    height?: number | string;
-    width?: number | string;
-  }
-
-  let { 
-    type = undefined, 
-    options = {}, 
-    series = [], 
-    height = undefined, 
-    width = undefined 
-  }: Props = $props();
+  export let type: string | undefined = undefined;
+  export let options: Record<string, any> | undefined = undefined;
+  export let series: any[] = [];
+  export let height: number | string | undefined = undefined;
+  export let width: number | string | undefined = undefined;
 
   const CDN_URL = 'https://cdn.jsdelivr.net/npm/apexcharts@3.49.1/dist/apexcharts.min.js';
 
-  let container: HTMLDivElement | undefined = $state(undefined);
+  let container: HTMLDivElement;
   let chart: any = null;
-  let mounted = $state(false);
-  let error = $state<string | null>(null);
+  let mounted = false;
+  let error: string | null = null;
 
   function getDocument(): Document | undefined {
     if (typeof document === 'undefined') return undefined;
@@ -75,59 +67,30 @@
     return (window as any).__apexchartsLoadPromise;
   }
 
-    function buildConfig() {
+  function buildConfig() {
+    const baseOptions = options ?? {};
+    const baseChart = baseOptions.chart ?? {};
+    const chartConfig = {
+      ...baseChart,
+      ...(type ? { type } : {}),
+      ...(height !== undefined ? { height } : {}),
+      ...(width !== undefined ? { width } : {})
+    };
 
-      // Use $state.snapshot to strip Svelte 5 proxies, as ApexCharts tries to modify these objects
+    const mergedOptions: Record<string, any> = {
+      ...baseOptions,
+      chart: chartConfig
+    };
 
-      const baseOptions = $state.snapshot(options) ?? {};
-
-      const baseSeries = $state.snapshot(series) ?? [];
-
-      
-
-      const baseChart = baseOptions.chart ?? {};
-
-      const chartConfig = {
-
-        ...baseChart,
-
-        ...(type ? { type } : {}),
-
-        ...(height !== undefined ? { height } : {}),
-
-        ...(width !== undefined ? { width } : {})
-
-      };
-
-  
-
-      const mergedOptions: Record<string, any> = {
-
-        ...baseOptions,
-
-        chart: chartConfig
-
-      };
-
-  
-
-      if (Object.keys(chartConfig).length === 0) {
-
-        delete mergedOptions.chart;
-
-      }
-
-  
-
-      return {
-
-        options: mergedOptions,
-
-        series: Array.isArray(baseSeries) ? baseSeries : []
-
-      };
-
+    if (Object.keys(chartConfig).length === 0) {
+      delete mergedOptions.chart;
     }
+
+    return {
+      options: mergedOptions,
+      series: Array.isArray(series) ? series : []
+    };
+  }
 
   async function createChart() {
     if (typeof window === 'undefined' || !container) return;
@@ -170,16 +133,22 @@
     };
   });
 
+  onDestroy(() => {
+    if (chart) {
+      chart.destroy();
+      chart = null;
+    }
+    mounted = false;
+  });
+
   $effect(() => {
-    // React to prop changes
-    const _opts = options;
-    const _series = series;
-    const _type = type;
-    const _height = height;
-    const _width = width;
-    
     if (mounted && chart) {
-      untrack(() => updateChart());
+      void options;
+      void series;
+      void type;
+      void height;
+      void width;
+      updateChart();
     }
   });
 </script>

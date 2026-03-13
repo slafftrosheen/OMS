@@ -1,4 +1,4 @@
-import type { default as ApexOptions } from 'apexcharts';
+import type { ApexOptions } from 'apexcharts';
 import { get } from 'svelte/store';
 import { theme, type ThemeName } from '$lib/stores/theme';
 

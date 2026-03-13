@@ -7,12 +7,12 @@
     onChange: (color: ColorSpec | null) => void;
   } = $props();
   
-  let mode: 'RAL' | 'PANTONE' | 'HEX' | 'CUSTOM' = 'RAL';
-  let ralInput = '';
-  let pantoneInput = '';
-  let hexInput = '';
-  let customName = '';
-  let finishType: ColorSpec['finishType'] = 'MATTE';
+  let mode = $state<'RAL' | 'PANTONE' | 'HEX' | 'CUSTOM'>('RAL');
+  let ralInput = $state('');
+  let pantoneInput = $state('');
+  let hexInput = $state('');
+  let customName = $state('');
+  let finishType = $state<ColorSpec['finishType']>('MATTE');
   
   function handleSubmit() {
     const color: ColorSpec = {

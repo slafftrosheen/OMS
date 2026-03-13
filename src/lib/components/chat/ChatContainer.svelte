@@ -1,48 +1,41 @@
+<!-- @migration-task Error while migrating Svelte code: Can't migrate code with afterUpdate. Please migrate by hand. -->
+<!-- src/lib/components/chat/ChatContainer.svelte -->
 <script lang="ts">
-    import { onMount } from "svelte";
-    import { getCurrentProfile } from "$lib/stores/auth";
-    import ChatMessage from "./ChatMessage.svelte";
-    import ChatInput from "./ChatInput.svelte";
+    import { onMount, afterUpdate } from 'svelte';
+    import { currentProfile } from '$lib/stores/auth';
+    import ChatMessage from './ChatMessage.svelte';
+    import ChatInput from './ChatInput.svelte';
 
-    let {
-        orderId,
-        messages = $bindable([]),
-        typingUsers = [],
-    }: {
-        orderId: string;
-        messages?: Array<{
-            id: string;
-            userId: string;
-            username: string;
-            message: string;
-            timestamp: Date;
-            edited?: boolean;
-            replyTo?: string;
-            attachments?: string[];
-        }>;
-        typingUsers?: string[];
-    } = $props();
+    export let orderId: string;
+    export let messages: Array<{
+        id: string;
+        userId: string;
+        username: string;
+        message: string;
+        timestamp: Date;
+        edited?: boolean;
+        replyTo?: string;
+        attachments?: string[];
+    }> = [];
+    export let typingUsers: string[] = [];
 
     let messagesContainer: HTMLDivElement;
-    let replyingTo: { id: string; username: string; message: string } | null =
-        $state(null);
-    let shouldScrollToBottom = $state(true);
+    let replyingTo: { id: string; username: string; message: string } | null = null;
+    let shouldScrollToBottom = true;
 
     async function loadMessages() {
         try {
-            const response = await fetch(
-                `/api/chat/messages?orderId=${orderId}`,
-            );
+            const response = await fetch(`/api/chat/messages?orderId=${orderId}`);
             const data = await response.json();
 
             if (data.success) {
                 messages = data.messages.map((m: any) => ({
                     ...m,
-                    timestamp: new Date(m.timestamp),
+                    timestamp: new Date(m.timestamp)
                 }));
             }
         } catch (error) {
-            console.error("Failed to load messages:", error);
+            console.error('Failed to load messages:', error);
         }
     }
 
@@ -50,30 +43,27 @@
         const { message, replyTo } = event.detail;
 
         try {
-            const response = await fetch("/api/chat/messages", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+            const response = await fetch('/api/chat/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     orderId,
                     message,
-                    replyTo,
-                }),
+                    replyTo
+                })
             });
 
             const data = await response.json();
 
             if (data.success) {
-                messages = [
-                    ...messages,
-                    {
-                        ...data.message,
-                        timestamp: new Date(data.message.timestamp),
-                    },
-                ];
+                messages = [...messages, {
+                    ...data.message,
+                    timestamp: new Date(data.message.timestamp)
+                }];
                 shouldScrollToBottom = true;
             }
         } catch (error) {
-            console.error("Failed to send message:", error);
+            console.error('Failed to send message:', error);
         }
     }
 
@@ -82,36 +72,36 @@
 
         try {
             const response = await fetch(`/api/chat/messages/${id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ message }),
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message })
             });
 
             if (response.ok) {
-                messages = messages.map((m) =>
-                    m.id === id ? { ...m, message, edited: true } : m,
+                messages = messages.map(m =>
+                    m.id === id ? { ...m, message, edited: true } : m
                 );
             }
         } catch (error) {
-            console.error("Failed to edit message:", error);
+            console.error('Failed to edit message:', error);
         }
     }
 
     async function deleteMessage(event: CustomEvent) {
         const messageId = event.detail;
 
-        if (!confirm("Are you sure you want to delete this message?")) return;
+        if (!confirm('Are you sure you want to delete this message?')) return;
 
         try {
             const response = await fetch(`/api/chat/messages/${messageId}`, {
-                method: "DELETE",
+                method: 'DELETE'
             });
 
             if (response.ok) {
-                messages = messages.filter((m) => m.id !== messageId);
+                messages = messages.filter(m => m.id !== messageId);
             }
         } catch (error) {
-            console.error("Failed to delete message:", error);
+            console.error('Failed to delete message:', error);
         }
     }
 
@@ -120,14 +110,14 @@
         replyingTo = {
             id: message.id,
             username: message.username,
-            message: message.message,
+            message: message.message
         };
     }
 
     function handleTyping(event: CustomEvent) {
         const isTyping = event.detail;
         // Send typing indicator to server via WebSocket
-        console.log("User typing:", isTyping);
+        console.log('User typing:', isTyping);
     }
 
     function handleScroll() {
@@ -149,11 +139,8 @@
         loadMessages();
     });
 
-    $effect(() => {
-        // Track messages length to trigger scroll on new messages
-        if (messages.length > 0) {
-            scrollToBottom();
-        }
+    afterUpdate(() => {
+        scrollToBottom();
     });
 </script>
 
@@ -161,18 +148,14 @@
     <div class="chat-header">
         <h3 class="chat-title">Order Discussion</h3>
         {#if messages.length > 0}
-            <span class="message-count"
-                >{messages.length} message{messages.length !== 1
-                    ? "s"
-                    : ""}</span
-            >
+            <span class="message-count">{messages.length} message{messages.length !== 1 ? 's' : ''}</span>
         {/if}
     </div>
 
     <div
         bind:this={messagesContainer}
         class="messages-container"
-        onscroll={handleScroll}
+        on:scroll={handleScroll}
     >
         {#if messages.length === 0}
             <div class="empty-state">
@@ -183,10 +166,10 @@
             {#each messages as message (message.id)}
                 <ChatMessage
                     {message}
-                    isOwn={message.userId === getCurrentProfile()?.id}
-                    onreply={handleReply}
-                    onedit={editMessage}
-                    ondelete={deleteMessage}
+                    isOwn={message.userId === $currentProfile?.id}
+                    on:reply={handleReply}
+                    on:edit={editMessage}
+                    on:delete={deleteMessage}
                 />
             {/each}
 
@@ -198,8 +181,7 @@
                         <span></span>
                     </div>
                     <span class="typing-text">
-                        {typingUsers.join(", ")}
-                        {typingUsers.length === 1 ? "is" : "are"} typing...
+                        {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
                     </span>
                 </div>
             {/if}
@@ -208,9 +190,9 @@
 
     <ChatInput
         {replyingTo}
-        onsend={sendMessage}
-        ontyping={handleTyping}
-        oncancelReply={() => (replyingTo = null)}
+        on:send={sendMessage}
+        on:typing={handleTyping}
+        on:cancelReply={() => replyingTo = null}
     />
 </div>
 
@@ -305,9 +287,7 @@
     }
 
     @keyframes typing {
-        0%,
-        60%,
-        100% {
+        0%, 60%, 100% {
             transform: translateY(0);
             opacity: 0.7;
         }

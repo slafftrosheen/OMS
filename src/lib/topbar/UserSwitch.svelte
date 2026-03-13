@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
 
-  import { currentUser, logout } from '$lib/auth/authState.svelte';
+  const bubble = createBubbler();
+  import { currentUser, logout } from '$lib/auth/user-store';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
   import { User, Settings, LogOut, ChevronDown } from 'lucide-svelte';

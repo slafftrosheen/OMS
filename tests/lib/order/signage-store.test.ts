@@ -9,7 +9,7 @@ import {
   setLoadingDate,
   addBadge,
   removeBadge
-} from '$lib/order/orderState.svelte';
+} from '$lib/order/signage-store';
 import { get } from 'svelte/store';
 import type { Order } from '$lib/order/types';
 

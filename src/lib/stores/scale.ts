@@ -72,9 +72,7 @@ if (browser) {
         }
       }
     })
-    .catch((error) => {
-      console.warn('Failed to load preferences for scale:', error);
-    });
+    .catch(() => {});
 }
 
 scale.subscribe((value) => {

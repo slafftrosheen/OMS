@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { error } from '@sveltejs/kit';
 
 /**
  * Generic validation function that takes a Zod schema and validates input data
@@ -49,22 +48,19 @@ export function validateData<T extends z.ZodSchema<any>>(
 export async function validateRequest<T extends z.ZodSchema<any>>(
   request: Request,
   schema: T
-): Promise<z.infer<T>> {
+): Promise<{
+  success: boolean;
+  data?: z.infer<T>;
+  errors?: Record<string, string[]>;
+}> {
   try {
     const json = await request.json();
-    const result = validateData(schema, json);
-    
-    if (!result.success) {
-      throw error(400, JSON.stringify({ 
-        error: 'Validation failed', 
-        details: result.errors 
-      }));
-    }
-    
-    return result.data;
-  } catch (e: any) {
-    if (e.status) throw e;
-    throw error(400, 'Invalid request body');
+    return validateData(schema, json);
+  } catch (e) {
+    return {
+      success: false,
+      errors: { general: ['Invalid JSON body'] }
+    };
   }
 }
 

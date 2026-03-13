@@ -93,11 +93,11 @@ import { t } from 'svelte-i18n';
     {/each}
   </div>
   <div class="row" style="margin-top:10px">
-    <Button variant="ghost" onclick={reset} disabled={!hasChanges}>{$t('progressEditor.reset')}</Button>
+    <Button variant="ghost" on:click={reset} disabled={!hasChanges}>{$t('progressEditor.reset')}</Button>
     {#if isAdmin}
-      <Button disabled={!hasChanges} onclick={submitAdmin}>{$t('progressEditor.applyAdmin')}</Button>
+      <Button disabled={!hasChanges} on:click={submitAdmin}>{$t('progressEditor.applyAdmin')}</Button>
     {:else}
-      <Button disabled={!hasChanges} onclick={submitStation}>{$t('progressEditor.propose')}</Button>
+      <Button disabled={!hasChanges} on:click={submitStation}>{$t('progressEditor.propose')}</Button>
     {/if}
   </div>
 </div>

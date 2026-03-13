@@ -40,19 +40,8 @@ export class EmailService {
      */
     async sendEmail(options: EmailOptions): Promise<boolean> {
         if (!this.enabled) {
-            // Dev mode: Log email to console
-            logger.info('[Email Dev Mode] Simulating email send', { 
-                to: options.to, 
-                subject: options.subject,
-                textPreview: options.text?.substring(0, 100) || 'No text content',
-                htmlPreview: options.html?.substring(0, 100) || 'No HTML content'
-            });
-            console.log('--- EMAIL CONTENT START ---');
-            console.log(`To: ${options.to}`);
-            console.log(`Subject: ${options.subject}`);
-            console.log(`Body: ${options.text || options.html}`);
-            console.log('--- EMAIL CONTENT END ---');
-            return true;
+            logger.debug('Email skipped (service disabled)', { to: options.to, subject: options.subject });
+            return false;
         }
 
         try {
@@ -98,35 +87,6 @@ export class EmailService {
                 <p>Station: <strong>${station}</strong></p>
                 <p>Reason: ${reason}</p>
                 <a href="${process.env.BASE_URL}/orders/${order.id}">View Details</a>
-            `
-        });
-    }
-
-    /**
-     * Send low stock alert
-     */
-    async sendLowStockAlert(to: string, data: { 
-        materials: Array<{ 
-            name: string; 
-            currentStock: number; 
-            minStock: number; 
-            unit: string;
-            url: string;
-        }>;
-        summary: string;
-    }): Promise<void> {
-        const materialsHtml = data.materials.map(m => 
-            `<li><strong>${m.name}</strong>: ${m.currentStock} ${m.unit} (min: ${m.min_stock})</li>`
-        ).join('');
-
-        await this.sendEmail({
-            to,
-            subject: `🚨 Low Stock Alert`,
-            html: `
-                <h1 style="color: #ff9800;">Low Stock Alert</h1>
-                <p>The following materials are below minimum stock levels:</p>
-                <ul>${materialsHtml}</ul>
-                <p><a href="${data.materials[0]?.url}">View Inventory</a></p>
             `
         });
     }

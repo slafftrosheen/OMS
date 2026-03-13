@@ -1,20 +1,22 @@
+<!-- @migration-task Error while migrating Svelte code: `$bindable()` can only be used inside a `$props()` declaration
+https://svelte.dev/e/bindable_invalid_location -->
 <!-- src/lib/components/ui/Input.svelte -->
 <script lang="ts">
     let {
-        value = $bindable(""),
-        type = "text",
-        label = null,
-        placeholder = "",
-        error = null,
-        hint = null,
+        value = $bindable('') as string | number,
+        type = 'text' as 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'search' | 'date' | 'time',
+        label = null as string | null,
+        placeholder = '',
+        error = null as string | null,
+        hint = null as string | null,
         disabled = false,
         required = false,
         readonly = false,
-        autocomplete = null,
-        id = null,
-        name = null,
-        icon = null,
-        iconPosition = "left",
+        autocomplete = null as string | null,
+        id = null as string | null,
+        name = null as string | null,
+        icon = null as string | null,
+        iconPosition = 'left' as 'left' | 'right',
         fullWidth = true,
         oninput,
         onchange,
@@ -23,16 +25,7 @@
         ...restProps
     }: {
         value?: string | number;
-        type?:
-            | "text"
-            | "email"
-            | "password"
-            | "number"
-            | "tel"
-            | "url"
-            | "search"
-            | "date"
-            | "time";
+        type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'search' | 'date' | 'time';
         label?: string | null;
         placeholder?: string;
         error?: string | null;
@@ -44,7 +37,7 @@
         id?: string | null;
         name?: string | null;
         icon?: string | null;
-        iconPosition?: "left" | "right";
+        iconPosition?: 'left' | 'right';
         fullWidth?: boolean;
         oninput?: (value: string | number) => void;
         onchange?: (value: string | number) => void;
@@ -57,7 +50,7 @@
 
     function handleInput(event: Event) {
         const target = event.target as HTMLInputElement;
-        value = type === "number" ? parseFloat(target.value) : target.value;
+        value = type === 'number' ? parseFloat(target.value) : target.value;
         oninput?.(value);
     }
 
@@ -86,15 +79,9 @@
         </label>
     {/if}
 
-    <div
-        class="input-wrapper"
-        class:has-icon-left={icon && iconPosition === "left"}
-        class:has-icon-right={icon && iconPosition === "right"}
-    >
-        {#if icon && iconPosition === "left"}
-            <span class="input-icon input-icon-left" aria-hidden="true"
-                >{icon}</span
-            >
+    <div class="input-wrapper" class:has-icon-left={icon && iconPosition === 'left'} class:has-icon-right={icon && iconPosition === 'right'}>
+        {#if icon && iconPosition === 'left'}
+            <span class="input-icon input-icon-left" aria-hidden="true">{icon}</span>
         {/if}
 
         <input
@@ -107,34 +94,24 @@
             id={inputId}
             class="input"
             class:input-error={hasError}
-            {value}
-            {autocomplete}
+            value={value}
+            autocomplete={autocomplete}
             oninput={handleInput}
             onchange={handleChange}
             onblur={handleBlur}
             onfocus={handleFocus}
             aria-invalid={hasError}
-            aria-describedby={error
-                ? `${inputId}-error`
-                : hint
-                  ? `${inputId}-hint`
-                  : undefined}
+            aria-describedby={error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined}
             {...restProps}
         />
 
-        {#if icon && iconPosition === "right"}
-            <span class="input-icon input-icon-right" aria-hidden="true"
-                >{icon}</span
-            >
+        {#if icon && iconPosition === 'right'}
+            <span class="input-icon input-icon-right" aria-hidden="true">{icon}</span>
         {/if}
     </div>
 
     {#if error}
-        <p
-            id="{inputId}-error"
-            class="input-message input-error-message"
-            role="alert"
-        >
+        <p id="{inputId}-error" class="input-message input-error-message" role="alert">
             {error}
         </p>
     {:else if hint}
@@ -182,9 +159,7 @@
         background-color: var(--color-bg, white);
         border: 1px solid var(--color-border, #ced4da);
         border-radius: 0.375rem;
-        transition:
-            border-color 0.15s ease,
-            box-shadow 0.15s ease;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
         font-family: inherit;
     }
 

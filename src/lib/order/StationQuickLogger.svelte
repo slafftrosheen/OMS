@@ -67,6 +67,6 @@
     </div>
   </div>
   <div class="row" style="margin-top:8px">
-    <Button onclick={send}>{$t('station.log')}</Button>
+    <Button on:click={send}>{$t('station.log')}</Button>
   </div>
 </div>

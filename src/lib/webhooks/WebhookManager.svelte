@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
 
+  const bubble = createBubbler();
 /**
  * Webhook Manager Component
  * UI for managing webhooks and integrations

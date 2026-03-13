@@ -4,6 +4,7 @@
   import { role } from '$lib/ui/RoleSwitch.svelte';
   import { TERMS } from '$lib/order/names';
   import { t } from 'svelte-i18n';
+  import { get } from 'svelte/store';
   import {
     ALLOWED,
     STATIONS,
@@ -55,19 +56,13 @@
     return Array.from(set);
   }
 
-  const stageLabels = $derived(
-    Object.fromEntries(
-      Object.entries(STATE_LABEL).map(([key, value]) => [key, $t(value)])
-    )
-  );
-
   function stageLabel(state: StageState) {
-    return stageLabels[state];
+    return get(t)(STATE_LABEL[state]);
   }
 
   function stationName(station: StationTag) {
     const name = TERMS.stations as Record<string, string>;
-    return $t(name?.[station] ?? station);
+    return get(t)(name?.[station] ?? station);
   }
 
   function submit(station: StationTag) {
@@ -104,16 +99,16 @@
             <option value={option}>{stageLabel(option)}</option>
           {/each}
         </select>
-        <label class="muted" for={`stage-note-${station}`} style="margin-top:6px">{$t('rework.note')}</label>
+        <label class="muted" for={`stage-note-${station}`} style="margin-top:6px">{get(t)('rework.note')}</label>
         <textarea
           id={`stage-note-${station}`}
           class="rf-input"
           rows="2"
           bind:value={notes[station]}
-          placeholder={$t('rework.note')}
+          placeholder={get(t)('rework.note')}
         ></textarea>
         <div class="row" style="justify-content:flex-end;margin-top:8px">
-          <Button onclick={() => submit(station)} disabled={selected[station] === current}>
+          <Button on:click={() => submit(station)} disabled={selected[station] === current}>
             {isAdmin ? $t('stageEditor.apply') : $t('stageEditor.propose')}
           </Button>
         </div>

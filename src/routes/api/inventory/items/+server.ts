@@ -5,7 +5,6 @@ import { parsePaginationFromUrl, formatPaginatedResponse, calculatePagination } 
 
 /**
  * GET /api/inventory/items - List all inventory items
- * Now queries from unified materials table
  */
 export const GET: RequestHandler = async ({ url, locals }) => {
   const category = url.searchParams.get('category');
@@ -14,23 +13,17 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const search = url.searchParams.get('search');
   const { page, limit } = parsePaginationFromUrl(url);
 
-  // Build filter conditions
-  const filters: Record<string, string> = {};
-  if (category) filters.category = category;
-  if (section) filters.section = section;
-
   // First get the count for pagination
   let countQuery = locals.supabase
-    .from('materials')
-    .select('*', { count: 'exact', head: true })
+    .from('inventory_items')
+    .select('*')
     .order('updated_at', { ascending: false });
 
   if (category) countQuery = countQuery.eq('category', category);
   if (section) countQuery = countQuery.eq('section', section);
-  // Don't filter by SKU - show all materials
 
   if (search) {
-    countQuery = countQuery.or(`sku.ilike.%${search}%,name_en.ilike.%${search}%,location.ilike.%${search}%,code.ilike.%${search}%`);
+    countQuery = countQuery.or(`sku.ilike.%${search}%,name.ilike.%${search}%,location.ilike.%${search}%`);
   }
 
   const { count: totalCount, error: countError } = await countQuery;
@@ -42,17 +35,16 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
   // Now get the actual data with pagination
   let paginatedQuery = locals.supabase
-    .from('materials')
+    .from('inventory_items')
     .select('*')
     .order('updated_at', { ascending: false })
-    .range((page - 1) * limit, page * limit - 1);
+    .range((page - 1) * limit, page * limit - 1); // Apply pagination
 
   if (category) paginatedQuery = paginatedQuery.eq('category', category);
   if (section) paginatedQuery = paginatedQuery.eq('section', section);
-  // Don't filter by SKU - show all materials
 
   if (search) {
-    paginatedQuery = paginatedQuery.or(`sku.ilike.%${search}%,name_en.ilike.%${search}%,location.ilike.%${search}%,code.ilike.%${search}%`);
+    paginatedQuery = paginatedQuery.or(`sku.ilike.%${search}%,name.ilike.%${search}%,location.ilike.%${search}%`);
   }
 
   const { data, error } = await paginatedQuery;
@@ -65,7 +57,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   let items = data.map(row => ({
       id: row.id,
       sku: row.sku,
-      name: row.name_en || row.code,
+      name: row.name,
       category: row.category,
       section: row.section,
       group: row.item_group,
@@ -94,18 +86,16 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 /**
  * POST /api/inventory/items - Create new inventory item
- * Now inserts into unified materials table
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
   const data = await request.json();
 
   const { data: item, error } = await locals.supabase
-    .from('materials')
+    .from('inventory_items')
     .insert({
-      id: data.id || crypto.randomUUID(),
+      id: data.id || `INV-${Date.now()}`,
       sku: data.sku,
-      code: data.code || 'INV-' + Date.now(),
-      name_en: data.name,
+      name: data.name,
       category: data.category || 'HARDWARE',
       section: data.section || 'materials',
       item_group: data.group || 'General',
@@ -113,18 +103,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       unit: data.unit || 'PCS',
       stock: data.stock || 0,
       min_stock: data.min || 0,
-      max_stock: data.max_stock || null,
       thickness_mm: data.thicknessMM || null,
       location: data.location || null,
       vendor: data.vendor || null,
-      supplier: data.supplier || null,
       color_code: data.colorCode || null,
-      hex_color: data.hexColor || null,
       barcode: data.barcode || null,
-      price: data.price || null,
       note: data.note || null,
-      leftover_data: data.leftover || null,
-      metadata: data.metadata || {}
+      leftover_data: data.leftover || null
     })
     .select()
     .single();
@@ -141,7 +126,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   return json({
     id: item.id,
     sku: item.sku,
-    name: item.name_en,
+    name: item.name,
     category: item.category,
     section: item.section,
     group: item.item_group,

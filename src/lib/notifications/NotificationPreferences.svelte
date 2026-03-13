@@ -1,5 +1,4 @@
 <script lang="ts">
-
 /**
  * Notification Preferences Component
  * User interface for managing email notification settings
@@ -84,7 +83,7 @@ async function savePreferences() {
   {:else if error}
     <div class="error" role="alert">{error}</div>
   {:else if preferences}
-    <form onsubmit={preventDefault(savePreferences)}>
+    <form onsubmit={(e) => { e.preventDefault(); savePreferences(); }}>
       <!-- Global Settings -->
       <section class="preferences-section">
         <h3>

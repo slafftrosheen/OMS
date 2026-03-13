@@ -1,13 +1,9 @@
+<!-- @migration-task Error while migrating Svelte code: Mixing old (on:click) and new syntaxes for event handling is not allowed. Use only the onclick syntax
+https://svelte.dev/e/mixed_event_handler_syntaxes -->
 <!-- src/lib/admin/components/builder/CanvasSection.svelte -->
 <script lang="ts">
-  import {
-    GripVertical,
-    Plus,
-    Copy,
-    Trash2,
-    MoreVertical,
-  } from "lucide-svelte";
-  import CanvasField from "./CanvasField.svelte";
+  import { GripVertical, Plus, Copy, Trash2, MoreVertical } from 'lucide-svelte';
+  import CanvasField from './CanvasField.svelte';
 
   let {
     section,
@@ -20,7 +16,7 @@
     onduplicate,
     onselectField,
     ondeleteField,
-    onduplicateField,
+    onduplicateField
   }: {
     section: any;
     selected?: boolean;
@@ -39,7 +35,7 @@
 
   function handleSectionClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    if (target === event.currentTarget || target.closest(".section-header")) {
+    if (target === event.currentTarget || target.closest('.section-header')) {
       onselect?.();
     }
   }
@@ -53,21 +49,17 @@
     event.preventDefault();
   }
 
-  let sectionDisplayName = $derived(
-    section.displayName?.en || section.display_name_en || section.name,
-  );
-  let headerColor = $derived(
-    section.metadata?.color || section.icon ? "#1a1a1a" : "#1a1a1a",
-  );
+  let sectionDisplayName = $derived(section.displayName?.en || section.display_name_en || section.name);
+  let headerColor = $derived(section.metadata?.color || section.icon ? '#1a1a1a' : '#1a1a1a');
 </script>
 
 <div
   class="canvas-section"
   class:selected
   class:drop-target={dropTarget}
-  onclick={handleSectionClick}
-  ondrop={handleDrop}
-  ondragover={handleDragOver}
+  on:click={handleSectionClick}
+  on:drop={handleDrop}
+  on:dragover={handleDragOver}
   role="button"
   tabindex="0"
 >
@@ -83,34 +75,18 @@
     <div class="section-header-actions">
       <button
         class="header-action-btn"
-        onclick={(e) => {
-          e.stopPropagation();
-          showActions = !showActions;
-        }}
+        on:click|stopPropagation={() => showActions = !showActions}
       >
         <MoreVertical size={16} />
       </button>
 
       {#if showActions}
-        <div
-          class="actions-dropdown"
-          onclick={(e: MouseEvent) => e.stopPropagation()}
-        >
-          <button
-            onclick={() => {
-              ondelete?.();
-              showActions = false;
-            }}
-          >
+        <div class="actions-dropdown" onclick={(e: MouseEvent) => e.stopPropagation()}>
+          <button onclick={() => { ondelete?.(); showActions = false; }}>
             <Trash2 size={14} />
             Delete
           </button>
-          <button
-            onclick={() => {
-              onduplicate?.();
-              showActions = false;
-            }}
-          >
+          <button onclick={() => { onduplicate?.(); showActions = false; }}>
             <Copy size={14} />
             Duplicate
           </button>
@@ -141,7 +117,7 @@
     {/if}
 
     <!-- Add Field Button -->
-    <button class="add-field-btn" onclick={(e) => e.stopPropagation()}>
+    <button class="add-field-btn" on:click|stopPropagation>
       <Plus size={16} />
       Add Field
     </button>
@@ -161,7 +137,7 @@
   }
 
   .canvas-section.selected {
-    border-color: #667eea;
+    border-color: #667EEA;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
   }
 
@@ -294,8 +270,8 @@
   }
 
   .add-field-btn:hover {
-    border-color: #667eea;
-    color: #667eea;
-    background: #eef2ff;
+    border-color: #667EEA;
+    color: #667EEA;
+    background: #EEF2FF;
   }
 </style>

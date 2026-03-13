@@ -1,6 +1,5 @@
 // src/lib/server/ai/AIService.ts
 import { logger } from '../logging/logger';
-import { SYSTEM_PROMPTS, TASK_PROMPTS } from '../../ai/prompts';
 
 interface AIConfig {
     apiKey: string;
@@ -39,8 +38,6 @@ class AIService {
         
         if (!this.enabled) {
             logger.warn('AI features disabled - DASHSCOPE_API_KEY not configured');
-            // We'll initialize config with dummy values to satisfy TS, but enabled flag prevents usage
-            this.config = { apiKey: '', baseUrl: '', model: '' };
             return;
         }
 
@@ -115,13 +112,25 @@ class AIService {
             throw new Error('AI service not configured');
         }
 
-        const systemPrompt = SYSTEM_PROMPTS.FABRICATION_EXPERT;
+        const systemPrompt = `You are an AI assistant for a manufacturing order management system.
+Your role is to analyze orders and suggest optimal workflow stages, timeline, and identify potential risks.
 
-        const userPrompt = TASK_PROMPTS.ANALYZE_ORDER(
-            orderData.title,
-            orderData.materials || [],
-            orderData.description || `Client: ${orderData.client}, Due: ${orderData.dueDate}`
-        );
+Available workflow stages: CAD (Design), CNC (Cutting), EDGE (Edge Banding), ASSEMBLY, PAINT, PACKAGING, DELIVERY
+
+Respond in JSON format with:
+- summary: Brief order overview
+- suggestedStages: Object with stage names as keys and suggested status ('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED') as values
+- estimatedDuration: Total estimated days
+- risks: Array of potential issues
+- recommendations: Array of actionable suggestions`;
+
+        const userPrompt = `Analyze this order:
+Title: ${orderData.title}
+Client: ${orderData.client}
+Due Date: ${orderData.dueDate}
+${orderData.description ? `Description: ${orderData.description}` : ''}
+${orderData.materials ? `Materials: ${orderData.materials.join(', ')}` : ''}
+${orderData.files ? `Files: ${orderData.files.map(f => f.name).join(', ')}` : ''}`;
 
         try {
             const response = await this.chat([
@@ -134,13 +143,7 @@ class AIService {
             });
 
             // Parse JSON response
-            // AI might return Markdown code blocks (```json ... ```), need to strip them
-            let content = response.content;
-            if (content.includes('```json')) {
-                content = content.replace(/```json\n?|\n?```/g, '');
-            }
-            
-            const analysis = JSON.parse(content);
+            const analysis = JSON.parse(response.content);
             return analysis;
 
         } catch (error) {
@@ -200,19 +203,20 @@ ${notes ? `Additional notes: ${notes}` : ''}`;
     async suggestMaterials(orderDetails: {
         title: string;
         description?: string;
-        type?: 'Lightbox' | 'Flat' | '3D Letter';
+        type?: string;
     }): Promise<string[]> {
         if (!this.enabled) {
             return [];
         }
 
-        const systemPrompt = SYSTEM_PROMPTS.FABRICATION_EXPERT;
-        
-        const type = (orderDetails.type === 'Lightbox' || orderDetails.type === '3D Letter') 
-            ? orderDetails.type 
-            : 'Flat';
+        const systemPrompt = `You are an expert in manufacturing materials.
+Suggest appropriate materials based on the order details.
+Return only a JSON array of material names.`;
 
-        const userPrompt = TASK_PROMPTS.SUGGEST_MATERIALS('Indoor', type);
+        const userPrompt = `Suggest materials for this order:
+Title: ${orderDetails.title}
+${orderDetails.description ? `Description: ${orderDetails.description}` : ''}
+${orderDetails.type ? `Type: ${orderDetails.type}` : ''}`;
 
         try {
             const response = await this.chat([
@@ -220,11 +224,8 @@ ${notes ? `Additional notes: ${notes}` : ''}`;
                 { role: 'user', content: userPrompt }
             ]);
 
-            const materials = response.content.split('\n')
-                .map(line => line.trim())
-                .filter(line => line.length > 0 && !line.startsWith('```'));
-                
-            return materials;
+            const materials = JSON.parse(response.content);
+            return Array.isArray(materials) ? materials : [];
 
         } catch (error) {
             logger.error('AI material suggestion failed', error as Error);

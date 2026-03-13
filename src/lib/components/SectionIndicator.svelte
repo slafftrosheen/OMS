@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from '$app/paths';
-  import { currentUser, switchSection } from '$lib/auth/authState.svelte';
+  import { currentUser, switchSection } from '$lib/auth/user-store';
   import { logAction } from '$lib/auth/audit-log';
   import type { Section } from '$lib/auth/types';
   

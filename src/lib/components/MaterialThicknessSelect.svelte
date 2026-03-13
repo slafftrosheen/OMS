@@ -7,7 +7,6 @@
     placeholder = 'Select thickness',
     disabled = false,
     readonly = false,
-    autoSelectLowest = true,
     onchange
   }: {
     value?: string;
@@ -15,7 +14,6 @@
     placeholder?: string;
     disabled?: boolean;
     readonly?: boolean;
-    autoSelectLowest?: boolean;
     onchange?: () => void;
   } = $props();
 
@@ -29,7 +27,6 @@
 
   let options: ThicknessOption[] = $state([]);
   let loading = $state(true);
-  let hasLoadedOnce = $state(false);
 
   onMount(async () => {
     await loadOptions();
@@ -41,20 +38,11 @@
       const response = await fetch(`/api/material-thickness-options?materialType=${materialType}`);
       if (response.ok) {
         options = await response.json();
-        
-        // Auto-select lowest thickness if enabled and value is empty
-        if (autoSelectLowest && !value && options.length > 0) {
-          // Sort by thickness to find the lowest
-          const sortedOptions = [...options].sort((a, b) => a.thickness - b.thickness);
-          const lowestOption = sortedOptions[0];
-          value = `${lowestOption.thickness}${lowestOption.unit}`;
-        }
       }
     } catch (err) {
       console.error('Failed to load thickness options:', err);
     } finally {
       loading = false;
-      hasLoadedOnce = true;
     }
   }
 
@@ -69,25 +57,14 @@
   }
 </script>
 
-{#if hasLoadedOnce && options.length > 0 && !loading}
-  <select bind:value disabled={disabled || readonly} class="thickness-select" onchange={handleChange}>
-    <option value="" disabled selected>Select thickness</option>
-    {#each options as option}
-      <option value="{option.thickness}{option.unit}">
-        {option.thickness}mm - {option.display_name}
-      </option>
-    {/each}
-  </select>
-{:else}
-  <select bind:value disabled={disabled || readonly} class="thickness-select" class:loading onchange={handleChange}>
-    <option value="" disabled selected>{loading ? 'Loading...' : placeholder}</option>
-    {#each options as option}
-      <option value="{option.thickness}{option.unit}">
-        {option.thickness}mm - {option.display_name}
-      </option>
-    {/each}
-  </select>
-{/if}
+<select bind:value disabled={disabled || readonly} class="thickness-select" class:loading onchange={handleChange}>
+  <option value="" disabled selected>{loading ? 'Loading...' : placeholder}</option>
+  {#each options as option}
+    <option value="{option.thickness}{option.unit}">
+      {option.display_name}
+    </option>
+  {/each}
+</select>
 
 <style>
   .thickness-select {
@@ -117,23 +94,5 @@
 
   .thickness-select.loading {
     opacity: 0.6;
-  }
-  
-  .selected-thickness {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    padding: 12px 16px;
-    border: 1px solid var(--border, #d1d5db);
-    border-radius: 8px;
-    background: var(--input-bg, white);
-    min-height: 44px;
-  }
-  
-  .thickness-value {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: var(--text-primary, #1a1a1a);
   }
 </style>

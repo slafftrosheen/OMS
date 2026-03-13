@@ -1,68 +1,67 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { page } from "$app/state";
-  import type { FAQListResponse } from "$lib/faq/types";
-  import FAQSearch from "$lib/faq/components/FAQSearch.svelte";
-  import FAQCategories from "$lib/faq/components/FAQCategories.svelte";
-  import FAQTags from "$lib/faq/components/FAQTags.svelte";
-  import FAQList from "$lib/faq/components/FAQList.svelte";
-  import { BookOpen } from "lucide-svelte";
+  import { onMount } from 'svelte';
+  import { page } from '$app/state';
+  import type { FAQListResponse } from '$lib/faq/types';
+  import FAQSearch from '$lib/faq/components/FAQSearch.svelte';
+  import FAQCategories from '$lib/faq/components/FAQCategories.svelte';
+  import FAQTags from '$lib/faq/components/FAQTags.svelte';
+  import FAQList from '$lib/faq/components/FAQList.svelte';
+  import { BookOpen } from 'lucide-svelte';
 
   let data: FAQListResponse = $state({
     items: [],
     total: 0,
     categories: [],
-    tags: [],
+    tags: []
   });
 
   let loading = $state(true);
   let selectedCategoryId: number | null = $state(null);
   let selectedTag: string | null = $state(null);
-  let searchQuery = $state("");
-  let lang: "en" | "ru" | "lv" = $state("en");
+  let searchQuery = $state('');
+  let lang: 'en' | 'ru' | 'lv' = $state('en');
 
   async function loadFAQs() {
     loading = true;
     try {
       const params = new URLSearchParams();
-      if (selectedCategoryId)
-        params.append("categoryId", selectedCategoryId.toString());
-      if (selectedTag) params.append("tag", selectedTag);
-      if (searchQuery) params.append("search", searchQuery);
-      params.append("lang", lang);
+      if (selectedCategoryId) params.append('categoryId', selectedCategoryId.toString());
+      if (selectedTag) params.append('tag', selectedTag);
+      if (searchQuery) params.append('search', searchQuery);
+      params.append('lang', lang);
 
       const response = await fetch(`/api/faq?${params}`);
       if (response.ok) {
         data = await response.json();
       }
     } catch (error) {
-      console.error("Failed to load FAQs:", error);
+      console.error('Failed to load FAQs:', error);
     } finally {
       loading = false;
     }
   }
 
-  function handleCategorySelect(categoryId: number | null) {
-    selectedCategoryId = categoryId;
+  function handleCategorySelect(event: CustomEvent<number | null>) {
+    selectedCategoryId = event.detail;
     selectedTag = null;
     loadFAQs();
   }
 
-  function handleTagSelect(tag: string | null) {
-    selectedTag = tag;
+  function handleTagSelect(event: CustomEvent<string | null>) {
+    selectedTag = event.detail;
     loadFAQs();
   }
 
-  function handleSearch(query: string) {
-    searchQuery = query;
+  function handleSearch(event: CustomEvent<string>) {
+    searchQuery = event.detail;
     loadFAQs();
   }
 
   onMount(() => {
     // Get lang from URL or localStorage
-    const urlLang = page.url.searchParams.get("lang");
-    if (urlLang && ["en", "ru", "lv"].includes(urlLang)) {
-      lang = urlLang as "en" | "ru" | "lv";
+    const urlLang = page.url.searchParams.get('lang');
+    if (urlLang && ['en', 'ru', 'lv'].includes(urlLang)) {
+      lang = urlLang as 'en' | 'ru' | 'lv';
     }
     loadFAQs();
   });
@@ -70,10 +69,7 @@
 
 <svelte:head>
   <title>FAQ - Knowledge Base | Reclame OMS</title>
-  <meta
-    name="description"
-    content="Comprehensive FAQ and knowledge base for Reclame OMS"
-  />
+  <meta name="description" content="Comprehensive FAQ and knowledge base for Reclame OMS" />
 </svelte:head>
 
 <div class="faq-page">
@@ -84,15 +80,14 @@
         <h1>Knowledge Base</h1>
       </div>
       <p class="header-subtitle">
-        Find answers to common questions about profiles, materials,
-        manufacturing, and more
+        Find answers to common questions about profiles, materials, manufacturing, and more
       </p>
     </div>
 
     <div class="header-search">
       <FAQSearch
         bind:value={searchQuery}
-        onsearch={handleSearch}
+        on:search={handleSearch}
         placeholder="Search for answers..."
       />
     </div>
@@ -104,12 +99,16 @@
         categories={data.categories}
         selectedId={selectedCategoryId}
         {lang}
-        onselect={handleCategorySelect}
+        on:select={handleCategorySelect}
       />
 
       {#if data.tags.length > 0}
         <div class="sidebar-section">
-          <FAQTags tags={data.tags} {selectedTag} onselect={handleTagSelect} />
+          <FAQTags
+            tags={data.tags}
+            selectedTag={selectedTag}
+            on:select={handleTagSelect}
+          />
         </div>
       {/if}
     </aside>
@@ -124,20 +123,16 @@
         <div class="faq-results-header">
           <h2>
             {#if selectedCategoryId}
-              {data.categories.find((c) => c.id === selectedCategoryId)
-                ?.nameEn || "Category"}
+              {data.categories.find(c => c.id === selectedCategoryId)?.nameEn || 'Category'}
             {:else if selectedTag}
-              Tag: {data.tags.find((t) => t.slug === selectedTag)?.name ||
-                selectedTag}
+              Tag: {data.tags.find(t => t.slug === selectedTag)?.name || selectedTag}
             {:else if searchQuery}
               Search Results
             {:else}
               All FAQs
             {/if}
           </h2>
-          <span class="results-count"
-            >{data.total} {data.total === 1 ? "result" : "results"}</span
-          >
+          <span class="results-count">{data.total} {data.total === 1 ? 'result' : 'results'}</span>
         </div>
 
         <FAQList items={data.items} {lang} />

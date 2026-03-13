@@ -2,14 +2,14 @@
   import { base } from '$app/paths';
   import { page } from '$app/state';
   import { onMount } from 'svelte';
-  import { getOrder } from '$lib/order/orderState.svelte';
+  import { getOrder } from '$lib/order/signage-store';
   import { STATIONS, STATE_LABEL } from '$lib/order/stages';
   import { t } from 'svelte-i18n';
   import type { Order } from '$lib/order/types.signage';
   
   let id = $derived(page.params.id);
   
-  let o: Order | null = $state(null);
+  let o: Order | null = null;
   
   onMount(async () => {
     o = await getOrder(id);

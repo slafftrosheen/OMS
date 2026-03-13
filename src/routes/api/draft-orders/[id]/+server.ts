@@ -17,7 +17,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
         profiles:order_profiles(
           id,
           profile_template_id,
-          quantity:quantity1,
+          quantity,
           configuration,
           notes
         )
@@ -25,13 +25,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
       .or(`id.eq.${params.id},po_number.eq.${params.id}`)
       .single();
 
-    if (fetchError) {
-       if (fetchError.code === 'PGRST116') throw error(404, 'Order not found');
-       console.error('Supabase error fetching order:', fetchError);
-       throw error(500, `Database error: ${fetchError.message}`);
-    }
-
-    if (!order) {
+    if (fetchError || !order) {
        throw error(404, 'Order not found');
     }
 
@@ -121,29 +115,23 @@ export const PUT: RequestHandler = async (event) => {
 
     if (updateError) throw updateError;
 
-    // Update profiles
+    // Update profiles atomically to avoid race conditions
     if (data.profiles && Array.isArray(data.profiles)) {
         const profilesToInsert = data.profiles.map((p: any) => ({
             draft_order_id: order.id,
             profile_template_id: p.profileTemplateId || null,
-            quantity1: p.quantity || 1,
+            quantity: p.quantity || 1,
             configuration: p.configuration || {},
             notes: p.notes || ''
         }));
 
-        // Try to use RPC, fallback to manual if it fails
+        // Use a single transaction to replace all profiles for this order
         const { error: profilesError } = await event.locals.supabase.rpc('replace_order_profiles', {
             target_order_id: order.id,
             new_profiles: profilesToInsert
         });
 
-        if (profilesError) {
-            console.warn('RPC replace_order_profiles failed, falling back to manual delete/insert', profilesError);
-            // Manual fallback: delete and insert
-            await event.locals.supabase.from('order_profiles').delete().eq('draft_order_id', order.id);
-            const { error: insertError } = await event.locals.supabase.from('order_profiles').insert(profilesToInsert);
-            if (insertError) throw insertError;
-        }
+        if (profilesError) throw profilesError;
     }
 
     // Link new files
@@ -158,8 +146,7 @@ export const PUT: RequestHandler = async (event) => {
     }
 
     return json({
-      id: updatedOrder.id,
-      poNumber: updatedOrder.po_number,
+      id: updatedOrder.po_number,
       client: updatedOrder.client,
       title: updatedOrder.title,
       due: updatedOrder.due_date,

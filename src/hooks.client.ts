@@ -6,7 +6,7 @@ import type { HandleClientError } from '@sveltejs/kit';
 // Initialize Sentry on the client
 initSentry();
 
-const customHandleError: HandleClientError = ({ error, event }) => {
+const customHandleError: HandleClientError = ({ error }) => {
     console.error('Client Error:', error);
 
     // We could return a custom message or error ID here if needed

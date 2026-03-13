@@ -1,29 +1,26 @@
 <!-- src/lib/components/chat/ChatInput.svelte -->
 <script lang="ts">
-    import Button from "$lib/components/ui/Button.svelte";
+    import Button from '$lib/components/ui/Button.svelte';
 
     let {
-        placeholder = "Type a message...",
+        placeholder = 'Type a message...',
         disabled = false,
         replyingTo = null,
         ontyping,
         onsend,
         oncancelReply,
-        onfileSelect,
+        onfileSelect
     }: {
         placeholder?: string;
         disabled?: boolean;
         replyingTo?: { id: string; username: string; message: string } | null;
         ontyping?: (typing: boolean) => void;
-        onsend?: (data: {
-            message: string;
-            replyTo: string | undefined;
-        }) => void;
+        onsend?: (data: { message: string; replyTo: string | undefined }) => void;
         oncancelReply?: () => void;
         onfileSelect?: (files: File[]) => void;
     } = $props();
 
-    let message = "";
+    let message = '';
     let textareaElement: HTMLTextAreaElement;
     let isTyping = false;
     let typingTimeout: number;
@@ -31,8 +28,8 @@
     function handleInput() {
         // Auto-resize textarea
         if (textareaElement) {
-            textareaElement.style.height = "auto";
-            textareaElement.style.height = textareaElement.scrollHeight + "px";
+            textareaElement.style.height = 'auto';
+            textareaElement.style.height = textareaElement.scrollHeight + 'px';
         }
 
         // Typing indicator
@@ -49,7 +46,7 @@
     }
 
     function handleKeydown(event: KeyboardEvent) {
-        if (event.key === "Enter" && !event.shiftKey) {
+        if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
             sendMessage();
         }
@@ -61,12 +58,12 @@
 
         onsend?.({
             message: trimmed,
-            replyTo: replyingTo?.id,
+            replyTo: replyingTo?.id
         });
 
-        message = "";
+        message = '';
         if (textareaElement) {
-            textareaElement.style.height = "auto";
+            textareaElement.style.height = 'auto';
         }
         cancelReply();
     }
@@ -88,21 +85,10 @@
     {#if replyingTo}
         <div class="reply-preview">
             <div class="reply-content">
-                <span class="reply-label"
-                    >Replying to {replyingTo.username}</span
-                >
-                <p class="reply-message">
-                    {replyingTo.message.substring(0, 100)}{replyingTo.message
-                        .length > 100
-                        ? "..."
-                        : ""}
-                </p>
+                <span class="reply-label">Replying to {replyingTo.username}</span>
+                <p class="reply-message">{replyingTo.message.substring(0, 100)}{replyingTo.message.length > 100 ? '...' : ''}</p>
             </div>
-            <button
-                class="reply-cancel"
-                onclick={cancelReply}
-                aria-label="Cancel reply"
-            >
+            <button class="reply-cancel" onclick={cancelReply} aria-label="Cancel reply">
                 ✕
             </button>
         </div>
@@ -130,13 +116,13 @@
             class="message-input"
             rows="1"
             aria-label="Message input"
-        ></textarea>
+></textarea>
 
         <Button
             variant="primary"
             size="sm"
             disabled={!message.trim() || disabled}
-            onclick={sendMessage}
+            on:click={sendMessage}
             icon="📤"
             iconPosition="right"
         >

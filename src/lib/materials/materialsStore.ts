@@ -1,4 +1,4 @@
-import { writable, derived, type Readable } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 
 export type Material = {
   id: string;
@@ -16,8 +16,6 @@ function createMaterialsStore() {
 
   return {
     subscribe,
-    set,
-    update,
     load: async () => {
       try {
         const res = await fetch('/api/materials');
@@ -29,9 +27,8 @@ function createMaterialsStore() {
         console.error('Failed to load materials', e);
       }
     },
-    getByCategory: (category: string): Readable<Material[]> => {
-        const store = { subscribe };
-        return derived(store, ($materials: Material[]) =>
+    getByCategory: (category: string) => {
+        return derived({ subscribe }, $materials =>
             $materials.filter(m => m.category === category)
         );
     }

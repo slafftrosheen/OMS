@@ -11,19 +11,19 @@
     revision = 'current' 
   } = $props();
   
-  let canvasEl;
-  let pageNum = 1;
-  let pageCount = 1;
-  let scale = defaultScale;
+  let canvasEl = $state();
+  let pageNum = $state(1);
+  let pageCount = $state(1);
+  let scale = $state(defaultScale);
   let pdfjsLib;
   let mounted = false;
   let pdfDoc;
   let renderTask;
   let currentSrc = '';
-  let loading = false;
-  let error = '';
+  let loading = $state(false);
+  let error = $state('');
   let lastSrc = '';
-  let full = false;
+  let full = $state(false);
   let hostEl;
   let container;
   let ro;

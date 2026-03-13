@@ -1,18 +1,17 @@
 import { error } from '@sveltejs/kit';
-import type { RequestEvent } from '@sveltejs/kit';
-import { isAdmin } from './session';
+import type { RequestEvent } from './$types';
 
 /**
  * Check if the current user owns a specific resource
  * @param event The SvelteKit request event
- * @param tableName The name of the table where ownership is defined
  * @param resourceId The ID of the resource to check ownership for
+ * @param tableName The name of the table where ownership is defined
  * @param userIdColumn The column name that stores the user ID (defaults to 'created_by')
  */
 export async function requireOwnership(
   event: RequestEvent,
-  tableName: string,
   resourceId: string,
+  tableName: string,
   userIdColumn: string = 'created_by'
 ): Promise<boolean> {
   // Get the current user from the session
@@ -22,23 +21,20 @@ export async function requireOwnership(
     throw error(401, 'Authentication required');
   }
 
-  // Admin can access everything
-  if (isAdmin(currentUser)) return true;
-
   // Query the database to check if the resource belongs to the current user
   const { data, error: dbError } = await event.locals.supabase
     .from(tableName)
     .select(userIdColumn)
-    .or(`id.eq.${resourceId},po_number.eq.${resourceId}`)
+    .eq('id', resourceId)
     .single();
 
   if (dbError) {
-    console.error(`Database error checking ownership for ${tableName} (ID: ${resourceId})`, dbError);
-    if (dbError.code === 'PGRST116') throw error(404, 'Resource not found');
-    throw error(500, `Database error: ${dbError.message}`);
+    console.error(`Database error checking ownership for ${tableName}`, dbError);
+    throw error(500, 'Internal server error');
   }
 
   if (!data) {
+    // Resource doesn't exist
     throw error(404, 'Resource not found');
   }
 
@@ -66,13 +62,9 @@ export async function requireRole(
     throw error(401, 'Authentication required');
   }
 
-  if (isAdmin(currentUser)) return true;
-
-  // Check if any section has the required role
-  const hasRole = Object.values(currentUser.roles).includes(requiredRole);
-
-  if (!hasRole) {
-    throw error(403, `Access denied: Role '${requiredRole}' required`);
+  // Check if the user has the required role
+  if (currentUser.role !== requiredRole && currentUser.role !== 'admin') {
+    throw error(403, `Access denied: Role '${requiredRole}' or higher required`);
   }
 
   return true;
@@ -93,12 +85,9 @@ export async function requireAnyRole(
     throw error(401, 'Authentication required');
   }
 
-  if (isAdmin(currentUser)) return true;
-
-  const hasAnyRole = Object.values(currentUser.roles).some(role => allowedRoles.includes(role));
-
-  if (!hasAnyRole) {
-    throw error(403, `Access denied: One of [${allowedRoles.join(', ')}] role required`);
+  // Check if the user has any of the allowed roles or is an admin
+  if (!allowedRoles.includes(currentUser.role) && currentUser.role !== 'admin') {
+    throw error(403, `Access denied: One of [${allowedRoles.join(', ')}] or admin role required`);
   }
 
   return true;
@@ -109,17 +98,7 @@ export async function requireAnyRole(
  * @param event The SvelteKit request event
  */
 export async function requireAdmin(event: RequestEvent): Promise<boolean> {
-  const currentUser = event.locals.user;
-
-  if (!currentUser) {
-    throw error(401, 'Authentication required');
-  }
-
-  if (!isAdmin(currentUser)) {
-    throw error(403, 'Access denied: Admin role required');
-  }
-
-  return true;
+  return requireRole(event, 'admin');
 }
 
 /**

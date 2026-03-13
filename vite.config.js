@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import dotenv from 'dotenv';
@@ -29,5 +30,8 @@ export default defineConfig({
       // Removed manualChunks for chart.js as it conflicts with external
       // Vite will automatically handle chunking for browser libraries
     }
+  },
+  test: {
+    environment: 'jsdom'
   }
 });

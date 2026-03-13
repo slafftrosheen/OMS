@@ -1,5 +1,4 @@
 <script lang="ts">
-
   import { t } from 'svelte-i18n';
   interface Props {
     open?: boolean;
@@ -15,7 +14,7 @@
 
 {#if open}
 <div class="cmd" role="dialog" tabindex="0" aria-modal="true" aria-label={$t('help.title') || 'Keyboard shortcuts'} onclick={close} onkeydown={close}>
-  <div class="panel" onclick={stopPropagation(bubble('click'))} onkeydown={stopPropagation(bubble('keydown'))} role="document" tabindex="0">
+  <div class="panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="document" tabindex="0">
     <h3>{$t('help.title') || 'Shortcuts'}</h3>
     <ul>
       <li><b>Ctrl/Cmd + K</b> — Command palette</li>

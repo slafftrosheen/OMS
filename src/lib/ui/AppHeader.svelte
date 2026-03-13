@@ -5,7 +5,7 @@
   import BellIcon from 'lucide-svelte/icons/bell';
   import HelpCircle from 'lucide-svelte/icons/help-circle';
   import { users, loadUsers, currentUserId } from '$lib/users/user-store';
-  import { currentUser } from '$lib/auth/authState.svelte';
+  import { currentUser } from '$lib/auth/user-store';
   import { unseenCount } from '$lib/notifications/count';
   import RoleSwitch from './RoleSwitch.svelte';
   import { t } from 'svelte-i18n';

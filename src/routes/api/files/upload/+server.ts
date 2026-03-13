@@ -51,64 +51,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         // Check if S3 is enabled
         if (!storageService.isEnabled()) {
             logger.warn('S3 not configured, falling back to local storage');
-            
-            // Implement local fallback storage
-            const fs = await import('fs');
-            const path = await import('path');
-            const os = await import('os');
-            
-            // Create uploads directory if it doesn't exist
-            const uploadDir = path.join(process.cwd(), 'uploads');
-            if (!fs.existsSync(uploadDir)) {
-                fs.mkdirSync(uploadDir, { recursive: true });
-            }
-            
-            // Generate unique filename
-            const fileName = `${Date.now()}-${Math.round(Math.random() * 1000000)}-${file.name}`;
-            const filePath = path.join(uploadDir, fileName);
-            
-            // Write file to local storage
-            const arrayBuffer = await file.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-            fs.writeFileSync(filePath, buffer);
-            
-            // Save to database with local path
-            const { data: dbFile, error: dbError } = await locals.supabase
-                .from('order_files')
-                .insert({
-                    order_id: orderId,
-                    file_name: file.name,
-                    file_type: fileType,
-                    storage_key: fileName, // Store just the filename for local storage
-                    file_size: file.size,
-                    mime_type: file.type,
-                    uploaded_by: user.id,
-                    url: `/uploads/${fileName}` // Serve from local uploads path
-                })
-                .select()
-                .single();
-
-            if (dbError) {
-                // Cleanup local file if database insert fails
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
-                }
-                logger.error('Database insert failed after local upload', dbError, {
-                    filePath
-                });
-                throw svelteError(500, 'Failed to save file record');
-            }
-
-            logger.info('File uploaded to local storage successfully', {
-                fileId: dbFile.id,
-                orderId,
-                size: file.size
-            });
-
-            return json({
-                success: true,
-                file: dbFile
-            });
+            // TODO: Implement local fallback
+            throw svelteError(503, 'File storage not available');
         }
 
         // Upload to S3

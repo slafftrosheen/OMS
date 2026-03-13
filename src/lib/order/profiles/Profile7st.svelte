@@ -1,14 +1,16 @@
+<!-- @migration-task Error while migrating Svelte code: Mixing old (on:change) and new syntaxes for event handling is not allowed. Use only the onchange syntax
+https://svelte.dev/e/mixed_event_handler_syntaxes -->
 <script lang="ts">
-  import { X } from "lucide-svelte";
-  import MaterialSelector from "../form-elements/MaterialSelector.svelte";
-  import DimensionInput from "../form-elements/DimensionInput.svelte";
-  import ColorSwatchSelector from "../form-elements/ColorSwatchSelector.svelte";
-  import Input from "$lib/ui/Input.svelte";
+  import { X } from 'lucide-svelte';
+  import MaterialSelector from '../form-elements/MaterialSelector.svelte';
+  import DimensionInput from '../form-elements/DimensionInput.svelte';
+  import ColorSwatchSelector from '../form-elements/ColorSwatchSelector.svelte';
+  import Input from '$lib/ui/Input.svelte';
 
   let {
     data = $bindable({} as any),
     onRemove = () => {},
-    showRemove = true,
+    showRemove = true
   }: {
     data?: any;
     onRemove?: () => void;
@@ -17,89 +19,51 @@
 
   // Initialize data structure with defaults
   $effect(() => {
-    if (!data.lineFreezer)
-      data.lineFreezer = {
-        alu13: false,
-        alu15: false,
-        thickness: "",
-        size: "",
-        opalMaterial: "",
-      };
-    if (!data.benderSides)
-      data.benderSides = {
-        opalMaterial: "",
-        frontMaterial: "",
-        sidesMaterial: "",
-        color: "",
-        print: false,
-      };
-    if (!data.painting)
-      data.painting = {
-        frameType: "",
-        backMaterial: "",
-        color: "",
-        noLed: false,
-        print: false,
-      };
-    if (!data.assembling)
-      data.assembling = {
-        ledType: "",
-        waterproof: [],
-        frameOptions: [],
-        specialRequirements: [],
-      };
-    if (!data.delivery) data.delivery = { deliveryDate: "" };
+    if (!data.lineFreezer) data.lineFreezer = { alu13: false, alu15: false, thickness: '', size: '', opalMaterial: '' };
+    if (!data.benderSides) data.benderSides = { opalMaterial: '', frontMaterial: '', sidesMaterial: '', color: '', print: false };
+    if (!data.painting) data.painting = { frameType: '', backMaterial: '', color: '', noLed: false, print: false };
+    if (!data.assembling) data.assembling = { ledType: '', waterproof: [], frameOptions: [], specialRequirements: [] };
+    if (!data.delivery) data.delivery = { deliveryDate: '' };
   });
 
   // Material options
-  const materialOptions = [
-    "OPAL",
-    "ALU 1.3",
-    "ALU 1.5",
-    "FRONT",
-    "SIDES",
-    "BACK",
-  ];
-  const frameTypes = ["NO FRAME", "WITH FRAME", "HALF FRAME", "CUSTOM"];
-  const ledTypes = ["Bell LED", "SLOAN", "REGULAR", "WARM WHITE"];
+  const materialOptions = ['OPAL', 'ALU 1.3', 'ALU 1.5', 'FRONT', 'SIDES', 'BACK'];
+  const frameTypes = ['NO FRAME', 'WITH FRAME', 'HALF FRAME', 'CUSTOM'];
+  const ledTypes = ['Bell LED', 'SLOAN', 'REGULAR', 'WARM WHITE'];
 
   // Color options with RAL codes
   const colors = [
-    { code: "3020", hex: "#cc2a1f", name: "Traffic Red" },
-    { code: "9005", hex: "#0a0a0a", name: "Jet Black" },
-    { code: "9006", hex: "#a5a5a6", name: "White Aluminium" },
-    { code: "1023", hex: "#f8b000", name: "Traffic Yellow" },
-    { code: "5015", hex: "#2271b3", name: "Sky Blue" },
+    { code: '3020', hex: '#cc2a1f', name: 'Traffic Red' },
+    { code: '9005', hex: '#0a0a0a', name: 'Jet Black' },
+    { code: '9006', hex: '#a5a5a6', name: 'White Aluminium' },
+    { code: '1023', hex: '#f8b000', name: 'Traffic Yellow' },
+    { code: '5015', hex: '#2271b3', name: 'Sky Blue' },
   ];
 
   // Waterproof options
   const waterproofOptions = [
-    { id: "ip65", label: "IP65" },
-    { id: "ip67", label: "IP67" },
-    { id: "outdoor", label: "OUTDOOR" },
+    { id: 'ip65', label: 'IP65' },
+    { id: 'ip67', label: 'IP67' },
+    { id: 'outdoor', label: 'OUTDOOR' },
   ];
 
   // Frame options
   const frameOptionsList = [
-    { id: "trace", label: "TRACE" },
-    { id: "cable", label: "CABLE" },
+    { id: 'trace', label: 'TRACE' },
+    { id: 'cable', label: 'CABLE' },
   ];
 
   // Special requirements
   const specialRequirementsList = [
-    { id: "9006_silver", label: "9006 SILVER" },
-    { id: "distance", label: "DISTANCE" },
-    { id: "custom_mount", label: "CUSTOM MOUNT" },
+    { id: '9006_silver', label: '9006 SILVER' },
+    { id: 'distance', label: 'DISTANCE' },
+    { id: 'custom_mount', label: 'CUSTOM MOUNT' },
   ];
 
   function formatDate(dateStr: string): string {
-    if (!dateStr) return "";
+    if (!dateStr) return '';
     const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   }
 </script>
 
@@ -238,18 +202,12 @@
                 <input
                   type="checkbox"
                   checked={data.assembling.waterproof.includes(option.id)}
-                  onchange={(e) => {
+                  on:change={(e) => {
                     const checked = e.currentTarget.checked;
                     if (checked) {
-                      data.assembling.waterproof = [
-                        ...data.assembling.waterproof,
-                        option.id,
-                      ];
+                      data.assembling.waterproof = [...data.assembling.waterproof, option.id];
                     } else {
-                      data.assembling.waterproof =
-                        data.assembling.waterproof.filter(
-                          (id) => id !== option.id,
-                        );
+                      data.assembling.waterproof = data.assembling.waterproof.filter(id => id !== option.id);
                     }
                   }}
                 />
@@ -267,18 +225,12 @@
                 <input
                   type="checkbox"
                   checked={data.assembling.frameOptions.includes(option.id)}
-                  onchange={(e) => {
+                  on:change={(e) => {
                     const checked = e.currentTarget.checked;
                     if (checked) {
-                      data.assembling.frameOptions = [
-                        ...data.assembling.frameOptions,
-                        option.id,
-                      ];
+                      data.assembling.frameOptions = [...data.assembling.frameOptions, option.id];
                     } else {
-                      data.assembling.frameOptions =
-                        data.assembling.frameOptions.filter(
-                          (id) => id !== option.id,
-                        );
+                      data.assembling.frameOptions = data.assembling.frameOptions.filter(id => id !== option.id);
                     }
                   }}
                 />
@@ -295,21 +247,13 @@
               <label class="checkbox-label">
                 <input
                   type="checkbox"
-                  checked={data.assembling.specialRequirements.includes(
-                    option.id,
-                  )}
-                  onchange={(e) => {
+                  checked={data.assembling.specialRequirements.includes(option.id)}
+                  on:change={(e) => {
                     const checked = e.currentTarget.checked;
                     if (checked) {
-                      data.assembling.specialRequirements = [
-                        ...data.assembling.specialRequirements,
-                        option.id,
-                      ];
+                      data.assembling.specialRequirements = [...data.assembling.specialRequirements, option.id];
                     } else {
-                      data.assembling.specialRequirements =
-                        data.assembling.specialRequirements.filter(
-                          (id) => id !== option.id,
-                        );
+                      data.assembling.specialRequirements = data.assembling.specialRequirements.filter(id => id !== option.id);
                     }
                   }}
                 />

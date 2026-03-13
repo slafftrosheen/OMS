@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
 
+  const bubble = createBubbler();
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
-  import { currentUser } from '$lib/auth/authState.svelte';
+  import { currentUser } from '$lib/auth/user-store';
   import { UserPlus, Edit2, Trash2, Key, Search, X, Check, AlertCircle } from 'lucide-svelte';
 
   interface User {
@@ -543,7 +545,7 @@
           </div>
 
           <div class="form-group">
-            <span class="group-label" id="sections-label">{$t('admin.users.form.sections')}</span>
+            <label id="sections-label">{$t('admin.users.form.sections')}</label>
             <div class="checkbox-group" role="group" aria-labelledby="sections-label">
               {#each allSections as section}
                 <label class="checkbox-item">
@@ -568,12 +570,12 @@
           </div>
 
           <div class="form-group">
-            <span class="group-label" id="roles-per-section-label">{$t('admin.users.form.roles_per_section')}</span>
+            <label id="roles-per-section-label">{$t('admin.users.form.roles_per_section')}</label>
             <div class="roles-grid" role="group" aria-labelledby="roles-per-section-label">
               {#each formData.sections as section}
                 <div class="role-row">
                   <span class="role-section">{section}</span>
-                  <select aria-label="Role for {section}" bind:value={formData.roles[section]}>
+                  <select bind:value={formData.roles[section]}>
                     {#each allRoles as role}
                       <option value={role}>{role}</option>
                     {/each}
@@ -584,7 +586,7 @@
           </div>
 
           <div class="form-group">
-            <span class="group-label" id="station-assignments-label">{$t('admin.users.form.station_assignments')}</span>
+            <label id="station-assignments-label">{$t('admin.users.form.station_assignments')}</label>
             <div class="checkbox-group stations-group" role="group" aria-labelledby="station-assignments-label">
               {#each allStations as station}
                 <label class="checkbox-item">
@@ -602,7 +604,7 @@
 
           {#if modalMode === 'edit'}
             <div class="form-group">
-              <span class="group-label" id="permissions-label">{$t('admin.users.form.permissions')}</span>
+              <label id="permissions-label">{$t('admin.users.form.permissions')}</label>
               <div class="checkbox-group" role="group" aria-labelledby="permissions-label">
                 <label class="checkbox-item">
                   <input type="checkbox" bind:checked={formData.isActive} />
@@ -1006,8 +1008,7 @@
     margin-bottom: 0;
   }
 
-  .form-group label,
-  .group-label {
+  .form-group label {
     display: block;
     margin-bottom: 6px;
     font-size: 14px;

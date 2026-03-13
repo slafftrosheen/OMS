@@ -23,11 +23,11 @@ let supabaseAnonKey = publicEnv?.PUBLIC_SUPABASE_ANON_KEY || process.env.PUBLIC_
 
 // Fallback for build/dev if missing
 if (!supabaseUrl && (building || dev)) {
-	supabaseUrl = 'https://placeholder.supabase.co';
-	console.warn('⚠️ using placeholder Supabase URL');
+    supabaseUrl = 'https://placeholder.supabase.co';
+    console.warn('⚠️ using placeholder Supabase URL');
 }
 if (!supabaseAnonKey && (building || dev)) {
-	supabaseAnonKey = 'placeholder-key';
+    supabaseAnonKey = 'placeholder-key';
 }
 
 // Ensure string type
@@ -36,17 +36,17 @@ supabaseAnonKey = supabaseAnonKey || '';
 
 // Supabase client initialization
 const supabaseHandler: Handle = async ({ event, resolve }) => {
-	// Safety check for runtime
-	let url = supabaseUrl;
-	let key = supabaseAnonKey;
+    // Safety check for runtime
+    let url = supabaseUrl;
+    let key = supabaseAnonKey;
 
-	if (!url || !key) {
-		// If we still don't have credentials in runtime (not building), we might fail
-		// But let's try to use placeholder to avoid crash, logging error
-		if (!building) logger.error('Missing Supabase credentials in runtime');
-		url = url || 'https://placeholder.supabase.co';
-		key = key || 'placeholder-key';
-	}
+    if (!url || !key) {
+        // If we still don't have credentials in runtime (not building), we might fail
+        // But let's try to use placeholder to avoid crash, logging error
+        if (!building) logger.error('Missing Supabase credentials in runtime');
+        url = url || 'https://placeholder.supabase.co';
+        key = key || 'placeholder-key';
+    }
 
 	// Create Supabase client with cookie handling
 	event.locals.supabase = createServerClient(url, key, {
@@ -69,16 +69,21 @@ const supabaseHandler: Handle = async ({ event, resolve }) => {
 		return session;
 	};
 
-	// Get current session and populate user info from profile
+	// Get current session for event.locals.user
 	const session = await event.locals.getSession();
 	if (session) {
-		try {
-			const { getSessionUser } = await import('$lib/server/auth/session');
-			event.locals.user = await getSessionUser(event);
-		} catch (e) {
-			logger.error('Failed to load user profile in hooks', e as Error);
-			event.locals.user = null;
-		}
+		// Populate minimal user info for request context
+        // Cast to SessionUser to satisfy type requirements
+		event.locals.user = {
+			id: session.user.id,
+			email: session.user.email,
+            username: session.user.email?.split('@')[0] || 'user',
+            displayName: session.user.email?.split('@')[0] || 'User',
+            primarySection: 'General',
+            sections: [],
+            roles: {},
+            stations: []
+		} as unknown as SessionUser;
 	}
 
 	return resolve(event, {
@@ -124,11 +129,6 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 		const scriptSrcIndex = cspDirectives.findIndex(d => d.startsWith('script-src'));
 		if (scriptSrcIndex !== -1) {
 			cspDirectives[scriptSrcIndex] = "script-src 'self' 'unsafe-inline' https://github.githubassets.com https://unpkg.com";
-		}
-		// Add localhost Supabase URLs for local development
-		const connectSrcIndex = cspDirectives.findIndex(d => d.startsWith('connect-src'));
-		if (connectSrcIndex !== -1) {
-			cspDirectives[connectSrcIndex] = "connect-src 'self' https://*.supabase.co wss://*.supabase.co http://127.0.0.1:54321 ws://127.0.0.1:54321 http://localhost:54321 ws://localhost:54321";
 		}
 	}
 
@@ -176,8 +176,8 @@ const authHandler: Handle = async ({ event, resolve }) => {
 	const publicApiRoutes = [
 		{ path: '/api/auth', methods: ['GET', 'POST', 'DELETE'] },
 		{ path: '/api/users', methods: ['POST'] }, // Allow signup
-		{ path: '/api/health', methods: ['GET'] },
-		{ path: '/api/healthz', methods: ['GET'] },
+        { path: '/api/health', methods: ['GET'] },
+        { path: '/api/healthz', methods: ['GET'] },
 		{ path: '/api/preferences', methods: ['GET'] }, // Returns defaults for anonymous users
 		{ path: '/api/materials', methods: ['GET'] }, // Read-only materials data
 	];
@@ -206,12 +206,12 @@ const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const rateLimitHandler: Handle = async ({ event, resolve }) => {
 	if (building) return resolve(event);
 
-	// Get user ID if logged in (since this runs after supabaseHandler)
-	const userId = event.locals.user?.id;
+    // Get user ID if logged in (since this runs after supabaseHandler)
+    const userId = event.locals.user?.id;
 	const ip = event.getClientAddress();
 
-	// Identifier: Use UserID if available, else IP
-	const identifier = userId || ip;
+    // Identifier: Use UserID if available, else IP
+    const identifier = userId || ip;
 
 	const now = Date.now();
 	const windowMs = 60000; // 1 minute
@@ -235,12 +235,12 @@ const rateLimitHandler: Handle = async ({ event, resolve }) => {
 		record.count++;
 		if (record.count > maxRequests) {
 			return new Response(JSON.stringify({
-				error: 'Too many requests',
-				message: 'Rate limit exceeded. Please try again later.'
-			}), {
+                    error: 'Too many requests',
+                    message: 'Rate limit exceeded. Please try again later.'
+                }), {
 				status: 429,
 				headers: {
-					'Content-Type': 'application/json',
+                    'Content-Type': 'application/json',
 					'Retry-After': String(Math.ceil((record.resetAt - now) / 1000))
 				}
 			});
@@ -263,7 +263,7 @@ const rateLimitHandler: Handle = async ({ event, resolve }) => {
 export const handle = sequence(
 	Sentry.sentryHandle(),
 	supabaseHandler,
-	rateLimitHandler,
+    rateLimitHandler,
 	securityHeaders,
 	authHandler
 );
@@ -272,29 +272,29 @@ export const handle = sequence(
 const customHandleError: HandleServerError = async ({ error, event, status, message }) => {
 	const errorId = crypto.randomUUID();
 
-	const context = {
-		errorId,
-		status,
-		path: event.url.pathname,
-		method: event.request.method,
-		userId: event.locals.user?.id,
-		userAgent: event.request.headers.get('user-agent'),
-		timestamp: new Date().toISOString()
-	};
+    const context = {
+        errorId,
+        status,
+        path: event.url.pathname,
+        method: event.request.method,
+        userId: event.locals.user?.id,
+        userAgent: event.request.headers.get('user-agent'),
+        timestamp: new Date().toISOString()
+    };
 
-	// Log with appropriate level
-	if (status >= 500) {
-		logger.error('Server error', error as Error, context);
-	} else if (status >= 400) {
-		logger.warn(`Client error: ${message}`, context);
-	}
+    // Log with appropriate level
+    if (status >= 500) {
+        logger.error('Server error', error as Error, context);
+    } else if (status >= 400) {
+        logger.warn(`Client error: ${message}`, context);
+    }
 
 	// Return sanitized error to client
 	return {
 		message: dev ? message : 'An error occurred. Please try again later.',
 		errorId: dev ? errorId : undefined,
 		status,
-		code: (error as any)?.code || 'UNKNOWN_ERROR'
+        code: (error as any)?.code || 'UNKNOWN_ERROR'
 	};
 };
 

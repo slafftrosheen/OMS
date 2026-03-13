@@ -161,10 +161,10 @@
   import Keybindings from '$lib/help/Keybindings.svelte';
   import { t } from 'svelte-i18n';
   import { startPreferenceUrlSync } from '$lib/settings/url-sync';
-  import { ui } from '$lib/state/appState.svelte';
+  import { ui } from '$lib/state/ui';
   import { setLocale } from '$lib/i18n';
   import { Menu, X, LayoutDashboard, ClipboardList, Calendar, Package, HelpCircle, Settings, Users, Boxes, MessageSquare, Bell } from 'lucide-svelte';
-  import { currentUser, loadCurrentUser } from '$lib/auth/authState.svelte';
+  import { currentUser, loadCurrentUser } from '$lib/auth/user-store';
   import { initChatRealtime, toggleChat, unreadCount, isChatOpen } from '$lib/chat/chat-store';
   import { websocket } from '$lib/stores/websocket';
 

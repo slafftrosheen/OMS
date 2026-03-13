@@ -15,28 +15,25 @@
     };
   }
 
-  const materialsCache = new Map<
-    string,
-    { data: Material[]; timestamp: number }
-  >();
+  const materialsCache = new Map<string, { data: Material[], timestamp: number }>();
   const CACHE_TTL = 60000; // 1 minute
 </script>
 
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
-  import { base } from "$app/paths";
-  import { ChevronDown } from "lucide-svelte";
+  import { onMount, onDestroy } from 'svelte';
+  import { base } from '$app/paths';
+  import { ChevronDown } from 'lucide-svelte';
 
   let {
-    value = $bindable(""),
-    category = "",
+    value = $bindable(''),
+    category = '',
     categories = [] as string[],
-    placeholder = "Select...",
+    placeholder = 'Select...',
     readonly = false,
     showColor = true,
     allowCustom = false,
     showValueInTrigger = false,
-    onchange,
+    onchange
   }: {
     value?: string;
     category?: string;
@@ -46,27 +43,22 @@
     showColor?: boolean;
     allowCustom?: boolean;
     showValueInTrigger?: boolean;
-    onchange?: (data: {
-      value: string;
-      material: Material | null;
-      hex: string;
-      shortName?: string;
-    }) => void;
+    onchange?: (data: { value: string; material: Material | null; hex: string; shortName?: string }) => void;
   } = $props();
 
-  let materials = $state<Material[]>([]);
-  let filteredMaterials = $state<Material[]>([]);
-  let loading = $state(true);
-  let open = $state(false);
-  let search = $state("");
-  let selectedMaterial = $state<Material | null>(null);
+  let materials: Material[] = [];
+  let filteredMaterials: Material[] = [];
+  let loading = true;
+  let open = false;
+  let search = '';
+  let selectedMaterial: Material | null = null;
   let dropdownRef: HTMLElement;
-  let customMode = $state(false); // For custom text input mode
+  let customMode = false; // For custom text input mode
 
   // Re-entry guards and debouncing to prevent reactive infinite loops
   let onchangeTimeout: ReturnType<typeof setTimeout>;
-  let isSelecting = $state(false);
-  let hasInitialized = $state(false);
+  let isSelecting = false;
+  let hasInitialized = false;
 
   // Cleanup on component destroy
   onDestroy(() => {
@@ -74,14 +66,12 @@
   });
 
   // Get hex color from selected material
-  let hexColor = $derived(selectedMaterial?.metadata?.hex || "");
+  let hexColor = $derived(selectedMaterial?.metadata?.hex || '');
 
   // Get short name for display - priority: metadata.short_name > colorCode > code > name
-  let shortName = $derived(
-    selectedMaterial?.metadata?.short_name ||
-      selectedMaterial?.metadata?.colorCode ||
-      getShortName(selectedMaterial?.code || value, selectedMaterial?.category),
-  );
+  let shortName = $derived(selectedMaterial?.metadata?.short_name ||
+                 selectedMaterial?.metadata?.colorCode ||
+                 getShortName(selectedMaterial?.code || value, selectedMaterial?.category));
 
   // Load materials on mount
   onMount(async () => {
@@ -90,8 +80,7 @@
     // Find initially selected material but DON'T call onchange on initial load
     // This prevents reactive infinite loops when parent components re-render
     if (value && !hasInitialized) {
-      selectedMaterial =
-        materials.find((m) => m.code === value || m.name_en === value) || null;
+      selectedMaterial = materials.find(m => m.code === value || m.name_en === value) || null;
 
       // Only mark as custom if not found AND value exists
       if (!selectedMaterial && value) {
@@ -104,14 +93,10 @@
 
   // Extract short name from value - improved to extract proper codes
   function getShortName(val: string, cat?: string): string {
-    if (!val) return "";
+    if (!val) return '';
 
     // For Oracal/Vinyl - show FULL code like 8500_064 (series_colorCode)
-    if (
-      cat?.includes("ORACAL") ||
-      cat?.includes("VINYL") ||
-      val.toLowerCase().includes("oracal")
-    ) {
+    if (cat?.includes('ORACAL') || cat?.includes('VINYL') || val.toLowerCase().includes('oracal')) {
       // Match complete Oracal codes: 8500-064, 8500_064, 8500 064, etc.
       const fullMatch = val.match(/(\d{4})[-_\s]?(\d{2,3})/);
       if (fullMatch) return `${fullMatch[1]}_${fullMatch[2]}`;
@@ -121,30 +106,20 @@
       // Just series + color code at end
       const seriesMatch = val.match(/(\d{4})/);
       const colorMatch = val.match(/[-_](\d{2,3})(?:\s|$)/);
-      if (seriesMatch && colorMatch)
-        return `${seriesMatch[1]}_${colorMatch[1]}`;
+      if (seriesMatch && colorMatch) return `${seriesMatch[1]}_${colorMatch[1]}`;
       // Fallback: try to get any 4-digit + 2-3 digit pattern
       const anyMatch = val.match(/\b(\d{4})\D+(\d{2,3})\b/);
       if (anyMatch) return `${anyMatch[1]}_${anyMatch[2]}`;
-      return val
-        .replace(/oracal\s*/i, "")
-        .replace(/vinyl\s*/i, "")
-        .trim()
-        .substring(0, 12)
-        .toUpperCase();
+      return val.replace(/oracal\s*/i, '').replace(/vinyl\s*/i, '').trim().substring(0, 12).toUpperCase();
     }
 
     // For acrylic - extract colorCode like 3N570, WN071, 0F00, WH10
-    if (
-      cat?.includes("ACRYLIC") ||
-      val.toLowerCase().includes("acrylic") ||
-      val.toLowerCase().includes("plexi")
-    ) {
+    if (cat?.includes('ACRYLIC') || val.toLowerCase().includes('acrylic') || val.toLowerCase().includes('plexi')) {
       // Look for standard PLEXIGLAS colorCodes: 3N570, WN071, WH10, 0F00, 0E010, 7A670
       const codePatterns = [
-        /\b(\d[A-Z]\d{3})\b/i, // 3N570, 0F00, 0E010
-        /\b([A-Z]{2}\d{2,3})\b/i, // WN071, WH10, WN297
-        /\b(\d[A-Z]{2}\d{2})\b/i, // 7A670
+        /\b(\d[A-Z]\d{3})\b/i,       // 3N570, 0F00, 0E010
+        /\b([A-Z]{2}\d{2,3})\b/i,    // WN071, WH10, WN297
+        /\b(\d[A-Z]{2}\d{2})\b/i,    // 7A670
       ];
       for (const pattern of codePatterns) {
         const match = val.match(pattern);
@@ -154,115 +129,93 @@
       const plexMatch = val.match(/(?:XT|GS|LED)[_-]?([A-Z0-9]{4,6})/i);
       if (plexMatch) return plexMatch[1].toUpperCase();
       // Descriptive fallbacks
-      if (val.toLowerCase().includes("opal")) return "OPAL";
-      if (val.toLowerCase().includes("clear") || val.includes("0F00"))
-        return "CLEAR";
-      if (/white/i.test(val) && !/opal/i.test(val)) return "WHITE";
+      if (val.toLowerCase().includes('opal')) return 'OPAL';
+      if (val.toLowerCase().includes('clear') || val.includes('0F00')) return 'CLEAR';
+      if (/white/i.test(val) && !/opal/i.test(val)) return 'WHITE';
       // Last part might be the code
       const parts = val.split(/[-_\s]+/);
       const lastPart = parts[parts.length - 1];
-      if (lastPart && /^[A-Z0-9]{4,6}$/i.test(lastPart))
-        return lastPart.toUpperCase();
-      return "PLEX";
+      if (lastPart && /^[A-Z0-9]{4,6}$/i.test(lastPart)) return lastPart.toUpperCase();
+      return 'PLEX';
     }
 
     // For ALU - show ALU + thickness or dimensions
-    if (cat?.includes("ALU") || val.toLowerCase().includes("alu")) {
+    if (cat?.includes('ALU') || val.toLowerCase().includes('alu')) {
       // Extract thickness like 1.5mm, 2.0mm
       const thicknessMatch = val.match(/([\d.,]+)\s*mm/i);
-      if (thicknessMatch) return `ALU ${thicknessMatch[1].replace(",", ".")}`;
+      if (thicknessMatch) return `ALU ${thicknessMatch[1].replace(',', '.')}`;
       // Extract profile dimensions like 40x40, 20x20
       const profileMatch = val.match(/(\d+x\d+)/i);
       if (profileMatch) return `ALU ${profileMatch[1]}`;
       // Extract from code like ALU_MILL_1_5 -> ALU 1.5
-      const codeMatch = val.match(
-        /ALU[_-]?(?:MILL|BRUSH|ANOD)?[_-]?(\d)[_-]?(\d)/i,
-      );
+      const codeMatch = val.match(/ALU[_-]?(?:MILL|BRUSH|ANOD)?[_-]?(\d)[_-]?(\d)/i);
       if (codeMatch) return `ALU ${codeMatch[1]}.${codeMatch[2]}`;
-      return "ALU";
+      return 'ALU';
     }
 
     // For PVC
-    if (
-      cat?.includes("PVC") ||
-      val.toLowerCase().includes("pvc") ||
-      val.toLowerCase().includes("forex")
-    ) {
+    if (cat?.includes('PVC') || val.toLowerCase().includes('pvc') || val.toLowerCase().includes('forex')) {
       const thicknessMatch = val.match(/(\d+)\s*mm/i);
       if (thicknessMatch) return `PVC ${thicknessMatch[1]}`;
-      if (val.toLowerCase().includes("forex")) return "FOREX";
-      return "PVC";
+      if (val.toLowerCase().includes('forex')) return 'FOREX';
+      return 'PVC';
     }
 
     // For RAL paint - just the 4-digit code
-    if (cat?.includes("RAL") || val.toLowerCase().includes("ral")) {
+    if (cat?.includes('RAL') || val.toLowerCase().includes('ral')) {
       const ralMatch = val.match(/\b(\d{4})\b/);
       if (ralMatch) return ralMatch[1];
     }
 
     // For Pantone
-    if (cat?.includes("PANTONE") || val.toLowerCase().includes("pantone")) {
+    if (cat?.includes('PANTONE') || val.toLowerCase().includes('pantone')) {
       const pantoneMatch = val.match(/(\d+\s*[A-Z]*)/i);
       if (pantoneMatch) return pantoneMatch[1].trim();
     }
 
     // For LED modules - Brand + Color Temp (e.g., "BaltLed 4500K")
-    if (cat?.includes("LED")) {
+    if (cat?.includes('LED')) {
       const parts: string[] = [];
-      const brandMatch = val.match(
-        /\b(BaltLed|Sloan|Samsung|Nichia|Osram|Cree|LemLux|LG|Seoul)\b/i,
-      );
+      const brandMatch = val.match(/\b(BaltLed|Sloan|Samsung|Nichia|Osram|Cree|LemLux|LG|Seoul)\b/i);
       if (brandMatch) parts.push(brandMatch[1]);
       const tempMatch = val.match(/(\d{4})\s*[kK]/);
       if (tempMatch) parts.push(`${tempMatch[1]}K`);
-      const colorNameMatch = val.match(
-        /\b(warm|cold|neutral|daylight|white|rgb)\b/i,
-      );
-      if (colorNameMatch && parts.length < 2)
-        parts.push(colorNameMatch[1].toUpperCase());
-      if (parts.length > 0) return parts.join(" ");
+      const colorNameMatch = val.match(/\b(warm|cold|neutral|daylight|white|rgb)\b/i);
+      if (colorNameMatch && parts.length < 2) parts.push(colorNameMatch[1].toUpperCase());
+      if (parts.length > 0) return parts.join(' ');
       const wattMatch = val.match(/(\d+\.?\d*)\s*[wW]/);
       if (wattMatch) return `${wattMatch[1]}W`;
-      return "LED";
+      return 'LED';
     }
 
     // For PSU - Brand + Watts (e.g., "MeanWell 100W")
-    if (cat?.includes("PSU")) {
+    if (cat?.includes('PSU')) {
       const parts: string[] = [];
-      const brandMatch = val.match(
-        /\b(MeanWell|Mean\s*Well|Philips|Inventronics|Osram|Tridonic)\b/i,
-      );
-      if (brandMatch) parts.push(brandMatch[1].replace(/\s+/g, ""));
+      const brandMatch = val.match(/\b(MeanWell|Mean\s*Well|Philips|Inventronics|Osram|Tridonic)\b/i);
+      if (brandMatch) parts.push(brandMatch[1].replace(/\s+/g, ''));
       const wattMatch = val.match(/(\d+)\s*[wW]/);
       if (wattMatch) parts.push(`${wattMatch[1]}W`);
-      if (parts.length > 0) return parts.join(" ");
-      return "PSU";
+      if (parts.length > 0) return parts.join(' ');
+      return 'PSU';
     }
 
     // For Cables/Wire - Dimensions + Color (e.g., "2x0.75 BLACK")
-    if (cat?.includes("WIRE") || cat?.includes("CABLE")) {
+    if (cat?.includes('WIRE') || cat?.includes('CABLE')) {
       const parts: string[] = [];
       const dimsMatch = val.match(/(\d+x[\d.,]+)/i);
       if (dimsMatch) parts.push(dimsMatch[1]);
-      const cableColorMatch = val.match(
-        /\b(black|white|red|blue|green|grey|gray)\b/i,
-      );
+      const cableColorMatch = val.match(/\b(black|white|red|blue|green|grey|gray)\b/i);
       if (cableColorMatch) parts.push(cableColorMatch[1].toUpperCase());
-      if (parts.length > 0) return parts.join(" ");
-      return "CABLE";
+      if (parts.length > 0) return parts.join(' ');
+      return 'CABLE';
     }
 
     // Default: try to find a code-like pattern first
     const codePattern = val.match(/\b([A-Z0-9]{3,8})\b/i);
-    if (
-      codePattern &&
-      !/the|and|for|with|board|sheet|foam/i.test(codePattern[1])
-    ) {
+    if (codePattern && !/the|and|for|with|board|sheet|foam/i.test(codePattern[1])) {
       return codePattern[1].toUpperCase();
     }
-    const words = val
-      .split(/[\s_-]+/)
-      .filter((w) => w.length > 1 && !/the|and|for|with/i.test(w));
+    const words = val.split(/[\s_-]+/).filter(w => w.length > 1 && !/the|and|for|with/i.test(w));
     if (words.length > 0) {
       return words[0].substring(0, 8).toUpperCase();
     }
@@ -277,7 +230,7 @@
         url += `?category=${encodeURIComponent(category)}`;
       } else if (categories.length > 0) {
         // Pass multiple categories as a comma-separated parameter
-        url += `?categories=${encodeURIComponent(categories.join(","))}`;
+        url += `?categories=${encodeURIComponent(categories.join(','))}`;
       }
 
       // Check cache first
@@ -298,11 +251,11 @@
         // Cache the results
         materialsCache.set(url, {
           data: materials,
-          timestamp: Date.now(),
+          timestamp: Date.now()
         });
       }
     } catch (err) {
-      console.error("Failed to load materials:", err);
+      console.error('Failed to load materials:', err);
     } finally {
       loading = false;
     }
@@ -313,11 +266,10 @@
       filteredMaterials = materials;
     } else {
       const q = search.toLowerCase();
-      filteredMaterials = materials.filter(
-        (m) =>
-          m.name_en?.toLowerCase().includes(q) ||
-          m.code?.toLowerCase().includes(q) ||
-          m.metadata?.brand?.toLowerCase().includes(q),
+      filteredMaterials = materials.filter(m =>
+        m.name_en?.toLowerCase().includes(q) ||
+        m.code?.toLowerCase().includes(q) ||
+        m.metadata?.brand?.toLowerCase().includes(q)
       );
     }
   }
@@ -329,15 +281,14 @@
     selectedMaterial = material;
     value = material.name_en || material.code;
     open = false;
-    search = "";
+    search = '';
     customMode = false;
 
     // Priority: metadata.short_name > metadata.colorCode > extracted from code > extracted from name
-    const short =
-      material.metadata?.short_name ||
-      material.metadata?.colorCode ||
-      getShortName(material.code, material.category) ||
-      getShortName(value, material.category);
+    const short = material.metadata?.short_name ||
+                  material.metadata?.colorCode ||
+                  getShortName(material.code, material.category) ||
+                  getShortName(value, material.category);
 
     // Debounce onchange to prevent rapid-fire updates
     clearTimeout(onchangeTimeout);
@@ -345,8 +296,8 @@
       onchange?.({
         value,
         material,
-        hex: material.metadata?.hex || "",
-        shortName: short,
+        hex: material.metadata?.hex || '',
+        shortName: short
       });
       isSelecting = false;
     }, 50); // 50ms debounce
@@ -354,9 +305,9 @@
 
   function clearSelection() {
     selectedMaterial = null;
-    value = "";
+    value = '';
     customMode = false;
-    onchange?.({ value: "", material: null, hex: "" });
+    onchange?.({ value: '', material: null, hex: '' });
   }
 
   function toggleDropdown() {
@@ -368,7 +319,7 @@
     }
     open = !open;
     if (open) {
-      search = "";
+      search = '';
       filterMaterials();
     }
   }
@@ -381,7 +332,7 @@
   }
 
   // Custom color for custom values
-  let customHex = $state("");
+  let customHex = '';
 
   function handleCustomInput(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -391,7 +342,7 @@
       value,
       material: null,
       hex: customHex,
-      shortName: value, // Custom value = exact text as entered
+      shortName: value // Custom value = exact text as entered
     });
   }
 
@@ -403,7 +354,7 @@
       value,
       material: null,
       hex: customHex,
-      shortName: value,
+      shortName: value
     });
   }
 
@@ -414,24 +365,19 @@
   }
 
   // Group materials by category for display
-  let groupedMaterials = $derived(
-    filteredMaterials.reduce(
-      (acc, m) => {
-        const cat = m.category;
-        if (!acc[cat]) acc[cat] = [];
-        acc[cat].push(m);
-        return acc;
-      },
-      {} as Record<string, Material[]>,
-    ),
-  );
+  let groupedMaterials = $derived(filteredMaterials.reduce((acc, m) => {
+    const cat = m.category;
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(m);
+    return acc;
+  }, {} as Record<string, Material[]>));
 
   let categoryOrder = $derived(Object.keys(groupedMaterials).sort());
 </script>
 
 <svelte:window onclick={handleClickOutside} />
 
-<div class="material-select" class:open bind:this={dropdownRef}>
+<div class="material-select" bind:this={dropdownRef}>
   {#if customMode}
     <!-- Custom text input mode with color picker -->
     <div class="custom-mode">
@@ -451,14 +397,7 @@
         placeholder="Enter custom value..."
         disabled={readonly}
       />
-      <button
-        type="button"
-        class="btn-switch-mode"
-        onclick={() => {
-          customMode = false;
-        }}
-        title="Switch to material picker"
-      >
+      <button type="button" class="btn-switch-mode" onclick={() => { customMode = false; }} title="Switch to material picker">
         <ChevronDown size={14} />
       </button>
     </div>
@@ -469,10 +408,7 @@
       class:open
       class:has-value={value && showValueInTrigger}
       disabled={readonly}
-      onclick={(e) => {
-        e.stopPropagation();
-        toggleDropdown();
-      }}
+      onclick={toggleDropdown}
     >
       {#if showValueInTrigger && (selectedMaterial || value)}
         <span class="selected-value">
@@ -514,7 +450,7 @@
         {:else}
           {#each categoryOrder as cat}
             <div class="category-group">
-              <div class="category-header">{cat.replace(/_/g, " ")}</div>
+              <div class="category-header">{cat.replace(/_/g, ' ')}</div>
               {#each groupedMaterials[cat] as material}
                 <button
                   type="button"
@@ -523,18 +459,11 @@
                   onclick={() => selectMaterial(material)}
                 >
                   {#if showColor && material.metadata?.hex}
-                    <span
-                      class="color-dot"
-                      style="background-color: {material.metadata.hex}"
-                    ></span>
+                    <span class="color-dot" style="background-color: {material.metadata.hex}"></span>
                   {/if}
-                  <span class="option-name"
-                    >{material.name_en || material.code}</span
-                  >
+                  <span class="option-name">{material.name_en || material.code}</span>
                   {#if material.thickness_options?.length > 0}
-                    <span class="option-thickness"
-                      >{material.thickness_options.join("/")}mm</span
-                    >
+                    <span class="option-thickness">{material.thickness_options.join('/')}mm</span>
                   {/if}
                 </button>
               {/each}
@@ -550,10 +479,6 @@
   .material-select {
     position: relative;
     width: 100%;
-  }
-
-  .material-select.open {
-    z-index: 100;
   }
 
   .select-trigger {
@@ -620,7 +545,7 @@
     width: 12px;
     height: 12px;
     border-radius: 2px;
-    border: 1px solid rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(0,0,0,0.2);
     flex-shrink: 0;
   }
 
@@ -643,7 +568,7 @@
     background: var(--bg-1, white);
     border: 1px solid var(--border, #e5e7eb);
     border-radius: 6px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
     z-index: 1000;
     max-height: 300px;
     display: flex;
@@ -723,11 +648,7 @@
   }
 
   .option.selected {
-    background: color-mix(
-      in oklab,
-      var(--accent-1, #ff6b35) 10%,
-      var(--bg-1, white)
-    );
+    background: color-mix(in oklab, var(--accent-1, #ff6b35) 10%, var(--bg-1, white));
   }
 
   .option-name {
@@ -820,11 +741,7 @@
     padding: 10px 10px;
     border: none;
     border-bottom: 1px solid var(--border, #e5e7eb);
-    background: color-mix(
-      in oklab,
-      var(--accent-1, #ff6b35) 5%,
-      var(--bg-1, white)
-    );
+    background: color-mix(in oklab, var(--accent-1, #ff6b35) 5%, var(--bg-1, white));
     cursor: pointer;
     text-align: left;
     font-size: 11px;
@@ -833,11 +750,7 @@
   }
 
   .custom-option:hover {
-    background: color-mix(
-      in oklab,
-      var(--accent-1, #ff6b35) 10%,
-      var(--bg-1, white)
-    );
+    background: color-mix(in oklab, var(--accent-1, #ff6b35) 10%, var(--bg-1, white));
   }
 
   .custom-value {

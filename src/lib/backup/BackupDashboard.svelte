@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
 
+  const bubble = createBubbler();
 /**
  * Backup Dashboard Component
  * Manage backups, restores, and system health

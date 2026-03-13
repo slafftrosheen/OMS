@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { createBubbler, stopPropagation } from 'svelte/legacy';
 
+  const bubble = createBubbler();
 /**
  * Advanced Search Component
  * Complex query builder with saved filters

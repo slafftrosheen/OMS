@@ -56,9 +56,7 @@ if (isBrowser) {
         }
       }
     })
-    .catch((error) => {
-      console.warn('Failed to load preferences for theme:', error);
-    });
+    .catch(() => {});
 }
 
 theme.subscribe((t) => {

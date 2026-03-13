@@ -1,2 +1,7 @@
-// Svelte 5 SSR runtime shims - these are no longer needed in Svelte 5
-// This file can be removed or replaced with empty content
+import * as ssr from '../../node_modules/svelte/src/runtime/ssr.js';
+
+export * from '../../node_modules/svelte/src/runtime/ssr.js';
+
+export const untrack = ssr.untrack ?? ((fn) => fn());
+
+export default ssr;

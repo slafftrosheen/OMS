@@ -2,7 +2,7 @@
 import { writable, get } from 'svelte/store';
 import { realtimeService, connectionState, realtimeOrders, type RealtimeOrderUpdate } from '$lib/realtime/realtime-service';
 import { browser } from '$app/environment';
-import { currentUser } from '$lib/auth/authState.svelte';
+import { currentUser } from '$lib/auth/user-store';
 import { base } from '$app/paths';
 
 // Placeholder for Presence since it's not exported/implemented yet

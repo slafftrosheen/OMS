@@ -1,51 +1,45 @@
 // src/lib/orders/useRealtimeOrders.ts
 import { writable, derived } from 'svelte/store';
+import { realtimeManager, type RealtimeMessage } from '$lib/stores/realtime';
 import type { Order } from '$lib/order/types'; // Adapted path
 
 export function useRealtimeOrders(supabase: any) {
-    // Create a store to hold the orders
-    const orders = writable<Order[]>([]);
+    // Initialize realtime manager
+    realtimeManager.initialize(supabase);
 
     // Subscribe to order changes
     // Using 'draft_orders' as identified in the schema analysis
-    const channel = supabase
-        .channel('orders-channel')
-        .on(
-            'postgres_changes',
-            {
-                event: '*',
-                schema: 'public',
-                table: 'draft_orders'
-            },
-            (payload) => {
-                // Handle the update based on the event type
-                orders.update(currentOrders => {
-                    const newRecord = payload.new;
-                    const oldRecord = payload.old;
-                    
-                    switch (payload.eventType) {
-                        case 'INSERT':
-                            return [...currentOrders, newRecord];
-                        case 'UPDATE':
-                            return currentOrders.map(order => 
-                                order.id === newRecord.id ? newRecord : order
-                            );
-                        case 'DELETE':
-                            return currentOrders.filter(order => 
-                                order.id !== oldRecord.id
-                            );
-                        default:
-                            return currentOrders;
-                    }
-                });
+    const orderUpdates = realtimeManager.subscribe<Order>({
+        channel: 'orders-channel',
+        schema: 'public',
+        table: 'draft_orders',
+        event: '*' // Listen to all events (INSERT, UPDATE, DELETE)
+    });
+
+    // Transform updates into actionable data
+    const processedOrders = derived(orderUpdates, $updates => {
+        const latest: Record<string, Order> = {};
+
+        $updates.forEach(update => {
+            const orderId = update.new?.id || update.old?.id;
+            if (!orderId) return;
+
+            switch (update.type) {
+                case 'INSERT':
+                case 'UPDATE':
+                    latest[orderId] = update.new;
+                    break;
+                case 'DELETE':
+                    delete latest[orderId];
+                    break;
             }
-        )
-        .subscribe();
+        });
+
+        return Object.values(latest);
+    });
 
     return {
-        orders,
-        cleanup: () => {
-            supabase.removeChannel(channel);
-        }
+        orders: processedOrders,
+        cleanup: () => orderUpdates.unsubscribe()
     };
 }

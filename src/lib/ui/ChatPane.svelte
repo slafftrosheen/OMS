@@ -3,7 +3,7 @@
   import MentionInput from '$lib/chat/MentionInput.svelte';
   import { rooms, messages, sendMessage } from '$lib/chat/chat-store';
   import { users, loadUsers } from '$lib/users/user-store';
-  import { currentUser } from '$lib/auth/authState.svelte';
+  import { currentUser } from '$lib/auth/user-store';
   import { t } from 'svelte-i18n';
   import { REWORK_LABEL } from '$lib/order/stages';
   import type { StationTag, ReworkReason } from '$lib/order/stages';

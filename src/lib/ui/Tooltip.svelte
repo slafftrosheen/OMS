@@ -1,6 +1,6 @@
 <script lang="ts">
   import { HelpCircle } from 'lucide-svelte';
-  import { ui } from '$lib/state/appState.svelte';
+  import { ui } from '$lib/state/ui';
 
   interface Props {
     text?: string;

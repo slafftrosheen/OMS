@@ -1,33 +1,35 @@
+<!-- @migration-task Error while migrating Svelte code: Cannot use `export let` in runes mode — use `$props()` instead
+https://svelte.dev/e/legacy_export_invalid -->
 <script lang="ts">
-    import { Calendar, User, AlertCircle, ChevronRight } from "lucide-svelte";
-    import type { Order } from "$lib/stores/orders";
+    import { Calendar, User, AlertCircle, ChevronRight } from 'lucide-svelte';
+    import type { Order } from '$lib/stores/orders';
 
-    let { order }: { order: Order } = $props();
+    export let order: Order;
 
     function formatDate(date: string) {
-        return new Date(date).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
+        return new Date(date).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric'
         });
     }
 
     function getStatusColor(status: string) {
         const colors: Record<string, string> = {
-            pending: "#f59e0b",
-            draft: "#9ca3af",
-            active: "#3b82f6",
-            in_progress: "#3b82f6",
-            completed: "#10b981",
-            cancelled: "#ef4444",
-            on_hold: "#f59e0b",
+            pending: '#f59e0b',
+            draft: '#9ca3af',
+            active: '#3b82f6',
+            in_progress: '#3b82f6',
+            completed: '#10b981',
+            cancelled: '#ef4444',
+            on_hold: '#f59e0b'
         };
-        return colors[status] || "#6b7280";
+        return colors[status] || '#6b7280';
     }
 
     function getPriorityLabel(priority: number) {
-        if (priority >= 8) return { label: "High", color: "#ef4444" };
-        if (priority >= 5) return { label: "Medium", color: "#f59e0b" };
-        return { label: "Low", color: "#10b981" };
+        if (priority >= 8) return { label: 'High', color: '#ef4444' };
+        if (priority >= 5) return { label: 'Medium', color: '#f59e0b' };
+        return { label: 'Low', color: '#10b981' };
     }
 
     let priority = $derived(getPriorityLabel(order.priority));
@@ -36,11 +38,7 @@
     let customer = $derived(order.client);
     let code = $derived(order.po_number);
     // Fallback for assignee since it's not in Order interface
-    let assigneeName = $derived(
-        (order as any).assigned_to_name ||
-            (order as any).assigned_to ||
-            (order.assignee_count ? `${order.assignee_count} Assignees` : null),
-    );
+    let assigneeName = $derived((order as any).assigned_to_name || (order as any).assigned_to || (order.assignee_count ? `${order.assignee_count} Assignees` : null));
 </script>
 
 <a href="/orders/{order.id}" class="mobile-order-card">
@@ -49,11 +47,9 @@
             <h3 class="order-code">{code}</h3>
             <span
                 class="status-badge"
-                style="background-color: {getStatusColor(
-                    order.status,
-                )}20; color: {getStatusColor(order.status)}"
+                style="background-color: {getStatusColor(order.status)}20; color: {getStatusColor(order.status)}"
             >
-                {order.status.replace("_", " ")}
+                {order.status.replace('_', ' ')}
             </span>
         </div>
         <ChevronRight size={20} class="chevron" />
@@ -66,9 +62,7 @@
             <div class="progress-bar-container">
                 <div
                     class="progress-bar-fill"
-                    style="width: {progress}%; background-color: {getStatusColor(
-                        order.status,
-                    )}"
+                    style="width: {progress}%; background-color: {getStatusColor(order.status)}"
                 ></div>
             </div>
             <span class="progress-text">{Math.round(progress)}%</span>
@@ -111,7 +105,7 @@
 
     .mobile-order-card:active {
         transform: scale(0.98);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
 
     .card-header {

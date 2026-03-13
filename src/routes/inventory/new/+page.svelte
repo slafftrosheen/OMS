@@ -1,29 +1,30 @@
 <script lang="ts">
+  import { preventDefault } from 'svelte/legacy';
 
   import { t } from 'svelte-i18n';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
-  import { createMaterial, type Material } from '$lib/inventory/store';
+  import { createItem, type Item } from '$lib/inventory/store';
   import type { Section } from '$lib/inventory/types';
   import ArrowLeft from 'lucide-svelte/icons/arrow-left';
   import Save from 'lucide-svelte/icons/save';
   import Package from 'lucide-svelte/icons/package';
 
-  let material: Partial<Material> = $state({
+  let item: Partial<Item> = $state({
     section: 'materials',
-    item_group: '',
+    group: '',
     subgroup: '',
     sku: '',
-    name_en: '',
+    name: '',
     unit: 'pcs',
     stock: 0,
-    min_stock: 0,
+    min: 0,
     location: '',
     supplier: '',
     price: 0,
     barcode: '',
-    color_code: '',
-    hex_color: '#000000'
+    colorCode: '',
+    hexColor: '#000000'
   });
 
   let saving = $state(false);
@@ -41,25 +42,25 @@
   const unitOptions = ['pcs', 'm', 'm²', 'kg', 'L', 'roll', 'sheet', 'box', 'set', 'ml', 'g'];
 
   async function save() {
-    if (!material.sku || !material.name_en) {
+    if (!item.sku || !item.name) {
       alert('SKU and Name are required');
       return;
     }
 
     saving = true;
     try {
-      await createMaterial(material as Omit<Material, 'id'>);
+      await createItem(item as Omit<Item, 'id'>);
       goto(`${base}/inventory`);
     } catch (err) {
-      console.error('Failed to save material:', err);
-      alert('Failed to save material');
+      console.error('Failed to save item:', err);
+      alert('Failed to save item');
     } finally {
       saving = false;
     }
   }
 </script>
 
-<div class="new-material-page">
+<div class="new-item-page">
   <header class="page-header">
     <a href="{base}/inventory" class="back-link">
       <ArrowLeft size={20} />
@@ -71,8 +72,8 @@
     <div class="form-header">
       <Package size={24} />
       <div>
-        <h1>{$t('inventory.new_page.title', { default: 'Add New Material' })}</h1>
-        <p class="muted">{$t('inventory.new_page.description', { default: 'Fill in the details to add a new inventory material' })}</p>
+        <h1>{$t('inventory.new_page.title', { default: 'Add New Item' })}</h1>
+        <p class="muted">{$t('inventory.new_page.description', { default: 'Fill in the details to add a new inventory item' })}</p>
       </div>
     </div>
 
@@ -85,8 +86,8 @@
             <button
               type="button"
               class="section-option"
-              class:active={material.section === section.id}
-              onclick={() => material.section = section.id}
+              class:active={item.section === section.id}
+              onclick={() => item.section = section.id}
             >
               <span class="section-icon">{section.icon}</span>
               <span class="section-label">{$t(`inventory.${section.id}`, { default: section.label })}</span>
@@ -101,19 +102,19 @@
         <div class="form-grid">
           <div class="form-field required">
             <label for="sku">{$t('inventory.headers.sku', { default: 'SKU' })}</label>
-            <input id="sku" type="text" bind:value={material.sku} required placeholder="e.g., ORA-8500-010" />
+            <input id="sku" type="text" bind:value={item.sku} required placeholder="e.g., ORA-8500-010" />
           </div>
           <div class="form-field required">
-            <label for="name">{$t('inventory.headers.name_en', { default: 'Name' })}</label>
-            <input id="name" type="text" bind:value={material.name_en} required placeholder="e.g., Oracal 8500 White" />
+            <label for="name">{$t('inventory.headers.name', { default: 'Name' })}</label>
+            <input id="name" type="text" bind:value={item.name} required placeholder="e.g., Oracal 8500 White" />
           </div>
           <div class="form-field">
-            <label for="group">{$t('inventory.item_group', { default: 'Group' })}</label>
-            <input id="group" type="text" bind:value={material.item_group} placeholder="e.g., Vinyl Films" />
+            <label for="group">{$t('inventory.group', { default: 'Group' })}</label>
+            <input id="group" type="text" bind:value={item.group} placeholder="e.g., Vinyl Films" />
           </div>
           <div class="form-field">
             <label for="subgroup">{$t('inventory.modal.subgroup_label', { default: 'Subgroup' })}</label>
-            <input id="subgroup" type="text" bind:value={material.subgroup} placeholder="e.g., Translucent" />
+            <input id="subgroup" type="text" bind:value={item.subgroup} placeholder="e.g., Translucent" />
           </div>
         </div>
       </div>
@@ -124,7 +125,7 @@
         <div class="form-grid">
           <div class="form-field">
             <label for="unit">{$t('inventory.headers.unit', { default: 'Unit' })}</label>
-            <select id="unit" bind:value={material.unit}>
+            <select id="unit" bind:value={item.unit}>
               {#each unitOptions as unit}
                 <option value={unit}>{unit}</option>
               {/each}
@@ -132,33 +133,33 @@
           </div>
           <div class="form-field">
             <label for="stock">{$t('inventory.headers.stock', { default: 'Current Stock' })}</label>
-            <input id="stock" type="number" min_stock="0" step="0.01" bind:value={material.stock} />
+            <input id="stock" type="number" min="0" step="0.01" bind:value={item.stock} />
           </div>
           <div class="form-field">
-            <label for="min_stock">{$t('inventory.headers.minimum', { default: 'Minimum Stock' })}</label>
-            <input id="min_stock" type="number" min_stock="0" bind:value={material.min_stock} />
+            <label for="min">{$t('inventory.headers.minimum', { default: 'Minimum Stock' })}</label>
+            <input id="min" type="number" min="0" bind:value={item.min} />
           </div>
           <div class="form-field">
             <label for="location">{$t('inventory.headers.location', { default: 'Location' })}</label>
-            <input id="location" type="text" bind:value={material.location} placeholder="e.g., Shelf A-3" />
+            <input id="location" type="text" bind:value={item.location} placeholder="e.g., Shelf A-3" />
           </div>
         </div>
       </div>
 
       <!-- Color & Appearance (for materials/paints) -->
-      {#if material.section === 'materials' || material.section === 'paints'}
+      {#if item.section === 'materials' || item.section === 'paints'}
         <div class="form-section">
           <h2 class="section-title">{$t('inventory.colorInfo', { default: 'Color & Appearance' })}</h2>
           <div class="form-grid">
             <div class="form-field">
-              <label for="color_code">{$t('inventory.labels.color', { default: 'Color Code' })}</label>
-              <input id="color_code" type="text" bind:value={material.color_code} placeholder="e.g., RAL 9010" />
+              <label for="colorCode">{$t('inventory.labels.color', { default: 'Color Code' })}</label>
+              <input id="colorCode" type="text" bind:value={item.colorCode} placeholder="e.g., RAL 9010" />
             </div>
             <div class="form-field">
-              <label for="hex_color">{$t('inventory.hex_color', { default: 'Color Preview' })}</label>
+              <label for="hexColor">{$t('inventory.hexColor', { default: 'Color Preview' })}</label>
               <div class="color-input-wrapper">
-                <input id="hex_color" type="color" bind:value={material.hex_color} />
-                <input type="text" bind:value={material.hex_color} placeholder="#000000" class="color-text" />
+                <input id="hexColor" type="color" bind:value={item.hexColor} />
+                <input type="text" bind:value={item.hexColor} placeholder="#000000" class="color-text" />
               </div>
             </div>
           </div>
@@ -171,15 +172,15 @@
         <div class="form-grid">
           <div class="form-field">
             <label for="supplier">{$t('inventory.modal.supplier_label', { default: 'Supplier' })}</label>
-            <input id="supplier" type="text" bind:value={material.supplier} placeholder="e.g., Lemona.lv" />
+            <input id="supplier" type="text" bind:value={item.supplier} placeholder="e.g., Lemona.lv" />
           </div>
           <div class="form-field">
             <label for="price">{$t('inventory.modal.price_label', { default: 'Price' })}</label>
-            <input id="price" type="number" min_stock="0" step="0.01" bind:value={material.price} placeholder="0.00" />
+            <input id="price" type="number" min="0" step="0.01" bind:value={item.price} placeholder="0.00" />
           </div>
           <div class="form-field">
             <label for="barcode">{$t('inventory.modal.barcode_label', { default: 'Barcode' })}</label>
-            <input id="barcode" type="text" bind:value={material.barcode} placeholder="e.g., 4012345678901" />
+            <input id="barcode" type="text" bind:value={item.barcode} placeholder="e.g., 4012345678901" />
           </div>
         </div>
       </div>
@@ -191,7 +192,7 @@
         </a>
         <button type="submit" class="btn-primary" disabled={saving}>
           <Save size={18} />
-          {saving ? $t('actions.saving', { default: 'Saving...' }) : $t('inventory.save', { default: 'Save Material' })}
+          {saving ? $t('actions.saving', { default: 'Saving...' }) : $t('inventory.save', { default: 'Save Item' })}
         </button>
       </div>
     </form>
@@ -199,7 +200,7 @@
 </div>
 
 <style>
-.new-material-page {
+.new-item-page {
   max-width: 800px;
   margin: 0 auto;
   padding: var(--space-lg);
@@ -407,7 +408,7 @@
 }
 
 @media (max-width: 600px) {
-  .new-material-page {
+  .new-item-page {
     padding: var(--space-md);
   }
 

@@ -64,6 +64,6 @@
     </div>
   </div>
   <div class="row" style="margin-top:8px">
-    <Button onclick={send}>{$t('rework.send')}</Button>
+    <Button on:click={send}>{$t('rework.send')}</Button>
   </div>
 </div>

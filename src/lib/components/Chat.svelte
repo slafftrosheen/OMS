@@ -1,10 +1,12 @@
+<!-- @migration-task Error while migrating Svelte code: Cannot use `export let` in runes mode — use `$props()` instead
+https://svelte.dev/e/legacy_export_invalid -->
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { chatStore } from '$lib/stores/chat';
   import { page } from '$app/stores';
   import { fly } from 'svelte/transition';
 
-  let { orderId }: { orderId: string } = $props();
+  export let orderId: string;
 
   let userId = $derived($page.data.session?.user?.id);
   let userEmail = $derived($page.data.session?.user?.email);
@@ -154,7 +156,7 @@
   <div class="chat-input-container">
     <textarea
       bind:value={messageInput}
-      onkeydown={handleKeyDown}
+      on:keydown={handleKeyDown}
       placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
       rows="1"
       disabled={sending}
@@ -162,7 +164,7 @@
     />
     <button
       class="send-button"
-      onclick={handleSend}
+      on:click={handleSend}
       disabled={!messageInput.trim() || sending}
       aria-label="Send message"
     >

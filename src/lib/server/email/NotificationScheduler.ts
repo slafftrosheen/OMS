@@ -200,31 +200,7 @@ export class NotificationScheduler {
             `${m.name}: ${m.current_stock} ${m.unit} (min: ${m.min_stock})`
         ).join('\n');
 
-        // Send low stock alerts to admins
-        for (const admin of admins) {
-            try {
-                await emailService.sendLowStockAlert(admin.email, {
-                    materials: lowStockMaterials.map(m => ({
-                        name: m.name,
-                        currentStock: m.current_stock,
-                        minStock: m.min_stock,
-                        unit: m.unit,
-                        url: `${process.env.BASE_URL}/inventory`
-                    })),
-                    summary
-                });
-                
-                logger.info('Low stock alert sent to admin', {
-                    adminEmail: admin.email,
-                    materialsCount: lowStockMaterials.length
-                });
-            } catch (error) {
-                logger.error('Failed to send low stock alert', error as Error, {
-                    adminEmail: admin.email
-                });
-            }
-        }
-
+        // TODO: Create low stock email template
         logger.info('Low stock alerts sent', {
             materials: lowStockMaterials.length,
             admins: admins.length

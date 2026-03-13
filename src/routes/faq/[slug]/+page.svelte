@@ -7,10 +7,10 @@
   import Button from '$lib/ui/Button.svelte';
   import { ArrowLeft, Eye, Calendar, Tag } from 'lucide-svelte';
 
-  let item: FAQItem | null = $state(null);
-  let loading = $state(true);
-  let error = $state(false);
-  let lang: 'en' | 'ru' | 'lv' = $state('en');
+  let item: FAQItem | null = null;
+  let loading = true;
+  let error = false;
+  let lang: 'en' | 'ru' | 'lv' = 'en';
 
   let slug = $derived(page.params.slug);
 
@@ -81,7 +81,7 @@
     <div class="error-state">
       <h1>FAQ Not Found</h1>
       <p>The FAQ item you're looking for doesn't exist or has been removed.</p>
-      <Button onclick={() => goto('/faq')}>
+      <Button on:click={() => goto('/faq')}>
         <ArrowLeft size={18} />
         Back to FAQs
       </Button>
@@ -89,7 +89,7 @@
   {:else}
     <div class="faq-detail-container">
       <div class="faq-breadcrumb">
-        <Button variant="ghost" onclick={() => goto('/faq')}>
+        <Button variant="ghost" on:click={() => goto('/faq')}>
           <ArrowLeft size={18} />
           Back to FAQs
         </Button>

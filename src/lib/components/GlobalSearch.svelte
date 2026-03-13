@@ -1,37 +1,31 @@
 <script lang="ts">
+    import { createBubbler, stopPropagation } from 'svelte/legacy';
 
-    import { onMount } from "svelte";
-    import {
-        Search,
-        FileText,
-        Package,
-        Inbox,
-        User,
-        X,
-        Loader2,
-    } from "lucide-svelte";
-    import { debounce } from "$lib/utils";
+    const bubble = createBubbler();
+    import { onMount } from 'svelte';
+    import { Search, FileText, Package, Inbox, User, X, Loader2 } from 'lucide-svelte';
+    import { debounce } from '$lib/utils';
 
-    let { visible = $bindable(false) }: { visible?: boolean } = $props();
+    let { visible = false }: { visible?: boolean } = $props();
 
-    let query = $state("");
-    let results = $state<any[]>([]);
-    let loading = $state(false);
-    let selectedIndex = $state(0);
+    let query = '';
+    let results: any[] = [];
+    let loading = false;
+    let selectedIndex = 0;
     let searchInput: HTMLInputElement;
 
     const entityIcons = {
         order: FileText,
         material: Package,
         inventory: Inbox,
-        user: User,
+        user: User
     };
 
     const entityColors = {
-        order: "#3b82f6",
-        material: "#10b981",
-        inventory: "#f59e0b",
-        user: "#8b5cf6",
+        order: '#3b82f6',
+        material: '#10b981',
+        inventory: '#f59e0b',
+        user: '#8b5cf6'
     };
 
     const performSearch = debounce(async (searchQuery: string) => {
@@ -42,13 +36,11 @@
 
         loading = true;
         try {
-            const response = await fetch(
-                `/api/search/global?q=${encodeURIComponent(searchQuery)}&limit=20`,
-            );
+            const response = await fetch(`/api/search/global?q=${encodeURIComponent(searchQuery)}&limit=20`);
             const data = await response.json();
             results = data.results || [];
         } catch (err) {
-            console.error("Search error:", err);
+            console.error('Search error:', err);
             results = [];
         } finally {
             loading = false;
@@ -57,17 +49,17 @@
     }, 300);
 
     function handleKeydown(e: KeyboardEvent) {
-        if (e.key === "Escape") {
+        if (e.key === 'Escape') {
             visible = false;
-            query = "";
+            query = '';
             results = [];
-        } else if (e.key === "ArrowDown") {
+        } else if (e.key === 'ArrowDown') {
             e.preventDefault();
             selectedIndex = Math.min(selectedIndex + 1, results.length - 1);
-        } else if (e.key === "ArrowUp") {
+        } else if (e.key === 'ArrowUp') {
             e.preventDefault();
             selectedIndex = Math.max(selectedIndex - 1, 0);
-        } else if (e.key === "Enter" && results[selectedIndex]) {
+        } else if (e.key === 'Enter' && results[selectedIndex]) {
             e.preventDefault();
             navigateTo(results[selectedIndex]);
         }
@@ -92,27 +84,22 @@
 
     onMount(() => {
         const handleGlobalKeydown = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
                 visible = !visible;
             }
         };
 
-        window.addEventListener("keydown", handleGlobalKeydown);
-        return () => window.removeEventListener("keydown", handleGlobalKeydown);
+        window.addEventListener('keydown', handleGlobalKeydown);
+        return () => window.removeEventListener('keydown', handleGlobalKeydown);
     });
 </script>
 
 {#if visible}
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-        class="search-overlay"
-        onclick={() => {
-            visible = false;
-        }}
-    >
-        <div class="search-modal" onclick={stopPropagation(bubble("click"))}>
+    <div class="search-overlay" onclick={() => { visible = false; }}>
+        <div class="search-modal" onclick={stopPropagation(bubble('click'))}>
             <div class="search-header">
                 <Search size={20} />
                 <input
@@ -127,12 +114,7 @@
                         <Loader2 size={20} />
                     </div>
                 {/if}
-                <button
-                    class="close-btn"
-                    onclick={() => {
-                        visible = false;
-                    }}
-                >
+                <button class="close-btn" onclick={() => { visible = false; }}>
                     <X size={20} />
                 </button>
             </div>
@@ -145,8 +127,7 @@
                     </div>
                 {:else if results.length > 0}
                     {#each results as result, index}
-                        {@const SvelteComponent =
-                            entityIcons[result.entity_type] || FileText}
+                        {@const SvelteComponent = entityIcons[result.entity_type] || FileText}
                         <button
                             class="result-item"
                             class:selected={index === selectedIndex}
@@ -154,31 +135,20 @@
                         >
                             <div
                                 class="result-icon"
-                                style="background-color: {entityColors[
-                                    result.entity_type
-                                ]}20; color: {entityColors[result.entity_type]}"
+                                style="background-color: {entityColors[result.entity_type]}20; color: {entityColors[result.entity_type]}"
                             >
                                 <SvelteComponent size={20} />
                             </div>
 
                             <div class="result-content">
                                 <div class="result-title">{result.title}</div>
-                                <div class="result-subtitle">
-                                    {result.subtitle}
-                                </div>
+                                <div class="result-subtitle">{result.subtitle}</div>
                                 {#if result.description}
-                                    <div class="result-description">
-                                        {result.description}
-                                    </div>
+                                    <div class="result-description">{result.description}</div>
                                 {/if}
                             </div>
 
-                            <div
-                                class="result-badge"
-                                style="background-color: {entityColors[
-                                    result.entity_type
-                                ]}"
-                            >
+                            <div class="result-badge" style="background-color: {entityColors[result.entity_type]}">
                                 {result.entity_type}
                             </div>
                         </button>
@@ -187,16 +157,9 @@
                     <div class="search-tips">
                         <p><strong>Search tips:</strong></p>
                         <ul>
-                            <li>
-                                Try order codes, customer names, or material
-                                names
-                            </li>
-                            <li>
-                                Use <kbd>↑</kbd> <kbd>↓</kbd> to navigate results
-                            </li>
-                            <li>
-                                Press <kbd>Enter</kbd> to open selected item
-                            </li>
+                            <li>Try order codes, customer names, or material names</li>
+                            <li>Use <kbd>↑</kbd> <kbd>↓</kbd> to navigate results</li>
+                            <li>Press <kbd>Enter</kbd> to open selected item</li>
                             <li>Press <kbd>Esc</kbd> to close</li>
                         </ul>
                     </div>
@@ -232,12 +195,8 @@
     }
 
     @keyframes fadeIn {
-        from {
-            opacity: 0;
-        }
-        to {
-            opacity: 1;
-        }
+        from { opacity: 0; }
+        to { opacity: 1; }
     }
 
     .search-modal {
@@ -302,9 +261,7 @@
     }
 
     @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
+        to { transform: rotate(360deg); }
     }
 
     .search-results {
@@ -426,6 +383,6 @@
         border-radius: 4px;
         font-family: monospace;
         font-size: 0.75rem;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
 </style>

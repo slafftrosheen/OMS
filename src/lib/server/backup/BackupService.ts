@@ -166,53 +166,11 @@ export class BackupService {
         throw new Error('Backup not found');
       }
 
-      // Download backup file from storage
-      const downloadResult = await storageService.download(backup.file_path);
-      if (!downloadResult) {
-        throw new Error('Backup file not found in storage');
-      }
+      // TODO: Download backup file from storage and restore
+      // This requires implementing download in StorageService
+      logger.warn('Restore functionality not yet implemented', { backupId });
 
-      const content = downloadResult.buffer.toString('utf-8');
-      const backupData = JSON.parse(content);
-
-      // Determine which tables to restore
-      const tablesToRestore = options.tables || backupData.metadata.tables;
-
-      // Restore each table
-      for (const tableName of tablesToRestore) {
-        if (!backupData.data[tableName]) {
-          logger.warn(`Table ${tableName} not found in backup data`);
-          continue;
-        }
-
-        const records = backupData.data[tableName];
-        
-        if (options.overwriteExisting) {
-          // Clear existing data if overwrite is enabled
-          if (!options.preserveCurrent) {
-            await this.supabase.from(tableName).delete().gt('id', 0); // This assumes all tables have an 'id' column
-          }
-          
-          // Insert all records from backup
-          if (records.length > 0) {
-            const { error: insertError } = await this.supabase
-              .from(tableName)
-              .insert(records);
-              
-            if (insertError) {
-              logger.error(`Failed to restore table ${tableName}`, { error: insertError });
-              throw new Error(`Failed to restore table ${tableName}: ${insertError.message}`);
-            }
-          }
-        } else {
-          // For non-overwrite, we could implement merge logic here
-          // For now, just warn that we're skipping restoration
-          logger.warn(`Skipping restore of ${tableName} because overwrite is disabled`);
-        }
-      }
-
-      logger.info('Restore completed successfully', { backupId });
-      return true;
+      return false;
     } catch (error) {
       logger.error('Restore failed', { error, backupId });
       throw new Error(error instanceof Error ? error.message : 'Restore failed');
@@ -222,104 +180,19 @@ export class BackupService {
   /**
    * Process scheduled backups
    */
-  async processScheduledBackups(): Promise<number> {
-    logger.info('Processing scheduled backups');
-    
-    // Fetch active backup configurations
-    // Note: Assuming a 'backup_configs' table exists or using a simple heuristic for now
-    // Since we don't have a backup_configs table in the migration, we'll rely on hardcoded logic 
-    // or system metadata if available. For this implementation, we'll keep it simple.
-    
-    const now = new Date();
-    const hour = now.getHours();
-    const dayOfWeek = now.getDay(); // Sunday = 0
-    
-    // Simple scheduling: Daily at 2 AM, Weekly on Sunday at 3 AM
-    const runDaily = hour === 2;
-    const runWeekly = dayOfWeek === 0 && hour === 3;
-    
-    let backupsCreated = 0;
-    
-    try {
-      if (runDaily) {
-        logger.info('Running scheduled daily backup');
-        await this.createBackup({ 
-          backupType: 'incremental',
-          tables: ['orders', 'station_logs'] // Frequent changes
-        });
-        backupsCreated++;
-      }
-      
-      if (runWeekly) {
-        logger.info('Running scheduled weekly backup');
-        await this.createBackup({ 
-          backupType: 'full',
-          // Default tables will be used
-        });
-        backupsCreated++;
-      }
-    } catch (error) {
-      logger.error('Scheduled backup failed', { error });
-    }
-    
-    return backupsCreated;
+  static async processScheduledBackups(): Promise<number> {
+    logger.info('Processing scheduled backups (placeholder)');
+    // TODO: Implement scheduled backup processing
+    return 0;
   }
 
   /**
    * Clean up expired backups
    */
-  async cleanupExpiredBackups(retentionDays = 30): Promise<number> {
-    logger.info('Cleaning up expired backups', { retentionDays });
-    
-    try {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-      
-      // Find expired backups
-      const { data: expiredBackups, error } = await this.supabase
-        .from('backup_history')
-        .select('id, file_path')
-        .lt('created_at', cutoffDate.toISOString())
-        .eq('status', 'completed'); // Only clean up completed ones
-      
-      if (error) {
-        logger.error('Failed to fetch expired backups', { error });
-        throw error;
-      }
-      
-      if (!expiredBackups || expiredBackups.length === 0) {
-        return 0;
-      }
-      
-      let deletedCount = 0;
-      for (const backup of expiredBackups) {
-        try {
-          // Delete from storage
-          if (backup.file_path) {
-             await storageService.delete(backup.file_path);
-          }
-          
-          // Delete record from database
-          await this.supabase
-            .from('backup_history')
-            .delete()
-            .eq('id', backup.id);
-            
-          deletedCount++;
-        } catch (err) {
-          logger.error('Failed to delete expired backup', { 
-            backupId: backup.id, 
-            error: err 
-          });
-        }
-      }
-      
-      logger.info('Expired backup cleanup completed', { deletedCount });
-      return deletedCount;
-    } catch (error) {
-      logger.error('Expired backup cleanup failed', { error });
-      throw new Error(error instanceof Error ? error.message : 'Cleanup failed');
-    }
+  static async cleanupExpiredBackups(): Promise<number> {
+    logger.info('Cleaning up expired backups (placeholder)');
+    // TODO: Implement cleanup based on retention policies
+    return 0;
   }
 
   /**

@@ -1,4 +1,4 @@
-import { materials, movements, recordMovement, getMaterial } from '$lib/inventory/store';
+import { items, movements, recordMovement, getItem } from '$lib/inventory/store';
 import type { Movement } from '$lib/inventory/types';
 import type { Order } from './types';
 import { get } from 'svelte/store';
@@ -54,8 +54,8 @@ export function checkMaterialAvailability(order: Order): boolean {
 
       if (isNaN(requiredQty)) continue;
 
-      const material = getMaterial(materialId);
-      if (!material || material.stock < requiredQty) {
+      const item = getItem(materialId);
+      if (!item || item.stock < requiredQty) {
         return false;
       }
     }
@@ -72,11 +72,11 @@ export function getOrderMaterialSummary(orderId: string): {
   movements: Movement[];
 } {
   const orderMovements = getMaterialsForOrder(orderId);
-  const allMaterials = get(materials);
+  const allItems = get(items);
 
   let totalCost = 0;
   orderMovements.forEach(m => {
-    const material = allMaterials.find(mat => mat.id === m.materialId);
+    const item = allItems.find(i => i.id === m.itemId);
     // Cost calculation would need price per unit from inventory
     // For now, just count materials
   });

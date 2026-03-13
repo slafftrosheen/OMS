@@ -1,20 +1,12 @@
 <!-- src/routes/production/+page.svelte -->
 <script lang="ts">
-    import { onMount } from "svelte";
-    import { goto } from "$app/navigation";
-    import StationBoard from "$lib/components/production/StationBoard.svelte";
-    import QRScanner from "$lib/components/qr/QRScanner.svelte";
-    import Button from "$lib/components/ui/Button.svelte";
+    import { onMount } from 'svelte';
+    import { goto } from '$app/navigation';
+    import StationBoard from '$lib/components/production/StationBoard.svelte';
+    import QRScanner from '$lib/components/qr/QRScanner.svelte';
+    import Button from '$lib/components/ui/Button.svelte';
 
-    const STATIONS = [
-        "CAD",
-        "CNC",
-        "EDGE",
-        "ASSEMBLY",
-        "PAINT",
-        "PACKAGING",
-        "DELIVERY",
-    ];
+    const STATIONS = ['CAD', 'CNC', 'EDGE', 'ASSEMBLY', 'PAINT', 'PACKAGING', 'DELIVERY'];
 
     let stationOrders: Record<string, any[]> = $state({});
     let loading = $state(true);
@@ -24,54 +16,48 @@
         loading = true;
 
         try {
-            const response = await fetch("/api/production/board");
+            const response = await fetch('/api/production/board');
             const data = await response.json();
 
             if (data.success) {
                 stationOrders = data.stations;
             }
         } catch (error) {
-            console.error("Failed to load production data:", error);
+            console.error('Failed to load production data:', error);
         } finally {
             loading = false;
         }
     }
 
-    async function handleStatusChange(data: {
-        orderId: string;
-        station: string;
-        status: string;
-    }) {
-        const { orderId, station, status } = data;
+    async function handleStatusChange(event: CustomEvent) {
+        const { orderId, station, status } = event.detail;
 
         try {
             await fetch(`/api/orders/${orderId}/stages`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ stage: station, status }),
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stage: station, status })
             });
 
             // Reload data
             await loadProductionData();
         } catch (error) {
-            console.error("Failed to update status:", error);
+            console.error('Failed to update status:', error);
         }
     }
 
-    function handleOrderClick(data: { orderId: string }) {
-        goto(`/orders/${data.orderId}`);
+    function handleOrderClick(event: CustomEvent) {
+        goto(`/orders/${event.detail.orderId}`);
     }
 
-    function handleQRScan(data: { orderId?: string; station?: string }) {
-        const { orderId, station } = data;
+    function handleQRScan(event: CustomEvent) {
+        const { orderId, station } = event.detail;
 
         if (orderId) {
             goto(`/orders/${orderId}`);
         } else if (station) {
             // Scroll to station
-            document
-                .getElementById(`station-${station}`)
-                ?.scrollIntoView({ behavior: "smooth" });
+            document.getElementById(`station-${station}`)?.scrollIntoView({ behavior: 'smooth' });
         }
     }
 
@@ -98,10 +84,10 @@
             <p class="page-subtitle">Real-time production workflow</p>
         </div>
         <div class="header-actions">
-            <Button variant="outline" onclick={() => (showScanner = true)}>
+            <Button variant="outline" on:click={() => showScanner = true}>
                 📱 Scan QR
             </Button>
-            <Button variant="primary" onclick={loadProductionData}>
+            <Button variant="primary" on:click={loadProductionData}>
                 🔄 Refresh
             </Button>
         </div>
@@ -119,8 +105,8 @@
                     <StationBoard
                         {station}
                         orders={stationOrders[station] || []}
-                        onorderclick={handleOrderClick}
-                        onstatuschange={handleStatusChange}
+                        on:orderClick={handleOrderClick}
+                        on:statusChange={handleStatusChange}
                     />
                 </div>
             {/each}
@@ -128,7 +114,7 @@
     {/if}
 </div>
 
-<QRScanner bind:open={showScanner} onscan={handleQRScan} />
+<QRScanner bind:open={showScanner} on:scan={handleQRScan} />
 
 <style>
     .production-container {
@@ -183,9 +169,7 @@
     }
 
     @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
+        to { transform: rotate(360deg); }
     }
 
     .stations-grid {

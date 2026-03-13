@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { updateMaterial, findMaterialBySku } from './store';
+  import { updateItem, findItemBySku } from './store';
   import Quagga from '@ericblade/quagga2';
 
   let scannerContainer: HTMLDivElement = $state();
@@ -70,8 +70,8 @@
     status = `Detected: ${detected}`;
 
     // Auto-apply if item found
-    const material = findMaterialBySku(detected);
-    if (material) {
+    const item = findItemBySku(detected);
+    if (item) {
       applyCode();
     }
   }
@@ -79,12 +79,12 @@
   async function applyCode() {
     if (!code.trim()) return;
 
-    const material = findMaterialBySku(code);
-    if (material) {
-      await updateMaterial(material.id, { stock: material.stock + 1 });
-      status = `✓ Added +1 to ${material.name_en || material.code} (${material.sku}) - Stock: ${material.stock + 1}`;
+    const item = findItemBySku(code);
+    if (item) {
+      await updateItem(item.id, { stock: item.stock + 1 });
+      status = `✓ Added +1 to ${item.name} (${item.sku}) - Stock: ${item.stock + 1}`;
     } else {
-      status = `✗ Material not found: ${code}`;
+      status = `✗ Item not found: ${code}`;
     }
     code = '';
   }
