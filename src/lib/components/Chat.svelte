@@ -1,13 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { chatStore } from '$lib/stores/chat';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { fly } from 'svelte/transition';
 
   let { orderId }: { orderId: string } = $props();
 
-  let userId = $derived($page.data.session?.user?.id);
-  let userEmail = $derived($page.data.session?.user?.email);
+  let userId = $derived(page.data.session?.user?.id);
+  let userEmail = $derived(page.data.session?.user?.email);
 
   let messageInput = '';
   let chatContainer: HTMLDivElement;

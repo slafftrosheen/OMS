@@ -1,7 +1,7 @@
 <script lang="ts">
   import { base } from '$app/paths';
-  import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
+  import { $effect } from 'svelte';
   import Input from '$lib/ui/Input.svelte';
   import Tooltip from '$lib/ui/Tooltip.svelte';
   import ErrorBoundary from '$lib/ui/ErrorBoundary.svelte';
@@ -78,18 +78,17 @@
 
   let qLower = $derived(q.trim().toLowerCase());
   
-  // Update local rows when orderState.orders changes
-  $effect(() => {
+  // Use $derived for reactive filtering instead of $effect + untrack
+  let filteredOrders = $derived.by(() => {
     const orders = orderState.orders;
-    const filtered = isAdmin 
+    return isAdmin 
       ? orders 
       : orders.filter((order: any) => !order.isDraft);
-    
-    untrack(() => {
-      rows = filtered.map(toRow);
-      hasLoadedOnce = true;
-    });
   });
+
+  // Update rows reactively (no need for untrack or $effect)
+  rows = filteredOrders.map(toRow);
+  hasLoadedOnce = true;
 
   let isLoading = $derived(orderState.loading);
   let errorMessage = $derived(orderState.lastError || '');
@@ -179,9 +178,12 @@
     URL.revokeObjectURL(url);
   }
 
-  onMount(() => {
-    console.log('🚀 Orders page mounted');
-    refresh();
+  // Load orders on mount using $effect (Svelte 5 pattern)
+  $effect(() => {
+    if (!hasLoadedOnce) {
+      console.log('🚀 Orders page mounted');
+      refresh();
+    }
   });
 </script>
 
