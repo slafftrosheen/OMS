@@ -6,7 +6,7 @@ import { writable } from 'svelte/store';
 
 const isBrowser = typeof window !== 'undefined';
 
-class OrderState {
+export class OrderState {
   orders = $state<Order[]>([]);
   loading = $state<boolean>(false);
   lastError = $state<string | null>(null);
@@ -63,9 +63,9 @@ class OrderState {
   }
 }
 
-// Removed global singleton export to prevent SSR data bleed
-// Instantiate in +layout.svelte and pass via setContext instead
-// export const orderState = new OrderState();
+// Module-level singleton for use by exported functions
+// The constructor's isBrowser check prevents SSR side effects
+export const orderState = new OrderState();
 
 // Backward compatibility stores (only used in browser)
 const ordersLegacy = writable<Order[]>([]);

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
-  import { $effect } from 'svelte';
+
   import Input from '$lib/ui/Input.svelte';
   import Tooltip from '$lib/ui/Tooltip.svelte';
   import ErrorBoundary from '$lib/ui/ErrorBoundary.svelte';
@@ -65,8 +65,7 @@
     };
   }
 
-  // Use Svelte 5 $state rune for proper reactivity
-  let rows = $state<OrderRow[]>([]);
+  // rows is derived reactively from filteredOrders below
   let q = $state('');
   let sortKey = $state<'id' | 'client' | 'title' | 'due' | 'loadingDate'>('due');
   let sortAsc = $state(true);
@@ -88,7 +87,6 @@
 
   // Update rows reactively using $derived (not imperative assignment)
   let rows = $derived(filteredOrders.map(toRow));
-  hasLoadedOnce = true;
 
   let isLoading = $derived(orderState.loading);
   let errorMessage = $derived(orderState.lastError || '');
@@ -182,6 +180,7 @@
   $effect(() => {
     if (!hasLoadedOnce) {
       console.log('🚀 Orders page mounted');
+      hasLoadedOnce = true;
       refresh();
     }
   });

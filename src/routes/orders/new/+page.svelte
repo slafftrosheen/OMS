@@ -7,8 +7,6 @@
   import { currentUser } from '$lib/auth/authState.svelte';
   import { base } from '$app/paths';
 
-  // Accept params prop to silence SvelteKit warning
-  export const params = {};
 
   // SVELTE 5: Convert all reactive state to $state()
   let saving = $state(false);

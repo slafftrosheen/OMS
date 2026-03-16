@@ -5,7 +5,7 @@ import type { User, Section } from './types';
 
 const isBrowser = typeof window !== 'undefined';
 
-class AuthState {
+export class AuthState {
   user = $state<User | null>(null);
   loading = $state<boolean>(false);
   error = $state<string | null>(null);
@@ -106,9 +106,9 @@ class AuthState {
   }
 }
 
-// Removed global singleton export to prevent SSR data bleed
-// Instantiate in +layout.svelte and pass via setContext instead
-// export const authState = new AuthState();
+// Module-level singleton for use by exported functions
+// The constructor's isBrowser check prevents SSR side effects
+export const authState = new AuthState();
 
 // Backward compatibility stores (only used in browser)
 const userLegacy = writable<User | null>(null);
@@ -139,6 +139,14 @@ let _currentInstance: AuthState | null = null;
 export function setCurrentInstance(instance: AuthState) {
   _currentInstance = instance;
 }
+
+// Backward compatibility: export currentUser as a subscribable store
+// so files importing { currentUser } from '$lib/auth/authState.svelte' work
+export const currentUser = {
+  subscribe: userLegacy.subscribe,
+  set: (u: User | null) => { authState.setUser(u); },
+  update: (fn: (u: User | null) => User | null) => { authState.setUser(fn(authState.user)); }
+};
 
 export function createCurrentUserStore(instance: AuthState) {
   const instUserLegacy = writable<User | null>(instance.user);

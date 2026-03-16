@@ -10,9 +10,6 @@
   import type { StationTag } from '$lib/order/stages';
   import StationBadge from '$lib/ui/StationBadge.svelte';
 
-  // Accept params prop to silence SvelteKit warning
-  export const params = {};
-
   let activeRoomId = $state('general');
   let messageText = $state('');
   let scroller: HTMLDivElement | null = $state(null);

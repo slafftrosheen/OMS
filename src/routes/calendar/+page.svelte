@@ -11,9 +11,6 @@
   import { downloadCSV, toCSV } from '$lib/export/csv';
   import { get } from 'svelte/store';
   
-  // Accept params prop to silence SvelteKit warning
-  export const params = {};
-  
   let today = new Date();
   let y = $state(today.getFullYear());
   let m = $state(today.getMonth());

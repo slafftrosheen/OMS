@@ -1,5 +1,4 @@
 <script lang="ts">
-  export const params = {};
   import { base } from '$app/paths';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { can } from '$lib/auth/permission-utils';
