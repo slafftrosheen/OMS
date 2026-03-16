@@ -49,7 +49,7 @@
     } as Record<string, string>,
     stations: [] as string[],
     isActive: true
-  };
+  });
 
   const allSections = ['Admin', 'Production', 'Logistics'];
   const allRoles = ['SuperAdmin', 'StationLead', 'Operator', 'Viewer'];
