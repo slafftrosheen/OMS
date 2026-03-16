@@ -106,12 +106,14 @@ class AuthState {
   }
 }
 
-export const authState = new AuthState();
+// Removed global singleton export to prevent SSR data bleed
+// Instantiate in +layout.svelte and pass via setContext instead
+// export const authState = new AuthState();
 
-// Backward compatibility stores
-const userLegacy = writable<User | null>(authState.user);
-const loadingLegacy = writable<boolean>(authState.loading);
-const errorLegacy = writable<string | null>(authState.error);
+// Backward compatibility stores (only used in browser)
+const userLegacy = writable<User | null>(null);
+const loadingLegacy = writable<boolean>(false);
+const errorLegacy = writable<string | null>(null);
 
 function syncToLegacy() {
   userLegacy.set(authState.user);
@@ -119,30 +121,52 @@ function syncToLegacy() {
   errorLegacy.set(authState.error);
 }
 
-export const currentUser = {
-  subscribe: userLegacy.subscribe,
-  set: (u: User | null) => authState.setUser(u),
-  update: (fn: (u: User | null) => User | null) => authState.setUser(fn(authState.user))
-};
-
-export const authLoading = {
-  subscribe: loadingLegacy.subscribe
-};
-
-export const authError = {
-  subscribe: errorLegacy.subscribe
-};
-
-export function switchSection(section: Section) {
-  if (authState.user && authState.user.sections.includes(section)) {
-    authState.user = { ...authState.user, primarySection: section };
-    syncToLegacy();
+// Helper to get current instance from context (browser only)
+function getInstance(): AuthState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    // This will be called from components that have access to context
+    // For now, we'll keep a module-level reference set by the layout
+    return _currentInstance;
+  } catch {
+    return null;
   }
 }
 
-export function getCurrentUser() { return authState.user; }
-export function getAuthLoading() { return authState.loading; }
-export function getAuthError() { return authState.error; }
-export function loadCurrentUser(timeoutMs?: number) { return authState.load(timeoutMs); }
-export async function logout() { return authState.logout(); }
-export async function refreshCurrentUser() { return authState.load(); }
+let _currentInstance: AuthState | null = null;
+
+// Called by +layout.svelte to set the current instance
+export function setCurrentInstance(instance: AuthState) {
+  _currentInstance = instance;
+}
+
+export function createCurrentUserStore(instance: AuthState) {
+  const instUserLegacy = writable<User | null>(instance.user);
+  const instLoadingLegacy = writable<boolean>(instance.loading);
+  const instErrorLegacy = writable<string | null>(instance.error);
+  
+  function instSyncToLegacy() {
+    instUserLegacy.set(instance.user);
+    instLoadingLegacy.set(instance.loading);
+    instErrorLegacy.set(instance.error);
+  }
+  
+  return {
+    subscribe: instUserLegacy.subscribe,
+    set: (u: User | null) => { instance.setUser(u); instSyncToLegacy(); },
+    update: (fn: (u: User | null) => User | null) => { instance.setUser(fn(instance.user)); instSyncToLegacy(); }
+  };
+}
+
+export function switchSection(instance: AuthState, section: Section) {
+  if (instance.user && instance.user.sections.includes(section)) {
+    instance.user = { ...instance.user, primarySection: section };
+  }
+}
+
+export function getCurrentUser(instance: AuthState) { return instance.user; }
+export function getAuthLoading(instance: AuthState) { return instance.loading; }
+export function getAuthError(instance: AuthState) { return instance.error; }
+export function loadCurrentUser(instance: AuthState, timeoutMs?: number) { return instance.load(timeoutMs); }
+export async function logout(instance: AuthState) { return instance.logout(); }
+export async function refreshCurrentUser(instance: AuthState) { return instance.load(); }
