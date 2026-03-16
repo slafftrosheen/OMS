@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, setContext } from 'svelte';
+  import { onMount, getContext } from 'svelte';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
 
@@ -7,8 +7,10 @@
   import Tooltip from '$lib/ui/Tooltip.svelte';
   import ErrorBoundary from '$lib/ui/ErrorBoundary.svelte';
   import type { Order, Station, Badge as BadgeCode } from '$lib/order/types';
-  import { orderState } from '$lib/order/orderState.svelte';
+  import type { OrderState } from '$lib/order/orderState.svelte';
   import { blankStages, STATE_LABEL, type StageState } from '$lib/order/stages';
+  
+  const orderState = getContext<OrderState>('orderState');
   import { TERMS } from '$lib/order/names';
   import { t } from 'svelte-i18n';
   import { BADGE_ICONS, badgeTone } from '$lib/order/badges';
