@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { page } from '$app/stores';
+    import { page } from '$app/state';
     import { Menu, X, Home, Package, Inbox, BarChart3, Users, Settings } from 'lucide-svelte';
     import { slide } from 'svelte/transition';
 
@@ -21,7 +21,7 @@
     ];
 
     function isActive(href: string) {
-        return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
+        return page.url.pathname === href || page.url.pathname.startsWith(href + '/');
     }
 
     function handleNavClick() {
