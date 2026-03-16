@@ -3,7 +3,7 @@
   import type { Material, Section } from '$lib/inventory/types';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { toCSV, downloadCSV } from '$lib/inventory/export';
   import Tabs from '$lib/ui/Tabs.svelte';
   import ItemModal from '$lib/inventory/ItemModal.svelte';
@@ -22,26 +22,17 @@
   let list: Material[] = $state([]);
   let low: Material[] = $state([]);
 
-  // Load materials on mount
+  // Load materials and subscribe to store updates
   onMount(async () => {
     await loadMaterials();
-  });
-
-  // Subscribe to store updates
-  let unsubMaterials: (() => void) | null = null;
-  
-  onMount(() => {
-    unsubMaterials = materials.subscribe((value) => {
+    
+    const unsubMaterials = materials.subscribe((value) => {
       list = value;
-      // Update low stock when materials change
       low = getLowStockMaterials();
     });
-    // Initial low stock calculation
     low = getLowStockMaterials();
-  });
-
-  onDestroy(() => {
-    unsubMaterials?.();
+    
+    return () => unsubMaterials();
   });
 
   const tabs = [

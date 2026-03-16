@@ -11,17 +11,16 @@
   let materialList = $state<any[]>([]);
   let lowStockList = $state<any[]>([]);
 
-  onMount(() => {
-    loadMaterials().then(data => materialList = data);
-  });
-
-  // Subscribe to store updates
-  onMount(() => {
+  // Load materials and subscribe to store updates
+  onMount(async () => {
+    await loadMaterials();
+    
     const unsubMaterials = materials.subscribe(value => {
       materialList = value;
       lowStockList = getLowStockMaterials();
     });
     lowStockList = getLowStockMaterials();
+    
     return () => unsubMaterials();
   });
 

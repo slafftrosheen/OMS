@@ -1,137 +1,3 @@
-<svelte:head>
-  <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#3b82f6" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="OMS" />
-  <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32x32.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16x16.png" />
-  <link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#3b82f6" />
-  <meta name="msapplication-TileColor" content="#3b82f6" />
-  <meta name="msapplication-config" content="/browserconfig.xml" />
-</svelte:head>
-
-{#if !authChecked}
-  <!-- Loading state while checking auth -->
-  <div class="auth-loading">
-    <div class="spinner"></div>
-  </div>
-{:else if isPublicRoute || $currentUser}
-  <a href="#main" class="tag skip-link"
-    onfocus={(e) => (e.currentTarget.style.cssText='position:fixed;top:8px;left:8px;z-index:1000')}
-    onblur={(e) => (e.currentTarget.style.cssText='position:absolute;left:-9999px;top:-9999px')}>
-    {$t('a11y.skip')}
-  </a>
-
-  {#if $currentUser}
-    <header class="rf-topbar">
-      <a href="{base}/" class="brand"><Logo /></a>
-      <button class="mobile-menu-btn" onclick={() => mobileMenuOpen = !mobileMenuOpen} aria-label={$t('header.toggle_menu')} aria-expanded={mobileMenuOpen}>
-        {#if mobileMenuOpen}
-          <X size={24} />
-        {:else}
-          <Menu size={24} />
-        {/if}
-      </button>
-      <nav class="main" class:mobile-open={mobileMenuOpen}>
-        <a href="{base}/" class:active={currentPath === base || currentPath === base + '/'} onclick={() => mobileMenuOpen = false}>
-          <LayoutDashboard size={18} />
-          <span>{$t('nav.dashboard', { default: 'Dashboard' })}</span>
-        </a>
-        <a href="{base}/orders" class:active={currentPath.includes('/orders')} onclick={() => mobileMenuOpen = false}>
-          <ClipboardList size={18} />
-          <span>{$t('nav.orders', { default: 'Orders' })}</span>
-        </a>
-        <a href="{base}/calendar" class:active={currentPath.includes('/calendar')} onclick={() => mobileMenuOpen = false}>
-          <Calendar size={18} />
-          <span>{$t('nav.calendar', { default: 'Calendar' })}</span>
-        </a>
-        <a href="{base}/inventory" class:active={currentPath.includes('/inventory')} onclick={() => mobileMenuOpen = false}>
-          <Package size={18} />
-          <span>{$t('nav.inventory', { default: 'Inventory' })}</span>
-        </a>
-        <!-- Chat moved to sidebar -->
-        <a href="{base}/faq" class:active={currentPath.includes('/faq')} onclick={() => mobileMenuOpen = false}>
-          <HelpCircle size={18} />
-          <span>{$t('nav.faq', { default: 'FAQ' })}</span>
-        </a>
-        {#if isAdmin}
-          <div class="nav-divider"></div>
-          <a href="{base}/admin/users" class:active={currentPath.includes('/admin/users')} onclick={() => mobileMenuOpen = false}>
-            <Users size={18} />
-            <span>Users</span>
-          </a>
-          <a href="{base}/admin/materials" class:active={currentPath.includes('/admin/materials')} onclick={() => mobileMenuOpen = false}>
-            <Boxes size={18} />
-            <span>Materials</span>
-          </a>
-        {/if}
-      </nav>
-      <div class="actions">
-        <div class="action-btn desktop-only" title={$t('topbar.language', { default: 'Language' })}><LangSwitch /></div>
-        <div class="action-group text-size-group desktop-only" title={$t('topbar.textSize', { default: 'Text Size' })}><TextSizeSwitch /></div>
-        <div class="action-btn desktop-only" title={$t('topbar.density', { default: 'Density' })}><DensitySwitch /></div>
-        <div class="action-btn" title={$t('topbar.theme', { default: 'Theme' })}><ThemeSwitch /></div>
-        <div class="action-btn" title={$t('ui.notifications', { default: 'Notifications' })}><NotificationsBell /></div>
-        <div class="action-btn" title="Realtime Connection"><RealtimeConnection /></div>
-        <button
-          class="action-btn chat-toggle"
-          class:active={$isChatOpen}
-          title={$t('ui.chat', { default: 'Chat' })}
-          onclick={toggleChat}
-        >
-          <div class="icon-wrapper">
-            <MessageSquare size={20} />
-            {#if $unreadCount > 0}
-              <span class="badge">{$unreadCount > 9 ? '9+' : $unreadCount}</span>
-            {/if}
-          </div>
-        </button>
-        <a href="{base}/settings" class="action-btn settings-btn" title={$t('nav.settings', { default: 'Settings' })}>
-          <Settings size={20} />
-        </a>
-        <UserSwitch />
-      </div>
-    </header>
-  {/if}
-
-  {#if showInstallPrompt}
-    <InstallPrompt 
-      onInstall={handleInstall}
-      onDismiss={handleDismissInstall}
-    />
-  {/if}
-
-  {#if showUpdatePrompt}
-    <UpdatePrompt 
-      onUpdate={handleUpdate}
-      onDismiss={handleDismissUpdate}
-    />
-  {/if}
-
-  {#if !isOnline}
-    <OfflineIndicator />
-  {/if}
-
-  <main id="main" class="rf-page">{@render children?.()}</main>
-
-  {#if $currentUser}
-    <div class="mobile-nav-wrapper">
-      <MobileNav />
-    </div>
-    <ChatSidebar />
-  {/if}
-
-  <Toast />
-  <LiveRegion />
-  <GlobalSearch bind:visible={searchOpen} />
-  <Keybindings bind:open={showKb} />
-{/if}
-
-<div id="rf-live" class="sr-only" aria-live="polite"></div>
-
 <script lang="ts">
   import '../app.css';
   import '$lib/styles/a11y.css';
@@ -164,13 +30,13 @@
   import { ui } from '$lib/state/appState.svelte';
   import { setLocale } from '$lib/i18n';
   import { Menu, X, LayoutDashboard, ClipboardList, Calendar, Package, HelpCircle, Settings, Users, Boxes, MessageSquare, Bell } from 'lucide-svelte';
-  import { AuthState } from '$lib/auth/authState.svelte';
+  import { AuthState, currentUser, loadCurrentUser } from '$lib/auth/authState.svelte';
   import { initChatRealtime, toggleChat, unreadCount, isChatOpen } from '$lib/chat/chat-store';
   import { websocket } from '$lib/stores/websocket';
   import { OrderState } from '$lib/order/orderState.svelte';
-  import { setContext, getContext } from 'svelte';
+  import { setContext } from 'svelte';
 
-  // Accept params prop to silence SvelteKit warning
+  // Receive children snippet from SvelteKit
   let { children } = $props();
 
   // Instantiate state classes and provide via context (SSR-safe)
@@ -178,10 +44,8 @@
   const orderStateInstance = new OrderState();
   setContext('authState', authStateInstance);
   setContext('orderState', orderStateInstance);
-  
-  // Use the instance for currentUser store compatibility
-  const currentUser = authStateInstance.currentUser;
 
+  // UI state
   let searchOpen = $state(false);
   let showKb = $state(false);
   let mobileMenuOpen = $state(false);
@@ -207,13 +71,47 @@
     searchOpen = false;
   };
 
+  async function handleInstall() {
+    if (!deferredPrompt) return;
+
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+
+    console.log('Install prompt outcome:', outcome);
+    
+    showInstallPrompt = false;
+    deferredPrompt = null;
+  }
+
+  function handleDismissInstall() {
+    showInstallPrompt = false;
+    deferredPrompt = null;
+    // Store dismissal to not show again for a while
+    localStorage.setItem('installPromptDismissed', Date.now().toString());
+  }
+
+  function handleUpdate() {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      // Tell service worker to skip waiting
+      navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+
+      // Reload page
+      window.location.reload();
+    }
+  }
+
+  function handleDismissUpdate() {
+    showUpdatePrompt = false;
+  }
+
+  // Single consolidated onMount — replaces two separate onMount blocks
   onMount(() => {
     let stopChatRealtime: () => void;
     let stopPreferenceSync: () => void;
 
     const init = async () => {
       // Load current user from session
-      const userPromise = loadCurrentUser();
+      const userPromise = loadCurrentUser(authStateInstance);
       if (isPublicRoute) {
         // Allow public routes to render while auth loads.
         authChecked = true;
@@ -362,6 +260,27 @@
     };
 
     window.addEventListener('keydown', handler);
+
+    // A11y: axe-core in dev mode only
+    if (import.meta.env.DEV) {
+      import('axe-core').then(axe => {
+        axe.default
+          .run(document, {
+            runOnly: { type: 'rule', values: ['color-contrast', 'focus-order-semantics'] }
+          })
+          .then((results) => {
+            if (results.violations.length) {
+              console.group('%cA11Y (axe)', 'color:#fff;background:#e11d48;padding:2px 6px;border-radius:4px');
+              results.violations.forEach((v) => console.warn(v.id, v.nodes.map((n) => n.target)));
+              console.groupEnd();
+            }
+          });
+      }).catch(() => {
+        // axe-core not installed — skip
+      });
+    }
+
+    // Cleanup
     return () => {
       stopPreferenceSync?.();
       window.removeEventListener('keydown', handler);
@@ -369,59 +288,141 @@
       websocket.disconnect();
     };
   });
-
-  onMount(async () => {
-    if (import.meta.env.DEV) {
-      // axe is ~300KB — load only in dev
-      const axe = await import('axe-core'); // npm i axe-core -D
-      // Check only color contrast + focusable/focus-visible
-      axe.default
-        .run(document, {
-          runOnly: { type: 'rule', values: ['color-contrast', 'focus-order-semantics'] } // Removed 'focus-visible' as it's not a valid rule ID
-        })
-        .then((results) => {
-          if (results.violations.length) {
-            console.group('%cA11Y (axe)', 'color:#fff;background:#e11d48;padding:2px 6px;border-radius:4px');
-            results.violations.forEach((v) => console.warn(v.id, v.nodes.map((n) => n.target)));
-            console.groupEnd();
-          }
-        });
-    }
-  });
-
-  async function handleInstall() {
-    if (!deferredPrompt) return;
-
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-
-    console.log('Install prompt outcome:', outcome);
-    
-    showInstallPrompt = false;
-    deferredPrompt = null;
-  }
-
-  function handleDismissInstall() {
-    showInstallPrompt = false;
-    deferredPrompt = null;
-    // Store dismissal to not show again for a while
-    localStorage.setItem('installPromptDismissed', Date.now().toString());
-  }
-
-  function handleUpdate() {
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      // Tell service worker to skip waiting
-      navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
-
-      // Reload page
-      window.location.reload();
-    }
-  }
-
-  function handleDismissUpdate() {
-    showUpdatePrompt = false;
-  }
 </script>
+
+<svelte:head>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#3b82f6" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="OMS" />
+  <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16x16.png" />
+  <link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#3b82f6" />
+  <meta name="msapplication-TileColor" content="#3b82f6" />
+  <meta name="msapplication-config" content="/browserconfig.xml" />
+</svelte:head>
+
+{#if !authChecked}
+  <!-- Loading state while checking auth -->
+  <div class="auth-loading">
+    <div class="spinner"></div>
+  </div>
+{:else if isPublicRoute || $currentUser}
+  <a href="#main" class="tag skip-link"
+    onfocus={(e) => (e.currentTarget.style.cssText='position:fixed;top:8px;left:8px;z-index:1000')}
+    onblur={(e) => (e.currentTarget.style.cssText='position:absolute;left:-9999px;top:-9999px')}>
+    {$t('a11y.skip')}
+  </a>
+
+  {#if $currentUser}
+    <header class="rf-topbar">
+      <a href="{base}/" class="brand"><Logo /></a>
+      <button class="mobile-menu-btn" onclick={() => mobileMenuOpen = !mobileMenuOpen} aria-label={$t('header.toggle_menu')} aria-expanded={mobileMenuOpen}>
+        {#if mobileMenuOpen}
+          <X size={24} />
+        {:else}
+          <Menu size={24} />
+        {/if}
+      </button>
+      <nav class="main" class:mobile-open={mobileMenuOpen}>
+        <a href="{base}/" class:active={currentPath === base || currentPath === base + '/'} onclick={() => mobileMenuOpen = false}>
+          <LayoutDashboard size={18} />
+          <span>{$t('nav.dashboard', { default: 'Dashboard' })}</span>
+        </a>
+        <a href="{base}/orders" class:active={currentPath.includes('/orders')} onclick={() => mobileMenuOpen = false}>
+          <ClipboardList size={18} />
+          <span>{$t('nav.orders', { default: 'Orders' })}</span>
+        </a>
+        <a href="{base}/calendar" class:active={currentPath.includes('/calendar')} onclick={() => mobileMenuOpen = false}>
+          <Calendar size={18} />
+          <span>{$t('nav.calendar', { default: 'Calendar' })}</span>
+        </a>
+        <a href="{base}/inventory" class:active={currentPath.includes('/inventory')} onclick={() => mobileMenuOpen = false}>
+          <Package size={18} />
+          <span>{$t('nav.inventory', { default: 'Inventory' })}</span>
+        </a>
+        <!-- Chat moved to sidebar -->
+        <a href="{base}/faq" class:active={currentPath.includes('/faq')} onclick={() => mobileMenuOpen = false}>
+          <HelpCircle size={18} />
+          <span>{$t('nav.faq', { default: 'FAQ' })}</span>
+        </a>
+        {#if isAdmin}
+          <div class="nav-divider"></div>
+          <a href="{base}/admin/users" class:active={currentPath.includes('/admin/users')} onclick={() => mobileMenuOpen = false}>
+            <Users size={18} />
+            <span>Users</span>
+          </a>
+          <a href="{base}/admin/materials" class:active={currentPath.includes('/admin/materials')} onclick={() => mobileMenuOpen = false}>
+            <Boxes size={18} />
+            <span>Materials</span>
+          </a>
+        {/if}
+      </nav>
+      <div class="actions">
+        <div class="action-btn desktop-only" title={$t('topbar.language', { default: 'Language' })}><LangSwitch /></div>
+        <div class="action-group text-size-group desktop-only" title={$t('topbar.textSize', { default: 'Text Size' })}><TextSizeSwitch /></div>
+        <div class="action-btn desktop-only" title={$t('topbar.density', { default: 'Density' })}><DensitySwitch /></div>
+        <div class="action-btn" title={$t('topbar.theme', { default: 'Theme' })}><ThemeSwitch /></div>
+        <div class="action-btn" title={$t('ui.notifications', { default: 'Notifications' })}><NotificationsBell /></div>
+        <div class="action-btn" title="Realtime Connection"><RealtimeConnection /></div>
+        <button
+          class="action-btn chat-toggle"
+          class:active={$isChatOpen}
+          title={$t('ui.chat', { default: 'Chat' })}
+          onclick={toggleChat}
+        >
+          <div class="icon-wrapper">
+            <MessageSquare size={20} />
+            {#if $unreadCount > 0}
+              <span class="badge">{$unreadCount > 9 ? '9+' : $unreadCount}</span>
+            {/if}
+          </div>
+        </button>
+        <a href="{base}/settings" class="action-btn settings-btn" title={$t('nav.settings', { default: 'Settings' })}>
+          <Settings size={20} />
+        </a>
+        <UserSwitch />
+      </div>
+    </header>
+  {/if}
+
+  {#if showInstallPrompt}
+    <InstallPrompt 
+      onInstall={handleInstall}
+      onDismiss={handleDismissInstall}
+    />
+  {/if}
+
+  {#if showUpdatePrompt}
+    <UpdatePrompt 
+      onUpdate={handleUpdate}
+      onDismiss={handleDismissUpdate}
+    />
+  {/if}
+
+  {#if !isOnline}
+    <OfflineIndicator />
+  {/if}
+
+  <main id="main" class="rf-page">{@render children?.()}</main>
+
+  {#if $currentUser}
+    <div class="mobile-nav-wrapper">
+      <MobileNav />
+    </div>
+    <ChatSidebar />
+  {/if}
+
+  <Toast />
+  <LiveRegion />
+  <GlobalSearch bind:visible={searchOpen} />
+  <Keybindings bind:open={showKb} />
+{/if}
+
+<div id="rf-live" class="sr-only" aria-live="polite"></div>
 
 <style>
 .sr-only {
