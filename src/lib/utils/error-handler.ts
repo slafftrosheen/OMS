@@ -151,25 +151,15 @@ export async function logError(error: Error | AppError, context?: Record<string,
     // If we're on the server, we can log directly using the server-side logger
     // This avoids issues with relative URLs and fetch
     if (typeof window === 'undefined') {
-      try {
-        const { logger } = await import('$lib/server/logging/logger');
-        const reportedError = {
-          name: error instanceof AppError ? 'AppError' : error.name || 'Error',
-          message: error.message,
-          stack: error.stack
-        };
-        logger.error(`[Server-side] ${error.message}`, reportedError as any, {
-          ...errorData.context,
-          ...errorData.appContext,
-          reportedTimestamp: errorData.timestamp,
-          userAgent: errorData.userAgent,
-          url: errorData.url
-        });
-        return;
-      } catch (importErr) {
-        // If we can't import the logger, fall back to fetch
-        console.warn('Could not log directly on server, falling back to fetch', importErr);
-      }
+      // Vercel/Node captures console.error natively as server logs.
+      // Do not dynamically import $lib/server... here as Vite will flag it as leaking to the client.
+      console.error(`[Server-side AppError] ${error.message}`, {
+        ...errorData.context,
+        ...errorData.appContext,
+        reportedTimestamp: errorData.timestamp,
+        url: errorData.url
+      });
+      return;
     }
 
     // Send to internal error reporting API

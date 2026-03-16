@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { materials, lowStock, createMaterial, updateMaterial, removeMaterial, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
+  import { materials, createMaterial, updateMaterial, removeMaterial, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
   import type { Material, Section } from '$lib/inventory/types';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';

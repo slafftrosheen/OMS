@@ -20,22 +20,22 @@
     createdAt?: string;
   }
 
-  let users: User[] = [];
-  let loading = true;
-  let error = '';
-  let searchQuery = '';
-  let showInactive = false;
+  let users: User[] = $state([]);
+  let loading = $state(true);
+  let error = $state('');
+  let searchQuery = $state('');
+  let showInactive = $state(false);
 
   // Modal state
-  let showModal = false;
-  let modalMode: 'create' | 'edit' | 'password' = 'create';
-  let editingUser: User | null = null;
-  let saving = false;
-  let modalError = '';
-  let successMessage = '';
+  let showModal = $state(false);
+  let modalMode: 'create' | 'edit' | 'password' = $state('create');
+  let editingUser: User | null = $state(null);
+  let saving = $state(false);
+  let modalError = $state('');
+  let successMessage = $state('');
 
   // Form data
-  let formData = {
+  let formData = $state({
     username: '',
     displayName: '',
     email: '',
