@@ -544,23 +544,7 @@
     successMessage = '';
 
     try {
-      const fileIds: number[] = [];
-      for (const fileItem of uploadedFiles) {
-        const formData = new FormData();
-        formData.append('file', fileItem.file);
-        formData.append('category', 'order_sketch');
-        
-        const uploadResponse = await fetch('/api/files/upload', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (uploadResponse.ok) {
-          const uploadResult = await uploadResponse.json();
-          fileIds.push(uploadResult.id);
-        }
-      }
-
+      // 1. Create the base Order First
       const orderData = {
         clientName,
         poNumber,
@@ -577,23 +561,50 @@
           profileCode: 'P7st',
           quantity: p.quantity,
           configuration: p.configuration
-        })),
-        fileIds
+        }))
       };
 
-      const response = await fetch('/api/draft-orders', {
+      const orderResponse = await fetch('/api/draft-orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData)
       });
 
-      if (response.ok) {
-        successMessage = $t('orders.new.messages.success');
-        setTimeout(() => goto('/orders'), 1500);
-      } else {
-        const res = await response.json();
-        error = res.message || $t('admin.users.messages.save_error');
+      if (!orderResponse.ok) {
+        const res = await orderResponse.json();
+        error = res.error || res.message || $t('admin.users.messages.save_error');
+        saving = false;
+        return;
       }
+
+      const orderResult = await orderResponse.json();
+      const newOrderId = orderResult.order.id;
+
+      // 2. Upload the Files linked to the new Order ID
+      const fileIds: number[] = [];
+      for (const fileItem of uploadedFiles) {
+        const formData = new FormData();
+        formData.append('file', fileItem.file);
+        formData.append('order_id', newOrderId); // Ensure backend recognizes the file's parent object
+        formData.append('file_type', 'sketch');
+        
+        const uploadResponse = await fetch('/api/files/upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json();
+          if (uploadResult.file?.id) {
+            fileIds.push(uploadResult.file.id);
+          }
+        } else {
+          console.warn('Failed to upload file:', fileItem.file.name);
+        }
+      }
+
+      successMessage = $t('orders.new.messages.success');
+      setTimeout(() => goto(`/orders`), 1500);
     } catch (err) {
       console.error('Error saving order:', err);
       error = $t('admin.users.messages.save_error');

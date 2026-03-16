@@ -81,3 +81,79 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     }, { status: 500 });
   }
 };
+
+/**
+ * POST /api/draft-orders - Create a new draft order
+ */
+export const POST: RequestHandler = async ({ request, locals }) => {
+  const session = await locals.getSession();
+  if (!session) {
+    return json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+
+    // Map frontend fields (clientName, deadline, priority) to database schema (client, due_date, priority)
+    const client = body.clientName || body.client;
+    const due_date = body.deadline || body.due_date;
+    const po_number = body.poNumber || body.po_number;
+    const title = body.title || `${client} Order ${po_number}`; // Safely synthesize title
+
+    if (!client || !due_date || !po_number) {
+      return json({ error: 'Missing required fields: client, due_date, po_number' }, { status: 400 });
+    }
+
+    // 1. Create the order
+    const { data: order, error: orderError } = await locals.supabase
+      .from('draft_orders')
+      .insert({
+        po_number,
+        title,
+        client,
+        due_date,
+        loading_date: body.loadingDate || null,
+        priority: body.priority || 'NORMAL',
+        status: body.status || 'draft',
+        notes: body.notes || '',
+        delivery_preset_id: body.deliveryPresetId || null,
+        delivery_address: body.deliveryAddress || '',
+        delivery_contact: body.deliveryContact || '',
+        delivery_phone: body.deliveryPhone || '',
+        created_by: session.user.id
+      })
+      .select()
+      .single();
+
+    if (orderError) {
+      console.error('Database order creation error:', orderError);
+      return json({ error: `Failed to create order: ${orderError.message}` }, { status: 500 });
+    }
+
+    // 2. Insert Profiles (if any)
+    if (body.profiles && Array.isArray(body.profiles) && body.profiles.length > 0) {
+      const profilesToInsert = body.profiles.map((p: any) => ({
+        draft_order_id: order.id,
+        profile_template_id: p.profileTemplateId || null,
+        quantity1: p.quantity || 1,
+        configuration: p.configuration || {},
+        notes: p.notes || ''
+      }));
+
+      const { error: profileError } = await locals.supabase
+        .from('order_profiles')
+        .insert(profilesToInsert);
+
+      if (profileError) {
+        console.error('Database profile insertion error:', profileError);
+        // Continue but log error (don't fail the whole order creation)
+      }
+    }
+
+    return json({ success: true, order }, { status: 201 });
+  } catch (err: any) {
+    console.error('POST /api/draft-orders error:', err);
+    return json({ error: 'Internal server error processing order creation' }, { status: 500 });
+  }
+};
+
