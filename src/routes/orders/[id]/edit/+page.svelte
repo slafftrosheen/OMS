@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { stopPropagation } from 'svelte/legacy';
 
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';

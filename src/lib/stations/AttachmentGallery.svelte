@@ -200,7 +200,7 @@ $effect(() => {
 
 {#if selectedImage}
   <div class="lightbox" onclick={closeLightbox} role="dialog" aria-modal="true">
-    <div class="lightbox-content" onclick={stopPropagation(bubble('click'))}>
+    <div class="lightbox-content" onclick={(e) => e.stopPropagation()}>
       <button class="lightbox-close" onclick={closeLightbox} aria-label="Close">
         <X size={24} />
       </button>

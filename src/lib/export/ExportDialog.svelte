@@ -160,7 +160,7 @@ $effect(() => {
 
 {#if show}
   <div class="modal-overlay" onclick={handleClose}>
-    <div class="modal-content" onclick={stopPropagation(bubble('click'))}>
+    <div class="modal-content" onclick={(e) => e.stopPropagation()}>
       <div class="modal-header">
         <h3>
           <Download size={20} />

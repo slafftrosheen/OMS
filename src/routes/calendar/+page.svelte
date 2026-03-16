@@ -447,7 +447,7 @@
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="modal"
-      onclick={stopPropagation(bubble('click'))}
+      onclick={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-order-title"
@@ -494,7 +494,7 @@
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="modal"
-      onclick={stopPropagation(bubble('click'))}
+      onclick={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
       aria-labelledby="loading-day-title"

@@ -461,7 +461,7 @@
   <div class="modal-backdrop" onclick={closeModal}>
     <div 
       class="modal" 
-      onclick={stopPropagation(bubble('click'))} 
+      onclick={(e) => e.stopPropagation()} 
       role="dialog" 
       aria-modal="true"
       tabindex="-1"

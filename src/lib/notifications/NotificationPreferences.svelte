@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { preventDefault } from 'svelte/legacy';
 
 /**
  * Notification Preferences Component

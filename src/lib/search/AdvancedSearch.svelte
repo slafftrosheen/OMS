@@ -388,7 +388,7 @@ function handleKeydown(event: KeyboardEvent) {
 
 {#if showSaveDialog}
   <div class="modal-overlay" onclick={() => showSaveDialog = false}>
-    <div class="modal-content" onclick={stopPropagation(bubble('click'))}>
+    <div class="modal-content" onclick={(e) => e.stopPropagation()}>
       <div class="modal-header">
         <h3>Save Search Filter</h3>
         <button 

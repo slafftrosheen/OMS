@@ -54,7 +54,7 @@
   
   {#if open}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="dropdown" role="menu" onclick={stopPropagation(bubble('click'))}>
+    <div class="dropdown" role="menu" onclick={(e) => e.stopPropagation()}>
       <div class="dropdown-header">
         <span class="avatar-lg">{initials(me?.displayName || me?.username)}</span>
         <div class="dropdown-user-info">

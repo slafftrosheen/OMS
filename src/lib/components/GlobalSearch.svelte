@@ -112,7 +112,7 @@
             visible = false;
         }}
     >
-        <div class="search-modal" onclick={stopPropagation(bubble("click"))}>
+        <div class="search-modal" onclick={(e) => e.stopPropagation()}>
             <div class="search-header">
                 <Search size={20} />
                 <input

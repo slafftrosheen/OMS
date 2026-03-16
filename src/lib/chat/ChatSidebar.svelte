@@ -249,7 +249,7 @@
 <!-- Create Room Modal -->
 {#if showRoomModal}
   <div class="modal-backdrop" onclick={() => showRoomModal = false}>
-    <div class="modal" onclick={stopPropagation(bubble('click'))} role="dialog">
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog">
       <div class="modal-header">
         <h3>Create Channel</h3>
         <button onclick={() => showRoomModal = false}><X size={18} /></button>

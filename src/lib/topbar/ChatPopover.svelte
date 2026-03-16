@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { preventDefault } from 'svelte/legacy';
 
   import MessageSquare from 'lucide-svelte/icons/message-square';
   import { messages, sendMessage, rooms } from '$lib/chat/chat-store';

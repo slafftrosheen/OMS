@@ -152,7 +152,7 @@
 {#if open}
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="search-overlay" onclick={close} role="button" tabindex="-1">
-        <div class="search-modal" onclick={stopPropagation(bubble('click'))} role="dialog" aria-modal="true" tabindex="-1">
+        <div class="search-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
             <div class="search-input-wrapper">
                 <span class="search-icon">🔍</span>
                 <input

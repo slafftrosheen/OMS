@@ -351,7 +351,7 @@ function getLogIcon(status: string) {
 
 {#if showCreateModal}
   <div class="modal-overlay" onclick={() => showCreateModal = false}>
-    <div class="modal-content" onclick={stopPropagation(bubble('click'))}>
+    <div class="modal-content" onclick={(e) => e.stopPropagation()}>
       <h3>Create Backup</h3>
 
       <div class="form-group">
