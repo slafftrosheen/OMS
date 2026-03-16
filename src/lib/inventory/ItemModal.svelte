@@ -8,7 +8,10 @@
   let { material, item, onClose = () => {} }: { material?: Partial<Material>; item?: Partial<Material>; onClose?: () => void } = $props();
   
   // Use material if provided, otherwise fall back to item
-  let data = $state<Partial<Material>>(material || item || {});
+  let data = $state<Partial<Material>>({
+    section: 'materials',
+    ...(material || item || {})
+  });
 
   const sectionOptions: { id: Section; labelKey: string }[] = [
     { id: 'materials', labelKey: 'inventory.materials' },

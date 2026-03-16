@@ -164,12 +164,23 @@
   import { ui } from '$lib/state/appState.svelte';
   import { setLocale } from '$lib/i18n';
   import { Menu, X, LayoutDashboard, ClipboardList, Calendar, Package, HelpCircle, Settings, Users, Boxes, MessageSquare, Bell } from 'lucide-svelte';
-  import { currentUser, loadCurrentUser } from '$lib/auth/authState.svelte';
+  import { AuthState } from '$lib/auth/authState.svelte';
   import { initChatRealtime, toggleChat, unreadCount, isChatOpen } from '$lib/chat/chat-store';
   import { websocket } from '$lib/stores/websocket';
+  import { OrderState } from '$lib/order/orderState.svelte';
+  import { setContext, getContext } from 'svelte';
 
   // Accept params prop to silence SvelteKit warning
   let { children } = $props();
+
+  // Instantiate state classes and provide via context (SSR-safe)
+  const authStateInstance = new AuthState();
+  const orderStateInstance = new OrderState();
+  setContext('authState', authStateInstance);
+  setContext('orderState', orderStateInstance);
+  
+  // Use the instance for currentUser store compatibility
+  const currentUser = authStateInstance.currentUser;
 
   let searchOpen = $state(false);
   let showKb = $state(false);

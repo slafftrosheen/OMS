@@ -63,12 +63,14 @@ class OrderState {
   }
 }
 
-export const orderState = new OrderState();
+// Removed global singleton export to prevent SSR data bleed
+// Instantiate in +layout.svelte and pass via setContext instead
+// export const orderState = new OrderState();
 
-// Backward compatibility stores
-const ordersLegacy = writable<Order[]>(orderState.orders);
-const loadingLegacy = writable<boolean>(orderState.loading);
-const errorLegacy = writable<string | null>(orderState.lastError);
+// Backward compatibility stores (only used in browser)
+const ordersLegacy = writable<Order[]>([]);
+const loadingLegacy = writable<boolean>(false);
+const errorLegacy = writable<string | null>(null);
 
 function syncToLegacy() {
   ordersLegacy.set(orderState.orders);

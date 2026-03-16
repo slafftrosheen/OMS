@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { t, locale as activeLocale } from 'svelte-i18n';
   import {
@@ -44,7 +44,21 @@
 
   type DayCell = { d: Date; iso: string; inMonth: boolean };
 
-  let days: DayCell[] = $state([]);
+  // Derived days array - automatically recomputes when year/month/adminMode changes
+  let days = $derived.by(() => {
+    const newDays: DayCell[] = [];
+    const first = new Date(year, month, 1);
+    const dow = first.getDay() || 7;
+    const start = new Date(first);
+    start.setDate(1 - (dow - 1));
+    for (let i = 0; i < 42; i += 1) {
+      const current = new Date(start);
+      current.setDate(start.getDate() + i);
+      newDays.push({ d: current, iso: toISO(current), inMonth: current.getMonth() === month });
+    }
+    return newDays;
+  });
+  
   let selectedISO: string | null = $state(null);
   const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
   const todayISO = toISO(new Date());
@@ -59,31 +73,19 @@
   const legendKeys = Object.keys(statusIcons) as (keyof typeof statusIcons)[];
 
   let unsubscribeLocale: (() => void) | undefined;
-  onMount(() => {
-    unsubscribeLocale = activeLocale.subscribe((value) => {
-      currentLocale = value || 'en';
-    });
-  });
-
+  
   function toISO(date: Date) {
     return date.toISOString().slice(0, 10);
   }
 
-  function build() {
-    days = [];
-    const first = new Date(year, month, 1);
-    const dow = first.getDay() || 7;
-    const start = new Date(first);
-    start.setDate(1 - (dow - 1));
-    for (let i = 0; i < 42; i += 1) {
-      const current = new Date(start);
-      current.setDate(start.getDate() + i);
-      days.push({ d: current, iso: toISO(current), inMonth: current.getMonth() === month });
-    }
-  }
-
+  // Consolidated onMount for locale subscription and window event listeners
   onMount(() => {
-    build();
+    // Locale subscription
+    unsubscribeLocale = activeLocale.subscribe((value) => {
+      currentLocale = value || 'en';
+    });
+    
+    // Window event listeners for orders changes
     const handleOrders = () => {
       ordersVersion += 1;
     };
@@ -91,17 +93,15 @@
       window.addEventListener('rf-orders-change', handleOrders);
     }
     return () => {
+      unsubscribeLocale?.();
       if (typeof window !== 'undefined') {
         window.removeEventListener('rf-orders-change', handleOrders);
       }
+      unsubCapacity?.();
     };
   });
-  
-  $effect(() => {
-    year; month; adminMode;
-    build();
-  });
 
+  // Auto-select a day when days array changes (derived from year/month/adminMode)
   $effect(() => {
     if (days.length) {
       const inMonth = days.filter((day) => day.inMonth);
@@ -114,11 +114,6 @@
         selectedISO = (today ?? activeDay ?? inMonth[0])?.iso ?? null;
       }
     }
-  });
-
-  onDestroy(() => {
-    unsubscribeLocale?.();
-    unsubCapacity?.();
   });
 
   function clickDay(iso: string) {

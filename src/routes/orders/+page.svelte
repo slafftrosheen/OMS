@@ -86,8 +86,8 @@
       : orders.filter((order: any) => !order.isDraft);
   });
 
-  // Update rows reactively (no need for untrack or $effect)
-  rows = filteredOrders.map(toRow);
+  // Update rows reactively using $derived (not imperative assignment)
+  let rows = $derived(filteredOrders.map(toRow));
   hasLoadedOnce = true;
 
   let isLoading = $derived(orderState.loading);
