@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
   import { Save, ArrowLeft, AlertCircle, Plus, Trash2, Upload, FileText, Eye, MapPin, Calendar, User, Phone, ChevronDown, ChevronLeft, ChevronRight, X, Image, ZoomIn, ZoomOut, Maximize2, BookmarkPlus, BookOpen, Download } from 'lucide-svelte';
@@ -334,8 +335,8 @@
   let isSuperAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
   let isAdmin = $derived($currentUser?.primarySection === 'Admin' || isSuperAdmin);
 
-  // SVELTE 5: Replace onMount with $effect
-  $effect(() => {
+  // SVELTE 5: Use onMount for one-time initialization
+  onMount(() => {
     Promise.all([
       generatePONumber(),
       loadDeliveryPresets(),

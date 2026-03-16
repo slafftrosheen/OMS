@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import { getCurrentProfile } from "$lib/stores/auth";
+    import { currentUser } from "$lib/auth/authState.svelte";
     import ChatMessage from "./ChatMessage.svelte";
     import ChatInput from "./ChatInput.svelte";
 
@@ -183,7 +183,7 @@
             {#each messages as message (message.id)}
                 <ChatMessage
                     {message}
-                    isOwn={message.userId === getCurrentProfile()?.id}
+                    isOwn={message.userId === $currentUser?.id}
                     onreply={handleReply}
                     onedit={editMessage}
                     ondelete={deleteMessage}

@@ -2,7 +2,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { goto } from '$app/navigation';
-    import { getCurrentProfile } from '$lib/stores/auth';
+    import { currentUser } from '$lib/auth/authState.svelte';
     import { ordersStore as orders, orderStats } from '$lib/stores/orders';
     import StatCard from '$lib/components/analytics/StatCard.svelte';
     import OrderCard from '$lib/components/orders/OrderCard.svelte';
@@ -98,7 +98,7 @@
     <header class="dashboard-header">
         <div>
             <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle">Welcome back, {getCurrentProfile()?.username || 'User'}!</p>
+            <p class="page-subtitle">Welcome back, {$currentUser?.username || 'User'}!</p>
         </div>
         <Button variant="primary" onclick={() => goto('/orders/new')}>
             + New Order

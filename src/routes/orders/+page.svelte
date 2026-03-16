@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, setContext } from 'svelte';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
 
@@ -176,13 +177,10 @@
     URL.revokeObjectURL(url);
   }
 
-  // Load orders on mount using $effect (Svelte 5 pattern)
-  $effect(() => {
-    if (!hasLoadedOnce) {
-      console.log('🚀 Orders page mounted');
-      hasLoadedOnce = true;
-      refresh();
-    }
+  // Load orders on mount (Svelte 5 correct pattern for initialization)
+  onMount(() => {
+    console.log('🚀 Orders page mounted');
+    refresh();
   });
 </script>
 
