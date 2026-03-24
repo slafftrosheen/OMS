@@ -531,16 +531,16 @@
     "orders_assigned": "piešķirti pasūtījumi"
   },
   "calendar_page": {
-    "tooltip": "Pārslēdziet administratora režīmu, lai atzīmētu iekraušanas dienas. Noklikšķiniet uz dienām, lai apskatītu vai piešķirtu pasūtījumus.",
+    "tooltip": "Pārslēdziet administratora režīmu, lai atzīmētu iekraušanas dienas. Noklikšķiniet uz dienām, lai apskatītu vai piesaistītu pasūtījumus.",
     "new_loading": "Jauna iekraušana",
     "new_meeting": "Jauna sanāksme",
     "new_note": "Jauna piezīme",
     "view_mode_label": "Skatīšanas režīms",
-    "grid_view": "Režģis",
-    "list_view": "Saraksts",
+    "grid_view": "Mēneša skats",
+    "list_view": "Saraksta skats",
     "prev_month_label": "Iepriekšējais mēnesis",
     "next_month_label": "Nākamais mēnesis",
-    "export_ics": "Eksportēt ICS",
+    "export_ics": "Eksportēt uz ICS",
     "carrier_label": "Pārvadātājs",
     "note_label": "Piezīme"
   },
@@ -825,21 +825,21 @@
   },
   "notifications": {
     "title": "Paziņojumi",
-    "empty": "Pagaidām nav paziņojumu.",
+    "empty": "Pagaidām paziņojumu nav.",
     "filter": {
-      "station": "Staciju filtrs",
+      "station": "Filtrēt pēc stacijas",
       "urgency": "Steidzamība",
       "all_stations": "Visas stacijas",
-      "all_urgencies": "Visi līmeņi"
+      "all_urgencies": "Visi steidzamības līmeņi"
     },
     "urgency": {
-      "normal": "Parasts",
-      "urgent": "Steidzams"
+      "normal": "Parasta",
+      "urgent": "Steidzami"
     },
-    "pin_label": "Piespraust paziņojumu",
-    "unpin_label": "Atspraust paziņojumu",
+    "pin_label": "Piespraust",
+    "unpin_label": "Atspraust",
     "pinned_section": "Piespraustie",
-    "rework_requested": "{order} ({orderId}) • {station} nosūtīts pārlabošanai",
+    "rework_requested": "{order} ({orderId}) • {station} nosūtīts uz pārstrādi",
     "stage_completed": "{order} ({orderId}) • {station} atzīmēta kā pabeigta"
   },
   "settings": {
@@ -945,29 +945,29 @@
     "add": "Pievienot melnrakstu",
     "create": "Izveidot melnrakstu",
     "cdr_file": "CDR fails",
-    "cdr_file_placeholder": "CDR faila ceļš (piemēram, /files/design.cdr)",
-    "attach_cdr": "Pievienot CDR",
-    "notification": "Pasūtījuma melnraksts {id} ir izveidots",
-    "cdr_attached": "CDR fails pievienots un gatavs pārbaudei",
-    "convert_to_order": "Pārvērst par pasūtījumu",
+    "cdr_file_placeholder": "Ceļš uz CDR failu (piemēram, /files/design.cdr)",
+    "attach_cdr": "Pievienot CDR failu",
+    "notification": "Pasūtījuma melnraksts {id} veiksmīgi izveidots",
+    "cdr_attached": "CDR fails pievienots un ir gatavs pārskatīšanai",
+    "convert_to_order": "Pārvērst par aktīvu pasūtījumu",
     "download_cdr": "Lejupielādēt CDR"
   },
   "ui": {
     "density": {
-      "title": "Blīvums",
+      "title": "Interfeisa blīvums",
       "compact": "Kompakts",
       "cozy": "Ērts",
-      "comfortable": "Komfortabls"
+      "comfortable": "Plašs"
     },
     "quickCreate": "Ātrā izveide",
     "notifications": "Paziņojumi",
-    "chat": "Komandas čats",
-    "textsize": "Teksta izmērs",
+    "chat": "Komandas saziņa",
+    "textsize": "Burtu izmērs",
     "new_loading": "Jauna iekraušana",
     "new_meeting": "Jauna sanāksme",
     "new_note": "Jauna piezīme",
-    "export_ics": "Eksportēt ICS",
-    "print_pack": "Drukāt komplektu",
+    "export_ics": "Eksportēt uz ICS",
+    "print_pack": "Drukāt pakotni",
     "save": "Saglabāt",
     "discard": "Atcelt"
   },
@@ -1006,7 +1006,7 @@
   "admin": {
     "users": {
       "title": "Lietotāju pārvaldība",
-      "subtitle": "Pārvaldīt lietotājus, lomas un atļaujas",
+      "subtitle": "Pārvaldiet lietotājus, lomas un atļaujas",
       "add": "Pievienot lietotāju",
       "edit": "Rediģēt lietotāju",
       "reset_password": "Atiestatīt paroli",
@@ -1016,7 +1016,7 @@
       },
       "table": {
         "user": "Lietotājs",
-        "section": "Sadaļa",
+        "section": "Darba nodaļa",
         "roles": "Lomas",
         "stations": "Stacijas",
         "status": "Statuss",
@@ -1026,17 +1026,17 @@
       "form": {
         "username": "Lietotājvārds",
         "display_name": "Attēlojamais vārds",
-        "email": "E-pasts (nav obligāts)",
+        "email": "E-pasts (neobligāti)",
         "password": "Parole",
         "new_password": "Jaunā parole",
-        "sections": "Sadaļas",
-        "primary_section": "Galvenā sadaļa",
-        "roles_per_section": "Lomas pa sadaļām",
-        "station_assignments": "Staciju piešķiršana",
-        "all_stations_hint": "Atstājiet tukšu, lai piekļūtu visām stacijām",
+        "sections": "Darba nodaļas",
+        "primary_section": "Galvenā nodaļa",
+        "roles_per_section": "Lomas nodaļās",
+        "station_assignments": "Piešķirtās stacijas",
+        "all_stations_hint": "Atstājiet tukšu, lai atļautu piekļuvi visām stacijām",
         "is_active": "Lietotājs ir aktīvs",
         "placeholders": {
-          "username": "piem. janis",
+          "username": "piem. janis.berzins",
           "display_name": "piem. Jānis Bērziņš",
           "email": "janis@piemers.lv",
           "password": "Min. 8 rakstzīmes",
@@ -1049,13 +1049,13 @@
         "password_reset": "Parole veiksmīgi atiestatīta",
         "deactivated": "Lietotājs deaktivizēts",
         "reactivated": "Lietotājs aktivizēts",
-        "confirm_deactivate": "Vai tiešām vēlaties deaktivizēt {name}?",
+        "confirm_deactivate": "Vai tiešām vēlaties deaktivizēt lietotāju {name}?",
         "load_error": "Kļūda ielādējot lietotājus",
         "save_error": "Kļūda saglabājot lietotāju",
         "validation": {
           "required": "Lietotājvārds un attēlojamais vārds ir obligāti",
           "password_required": "Parole ir obligāta jauniem lietotājiem",
-          "section_required": "Izvēlieties vismaz vienu sadaļu",
+          "section_required": "Izvēlieties vismaz vienu nodaļu",
           "password_length": "Parolei jābūt vismaz 8 rakstzīmēm"
         }
       },
