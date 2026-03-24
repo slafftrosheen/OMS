@@ -11,7 +11,7 @@ Status. Living document; changes require a PR that explains the rationale.
 
 ### Prerequisites
 - Node.js 18+ and npm
-- A Supabase project ([create one here](https://app.supabase.com))
+- Self-hosted Supabase instance running on `reclame-supabase.local:8000` (Pi 5 node)
 
 ### Installation
 
@@ -27,9 +27,9 @@ Status. Living document; changes require a PR that explains the rationale.
    cp .env.example .env
    ```
    
-   Edit `.env` and add your Supabase credentials (get them from [Supabase Dashboard](https://app.supabase.com/project/_/settings/api)):
+   Edit `.env` and add your self-hosted Supabase credentials:
    ```bash
-   PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   PUBLIC_SUPABASE_URL=http://reclame-supabase.local:8000
    PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
    ```
@@ -40,7 +40,7 @@ Status. Living document; changes require a PR that explains the rationale.
 
 3. **Run database migrations:**
    ```bash
-   # Requires Supabase CLI or use Supabase Dashboard
+   # Connect to self-hosted Supabase on reclame-supabase.local
    npm run supabase:migrate:push
    ```
 
@@ -54,7 +54,7 @@ Status. Living document; changes require a PR that explains the rationale.
 ### Troubleshooting
 
 - **"Missing PUBLIC_SUPABASE_URL" error?** Check your `.env` file and restart the dev server
-- **Database connection issues?** Verify your Supabase credentials in the dashboard
+- **Database connection issues?** Verify your self-hosted Supabase is reachable at `reclame-supabase.local:8000`
 - **Build failures?** See [docs/QUICK_SETUP.md](docs/QUICK_SETUP.md) for common issues
 
 ---
@@ -182,7 +182,7 @@ GitHub
 CSP: default-src 'self'; script-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.example.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'. Tighten as backend lands; avoid inline scripts where possible. 
 MDN Web Docs
 
-Strong referrer policy, HSTS (once on custom domain), and no third-party scripts without review. Supabase Row-Level Security (RLS) is enabled for all public tables.
+Strong referrer policy and no third-party scripts without review. Supabase Row-Level Security (RLS) is enabled for all public tables. Local network operates over HTTP with TLS handled by Traefik ingress.
 
 11) Analytics & Telemetry
 
@@ -192,7 +192,7 @@ Respect consent; no tracking in operator-only contexts unless strictly necessary
 
 12) Tech Stack & Hosting
 
-Frontend: SvelteKit + TypeScript; adaptive deployment with adapter-vercel (Vercel) or adapter-node (self-hosted).
+Frontend: SvelteKit + TypeScript; deployed as a Node.js container via adapter-node on a local K3s Raspberry Pi cluster.
 
 Set environment variables for Supabase configuration. See docs/getting-started.md for setup instructions. 
 svelte.dev
@@ -200,9 +200,9 @@ svelte.dev
 
 UI: Tokenized CSS (brand.css), Lucide icons, Apex/ECharts for metrics.
 
-Backend: Supabase (Postgres + Auth + Storage).
+Backend: Self-hosted Supabase (Postgres + Auth + Storage) on Pi 5 (`reclame-supabase.local`).
 
-CI: GH Actions build + deploy to Vercel or self-hosted Node.js.
+CI: Docker build + deploy to K3s cluster (`reclame-orch.local`, `reclame-k3s-1.local`, `reclame-k3s-2.local`).
 
 13) Domain Model (Minimum Viable)
 type Station = 'CAD'|'CNC'|'SANDING'|'BENDING'|'WELDING'|'PAINT'|'ASSEMBLY'|'QC'|'LOGISTICS';
@@ -241,8 +241,11 @@ Revisions/Branches: uploading a new PDF with same PO adds a revision on the orde
 
 15) Deployment
 
-
-See docs/deployment.md for detailed instructions.
+The application runs as a Docker container on a K3s Raspberry Pi cluster:
+- Build: `docker build -t slaff/reclame-oms:latest .`
+- K3s manifests: `k8s/oms-deployment.yaml`
+- Local testing: `docker-compose up -d`
+- Supabase: Self-hosted on Pi 5 at `reclame-supabase.local:8000`
 svelte.dev
 
 16) Testing & Quality
@@ -264,7 +267,7 @@ Branching: Feature branches off main; small PRs.
 
 Commits: Conventional (feat/fix/chore/docs/refactor/perf/ci).
 
-PR checklist: Screenshots, a11y notes (axe run), i18n keys, GH Pages preview link.
+PR checklist: Screenshots, a11y notes (axe run), i18n keys.
 
 18) Backlog (Agent-Ready)
 
@@ -298,6 +301,6 @@ QR on traveller; scan-to-stage mobile panel for operators.
 
 Epic F — Security
 
-Harden CSP, strict referrer policy, HSTS; minimal externals. 
+Harden CSP, strict referrer policy; minimal externals. 
 MDN Web Docs
 # OMS

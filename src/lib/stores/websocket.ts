@@ -28,14 +28,13 @@ function createWebSocketStore() {
     const RECONNECT_DELAY = 5000; // Increased delay
     let connectionDisabled = false;
 
-    // Check if we're on Vercel or a platform without WebSocket support
-    const isVercel = browser && (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('vercel.com'));
-    const supportsWS = !isVercel; // Disable WebSocket on Vercel
+    // WebSocket is always supported on local K3s cluster
+    const supportsWS = true;
 
     function connect() {
         if (!browser) return;
         
-        // Don't attempt WebSocket connection on Vercel
+        // Don't attempt WebSocket if disabled
         if (!supportsWS) {
             console.log('WebSocket not supported on this platform, using polling fallback');
             update(state => ({ ...state, supportsWebSocket: false, connected: false }));

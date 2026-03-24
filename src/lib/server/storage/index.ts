@@ -1,11 +1,9 @@
 /**
  * Storage Service Module
  * 
- * Consolidated storage using AWS SDK S3 client.
- * Supports S3-compatible storage (MinIO, AWS S3, etc.)
- * 
- * DEPRECATED: storage-service.ts and s3-storage.ts
- * USE: StorageService.ts (AWS SDK-based implementation)
+ * Consolidated storage using Supabase Storage API.
+ * Self-hosted on the Pi 5 NVMe drive (reclame-supabase.local).
+ * Falls back to local filesystem if Supabase is unavailable.
  */
 
 export { storageService } from './StorageService';

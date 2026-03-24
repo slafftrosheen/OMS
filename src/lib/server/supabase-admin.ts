@@ -24,8 +24,8 @@ if (!supabaseUrl || !supabaseServiceKey) {
 }
 
 // Ensure we don't crash if credentials are missing (e.g. during build)
-// createClient requires a non-empty string for URL
-const url = supabaseUrl || 'https://placeholder.supabase.co';
+// Use local placeholder instead of cloud URL
+const url = supabaseUrl || 'http://localhost:8000';
 const key = supabaseServiceKey || 'placeholder-key';
 
 export const supabaseAdmin = createClient(url, key);

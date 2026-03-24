@@ -8,7 +8,6 @@
     "dev:clean": "rm -rf .svelte-kit node_modules/.vite && vite dev --host",
     "build": "vite build",
     "build:clean": "rm -rf .svelte-kit node_modules/.vite build && vite build",
-    "vercel-build": "vite build",
     "preview": "vite preview",
     "smoke-test": "vite build && vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -32,9 +31,6 @@
     "docker:logs": "docker-compose logs -f"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.971.0",
-    "@aws-sdk/lib-storage": "^3.971.0",
-    "@aws-sdk/s3-request-presigner": "^3.972.0",
     "@ericblade/quagga2": "^1.12.1",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.90.1",
@@ -67,7 +63,6 @@
     "@sentry/node": "^8.0.0",
     "@sentry/sveltekit": "^8.0.0",
     "@sveltejs/adapter-node": "^5.5.2",
-    "@sveltejs/adapter-vercel": "^6.3.1",
     "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.3.1",

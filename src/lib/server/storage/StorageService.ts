@@ -1,20 +1,12 @@
 // src/lib/server/storage/StorageService.ts
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createHash } from 'crypto';
 import { logger } from '../logging/logger';
+import { supabase } from '../supabase';
 import fs from 'fs/promises';
 import path from 'path';
 import { existsSync, mkdirSync } from 'fs';
 
-export interface StorageConfig {
-    endpoint?: string;
-    region?: string;
-    bucket?: string;
-    accessKeyId?: string;
-    secretAccessKey?: string;
-    publicUrl?: string;
-}
+const STORAGE_BUCKET = 'order-files';
 
 export interface UploadOptions {
     contentType?: string;
@@ -33,50 +25,27 @@ export interface FileMetadata {
 }
 
 class StorageService {
-    private client: S3Client | null = null;
-    private config: StorageConfig;
     private enabled: boolean;
     private localDir: string;
 
     constructor() {
-        this.enabled = this.validateConfig();
         this.localDir = path.resolve('storage');
+        this.enabled = this.checkSupabaseConnection();
 
         if (!this.enabled) {
-            logger.info('S3 storage not configured - using local fallback', { dir: this.localDir });
+            logger.info('Supabase Storage not available - using local fallback', { dir: this.localDir });
             if (!existsSync(this.localDir)) {
                 mkdirSync(this.localDir, { recursive: true });
             }
         } else {
-            this.config = {
-                endpoint: process.env.S3_ENDPOINT!,
-                region: process.env.S3_REGION || 'us-east-1',
-                bucket: process.env.S3_BUCKET!,
-                accessKeyId: process.env.S3_ACCESS_KEY_ID!,
-                secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
-                publicUrl: process.env.S3_PUBLIC_URL
-            };
-
-            this.client = new S3Client({
-                endpoint: this.config.endpoint,
-                region: this.config.region,
-                credentials: {
-                    accessKeyId: this.config.accessKeyId!,
-                    secretAccessKey: this.config.secretAccessKey!
-                },
-                forcePathStyle: true // Required for MinIO
-            });
-
-            logger.info('S3 Storage initialized', { 
-                endpoint: this.config.endpoint, 
-                bucket: this.config.bucket 
-            });
+            logger.info('Supabase Storage initialized', { bucket: STORAGE_BUCKET });
         }
     }
 
-    private validateConfig(): boolean {
-        const required = ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'];
-        return required.every(key => !!process.env[key]);
+    private checkSupabaseConnection(): boolean {
+        // Check if Supabase URL is set and not a placeholder
+        const url = process?.env?.PUBLIC_SUPABASE_URL || '';
+        return !!url && url !== 'http://localhost:8000' && url.startsWith('http');
     }
 
     /**
@@ -90,7 +59,6 @@ class StorageService {
             .substring(0, 8);
         
         const sanitized = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
-        // Ensure path separators are forward slashes for S3/URL compatibility
         return `orders/${orderId}/${userId}/${hash}-${sanitized}`;
     }
 
@@ -101,7 +69,7 @@ class StorageService {
     }
 
     /**
-     * Upload file to S3 or Local
+     * Upload file to Supabase Storage or Local fallback
      */
     async upload(
         file: File | Buffer,
@@ -114,36 +82,39 @@ class StorageService {
         const key = this.generateKey(orderId, filename, userId);
         const contentType = options.contentType || (file instanceof File ? file.type : 'application/octet-stream');
 
-        if (this.enabled && this.client) {
-            const command = new PutObjectCommand({
-                Bucket: this.config.bucket,
-                Key: key,
-                Body: buffer,
-                ContentType: contentType,
-                Metadata: {
-                    'user-id': userId,
-                    'order-id': orderId,
-                    'uploaded-at': new Date().toISOString(),
-                    ...options.metadata
-                },
-                ACL: options.acl || 'private'
-            });
-
+        if (this.enabled) {
             try {
-                const response = await this.client.send(command);
-                
-                logger.info('File uploaded to S3', { key, size: buffer.length });
+                const { data, error } = await supabase.storage
+                    .from(STORAGE_BUCKET)
+                    .upload(key, buffer, {
+                        contentType,
+                        upsert: false,
+                        duplex: 'half',
+                        metadata: {
+                            'user-id': userId,
+                            'order-id': orderId,
+                            'uploaded-at': new Date().toISOString(),
+                            ...options.metadata
+                        }
+                    });
+
+                if (error) {
+                    logger.error('Supabase Storage upload failed', error as Error, { key, orderId });
+                    throw new Error(`File upload failed: ${error.message}`);
+                }
+
+                logger.info('File uploaded to Supabase Storage', { key, size: buffer.length });
 
                 return {
                     key,
                     size: buffer.length,
                     contentType,
-                    etag: response.ETag || '',
+                    etag: data?.path || '',
                     lastModified: new Date(),
                     url: this.getPublicUrl(key)
                 };
             } catch (error) {
-                logger.error('S3 upload failed', error as Error, { key, orderId });
+                logger.error('Supabase Storage upload error', error as Error, { key, orderId });
                 throw new Error('File upload failed');
             }
         } else {
@@ -174,17 +145,20 @@ class StorageService {
      * Get signed URL for private file access
      */
     async getSignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
-        if (this.enabled && this.client) {
-            const command = new GetObjectCommand({
-                Bucket: this.config.bucket,
-                Key: key
-            });
-
+        if (this.enabled) {
             try {
-                const url = await getSignedUrl(this.client, command, { expiresIn });
-                return url;
+                const { data, error } = await supabase.storage
+                    .from(STORAGE_BUCKET)
+                    .createSignedUrl(key, expiresIn);
+
+                if (error) {
+                    logger.error('Failed to generate signed URL', error as Error, { key });
+                    throw new Error('Could not generate download link');
+                }
+
+                return data.signedUrl;
             } catch (error) {
-                logger.error('Failed to generate signed URL', error as Error, { key });
+                logger.error('Signed URL generation failed', error as Error, { key });
                 throw new Error('Could not generate download link');
             }
         } else {
@@ -198,10 +172,11 @@ class StorageService {
      */
     private getPublicUrl(key: string): string {
         if (this.enabled) {
-            if (this.config.publicUrl) {
-                return `${this.config.publicUrl}/${key}`;
-            }
-            return `${this.config.endpoint}/${this.config.bucket}/${key}`;
+            const { data } = supabase.storage
+                .from(STORAGE_BUCKET)
+                .getPublicUrl(key);
+
+            return data.publicUrl;
         }
         return `/api/files/download?key=${encodeURIComponent(key)}`;
     }
@@ -210,36 +185,33 @@ class StorageService {
      * Download file
      */
     async download(key: string): Promise<{ buffer: Buffer; metadata: FileMetadata }> {
-        if (this.enabled && this.client) {
-            const command = new GetObjectCommand({
-                Bucket: this.config.bucket,
-                Key: key
-            });
-
+        if (this.enabled) {
             try {
-                const response = await this.client.send(command);
-                const stream = response.Body as any;
-                const chunks: Uint8Array[] = [];
+                const { data, error } = await supabase.storage
+                    .from(STORAGE_BUCKET)
+                    .download(key);
 
-                for await (const chunk of stream) {
-                    chunks.push(chunk);
+                if (error) {
+                    logger.error('Supabase Storage download failed', error as Error, { key });
+                    throw new Error('File download failed');
                 }
 
-                const buffer = Buffer.concat(chunks);
+                const arrayBuffer = await data.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
 
                 return {
                     buffer,
                     metadata: {
                         key,
-                        size: response.ContentLength || 0,
-                        contentType: response.ContentType || 'application/octet-stream',
-                        etag: response.ETag || '',
-                        lastModified: response.LastModified || new Date(),
+                        size: buffer.length,
+                        contentType: data.type || 'application/octet-stream',
+                        etag: '',
+                        lastModified: new Date(),
                         url: this.getPublicUrl(key)
                     }
                 };
             } catch (error) {
-                logger.error('S3 download failed', error as Error, { key });
+                logger.error('Supabase Storage download error', error as Error, { key });
                 throw new Error('File download failed');
             }
         } else {
@@ -254,7 +226,7 @@ class StorageService {
                     metadata: {
                         key,
                         size: stats.size,
-                        contentType: 'application/octet-stream', // Could infer from extension
+                        contentType: 'application/octet-stream',
                         etag: 'local-etag',
                         lastModified: stats.mtime,
                         url: this.getPublicUrl(key)
@@ -271,17 +243,20 @@ class StorageService {
      * Delete file
      */
     async delete(key: string): Promise<void> {
-        if (this.enabled && this.client) {
-            const command = new DeleteObjectCommand({
-                Bucket: this.config.bucket,
-                Key: key
-            });
-
+        if (this.enabled) {
             try {
-                await this.client.send(command);
-                logger.info('File deleted from S3', { key });
+                const { error } = await supabase.storage
+                    .from(STORAGE_BUCKET)
+                    .remove([key]);
+
+                if (error) {
+                    logger.error('Supabase Storage delete failed', error as Error, { key });
+                    throw new Error('File deletion failed');
+                }
+
+                logger.info('File deleted from Supabase Storage', { key });
             } catch (error) {
-                logger.error('S3 delete failed', error as Error, { key });
+                logger.error('Storage delete error', error as Error, { key });
                 throw new Error('File deletion failed');
             }
         } else {
@@ -304,15 +279,22 @@ class StorageService {
      * Check if file exists
      */
     async exists(key: string): Promise<boolean> {
-        if (this.enabled && this.client) {
-            const command = new HeadObjectCommand({
-                Bucket: this.config.bucket,
-                Key: key
-            });
-
+        if (this.enabled) {
             try {
-                await this.client.send(command);
-                return true;
+                // List files matching the key path
+                const pathParts = key.split('/');
+                const fileName = pathParts.pop()!;
+                const folderPath = pathParts.join('/');
+
+                const { data, error } = await supabase.storage
+                    .from(STORAGE_BUCKET)
+                    .list(folderPath, {
+                        search: fileName,
+                        limit: 1
+                    });
+
+                if (error) return false;
+                return (data?.length ?? 0) > 0;
             } catch {
                 return false;
             }
@@ -331,21 +313,32 @@ class StorageService {
      * Get file metadata
      */
     async getMetadata(key: string): Promise<FileMetadata> {
-        if (this.enabled && this.client) {
-            const command = new HeadObjectCommand({
-                Bucket: this.config.bucket,
-                Key: key
-            });
-
+        if (this.enabled) {
             try {
-                const response = await this.client.send(command);
-                
+                // Supabase Storage doesn't have a direct HEAD-like method,
+                // so we list to get metadata
+                const pathParts = key.split('/');
+                const fileName = pathParts.pop()!;
+                const folderPath = pathParts.join('/');
+
+                const { data, error } = await supabase.storage
+                    .from(STORAGE_BUCKET)
+                    .list(folderPath, {
+                        search: fileName,
+                        limit: 1
+                    });
+
+                if (error || !data || data.length === 0) {
+                    throw new Error('File not found');
+                }
+
+                const fileInfo = data[0];
                 return {
                     key,
-                    size: response.ContentLength || 0,
-                    contentType: response.ContentType || 'application/octet-stream',
-                    etag: response.ETag || '',
-                    lastModified: response.LastModified || new Date(),
+                    size: fileInfo.metadata?.size || 0,
+                    contentType: fileInfo.metadata?.mimetype || 'application/octet-stream',
+                    etag: fileInfo.id || '',
+                    lastModified: new Date(fileInfo.updated_at || fileInfo.created_at),
                     url: this.getPublicUrl(key)
                 };
             } catch (error) {

@@ -23,7 +23,7 @@ let supabaseAnonKey = publicEnv?.PUBLIC_SUPABASE_ANON_KEY || process.env.PUBLIC_
 
 // Fallback for build/dev if missing
 if (!supabaseUrl && (building || dev)) {
-	supabaseUrl = 'https://placeholder.supabase.co';
+	supabaseUrl = 'http://localhost:8000';
 	console.warn('⚠️ using placeholder Supabase URL');
 }
 if (!supabaseAnonKey && (building || dev)) {
@@ -44,7 +44,7 @@ const supabaseHandler: Handle = async ({ event, resolve }) => {
 		// If we still don't have credentials in runtime (not building), we might fail
 		// But let's try to use placeholder to avoid crash, logging error
 		if (!building) logger.error('Missing Supabase credentials in runtime');
-		url = url || 'https://placeholder.supabase.co';
+		url = url || 'http://localhost:8000';
 		key = key || 'placeholder-key';
 	}
 
@@ -107,16 +107,14 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 		// If strict mode is required, hashes must be implemented.
 		"script-src 'self' 'unsafe-inline' https://github.githubassets.com https://unpkg.com",
 		"style-src 'self' 'unsafe-inline'",
-		"img-src 'self' data: blob: https: https://*.supabase.co",
+		"img-src 'self' data: blob: https: http://*.local http://*.local:*",
 		"font-src 'self' data:",
-		"connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+		"connect-src 'self' http://*.local http://*.local:* ws://*.local ws://*.local:*",
 		"media-src 'self' blob: data:",
 		"object-src 'none'",
 		"frame-ancestors 'none'",
 		"base-uri 'self'",
-		"form-action 'self'",
-		"upgrade-insecure-requests",
-		"block-all-mixed-content"
+		"form-action 'self'"
 	];
 
 	if (dev) {
@@ -128,7 +126,7 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 		// Add localhost Supabase URLs for local development
 		const connectSrcIndex = cspDirectives.findIndex(d => d.startsWith('connect-src'));
 		if (connectSrcIndex !== -1) {
-			cspDirectives[connectSrcIndex] = "connect-src 'self' https://*.supabase.co wss://*.supabase.co http://127.0.0.1:54321 ws://127.0.0.1:54321 http://localhost:54321 ws://localhost:54321";
+			cspDirectives[connectSrcIndex] = "connect-src 'self' http://*.local http://*.local:* ws://*.local ws://*.local:* http://127.0.0.1:54321 ws://127.0.0.1:54321 http://localhost:54321 ws://localhost:54321 http://localhost:8000";
 		}
 	}
 
@@ -138,13 +136,7 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 		cspDirectives.join('; ')
 	);
 
-	// Strict Transport Security (HSTS) - only in production with HTTPS
-	if (!dev) {
-		response.headers.set(
-			'Strict-Transport-Security',
-			'max-age=31536000; includeSubDomains; preload'
-		);
-	}
+	// HSTS removed — local network uses HTTP only (TLS handled externally by Traefik if needed)
 
 	// Other security headers
 	response.headers.set('X-Frame-Options', 'DENY');

@@ -47,7 +47,7 @@ export function toggleChat() {
 
 /**
  * Supabase Realtime Subscription (replaces WebSocket)
- * This works on Vercel because it uses Supabase's infrastructure
+ * This works because it uses Supabase Realtime (self-hosted on reclame-supabase.local)
  */
 let realtimeChannel: any = null;
 let supabaseClient: any = null;

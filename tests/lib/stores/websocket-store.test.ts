@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { get } from 'svelte/store';
 
 // Mock environment
@@ -14,6 +14,7 @@ describe('websocket-store', () => {
   let intervalIds: number[] = [];
   let intervalCallbacks: Map<number, () => void | Promise<void>> = new Map();
   let nextIntervalId = 1;
+  let mockWebSocket: any;
 
   beforeEach(async () => {
     // Reset modules
@@ -47,14 +48,32 @@ describe('websocket-store', () => {
       json: async () => ({})
     });
 
-    // Mock window
+    // Mock window for local K3s cluster environment
     global.window = {
       location: {
-        hostname: 'vercel.app', // Simulate Vercel environment
-        host: 'test.vercel.app',
-        protocol: 'https:'
+        hostname: 'reclame-orch.local',
+        host: 'reclame-orch.local',
+        protocol: 'http:'
+      },
+      dispatchEvent: vi.fn(),
+      localStorage: {
+        getItem: vi.fn().mockReturnValue(null),
+        setItem: vi.fn()
       }
     } as any;
+
+    // Mock WebSocket
+    mockWebSocket = {
+      onopen: null,
+      onmessage: null,
+      onerror: null,
+      onclose: null,
+      close: vi.fn(),
+      send: vi.fn(),
+      readyState: 1 // OPEN
+    };
+    global.WebSocket = vi.fn(() => mockWebSocket) as any;
+    (global.WebSocket as any).OPEN = 1;
 
     // Import websocket store after mocking
     const module = await import('$lib/stores/websocket');
@@ -75,11 +94,9 @@ describe('websocket-store', () => {
       
       // First connect
       websocket.connect();
-      expect(intervalIds.length).toBe(1);
       
       // Second connect should be ignored
       websocket.connect();
-      expect(intervalIds.length).toBe(1);
       expect(consoleSpy).toHaveBeenCalledWith('WebSocket store already initialized');
       
       consoleSpy.mockRestore();
@@ -88,102 +105,64 @@ describe('websocket-store', () => {
     it('should allow reconnection after disconnect', () => {
       // First connect
       websocket.connect();
-      expect(intervalIds.length).toBe(1);
-      const firstId = intervalIds[0];
       
       // Disconnect
       websocket.disconnect();
-      expect(global.clearInterval).toHaveBeenCalledWith(firstId);
       
       // Should allow new connection
       websocket.connect();
-      expect(intervalIds.length).toBe(1);
+      expect(global.WebSocket).toHaveBeenCalledTimes(2);
     });
   });
 
-  describe('polling interval prevention', () => {
-    it('should start only one polling interval', () => {
+  describe('WebSocket connection on local cluster', () => {
+    it('should attempt WebSocket connection on local network', () => {
       websocket.connect();
       
-      // Verify only one interval is created
-      expect(global.setInterval).toHaveBeenCalledTimes(1);
-      expect(intervalIds.length).toBe(1);
+      expect(global.WebSocket).toHaveBeenCalledWith('ws://reclame-orch.local/ws');
     });
 
-    it('should use 2-minute polling interval', () => {
+    it('should set supportsWebSocket to true on connect', () => {
       websocket.connect();
       
-      // Verify the interval is 2 minutes (120000ms)
-      expect(global.setInterval).toHaveBeenCalledWith(
-        expect.any(Function),
-        120000
-      );
+      // Simulate successful connection
+      mockWebSocket.onopen();
+      
+      const state = get(websocket);
+      expect(state.supportsWebSocket).toBe(true);
+      expect(state.connected).toBe(true);
     });
 
-    it('should not create duplicate intervals on multiple connect calls', () => {
-      websocket.connect();
-      websocket.connect();
+    it('should handle connection close and attempt reconnect', () => {
       websocket.connect();
       
-      // Should still have only one interval
-      expect(intervalIds.length).toBe(1);
-    });
-  });
-
-  describe('polling cleanup', () => {
-    it('should clear interval on disconnect', () => {
-      websocket.connect();
-      const intervalId = intervalIds[0];
+      // Simulate connection close
+      mockWebSocket.onclose();
       
-      websocket.disconnect();
-      
-      expect(global.clearInterval).toHaveBeenCalledWith(intervalId);
-      expect(intervalIds.length).toBe(0);
-    });
-
-    it('should reset polling state on disconnect', () => {
-      websocket.connect();
-      websocket.disconnect();
-      
-      // Should allow polling to start again
-      websocket.connect();
-      expect(intervalIds.length).toBe(1);
+      const state = get(websocket);
+      expect(state.connected).toBe(false);
     });
   });
 
-  describe('polling behavior', () => {
-    it('should fetch updates when polling', async () => {
+  describe('message handling', () => {
+    it('should dispatch order_update events', () => {
       websocket.connect();
       
-      // Get the polling callback
-      const pollingCallback = intervalCallbacks.get(intervalIds[0]);
-      expect(pollingCallback).toBeDefined();
+      // Simulate a message
+      const testMessage = { type: 'order_update', data: { id: '123' } };
+      mockWebSocket.onmessage({ data: JSON.stringify(testMessage) });
       
-      // Execute the callback
-      await pollingCallback!();
-      
-      // Verify fetch was called
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/updates',
-        expect.objectContaining({
-          method: 'GET',
-          headers: { 'Accept': 'application/json' }
-        })
-      );
+      expect(global.window.dispatchEvent).toHaveBeenCalled();
     });
 
-    it('should handle polling errors gracefully', async () => {
+    it('should handle malformed messages gracefully', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
       
       websocket.connect();
-      const pollingCallback = intervalCallbacks.get(intervalIds[0]);
-      
-      // Should not throw
-      await expect(pollingCallback!()).resolves.toBeUndefined();
+      mockWebSocket.onmessage({ data: 'not valid json' });
       
       expect(consoleSpy).toHaveBeenCalledWith(
-        'Polling error:',
+        'Failed to parse WebSocket message:',
         expect.any(Error)
       );
       
@@ -191,19 +170,27 @@ describe('websocket-store', () => {
     });
   });
 
-  describe('store state', () => {
-    it('should update supportsWebSocket to false on Vercel', () => {
+  describe('send', () => {
+    it('should send messages when connected', () => {
       websocket.connect();
+      mockWebSocket.onopen();
       
-      const state = get(websocket);
-      expect(state.supportsWebSocket).toBe(false);
+      websocket.send({ type: 'test', data: 'hello' });
+      
+      expect(mockWebSocket.send).toHaveBeenCalledWith(
+        JSON.stringify({ type: 'test', data: 'hello' })
+      );
     });
 
-    it('should not be connected when using polling fallback', () => {
-      websocket.connect();
+    it('should warn when sending while disconnected', () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       
-      const state = get(websocket);
-      expect(state.connected).toBe(false);
+      // Don't connect, just try to send
+      websocket.send({ type: 'test' });
+      
+      expect(consoleSpy).toHaveBeenCalledWith('WebSocket not connected, message not sent');
+      
+      consoleSpy.mockRestore();
     });
   });
 });

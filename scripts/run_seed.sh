@@ -7,7 +7,7 @@ echo "🔐 OMS Database Seed Script"
 echo "=============================="
 
 # CRITICAL: Prevent running in production
-if [ "$NODE_ENV" = "production" ] || [ "$VERCEL_ENV" = "production" ]; then
+if [ "$NODE_ENV" = "production" ]; then
     echo ""
     echo "❌❌❌ CRITICAL ERROR ❌❌❌"
     echo "Seed scripts are FORBIDDEN in production environments!"

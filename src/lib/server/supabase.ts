@@ -16,19 +16,19 @@ const getEnv = (key: string, fallback: string = '') => {
 
 // Create a global Supabase client for server-side admin tasks
 // Ensure we have valid values to avoid build crashes
-let globalUrl = getEnv('PUBLIC_SUPABASE_URL', 'http://localhost').trim();
+let globalUrl = getEnv('PUBLIC_SUPABASE_URL', 'http://localhost:8000').trim();
 let globalKey = getEnv('SUPABASE_SERVICE_ROLE_KEY') || getEnv('PUBLIC_SUPABASE_ANON_KEY', 'anon-key').trim();
 
-// Fallback for build environment
+// Fallback for build environment — use local placeholder
 if (building && (!globalUrl || !globalUrl.startsWith('http'))) {
-  globalUrl = 'https://placeholder.supabase.co';
+  globalUrl = 'http://localhost:8000';
 }
 if (building && !globalKey) {
   globalKey = 'placeholder-key';
 }
 
 // Ensure strict non-empty strings for createClient
-if (!globalUrl) globalUrl = 'https://placeholder.supabase.co';
+if (!globalUrl) globalUrl = 'http://localhost:8000';
 if (!globalKey) globalKey = 'placeholder-key';
 
 export const supabase = createClient(globalUrl, globalKey, {
@@ -45,7 +45,7 @@ export const createSupabaseClient = (event: RequestEvent) => {
 
   // Fallback for build environment
   if (building) {
-    if (!supabaseUrl || !supabaseUrl.startsWith('http')) supabaseUrl = 'https://placeholder.supabase.co';
+    if (!supabaseUrl || !supabaseUrl.startsWith('http')) supabaseUrl = 'http://localhost:8000';
     if (!supabaseAnonKey) supabaseAnonKey = 'placeholder-key';
   }
 
@@ -55,11 +55,11 @@ export const createSupabaseClient = (event: RequestEvent) => {
     if (!building) {
         throw new Error(`Missing PUBLIC_SUPABASE_URL. Found keys: [${keys}]`);
     }
-    supabaseUrl = 'https://placeholder.supabase.co';
+    supabaseUrl = 'http://localhost:8000';
   }
 
   // Strict URL validation (skip during build if placeholder)
-  if (!building || supabaseUrl !== 'https://placeholder.supabase.co') {
+  if (!building || supabaseUrl !== 'http://localhost:8000') {
       try {
         new URL(supabaseUrl);
       } catch (e) {
@@ -94,11 +94,11 @@ export const createSupabaseClient = (event: RequestEvent) => {
         setAll: (cookiesToSet) => {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
-              // Enhance cookie security options
+              // Cookie settings for local HTTP network
               const secureOptions = {
                 ...options,
-                // Ensure secure flag is set in production
-                secure: process.env.NODE_ENV === 'production',
+                // Local network uses HTTP — secure must be false
+                secure: false,
                 // Explicitly set sameSite for CSRF protection
                 sameSite: 'lax' as const,
                 // HttpOnly for XSS protection
