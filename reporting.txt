@@ -1,0 +1,57 @@
+# Architectural Brief: Order Management System (OMS)
+
+## 1. Core Tech Stack & Runtime
+
+*   **Primary languages and frameworks:** The application is built using **TypeScript** and **SvelteKit** (Svelte 5).
+*   **Runtime versions required:** The project requires **Node.js 20** (as specified in the `Dockerfile` with `FROM node:20-alpine`).
+*   **Package manager:** The project uses **npm** (indicated by the presence of `package-lock.json` and `npm ci` commands in the `Dockerfile`).
+
+## 2. Database & Storage
+
+*   **Databases required:** The application requires **PostgreSQL** via **Supabase**. The `.env.example` shows it expects a self-hosted Supabase instance (e.g., `reclame-supabase.local:8000`).
+*   **In-memory stores or message brokers:** No external in-memory stores (like Redis) or message brokers (like RabbitMQ) are required. The application handles rate limiting using an in-memory `Map` within the Node.js process (`src/hooks.server.ts`).
+*   **Database migration commands:** Yes, there are migration scripts. You need to run `npm run migrate` or `npm run supabase:migrate:push` on first deployment to push the schemas to the database. There is also a `supabase/migrations/20260204000012_seed_data.sql` file which suggests data is seeded during migration.
+*   **File storage:** The application uses **Supabase Storage** for file handling. However, it implements a **local disk fallback mechanism** (`src/lib/server/storage/StorageService.ts`) if Supabase Storage is unavailable, saving files to a local directory and serving them via API routes.
+
+## 3. Deployment & Infrastructure
+
+*   **Docker support:** Yes, the repository contains both a `Dockerfile` and a `docker-compose.yml`.
+    *   **Docker Compose Services:** The compose file defines a single service called `oms`. It builds from the local Dockerfile, maps port `3000:3000`, injects environment variables, and configures a health check hitting `/api/health`. (Note: The Supabase dependency is expected to be running externally).
+*   **Bare-metal/systemd without Docker commands:**
+    *   **Install dependencies:** `npm ci`
+    *   **Build the project:** `npm run build`
+    *   **Start the production server:** `node build` (The project uses SvelteKit's `@sveltejs/adapter-node` which outputs a standalone Node app to the `build/` directory).
+
+## 4. Networking & Environment
+
+*   **Default ports:** The application listens on port **3000** by default.
+*   **Required .env variables template:**
+    ```env
+    PUBLIC_SUPABASE_URL=http://localhost:8000
+    PUBLIC_SUPABASE_ANON_KEY=dummy-anon-key
+    SUPABASE_SERVICE_ROLE_KEY=dummy-service-role-key
+    PUBLIC_APP_URL=http://localhost:3000
+    NODE_ENV=production
+
+    # Optional AI Integrations
+    DASHSCOPE_API_KEY=dummy-dashscope-key
+    DASHSCOPE_BASE_URL=http://localhost:11434/v1
+    DASHSCOPE_MODEL=qwen-plus
+
+    # Optional Monitoring
+    PUBLIC_SENTRY_DSN=
+    SENTRY_DSN=
+
+    # Optional Email
+    SMTP_HOST=smtp.gmail.com
+    SMTP_PORT=587
+    SMTP_USER=dummy-email@gmail.com
+    SMTP_PASS=dummy-app-password
+    SMTP_FROM=noreply@dummy.com
+    ```
+
+## 5. AI & API Integrations
+
+*   **LLM logic:** Yes, the codebase has logic for calling LLMs to analyze orders, suggest materials, answer FAQs, and parse documents.
+*   **SDK or HTTP client:** It does not use the official OpenAI SDK. Instead, it uses standard native `fetch` API to make HTTP calls to OpenAI-compatible endpoints (specifically targeting Alibaba's DashScope/Qwen models by default, see `src/lib/ai/qwen-client.ts` and `src/lib/server/ai/AIService.ts`).
+*   **Configurable API Base URL:** Yes, the Base URL is fully configurable. You can set `DASHSCOPE_BASE_URL` or `QWEN_API_BASE_URL` in your environment variables to point it to a local OpenAI-compatible endpoint like Ollama (e.g., `http://localhost:11434/v1`).
