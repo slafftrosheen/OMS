@@ -1,306 +1,227 @@
-Reclame OMS — Source of Truth (SoT) v1.1 - Supabase Integrated
+# Réclame Fabriek — Sovereign Swarm OS
 
-Scope. One canonical reference for Reclame OMS (Reclamefabriek’s order-management system). Covers brand and UX, functional flows, data model, accessibility, i18n, performance, deployment, QA, and contribution rules. Self-contained and agent-ready.
+> End-to-end production OS for visual signage: order intake → CAD → CNC → finishing → assembly → QC → logistics.  
+> Augmented by a local AI orchestrator with RAG retrieval and live database tool calling.
 
-Audience. Admins, workstation operators, logistics, designers/CAD, fabrication leads, PMs, and engineers.
+---
 
-Status. Living document; changes require a PR that explains the rationale.
+## Architecture Overview
 
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                    Tailscale Flat Network                          │
+│                                                                    │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐ │
+│  │  Frontend Node   │  │   AI Server      │  │  Supabase Vault  │ │
+│  │  100.105.211.46  │  │  100.93.147.108  │  │  100.98.202.69   │ │
+│  │                  │  │                  │  │                  │ │
+│  │  SvelteKit App   │  │  Ollama          │  │  PostgreSQL      │ │
+│  │  (Node.js)       │  │  ├ deepseek-r1   │  │  ├ pgvector      │ │
+│  │                  │  │  ├ nomic-embed   │  │  ├ Auth           │ │
+│  │  Crawler Worker  │  │  └ Open WebUI    │  │  ├ Storage        │ │
+│  │  (background)    │  │    :3000         │  │  └ Realtime       │ │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘ │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+### IP Routing Table
+
+| Node | Tailscale IP | Services | Port(s) |
+|------|-------------|----------|---------|
+| **Frontend** | `100.105.211.46` | SvelteKit OMS, Crawler Worker | `5173` (dev), `3000` (prod) |
+| **AI Server** | `100.93.147.108` | Ollama (deepseek-r1:14b, nomic-embed-text), Open WebUI | `11434`, `3000` |
+| **Supabase Vault** | `100.98.202.69` | PostgreSQL + pgvector, Auth, Storage, Realtime | `54321` |
+
+---
 
 ## Quick Setup
 
 ### Prerequisites
 - Node.js 18+ and npm
-- Self-hosted Supabase instance running on `reclame-supabase.local:8000` (Pi 5 node)
+- Access to the Tailscale network (all services are local-only)
 
 ### Installation
 
-1. **Clone and install dependencies:**
-   ```bash
-   git clone <repository-url>
-   cd OMS
-   npm install
-   ```
+```bash
+# 1. Clone and install
+git clone <repository-url>
+cd OMS
+npm install
 
-2. **Configure environment variables:**
-   ```bash
-   cp .env.example .env
-   ```
-   
-   Edit `.env` and add your self-hosted Supabase credentials:
-   ```bash
-   PUBLIC_SUPABASE_URL=http://reclame-supabase.local:8000
-   PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-   ```
-   
-   **📖 Detailed setup guide:** See [docs/QUICK_SETUP.md](docs/QUICK_SETUP.md)
-   
-   **�� Full environment variables reference:** See [docs/environment-variables.md](docs/environment-variables.md)
+# 2. Configure environment
+cp .env.example .env
+# Edit .env — set SUPABASE_SERVICE_ROLE_KEY at minimum
 
-3. **Run database migrations:**
-   ```bash
-   # Connect to self-hosted Supabase on reclame-supabase.local
-   npm run supabase:migrate:push
-   ```
+# 3. Run migrations
+npm run supabase:migrate:push
 
-4. **Start development server:**
-   ```bash
-   npm run dev
-   ```
+# 4. Start dev server
+npm run dev
+```
 
-5. **Open in browser:** http://localhost:5173
+### Environment Variables
 
-### Troubleshooting
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PUBLIC_SUPABASE_URL` | ✅ | Supabase REST endpoint |
+| `PUBLIC_SUPABASE_ANON_KEY` | ✅ | Supabase anonymous/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Service role key (server-side only, used by AI tools) |
+| `DASHSCOPE_API_KEY` | Optional | Qwen/DashScope API key (legacy AI features) |
 
-- **"Missing PUBLIC_SUPABASE_URL" error?** Check your `.env` file and restart the dev server
-- **Database connection issues?** Verify your self-hosted Supabase is reachable at `reclame-supabase.local:8000`
-- **Build failures?** See [docs/QUICK_SETUP.md](docs/QUICK_SETUP.md) for common issues
+> Ollama and Supabase Vault endpoints are hardcoded to Tailscale IPs in `src/lib/server/ai/orchestrator.ts`.
 
 ---
 
-1) Brand, Voice, Positioning
+## AI System — Sovereign Swarm OS
+
+The AI subsystem is a self-hosted RAG pipeline with native tool calling, running entirely on the local Tailscale network.
+
+### Components
+
+| Component | Path | Purpose |
+|-----------|------|---------|
+| **Orchestrator** | `src/lib/server/ai/orchestrator.ts` | RAG pipeline + tool-call loop |
+| **AI Tools** | `src/lib/server/ai/tools.ts` | Database skills (read-only queries) |
+| **Chat API** | `src/routes/api/ai/chat/+server.ts` | Streaming endpoint for the dashboard |
+| **Dashboard UI** | `src/routes/ai-dashboard/+page.svelte` | Swarm OS command center |
+| **Crawler Worker** | `src/workers/crawler/index.ts` | Documentation scraper + embedder |
+
+### How It Works
+
+```
+User Query → Embed (nomic-embed-text) → Dual Vector Search
+                                          ├── match_code_chunks (internal code)
+                                          └── match_framework_docs (external docs)
+                                                    ↓
+                                         Build System Prompt + Tools
+                                                    ↓
+                                         Ollama Chat (deepseek-r1:14b)
+                                                    ↓
+                                         ┌─ Tool Calls? ──┐
+                                         │  Yes            │  No
+                                         ↓                 ↓
+                                    Execute Skills    Stream Response
+                                    Append Results        ↓
+                                    Re-send to LLM   Client Display
+                                         ↓
+                                    Stream Final
+```
+
+### AI Skills (Tool Calling)
+
+The orchestrator passes a `tools` array to Ollama. When the LLM determines it needs live data, it responds with `tool_calls` which the server executes and feeds back.
+
+| Skill | Function | Description |
+|-------|----------|-------------|
+| `get_pending_orders` | `getPendingOrders()` | Fetches active/draft/on-hold orders with PO, client, dates |
+| `get_inventory_status` | `getInventoryStatus()` | Returns materials at or below minimum stock threshold |
+| `get_order_counts_by_status` | `getOrderCountsByStatus()` | Aggregates orders by status for dashboard summaries |
+
+All skills are **read-only** and use the service-role Supabase client (RLS bypass).
+
+### Documentation Crawler
+
+The crawler is a standalone Node.js process that scrapes external documentation, chunks it semantically, embeds via Ollama, and upserts into the `framework_docs` vector table.
+
+```bash
+# Single page
+npm run crawler -- https://svelte.dev/docs/svelte/overview
+
+# Multi-page crawl (follows same-origin links)
+npm run crawler -- https://svelte.dev/docs --follow --max-pages 50
+
+# All options
+npm run crawler -- <url> [--follow] [--max-pages N] [--chunk-size N] [--delay MS]
+```
+
+Requires `SUPABASE_SERVICE_ROLE_KEY` in the environment.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | SvelteKit 2, Svelte 5 (runes), TypeScript |
+| **Styling** | Tokenized CSS (`brand.css`), Lucide icons |
+| **Backend** | Self-hosted Supabase (PostgreSQL + Auth + Storage + Realtime) |
+| **AI** | Ollama (deepseek-r1:14b, nomic-embed-text), pgvector RAG |
+| **Deployment** | Docker + K3s on Raspberry Pi cluster |
+| **Network** | Tailscale mesh VPN |
+
+---
+
+## Project Structure
+
+```
+src/
+├── lib/
+│   ├── server/
+│   │   ├── ai/
+│   │   │   ├── orchestrator.ts    # RAG + tool-call pipeline
+│   │   │   ├── tools.ts           # AI skills (DB queries)
+│   │   │   └── AIService.ts       # Legacy Qwen AI service
+│   │   ├── inventory/             # Inventory management
+│   │   ├── logging/               # Structured logger
+│   │   └── supabase.ts            # Server Supabase client
+│   ├── realtime/
+│   │   ├── realtime-service.ts    # WebSocket subscriptions
+│   │   └── use-realtime-orders.ts # Generic event hooks
+│   ├── types/
+│   │   └── database.ts            # Domain types (Order, Stage, etc.)
+│   └── ...
+├── routes/
+│   ├── ai-dashboard/              # Swarm OS UI
+│   ├── api/ai/chat/               # Streaming chat endpoint
+│   ├── orders/                    # Order management
+│   └── ...
+├── workers/
+│   └── crawler/
+│       └── index.ts               # Documentation crawler
+└── ...
+```
 
-What we are: An end-to-end production OS for visual signage: order intake → CAD → CNC → finishing (sanding/bending/welding/paint) → assembly → QC → logistics.
+---
 
-Who we serve: Internal teams (Admin, CAD, Workstations, Logistics), with client-facing export artifacts (traveller, loading manifests).
+## Design System
 
-Voice: Straight, operations-first; label things the way the shop talks. No buzzwords. Every screen should answer: what should I do next?
+Themes: **LightVim**, **DarkVim**, **HighContrast** — stored on `<html data-theme>`.
 
-Primary outcomes/KPIs: On-time loads, fewer blockers, fewer reworks, and instant traceability of revisions/stage history.
+Tokens: `--bg-0/1/2`, `--text`, `--muted`, `--border`, `--accent-1/2`, `--ok`, `--warn`, `--danger`, `--focus`.
 
-2) Information Architecture (IA)
+WCAG 2.2 AA compliant: body text ≥ 4.5:1, large text ≥ 3:1, UI elements ≥ 3:1.
 
-Top-level sections:
+---
 
-Orders. The core: repo-like “Order Records” that contain the order form + PDF/asset previews + revisions/branches + change requests (PR-style approvals) + stage status and rework cycles.
+## Key Workflows
 
-Calendar. Admin-managed Loading Dates; assign orders to upcoming load slots; export daily manifests (CSV).
+1. **Create Order** — Upload PDF → fill form → assign loading date → set assignees
+2. **Station Update** — Operator proposes stage change → CR → admin applies → notifications
+3. **Rework** — Admin selects station + reason → stage set to REWORK → cycle logged
+4. **AI Query** — User asks on dashboard → orchestrator fetches live data via tools → streams response
+5. **Doc Crawl** — Operator runs crawler → pages scraped + chunked + embedded → available in RAG
 
-Stations. Per-station boards: CAD, CNC, SANDING, BENDING, WELDING, PAINT, ASSEMBLY, QC, LOGISTICS.
+---
 
-Dashboard. KPIs: blocked orders, top rework stations, R&D count, done/total, by-stage breakdown.
+## Deployment
 
-Assets. (Read-only) previews of PDFs/images tied to orders; no raw folder browsing for operators.
+```bash
+# Docker
+docker build -t slaff/reclame-oms:latest .
+docker-compose up -d
 
-Settings. Users/roles, themes, languages, notification prefs.
+# K3s
+kubectl apply -f k8s/oms-deployment.yaml
+```
 
-Right rail (persistent): Notifications (top), Chat (bottom). Both scroll internally; the page never resizes.
+Supabase: Self-hosted on `100.98.202.69:54321`  
+Ollama: Self-hosted on `100.93.147.108:11434`
 
-Header actions: brand logo, compact theme/language/text-size controls, notifications counter, small avatar + quick user switch (role aware).
+---
 
-3) Reusable Modules & Components
+## Contributing
 
-Order Form (admin-created):
-
-Core fields: PO/ID, client, title, due date, Loading Date (chosen from Calendar’s load slots), R&D flag + R&D notes, materials (type/thickness/colors with RAL/Pantone/HEX), attachments (PDF primary).
-
-Stages (no percent bars): NOT_STARTED, QUEUED, IN_PROGRESS, BLOCKED, REWORK, COMPLETED for each station.
-
-Rework cycles: per-station repeat log (RECUT / RESAND / REPAINT / … + note, user, timestamp).
-
-Assignees: users per station (drives mentions/notifications).
-
-Badges: URGENT, R&D, READY_TO_SHIP, etc.
-
-Change Requests (CRs). Station proposals become CRs (admin approves/applies). CR compare view highlights changed fields/materials/stages.
-
-Calendar: Loading Dates. Admin toggles “Loading Mode,” marks capacity/notes per day. Orders select from upcoming load days. Daily Schedule view + Export CSV.
-
-Chat v2. Rooms (General, Workstations, Logistics), @mentions with autocomplete, persistence-ready structure. System posts on rework/completions.
-
-Notifications. Right-rail list; unseen counter in header; live region for screen readers.
-
-PDF Frame. Embedded PDF with “Open in new tab”; respects theme tokens.
-
-Charts/Metrics. Series palette sourced from CSS tokens; axes/legend colors match theme; lines/bars meet non-text contrast (≥3:1). 
-W3C
-
-4) Content & Microcopy Rules
-
-Labels reflect shop terms (e.g., Send to Rework, Assign Loading Date, Station Log).
-
-Button pairs: primary = action (“Apply change”), secondary = safe (“Cancel”).
-
-Errors are clear, actionable (“Provide HEX like #RRGGBB”).
-
-Empty states tell the next step (“No orders for this load day. Assign some from Orders.”).
-
-Avoid percentages for process: show stage names and counts (e.g., “CNC: Completed • x2 repeats”).
-
-5) Design System (Tokens & Themes)
-
-Tokens: --bg-0/1/2, --text, --muted, --border, --accent-1/2, status (--ok, --warn, --danger), --focus.
-
-Themes: LightVim, DarkVim, HighContrast, stored on <html data-theme=>.
-
-WCAG: Body text ≥ 4.5:1; large text ≥ 3:1; UI outlines/borders/focus/indicators ≥ 3:1; chart lines/keys ≥ 3:1. Validate each theme. 
-w3c.github.io
-+1
-
-Motion: Respect prefers-reduced-motion; no essential info conveyed only by motion.
-
-6) Accessibility (WCAG 2.2 AA)
-
-Semantic headings; ARIA where needed; visible focus; skip link.
-
-Right-rail scrolls inside fixed panels; no layout jump on notifications/chat.
-
-Inputs: programmatic labels, help text, error summaries via ARIA live.
-
-Non-text contrast for UI boundaries, focus rings, chart strokes (≥3:1). 
-W3C
-
-Axe-core automated checks in dev; fix color-contrast/focus violations before merge. 
-GitHub
-
-7) Animations
-
-Subtle only; never required to understand state.
-
-Dialogs/menus: fade + scale; disable on reduced-motion.
-
-No parallax or marquee effects.
-
-8) Performance Budgets
-
-LCP < 2.5s, INP < 200ms, CLS < 0.1 on mid-tier mobile.
-
-Budget: ≤ 170KB JS on first route (gz), route-split heavy pages, lazy-load PDF viewer.
-
-9) Internationalization (EN/RU/LV)
-
-All UI strings externalized; builds fail if critical keys missing.
-
-Locale persistence + deep-link (?lang=ru).
-
-svelte-i18n or sveltekit-i18n are acceptable; both are SvelteKit-ready lightweight options. 
-GitHub
-
-10) Privacy, Security, Compliance
-
-CSP: default-src 'self'; script-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.example.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'. Tighten as backend lands; avoid inline scripts where possible. 
-MDN Web Docs
-
-Strong referrer policy and no third-party scripts without review. Supabase Row-Level Security (RLS) is enabled for all public tables. Local network operates over HTTP with TLS handled by Traefik ingress.
-
-11) Analytics & Telemetry
-
-Events: order_created, loading_assigned, stage_proposed, stage_applied, rework_sent, pdf_opened, theme_toggle, locale_toggle.
-
-Respect consent; no tracking in operator-only contexts unless strictly necessary.
-
-12) Tech Stack & Hosting
-
-Frontend: SvelteKit + TypeScript; deployed as a Node.js container via adapter-node on a local K3s Raspberry Pi cluster.
-
-Set environment variables for Supabase configuration. See docs/getting-started.md for setup instructions. 
-svelte.dev
-+1
-
-UI: Tokenized CSS (brand.css), Lucide icons, Apex/ECharts for metrics.
-
-Backend: Self-hosted Supabase (Postgres + Auth + Storage) on Pi 5 (`reclame-supabase.local`).
-
-CI: Docker build + deploy to K3s cluster (`reclame-orch.local`, `reclame-k3s-1.local`, `reclame-k3s-2.local`).
-
-13) Domain Model (Minimum Viable)
-type Station = 'CAD'|'CNC'|'SANDING'|'BENDING'|'WELDING'|'PAINT'|'ASSEMBLY'|'QC'|'LOGISTICS';
-type StageState = 'NOT_STARTED'|'QUEUED'|'IN_PROGRESS'|'BLOCKED'|'REWORK'|'COMPLETED';
-
-type FileRef = { id:string; name:string; path:string; kind:'pdf'|'img'|'other' };
-
-type ReworkReason = 'RECUT'|'RESAND'|'REBEND'|'REWELD'|'REPAINT'|'REASSEMBLE'|'RECHECK'|'CUSTOM';
-type StageCycle = { idx:number; station:Station; reason:ReworkReason; note?:string; at:string; by:string };
-
-type Order = {
-  id:string; title:string; client:string; due:string;
-  loadingDate?: string;
-  isRD?: boolean; rdNotes?: string;
-  badges: string[];
-  fields: { key:string; label:string; value:string }[];
-  materials: { key:string; label:string; value:string }[];
-  stages: Record<Station, StageState>;
-  cycles: StageCycle[];
-  assignees: Record<Station,string[]>;
-  revisions: { id:string; file:FileRef; message?:string; createdBy:string; createdAt:string }[];
-  defaultRevisionId:string;
-};
-
-14) Key Flows
-
-Create Order (Admin): upload PDF → fill form (R&D? materials/colors?) → assign Loading Date (or later) → set initial assignees.
-
-Station Update: operator proposes stage change → CR appears → admin applies (or requests change) → system posts notification + chat message with @assignees.
-
-Send to Rework (Admin): choose station + reason + note → stage set to REWORK → cycle logged (x1, x2…) → chat + notification.
-
-Assign Loading: Admin marks load days in Calendar → orders select from list → exports daily manifest (CSV).
-
-Revisions/Branches: uploading a new PDF with same PO adds a revision on the order (admin can promote as current).
-
-15) Deployment
-
-The application runs as a Docker container on a K3s Raspberry Pi cluster:
-- Build: `docker build -t slaff/reclame-oms:latest .`
-- K3s manifests: `k8s/oms-deployment.yaml`
-- Local testing: `docker-compose up -d`
-- Supabase: Self-hosted on Pi 5 at `reclame-supabase.local:8000`
-svelte.dev
-
-16) Testing & Quality
-
-Unit/Integration: Order create/edit, CR lifecycle, stage transitions (allowed graph), Loading Dates assign/export.
-
-A11y: Keyboard nav, focus order, live region updates, non-text contrast, color contrast per theme; axe-core CI/dev gate. 
-GitHub
-
-Perf: LCP route budgets and code-split; no console errors; images lazy below the fold.
-
-I18n: Missing-key check for EN/RU/LV; deep link preserves locale; theme independent.
-
-Definition of Done: Criteria met; a11y checks pass; contrast ≥ AA across themes; screenshots updated; release notes line added.
-
-17) Contribution & Workflow
-
-Branching: Feature branches off main; small PRs.
-
-Commits: Conventional (feat/fix/chore/docs/refactor/perf/ci).
-
-PR checklist: Screenshots, a11y notes (axe run), i18n keys.
-
-18) Backlog (Agent-Ready)
-
-Epic A — Shell
-
-Header actions (avatar switch, notif count) and right-rail polish.
-
-Theme/logo auto-swap (light variant) with contrast verification.
-
-Epic B — Orders
-
-Compare View deltas (fields/materials/stages).
-
-Station logs: quick notes + photo attach (future backend).
-
-Epic C — Calendar
-
-Load-day capacity limits and over-capacity warnings.
-
-Manifests with client phone/address and crate count.
-
-Epic D — R&D
-
-Experiment runs (trial revisions) and promotion workflow.
-
-Defect taxonomy per station with analytics.
-
-Epic E — Scanning
-
-QR on traveller; scan-to-stage mobile panel for operators.
-
-Epic F — Security
-
-Harden CSP, strict referrer policy; minimal externals. 
-MDN Web Docs
-# OMS
+- **Branching**: Feature branches off `main`; small PRs
+- **Commits**: Conventional (`feat/fix/chore/docs/refactor/perf/ci`)
+- **PR checklist**: Screenshots, a11y notes (axe run), i18n keys
+- **Definition of Done**: a11y checks pass, contrast ≥ AA, screenshots updated

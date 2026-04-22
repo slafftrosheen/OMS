@@ -78,10 +78,7 @@ export const createSupabaseClient = (event: RequestEvent) => {
     supabaseAnonKey = 'placeholder-key';
   }
 
-  // Debug log to confirm what we are passing (only in dev/runtime)
-  if (!building) {
-      console.log(`[Supabase] Initializing client with URL: ${supabaseUrl.substring(0, 12)}... (Length: ${supabaseUrl.length})`);
-  }
+  // Debug logging removed — connection verified by hooks.server.ts
 
   return createServerClient(
     supabaseUrl,

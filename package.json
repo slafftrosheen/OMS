@@ -28,7 +28,8 @@
     "docker:build": "docker build -t oms:latest .",
     "docker:run": "docker-compose up -d",
     "docker:stop": "docker-compose down",
-    "docker:logs": "docker-compose logs -f"
+    "docker:logs": "docker-compose logs -f",
+    "crawler": "tsx src/workers/crawler/index.ts"
   },
   "dependencies": {
     "@ericblade/quagga2": "^1.12.1",
@@ -55,6 +56,7 @@
     "svelte": "^5.1.16",
     "svelte-apexcharts": "file:packages/svelte-apexcharts",
     "svelte-i18n": "file:packages/svelte-i18n",
+    "cheerio": "^1.0.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

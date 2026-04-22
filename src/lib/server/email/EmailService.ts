@@ -47,11 +47,6 @@ export class EmailService {
                 textPreview: options.text?.substring(0, 100) || 'No text content',
                 htmlPreview: options.html?.substring(0, 100) || 'No HTML content'
             });
-            console.log('--- EMAIL CONTENT START ---');
-            console.log(`To: ${options.to}`);
-            console.log(`Subject: ${options.subject}`);
-            console.log(`Body: ${options.text || options.html}`);
-            console.log('--- EMAIL CONTENT END ---');
             return true;
         }
 

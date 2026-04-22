@@ -29,7 +29,7 @@
   import { startPreferenceUrlSync } from '$lib/settings/url-sync';
   import { ui } from '$lib/state/appState.svelte';
   import { setLocale } from '$lib/i18n';
-  import { Menu, X, LayoutDashboard, ClipboardList, Calendar, Package, HelpCircle, Settings, Users, Boxes, MessageSquare, Bell } from 'lucide-svelte';
+  import { Menu, X, LayoutDashboard, ClipboardList, Calendar, Package, HelpCircle, Settings, Users, Boxes, MessageSquare, Bell, Bot } from 'lucide-svelte';
   import { AuthState, currentUser, loadCurrentUser } from '$lib/auth/authState.svelte';
   import { initChatRealtime, toggleChat, unreadCount, isChatOpen } from '$lib/chat/chat-store';
   import { websocket } from '$lib/stores/websocket';
@@ -348,6 +348,10 @@
         <a href="{base}/faq" class:active={currentPath.includes('/faq')} onclick={() => mobileMenuOpen = false}>
           <HelpCircle size={18} />
           <span>{$t('nav.faq', { default: 'FAQ' })}</span>
+        </a>
+        <a href="{base}/ai-dashboard" class:active={currentPath.includes('/ai-dashboard')} onclick={() => mobileMenuOpen = false}>
+          <Bot size={18} />
+          <span>Swarm OS</span>
         </a>
         {#if isAdmin}
           <div class="nav-divider"></div>

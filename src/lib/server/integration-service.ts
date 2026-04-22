@@ -93,7 +93,7 @@ export class IntegrationService {
           await this.sendDiscordMessage(integration, event);
           break;
         default:
-          console.log('[Integration] Unknown type:', integration.integration_type);
+          console.warn('[Integration] Unknown type:', integration.integration_type);
       }
 
       // Mark as completed
