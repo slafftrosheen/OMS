@@ -4,7 +4,10 @@
 //
 // RAG pipeline with native Tool Calling:
 //   1. Embed user query via Ollama (nomic-embed-text)
-//   2. Dual vector retrieval: match_code_chunks + match_framework_docs
+//   2. Triple vector retrieval (parallel):
+//      a. match_code_chunks       — internal codebase context
+//      b. match_framework_docs    — external documentation (Svelte, MDN, etc.)
+//      c. match_company_knowledge — corporate identity (reclamefabriek.eu)
 //   3. Send enriched prompt to Ollama (deepseek-r1:14b) with tools array
 //   4. If LLM requests tool calls → execute → feed results back → stream final
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,6 +43,15 @@ export interface FrameworkDoc {
 	id: string;
 	url: string;
 	title: string;
+	content: string;
+	similarity: number;
+}
+
+/** A company knowledge chunk from the `match_company_knowledge` RPC. */
+export interface CompanyKnowledge {
+	id: string;
+	url: string;
+	category: string;
 	content: string;
 	similarity: number;
 }
@@ -163,6 +175,18 @@ async function retrieveFrameworkDocs(
 	});
 }
 
+async function retrieveCompanyKnowledge(
+	embedding: number[],
+	threshold: number,
+	count: number
+): Promise<CompanyKnowledge[]> {
+	return callMatchRpc<CompanyKnowledge>('match_company_knowledge', {
+		query_embedding: embedding,
+		match_threshold: threshold,
+		match_count: count
+	});
+}
+
 // ─── Tool-Call Execution ─────────────────────────────────────────────────────
 
 /**
@@ -262,7 +286,10 @@ async function ollamaChatStream(
  * Ask the Hivemind.
  *
  * 1. Embeds the user query via Ollama (nomic-embed-text).
- * 2. Dual vector retrieval in parallel (code chunks + framework docs).
+ * 2. Triple vector retrieval in parallel:
+ *    - Internal code chunks (match_code_chunks)
+ *    - External framework docs (match_framework_docs)
+ *    - Corporate identity (match_company_knowledge)
  * 3. First Ollama call with tools (non-streaming) — checks for tool_calls.
  * 4. If tool calls: execute each, append results, call Ollama again.
  * 5. Final call is always streaming for the client.
@@ -285,8 +312,8 @@ export async function askHivemind(
 	// ── 1. Embed ──────────────────────────────────────────────────────────────
 	const embedding = await getEmbedding(query, embeddingModel);
 
-	// ── 2. Dual RAG retrieval ─────────────────────────────────────────────────
-	const [codeResult, docsResult] = await Promise.all([
+	// ── 2. Triple RAG retrieval (parallel) ────────────────────────────────────
+	const [codeResult, docsResult, companyResult] = await Promise.all([
 		retrieveCodeChunks(embedding, matchThreshold, matchCount).catch((err) => {
 			logger.warn('Code chunk retrieval failed', { error: (err as Error).message });
 			return [] as CodeChunk[];
@@ -294,16 +321,31 @@ export async function askHivemind(
 		retrieveFrameworkDocs(embedding, matchThreshold, matchCount).catch((err) => {
 			logger.warn('Framework docs retrieval failed', { error: (err as Error).message });
 			return [] as FrameworkDoc[];
+		}),
+		retrieveCompanyKnowledge(embedding, matchThreshold, matchCount).catch((err) => {
+			logger.warn('Company knowledge retrieval failed', { error: (err as Error).message });
+			return [] as CompanyKnowledge[];
 		})
 	]);
 
 	logger.info('Context retrieved from vault', {
 		codeChunks: codeResult.length,
-		frameworkDocs: docsResult.length
+		frameworkDocs: docsResult.length,
+		companyKnowledge: companyResult.length
 	});
 
 	// ── 3. Build system prompt ────────────────────────────────────────────────
 	const contextSections: string[] = [];
+
+	// Corporate identity goes FIRST — highest priority for tone/identity
+	if (companyResult.length > 0) {
+		const companyCtx = companyResult
+			.map((c) => `--- [${c.category}] ${c.url} ---\n${c.content}`)
+			.join('\n');
+		contextSections.push(
+			`## RÉCLAME FABRIEK CORPORATE IDENTITY & HISTORY\nUse the following corporate knowledge to inform your tone, reference past projects, and understand our capabilities:\n${companyCtx}`
+		);
+	}
 
 	if (codeResult.length > 0) {
 		const codeCtx = codeResult
@@ -323,8 +365,9 @@ export async function askHivemind(
 	}
 
 	const systemPrompt = [
-		'You are the Réclame Fabriek Lead Developer, operating as the Sovereign Swarm OS AI assistant.',
+		'You are the AI representative of Réclame Fabriek, operating as the Sovereign Swarm OS assistant.',
 		'You are an expert in SvelteKit 2, Svelte 5, TypeScript, Supabase, and signage manufacturing workflows.',
+		'Use the Corporate Identity context to inform your tone, reference past projects, and understand our capabilities.',
 		'You have access to live database tools. When the user asks about orders, inventory, or system status, USE your tools to fetch real-time data instead of guessing.',
 		'Always present data clearly with relevant numbers, dates, and statuses.',
 		contextSections.length > 0

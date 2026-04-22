@@ -3,7 +3,7 @@
 	import { base } from '$app/paths';
 	import {
 		Bot, Send, ExternalLink, ClipboardList, Paintbrush,
-		BarChart3, Cpu, Loader2, Trash2, RotateCcw, Sparkles
+		BarChart3, Cpu, Loader2, Trash2, RotateCcw, Sparkles, Building2
 	} from 'lucide-svelte';
 
 	// ───── Types ─────────────────────────────────────────────────────────
@@ -46,6 +46,7 @@
 		{ label: 'Refactor UI', icon: Paintbrush, prompt: 'Suggest UI improvements for the orders page following our Svelte 5 + brand.css design tokens.' },
 		{ label: 'Review Workflow', icon: ClipboardList, prompt: 'Review the manufacturing workflow stages and suggest optimizations.' },
 		{ label: 'System Health', icon: Cpu, prompt: 'Perform a systems health check: summarize the stack, infra, and potential issues.' },
+		{ label: 'Our Capabilities', icon: Building2, prompt: 'Summarize Réclame Fabriek\'s capabilities, past projects, and core services based on our corporate identity.' },
 	];
 
 	// ───── Send message ──────────────────────────────────────────────────

@@ -29,7 +29,8 @@
     "docker:run": "docker-compose up -d",
     "docker:stop": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
-    "crawler": "tsx src/workers/crawler/index.ts"
+    "crawler": "tsx src/workers/crawler/index.ts",
+    "crawler:brand": "tsx src/workers/crawler/brand_crawler.ts"
   },
   "dependencies": {
     "@ericblade/quagga2": "^1.12.1",
