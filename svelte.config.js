@@ -22,6 +22,17 @@ const config = {
       checkOrigin: true
     },
 
+    csp: {
+      directives: {
+        'connect-src': [
+          "'self'",
+          "http://192.168.8.150:54321",
+          "ws://192.168.8.150:54321",
+          "ws://192.168.8.151:5173"
+        ]
+      }
+    },
+
     env: {
       publicPrefix: 'PUBLIC_'
     }

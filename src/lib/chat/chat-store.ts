@@ -7,6 +7,7 @@ import { base } from '$app/paths';
 import { notify } from '$lib/notifications/store';
 import { browser } from '$app/environment';
 import { env } from '$env/dynamic/public';
+import { supabase } from '$lib/supabase-client';
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -66,61 +67,56 @@ Received URL: ${supabaseUrl || 'undefined'}, Key: ${supabaseKey ? '***' : 'undef
     return () => {};
   }
 
-  // Dynamic import to avoid SSR issues
-  import('@supabase/supabase-js').then(({ createClient }) => {
-    supabaseClient = createClient(supabaseUrl, supabaseKey);
+  supabaseClient = supabase;
 
-    // Subscribe to chat_messages table for real-time updates
-    realtimeChannel = supabaseClient
-      .channel('chat-messages')
-      .on(
-        'postgres_changes',
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'chat_messages' 
-        },
-        (payload: any) => {
-          const newMessage = payload.new;
-          const me = get(currentUser);
-          
-          // Transform to Message format
-          const message: Message = {
-            id: newMessage.id,
-            roomId: newMessage.room_id,
-            authorId: newMessage.user_id || 'system',
-            text: newMessage.content,
-            ts: newMessage.created_at,
-            mentions: [],
-            variant: newMessage.user_id ? 'user' : 'system'
-          };
+  // Subscribe to chat_messages table for real-time updates
+  realtimeChannel = supabaseClient
+    .channel('chat-messages')
+    .on(
+      'postgres_changes',
+      { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'chat_messages' 
+      },
+      (payload: any) => {
+        const newMessage = payload.new;
+        const me = get(currentUser);
+        
+        // Transform to Message format
+        const message: Message = {
+          id: newMessage.id,
+          roomId: newMessage.room_id,
+          authorId: newMessage.user_id || 'system',
+          text: newMessage.content,
+          ts: newMessage.created_at,
+          mentions: [],
+          variant: newMessage.user_id ? 'user' : 'system'
+        };
 
-          // Update store (check for duplicates)
-          messages.update(msgs => {
-            if (msgs.some(m => m.id === message.id)) return msgs;
-            return [...msgs, message];
-          });
+        // Update store (check for duplicates)
+        messages.update(msgs => {
+          if (msgs.some(m => m.id === message.id)) return msgs;
+          return [...msgs, message];
+        });
 
-          // Notification logic (only if not sent by me)
-          if (me?.id && newMessage.user_id && String(newMessage.user_id) !== String(me.id)) {
-            if (!get(isChatOpen)) {
-              unreadCount.update(n => n + 1);
-              playSound();
-              
-              notify('New chat message', {
-                urgency: 'normal'
-              });
-            }
+        // Notification logic (only if not sent by me)
+        if (me?.id && newMessage.user_id && String(newMessage.user_id) !== String(me.id)) {
+          if (!get(isChatOpen)) {
+            unreadCount.update(n => n + 1);
+            playSound();
+            
+            notify('New chat message', {
+              urgency: 'normal'
+            });
           }
         }
-      )
-      .subscribe((status: string) => {
-        console.log('Chat realtime status:', status);
-        realtimeConnected.set(status === 'SUBSCRIBED');
-      });
-  }).catch(err => {
-    console.error('Failed to initialize Supabase realtime:', err);
-  });
+      }
+    )
+    .subscribe((status: string) => {
+      console.log('Chat realtime status:', status);
+      realtimeConnected.set(status === 'SUBSCRIBED');
+    });
 
   return () => {
     if (realtimeChannel && supabaseClient) {

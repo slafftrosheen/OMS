@@ -107,42 +107,7 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 		response.headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
 	}
 
-	// Content Security Policy
-	const cspDirectives = [
-		"default-src 'self' http://192.168.8.150:* ws://192.168.8.150:* wss://192.168.8.150:* http://192.168.8.151:* ws://192.168.8.151:* wss://192.168.8.151:* http://100.98.202.69:* ws://100.98.202.69:* wss://100.98.202.69:*",
-		// In dev, we might need unsafe-inline for HMR or tools, but for production we aim for strictness.
-		// Retaining 'unsafe-inline' for styles for now as Svelte transitions often use them.
-		// If strict mode is required, hashes must be implemented.
-		"script-src 'self' 'unsafe-inline' https://github.githubassets.com https://unpkg.com",
-		"style-src 'self' 'unsafe-inline'",
-		"img-src 'self' data: blob: https: http://*.local http://*.local:*",
-		"font-src 'self' data:",
-		"connect-src 'self' http://*.local http://*.local:* ws://*.local ws://*.local:* wss://*.local wss://*.local:* ws://100.105.211.46:* wss://100.105.211.46:* ws://100.98.202.69:* wss://100.98.202.69:* ws://localhost:* ws://127.0.0.1:* ws://192.168.8.150:* wss://192.168.8.150:* http://192.168.8.150:* ws://192.168.8.151:* wss://192.168.8.151:* http://192.168.8.151:*",
-		"media-src 'self' blob: data:",
-		"object-src 'none'",
-		"frame-ancestors 'none'",
-		"base-uri 'self'",
-		"form-action 'self'"
-	];
-
-	if (dev) {
-		// Loosen CSP for development
-		const scriptSrcIndex = cspDirectives.findIndex(d => d.startsWith('script-src'));
-		if (scriptSrcIndex !== -1) {
-			cspDirectives[scriptSrcIndex] = "script-src 'self' 'unsafe-inline' https://github.githubassets.com https://unpkg.com";
-		}
-		// Add localhost Supabase URLs for local development
-		const connectSrcIndex = cspDirectives.findIndex(d => d.startsWith('connect-src'));
-		if (connectSrcIndex !== -1) {
-			cspDirectives[connectSrcIndex] = "connect-src 'self' http://*.local http://*.local:* ws://*.local ws://*.local:* http://127.0.0.1:54321 ws://127.0.0.1:54321 http://localhost:54321 ws://localhost:54321 http://localhost:8000";
-		}
-	}
-
-	// Apply security headers
-	response.headers.set(
-		'Content-Security-Policy',
-		cspDirectives.join('; ')
-	);
+	// Remove manual CSP override to let SvelteKit handle it natively
 
 	// HSTS removed — local network uses HTTP only (TLS handled externally by Traefik if needed)
 
