@@ -311,7 +311,7 @@ export async function askHivemind(
 		matchThreshold = 0.4,
 		matchCount = 3,
 		numCtx = 8192,
-		model = 'deepseek-r1:14b',
+		model = 'qwen2.5-coder:14b', // 🚀 The Execution model (loves tools!)
 		embeddingModel = 'nomic-embed-text'
 	} = options;
 
