@@ -109,7 +109,7 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 		"style-src 'self' 'unsafe-inline'",
 		"img-src 'self' data: blob: https: http://*.local http://*.local:*",
 		"font-src 'self' data:",
-		"connect-src 'self' http://*.local http://*.local:* ws://*.local ws://*.local:*",
+		"connect-src 'self' http://*.local http://*.local:* ws://*.local ws://*.local:* wss://*.local wss://*.local:* ws://100.105.211.46:* wss://100.105.211.46:* ws://100.98.202.69:* wss://100.98.202.69:* ws://localhost:* ws://127.0.0.1:*",
 		"media-src 'self' blob: data:",
 		"object-src 'none'",
 		"frame-ancestors 'none'",

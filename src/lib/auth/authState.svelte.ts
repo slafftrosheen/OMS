@@ -5,6 +5,11 @@ import type { User, Section } from './types';
 
 const isBrowser = typeof window !== 'undefined';
 
+// Backward compatibility stores (only used in browser)
+const userLegacy = writable<User | null>(null);
+const loadingLegacy = writable<boolean>(false);
+const errorLegacy = writable<string | null>(null);
+
 export class AuthState {
   user = $state<User | null>(null);
   loading = $state<boolean>(false);
@@ -18,17 +23,17 @@ export class AuthState {
 
   setUser(u: User | null) {
     this.user = u;
-    syncToLegacy();
+    userLegacy.set(u);
   }
 
   setLoading(l: boolean) {
     this.loading = l;
-    syncToLegacy();
+    loadingLegacy.set(l);
   }
 
   setError(e: string | null) {
     this.error = e;
-    syncToLegacy();
+    errorLegacy.set(e);
   }
 
   async load(timeoutMs = 10000): Promise<User | null> {
@@ -109,17 +114,6 @@ export class AuthState {
 // Module-level singleton for use by exported functions
 // The constructor's isBrowser check prevents SSR side effects
 export const authState = new AuthState();
-
-// Backward compatibility stores (only used in browser)
-const userLegacy = writable<User | null>(null);
-const loadingLegacy = writable<boolean>(false);
-const errorLegacy = writable<string | null>(null);
-
-function syncToLegacy() {
-  userLegacy.set(authState.user);
-  loadingLegacy.set(authState.loading);
-  errorLegacy.set(authState.error);
-}
 
 // Helper to get current instance from context (browser only)
 function getInstance(): AuthState | null {

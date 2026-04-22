@@ -46,6 +46,7 @@ class RealtimeService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 2000;
+  private isReconnecting = false;
 
   /**
    * Initialize real-time subscriptions for a user
@@ -208,19 +209,23 @@ class RealtimeService {
    * Handle reconnection logic
    */
   private handleReconnect(userId: string): void {
+    if (this.isReconnecting) return;
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('[Realtime] Max reconnection attempts reached');
       connectionState.set('error');
       return;
     }
 
+    this.isReconnecting = true;
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
 
     console.log(`[Realtime] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
-    setTimeout(() => {
-      this.disconnect();
+    setTimeout(async () => {
+      await this.disconnect();
+      this.isReconnecting = false;
       this.connect(userId);
     }, delay);
   }
