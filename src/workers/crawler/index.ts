@@ -16,6 +16,7 @@
 //   SUPABASE_SERVICE_ROLE_KEY  — required, your Supabase service role key.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import 'dotenv/config';
 import * as cheerio from 'cheerio';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 

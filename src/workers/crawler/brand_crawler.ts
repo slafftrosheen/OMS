@@ -13,6 +13,7 @@
 //   npx tsx src/workers/crawler/brand_crawler.ts [--max-pages 50] [--delay 200]
 // ─────────────────────────────────────────────────────────────────────────────
 
+import 'dotenv/config';
 import * as cheerio from 'cheerio';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
