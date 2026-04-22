@@ -6,7 +6,7 @@ import { createId } from '$lib/utils/id';
 import { base } from '$app/paths';
 import { notify } from '$lib/notifications/store';
 import { browser } from '$app/environment';
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -56,8 +56,8 @@ let supabaseClient: any = null;
 export function initChatRealtime() {
   if (!isBrowser) return () => {};
   
-  const supabaseUrl = PUBLIC_SUPABASE_URL;
-  const supabaseKey = PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = env.PUBLIC_SUPABASE_URL;
+  const supabaseKey = env.PUBLIC_SUPABASE_ANON_KEY;
   
   if (!supabaseUrl || !supabaseKey) {
     console.warn(`Supabase credentials not configured, realtime chat disabled. 

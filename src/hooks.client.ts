@@ -12,7 +12,7 @@ const customHandleError: HandleClientError = ({ error, event }) => {
     // We could return a custom message or error ID here if needed
     return {
         message: 'An unexpected client-side error occurred.',
-        errorId: (error as any)?.errorId || crypto.randomUUID()
+        errorId: (error as any)?.errorId || (crypto.randomUUID?.() ?? Math.random().toString(36).substring(2, 15))
     };
 };
 

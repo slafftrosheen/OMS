@@ -2,7 +2,7 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import { dev } from '$app/environment';
-import { PUBLIC_WS_URL } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 
 interface WebSocketMessage {
     type: string;
@@ -49,7 +49,7 @@ function createWebSocketStore() {
 
         try {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = PUBLIC_WS_URL || `${protocol}//${window.location.host}/ws`;
+            const wsUrl = env.PUBLIC_WS_URL || `${protocol}//${window.location.host}/ws`;
 
             ws = new WebSocket(wsUrl);
 
