@@ -60,9 +60,8 @@
 		// Push user message
 		chatHistory = [...chatHistory, { role: 'user', content: query, timestamp: new Date() }];
 
-		// Create placeholder assistant message
-		const assistantMsg: ChatMessage = { role: 'assistant', content: '', timestamp: new Date() };
-		chatHistory = [...chatHistory, assistantMsg];
+		let assistantMessageIndex = chatHistory.length;
+		chatHistory.push({ role: 'assistant', content: '', timestamp: new Date() });
 		isTyping = true;
 
 		try {
@@ -93,15 +92,14 @@
 				const { done, value } = await reader.read();
 				if (done) break;
 
-				accumulated += decoder.decode(value, { stream: true });
+				const chunkText = decoder.decode(value, { stream: true });
+				accumulated += chunkText;
 
 				// Strip <think>...</think> blocks that deepseek-r1 emits
-				const cleaned = accumulated.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+				const cleaned = accumulated.replace(/<think>[\s\S]*?<\/think>/g, '').trimStart();
 
-				// Update the last message in-place
-				chatHistory = chatHistory.map((m, i) =>
-					i === chatHistory.length - 1 ? { ...m, content: cleaned } : m
-				);
+				// Append the text chunk to the Svelte state
+				chatHistory[assistantMessageIndex].content = cleaned;
 			}
 		} catch (err) {
 			errorMsg = (err as Error).message || 'Connection to Hivemind failed.';
