@@ -8,6 +8,11 @@ dotenv.config();
 export default defineConfig({
   plugins: [sveltekit()],
   server: {
+    host: true, // Equivalent to 0.0.0.0
+    strictPort: true,
+    hmr: {
+      host: '192.168.8.151', // Explicitly allow LAN WebSocket connections
+    },
     fs: {
       allow: ['.']
     },

@@ -109,7 +109,7 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 
 	// Content Security Policy
 	const cspDirectives = [
-		"default-src 'self'",
+		"default-src 'self' http://192.168.*.*:* ws://192.168.*.*:* wss://192.168.*.*:* http://100.*.*.*:* ws://100.*.*.*:* wss://100.*.*.*:*",
 		// In dev, we might need unsafe-inline for HMR or tools, but for production we aim for strictness.
 		// Retaining 'unsafe-inline' for styles for now as Svelte transitions often use them.
 		// If strict mode is required, hashes must be implemented.
