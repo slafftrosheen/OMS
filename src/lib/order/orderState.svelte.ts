@@ -3,6 +3,7 @@ import { blankStages, STATIONS } from './stages';
 import { handleApiError, retryWithBackoff } from '$lib/utils/error-handler';
 import { notifySuccess, notifyError } from '$lib/notify/toast';
 import { writable } from 'svelte/store';
+import { authState } from '$lib/auth/authState.svelte';
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -20,8 +21,15 @@ export class OrderState {
           loadingLegacy.set(this.loading);
           errorLegacy.set(this.lastError);
         });
+
+        let hasLoaded = false;
+        $effect(() => {
+          if (!authState.loading && authState.user && !hasLoaded) {
+            hasLoaded = true;
+            this.load();
+          }
+        });
       });
-      this.load();
     }
   }
 

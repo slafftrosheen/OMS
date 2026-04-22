@@ -104,23 +104,31 @@ async function getEmbedding(
 	text: string,
 	model = 'nomic-embed-text'
 ): Promise<number[]> {
-	const res = await fetch(`${OLLAMA_URL}/embeddings`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ model, prompt: text })
-	});
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-	if (!res.ok) {
-		const body = await res.text();
-		logger.error('Ollama embedding request failed', new Error(body), {
-			status: res.status,
-			model
+	try {
+		const res = await fetch(`${OLLAMA_URL}/embeddings`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ model, prompt: text }),
+			signal: controller.signal
 		});
-		throw new Error(`Embedding request failed (${res.status}): ${body}`);
-	}
 
-	const data: OllamaEmbeddingResponse = await res.json();
-	return data.embedding;
+		if (!res.ok) {
+			const body = await res.text();
+			logger.error('Ollama embedding request failed', new Error(body), {
+				status: res.status,
+				model
+			});
+			throw new Error(`Embedding request failed (${res.status}): ${body}`);
+		}
+
+		const data: OllamaEmbeddingResponse = await res.json();
+		return data.embedding;
+	} finally {
+		clearTimeout(timeoutId);
+	}
 }
 
 /**

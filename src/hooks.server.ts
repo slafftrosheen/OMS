@@ -117,7 +117,7 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 		"style-src 'self' 'unsafe-inline'",
 		"img-src 'self' data: blob: https: http://*.local http://*.local:*",
 		"font-src 'self' data:",
-		"connect-src 'self' http://*.local http://*.local:* ws://*.local ws://*.local:* wss://*.local wss://*.local:* ws://100.105.211.46:* wss://100.105.211.46:* ws://100.98.202.69:* wss://100.98.202.69:* ws://localhost:* ws://127.0.0.1:* ws://192.168.8.150:* wss://192.168.8.150:* http://192.168.8.150:* ws://192.168.8.151:* wss://192.168.8.151:* http://192.168.8.151:*",
+		"connect-src 'self' http://*.local http://*.local:* ws://*.local ws://*.local:* wss://*.local wss://*.local:* ws://100.105.211.46:* wss://100.105.211.46:* ws://100.98.202.69:* wss://100.98.202.69:* ws://localhost:* ws://127.0.0.1:* ws://192.168.8.150:* wss://192.168.8.150:* http://192.168.8.150:* ws://192.168.8.151:* wss://192.168.8.151:* http://192.168.8.151:* http://192.168.*.*:* ws://192.168.*.*:* wss://192.168.*.*:* http://100.*.*.*:* ws://100.*.*.*:* wss://100.*.*.*:*",
 		"media-src 'self' blob: data:",
 		"object-src 'none'",
 		"frame-ancestors 'none'",

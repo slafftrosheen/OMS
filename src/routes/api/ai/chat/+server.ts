@@ -107,6 +107,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			throw err;
 		}
 
-		throw svelteError(502, 'AI service unavailable — check Ollama connectivity');
+		// Return a 200 response with a streaming payload as requested
+		const stream = new ReadableStream({
+			start(controller) {
+				const message = "⚠️ AI Node Unreachable. Please check Tailscale/LAN connection to the RTX 5080 server.";
+				controller.enqueue(new TextEncoder().encode(message));
+				controller.close();
+			}
+		});
+
+		return new Response(stream, {
+			headers: {
+				'Content-Type': 'text/plain; charset=utf-8',
+				'Cache-Control': 'no-cache',
+				'X-Content-Type-Options': 'nosniff'
+			}
+		});
 	}
 };
