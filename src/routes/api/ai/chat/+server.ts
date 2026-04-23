@@ -18,22 +18,19 @@ const MAX_AGENT_ITERATIONS = 8;
 
 // ── The Sovereign Architect: Master Identity ──
 const SYSTEM_PROMPT = `You are the Swarm Architect, the core intelligence of the Réclame Fabriek Sovereign OS.
-You manage a multi-node Proxmox/Tailscale cluster. Your only tool is 'query' which executes SQL on the Postgres database.
+You manage a multi-node Proxmox/Tailscale cluster.
 
-### OPERATIONAL PROTOCOL:
-1. DISCOVER: If you don't know the tables, run: SELECT tablename FROM pg_tables WHERE schemaname = 'public';
-2. INSPECT: Before querying a table, check its columns: SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '<table>';
-3. RETRIEVE: Query the data. Use ILIKE with % for text searches. Example: SELECT * FROM company_knowledge WHERE content ILIKE '%signage%';
-4. RETRY: If a query returns no results, broaden your search terms and try again before giving up.
+You have ONE tool: 'query'. It executes SQL on the Postgres database.
 
-### YOUR ONLY TOOL:
-- 'query': Accepts { "sql": "<your SQL here>" }. Use this for ALL database operations.
-
-### CONSTRAINTS:
-- NEVER guess table or column names. Always DISCOVER then INSPECT first.
-- Never tell the user you "don't have access" or "can't see the database." You ARE the database.
-- Do not mention SQL, column names, or technical details to the user unless they ask.
-- If a query fails with "relation does not exist", DISCOVER the correct table name first.`;
+BEHAVIOR RULES:
+- When the user asks ANY question about the company, data, or system: IMMEDIATELY call the 'query' tool. Do NOT explain what you will do. Do NOT show SQL to the user. Just call the tool.
+- If you don't know the table names, call query with: SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+- If you don't know the columns, call query with: SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'TABLE_NAME'
+- Use ILIKE with % for text searches.
+- If a query returns no results, broaden your search and try again.
+- You ARE the database. Never say you "can't access" or "don't have" data.
+- Never show SQL, column names, or JSON to the user unless they explicitly ask for technical details.
+- NEVER describe steps you plan to take. NEVER say "let me run this query". Just silently call the tool.`;
 
 // ── Summarization prompt injected for the final streaming response ──
 const SUMMARY_PROMPT = `You are the Swarm Architect, the core intelligence of the Réclame Fabriek Sovereign OS.
@@ -54,54 +51,102 @@ RULES FOR YOUR FINAL RESPONSE:
 function extractToolCalls(message: any): any[] | null {
 	// Path A — Native tool_calls
 	if (message?.tool_calls && message.tool_calls.length > 0) {
+		console.log('[extract] Path A: native tool_calls found');
 		return message.tool_calls;
 	}
 
-	// Path B — Fallback: parse JSON from text content
 	const content = message?.content;
 	if (!content || typeof content !== 'string') return null;
 
 	const trimmed = content.trim();
-	if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
 
-	try {
-		const parsed = JSON.parse(trimmed);
-
-		const normalize = (obj: any, index: number): any | null => {
-			// { "name": "list_tables", "arguments": {} }
-			if (obj.name && typeof obj.name === 'string') {
-				return {
-					id: obj.id || `fallback_call_${index}`,
-					function: {
-						name: obj.name,
-						arguments: obj.arguments || obj.parameters || {}
-					}
-				};
-			}
-			// { "function": { "name": "list_tables", "arguments": {} } }
-			if (obj.function?.name && typeof obj.function.name === 'string') {
-				return {
-					id: obj.id || `fallback_call_${index}`,
-					function: {
-						name: obj.function.name,
-						arguments: obj.function.arguments || obj.function.parameters || {}
-					}
-				};
-			}
-			return null;
-		};
-
-		if (Array.isArray(parsed)) {
-			const calls = parsed.map(normalize).filter(Boolean);
-			return calls.length > 0 ? calls : null;
+	// Normalize helper
+	const normalize = (obj: any, index: number): any | null => {
+		// { "name": "query", "arguments": { "sql": "..." } }
+		if (obj.name && typeof obj.name === 'string') {
+			return {
+				id: obj.id || `fallback_call_${index}`,
+				function: {
+					name: obj.name,
+					arguments: obj.arguments || obj.parameters || {}
+				}
+			};
 		}
-
-		const single = normalize(parsed, 0);
-		return single ? [single] : null;
-	} catch (e) {
-		console.error('[fallback-parse] Failed to parse tool call from text content:', e);
+		// { "function": { "name": "query", "arguments": { ... } } }
+		if (obj.function?.name && typeof obj.function.name === 'string') {
+			return {
+				id: obj.id || `fallback_call_${index}`,
+				function: {
+					name: obj.function.name,
+					arguments: obj.function.arguments || obj.function.parameters || {}
+				}
+			};
+		}
 		return null;
+	};
+
+	// Path B — Content is pure JSON (starts with { or [)
+	if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+		try {
+			const parsed = JSON.parse(trimmed);
+			if (Array.isArray(parsed)) {
+				const calls = parsed.map(normalize).filter(Boolean);
+				if (calls.length > 0) { console.log('[extract] Path B: pure JSON array'); return calls; }
+			}
+			const single = normalize(parsed, 0);
+			if (single) { console.log('[extract] Path B: pure JSON object'); return [single]; }
+		} catch { /* not pure JSON, continue */ }
 	}
+
+	// Path C — JSON embedded in markdown code blocks (```json ... ``` or ``` ... ```)
+	const codeBlockRegex = /```(?:json)?\s*\n?([\s\S]*?)```/g;
+	let match: RegExpExecArray | null;
+	while ((match = codeBlockRegex.exec(content)) !== null) {
+		const blockContent = match[1].trim();
+		if (!blockContent.startsWith('{') && !blockContent.startsWith('[')) continue;
+		try {
+			const parsed = JSON.parse(blockContent);
+			// Direct tool call shape
+			const single = normalize(parsed, 0);
+			if (single) { console.log('[extract] Path C: JSON in markdown code block'); return [single]; }
+			// Array shape
+			if (Array.isArray(parsed)) {
+				const calls = parsed.map(normalize).filter(Boolean);
+				if (calls.length > 0) { console.log('[extract] Path C: array in markdown'); return calls; }
+			}
+			// Raw { "sql": "..." } — wrap as a query tool call
+			if (parsed.sql && typeof parsed.sql === 'string') {
+				console.log('[extract] Path C: raw SQL object in markdown, wrapping as query tool call');
+				return [{
+					id: 'fallback_sql_0',
+					function: { name: 'query', arguments: { sql: parsed.sql } }
+				}];
+			}
+		} catch (e) {
+			console.error('[extract] Path C parse error:', e);
+		}
+	}
+
+	// Path D — Scan for raw {"sql": "..."} anywhere in the text
+	const sqlJsonRegex = /\{\s*"sql"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}/;
+	const sqlMatch = sqlJsonRegex.exec(content);
+	if (sqlMatch) {
+		try {
+			const parsed = JSON.parse(sqlMatch[0]);
+			if (parsed.sql) {
+				console.log('[extract] Path D: raw SQL JSON found in text');
+				return [{
+					id: 'fallback_sql_inline_0',
+					function: { name: 'query', arguments: { sql: parsed.sql } }
+				}];
+			}
+		} catch (e) {
+			console.error('[extract] Path D parse error:', e);
+		}
+	}
+
+	console.log('[extract] No tool calls detected in content');
+	return null;
 }
 
 /**
