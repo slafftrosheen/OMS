@@ -2,9 +2,6 @@ import { env } from '$env/dynamic/private';
 import { error } from '@sveltejs/kit';
 import postgres from 'postgres';
 
-// Persistent connection pool to Node 101 Postgres
-const sql = postgres(env.DATABASE_URL || 'postgresql://postgres:postgres@100.98.202.69:54322/postgres');
-
 const OLLAMA_URL = 'http://100.93.147.108:11434/api/chat';
 const OLLAMA_MODEL = 'qwen2.5-coder:14b';
 
@@ -25,6 +22,12 @@ const tools = [{
 
 export async function POST({ request }) {
     const body = await request.json();
+
+    // LAZY CONNECTION: Only connect when a request is made, preventing top-level Vite crashes.
+    const sql = postgres(env.DATABASE_URL || 'postgresql://postgres:postgres@100.98.202.69:54322/postgres', {
+        max: 1, // Keep connection pool tiny for the AI
+        idle_timeout: 5 // Auto-close idle connections
+    });
 
     // Support both { messages } and legacy { query, chatHistory } payloads
     let messages: { role: string; content: string }[];
@@ -140,5 +143,8 @@ export async function POST({ request }) {
     } catch (err) {
         console.error('Orchestrator Error:', err);
         throw error(500, 'Agentic loop failed');
+    } finally {
+        // Clean up the DB connection to prevent hanging processes
+        await sql.end();
     }
 }
