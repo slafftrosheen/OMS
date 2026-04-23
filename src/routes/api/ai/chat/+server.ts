@@ -3,7 +3,25 @@ import { error } from '@sveltejs/kit';
 import postgres from 'postgres';
 
 export async function POST({ request }) {
-    const { messages } = await request.json();
+    const body = await request.json();
+    
+    // Support both { messages } and legacy { query, chatHistory } payloads
+    let messages;
+    if (body.messages && Array.isArray(body.messages)) {
+        messages = body.messages;
+    } else {
+        const { query } = body;
+        const chatHistory = Array.isArray(body.chatHistory) ? body.chatHistory : [];
+        if (!query || typeof query !== 'string' || !query.trim()) {
+            throw error(400, 'Missing or empty "query" field');
+        }
+        messages = [...chatHistory];
+        const last = messages[messages.length - 1];
+        if (!(last?.role === 'user' && last?.content === query)) {
+            messages.push({ role: 'user', content: query });
+        }
+    }
+
     const ollamaUrl = 'http://100.93.147.108:11434/api/chat';
     const OLLAMA_MODEL = 'qwen2.5-coder:14b';
 
