@@ -14,9 +14,13 @@ const OLLAMA_URL = 'http://100.93.147.108:11434/api/chat';
 const OLLAMA_MODEL = 'qwen2.5-coder:14b';
 
 // ── Sovereign Agent System Prompt ──
-const SYSTEM_PROMPT = `You are the Swarm Architect. You have direct access to the Postgres database on Node 101.
-- You MUST use the provided tools to answer schema or data questions.
-- If you use a tool, respond ONLY with the tool call, no conversational filler.`;
+const SYSTEM_PROMPT = `You are the Swarm Architect, an expert autonomous AI agent with direct access to the Postgres database on Node 101.
+Your primary knowledge base is the "public.company_knowledge" table.
+
+CRITICAL DIRECTIVES:
+1. NO GUESSING: You MUST NOT guess table names, schemas, or data. Always use the provided tools to verify.
+2. COMPANY KNOWLEDGE: Whenever asked about "Réclame Fabriek", you MUST use the "query" tool to search the "content" and "category" columns in the "public.company_knowledge" table.
+3. TOOL EXECUTION: If you need to use a tool, respond ONLY with the tool call. Do NOT provide any conversational filler or markdown formatting.`;
 
 /**
  * Attempts to extract a tool call from raw text content when the model
@@ -315,7 +319,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// ── Step 3: Final streaming response with tool results in context ──
 		// Strip the strict JSON tool-calling instruction from the system prompt so it summarizes naturally
 		if (history[0]?.role === 'system') {
-			history[0].content = `You are the Swarm Architect. You have direct access to the Postgres database on Node 101.\nSummarize the tool results clearly and concisely for the user. Do not output raw JSON.`;
+			history[0].content = `You are the Swarm Architect, an expert AI assistant for Réclame Fabriek.
+You have just retrieved information from the database. 
+CRITICAL DIRECTIVE: Summarize the tool results clearly, accurately, and naturally for the user. DO NOT output raw JSON tool calls.`;
 		}
 
 		console.log('--- FINAL OLLAMA PAYLOAD (tool path) ---');
