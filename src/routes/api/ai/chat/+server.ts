@@ -2,111 +2,140 @@ import { env } from '$env/dynamic/private';
 import { error } from '@sveltejs/kit';
 import postgres from 'postgres';
 
-// 1. Establish a single, persistent, high-speed DB connection
+// Persistent connection pool to Node 101 Postgres
 const sql = postgres(env.DATABASE_URL || 'postgresql://postgres:postgres@100.98.202.69:54322/postgres');
 
-export async function POST({ request }) {
-    const { messages } = await request.json();
-    const ollamaUrl = 'http://100.93.147.108:11434/api/chat';
-    const OLLAMA_MODEL = 'qwen2.5-coder:14b';
+const OLLAMA_URL = 'http://100.93.147.108:11434/api/chat';
+const OLLAMA_MODEL = 'qwen2.5-coder:14b';
 
-    // 2. Define the native tool strictly for Ollama
-    const tools = [{
-        type: 'function',
-        function: {
-            name: 'execute_sql',
-            description: 'Execute read-only SQL queries against the Postgres database to find information. Focus on public.company_knowledge table.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    query: { type: 'string', description: 'The exact PostgreSQL query to run.' }
-                },
-                required: ['query']
-            }
+const tools = [{
+    type: 'function',
+    function: {
+        name: 'execute_sql',
+        description: 'Execute read-only SQL queries against the Postgres database to find information. Focus on public.company_knowledge table.',
+        parameters: {
+            type: 'object',
+            properties: {
+                query: { type: 'string', description: 'The exact PostgreSQL query to run.' }
+            },
+            required: ['query']
         }
-    }];
+    }
+}];
+
+export async function POST({ request }) {
+    const body = await request.json();
+
+    // Support both { messages } and legacy { query, chatHistory } payloads
+    let messages: { role: string; content: string }[];
+    if (body.messages) {
+        messages = body.messages;
+    } else {
+        const { query, chatHistory = [] } = body;
+        if (!query || typeof query !== 'string' || !query.trim()) {
+            throw error(400, 'Missing or empty "query" field');
+        }
+        messages = [...chatHistory];
+        const last = messages[messages.length - 1];
+        if (!(last?.role === 'user' && last?.content === query)) {
+            messages.push({ role: 'user', content: query });
+        }
+    }
 
     try {
-        // STEP 1: The Private Tool Check (Non-Streaming)
-        const toolCheckResponse = await fetch(ollamaUrl, {
+        // STEP 1: Tool Check (non-streaming, hidden from user)
+        const step1Res = await fetch(OLLAMA_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: OLLAMA_MODEL,
                 messages: [
-                    { 
-                        role: 'system', 
-                        content: 'You are the Swarm Architect. You must use the execute_sql tool to search the public.company_knowledge table. DO NOT GUESS. Use ILIKE for text searches.' 
-                    },
+                    { role: 'system', content: 'You are the Swarm Architect. You must use the execute_sql tool to search the public.company_knowledge table. DO NOT GUESS. Use ILIKE for text searches.' },
                     ...messages
                 ],
-                tools: tools,
-                stream: false 
+                tools,
+                stream: false
             })
         });
 
-        if (!toolCheckResponse.ok) throw new Error('Ollama connection failed');
-        const data = await toolCheckResponse.json();
-        const aiMessage = data.message;
+        if (!step1Res.ok) throw new Error('Ollama connection failed');
+        const { message: aiMessage } = await step1Res.json();
 
-        // STEP 2: Execute Tool Natively if Requested
-        if (aiMessage?.tool_calls && aiMessage.tool_calls.length > 0) {
+        // STEP 2: Execute tool if requested
+        let finalMessages: any[];
+
+        if (aiMessage?.tool_calls?.length > 0) {
             const toolCall = aiMessage.tool_calls[0];
-            let toolResult;
+            let toolResult: string;
 
             try {
-                console.log('⚡ [DB] Executing Query:', toolCall.function.arguments.query);
-                // Execute the raw query instantly
-                const rows = await sql.unsafe(toolCall.function.arguments.query);
+                const sqlQuery = toolCall.function.arguments.query;
+                console.log('⚡ [DB] Executing:', sqlQuery);
+                const rows = await sql.unsafe(sqlQuery);
                 toolResult = JSON.stringify(rows);
-                console.log('✅ [DB] Query returned', rows.length, 'rows.');
-            } catch (dbError: any) {
-                console.error('❌ [DB] Error:', dbError);
-                toolResult = JSON.stringify({ error: dbError.message });
+                console.log('✅ [DB] Returned', rows.length, 'rows');
+            } catch (dbErr: any) {
+                console.error('❌ [DB] Error:', dbErr.message);
+                toolResult = JSON.stringify({ error: dbErr.message });
             }
 
-            // Prepare history loop for final summary
-            const finalMessages = [
+            finalMessages = [
                 { role: 'system', content: 'You are the Swarm Architect. Summarize the following database results clearly for the user. Do not output raw JSON.' },
                 ...messages,
-                aiMessage, // The exact tool_call object Ollama generated
+                aiMessage,
                 { role: 'tool', content: toolResult }
             ];
-
-            // STEP 3: Stream the Final Human Answer
-            const streamResponse = await fetch(ollamaUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: OLLAMA_MODEL,
-                    messages: finalMessages,
-                    stream: true
-                })
-            });
-
-            return new Response(streamResponse.body, {
-                headers: { 'Content-Type': 'application/x-ndjson' }
-            });
+        } else {
+            // No tool needed
+            finalMessages = [
+                { role: 'system', content: 'You are the Swarm Architect. Provide a clear and helpful response.' },
+                ...messages
+            ];
         }
 
-        // STEP 4: Fallback (No Tool Needed) - Stream directly
-        const directResponse = await fetch(ollamaUrl, {
+        // STEP 3: Stream final answer — extract text content from NDJSON
+        const streamRes = await fetch(OLLAMA_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: OLLAMA_MODEL,
-                messages: [
-                    { role: 'system', content: 'You are the Swarm Architect. Provide a clear and helpful response.' },
-                    ...messages
-                ],
+                messages: finalMessages,
                 stream: true
             })
         });
 
-        return new Response(directResponse.body, {
-            headers: { 'Content-Type': 'application/x-ndjson' }
+        if (!streamRes.body) throw new Error('Ollama returned empty body');
+
+        // Transform Ollama NDJSON into plain text chunks for the frontend
+        const reader = streamRes.body.getReader();
+        const decoder = new TextDecoder();
+        const encoder = new TextEncoder();
+
+        const stream = new ReadableStream({
+            async pull(controller) {
+                const { done, value } = await reader.read();
+                if (done) { controller.close(); return; }
+
+                const text = decoder.decode(value, { stream: true });
+                for (const line of text.split('\n')) {
+                    if (!line.trim()) continue;
+                    try {
+                        const chunk = JSON.parse(line);
+                        if (chunk.message?.content) {
+                            controller.enqueue(encoder.encode(chunk.message.content));
+                        }
+                    } catch { /* partial JSON, skip */ }
+                }
+            }
         });
 
+        return new Response(stream, {
+            headers: {
+                'Content-Type': 'text/plain; charset=utf-8',
+                'Cache-Control': 'no-cache',
+                'X-Content-Type-Options': 'nosniff'
+            }
+        });
     } catch (err) {
         console.error('Orchestrator Error:', err);
         throw error(500, 'Agentic loop failed');
