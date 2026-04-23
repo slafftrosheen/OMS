@@ -13,6 +13,83 @@ interface ChatRequestBody {
 const OLLAMA_URL = 'http://100.93.147.108:11434/api/chat';
 const OLLAMA_MODEL = 'qwen2.5-coder:14b';
 
+// ── Sovereign Agent System Prompt ──
+const SYSTEM_PROMPT = `You are the Sovereign Swarm AI. You have access to Supabase via MCP tools.
+- Your current project_id is 'local'. Always use this for database tools.
+- You MUST use the provided tools to answer schema or data questions.
+- If you use a tool, respond ONLY with the tool call, no conversational filler.`;
+
+/**
+ * Attempts to extract a tool call from raw text content when the model
+ * returns the tool call as JSON text instead of native tool_calls.
+ * Returns an array of tool_call objects matching the native schema, or null.
+ */
+function extractToolCallsFromText(content: string): any[] | null {
+	if (!content || typeof content !== 'string') return null;
+
+	const trimmed = content.trim();
+
+	// Quick-check: must look like a JSON object or array
+	if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+
+	try {
+		const parsed = JSON.parse(trimmed);
+
+		// Handle single tool call object: { "name": "...", "arguments": { ... } }
+		// Also handle: { "function": { "name": "...", "arguments": { ... } } }
+		const normalize = (obj: any, index: number): any | null => {
+			if (obj.name && typeof obj.name === 'string') {
+				return {
+					id: obj.id || `fallback_call_${index}`,
+					function: {
+						name: obj.name,
+						arguments: obj.arguments || obj.parameters || {}
+					}
+				};
+			}
+			if (obj.function?.name && typeof obj.function.name === 'string') {
+				return {
+					id: obj.id || `fallback_call_${index}`,
+					function: {
+						name: obj.function.name,
+						arguments: obj.function.arguments || obj.function.parameters || {}
+					}
+				};
+			}
+			return null;
+		};
+
+		if (Array.isArray(parsed)) {
+			const calls = parsed.map(normalize).filter(Boolean);
+			return calls.length > 0 ? calls : null;
+		}
+
+		const single = normalize(parsed, 0);
+		return single ? [single] : null;
+	} catch (e) {
+		console.error('[fallback-parse] Failed to parse tool call from text content:', e);
+		return null;
+	}
+}
+
+/**
+ * Auto-injects or overwrites project_id with "local" when the AI
+ * provides a placeholder or omits it entirely.
+ */
+function ensureLocalProjectId(args: Record<string, unknown>): Record<string, unknown> {
+	const pid = args.project_id;
+	if (
+		!pid ||
+		pid === '<your-project-id>' ||
+		pid === '<project-id>' ||
+		pid === 'YOUR_PROJECT_ID' ||
+		pid === '1'
+	) {
+		args.project_id = 'local';
+	}
+	return args;
+}
+
 /**
  * Creates a ReadableStream that pipes a streaming Ollama response
  * back to the client as plain text chunks.
@@ -120,9 +197,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			}
 		}));
 
-		// ── Build deduplicated message history ──
+		// ── Build deduplicated message history with system prompt ──
+		const history: any[] = [
+			{ role: 'system', content: SYSTEM_PROMPT },
+			...chatHistory
+		];
+
 		// Guard: if chatHistory already ends with the same user query, don't double-append it
-		const history: any[] = [...chatHistory];
 		const lastMsg = history[history.length - 1];
 		if (lastMsg?.role === 'user' && lastMsg?.content === query) {
 			console.log('[dedup] chatHistory already contains the current user query — skipping duplicate append');
@@ -148,7 +229,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const step1Data = await step1Res.json();
 		const rawAssistant = step1Data.message;
 
-		const hasToolCalls = rawAssistant?.tool_calls && rawAssistant.tool_calls.length > 0;
+		// ── Dual-Path Tool Detection ──
+		// Path A (Native): Check for native tool_calls from the model
+		let detectedToolCalls = rawAssistant?.tool_calls?.length > 0
+			? rawAssistant.tool_calls
+			: null;
+
+		// Path B (Fallback): Check if the content contains JSON tool-call text
+		if (!detectedToolCalls && rawAssistant?.content) {
+			console.log('[agent] Path A (native tool_calls) empty — attempting Path B (text fallback)');
+			const fallbackCalls = extractToolCallsFromText(rawAssistant.content);
+			if (fallbackCalls) {
+				console.log(`[agent] Path B succeeded: extracted ${fallbackCalls.length} tool call(s) from text`);
+				detectedToolCalls = fallbackCalls;
+			}
+		}
+
+		const hasToolCalls = detectedToolCalls && detectedToolCalls.length > 0;
 
 		if (!hasToolCalls) {
 			// ── No tool used — close MCP immediately, stream a normal completion ──
@@ -179,24 +276,24 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// ── Step 2: Tool execution ──
-		console.log(`[agent] AI requested ${rawAssistant.tool_calls.length} tool call(s)`);
+		console.log(`[agent] AI requested ${detectedToolCalls!.length} tool call(s)`);
 
-		// 2a. Push a CLEAN assistant message with the tool_calls structure
+		// 2a. Push a CLEAN assistant message with null content and the tool_calls structure
+		// This matches the expected Ollama history format exactly:
+		// { role: 'assistant', content: null, tool_calls: [...] }
 		history.push({
 			role: 'assistant',
-			content: rawAssistant.content || '',
-			tool_calls: rawAssistant.tool_calls
+			content: null,
+			tool_calls: detectedToolCalls
 		});
 
 		// 2b. Execute each tool and push results
-		for (const tc of rawAssistant.tool_calls) {
+		for (const tc of detectedToolCalls!) {
 			const toolName: string = tc.function.name;
 			let toolArgs: Record<string, unknown> = tc.function.arguments || {};
 
-			// Hardcoded project context for local swarm
-			if (toolName === 'list_tables' && !toolArgs.project_id) {
-				toolArgs.project_id = '1';
-			}
+			// Auto-inject project_id: "local" for all tools that need it
+			toolArgs = ensureLocalProjectId(toolArgs);
 
 			console.log(`[tool] Executing: ${toolName}`, JSON.stringify(toolArgs));
 
@@ -212,6 +309,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 				console.log(`[tool] ${toolName} returned ${resultContent.length} chars`);
 
+				// History format: { role: 'tool', content: '...', tool_call_id: '...' }
 				history.push({
 					role: 'tool',
 					content: resultContent,
@@ -220,7 +318,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			} catch (toolErr) {
 				logger.error(`Error executing MCP tool ${toolName}`, toolErr as Error);
 				const errText = `Error executing tool ${toolName}: ${String(toolErr)}`;
-				console.log(`[tool] ${toolName} FAILED: ${errText}`);
+				console.error(`[tool] ${toolName} FAILED: ${errText}`);
 
 				history.push({
 					role: 'tool',
