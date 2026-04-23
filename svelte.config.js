@@ -18,17 +18,20 @@ const config = {
       $utils: 'src/lib/utils'
     },
 
-    csrf: {
-      checkOrigin: true
-    },
+    // csrf configuration removed as checkOrigin is deprecated
 
     csp: {
       directives: {
         'connect-src': [
           "'self'",
           "http://192.168.8.150:54321",
+          "https://192.168.8.150:54321",
           "ws://192.168.8.150:54321",
-          "ws://192.168.8.151:5173"
+          "wss://192.168.8.150:54321",
+          "ws://192.168.8.151:5173",
+          "http://100.93.147.108:11434",
+          "http://100.98.202.69:54322",
+          "ws://100.98.202.69:54322"
         ]
       }
     },

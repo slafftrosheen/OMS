@@ -28,10 +28,11 @@ export async function POST({ request }) {
 
     // Support both { messages } and legacy { query, chatHistory } payloads
     let messages: { role: string; content: string }[];
-    if (body.messages) {
+    if (body.messages && Array.isArray(body.messages)) {
         messages = body.messages;
     } else {
-        const { query, chatHistory = [] } = body;
+        const { query } = body;
+        const chatHistory = Array.isArray(body.chatHistory) ? body.chatHistory : [];
         if (!query || typeof query !== 'string' || !query.trim()) {
             throw error(400, 'Missing or empty "query" field');
         }
