@@ -233,16 +233,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				try { await transport.close(); transport = null; } catch (_) { /* silent */ }
 			}
 
-			// If the non-streamed response already has content, seed it into history
-			// then re-request with stream:true for a proper chunked response
-			if (rawAssistant?.content) {
-				history.push({ role: 'assistant', content: rawAssistant.content });
-			}
-
-			console.log('--- FINAL OLLAMA PAYLOAD (no-tool path) ---');
-			console.log(JSON.stringify(history, null, 2));
-
-			const stream = createOllamaStream(history);
+			// We already have the full text from Step 1. Just stream it directly!
+			const textToStream = rawAssistant?.content || '';
+			const stream = new ReadableStream({
+				start(controller) {
+					controller.enqueue(new TextEncoder().encode(textToStream));
+					controller.close();
+				}
+			});
 
 			return new Response(stream, {
 				headers: {
@@ -315,6 +313,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// ── Step 3: Final streaming response with tool results in context ──
+		// Strip the strict JSON tool-calling instruction from the system prompt so it summarizes naturally
+		if (history[0]?.role === 'system') {
+			history[0].content = `You are the Swarm Architect. You have direct access to the Postgres database on Node 101.\nSummarize the tool results clearly and concisely for the user. Do not output raw JSON.`;
+		}
+
 		console.log('--- FINAL OLLAMA PAYLOAD (tool path) ---');
 		console.log(JSON.stringify(history, null, 2));
 
