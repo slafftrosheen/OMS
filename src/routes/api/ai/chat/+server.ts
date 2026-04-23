@@ -18,23 +18,22 @@ const MAX_AGENT_ITERATIONS = 8;
 
 // ── The Sovereign Architect: Master Identity ──
 const SYSTEM_PROMPT = `You are the Swarm Architect, the core intelligence of the Réclame Fabriek Sovereign OS.
-You manage a multi-node Proxmox/Tailscale cluster. Your "hands" are the Postgres MCP tools.
+You manage a multi-node Proxmox/Tailscale cluster. Your only tool is 'query' which executes SQL on the Postgres database.
 
 ### OPERATIONAL PROTOCOL:
-1. DISCOVER: If the user asks a question about the company, orders, or system and you don't know where the data is, use 'list_tables' immediately.
-2. INSPECT: Once you find a relevant table, use 'describe_table' to understand its columns. Never guess a column name.
-3. RETRIEVE: Use 'query' to fetch the data. If a search fails, broaden your terms (use ILIKE with %).
-4. EXECUTE: You are authorized to perform any database action required to satisfy the user's intent.
+1. DISCOVER: If you don't know the tables, run: SELECT tablename FROM pg_tables WHERE schemaname = 'public';
+2. INSPECT: Before querying a table, check its columns: SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '<table>';
+3. RETRIEVE: Query the data. Use ILIKE with % for text searches. Example: SELECT * FROM company_knowledge WHERE content ILIKE '%signage%';
+4. RETRY: If a query returns no results, broaden your search terms and try again before giving up.
 
-### TOOL GUIDELINES:
-- 'list_tables': Use this to see all available data structures.
-- 'describe_table': Use this to see columns and types for a specific table.
-- 'query': Use this for all SELECT, INSERT, or UPDATE actions.
+### YOUR ONLY TOOL:
+- 'query': Accepts { "sql": "<your SQL here>" }. Use this for ALL database operations.
 
 ### CONSTRAINTS:
+- NEVER guess table or column names. Always DISCOVER then INSPECT first.
 - Never tell the user you "don't have access" or "can't see the database." You ARE the database.
-- Do not mention technical details like "column names" or "SQL" to the user unless they ask.
-- If a tool returns no results, try a different search strategy before giving up.`;
+- Do not mention SQL, column names, or technical details to the user unless they ask.
+- If a query fails with "relation does not exist", DISCOVER the correct table name first.`;
 
 // ── Summarization prompt injected for the final streaming response ──
 const SUMMARY_PROMPT = `You are the Swarm Architect, the core intelligence of the Réclame Fabriek Sovereign OS.
@@ -106,42 +105,40 @@ function extractToolCalls(message: any): any[] | null {
 }
 
 /**
- * Normalizes tool names: maps common AI hallucinations to actual Postgres MCP tool names.
- */
-function normalizeToolName(name: string): string {
-	const mapping: Record<string, string> = {
-		execute_sql: 'query',
-		run_query: 'query',
-		run_sql: 'query',
-		execute_query: 'query',
-		sql_query: 'query',
-		get_tables: 'list_tables',
-		show_tables: 'list_tables',
-		get_columns: 'describe_table',
-		show_columns: 'describe_table',
-		describe: 'describe_table'
-	};
-	return mapping[name] || name;
-}
-
-/**
- * Executes a single tool call against the MCP client.
- * Returns the text content of the tool result.
+ * Intercepts tool calls and redirects everything to the 'query' tool.
+ * Converts hallucinated tool names (list_tables, describe_table, etc.)
+ * into the correct SQL and executes them via 'query'.
  */
 async function executeTool(
 	mcpClient: Client,
 	toolCall: any
 ): Promise<{ name: string; result: string; id: string }> {
 	const rawName: string = toolCall.function.name;
-	const toolName = normalizeToolName(rawName);
-	const toolArgs: Record<string, unknown> = toolCall.function.arguments || {};
-	const toolId = toolCall.id || `call_${toolName}`;
+	let toolArgs: Record<string, unknown> = toolCall.function.arguments || {};
+	const toolId = toolCall.id || `call_${rawName}`;
 
-	console.log(`[tool] Executing: ${toolName} (raw: ${rawName})`, JSON.stringify(toolArgs));
+	// ── Intercept non-existent tools and convert to SQL ──
+	// The Postgres MCP only has 'query'. Everything else must become SQL.
+	if (rawName === 'list_tables' || rawName === 'get_tables' || rawName === 'show_tables') {
+		console.log(`[tool] Intercepted '${rawName}' → converting to SQL discovery query`);
+		toolArgs = { sql: "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;" };
+	} else if (rawName === 'describe_table' || rawName === 'get_columns' || rawName === 'show_columns' || rawName === 'describe') {
+		const tableName = toolArgs.table_name || toolArgs.table || toolArgs.name || 'unknown';
+		console.log(`[tool] Intercepted '${rawName}' → converting to SQL column inspection for '${tableName}'`);
+		toolArgs = { sql: `SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${tableName}' ORDER BY ordinal_position;` };
+	} else if (rawName !== 'query') {
+		// Any other hallucinated tool name — assume the args contain SQL or a sql field
+		console.log(`[tool] Unknown tool '${rawName}' — redirecting to 'query'`);
+		if (!toolArgs.sql && toolArgs.query) {
+			toolArgs = { sql: toolArgs.query as string };
+		}
+	}
+
+	console.log(`[tool] Executing via 'query': ${JSON.stringify(toolArgs)}`);
 
 	try {
 		const toolResult = await mcpClient.callTool({
-			name: toolName,
+			name: 'query',
 			arguments: toolArgs
 		});
 
@@ -149,12 +146,12 @@ async function executeTool(
 			.map((c: any) => (typeof c === 'string' ? c : c.text || JSON.stringify(c)))
 			.join('\n');
 
-		console.log(`[tool] ${toolName} returned ${resultContent.length} chars`);
-		return { name: toolName, result: resultContent, id: toolId };
+		console.log(`[tool] query returned ${resultContent.length} chars`);
+		return { name: rawName, result: resultContent, id: toolId };
 	} catch (toolErr) {
-		const errText = `Error executing tool ${toolName}: ${String(toolErr)}`;
-		console.error(`[tool] ${toolName} FAILED: ${errText}`);
-		return { name: toolName, result: errText, id: toolId };
+		const errText = `Error executing tool query (from ${rawName}): ${String(toolErr)}`;
+		console.error(`[tool] query FAILED: ${errText}`);
+		return { name: rawName, result: errText, id: toolId };
 	}
 }
 
