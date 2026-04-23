@@ -2,149 +2,148 @@ import { env } from '$env/dynamic/private';
 import { error } from '@sveltejs/kit';
 import postgres from 'postgres';
 
-const OLLAMA_URL = 'http://100.93.147.108:11434/api/chat';
-const OLLAMA_MODEL = 'qwen2.5-coder:14b';
-
-const tools = [{
-    type: 'function',
-    function: {
-        name: 'execute_sql',
-        description: 'Execute read-only SQL queries against the Postgres database to find information. Focus on public.company_knowledge table.',
-        parameters: {
-            type: 'object',
-            properties: {
-                query: { type: 'string', description: 'The exact PostgreSQL query to run.' }
-            },
-            required: ['query']
-        }
-    }
-}];
-
 export async function POST({ request }) {
-    const body = await request.json();
+    const { messages } = await request.json();
+    const ollamaUrl = 'http://100.93.147.108:11434/api/chat';
+    const OLLAMA_MODEL = 'qwen2.5-coder:14b';
 
-    // LAZY CONNECTION: Only connect when a request is made, preventing top-level Vite crashes.
     const sql = postgres(env.DATABASE_URL || 'postgresql://postgres:postgres@100.98.202.69:54322/postgres', {
-        max: 1, // Keep connection pool tiny for the AI
-        idle_timeout: 5 // Auto-close idle connections
+        max: 1,
+        idle_timeout: 5
     });
 
-    // Support both { messages } and legacy { query, chatHistory } payloads
-    let messages: { role: string; content: string }[];
-    if (body.messages && Array.isArray(body.messages)) {
-        messages = body.messages;
-    } else {
-        const { query } = body;
-        const chatHistory = Array.isArray(body.chatHistory) ? body.chatHistory : [];
-        if (!query || typeof query !== 'string' || !query.trim()) {
-            throw error(400, 'Missing or empty "query" field');
+    const tools = [{
+        type: 'function',
+        function: {
+            name: 'query',
+            description: 'Execute a read-only PostgreSQL query against the public.company_knowledge table. ONLY use this tool. Example: SELECT content FROM company_knowledge WHERE content ILIKE \'%keyword%\'',
+            parameters: {
+                type: 'object',
+                properties: { sql: { type: 'string' } },
+                required: ['sql']
+            }
         }
-        messages = [...chatHistory];
-        const last = messages[messages.length - 1];
-        if (!(last?.role === 'user' && last?.content === query)) {
-            messages.push({ role: 'user', content: query });
-        }
-    }
+    }];
 
     try {
-        // STEP 1: Tool Check (non-streaming, hidden from user)
-        const step1Res = await fetch(OLLAMA_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: OLLAMA_MODEL,
-                messages: [
-                    { role: 'system', content: 'You are the Swarm Architect. You must use the execute_sql tool to search the public.company_knowledge table. DO NOT GUESS. Use ILIKE for text searches.' },
-                    ...messages
-                ],
-                tools,
-                stream: false
-            })
-        });
+        let currentMessages = [
+            { 
+                role: 'system', 
+                content: 'You are the Swarm Architect for Réclame Fabriek (a signage production company). You MUST use the `query` tool to search `public.company_knowledge` for ANY information requested. If a query returns empty `[]`, you MUST simplify your SQL and try again. Never say "I don\'t know" without executing a tool first.' 
+            },
+            ...messages
+        ];
 
-        if (!step1Res.ok) throw new Error('Ollama connection failed');
-        const { message: aiMessage } = await step1Res.json();
+        let finalStreamResponse = null;
+        let loopCount = 0;
+        const MAX_LOOPS = 3; // Prevent infinite loops
 
-        // STEP 2: Execute tool if requested
-        let finalMessages: any[];
+        // The Agentic Loop
+        while (loopCount < MAX_LOOPS) {
+            console.log(`🔄 [Agent Loop] Iteration ${loopCount + 1}`);
+            
+            const aiResponse = await fetch(ollamaUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: OLLAMA_MODEL,
+                    messages: currentMessages,
+                    tools: tools,
+                    stream: false
+                })
+            });
 
-        if (aiMessage?.tool_calls?.length > 0) {
-            const toolCall = aiMessage.tool_calls[0];
-            let toolResult: string;
+            if (!aiResponse.ok) throw new Error('Ollama connection failed');
+            const data = await aiResponse.json();
+            const aiMessage = data.message;
 
-            try {
-                const sqlQuery = toolCall.function.arguments.query;
-                console.log('⚡ [DB] Executing:', sqlQuery);
-                const rows = await sql.unsafe(sqlQuery);
-                toolResult = JSON.stringify(rows);
-                console.log('✅ [DB] Returned', rows.length, 'rows');
-            } catch (dbErr: any) {
-                console.error('❌ [DB] Error:', dbErr.message);
-                toolResult = JSON.stringify({ error: dbErr.message });
+            // Did the AI decide to use a tool?
+            if (aiMessage?.tool_calls?.length > 0) {
+                const toolCall = aiMessage.tool_calls[0];
+                
+                // Enforce the tool name (preventing the "Run" hallucination)
+                if (toolCall.function.name !== 'query') {
+                     console.warn(`⚠️ AI tried to use non-existent tool: ${toolCall.function.name}. Forcing 'query'.`);
+                     toolCall.function.name = 'query';
+                }
+
+                let toolResult;
+                try {
+                    console.log('⚡ [DB] Executing SQL:', toolCall.function.arguments.sql);
+                    const rows = await sql.unsafe(toolCall.function.arguments.sql);
+                    toolResult = JSON.stringify(rows);
+                    console.log(`✅ [DB] Returned ${rows.length} rows.`);
+                } catch (dbError: any) {
+                    console.error('❌ [DB] Error:', dbError.message);
+                    toolResult = JSON.stringify({ error: dbError.message });
+                }
+
+                // Add the interaction to the context and loop again
+                currentMessages.push(aiMessage);
+                currentMessages.push({ role: 'tool', content: toolResult });
+                loopCount++;
+                continue; 
+            } else {
+                // The AI did NOT use a tool, meaning it is ready to give the final text answer.
+                console.log('🗣️ [Agent] Ready to stream response to user.');
+                
+                // Request the final stream
+                finalStreamResponse = await fetch(ollamaUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: OLLAMA_MODEL,
+                        messages: currentMessages,
+                        stream: true
+                    })
+                });
+                break; // Exit the loop
             }
-
-            finalMessages = [
-                { role: 'system', content: 'You are the Swarm Architect. Summarize the following database results clearly for the user. Do not output raw JSON.' },
-                ...messages,
-                aiMessage,
-                { role: 'tool', content: toolResult }
-            ];
-        } else {
-            // No tool needed
-            finalMessages = [
-                { role: 'system', content: 'You are the Swarm Architect. Provide a clear and helpful response.' },
-                ...messages
-            ];
         }
 
-        // STEP 3: Stream final answer — extract text content from NDJSON
-        const streamRes = await fetch(OLLAMA_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: OLLAMA_MODEL,
-                messages: finalMessages,
-                stream: true
-            })
-        });
+        // Failsafe if the loop maxed out
+        if (!finalStreamResponse) {
+             console.log('⚠️ [Agent] Max loops reached. Forcing final answer.');
+             finalStreamResponse = await fetch(ollamaUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: OLLAMA_MODEL,
+                    messages: currentMessages,
+                    stream: true
+                })
+            });
+        }
 
-        if (!streamRes.body) throw new Error('Ollama returned empty body');
-
-        // Transform Ollama NDJSON into plain text chunks for the frontend
-        const reader = streamRes.body.getReader();
-        const decoder = new TextDecoder();
-        const encoder = new TextEncoder();
-
+        // Safely pipe the stream to the frontend
         const stream = new ReadableStream({
-            async pull(controller) {
-                const { done, value } = await reader.read();
-                if (done) { controller.close(); return; }
-
-                const text = decoder.decode(value, { stream: true });
-                for (const line of text.split('\n')) {
-                    if (!line.trim()) continue;
-                    try {
-                        const chunk = JSON.parse(line);
-                        if (chunk.message?.content) {
-                            controller.enqueue(encoder.encode(chunk.message.content));
-                        }
-                    } catch { /* partial JSON, skip */ }
+            async start(controller) {
+                const reader = finalStreamResponse.body?.getReader();
+                if (!reader) {
+                    controller.close();
+                    return;
+                }
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        controller.enqueue(value);
+                    }
+                } finally {
+                    reader.releaseLock();
+                    controller.close();
+                    await sql.end(); // Always clean up DB
                 }
             }
         });
 
         return new Response(stream, {
-            headers: {
-                'Content-Type': 'text/plain; charset=utf-8',
-                'Cache-Control': 'no-cache',
-                'X-Content-Type-Options': 'nosniff'
-            }
+            headers: { 'Content-Type': 'application/x-ndjson' }
         });
+
     } catch (err) {
+        await sql.end();
         console.error('Orchestrator Error:', err);
         throw error(500, 'Agentic loop failed');
-    } finally {
-        // Clean up the DB connection to prevent hanging processes
-        await sql.end();
     }
 }
