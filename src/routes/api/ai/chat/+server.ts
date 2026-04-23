@@ -91,7 +91,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			// Execute tools sequentially
 			for (const tc of assistantMessage.tool_calls) {
 				const toolName = tc.function.name;
-				const toolArgs = tc.function.arguments;
+				let toolArgs = tc.function.arguments || {};
+
+				// Hardcoded Project Context for local swarm
+				if (toolName === 'list_tables' && !toolArgs.project_id) {
+					toolArgs.project_id = '1';
+				}
 
 				try {
 					const toolResult = await mcpClient.callTool({
@@ -105,13 +110,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 					messages.push({
 						role: 'tool',
-						content: resultText
+						content: resultText,
+						tool_call_id: tc.id // Add tool_call_id for Ollama/OpenAI compatibility
 					});
 				} catch (toolErr) {
 					logger.error(`Error executing MCP tool ${toolName}`, toolErr as Error);
 					messages.push({
 						role: 'tool',
-						content: `Error executing tool: ${String(toolErr)}`
+						content: `Error executing tool: ${String(toolErr)}`,
+						tool_call_id: tc.id
 					});
 				}
 			}
@@ -128,6 +135,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Re-request final streaming completion (Step 2.3 or 2.fallback)
+		console.log('--- FINAL OLLAMA PAYLOAD HISTORY ---');
+		console.log(JSON.stringify(messages, null, 2));
+
 		const stream = new ReadableStream({
 			async start(controller) {
 				const encoder = new TextEncoder();
