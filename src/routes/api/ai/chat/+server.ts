@@ -25,9 +25,16 @@ export async function POST({ request }) {
     const ollamaUrl = 'http://100.93.147.108:11434/api/chat';
     const OLLAMA_MODEL = 'qwen2.5-coder:14b';
 
-    const sql = postgres(env.DATABASE_URL || 'postgresql://postgres:postgres@100.98.202.69:54322/postgres', {
-        max: 1,
-        idle_timeout: 5
+    // LAZY CONNECTION: Only connect when a request is made, preventing top-level Vite crashes.
+    const fallbackDbUrl = 'postgresql://postgres:postgres@192.168.8.150:54322/postgres';
+    const dbUrl = env.DATABASE_URL || fallbackDbUrl;
+    
+    // Intercept stale tailscale IPs
+    const finalDbUrl = dbUrl.includes('100.98.202.69') ? dbUrl.replace('100.98.202.69', '192.168.8.150') : dbUrl;
+
+    const sql = postgres(finalDbUrl, {
+        max: 1, // Keep connection pool tiny for the AI
+        idle_timeout: 5 // Auto-close idle connections
     });
 
     const tools = [{
@@ -133,7 +140,7 @@ export async function POST({ request }) {
             });
         }
 
-        // Safely pipe the stream to the frontend
+        // Safely pipe the stream to the frontend, parsing NDJSON to plain text
         const stream = new ReadableStream({
             async start(controller) {
                 const reader = finalStreamResponse.body?.getReader();
@@ -141,11 +148,37 @@ export async function POST({ request }) {
                     controller.close();
                     return;
                 }
+                const decoder = new TextDecoder();
+                const encoder = new TextEncoder();
+                let buffer = '';
                 try {
                     while (true) {
                         const { done, value } = await reader.read();
-                        if (done) break;
-                        controller.enqueue(value);
+                        if (done) {
+                            if (buffer.trim()) {
+                                try {
+                                    const chunk = JSON.parse(buffer);
+                                    if (chunk.message?.content) {
+                                        controller.enqueue(encoder.encode(chunk.message.content));
+                                    }
+                                } catch {}
+                            }
+                            break;
+                        }
+                        
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || '';
+                        
+                        for (const line of lines) {
+                            if (!line.trim()) continue;
+                            try {
+                                const chunk = JSON.parse(line);
+                                if (chunk.message?.content) {
+                                    controller.enqueue(encoder.encode(chunk.message.content));
+                                }
+                            } catch { /* partial JSON, skip */ }
+                        }
                     }
                 } finally {
                     reader.releaseLock();
@@ -156,7 +189,11 @@ export async function POST({ request }) {
         });
 
         return new Response(stream, {
-            headers: { 'Content-Type': 'application/x-ndjson' }
+            headers: {
+                'Content-Type': 'text/plain; charset=utf-8',
+                'Cache-Control': 'no-cache',
+                'X-Content-Type-Options': 'nosniff'
+            }
         });
 
     } catch (err) {

@@ -17,6 +17,9 @@ const getEnv = (key: string, fallback: string = '') => {
 // Create a global Supabase client for server-side admin tasks
 // Ensure we have valid values to avoid build crashes
 let globalUrl = getEnv('PUBLIC_SUPABASE_URL', 'http://localhost:8000').trim();
+if (globalUrl.includes('100.98.202.69')) {
+    globalUrl = globalUrl.replace('100.98.202.69', '192.168.8.150');
+}
 let globalKey = getEnv('SUPABASE_SERVICE_ROLE_KEY') || getEnv('PUBLIC_SUPABASE_ANON_KEY', 'anon-key').trim();
 
 // Fallback for build environment — use local placeholder
@@ -41,6 +44,9 @@ export const supabase = createClient(globalUrl, globalKey, {
 export const createSupabaseClient = (event: RequestEvent) => {
   // Try multiple sources for environment variables
   let supabaseUrl = getEnv('PUBLIC_SUPABASE_URL', '').trim();
+  if (supabaseUrl.includes('100.98.202.69')) {
+      supabaseUrl = supabaseUrl.replace('100.98.202.69', '192.168.8.150');
+  }
   let supabaseAnonKey = getEnv('PUBLIC_SUPABASE_ANON_KEY', '').trim();
 
   // Fallback for build environment
