@@ -10,6 +10,61 @@ interface ChatRequestBody {
 	chatHistory?: { role: string; content: string }[];
 }
 
+const OLLAMA_URL = 'http://100.93.147.108:11434/api/chat';
+const OLLAMA_MODEL = 'qwen2.5-coder:14b';
+
+/**
+ * Creates a ReadableStream that pipes a streaming Ollama response
+ * back to the client as plain text chunks.
+ * NO tools array is attached — this forces a pure text summary.
+ */
+function createOllamaStream(messages: any[]): ReadableStream<Uint8Array> {
+	return new ReadableStream({
+		async start(controller) {
+			const encoder = new TextEncoder();
+			try {
+				const res = await fetch(OLLAMA_URL, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						model: OLLAMA_MODEL,
+						messages,
+						stream: true
+						// NO tools array — forces text-only generation
+					})
+				});
+
+				if (!res.body) throw new Error('Ollama returned empty body on final stream');
+
+				const reader = res.body.getReader();
+				const decoder = new TextDecoder();
+
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+
+					const textChunk = decoder.decode(value, { stream: true });
+					const lines = textChunk.split('\n').filter((l) => l.trim().length > 0);
+
+					for (const line of lines) {
+						try {
+							const chunk = JSON.parse(line);
+							if (chunk.message?.content) {
+								controller.enqueue(encoder.encode(chunk.message.content));
+							}
+						} catch {
+							// Ignore partial JSON chunks
+						}
+					}
+				}
+				controller.close();
+			} catch (streamErr) {
+				console.error('[stream] Final Ollama stream error:', streamErr);
+				controller.error(streamErr);
+			}
+		}
+	});
+}
 export const POST: RequestHandler = async ({ request, locals }) => {
 	// Auth gate
 	const user = locals.user;
@@ -65,126 +120,128 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			}
 		}));
 
-		// Initial message state
-		const messages: any[] = [...chatHistory, { role: 'user', content: query }];
+		// ── Build deduplicated message history ──
+		// Guard: if chatHistory already ends with the same user query, don't double-append it
+		const history: any[] = [...chatHistory];
+		const lastMsg = history[history.length - 1];
+		if (lastMsg?.role === 'user' && lastMsg?.content === query) {
+			console.log('[dedup] chatHistory already contains the current user query — skipping duplicate append');
+		} else {
+			history.push({ role: 'user', content: query });
+		}
 
-		// Step 1: The Tool Check (Non-Streamed)
-		const step1Res = await fetch('http://100.93.147.108:11434/api/chat', {
+		console.log('--- STEP 1: TOOL CHECK (stream: false) ---');
+		console.log(`History length: ${history.length}, last role: ${history[history.length - 1]?.role}`);
+
+		// ── Step 1: The Tool Check (Non-Streamed) ──
+		const step1Res = await fetch(OLLAMA_URL, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
-				model: 'qwen2.5-coder:14b',
-				messages,
+				model: OLLAMA_MODEL,
+				messages: history,
 				tools,
 				stream: false
 			})
 		});
 
 		const step1Data = await step1Res.json();
-		const assistantMessage = step1Data.message;
+		const rawAssistant = step1Data.message;
 
-		// Step 2: Tool Execution & Final Stream
-		if (assistantMessage?.tool_calls && assistantMessage.tool_calls.length > 0) {
-			// Append the assistant tool call decision
-			messages.push(assistantMessage);
+		const hasToolCalls = rawAssistant?.tool_calls && rawAssistant.tool_calls.length > 0;
 
-			// Execute tools sequentially
-			for (const tc of assistantMessage.tool_calls) {
-				const toolName = tc.function.name;
-				let toolArgs = tc.function.arguments || {};
+		if (!hasToolCalls) {
+			// ── No tool used — close MCP immediately, stream a normal completion ──
+			console.log('[agent] No tool used by AI — streaming direct response');
 
-				// Hardcoded Project Context for local swarm
-				if (toolName === 'list_tables' && !toolArgs.project_id) {
-					toolArgs.project_id = '1';
-				}
-
-				try {
-					const toolResult = await mcpClient.callTool({
-						name: toolName,
-						arguments: toolArgs as Record<string, unknown>
-					});
-
-					const resultText = toolResult.content
-						.map((c: any) => c.text)
-						.join('\n');
-
-					messages.push({
-						role: 'tool',
-						content: resultText,
-						tool_call_id: tc.id // Add tool_call_id for Ollama/OpenAI compatibility
-					});
-				} catch (toolErr) {
-					logger.error(`Error executing MCP tool ${toolName}`, toolErr as Error);
-					messages.push({
-						role: 'tool',
-						content: `Error executing tool: ${String(toolErr)}`,
-						tool_call_id: tc.id
-					});
-				}
+			if (transport) {
+				try { await transport.close(); transport = null; } catch (_) { /* silent */ }
 			}
+
+			// If the non-streamed response already has content, seed it into history
+			// then re-request with stream:true for a proper chunked response
+			if (rawAssistant?.content) {
+				history.push({ role: 'assistant', content: rawAssistant.content });
+			}
+
+			console.log('--- FINAL OLLAMA PAYLOAD (no-tool path) ---');
+			console.log(JSON.stringify(history, null, 2));
+
+			const stream = createOllamaStream(history);
+
+			return new Response(stream, {
+				headers: {
+					'Content-Type': 'text/plain; charset=utf-8',
+					'Cache-Control': 'no-cache',
+					'X-Content-Type-Options': 'nosniff'
+				}
+			});
 		}
 
-		// Immediately close transport after tools are executed (or if there were no tools)
-		if (transport) {
-			try {
-				await transport.close();
-				transport = null; // nullify to prevent double-closing in finally
-			} catch (e) {
-				logger.error('Error closing MCP transport', e as Error);
-			}
-		}
+		// ── Step 2: Tool execution ──
+		console.log(`[agent] AI requested ${rawAssistant.tool_calls.length} tool call(s)`);
 
-		// Re-request final streaming completion (Step 2.3 or 2.fallback)
-		console.log('--- FINAL OLLAMA PAYLOAD HISTORY ---');
-		console.log(JSON.stringify(messages, null, 2));
-
-		const stream = new ReadableStream({
-			async start(controller) {
-				const encoder = new TextEncoder();
-				try {
-					const streamRes = await fetch('http://100.93.147.108:11434/api/chat', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({
-							model: 'qwen2.5-coder:14b',
-							messages,
-							stream: true // Force text streaming
-							// NO tools array attached here, explicitly forcing summary
-						})
-					});
-
-					if (!streamRes.body) throw new Error('Ollama returned empty body on final stream');
-
-					const reader = streamRes.body.getReader();
-					const decoder = new TextDecoder();
-
-					while (true) {
-						const { done, value } = await reader.read();
-						if (done) break;
-
-						const textChunk = decoder.decode(value, { stream: true });
-						const lines = textChunk.split('\n').filter((l) => l.trim().length > 0);
-
-						for (const line of lines) {
-							try {
-								const chunk = JSON.parse(line);
-								if (chunk.message?.content) {
-									controller.enqueue(encoder.encode(chunk.message.content));
-								}
-							} catch (e) {
-								// Ignore partial JSON chunks
-							}
-						}
-					}
-					controller.close();
-				} catch (streamErr) {
-					logger.error('Final Stream Error', streamErr as Error);
-					controller.error(streamErr);
-				}
-			}
+		// 2a. Push a CLEAN assistant message with the tool_calls structure
+		history.push({
+			role: 'assistant',
+			content: rawAssistant.content || '',
+			tool_calls: rawAssistant.tool_calls
 		});
 
-		logger.info('Agentic loop completed tool check and started final stream', { userId: user.id });
+		// 2b. Execute each tool and push results
+		for (const tc of rawAssistant.tool_calls) {
+			const toolName: string = tc.function.name;
+			let toolArgs: Record<string, unknown> = tc.function.arguments || {};
+
+			// Hardcoded project context for local swarm
+			if (toolName === 'list_tables' && !toolArgs.project_id) {
+				toolArgs.project_id = '1';
+			}
+
+			console.log(`[tool] Executing: ${toolName}`, JSON.stringify(toolArgs));
+
+			try {
+				const toolResult = await mcpClient.callTool({
+					name: toolName,
+					arguments: toolArgs
+				});
+
+				const resultContent = toolResult.content
+					.map((c: any) => (typeof c === 'string' ? c : c.text || JSON.stringify(c)))
+					.join('\n');
+
+				console.log(`[tool] ${toolName} returned ${resultContent.length} chars`);
+
+				history.push({
+					role: 'tool',
+					content: resultContent,
+					tool_call_id: tc.id || `call_${toolName}`
+				});
+			} catch (toolErr) {
+				logger.error(`Error executing MCP tool ${toolName}`, toolErr as Error);
+				const errText = `Error executing tool ${toolName}: ${String(toolErr)}`;
+				console.log(`[tool] ${toolName} FAILED: ${errText}`);
+
+				history.push({
+					role: 'tool',
+					content: errText,
+					tool_call_id: tc.id || `call_${toolName}`
+				});
+			}
+		}
+
+		// Close MCP transport now that all tools are done
+		if (transport) {
+			try { await transport.close(); transport = null; } catch (_) { /* silent */ }
+		}
+
+		// ── Step 3: Final streaming response with tool results in context ──
+		console.log('--- FINAL OLLAMA PAYLOAD (tool path) ---');
+		console.log(JSON.stringify(history, null, 2));
+
+		const stream = createOllamaStream(history);
+
+		logger.info('Agentic loop completed tool execution, streaming final response', { userId: user.id });
 
 		return new Response(stream, {
 			headers: {
