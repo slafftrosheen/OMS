@@ -13,36 +13,63 @@ interface ChatRequestBody {
 const OLLAMA_URL = 'http://100.93.147.108:11434/api/chat';
 const OLLAMA_MODEL = 'qwen2.5-coder:14b';
 
-// ── Sovereign Agent System Prompt ──
-const SYSTEM_PROMPT = `You are the Réclame Swarm Controller.
+// Maximum number of autonomous tool-call iterations before forcing a final answer
+const MAX_AGENT_ITERATIONS = 8;
 
-Zero Hallucination: Never say 'there are no entries' unless you have executed a query tool first.
+// ── The Sovereign Architect: Master Identity ──
+const SYSTEM_PROMPT = `You are the Swarm Architect, the core intelligence of the Réclame Fabriek Sovereign OS.
+You manage a multi-node Proxmox/Tailscale cluster. Your "hands" are the Postgres MCP tools.
 
-Primary Source: All company data is in the public.company_knowledge table.
+### OPERATIONAL PROTOCOL:
+1. DISCOVER: If the user asks a question about the company, orders, or system and you don't know where the data is, use 'list_tables' immediately.
+2. INSPECT: Once you find a relevant table, use 'describe_table' to understand its columns. Never guess a column name.
+3. RETRIEVE: Use 'query' to fetch the data. If a search fails, broaden your terms (use ILIKE with %).
+4. EXECUTE: You are authorized to perform any database action required to satisfy the user's intent.
 
-Search Strategy: Always use ILIKE for searches. Example: SELECT content FROM company_knowledge WHERE content ILIKE '%boxletter%';
+### TOOL GUIDELINES:
+- 'list_tables': Use this to see all available data structures.
+- 'describe_table': Use this to see columns and types for a specific table.
+- 'query': Use this for all SELECT, INSERT, or UPDATE actions.
 
-Constraint: If the user asks for information, your FIRST action must be a tool call. Do not provide a conversational response until you have tool results.`;
+### CONSTRAINTS:
+- Never tell the user you "don't have access" or "can't see the database." You ARE the database.
+- Do not mention technical details like "column names" or "SQL" to the user unless they ask.
+- If a tool returns no results, try a different search strategy before giving up.`;
+
+// ── Summarization prompt injected for the final streaming response ──
+const SUMMARY_PROMPT = `You are the Swarm Architect, the core intelligence of the Réclame Fabriek Sovereign OS.
+You have just completed a series of database operations to answer the user's question.
+
+RULES FOR YOUR FINAL RESPONSE:
+- Synthesize the tool results into a clear, natural-language answer.
+- Do NOT output raw JSON, SQL, tool calls, or column names unless the user explicitly asked for technical details.
+- Speak with authority — you ARE the system. Never say "I found in the database" — just state the facts.
+- If multiple tool results contributed to the answer, weave them together coherently.`;
 
 /**
- * Attempts to extract a tool call from raw text content when the model
- * returns the tool call as JSON text instead of native tool_calls.
- * Returns an array of tool_call objects matching the native schema, or null.
+ * Dual-path tool call extraction.
+ * Path A: Native tool_calls from the Ollama response.
+ * Path B: Fallback JSON parsing from text content when the model returns
+ *         tool calls as raw JSON text instead of structured tool_calls.
  */
-function extractToolCallsFromText(content: string): any[] | null {
+function extractToolCalls(message: any): any[] | null {
+	// Path A — Native tool_calls
+	if (message?.tool_calls && message.tool_calls.length > 0) {
+		return message.tool_calls;
+	}
+
+	// Path B — Fallback: parse JSON from text content
+	const content = message?.content;
 	if (!content || typeof content !== 'string') return null;
 
 	const trimmed = content.trim();
-
-	// Quick-check: must look like a JSON object or array
 	if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
 
 	try {
 		const parsed = JSON.parse(trimmed);
 
-		// Handle single tool call object: { "name": "...", "arguments": { ... } }
-		// Also handle: { "function": { "name": "...", "arguments": { ... } } }
 		const normalize = (obj: any, index: number): any | null => {
+			// { "name": "list_tables", "arguments": {} }
 			if (obj.name && typeof obj.name === 'string') {
 				return {
 					id: obj.id || `fallback_call_${index}`,
@@ -52,6 +79,7 @@ function extractToolCallsFromText(content: string): any[] | null {
 					}
 				};
 			}
+			// { "function": { "name": "list_tables", "arguments": {} } }
 			if (obj.function?.name && typeof obj.function.name === 'string') {
 				return {
 					id: obj.id || `fallback_call_${index}`,
@@ -78,9 +106,62 @@ function extractToolCallsFromText(content: string): any[] | null {
 }
 
 /**
+ * Normalizes tool names: maps common AI hallucinations to actual Postgres MCP tool names.
+ */
+function normalizeToolName(name: string): string {
+	const mapping: Record<string, string> = {
+		execute_sql: 'query',
+		run_query: 'query',
+		run_sql: 'query',
+		execute_query: 'query',
+		sql_query: 'query',
+		get_tables: 'list_tables',
+		show_tables: 'list_tables',
+		get_columns: 'describe_table',
+		show_columns: 'describe_table',
+		describe: 'describe_table'
+	};
+	return mapping[name] || name;
+}
+
+/**
+ * Executes a single tool call against the MCP client.
+ * Returns the text content of the tool result.
+ */
+async function executeTool(
+	mcpClient: Client,
+	toolCall: any
+): Promise<{ name: string; result: string; id: string }> {
+	const rawName: string = toolCall.function.name;
+	const toolName = normalizeToolName(rawName);
+	const toolArgs: Record<string, unknown> = toolCall.function.arguments || {};
+	const toolId = toolCall.id || `call_${toolName}`;
+
+	console.log(`[tool] Executing: ${toolName} (raw: ${rawName})`, JSON.stringify(toolArgs));
+
+	try {
+		const toolResult = await mcpClient.callTool({
+			name: toolName,
+			arguments: toolArgs
+		});
+
+		const resultContent = toolResult.content
+			.map((c: any) => (typeof c === 'string' ? c : c.text || JSON.stringify(c)))
+			.join('\n');
+
+		console.log(`[tool] ${toolName} returned ${resultContent.length} chars`);
+		return { name: toolName, result: resultContent, id: toolId };
+	} catch (toolErr) {
+		const errText = `Error executing tool ${toolName}: ${String(toolErr)}`;
+		console.error(`[tool] ${toolName} FAILED: ${errText}`);
+		return { name: toolName, result: errText, id: toolId };
+	}
+}
+
+/**
  * Creates a ReadableStream that pipes a streaming Ollama response
  * back to the client as plain text chunks.
- * NO tools array is attached — this forces a pure text summary.
+ * NO tools array is attached — forces pure text generation.
  */
 function createOllamaStream(messages: any[]): ReadableStream<Uint8Array> {
 	return new ReadableStream({
@@ -129,6 +210,7 @@ function createOllamaStream(messages: any[]): ReadableStream<Uint8Array> {
 		}
 	});
 }
+
 export const POST: RequestHandler = async ({ request, locals }) => {
 	// Auth gate
 	const user = locals.user;
@@ -154,7 +236,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	let mcpClient: Client | null = null;
 
 	try {
-		// 1. Initialize MCP Transport
+		// ── Phase 1: Boot MCP Transport ──
 		transport = new StdioClientTransport({
 			command: 'npx',
 			args: ['-y', '@modelcontextprotocol/server-postgres@latest', process.env.DATABASE_URL || ''],
@@ -164,13 +246,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		});
 
 		mcpClient = new Client(
-			{ name: 'oms-agent-orchestrator', version: '1.0.0' },
+			{ name: 'oms-agent-orchestrator', version: '2.0.0' },
 			{ capabilities: {} }
 		);
 
 		await mcpClient.connect(transport);
 
-		// 2. Fetch Tools
+		// ── Phase 2: Discover Available Tools ──
 		const mcpToolsResult = await mcpClient.listTools();
 		const tools = mcpToolsResult.tools.map((t) => ({
 			type: 'function',
@@ -181,13 +263,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			}
 		}));
 
-		// ── Build deduplicated message history with system prompt ──
+		console.log(`[init] MCP connected. ${tools.length} tools available: ${tools.map(t => t.function.name).join(', ')}`);
+
+		// ── Phase 3: Build Message History ──
 		const history: any[] = [
 			{ role: 'system', content: SYSTEM_PROMPT },
 			...chatHistory
 		];
 
-		// Guard: if chatHistory already ends with the same user query, don't double-append it
+		// Dedup guard
 		const lastMsg = history[history.length - 1];
 		if (lastMsg?.role === 'user' && lastMsg?.content === query) {
 			console.log('[dedup] chatHistory already contains the current user query — skipping duplicate append');
@@ -195,143 +279,107 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			history.push({ role: 'user', content: query });
 		}
 
-		console.log('--- STEP 1: TOOL CHECK (stream: false) ---');
-		console.log(`History length: ${history.length}, last role: ${history[history.length - 1]?.role}`);
+		// ══════════════════════════════════════════════════════════════
+		// ══  Phase 4: THE LOOPING BRAIN — Autonomous Agent Loop    ══
+		// ══════════════════════════════════════════════════════════════
+		//
+		// The agent iterates: ask Ollama → detect tool calls → execute tools
+		// → feed results back → ask Ollama again … until Ollama responds
+		// with plain text (no tool calls) or we hit MAX_AGENT_ITERATIONS.
+		//
+		// ALL of this is HIDDEN from the user. They only see the final stream.
 
-		// ── Step 1: The Tool Check (Non-Streamed) ──
-		const step1Res = await fetch(OLLAMA_URL, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				model: OLLAMA_MODEL,
-				messages: history,
-				tools,
-				stream: false
-			})
-		});
+		let iteration = 0;
+		let toolsUsed = 0;
 
-		const step1Data = await step1Res.json();
-		const rawAssistant = step1Data.message;
+		while (iteration < MAX_AGENT_ITERATIONS) {
+			iteration++;
+			console.log(`\n=== AGENT LOOP iteration ${iteration}/${MAX_AGENT_ITERATIONS} ===`);
+			console.log(`History length: ${history.length}, last role: ${history[history.length - 1]?.role}`);
 
-		// ── Dual-Path Tool Detection ──
-		// Path A (Native): Check for native tool_calls from the model
-		let detectedToolCalls = rawAssistant?.tool_calls?.length > 0
-			? rawAssistant.tool_calls
-			: null;
-
-		// Path B (Fallback): Check if the content contains JSON tool-call text
-		if (!detectedToolCalls && rawAssistant?.content) {
-			console.log('[agent] Path A (native tool_calls) empty — attempting Path B (text fallback)');
-			const fallbackCalls = extractToolCallsFromText(rawAssistant.content);
-			if (fallbackCalls) {
-				console.log(`[agent] Path B succeeded: extracted ${fallbackCalls.length} tool call(s) from text`);
-				detectedToolCalls = fallbackCalls;
-			}
-		}
-
-		const hasToolCalls = detectedToolCalls && detectedToolCalls.length > 0;
-
-		if (!hasToolCalls) {
-			// ── No tool used — close MCP immediately, stream a normal completion ──
-			console.log('[agent] No tool used by AI — streaming direct response');
-
-			if (transport) {
-				try { await transport.close(); transport = null; } catch (_) { /* silent */ }
-			}
-
-			// We already have the full text from Step 1. Just stream it directly!
-			const textToStream = rawAssistant?.content || '';
-			const stream = new ReadableStream({
-				start(controller) {
-					controller.enqueue(new TextEncoder().encode(textToStream));
-					controller.close();
-				}
+			// Ask Ollama with tools enabled, non-streaming
+			const ollamaRes = await fetch(OLLAMA_URL, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					model: OLLAMA_MODEL,
+					messages: history,
+					tools,
+					stream: false
+				})
 			});
 
-			return new Response(stream, {
-				headers: {
-					'Content-Type': 'text/plain; charset=utf-8',
-					'Cache-Control': 'no-cache',
-					'X-Content-Type-Options': 'nosniff'
-				}
-			});
-		}
+			const ollamaData = await ollamaRes.json();
+			const assistantMsg = ollamaData.message;
 
-		// ── Step 2: Tool execution ──
-		console.log(`[agent] AI requested ${detectedToolCalls!.length} tool call(s)`);
+			// Dual-path tool detection
+			const detectedToolCalls = extractToolCalls(assistantMsg);
 
-		// 2a. Push a CLEAN assistant message with null content and the tool_calls structure
-		// This matches the expected Ollama history format exactly:
-		// { role: 'assistant', content: null, tool_calls: [...] }
-		history.push({
-			role: 'assistant',
-			content: null,
-			tool_calls: detectedToolCalls
-		});
-
-		// 2b. Execute each tool and push results
-		for (const tc of detectedToolCalls!) {
-			let toolName: string = tc.function.name;
-			let toolArgs: Record<string, unknown> = tc.function.arguments || {};
-
-			// Fallback mapping for Postgres MCP
-			if (toolName === 'execute_sql') {
-				toolName = 'query';
-				tc.function.name = 'query';
+			if (!detectedToolCalls || detectedToolCalls.length === 0) {
+				// ── No more tool calls — the AI is ready to speak ──
+				console.log(`[agent] Iteration ${iteration}: No tool calls detected. Agent brain loop complete.`);
+				console.log(`[agent] Total tools executed across all iterations: ${toolsUsed}`);
+				break;
 			}
 
-			console.log(`[tool] Executing: ${toolName}`, JSON.stringify(toolArgs));
+			// ── Tool calls detected — execute and loop ──
+			console.log(`[agent] Iteration ${iteration}: ${detectedToolCalls.length} tool call(s) detected`);
 
-			try {
-				const toolResult = await mcpClient.callTool({
-					name: toolName,
-					arguments: toolArgs
-				});
+			// Push assistant message with tool_calls into history (content: null)
+			history.push({
+				role: 'assistant',
+				content: null,
+				tool_calls: detectedToolCalls
+			});
 
-				const resultContent = toolResult.content
-					.map((c: any) => (typeof c === 'string' ? c : c.text || JSON.stringify(c)))
-					.join('\n');
-
-				console.log(`[tool] ${toolName} returned ${resultContent.length} chars`);
-
-				// History format: { role: 'tool', content: '...', tool_call_id: '...' }
-				history.push({
-					role: 'tool',
-					content: resultContent,
-					tool_call_id: tc.id || `call_${toolName}`
-				});
-			} catch (toolErr) {
-				logger.error(`Error executing MCP tool ${toolName}`, toolErr as Error);
-				const errText = `Error executing tool ${toolName}: ${String(toolErr)}`;
-				console.error(`[tool] ${toolName} FAILED: ${errText}`);
+			// Execute each tool and push results
+			for (const tc of detectedToolCalls) {
+				const { name, result, id } = await executeTool(mcpClient, tc);
+				toolsUsed++;
 
 				history.push({
 					role: 'tool',
-					content: errText,
-					tool_call_id: tc.id || `call_${toolName}`
+					content: result,
+					tool_call_id: id
 				});
+
+				console.log(`[agent] Tool result for ${name} pushed to history (${result.length} chars)`);
 			}
+
+			// Loop continues — Ollama will see the tool results and decide:
+			// either call another tool or produce a final text answer.
 		}
 
-		// Close MCP transport now that all tools are done
+		if (iteration >= MAX_AGENT_ITERATIONS) {
+			console.warn(`[agent] Hit MAX_AGENT_ITERATIONS (${MAX_AGENT_ITERATIONS}). Forcing final response.`);
+		}
+
+		// ── Phase 5: Close MCP — all tool work is done ──
 		if (transport) {
 			try { await transport.close(); transport = null; } catch (_) { /* silent */ }
 		}
 
-		// ── Step 3: Final streaming response with tool results in context ──
-		// Strip the strict JSON tool-calling instruction from the system prompt so it summarizes naturally
-		if (history[0]?.role === 'system') {
-			history[0].content = `You are the Swarm Architect, an expert AI assistant for Réclame Fabriek.
-You have just retrieved information from the database. 
-CRITICAL DIRECTIVE: Summarize the tool results clearly, accurately, and naturally for the user. DO NOT output raw JSON tool calls.`;
+		// ══════════════════════════════════════════════════════════════
+		// ══  Phase 6: Final Streamed Response — User-Visible        ══
+		// ══════════════════════════════════════════════════════════════
+
+		// If tools were used, swap the system prompt to summarization mode
+		// so the model produces a natural-language answer, not more tool calls.
+		if (toolsUsed > 0) {
+			history[0].content = SUMMARY_PROMPT;
+			console.log(`[agent] Switched to SUMMARY_PROMPT for final stream (${toolsUsed} tools executed)`);
 		}
 
-		console.log('--- FINAL OLLAMA PAYLOAD (tool path) ---');
-		console.log(JSON.stringify(history, null, 2));
+		console.log('--- FINAL OLLAMA PAYLOAD ---');
+		console.log(`History: ${history.length} messages, Tools used: ${toolsUsed}, Iterations: ${iteration}`);
 
 		const stream = createOllamaStream(history);
 
-		logger.info('Agentic loop completed tool execution, streaming final response', { userId: user.id });
+		logger.info('Sovereign Architect loop completed', {
+			userId: user.id,
+			iterations: iteration,
+			toolsUsed
+		});
 
 		return new Response(stream, {
 			headers: {
@@ -341,7 +389,7 @@ CRITICAL DIRECTIVE: Summarize the tool results clearly, accurately, and naturall
 			}
 		});
 	} catch (err) {
-		logger.error('Agentic loop initialization error', err as Error);
+		logger.error('Sovereign Architect initialization error', err as Error);
 
 		if (err instanceof Response) {
 			throw err;
@@ -364,7 +412,6 @@ CRITICAL DIRECTIVE: Summarize the tool results clearly, accurately, and naturall
 			}
 		});
 	} finally {
-		// Ensure cleanup if init fails or somehow skipped the close
 		if (transport) {
 			try {
 				await transport.close();
