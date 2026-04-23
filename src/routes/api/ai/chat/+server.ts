@@ -14,8 +14,7 @@ const OLLAMA_URL = 'http://100.93.147.108:11434/api/chat';
 const OLLAMA_MODEL = 'qwen2.5-coder:14b';
 
 // ── Sovereign Agent System Prompt ──
-const SYSTEM_PROMPT = `You are the Sovereign Swarm AI. You have access to Supabase via MCP tools.
-- Your current project_id is 'local'. Always use this for database tools.
+const SYSTEM_PROMPT = `You are the Swarm Architect. You have direct access to the Postgres database on Node 101.
 - You MUST use the provided tools to answer schema or data questions.
 - If you use a tool, respond ONLY with the tool call, no conversational filler.`;
 
@@ -70,24 +69,6 @@ function extractToolCallsFromText(content: string): any[] | null {
 		console.error('[fallback-parse] Failed to parse tool call from text content:', e);
 		return null;
 	}
-}
-
-/**
- * Auto-injects or overwrites project_id with "local" when the AI
- * provides a placeholder or omits it entirely.
- */
-function ensureLocalProjectId(args: Record<string, unknown>): Record<string, unknown> {
-	const pid = args.project_id;
-	if (
-		!pid ||
-		pid === '<your-project-id>' ||
-		pid === '<project-id>' ||
-		pid === 'YOUR_PROJECT_ID' ||
-		pid === '1'
-	) {
-		args.project_id = 'local';
-	}
-	return args;
 }
 
 /**
@@ -170,12 +151,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// 1. Initialize MCP Transport
 		transport = new StdioClientTransport({
 			command: 'npx',
-			args: ['-y', '@supabase/mcp-server-supabase@latest'],
+			args: ['-y', '@modelcontextprotocol/server-postgres@latest', process.env.DATABASE_URL || ''],
 			env: {
-				...process.env,
-				SUPABASE_URL: process.env.PUBLIC_SUPABASE_URL || 'http://100.98.202.69:54321',
-				PUBLIC_SUPABASE_URL: process.env.PUBLIC_SUPABASE_URL || 'http://100.98.202.69:54321',
-				SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+				...process.env
 			}
 		});
 
@@ -289,11 +267,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		// 2b. Execute each tool and push results
 		for (const tc of detectedToolCalls!) {
-			const toolName: string = tc.function.name;
+			let toolName: string = tc.function.name;
 			let toolArgs: Record<string, unknown> = tc.function.arguments || {};
 
-			// Auto-inject project_id: "local" for all tools that need it
-			toolArgs = ensureLocalProjectId(toolArgs);
+			// Fallback mapping for Postgres MCP
+			if (toolName === 'execute_sql') {
+				toolName = 'query';
+				tc.function.name = 'query';
+			}
 
 			console.log(`[tool] Executing: ${toolName}`, JSON.stringify(toolArgs));
 
