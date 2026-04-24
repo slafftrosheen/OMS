@@ -6,7 +6,7 @@ export async function POST({ request }) {
     const body = await request.json();
 
     // ── Payload adapter: support both { messages } and legacy { query, chatHistory } ──
-    let messages: { role: string; content: string }[];
+    let messages: { role: string; content: string; images?: string[] }[];
     if (body.messages && Array.isArray(body.messages)) {
         messages = body.messages;
     } else {
@@ -18,14 +18,21 @@ export async function POST({ request }) {
         messages = [...chatHistory];
         const last = messages[messages.length - 1];
         if (!(last?.role === 'user' && last?.content === query)) {
-            messages.push({ role: 'user', content: query });
+            const userMsg: any = { role: 'user', content: query };
+            if (body.images && body.images.length > 0) {
+                userMsg.images = body.images;
+            }
+            messages.push(userMsg);
         }
     }
 
     const ollamaUrl = 'http://100.93.147.108:11434/api/chat';
 
-    // Switch to the Orchestrator model for conversational routing
-    const OLLAMA_MODEL = 'command-r';
+    // ── Models ───────────────────────────────────────────────────────────────
+    const ROUTER_MODEL = 'hf.co/mradermacher/c4ai-command-r7b-12-2024-abliterated-GGUF:Q4_K_M';
+    const DB_MODEL = 'hf.co/todayzhxy/DeepSeek-R1-Distill-Qwen-14B-Uncensored-GGUF:Q4_K_M';
+    const SYS_MODEL = 'hf.co/YeonwooSung/qwen3-14b-code-reasoning-conversational-Q4_K_M-GGUF:latest';
+    const VISION_MODEL = 'qwen2.5-vl:14b';
 
     // ── LAZY DB CONNECTION: Intercept stale Tailscale IPs ──
     const fallbackDbUrl = 'postgresql://postgres:postgres@192.168.8.150:54322/postgres';
@@ -88,51 +95,106 @@ export async function POST({ request }) {
     ];
 
     try {
-        // ── Build the conversation with a strict system prompt ──
+        // ═══════════════════════════════════════════════════════════════════════
+        // Step 1: Intelligent Router Classification
+        // ═══════════════════════════════════════════════════════════════════════
+        const queryStr = messages[messages.length - 1].content;
+        const hasImages = messages.some(m => m.images && m.images.length > 0);
+
+        console.log('⚡ [Router] Classifying intent...');
+        const routerRes = await fetch(ollamaUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: ROUTER_MODEL,
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'Classify the user intent into exactly ONE of these categories: "database" (queries about company knowledge, orders, workflow, or business info), "system" (queries about code, CNC feeds/speeds, system specs, UI improvements, or refactoring), or "vision" (analyzing uploaded images or PCB quality control). Reply with ONLY the category word, in lowercase.'
+                    },
+                    { role: 'user', content: queryStr + (hasImages ? '\n[User uploaded an image]' : '') }
+                ],
+                stream: false,
+                keep_alive: -1 // CRITICAL: keep router loaded
+            })
+        });
+
+        if (!routerRes.ok) throw new Error('Router classification failed');
+        const routerData = await routerRes.json();
+        const intentStr = (routerData.message?.content || '').toLowerCase();
+        
+        let activeAgentId = 'database';
+        let targetModel = DB_MODEL;
+        let systemPrompt = '';
+
+        if (hasImages || intentStr.includes('vision')) {
+            activeAgentId = 'vision';
+            targetModel = VISION_MODEL;
+            systemPrompt = 'You are the Swarm QC Vision system for Réclame Fabriek. You analyze Dino-Lite microscope images, inspect PCBs, and perform visual Quality Control.';
+            console.log(`🧭 [Router] Routed to QC Vision: ${VISION_MODEL}`);
+        } else if (intentStr.includes('system') || intentStr.includes('code') || intentStr.includes('refactor')) {
+            activeAgentId = 'engineer';
+            targetModel = SYS_MODEL;
+            systemPrompt = 'You are the Swarm Engineer for Réclame Fabriek. You specialize in code generation, Svelte 5, CNC feeds and speeds, and system health checks. Always provide accurate technical analysis.';
+            console.log(`🧭 [Router] Routed to Engineer: ${SYS_MODEL}`);
+        } else {
+            activeAgentId = 'database';
+            targetModel = DB_MODEL;
+            systemPrompt = [
+                'You are the Swarm Architect for Réclame Fabriek, a PHYSICAL SIGNAGE PRODUCTION company based in Daugavpils, Latvia.',
+                'They do NOT do digital marketing. They manufacture custom signage: lightboxes, 3D box letters, LED neon, pylons/totems, CNC services, and custom furniture.',
+                '',
+                'RULES:',
+                '1. If the user asks about the company, its products, services, capabilities, or projects — you MUST use search_knowledge_base or search_by_category.',
+                '2. Answer ONLY using the data returned by the tools. Do NOT invent capabilities.',
+                '3. If the tool returns no results, say "I could not find information about that in our database" — do NOT hallucinate.',
+                '4. For general conversation (greetings, math, etc.) respond directly without tools.',
+                '5. Always mention specific product names, materials, and technical details when available.',
+                '6. When listing products, include their illumination type and material.'
+            ].join('\n');
+            console.log(`🧭 [Router] Routed to Database: ${DB_MODEL}`);
+        }
+
         const currentMessages = [
-            {
-                role: 'system',
-                content: [
-                    'You are the Swarm Architect for Réclame Fabriek, a PHYSICAL SIGNAGE PRODUCTION company based in Daugavpils, Latvia.',
-                    'They do NOT do digital marketing. They manufacture custom signage: lightboxes, 3D box letters, LED neon, pylons/totems, CNC services, and custom furniture.',
-                    '',
-                    'RULES:',
-                    '1. If the user asks about the company, its products, services, capabilities, or projects — you MUST use search_knowledge_base or search_by_category.',
-                    '2. Answer ONLY using the data returned by the tools. Do NOT invent capabilities.',
-                    '3. If the tool returns no results, say "I could not find information about that in our database" — do NOT hallucinate.',
-                    '4. For general conversation (greetings, math, etc.) respond directly without tools.',
-                    '5. Always mention specific product names, materials, and technical details when available.',
-                    '6. When listing products, include their illumination type and material.'
-                ].join('\n')
-            },
+            { role: 'system', content: systemPrompt },
             ...messages
         ];
 
         // ═══════════════════════════════════════════════════════════════════════
-        // Step 1: Ask Command-R what it wants to do (non-streaming, with tools)
+        // Step 2: Ask Specialist Model (with tools if Database)
         // ═══════════════════════════════════════════════════════════════════════
-        const aiResponse = await fetch(ollamaUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: OLLAMA_MODEL,
-                messages: currentMessages,
-                tools: tools,
-                stream: false
-            })
-        });
+        let modelParams: any = {
+            model: targetModel,
+            messages: currentMessages,
+            keep_alive: 0, // CRITICAL: Unload specialist after use
+            stream: false
+        };
 
-        if (!aiResponse.ok) {
-            const errBody = await aiResponse.text();
-            console.error('❌ [Ollama] Non-streaming call failed:', errBody);
-            throw new Error(`Ollama failed to respond (${aiResponse.status})`);
+        if (activeAgentId === 'database') {
+            modelParams.tools = tools;
         }
 
-        const data = await aiResponse.json();
-        const aiMessage = data.message;
+        let aiMessage;
+        
+        // If it's a database agent, we do the tool execution loop
+        if (activeAgentId === 'database') {
+            const aiResponse = await fetch(ollamaUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(modelParams)
+            });
+
+            if (!aiResponse.ok) {
+                const errBody = await aiResponse.text();
+                throw new Error(`Ollama failed to respond (${aiResponse.status}): ${errBody}`);
+            }
+
+            const data = await aiResponse.json();
+            aiMessage = data.message;
+        }
 
         // ═══════════════════════════════════════════════════════════════════════
-        // Step 2: Execute tools SAFELY (SvelteKit writes ALL SQL)
+        // Step 3: Execute tools SAFELY (if any tool calls exist)
         // ═══════════════════════════════════════════════════════════════════════
         if (aiMessage?.tool_calls?.length > 0) {
             const toolCall = aiMessage.tool_calls[0];
@@ -142,7 +204,6 @@ export async function POST({ request }) {
 
             try {
                 if (toolName === 'search_by_category') {
-                    // ── Category-filtered search ──
                     const category = (toolArgs.category as string) || 'general';
                     const keyword = (toolArgs.keyword as string) || '';
                     console.log(`⚡ [DB] Category search: "${category}" + keyword: "${keyword}"`);
@@ -169,17 +230,14 @@ export async function POST({ request }) {
 
                     if (rows.length > 0) {
                         toolResult = JSON.stringify(rows);
-                        console.log(`✅ [DB] Found ${rows.length} results for category "${category}".`);
+                        console.log(`✅ [DB] Found ${rows.length} results.`);
                     } else {
-                        toolResult = JSON.stringify({
-                            error: `No records found in category "${category}".`
-                        });
+                        toolResult = JSON.stringify({ error: `No records found in category "${category}".` });
                         console.log(`⚠️ [DB] No results for category "${category}".`);
                     }
                 } else {
-                    // ── Default: keyword search across all content ──
                     const searchKeyword = (toolArgs.keyword as string) || '';
-                    console.log(`⚡ [DB] Command-R keyword search: "${searchKeyword}"`);
+                    console.log(`⚡ [DB] Keyword search: "${searchKeyword}"`);
 
                     const rows = await sql`
                         SELECT category, content
@@ -194,9 +252,7 @@ export async function POST({ request }) {
                         toolResult = JSON.stringify(rows);
                         console.log(`✅ [DB] Found ${rows.length} results.`);
                     } else {
-                        toolResult = JSON.stringify({
-                            error: "No records found. The user might be asking about something we don't have in our database."
-                        });
+                        toolResult = JSON.stringify({ error: "No records found." });
                         console.log(`⚠️ [DB] No results found for "${searchKeyword}".`);
                     }
                 }
@@ -205,53 +261,43 @@ export async function POST({ request }) {
                 toolResult = JSON.stringify({ error: 'Database query failed.' });
             }
 
-            // ═══════════════════════════════════════════════════════════════════
-            // Step 3: Stream the final, factual answer back to the UI
-            // ═══════════════════════════════════════════════════════════════════
+            // Stream final answer
             const streamResponse = await fetch(ollamaUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model: OLLAMA_MODEL,
+                    model: targetModel,
                     messages: [
                         ...currentMessages,
                         aiMessage,
                         { role: 'tool', content: toolResult }
                     ],
-                    stream: true
+                    stream: true,
+                    keep_alive: 0
                 })
             });
 
-            if (!streamResponse.ok) {
-                const errBody = await streamResponse.text();
-                console.error('❌ [Ollama] Streaming (tool) call failed:', errBody);
-                throw new Error('Ollama streaming response failed');
-            }
-
-            return streamToSvelte(streamResponse.body, sql);
+            return streamToSvelte(streamResponse.body, sql, activeAgentId);
         }
 
         // ═══════════════════════════════════════════════════════════════════════
-        // NO TOOL CALLED — Stream directly (standard conversation)
+        // NO TOOL CALLED / DIRECT RESPONSE (System/Vision or pure chat)
         // ═══════════════════════════════════════════════════════════════════════
-        console.log('🗣️ [Agent] Direct response (No tool needed)');
+        console.log(`🗣️ [${activeAgentId}] Direct streaming response`);
+        modelParams.stream = true;
+        
         const directResponse = await fetch(ollamaUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: OLLAMA_MODEL,
-                messages: currentMessages,
-                stream: true
-            })
+            body: JSON.stringify(modelParams)
         });
 
         if (!directResponse.ok) {
             const errBody = await directResponse.text();
-            console.error('❌ [Ollama] Streaming (direct) call failed:', errBody);
-            throw new Error('Ollama direct streaming failed');
+            throw new Error(`Ollama direct streaming failed: ${errBody}`);
         }
 
-        return streamToSvelte(directResponse.body, sql);
+        return streamToSvelte(directResponse.body, sql, activeAgentId);
     } catch (err) {
         await sql.end();
         console.error('❌ Orchestrator Error:', err);
@@ -262,7 +308,7 @@ export async function POST({ request }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: Pipe Ollama NDJSON stream → parsed plain-text stream for the UI
 // ─────────────────────────────────────────────────────────────────────────────
-function streamToSvelte(body: ReadableStream | null, sql: any) {
+function streamToSvelte(body: ReadableStream | null, sql: any, agentId: string) {
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
 
@@ -281,16 +327,13 @@ function streamToSvelte(body: ReadableStream | null, sql: any) {
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) {
-                        // Flush remaining buffer
                         if (buffer.trim()) {
                             try {
                                 const chunk = JSON.parse(buffer);
                                 if (chunk.message?.content) {
                                     controller.enqueue(encoder.encode(chunk.message.content));
                                 }
-                            } catch {
-                                /* partial JSON, skip */
-                            }
+                            } catch { /* partial JSON, skip */ }
                         }
                         break;
                     }
@@ -306,9 +349,7 @@ function streamToSvelte(body: ReadableStream | null, sql: any) {
                             if (chunk.message?.content) {
                                 controller.enqueue(encoder.encode(chunk.message.content));
                             }
-                        } catch {
-                            /* partial JSON, skip */
-                        }
+                        } catch { /* partial JSON, skip */ }
                     }
                 }
             } finally {
@@ -323,7 +364,8 @@ function streamToSvelte(body: ReadableStream | null, sql: any) {
         headers: {
             'Content-Type': 'text/plain; charset=utf-8',
             'Cache-Control': 'no-cache',
-            'X-Content-Type-Options': 'nosniff'
+            'X-Content-Type-Options': 'nosniff',
+            'X-Agent-Routed': agentId // Send back the selected agent to update UI
         }
     });
 }
