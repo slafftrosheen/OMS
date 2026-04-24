@@ -31,7 +31,7 @@ export async function POST({ request }) {
     // ── Models ───────────────────────────────────────────────────────────────
     const ROUTER_MODEL = 'hf.co/mradermacher/c4ai-command-r7b-12-2024-abliterated-GGUF:Q4_K_M';
     const DB_MODEL = 'hf.co/todayzhxy/DeepSeek-R1-Distill-Qwen-14B-Uncensored-GGUF:Q4_K_M';
-    const SYS_MODEL = 'hf.co/YeonwooSung/qwen3-14b-code-reasoning-conversational-Q4_K_M-GGUF:latest';
+    const SYS_MODEL = 'hf.co/ertghiu256/qwen-3-14b-code-and-math-reasoning-gguf';
     const VISION_MODEL = 'qwen2.5-vl:14b';
 
     // ── LAZY DB CONNECTION: Intercept stale Tailscale IPs ──
