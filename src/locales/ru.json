@@ -1,1 +1,30 @@
-{}
+{
+  "swarm": {
+    "title": "Sovereign Swarm",
+    "subtitle": "Командный центр и интеллектуальный маршрутизатор",
+    "clear": "Очистить",
+    "webui": "WebUI",
+    "awaiting": "Ожидание команд",
+    "upload_hint": "Загрузите изображения Dino-Lite PCB, добавьте технические руководства или запросите оптимизацию рабочего процесса CNC.",
+    "thought_process": "Процесс мышления ИИ",
+    "retry": "Повторить",
+    "analyze_orders": "Анализ заказов",
+    "refactor_ui": "Рефакторинг UI",
+    "review_workflow": "Обзор рабочего процесса",
+    "system_health": "Состояние системы",
+    "our_capabilities": "Наши возможности",
+    "drop_hint": "Перетащите сюда изображения или технические руководства",
+    "input_placeholder": "Инициализировать последовательность команд...",
+    "input_hint_powered": "На базе",
+    "input_hint_router": "Маршрутизатор Sovereign Swarm",
+    "input_hint_dynamic": "Динамическое распределение Q4_K_M",
+    "input_hint_shortcut": "Shift+Enter для новой строки",
+    "nav_title": "Swarm OS",
+    "agents": {
+      "router": "Ресепшн",
+      "database": "База данных",
+      "engineer": "Инженер",
+      "vision": "QC Зрение"
+    }
+  }
+}

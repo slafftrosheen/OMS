@@ -513,8 +513,10 @@
   gap: 20px;
   padding: 0 clamp(16px, 3vw, 28px);
   height: 60px;
-  background: var(--bg-1);
-  border-bottom: 1px solid var(--border);
+  background: var(--glass-bg, var(--bg-1));
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border, var(--border));
 }
 
 .rf-topbar .brand {

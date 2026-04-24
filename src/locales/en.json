@@ -1065,5 +1065,33 @@
       "never": "Never",
       "all_stations": "All stations"
     }
+  },
+  "swarm": {
+    "title": "Sovereign Swarm",
+    "subtitle": "Command Center & Intelligence Router",
+    "clear": "Clear",
+    "webui": "WebUI",
+    "awaiting": "Awaiting Commands",
+    "upload_hint": "Upload Dino-Lite PCB images, drop tech manuals, or request CNC workflow optimizations.",
+    "thought_process": "AI Thought Process",
+    "retry": "Retry",
+    "analyze_orders": "Analyze Orders",
+    "refactor_ui": "Refactor UI",
+    "review_workflow": "Review Workflow",
+    "system_health": "System Health",
+    "our_capabilities": "Our Capabilities",
+    "drop_hint": "Drop images or tech manuals here",
+    "input_placeholder": "Initialize command sequence...",
+    "input_hint_powered": "Powered by",
+    "input_hint_router": "Sovereign Swarm Router",
+    "input_hint_dynamic": "Dynamic Q4_K_M allocation",
+    "input_hint_shortcut": "Shift+Enter for new line",
+    "nav_title": "Swarm OS",
+    "agents": {
+      "router": "Front Desk",
+      "database": "Database",
+      "engineer": "Engineer",
+      "vision": "QC Vision"
+    }
   }
 }

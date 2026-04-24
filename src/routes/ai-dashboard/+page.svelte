@@ -6,6 +6,8 @@
 		BarChart3, Cpu, Loader2, Trash2, RotateCcw, Sparkles, Building2,
 		Paperclip, Image as ImageIcon, Activity, ChevronDown, ChevronRight, X
 	} from 'lucide-svelte';
+	import { t } from 'svelte-i18n';
+	import { currentUser } from '$lib/auth/authState.svelte';
 
 	// ───── Types ─────────────────────────────────────────────────────────
 	interface ChatMessage {
@@ -15,14 +17,6 @@
 		timestamp: Date;
 		images?: string[]; // base64
 		files?: File[];
-	}
-
-	interface AgentStatus {
-		id: string;
-		name: string;
-		icon: any;
-		status: 'idle' | 'active' | 'offline';
-		color: string;
 	}
 
 	// ───── State (Svelte 5 runes) ────────────────────────────────────────
@@ -38,11 +32,18 @@
 	let isDragging = $state(false);
 	let thoughtsOpen: boolean[] = $state([]);
 
-	const agents: AgentStatus[] = $state([
-		{ id: 'router', name: 'Front Desk', icon: Sparkles, status: 'idle', color: '#10b981' },
-		{ id: 'database', name: 'Database', icon: BarChart3, status: 'idle', color: '#3b82f6' },
-		{ id: 'engineer', name: 'Engineer', icon: Cpu, status: 'idle', color: '#f59e0b' },
-		{ id: 'vision', name: 'QC Vision', icon: ImageIcon, status: 'idle', color: '#8b5cf6' },
+	let agentStatuses: Record<string, 'idle' | 'active'> = $state({
+		router: 'idle',
+		database: 'idle',
+		engineer: 'idle',
+		vision: 'idle'
+	});
+
+	let agentsList = $derived([
+		{ id: 'router', name: $t('swarm.agents.router', { default: 'Front Desk' }), icon: Sparkles, status: agentStatuses.router, color: 'var(--ok)' },
+		{ id: 'database', name: $t('swarm.agents.database', { default: 'Database' }), icon: BarChart3, status: agentStatuses.database, color: 'var(--link)' },
+		{ id: 'engineer', name: $t('swarm.agents.engineer', { default: 'Engineer' }), icon: Cpu, status: agentStatuses.engineer, color: 'var(--warn)' },
+		{ id: 'vision', name: $t('swarm.agents.vision', { default: 'QC Vision' }), icon: ImageIcon, status: agentStatuses.vision, color: 'var(--accent-2, #8b5cf6)' },
 	]);
 
 	// ───── Derived ───────────────────────────────────────────────────────
@@ -118,13 +119,13 @@
 	}
 
 	// ───── Quick actions ────────────────────────────────────────────────
-	const quickActions = [
-		{ label: 'Analyze Orders', icon: BarChart3, prompt: 'Analyze the current order pipeline and identify bottlenecks or at-risk deadlines.' },
-		{ label: 'Refactor UI', icon: Paintbrush, prompt: 'Suggest UI improvements for the orders page following our Svelte 5 + brand.css design tokens.' },
-		{ label: 'Review Workflow', icon: ClipboardList, prompt: 'Review the manufacturing workflow stages and suggest optimizations.' },
-		{ label: 'System Health', icon: Cpu, prompt: 'Perform a systems health check: summarize the stack, infra, and potential issues.' },
-		{ label: 'Our Capabilities', icon: Building2, prompt: 'Summarize Réclame Fabriek\'s capabilities, past projects, and core services based on our corporate identity.' },
-	];
+	let quickActions = $derived([
+		{ label: $t('swarm.analyze_orders', { default: 'Analyze Orders' }), icon: BarChart3, prompt: 'Analyze the current order pipeline and identify bottlenecks or at-risk deadlines.' },
+		{ label: $t('swarm.refactor_ui', { default: 'Refactor UI' }), icon: Paintbrush, prompt: 'Suggest UI improvements for the orders page following our Svelte 5 + brand.css design tokens.' },
+		{ label: $t('swarm.review_workflow', { default: 'Review Workflow' }), icon: ClipboardList, prompt: 'Review the manufacturing workflow stages and suggest optimizations.' },
+		{ label: $t('swarm.system_health', { default: 'System Health' }), icon: Cpu, prompt: 'Perform a systems health check: summarize the stack, infra, and potential issues.' },
+		{ label: $t('swarm.our_capabilities', { default: 'Our Capabilities' }), icon: Building2, prompt: 'Summarize Réclame Fabriek\'s capabilities, past projects, and core services based on our corporate identity.' },
+	]);
 
 	// ───── Send message ──────────────────────────────────────────────────
 	async function sendMessage(content?: string) {
@@ -154,7 +155,7 @@
 		thoughtsOpen[assistantMessageIndex] = true; // open by default while typing
 		isTyping = true;
 		
-		agents[0].status = 'active';
+		agentStatuses.router = 'active';
 
 		try {
 			const historyPayload = chatHistory
@@ -202,9 +203,10 @@
 			if (!res.body) throw new Error('Empty response body');
 
 			const routedAgent = res.headers.get('x-agent-routed') || 'router';
-			agents.forEach(a => a.status = 'idle');
-			const activeAgent = agents.find(a => a.id === routedAgent);
-			if (activeAgent) activeAgent.status = 'active';
+			Object.keys(agentStatuses).forEach(k => agentStatuses[k] = 'idle');
+			if (agentStatuses[routedAgent] !== undefined) {
+				agentStatuses[routedAgent] = 'active';
+			}
 
 			const reader = res.body.getReader();
 			const decoder = new TextDecoder();
@@ -237,7 +239,7 @@
 			chatHistory = chatHistory.filter((_, i) => i !== chatHistory.length - 1);
 		} finally {
 			isTyping = false;
-			agents.forEach(a => a.status = 'idle');
+			Object.keys(agentStatuses).forEach(k => agentStatuses[k] = 'idle');
 			inputEl?.focus();
 		}
 	}
@@ -262,7 +264,7 @@
 </script>
 
 <svelte:head>
-	<title>Sovereign Swarm — Command Center</title>
+	<title>{$t('swarm.nav_title', { default: 'Swarm OS' })}</title>
 	<meta name="description" content="Réclame Fabriek Sovereign AI Swarm Command Center." />
 </svelte:head>
 
@@ -276,7 +278,7 @@
 	{#if isDragging}
 		<div class="drag-overlay">
 			<ImageIcon size={48} />
-			<p>Drop images or tech manuals here</p>
+			<p>{$t('swarm.drop_hint', { default: 'Drop images or tech manuals here' })}</p>
 		</div>
 	{/if}
 
@@ -287,31 +289,31 @@
 				<Activity size={24} />
 			</div>
 			<div class="header-text">
-				<h1>Sovereign Swarm</h1>
-				<p class="header-sub">Command Center & Intelligence Router</p>
+				<h1>{$t('swarm.title', { default: 'Sovereign Swarm' })}</h1>
+				<p class="header-sub">{$t('swarm.subtitle', { default: 'Command Center & Intelligence Router' })}</p>
 			</div>
 		</div>
 
 		<div class="agents-bar">
-			{#each agents as agent}
+			{#each agentsList as agent}
 				<div class="agent-badge {agent.status}" style="--agent-color: {agent.color}">
 					<div class="agent-indicator"></div>
 					<svelte:component this={agent.icon} size={14} />
-					<span>{agent.name}</span>
+					<span class="desktop-only">{agent.name}</span>
 				</div>
 			{/each}
 		</div>
 
 		<div class="header-actions">
 			{#if hasMessages}
-				<button class="action-tag ghost" onclick={clearChat} title="Clear conversation">
+				<button class="action-tag ghost" onclick={clearChat} title={$t('swarm.clear', { default: 'Clear' })}>
 					<Trash2 size={16} />
-					<span>Clear</span>
+					<span class="desktop-only">{$t('swarm.clear', { default: 'Clear' })}</span>
 				</button>
 			{/if}
-			<a href="http://100.93.147.108:3000" target="_blank" rel="noopener noreferrer" class="action-tag primary" title="Open WebUI">
+			<a href="http://100.93.147.108:3000" target="_blank" rel="noopener noreferrer" class="action-tag primary" title={$t('swarm.webui', { default: 'WebUI' })}>
 				<ExternalLink size={16} />
-				<span>WebUI</span>
+				<span class="desktop-only">{$t('swarm.webui', { default: 'WebUI' })}</span>
 			</a>
 		</div>
 	</header>
@@ -323,8 +325,8 @@
 				<div class="hero-orb">
 					<Sparkles size={40} />
 				</div>
-				<h2>Awaiting Commands</h2>
-				<p>Upload Dino-Lite PCB images, drop tech manuals, or request CNC workflow optimizations.</p>
+				<h2>{$t('swarm.awaiting', { default: 'Awaiting Commands' })}</h2>
+				<p>{$t('swarm.upload_hint', { default: 'Upload Dino-Lite PCB images, drop tech manuals, or request CNC workflow optimizations.' })}</p>
 			</div>
 		{/if}
 
@@ -332,7 +334,13 @@
 			<div class="msg-row" class:user={msg.role === 'user'} class:assistant={msg.role === 'assistant'}>
 				<div class="msg-avatar">
 					{#if msg.role === 'user'}
-						<span class="avatar-user">U</span>
+						{#if $currentUser}
+							<div class="user-avatar" title={$currentUser.display_name || $currentUser.username}>
+								{($currentUser.display_name || $currentUser.username || 'U').charAt(0).toUpperCase()}
+							</div>
+						{:else}
+							<span class="avatar-user">U</span>
+						{/if}
 					{:else}
 						<Bot size={18} />
 					{/if}
@@ -365,7 +373,7 @@
 								{:else}
 									<ChevronRight size={14} />
 								{/if}
-								<span>AI Thought Process</span>
+								<span>{$t('swarm.thought_process', { default: 'AI Thought Process' })}</span>
 							</button>
 							{#if thoughtsOpen[idx]}
 								<div class="thought-content">
@@ -395,7 +403,7 @@
 			<div class="error-banner">
 				<RotateCcw size={16} />
 				<span>{errorMsg}</span>
-				<button class="retry-btn" onclick={() => { errorMsg = ''; sendMessage(chatHistory.at(-1)?.content); }}>Retry</button>
+				<button class="retry-btn" onclick={() => { errorMsg = ''; sendMessage(chatHistory.at(-1)?.content); }}>{$t('swarm.retry', { default: 'Retry' })}</button>
 			</div>
 		{/if}
 	</div>
@@ -442,7 +450,7 @@
 				bind:this={inputEl}
 				bind:value={inputValue}
 				onkeydown={handleKeydown}
-				placeholder="Initialize command sequence..."
+				placeholder={$t('swarm.input_placeholder', { default: 'Initialize command sequence...' })}
 				rows="1"
 				disabled={isTyping}
 				id="ai-chat-input"
@@ -455,18 +463,12 @@
 				{/if}
 			</button>
 		</div>
-		<p class="input-hint">Powered by <strong>Sovereign Swarm Router</strong> · Dynamic Q4_K_M allocation · Shift+Enter for new line</p>
+		<p class="input-hint">{$t('swarm.input_hint_powered', { default: 'Powered by' })} <strong>{$t('swarm.input_hint_router', { default: 'Sovereign Swarm Router' })}</strong> · {$t('swarm.input_hint_dynamic', { default: 'Dynamic Q4_K_M allocation' })} · {$t('swarm.input_hint_shortcut', { default: 'Shift+Enter for new line' })}</p>
 	</div>
 </div>
 
 <style>
-	/* ── Dark Mode / Glassmorphism / CNC Aesthetic ────────────────────────── */
-	:global(body) {
-		background-color: #09090b; /* Very dark background */
-		color: #e4e4e7;
-		font-family: 'Inter', sans-serif;
-	}
-
+	/* ── Native Tokens / Glassmorphism / CNC Aesthetic ────────────────────────── */
 	.ai-dashboard {
 		display: flex;
 		flex-direction: column;
@@ -478,30 +480,30 @@
 	}
 
 	.glass-panel {
-		background: rgba(15, 15, 20, 0.7);
+		background: color-mix(in oklab, var(--bg-1) 80%, transparent);
 		backdrop-filter: blur(12px);
 		-webkit-backdrop-filter: blur(12px);
-		border-left: 1px solid rgba(255, 255, 255, 0.05);
-		border-right: 1px solid rgba(255, 255, 255, 0.05);
-		box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+		border-left: 1px solid var(--border);
+		border-right: 1px solid var(--border);
+		box-shadow: var(--shadow-lg);
 	}
 
 	.drag-overlay {
 		position: absolute;
 		top: 0; left: 0; right: 0; bottom: 0;
-		background: rgba(16, 185, 129, 0.1);
+		background: color-mix(in oklab, var(--brand, var(--accent-1)) 10%, transparent);
 		backdrop-filter: blur(4px);
-		border: 2px dashed #10b981;
+		border: 2px dashed var(--brand, var(--accent-1));
 		z-index: 50;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		color: #10b981;
-		font-weight: bold;
-		font-size: 1.2rem;
-		gap: 1rem;
-		border-radius: 8px;
+		color: var(--brand, var(--accent-1));
+		font-weight: var(--font-weight-bold);
+		font-size: var(--font-size-xl);
+		gap: var(--space-md);
+		border-radius: var(--radius-md);
 	}
 
 	/* ── Header ────────────────────────────────────────────────────────── */
@@ -511,7 +513,7 @@
 		justify-content: space-between;
 		gap: var(--space-lg);
 		padding: var(--space-lg) 0;
-		border-bottom: 1px solid rgba(255,255,255,0.1);
+		border-bottom: 1px solid var(--border);
 		flex-shrink: 0;
 	}
 
@@ -527,29 +529,29 @@
 		justify-content: center;
 		width: 48px;
 		height: 48px;
-		border-radius: 12px;
-		background: linear-gradient(135deg, #18181b, #27272a);
-		border: 1px solid rgba(255,255,255,0.1);
-		color: #10b981;
+		border-radius: var(--radius-md);
+		background: var(--bg-2);
+		border: 1px solid var(--border);
+		color: var(--brand, var(--accent-1));
 		flex-shrink: 0;
 	}
 
 	.pulse-glow-subtle {
-		box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+		box-shadow: 0 0 15px color-mix(in oklab, var(--brand, var(--accent-1)) 20%, transparent);
 	}
 
 	.header-text h1 {
 		margin: 0;
-		font-size: 1.5rem;
-		color: #f4f4f5;
-		font-weight: 700;
+		font-size: var(--font-size-2xl);
+		color: var(--text);
+		font-weight: var(--font-weight-bold);
 		letter-spacing: -0.02em;
 	}
 
 	.header-sub {
 		margin: 0;
-		font-size: 0.875rem;
-		color: #a1a1aa;
+		font-size: var(--font-size-sm);
+		color: var(--muted);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 	}
@@ -557,34 +559,34 @@
 	/* ── Agents Bar ────────────────────────────────────────────────────── */
 	.agents-bar {
 		display: flex;
-		gap: 12px;
-		background: rgba(0,0,0,0.3);
+		gap: var(--space-sm);
+		background: var(--bg-0);
 		padding: 8px 16px;
-		border-radius: 20px;
-		border: 1px solid rgba(255,255,255,0.05);
+		border-radius: var(--radius-full);
+		border: 1px solid var(--border);
 	}
 
 	.agent-badge {
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: #a1a1aa;
+		font-size: var(--font-size-xs);
+		font-weight: var(--font-weight-semibold);
+		color: var(--muted);
 		opacity: 0.6;
-		transition: all 0.3s ease;
+		transition: all var(--transition-fast, 0.2s) ease;
 	}
 
 	.agent-badge.active {
 		opacity: 1;
-		color: #fff;
+		color: var(--text);
 	}
 
 	.agent-indicator {
 		width: 8px;
 		height: 8px;
 		border-radius: 50%;
-		background-color: #52525b;
+		background-color: var(--muted);
 		transition: background-color 0.3s ease, box-shadow 0.3s ease;
 	}
 
@@ -605,26 +607,26 @@
 		align-items: center;
 		gap: 6px;
 		padding: 6px 12px;
-		border-radius: 16px;
-		font-size: 0.8125rem;
-		font-weight: 600;
+		border-radius: var(--radius-full);
+		font-size: var(--font-size-sm);
+		font-weight: var(--font-weight-semibold);
 		cursor: pointer;
 		text-decoration: none;
-		border: 1px solid rgba(255,255,255,0.1);
-		background: rgba(255,255,255,0.05);
-		color: #e4e4e7;
+		border: 1px solid var(--border);
+		background: var(--bg-0);
+		color: var(--text);
 		transition: all 0.2s ease;
 	}
 	.action-tag:hover {
-		background: rgba(255,255,255,0.1);
+		background: var(--bg-2);
 	}
 	.action-tag.primary {
-		background: #10b981;
-		color: #000;
+		background: var(--brand, var(--accent-1));
+		color: var(--bg-0);
 		border-color: transparent;
 	}
 	.action-tag.primary:hover {
-		box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+		box-shadow: 0 0 15px color-mix(in oklab, var(--brand, var(--accent-1)) 40%, transparent);
 	}
 
 	/* ── Chat area ─────────────────────────────────────────────────────── */
@@ -647,7 +649,7 @@
 		text-align: center;
 		padding: var(--space-2xl);
 		gap: var(--space-md);
-		color: #a1a1aa;
+		color: var(--muted);
 	}
 
 	.hero-orb {
@@ -657,21 +659,21 @@
 		align-items: center;
 		justify-content: center;
 		border-radius: 50%;
-		background: rgba(16, 185, 129, 0.1);
-		color: #10b981;
-		border: 1px solid rgba(16, 185, 129, 0.2);
+		background: color-mix(in oklab, var(--brand, var(--accent-1)) 10%, transparent);
+		color: var(--brand, var(--accent-1));
+		border: 1px solid color-mix(in oklab, var(--brand, var(--accent-1)) 20%, transparent);
 		animation: pulse-glow 3s ease-in-out infinite;
 	}
 
 	@keyframes pulse-glow {
-		0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.1); }
-		50% { box-shadow: 0 0 30px 10px rgba(16, 185, 129, 0.15); }
+		0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand, var(--accent-1)) 10%, transparent); }
+		50% { box-shadow: 0 0 30px 10px color-mix(in oklab, var(--brand, var(--accent-1)) 15%, transparent); }
 	}
 
 	.empty-hero h2 {
 		margin: 0;
-		font-size: 1.25rem;
-		color: #fff;
+		font-size: var(--font-size-xl);
+		color: var(--text);
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
 	}
@@ -695,39 +697,45 @@
 		flex-shrink: 0;
 		width: 32px;
 		height: 32px;
-		border-radius: 8px;
+		border-radius: var(--radius-sm);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 0.75rem;
-		font-weight: 700;
+		font-size: var(--font-size-xs);
+		font-weight: var(--font-weight-bold);
 	}
-	.msg-row.user .msg-avatar {
-		background: #27272a;
-		border: 1px solid rgba(255,255,255,0.1);
-		color: #fff;
+	.msg-row.user .msg-avatar, .user-avatar {
+		background: var(--bg-2);
+		border: 1px solid var(--border);
+		color: var(--text);
+		width: 100%;
+		height: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-sm);
 	}
 	.msg-row.assistant .msg-avatar {
-		background: #10b981;
-		color: #000;
+		background: var(--brand, var(--accent-1));
+		color: var(--bg-0);
 	}
 
 	.msg-bubble {
 		padding: var(--space-sm) var(--space-md);
-		border-radius: 12px;
+		border-radius: var(--radius-md);
 		max-width: 100%;
 		position: relative;
 	}
 	.msg-row.user .msg-bubble {
-		background: rgba(39, 39, 42, 0.8);
-		border: 1px solid rgba(255,255,255,0.1);
-		color: white;
+		background: var(--bg-2);
+		border: 1px solid var(--border);
+		color: var(--text);
 		border-top-right-radius: 4px;
 	}
 	.msg-row.assistant .msg-bubble {
-		background: rgba(0, 0, 0, 0.4);
-		border: 1px solid rgba(16, 185, 129, 0.2);
-		color: #e4e4e7;
+		background: var(--bg-0);
+		border: 1px solid var(--brand, var(--accent-1));
+		color: var(--text);
 		border-top-left-radius: 4px;
 	}
 
@@ -736,14 +744,14 @@
 		white-space: pre-wrap;
 		word-break: break-word;
 		line-height: 1.6;
-		font-size: 0.95rem;
+		font-size: var(--font-size-base);
 	}
 
 	.thought-process {
-		margin-bottom: 12px;
-		border: 1px solid rgba(255,255,255,0.1);
-		background: rgba(0,0,0,0.5);
-		border-radius: 8px;
+		margin-bottom: var(--space-sm);
+		border: 1px solid var(--border);
+		background: var(--bg-0);
+		border-radius: var(--radius-sm);
 		overflow: hidden;
 	}
 
@@ -753,26 +761,26 @@
 		gap: 8px;
 		width: 100%;
 		padding: 8px 12px;
-		background: rgba(255,255,255,0.02);
+		background: var(--bg-1);
 		border: none;
-		color: #a1a1aa;
-		font-size: 0.8rem;
+		color: var(--muted);
+		font-size: var(--font-size-sm);
 		font-family: monospace;
 		cursor: pointer;
 		text-align: left;
 	}
 	
 	.thought-toggle:hover {
-		background: rgba(255,255,255,0.05);
-		color: #fff;
+		background: var(--bg-2);
+		color: var(--text);
 	}
 
 	.thought-content {
 		padding: 12px;
 		font-family: monospace;
-		font-size: 0.8rem;
-		color: #a1a1aa;
-		border-top: 1px solid rgba(255,255,255,0.05);
+		font-size: var(--font-size-sm);
+		color: var(--muted);
+		border-top: 1px solid var(--border);
 		white-space: pre-wrap;
 	}
 
@@ -786,8 +794,8 @@
 	.msg-image {
 		max-width: 200px;
 		max-height: 200px;
-		border-radius: 8px;
-		border: 1px solid rgba(255,255,255,0.1);
+		border-radius: var(--radius-md);
+		border: 1px solid var(--border);
 	}
 
 	.msg-file-tag {
@@ -795,16 +803,16 @@
 		align-items: center;
 		gap: 6px;
 		padding: 4px 8px;
-		background: rgba(255,255,255,0.1);
-		border-radius: 4px;
-		font-size: 0.8rem;
-		color: #e4e4e7;
+		background: var(--bg-1);
+		border-radius: var(--radius-sm);
+		font-size: var(--font-size-sm);
+		color: var(--text);
 	}
 
 	.msg-time {
 		display: block;
-		font-size: 0.6875rem;
-		opacity: 0.5;
+		font-size: var(--font-size-xs);
+		color: var(--muted);
 		margin-top: 8px;
 		text-align: right;
 	}
@@ -817,7 +825,7 @@
 	.typing-indicator span {
 		width: 6px;
 		height: 6px;
-		background: #10b981;
+		background: var(--brand, var(--accent-1));
 		border-radius: 50%;
 		animation: typing-bounce 1.4s ease-in-out infinite;
 	}
@@ -834,17 +842,17 @@
 		align-items: center;
 		gap: 8px;
 		padding: 8px 12px;
-		background: rgba(220, 38, 38, 0.1);
-		border: 1px solid #dc2626;
-		border-radius: 8px;
-		color: #ef4444;
-		font-size: 0.875rem;
+		background: color-mix(in oklab, var(--danger) 10%, transparent);
+		border: 1px solid var(--danger);
+		border-radius: var(--radius-md);
+		color: var(--danger);
+		font-size: var(--font-size-sm);
 	}
 	.retry-btn {
 		margin-left: auto;
 		padding: 4px 8px;
-		border-radius: 4px;
-		background: #dc2626;
+		border-radius: var(--radius-sm);
+		background: var(--danger);
 		color: white;
 		border: none;
 		cursor: pointer;
@@ -863,20 +871,20 @@
 		align-items: center;
 		gap: 8px;
 		padding: 12px;
-		background: rgba(39, 39, 42, 0.5);
-		border: 1px solid rgba(255,255,255,0.05);
-		border-radius: 8px;
-		color: #e4e4e7;
-		font-size: 0.875rem;
+		background: color-mix(in oklab, var(--bg-1) 50%, transparent);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		color: var(--text);
+		font-size: var(--font-size-sm);
 		cursor: pointer;
 		text-align: left;
 		transition: all 0.2s ease;
 	}
 	.qa-btn:hover:not(:disabled) {
-		background: rgba(39, 39, 42, 0.8);
-		border-color: #10b981;
+		background: var(--bg-2);
+		border-color: var(--brand, var(--accent-1));
 		transform: translateY(-2px);
-		box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+		box-shadow: var(--shadow-md);
 	}
 
 	/* ── Attachments Preview ───────────────────────────────────────────── */
@@ -884,28 +892,28 @@
 		display: flex;
 		gap: 12px;
 		padding: 12px 0;
-		border-top: 1px solid rgba(255,255,255,0.1);
+		border-top: 1px solid var(--border);
 		flex-wrap: wrap;
 	}
 
 	.preview-item {
 		position: relative;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		overflow: hidden;
-		border: 1px solid rgba(255,255,255,0.2);
-		background: #18181b;
+		border: 1px solid var(--border);
+		background: var(--bg-1);
 		display: flex;
 		align-items: center;
 		padding: 4px 12px 4px 8px;
 		gap: 8px;
-		font-size: 0.8rem;
+		font-size: var(--font-size-sm);
 	}
 
 	.preview-item.image img {
 		height: 40px;
 		width: 40px;
 		object-fit: cover;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		margin: -4px 0 -4px -8px;
 	}
 
@@ -913,8 +921,8 @@
 		position: absolute;
 		top: 2px;
 		right: 2px;
-		background: rgba(0,0,0,0.6);
-		color: #fff;
+		background: var(--bg-2);
+		color: var(--text);
 		border: none;
 		border-radius: 50%;
 		width: 20px;
@@ -925,29 +933,30 @@
 		cursor: pointer;
 	}
 	.remove-btn:hover {
-		background: #dc2626;
+		background: var(--danger);
+		color: white;
 	}
 
 	/* ── Input bar ─────────────────────────────────────────────────────── */
 	.input-bar {
 		flex-shrink: 0;
 		padding: 16px 0 24px;
-		border-top: 1px solid rgba(255,255,255,0.1);
+		border-top: 1px solid var(--border);
 	}
 
 	.input-wrap {
 		display: flex;
 		align-items: flex-end;
 		gap: 8px;
-		background: rgba(0,0,0,0.5);
-		border: 1px solid rgba(255,255,255,0.1);
-		border-radius: 12px;
+		background: var(--bg-1);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
 		padding: 8px;
 		transition: all 0.2s ease;
 	}
 	.input-wrap:focus-within {
-		border-color: #10b981;
-		box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+		border-color: var(--brand, var(--accent-1));
+		box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand, var(--accent-1)) 20%, transparent);
 	}
 
 	.attach-btn {
@@ -956,22 +965,22 @@
 		justify-content: center;
 		width: 40px;
 		height: 40px;
-		color: #a1a1aa;
+		color: var(--muted);
 		cursor: pointer;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 	}
 	.attach-btn:hover {
-		background: rgba(255,255,255,0.05);
-		color: #fff;
+		background: var(--bg-2);
+		color: var(--text);
 	}
 
 	.input-wrap textarea {
 		flex: 1;
 		border: none;
 		background: transparent;
-		color: #fff;
-		font-family: monospace; /* CNC Code style */
-		font-size: 0.95rem;
+		color: var(--text);
+		font-family: inherit;
+		font-size: var(--font-size-base);
 		resize: none;
 		min-height: 24px;
 		max-height: 120px;
@@ -980,7 +989,7 @@
 		outline: none;
 	}
 	.input-wrap textarea::placeholder {
-		color: #52525b;
+		color: var(--muted);
 	}
 
 	.send-btn {
@@ -989,16 +998,16 @@
 		justify-content: center;
 		width: 40px;
 		height: 40px;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		border: none;
-		background: #10b981;
-		color: #000;
+		background: var(--brand, var(--accent-1));
+		color: var(--bg-0);
 		cursor: pointer;
 		transition: all 0.2s ease;
 	}
 	.send-btn:hover:not(:disabled) {
 		transform: scale(1.05);
-		box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+		box-shadow: 0 0 10px color-mix(in oklab, var(--brand, var(--accent-1)) 50%, transparent);
 	}
 	.send-btn:disabled {
 		opacity: 0.3;
@@ -1007,8 +1016,8 @@
 
 	.input-hint {
 		margin: 8px 0 0;
-		font-size: 0.7rem;
-		color: #52525b;
+		font-size: var(--font-size-xs);
+		color: var(--muted);
 		text-align: center;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
@@ -1019,5 +1028,11 @@
 	}
 	@keyframes spin-anim {
 		to { transform: rotate(360deg); }
+	}
+
+	@media (max-width: 768px) {
+		.desktop-only { display: none; }
+		.dash-header { flex-direction: column; align-items: flex-start; }
+		.header-actions { align-self: flex-end; }
 	}
 </style>
