@@ -337,7 +337,11 @@
 					{#if msg.role === 'user'}
 						{#if $currentUser}
 							<div class="user-avatar" title={$currentUser.display_name || $currentUser.username}>
-								{($currentUser.display_name || $currentUser.username || 'U').charAt(0).toUpperCase()}
+								{#if $currentUser.avatar_url}
+									<img src={$currentUser.avatar_url} alt="User" class="avatar-img" />
+								{:else}
+									{($currentUser.display_name || $currentUser.username || 'U').charAt(0).toUpperCase()}
+								{/if}
 							</div>
 						{:else}
 							<span class="avatar-user">U</span>
@@ -533,13 +537,20 @@
 		border-radius: var(--radius-md);
 		background: var(--bg-2);
 		border: 1px solid var(--border);
-		color: var(--brand, var(--accent-1));
+		color: var(--brand);
 		flex-shrink: 0;
+		position: relative;
 	}
 
-	.pulse-glow-subtle {
-		box-shadow: 0 0 20px 2px color-mix(in oklab, var(--brand) 15%, transparent),
-                    0 0 40px 5px color-mix(in oklab, var(--brand) 5%, transparent);
+	.pulse-glow-subtle::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		background: var(--brand);
+		filter: blur(15px);
+		opacity: 0.15;
+		z-index: -1;
 	}
 
 	.header-text h1 {
@@ -664,18 +675,24 @@
 		background: color-mix(in oklab, var(--brand) 5%, transparent);
 		color: var(--brand);
 		border: 1px solid color-mix(in oklab, var(--brand) 15%, transparent);
-		animation: pulse-glow 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        position: relative;
 	}
 
-	@keyframes pulse-glow {
-		0%, 100% { 
-            box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand) 0%, transparent),
-                        0 0 0 0 color-mix(in oklab, var(--brand) 0%, transparent); 
-        }
-		50% { 
-            box-shadow: 0 0 15px 2px color-mix(in oklab, var(--brand) 25%, transparent),
-                        0 0 40px 8px color-mix(in oklab, var(--brand) 10%, transparent); 
-        }
+	.hero-orb::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: 50%;
+		background: var(--brand);
+		filter: blur(20px);
+		opacity: 0.15;
+		animation: pulse-glow-opacity 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+		z-index: -1;
+	}
+
+	@keyframes pulse-glow-opacity {
+		0%, 100% { opacity: 0.05; transform: scale(1); }
+		50% { opacity: 0.25; transform: scale(1.2); }
 	}
 
 	.empty-hero h2 {
@@ -712,19 +729,27 @@
 		font-size: var(--font-size-xs);
 		font-weight: var(--font-weight-bold);
 	}
-	.msg-row.user .msg-avatar, .user-avatar {
+	.msg-row.user .msg-avatar {
 		background: var(--bg-2);
 		border: 1px solid var(--border);
 		color: var(--text);
+	}
+	.user-avatar {
 		width: 100%;
 		height: 100%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border-radius: var(--radius-sm);
+		border-radius: inherit;
+		overflow: hidden;
+	}
+	.avatar-img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
 	}
 	.msg-row.assistant .msg-avatar {
-		background: var(--brand, var(--accent-1));
+		background: var(--brand);
 		color: var(--bg-0);
 	}
 

@@ -26,11 +26,12 @@
 
     onMount(() => {
         if (canvasElement) {
+            const rawData = $state.snapshot(data);
             chart = new Chart(canvasElement, {
                 type: 'line',
                 data: {
-                    ...data,
-                    datasets: data.datasets.map(dataset => ({
+                    ...rawData,
+                    datasets: rawData.datasets.map((dataset: any) => ({
                         ...dataset,
                         borderColor: dataset.borderColor || '#0066cc',
                         backgroundColor: dataset.backgroundColor || 'rgba(0, 102, 204, 0.1)',
@@ -68,8 +69,18 @@
     });
 
     $effect(() => {
-        if (chart) {
-            chart.data = data;
+        if (chart && data) {
+            const rawData = $state.snapshot(data);
+            chart.data = {
+                ...rawData,
+                datasets: rawData.datasets.map((dataset: any) => ({
+                    ...dataset,
+                    borderColor: dataset.borderColor || '#0066cc',
+                    backgroundColor: dataset.backgroundColor || 'rgba(0, 102, 204, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }))
+            };
             chart.update();
         }
     });

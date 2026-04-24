@@ -26,7 +26,9 @@ export async function POST({ request }) {
         }
         // Save locale for later
         if (locale) {
-            messages.push({ role: 'system', content: `[SYSTEM] The user interface is currently set to locale: '${locale}'. You MUST format your final response entirely in this language.` });
+            const languageMap: Record<string, string> = { 'en': 'English', 'lv': 'Latvian', 'ru': 'Russian' };
+            const langName = languageMap[locale] || locale;
+            messages.push({ role: 'system', content: `[SYSTEM] CRITICAL INSTRUCTION: The user interface is currently set to ${langName}. You MUST respond to this request entirely in ${langName}. DO NOT output any other language.` });
         }
     }
 

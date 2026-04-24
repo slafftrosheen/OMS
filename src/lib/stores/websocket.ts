@@ -81,24 +81,20 @@ function createWebSocketStore() {
             };
 
             ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                // Don't spam console with errors
+                // Mute errors to prevent console spam when running without WS server
             };
 
             ws.onclose = () => {
-                console.log('WebSocket disconnected');
                 update(state => ({ ...state, connected: false }));
 
                 // Attempt reconnection with exponential backoff
                 if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
                     reconnectAttempts++;
                     const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1);
-                    console.log(`Reconnecting... (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
                     reconnectTimeout = setTimeout(() => {
                         connect();
                     }, delay) as unknown as number;
                 } else {
-                    console.log('Max reconnection attempts reached. WebSocket disabled.');
                     connectionDisabled = true;
                     update(state => ({ ...state, supportsWebSocket: false }));
                 }
