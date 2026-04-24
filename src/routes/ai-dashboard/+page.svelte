@@ -254,7 +254,7 @@
 				{/if}
 			</button>
 		</div>
-		<p class="input-hint">Powered by <strong>deepseek-r1:14b</strong> · RAG via <strong>nomic-embed-text</strong> · Shift+Enter for new line</p>
+		<p class="input-hint">Powered by <strong>command-r</strong> · RAG via <strong>nomic-embed-text</strong> · Shift+Enter for new line</p>
 	</div>
 </div>
 

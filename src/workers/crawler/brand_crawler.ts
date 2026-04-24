@@ -54,17 +54,34 @@ const DEFAULT_OPTIONS: CrawlOptions = {
 /**
  * Infer a content category from the URL path or page content.
  * This keeps chunks semantically tagged for filtered retrieval.
+ *
+ * Categories: homepage, service, portfolio, product_profile, profile,
+ *             contact, news, research, general
  */
 function categorizeUrl(url: string, pageTitle: string): string {
 	const path = new URL(url).pathname.toLowerCase();
 
+	// Product profiles — the core catalog (18+ pages on reclamefabriek.eu)
+	// Matches: /profile-7-lux/, /regular-profile-100-140/, /casette-type/, /pylonstotems/
+	if (
+		/\/profile[-\d]/.test(path) ||
+		/\/regular-profile/.test(path) ||
+		path.includes('casette') ||
+		path.includes('pylon') ||
+		path.includes('totem')
+	) {
+		return 'product_profile';
+	}
 	if (path.includes('portfolio') || path.includes('project') || path.includes('case') || path.includes('werk')) {
 		return 'portfolio';
 	}
-	if (path.includes('service') || path.includes('dienst')) {
+	if (path.includes('service') || path.includes('dienst') || path.includes('product-profiles')) {
 		return 'service';
 	}
-	if (path.includes('team') || path.includes('profile') || path.includes('over') || path.includes('about')) {
+	if (path.includes('research') || path.includes('lumigrid')) {
+		return 'research';
+	}
+	if (path.includes('team') || path.includes('over') || path.includes('about')) {
 		return 'profile';
 	}
 	if (path.includes('contact')) {
@@ -79,6 +96,7 @@ function categorizeUrl(url: string, pageTitle: string): string {
 
 	// Fallback: try the page title
 	const titleLower = pageTitle.toLowerCase();
+	if (titleLower.includes('profile') || titleLower.includes('lightbox') || titleLower.includes('letter')) return 'product_profile';
 	if (titleLower.includes('portfolio') || titleLower.includes('project')) return 'portfolio';
 	if (titleLower.includes('service') || titleLower.includes('dienst')) return 'service';
 	if (titleLower.includes('team') || titleLower.includes('over ons')) return 'profile';
@@ -262,47 +280,72 @@ async function upsertChunk(
 // ─── Sitemap Parser ─────────────────────────────────────────────────────────
 
 /**
- * Attempt to discover pages from sitemap.xml.
+ * Recursively discover page URLs from sitemap.xml / sitemap index.
+ * Handles WordPress-style sitemap indexes (sitemapindex → sitemap → url).
  * Falls back gracefully if no sitemap exists.
  */
 async function parseSitemap(baseUrl: string): Promise<string[]> {
-	const urls: string[] = [];
-	const sitemapUrls = [
+	const pageUrls: string[] = [];
+	const visited = new Set<string>();
+
+	const sitemapSeeds = [
 		`${baseUrl}/sitemap.xml`,
 		`${baseUrl}/sitemap_index.xml`,
 	];
 
-	for (const sitemapUrl of sitemapUrls) {
+	async function fetchSitemap(sitemapUrl: string): Promise<void> {
+		if (visited.has(sitemapUrl)) return;
+		visited.add(sitemapUrl);
+
 		try {
 			const res = await fetch(sitemapUrl, {
 				headers: { 'User-Agent': 'ReclameFabriek-BrandCrawler/1.0' },
 			});
-			if (!res.ok) continue;
+			if (!res.ok) return;
+
+			const contentType = res.headers.get('content-type') || '';
+			// Only parse XML responses
+			if (!contentType.includes('xml') && !sitemapUrl.endsWith('.xml')) return;
 
 			const xml = await res.text();
 			const $ = cheerio.load(xml, { xmlMode: true });
 
+			// Collect actual page URLs
 			$('url > loc').each((_, el) => {
 				const loc = $(el).text().trim();
-				if (loc) urls.push(loc);
+				if (loc && !loc.endsWith('.xml')) pageUrls.push(loc);
 			});
 
-			// Handle sitemap index (nested sitemaps)
+			// Recursively follow sub-sitemaps (sitemap index)
+			const subSitemaps: string[] = [];
 			$('sitemap > loc').each((_, el) => {
 				const loc = $(el).text().trim();
-				if (loc) urls.push(loc);
+				if (loc) subSitemaps.push(loc);
 			});
 
-			if (urls.length > 0) {
-				console.log(`  📋 Found ${urls.length} URLs in sitemap: ${sitemapUrl}`);
-				break;
+			if (subSitemaps.length > 0) {
+				console.log(`  📋 Sitemap index at ${sitemapUrl} → ${subSitemaps.length} sub-sitemaps`);
+				for (const sub of subSitemaps) {
+					// Skip non-content sitemaps (menus, popups, theme templates)
+					if (/jet-menu|jet-popup|jet-theme-core/.test(sub)) {
+						console.log(`  ⏭️  Skipping non-content sitemap: ${sub}`);
+						continue;
+					}
+					await fetchSitemap(sub);
+				}
 			}
 		} catch {
 			// Silently skip — sitemap is optional
 		}
 	}
 
-	return urls;
+	for (const seed of sitemapSeeds) {
+		await fetchSitemap(seed);
+		if (pageUrls.length > 0) break;
+	}
+
+	console.log(`  📋 Sitemap discovery complete: ${pageUrls.length} page URL(s) found`);
+	return pageUrls;
 }
 
 // ─── Page Crawler ────────────────────────────────────────────────────────────
@@ -355,11 +398,15 @@ async function crawlPage(
 			? `${chunk.category}:part-${i + 1}`
 			: chunk.category;
 
+		// ── Prepend source context so the AI knows WHERE this data came from ──
+		const contextHeader = `[Source: ${url}] [Title: ${title || 'Untitled'}] [Category: ${chunkCategory}]\n\n`;
+		const enrichedContent = contextHeader + chunk.content;
+
 		process.stdout.write(`  🧠 Embedding chunk ${i + 1}/${chunks.length} [${chunkCategory}]...`);
 
 		try {
-			const embedding = await getEmbedding(chunk.content);
-			await upsertChunk(url, chunkCategory, chunk.content, embedding);
+			const embedding = await getEmbedding(enrichedContent);
+			await upsertChunk(url, chunkCategory, enrichedContent, embedding);
 			console.log(' ✓');
 		} catch (err) {
 			console.log(` ✗ ${(err as Error).message}`);
