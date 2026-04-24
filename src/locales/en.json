@@ -1088,10 +1088,10 @@
     "input_hint_shortcut": "Shift+Enter for new line",
     "nav_title": "Swarm OS",
     "agents": {
-      "router": "Front Desk",
-      "database": "Database",
-      "engineer": "Engineer",
-      "vision": "QC Vision"
+      "router": "Librarian",
+      "reasoning": "The Brain",
+      "engineer": "The Coder",
+      "vision": "The Eyes"
     }
   }
 }

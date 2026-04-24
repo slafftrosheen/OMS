@@ -34,16 +34,16 @@
 
 	let agentStatuses: Record<string, 'idle' | 'active'> = $state({
 		router: 'idle',
-		database: 'idle',
+		reasoning: 'idle',
 		engineer: 'idle',
 		vision: 'idle'
 	});
 
 	let agentsList = $derived([
-		{ id: 'router', name: $t('swarm.agents.router', { default: 'Front Desk' }), icon: Sparkles, status: agentStatuses.router, color: 'var(--ok)' },
-		{ id: 'database', name: $t('swarm.agents.database', { default: 'Database' }), icon: BarChart3, status: agentStatuses.database, color: 'var(--link)' },
-		{ id: 'engineer', name: $t('swarm.agents.engineer', { default: 'Engineer' }), icon: Cpu, status: agentStatuses.engineer, color: 'var(--warn)' },
-		{ id: 'vision', name: $t('swarm.agents.vision', { default: 'QC Vision' }), icon: ImageIcon, status: agentStatuses.vision, color: 'var(--accent-2, #8b5cf6)' },
+		{ id: 'router', name: $t('swarm.agents.router', { default: 'Librarian' }), icon: Sparkles, status: agentStatuses.router, color: 'var(--ok)' },
+		{ id: 'reasoning', name: $t('swarm.agents.reasoning', { default: 'The Brain' }), icon: BarChart3, status: agentStatuses.reasoning, color: 'var(--link)' },
+		{ id: 'engineer', name: $t('swarm.agents.engineer', { default: 'The Coder' }), icon: Cpu, status: agentStatuses.engineer, color: 'var(--warn)' },
+		{ id: 'vision', name: $t('swarm.agents.vision', { default: 'The Eyes' }), icon: ImageIcon, status: agentStatuses.vision, color: 'var(--accent-2, #8b5cf6)' },
 	]);
 
 	// ───── Derived ───────────────────────────────────────────────────────

@@ -1088,10 +1088,10 @@
     "input_hint_shortcut": "Shift+Enter jaunai rindiņai",
     "nav_title": "Swarm OS",
     "agents": {
-      "router": "Reģistratūra",
-      "database": "Datu bāze",
-      "engineer": "Inženieris",
-      "vision": "QC redze"
+      "router": "Bibliotekārs",
+      "reasoning": "Smadzenes",
+      "engineer": "Kodētājs",
+      "vision": "Acis"
     }
   }
 }

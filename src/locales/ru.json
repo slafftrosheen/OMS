@@ -21,10 +21,10 @@
     "input_hint_shortcut": "Shift+Enter для новой строки",
     "nav_title": "Swarm OS",
     "agents": {
-      "router": "Ресепшн",
-      "database": "База данных",
-      "engineer": "Инженер",
-      "vision": "QC Зрение"
+      "router": "Библиотекарь",
+      "reasoning": "Мозг",
+      "engineer": "Кодер",
+      "vision": "Глаза"
     }
   }
 }

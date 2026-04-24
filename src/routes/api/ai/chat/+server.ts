@@ -30,9 +30,9 @@ export async function POST({ request }) {
 
     // ── Models ───────────────────────────────────────────────────────────────
     const ROUTER_MODEL = 'hf.co/mradermacher/c4ai-command-r7b-12-2024-abliterated-GGUF:Q4_K_M';
-    const DB_MODEL = 'hf.co/todayzhxy/DeepSeek-R1-Distill-Qwen-14B-Uncensored-GGUF:Q4_K_M';
-    const SYS_MODEL = 'hf.co/ertghiu256/qwen-3-14b-code-and-math-reasoning-gguf';
-    const VISION_MODEL = 'qwen2.5-vl:14b';
+    const REASONING_MODEL = 'deepseek-r1:14b';
+    const SYS_MODEL = 'hf.co/ertghiu256/qwen-3-14b-code-and-math-reasoning-gguf:Q4_K_M';
+    const VISION_MODEL = 'hf.co/bartowski/Qwen2.5-VL-14B-Instruct-GGUF:Q4_K_M';
 
     // ── LAZY DB CONNECTION: Intercept stale Tailscale IPs ──
     const fallbackDbUrl = 'postgresql://postgres:postgres@192.168.8.150:54322/postgres';
@@ -110,7 +110,7 @@ export async function POST({ request }) {
                 messages: [
                     {
                         role: 'system',
-                        content: 'Classify the user intent into exactly ONE of these categories: "database" (queries about company knowledge, orders, workflow, or business info), "system" (queries about code, CNC feeds/speeds, system specs, UI improvements, or refactoring), or "vision" (analyzing uploaded images or PCB quality control). Reply with ONLY the category word, in lowercase.'
+                        content: 'Classify the user intent into exactly ONE of these categories: "database" (queries about company knowledge, orders, workflow, or business info), "reasoning" (complex math, physics, CNC feeds & speeds, brainstorming, general logic), "system" (queries about code, UI improvements, refactoring, or system specs), or "vision" (analyzing uploaded images or PCB quality control). Reply with ONLY the category word, in lowercase.'
                     },
                     { role: 'user', content: queryStr + (hasImages ? '\n[User uploaded an image]' : '') }
                 ],
@@ -123,36 +123,47 @@ export async function POST({ request }) {
         const routerData = await routerRes.json();
         const intentStr = (routerData.message?.content || '').toLowerCase();
         
-        let activeAgentId = 'database';
-        let targetModel = DB_MODEL;
+        let activeAgentId = 'router';
+        let targetModel = ROUTER_MODEL;
         let systemPrompt = '';
+        let targetKeepAlive = -1;
+        let useTools = false;
 
         if (hasImages || intentStr.includes('vision')) {
             activeAgentId = 'vision';
             targetModel = VISION_MODEL;
-            systemPrompt = 'You are the Swarm QC Vision system for Réclame Fabriek. You analyze Dino-Lite microscope images, inspect PCBs, and perform visual Quality Control.';
+            targetKeepAlive = 0;
+            systemPrompt = 'You are The Eyes (Swarm QC Vision) for Réclame Fabriek. You analyze Dino-Lite microscope images, inspect PCBs, and perform visual Quality Control.';
             console.log(`🧭 [Router] Routed to QC Vision: ${VISION_MODEL}`);
         } else if (intentStr.includes('system') || intentStr.includes('code') || intentStr.includes('refactor')) {
             activeAgentId = 'engineer';
             targetModel = SYS_MODEL;
-            systemPrompt = 'You are the Swarm Engineer for Réclame Fabriek. You specialize in code generation, Svelte 5, CNC feeds and speeds, and system health checks. Always provide accurate technical analysis.';
+            targetKeepAlive = 0;
+            systemPrompt = 'You are The Coder (Swarm Engineer) for Réclame Fabriek. You specialize in code generation, Svelte 5, and system health checks. Always provide accurate technical analysis.';
             console.log(`🧭 [Router] Routed to Engineer: ${SYS_MODEL}`);
+        } else if (intentStr.includes('reasoning') || intentStr.includes('math') || intentStr.includes('cnc')) {
+            activeAgentId = 'reasoning';
+            targetModel = REASONING_MODEL;
+            targetKeepAlive = 0;
+            systemPrompt = 'You are The Brain (Swarm Reasoning) for Réclame Fabriek. You specialize in complex logic, CNC feeds and speeds, math, and brainstorming. ALWAYS output your internal thought process inside <think>...</think> tags before providing the final answer.';
+            console.log(`🧭 [Router] Routed to Reasoning: ${REASONING_MODEL}`);
         } else {
-            activeAgentId = 'database';
-            targetModel = DB_MODEL;
+            activeAgentId = 'router';
+            targetModel = ROUTER_MODEL;
+            targetKeepAlive = -1; // Keep router in VRAM
+            useTools = true;
             systemPrompt = [
-                'You are the Swarm Architect for Réclame Fabriek, a PHYSICAL SIGNAGE PRODUCTION company based in Daugavpils, Latvia.',
+                'You are the Librarian (Swarm Architect) for Réclame Fabriek, a PHYSICAL SIGNAGE PRODUCTION company based in Daugavpils, Latvia.',
                 'They do NOT do digital marketing. They manufacture custom signage: lightboxes, 3D box letters, LED neon, pylons/totems, CNC services, and custom furniture.',
                 '',
                 'RULES:',
                 '1. If the user asks about the company, its products, services, capabilities, or projects — you MUST use search_knowledge_base or search_by_category.',
                 '2. Answer ONLY using the data returned by the tools. Do NOT invent capabilities.',
                 '3. If the tool returns no results, say "I could not find information about that in our database" — do NOT hallucinate.',
-                '4. For general conversation (greetings, math, etc.) respond directly without tools.',
-                '5. Always mention specific product names, materials, and technical details when available.',
-                '6. When listing products, include their illumination type and material.'
+                '4. For general conversation (greetings, etc.) respond directly without tools.',
+                '5. Always mention specific product names, materials, and technical details when available.'
             ].join('\n');
-            console.log(`🧭 [Router] Routed to Database: ${DB_MODEL}`);
+            console.log(`🧭 [Router] Kept on Router (Database): ${ROUTER_MODEL}`);
         }
 
         const currentMessages = [
@@ -161,23 +172,23 @@ export async function POST({ request }) {
         ];
 
         // ═══════════════════════════════════════════════════════════════════════
-        // Step 2: Ask Specialist Model (with tools if Database)
+        // Step 2: Ask Selected Model
         // ═══════════════════════════════════════════════════════════════════════
         let modelParams: any = {
             model: targetModel,
             messages: currentMessages,
-            keep_alive: 0, // CRITICAL: Unload specialist after use
+            keep_alive: targetKeepAlive,
             stream: false
         };
 
-        if (activeAgentId === 'database') {
+        if (useTools) {
             modelParams.tools = tools;
         }
 
         let aiMessage;
         
-        // If it's a database agent, we do the tool execution loop
-        if (activeAgentId === 'database') {
+        // If it's the router/database agent, we do the tool execution loop
+        if (useTools) {
             const aiResponse = await fetch(ollamaUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -191,97 +202,97 @@ export async function POST({ request }) {
 
             const data = await aiResponse.json();
             aiMessage = data.message;
-        }
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // Step 3: Execute tools SAFELY (if any tool calls exist)
-        // ═══════════════════════════════════════════════════════════════════════
-        if (aiMessage?.tool_calls?.length > 0) {
-            const toolCall = aiMessage.tool_calls[0];
-            const toolName = toolCall.function.name;
-            const toolArgs = toolCall.function.arguments;
-            let toolResult: string;
+            // ═══════════════════════════════════════════════════════════════════════
+            // Step 3: Execute tools SAFELY (if any tool calls exist)
+            // ═══════════════════════════════════════════════════════════════════════
+            if (aiMessage?.tool_calls?.length > 0) {
+                const toolCall = aiMessage.tool_calls[0];
+                const toolName = toolCall.function.name;
+                const toolArgs = toolCall.function.arguments;
+                let toolResult: string;
 
-            try {
-                if (toolName === 'search_by_category') {
-                    const category = (toolArgs.category as string) || 'general';
-                    const keyword = (toolArgs.keyword as string) || '';
-                    console.log(`⚡ [DB] Category search: "${category}" + keyword: "${keyword}"`);
+                try {
+                    if (toolName === 'search_by_category') {
+                        const category = (toolArgs.category as string) || 'general';
+                        const keyword = (toolArgs.keyword as string) || '';
+                        console.log(`⚡ [DB] Category search: "${category}" + keyword: "${keyword}"`);
 
-                    let rows;
-                    if (keyword) {
-                        rows = await sql`
+                        let rows;
+                        if (keyword) {
+                            rows = await sql`
+                                SELECT category, content
+                                FROM public.company_knowledge
+                                WHERE category ILIKE ${'%' + category + '%'}
+                                AND content ILIKE ${'%' + keyword + '%'}
+                                ORDER BY crawled_at DESC
+                                LIMIT 8
+                            `;
+                        } else {
+                            rows = await sql`
+                                SELECT category, content
+                                FROM public.company_knowledge
+                                WHERE category ILIKE ${'%' + category + '%'}
+                                ORDER BY crawled_at DESC
+                                LIMIT 8
+                            `;
+                        }
+
+                        if (rows.length > 0) {
+                            toolResult = JSON.stringify(rows);
+                            console.log(`✅ [DB] Found ${rows.length} results.`);
+                        } else {
+                            toolResult = JSON.stringify({ error: `No records found in category "${category}".` });
+                            console.log(`⚠️ [DB] No results for category "${category}".`);
+                        }
+                    } else {
+                        const searchKeyword = (toolArgs.keyword as string) || '';
+                        console.log(`⚡ [DB] Keyword search: "${searchKeyword}"`);
+
+                        const rows = await sql`
                             SELECT category, content
                             FROM public.company_knowledge
-                            WHERE category ILIKE ${'%' + category + '%'}
-                            AND content ILIKE ${'%' + keyword + '%'}
+                            WHERE content ILIKE ${'%' + searchKeyword + '%'}
+                            OR category ILIKE ${'%' + searchKeyword + '%'}
                             ORDER BY crawled_at DESC
                             LIMIT 8
                         `;
-                    } else {
-                        rows = await sql`
-                            SELECT category, content
-                            FROM public.company_knowledge
-                            WHERE category ILIKE ${'%' + category + '%'}
-                            ORDER BY crawled_at DESC
-                            LIMIT 8
-                        `;
-                    }
 
-                    if (rows.length > 0) {
-                        toolResult = JSON.stringify(rows);
-                        console.log(`✅ [DB] Found ${rows.length} results.`);
-                    } else {
-                        toolResult = JSON.stringify({ error: `No records found in category "${category}".` });
-                        console.log(`⚠️ [DB] No results for category "${category}".`);
+                        if (rows.length > 0) {
+                            toolResult = JSON.stringify(rows);
+                            console.log(`✅ [DB] Found ${rows.length} results.`);
+                        } else {
+                            toolResult = JSON.stringify({ error: "No records found." });
+                            console.log(`⚠️ [DB] No results found for "${searchKeyword}".`);
+                        }
                     }
-                } else {
-                    const searchKeyword = (toolArgs.keyword as string) || '';
-                    console.log(`⚡ [DB] Keyword search: "${searchKeyword}"`);
-
-                    const rows = await sql`
-                        SELECT category, content
-                        FROM public.company_knowledge
-                        WHERE content ILIKE ${'%' + searchKeyword + '%'}
-                        OR category ILIKE ${'%' + searchKeyword + '%'}
-                        ORDER BY crawled_at DESC
-                        LIMIT 8
-                    `;
-
-                    if (rows.length > 0) {
-                        toolResult = JSON.stringify(rows);
-                        console.log(`✅ [DB] Found ${rows.length} results.`);
-                    } else {
-                        toolResult = JSON.stringify({ error: "No records found." });
-                        console.log(`⚠️ [DB] No results found for "${searchKeyword}".`);
-                    }
+                } catch (dbError: any) {
+                    console.error('❌ [DB] Error:', dbError.message);
+                    toolResult = JSON.stringify({ error: 'Database query failed.' });
                 }
-            } catch (dbError: any) {
-                console.error('❌ [DB] Error:', dbError.message);
-                toolResult = JSON.stringify({ error: 'Database query failed.' });
+
+                // Stream final answer
+                const streamResponse = await fetch(ollamaUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: targetModel,
+                        messages: [
+                            ...currentMessages,
+                            aiMessage,
+                            { role: 'tool', content: toolResult }
+                        ],
+                        stream: true,
+                        keep_alive: targetKeepAlive
+                    })
+                });
+
+                return streamToSvelte(streamResponse.body, sql, activeAgentId);
             }
-
-            // Stream final answer
-            const streamResponse = await fetch(ollamaUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: targetModel,
-                    messages: [
-                        ...currentMessages,
-                        aiMessage,
-                        { role: 'tool', content: toolResult }
-                    ],
-                    stream: true,
-                    keep_alive: 0
-                })
-            });
-
-            return streamToSvelte(streamResponse.body, sql, activeAgentId);
         }
 
         // ═══════════════════════════════════════════════════════════════════════
-        // NO TOOL CALLED / DIRECT RESPONSE (System/Vision or pure chat)
+        // NO TOOL CALLED / DIRECT RESPONSE (System/Vision/Reasoning or pure chat)
         // ═══════════════════════════════════════════════════════════════════════
         console.log(`🗣️ [${activeAgentId}] Direct streaming response`);
         modelParams.stream = true;
