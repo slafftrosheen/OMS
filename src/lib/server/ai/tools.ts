@@ -1,6 +1,6 @@
 // src/lib/server/ai/tools.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// Swarm OS — AI Skills (Tool Calling)
+// RF Assistant — AI Skills (Tool Calling)
 //
 // Each "skill" is a strongly-typed function that queries the Supabase OMS
 // database via the service-role client (bypasses RLS). The functions are

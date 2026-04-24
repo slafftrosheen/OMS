@@ -10,7 +10,7 @@ export async function POST({ request }) {
     if (body.messages && Array.isArray(body.messages)) {
         messages = body.messages;
     } else {
-        const { query } = body;
+        const { query, locale } = body;
         const chatHistory = Array.isArray(body.chatHistory) ? body.chatHistory : [];
         if (!query || typeof query !== 'string' || !query.trim()) {
             throw error(400, 'Missing or empty "query" field');
@@ -24,6 +24,10 @@ export async function POST({ request }) {
             }
             messages.push(userMsg);
         }
+        // Save locale for later
+        if (locale) {
+            messages.push({ role: 'system', content: `[SYSTEM] The user interface is currently set to locale: '${locale}'. You MUST format your final response entirely in this language.` });
+        }
     }
 
     const ollamaUrl = 'http://100.93.147.108:11434/api/chat';
@@ -32,7 +36,7 @@ export async function POST({ request }) {
     const ROUTER_MODEL = 'hf.co/mradermacher/c4ai-command-r7b-12-2024-abliterated-GGUF:Q4_K_M';
     const REASONING_MODEL = 'deepseek-r1:14b';
     const SYS_MODEL = 'hf.co/ertghiu256/qwen-3-14b-code-and-math-reasoning-gguf:Q4_K_M';
-    const VISION_MODEL = 'hf.co/bartowski/Qwen2.5-VL-14B-Instruct-GGUF:Q4_K_M';
+    const VISION_MODEL = 'llama3.2-vision';
 
     // ── LAZY DB CONNECTION: Intercept stale Tailscale IPs ──
     const fallbackDbUrl = 'postgresql://postgres:postgres@192.168.8.150:54322/postgres';
@@ -133,19 +137,19 @@ export async function POST({ request }) {
             activeAgentId = 'vision';
             targetModel = VISION_MODEL;
             targetKeepAlive = 0;
-            systemPrompt = 'You are The Eyes (Swarm QC Vision) for Réclame Fabriek. You analyze Dino-Lite microscope images, inspect PCBs, and perform visual Quality Control.';
+            systemPrompt = 'You are the Vision Module for the Réclame Fabriek Assistant. You analyze Dino-Lite microscope images, inspect PCBs, and perform visual Quality Control.';
             console.log(`🧭 [Router] Routed to QC Vision: ${VISION_MODEL}`);
         } else if (intentStr.includes('system') || intentStr.includes('code') || intentStr.includes('refactor')) {
             activeAgentId = 'engineer';
             targetModel = SYS_MODEL;
             targetKeepAlive = 0;
-            systemPrompt = 'You are The Coder (Swarm Engineer) for Réclame Fabriek. You specialize in code generation, Svelte 5, and system health checks. Always provide accurate technical analysis.';
+            systemPrompt = 'You are the Code Module for the Réclame Fabriek Assistant. You specialize in code generation, Svelte 5, and system health checks. Always provide accurate technical analysis.';
             console.log(`🧭 [Router] Routed to Engineer: ${SYS_MODEL}`);
         } else if (intentStr.includes('reasoning') || intentStr.includes('math') || intentStr.includes('cnc')) {
             activeAgentId = 'reasoning';
             targetModel = REASONING_MODEL;
             targetKeepAlive = 0;
-            systemPrompt = 'You are The Brain (Swarm Reasoning) for Réclame Fabriek. You specialize in complex logic, CNC feeds and speeds, math, and brainstorming. ALWAYS output your internal thought process inside <think>...</think> tags before providing the final answer.';
+            systemPrompt = 'You are the Reasoning Module for the Réclame Fabriek Assistant. You specialize in complex logic, CNC feeds and speeds, math, and brainstorming. ALWAYS output your internal thought process inside <think>...</think> tags before providing the final answer.';
             console.log(`🧭 [Router] Routed to Reasoning: ${REASONING_MODEL}`);
         } else {
             activeAgentId = 'router';
@@ -153,7 +157,7 @@ export async function POST({ request }) {
             targetKeepAlive = -1; // Keep router in VRAM
             useTools = true;
             systemPrompt = [
-                'You are the Librarian (Swarm Architect) for Réclame Fabriek, a PHYSICAL SIGNAGE PRODUCTION company based in Daugavpils, Latvia.',
+                'You are the Librarian Module for the Réclame Fabriek Assistant, a PHYSICAL SIGNAGE PRODUCTION company based in Daugavpils, Latvia.',
                 'They do NOT do digital marketing. They manufacture custom signage: lightboxes, 3D box letters, LED neon, pylons/totems, CNC services, and custom furniture.',
                 '',
                 'RULES:',

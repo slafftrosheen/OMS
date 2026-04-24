@@ -1067,8 +1067,8 @@
     }
   },
   "swarm": {
-    "title": "Sovereign Swarm",
-    "subtitle": "Vadības centrs un intelekta maršrutētājs",
+    "title": "Réclame Fabriek Asistents",
+    "subtitle": "Intelekta un vadības maršrutētājs",
     "clear": "Notīrīt",
     "webui": "WebUI",
     "awaiting": "Gaidu komandas",
@@ -1083,15 +1083,22 @@
     "drop_hint": "Pievienojiet attēlus vai tehniskās rokasgrāmatas šeit",
     "input_placeholder": "Iniciēt komandu secību...",
     "input_hint_powered": "Nodrošina",
-    "input_hint_router": "Sovereign Swarm maršrutētājs",
+    "input_hint_router": "RF Asistenta maršrutētājs",
     "input_hint_dynamic": "Dinamiska Q4_K_M piešķiršana",
     "input_hint_shortcut": "Shift+Enter jaunai rindiņai",
-    "nav_title": "Swarm OS",
+    "nav_title": "RF Asistents",
     "agents": {
       "router": "Bibliotekārs",
       "reasoning": "Smadzenes",
       "engineer": "Kodētājs",
       "vision": "Acis"
+    },
+    "prompts": {
+      "analyze_orders": "Analizējiet pašreizējo pasūtījumu plūsmu un identificējiet vājās vietas vai apdraudētos termiņus. (Atbildi latviski)",
+      "refactor_ui": "Iesakiet UI uzlabojumus pasūtījumu lapai, ievērojot mūsu dizaina žetonus. (Atbildi latviski)",
+      "review_workflow": "Pārskatiet ražošanas darbplūsmas posmus un iesakiet optimizācijas. (Atbildi latviski)",
+      "system_health": "Veiciet sistēmas veselības pārbaudi: apkopojiet steku, infrastruktūru un iespējamās problēmas. (Atbildi latviski)",
+      "our_capabilities": "Apkopojiet Réclame Fabriek iespējas, iepriekšējos projektus un pamatpakalpojumus. (Atbildi latviski)"
     }
   }
 }

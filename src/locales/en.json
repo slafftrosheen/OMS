@@ -1067,8 +1067,8 @@
     }
   },
   "swarm": {
-    "title": "Sovereign Swarm",
-    "subtitle": "Command Center & Intelligence Router",
+    "title": "Réclame Fabriek Assistant",
+    "subtitle": "Intelligence & Command Router",
     "clear": "Clear",
     "webui": "WebUI",
     "awaiting": "Awaiting Commands",
@@ -1083,15 +1083,22 @@
     "drop_hint": "Drop images or tech manuals here",
     "input_placeholder": "Initialize command sequence...",
     "input_hint_powered": "Powered by",
-    "input_hint_router": "Sovereign Swarm Router",
+    "input_hint_router": "RF Assistant Router",
     "input_hint_dynamic": "Dynamic Q4_K_M allocation",
     "input_hint_shortcut": "Shift+Enter for new line",
-    "nav_title": "Swarm OS",
+    "nav_title": "RF Assistant",
     "agents": {
       "router": "Librarian",
       "reasoning": "The Brain",
       "engineer": "The Coder",
       "vision": "The Eyes"
+    },
+    "prompts": {
+      "analyze_orders": "Analyze the current order pipeline and identify bottlenecks or at-risk deadlines.",
+      "refactor_ui": "Suggest UI improvements for the orders page following our design tokens.",
+      "review_workflow": "Review the manufacturing workflow stages and suggest optimizations.",
+      "system_health": "Perform a systems health check: summarize the stack, infra, and potential issues.",
+      "our_capabilities": "Summarize Réclame Fabriek's capabilities, past projects, and core services."
     }
   }
 }

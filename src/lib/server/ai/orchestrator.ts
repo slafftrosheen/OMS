@@ -1,6 +1,6 @@
 // src/lib/server/ai/orchestrator.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// Hivemind Orchestrator — Réclame Fabriek Sovereign Swarm OS
+// Hivemind Orchestrator — Réclame Fabriek Assistant
 //
 // RAG pipeline with native Tool Calling:
 //   1. Embed user query via Ollama (nomic-embed-text)
@@ -373,7 +373,7 @@ export async function askHivemind(
 	}
 
 	const systemPrompt = [
-		'You are the AI representative of Réclame Fabriek, operating as the Sovereign Swarm OS assistant.',
+		'You are the AI representative of Réclame Fabriek, operating as the official Assistant.',
 		'You are an expert in SvelteKit 2, Svelte 5, TypeScript, Supabase, and signage manufacturing workflows.',
 		'Use the Corporate Identity context to inform your tone, reference past projects, and understand our capabilities.',
 		'You have access to live database tools. When the user asks about orders, inventory, or system status, USE your tools to fetch real-time data instead of guessing.',

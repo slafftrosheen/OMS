@@ -6,7 +6,7 @@
 		BarChart3, Cpu, Loader2, Trash2, RotateCcw, Sparkles, Building2,
 		Paperclip, Image as ImageIcon, Activity, ChevronDown, ChevronRight, X
 	} from 'lucide-svelte';
-	import { t } from 'svelte-i18n';
+	import { t, locale } from 'svelte-i18n';
 	import { currentUser } from '$lib/auth/authState.svelte';
 
 	// ───── Types ─────────────────────────────────────────────────────────
@@ -120,11 +120,11 @@
 
 	// ───── Quick actions ────────────────────────────────────────────────
 	let quickActions = $derived([
-		{ label: $t('swarm.analyze_orders', { default: 'Analyze Orders' }), icon: BarChart3, prompt: 'Analyze the current order pipeline and identify bottlenecks or at-risk deadlines.' },
-		{ label: $t('swarm.refactor_ui', { default: 'Refactor UI' }), icon: Paintbrush, prompt: 'Suggest UI improvements for the orders page following our Svelte 5 + brand.css design tokens.' },
-		{ label: $t('swarm.review_workflow', { default: 'Review Workflow' }), icon: ClipboardList, prompt: 'Review the manufacturing workflow stages and suggest optimizations.' },
-		{ label: $t('swarm.system_health', { default: 'System Health' }), icon: Cpu, prompt: 'Perform a systems health check: summarize the stack, infra, and potential issues.' },
-		{ label: $t('swarm.our_capabilities', { default: 'Our Capabilities' }), icon: Building2, prompt: 'Summarize Réclame Fabriek\'s capabilities, past projects, and core services based on our corporate identity.' },
+		{ label: $t('swarm.analyze_orders', { default: 'Analyze Orders' }), icon: BarChart3, prompt: $t('swarm.prompts.analyze_orders', { default: 'Analyze the current order pipeline and identify bottlenecks or at-risk deadlines.' }) },
+		{ label: $t('swarm.refactor_ui', { default: 'Refactor UI' }), icon: Paintbrush, prompt: $t('swarm.prompts.refactor_ui', { default: 'Suggest UI improvements for the orders page following our design tokens.' }) },
+		{ label: $t('swarm.review_workflow', { default: 'Review Workflow' }), icon: ClipboardList, prompt: $t('swarm.prompts.review_workflow', { default: 'Review the manufacturing workflow stages and suggest optimizations.' }) },
+		{ label: $t('swarm.system_health', { default: 'System Health' }), icon: Cpu, prompt: $t('swarm.prompts.system_health', { default: 'Perform a systems health check: summarize the stack, infra, and potential issues.' }) },
+		{ label: $t('swarm.our_capabilities', { default: 'Our Capabilities' }), icon: Building2, prompt: $t('swarm.prompts.our_capabilities', { default: 'Summarize Réclame Fabriek\'s capabilities, past projects, and core services.' }) },
 	]);
 
 	// ───── Send message ──────────────────────────────────────────────────
@@ -170,7 +170,8 @@
 
 			const payload: any = { 
 				query, 
-				chatHistory: historyPayload 
+				chatHistory: historyPayload,
+				locale: $locale
 			};
 			
 			if (currentImages.length > 0) {
@@ -264,8 +265,8 @@
 </script>
 
 <svelte:head>
-	<title>{$t('swarm.nav_title', { default: 'Swarm OS' })}</title>
-	<meta name="description" content="Réclame Fabriek Sovereign AI Swarm Command Center." />
+	<title>{$t('swarm.nav_title', { default: 'RF Assistant' })}</title>
+	<meta name="description" content="Réclame Fabriek Assistant." />
 </svelte:head>
 
 <div class="ai-dashboard glass-panel"
@@ -537,7 +538,8 @@
 	}
 
 	.pulse-glow-subtle {
-		box-shadow: 0 0 15px color-mix(in oklab, var(--brand, var(--accent-1)) 20%, transparent);
+		box-shadow: 0 0 20px 2px color-mix(in oklab, var(--brand) 15%, transparent),
+                    0 0 40px 5px color-mix(in oklab, var(--brand) 5%, transparent);
 	}
 
 	.header-text h1 {
@@ -633,10 +635,10 @@
 	.chat-area {
 		flex: 1;
 		overflow-y: auto;
-		padding: var(--space-lg) 0;
+		padding: var(--space-2xl) 0;
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-md);
+		gap: var(--space-lg);
 		scroll-behavior: smooth;
 	}
 
@@ -648,26 +650,32 @@
 		flex: 1;
 		text-align: center;
 		padding: var(--space-2xl);
-		gap: var(--space-md);
+		gap: var(--space-lg);
 		color: var(--muted);
 	}
 
 	.hero-orb {
-		width: 80px;
-		height: 80px;
+		width: 90px;
+		height: 90px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		border-radius: 50%;
-		background: color-mix(in oklab, var(--brand, var(--accent-1)) 10%, transparent);
-		color: var(--brand, var(--accent-1));
-		border: 1px solid color-mix(in oklab, var(--brand, var(--accent-1)) 20%, transparent);
-		animation: pulse-glow 3s ease-in-out infinite;
+		background: color-mix(in oklab, var(--brand) 5%, transparent);
+		color: var(--brand);
+		border: 1px solid color-mix(in oklab, var(--brand) 15%, transparent);
+		animation: pulse-glow 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 	}
 
 	@keyframes pulse-glow {
-		0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand, var(--accent-1)) 10%, transparent); }
-		50% { box-shadow: 0 0 30px 10px color-mix(in oklab, var(--brand, var(--accent-1)) 15%, transparent); }
+		0%, 100% { 
+            box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand) 0%, transparent),
+                        0 0 0 0 color-mix(in oklab, var(--brand) 0%, transparent); 
+        }
+		50% { 
+            box-shadow: 0 0 15px 2px color-mix(in oklab, var(--brand) 25%, transparent),
+                        0 0 40px 8px color-mix(in oklab, var(--brand) 10%, transparent); 
+        }
 	}
 
 	.empty-hero h2 {
@@ -681,9 +689,9 @@
 	/* ── Message rows ──────────────────────────────────────────────────── */
 	.msg-row {
 		display: flex;
-		gap: var(--space-sm);
+		gap: var(--space-md);
 		align-items: flex-start;
-		max-width: 85%;
+		max-width: 88%;
 	}
 	.msg-row.user {
 		align-self: flex-end;
@@ -721,22 +729,24 @@
 	}
 
 	.msg-bubble {
-		padding: var(--space-sm) var(--space-md);
-		border-radius: var(--radius-md);
+		padding: var(--space-md) var(--space-lg);
+		border-radius: var(--radius-lg);
 		max-width: 100%;
 		position: relative;
+        font-size: 1.05rem;
 	}
 	.msg-row.user .msg-bubble {
 		background: var(--bg-2);
 		border: 1px solid var(--border);
 		color: var(--text);
-		border-top-right-radius: 4px;
+		border-top-right-radius: 6px;
 	}
 	.msg-row.assistant .msg-bubble {
 		background: var(--bg-0);
-		border: 1px solid var(--brand, var(--accent-1));
+		border: 1px solid var(--brand);
 		color: var(--text);
-		border-top-left-radius: 4px;
+		border-top-left-radius: 6px;
+        box-shadow: 0 4px 20px color-mix(in oklab, var(--brand) 5%, transparent);
 	}
 
 	.msg-text {
