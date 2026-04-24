@@ -80,8 +80,8 @@
     align-items: center;
     justify-content: center;
     padding: 8px 12px;
-    background: #fff;
-    border: 2px solid #000;
+    background: var(--bg-0);
+    border: 2px solid var(--ink-primary);
     border-radius: 3px;
     min-height: 60px;
     cursor: pointer;
@@ -89,7 +89,7 @@
   }
   
   .date-display:hover:not(.readonly) {
-    background: #f5f5f5;
+    background: var(--bg-2);
   }
   
   .date-display.readonly {
@@ -99,20 +99,20 @@
   .month-day {
     font-size: 18px;
     font-weight: 700;
-    color: #000;
+    color: var(--ink-primary);
     line-height: 1.2;
   }
   
   .divider {
     font-size: 12px;
-    color: #666;
+    color: var(--ink-tertiary);
     margin: 2px 0;
   }
   
   .year {
     font-size: 16px;
     font-weight: 600;
-    color: #333;
+    color: var(--ink-primary);
     line-height: 1.2;
   }
   

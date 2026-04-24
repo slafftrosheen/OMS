@@ -218,7 +218,7 @@
     top: 2px;
     right: 2px;
     background: var(--danger);
-    color: white;
+    color: var(--bg-0);
     font-size: 0.625rem;
     font-weight: 700;
     padding: 0.125rem 0.375rem;
@@ -236,8 +236,8 @@
     background: var(--bg-1);
     border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    z-index: 1000;
+    box-shadow: 0 4px 20px color-mix(in oklab, var(--bg-0) 15%, transparent);
+    z-index: var(--z-modal);
     max-height: 600px;
     display: flex;
     flex-direction: column;

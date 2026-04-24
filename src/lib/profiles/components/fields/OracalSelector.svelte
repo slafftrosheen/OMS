@@ -1,7 +1,7 @@
 <!-- src/lib/profiles/components/fields/OracalSelector.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Search } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {
     value?: string; // Selected color code
@@ -201,11 +201,11 @@
   .label {
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .required {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
   }
 
   .search-box {
@@ -213,8 +213,8 @@
     align-items: center;
     gap: var(--space-sm, 8px);
     padding: var(--space-sm, 8px);
-    background: var(--bg-2, #f9fafb);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-2, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
   }
 
@@ -231,8 +231,8 @@
     align-items: center;
     gap: var(--space-md, 12px);
     padding: var(--space-md, 12px);
-    background: var(--bg-2, #f9fafb);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-2, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
   }
 
@@ -243,7 +243,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+    box-shadow: 2px 2px 4px color-mix(in oklab, var(--bg-0) 20%, transparent);
   }
 
   .preview-code {
@@ -268,7 +268,7 @@
     margin: 0;
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .colors-grid {
@@ -287,17 +287,17 @@
     padding: var(--space-xs, 4px);
     border-radius: var(--radius-md, 6px);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     min-height: 70px;
   }
 
   .color-item:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 20%, transparent);
   }
 
   .color-item.selected {
-    box-shadow: 0 0 0 3px var(--primary, #3b82f6);
+    box-shadow: 0 0 0 3px var(--primary, var(--brand));
     transform: scale(1.05);
   }
 

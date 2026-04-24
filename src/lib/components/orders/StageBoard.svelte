@@ -145,14 +145,14 @@
     border: 2px solid var(--border);
     border-radius: 8px;
     background: var(--bg-1);
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     cursor: pointer;
     text-align: left;
   }
 
   .stage-card:not(.readonly):hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
 
   .stage-card:not(.readonly):focus {
@@ -166,18 +166,18 @@
 
   /* State-specific colors */
   .stage-not-started {
-    border-color: #6c757d;
-    background: #f8f9fa;
+    border-color: var(--ink-tertiary);
+    background: var(--bg-2);
   }
 
   .stage-queued {
-    border-color: #17a2b8;
-    background: #d1ecf1;
+    border-color: var(--link, var(--brand));
+    background: color-mix(in oklab, var(--link, var(--brand)) 15%, transparent);
   }
 
   .stage-in-progress {
-    border-color: #007bff;
-    background: #cfe2ff;
+    border-color: var(--brand);
+    background: var(--brand-soft);
     animation: pulse 2s ease-in-out infinite;
   }
 
@@ -187,18 +187,18 @@
   }
 
   .stage-blocked {
-    border-color: #dc3545;
-    background: #f8d7da;
+    border-color: var(--error);
+    background: var(--error-soft);
   }
 
   .stage-rework {
-    border-color: #ffc107;
-    background: #fff3cd;
+    border-color: var(--warn);
+    background: var(--bg-0)3cd;
   }
 
   .stage-completed {
-    border-color: #28a745;
-    background: #d4edda;
+    border-color: var(--ok);
+    background: var(--ok-soft);
   }
 
   .stage-header {
@@ -228,7 +228,7 @@
     font-size: 0.75rem;
     color: var(--muted);
     padding: 0.25rem;
-    background: rgba(0, 0, 0, 0.05);
+    background: color-mix(in oklab, var(--bg-0) 5%, transparent);
     border-radius: 4px;
   }
 
@@ -254,7 +254,7 @@
   }
 
   .stage-connector.completed {
-    color: #28a745;
+    color: var(--ok);
   }
 
   @media (max-width: 768px) {

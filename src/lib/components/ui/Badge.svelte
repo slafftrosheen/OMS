@@ -60,33 +60,33 @@
     }
 
     .badge-primary {
-        background-color: #dbeafe;
-        color: #1e40af;
+        background-color: var(--brand-soft);
+        color: color-mix(in oklab, var(--brand) 85%, black);
     }
 
     .badge-success {
-        background-color: #dcfce7;
-        color: #166534;
+        background-color: var(--ok-soft);
+        color: color-mix(in oklab, var(--ok) 60%, black);
     }
 
     .badge-warning {
-        background-color: #fef3c7;
-        color: #92400e;
+        background-color: var(--warn-soft);
+        color: color-mix(in oklab, var(--warn) 65%, black);
     }
 
     .badge-danger {
-        background-color: #fee2e2;
-        color: #991b1b;
+        background-color: var(--error-soft);
+        color: color-mix(in oklab, var(--error) 85%, black);
     }
 
     .badge-info {
-        background-color: #e0f2fe;
-        color: #075985;
+        background-color: var(--brand-soft);
+        color: color-mix(in oklab, var(--brand) 60%, black);
     }
 
     .badge-neutral {
-        background-color: #f3f4f6;
-        color: #374151;
+        background-color: var(--bg-2);
+        color: var(--ink-secondary);
     }
 
     .badge-dot-indicator {

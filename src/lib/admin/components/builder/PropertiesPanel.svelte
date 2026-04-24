@@ -1,6 +1,6 @@
 <!-- src/lib/admin/components/builder/PropertiesPanel.svelte -->
 <script lang="ts">
-  import { Settings } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   let {
     element,
@@ -280,8 +280,8 @@
     align-items: center;
     gap: 12px;
     padding: 16px 24px;
-    border-bottom: 1px solid #e5e7eb;
-    background: #f9fafb;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
   }
 
   .panel-header h3 {
@@ -304,7 +304,7 @@
     margin: 0 0 8px 0;
     font-size: 14px;
     font-weight: 700;
-    color: #1a1a1a;
+    color: var(--ink-primary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -318,7 +318,7 @@
   .form-field label {
     font-size: 13px;
     font-weight: 600;
-    color: #4b5563;
+    color: var(--ink-secondary);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -329,7 +329,7 @@
   .form-field select,
   .form-field textarea {
     padding: 8px 12px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 14px;
     font-family: inherit;
@@ -341,14 +341,14 @@
   .form-field select:focus,
   .form-field textarea:focus {
     outline: none;
-    border-color: #667EEA;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 10%, transparent);
   }
 
   .form-field input[type="color"] {
     width: 100%;
     height: 40px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     border-radius: 6px;
     cursor: pointer;
   }

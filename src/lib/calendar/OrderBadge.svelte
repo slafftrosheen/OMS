@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { AlertCircle, Beaker, Truck, Lock, CheckCircle, Clock } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import type { Badge } from '$lib/order/types';
   
   interface Props {
@@ -52,7 +52,7 @@
     white-space: nowrap;
     text-transform: uppercase;
     letter-spacing: 0.3px;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
   
   .order-badge.sm {

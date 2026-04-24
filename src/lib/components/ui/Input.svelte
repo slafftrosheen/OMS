@@ -158,12 +158,12 @@
     .input-label {
         font-size: 0.875rem;
         font-weight: 500;
-        color: var(--color-text, #333);
+        color: var(--color-text, var(--ink-primary));
         margin-bottom: 0.25rem;
     }
 
     .input-required {
-        color: var(--color-danger, #dc3545);
+        color: var(--color-danger, var(--error));
         margin-left: 0.125rem;
     }
 
@@ -178,9 +178,9 @@
         padding: 0.5rem 0.75rem;
         font-size: 1rem;
         line-height: 1.5;
-        color: var(--color-text, #333);
+        color: var(--color-text, var(--ink-primary));
         background-color: var(--color-bg, white);
-        border: 1px solid var(--color-border, #ced4da);
+        border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
         transition:
             border-color 0.15s ease,
@@ -190,26 +190,26 @@
 
     .input:focus {
         outline: none;
-        border-color: var(--color-primary, #0066cc);
-        box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+        border-color: var(--color-primary, var(--brand));
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--link) 10%, transparent);
     }
 
     .input:disabled {
-        background-color: var(--color-gray-100, #f8f9fa);
+        background-color: var(--color-gray-100, var(--bg-2));
         cursor: not-allowed;
         opacity: 0.6;
     }
 
     .input:read-only {
-        background-color: var(--color-gray-50, #f9fafb);
+        background-color: var(--color-gray-50, var(--bg-2));
     }
 
     .input-error {
-        border-color: var(--color-danger, #dc3545);
+        border-color: var(--color-danger, var(--error));
     }
 
     .input-error:focus {
-        box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--error) 10%, transparent);
     }
 
     .has-icon-left .input {
@@ -227,7 +227,7 @@
         justify-content: center;
         width: 2.5rem;
         height: 100%;
-        color: var(--color-gray-500, #6c757d);
+        color: var(--color-gray-500, var(--ink-tertiary));
         pointer-events: none;
     }
 
@@ -245,10 +245,10 @@
     }
 
     .input-error-message {
-        color: var(--color-danger, #dc3545);
+        color: var(--color-danger, var(--error));
     }
 
     .input-hint-message {
-        color: var(--color-gray-600, #6c757d);
+        color: var(--color-gray-600, var(--ink-tertiary));
     }
 </style>

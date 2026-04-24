@@ -3,7 +3,7 @@
   import { t } from 'svelte-i18n';
   import type { Order } from '$lib/order/types';
   import OrderBadge from './OrderBadge.svelte';
-  import { User, Calendar, Package, FileText, AlertCircle } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   
   interface Props {
     order: Order;
@@ -106,9 +106,9 @@
     background: var(--bg-1);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15),
-                0 2px 8px rgba(0, 0, 0, 0.1);
-    z-index: 1000;
+    box-shadow: 0 8px 24px color-mix(in oklab, var(--bg-0) 15%, transparent),
+                0 2px 8px color-mix(in oklab, var(--bg-0) 10%, transparent);
+    z-index: var(--z-modal);
     pointer-events: none;
     overflow: hidden;
   }
@@ -191,7 +191,7 @@
   
   .material-chip.more {
     background: var(--accent);
-    color: white;
+    color: var(--bg-0);
     border-color: var(--accent);
   }
   

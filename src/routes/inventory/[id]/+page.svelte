@@ -578,7 +578,7 @@
 
 .btn-primary {
   background: var(--accent-1, var(--brand));
-  color: white;
+  color: var(--bg-0);
 }
 
 .btn-secondary {
@@ -589,17 +589,17 @@
 
 .btn-success {
   background: var(--ok);
-  color: white;
+  color: var(--bg-0);
 }
 
 .btn-warning {
   background: var(--warn);
-  color: #1a1a1a;
+  color: var(--ink-primary);
 }
 
 .btn-danger {
   background: var(--danger);
-  color: white;
+  color: var(--bg-0);
 }
 
 .btn-primary:hover,

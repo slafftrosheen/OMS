@@ -33,5 +33,5 @@
 
 <style>
 .hint-wrap{position:relative;display:inline-flex}
-.hint{position:absolute;top:100%;left:0;z-index:50;background:var(--bg-1);border:1px solid var(--border);border-radius:8px;padding:6px 8px;white-space:nowrap;box-shadow:0 6px 14px rgba(0,0,0,.15)}
+.hint{position:absolute;top:100%;left:0;z-index: var(--z-overlay);background:var(--bg-1);border:1px solid var(--border);border-radius:8px;padding:6px 8px;white-space:nowrap;box-shadow:0 6px 14px oklch(0% 0 0 / 15%)}
 </style>

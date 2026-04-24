@@ -6,20 +6,7 @@
  */
 
 import { onMount } from 'svelte';
-import { 
-  Database, 
-  Download, 
-  Upload, 
-  Play, 
-  Trash2, 
-  Settings, 
-  BarChart3,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  HardDrive,
-  Server
-} from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
 let backups: any[] = $state([]);
 let statistics: any = $state(null);
@@ -490,7 +477,7 @@ function getLogIcon(status: string) {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--bg-0);
   }
 
   .stat-content {
@@ -639,11 +626,11 @@ function getLogIcon(status: string) {
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: color-mix(in oklab, var(--bg-0) 55%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
   }
 
   .modal-content {
@@ -726,7 +713,7 @@ function getLogIcon(status: string) {
 
   .btn-primary {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
   }
 
   .btn-primary:hover:not(:disabled) {

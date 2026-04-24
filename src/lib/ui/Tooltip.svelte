@@ -1,51 +1,50 @@
 <script lang="ts">
-  import { HelpCircle } from 'lucide-svelte';
-  import { ui } from '$lib/state/appState.svelte';
+  import type { Snippet } from 'svelte';
+  import Icon from './Icon.svelte';
 
   interface Props {
     text?: string;
     position?: 'top' | 'bottom' | 'left' | 'right';
+    trigger?: Snippet;
   }
 
-  let { text = '', position = 'top' }: Props = $props();
+  let { text = '', position = 'top', trigger }: Props = $props();
 
-  let showTooltip = $state(false);
-  let timeoutId: number;
-  const tooltipId = `tooltip-${Math.random().toString(36).slice(2)}`;
-  let fontScale = $derived($ui.fontScale);
-  let iconSize = $derived(18 * fontScale);
-  
-  function handleMouseEnter() {
-    timeoutId = window.setTimeout(() => {
-      showTooltip = true;
-    }, 500);
+  let visible = $state(false);
+  let timeoutId: ReturnType<typeof setTimeout>;
+  const tooltipId = `rf-tooltip-${Math.random().toString(36).slice(2)}`;
+
+  function show() {
+    timeoutId = setTimeout(() => { visible = true; }, 400);
   }
-  
-  function handleMouseLeave() {
+  function hide() {
     clearTimeout(timeoutId);
-    showTooltip = false;
+    visible = false;
   }
 </script>
 
-<span class="tooltip-wrapper">
+<span class="rf-tooltip-wrap">
   <button
     type="button"
-    class="tooltip-trigger"
-    aria-describedby={tooltipId}
-    onmouseenter={handleMouseEnter}
-    onmouseleave={handleMouseLeave}
-    onfocus={handleMouseEnter}
-    onblur={handleMouseLeave}
+    class="rf-tooltip-trigger"
+    aria-describedby={visible ? tooltipId : undefined}
+    onmouseenter={show}
+    onmouseleave={hide}
+    onfocus={show}
+    onblur={hide}
   >
-    <HelpCircle size={iconSize} class="tooltip-icon" aria-hidden="true" />
-    <span class="sr-only">{text}</span>
+    {#if trigger}
+      {@render trigger()}
+    {:else}
+      <Icon name="help-circle" size="sm" label={text} />
+    {/if}
   </button>
-  {#if showTooltip}
+
+  {#if visible}
     <span
       id={tooltipId}
-      class="tooltip-content"
+      class="rf-tooltip"
       data-position={position}
-      class:show={showTooltip}
       role="tooltip"
     >
       {text}
@@ -54,90 +53,80 @@
 </span>
 
 <style>
-  .tooltip-wrapper {
+  .rf-tooltip-wrap {
     display: inline-flex;
     position: relative;
   }
 
-  .tooltip-trigger {
+  .rf-tooltip-trigger {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid transparent;
-    border-radius: var(--radius-md);
+    border: none;
+    border-radius: var(--radius-full);
     padding: var(--space-xxs);
     background: transparent;
-    color: var(--muted);
+    color: var(--ink-tertiary);
     cursor: help;
-    transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+    transition:
+      color        var(--motion-sm) var(--ease-standard),
+      background   var(--motion-sm) var(--ease-standard);
   }
-
-  .tooltip-trigger:hover,
-  .tooltip-trigger:focus-visible {
-    color: var(--accent-1);
-    border-color: color-mix(in oklab, var(--accent-1) 30%, transparent);
-    background-color: color-mix(in oklab, var(--bg-1) 65%, transparent);
+  .rf-tooltip-trigger:hover,
+  .rf-tooltip-trigger:focus-visible {
+    color: var(--brand);
+    background: var(--brand-soft);
     outline: none;
   }
-
-  :global(.tooltip-icon) {
-    flex-shrink: 0;
-    width: var(--icon-size);
-    height: var(--icon-size);
+  .rf-tooltip-trigger:focus-visible {
+    box-shadow: var(--focus-ring);
   }
 
-  .sr-only {
+  .rf-tooltip {
     position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  .tooltip-content {
-    position: absolute;
-    z-index: 1000;
-    padding: calc(var(--space-xs) + var(--space-xxs)) calc(var(--space-sm) + var(--space-xxs));
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    box-shadow: 0 12px 28px rgba(var(--shadow-rgb)/.18);
-    font-size: 0.9rem;
-    line-height: 1.4;
-    max-inline-size: min(32ch, 18rem);
+    z-index: var(--z-tooltip);
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--glass-material-thick);
+    -webkit-backdrop-filter: var(--glass-material-thick);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--glass-shadow-md);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    line-height: var(--leading-snug);
+    color: var(--ink-primary);
+    max-inline-size: min(28ch, 16rem);
     white-space: normal;
-    opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s ease;
+    animation: rf-tooltip-in var(--motion-sm) var(--ease-standard) both;
   }
 
-  .tooltip-content.show {
-    opacity: 1;
+  @keyframes rf-tooltip-in {
+    from { opacity: 0; transform: var(--_enter-tx, translateX(-50%)) translateY(4px) scale(0.96); }
+    to   { opacity: 1; transform: var(--_enter-tx, translateX(-50%)) translateY(0)  scale(1); }
   }
 
-  .tooltip-content[data-position="top"] {
+  .rf-tooltip[data-position="top"] {
+    --_enter-tx: translateX(-50%);
     bottom: calc(100% + var(--space-xs));
     left: 50%;
     transform: translateX(-50%);
   }
-
-  .tooltip-content[data-position="bottom"] {
+  .rf-tooltip[data-position="bottom"] {
+    --_enter-tx: translateX(-50%);
     top: calc(100% + var(--space-xs));
     left: 50%;
     transform: translateX(-50%);
   }
-
-  .tooltip-content[data-position="left"] {
+  .rf-tooltip[data-position="left"] {
+    --_enter-tx: translateY(-50%);
     right: calc(100% + var(--space-xs));
     top: 50%;
     transform: translateY(-50%);
   }
-
-  .tooltip-content[data-position="right"] {
+  .rf-tooltip[data-position="right"] {
+    --_enter-tx: translateY(-50%);
     left: calc(100% + var(--space-xs));
     top: 50%;
     transform: translateY(-50%);

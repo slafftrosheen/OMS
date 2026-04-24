@@ -183,14 +183,14 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.3);
+    background: color-mix(in oklab, var(--bg-0) 45%, transparent);
   }
 
   .scan-area {
     position: relative;
     width: 250px;
     height: 250px;
-    border: 2px solid rgba(255, 255, 255, 0.5);
+    border: 2px solid color-mix(in oklab, var(--bg-0) 5%, transparent);
   }
 
   .corner {
@@ -230,10 +230,10 @@
 
   .scan-instruction {
     margin-top: 2rem;
-    color: white;
+    color: var(--bg-0);
     font-size: 0.875rem;
     text-align: center;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    text-shadow: 0 1px 3px oklch(0% 0 0 / 80%);
   }
 
   .detected-code {
@@ -241,8 +241,8 @@
     bottom: 1rem;
     left: 50%;
     transform: translateX(-50%);
-    background: #28a745;
-    color: white;
+    background: var(--ok);
+    color: var(--bg-0);
     padding: 0.5rem 1rem;
     border-radius: 4px;
     font-weight: 600;

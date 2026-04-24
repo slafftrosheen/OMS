@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FileText } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import type { FileRef } from '../types';
 
   let {

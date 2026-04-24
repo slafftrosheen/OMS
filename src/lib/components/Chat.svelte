@@ -300,7 +300,7 @@
   }
 
   .avatar-text {
-    color: white;
+    color: var(--bg-0);
     font-size: 0.875rem;
     font-weight: 600;
   }
@@ -332,7 +332,7 @@
 
   .message.own .message-bubble {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
   }
 
   .message-text {
@@ -351,7 +351,7 @@
   }
 
   .message.own .message-time {
-    color: rgba(255, 255, 255, 0.7);
+    color: color-mix(in oklab, var(--bg-0) 7%, transparent);
   }
 
   .chat-input-container {
@@ -392,12 +392,12 @@
     background: var(--accent-1);
     border: none;
     border-radius: 8px;
-    color: white;
+    color: var(--bg-0);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     flex-shrink: 0;
   }
 

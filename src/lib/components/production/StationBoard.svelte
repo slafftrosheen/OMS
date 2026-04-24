@@ -99,7 +99,7 @@
 <style>
     .station-board {
         background: white;
-        border: 2px solid var(--color-border, #e5e7eb);
+        border: 2px solid var(--color-border, var(--border));
         border-radius: 0.5rem;
         overflow: hidden;
         display: flex;
@@ -109,8 +109,8 @@
 
     .station-header {
         padding: 1rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+        background: linear-gradient(135deg, var(--brand) 0%, color-mix(in oklab, var(--brand) 75%, black) 100%);
+        color: var(--bg-0);
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -161,13 +161,13 @@
 
     .order-client {
         font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0.25rem 0;
     }
 
     .order-due {
         font-size: 0.75rem;
-        color: var(--color-gray-500, #9ca3af);
+        color: var(--color-gray-500, var(--muted));
         margin: 0;
     }
 
@@ -184,7 +184,7 @@
         font-weight: 500;
         cursor: pointer;
         background: white;
-        transition: all 0.15s ease;
+        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     }
 
     .status-select:hover {
@@ -193,13 +193,13 @@
 
     .status-select:focus {
         outline: none;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 10%, transparent);
     }
 
     .empty-station {
         padding: 3rem 1rem;
         text-align: center;
-        color: var(--color-gray-500, #9ca3af);
+        color: var(--color-gray-500, var(--muted));
     }
 
     @media (max-width: 768px) {

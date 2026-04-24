@@ -3,7 +3,7 @@
  * PWA Update Available Prompt Component
  */
 
-import { RefreshCw, X } from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
 let { onUpdate, onDismiss }: { onUpdate?: () => void; onDismiss?: () => void } = $props();
 </script>
@@ -44,7 +44,7 @@ let { onUpdate, onDismiss }: { onUpdate?: () => void; onDismiss?: () => void } =
     position: fixed;
     top: 1rem;
     right: 1rem;
-    z-index: 9999;
+    z-index: var(--z-tooltip);
     max-width: 400px;
     animation: slideDown 0.3s ease-out;
   }
@@ -62,20 +62,20 @@ let { onUpdate, onDismiss }: { onUpdate?: () => void; onDismiss?: () => void } =
 
   .prompt-content {
     background: var(--bg-0, white);
-    border: 1px solid var(--border, #e5e7eb);
+    border: 1px solid var(--border, var(--border));
     border-radius: 12px;
     padding: 1rem;
     display: flex;
     align-items: center;
     gap: 1rem;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 25px color-mix(in oklab, var(--bg-0) 15%, transparent);
   }
 
   .prompt-icon {
     width: 40px;
     height: 40px;
-    background: var(--ok, #10b981);
-    color: white;
+    background: var(--ok, var(--ok));
+    color: var(--bg-0);
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -91,14 +91,14 @@ let { onUpdate, onDismiss }: { onUpdate?: () => void; onDismiss?: () => void } =
   .prompt-text strong {
     display: block;
     font-size: 0.9375rem;
-    color: var(--text, #111827);
+    color: var(--text, var(--ink-primary));
     margin-bottom: 0.25rem;
   }
 
   .prompt-text p {
     margin: 0;
     font-size: 0.8125rem;
-    color: var(--muted, #6b7280);
+    color: var(--muted, var(--ink-tertiary));
   }
 
   .prompt-actions {
@@ -121,8 +121,8 @@ let { onUpdate, onDismiss }: { onUpdate?: () => void; onDismiss?: () => void } =
   }
 
   .btn-primary {
-    background: var(--ok, #10b981);
-    color: white;
+    background: var(--ok, var(--ok));
+    color: var(--bg-0);
   }
 
   .btn-primary:hover {
@@ -131,11 +131,11 @@ let { onUpdate, onDismiss }: { onUpdate?: () => void; onDismiss?: () => void } =
 
   .btn-ghost {
     background: transparent;
-    color: var(--muted, #6b7280);
+    color: var(--muted, var(--ink-tertiary));
     padding: 0.5rem;
   }
 
   .btn-ghost:hover {
-    background: var(--bg-2, #f3f4f6);
+    background: var(--bg-2, var(--bg-2));
   }
 </style>

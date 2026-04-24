@@ -51,7 +51,7 @@
 <style>
 .menu{position:relative}
 .icon{position:relative;border:1px solid var(--border);border-radius:999px;padding:8px;background:var(--bg-0)}
-.sheet{position:absolute;right:0;top:calc(100% + 8px);z-index:60}
+.sheet{position:absolute;right:0;top:calc(100% + 8px);z-index: var(--z-popover)}
 .panel{width:min(520px,90vw)}
 .log{max-height:300px;overflow:auto;display:grid;gap:8px;margin:8px 0}
 .msg{border:1px solid var(--border);border-radius:10px;padding:6px}

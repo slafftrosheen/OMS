@@ -328,8 +328,8 @@
     .spinner {
         width: 3rem;
         height: 3rem;
-        border: 4px solid var(--color-gray-200, #e5e7eb);
-        border-top-color: var(--color-primary, #0066cc);
+        border: 4px solid var(--color-gray-200, var(--border));
+        border-top-color: var(--color-primary, var(--brand));
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
     }
@@ -342,7 +342,7 @@
 
     .error-message {
         font-size: 1.125rem;
-        color: var(--color-danger, #dc3545);
+        color: var(--color-danger, var(--error));
         margin: 0;
     }
 
@@ -374,7 +374,7 @@
         font-size: 1.75rem;
         font-weight: 700;
         margin: 0;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -400,7 +400,7 @@
     .info-label {
         font-size: 0.875rem;
         font-weight: 500;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
@@ -408,7 +408,7 @@
     .info-value {
         font-size: 1.5rem;
         font-weight: 700;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
     }
 
     .tab-content {
@@ -426,7 +426,7 @@
     .description-text {
         margin: 0;
         line-height: 1.6;
-        color: var(--color-gray-700, #374151);
+        color: var(--color-gray-700, var(--ink-secondary));
     }
 
     .details-list {
@@ -439,7 +439,7 @@
         grid-template-columns: 150px 1fr;
         gap: 1rem;
         padding: 0.75rem 0;
-        border-bottom: 1px solid var(--color-border, #e5e7eb);
+        border-bottom: 1px solid var(--color-border, var(--border));
     }
 
     .detail-item:last-child {
@@ -448,12 +448,12 @@
 
     .detail-item dt {
         font-weight: 600;
-        color: var(--color-gray-700, #374151);
+        color: var(--color-gray-700, var(--ink-secondary));
     }
 
     .detail-item dd {
         margin: 0;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
     }
 
     .stages-grid {
@@ -464,7 +464,7 @@
 
     .stage-card {
         padding: 1rem;
-        border: 1px solid var(--color-border, #e5e7eb);
+        border: 1px solid var(--color-border, var(--border));
         border-left-width: 4px;
         border-radius: 0.375rem;
         background: white;
@@ -483,12 +483,12 @@
         font-size: 1rem;
         font-weight: 600;
         margin: 0;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
     }
 
     .stage-status-select {
         padding: 0.5rem;
-        border: 1px solid var(--color-border, #d1d5db);
+        border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
         font-size: 0.875rem;
         background: white;
@@ -499,7 +499,7 @@
     .coming-soon {
         text-align: center;
         padding: 2rem;
-        color: var(--color-gray-500, #9ca3af);
+        color: var(--color-gray-500, var(--muted));
         font-style: italic;
         margin: 0;
     }

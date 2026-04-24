@@ -2,7 +2,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
-	import { X } from 'lucide-svelte';
+	import Icon from '$lib/ui/Icon.svelte';
 	import { focusManager } from '$lib/a11y/focus-manager';
 
 	let { children, footer,
@@ -136,8 +136,8 @@
 	.modal-backdrop {
 		position: fixed;
 		inset: 0;
-		z-index: 9999;
-		background: rgba(0, 0, 0, 0.5);
+		z-index: var(--z-tooltip);
+		background: color-mix(in oklab, var(--bg-0) 55%, transparent);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -148,8 +148,8 @@
 		background: var(--bg-0);
 		border: 1px solid var(--border);
 		border-radius: 12px;
-		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
-			0 10px 10px -5px rgba(0, 0, 0, 0.04);
+		box-shadow: 0 20px 25px -5px color-mix(in oklab, var(--bg-0) 10%, transparent),
+			0 10px 10px -5px oklch(0% 0 0 / 4%);
 		max-height: calc(100vh - 2rem);
 		display: flex;
 		flex-direction: column;

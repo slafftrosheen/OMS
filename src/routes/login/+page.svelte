@@ -4,7 +4,7 @@
   import { goto } from '$app/navigation';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { logAction } from '$lib/auth/audit-log';
-  import { Lock, User, AlertCircle, Loader2, Mail, BadgeCheck, Globe } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import { t, locale } from 'svelte-i18n';
   import { setLocale } from '$lib/i18n';
   
@@ -354,13 +354,13 @@
   border-radius: 10px;
   color: var(--text);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
 }
 
 .lang-btn:hover,
 .lang-btn[aria-expanded="true"] {
   background: var(--bg-2);
-  border-color: var(--accent, #3b82f6);
+  border-color: var(--accent, var(--brand));
 }
 
 .flag {
@@ -376,9 +376,9 @@
   background: var(--bg-1);
   border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 8px 32px color-mix(in oklab, var(--bg-0) 18%, transparent);
   padding: 4px;
-  z-index: 10000;
+  z-index: var(--z-tooltip);
   animation: slideDown 0.15s ease;
 }
 
@@ -414,8 +414,8 @@
 }
 
 .dropdown button.active {
-  background: var(--accent, #3b82f6);
-  color: white;
+  background: var(--accent, var(--brand));
+  color: var(--bg-0);
   font-weight: 600;
 }
 
@@ -426,7 +426,7 @@
   padding: 40px;
   max-width: 400px;
   width: 100%;
-  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 20px 40px -12px color-mix(in oklab, var(--bg-0) 25%, transparent);
 }
 
 .logo-section {
@@ -438,14 +438,14 @@
   width: 64px;
   height: 64px;
   margin: 0 auto 16px;
-  background: linear-gradient(135deg, #ff2d95 0%, #ff6b6b 100%);
+  background: linear-gradient(135deg, var(--brand) 0%, var(--error) 100%);
   border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
   font-weight: 800;
-  color: white;
+  color: var(--bg-0);
 }
 
 h1 {
@@ -483,13 +483,13 @@ input {
   font-size: 15px;
   background: var(--bg-0);
   color: var(--text);
-  transition: all 0.2s ease;
+  transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
 }
 
 input:focus {
   outline: none;
-  border-color: var(--accent, #3b82f6);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  border-color: var(--accent, var(--brand));
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--brand) 10%, transparent);
 }
 
 input:disabled {
@@ -504,14 +504,14 @@ input::placeholder {
 .submit-btn {
   width: 100%;
   padding: 14px;
-  background: linear-gradient(135deg, var(--accent, #3b82f6) 0%, #6366f1 100%);
-  color: white;
+  background: linear-gradient(135deg, var(--accent, var(--brand)) 0%, var(--brand) 100%);
+  color: var(--bg-0);
   border: none;
   border-radius: 10px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -520,7 +520,7 @@ input::placeholder {
 
 .submit-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px -4px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 8px 20px -4px color-mix(in oklab, var(--brand) 40%, transparent);
 }
 
 .submit-btn:active:not(:disabled) {
@@ -545,9 +545,9 @@ input::placeholder {
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: color-mix(in oklab, var(--error) 10%, transparent);
+  color: var(--error);
+  border: 1px solid color-mix(in oklab, var(--error) 20%, transparent);
   border-radius: 10px;
   font-size: 14px;
   margin-bottom: 20px;
@@ -558,9 +558,9 @@ input::placeholder {
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  background: color-mix(in oklab, var(--ok) 10%, transparent);
+  color: var(--ok);
+  border: 1px solid color-mix(in oklab, var(--ok) 20%, transparent);
   border-radius: 10px;
   font-size: 14px;
   margin-bottom: 20px;
@@ -582,7 +582,7 @@ input::placeholder {
 .link-btn {
   background: none;
   border: none;
-  color: var(--accent, #3b82f6);
+  color: var(--accent, var(--brand));
   font-weight: 600;
   cursor: pointer;
   padding: 0 4px;

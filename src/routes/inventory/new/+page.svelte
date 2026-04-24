@@ -383,7 +383,7 @@
 
 .btn-primary {
   background: var(--accent-1, var(--brand));
-  color: white;
+  color: var(--bg-0);
   border: none;
 }
 

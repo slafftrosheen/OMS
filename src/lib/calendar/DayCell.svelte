@@ -194,7 +194,7 @@
     flex-direction: column;
     gap: 8px;
     min-height: 120px;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     position: relative;
   }
   
@@ -245,7 +245,7 @@
     color: var(--text);
     cursor: pointer;
     text-align: left;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
   
   .event-chip:hover {
@@ -276,7 +276,7 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     text-align: left;
   }
   
@@ -285,7 +285,7 @@
     border-color: var(--accent);
     background: color-mix(in srgb, var(--accent) 5%, transparent);
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
   
   .order-card-header {

@@ -67,7 +67,7 @@
     background: var(--bg-2);
     color: var(--text);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     font: inherit;
     line-height: 1;
   }

@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { notificationService } from '$lib/notifications/NotificationService';
-    import { Bell, Check, CheckCheck, X, Clock, AlertCircle, Info } from 'lucide-svelte';
+    import Icon from '$lib/ui/Icon.svelte';
     import type { Notification } from '$lib/notifications/NotificationService';
 
     let {
@@ -193,23 +193,23 @@
         width: 40px;
         height: 40px;
         background: white;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border);
         border-radius: 50%;
         cursor: pointer;
         transition: all 0.2s;
     }
 
     .bell-button:hover {
-        background: #f9fafb;
-        border-color: #3b82f6;
+        background: var(--bg-2);
+        border-color: var(--brand);
     }
 
     .badge {
         position: absolute;
         top: -4px;
         right: -4px;
-        background: #ef4444;
-        color: white;
+        background: var(--error);
+        color: var(--bg-0);
         font-size: 0.625rem;
         font-weight: 700;
         padding: 2px 5px;
@@ -225,13 +225,13 @@
         width: 400px;
         max-height: 600px;
         background: white;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border);
         border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        box-shadow: 0 10px 40px color-mix(in oklab, var(--bg-0) 15%, transparent);
         display: flex;
         flex-direction: column;
         animation: slideDown 0.2s ease;
-        z-index: 1000;
+        z-index: var(--z-modal);
     }
 
     @keyframes slideDown {
@@ -250,7 +250,7 @@
         justify-content: space-between;
         align-items: center;
         padding: 15px 20px;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid var(--border);
     }
 
     .panel-header h3 {
@@ -264,7 +264,7 @@
         align-items: center;
         gap: 6px;
         padding: 6px 12px;
-        background: #f3f4f6;
+        background: var(--bg-2);
         border: none;
         border-radius: 6px;
         font-size: 0.875rem;
@@ -274,7 +274,7 @@
     }
 
     .mark-all-btn:hover:not(:disabled) {
-        background: #e5e7eb;
+        background: var(--border);
     }
 
     .mark-all-btn:disabled {
@@ -286,7 +286,7 @@
         display: flex;
         padding: 10px 20px;
         gap: 10px;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid var(--border);
     }
 
     .filter-tabs button {
@@ -296,19 +296,19 @@
         border-radius: 6px;
         font-size: 0.875rem;
         font-weight: 500;
-        color: #6b7280;
+        color: var(--ink-tertiary);
         cursor: pointer;
         transition: all 0.2s;
     }
 
     .filter-tabs button:hover {
-        background: #f9fafb;
+        background: var(--bg-2);
     }
 
     .filter-tabs button.active {
-        background: #eff6ff;
-        border-color: #3b82f6;
-        color: #3b82f6;
+        background: var(--brand-soft);
+        border-color: var(--brand);
+        color: var(--brand);
     }
 
     .notifications-list {
@@ -323,7 +323,7 @@
         align-items: center;
         justify-content: center;
         padding: 60px 20px;
-        color: #9ca3af;
+        color: var(--muted);
     }
 
     .empty-state p {
@@ -342,15 +342,15 @@
     }
 
     .notification-item:hover {
-        background: #f9fafb;
+        background: var(--bg-2);
     }
 
     .notification-item.unread {
-        background: #eff6ff;
+        background: var(--brand-soft);
     }
 
     .notification-item.unread:hover {
-        background: #dbeafe;
+        background: var(--brand-soft);
     }
 
     .notification-item.clickable {
@@ -365,13 +365,13 @@
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
-        color: white;
+        color: var(--bg-0);
     }
 
-    .notif-icon.info { background: #3b82f6; }
-    .notif-icon.success { background: #10b981; }
-    .notif-icon.warning { background: #f59e0b; }
-    .notif-icon.error { background: #ef4444; }
+    .notif-icon.info { background: var(--brand); }
+    .notif-icon.success { background: var(--ok); }
+    .notif-icon.warning { background: var(--warn); }
+    .notif-icon.error { background: var(--error); }
 
     .notif-content {
         flex: 1;
@@ -382,13 +382,13 @@
         margin: 0 0 4px 0;
         font-size: 0.875rem;
         font-weight: 600;
-        color: #111827;
+        color: var(--ink-primary);
     }
 
     .notif-content p {
         margin: 0 0 6px 0;
         font-size: 0.813rem;
-        color: #6b7280;
+        color: var(--ink-tertiary);
         line-height: 1.4;
     }
 
@@ -397,28 +397,28 @@
         align-items: center;
         gap: 4px;
         font-size: 0.75rem;
-        color: #9ca3af;
+        color: var(--muted);
     }
 
     .mark-read-btn {
         width: 28px;
         height: 28px;
         background: none;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border);
         border-radius: 6px;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         flex-shrink: 0;
-        color: #6b7280;
+        color: var(--ink-tertiary);
         transition: all 0.2s;
     }
 
     .mark-read-btn:hover {
-        background: #10b981;
-        border-color: #10b981;
-        color: white;
+        background: var(--ok);
+        border-color: var(--ok);
+        color: var(--bg-0);
     }
 
     @media (max-width: 480px) {

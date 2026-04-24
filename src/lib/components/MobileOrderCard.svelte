@@ -101,7 +101,7 @@
     .mobile-order-card {
         display: block;
         background: white;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border);
         border-radius: 12px;
         padding: 15px;
         text-decoration: none;
@@ -111,7 +111,7 @@
 
     .mobile-order-card:active {
         transform: scale(0.98);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 2px 8px color-mix(in oklab, var(--bg-0) 10%, transparent);
     }
 
     .card-header {
@@ -131,7 +131,7 @@
         margin: 0;
         font-size: 1.125rem;
         font-weight: 600;
-        color: #111827;
+        color: var(--ink-primary);
     }
 
     .status-badge {
@@ -148,7 +148,7 @@
        but here it is used. The warning might be because Lucide icon classes are internal.
        Actually, I'll just remove the specific class styling if it's simple color change */
     :global(.chevron) {
-        color: #9ca3af;
+        color: var(--muted);
         flex-shrink: 0;
     }
 
@@ -161,7 +161,7 @@
     .customer-name {
         margin: 0;
         font-size: 0.938rem;
-        color: #374151;
+        color: var(--ink-secondary);
     }
 
     .progress-section {
@@ -173,7 +173,7 @@
     .progress-bar-container {
         flex: 1;
         height: 6px;
-        background: #e5e7eb;
+        background: var(--border);
         border-radius: 3px;
         overflow: hidden;
     }
@@ -186,7 +186,7 @@
     .progress-text {
         font-size: 0.813rem;
         font-weight: 600;
-        color: #6b7280;
+        color: var(--ink-tertiary);
         min-width: 35px;
         text-align: right;
     }
@@ -202,7 +202,7 @@
         align-items: center;
         gap: 4px;
         font-size: 0.813rem;
-        color: #6b7280;
+        color: var(--ink-tertiary);
     }
 
     .meta-item.priority {

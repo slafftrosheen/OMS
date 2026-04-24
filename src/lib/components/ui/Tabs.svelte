@@ -49,7 +49,7 @@
   .tabs-list {
     display: flex;
     gap: var(--space-xs, 4px);
-    border-bottom: 2px solid var(--border, #e5e7eb);
+    border-bottom: 2px solid var(--border, var(--border));
     overflow-x: auto;
     scrollbar-width: thin;
   }
@@ -62,28 +62,28 @@
     background: transparent;
     border: none;
     border-bottom: 3px solid transparent;
-    color: var(--muted, #6b7280);
+    color: var(--muted, var(--ink-tertiary));
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     position: relative;
     margin-bottom: -2px;
   }
 
   .tab:hover {
-    color: var(--text, #111827);
-    background: var(--bg-2, #f3f4f6);
+    color: var(--text, var(--ink-primary));
+    background: var(--bg-2, var(--bg-2));
   }
 
   .tab.active {
-    color: var(--accent, #ff6b35);
-    border-bottom-color: var(--accent, #ff6b35);
+    color: var(--accent, var(--brand));
+    border-bottom-color: var(--accent, var(--brand));
   }
 
   .tab:focus-visible {
-    outline: 2px solid var(--focus, #3b82f6);
+    outline: 2px solid var(--focus, var(--brand));
     outline-offset: 2px;
     border-radius: var(--radius-sm, 4px);
   }

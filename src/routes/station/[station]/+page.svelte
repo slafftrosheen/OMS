@@ -401,22 +401,22 @@
     border: 2px solid var(--border);
     border-radius: 8px;
     min-width: 100px;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .stat.active {
-    border-color: #007bff;
-    background: rgba(0, 123, 255, 0.1);
+    border-color: var(--brand);
+    background: color-mix(in oklab, var(--brand) 10%, transparent);
   }
 
   .stat.warning {
-    border-color: #ffc107;
-    background: rgba(255, 193, 7, 0.1);
+    border-color: var(--warn);
+    background: color-mix(in oklab, var(--warn) 10%, transparent);
   }
 
   .stat.danger {
-    border-color: #dc3545;
-    background: rgba(220, 53, 69, 0.1);
+    border-color: var(--error);
+    background: color-mix(in oklab, var(--error) 10%, transparent);
   }
 
   .stat-value {
@@ -452,7 +452,7 @@
     font-weight: 600;
     color: var(--text);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .filter-btn:hover {
@@ -462,7 +462,7 @@
 
   .filter-btn.active {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     border-color: var(--accent-1);
   }
 
@@ -480,12 +480,12 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .station-order-card:hover {
     border-color: var(--accent-1);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
 
   .order-header {
@@ -513,7 +513,7 @@
     font-size: 0.75rem;
     font-weight: 700;
     background: var(--warn);
-    color: white;
+    color: var(--bg-0);
   }
 
   .priority-badge.priority-8,
@@ -551,24 +551,24 @@
     text-transform: uppercase;
   }
 
-  .status-queued { background: #17a2b8; color: white; }
-  .status-in_progress { background: #007bff; color: white; }
-  .status-blocked { background: #dc3545; color: white; }
-  .status-rework { background: #ffc107; color: black; }
-  .status-completed { background: #28a745; color: white; }
+  .status-queued { background: var(--link, var(--brand)); color: var(--bg-0); }
+  .status-in_progress { background: var(--brand); color: var(--bg-0); }
+  .status-blocked { background: var(--error); color: var(--bg-0); }
+  .status-rework { background: var(--warn); color: black; }
+  .status-completed { background: var(--ok); color: var(--bg-0); }
 
   .blocked-notice,
   .stage-notes {
     padding: 0.75rem;
-    background: rgba(220, 53, 69, 0.1);
+    background: color-mix(in oklab, var(--error) 10%, transparent);
     border-left: 3px solid var(--danger);
     border-radius: 4px;
     font-size: 0.875rem;
   }
 
   .stage-notes {
-    background: rgba(0, 123, 255, 0.1);
-    border-left-color: #007bff;
+    background: color-mix(in oklab, var(--brand) 10%, transparent);
+    border-left-color: var(--brand);
   }
 
   .order-actions {
@@ -586,7 +586,7 @@
     font-weight: 600;
     border: none;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
@@ -594,7 +594,7 @@
 
   .btn:hover {
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 2px 8px color-mix(in oklab, var(--bg-0) 15%, transparent);
   }
 
   .btn-sm {
@@ -603,23 +603,23 @@
   }
 
   .btn-primary {
-    background: #007bff;
-    color: white;
+    background: var(--brand);
+    color: var(--bg-0);
   }
 
   .btn-success {
-    background: #28a745;
-    color: white;
+    background: var(--ok);
+    color: var(--bg-0);
   }
 
   .btn-warning {
-    background: #ffc107;
+    background: var(--warn);
     color: black;
   }
 
   .btn-danger {
-    background: #dc3545;
-    color: white;
+    background: var(--error);
+    color: var(--bg-0);
   }
 
   .btn-outline {
@@ -670,11 +670,11 @@
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: oklch(0% 0 0 / 70%);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
     padding: 1rem;
   }
 
@@ -713,7 +713,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 4px;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .close-btn:hover {

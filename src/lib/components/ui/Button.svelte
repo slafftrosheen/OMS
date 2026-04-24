@@ -69,7 +69,7 @@
         font-weight: 500;
         border-radius: 0.375rem;
         border: 1px solid transparent;
-        transition: all 0.15s ease;
+        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
         cursor: pointer;
         font-family: inherit;
         line-height: 1.5;
@@ -100,57 +100,57 @@
 
     /* Variants */
     .btn-primary {
-        background: var(--color-primary, #0066cc);
-        color: white;
-        border-color: var(--color-primary, #0066cc);
+        background: var(--color-primary, var(--brand));
+        color: var(--bg-0);
+        border-color: var(--color-primary, var(--brand));
     }
 
     .btn-primary:hover:not(:disabled) {
-        background: var(--color-primary-dark, #0052a3);
-        border-color: var(--color-primary-dark, #0052a3);
+        background: var(--color-primary-dark, var(--brand));
+        border-color: var(--color-primary-dark, var(--brand));
     }
 
     .btn-secondary {
-        background: var(--color-secondary, #6c757d);
-        color: white;
-        border-color: var(--color-secondary, #6c757d);
+        background: var(--ink-secondary);
+        color: var(--bg-0);
+        border-color: var(--ink-secondary);
     }
 
     .btn-secondary:hover:not(:disabled) {
-        background: var(--color-secondary-dark, #5a6268);
-        border-color: var(--color-secondary-dark, #5a6268);
+        background: var(--color-secondary-dark, var(--ink-tertiary));
+        border-color: var(--color-secondary-dark, var(--ink-tertiary));
     }
 
     .btn-danger {
-        background: var(--color-danger, #dc3545);
-        color: white;
-        border-color: var(--color-danger, #dc3545);
+        background: var(--color-danger, var(--error));
+        color: var(--bg-0);
+        border-color: var(--color-danger, var(--error));
     }
 
     .btn-danger:hover:not(:disabled) {
-        background: var(--color-danger-dark, #c82333);
-        border-color: var(--color-danger-dark, #c82333);
+        background: var(--color-danger-dark, var(--error));
+        border-color: var(--color-danger-dark, var(--error));
     }
 
     .btn-ghost {
         background: transparent;
-        color: var(--color-text, #333);
+        color: var(--color-text, var(--ink-primary));
         border-color: transparent;
     }
 
     .btn-ghost:hover:not(:disabled) {
-        background: var(--color-gray-100, #f8f9fa);
+        background: var(--color-gray-100, var(--bg-2));
     }
 
     .btn-outline {
         background: transparent;
-        color: var(--color-primary, #0066cc);
-        border-color: var(--color-primary, #0066cc);
+        color: var(--color-primary, var(--brand));
+        border-color: var(--color-primary, var(--brand));
     }
 
     .btn-outline:hover:not(:disabled) {
-        background: var(--color-primary, #0066cc);
-        color: white;
+        background: var(--color-primary, var(--brand));
+        color: var(--bg-0);
     }
 
     /* States */

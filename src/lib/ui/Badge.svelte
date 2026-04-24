@@ -1,85 +1,86 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
+  type Tone = 'neutral' | 'info' | 'success' | 'warn' | 'danger' | 'primary' | 'brand';
+  type Size = 'sm' | 'md' | 'lg';
+  type Variant = 'soft' | 'solid' | 'outline';
+
   let {
     tone = 'neutral',
-    label = '',
     size = 'md',
+    variant = 'soft',
+    label = '',
     children
   }: {
-    tone?: 'neutral'|'info'|'success'|'warn'|'danger'|'primary';
+    tone?: Tone;
+    size?: Size;
+    variant?: Variant;
     label?: string;
-    size?: 'sm' | 'md' | 'lg';
     children?: Snippet;
   } = $props();
 </script>
 
-<span class="badge" data-tone={tone} data-size={size} role="status" aria-label={label || tone}>
-  {#if children}
-    {@render children()}
-  {/if}
+<span
+  class="rf-badge"
+  data-tone={tone === 'primary' ? 'brand' : tone}
+  data-size={size}
+  data-variant={variant}
+  role="status"
+  aria-label={label || tone}
+>
+  {#if children}{@render children()}{/if}
 </span>
 
 <style>
-.badge {
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-full, 9999px);
-  font-size: 0.75rem;
-  font-weight: 600;
-  border: 1px solid var(--border);
-  background: var(--bg-2);
-  color: var(--text);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  line-height: 1;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-}
+  .rf-badge {
+    --c: var(--ink-2);
+    --bg: var(--bg-2);
+    --border: transparent;
 
-.badge[data-size="sm"] {
-  padding: 2px var(--space-xs);
-  font-size: 0.6875rem;
-}
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: calc(var(--space-xxs) + 2px) var(--space-sm);
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: var(--tracking-wide);
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--c);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    transition: background var(--motion-sm) var(--ease-standard);
+  }
 
-.badge[data-size="lg"] {
-  padding: var(--space-sm) var(--space-md);
-  font-size: 0.8125rem;
-}
+  .rf-badge[data-size="sm"] { font-size: calc(var(--text-xs) - 1px); padding: 2px var(--space-xs); }
+  .rf-badge[data-size="lg"] { font-size: var(--text-sm); padding: var(--space-xs) var(--space-md); }
 
-.badge :global(svg) {
-  width: 0.875em;
-  height: 0.875em;
-  flex-shrink: 0;
-}
+  .rf-badge :global(svg) { width: 0.9em; height: 0.9em; }
 
-.badge[data-tone="primary"] {
-  background: color-mix(in oklab, var(--accent-1, #3b82f6) 12%, transparent);
-  color: var(--accent-1, #3b82f6);
-  border-color: color-mix(in oklab, var(--accent-1, #3b82f6) 30%, transparent);
-}
+  /* Soft (default) — low-saturation tint on theme-aware bg */
+  .rf-badge[data-tone="neutral"][data-variant="soft"]  { --c: var(--ink-secondary); --bg: var(--bg-2); }
+  .rf-badge[data-tone="brand"][data-variant="soft"]    { --c: var(--brand);         --bg: var(--brand-soft); }
+  .rf-badge[data-tone="info"][data-variant="soft"]     { --c: var(--link);          --bg: color-mix(in oklab, var(--link) 14%, var(--bg-1)); }
+  .rf-badge[data-tone="success"][data-variant="soft"]  { --c: var(--ok);            --bg: var(--ok-soft); }
+  .rf-badge[data-tone="warn"][data-variant="soft"]     { --c: var(--warn);          --bg: var(--warn-soft); }
+  .rf-badge[data-tone="danger"][data-variant="soft"]   { --c: var(--error);         --bg: var(--error-soft); }
 
-.badge[data-tone="info"] {
-  background: color-mix(in oklab, var(--accent-2, #0ea5e9) 12%, transparent);
-  color: var(--accent-2, #0ea5e9);
-  border-color: color-mix(in oklab, var(--accent-2, #0ea5e9) 30%, transparent);
-}
+  /* Solid — filled badge, ink color chosen for contrast */
+  .rf-badge[data-variant="solid"] { --c: var(--bg-0); }
+  .rf-badge[data-tone="brand"][data-variant="solid"]   { --bg: var(--brand); }
+  .rf-badge[data-tone="info"][data-variant="solid"]    { --bg: var(--link); }
+  .rf-badge[data-tone="success"][data-variant="solid"] { --bg: var(--ok); }
+  .rf-badge[data-tone="warn"][data-variant="solid"]    { --bg: var(--warn); --c: var(--bg-0); }
+  .rf-badge[data-tone="danger"][data-variant="solid"]  { --bg: var(--error); }
+  .rf-badge[data-tone="neutral"][data-variant="solid"] { --bg: var(--ink-secondary); --c: var(--bg-0); }
 
-.badge[data-tone="success"] {
-  background: color-mix(in oklab, var(--ok, var(--success, #16a34a)) 12%, transparent);
-  color: var(--ok, var(--success, #16a34a));
-  border-color: color-mix(in oklab, var(--ok, var(--success, #16a34a)) 30%, transparent);
-}
-
-.badge[data-tone="warn"] {
-  background: color-mix(in oklab, var(--warn, #f59e0b) 12%, transparent);
-  color: color-mix(in oklab, var(--warn, #f59e0b) 80%, black);
-  border-color: color-mix(in oklab, var(--warn, #f59e0b) 30%, transparent);
-}
-
-.badge[data-tone="danger"] {
-  background: color-mix(in oklab, var(--danger, #dc2626) 12%, transparent);
-  color: var(--danger, #dc2626);
-  border-color: color-mix(in oklab, var(--danger, #dc2626) 30%, transparent);
-}
+  /* Outline — ring only */
+  .rf-badge[data-variant="outline"] { --bg: transparent; }
+  .rf-badge[data-tone="brand"][data-variant="outline"]   { --c: var(--brand);   --border: color-mix(in oklab, var(--brand) 45%, transparent); }
+  .rf-badge[data-tone="info"][data-variant="outline"]    { --c: var(--link);    --border: color-mix(in oklab, var(--link) 45%, transparent); }
+  .rf-badge[data-tone="success"][data-variant="outline"] { --c: var(--ok);      --border: color-mix(in oklab, var(--ok) 45%, transparent); }
+  .rf-badge[data-tone="warn"][data-variant="outline"]    { --c: var(--warn);    --border: color-mix(in oklab, var(--warn) 45%, transparent); }
+  .rf-badge[data-tone="danger"][data-variant="outline"]  { --c: var(--error);   --border: color-mix(in oklab, var(--error) 45%, transparent); }
+  .rf-badge[data-tone="neutral"][data-variant="outline"] { --c: var(--ink-secondary); --border: var(--border-strong); }
 </style>

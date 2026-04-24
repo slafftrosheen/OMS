@@ -150,12 +150,12 @@
         font-size: 2rem;
         font-weight: 700;
         margin: 0 0 0.25rem 0;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
     }
 
     .page-subtitle {
         font-size: 1rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0;
     }
 
@@ -176,8 +176,8 @@
     .spinner {
         width: 3rem;
         height: 3rem;
-        border: 4px solid var(--color-gray-200, #e5e7eb);
-        border-top-color: var(--color-primary, #0066cc);
+        border: 4px solid var(--color-gray-200, var(--border));
+        border-top-color: var(--color-primary, var(--brand));
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
     }

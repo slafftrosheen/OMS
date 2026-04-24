@@ -376,13 +376,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .remove-btn:hover {
     background: var(--danger);
     border-color: var(--danger);
-    color: white;
+    color: var(--bg-0);
   }
 
   .profile-sections {

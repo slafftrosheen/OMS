@@ -1,6 +1,6 @@
 <!-- src/lib/profiles/components/fields/MultiSelectChips.svelte -->
 <script lang="ts">
-  import { X } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {
     value?: string[];
@@ -110,18 +110,18 @@
     gap: var(--space-xs, 4px);
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .required {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
     margin-left: 2px;
   }
 
   .max-info {
     font-size: var(--text-xs, 0.75rem);
     font-weight: 400;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
   }
 
   .chips-container {
@@ -136,25 +136,25 @@
     align-items: center;
     gap: var(--space-xs, 4px);
     padding: var(--space-xs, 4px) var(--space-md, 12px);
-    background: var(--bg-2, #f9fafb);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-2, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-full, 9999px);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     font-size: var(--text-sm, 0.875rem);
     font-weight: 500;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .chip:hover:not(:disabled):not(.disabled-chip) {
-    border-color: var(--primary, #3b82f6);
-    background: var(--bg-3, #f3f4f6);
+    border-color: var(--primary, var(--brand));
+    background: var(--bg-3, var(--bg-2));
   }
 
   .chip.selected {
-    background: var(--primary, #3b82f6);
-    border-color: var(--primary, #3b82f6);
-    color: white;
+    background: var(--primary, var(--brand));
+    border-color: var(--primary, var(--brand));
+    color: var(--bg-0);
     padding-right: var(--space-lg, 16px);
   }
 
@@ -181,15 +181,15 @@
     align-items: center;
     gap: var(--space-xs, 4px);
     padding: var(--space-sm, 8px);
-    background: var(--bg-2, #f9fafb);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-2, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
   }
 
   .selected-label {
     font-size: var(--text-xs, 0.75rem);
     font-weight: 600;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     margin-right: var(--space-xs, 4px);
   }
 
@@ -198,8 +198,8 @@
     align-items: center;
     gap: var(--space-xs, 4px);
     padding: 4px 8px;
-    background: var(--primary, #3b82f6);
-    color: white;
+    background: var(--primary, var(--brand));
+    color: var(--bg-0);
     border-radius: var(--radius-full, 9999px);
     font-size: var(--text-xs, 0.75rem);
     font-weight: 600;
@@ -210,7 +210,7 @@
     align-items: center;
     justify-content: center;
     padding: 0;
-    background: rgba(255, 255, 255, 0.2);
+    background: color-mix(in oklab, var(--bg-0) 2%, transparent);
     border: none;
     border-radius: 50%;
     width: 16px;
@@ -220,16 +220,16 @@
   }
 
   .remove-button:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: color-mix(in oklab, var(--bg-0) 3%, transparent);
   }
 
   .error-message {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
     font-size: var(--text-xs, 0.75rem);
   }
 
   .multi-select-chips.error .chips-container {
-    border: 1px solid var(--danger, #dc2626);
+    border: 1px solid var(--danger, var(--error));
     border-radius: var(--radius-md, 6px);
     padding: var(--space-sm, 8px);
   }

@@ -1,15 +1,5 @@
 import type { Badge } from './types';
-import {
-  CircleDashed,
-  Loader,
-  OctagonAlert,
-  PackageCheck,
-  CheckCircle2,
-  Flame,
-  PackageMinus,
-  FlaskConical,
-  FileEdit
-} from 'lucide-svelte';
+// TODO: migrate to Icon component
 
 export const BADGE_ICONS: Record<Badge, typeof CircleDashed> = {
   OPEN: CircleDashed,

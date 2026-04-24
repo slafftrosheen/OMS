@@ -1,11 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { base } from '$app/paths';
-	import {
-		Bot, Send, ExternalLink, ClipboardList, Paintbrush,
-		BarChart3, Cpu, Loader2, Trash2, RotateCcw, Sparkles, Building2,
-		Paperclip, Image as ImageIcon, Activity, ChevronDown, ChevronRight, X
-	} from 'lucide-svelte';
+	import Icon from '$lib/ui/Icon.svelte';
 	import { t, locale } from 'svelte-i18n';
 	import { currentUser } from '$lib/auth/authState.svelte';
 
@@ -278,7 +274,7 @@
 >
 	{#if isDragging}
 		<div class="drag-overlay">
-			<ImageIcon size={48} />
+			<Icon name="image" size="sm" />
 			<p>{$t('swarm.drop_hint', { default: 'Drop images or tech manuals here' })}</p>
 		</div>
 	{/if}
@@ -287,7 +283,7 @@
 	<header class="dash-header">
 		<div class="header-left">
 			<div class="header-icon pulse-glow-subtle">
-				<Activity size={24} />
+				<Icon name="activity" size="sm" />
 			</div>
 			<div class="header-text">
 				<h1>{$t('swarm.title', { default: 'Sovereign Swarm' })}</h1>
@@ -308,12 +304,12 @@
 		<div class="header-actions">
 			{#if hasMessages}
 				<button class="action-tag ghost" onclick={clearChat} title={$t('swarm.clear', { default: 'Clear' })}>
-					<Trash2 size={16} />
+					<Icon name="trash-2" size="sm" />
 					<span class="desktop-only">{$t('swarm.clear', { default: 'Clear' })}</span>
 				</button>
 			{/if}
 			<a href="http://100.93.147.108:3000" target="_blank" rel="noopener noreferrer" class="action-tag primary" title={$t('swarm.webui', { default: 'WebUI' })}>
-				<ExternalLink size={16} />
+				<Icon name="external-link" size="sm" />
 				<span class="desktop-only">{$t('swarm.webui', { default: 'WebUI' })}</span>
 			</a>
 		</div>
@@ -324,7 +320,7 @@
 		{#if !hasMessages}
 			<div class="empty-hero">
 				<div class="hero-orb">
-					<Sparkles size={40} />
+					<Icon name="sparkles" size="sm" />
 				</div>
 				<h2>{$t('swarm.awaiting', { default: 'Awaiting Commands' })}</h2>
 				<p>{$t('swarm.upload_hint', { default: 'Upload Dino-Lite PCB images, drop tech manuals, or request CNC workflow optimizations.' })}</p>
@@ -347,7 +343,7 @@
 							<span class="avatar-user">U</span>
 						{/if}
 					{:else}
-						<Bot size={18} />
+						<Icon name="bot" size="md" />
 					{/if}
 				</div>
 				<div class="msg-bubble">
@@ -363,7 +359,7 @@
 						<div class="msg-attachments files">
 							{#each msg.files as file}
 								<div class="msg-file-tag">
-									<Paperclip size={14} /> {file.name}
+									<Icon name="paperclip" size="sm" /> {file.name}
 								</div>
 							{/each}
 						</div>
@@ -374,9 +370,9 @@
 						<div class="thought-process">
 							<button class="thought-toggle" onclick={() => toggleThought(idx)}>
 								{#if thoughtsOpen[idx]}
-									<ChevronDown size={14} />
+									<Icon name="chevron-down" size="sm" />
 								{:else}
-									<ChevronRight size={14} />
+									<Icon name="chevron-right" size="sm" />
 								{/if}
 								<span>{$t('swarm.thought_process', { default: 'AI Thought Process' })}</span>
 							</button>
@@ -406,7 +402,7 @@
 
 		{#if errorMsg}
 			<div class="error-banner">
-				<RotateCcw size={16} />
+				<Icon name="rotate-ccw" size="sm" />
 				<span>{errorMsg}</span>
 				<button class="retry-btn" onclick={() => { errorMsg = ''; sendMessage(chatHistory.at(-1)?.content); }}>{$t('swarm.retry', { default: 'Retry' })}</button>
 			</div>
@@ -431,14 +427,14 @@
 			{#each selectedImages as img, i}
 				<div class="preview-item image">
 					<img src={img} alt="Preview" />
-					<button class="remove-btn" onclick={() => removeImage(i)}><X size={14} /></button>
+					<button class="remove-btn" onclick={() => removeImage(i)}><Icon name="x" size="sm" /></button>
 				</div>
 			{/each}
 			{#each selectedFiles as file, i}
 				<div class="preview-item file">
-					<Paperclip size={14} />
+					<Icon name="paperclip" size="sm" />
 					<span>{file.name}</span>
-					<button class="remove-btn" onclick={() => removeFile(i)}><X size={14} /></button>
+					<button class="remove-btn" onclick={() => removeFile(i)}><Icon name="x" size="sm" /></button>
 				</div>
 			{/each}
 		</div>
@@ -448,7 +444,7 @@
 	<div class="input-bar">
 		<div class="input-wrap">
 			<label class="attach-btn" title="Attach image or file">
-				<Paperclip size={20} />
+				<Icon name="paperclip" size="sm" />
 				<input type="file" multiple onchange={handleFileInput} style="display: none;" />
 			</label>
 			<textarea
@@ -462,9 +458,9 @@
 			></textarea>
 			<button class="send-btn" onclick={() => sendMessage()} disabled={isTyping || (!inputValue.trim() && selectedImages.length === 0 && selectedFiles.length === 0)} title="Transmit">
 				{#if isTyping}
-					<Loader2 size={20} class="spin" />
+					<Icon name="loader-2" size="sm" />
 				{:else}
-					<Send size={20} />
+					<Icon name="send" size="sm" />
 				{/if}
 			</button>
 		</div>
@@ -499,7 +495,7 @@
 		background: color-mix(in oklab, var(--brand, var(--accent-1)) 10%, transparent);
 		backdrop-filter: blur(4px);
 		border: 2px dashed var(--brand, var(--accent-1));
-		z-index: 50;
+		z-index: var(--z-overlay);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -628,7 +624,7 @@
 		border: 1px solid var(--border);
 		background: var(--bg-0);
 		color: var(--text);
-		transition: all 0.2s ease;
+		transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
 	}
 	.action-tag:hover {
 		background: var(--bg-2);
@@ -888,7 +884,7 @@
 		padding: 4px 8px;
 		border-radius: var(--radius-sm);
 		background: var(--danger);
-		color: white;
+		color: var(--bg-0);
 		border: none;
 		cursor: pointer;
 	}
@@ -913,7 +909,7 @@
 		font-size: var(--font-size-sm);
 		cursor: pointer;
 		text-align: left;
-		transition: all 0.2s ease;
+		transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
 	}
 	.qa-btn:hover:not(:disabled) {
 		background: var(--bg-2);
@@ -969,7 +965,7 @@
 	}
 	.remove-btn:hover {
 		background: var(--danger);
-		color: white;
+		color: var(--bg-0);
 	}
 
 	/* ── Input bar ─────────────────────────────────────────────────────── */
@@ -987,7 +983,7 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		padding: 8px;
-		transition: all 0.2s ease;
+		transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
 	}
 	.input-wrap:focus-within {
 		border-color: var(--brand, var(--accent-1));
@@ -1038,7 +1034,7 @@
 		background: var(--brand, var(--accent-1));
 		color: var(--bg-0);
 		cursor: pointer;
-		transition: all 0.2s ease;
+		transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
 	}
 	.send-btn:hover:not(:disabled) {
 		transform: scale(1.05);

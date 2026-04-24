@@ -93,10 +93,10 @@
   .thickness-select {
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid var(--border, #d1d5db);
+    border: 1px solid var(--border, var(--border));
     border-radius: 8px;
     font-size: 14px;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
     font-family: inherit;
     background: var(--input-bg, white);
     transition: all 0.2s;
@@ -105,13 +105,13 @@
 
   .thickness-select:focus {
     outline: none;
-    border-color: #ff6b35;
-    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 10%, transparent);
   }
 
   .thickness-select:disabled {
-    background: var(--bg-disabled, #f3f4f6);
-    color: var(--text-muted, #9ca3af);
+    background: var(--bg-disabled, var(--bg-2));
+    color: var(--text-muted, var(--muted));
     cursor: not-allowed;
   }
 
@@ -125,7 +125,7 @@
     justify-content: center;
     width: 100%;
     padding: 12px 16px;
-    border: 1px solid var(--border, #d1d5db);
+    border: 1px solid var(--border, var(--border));
     border-radius: 8px;
     background: var(--input-bg, white);
     min-height: 44px;
@@ -134,6 +134,6 @@
   .thickness-value {
     font-size: 1.2rem;
     font-weight: bold;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 </style>

@@ -5,7 +5,7 @@
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
-  import { Save, ArrowLeft, AlertCircle, Plus, Trash2, Upload, FileText, Eye, Calendar, User, CheckCircle, XCircle, Clock } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import Profile7stVisual from '$lib/profiles/components/Profile7stVisual.svelte';
   import { createId } from '$lib/utils/id';
   import { currentUser } from '$lib/auth/authState.svelte';
@@ -683,12 +683,12 @@
     text-transform: uppercase;
   }
 
-  .status-draft { background: #fef3c7; color: #92400e; }
-  .status-pending { background: #dbeafe; color: #1e40af; }
-  .status-approved { background: #d1fae5; color: #065f46; }
-  .status-rejected { background: #fee2e2; color: #991b1b; }
-  .status-production { background: #e0e7ff; color: #3730a3; }
-  .status-completed { background: #d1fae5; color: #065f46; }
+  .status-draft { background: var(--warn-soft); color: color-mix(in oklab, var(--warn) 65%, black); }
+  .status-pending { background: var(--brand-soft); color: color-mix(in oklab, var(--brand) 85%, black); }
+  .status-approved { background: var(--ok-soft); color: color-mix(in oklab, var(--ok) 60%, black); }
+  .status-rejected { background: var(--error-soft); color: color-mix(in oklab, var(--error) 85%, black); }
+  .status-production { background: var(--brand-soft); color: color-mix(in oklab, var(--brand) 80%, black); }
+  .status-completed { background: var(--ok-soft); color: color-mix(in oklab, var(--ok) 60%, black); }
 
   .header-actions {
     display: flex;
@@ -704,13 +704,13 @@
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     border: 1px solid transparent;
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
-    color: white;
+    background: linear-gradient(135deg, var(--brand), var(--brand));
+    color: var(--bg-0);
   }
 
   .btn-secondary {
@@ -720,13 +720,13 @@
   }
 
   .btn-success {
-    background: linear-gradient(135deg, #10b981, #059669);
-    color: white;
+    background: linear-gradient(135deg, var(--ok), color-mix(in oklab, var(--ok) 85%, black));
+    color: var(--bg-0);
   }
 
   .btn-danger {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
-    color: white;
+    background: linear-gradient(135deg, var(--error), var(--error));
+    color: var(--bg-0);
   }
 
   .btn:disabled {
@@ -770,15 +770,15 @@
   }
 
   .alert-error {
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
+    background: var(--error-soft);
+    color: color-mix(in oklab, var(--error) 85%, black);
+    border: 1px solid color-mix(in oklab, var(--error) 30%, transparent);
   }
 
   .alert-success {
-    background: #d1fae5;
-    color: #065f46;
-    border: 1px solid #a7f3d0;
+    background: var(--ok-soft);
+    color: color-mix(in oklab, var(--ok) 60%, black);
+    border: 1px solid color-mix(in oklab, var(--ok) 35%, transparent);
   }
 
   /* Form Sections */
@@ -851,7 +851,7 @@
   .form-group textarea:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 10%, transparent);
   }
 
   .form-group input:disabled,
@@ -906,7 +906,7 @@
   .remove-file {
     background: none;
     border: none;
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
     cursor: pointer;
     padding: 4px;
   }
@@ -921,7 +921,7 @@
     border: 2px dashed var(--border);
     border-radius: 12px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .file-upload-zone:hover {
@@ -1002,7 +1002,7 @@
     border-radius: 6px;
     cursor: pointer;
     color: var(--text-muted);
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .action-btn:hover {
@@ -1010,8 +1010,8 @@
   }
 
   .action-btn.danger:hover {
-    color: var(--danger, #dc2626);
-    background: #fee2e2;
+    color: var(--danger, var(--error));
+    background: var(--error-soft);
   }
 
   .collapse-icon {

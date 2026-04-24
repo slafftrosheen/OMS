@@ -330,11 +330,11 @@
     .modal-backdrop {
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.5);
+        background: color-mix(in oklab, var(--bg-0) 55%, transparent);
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 1000;
+        z-index: var(--z-modal);
     }
 
     .modal {
@@ -352,7 +352,7 @@
         justify-content: space-between;
         align-items: center;
         padding: 20px;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid var(--border);
     }
 
     .modal-header h2 {
@@ -360,7 +360,7 @@
         align-items: center;
         gap: 10px;
         margin: 0;
-        color: #f59e0b;
+        color: var(--warn);
     }
 
     .close-btn {
@@ -368,7 +368,7 @@
         border: none;
         font-size: 2rem;
         cursor: pointer;
-        color: #6b7280;
+        color: var(--ink-tertiary);
     }
 
     .modal-body {
@@ -383,7 +383,7 @@
         align-items: center;
         justify-content: center;
         padding: 60px 20px;
-        color: #10b981;
+        color: var(--ok);
     }
 
     .no-conflicts p {
@@ -402,20 +402,20 @@
         align-items: center;
         gap: 15px;
         padding: 15px;
-        background: #fffbeb;
-        border: 1px solid #fbbf24;
+        background: var(--warn-soft);
+        border: 1px solid color-mix(in oklab, var(--warn) 75%, var(--bg-0));
         border-radius: 8px;
         cursor: pointer;
         transition: all 0.2s;
     }
 
     .conflict-item:hover {
-        background: #fef3c7;
+        background: var(--warn-soft);
         transform: translateX(5px);
     }
 
     .conflict-icon {
-        color: #f59e0b;
+        color: var(--warn);
     }
 
     .conflict-info {
@@ -429,7 +429,7 @@
     }
 
     .conflict-info small {
-        color: #6b7280;
+        color: var(--ink-tertiary);
         font-size: 0.875rem;
     }
 
@@ -447,7 +447,7 @@
 
     .back-btn {
         padding: 8px 16px;
-        background: #f3f4f6;
+        background: var(--bg-2);
         border: none;
         border-radius: 6px;
         cursor: pointer;
@@ -455,7 +455,7 @@
     }
 
     .back-btn:hover {
-        background: #e5e7eb;
+        background: var(--border);
     }
 
     .resolver-header h3 {
@@ -467,7 +467,7 @@
         display: flex;
         gap: 15px;
         padding: 15px;
-        background: #f9fafb;
+        background: var(--bg-2);
         border-radius: 8px;
     }
 
@@ -492,7 +492,7 @@
     }
 
     .version-panel {
-        border: 2px solid #e5e7eb;
+        border: 2px solid var(--border);
         border-radius: 8px;
         padding: 15px;
         background: white;
@@ -500,8 +500,8 @@
 
     .version-panel.merged {
         grid-column: 1 / -1;
-        background: #ecfdf5;
-        border-color: #10b981;
+        background: var(--ok-soft);
+        border-color: var(--ok);
     }
 
     .version-panel h4 {
@@ -511,7 +511,7 @@
         margin: 0 0 15px 0;
         font-size: 0.938rem;
         font-weight: 600;
-        color: #374151;
+        color: var(--ink-secondary);
     }
 
     .version-content {
@@ -524,14 +524,14 @@
         display: flex;
         gap: 8px;
         padding: 8px;
-        background: #f9fafb;
+        background: var(--bg-2);
         border-radius: 4px;
         font-size: 0.875rem;
     }
 
     .field-key {
         font-weight: 600;
-        color: #6b7280;
+        color: var(--ink-tertiary);
         min-width: 100px;
     }
 
@@ -542,8 +542,8 @@
 
     .use-btn {
         padding: 4px 12px;
-        background: #3b82f6;
-        color: white;
+        background: var(--brand);
+        color: var(--bg-0);
         border: none;
         border-radius: 4px;
         font-size: 0.75rem;
@@ -553,20 +553,20 @@
     }
 
     .use-btn:hover {
-        background: #2563eb;
+        background: var(--brand);
     }
 
     .resolver-actions {
         display: flex;
         justify-content: flex-end;
         padding-top: 15px;
-        border-top: 1px solid #e5e7eb;
+        border-top: 1px solid var(--border);
     }
 
     .resolve-btn {
         padding: 12px 24px;
-        background: #10b981;
-        color: white;
+        background: var(--ok);
+        color: var(--bg-0);
         border: none;
         border-radius: 8px;
         font-weight: 600;
@@ -575,11 +575,11 @@
     }
 
     .resolve-btn:hover:not(:disabled) {
-        background: #059669;
+        background: color-mix(in oklab, var(--ok) 85%, black);
     }
 
     .resolve-btn:disabled {
-        background: #9ca3af;
+        background: var(--muted);
         cursor: not-allowed;
     }
 </style>

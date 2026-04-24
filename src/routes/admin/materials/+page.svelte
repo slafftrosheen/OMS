@@ -3,7 +3,7 @@
   import { t } from 'svelte-i18n';
   import { base } from '$app/paths';
   import { currentUser } from '$lib/auth/authState.svelte';
-  import { Package, Plus, Edit2, Trash2, Search, X, Check, AlertCircle, ChevronDown } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   interface Material {
     id: number;
@@ -711,8 +711,8 @@
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
-    background: var(--accent, #3b82f6);
-    color: white;
+    background: var(--accent, var(--brand));
+    color: var(--bg-0);
     border: none;
     border-radius: 6px;
     font-size: 14px;
@@ -720,7 +720,7 @@
     cursor: pointer;
   }
 
-  .btn-primary:hover:not(:disabled) { background: var(--accent-hover, #2563eb); }
+  .btn-primary:hover:not(:disabled) { background: var(--accent-hover, var(--brand)); }
   .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .btn-secondary {
@@ -744,8 +744,8 @@
     font-size: 14px;
   }
 
-  .alert-success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
-  .alert-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+  .alert-success { background: var(--ok-soft); color: color-mix(in oklab, var(--ok) 60%, black); border: 1px solid color-mix(in oklab, var(--ok) 35%, transparent); }
+  .alert-error { background: var(--error-soft); color: color-mix(in oklab, var(--error) 85%, black); border: 1px solid color-mix(in oklab, var(--error) 30%, transparent); }
 
   .controls {
     display: flex;
@@ -834,7 +834,7 @@
   }
 
   .material-card:hover {
-    border-color: var(--accent, #3b82f6);
+    border-color: var(--accent, var(--brand));
   }
 
   .material-color {
@@ -887,8 +887,8 @@
   }
 
   .thickness-tag.more {
-    background: var(--accent, #3b82f6);
-    color: white;
+    background: var(--accent, var(--brand));
+    color: var(--bg-0);
   }
 
   .transmittance {
@@ -914,17 +914,17 @@
   }
 
   .btn-icon:hover { background: var(--bg-2); color: var(--text); }
-  .btn-icon.btn-danger:hover { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+  .btn-icon.btn-danger:hover { background: var(--error-soft); color: color-mix(in oklab, var(--error) 85%, black); border-color: color-mix(in oklab, var(--error) 30%, transparent); }
 
   /* Modal */
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: color-mix(in oklab, var(--bg-0) 55%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
     padding: 20px;
   }
 
@@ -995,7 +995,7 @@
 
   .form-group input:focus, .form-group select:focus {
     outline: none;
-    border-color: var(--accent, #3b82f6);
+    border-color: var(--accent, var(--brand));
   }
 
   .form-row {

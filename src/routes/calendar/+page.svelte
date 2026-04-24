@@ -5,7 +5,7 @@
   import { ordersStore } from '$lib/order/orderState.svelte';
   import type { Order } from '$lib/order/types';
   import { blankStages } from '$lib/order/stages';
-  import { Calendar, ChevronLeft, ChevronRight, Plus, Truck, Download, Filter, X, Check } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import Badge from '$lib/ui/Badge.svelte';
   import { badgeTone } from '$lib/order/badges';
   import { downloadCSV, toCSV } from '$lib/export/csv';
@@ -257,16 +257,16 @@
   <!-- Top Bar -->
   <div class="calendar-topbar">
     <div class="topbar-left">
-      <Calendar size={24} />
+      <Icon name="calendar" size="md" />
       <h1>Loading Schedule</h1>
     </div>
     <div class="topbar-right">
       <button class="btn-secondary" onclick={() => selectedDate && (showNewLoadingDayModal = true)} disabled={!selectedDate}>
-        <Plus size={18} />
+        <Icon name="plus" size="sm" />
         Mark Loading Day
       </button>
       <button class="btn-ghost" onclick={() => exportDayCSV()} disabled={!selectedDate}>
-        <Download size={18} />
+        <Icon name="download" size="sm" />
         Export CSV
       </button>
     </div>
@@ -278,11 +278,11 @@
     <div class="calendar-section">
       <div class="calendar-header">
         <button class="nav-btn" onclick={prev}>
-          <ChevronLeft size={20} />
+          <Icon name="chevron-left" size="sm" />
         </button>
         <h2 class="month-title">{monthName} {y}</h2>
         <button class="nav-btn" onclick={next}>
-          <ChevronRight size={20} />
+          <Icon name="chevron-right" size="sm" />
         </button>
       </div>
       
@@ -317,7 +317,7 @@
               {/if}
               {#if isLoading}
                 <div class="loading-indicator">
-                  <Truck size={12} />
+                  <Icon name="truck" size="sm" />
                 </div>
               {/if}
             </button>
@@ -337,7 +337,7 @@
       
       {#if selectedDate && selectedLoadingDay}
         <div class="loading-day-info">
-          <Truck size={16} />
+          <Icon name="truck" size="sm" />
           <span>Loading Day</span>
           {#if selectedLoadingDay.carrier}
             <span class="carrier-badge">{selectedLoadingDay.carrier}</span>
@@ -349,10 +349,10 @@
         {#if selectedDate}
           {#if selectedDayOrders.length === 0}
             <div class="empty-state">
-              <Calendar size={48} />
+              <Icon name="calendar" size="md" />
               <p>No orders scheduled for this date</p>
               <button class="btn-secondary" onclick={openAddOrderModal}>
-                <Plus size={18} />
+                <Icon name="plus" size="sm" />
                 Add Order to Schedule
               </button>
             </div>
@@ -364,7 +364,7 @@
                     <span class="order-id">{order.poNumber || order.id}</span>
                     <div class="order-actions">
                       <button class="btn-icon-sm" onclick={() => removeOrderFromLoadingDate(order.id)} title="Remove from schedule">
-                        <X size={14} />
+                        <Icon name="x" size="sm" />
                       </button>
                     </div>
                   </div>
@@ -377,13 +377,13 @@
               {/each}
             </div>
             <button class="btn-secondary add-more-btn" onclick={openAddOrderModal}>
-              <Plus size={16} />
+              <Icon name="plus" size="sm" />
               Add More Orders
             </button>
           {/if}
         {:else}
           <div class="empty-state">
-            <Calendar size={48} />
+            <Icon name="calendar" size="md" />
             <p>Select a date to view scheduled orders</p>
           </div>
         {/if}
@@ -456,7 +456,7 @@
       <div class="modal-header">
         <h3 id="add-order-title">Add Order to {selectedDate}</h3>
         <button class="btn-icon" onclick={() => showAddOrderModal = false} aria-label="Close">
-          <X size={20} />
+          <Icon name="x" size="sm" />
         </button>
       </div>
       <div class="modal-body">
@@ -503,7 +503,7 @@
       <div class="modal-header">
         <h3 id="loading-day-title">Mark Loading Day - {selectedDate}</h3>
         <button class="btn-icon" onclick={() => showNewLoadingDayModal = false} aria-label="Close">
-          <X size={20} />
+          <Icon name="x" size="sm" />
         </button>
       </div>
       <div class="modal-body">
@@ -519,7 +519,7 @@
       <div class="modal-footer">
         <button class="btn-ghost" onclick={() => showNewLoadingDayModal = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
         <button class="btn-secondary" onclick={createLoadingDay}>
-          <Truck size={16} />
+          <Icon name="truck" size="sm" />
           Create Loading Day
         </button>
       </div>
@@ -574,7 +574,7 @@
     border-radius: var(--radius-md);
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     border: 1px solid var(--border);
     background: var(--bg-1);
     color: var(--text);
@@ -582,7 +582,7 @@
   
   .btn-secondary {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     border-color: var(--accent-1);
   }
   
@@ -674,7 +674,7 @@
     color: var(--text);
     cursor: pointer;
     position: relative;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -699,7 +699,7 @@
   
   .day-cell.selected {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     border-color: var(--accent-1);
   }
   
@@ -716,7 +716,7 @@
     top: 4px;
     right: 4px;
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     font-size: 0.625rem;
     padding: 2px 4px;
     border-radius: 999px;
@@ -793,12 +793,12 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--bg-0);
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
   
   .order-card:hover {
     border-color: var(--accent-1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
   
   .order-header {
@@ -868,7 +868,7 @@
     color: var(--text);
     cursor: pointer;
     font-size: 0.875rem;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
   
   .filter-btn:hover {
@@ -877,7 +877,7 @@
   
   .filter-btn.active {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     border-color: var(--accent-1);
   }
   
@@ -957,7 +957,7 @@
   .carrier-badge {
     padding: 2px 8px;
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     border-radius: var(--radius-sm);
     font-size: 0.75rem;
   }
@@ -989,7 +989,7 @@
 
   .btn-icon-sm:hover {
     background: var(--danger);
-    color: white;
+    color: var(--bg-0);
     border-color: var(--danger);
   }
 
@@ -997,11 +997,11 @@
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: color-mix(in oklab, var(--bg-0) 45%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 100;
+    z-index: var(--z-overlay);
   }
 
   .modal {
@@ -1110,7 +1110,7 @@
   }
 
   .available-order :global(.add-icon) {
-    color: var(--success, #22c55e);
+    color: var(--success, var(--ok));
     opacity: 0;
     transition: opacity 0.15s;
   }

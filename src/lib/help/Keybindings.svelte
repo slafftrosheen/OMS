@@ -37,7 +37,7 @@
   display:grid;
   place-items:center;
   background:color-mix(in oklab,var(--bg-0) 35%, black 40%);
-  z-index:90
+  z-index: var(--z-modal)
 }
 .panel{
   width:min(640px,94vw);

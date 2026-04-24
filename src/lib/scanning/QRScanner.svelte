@@ -5,7 +5,7 @@
  */
 
 import { onMount, onDestroy } from 'svelte';
-import { Camera, CameraOff, Loader2, CheckCircle, AlertCircle } from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
 let {
   station = null,
@@ -305,7 +305,7 @@ function handleClose() {
     border: 3px solid var(--accent-1);
     border-radius: 12px;
     box-shadow: 
-      0 0 0 9999px rgba(0, 0, 0, 0.5),
+      0 0 0 9999px color-mix(in oklab, var(--bg-0) 55%, transparent),
       0 0 20px var(--accent-1);
     animation: pulse 2s ease-in-out infinite;
   }
@@ -318,8 +318,8 @@ function handleClose() {
   .scan-hint {
     margin-top: 2rem;
     padding: 0.5rem 1rem;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
+    background: oklch(0% 0 0 / 70%);
+    color: var(--bg-0);
     border-radius: 4px;
     font-size: 0.875rem;
   }
@@ -333,8 +333,8 @@ function handleClose() {
     align-items: center;
     justify-content: center;
     gap: 1rem;
-    background: rgba(0, 0, 0, 0.9);
-    color: white;
+    background: oklch(0% 0 0 / 90%);
+    color: var(--bg-0);
   }
 
   .processing-overlay p,
@@ -374,7 +374,7 @@ function handleClose() {
     gap: 0.5rem;
     padding: 0.75rem 1rem;
     background: var(--danger);
-    color: white;
+    color: var(--bg-0);
     border-radius: 6px;
     font-size: 0.875rem;
   }
@@ -410,7 +410,7 @@ function handleClose() {
 
   .btn-primary {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
   }
 
   .btn-primary:hover {

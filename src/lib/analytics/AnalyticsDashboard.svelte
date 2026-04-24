@@ -5,18 +5,7 @@
  */
 
 import { onMount, onDestroy } from 'svelte';
-import { 
-  TrendingUp, 
-  TrendingDown,
-  Package,
-  Users,
-  Calendar,
-  Activity,
-  AlertCircle,
-  Star,
-  Camera,
-  RefreshCw
-} from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {
     refreshInterval?: number; // seconds
@@ -409,7 +398,7 @@ function getChangeIndicator(current: number, previous: number) {
 
   .kpi-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
 
   .card-header {
@@ -433,7 +422,7 @@ function getChangeIndicator(current: number, previous: number) {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--bg-0);
   }
 
   .card-value {
@@ -560,7 +549,7 @@ function getChangeIndicator(current: number, previous: number) {
   .btn-primary {
     padding: 0.5rem 1rem;
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     border: none;
     border-radius: 6px;
     font-size: 0.875rem;
@@ -587,7 +576,7 @@ function getChangeIndicator(current: number, previous: number) {
 
     .customer-revenue {
         font-weight: 700;
-        color: #10b981;
+        color: var(--ok);
     }
 
     .materials-grid {
@@ -599,14 +588,14 @@ function getChangeIndicator(current: number, previous: number) {
 
     .materials-section {
         background: white;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border);
         border-radius: 12px;
         padding: 20px;
     }
 
     .materials-section.warning {
-        background: #fffbeb;
-        border-color: #fbbf24;
+        background: var(--warn-soft);
+        border-color: color-mix(in oklab, var(--warn) 75%, var(--bg-0));
     }
 
     .materials-section h3 {
@@ -629,21 +618,21 @@ function getChangeIndicator(current: number, previous: number) {
         justify-content: space-between;
         align-items: center;
         padding: 10px;
-        background: #f9fafb;
+        background: var(--bg-2);
         border-radius: 6px;
     }
 
     .materials-section.warning .material-item {
-        background: #fef3c7;
+        background: var(--warn-soft);
     }
 
     .material-item .count {
-        color: #6b7280;
+        color: var(--ink-tertiary);
         font-size: 0.875rem;
     }
 
     .material-item .quantity {
-        color: #ef4444;
+        color: var(--error);
         font-weight: 600;
     }
 
@@ -656,7 +645,7 @@ function getChangeIndicator(current: number, previous: number) {
 
     .perf-card {
         background: white;
-        border: 2px solid #e5e7eb;
+        border: 2px solid var(--border);
         border-radius: 12px;
         padding: 20px;
         text-align: center;
@@ -665,14 +654,14 @@ function getChangeIndicator(current: number, previous: number) {
     .perf-card h4 {
         margin: 0 0 10px 0;
         font-size: 0.875rem;
-        color: #6b7280;
+        color: var(--ink-tertiary);
         font-weight: 600;
     }
 
     .perf-value {
         font-size: 2rem;
         font-weight: 700;
-        color: #3b82f6;
+        color: var(--brand);
     }
     */
 

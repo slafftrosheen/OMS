@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { FAQItem } from '../types';
   import Badge from '$lib/ui/Badge.svelte';
-  import { Eye } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   let {
     item,

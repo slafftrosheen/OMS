@@ -3,7 +3,7 @@
   import { stopPropagation } from 'svelte/legacy';
 
   import { onMount } from 'svelte';
-  import { Search, X, Palette } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import type { ColorSystem } from '$lib/profiles/types';
 
   interface Props {
@@ -215,11 +215,11 @@
   .label {
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .required {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
     margin-left: 2px;
   }
 
@@ -232,9 +232,9 @@
 
   .color-preview {
     border-radius: var(--radius-md, 6px);
-    border: 2px solid var(--border, #e5e7eb);
+    border: 2px solid var(--border, var(--border));
     flex-shrink: 0;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: inset 0 1px 3px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
 
   .preview-sm { width: 32px; height: 32px; }
@@ -247,18 +247,18 @@
     align-items: center;
     gap: var(--space-sm, 8px);
     padding: var(--space-sm, 8px) var(--space-md, 12px);
-    background: var(--bg-1, #ffffff);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-1, var(--bg-0));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     min-height: 44px;
     position: relative;
   }
 
   .picker-button:hover:not(:disabled) {
-    border-color: var(--primary, #3b82f6);
-    background: var(--bg-2, #f9fafb);
+    border-color: var(--primary, var(--brand));
+    background: var(--bg-2, var(--bg-2));
   }
 
   .picker-button:disabled {
@@ -267,7 +267,7 @@
   }
 
   .picker-button.open {
-    border-color: var(--primary, #3b82f6);
+    border-color: var(--primary, var(--brand));
   }
 
   .selected-color {
@@ -281,7 +281,7 @@
     width: 28px;
     height: 28px;
     border-radius: var(--radius-sm, 4px);
-    border: 1px solid var(--border, #e5e7eb);
+    border: 1px solid var(--border, var(--border));
     flex-shrink: 0;
   }
 
@@ -299,11 +299,11 @@
 
   .color-name {
     font-size: var(--text-xs, 0.75rem);
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
   }
 
   .placeholder {
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     font-size: var(--text-sm, 0.875rem);
   }
 
@@ -314,17 +314,17 @@
     width: 24px;
     height: 24px;
     padding: 0;
-    background: var(--bg-3, #f3f4f6);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-3, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-full, 9999px);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .clear-button:hover {
-    background: var(--danger-bg, #fee2e2);
-    border-color: var(--danger, #dc2626);
-    color: var(--danger, #dc2626);
+    background: var(--danger-bg, var(--error-soft));
+    border-color: var(--danger, var(--error));
+    color: var(--danger, var(--error));
   }
 
   .color-picker-panel {
@@ -332,11 +332,11 @@
     top: calc(100% + 4px);
     left: 0;
     right: 0;
-    background: var(--bg-1, #ffffff);
-    border: 1px solid var(--primary, #3b82f6);
+    background: var(--bg-1, var(--bg-0));
+    border: 1px solid var(--primary, var(--brand));
     border-radius: var(--radius-md, 6px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-    z-index: 100;
+    box-shadow: 0 8px 24px color-mix(in oklab, var(--bg-0) 20%, transparent);
+    z-index: var(--z-overlay);
     max-height: 480px;
     display: flex;
     flex-direction: column;
@@ -347,7 +347,7 @@
     align-items: center;
     gap: var(--space-sm, 8px);
     padding: var(--space-sm, 8px) var(--space-md, 12px);
-    border-bottom: 1px solid var(--border, #e5e7eb);
+    border-bottom: 1px solid var(--border, var(--border));
   }
 
   .search-input {
@@ -355,12 +355,12 @@
     border: none;
     background: none;
     font-size: var(--text-sm, 0.875rem);
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
     outline: none;
   }
 
   .search-input::placeholder {
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
   }
 
   .colors-grid {
@@ -368,7 +368,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 1px;
-    background: var(--border, #e5e7eb);
+    background: var(--border, var(--border));
     max-height: 400px;
   }
 
@@ -377,7 +377,7 @@
     align-items: center;
     gap: var(--space-sm, 8px);
     padding: var(--space-sm, 8px) var(--space-md, 12px);
-    background: var(--bg-1, #ffffff);
+    background: var(--bg-1, var(--bg-0));
     border: none;
     cursor: pointer;
     transition: background 0.15s ease;
@@ -385,19 +385,19 @@
   }
 
   .color-item:hover {
-    background: var(--bg-2, #f9fafb);
+    background: var(--bg-2, var(--bg-2));
   }
 
   .color-item.selected {
-    background: var(--primary-bg, #dbeafe);
-    border-left: 3px solid var(--primary, #3b82f6);
+    background: var(--primary-bg, var(--brand-soft));
+    border-left: 3px solid var(--primary, var(--brand));
   }
 
   .color-item-swatch {
     width: 36px;
     height: 36px;
     border-radius: var(--radius-sm, 4px);
-    border: 1px solid var(--border, #e5e7eb);
+    border: 1px solid var(--border, var(--border));
     flex-shrink: 0;
   }
 
@@ -417,7 +417,7 @@
 
   .color-item-name {
     font-size: var(--text-xs, 0.75rem);
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -427,26 +427,26 @@
     grid-column: 1 / -1;
     padding: var(--space-xl, 24px);
     text-align: center;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     font-size: var(--text-sm, 0.875rem);
-    background: var(--bg-1, #ffffff);
+    background: var(--bg-1, var(--bg-0));
   }
 
   .error-message {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
     font-size: var(--text-xs, 0.75rem);
     margin-top: 2px;
   }
 
   .color-ral.error .picker-button {
-    border-color: var(--danger, #dc2626);
+    border-color: var(--danger, var(--error));
   }
 
   .loading-spinner {
     width: 16px;
     height: 16px;
-    border: 2px solid var(--border, #e5e7eb);
-    border-top-color: var(--primary, #3b82f6);
+    border: 2px solid var(--border, var(--border));
+    border-top-color: var(--primary, var(--brand));
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
@@ -461,15 +461,15 @@
   }
 
   .colors-grid::-webkit-scrollbar-track {
-    background: var(--bg-2, #f9fafb);
+    background: var(--bg-2, var(--bg-2));
   }
 
   .colors-grid::-webkit-scrollbar-thumb {
-    background: var(--border, #e5e7eb);
+    background: var(--border, var(--border));
     border-radius: var(--radius-sm, 4px);
   }
 
   .colors-grid::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted, #6b7280);
+    background: var(--text-muted, var(--ink-tertiary));
   }
 </style>

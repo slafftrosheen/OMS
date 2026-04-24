@@ -17,7 +17,7 @@
   import Badge from '$lib/ui/Badge.svelte';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { dragging } from '$lib/dnd';
-  import { Plus, Download, Activity, AlertCircle, FilePlus, Filter, RefreshCw, Eye, Edit, Trash2, MoreVertical, Search, ChevronLeft, ChevronRight, Package } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import KpiCard from '$lib/ui/KpiCard.svelte';
 
   type OrderRow = {
@@ -190,7 +190,7 @@
 {#if errorMessage}
   <div class="error-banner" role="alert">
     <div class="error-content">
-      <AlertCircle size={20} />
+      <Icon name="alert-circle" size="md" />
       <div class="error-text">
         <strong>Error:</strong> {errorMessage}
       </div>
@@ -215,16 +215,16 @@
   <div class="header-actions">
     {#if isSuperAdmin}
       <button class="btn btn-primary" onclick={createNewOrder}>
-        <Plus size={18} />
+        <Icon name="plus" size="sm" />
         Create Draft Order
       </button>
     {/if}
     <button class="btn btn-secondary" onclick={refresh} disabled={refreshing}>
-      <span class:spinning={refreshing}><RefreshCw size={18} /></span>
+      <span class:spinning={refreshing}><Icon name="refresh-cw" size="sm" /></span>
       Refresh
     </button>
     <button class="btn btn-ghost" onclick={exportToPDF}>
-      <Download size={18} />
+      <Icon name="download" size="sm" />
       Export
     </button>
   </div>
@@ -259,7 +259,7 @@
   <div class="filter-bar">
     <div class="filter-left">
       <div class="search-box">
-        <Search size={18} />
+        <Icon name="search" size="sm" />
         <Input bind:value={q} placeholder={$t('orderLists.filter_placeholder')} ariaLabel={$t('orderLists.filter_label')} />
       </div>
       <div class="status-filters">
@@ -371,11 +371,11 @@
               <td>
                 <div class="actions-cell">
                   <a href={row.href} class="action-icon" title="View Order">
-                    <Eye size={16} />
+                    <Icon name="eye" size="sm" />
                   </a>
                   {#if isAdmin}
                     <a href="{base}/orders/{row.id}/edit" class="action-icon" title="Edit Order">
-                      <Edit size={16} />
+                      <Icon name="edit" size="sm" />
                     </a>
                   {/if}
                 </div>
@@ -429,7 +429,7 @@
                   <div class="spinner" style="margin: 0 auto;"></div>
                 {:else if errorMessage}
                   <div class="empty-state">
-                    <AlertCircle size={48} class="empty-state-icon" />
+                    <Icon name="alert-circle" size="xl" />
                     <h3>Unable to load orders</h3>
                     <p>There was a problem loading the orders list.</p>
                     <button class="btn btn-primary" onclick={refresh}>
@@ -438,7 +438,7 @@
                   </div>
                 {:else}
                   <div class="empty-state">
-                    <Package size={48} class="empty-state-icon" />
+                    <Icon name="package" size="xl" />
                     <h3>{$t('orderLists.empty')}</h3>
                     <p>No orders match your current filters.</p>
                   </div>
@@ -471,7 +471,7 @@
           onclick={() => currentPage--}
           title="Previous page"
         >
-          <ChevronLeft size={18} />
+          <Icon name="chevron-left" size="sm" />
         </button>
         <span class="pagination-current">
           Page {currentPage} of {totalPages}
@@ -482,7 +482,7 @@
           onclick={() => currentPage++}
           title="Next page"
         >
-          <ChevronRight size={18} />
+          <Icon name="chevron-right" size="sm" />
         </button>
         <button 
           class="pagination-btn" 
@@ -536,7 +536,7 @@
   .page-subtitle {
     margin: 0;
     font-size: 0.9rem;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
   }
 
   .header-actions {
@@ -555,20 +555,20 @@
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     border: 1px solid transparent;
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, #ff6b35, #f7931e);
-    color: white;
+    background: var(--brand);
+    color: var(--bg-0);
     border-color: transparent;
-    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+    box-shadow: 0 2px 8px color-mix(in oklab, var(--brand) 30%, transparent);
   }
 
   .btn-primary:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--brand) 40%, transparent);
   }
 
   .btn-secondary {
@@ -677,7 +677,7 @@
     font-weight: 500;
     cursor: pointer;
     color: var(--text-muted);
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .filter-btn:hover {
@@ -686,8 +686,8 @@
   }
 
   .filter-btn.active {
-    background: var(--primary, #3b82f6);
-    color: white;
+    background: var(--primary, var(--brand));
+    color: var(--bg-0);
   }
 
   .filter-right {
@@ -721,7 +721,7 @@
     letter-spacing: 0.03em;
     position: sticky;
     top: 0;
-    z-index: 10;
+    z-index: var(--z-sticky);
   }
 
   .order-row {
@@ -733,15 +733,15 @@
   }
 
   .order-row.expanded {
-    background: color-mix(in oklab, var(--primary, #3b82f6) 5%, transparent);
+    background: color-mix(in oklab, var(--primary, var(--brand)) 5%, transparent);
   }
 
   .order-row.is-draft {
-    background: color-mix(in oklab, var(--warning, #f59e0b) 5%, transparent);
+    background: color-mix(in oklab, var(--warning, var(--warn)) 5%, transparent);
   }
 
   .order-row.is-draft:hover {
-    background: color-mix(in oklab, var(--warning, #f59e0b) 10%, transparent);
+    background: color-mix(in oklab, var(--warning, var(--warn)) 10%, transparent);
   }
 
   .po-cell {
@@ -751,7 +751,7 @@
   }
 
   .order-link {
-    color: var(--primary, #3b82f6);
+    color: var(--primary, var(--brand));
     text-decoration: none;
     font-weight: 600;
   }
@@ -765,8 +765,8 @@
     font-weight: 700;
     padding: 2px 6px;
     border-radius: 4px;
-    background: var(--warning, #f59e0b);
-    color: white;
+    background: var(--warning, var(--warn));
+    color: var(--bg-0);
   }
 
   .title-cell {
@@ -784,7 +784,7 @@
     padding: 6px 8px;
     color: var(--text-muted);
     border-radius: 4px;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .expand-btn:hover {
@@ -823,7 +823,7 @@
     border-radius: 6px;
     color: var(--text-muted);
     text-decoration: none;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .action-icon:hover {
@@ -922,7 +922,7 @@
     cursor: pointer;
     font-size: 0.9rem;
     color: var(--text);
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .pagination-btn:hover:not(:disabled) {
@@ -1037,7 +1037,7 @@
     top: 60px;
     left: 0;
     right: 0;
-    z-index: 1000;
+    z-index: var(--z-overlay);
     background: var(--danger-light);
     border-bottom: 2px solid var(--danger);
     padding: var(--space-md);
@@ -1092,7 +1092,7 @@
 
   .error-close:hover {
     background: var(--danger);
-    color: white;
+    color: var(--bg-0);
   }
 
   .loading-container {

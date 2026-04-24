@@ -152,7 +152,7 @@
         gap: 0.5rem;
         padding: 1rem;
         background: white;
-        border-top: 1px solid var(--color-border, #e5e7eb);
+        border-top: 1px solid var(--color-border, var(--border));
     }
 
     .reply-preview {
@@ -160,8 +160,8 @@
         justify-content: space-between;
         gap: 1rem;
         padding: 0.75rem;
-        background: var(--color-gray-50, #f9fafb);
-        border-left: 3px solid var(--color-primary, #0066cc);
+        background: var(--color-gray-50, var(--bg-2));
+        border-left: 3px solid var(--color-primary, var(--brand));
         border-radius: 0.375rem;
     }
 
@@ -173,14 +173,14 @@
     .reply-label {
         font-size: 0.75rem;
         font-weight: 600;
-        color: var(--color-primary, #0066cc);
+        color: var(--color-primary, var(--brand));
         display: block;
         margin-bottom: 0.25rem;
     }
 
     .reply-message {
         font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -190,7 +190,7 @@
     .reply-cancel {
         background: none;
         border: none;
-        color: var(--color-gray-400, #9ca3af);
+        color: var(--color-gray-400, var(--muted));
         cursor: pointer;
         font-size: 1.25rem;
         padding: 0;
@@ -200,13 +200,13 @@
         align-items: center;
         justify-content: center;
         border-radius: 0.25rem;
-        transition: all 0.15s ease;
+        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
         flex-shrink: 0;
     }
 
     .reply-cancel:hover {
-        background-color: var(--color-gray-200, #e5e7eb);
-        color: var(--color-gray-700, #374151);
+        background-color: var(--color-gray-200, var(--border));
+        color: var(--color-gray-700, var(--ink-secondary));
     }
 
     .input-wrapper {
@@ -217,7 +217,7 @@
 
     .file-button {
         background: none;
-        border: 1px solid var(--color-border, #e5e7eb);
+        border: 1px solid var(--color-border, var(--border));
         padding: 0.625rem;
         border-radius: 0.375rem;
         cursor: pointer;
@@ -225,19 +225,19 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: all 0.15s ease;
+        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
         flex-shrink: 0;
     }
 
     .file-button:hover {
-        background-color: var(--color-gray-50, #f9fafb);
-        border-color: var(--color-gray-300, #d1d5db);
+        background-color: var(--color-gray-50, var(--bg-2));
+        border-color: var(--color-gray-300, var(--border));
     }
 
     .message-input {
         flex: 1;
         padding: 0.625rem 0.75rem;
-        border: 1px solid var(--color-border, #e5e7eb);
+        border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
         font-family: inherit;
         font-size: 1rem;
@@ -250,12 +250,12 @@
 
     .message-input:focus {
         outline: none;
-        border-color: var(--color-primary, #0066cc);
-        box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+        border-color: var(--color-primary, var(--brand));
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--link) 10%, transparent);
     }
 
     .message-input:disabled {
-        background-color: var(--color-gray-100, #f3f4f6);
+        background-color: var(--color-gray-100, var(--bg-2));
         cursor: not-allowed;
     }
 

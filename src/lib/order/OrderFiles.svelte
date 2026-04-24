@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import { base } from '$app/paths';
-  import { Upload, File, FileText, Image, Trash2, Download, FolderOpen, RefreshCw } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   let {
     orderId,
@@ -268,7 +268,7 @@
     background: var(--bg-2);
     color: var(--muted);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .drop-zone:hover,
@@ -366,7 +366,7 @@
     border-radius: var(--radius-sm, 4px);
     color: var(--muted);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .btn-icon:hover {

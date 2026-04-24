@@ -295,7 +295,7 @@
     font-weight: 600;
   }
   .required {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
   }
   .material-type-selector {
     display: grid;
@@ -304,20 +304,20 @@
   }
   .type-button {
     padding: var(--space-md, 12px);
-    border: 2px solid var(--border, #e5e7eb);
+    border: 2px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
-    background: var(--bg-2, #f9fafb);
+    background: var(--bg-2, var(--bg-2));
     font-weight: 600;
     cursor: pointer;
   }
   .type-button.active {
-    border-color: var(--primary, #3b82f6);
-    background: var(--primary, #3b82f6);
-    color: white;
+    border-color: var(--primary, var(--brand));
+    background: var(--primary, var(--brand));
+    color: var(--bg-0);
   }
   .material-details {
     padding: var(--space-md, 12px);
-    background: var(--bg-2, #f9fafb);
+    background: var(--bg-2, var(--bg-2));
     border-radius: var(--radius-md, 6px);
   }
   .acrylic-options {
@@ -342,17 +342,17 @@
   }
   .size-option, .thickness-option {
     padding: var(--space-sm, 8px);
-    border: 2px solid var(--border, #e5e7eb);
+    border: 2px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
     cursor: pointer;
   }
   .size-option.selected, .thickness-option.selected, .acrylic-option.selected {
-    border-color: var(--primary, #3b82f6);
-    box-shadow: 0 0 0 2px var(--primary, #3b82f6);
+    border-color: var(--primary, var(--brand));
+    box-shadow: 0 0 0 2px var(--primary, var(--brand));
   }
   .material-result-box {
     padding: var(--space-md, 12px);
-    background: var(--bg-3, #f3f4f6);
+    background: var(--bg-3, var(--bg-2));
     border-radius: var(--radius-md, 6px);
   }
   .material-box {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { materials, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
-  import { Package, Plus, Search, AlertCircle } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import { t } from 'svelte-i18n';
   import type { Category } from '$lib/inventory/types';
 
@@ -241,14 +241,14 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     overflow: hidden;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     cursor: pointer;
   }
   
   .material-card:hover {
-    border-color: var(--accent, #3b82f6);
+    border-color: var(--accent, var(--brand));
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
   
   .material-image,
@@ -352,20 +352,20 @@
     font-weight: 600;
     font-size: 14px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     display: inline-flex;
     align-items: center;
     gap: 8px;
   }
   
   .btn.primary {
-    background: var(--accent, #3b82f6);
-    color: white;
+    background: var(--accent, var(--brand));
+    color: var(--bg-0);
     border: none;
   }
   
   .btn.primary:hover {
-    background: var(--accent-hover, #2563eb);
+    background: var(--accent-hover, var(--brand));
   }
   
   .btn.sm {

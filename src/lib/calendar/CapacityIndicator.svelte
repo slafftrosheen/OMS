@@ -4,7 +4,7 @@
  * Visual indicator for loading day capacity status
  */
 
-import { AlertTriangle, Lock, CheckCircle } from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
 interface Props {
   current: number;

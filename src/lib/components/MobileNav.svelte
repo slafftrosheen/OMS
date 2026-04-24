@@ -1,6 +1,6 @@
 <script lang="ts">
     import { page } from '$app/state';
-    import { Menu, X, Home, Package, Inbox, BarChart3, Users, Settings } from 'lucide-svelte';
+    import Icon from '$lib/ui/Icon.svelte';
     import { slide } from 'svelte/transition';
 
     interface Props {
@@ -90,10 +90,10 @@
         right: 0;
         height: 60px;
         background: white;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid var(--border);
         align-items: center;
         padding: 0 15px;
-        z-index: 100;
+        z-index: var(--z-overlay);
     }
 
     .menu-toggle {
@@ -101,7 +101,7 @@
         border: none;
         padding: 8px;
         cursor: pointer;
-        color: #374151;
+        color: var(--ink-secondary);
     }
 
     .logo {
@@ -112,7 +112,7 @@
     .logo-text {
         font-size: 1.25rem;
         font-weight: 700;
-        color: #3b82f6;
+        color: var(--brand);
     }
 
     .header-actions {
@@ -124,8 +124,8 @@
         display: none;
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 110;
+        background: color-mix(in oklab, var(--bg-0) 55%, transparent);
+        z-index: calc(var(--z-sticky) + 10);
     }
 
     .mobile-nav {
@@ -136,8 +136,8 @@
         bottom: 0;
         width: 280px;
         background: white;
-        box-shadow: 2px 0 8px rgba(0,0,0,0.1);
-        z-index: 120;
+        box-shadow: 2px 0 8px color-mix(in oklab, var(--bg-0) 10%, transparent);
+        z-index: calc(var(--z-sticky) + 20);
         flex-direction: column;
     }
 
@@ -146,7 +146,7 @@
         justify-content: space-between;
         align-items: center;
         padding: 20px;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid var(--border);
     }
 
     .nav-header h2 {
@@ -160,12 +160,12 @@
         border: none;
         padding: 4px;
         cursor: pointer;
-        color: #6b7280;
+        color: var(--ink-tertiary);
         border-radius: 4px;
     }
 
     .close-btn:hover {
-        background: #f3f4f6;
+        background: var(--bg-2);
     }
 
     .nav-items {
@@ -180,25 +180,25 @@
         gap: 12px;
         padding: 12px 15px;
         border-radius: 8px;
-        color: #374151;
+        color: var(--ink-secondary);
         text-decoration: none;
         margin-bottom: 4px;
         transition: all 0.2s;
     }
 
     .nav-item:hover {
-        background: #f3f4f6;
+        background: var(--bg-2);
     }
 
     .nav-item.active {
-        background: #eff6ff;
-        color: #3b82f6;
+        background: var(--brand-soft);
+        color: var(--brand);
         font-weight: 500;
     }
 
     .nav-footer {
         padding: 15px;
-        border-top: 1px solid #e5e7eb;
+        border-top: 1px solid var(--border);
     }
 
     @media (max-width: 768px) {

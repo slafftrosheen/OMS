@@ -179,8 +179,8 @@
         width: 2.5rem;
         height: 2.5rem;
         border-radius: 50%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+        background: linear-gradient(135deg, var(--brand) 0%, color-mix(in oklab, var(--brand) 75%, black) 100%);
+        color: var(--bg-0);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -211,24 +211,24 @@
     .username {
         font-size: 0.875rem;
         font-weight: 600;
-        color: var(--color-gray-700, #374151);
+        color: var(--color-gray-700, var(--ink-secondary));
     }
 
     .timestamp {
         font-size: 0.75rem;
-        color: var(--color-gray-500, #9ca3af);
+        color: var(--color-gray-500, var(--muted));
     }
 
     .message-bubble {
-        background: var(--color-gray-100, #f3f4f6);
+        background: var(--color-gray-100, var(--bg-2));
         padding: 0.75rem 1rem;
         border-radius: 1rem;
         position: relative;
     }
 
     .own .message-bubble {
-        background: var(--color-primary, #0066cc);
-        color: white;
+        background: var(--color-primary, var(--brand));
+        color: var(--bg-0);
     }
 
     .message-text {
@@ -252,7 +252,7 @@
     }
 
     .own .attachment-link {
-        color: white;
+        color: var(--bg-0);
     }
 
     .edited-indicator {
@@ -268,7 +268,7 @@
     .edit-textarea {
         width: 100%;
         padding: 0.5rem;
-        border: 1px solid var(--color-border, #d1d5db);
+        border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
         font-family: inherit;
         font-size: 1rem;
@@ -288,17 +288,17 @@
         font-size: 0.875rem;
         font-weight: 500;
         cursor: pointer;
-        transition: all 0.15s ease;
+        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     }
 
     .edit-btn.save {
-        background: var(--color-primary, #0066cc);
-        color: white;
+        background: var(--color-primary, var(--brand));
+        color: var(--bg-0);
     }
 
     .edit-btn.cancel {
-        background: var(--color-gray-200, #e5e7eb);
-        color: var(--color-gray-700, #374151);
+        background: var(--color-gray-200, var(--border));
+        color: var(--color-gray-700, var(--ink-secondary));
     }
 
     .message-actions {
@@ -306,12 +306,12 @@
         top: -2rem;
         right: 0;
         background: white;
-        border: 1px solid var(--color-border, #e5e7eb);
+        border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
         padding: 0.25rem;
         display: flex;
         gap: 0.25rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 6px -1px color-mix(in oklab, var(--bg-0) 10%, transparent);
     }
 
     .own .message-actions {
@@ -330,11 +330,11 @@
     }
 
     .action-btn:hover {
-        background-color: var(--color-gray-100, #f3f4f6);
+        background-color: var(--color-gray-100, var(--bg-2));
     }
 
     .action-btn.danger:hover {
-        background-color: #fee2e2;
+        background-color: var(--error-soft);
     }
 
     @media (max-width: 640px) {

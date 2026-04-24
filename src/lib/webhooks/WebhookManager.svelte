@@ -6,19 +6,7 @@
  */
 
 import { onMount } from 'svelte';
-import { 
-  Webhook, 
-  Plus, 
-  Trash2, 
-  Play, 
-  Settings, 
-  Filter,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Download,
-  Upload
-} from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
 let webhooks: any[] = $state([]);
 let integrations: any[] = $state([]);
@@ -637,12 +625,12 @@ function getStatusColor(status: string) {
 
   .status-badge.active {
     background: var(--ok);
-    color: white;
+    color: var(--bg-0);
   }
 
   .status-badge.inactive {
     background: var(--muted);
-    color: white;
+    color: var(--bg-0);
   }
 
   .empty-state {
@@ -665,11 +653,11 @@ function getStatusColor(status: string) {
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: color-mix(in oklab, var(--bg-0) 55%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
   }
 
   .modal-content {
@@ -765,7 +753,7 @@ function getStatusColor(status: string) {
 
   .btn-primary {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
   }
 
   .btn-primary:hover {
@@ -808,7 +796,7 @@ function getStatusColor(status: string) {
   .error-banner {
     padding: 0.75rem 1rem;
     background: var(--danger);
-    color: white;
+    color: var(--bg-0);
     border-radius: 6px;
     font-size: 0.875rem;
   }

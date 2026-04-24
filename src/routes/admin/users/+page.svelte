@@ -4,7 +4,7 @@
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/authState.svelte';
-  import { UserPlus, Edit2, Trash2, Key, Search, X, Check, AlertCircle } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   interface User {
     id: number;
@@ -658,8 +658,8 @@
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
-    background: var(--accent, #3b82f6);
-    color: white;
+    background: var(--accent, var(--brand));
+    color: var(--bg-0);
     border: none;
     border-radius: 6px;
     font-size: 14px;
@@ -668,7 +668,7 @@
   }
 
   .btn-primary:hover:not(:disabled) {
-    background: var(--accent-hover, #2563eb);
+    background: var(--accent-hover, var(--brand));
   }
 
   .btn-primary:disabled {
@@ -702,15 +702,15 @@
   }
 
   .alert-success {
-    background: #ecfdf5;
-    color: #065f46;
-    border: 1px solid #a7f3d0;
+    background: var(--ok-soft);
+    color: color-mix(in oklab, var(--ok) 60%, black);
+    border: 1px solid color-mix(in oklab, var(--ok) 35%, transparent);
   }
 
   .alert-error {
-    background: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
+    background: var(--error-soft);
+    color: color-mix(in oklab, var(--error) 85%, black);
+    border: 1px solid color-mix(in oklab, var(--error) 30%, transparent);
   }
 
   .controls {
@@ -808,8 +808,8 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: var(--accent, #3b82f6);
-    color: white;
+    background: var(--accent, var(--brand));
+    color: var(--bg-0);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -850,9 +850,9 @@
     font-weight: 500;
   }
 
-  .badge-admin { background: #fef3c7; color: #92400e; }
-  .badge-lead { background: #dbeafe; color: #1e40af; }
-  .badge-operator { background: #d1fae5; color: #065f46; }
+  .badge-admin { background: var(--warn-soft); color: color-mix(in oklab, var(--warn) 65%, black); }
+  .badge-lead { background: var(--brand-soft); color: color-mix(in oklab, var(--brand) 85%, black); }
+  .badge-operator { background: var(--ok-soft); color: color-mix(in oklab, var(--ok) 60%, black); }
   .badge-viewer { background: var(--bg-2); color: var(--text-2); }
 
   .stations-list {
@@ -884,8 +884,8 @@
     font-weight: 500;
   }
 
-  .status-badge.active { background: #d1fae5; color: #065f46; }
-  .status-badge.inactive { background: #fee2e2; color: #991b1b; }
+  .status-badge.active { background: var(--ok-soft); color: color-mix(in oklab, var(--ok) 60%, black); }
+  .status-badge.inactive { background: var(--error-soft); color: color-mix(in oklab, var(--error) 85%, black); }
 
   .date-cell {
     font-size: 12px;
@@ -913,15 +913,15 @@
   }
 
   .btn-icon.btn-danger:hover {
-    background: #fee2e2;
-    color: #991b1b;
-    border-color: #fecaca;
+    background: var(--error-soft);
+    color: color-mix(in oklab, var(--error) 85%, black);
+    border-color: color-mix(in oklab, var(--error) 30%, transparent);
   }
 
   .btn-icon.btn-success:hover {
-    background: #d1fae5;
-    color: #065f46;
-    border-color: #a7f3d0;
+    background: var(--ok-soft);
+    color: color-mix(in oklab, var(--ok) 60%, black);
+    border-color: color-mix(in oklab, var(--ok) 35%, transparent);
   }
 
   .empty-state {
@@ -934,11 +934,11 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: color-mix(in oklab, var(--bg-0) 55%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
     padding: 20px;
   }
 
@@ -1031,7 +1031,7 @@
   .form-group input:focus,
   .form-group select:focus {
     outline: none;
-    border-color: var(--accent, #3b82f6);
+    border-color: var(--accent, var(--brand));
   }
 
   .form-group input:disabled {

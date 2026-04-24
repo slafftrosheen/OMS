@@ -240,8 +240,8 @@
     .search-overlay {
         position: fixed;
         inset: 0;
-        z-index: 9999;
-        background: rgba(0, 0, 0, 0.5);
+        z-index: var(--z-tooltip);
+        background: color-mix(in oklab, var(--bg-0) 55%, transparent);
         backdrop-filter: blur(4px);
         display: flex;
         align-items: flex-start;
@@ -264,8 +264,8 @@
         max-width: 600px;
         background: white;
         border-radius: 0.75rem;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
-                    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        box-shadow: 0 20px 25px -5px color-mix(in oklab, var(--bg-0) 10%, transparent),
+                    0 10px 10px -5px oklch(0% 0 0 / 4%);
         overflow: hidden;
         animation: slideDown 0.2s ease;
     }
@@ -286,12 +286,12 @@
         align-items: center;
         gap: 0.75rem;
         padding: 1rem 1.25rem;
-        border-bottom: 1px solid var(--color-border, #e5e7eb);
+        border-bottom: 1px solid var(--color-border, var(--border));
     }
 
     .search-icon {
         font-size: 1.25rem;
-        color: var(--color-gray-400, #9ca3af);
+        color: var(--color-gray-400, var(--muted));
     }
 
     .search-input {
@@ -299,19 +299,19 @@
         border: none;
         outline: none;
         font-size: 1rem;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
         background: transparent;
     }
 
     .search-input::placeholder {
-        color: var(--color-gray-400, #9ca3af);
+        color: var(--color-gray-400, var(--muted));
     }
 
     .search-spinner {
         width: 1.25rem;
         height: 1.25rem;
-        border: 2px solid var(--color-gray-200, #e5e7eb);
-        border-top-color: var(--color-primary, #0066cc);
+        border: 2px solid var(--color-gray-200, var(--border));
+        border-top-color: var(--color-primary, var(--brand));
         border-radius: 50%;
         animation: spin 0.6s linear infinite;
     }
@@ -323,12 +323,12 @@
     .search-kbd,
     .search-shortcuts kbd {
         padding: 0.125rem 0.375rem;
-        background: var(--color-gray-100, #f3f4f6);
-        border: 1px solid var(--color-border, #d1d5db);
+        background: var(--color-gray-100, var(--bg-2));
+        border: 1px solid var(--color-border, var(--border));
         border-radius: 0.25rem;
         font-size: 0.75rem;
         font-family: monospace;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
     }
 
     .suggestions-section,
@@ -342,7 +342,7 @@
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: var(--color-gray-500, #9ca3af);
+        color: var(--color-gray-500, var(--muted));
         padding: 0.75rem 1.25rem 0.5rem;
         margin: 0;
     }
@@ -360,12 +360,12 @@
         border-radius: 0.375rem;
         cursor: pointer;
         font-size: 0.875rem;
-        color: var(--color-gray-700, #374151);
+        color: var(--color-gray-700, var(--ink-secondary));
         transition: background-color 0.15s ease;
     }
 
     .suggestion-item:hover {
-        background-color: var(--color-gray-100, #f3f4f6);
+        background-color: var(--color-gray-100, var(--bg-2));
     }
 
     .results-list {
@@ -387,7 +387,7 @@
 
     .result-item:hover,
     .result-item.selected {
-        background-color: var(--color-gray-100, #f3f4f6);
+        background-color: var(--color-gray-100, var(--bg-2));
     }
 
     .result-icon {
@@ -411,7 +411,7 @@
         font-size: 0.875rem;
         font-weight: 600;
         margin: 0;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -419,7 +419,7 @@
 
     .result-description {
         font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0.25rem 0 0 0;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -428,13 +428,13 @@
 
     .result-highlight {
         font-size: 0.75rem;
-        color: var(--color-gray-500, #9ca3af);
+        color: var(--color-gray-500, var(--muted));
         margin-top: 0.25rem;
     }
 
     .result-highlight :global(mark) {
-        background-color: #fef3c7;
-        color: #92400e;
+        background-color: var(--warn-soft);
+        color: color-mix(in oklab, var(--warn) 65%, black);
         padding: 0.125rem 0.25rem;
         border-radius: 0.125rem;
     }
@@ -446,20 +446,20 @@
 
     .empty-message {
         font-size: 1rem;
-        color: var(--color-gray-700, #374151);
+        color: var(--color-gray-700, var(--ink-secondary));
         margin: 0 0 0.5rem 0;
     }
 
     .empty-hint {
         font-size: 0.875rem;
-        color: var(--color-gray-500, #9ca3af);
+        color: var(--color-gray-500, var(--muted));
         margin: 0;
     }
 
     .search-footer {
         padding: 0.75rem 1.25rem;
-        border-top: 1px solid var(--color-border, #e5e7eb);
-        background: var(--color-gray-50, #f9fafb);
+        border-top: 1px solid var(--color-border, var(--border));
+        background: var(--color-gray-50, var(--bg-2));
     }
 
     .search-shortcuts {
@@ -467,7 +467,7 @@
         align-items: center;
         gap: 1rem;
         font-size: 0.75rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
     }
 
     /* Custom scrollbar */
@@ -478,12 +478,12 @@
 
     .suggestions-section::-webkit-scrollbar-track,
     .results-section::-webkit-scrollbar-track {
-        background: var(--color-gray-100, #f3f4f6);
+        background: var(--color-gray-100, var(--bg-2));
     }
 
     .suggestions-section::-webkit-scrollbar-thumb,
     .results-section::-webkit-scrollbar-thumb {
-        background: var(--color-gray-400, #9ca3af);
+        background: var(--color-gray-400, var(--muted));
         border-radius: 0.25rem;
     }
 </style>

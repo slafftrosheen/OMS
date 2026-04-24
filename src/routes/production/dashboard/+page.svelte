@@ -90,8 +90,8 @@
 .role-badge {
   display: inline-block;
   padding: 2px 8px;
-  background: var(--accent, #3b82f6);
-  color: white;
+  background: var(--accent, var(--brand));
+  color: var(--bg-0);
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
@@ -131,8 +131,8 @@
 
 .action-btn {
   padding: 12px 16px;
-  background: var(--accent, #3b82f6);
-  color: white;
+  background: var(--accent, var(--brand));
+  color: var(--bg-0);
   border-radius: 6px;
   text-decoration: none;
   text-align: center;
@@ -141,7 +141,7 @@
 }
 
 .action-btn:hover {
-  background: var(--accent-hover, #2563eb);
+  background: var(--accent-hover, var(--brand));
 }
 
 .station-list {
@@ -177,6 +177,6 @@
 }
 
 .section-link:hover {
-  border-color: var(--accent, #3b82f6);
+  border-color: var(--accent, var(--brand));
 }
 </style>

@@ -127,8 +127,8 @@
     .modal-backdrop {
         position: fixed;
         inset: 0;
-        z-index: 1000;
-        background-color: rgba(0, 0, 0, 0.5);
+        z-index: var(--z-modal);
+        background-color: color-mix(in oklab, var(--bg-0) 55%, transparent);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -139,8 +139,8 @@
     .modal-dialog {
         background: white;
         border-radius: 0.5rem;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
-                    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        box-shadow: 0 20px 25px -5px color-mix(in oklab, var(--bg-0) 10%, transparent),
+                    0 10px 10px -5px oklch(0% 0 0 / 4%);
         width: 100%;
         max-height: calc(100vh - 2rem);
         display: flex;
@@ -158,14 +158,14 @@
         align-items: center;
         justify-content: space-between;
         padding: 1.25rem;
-        border-bottom: 1px solid var(--color-border, #e5e7eb);
+        border-bottom: 1px solid var(--color-border, var(--border));
     }
 
     .modal-title {
         font-size: 1.25rem;
         font-weight: 600;
         margin: 0;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
     }
 
     .modal-close {
@@ -173,7 +173,7 @@
         border: none;
         font-size: 2rem;
         line-height: 1;
-        color: var(--color-gray-500, #6b7280);
+        color: var(--color-gray-500, var(--ink-tertiary));
         cursor: pointer;
         padding: 0;
         width: 2rem;
@@ -186,11 +186,11 @@
     }
 
     .modal-close:hover {
-        background-color: var(--color-gray-100, #f3f4f6);
+        background-color: var(--color-gray-100, var(--bg-2));
     }
 
     .modal-close:focus-visible {
-        outline: 2px solid var(--color-primary, #0066cc);
+        outline: 2px solid var(--color-primary, var(--brand));
         outline-offset: 2px;
     }
 
@@ -202,7 +202,7 @@
 
     .modal-footer {
         padding: 1.25rem;
-        border-top: 1px solid var(--color-border, #e5e7eb);
+        border-top: 1px solid var(--color-border, var(--border));
         display: flex;
         gap: 0.75rem;
         justify-content: flex-end;

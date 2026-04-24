@@ -1,7 +1,7 @@
 <!-- src/lib/order/OrderFilesAccessible.svelte -->
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Upload, File as FileIcon, Image, FileText, X, Download } from 'lucide-svelte';
+	import Icon from '$lib/ui/Icon.svelte';
 	import { focusManager } from '$lib/a11y/focus-manager';
 
 	let {
@@ -428,9 +428,9 @@
 	}
 
 	.btn-danger:hover {
-		background: #ef4444;
-		border-color: #ef4444;
-		color: white;
+		background: var(--error);
+		border-color: var(--error);
+		color: var(--bg-0);
 	}
 
 	.empty-state {

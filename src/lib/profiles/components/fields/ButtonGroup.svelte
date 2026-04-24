@@ -100,11 +100,11 @@
   .label {
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .required {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
   }
 
   .options-container {
@@ -121,25 +121,25 @@
 
   .option-button {
     padding: var(--space-sm, 8px) var(--space-md, 12px);
-    background: var(--bg-2, #f9fafb);
-    border: 2px solid var(--border, #e5e7eb);
+    background: var(--bg-2, var(--bg-2));
+    border: 2px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
     white-space: nowrap;
   }
 
   .option-button:hover:not(:disabled) {
-    border-color: var(--primary, #3b82f6);
+    border-color: var(--primary, var(--brand));
     transform: translateY(-1px);
   }
 
   .option-button.selected {
-    border-color: var(--primary, #3b82f6);
-    background: var(--primary, #3b82f6);
-    color: white;
+    border-color: var(--primary, var(--brand));
+    background: var(--primary, var(--brand));
+    color: var(--bg-0);
   }
 
   .option-button.box-style {
@@ -150,11 +150,11 @@
     text-align: center;
     font-family: 'Courier New', monospace;
     font-size: 11px;
-    box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+    box-shadow: 1px 1px 2px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
 
   .option-button.box-style.selected {
-    box-shadow: 0 0 0 3px var(--primary, #3b82f6);
+    box-shadow: 0 0 0 3px var(--primary, var(--brand));
   }
 
   .option-button:disabled {

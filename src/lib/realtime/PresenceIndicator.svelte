@@ -106,7 +106,7 @@
 		justify-content: center;
 		font-size: 0.75rem;
 		font-weight: 600;
-		color: white;
+		color: var(--bg-0);
 		border: 2px solid var(--bg-1);
 	}
 
@@ -124,7 +124,7 @@
 		right: -2px;
 		width: 10px;
 		height: 10px;
-		background: #10b981;
+		background: var(--ok);
 		border-radius: 50%;
 		border: 2px solid var(--bg-1);
 		animation: pulse 2s infinite;

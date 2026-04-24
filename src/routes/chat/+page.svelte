@@ -5,7 +5,7 @@
   import { currentUser } from '$lib/auth/authState.svelte';
   import { rooms, messages, sendMessage, loadRooms, loadMessages, ensureRoom } from '$lib/chat/chat-store';
   import { users, loadUsers } from '$lib/users/user-store';
-  import { Send, Plus, Hash, Users, Settings, Search, Smile, Paperclip, MoreVertical, Bell, BellOff, X } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import MentionInput from '$lib/chat/MentionInput.svelte';
   import type { StationTag } from '$lib/order/stages';
   import StationBadge from '$lib/ui/StationBadge.svelte';
@@ -128,12 +128,12 @@
     <div class="sidebar-header">
       <h2>Chat</h2>
       <button class="icon-btn" onclick={() => showRoomModal = true} title="Create Room">
-        <Plus size={20} />
+        <Icon name="plus" size="sm" />
       </button>
     </div>
     
     <div class="search-box">
-      <Search size={16} />
+      <Icon name="search" size="sm" />
       <input type="text" placeholder="Search rooms..." bind:value={searchQuery} />
     </div>
 
@@ -146,7 +146,7 @@
             class:active={room.id === activeRoomId}
             onclick={() => selectRoom(room.id)}
           >
-            <Hash size={16} />
+            <Icon name="hash" size="sm" />
             <span class="room-name">{room.name}</span>
           </button>
         {/each}
@@ -171,15 +171,15 @@
   <main class="chat-main">
     <header class="chat-header">
       <div class="header-left">
-        <Hash size={20} />
+        <Icon name="hash" size="sm" />
         <h3>{activeRoom?.name || 'Select a room'}</h3>
       </div>
       <div class="header-actions">
         <button class="icon-btn" title="Members">
-          <Users size={18} />
+          <Icon name="users" size="sm" />
         </button>
         <button class="icon-btn" title="Settings">
-          <Settings size={18} />
+          <Icon name="settings" size="sm" />
         </button>
       </div>
     </header>
@@ -187,7 +187,7 @@
     <div class="messages-container" bind:this={scroller}>
       {#if roomMessages.length === 0}
         <div class="empty-state">
-          <Hash size={48} />
+          <Icon name="hash" size="sm" />
           <h3>Welcome to #{activeRoom?.name}</h3>
           <p>This is the beginning of the conversation. Say hello!</p>
         </div>
@@ -254,7 +254,7 @@
       <div class="modal-header">
         <h3 id="create-room-title">Create Channel</h3>
         <button class="icon-btn" onclick={() => showRoomModal = false} aria-label="Close">
-          <X size={20} />
+          <Icon name="x" size="sm" />
         </button>
       </div>
       <div class="modal-body">
@@ -363,7 +363,7 @@
     font-size: 0.9rem;
     color: var(--text-muted);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     text-align: left;
   }
 
@@ -373,8 +373,8 @@
   }
 
   .room-item.active {
-    background: var(--primary, #3b82f6);
-    color: white;
+    background: var(--brand);
+    color: var(--bg-0);
   }
 
   .room-name {
@@ -400,8 +400,8 @@
     width: 36px;
     height: 36px;
     border-radius: 8px;
-    background: linear-gradient(135deg, var(--primary, #3b82f6), var(--accent, #8b5cf6));
-    color: white;
+    background: linear-gradient(135deg, var(--brand), var(--brand));
+    color: var(--bg-0);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -421,7 +421,7 @@
 
   .user-status {
     font-size: 0.75rem;
-    color: var(--success, #22c55e);
+    color: var(--success, var(--ok));
   }
 
   /* Main Chat */
@@ -470,7 +470,7 @@
     border-radius: 8px;
     cursor: pointer;
     color: var(--text-muted);
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .icon-btn:hover {
@@ -585,8 +585,8 @@
   .mention-tag {
     font-size: 0.75rem;
     padding: 2px 6px;
-    background: color-mix(in oklab, var(--primary, #3b82f6) 15%, transparent);
-    color: var(--primary, #3b82f6);
+    background: color-mix(in oklab, var(--brand) 15%, transparent);
+    color: var(--brand);
     border-radius: 4px;
   }
 
@@ -601,11 +601,11 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: color-mix(in oklab, var(--bg-0) 45%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
   }
 
   .modal {
@@ -613,7 +613,7 @@
     border-radius: 12px;
     width: 90%;
     max-width: 400px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 20px 60px color-mix(in oklab, var(--bg-0) 45%, transparent);
   }
 
   .modal-header {
@@ -651,7 +651,7 @@
 
   .modal-body input:focus {
     outline: none;
-    border-color: var(--primary, #3b82f6);
+    border-color: var(--brand);
   }
 
   .modal-footer {
@@ -669,16 +669,16 @@
     font-weight: 600;
     cursor: pointer;
     border: 1px solid transparent;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .btn-primary {
-    background: var(--primary, #3b82f6);
-    color: white;
+    background: var(--brand);
+    color: var(--bg-0);
   }
 
   .btn-primary:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--primary, #3b82f6) 85%, black);
+    background: color-mix(in oklab, var(--brand) 85%, black);
   }
 
   .btn-primary:disabled {

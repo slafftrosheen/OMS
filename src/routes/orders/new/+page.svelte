@@ -2,7 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
-  import { Save, ArrowLeft, AlertCircle, Plus, Trash2, Upload, FileText, Eye, MapPin, Calendar, User, Phone, ChevronDown, ChevronLeft, ChevronRight, X, Image, ZoomIn, ZoomOut, Maximize2, BookmarkPlus, BookOpen, Download } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import Profile7stVisual from '$lib/profiles/components/Profile7stVisual.svelte';
   import { createId } from '$lib/utils/id';
   import { currentUser } from '$lib/auth/authState.svelte';
@@ -628,7 +628,7 @@
   <header class="page-header">
     <div class="header-left">
       <a href="/orders" class="back-link">
-        <ArrowLeft size={20} />
+        <Icon name="arrow-left" size="md" />
         {$t('orders.new.back')}
       </a>
       <h1>{$t('orders.new.title')}</h1>
@@ -647,7 +647,7 @@
           <span class="spinner"></span>
           {$t('actions.saving')}
         {:else}
-          <Save size={18} />
+          <Icon name="save" size="sm" />
           {$t('orders.new.save')}
         {/if}
       </button>
@@ -656,17 +656,17 @@
 
   {#if error}
     <div class="error-banner">
-      <AlertCircle size={18} />
+      <Icon name="alert-circle" size="sm" />
       {error}
       <button class="close-btn" onclick={() => error = ''}>
-        <X size={16} />
+        <Icon name="x" size="sm" />
       </button>
     </div>
   {/if}
 
   {#if successMessage}
     <div class="success-banner">
-      <Save size={18} />
+      <Icon name="save" size="sm" />
       {successMessage}
     </div>
   {/if}
@@ -675,17 +675,17 @@
   <section class="profiles-section full-width">
     <div class="profiles-header">
       <h2>
-        <FileText size={20} />
+        <Icon name="file-text" size="md" />
         {$t('orders.new.sections.profiles')}
       </h2>
       <div class="profiles-actions">
         <span class="profile-count">{profiles.length}</span>
         <button class="btn-secondary" onclick={() => showPresetModal = true}>
-          <BookOpen size={16} />
+          <Icon name="book-open" size="sm" />
           {$t('orders.new.presets.load')}
         </button>
         <button class="btn-secondary" onclick={addProfile}>
-          <Plus size={16} />
+          <Icon name="plus" size="sm" />
           {$t('materials.add')}
         </button>
       </div>
@@ -700,7 +700,7 @@
             onclick={() => toggleProfileCollapse(profile.id)}
             title={profile.collapsed ? 'Expand' : 'Collapse'}
           >
-            <ChevronDown size={20} />
+            <Icon name="chevron-down" size="md" />
           </button>
           <div class="profile-title">
             <span class="profile-number">#{i + 1}</span>
@@ -712,14 +712,14 @@
               <input type="number" id="qty-{profile.id}" bind:value={profile.quantity} min="1" max="100" class="qty-input" />
             </div>
             <button class="btn-icon" onclick={() => saveAsPreset(i)} title="Save as Preset">
-              <BookmarkPlus size={16} />
+              <Icon name="bookmark-plus" size="sm" />
             </button>
             <button class="btn-icon" onclick={() => duplicateProfile(profile.id)} title="Duplicate">
-              <Plus size={16} />
+              <Icon name="plus" size="sm" />
             </button>
             {#if profiles.length > 1}
               <button class="btn-icon danger" onclick={() => removeProfile(profile.id)} title="Remove">
-                <Trash2 size={16} />
+                <Icon name="trash-2" size="sm" />
               </button>
             {/if}
           </div>
@@ -738,7 +738,7 @@
   <!-- 2. FILES SECTION (MIDDLE) -->
   <section class="card files-card full-width">
     <h2>
-      <Upload size={20} />
+      <Icon name="upload" size="md" />
       {$t('orders.new.sections.files')} <span class="required">*</span>
     </h2>
     <p class="help-text">{$t('orders.new.files.hint')}</p>
@@ -764,7 +764,7 @@
             style="display: none;"
           />
           <label for="file-upload" class="upload-label">
-            <Upload size={32} />
+            <Icon name="upload" size="lg" />
             <span class="upload-text">{$t('orders.new.files.drag_drop')}</span>
             <span class="upload-hint">{$t('orders.new.files.formats')}</span>
           </label>
@@ -785,11 +785,11 @@
                 >
                   <div class="file-list-icon">
                     {#if fileItem.type === 'pdf'}
-                      <FileText size={20} />
+                      <Icon name="file-text" size="md" />
                     {:else if fileItem.type === 'image'}
                       <Image size={20} />
                     {:else}
-                      <FileText size={20} />
+                      <Icon name="file-text" size="md" />
                     {/if}
                   </div>
                   <div class="file-list-info">
@@ -799,11 +799,11 @@
                   <div class="file-list-actions">
                     {#if fileItem.type === 'pdf' || fileItem.type === 'image'}
                       <button class="btn-icon-sm" onclick={(e) => { e.stopPropagation(); selectFile(i); }} title="Preview">
-                        <Eye size={14} />
+                        <Icon name="eye" size="xs" />
                       </button>
                     {/if}
                     <button class="btn-icon-sm danger" onclick={(e) => { e.stopPropagation(); removeFile(i); }} title="Remove">
-                      <Trash2 size={14} />
+                      <Icon name="trash-2" size="xs" />
                     </button>
                   </div>
                 </div>
@@ -822,23 +822,23 @@
             <div class="preview-controls">
               {#if selectedFile.type === 'pdf' && pdfTotalPages > 1}
                 <button class="btn-icon-sm" onclick={prevPdfPage} disabled={pdfCurrentPage <= 1} title="Previous Page">
-                  <ChevronLeft size={16} />
+                  <Icon name="chevron-left" size="sm" />
                 </button>
                 <span class="page-indicator">{pdfCurrentPage} / {pdfTotalPages}</span>
                 <button class="btn-icon-sm" onclick={nextPdfPage} disabled={pdfCurrentPage >= pdfTotalPages} title="Next Page">
-                  <ChevronRight size={16} />
+                  <Icon name="chevron-right" size="sm" />
                 </button>
                 <span class="divider">|</span>
               {/if}
               <button class="btn-icon-sm" onclick={zoomOut} title="Zoom Out" disabled={previewZoom <= 0.5}>
-                <ZoomOut size={16} />
+                <Icon name="zoom-out" size="sm" />
               </button>
               <span class="zoom-level">{Math.round(previewZoom * 100)}%</span>
               <button class="btn-icon-sm" onclick={zoomIn} title="Zoom In" disabled={previewZoom >= 3}>
-                <ZoomIn size={16} />
+                <Icon name="zoom-in" size="sm" />
               </button>
               <button class="btn-icon-sm" onclick={resetZoom} title="Reset">
-                <Maximize2 size={16} />
+                <Icon name="maximize" size="sm" />
               </button>
             </div>
           </div>
@@ -854,19 +854,19 @@
               <canvas bind:this={pdfCanvas} class="pdf-canvas"></canvas>
             {:else if selectedFile.type === 'pdf'}
               <div class="pdf-preview-placeholder">
-                <FileText size={48} />
+                <Icon name="file-text" size="xl" />
                 <span>{$t('orders.new.files.loading_pdf')}</span>
               </div>
             {:else}
               <div class="preview-placeholder">
-                <FileText size={48} />
+                <Icon name="file-text" size="xl" />
                 <span>{$t('orders.new.files.no_preview')}</span>
               </div>
             {/if}
           </div>
         {:else}
           <div class="no-preview">
-            <Eye size={48} />
+            <Icon name="eye" size="xl" />
             <span>{$t('orders.new.files.no_preview')}</span>
           </div>
         {/if}
@@ -879,7 +879,7 @@
     <!-- Order Details Card -->
     <section class="card details-card">
       <h2>
-        <FileText size={20} />
+        <Icon name="file-text" size="md" />
         {$t('orders.new.sections.details')}
       </h2>
       <div class="form-row">
@@ -904,14 +904,14 @@
       <div class="form-row">
         <div class="form-group">
           <label for="deadline">
-            <Calendar size={14} />
+            <Icon name="calendar" size="xs" />
             {$t('orders.new.details.deadline')}
           </label>
           <input type="date" id="deadline" bind:value={deadline} />
         </div>
         <div class="form-group">
           <label for="loadingDate">
-            <Calendar size={14} />
+            <Icon name="calendar" size="xs" />
             {$t('orders.new.details.loading')}
           </label>
           <input type="date" id="loadingDate" bind:value={loadingDate} placeholder={$t('orders.new.details.loading_hint')} />
@@ -927,7 +927,7 @@
     <!-- Delivery Address Card -->
     <section class="card delivery-card">
       <h2>
-          <MapPin size={20} />
+          <Icon name="map-pin" size="md" />
           {$t('orders.new.sections.delivery')}
         </h2>
         
@@ -944,7 +944,7 @@
               {:else}
                 {$t('orders.new.delivery.select_preset')}
               {/if}
-              <ChevronDown size={16} />
+              <Icon name="chevron-down" size="sm" />
             </button>
             
             {#if showPresetDropdown}
@@ -993,7 +993,7 @@
         <div class="form-row">
           <div class="form-group">
             <label for="deliveryContact">
-              <User size={14} />
+              <Icon name="user" size="xs" />
               {$t('orders.new.delivery.contact')}
             </label>
             <input 
@@ -1006,7 +1006,7 @@
           </div>
           <div class="form-group">
             <label for="deliveryPhone">
-              <Phone size={14} />
+              <Icon name="phone" size="xs" />
               {$t('orders.new.delivery.phone')}
             </label>
             <input 
@@ -1042,11 +1042,11 @@
       >
         <div class="modal-header">
           <h3>
-            <BookOpen size={20} />
+            <Icon name="book-open" size="md" />
             Load Profile Preset
           </h3>
           <button class="btn-icon" onclick={() => showPresetModal = false}>
-            <X size={20} />
+            <Icon name="x" size="md" />
           </button>
         </div>
         <div class="modal-body">
@@ -1069,10 +1069,10 @@
                   </div>
                   <div class="preset-item-actions">
                     <button class="btn-icon" onclick={() => loadPreset(preset.id)} title="Load">
-                      <Download size={16} />
+                      <Icon name="download" size="sm" />
                     </button>
                     <button class="btn-icon danger" onclick={() => deletePreset(preset.id)} title="Delete">
-                      <Trash2 size={16} />
+                      <Icon name="trash-2" size="sm" />
                     </button>
                   </div>
                 </div>
@@ -1105,11 +1105,11 @@
       >
         <div class="modal-header">
           <h3 id="save-preset-title">
-            <BookmarkPlus size={20} />
+            <Icon name="bookmark-plus" size="md" />
             Save Profile as Preset
           </h3>
           <button class="btn-icon" onclick={closeSavePresetModal}>
-            <X size={20} />
+            <Icon name="x" size="md" />
           </button>
         </div>
         <div class="modal-body">
@@ -1149,7 +1149,7 @@
               <span class="spinner"></span>
               Saving...
             {:else}
-              <BookmarkPlus size={18} />
+              <Icon name="bookmark-plus" size="sm" />
               Save Preset
             {/if}
           </button>
@@ -1192,7 +1192,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    color: var(--text-secondary, #6b7280);
+    color: var(--text-secondary, var(--ink-tertiary));
     text-decoration: none;
     font-size: 14px;
     font-weight: 500;
@@ -1200,14 +1200,14 @@
   }
 
   .back-link:hover {
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   h1 {
     margin: 0;
     font-size: 24px;
     font-weight: 700;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
     display: flex;
     align-items: center;
     gap: 12px;
@@ -1223,13 +1223,13 @@
   }
 
   .role-badge.superadmin {
-    background: linear-gradient(135deg, #7c3aed, #a855f7);
-    color: white;
+    background: var(--brand);
+    color: var(--bg-0);
   }
 
   .role-badge.admin {
-    background: linear-gradient(135deg, #3b82f6, #60a5fa);
-    color: white;
+    background: linear-gradient(135deg, var(--brand), color-mix(in oklab, var(--brand) 70%, var(--bg-0)));
+    color: var(--bg-0);
   }
 
   .header-actions {
@@ -1242,19 +1242,19 @@
     align-items: center;
     gap: 8px;
     padding: 10px 20px;
-    background: linear-gradient(135deg, #ff6b35, #f7931e);
-    color: white;
+    background: var(--brand);
+    color: var(--bg-0);
     border: none;
     border-radius: 8px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+    box-shadow: 0 2px 8px color-mix(in oklab, var(--brand) 30%, transparent);
   }
 
   .btn-primary:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--brand) 40%, transparent);
   }
 
   .btn-primary:disabled {
@@ -1269,24 +1269,24 @@
     gap: 6px;
     padding: 10px 16px;
     background: white;
-    border: 1px solid var(--border, #d1d5db);
+    border: 1px solid var(--border, var(--border));
     border-radius: 8px;
     font-weight: 600;
     cursor: pointer;
-    color: var(--text-secondary, #374151);
+    color: var(--text-secondary, var(--ink-secondary));
     transition: all 0.2s;
   }
 
   .btn-secondary:hover {
-    background: var(--bg-hover, #f9fafb);
-    border-color: var(--border-hover, #9ca3af);
+    background: var(--bg-hover, var(--bg-2));
+    border-color: var(--border-hover, var(--muted));
   }
 
   .spinner {
     width: 16px;
     height: 16px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: white;
+    border: 2px solid color-mix(in oklab, var(--bg-0) 3%, transparent);
+    border-top-color: var(--bg-0);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
@@ -1306,15 +1306,15 @@
   }
 
   .error-banner {
-    background: #fee2e2;
-    color: #dc2626;
-    border: 1px solid #fecaca;
+    background: var(--error-soft);
+    color: var(--error);
+    border: 1px solid color-mix(in oklab, var(--error) 30%, transparent);
   }
 
   .success-banner {
-    background: #dcfce7;
-    color: #16a34a;
-    border: 1px solid #bbf7d0;
+    background: var(--ok-soft);
+    color: var(--ok);
+    border: 1px solid color-mix(in oklab, var(--ok) 30%, transparent);
   }
 
   .close-btn {
@@ -1330,7 +1330,7 @@
 
   .close-btn:hover {
     opacity: 1;
-    background: rgba(0,0,0,0.1);
+    background: color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
 
   .client-delivery-row {
@@ -1352,26 +1352,26 @@
 
   .card {
     background: var(--bg-1, white);
-    border: 1px solid var(--border, #e5e7eb);
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 12px);
     padding: var(--space-md, 16px);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    box-shadow: 0 1px 3px color-mix(in oklab, var(--bg-0) 5%, transparent);
   }
 
   h2 {
     margin: 0 0 16px 0;
     font-size: 16px;
     font-weight: 600;
-    color: var(--text, #1a1a1a);
+    color: var(--text, var(--ink-primary));
     padding-bottom: 12px;
-    border-bottom: 1px solid var(--border, #e5e7eb);
+    border-bottom: 1px solid var(--border, var(--border));
     display: flex;
     align-items: center;
     gap: 8px;
   }
 
   h2 :global(svg) {
-    color: var(--muted, #6b7280);
+    color: var(--muted, var(--ink-tertiary));
   }
 
   .form-row {
@@ -1396,30 +1396,30 @@
     margin-bottom: 6px;
     font-size: 13px;
     font-weight: 500;
-    color: var(--text-secondary, #374151);
+    color: var(--text-secondary, var(--ink-secondary));
   }
 
   .form-group label :global(svg) {
-    color: var(--text-muted, #9ca3af);
+    color: var(--text-muted, var(--muted));
   }
 
   .required {
-    color: #dc2626;
+    color: var(--error);
   }
 
   .help-text {
     font-size: 12px;
-    color: var(--text-muted, #9ca3af);
+    color: var(--text-muted, var(--muted));
     margin-top: 4px;
   }
 
   input, textarea, select {
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid var(--border, #d1d5db);
+    border: 1px solid var(--border, var(--border));
     border-radius: 8px;
     font-size: 14px;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
     font-family: inherit;
     background: var(--input-bg, white);
     transition: all 0.2s;
@@ -1427,19 +1427,19 @@
 
   input:focus, textarea:focus, select:focus {
     outline: none;
-    border-color: #ff6b35;
-    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 10%, transparent);
   }
 
   input:disabled, textarea:disabled {
-    background: var(--bg-disabled, #f3f4f6);
-    color: var(--text-muted, #9ca3af);
+    background: var(--bg-disabled, var(--bg-2));
+    color: var(--text-muted, var(--muted));
     cursor: not-allowed;
   }
 
   input.readonly {
-    background: var(--bg-disabled, #f3f4f6);
-    color: var(--text-secondary, #6b7280);
+    background: var(--bg-disabled, var(--bg-2));
+    color: var(--text-secondary, var(--ink-tertiary));
     cursor: default;
   }
 
@@ -1459,7 +1459,7 @@
     justify-content: space-between;
     padding: 10px 12px;
     background: white;
-    border: 1px solid var(--border, #d1d5db);
+    border: 1px solid var(--border, var(--border));
     border-radius: 8px;
     font-size: 14px;
     cursor: pointer;
@@ -1467,7 +1467,7 @@
   }
 
   .preset-dropdown-trigger:hover, .preset-dropdown-trigger.active {
-    border-color: #ff6b35;
+    border-color: var(--brand);
   }
 
   .preset-dropdown {
@@ -1477,16 +1477,16 @@
     right: 0;
     margin-top: 4px;
     background: white;
-    border: 1px solid var(--border, #e5e7eb);
+    border: 1px solid var(--border, var(--border));
     border-radius: 8px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-    z-index: 100;
+    box-shadow: 0 10px 40px color-mix(in oklab, var(--bg-0) 15%, transparent);
+    z-index: var(--z-overlay);
     max-height: 300px;
     overflow-y: auto;
   }
 
   .preset-group {
-    border-bottom: 1px solid var(--border, #e5e7eb);
+    border-bottom: 1px solid var(--border, var(--border));
   }
 
   .preset-group:last-child {
@@ -1497,8 +1497,8 @@
     padding: 8px 12px;
     font-size: 12px;
     font-weight: 600;
-    color: var(--text-muted, #9ca3af);
-    background: var(--bg-subtle, #f9fafb);
+    color: var(--text-muted, var(--muted));
+    background: var(--bg-subtle, var(--bg-2));
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -1517,30 +1517,30 @@
   }
 
   .preset-option:hover {
-    background: var(--bg-hover, #f3f4f6);
+    background: var(--bg-hover, var(--bg-2));
   }
 
   .preset-option.selected {
-    background: rgba(255, 107, 53, 0.1);
+    background: color-mix(in oklab, var(--brand) 10%, transparent);
   }
 
   .preset-name {
     font-weight: 600;
     font-size: 14px;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .preset-address {
     font-size: 12px;
-    color: var(--text-muted, #9ca3af);
+    color: var(--text-muted, var(--muted));
     margin-top: 2px;
   }
 
   .default-badge {
     font-size: 10px;
     padding: 2px 6px;
-    background: #dbeafe;
-    color: #2563eb;
+    background: var(--brand-soft);
+    color: var(--brand);
     border-radius: 4px;
     margin-top: 4px;
   }
@@ -1555,7 +1555,7 @@
     gap: 8px;
     font-size: 13px;
     cursor: pointer;
-    color: var(--text-secondary, #374151);
+    color: var(--text-secondary, var(--ink-secondary));
   }
 
   .toggle-label input {
@@ -1568,8 +1568,8 @@
   }
 
   .file-upload-area.drag-active .upload-label {
-    border-color: #ff6b35;
-    background: rgba(255, 107, 53, 0.05);
+    border-color: var(--brand);
+    background: color-mix(in oklab, var(--brand) 5%, transparent);
   }
 
   .upload-label {
@@ -1578,18 +1578,18 @@
     align-items: center;
     gap: 8px;
     padding: 32px 16px;
-    border: 2px dashed var(--border, #d1d5db);
+    border: 2px dashed var(--border, var(--border));
     border-radius: 12px;
     cursor: pointer;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     transition: all 0.2s;
-    background: var(--bg-subtle, #fafafa);
+    background: var(--bg-subtle, var(--bg-2));
   }
 
   .upload-label:hover {
-    border-color: #ff6b35;
-    color: #ff6b35;
-    background: rgba(255, 107, 53, 0.05);
+    border-color: var(--brand);
+    color: var(--brand);
+    background: color-mix(in oklab, var(--brand) 5%, transparent);
   }
 
   .upload-text {
@@ -1609,7 +1609,7 @@
   .file-list h3 {
     font-size: 13px;
     font-weight: 600;
-    color: var(--text-secondary, #374151);
+    color: var(--text-secondary, var(--ink-secondary));
     margin: 0 0 12px 0;
   }
 
@@ -1620,20 +1620,20 @@
     background: transparent;
     border: none;
     cursor: pointer;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     padding: 6px;
     border-radius: 6px;
     transition: all 0.15s;
   }
 
   .btn-icon:hover {
-    background: var(--bg-hover, #e5e7eb);
-    color: var(--text-primary, #1a1a1a);
+    background: var(--bg-hover, var(--border));
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .btn-icon.danger:hover {
-    background: #fee2e2;
-    color: #dc2626;
+    background: var(--error-soft);
+    color: var(--error);
   }
 
   .profiles-header {
@@ -1658,9 +1658,9 @@
 
   .profile-count {
     font-size: 13px;
-    color: var(--text-muted, #9ca3af);
+    color: var(--text-muted, var(--muted));
     padding: 4px 10px;
-    background: var(--bg-subtle, #f3f4f6);
+    background: var(--bg-subtle, var(--bg-2));
     border-radius: 20px;
   }
 
@@ -1678,13 +1678,13 @@
     cursor: pointer;
     padding: 4px;
     border-radius: 4px;
-    color: var(--text-muted, #9ca3af);
+    color: var(--text-muted, var(--muted));
     transition: all 0.2s;
   }
 
   .collapse-toggle:hover {
-    background: var(--bg-hover, #f3f4f6);
-    color: var(--text-primary, #1a1a1a);
+    background: var(--bg-hover, var(--bg-2));
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .collapse-toggle :global(svg) {
@@ -1705,8 +1705,8 @@
   .profile-number {
     font-size: 12px;
     font-weight: 600;
-    color: white;
-    background: var(--text-muted, #9ca3af);
+    color: var(--bg-0);
+    background: var(--text-muted, var(--muted));
     padding: 2px 8px;
     border-radius: 4px;
   }
@@ -1723,7 +1723,7 @@
     gap: 6px;
     font-size: 13px;
     font-weight: 500;
-    color: var(--text, #374151);
+    color: var(--text, var(--ink-secondary));
   }
 
   .qty-input {
@@ -1763,25 +1763,25 @@
     align-items: center;
     gap: 10px;
     padding: 10px 12px;
-    background: var(--bg-2, #f9fafb);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-2, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .file-list-item:hover {
-    border-color: var(--accent-1, #ff6b35);
+    border-color: var(--accent-1, var(--brand));
     background: var(--bg-1, white);
   }
 
   .file-list-item.selected {
-    border-color: var(--accent-1, #ff6b35);
-    background: color-mix(in oklab, var(--accent-1, #ff6b35) 8%, var(--bg-1, white));
+    border-color: var(--accent-1, var(--brand));
+    background: color-mix(in oklab, var(--accent-1, var(--brand)) 8%, var(--bg-1, white));
   }
 
   .file-list-icon {
-    color: var(--muted, #6b7280);
+    color: var(--muted, var(--ink-tertiary));
     flex-shrink: 0;
   }
 
@@ -1799,12 +1799,12 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: var(--text, #1a1a1a);
+    color: var(--text, var(--ink-primary));
   }
 
   .file-list-size {
     font-size: 11px;
-    color: var(--muted, #9ca3af);
+    color: var(--muted, var(--muted));
   }
 
   .file-list-actions {
@@ -1825,22 +1825,22 @@
     width: 24px;
     height: 24px;
     background: var(--bg-1, white);
-    border: 1px solid var(--border, #e5e7eb);
+    border: 1px solid var(--border, var(--border));
     border-radius: 4px;
     cursor: pointer;
-    color: var(--muted, #6b7280);
+    color: var(--muted, var(--ink-tertiary));
     transition: all 0.15s;
   }
 
   .btn-icon-sm:hover {
-    border-color: var(--accent-1, #ff6b35);
-    color: var(--accent-1, #ff6b35);
+    border-color: var(--accent-1, var(--brand));
+    color: var(--accent-1, var(--brand));
   }
 
   .btn-icon-sm.danger:hover {
-    border-color: var(--danger, #dc2626);
-    color: var(--danger, #dc2626);
-    background: color-mix(in oklab, var(--danger, #dc2626) 8%, var(--bg-1, white));
+    border-color: var(--danger, var(--error));
+    color: var(--danger, var(--error));
+    background: color-mix(in oklab, var(--danger, var(--error)) 8%, var(--bg-1, white));
   }
 
   .btn-icon-sm:disabled {
@@ -1851,8 +1851,8 @@
   .preview-section {
     display: flex;
     flex-direction: column;
-    background: var(--bg-2, #f3f4f6);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-2, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: 8px;
     overflow: hidden;
   }
@@ -1863,7 +1863,7 @@
     justify-content: space-between;
     padding: 10px 16px;
     background: var(--bg-1, white);
-    border-bottom: 1px solid var(--border, #e5e7eb);
+    border-bottom: 1px solid var(--border, var(--border));
     flex-wrap: wrap;
     gap: 8px;
   }
@@ -1871,7 +1871,7 @@
   .preview-filename {
     font-weight: 500;
     font-size: 13px;
-    color: var(--text, #1a1a1a);
+    color: var(--text, var(--ink-primary));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1888,19 +1888,19 @@
 
   .page-indicator {
     font-size: 12px;
-    color: var(--muted, #6b7280);
+    color: var(--muted, var(--ink-tertiary));
     min-width: 50px;
     text-align: center;
   }
 
   .divider {
-    color: var(--border, #e5e7eb);
+    color: var(--border, var(--border));
     margin: 0 4px;
   }
 
   .zoom-level {
     font-size: 12px;
-    color: var(--muted, #6b7280);
+    color: var(--muted, var(--ink-tertiary));
     min-width: 40px;
     text-align: center;
   }
@@ -1913,7 +1913,7 @@
     overflow: auto;
     padding: 20px;
     min-height: 300px;
-    background: var(--bg-2, #f9fafb);
+    background: var(--bg-2, var(--bg-2));
   }
 
   .preview-image {
@@ -1927,7 +1927,7 @@
   .pdf-canvas {
     max-width: 100%;
     height: auto;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
 
   .no-preview,
@@ -1938,7 +1938,7 @@
     align-items: center;
     justify-content: center;
     gap: 12px;
-    color: var(--muted, #9ca3af);
+    color: var(--muted, var(--muted));
     text-align: center;
     padding: 40px;
   }
@@ -1955,7 +1955,7 @@
     gap: 12px;
     margin-bottom: 16px;
     padding-bottom: 12px;
-    border-bottom: 1px solid var(--border, #e5e7eb);
+    border-bottom: 1px solid var(--border, var(--border));
   }
 
   .profile-card.collapsed .profile-card-header {
@@ -1999,18 +1999,18 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: color-mix(in oklab, var(--bg-0) 55%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
     padding: 20px;
   }
 
   .modal {
     background: var(--bg-1, white);
     border-radius: 12px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 20px 60px color-mix(in oklab, var(--bg-0) 45%, transparent);
     max-width: 600px;
     width: 100%;
     max-height: 80vh;
@@ -2023,7 +2023,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 20px 24px;
-    border-bottom: 1px solid var(--border, #e5e7eb);
+    border-bottom: 1px solid var(--border, var(--border));
   }
 
   .modal-header h3 {
@@ -2033,7 +2033,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .modal-body {
@@ -2047,7 +2047,7 @@
     justify-content: flex-end;
     gap: 12px;
     padding: 16px 24px;
-    border-top: 1px solid var(--border, #e5e7eb);
+    border-top: 1px solid var(--border, var(--border));
   }
 
   .preset-list {
@@ -2061,14 +2061,14 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px;
-    background: var(--bg-2, #f9fafb);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-2, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: 8px;
     transition: all 0.2s;
   }
 
   .preset-item:hover {
-    border-color: var(--accent-1, #ff6b35);
+    border-color: var(--accent-1, var(--brand));
     background: var(--bg-1, white);
   }
 
@@ -2087,22 +2087,22 @@
   .preset-item-header strong {
     font-weight: 600;
     font-size: 14px;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .public-badge {
     font-size: 10px;
     font-weight: 600;
     padding: 2px 6px;
-    background: #dbeafe;
-    color: #2563eb;
+    background: var(--brand-soft);
+    color: var(--brand);
     border-radius: 4px;
     text-transform: uppercase;
   }
 
   .preset-description {
     font-size: 13px;
-    color: var(--text-muted, #9ca3af);
+    color: var(--text-muted, var(--muted));
     margin: 0;
   }
 
@@ -2113,7 +2113,7 @@
 
   .empty-state {
     text-align: center;
-    color: var(--text-muted, #9ca3af);
+    color: var(--text-muted, var(--muted));
     padding: 40px 20px;
     font-size: 14px;
   }
@@ -2124,7 +2124,7 @@
     gap: 10px;
     cursor: pointer;
     font-size: 14px;
-    color: var(--text-secondary, #374151);
+    color: var(--text-secondary, var(--ink-secondary));
   }
 
   .checkbox-label input[type="checkbox"] {

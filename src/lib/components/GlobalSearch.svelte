@@ -221,13 +221,13 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
+        background: color-mix(in oklab, var(--bg-0) 55%, transparent);
         backdrop-filter: blur(4px);
         display: flex;
         align-items: flex-start;
         justify-content: center;
         padding-top: 15vh;
-        z-index: 9999;
+        z-index: var(--z-tooltip);
         animation: fadeIn 0.15s ease;
     }
 
@@ -245,7 +245,7 @@
         max-width: 700px;
         background: white;
         border-radius: 12px;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 20px 60px color-mix(in oklab, var(--bg-0) 45%, transparent);
         overflow: hidden;
         animation: slideUp 0.2s ease;
     }
@@ -266,7 +266,7 @@
         align-items: center;
         gap: 12px;
         padding: 16px 20px;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid var(--border);
     }
 
     .search-input {
@@ -274,11 +274,11 @@
         border: none;
         outline: none;
         font-size: 1rem;
-        color: #111827;
+        color: var(--ink-primary);
     }
 
     .search-input::placeholder {
-        color: #9ca3af;
+        color: var(--muted);
     }
 
     .close-btn {
@@ -286,19 +286,19 @@
         border: none;
         padding: 4px;
         cursor: pointer;
-        color: #6b7280;
+        color: var(--ink-tertiary);
         border-radius: 4px;
         transition: all 0.2s;
     }
 
     .close-btn:hover {
-        background: #f3f4f6;
-        color: #111827;
+        background: var(--bg-2);
+        color: var(--ink-primary);
     }
 
     .spinner {
         animation: spin 1s linear infinite;
-        color: #3b82f6;
+        color: var(--brand);
     }
 
     @keyframes spin {
@@ -323,12 +323,12 @@
         text-align: left;
         cursor: pointer;
         transition: background 0.15s;
-        border-bottom: 1px solid #f3f4f6;
+        border-bottom: 1px solid var(--bg-2);
     }
 
     .result-item:hover,
     .result-item.selected {
-        background: #f9fafb;
+        background: var(--bg-2);
     }
 
     .result-icon {
@@ -348,18 +348,18 @@
 
     .result-title {
         font-weight: 600;
-        color: #111827;
+        color: var(--ink-primary);
         margin-bottom: 2px;
     }
 
     .result-subtitle {
         font-size: 0.875rem;
-        color: #6b7280;
+        color: var(--ink-tertiary);
     }
 
     .result-description {
         font-size: 0.813rem;
-        color: #9ca3af;
+        color: var(--muted);
         margin-top: 4px;
         white-space: nowrap;
         overflow: hidden;
@@ -371,7 +371,7 @@
         border-radius: 12px;
         font-size: 0.75rem;
         font-weight: 600;
-        color: white;
+        color: var(--bg-0);
         text-transform: capitalize;
     }
 
@@ -379,7 +379,7 @@
     .search-tips {
         padding: 60px 40px;
         text-align: center;
-        color: #6b7280;
+        color: var(--ink-tertiary);
     }
 
     .empty-state p {
@@ -393,7 +393,7 @@
     }
 
     .search-tips strong {
-        color: #111827;
+        color: var(--ink-primary);
     }
 
     .search-tips ul {
@@ -403,29 +403,29 @@
 
     .search-tips li {
         margin: 8px 0;
-        color: #6b7280;
+        color: var(--ink-tertiary);
     }
 
     .search-footer {
         padding: 12px 20px;
-        border-top: 1px solid #e5e7eb;
-        background: #f9fafb;
+        border-top: 1px solid var(--border);
+        background: var(--bg-2);
     }
 
     .footer-shortcuts {
         display: flex;
         gap: 15px;
         font-size: 0.813rem;
-        color: #6b7280;
+        color: var(--ink-tertiary);
     }
 
     kbd {
         padding: 2px 6px;
         background: white;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border);
         border-radius: 4px;
         font-family: monospace;
         font-size: 0.75rem;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 1px 2px color-mix(in oklab, var(--bg-0) 5%, transparent);
     }
 </style>

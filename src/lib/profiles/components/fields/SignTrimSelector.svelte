@@ -1,6 +1,6 @@
 <!-- src/lib/profiles/components/fields/SignTrimSelector.svelte -->
 <script lang="ts">
-  import { Search } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {
     value?: string;
@@ -143,11 +143,11 @@
   .label {
     font-size: 0.875rem;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--ink-primary);
   }
 
   .required {
-    color: #dc2626;
+    color: var(--error);
   }
 
   .search-box {
@@ -155,8 +155,8 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
     border-radius: 0.5rem;
   }
 
@@ -170,7 +170,7 @@
 
   .selected-preview {
     padding: 1rem;
-    background: #f9fafb;
+    background: var(--bg-2);
     border-radius: 0.5rem;
   }
 
@@ -181,7 +181,7 @@
     gap: 4px;
     padding: 1rem;
     border-radius: 0.5rem;
-    box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.15);
+    box-shadow: 2px 2px 6px color-mix(in oklab, var(--bg-0) 15%, transparent);
   }
 
   .signtrim-badge {
@@ -230,18 +230,18 @@
     padding: 0.25rem;
     border-radius: 0.5rem;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     min-height: 80px;
-    box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: 1px 1px 3px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
 
   .color-box:hover:not(:disabled) {
     transform: translateY(-3px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 6px 12px color-mix(in oklab, var(--bg-0) 20%, transparent);
   }
 
   .color-box.selected {
-    box-shadow: 0 0 0 4px #3b82f6;
+    box-shadow: 0 0 0 4px var(--brand);
     transform: scale(1.05);
   }
 

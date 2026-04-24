@@ -1,6 +1,6 @@
 <!-- src/lib/profiles/components/fields/InfoBox.svelte -->
 <script lang="ts">
-  import { AlertCircle, Info, AlertTriangle } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {
     content?: string;
@@ -46,21 +46,21 @@
   }
 
   .info-box.info {
-    background: #EBF5FF;
-    border-color: #3B82F6;
-    color: #1E40AF;
+    background: var(--brand-soft);
+    border-color: var(--brand);
+    color: color-mix(in oklab, var(--brand) 85%, black);
   }
 
   .info-box.warning {
-    background: #FFF9E6;
-    border-color: #F59E0B;
-    color: #92400E;
+    background: var(--warn-soft);
+    border-color: var(--warn);
+    color: color-mix(in oklab, var(--warn) 60%, black);
   }
 
   .info-box.danger {
-    background: #FEE2E2;
-    border-color: #EF4444;
-    color: #991B1B;
+    background: var(--error-soft);
+    border-color: var(--error);
+    color: color-mix(in oklab, var(--error) 80%, black);
   }
 
   .icon {

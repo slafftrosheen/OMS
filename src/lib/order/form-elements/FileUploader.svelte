@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Upload, X } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import type { FileRef } from '../types';
 
   let {
@@ -127,7 +127,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     background: var(--bg-0);
   }
 
@@ -199,12 +199,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .clear-btn:hover {
     background: var(--danger);
     border-color: var(--danger);
-    color: white;
+    color: var(--bg-0);
   }
 </style>

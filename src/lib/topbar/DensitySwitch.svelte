@@ -1,59 +1,49 @@
 <script lang="ts">
-  import { Minimize2, Maximize2, Columns } from 'lucide-svelte';
   import { ui } from '$lib/state/appState.svelte';
   import { t } from 'svelte-i18n';
   import { clickOutside } from '$lib/utils/click-outside';
+  import Icon from '$lib/ui/Icon.svelte';
+  import type { IconName } from '$lib/ui/icons';
 
   type Density = 'compact' | 'cozy' | 'comfortable';
-  
-  let isOpen = $state(false);
-  let current = $derived(($ui).density as Density);
 
-  function set(density: Density) {
-    ui.update(p => ({ ...p, density }));
-    isOpen = false;
-  }
-
-  function toggle() {
-    isOpen = !isOpen;
-  }
-
-  function handleClickOutside() {
-    isOpen = false;
-  }
-
-  const options: { id: Density; icon: any; label: string }[] = [
-    { id: 'compact', icon: Minimize2, label: 'Compact' },
-    { id: 'cozy', icon: Columns, label: 'Cozy' },
-    { id: 'comfortable', icon: Maximize2, label: 'Comfortable' }
+  const options: { id: Density; icon: IconName; label: string }[] = [
+    { id: 'compact',     icon: 'minimize', label: 'Compact' },
+    { id: 'cozy',        icon: 'columns',  label: 'Cozy' },
+    { id: 'comfortable', icon: 'maximize', label: 'Comfortable' },
   ];
 
-  let currentIcon = $derived(options.find(o => o.id === current)?.icon || Columns);
+  let isOpen = $state(false);
+  let current = $derived(($ui).density as Density);
+  let currentIcon = $derived(options.find(o => o.id === current)?.icon ?? 'columns');
 
-  const SvelteComponent = $derived(currentIcon);
+  function set(density: Density) { ui.update(p => ({ ...p, density })); isOpen = false; }
 </script>
 
-<div class="density-menu" use:clickOutside={handleClickOutside}>
-  <button 
-    class="density-btn"
-    onclick={toggle}
+<div class="rf-density" use:clickOutside={() => { isOpen = false; }}>
+  <button
+    class="rf-density__btn"
+    type="button"
     aria-haspopup="menu"
     aria-expanded={isOpen}
     aria-label={$t('topbar.density', { default: 'Density' })}
+    onclick={() => isOpen = !isOpen}
   >
-    <SvelteComponent size={18} aria-hidden="true" />
+    <Icon name={currentIcon} size="sm" />
   </button>
-  
+
   {#if isOpen}
-    <div class="dropdown" role="menu">
-      {#each options as option}
+    <div class="rf-density__dropdown" role="menu">
+      {#each options as opt}
         <button
           role="menuitem"
-          class:active={current === option.id}
-          onclick={() => set(option.id)}
+          class="rf-density__item"
+          class:active={current === opt.id}
+          type="button"
+          onclick={() => set(opt.id)}
         >
-          <option.icon size={16} />
-          <span>{option.label}</span>
+          <Icon name={opt.icon} size="sm" />
+          <span>{opt.label}</span>
         </button>
       {/each}
     </div>
@@ -61,78 +51,74 @@
 </div>
 
 <style>
-  .density-menu {
-    position: relative;
-  }
+  .rf-density { position: relative; }
 
-  .density-btn {
+  .rf-density__btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: var(--control-sm, 36px);
+    height: var(--control-sm, 36px);
     padding: 0;
     background: transparent;
     border: none;
-    border-radius: 8px;
-    color: var(--text);
+    border-radius: var(--radius-sm);
+    color: var(--ink-secondary);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      color      var(--motion-sm) var(--ease-standard);
   }
-
-  .density-btn:hover,
-  .density-btn[aria-expanded="true"] {
-    background: var(--bg-2);
+  .rf-density__btn:hover,
+  .rf-density__btn[aria-expanded="true"] {
+    background: color-mix(in oklab, var(--bg-2) 70%, transparent);
+    color: var(--ink-primary);
   }
+  .rf-density__btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-  .dropdown {
+  .rf-density__dropdown {
     position: absolute;
-    top: calc(100% + 8px);
+    top: calc(100% + var(--space-sm));
     right: 0;
     min-width: 160px;
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(var(--shadow-rgb, 0 0 0) / 0.18);
-    padding: 4px;
-    z-index: 10000;
-    animation: slideDown 0.15s ease;
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--glass-material-thick);
+    -webkit-backdrop-filter: var(--glass-material-thick);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--glass-shadow-md);
+    padding: var(--space-xxs);
+    z-index: var(--z-popover);
+    animation: rf-dd-in var(--motion-sm) var(--ease-standard) both;
+  }
+  @keyframes rf-dd-in {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)   scale(1); }
   }
 
-  @keyframes slideDown {
-    from {
-      opacity: 0;
-      transform: translateY(-8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .dropdown button {
+  .rf-density__item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-sm);
     width: 100%;
-    padding: 10px 12px;
+    padding: var(--space-xs) var(--space-sm);
     background: transparent;
     border: none;
-    border-radius: 8px;
-    color: var(--text);
+    border-radius: var(--radius-sm);
+    color: var(--ink-secondary);
     cursor: pointer;
     text-align: left;
-    transition: background 0.15s ease;
-    font-size: 0.875rem;
+    font-size: var(--text-sm);
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      color      var(--motion-sm) var(--ease-standard);
   }
-
-  .dropdown button:hover {
-    background: var(--bg-2);
-  }
-
-  .dropdown button.active {
-    background: var(--accent-1, var(--accent));
-    color: white;
+  .rf-density__item:hover { background: color-mix(in oklab, var(--bg-2) 60%, transparent); color: var(--ink-primary); }
+  .rf-density__item:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+  .rf-density__item.active {
+    background: var(--brand);
+    color: var(--bg-0);
     font-weight: 600;
   }
+  .rf-density__item.active:hover { background: color-mix(in oklab, var(--brand) 85%, black); }
 </style>

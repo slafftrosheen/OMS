@@ -6,7 +6,7 @@
   import MentionInput from '$lib/chat/MentionInput.svelte';
   import { messages, sendMessage, loadMessages, ensureRoom } from '$lib/chat/chat-store';
   import type { Message } from '$lib/chat/types';
-  import { Send, MessageSquare } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   let {
     orderId,

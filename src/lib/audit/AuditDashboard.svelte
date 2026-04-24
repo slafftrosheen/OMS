@@ -5,17 +5,7 @@
  */
 
 import { onMount } from 'svelte';
-import { 
-  Activity, 
-  Shield, 
-  AlertTriangle, 
-  Eye, 
-  Download, 
-  Filter,
-  Calendar,
-  User,
-  Clock
-} from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 import { AuditService } from '$lib/server/audit-service';
 
 let auditSummary: any = $state(null);
@@ -426,12 +416,12 @@ function refreshData() {
 
   .security-icon.high {
     background: var(--warn);
-    color: white;
+    color: var(--bg-0);
   }
 
   .security-icon.critical {
     background: var(--danger);
-    color: white;
+    color: var(--bg-0);
   }
 
   .activity-details,
@@ -466,12 +456,12 @@ function refreshData() {
 
   .security-severity.high {
     background: var(--warn);
-    color: white;
+    color: var(--bg-0);
   }
 
   .security-severity.critical {
     background: var(--danger);
-    color: white;
+    color: var(--bg-0);
   }
 
   .security-description {
@@ -547,12 +537,12 @@ function refreshData() {
 
   .status-badge.success {
     background: var(--ok);
-    color: white;
+    color: var(--bg-0);
   }
 
   .status-badge.error {
     background: var(--danger);
-    color: white;
+    color: var(--bg-0);
   }
 
   .loading,
@@ -591,7 +581,7 @@ function refreshData() {
 
   .btn-primary {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
   }
 
   .btn-primary:hover {

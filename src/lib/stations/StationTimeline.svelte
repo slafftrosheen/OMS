@@ -5,15 +5,7 @@
  */
 
 import { onMount } from 'svelte';
-import { 
-  Clock, 
-  AlertCircle, 
-  CheckCircle, 
-  MessageSquare, 
-  Camera,
-  Wrench as Tool,
-  QrCode
-} from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
 interface Props {
   orderId: string;
@@ -241,7 +233,7 @@ $effect(() => {
 
   .filter-tab.active {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     border-color: var(--accent-1);
   }
 
@@ -357,7 +349,7 @@ $effect(() => {
     gap: 0.25rem;
     padding: 0.25rem 0.5rem;
     background: var(--danger);
-    color: white;
+    color: var(--bg-0);
     border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 500;

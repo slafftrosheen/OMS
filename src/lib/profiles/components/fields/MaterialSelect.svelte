@@ -553,7 +553,7 @@
   }
 
   .material-select.open {
-    z-index: 100;
+    z-index: var(--z-overlay);
   }
 
   .select-trigger {
@@ -564,18 +564,18 @@
     gap: var(--space-sm, 8px);
     padding: var(--space-xs, 4px) var(--space-sm, 8px);
     background: var(--bg-1, white);
-    border: 1px solid var(--border, #d1d5db);
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-sm, 4px);
     font-size: var(--font-size-sm, 12px);
     cursor: pointer;
     text-align: left;
-    color: var(--text, #333);
+    color: var(--text, var(--ink-primary));
     min-height: var(--control-xs, 28px);
     transition: border-color 0.15s;
   }
 
   .select-trigger:hover:not(:disabled) {
-    border-color: var(--border-strong, #9ca3af);
+    border-color: var(--border-strong, var(--muted));
   }
 
   .select-trigger:disabled {
@@ -584,7 +584,7 @@
   }
 
   .select-trigger.open {
-    border-color: var(--accent-1, #3b82f6);
+    border-color: var(--accent-1, var(--brand));
   }
 
   .select-trigger.has-value {
@@ -612,7 +612,7 @@
   }
 
   .placeholder {
-    color: var(--muted, #9ca3af);
+    color: var(--muted, var(--muted));
     font-weight: 400;
   }
 
@@ -620,7 +620,7 @@
     width: 12px;
     height: 12px;
     border-radius: 2px;
-    border: 1px solid rgba(0, 0, 0, 0.2);
+    border: 1px solid color-mix(in oklab, var(--bg-0) 20%, transparent);
     flex-shrink: 0;
   }
 
@@ -641,10 +641,10 @@
     right: 0;
     margin-top: 4px;
     background: var(--bg-1, white);
-    border: 1px solid var(--border, #e5e7eb);
+    border: 1px solid var(--border, var(--border));
     border-radius: 6px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-    z-index: 1000;
+    box-shadow: 0 10px 40px color-mix(in oklab, var(--bg-0) 15%, transparent);
+    z-index: var(--z-modal);
     max-height: 300px;
     display: flex;
     flex-direction: column;
@@ -652,22 +652,22 @@
 
   .search-box {
     padding: 8px;
-    border-bottom: 1px solid var(--border, #e5e7eb);
+    border-bottom: 1px solid var(--border, var(--border));
   }
 
   .search-input {
     width: 100%;
     padding: 6px 10px;
-    border: 1px solid var(--border, #e5e7eb);
+    border: 1px solid var(--border, var(--border));
     border-radius: 4px;
     font-size: 12px;
-    background: var(--bg-2, #f9fafb);
-    color: var(--text, #333);
+    background: var(--bg-2, var(--bg-2));
+    color: var(--text, var(--ink-primary));
   }
 
   .search-input:focus {
     outline: none;
-    border-color: var(--accent-1, #ff6b35);
+    border-color: var(--accent-1, var(--brand));
   }
 
   .options-list {
@@ -679,12 +679,12 @@
   .no-results {
     padding: 16px;
     text-align: center;
-    color: var(--muted, #9ca3af);
+    color: var(--muted, var(--muted));
     font-size: 12px;
   }
 
   .category-group {
-    border-bottom: 1px solid var(--border, #e5e7eb);
+    border-bottom: 1px solid var(--border, var(--border));
   }
 
   .category-group:last-child {
@@ -697,8 +697,8 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--muted, #9ca3af);
-    background: var(--bg-2, #f9fafb);
+    color: var(--muted, var(--muted));
+    background: var(--bg-2, var(--bg-2));
     position: sticky;
     top: 0;
   }
@@ -714,18 +714,18 @@
     cursor: pointer;
     text-align: left;
     font-size: 11px;
-    color: var(--text, #333);
+    color: var(--text, var(--ink-primary));
     transition: background 0.1s;
   }
 
   .option:hover {
-    background: var(--bg-2, #f3f4f6);
+    background: var(--bg-2, var(--bg-2));
   }
 
   .option.selected {
     background: color-mix(
       in oklab,
-      var(--accent-1, #ff6b35) 10%,
+      var(--accent-1, var(--brand)) 10%,
       var(--bg-1, white)
     );
   }
@@ -737,9 +737,9 @@
 
   .option-thickness {
     font-size: 9px;
-    color: var(--muted, #9ca3af);
+    color: var(--muted, var(--muted));
     padding: 2px 4px;
-    background: var(--bg-2, #f3f4f6);
+    background: var(--bg-2, var(--bg-2));
     border-radius: 2px;
   }
 
@@ -754,7 +754,7 @@
     width: 32px;
     height: 32px;
     padding: 2px;
-    border: 2px solid var(--border, #d1d5db);
+    border: 2px solid var(--border, var(--border));
     border-radius: 4px;
     cursor: pointer;
     background: transparent;
@@ -770,29 +770,29 @@
   }
 
   .custom-color-picker:hover {
-    border-color: var(--accent-1, #ff6b35);
+    border-color: var(--accent-1, var(--brand));
   }
 
   .custom-text-input {
     flex: 1;
     padding: 6px 10px;
-    border: 2px solid var(--accent-1, #ff6b35);
+    border: 2px solid var(--accent-1, var(--brand));
     border-radius: 3px;
     font-size: 11px;
     font-weight: 600;
     background: var(--bg-1, white);
-    color: var(--text, #333);
+    color: var(--text, var(--ink-primary));
     min-height: 32px;
   }
 
   .custom-text-input:focus {
     outline: none;
-    border-color: var(--accent-1, #ff6b35);
-    box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.2);
+    border-color: var(--accent-1, var(--brand));
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand) 20%, transparent);
   }
 
   .custom-text-input::placeholder {
-    color: var(--muted, #9ca3af);
+    color: var(--muted, var(--muted));
     font-weight: 400;
   }
 
@@ -802,16 +802,16 @@
     justify-content: center;
     width: 32px;
     height: 32px;
-    border: 2px solid var(--border, #333);
+    border: 2px solid var(--border, var(--ink-primary));
     border-radius: 3px;
-    background: var(--bg-2, #f3f4f6);
+    background: var(--bg-2, var(--bg-2));
     cursor: pointer;
-    color: var(--text, #333);
+    color: var(--text, var(--ink-primary));
     transition: all 0.15s;
   }
 
   .btn-switch-mode:hover {
-    border-color: var(--accent-1, #ff6b35);
+    border-color: var(--accent-1, var(--brand));
     background: var(--bg-1, white);
   }
 
@@ -819,29 +819,29 @@
     width: 100%;
     padding: 10px 10px;
     border: none;
-    border-bottom: 1px solid var(--border, #e5e7eb);
+    border-bottom: 1px solid var(--border, var(--border));
     background: color-mix(
       in oklab,
-      var(--accent-1, #ff6b35) 5%,
+      var(--accent-1, var(--brand)) 5%,
       var(--bg-1, white)
     );
     cursor: pointer;
     text-align: left;
     font-size: 11px;
-    color: var(--accent-1, #ff6b35);
+    color: var(--accent-1, var(--brand));
     font-weight: 500;
   }
 
   .custom-option:hover {
     background: color-mix(
       in oklab,
-      var(--accent-1, #ff6b35) 10%,
+      var(--accent-1, var(--brand)) 10%,
       var(--bg-1, white)
     );
   }
 
   .custom-value {
     font-style: italic;
-    color: var(--accent-1, #ff6b35);
+    color: var(--accent-1, var(--brand));
   }
 </style>

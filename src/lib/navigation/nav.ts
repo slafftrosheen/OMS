@@ -1,5 +1,5 @@
 import type { ComponentType } from 'svelte';
-import { Grid, Calendar, FolderOpen, PackageSearch, Settings, KanbanSquare, HelpCircle } from 'lucide-svelte';
+// TODO: migrate to Icon component
 
 export interface NavLink {
   href: string;

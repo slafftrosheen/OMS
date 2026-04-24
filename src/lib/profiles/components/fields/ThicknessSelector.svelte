@@ -1,6 +1,6 @@
 <!-- src/lib/profiles/components/fields/ThicknessSelector.svelte -->
 <script lang="ts">
-  import { Minus, Plus, ChevronDown } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {
     value?: number;
@@ -155,11 +155,11 @@
   .label {
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .required {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
     margin-left: 2px;
   }
 
@@ -175,18 +175,18 @@
     justify-content: center;
     width: 40px;
     padding: 0;
-    background: var(--bg-2, #f9fafb);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-2, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
     cursor: pointer;
-    transition: all 0.15s ease;
-    color: var(--text-primary, #1a1a1a);
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .control-button:hover:not(:disabled) {
-    background: var(--bg-3, #f3f4f6);
-    border-color: var(--primary, #3b82f6);
-    color: var(--primary, #3b82f6);
+    background: var(--bg-3, var(--bg-2));
+    border-color: var(--primary, var(--brand));
+    color: var(--primary, var(--brand));
   }
 
   .control-button:active:not(:disabled) {
@@ -203,15 +203,15 @@
     position: relative;
     display: flex;
     align-items: center;
-    background: var(--bg-1, #ffffff);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-1, var(--bg-0));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
     padding-right: var(--space-md, 12px);
     transition: border-color 0.15s ease;
   }
 
   .input-container:focus-within {
-    border-color: var(--primary, #3b82f6);
+    border-color: var(--primary, var(--brand));
   }
 
   .thickness-input {
@@ -221,7 +221,7 @@
     background: none;
     font-size: var(--text-md, 1rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
     outline: none;
     text-align: center;
   }
@@ -244,7 +244,7 @@
   .unit {
     font-size: var(--text-sm, 0.875rem);
     font-weight: 500;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
   }
 
   .dropdown-wrapper {
@@ -257,18 +257,18 @@
     justify-content: center;
     width: 40px;
     padding: 0;
-    background: var(--bg-2, #f9fafb);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-2, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
     cursor: pointer;
-    transition: all 0.15s ease;
-    color: var(--text-primary, #1a1a1a);
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .dropdown-toggle:hover:not(:disabled) {
-    background: var(--bg-3, #f3f4f6);
-    border-color: var(--primary, #3b82f6);
-    color: var(--primary, #3b82f6);
+    background: var(--bg-3, var(--bg-2));
+    border-color: var(--primary, var(--brand));
+    color: var(--primary, var(--brand));
   }
 
   .dropdown-toggle:disabled {
@@ -281,11 +281,11 @@
     top: calc(100% + 4px);
     right: 0;
     min-width: 120px;
-    background: var(--bg-1, #ffffff);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-1, var(--bg-0));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 100;
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 15%, transparent);
+    z-index: var(--z-overlay);
     overflow: hidden;
   }
 
@@ -295,13 +295,13 @@
     padding: var(--space-sm, 8px) var(--space-md, 12px);
     background: none;
     border: none;
-    border-bottom: 1px solid var(--border, #e5e7eb);
+    border-bottom: 1px solid var(--border, var(--border));
     cursor: pointer;
     text-align: center;
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
     transition: background 0.15s ease;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .dropdown-item:last-child {
@@ -309,22 +309,22 @@
   }
 
   .dropdown-item:hover {
-    background: var(--bg-2, #f9fafb);
+    background: var(--bg-2, var(--bg-2));
   }
 
   .dropdown-item.active {
-    background: var(--primary-bg, #dbeafe);
-    color: var(--primary, #3b82f6);
+    background: var(--primary-bg, var(--brand-soft));
+    color: var(--primary, var(--brand));
   }
 
   .error-message {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
     font-size: var(--text-xs, 0.75rem);
     margin-top: 2px;
   }
 
   .thickness-selector.error .input-container {
-    border-color: var(--danger, #dc2626);
+    border-color: var(--danger, var(--error));
   }
 
   .thickness-selector.disabled {

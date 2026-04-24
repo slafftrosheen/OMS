@@ -3,7 +3,7 @@
 
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
-  import { Bell, BellRing, Check, CheckCheck, Trash2, Filter, RefreshCw, AlertTriangle, Info, Package, MessageSquare, Calendar, Settings } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import { currentUser } from '$lib/auth/authState.svelte';
 
   interface Notification {
@@ -283,8 +283,8 @@
     font-weight: 600;
     padding: 4px 10px;
     border-radius: 20px;
-    background: var(--primary, #3b82f6);
-    color: white;
+    background: var(--primary, var(--brand));
+    color: var(--bg-0);
   }
 
   .header-actions {
@@ -302,7 +302,7 @@
     font-weight: 500;
     cursor: pointer;
     border: 1px solid transparent;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .btn-secondary {
@@ -359,7 +359,7 @@
     font-weight: 500;
     cursor: pointer;
     color: var(--text-muted);
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .filter-tab:hover {
@@ -369,7 +369,7 @@
   .filter-tab.active {
     background: var(--bg-1);
     color: var(--text);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
 
   .type-filter {
@@ -396,20 +396,20 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     text-align: left;
     width: 100%;
     font: inherit;
   }
 
   .notification-card:hover {
-    border-color: var(--primary, #3b82f6);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border-color: var(--primary, var(--brand));
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 8%, transparent);
   }
 
   .notification-card.unread {
-    background: color-mix(in oklab, var(--primary, #3b82f6) 5%, var(--bg-1));
-    border-left: 3px solid var(--primary, #3b82f6);
+    background: color-mix(in oklab, var(--primary, var(--brand)) 5%, var(--bg-1));
+    border-left: 3px solid var(--primary, var(--brand));
   }
 
   .notification-icon {
@@ -424,18 +424,18 @@
   }
 
   .notification-icon[data-type="order"] {
-    background: color-mix(in oklab, var(--primary, #3b82f6) 15%, transparent);
-    color: var(--primary, #3b82f6);
+    background: color-mix(in oklab, var(--primary, var(--brand)) 15%, transparent);
+    color: var(--primary, var(--brand));
   }
 
   .notification-icon[data-type="alert"] {
-    background: color-mix(in oklab, var(--danger, #ef4444) 15%, transparent);
-    color: var(--danger, #ef4444);
+    background: color-mix(in oklab, var(--danger, var(--error)) 15%, transparent);
+    color: var(--danger, var(--error));
   }
 
   .notification-icon[data-type="chat"] {
-    background: color-mix(in oklab, var(--success, #22c55e) 15%, transparent);
-    color: var(--success, #22c55e);
+    background: color-mix(in oklab, var(--success, var(--ok)) 15%, transparent);
+    color: var(--success, var(--ok));
   }
 
   .notification-content {
@@ -505,7 +505,7 @@
     border-radius: 6px;
     cursor: pointer;
     color: var(--text-muted);
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .action-btn:hover {
@@ -516,7 +516,7 @@
   .notification-link {
     grid-column: 2;
     font-size: 0.85rem;
-    color: var(--primary, #3b82f6);
+    color: var(--primary, var(--brand));
     text-decoration: none;
     font-weight: 500;
   }
@@ -545,7 +545,7 @@
     width: 32px;
     height: 32px;
     border: 3px solid var(--border);
-    border-top-color: var(--primary, #3b82f6);
+    border-top-color: var(--primary, var(--brand));
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }

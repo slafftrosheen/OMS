@@ -6,7 +6,7 @@
  */
 
 import { onMount } from 'svelte';
-import { Image as ImageIcon, FileText, Download, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
 interface Props {
   orderId: string;
@@ -298,7 +298,7 @@ $effect(() => {
 
   .filter-tab.active {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     border-color: var(--accent-1);
   }
 
@@ -352,8 +352,8 @@ $effect(() => {
     left: 0;
     right: 0;
     padding: 0.5rem;
-    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
-    color: white;
+    background: linear-gradient(to top, oklch(0% 0 0 / 80%), transparent);
+    color: var(--bg-0);
     font-size: 0.75rem;
     line-height: 1.2;
   }
@@ -375,7 +375,7 @@ $effect(() => {
     top: 0.5rem;
     right: 0.5rem;
     padding: 0.375rem;
-    background: rgba(255, 255, 255, 0.9);
+    background: color-mix(in oklab, var(--bg-0) 9%, transparent);
     border: none;
     border-radius: 4px;
     color: var(--danger);
@@ -391,8 +391,8 @@ $effect(() => {
   .lightbox {
     position: fixed;
     inset: 0;
-    z-index: 1000;
-    background: rgba(0, 0, 0, 0.95);
+    z-index: var(--z-modal);
+    background: oklch(0% 0 0 / 95%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -415,9 +415,9 @@ $effect(() => {
     padding: 0.5rem;
     background: transparent;
     border: none;
-    color: white;
+    color: var(--bg-0);
     cursor: pointer;
-    z-index: 10;
+    z-index: var(--z-sticky);
   }
 
   .lightbox-image-container {
@@ -438,16 +438,16 @@ $effect(() => {
     top: 50%;
     transform: translateY(-50%);
     padding: 1rem;
-    background: rgba(255, 255, 255, 0.1);
+    background: color-mix(in oklab, var(--bg-0) 1%, transparent);
     border: none;
-    color: white;
+    color: var(--bg-0);
     cursor: pointer;
     border-radius: 4px;
     transition: background 0.2s;
   }
 
   .lightbox-nav:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.2);
+    background: color-mix(in oklab, var(--bg-0) 2%, transparent);
   }
 
   .lightbox-nav:disabled {
@@ -464,10 +464,10 @@ $effect(() => {
   }
 
   .lightbox-info {
-    background: rgba(255, 255, 255, 0.1);
+    background: color-mix(in oklab, var(--bg-0) 1%, transparent);
     padding: 1rem;
     border-radius: 6px;
-    color: white;
+    color: var(--bg-0);
   }
 
   .lightbox-info h4 {
@@ -495,7 +495,7 @@ $effect(() => {
     gap: 0.5rem;
     padding: 0.5rem 1rem;
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     text-decoration: none;
     border-radius: 4px;
     font-size: 0.875rem;

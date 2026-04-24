@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Palette, Hash } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import type { ColorSpec } from './material-types';
   
   let { value = $bindable<ColorSpec | null>(null), onChange }: {
@@ -147,12 +147,12 @@
     font-weight: 600;
     border-radius: 6px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
   
   .mode-selector button.active {
-    background: var(--accent, #3b82f6);
-    color: white;
+    background: var(--accent, var(--brand));
+    color: var(--bg-0);
   }
   
   .input-section {
@@ -217,17 +217,17 @@
     font-weight: 600;
     font-size: 14px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
   
   .btn.primary {
-    background: var(--accent, #3b82f6);
-    color: white;
+    background: var(--accent, var(--brand));
+    color: var(--bg-0);
     border: none;
   }
   
   .btn.primary:hover {
-    background: var(--accent-hover, #2563eb);
+    background: var(--accent-hover, var(--brand));
   }
   
   .btn.ghost {

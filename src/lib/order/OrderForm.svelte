@@ -381,7 +381,7 @@
 {/if}
 
 <style>
-.shade{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:99}
+.shade{position:fixed;inset:0;background:oklch(0% 0 0 / 45%);display:grid;place-items:center;z-index:99}
 .panel{background:var(--bg-1);border:1px solid var(--border);border-radius:14px;min-width:920px;max-width:95vw;max-height:90vh;padding:14px;overflow:auto}
 header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .x{background:transparent;border:none;color:var(--text);cursor:pointer;font-size:1.1rem}

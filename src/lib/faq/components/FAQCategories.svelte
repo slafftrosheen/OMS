@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { FAQCategory } from '../types';
-  import * as Icons from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
+  import type { IconName } from '$lib/ui/icons';
 
   let {
     categories = [],
@@ -26,53 +27,44 @@
     return cat.descriptionEn || '';
   };
 
-  const getIcon = (iconName?: string) => {
-    if (!iconName) return Icons.HelpCircle;
-    
-    // Map icon names to lucide icons
-    const iconMap: Record<string, any> = {
-      'box': Icons.Box,
-      'palette': Icons.Palette,
-      'cog': Icons.Cog,
-      'package': Icons.Package,
-      'clipboard': Icons.Clipboard,
-      'alert-circle': Icons.AlertCircle,
-    };
-    
-    return iconMap[iconName] || Icons.HelpCircle;
+  const iconMap: Record<string, IconName> = {
+    'box':          'box',
+    'palette':      'palette',
+    'cog':          'settings',
+    'package':      'package',
+    'clipboard':    'clipboard-list',
+    'alert-circle': 'alert-circle',
+    'grid':         'grid',
   };
 
-  const selectCategory = (id: number | null) => {
-    onselect?.(id);
-  };
+  function getIconName(name?: string): IconName {
+    return (name && iconMap[name]) ? iconMap[name] : 'help-circle';
+  }
 </script>
 
 <div class="faq-categories">
   <button
-    class="category-btn"
+    class="rf-faq-cat"
     class:active={selectedId === null}
-    onclick={() => selectCategory(null)}
     type="button"
+    onclick={() => onselect?.(null)}
   >
-    <Icons.Grid size={20} />
-    <div class="category-content">
-      <span class="category-name">All Categories</span>
-    </div>
+    <Icon name="grid" size="md" />
+    <span class="rf-faq-cat__name">All Categories</span>
   </button>
 
   {#each categories as category (category.id)}
-    {@const SvelteComponent = getIcon(category.icon)}
     <button
-      class="category-btn"
+      class="rf-faq-cat"
       class:active={selectedId === category.id}
-      onclick={() => selectCategory(category.id)}
       type="button"
+      onclick={() => onselect?.(category.id)}
     >
-      <SvelteComponent size={20} />
-      <div class="category-content">
-        <span class="category-name">{getName(category)}</span>
+      <Icon name={getIconName(category.icon)} size="md" />
+      <div class="rf-faq-cat__body">
+        <span class="rf-faq-cat__name">{getName(category)}</span>
         {#if getDescription(category)}
-          <span class="category-desc">{getDescription(category)}</span>
+          <span class="rf-faq-cat__desc">{getDescription(category)}</span>
         {/if}
       </div>
     </button>
@@ -86,7 +78,7 @@
     gap: var(--space-xs);
   }
 
-  .category-btn {
+  .rf-faq-cat {
     display: flex;
     align-items: flex-start;
     gap: var(--space-md);
@@ -95,48 +87,43 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition:
+      background    var(--motion-sm) var(--ease-standard),
+      color         var(--motion-sm) var(--ease-standard),
+      border-color  var(--motion-sm) var(--ease-standard);
     text-align: left;
-    color: var(--text);
+    color: var(--ink-secondary);
     font: inherit;
     width: 100%;
   }
-
-  .category-btn:hover {
+  .rf-faq-cat:hover {
     background: var(--bg-2);
-    border-color: var(--accent-1);
+    border-color: color-mix(in oklab, var(--brand) 40%, transparent);
+    color: var(--ink-primary);
   }
-
-  .category-btn.active {
-    background: color-mix(in oklab, var(--accent-1) 12%, var(--bg-1));
-    border-color: var(--accent-1);
-    color: var(--accent-1);
+  .rf-faq-cat.active {
+    background: var(--brand-soft);
+    border-color: color-mix(in oklab, var(--brand) 45%, transparent);
+    color: var(--brand);
   }
+  .rf-faq-cat:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-  .category-btn :global(svg) {
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-
-  .category-content {
+  .rf-faq-cat__body {
     display: flex;
     flex-direction: column;
     gap: var(--space-xxs);
     flex: 1;
   }
-
-  .category-name {
+  .rf-faq-cat__name {
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: var(--text-sm);
   }
-
-  .category-desc {
-    font-size: 0.85rem;
-    color: var(--muted);
-    line-height: 1.4;
+  .rf-faq-cat__desc {
+    font-size: var(--text-xs);
+    color: var(--ink-tertiary);
+    line-height: var(--leading-snug);
   }
-
-  .category-btn.active .category-desc {
-    color: color-mix(in oklab, var(--accent-1) 80%, var(--text));
+  .rf-faq-cat.active .rf-faq-cat__desc {
+    color: color-mix(in oklab, var(--brand) 80%, var(--text));
   }
 </style>

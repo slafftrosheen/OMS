@@ -210,7 +210,7 @@
 
     .error-message {
         font-size: 1rem;
-        color: var(--color-danger, #dc3545);
+        color: var(--color-danger, var(--error));
         margin: 0;
     }
 
@@ -243,7 +243,7 @@
         height: 250px;
         border: 3px solid white;
         border-radius: 1rem;
-        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 0 0 9999px color-mix(in oklab, var(--bg-0) 55%, transparent);
         position: relative;
     }
 
@@ -253,7 +253,7 @@
         position: absolute;
         width: 30px;
         height: 30px;
-        border: 4px solid #0066cc;
+        border: 4px solid var(--brand);
     }
 
     .scan-frame::before {
@@ -282,7 +282,7 @@
     .scan-line {
         width: 250px;
         height: 2px;
-        background: linear-gradient(90deg, transparent, #0066cc, transparent);
+        background: linear-gradient(90deg, transparent, var(--brand), transparent);
         animation: scan 2s ease-in-out infinite;
     }
 
@@ -303,12 +303,12 @@
     .scanner-instructions p {
         margin: 0.25rem 0;
         font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
     }
 
     .continuous-note {
         font-weight: 600;
-        color: var(--color-primary, #0066cc);
+        color: var(--color-primary, var(--brand));
     }
 
     @media (max-width: 640px) {

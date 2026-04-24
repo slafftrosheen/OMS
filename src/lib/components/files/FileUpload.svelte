@@ -205,23 +205,23 @@
     }
 
     .drop-zone {
-        border: 2px dashed var(--color-border, #d1d5db);
+        border: 2px dashed var(--color-border, var(--border));
         border-radius: 0.5rem;
         padding: 3rem 2rem;
         text-align: center;
         cursor: pointer;
-        transition: all 0.2s ease;
-        background: var(--color-gray-50, #f9fafb);
+        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
+        background: var(--color-gray-50, var(--bg-2));
     }
 
     .drop-zone:hover {
-        border-color: var(--color-primary, #0066cc);
+        border-color: var(--color-primary, var(--brand));
         background: white;
     }
 
     .drop-zone.dragging {
-        border-color: var(--color-primary, #0066cc);
-        background: #dbeafe;
+        border-color: var(--color-primary, var(--brand));
+        background: var(--brand-soft);
         border-style: solid;
     }
 
@@ -231,7 +231,7 @@
     }
 
     .drop-zone:focus-visible {
-        outline: 2px solid var(--color-primary, #0066cc);
+        outline: 2px solid var(--color-primary, var(--brand));
         outline-offset: 2px;
     }
 
@@ -247,13 +247,13 @@
     .upload-title {
         font-size: 1.125rem;
         font-weight: 600;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
         margin: 0 0 0.5rem 0;
     }
 
     .upload-hint {
         font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0;
         line-height: 1.6;
     }
@@ -268,8 +268,8 @@
     .spinner {
         width: 3rem;
         height: 3rem;
-        border: 4px solid var(--color-gray-200, #e5e7eb);
-        border-top-color: var(--color-primary, #0066cc);
+        border: 4px solid var(--color-gray-200, var(--border));
+        border-top-color: var(--color-primary, var(--brand));
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
     }
@@ -281,7 +281,7 @@
     .progress-text {
         font-size: 1rem;
         font-weight: 600;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
         margin: 0;
     }
 
@@ -289,14 +289,14 @@
         width: 100%;
         max-width: 300px;
         height: 0.5rem;
-        background-color: var(--color-gray-200, #e5e7eb);
+        background-color: var(--color-gray-200, var(--border));
         border-radius: 9999px;
         overflow: hidden;
     }
 
     .progress-fill {
         height: 100%;
-        background: linear-gradient(90deg, #0066cc, #0052a3);
+        background: linear-gradient(90deg, var(--brand), var(--brand));
         transition: width 0.3s ease;
     }
 

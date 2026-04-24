@@ -244,7 +244,7 @@
     cursor: pointer;
     font-weight: 600;
     color: var(--text);
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .timeframe-btn:hover {
@@ -253,7 +253,7 @@
 
   .timeframe-btn.active {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
   }
 
   .metrics-grid {
@@ -341,7 +341,7 @@
   .risk-badge {
     padding: 0.25rem 0.5rem;
     background: var(--danger);
-    color: white;
+    color: var(--bg-0);
     border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 600;
@@ -403,10 +403,10 @@
     border-radius: 50%;
   }
 
-  .status-dot.status-queued { background: #17a2b8; }
-  .status-dot.status-in_progress { background: #007bff; }
-  .status-dot.status-blocked { background: #dc3545; }
-  .status-dot.status-rework { background: #ffc107; }
+  .status-dot.status-queued { background: var(--link, var(--brand)); }
+  .status-dot.status-in_progress { background: var(--brand); }
+  .status-dot.status-blocked { background: var(--error); }
+  .status-dot.status-rework { background: var(--warn); }
 
   .status-label {
     color: var(--muted);

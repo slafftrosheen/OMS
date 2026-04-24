@@ -62,17 +62,17 @@
 <style>
     .card {
         background: white;
-        border: 1px solid var(--color-border, #e5e7eb);
+        border: 1px solid var(--color-border, var(--border));
         border-radius: 0.5rem;
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        box-shadow: 0 1px 2px 0 color-mix(in oklab, var(--bg-0) 5%, transparent);
         display: flex;
         flex-direction: column;
         transition: box-shadow 0.15s ease, transform 0.15s ease;
     }
 
     .card-hoverable:hover {
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
-                    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 4px 6px -1px color-mix(in oklab, var(--bg-0) 10%, transparent),
+                    0 2px 4px -1px oklch(0% 0 0 / 6%);
     }
 
     .card-clickable {
@@ -81,8 +81,8 @@
 
     .card-clickable:hover {
         transform: translateY(-2px);
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-                    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 10px 15px -3px color-mix(in oklab, var(--bg-0) 10%, transparent),
+                    0 4px 6px -2px color-mix(in oklab, var(--bg-0) 5%, transparent);
     }
 
     .card-clickable:active {
@@ -96,7 +96,7 @@
 
     .card-header {
         padding: 1.25rem;
-        border-bottom: 1px solid var(--color-border, #e5e7eb);
+        border-bottom: 1px solid var(--color-border, var(--border));
         font-weight: 600;
     }
 
@@ -122,7 +122,7 @@
 
     .card-footer {
         padding: 1rem 1.25rem;
-        border-top: 1px solid var(--color-border, #e5e7eb);
-        background-color: var(--color-gray-50, #f9fafb);
+        border-top: 1px solid var(--color-border, var(--border));
+        background-color: var(--color-gray-50, var(--bg-2));
     }
 </style>

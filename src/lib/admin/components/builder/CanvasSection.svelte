@@ -152,22 +152,22 @@
   .canvas-section {
     min-width: 200px;
     max-width: 300px;
-    background: #f9fafb;
-    border: 2px solid #e5e7eb;
+    background: var(--bg-2);
+    border: 2px solid var(--border);
     border-radius: 12px;
     overflow: hidden;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     cursor: pointer;
   }
 
   .canvas-section.selected {
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 20%, transparent);
   }
 
   .canvas-section.drop-target {
-    border-color: #10b981;
-    background: #ecfdf5;
+    border-color: var(--ok);
+    background: var(--ok-soft);
   }
 
   .section-header {
@@ -175,7 +175,7 @@
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
-    color: white;
+    color: var(--bg-0);
     font-weight: 700;
     font-size: 13px;
     cursor: move;
@@ -203,16 +203,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.2);
+    background: color-mix(in oklab, var(--bg-0) 2%, transparent);
     border: none;
     border-radius: 4px;
-    color: white;
+    color: var(--bg-0);
     cursor: pointer;
     transition: background 0.15s ease;
   }
 
   .header-action-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: color-mix(in oklab, var(--bg-0) 3%, transparent);
   }
 
   .actions-dropdown {
@@ -221,10 +221,10 @@
     right: 0;
     margin-top: 4px;
     background: white;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-    z-index: 100;
+    box-shadow: 0 8px 24px color-mix(in oklab, var(--bg-0) 20%, transparent);
+    z-index: var(--z-overlay);
     min-width: 150px;
   }
 
@@ -238,12 +238,12 @@
     border: none;
     cursor: pointer;
     font-size: 13px;
-    color: #1a1a1a;
+    color: var(--ink-primary);
     transition: background 0.15s ease;
   }
 
   .actions-dropdown button:hover {
-    background: #f3f4f6;
+    background: var(--bg-2);
   }
 
   .section-content {
@@ -260,9 +260,9 @@
     align-items: center;
     justify-content: center;
     padding: 32px;
-    border: 2px dashed #e5e7eb;
+    border: 2px dashed var(--border);
     border-radius: 8px;
-    color: #9ca3af;
+    color: var(--muted);
     gap: 6px;
   }
 
@@ -284,18 +284,18 @@
     gap: 6px;
     padding: 8px;
     background: white;
-    border: 2px dashed #e5e7eb;
+    border: 2px dashed var(--border);
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     font-weight: 600;
     font-size: 13px;
-    color: #9ca3af;
+    color: var(--muted);
   }
 
   .add-field-btn:hover {
-    border-color: #667eea;
-    color: #667eea;
-    background: #eef2ff;
+    border-color: var(--brand);
+    color: var(--brand);
+    background: var(--brand-soft);
   }
 </style>

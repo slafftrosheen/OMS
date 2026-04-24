@@ -29,7 +29,7 @@
   import { startPreferenceUrlSync } from '$lib/settings/url-sync';
   import { ui } from '$lib/state/appState.svelte';
   import { setLocale } from '$lib/i18n';
-  import { Menu, X, LayoutDashboard, ClipboardList, Calendar, Package, HelpCircle, Settings, Users, Boxes, MessageSquare, Bell, Bot } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import { AuthState, currentUser, loadCurrentUser } from '$lib/auth/authState.svelte';
   import { initChatRealtime, toggleChat, unreadCount, isChatOpen } from '$lib/chat/chat-store';
   import { websocket } from '$lib/stores/websocket';
@@ -62,6 +62,13 @@
   let isPublicRoute = $derived(publicRoutes.some(r => page.url.pathname === `${base}${r}` || page.url.pathname === r));
   let isAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
   let currentPath = $derived(page.url.pathname);
+
+  const themeColors: Record<string, string> = {
+    LightVim:        '#bf3020',
+    DarkVim:         '#ff453a',
+    HighContrastVim: '#ff3b3c'
+  };
+  let themeColor = $derived(themeColors[($ui).theme] ?? '#ff453a');
 
   const openSearch = () => {
     searchOpen = true;
@@ -292,7 +299,7 @@
 
 <svelte:head>
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#3b82f6" />
+  <meta name="theme-color" content={themeColor} />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -300,8 +307,8 @@
   <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32x32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16x16.png" />
-  <link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#3b82f6" />
-  <meta name="msapplication-TileColor" content="#3b82f6" />
+  <link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#ff453a" />
+  <meta name="msapplication-TileColor" content="#ff453a" />
   <meta name="msapplication-config" content="/browserconfig.xml" />
 </svelte:head>
 
@@ -322,45 +329,44 @@
       <a href="{base}/" class="brand"><Logo /></a>
       <button class="mobile-menu-btn" onclick={() => mobileMenuOpen = !mobileMenuOpen} aria-label={$t('header.toggle_menu')} aria-expanded={mobileMenuOpen}>
         {#if mobileMenuOpen}
-          <X size={24} />
+          <Icon name="x" size="md" />
         {:else}
-          <Menu size={24} />
+          <Icon name="menu" size="md" />
         {/if}
       </button>
       <nav class="main" class:mobile-open={mobileMenuOpen}>
         <a href="{base}/" class:active={currentPath === base || currentPath === base + '/'} onclick={() => mobileMenuOpen = false}>
-          <LayoutDashboard size={18} />
+          <Icon name="layout-dashboard" size="sm" />
           <span>{$t('nav.dashboard', { default: 'Dashboard' })}</span>
         </a>
         <a href="{base}/orders" class:active={currentPath.includes('/orders')} onclick={() => mobileMenuOpen = false}>
-          <ClipboardList size={18} />
+          <Icon name="clipboard-list" size="sm" />
           <span>{$t('nav.orders', { default: 'Orders' })}</span>
         </a>
         <a href="{base}/calendar" class:active={currentPath.includes('/calendar')} onclick={() => mobileMenuOpen = false}>
-          <Calendar size={18} />
+          <Icon name="calendar" size="sm" />
           <span>{$t('nav.calendar', { default: 'Calendar' })}</span>
         </a>
         <a href="{base}/inventory" class:active={currentPath.includes('/inventory')} onclick={() => mobileMenuOpen = false}>
-          <Package size={18} />
+          <Icon name="package" size="sm" />
           <span>{$t('nav.inventory', { default: 'Inventory' })}</span>
         </a>
-        <!-- Chat moved to sidebar -->
         <a href="{base}/faq" class:active={currentPath.includes('/faq')} onclick={() => mobileMenuOpen = false}>
-          <HelpCircle size={18} />
+          <Icon name="help-circle" size="sm" />
           <span>{$t('nav.faq', { default: 'FAQ' })}</span>
         </a>
         <a href="{base}/ai-dashboard" class:active={currentPath.includes('/ai-dashboard')} onclick={() => mobileMenuOpen = false}>
-          <Bot size={18} />
+          <Icon name="bot" size="sm" />
           <span>Swarm OS</span>
         </a>
         {#if isAdmin}
           <div class="nav-divider"></div>
           <a href="{base}/admin/users" class:active={currentPath.includes('/admin/users')} onclick={() => mobileMenuOpen = false}>
-            <Users size={18} />
+            <Icon name="users" size="sm" />
             <span>Users</span>
           </a>
           <a href="{base}/admin/materials" class:active={currentPath.includes('/admin/materials')} onclick={() => mobileMenuOpen = false}>
-            <Boxes size={18} />
+            <Icon name="boxes" size="sm" />
             <span>Materials</span>
           </a>
         {/if}
@@ -379,14 +385,14 @@
           onclick={toggleChat}
         >
           <div class="icon-wrapper">
-            <MessageSquare size={20} />
+            <Icon name="message-square" size="md" />
             {#if $unreadCount > 0}
               <span class="badge">{$unreadCount > 9 ? '9+' : $unreadCount}</span>
             {/if}
           </div>
         </button>
         <a href="{base}/settings" class="action-btn settings-btn" title={$t('nav.settings', { default: 'Settings' })}>
-          <Settings size={20} />
+          <Icon name="settings" size="md" />
         </a>
         <UserSwitch />
       </div>
@@ -446,8 +452,8 @@
 }
 
 .chat-toggle.active {
-  color: var(--primary, #3b82f6);
-  background: var(--bg-2);
+  color: var(--brand);
+  background: var(--brand-soft);
 }
 
 .icon-wrapper {
@@ -463,13 +469,13 @@
   position: absolute;
   top: -2px;
   right: -2px;
-  background: var(--danger, #dc2626);
-  color: white;
+  background: var(--error);
+  color: var(--bg-0);
   font-size: 10px;
   font-weight: 700;
   min-width: 16px;
   height: 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -495,7 +501,7 @@
   width: 40px;
   height: 40px;
   border: 3px solid var(--border);
-  border-top-color: var(--accent, #3b82f6);
+  border-top-color: var(--brand);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -507,16 +513,16 @@
 .rf-topbar {
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: var(--z-sticky);
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 0 clamp(16px, 3vw, 28px);
-  height: 60px;
-  background: var(--glass-bg, var(--bg-1));
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border-bottom: 1px solid var(--glass-border, var(--border));
+  gap: var(--space-lg);
+  padding: 0 clamp(var(--space-md), 3vw, var(--space-xl));
+  height: var(--topbar-h, 60px);
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-material-regular);
+  -webkit-backdrop-filter: var(--glass-material-regular);
+  border-bottom: 1px solid var(--separator-opaque, var(--divider));
 }
 
 .rf-topbar .brand {
@@ -530,55 +536,53 @@
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xxs);
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 4px 0;
+  padding: var(--space-xxs) 0;
 }
-
 .rf-topbar nav.main::-webkit-scrollbar { display: none; }
 
 .rf-topbar nav.main a {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: 8px;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
   text-decoration: none;
-  color: var(--text-2);
-  font-size: 14px;
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
   font-weight: 500;
   white-space: nowrap;
-  transition: all 0.15s ease;
+  transition:
+    color      var(--motion-sm) var(--ease-standard),
+    background var(--motion-sm) var(--ease-standard);
 }
-
 .rf-topbar nav.main a:hover {
-  color: var(--text);
-  background: var(--bg-2);
+  color: var(--ink-primary);
+  background: color-mix(in oklab, var(--bg-2) 70%, transparent);
 }
-
 .rf-topbar nav.main a.active {
-  color: var(--text);
-  background: var(--accent, #3b82f6);
-  color: white;
+  background: var(--brand);
+  color: var(--bg-0);
+  font-weight: 600;
 }
-
 .rf-topbar nav.main a.active:hover {
-  background: var(--accent-hover, #2563eb);
+  background: color-mix(in oklab, var(--brand) 85%, black);
 }
 
 .nav-divider {
   width: 1px;
-  height: 24px;
-  background: var(--border);
-  margin: 0 8px;
+  height: 20px;
+  background: var(--divider);
+  margin: 0 var(--space-xs);
   flex-shrink: 0;
 }
 
 .rf-topbar .actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xxs);
   flex-shrink: 0;
 }
 
@@ -589,130 +593,92 @@
 }
 
 .rf-topbar .action-group.text-size-group {
-  padding: 0 4px;
-  border-radius: 8px;
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-sm);
   background: var(--bg-0);
   border: 1px solid var(--border);
-  height: 36px;
+  height: var(--control-sm, 36px);
 }
 
 .rf-topbar .action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  border-radius: 8px;
-  color: var(--text-2);
-  transition: all 0.15s ease;
+  width: var(--control-sm, 36px);
+  height: var(--control-sm, 36px);
+  min-width: var(--control-sm, 36px);
+  border-radius: var(--radius-sm);
+  color: var(--ink-secondary);
+  transition:
+    background var(--motion-sm) var(--ease-standard),
+    color      var(--motion-sm) var(--ease-standard);
   flex-shrink: 0;
 }
-
 .rf-topbar .action-btn:hover {
-  background: var(--bg-2);
-  color: var(--text);
+  background: color-mix(in oklab, var(--bg-2) 70%, transparent);
+  color: var(--ink-primary);
 }
 
-.rf-topbar .settings-btn {
-  text-decoration: none;
-}
+.rf-topbar .settings-btn { text-decoration: none; }
 
 .rf-topbar .mobile-menu-btn {
   display: none;
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs);
   cursor: pointer;
-  color: var(--text);
-  transition: all 0.15s ease;
+  color: var(--ink-primary);
+  transition:
+    background var(--motion-sm) var(--ease-standard),
+    color      var(--motion-sm) var(--ease-standard);
 }
+.rf-topbar .mobile-menu-btn:hover { background: var(--bg-2); }
 
-.rf-topbar .mobile-menu-btn:hover {
-  background: var(--bg-2);
-}
-
-.mobile-nav-wrapper {
-  display: none;
-}
+.mobile-nav-wrapper { display: none; }
 
 @media (max-width: 1024px) {
   .rf-topbar {
-    padding: 0 16px;
+    padding: 0 var(--space-md);
     height: 56px;
-    gap: 12px;
+    gap: var(--space-sm);
   }
-
-  .rf-topbar .brand { 
-    flex: 1;
-    order: 1;
-  }
-
-  .rf-topbar .actions {
-    order: 2;
-    gap: 4px;
-  }
-
+  .rf-topbar .brand  { flex: 1; order: 1; }
+  .rf-topbar .actions { order: 2; gap: var(--space-xxs); }
   .rf-topbar .mobile-menu-btn {
     display: flex;
     align-items: center;
     justify-content: center;
     order: 3;
   }
-
   .rf-topbar nav.main {
     position: fixed;
     top: 56px;
     left: 0;
     right: 0;
     bottom: 0;
-    background: var(--bg-1);
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--glass-material-thick);
+    -webkit-backdrop-filter: var(--glass-material-thick);
     flex-direction: column;
     align-items: stretch;
     gap: 0;
-    padding: 16px;
+    padding: var(--space-md);
     display: none;
-    box-shadow: none;
-    z-index: 9999;
+    z-index: var(--z-overlay);
     overflow-y: auto;
   }
-
-  .rf-topbar nav.main.mobile-open { 
-    display: flex; 
-  }
-
+  .rf-topbar nav.main.mobile-open { display: flex; }
   .rf-topbar nav.main a {
-    padding: 16px;
-    border-radius: 12px;
-    font-size: 1rem;
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    font-size: var(--text-md);
   }
+  .nav-divider { width: 100%; height: 1px; margin: var(--space-sm) 0; }
+  .rf-topbar .action-btn { width: 32px; height: 32px; min-width: 32px; }
+  .desktop-only { display: none !important; }
+  .mobile-nav-wrapper { display: block; }
 
-  .rf-topbar nav.main a span { 
-    display: inline; 
-  }
-
-  .nav-divider {
-    width: 100%;
-    height: 1px;
-    margin: 12px 0;
-  }
-
-  .rf-topbar .action-btn {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-  }
-
-  .desktop-only {
-    display: none !important;
-  }
-  
-  .mobile-nav-wrapper {
-    display: block;
-  }
-  
-  /* Backdrop for mobile menu */
   .rf-topbar nav.main.mobile-open::before {
     content: '';
     position: fixed;
@@ -720,7 +686,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: color-mix(in oklab, var(--bg-0) 55%, transparent);
     z-index: -1;
   }
 }

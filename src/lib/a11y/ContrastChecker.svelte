@@ -2,7 +2,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { a11yTester } from '$lib/a11y/testing-utils';
-	import { AlertCircle, CheckCircle, Info } from 'lucide-svelte';
+	import Icon from '$lib/ui/Icon.svelte';
 
 	interface Props {
 		theme?: 'light' | 'dark' | 'high-contrast';
@@ -148,15 +148,15 @@
 	}
 
 	.result-pass {
-		border-left: 3px solid #10b981;
+		border-left: 3px solid var(--ok);
 	}
 
 	.result-warn {
-		border-left: 3px solid #f59e0b;
+		border-left: 3px solid var(--warn);
 	}
 
 	.result-fail {
-		border-left: 3px solid #ef4444;
+		border-left: 3px solid var(--error);
 	}
 
 	.result-icon {
@@ -164,15 +164,15 @@
 	}
 
 	.result-pass .result-icon {
-		color: #10b981;
+		color: var(--ok);
 	}
 
 	.result-warn .result-icon {
-		color: #f59e0b;
+		color: var(--warn);
 	}
 
 	.result-fail .result-icon {
-		color: #ef4444;
+		color: var(--error);
 	}
 
 	.result-info {
@@ -227,7 +227,7 @@
 	}
 
 	.badge.pass {
-		background: #10b981;
-		color: white;
+		background: var(--ok);
+		color: var(--bg-0);
 	}
 </style>

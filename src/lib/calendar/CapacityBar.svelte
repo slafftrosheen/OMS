@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from 'svelte-i18n';
-  import { TrendingUp, AlertTriangle } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   
   interface Props {
     current?: number;
@@ -121,8 +121,8 @@
   .capacity-percentage {
     font-size: 0.65rem;
     font-weight: 700;
-    color: white;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color: var(--bg-0);
+    text-shadow: 0 1px 2px color-mix(in oklab, var(--bg-0) 45%, transparent);
     opacity: 0;
     transition: opacity 0.2s ease;
   }

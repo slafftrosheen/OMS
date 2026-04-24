@@ -5,15 +5,7 @@
  * UI for generating exports with templates
  */
 
-import { 
-  Download, 
-  FileSpreadsheet, 
-  FileText, 
-  File,
-  X,
-  Loader2,
-  CheckCircle
-} from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
 let {
   exportType = 'orders',
@@ -301,11 +293,11 @@ $effect(() => {
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: color-mix(in oklab, var(--bg-0) 55%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
     padding: 1rem;
   }
 
@@ -521,7 +513,7 @@ $effect(() => {
     gap: 0.5rem;
     padding: 0.75rem 1.5rem;
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     text-decoration: none;
     border-radius: 6px;
     font-weight: 500;
@@ -536,7 +528,7 @@ $effect(() => {
   .error-message {
     padding: 0.75rem 1rem;
     background: var(--danger);
-    color: white;
+    color: var(--bg-0);
     border-radius: 6px;
     font-size: 0.875rem;
   }
@@ -579,7 +571,7 @@ $effect(() => {
 
   .btn-primary {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
   }
 
   .btn-primary:hover:not(:disabled) {

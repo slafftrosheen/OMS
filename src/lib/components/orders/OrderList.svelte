@@ -213,32 +213,32 @@
         background: white;
         padding: 1.5rem;
         border-radius: 0.5rem;
-        border: 1px solid var(--color-border, #e5e7eb);
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        border: 1px solid var(--color-border, var(--border));
+        box-shadow: 0 1px 2px 0 color-mix(in oklab, var(--bg-0) 5%, transparent);
     }
 
     .stat-value {
         font-size: 2rem;
         font-weight: 700;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
         margin-bottom: 0.25rem;
     }
 
     .stat-label {
         font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         font-weight: 500;
     }
 
-    .stat-active .stat-value { color: #3b82f6; }
-    .stat-completed .stat-value { color: #10b981; }
-    .stat-overdue .stat-value { color: #ef4444; }
+    .stat-active .stat-value { color: var(--brand); }
+    .stat-completed .stat-value { color: var(--ok); }
+    .stat-overdue .stat-value { color: var(--error); }
 
     .filters-section {
         background: white;
         padding: 1.25rem;
         border-radius: 0.5rem;
-        border: 1px solid var(--color-border, #e5e7eb);
+        border: 1px solid var(--color-border, var(--border));
         display: flex;
         flex-direction: column;
         gap: 1rem;
@@ -266,7 +266,7 @@
     .filter-label {
         font-size: 0.875rem;
         font-weight: 500;
-        color: var(--color-gray-700, #374151);
+        color: var(--color-gray-700, var(--ink-secondary));
     }
 
     .status-filter {
@@ -291,7 +291,7 @@
 
     .sort-select {
         padding: 0.375rem 0.75rem;
-        border: 1px solid var(--color-border, #d1d5db);
+        border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
         font-size: 0.875rem;
         background: white;
@@ -300,36 +300,36 @@
 
     .sort-direction {
         padding: 0.375rem 0.75rem;
-        border: 1px solid var(--color-border, #d1d5db);
+        border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
         background: white;
         cursor: pointer;
         font-size: 1.25rem;
         line-height: 1;
-        transition: all 0.15s ease;
+        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     }
 
     .sort-direction:hover {
-        background-color: var(--color-gray-50, #f9fafb);
+        background-color: var(--color-gray-50, var(--bg-2));
     }
 
     .clear-filters,
     .clear-filters-btn {
         padding: 0.5rem 1rem;
-        border: 1px solid var(--color-border, #d1d5db);
+        border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
         background: white;
-        color: var(--color-gray-700, #374151);
+        color: var(--color-gray-700, var(--ink-secondary));
         font-size: 0.875rem;
         font-weight: 500;
         cursor: pointer;
-        transition: all 0.15s ease;
+        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     }
 
     .clear-filters:hover,
     .clear-filters-btn:hover {
-        background-color: var(--color-gray-50, #f9fafb);
-        border-color: var(--color-gray-300, #d1d5db);
+        background-color: var(--color-gray-50, var(--bg-2));
+        border-color: var(--color-gray-300, var(--border));
     }
 
     .orders-grid {
@@ -349,8 +349,8 @@
     .spinner {
         width: 3rem;
         height: 3rem;
-        border: 4px solid var(--color-gray-200, #e5e7eb);
-        border-top-color: var(--color-primary, #0066cc);
+        border: 4px solid var(--color-gray-200, var(--border));
+        border-top-color: var(--color-primary, var(--brand));
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
         margin: 0 auto 1rem;
@@ -361,31 +361,31 @@
     }
 
     .error-message {
-        color: var(--color-danger, #dc3545);
+        color: var(--color-danger, var(--error));
         font-size: 1rem;
     }
 
     .empty-message {
         font-size: 1.125rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0 0 0.5rem 0;
     }
 
     .empty-hint {
         font-size: 0.875rem;
-        color: var(--color-gray-500, #9ca3af);
+        color: var(--color-gray-500, var(--muted));
         margin: 0;
     }
 
     .list-footer {
         padding: 1rem;
-        border-top: 1px solid var(--color-border, #e5e7eb);
+        border-top: 1px solid var(--color-border, var(--border));
         text-align: center;
     }
 
     .result-count {
         font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0;
     }
 

@@ -211,7 +211,7 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 8px;
-    z-index: 50;
+    z-index: var(--z-overlay);
   }
   .menu-row {
     margin: 6px 0;

@@ -219,7 +219,7 @@
     position: absolute;
     right: 0;
     top: calc(var(--control-sm) + var(--space-tight));
-    z-index: 20;
+    z-index: var(--z-popover);
   }
 
   .row-item {

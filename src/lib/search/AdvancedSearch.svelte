@@ -7,17 +7,7 @@
 
 import { onMount } from 'svelte';
 import { slide } from 'svelte/transition';
-import { 
-  Search, 
-  Filter, 
-  Save, 
-  X, 
-  Calendar,
-  User,
-  Tag,
-  Star,
-  Clock
-} from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
 let {
   initialQuery = '',
@@ -538,7 +528,7 @@ function handleKeydown(event: KeyboardEvent) {
     height: 16px;
     padding: 0 4px;
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     font-size: 10px;
     font-weight: 600;
     border-radius: 8px;
@@ -550,7 +540,7 @@ function handleKeydown(event: KeyboardEvent) {
   .search-btn {
     padding: 0.5rem 1.25rem;
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     border: none;
     border-radius: 6px;
     font-size: 0.875rem;
@@ -658,8 +648,8 @@ function handleKeydown(event: KeyboardEvent) {
     background: var(--bg-0);
     border: 1px solid var(--border);
     border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    z-index: 100;
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 10%, transparent);
+    z-index: var(--z-overlay);
   }
 
   .suggestion-item {
@@ -693,11 +683,11 @@ function handleKeydown(event: KeyboardEvent) {
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: color-mix(in oklab, var(--bg-0) 55%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
     padding: 1rem;
   }
 
@@ -828,7 +818,7 @@ function handleKeydown(event: KeyboardEvent) {
 
   .btn-primary {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
   }
 
   .btn-primary:hover {

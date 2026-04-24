@@ -127,7 +127,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-md);
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .stock-card:hover {

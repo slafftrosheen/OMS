@@ -186,7 +186,7 @@
     }
 
     .notification-trigger:hover {
-        background-color: var(--color-gray-100, #f3f4f6);
+        background-color: var(--color-gray-100, var(--bg-2));
     }
 
     .notification-icon {
@@ -203,7 +203,7 @@
     .notification-overlay {
         position: fixed;
         inset: 0;
-        z-index: 999;
+        z-index: var(--z-modal);
         background: transparent;
     }
 
@@ -215,11 +215,11 @@
         max-width: calc(100vw - 2rem);
         max-height: 600px;
         background: white;
-        border: 1px solid var(--color-border, #e5e7eb);
+        border: 1px solid var(--color-border, var(--border));
         border-radius: 0.5rem;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-                    0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        z-index: 1000;
+        box-shadow: 0 10px 15px -3px color-mix(in oklab, var(--bg-0) 10%, transparent),
+                    0 4px 6px -2px color-mix(in oklab, var(--bg-0) 5%, transparent);
+        z-index: var(--z-modal);
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -227,24 +227,24 @@
 
     .panel-header {
         padding: 1rem;
-        border-bottom: 1px solid var(--color-border, #e5e7eb);
+        border-bottom: 1px solid var(--color-border, var(--border));
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: var(--color-gray-50, #f9fafb);
+        background: var(--color-gray-50, var(--bg-2));
     }
 
     .panel-title {
         font-size: 1.125rem;
         font-weight: 600;
         margin: 0;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
     }
 
     .mark-all-read {
         background: none;
         border: none;
-        color: var(--color-primary, #0066cc);
+        color: var(--color-primary, var(--brand));
         font-size: 0.875rem;
         font-weight: 500;
         cursor: pointer;
@@ -254,7 +254,7 @@
     }
 
     .mark-all-read:hover {
-        background-color: var(--color-gray-200, #e5e7eb);
+        background-color: var(--color-gray-200, var(--border));
     }
 
     .notifications-list {
@@ -269,13 +269,13 @@
 
     .empty-message {
         font-size: 1rem;
-        color: var(--color-gray-700, #374151);
+        color: var(--color-gray-700, var(--ink-secondary));
         margin: 0 0 0.5rem 0;
     }
 
     .empty-hint {
         font-size: 0.875rem;
-        color: var(--color-gray-500, #9ca3af);
+        color: var(--color-gray-500, var(--muted));
         margin: 0;
     }
 
@@ -283,18 +283,18 @@
         display: flex;
         gap: 0.75rem;
         padding: 1rem;
-        border-bottom: 1px solid var(--color-border, #e5e7eb);
+        border-bottom: 1px solid var(--color-border, var(--border));
         cursor: pointer;
         transition: background-color 0.15s ease;
         position: relative;
     }
 
     .notification-item:hover {
-        background-color: var(--color-gray-50, #f9fafb);
+        background-color: var(--color-gray-50, var(--bg-2));
     }
 
     .notification-item.unread {
-        background-color: #eff6ff;
+        background-color: var(--brand-soft);
     }
 
     .notification-item.unread::before {
@@ -304,7 +304,7 @@
         top: 0;
         bottom: 0;
         width: 3px;
-        background: var(--color-primary, #0066cc);
+        background: var(--color-primary, var(--brand));
     }
 
     .notification-indicator {
@@ -316,7 +316,7 @@
         justify-content: center;
         font-size: 1.25rem;
         flex-shrink: 0;
-        color: white;
+        color: var(--bg-0);
     }
 
     .notification-content {
@@ -328,12 +328,12 @@
         font-size: 0.875rem;
         font-weight: 600;
         margin: 0 0 0.25rem 0;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
     }
 
     .notification-message {
         font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0 0 0.375rem 0;
         line-height: 1.4;
         display: -webkit-box;
@@ -344,13 +344,13 @@
 
     .notification-time {
         font-size: 0.75rem;
-        color: var(--color-gray-500, #9ca3af);
+        color: var(--color-gray-500, var(--muted));
     }
 
     .notification-remove {
         background: none;
         border: none;
-        color: var(--color-gray-400, #9ca3af);
+        color: var(--color-gray-400, var(--muted));
         cursor: pointer;
         padding: 0.25rem;
         width: 1.5rem;
@@ -359,21 +359,21 @@
         align-items: center;
         justify-content: center;
         border-radius: 0.25rem;
-        transition: all 0.15s ease;
+        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
         flex-shrink: 0;
     }
 
     .notification-remove:hover {
-        background-color: var(--color-gray-200, #e5e7eb);
-        color: var(--color-gray-700, #374151);
+        background-color: var(--color-gray-200, var(--border));
+        color: var(--color-gray-700, var(--ink-secondary));
     }
 
     .panel-footer {
         padding: 0.75rem;
-        border-top: 1px solid var(--color-border, #e5e7eb);
+        border-top: 1px solid var(--color-border, var(--border));
         display: flex;
         justify-content: center;
-        background: var(--color-gray-50, #f9fafb);
+        background: var(--color-gray-50, var(--bg-2));
     }
 
     /* Custom scrollbar */
@@ -382,11 +382,11 @@
     }
 
     .notifications-list::-webkit-scrollbar-track {
-        background: var(--color-gray-100, #f3f4f6);
+        background: var(--color-gray-100, var(--bg-2));
     }
 
     .notifications-list::-webkit-scrollbar-thumb {
-        background: var(--color-gray-400, #9ca3af);
+        background: var(--color-gray-400, var(--muted));
         border-radius: 0.25rem;
     }
 

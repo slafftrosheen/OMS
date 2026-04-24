@@ -1,6 +1,6 @@
 <!-- src/lib/admin/components/builder/ComponentPalette.svelte -->
 <script lang="ts">
-  import { GripVertical } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   let { ondragstart }: { ondragstart?: (data: { event: DragEvent; component: any }) => void } = $props();
 
@@ -100,7 +100,7 @@
     margin: 0;
     font-size: 14px;
     font-weight: 700;
-    color: #1a1a1a;
+    color: var(--ink-primary);
     padding: 8px 0;
   }
 
@@ -116,15 +116,15 @@
     gap: 8px;
     padding: 8px;
     background: white;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     border-radius: 8px;
     cursor: grab;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .palette-item:hover {
-    border-color: #667EEA;
-    background: #f9fafb;
+    border-color: var(--brand);
+    background: var(--bg-2);
     transform: translateX(4px);
   }
 
@@ -133,7 +133,7 @@
   }
 
   .drag-handle {
-    color: #9ca3af;
+    color: var(--muted);
     flex-shrink: 0;
   }
 
@@ -152,12 +152,12 @@
   .item-label {
     font-size: 13px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--ink-primary);
   }
 
   .item-description {
     font-size: 10px;
-    color: #6b7280;
+    color: var(--ink-tertiary);
     line-height: 1.2;
   }
 

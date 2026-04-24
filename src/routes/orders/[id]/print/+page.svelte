@@ -71,7 +71,7 @@
       --bg-0: white;
       --ink-0: black;
       --text: black;
-      --border: #999;
+      --border: var(--muted);
     }
     :global(nav),
     :global(.topbar),

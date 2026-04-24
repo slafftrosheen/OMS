@@ -1,6 +1,6 @@
 <!-- src/lib/profiles/components/fields/DimensionInput.svelte -->
 <script lang="ts">
-  import { Ruler } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {
     value?: { width?: number; height?: number; depth?: number };
@@ -84,11 +84,11 @@
     gap: var(--space-xs, 4px);
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .required {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
     margin-left: 2px;
   }
 
@@ -107,21 +107,21 @@
   .field-label {
     font-size: var(--text-xs, 0.75rem);
     font-weight: 500;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
   }
 
   .input-wrapper {
     display: flex;
     align-items: center;
-    background: var(--bg-1, #ffffff);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-1, var(--bg-0));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
     padding-right: var(--space-sm, 8px);
     transition: border-color 0.15s ease;
   }
 
   .input-wrapper:focus-within {
-    border-color: var(--primary, #3b82f6);
+    border-color: var(--primary, var(--brand));
   }
 
   .dimension-value {
@@ -131,7 +131,7 @@
     background: none;
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
     outline: none;
   }
 
@@ -148,16 +148,16 @@
   .unit {
     font-size: var(--text-xs, 0.75rem);
     font-weight: 500;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
   }
 
   .error-message {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
     font-size: var(--text-xs, 0.75rem);
   }
 
   .dimension-input.error .input-wrapper {
-    border-color: var(--danger, #dc2626);
+    border-color: var(--danger, var(--error));
   }
 
   .dimension-input.disabled {

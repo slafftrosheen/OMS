@@ -1,61 +1,49 @@
 <script lang="ts">
-  import Sun from 'lucide-svelte/icons/sun';
-  import Moon from 'lucide-svelte/icons/moon';
-  import Contrast from 'lucide-svelte/icons/contrast';
   import { ui } from '$lib/state/appState.svelte';
   import { t } from 'svelte-i18n';
   import { clickOutside } from '$lib/utils/click-outside';
+  import Icon from '$lib/ui/Icon.svelte';
+  import type { IconName } from '$lib/ui/icons';
 
   type Theme = 'LightVim' | 'DarkVim' | 'HighContrastVim';
-  
-  let isOpen = $state(false);
-  let currentTheme = $derived(($ui).theme as Theme);
 
-  function set(theme: Theme) {
-    ui.update(p => ({ ...p, theme }));
-    isOpen = false;
-  }
-
-  function toggle() {
-    isOpen = !isOpen;
-  }
-
-  function handleClickOutside() {
-    isOpen = false;
-  }
-
-  const themes: { id: Theme; icon: any; label: string }[] = [
-    { id: 'LightVim', icon: Sun, label: 'Light' },
-    { id: 'DarkVim', icon: Moon, label: 'Dark' },
-    { id: 'HighContrastVim', icon: Contrast, label: 'High Contrast' }
+  const themes: { id: Theme; icon: IconName; label: string }[] = [
+    { id: 'LightVim',        icon: 'sun',      label: 'Light' },
+    { id: 'DarkVim',         icon: 'moon',     label: 'Dark' },
+    { id: 'HighContrastVim', icon: 'contrast', label: 'High Contrast' },
   ];
 
-  let currentIcon = $derived(themes.find(t => t.id === currentTheme)?.icon || Moon);
+  let isOpen = $state(false);
+  let currentTheme = $derived(($ui).theme as Theme);
+  let currentIcon = $derived(themes.find(th => th.id === currentTheme)?.icon ?? 'moon');
 
-  const SvelteComponent = $derived(currentIcon);
+  function set(theme: Theme) { ui.update(p => ({ ...p, theme })); isOpen = false; }
 </script>
 
-<div class="theme-menu" use:clickOutside={handleClickOutside}>
-  <button 
-    class="theme-btn" 
-    onclick={toggle}
-    aria-haspopup="menu" 
-    aria-expanded={isOpen} 
+<div class="rf-theme" use:clickOutside={() => { isOpen = false; }}>
+  <button
+    class="rf-theme__btn"
+    type="button"
+    onclick={() => isOpen = !isOpen}
+    aria-haspopup="menu"
+    aria-expanded={isOpen}
     aria-label={$t('topbar.theme', { default: 'Theme' })}
   >
-    <SvelteComponent size={18} aria-hidden="true" />
+    <Icon name={currentIcon} size="sm" />
   </button>
-  
+
   {#if isOpen}
-    <div class="dropdown" role="menu">
-      {#each themes as theme}
-        <button 
-          role="menuitem" 
-          class:active={currentTheme === theme.id}
-          onclick={() => set(theme.id)}
+    <div class="rf-theme__dropdown" role="menu">
+      {#each themes as th}
+        <button
+          role="menuitem"
+          class="rf-theme__item"
+          class:active={currentTheme === th.id}
+          type="button"
+          onclick={() => set(th.id)}
         >
-          <theme.icon size={16} />
-          <span>{theme.label}</span>
+          <Icon name={th.icon} size="sm" />
+          <span>{th.label}</span>
         </button>
       {/each}
     </div>
@@ -63,79 +51,74 @@
 </div>
 
 <style>
-  .theme-menu {
-    position: relative;
-  }
+  .rf-theme { position: relative; }
 
-  .theme-btn {
+  .rf-theme__btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: var(--control-sm, 36px);
+    height: var(--control-sm, 36px);
     padding: 0;
     background: transparent;
     border: none;
-    border-radius: 8px;
-    color: var(--text);
+    border-radius: var(--radius-sm);
+    color: var(--ink-secondary);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      color      var(--motion-sm) var(--ease-standard);
   }
-
-  .theme-btn:hover,
-  .theme-btn[aria-expanded="true"] {
-    background: var(--bg-2);
-    color: var(--text);
+  .rf-theme__btn:hover,
+  .rf-theme__btn[aria-expanded="true"] {
+    background: color-mix(in oklab, var(--bg-2) 70%, transparent);
+    color: var(--ink-primary);
   }
+  .rf-theme__btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-  .dropdown {
+  .rf-theme__dropdown {
     position: absolute;
-    top: calc(100% + 8px);
+    top: calc(100% + var(--space-sm));
     right: 0;
     min-width: 180px;
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(var(--shadow-rgb, 0 0 0) / 0.18);
-    padding: 4px;
-    z-index: 10000;
-    animation: slideDown 0.15s ease;
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--glass-material-thick);
+    -webkit-backdrop-filter: var(--glass-material-thick);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--glass-shadow-md);
+    padding: var(--space-xxs);
+    z-index: var(--z-popover);
+    animation: rf-dd-in var(--motion-sm) var(--ease-standard) both;
+  }
+  @keyframes rf-dd-in {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)   scale(1); }
   }
 
-  @keyframes slideDown {
-    from {
-      opacity: 0;
-      transform: translateY(-8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .dropdown button {
+  .rf-theme__item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-sm);
     width: 100%;
-    padding: 10px 12px;
+    padding: var(--space-xs) var(--space-sm);
     background: transparent;
     border: none;
-    border-radius: 8px;
-    color: var(--text);
+    border-radius: var(--radius-sm);
+    color: var(--ink-secondary);
     cursor: pointer;
     text-align: left;
-    transition: background 0.15s ease;
-    font-size: 0.875rem;
+    font-size: var(--text-sm);
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      color      var(--motion-sm) var(--ease-standard);
   }
-
-  .dropdown button:hover {
-    background: var(--bg-2);
-  }
-
-  .dropdown button.active {
-    background: var(--accent-1, var(--accent));
-    color: white;
+  .rf-theme__item:hover { background: color-mix(in oklab, var(--bg-2) 60%, transparent); color: var(--ink-primary); }
+  .rf-theme__item:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+  .rf-theme__item.active {
+    background: var(--brand);
+    color: var(--bg-0);
     font-weight: 600;
   }
+  .rf-theme__item.active:hover { background: color-mix(in oklab, var(--brand) 85%, black); }
 </style>

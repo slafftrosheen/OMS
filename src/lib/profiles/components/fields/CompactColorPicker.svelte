@@ -4,7 +4,7 @@
   import { stopPropagation } from 'svelte/legacy';
 
   import { onMount } from 'svelte';
-  import { Palette, X, ChevronDown } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   
   // Import catalog data directly
   import ralColors from '$lib/profiles/data/ral-classic.json';
@@ -197,7 +197,7 @@
     font-size: 9px;
     font-weight: 600;
     text-transform: uppercase;
-    color: #333;
+    color: var(--ink-primary);
   }
   
   .picker-trigger {
@@ -207,13 +207,13 @@
     padding: 4px 8px;
     min-width: 80px;
     min-height: 28px;
-    background: #fff;
-    border: 2px solid #000;
+    background: var(--bg-0);
+    border: 2px solid var(--ink-primary);
     border-radius: 3px;
     cursor: pointer;
     font-size: 10px;
     font-weight: 600;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
   
   .picker-trigger:disabled {
@@ -222,7 +222,7 @@
   }
   
   .picker-trigger:hover:not(:disabled) {
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
   
   .selected-code {
@@ -233,7 +233,7 @@
   }
   
   .placeholder {
-    color: #999;
+    color: var(--muted);
   }
   
   .clear-btn {
@@ -243,7 +243,7 @@
     width: 16px;
     height: 16px;
     padding: 0;
-    background: rgba(0,0,0,0.2);
+    background: color-mix(in oklab, var(--bg-0) 20%, transparent);
     border: none;
     border-radius: 50%;
     cursor: pointer;
@@ -251,37 +251,37 @@
   }
   
   .clear-btn:hover {
-    background: rgba(0,0,0,0.3);
+    background: color-mix(in oklab, var(--bg-0) 45%, transparent);
   }
   
   .picker-dropdown {
     position: absolute;
     top: 100%;
     left: 0;
-    z-index: 1000;
+    z-index: var(--z-modal);
     min-width: 280px;
     max-width: 320px;
-    background: #fff;
-    border: 2px solid #000;
+    background: var(--bg-0);
+    border: 2px solid var(--ink-primary);
     border-radius: 6px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    box-shadow: 0 8px 24px color-mix(in oklab, var(--bg-0) 20%, transparent);
     margin-top: 2px;
   }
   
   .system-tabs {
     display: flex;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--bg-2);
   }
   
   .system-tab {
     flex: 1;
     padding: 8px 4px;
-    background: #f5f5f5;
+    background: var(--bg-2);
     border: none;
     font-size: 10px;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
   
   .system-tab:first-child {
@@ -293,26 +293,26 @@
   }
   
   .system-tab.active {
-    background: #4A5568;
-    color: #fff;
+    background: var(--ink-secondary);
+    color: var(--bg-0);
   }
   
   .search-box {
     padding: 6px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--bg-2);
   }
   
   .search-input {
     width: 100%;
     padding: 6px 8px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border);
     border-radius: 4px;
     font-size: 11px;
     outline: none;
   }
   
   .search-input:focus {
-    border-color: #4A5568;
+    border-color: var(--ink-secondary);
   }
   
   .colors-grid {
@@ -329,7 +329,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(0,0,0,0.2);
+    border: 1px solid color-mix(in oklab, var(--bg-0) 20%, transparent);
     border-radius: 4px;
     cursor: pointer;
     font-size: 8px;
@@ -342,14 +342,14 @@
   .color-swatch:hover {
     transform: scale(1.1);
     z-index: 1;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 8px color-mix(in oklab, var(--bg-0) 20%, transparent);
   }
   
   .no-results {
     grid-column: 1 / -1;
     padding: 16px;
     text-align: center;
-    color: #999;
+    color: var(--muted);
     font-size: 11px;
   }
   
@@ -359,11 +359,11 @@
   }
   
   .colors-grid::-webkit-scrollbar-track {
-    background: #f5f5f5;
+    background: var(--bg-2);
   }
   
   .colors-grid::-webkit-scrollbar-thumb {
-    background: #ccc;
+    background: var(--border);
     border-radius: 3px;
   }
 </style>

@@ -1357,8 +1357,8 @@
   .profile-form {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
       sans-serif;
-    background: var(--bg-1, #fff);
-    border: 1px solid var(--border, #e0e0e0);
+    background: var(--bg-1, var(--bg-0));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 8px);
     overflow: visible;
   }
@@ -1375,14 +1375,14 @@
     justify-content: space-between;
     gap: var(--space-lg, 16px);
     padding: var(--space-md, 12px) var(--space-lg, 16px);
-    background: var(--bg-2, #f5f5f5);
-    border-bottom: 2px solid var(--border, #e0e0e0);
+    background: var(--bg-2, var(--bg-2));
+    border-bottom: 2px solid var(--border, var(--border));
     flex-wrap: wrap;
   }
 
   .profile-name input {
     background: #e91e63;
-    color: white;
+    color: var(--bg-0);
     border: none;
     padding: var(--space-sm, 8px) var(--space-md, 14px);
     border-radius: var(--radius-sm, 6px);
@@ -1392,16 +1392,16 @@
   }
 
   .profile-name input::placeholder {
-    color: rgba(255, 255, 255, 0.7);
+    color: color-mix(in oklab, var(--bg-0) 7%, transparent);
   }
 
   .sign-toggle {
     display: flex;
     gap: var(--space-xs, 4px);
-    background: var(--bg-1, #fff);
+    background: var(--bg-1, var(--bg-0));
     padding: var(--space-xs, 4px);
     border-radius: var(--radius-sm, 6px);
-    border: 1px solid var(--border, #e0e0e0);
+    border: 1px solid var(--border, var(--border));
   }
 
   .sign-toggle button {
@@ -1410,15 +1410,15 @@
     padding: var(--space-sm, 8px) var(--space-lg, 16px);
     font-size: var(--step-0, 13px);
     font-weight: 600;
-    color: var(--muted, #666);
+    color: var(--muted, var(--ink-tertiary));
     cursor: pointer;
     border-radius: var(--radius-sm, 4px);
     transition: all 0.15s;
   }
 
   .sign-toggle button.active {
-    background: var(--ink-0, #1f2937);
-    color: white;
+    background: var(--ink-0, var(--ink-primary));
+    color: var(--bg-0);
   }
 
   /* MAIN GRID */
@@ -1426,11 +1426,11 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 1px;
-    background: var(--ink-0, #1f2937);
+    background: var(--ink-0, var(--ink-primary));
   }
 
   .section {
-    background: var(--bg-1, #fff);
+    background: var(--bg-1, var(--bg-0));
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -1439,7 +1439,7 @@
   }
 
   .section:focus-within {
-    z-index: 10;
+    z-index: var(--z-sticky);
   }
 
   .section-sm {
@@ -1458,8 +1458,8 @@
   }
 
   .section-title {
-    background: #4a5568;
-    color: white;
+    background: var(--ink-secondary);
+    color: var(--bg-0);
     padding: var(--space-sm, 8px) var(--space-md, 12px);
     font-size: 11px;
     font-weight: 700;
@@ -1490,7 +1490,7 @@
   .field > label {
     font-size: 10px;
     font-weight: 600;
-    color: var(--muted, #666);
+    color: var(--muted, var(--ink-tertiary));
     text-transform: uppercase;
   }
 
@@ -1514,13 +1514,13 @@
     text-transform: uppercase;
     white-space: nowrap;
     flex-shrink: 0;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
 
   .thickness-input {
     width: 45px;
     padding: var(--space-xs, 4px) var(--space-sm, 6px);
-    border: 1px solid var(--border, #ccc);
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-sm, 4px);
     font-size: 12px;
     font-weight: 600;
@@ -1538,14 +1538,14 @@
   .depth-box label {
     font-size: 10px;
     font-weight: 600;
-    color: var(--muted, #666);
+    color: var(--muted, var(--ink-tertiary));
     text-transform: uppercase;
   }
 
   .depth-input {
     width: 80px;
     height: 60px;
-    border: 3px solid #1f2937;
+    border: 3px solid var(--ink-primary);
     border-radius: 6px;
     font-size: 28px;
     font-weight: 900;
@@ -1571,16 +1571,16 @@
     gap: 4px;
     font-size: 11px;
     font-weight: 600;
-    color: var(--muted, #666);
+    color: var(--muted, var(--ink-tertiary));
     cursor: pointer;
     padding: 4px 8px;
     border-radius: 4px;
-    background: var(--bg-2, #f5f5f5);
+    background: var(--bg-2, var(--bg-2));
   }
 
   .option.active {
-    background: #dbeafe;
-    color: #1d4ed8;
+    background: var(--brand-soft);
+    color: color-mix(in oklab, var(--brand) 90%, black);
   }
   .option input {
     width: 14px;
@@ -1593,7 +1593,7 @@
     flex-direction: column;
     gap: 6px;
     padding: 8px 0;
-    border-bottom: 1px solid var(--border, #eee);
+    border-bottom: 1px solid var(--border, var(--bg-2));
   }
 
   .inline-field:last-of-type {
@@ -1606,12 +1606,12 @@
     gap: 6px;
     font-size: 11px;
     font-weight: 600;
-    color: var(--muted, #666);
+    color: var(--muted, var(--ink-tertiary));
     cursor: pointer;
   }
 
   .toggle-label.active {
-    color: #1f2937;
+    color: var(--ink-primary);
   }
   .toggle-label input {
     width: 14px;
@@ -1653,7 +1653,7 @@
     flex-direction: column;
     gap: 6px;
     padding: 8px;
-    background: var(--bg-2, #f9f9f9);
+    background: var(--bg-2, var(--bg-2));
     border-radius: 6px;
   }
 
@@ -1667,12 +1667,12 @@
     gap: 6px;
     font-size: 11px;
     font-weight: 600;
-    color: var(--muted, #666);
+    color: var(--muted, var(--ink-tertiary));
     cursor: pointer;
   }
 
   .paint-label.active {
-    color: #1f2937;
+    color: var(--ink-primary);
   }
   .paint-label input {
     width: 14px;
@@ -1689,8 +1689,8 @@
 
   /* NO BADGE */
   .no-badge {
-    background: #dc2626;
-    color: white;
+    background: var(--error);
+    color: var(--bg-0);
     padding: 6px 10px;
     border-radius: 4px;
     font-size: 11px;
@@ -1715,7 +1715,7 @@
     flex-direction: column;
     gap: var(--space-sm, 8px);
     padding: var(--space-md, 12px);
-    background: var(--bg-2, #f9f9f9);
+    background: var(--bg-2, var(--bg-2));
     border-radius: var(--radius-md, 6px);
   }
 
@@ -1734,40 +1734,40 @@
     align-items: center;
     gap: 4px;
     padding: 4px 10px;
-    background: var(--bg-2, #f3f4f6);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-2, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: 6px;
     font-size: 12px;
     font-weight: 500;
-    color: var(--text-secondary, #374151);
+    color: var(--text-secondary, var(--ink-secondary));
     white-space: nowrap;
     min-height: 28px; /* Fixed height for consistency */
     max-width: 100%; /* Prevent overflow */
   }
 
   .material-badge {
-    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-    border-color: #93c5fd;
-    color: #1e40af;
+    background: linear-gradient(135deg, var(--brand-soft), var(--brand-soft));
+    border-color: var(--brand-soft);
+    color: color-mix(in oklab, var(--brand) 85%, black);
   }
 
   .film-badge {
-    background: linear-gradient(135deg, #fce7f3, #fbcfe8);
-    border-color: #f9a8d4;
+    background: linear-gradient(135deg, var(--error-soft), var(--error-soft));
+    border-color: color-mix(in oklab, var(--error) 40%, transparent);
     color: #be185d;
   }
 
   .color-badge {
-    background: linear-gradient(135deg, #fef3c7, #fde68a);
-    border-color: #fcd34d;
-    color: #92400e;
+    background: linear-gradient(135deg, var(--warn-soft), color-mix(in oklab, var(--warn) 35%, transparent));
+    border-color: color-mix(in oklab, var(--warn) 65%, var(--bg-0));
+    color: color-mix(in oklab, var(--warn) 65%, black);
   }
 
   .badge-swatch {
     width: 16px;
     height: 16px;
     border-radius: 3px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid color-mix(in oklab, var(--bg-0) 10%, transparent);
     flex-shrink: 0;
   }
 
@@ -1820,7 +1820,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    border: 2px solid rgba(0, 0, 0, 0.1);
+    border: 2px solid color-mix(in oklab, var(--bg-0) 10%, transparent);
     height: 48px;
     flex: 1;
     min-width: 0;
@@ -1831,7 +1831,7 @@
   .thickness-select {
     width: 100%;
     padding: var(--space-xs, 4px) var(--space-sm, 6px);
-    border: 1px solid var(--border, #ccc);
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-sm, 4px);
     font-size: 12px;
     font-weight: 600;
@@ -1841,7 +1841,7 @@
 
   .thickness-select:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--brand);
   }
 
   .no-badge-lg {
@@ -1849,8 +1849,8 @@
     align-items: center;
     justify-content: center;
     gap: var(--space-xs, 4px);
-    background: #dc2626;
-    color: white;
+    background: var(--error);
+    color: var(--bg-0);
     padding: var(--space-md, 12px) var(--space-lg, 16px);
     border-radius: var(--radius-md, 6px);
     font-size: 14px;
@@ -1874,8 +1874,8 @@
     justify-content: center;
     gap: 4px;
     padding: 6px 8px;
-    background: var(--bg-1, #fff);
-    border: 1px solid var(--border, #ddd);
+    background: var(--bg-1, var(--bg-0));
+    border: 1px solid var(--border, var(--border));
     border-radius: 4px;
     font-size: 10px;
     font-weight: 600;
@@ -1883,9 +1883,9 @@
   }
 
   .psu-type label.active {
-    background: #4a5568;
-    color: white;
-    border-color: #4a5568;
+    background: var(--ink-secondary);
+    color: var(--bg-0);
+    border-color: var(--ink-secondary);
   }
 
   .psu-type input {
@@ -1901,7 +1901,7 @@
   .length-input {
     width: 50px;
     padding: 6px;
-    border: 1px solid var(--border, #ddd);
+    border: 1px solid var(--border, var(--border));
     border-radius: 4px;
     font-size: 12px;
     text-align: center;
@@ -1923,8 +1923,8 @@
   }
 
   .wago-badge {
-    background: #e5e5e5;
-    color: #666;
+    background: var(--border);
+    color: var(--ink-tertiary);
     padding: 4px 10px;
     border-radius: 4px;
     font-size: 11px;
@@ -1932,15 +1932,15 @@
   }
 
   .wago-label.active .wago-badge {
-    background: #f59e0b;
-    color: white;
+    background: var(--warn);
+    color: var(--bg-0);
   }
 
   /* FRAME */
   .dims-input {
     width: 100%;
     padding: 8px;
-    border: 2px solid #1f2937;
+    border: 2px solid var(--ink-primary);
     border-radius: 4px;
     font-size: 13px;
     font-weight: 700;
@@ -1962,22 +1962,22 @@
     font-size: 10px;
     font-weight: 600;
     cursor: pointer;
-    background: var(--bg-1, #fff);
-    border: 1px solid var(--border, #ddd);
+    background: var(--bg-1, var(--bg-0));
+    border: 1px solid var(--border, var(--border));
   }
 
   .opt input {
     display: none;
   }
   .opt.waterholes.active {
-    background: #d1fae5;
-    color: #059669;
-    border-color: #059669;
+    background: var(--ok-soft);
+    color: color-mix(in oklab, var(--ok) 85%, black);
+    border-color: color-mix(in oklab, var(--ok) 85%, black);
   }
   .opt.warning.active {
-    background: #fee2e2;
-    color: #dc2626;
-    border-color: #dc2626;
+    background: var(--error-soft);
+    color: var(--error);
+    border-color: var(--error);
   }
 
   /* EXTRAS */
@@ -1987,7 +1987,7 @@
     gap: 8px;
     align-items: center;
     padding-top: 10px;
-    border-top: 1px solid var(--border, #eee);
+    border-top: 1px solid var(--border, var(--bg-2));
   }
 
   .extra {
@@ -1995,7 +1995,7 @@
     align-items: center;
     gap: 6px;
     padding: 6px 12px;
-    background: var(--bg-2, #f5f5f5);
+    background: var(--bg-2, var(--bg-2));
     border-radius: 4px;
     font-size: 11px;
     font-weight: 600;
@@ -2003,8 +2003,8 @@
   }
 
   .extra.active {
-    background: #4a5568;
-    color: white;
+    background: var(--ink-secondary);
+    color: var(--bg-0);
   }
   .extra input {
     display: none;
@@ -2014,14 +2014,14 @@
   .custom-input {
     width: 100%;
     padding: var(--space-xs, 4px) var(--space-sm, 8px);
-    border: 1px solid var(--border, #ddd);
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-sm, 4px);
     font-size: 12px;
   }
 
   .custom-input:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--brand);
   }
 
   /* NOTES FIELD with wrap and alert icon */
@@ -2037,20 +2037,20 @@
     position: absolute;
     top: var(--space-sm, 8px);
     right: var(--space-sm, 8px);
-    color: #f59e0b;
+    color: var(--warn);
     animation: pulse 2s infinite;
   }
 
   .notes-field.has-note .notes {
-    border-color: #f59e0b;
-    background: #fffbeb;
+    border-color: var(--warn);
+    background: var(--warn-soft);
   }
 
   .notes-field :global(.note-placeholder-icon) {
     position: absolute;
     left: var(--space-sm, 8px);
     top: var(--space-sm, 8px);
-    color: var(--muted, #999);
+    color: var(--muted, var(--muted));
     opacity: 0.5;
     pointer-events: none;
   }
@@ -2069,10 +2069,10 @@
     width: 100%;
     padding: var(--space-sm, 8px) var(--space-sm, 8px) var(--space-sm, 8px)
       var(--space-xl, 28px);
-    border: 1px dashed var(--border, #ddd);
+    border: 1px dashed var(--border, var(--border));
     border-radius: var(--radius-sm, 4px);
     font-size: 12px;
-    background: var(--bg-2, #fafafa);
+    background: var(--bg-2, var(--bg-2));
     resize: vertical;
     min-height: 36px;
     word-wrap: break-word;
@@ -2082,12 +2082,12 @@
 
   .notes:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--brand);
     border-style: solid;
   }
 
   .notes::placeholder {
-    color: var(--muted, #999);
+    color: var(--muted, var(--muted));
   }
 
   /* RESPONSIVE */

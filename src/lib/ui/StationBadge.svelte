@@ -2,18 +2,7 @@
   import { t } from 'svelte-i18n';
   import { TERMS } from '$lib/order/names';
   import type { StationTag } from '$lib/order/stages';
-  import {
-    PenTool,
-    Settings2,
-    Sparkles,
-    Component,
-    Flame,
-    Paintbrush,
-    PackageCheck,
-    ShieldCheck,
-    Truck,
-    CircleDashed
-  } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {
     station?: StationTag | null | undefined;

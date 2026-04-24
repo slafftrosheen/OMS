@@ -51,7 +51,7 @@
   .label {
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
     flex: 1;
   }
 
@@ -59,16 +59,16 @@
     position: relative;
     width: 52px;
     height: 28px;
-    background: var(--bg-3, #f3f4f6);
-    border: 2px solid var(--border, #e5e7eb);
+    background: var(--bg-3, var(--bg-2));
+    border: 2px solid var(--border, var(--border));
     border-radius: var(--radius-full, 9999px);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     padding: 0;
   }
 
   .switch:hover:not(:disabled) {
-    border-color: var(--primary, #3b82f6);
+    border-color: var(--primary, var(--brand));
   }
 
   .switch:disabled {
@@ -77,8 +77,8 @@
   }
 
   .switch.active {
-    background: var(--primary, #3b82f6);
-    border-color: var(--primary, #3b82f6);
+    background: var(--primary, var(--brand));
+    border-color: var(--primary, var(--brand));
   }
 
   .slider {
@@ -90,7 +90,7 @@
     background: white;
     border-radius: 50%;
     transition: transform 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 4px color-mix(in oklab, var(--bg-0) 20%, transparent);
   }
 
   .switch.active .slider {
@@ -98,12 +98,12 @@
   }
 
   .error-message {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
     font-size: var(--text-xs, 0.75rem);
   }
 
   .toggle-switch.error .switch {
-    border-color: var(--danger, #dc2626);
+    border-color: var(--danger, var(--error));
   }
 
   .toggle-switch.disabled {

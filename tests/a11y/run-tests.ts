@@ -1,6 +1,6 @@
 // tests/a11y/run-tests.ts
 import { chromium, type Browser, type Page } from '@playwright/test';
-import axe from 'axe-core';
+import { source as axeSource } from 'axe-core';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
@@ -38,10 +38,8 @@ async function runA11yTests() {
 				await page.waitForSelector(pageTest.waitFor);
 			}
 
-			// Inject axe-core
-			await page.addScriptTag({
-				url: 'https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.8.0/axe.min.js'
-			});
+			// Inject axe-core from local package (no CDN — air-gapped network)
+			await page.addScriptTag({ content: axeSource });
 
 			// Run axe tests
 			const axeResults = await page.evaluate(async () => {

@@ -5,7 +5,7 @@
  */
 
 import { syncStatus, syncQueue, syncNow } from '$lib/pwa/sync-manager';
-import { WifiOff, Wifi, RefreshCw, AlertCircle } from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
 let showDetails = $state(false);
 
@@ -95,7 +95,7 @@ function handleKeydown(event: KeyboardEvent) {
         position: fixed;
         top: 70px;
         right: 20px;
-        z-index: 999;
+        z-index: var(--z-modal);
     }
 
     .status-btn {
@@ -104,17 +104,17 @@ function handleKeydown(event: KeyboardEvent) {
         align-items: center;
         gap: 6px;
         padding: 8px 12px;
-        background: #10b981;
-        color: white;
+        background: var(--ok);
+        color: var(--bg-0);
         border: none;
         border-radius: 20px;
         cursor: pointer;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        box-shadow: 0 2px 8px color-mix(in oklab, var(--bg-0) 15%, transparent);
         transition: all 0.2s;
     }
 
     .offline .status-btn {
-        background: #ef4444;
+        background: var(--error);
     }
 
     .status-btn:hover {
@@ -125,8 +125,8 @@ function handleKeydown(event: KeyboardEvent) {
         position: absolute;
         top: -6px;
         right: -6px;
-        background: #f59e0b;
-        color: white;
+        background: var(--warn);
+        color: var(--bg-0);
         font-size: 0.75rem;
         font-weight: 700;
         padding: 2px 6px;
@@ -136,7 +136,7 @@ function handleKeydown(event: KeyboardEvent) {
     }
 
     :global(.conflict-icon) {
-        color: #fbbf24;
+        color: color-mix(in oklab, var(--warn) 75%, var(--bg-0));
     }
 
     .details-panel {
@@ -144,10 +144,10 @@ function handleKeydown(event: KeyboardEvent) {
         top: 45px;
         right: 0;
         background: white;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border);
         border-radius: 8px;
         padding: 15px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 10%, transparent);
         min-width: 220px;
         animation: slideDown 0.2s ease;
     }
@@ -172,19 +172,19 @@ function handleKeydown(event: KeyboardEvent) {
     }
 
     .detail-row:not(:last-child) {
-        border-bottom: 1px solid #f3f4f6;
+        border-bottom: 1px solid var(--bg-2);
     }
 
     .detail-row.warning {
-        color: #f59e0b;
+        color: var(--warn);
     }
 
     .detail-row strong.online {
-        color: #10b981;
+        color: var(--ok);
     }
 
     .detail-row strong.offline {
-        color: #ef4444;
+        color: var(--error);
     }
 
     .sync-btn {
@@ -195,8 +195,8 @@ function handleKeydown(event: KeyboardEvent) {
         justify-content: center;
         gap: 6px;
         padding: 8px;
-        background: #3b82f6;
-        color: white;
+        background: var(--brand);
+        color: var(--bg-0);
         border: none;
         border-radius: 6px;
         font-size: 0.875rem;
@@ -206,11 +206,11 @@ function handleKeydown(event: KeyboardEvent) {
     }
 
     .sync-btn:hover:not(:disabled) {
-        background: #2563eb;
+        background: var(--brand);
     }
 
     .sync-btn:disabled {
-        background: #9ca3af;
+        background: var(--muted);
         cursor: not-allowed;
     }
 

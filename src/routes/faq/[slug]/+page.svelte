@@ -5,7 +5,7 @@
   import type { FAQItem } from '$lib/faq/types';
   import Badge from '$lib/ui/Badge.svelte';
   import Button from '$lib/ui/Button.svelte';
-  import { ArrowLeft, Eye, Calendar, Tag } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   let item: FAQItem | null = $state(null);
   let loading = $state(true);
@@ -371,7 +371,7 @@
     border-radius: var(--radius-md);
     text-decoration: none;
     color: var(--text);
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .attachment-item:hover {
@@ -414,7 +414,7 @@
     border-radius: var(--radius-md);
     text-decoration: none;
     color: var(--text);
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .related-item:hover {

@@ -1,7 +1,7 @@
 <!-- src/lib/profiles/components/fields/MaterialSelector.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { ChevronDown, AlertCircle, CheckCircle, Package } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import type { Material } from '$lib/profiles/types';
 
   interface Props {
@@ -211,11 +211,11 @@
   .label {
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .required {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
     margin-left: 2px;
   }
 
@@ -229,17 +229,17 @@
     align-items: center;
     justify-content: space-between;
     padding: var(--space-sm, 8px) var(--space-md, 12px);
-    background: var(--bg-1, #ffffff);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-1, var(--bg-0));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     min-height: 44px;
   }
 
   .selector-button:hover:not(:disabled) {
-    border-color: var(--primary, #3b82f6);
-    background: var(--bg-2, #f9fafb);
+    border-color: var(--primary, var(--brand));
+    background: var(--bg-2, var(--bg-2));
   }
 
   .selector-button:disabled {
@@ -248,7 +248,7 @@
   }
 
   .selector-button.open {
-    border-color: var(--primary, #3b82f6);
+    border-color: var(--primary, var(--brand));
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
   }
@@ -264,7 +264,7 @@
     width: 24px;
     height: 24px;
     border-radius: var(--radius-sm, 4px);
-    border: 1px solid var(--border, #e5e7eb);
+    border: 1px solid var(--border, var(--border));
     flex-shrink: 0;
   }
 
@@ -282,7 +282,7 @@
 
   .material-code {
     font-size: var(--text-xs, 0.75rem);
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     font-family: var(--font-mono, monospace);
   }
 
@@ -294,22 +294,22 @@
     border-radius: var(--radius-full, 9999px);
     font-size: var(--text-xs, 0.75rem);
     font-weight: 600;
-    background: var(--warning-bg, #fef3c7);
-    color: var(--warning, #f59e0b);
+    background: var(--warning-bg, var(--warn-soft));
+    color: var(--warning, var(--warn));
   }
 
   .inventory-badge.in-stock {
-    background: var(--success-bg, #d1fae5);
-    color: var(--success, #10b981);
+    background: var(--success-bg, var(--ok-soft));
+    color: var(--ok);
   }
 
   .placeholder {
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     font-size: var(--text-sm, 0.875rem);
   }
 
   .chevron {
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     transition: transform 0.2s ease;
   }
 
@@ -322,15 +322,15 @@
     top: 100%;
     left: 0;
     right: 0;
-    background: var(--bg-1, #ffffff);
-    border: 1px solid var(--primary, #3b82f6);
+    background: var(--bg-1, var(--bg-0));
+    border: 1px solid var(--primary, var(--brand));
     border-top: none;
     border-bottom-left-radius: var(--radius-md, 6px);
     border-bottom-right-radius: var(--radius-md, 6px);
     max-height: 320px;
     overflow-y: auto;
-    z-index: 100;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    z-index: var(--z-overlay);
+    box-shadow: 0 8px 16px color-mix(in oklab, var(--bg-0) 15%, transparent);
   }
 
   .material-option {
@@ -341,18 +341,18 @@
     padding: var(--space-sm, 8px) var(--space-md, 12px);
     background: none;
     border: none;
-    border-bottom: 1px solid var(--border, #e5e7eb);
+    border-bottom: 1px solid var(--border, var(--border));
     cursor: pointer;
     transition: background 0.15s ease;
     text-align: left;
   }
 
   .material-option:hover {
-    background: var(--bg-2, #f9fafb);
+    background: var(--bg-2, var(--bg-2));
   }
 
   .material-option.selected {
-    background: var(--primary-bg, #dbeafe);
+    background: var(--primary-bg, var(--brand-soft));
   }
 
   .material-option:last-child {
@@ -370,7 +370,7 @@
     display: flex;
     gap: var(--space-sm, 8px);
     font-size: var(--text-xs, 0.75rem);
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
   }
 
   .material-brand {
@@ -379,7 +379,7 @@
 
   .thickness-options {
     font-size: var(--text-xs, 0.75rem);
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     margin-top: 2px;
   }
 
@@ -389,21 +389,21 @@
     gap: 4px;
     padding: 4px 8px;
     border-radius: var(--radius-sm, 4px);
-    background: var(--success-bg, #d1fae5);
-    color: var(--success, #10b981);
+    background: var(--success-bg, var(--ok-soft));
+    color: var(--ok);
     font-size: var(--text-xs, 0.75rem);
     font-weight: 600;
   }
 
   .stock-indicator.low {
-    background: var(--warning-bg, #fef3c7);
-    color: var(--warning, #f59e0b);
+    background: var(--warning-bg, var(--warn-soft));
+    color: var(--warning, var(--warn));
   }
 
   .no-options {
     padding: var(--space-lg, 16px);
     text-align: center;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     font-size: var(--text-sm, 0.875rem);
   }
 
@@ -411,20 +411,20 @@
     display: flex;
     align-items: center;
     gap: var(--space-xs, 4px);
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
     font-size: var(--text-xs, 0.75rem);
     margin-top: 2px;
   }
 
   .material-selector.error .selector-button {
-    border-color: var(--danger, #dc2626);
+    border-color: var(--danger, var(--error));
   }
 
   .loading-spinner {
     width: 16px;
     height: 16px;
-    border: 2px solid var(--border, #e5e7eb);
-    border-top-color: var(--primary, #3b82f6);
+    border: 2px solid var(--border, var(--border));
+    border-top-color: var(--primary, var(--brand));
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
@@ -439,16 +439,16 @@
   }
 
   .dropdown-menu::-webkit-scrollbar-track {
-    background: var(--bg-2, #f9fafb);
+    background: var(--bg-2, var(--bg-2));
     border-radius: var(--radius-sm, 4px);
   }
 
   .dropdown-menu::-webkit-scrollbar-thumb {
-    background: var(--border, #e5e7eb);
+    background: var(--border, var(--border));
     border-radius: var(--radius-sm, 4px);
   }
 
   .dropdown-menu::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted, #6b7280);
+    background: var(--text-muted, var(--ink-tertiary));
   }
 </style>

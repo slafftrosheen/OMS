@@ -2,7 +2,7 @@
   import { preventDefault } from 'svelte/legacy';
 
   import { base } from '$app/paths';
-  import { Lock, Check, AlertCircle, Eye, EyeOff } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import { t } from 'svelte-i18n';
 
   let currentPassword = $state('');
@@ -146,15 +146,15 @@
   }
 
   .alert-success {
-    background: #ecfdf5;
-    color: #065f46;
-    border: 1px solid #a7f3d0;
+    background: var(--ok-soft);
+    color: color-mix(in oklab, var(--ok) 60%, black);
+    border: 1px solid color-mix(in oklab, var(--ok) 35%, transparent);
   }
 
   .alert-error {
-    background: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
+    background: var(--error-soft);
+    color: color-mix(in oklab, var(--error) 85%, black);
+    border: 1px solid color-mix(in oklab, var(--error) 30%, transparent);
   }
 
   .form-group {
@@ -181,7 +181,7 @@
 
   input:focus {
     outline: none;
-    border-color: var(--accent, #3b82f6);
+    border-color: var(--accent, var(--brand));
   }
 
   .password-input {
@@ -220,8 +220,8 @@
   .btn-primary {
     width: 100%;
     padding: 10px 16px;
-    background: var(--accent, #3b82f6);
-    color: white;
+    background: var(--accent, var(--brand));
+    color: var(--bg-0);
     border: none;
     border-radius: 6px;
     font-size: 14px;
@@ -230,7 +230,7 @@
   }
 
   .btn-primary:hover:not(:disabled) {
-    background: var(--accent-hover, #2563eb);
+    background: var(--accent-hover, var(--brand));
   }
 
   .btn-primary:disabled {

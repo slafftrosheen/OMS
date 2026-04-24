@@ -221,29 +221,29 @@
         height: 100%;
         background: white;
         border-radius: 0.5rem;
-        border: 1px solid var(--color-border, #e5e7eb);
+        border: 1px solid var(--color-border, var(--border));
         overflow: hidden;
     }
 
     .chat-header {
         padding: 1rem;
-        border-bottom: 1px solid var(--color-border, #e5e7eb);
+        border-bottom: 1px solid var(--color-border, var(--border));
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: var(--color-gray-50, #f9fafb);
+        background: var(--color-gray-50, var(--bg-2));
     }
 
     .chat-title {
         font-size: 1.125rem;
         font-weight: 600;
         margin: 0;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
     }
 
     .message-count {
         font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
     }
 
     .messages-container {
@@ -265,13 +265,13 @@
 
     .empty-message {
         font-size: 1.125rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0 0 0.5rem 0;
     }
 
     .empty-hint {
         font-size: 0.875rem;
-        color: var(--color-gray-500, #9ca3af);
+        color: var(--color-gray-500, var(--muted));
         margin: 0;
     }
 
@@ -291,7 +291,7 @@
     .typing-dots span {
         width: 0.5rem;
         height: 0.5rem;
-        background: var(--color-gray-400, #9ca3af);
+        background: var(--color-gray-400, var(--muted));
         border-radius: 50%;
         animation: typing 1.4s infinite;
     }
@@ -319,7 +319,7 @@
 
     .typing-text {
         font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         font-style: italic;
     }
 
@@ -329,15 +329,15 @@
     }
 
     .messages-container::-webkit-scrollbar-track {
-        background: var(--color-gray-100, #f3f4f6);
+        background: var(--color-gray-100, var(--bg-2));
     }
 
     .messages-container::-webkit-scrollbar-thumb {
-        background: var(--color-gray-400, #9ca3af);
+        background: var(--color-gray-400, var(--muted));
         border-radius: 0.25rem;
     }
 
     .messages-container::-webkit-scrollbar-thumb:hover {
-        background: var(--color-gray-500, #6b7280);
+        background: var(--color-gray-500, var(--ink-tertiary));
     }
 </style>

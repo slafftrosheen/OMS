@@ -150,13 +150,13 @@
 }
 
 .status.success {
-  background: rgba(34, 197, 94, 0.2);
-  color: #22c55e;
+  background: color-mix(in oklab, var(--ok) 20%, transparent);
+  color: var(--ok);
 }
 
 .status.error {
-  background: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
+  background: color-mix(in oklab, var(--error) 20%, transparent);
+  color: var(--error);
 }
 
 input {

@@ -213,13 +213,13 @@
     border-radius: 8px;
     padding: 1rem;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     position: relative;
   }
 
   .order-card:hover {
     border-color: var(--accent-1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px color-mix(in oklab, var(--bg-0) 10%, transparent);
     transform: translateY(-2px);
   }
 
@@ -276,7 +276,7 @@
 
   .badge-rd {
     background: var(--accent-2);
-    color: white;
+    color: var(--bg-0);
   }
 
   .badge-status {
@@ -284,11 +284,11 @@
     color: var(--text);
   }
 
-  .badge-draft { background: #6c757d; color: white; }
-  .badge-active { background: #28a745; color: white; }
-  .badge-completed { background: #007bff; color: white; }
-  .badge-cancelled { background: #dc3545; color: white; }
-  .badge-on_hold { background: #ffc107; color: black; }
+  .badge-draft { background: var(--ink-tertiary); color: var(--bg-0); }
+  .badge-active { background: var(--ok); color: var(--bg-0); }
+  .badge-completed { background: var(--brand); color: var(--bg-0); }
+  .badge-cancelled { background: var(--error); color: var(--bg-0); }
+  .badge-on_hold { background: var(--warn); color: black; }
 
   .card-body {
     display: flex;
@@ -328,7 +328,7 @@
     display: inline-block;
     padding: 0.25rem 0.5rem;
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 600;
@@ -402,13 +402,13 @@
   }
 
   .alert-danger {
-    background: rgba(220, 53, 69, 0.1);
+    background: color-mix(in oklab, var(--error) 10%, transparent);
     color: var(--danger);
     border: 1px solid var(--danger);
   }
 
   .alert-warning {
-    background: rgba(255, 193, 7, 0.1);
+    background: color-mix(in oklab, var(--warn) 10%, transparent);
     color: var(--warn);
     border: 1px solid var(--warn);
   }
@@ -443,7 +443,7 @@
     font-weight: 500;
     border: none;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .btn-sm {
@@ -468,6 +468,6 @@
   }
 
   .btn-danger:hover {
-    background: rgba(220, 53, 69, 0.1);
+    background: color-mix(in oklab, var(--error) 10%, transparent);
   }
 </style>

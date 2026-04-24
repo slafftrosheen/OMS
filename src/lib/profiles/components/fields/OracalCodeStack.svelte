@@ -161,7 +161,7 @@
     font-size: 9px;
     font-weight: 600;
     text-transform: uppercase;
-    color: #333;
+    color: var(--ink-primary);
     letter-spacing: 0.5px;
   }
   
@@ -174,7 +174,7 @@
   .code-box {
     display: flex;
     align-items: center;
-    border: 2px solid #000;
+    border: 2px solid var(--ink-primary);
     border-radius: 3px;
     min-height: 28px;
     position: relative;
@@ -203,7 +203,7 @@
   }
   
   .code-input::placeholder {
-    color: rgba(128, 128, 128, 0.7);
+    color: color-mix(in oklab, var(--ink-tertiary) 70%, transparent);
   }
   
   .remove-btn {
@@ -214,7 +214,7 @@
     width: 18px;
     height: 18px;
     padding: 0;
-    background: rgba(0, 0, 0, 0.2);
+    background: color-mix(in oklab, var(--bg-0) 20%, transparent);
     border: none;
     border-radius: 50%;
     font-size: 14px;
@@ -227,23 +227,23 @@
   }
   
   .remove-btn:hover {
-    background: rgba(0, 0, 0, 0.4);
+    background: color-mix(in oklab, var(--bg-0) 55%, transparent);
   }
   
   .add-btn {
     padding: 4px 8px;
-    background: rgba(37, 99, 235, 0.3);
-    border: 2px dashed #2563EB;
+    background: color-mix(in oklab, var(--brand) 30%, transparent);
+    border: 2px dashed var(--brand);
     border-radius: 3px;
-    color: #2563EB;
+    color: var(--brand);
     font-weight: 700;
     font-size: 14px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
   
   .add-btn:hover {
-    background: rgba(37, 99, 235, 0.5);
-    color: #fff;
+    background: color-mix(in oklab, var(--brand) 50%, transparent);
+    color: var(--bg-0);
   }
 </style>

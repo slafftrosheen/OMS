@@ -102,25 +102,25 @@
     gap: 8px;
     padding: 8px;
     background: white;
-    border: 2px solid #e5e7eb;
+    border: 2px solid var(--border);
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .canvas-field:hover {
-    border-color: #667eea;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-color: var(--brand);
+    box-shadow: 0 2px 8px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
 
   .canvas-field.selected {
-    border-color: #667eea;
-    background: #eef2ff;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    border-color: var(--brand);
+    background: var(--brand-soft);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 20%, transparent);
   }
 
   .drag-handle {
-    color: #9ca3af;
+    color: var(--muted);
     opacity: 0.4;
     flex-shrink: 0;
     cursor: grab;
@@ -146,7 +146,7 @@
   .field-label {
     font-size: 13px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--ink-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -154,7 +154,7 @@
 
   .field-type {
     font-size: 10px;
-    color: #6b7280;
+    color: var(--ink-tertiary);
     font-family: "Courier New", monospace;
   }
 
@@ -175,22 +175,22 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #f3f4f6;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
     border-radius: 4px;
     cursor: pointer;
-    color: #6b7280;
-    transition: all 0.15s ease;
+    color: var(--ink-tertiary);
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .field-action-btn:hover {
-    border-color: #667eea;
-    color: #667eea;
+    border-color: var(--brand);
+    color: var(--brand);
   }
 
   .field-action-btn.danger:hover {
-    border-color: #ef4444;
-    color: #ef4444;
+    border-color: var(--error);
+    color: var(--error);
   }
 
   .required-badge {
@@ -202,8 +202,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #ef4444;
-    color: white;
+    background: var(--error);
+    color: var(--bg-0);
     border-radius: 50%;
     font-size: 12px;
     font-weight: 700;

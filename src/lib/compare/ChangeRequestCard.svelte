@@ -79,21 +79,21 @@
 
 <style>
     .change-request {
-        border: 2px solid var(--border, #ddd);
+        border: 2px solid var(--border, var(--border));
         border-radius: 8px;
         padding: 1.5rem;
         margin-bottom: 1rem;
-        background: var(--bg-1, #fff);
+        background: var(--bg-1, var(--bg-0));
     }
 
     .change-request[data-status="approved"] {
-        border-color: var(--ok, #28a745);
-        background: var(--bg-0, #f0fff4);
+        border-color: var(--ok, var(--ok));
+        background: var(--bg-0, var(--ok-soft));
     }
 
     .change-request[data-status="rejected"] {
-        border-color: var(--danger, #dc3545);
-        background: var(--bg-0, #fff5f5);
+        border-color: var(--error);
+        background: var(--bg-0, var(--bg-0)5f5);
     }
 
     header {
@@ -117,18 +117,18 @@
     }
 
     .status-badge[data-status="pending"] {
-        background: var(--warn, #ffc107);
-        color: #000;
+        background: var(--warn, var(--warn));
+        color: var(--ink-primary);
     }
 
     .status-badge[data-status="approved"] {
-        background: var(--ok, #28a745);
-        color: #fff;
+        background: var(--ok, var(--ok));
+        color: var(--bg-0);
     }
 
     .status-badge[data-status="rejected"] {
-        background: var(--danger, #dc3545);
-        color: #fff;
+        background: var(--error);
+        color: var(--bg-0);
     }
 
     .changes {
@@ -138,7 +138,7 @@
     .change-item {
         margin-bottom: 1rem;
         padding: 1rem;
-        background: var(--bg-0, #f8f9fa);
+        background: var(--bg-0, var(--bg-2));
         border-radius: 4px;
     }
 
@@ -150,12 +150,12 @@
     }
 
     .old-value code {
-        color: var(--danger, #dc3545);
+        color: var(--error);
         text-decoration: line-through;
     }
 
     .new-value code {
-        color: var(--ok, #28a745);
+        color: var(--ok, var(--ok));
         font-weight: 600;
     }
 
@@ -163,7 +163,7 @@
         display: block;
         padding: 0.5rem;
         background: white;
-        border: 1px solid var(--border, #ddd);
+        border: 1px solid var(--border, var(--border));
         border-radius: 4px;
         font-family: 'Courier New', monospace;
         white-space: pre-wrap;
@@ -173,7 +173,7 @@
         display: flex;
         align-items: center;
         font-size: 1.5rem;
-        color: var(--muted, #666);
+        color: var(--muted, var(--ink-tertiary));
     }
 
     .actions {
@@ -181,7 +181,7 @@
         gap: 1rem;
         margin-top: 1.5rem;
         padding-top: 1.5rem;
-        border-top: 1px solid var(--border, #ddd);
+        border-top: 1px solid var(--border, var(--border));
     }
 
     button {
@@ -194,26 +194,26 @@
     }
 
     button:focus-visible {
-        outline: 3px solid var(--focus, #ffd700);
+        outline: 3px solid var(--focus, var(--warn));
         outline-offset: 2px;
     }
 
     .btn-approve {
-        background: var(--ok, #28a745);
-        color: white;
+        background: var(--ok, var(--ok));
+        color: var(--bg-0);
     }
 
     .btn-approve:hover {
-        background: #218838;
+        background: color-mix(in oklab, var(--ok) 85%, black);
     }
 
     .btn-reject {
-        background: var(--danger, #dc3545);
-        color: white;
+        background: var(--error);
+        color: var(--bg-0);
     }
 
     .btn-reject:hover {
-        background: #c82333;
+        background: var(--error);
     }
 
     @media (prefers-reduced-motion: reduce) {

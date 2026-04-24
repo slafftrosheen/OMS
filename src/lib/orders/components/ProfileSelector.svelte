@@ -1,7 +1,7 @@
 <!-- src/lib/orders/components/ProfileSelector.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { ChevronDown } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   let {
     disabled = false,
@@ -110,11 +110,11 @@
   label {
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .required {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
   }
 
   .selector-wrapper {
@@ -127,17 +127,17 @@
     justify-content: space-between;
     align-items: center;
     padding: var(--space-sm, 8px) var(--space-md, 12px);
-    background: var(--bg-2, #f9fafb);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-2, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     font-size: var(--text-sm, 0.875rem);
   }
 
   .selector-button:hover:not(:disabled) {
-    border-color: var(--primary, #3b82f6);
-    background: var(--bg-1, #ffffff);
+    border-color: var(--primary, var(--brand));
+    background: var(--bg-1, var(--bg-0));
   }
 
   .selector-button:disabled {
@@ -146,16 +146,16 @@
   }
 
   .selector-button.open {
-    border-color: var(--primary, #3b82f6);
+    border-color: var(--primary, var(--brand));
   }
 
   .placeholder {
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
   }
 
   .selected-name {
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .dropdown-menu {
@@ -163,11 +163,11 @@
     top: calc(100% + 4px);
     left: 0;
     right: 0;
-    background: var(--bg-1, #ffffff);
-    border: 1px solid var(--primary, #3b82f6);
+    background: var(--bg-1, var(--bg-0));
+    border: 1px solid var(--primary, var(--brand));
     border-radius: var(--radius-md, 6px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 100;
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 15%, transparent);
+    z-index: var(--z-overlay);
     max-height: 300px;
     overflow-y: auto;
   }
@@ -180,7 +180,7 @@
     padding: var(--space-sm, 8px) var(--space-md, 12px);
     background: none;
     border: none;
-    border-bottom: 1px solid var(--border, #e5e7eb);
+    border-bottom: 1px solid var(--border, var(--border));
     cursor: pointer;
     transition: background 0.15s ease;
     text-align: left;
@@ -191,28 +191,28 @@
   }
 
   .profile-option:hover {
-    background: var(--bg-2, #f9fafb);
+    background: var(--bg-2, var(--bg-2));
   }
 
   .profile-option.selected {
-    background: var(--primary-bg, #dbeafe);
+    background: var(--primary-bg, var(--brand-soft));
   }
 
   .profile-name {
     font-weight: 600;
     font-size: var(--text-sm, 0.875rem);
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .profile-code {
     font-size: var(--text-xs, 0.75rem);
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     font-family: var(--font-mono, monospace);
   }
 
   .profile-desc {
     font-size: var(--text-xs, 0.75rem);
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     margin-top: 2px;
   }
 </style>

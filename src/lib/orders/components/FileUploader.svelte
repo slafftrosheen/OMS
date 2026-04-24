@@ -2,7 +2,7 @@
 <script lang="ts">
   import { stopPropagation } from 'svelte/legacy';
 
-  import { Upload, X, File as FileIcon, Image as ImageIcon, CheckCircle, AlertCircle } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   let {
     disabled = false,
@@ -302,43 +302,43 @@
     align-items: center;
     justify-content: center;
     padding: var(--space-2xl, 48px);
-    border: 2px dashed var(--border, #e5e7eb);
+    border: 2px dashed var(--border, var(--border));
     border-radius: var(--radius-lg, 8px);
-    background: var(--bg-2, #f9fafb);
+    background: var(--bg-2, var(--bg-2));
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .drop-zone:hover {
-    border-color: var(--primary, #3b82f6);
-    background: var(--bg-3, #f3f4f6);
+    border-color: var(--primary, var(--brand));
+    background: var(--bg-3, var(--bg-2));
   }
 
   .drop-zone.dragging {
-    border-color: var(--primary, #3b82f6);
-    background: var(--primary-bg, #dbeafe);
+    border-color: var(--primary, var(--brand));
+    background: var(--primary-bg, var(--brand-soft));
     border-style: solid;
   }
 
   .drop-zone :global(.upload-icon) {
-    color: var(--primary, #3b82f6);
+    color: var(--primary, var(--brand));
     margin-bottom: var(--space-md, 12px);
   }
 
   .drop-text {
     margin: 0 0 var(--space-xs, 4px) 0;
     font-size: var(--text-md, 1rem);
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .drop-text strong {
-    color: var(--primary, #3b82f6);
+    color: var(--primary, var(--brand));
   }
 
   .drop-hint {
     margin: 0;
     font-size: var(--text-sm, 0.875rem);
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
   }
 
   .files-list {
@@ -352,15 +352,15 @@
     align-items: center;
     gap: var(--space-md, 12px);
     padding: var(--space-md, 12px);
-    background: var(--bg-2, #f9fafb);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-2, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .file-item.error {
-    border-color: var(--danger, #dc2626);
-    background: var(--danger-bg, #fee2e2);
+    border-color: var(--danger, var(--error));
+    background: var(--danger-bg, var(--error-soft));
   }
 
   .file-icon {
@@ -369,9 +369,9 @@
     justify-content: center;
     width: 40px;
     height: 40px;
-    background: var(--bg-3, #f3f4f6);
+    background: var(--bg-3, var(--bg-2));
     border-radius: var(--radius-md, 6px);
-    color: var(--primary, #3b82f6);
+    color: var(--primary, var(--brand));
     flex-shrink: 0;
   }
 
@@ -386,7 +386,7 @@
   .file-name {
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -400,37 +400,37 @@
   }
 
   .file-size {
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
   }
 
   .upload-status {
     display: flex;
     align-items: center;
     gap: 4px;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
   }
 
   .upload-status.success {
-    color: var(--success, #10b981);
+    color: var(--ok);
     font-weight: 600;
   }
 
   .upload-status.error {
-    color: var(--danger, #dc2626);
+    color: var(--danger, var(--error));
     font-weight: 600;
   }
 
   .progress-bar {
     width: 100%;
     height: 4px;
-    background: var(--bg-3, #f3f4f6);
+    background: var(--bg-3, var(--bg-2));
     border-radius: var(--radius-full, 9999px);
     overflow: hidden;
   }
 
   .progress-fill {
     height: 100%;
-    background: var(--primary, #3b82f6);
+    background: var(--primary, var(--brand));
     transition: width 0.3s ease;
   }
 
@@ -441,18 +441,18 @@
     width: 32px;
     height: 32px;
     padding: 0;
-    background: var(--bg-3, #f3f4f6);
-    border: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-3, var(--bg-2));
+    border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-full, 9999px);
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     flex-shrink: 0;
   }
 
   .remove-btn:hover {
-    background: var(--danger-bg, #fee2e2);
-    border-color: var(--danger, #dc2626);
-    color: var(--danger, #dc2626);
+    background: var(--danger-bg, var(--error-soft));
+    border-color: var(--danger, var(--error));
+    color: var(--danger, var(--error));
   }
 </style>

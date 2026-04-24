@@ -7,7 +7,7 @@
  */
 
 import { onMount } from 'svelte';
-import { Bell, BellOff, Clock, Mail, Save, Check } from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
 let preferences: any = $state(null);
 let loading = $state(true);
@@ -485,7 +485,7 @@ async function savePreferences() {
     gap: 0.5rem;
     padding: 0.5rem 1.5rem;
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
     border: none;
     border-radius: 6px;
     font-size: 0.875rem;

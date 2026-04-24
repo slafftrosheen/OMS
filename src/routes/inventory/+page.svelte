@@ -320,7 +320,7 @@ tr.low-stock {
   color: var(--text);
   cursor: pointer;
   text-decoration: none;
-  transition: all 0.15s ease;
+  transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
 }
 .icon-btn:hover {
   background: var(--bg-2);

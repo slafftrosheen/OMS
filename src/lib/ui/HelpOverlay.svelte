@@ -28,5 +28,5 @@
 {/if}
 
 <style>
-.sheet{position:fixed;inset:0;background:color-mix(in oklab, var(--bg-0) 60%, transparent);display:grid;place-items:center;z-index:90}
+.sheet{position:fixed;inset:0;background:color-mix(in oklab, var(--bg-0) 60%, transparent);display:grid;place-items:center;z-index: var(--z-overlay)}
 </style>

@@ -15,10 +15,7 @@
     toggleChat 
   } from '$lib/chat/chat-store';
   import { users, loadUsers } from '$lib/users/user-store';
-  import { 
-    Send, Plus, Hash, Users, Settings, Search, Smile, Paperclip, 
-    MoreVertical, Bell, BellOff, X, MessageSquare 
-  } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import MentionInput from '$lib/chat/MentionInput.svelte';
   import type { StationTag } from '$lib/order/stages';
   import StationBadge from '$lib/ui/StationBadge.svelte';
@@ -275,9 +272,9 @@
     right: 0;
     bottom: 0;
     width: 380px;
-    background: var(--bg-1, #fff);
-    box-shadow: -4px 0 24px rgba(0,0,0,0.15);
-    z-index: 2000;
+    background: var(--bg-1, var(--bg-0));
+    box-shadow: -4px 0 24px color-mix(in oklab, var(--bg-0) 15%, transparent);
+    z-index: var(--z-modal);
     display: flex;
     flex-direction: column;
     border-left: 1px solid var(--border);
@@ -286,8 +283,8 @@
   .sidebar-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.2);
-    z-index: 1999;
+    background: color-mix(in oklab, var(--bg-0) 20%, transparent);
+    z-index: calc(var(--z-modal) - 1);
     backdrop-filter: blur(2px);
   }
 
@@ -404,8 +401,8 @@
   }
 
   .room-item.active {
-    background: color-mix(in oklab, var(--primary, #3b82f6) 10%, white);
-    border-color: color-mix(in oklab, var(--primary, #3b82f6) 20%, transparent);
+    background: color-mix(in oklab, var(--primary, var(--brand)) 10%, white);
+    border-color: color-mix(in oklab, var(--primary, var(--brand)) 20%, transparent);
   }
 
   .room-icon {
@@ -421,7 +418,7 @@
 
   .room-item.active .room-icon {
     background: var(--primary);
-    color: white;
+    color: var(--bg-0);
   }
 
   .room-info {
@@ -565,8 +562,8 @@
   }
 
   .message.own .bubble {
-    background: var(--primary, #3b82f6);
-    color: white;
+    background: var(--primary, var(--brand));
+    color: var(--bg-0);
     border-top-left-radius: 12px;
     border-top-right-radius: 2px;
   }
@@ -581,8 +578,8 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 2100;
+    background: color-mix(in oklab, var(--bg-0) 55%, transparent);
+    z-index: calc(var(--z-modal) + 100);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -594,7 +591,7 @@
     max-width: 360px;
     border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+    box-shadow: 0 10px 40px color-mix(in oklab, var(--bg-0) 25%, transparent);
   }
 
   .modal-header {
@@ -637,7 +634,7 @@
 
   .btn-primary {
     background: var(--primary);
-    color: white;
+    color: var(--bg-0);
     border: none;
     padding: 8px 16px;
     border-radius: 6px;

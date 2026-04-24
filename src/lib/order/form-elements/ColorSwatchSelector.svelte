@@ -89,7 +89,7 @@
     border-radius: var(--radius-sm);
     background: var(--bg-0);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .color-swatch:hover {
@@ -107,7 +107,7 @@
     width: 32px;
     height: 32px;
     border-radius: var(--radius-sm);
-    background: var(--swatch-color, #ccc);
+    background: var(--swatch-color, var(--border));
     border: 1px solid var(--border);
   }
 

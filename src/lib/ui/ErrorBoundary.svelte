@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { AlertTriangle, RefreshCw, Home } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import { base } from '$app/paths';
   import type { Snippet } from 'svelte';
   
@@ -106,7 +106,7 @@
   .error-boundary {
     position: fixed;
     inset: 0;
-    z-index: 9999;
+    z-index: var(--z-tooltip);
     background: var(--bg-0);
     display: flex;
     align-items: center;
@@ -194,7 +194,7 @@
 
   .btn-primary {
     background: var(--primary);
-    color: white;
+    color: var(--bg-0);
     border-color: var(--primary);
   }
 

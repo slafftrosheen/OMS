@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Filter, Plus, X, Save } from 'lucide-svelte';
+    import Icon from '$lib/ui/Icon.svelte';
 
     let {
         onapply,
@@ -169,7 +169,7 @@
 <style>
     .filter-builder {
         background: white;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border);
         border-radius: 12px;
         padding: 20px;
     }
@@ -180,7 +180,7 @@
         gap: 10px;
         margin-bottom: 20px;
         padding-bottom: 15px;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid var(--border);
     }
 
     .builder-header h3 {
@@ -207,7 +207,7 @@
     .operator-select,
     .value-input {
         padding: 8px 12px;
-        border: 1px solid #d1d5db;
+        border: 1px solid var(--border);
         border-radius: 6px;
         font-size: 0.875rem;
         outline: none;
@@ -217,16 +217,16 @@
     .field-select:focus,
     .operator-select:focus,
     .value-input:focus {
-        border-color: #3b82f6;
+        border-color: var(--brand);
     }
 
     .remove-btn {
         width: 32px;
         height: 32px;
-        background: #fef2f2;
-        border: 1px solid #fecaca;
+        background: var(--error-soft);
+        border: 1px solid color-mix(in oklab, var(--error) 30%, transparent);
         border-radius: 6px;
-        color: #ef4444;
+        color: var(--error);
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -235,8 +235,8 @@
     }
 
     .remove-btn:hover:not(:disabled) {
-        background: #fee2e2;
-        border-color: #fca5a5;
+        background: var(--error-soft);
+        border-color: var(--error-soft);
     }
 
     .remove-btn:disabled {
@@ -249,7 +249,7 @@
         justify-content: space-between;
         align-items: center;
         padding-top: 15px;
-        border-top: 1px solid #e5e7eb;
+        border-top: 1px solid var(--border);
     }
 
     .add-condition-btn {
@@ -257,8 +257,8 @@
         align-items: center;
         gap: 6px;
         padding: 8px 16px;
-        background: #f3f4f6;
-        border: 1px solid #e5e7eb;
+        background: var(--bg-2);
+        border: 1px solid var(--border);
         border-radius: 6px;
         font-size: 0.875rem;
         font-weight: 500;
@@ -267,7 +267,7 @@
     }
 
     .add-condition-btn:hover {
-        background: #e5e7eb;
+        background: var(--border);
     }
 
     .action-buttons {
@@ -287,26 +287,26 @@
 
     .clear-btn {
         background: white;
-        border: 1px solid #e5e7eb;
-        color: #6b7280;
+        border: 1px solid var(--border);
+        color: var(--ink-tertiary);
     }
 
     .clear-btn:hover {
-        background: #f9fafb;
+        background: var(--bg-2);
     }
 
     .apply-btn {
         display: flex;
         align-items: center;
         gap: 6px;
-        background: #3b82f6;
-        border: 1px solid #3b82f6;
-        color: white;
+        background: var(--brand);
+        border: 1px solid var(--brand);
+        color: var(--bg-0);
     }
 
     .apply-btn:hover {
-        background: #2563eb;
-        border-color: #2563eb;
+        background: var(--brand);
+        border-color: var(--brand);
     }
 
     @media (max-width: 768px) {

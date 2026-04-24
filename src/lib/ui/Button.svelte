@@ -1,5 +1,10 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import Icon from './Icon.svelte';
+  import type { IconName } from './icons';
+
+  type Variant = 'primary' | 'secondary' | 'tertiary' | 'ghost' | 'glass' | 'danger' | 'success';
+  type Size = 'sm' | 'md' | 'lg';
 
   let {
     variant = 'primary',
@@ -7,145 +12,238 @@
     disabled = false,
     type = 'button',
     loading = false,
+    iconLeft,
+    iconRight,
     onclick,
     children
   }: {
-    variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
-    size?: 'sm' | 'md' | 'lg';
+    variant?: Variant;
+    size?: Size;
     disabled?: boolean;
     type?: 'button' | 'submit';
     loading?: boolean;
+    iconLeft?: IconName;
+    iconRight?: IconName;
     onclick?: (e: MouseEvent) => void;
     children?: Snippet;
   } = $props();
 </script>
 
-<button {type} disabled={disabled || loading}
-  class="btn-root"
+<button
+  {type}
+  disabled={disabled || loading}
+  class="rf-btn"
   data-variant={variant}
   data-size={size}
-  {onclick}>
+  data-loading={loading || null}
+  {onclick}
+>
   {#if loading}
-    <span class="spinner"></span>
+    <span class="rf-btn__spinner" aria-hidden="true"></span>
+  {:else if iconLeft}
+    <Icon name={iconLeft} size="sm" />
   {/if}
   {#if children}
-    {@render children()}
+    <span class="rf-btn__label">{@render children()}</span>
+  {/if}
+  {#if iconRight && !loading}
+    <Icon name={iconRight} size="sm" />
   {/if}
 </button>
 
 <style>
-.btn-root {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md, 0.5rem);
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  line-height: 1.4;
-}
+  .rf-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xs);
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: var(--tracking-tight);
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    white-space: nowrap;
+    line-height: 1;
+    transition:
+      background    var(--motion-sm) var(--ease-standard),
+      border-color  var(--motion-sm) var(--ease-standard),
+      box-shadow    var(--motion-sm) var(--ease-standard),
+      color         var(--motion-sm) var(--ease-standard),
+      transform     var(--motion-xs) var(--ease-emphasized),
+      filter        var(--motion-xs) var(--ease-emphasized);
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
 
-/* Sizes */
-.btn-root[data-size="sm"] {
-  padding: 0.4rem 0.75rem;
-  font-size: 0.8125rem;
-  border-radius: var(--radius-sm, 0.375rem);
-}
+  /* Sizes */
+  .rf-btn[data-size="sm"] {
+    height: var(--control-xs, 28px);
+    padding: 0 var(--space-sm);
+    font-size: var(--text-xs);
+    border-radius: var(--radius-sm);
+    gap: var(--space-xxs);
+  }
+  .rf-btn[data-size="md"] {
+    height: var(--control-sm, 36px);
+    padding: 0 var(--space-md);
+    font-size: var(--text-sm);
+  }
+  .rf-btn[data-size="lg"] {
+    height: var(--control-md, 44px);
+    padding: 0 var(--space-lg);
+    font-size: var(--text-md);
+    border-radius: var(--radius-lg);
+  }
 
-.btn-root[data-size="md"] {
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-}
+  /* === Variants === */
 
-.btn-root[data-size="lg"] {
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  border-radius: var(--radius-lg, 0.625rem);
-}
+  /* Primary */
+  .rf-btn[data-variant="primary"] {
+    background: var(--brand);
+    color: var(--bg-0);
+    box-shadow: var(--elevation-1), inset 0 1px 0 color-mix(in oklab, white 20%, transparent);
+  }
+  .rf-btn[data-variant="primary"]:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--brand) 85%, var(--bg-0));
+    box-shadow: var(--elevation-2), inset 0 1px 0 color-mix(in oklab, white 20%, transparent);
+    transform: translateY(-1px);
+  }
+  .rf-btn[data-variant="primary"]:active:not(:disabled) {
+    transform: translateY(0) scale(0.97);
+    filter: brightness(0.95);
+    box-shadow: var(--elevation-0);
+  }
 
-/* Variants */
-.btn-root[data-variant="primary"] {
-  background: linear-gradient(135deg, var(--accent-1, #3b82f6), var(--accent-2, #2563eb));
-  color: white;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
+  /* Secondary */
+  .rf-btn[data-variant="secondary"] {
+    background: color-mix(in oklab, var(--bg-1) 55%, var(--bg-0));
+    color: var(--ink-primary);
+    border-color: var(--border);
+    box-shadow: var(--elevation-1);
+  }
+  .rf-btn[data-variant="secondary"]:hover:not(:disabled) {
+    background: var(--bg-2);
+    border-color: color-mix(in oklab, var(--border) 50%, var(--text));
+    transform: translateY(-1px);
+    box-shadow: var(--elevation-2);
+  }
+  .rf-btn[data-variant="secondary"]:active:not(:disabled) {
+    transform: translateY(0) scale(0.97);
+    box-shadow: var(--elevation-0);
+  }
 
-.btn-root[data-variant="primary"]:hover:not(:disabled) {
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transform: translateY(-1px);
-}
+  /* Tertiary */
+  .rf-btn[data-variant="tertiary"] {
+    background: transparent;
+    color: var(--brand);
+    border-color: color-mix(in oklab, var(--brand) 40%, transparent);
+  }
+  .rf-btn[data-variant="tertiary"]:hover:not(:disabled) {
+    background: var(--brand-soft);
+    border-color: color-mix(in oklab, var(--brand) 65%, transparent);
+  }
+  .rf-btn[data-variant="tertiary"]:active:not(:disabled) {
+    transform: scale(0.97);
+    background: var(--brand-strong);
+  }
 
-.btn-root[data-variant="secondary"] {
-  background: var(--bg-1);
-  color: var(--text);
-  border-color: var(--border);
-}
+  /* Ghost */
+  .rf-btn[data-variant="ghost"] {
+    background: transparent;
+    color: var(--ink-secondary);
+    border-color: transparent;
+  }
+  .rf-btn[data-variant="ghost"]:hover:not(:disabled) {
+    background: var(--bg-2);
+    color: var(--ink-primary);
+  }
+  .rf-btn[data-variant="ghost"]:active:not(:disabled) {
+    transform: scale(0.97);
+    background: color-mix(in oklab, var(--bg-2) 80%, var(--bg-1));
+  }
 
-.btn-root[data-variant="secondary"]:hover:not(:disabled) {
-  background: var(--bg-2);
-  border-color: var(--accent-1, #3b82f6);
-}
+  /* Glass */
+  .rf-btn[data-variant="glass"] {
+    background: var(--glass-tint-bg);
+    color: var(--ink-primary);
+    border-color: var(--glass-border);
+    backdrop-filter: var(--glass-material-regular);
+    -webkit-backdrop-filter: var(--glass-material-regular);
+    box-shadow: var(--glass-shadow-sm);
+  }
+  .rf-btn[data-variant="glass"]:hover:not(:disabled) {
+    background: var(--glass-tint-hover);
+    box-shadow: var(--glass-shadow-md);
+    transform: translateY(-1px);
+  }
+  .rf-btn[data-variant="glass"]:active:not(:disabled) {
+    transform: translateY(0) scale(0.97);
+  }
 
-.btn-root[data-variant="ghost"] {
-  background: transparent;
-  color: var(--text);
-  border-color: transparent;
-}
+  /* Danger */
+  .rf-btn[data-variant="danger"] {
+    background: var(--error);
+    color: var(--bg-0);
+    box-shadow: var(--elevation-1);
+  }
+  .rf-btn[data-variant="danger"]:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--error) 85%, black);
+    box-shadow: 0 4px 14px color-mix(in oklab, var(--error) 40%, transparent), var(--elevation-1);
+    transform: translateY(-1px);
+  }
+  .rf-btn[data-variant="danger"]:active:not(:disabled) {
+    transform: translateY(0) scale(0.97);
+    box-shadow: var(--elevation-0);
+  }
 
-.btn-root[data-variant="ghost"]:hover:not(:disabled) {
-  background: var(--bg-2);
-}
+  /* Success */
+  .rf-btn[data-variant="success"] {
+    background: var(--ok);
+    color: var(--bg-0);
+    box-shadow: var(--elevation-1);
+  }
+  .rf-btn[data-variant="success"]:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--ok) 85%, black);
+    box-shadow: 0 4px 14px color-mix(in oklab, var(--ok) 40%, transparent), var(--elevation-1);
+    transform: translateY(-1px);
+  }
+  .rf-btn[data-variant="success"]:active:not(:disabled) {
+    transform: translateY(0) scale(0.97);
+    box-shadow: var(--elevation-0);
+  }
 
-.btn-root[data-variant="danger"] {
-  background: var(--danger, #dc2626);
-  color: white;
-}
+  /* Disabled */
+  .rf-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none !important;
+    filter: none !important;
+    box-shadow: none !important;
+  }
 
-.btn-root[data-variant="danger"]:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--danger, #dc2626) 85%, black);
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
-  transform: translateY(-1px);
-}
+  /* Focus */
+  .rf-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
 
-.btn-root[data-variant="success"] {
-  background: var(--success, #16a34a);
-  color: white;
-}
+  /* Loading */
+  .rf-btn__spinner {
+    width: 1em;
+    height: 1em;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: rf-spin var(--motion-xl, 0.7s) linear infinite;
+    flex-shrink: 0;
+  }
 
-.btn-root[data-variant="success"]:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--success, #16a34a) 85%, black);
-  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.35);
-  transform: translateY(-1px);
-}
+  @keyframes rf-spin {
+    to { transform: rotate(360deg); }
+  }
 
-/* Disabled state */
-.btn-root:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-/* Loading spinner */
-.spinner {
-  width: 1em;
-  height: 1em;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Focus state */
-.btn-root:focus-visible {
-  outline: 2px solid var(--accent-1, #3b82f6);
-  outline-offset: 2px;
-}
+  .rf-btn__label {
+    display: contents;
+  }
 </style>

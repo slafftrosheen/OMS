@@ -2,7 +2,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
-	import { Bell, AlertCircle, CheckCircle, Info, X } from 'lucide-svelte';
+	import Icon from '$lib/ui/Icon.svelte';
 
 	interface Toast {
 		id: string;
@@ -82,7 +82,7 @@
 		position: fixed;
 		bottom: 1rem;
 		right: 1rem;
-		z-index: 9999;
+		z-index: var(--z-tooltip);
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
@@ -97,7 +97,7 @@
 		background: var(--bg-1);
 		border: 1px solid var(--border);
 		border-radius: 8px;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+		box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 15%, transparent);
 		min-width: 300px;
 	}
 
@@ -106,15 +106,15 @@
 	}
 
 	.toast-success {
-		border-left: 4px solid #10b981;
+		border-left: 4px solid var(--ok);
 	}
 
 	.toast-warning {
-		border-left: 4px solid #f59e0b;
+		border-left: 4px solid var(--warn);
 	}
 
 	.toast-error {
-		border-left: 4px solid #ef4444;
+		border-left: 4px solid var(--error);
 	}
 
 	.toast-icon {
@@ -126,15 +126,15 @@
 	}
 
 	.toast-success .toast-icon {
-		color: #10b981;
+		color: var(--ok);
 	}
 
 	.toast-warning .toast-icon {
-		color: #f59e0b;
+		color: var(--warn);
 	}
 
 	.toast-error .toast-icon {
-		color: #ef4444;
+		color: var(--error);
 	}
 
 	.toast-message {

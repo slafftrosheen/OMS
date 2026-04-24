@@ -52,8 +52,8 @@
   .tag {
     font-size: 0.8em;
     padding: 2px 8px;
-    background: var(--accent, #3b82f6);
-    color: white;
+    background: var(--accent, var(--brand));
+    color: var(--bg-0);
     border-radius: 4px;
   }
 </style>

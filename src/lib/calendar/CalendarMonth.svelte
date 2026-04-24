@@ -2,17 +2,7 @@
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { t, locale as activeLocale } from 'svelte-i18n';
-  import {
-    CalendarCheck,
-    CalendarClock,
-    Users,
-    StickyNote,
-    AlertTriangle,
-    CircleCheck,
-    PlusCircle,
-    Activity,
-    Ban
-  } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import { toggleDay, listAll, setCarrier, setNote, usage } from '$lib/loading/loading-store';
   import { TERMS } from '$lib/order/names';
   import {

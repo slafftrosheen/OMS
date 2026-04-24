@@ -166,8 +166,8 @@
     .spinner {
         width: 3rem;
         height: 3rem;
-        border: 4px solid var(--color-gray-200, #e5e7eb);
-        border-top-color: var(--color-primary, #0066cc);
+        border: 4px solid var(--color-gray-200, var(--border));
+        border-top-color: var(--color-primary, var(--brand));
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
     }
@@ -177,7 +177,7 @@
     }
 
     .error-message {
-        color: var(--color-danger, #dc3545);
+        color: var(--color-danger, var(--error));
         margin: 0;
     }
 
@@ -188,14 +188,14 @@
         gap: 1rem;
         padding: 1.5rem;
         background: white;
-        border: 1px solid var(--color-border, #e5e7eb);
+        border: 1px solid var(--color-border, var(--border));
         border-radius: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 2px 4px color-mix(in oklab, var(--bg-0) 5%, transparent);
     }
 
     .qr-image {
         border-radius: 0.5rem;
-        border: 2px solid var(--color-border, #e5e7eb);
+        border: 2px solid var(--color-border, var(--border));
     }
 
     .qr-info {
@@ -206,7 +206,7 @@
     .qr-station {
         margin: 0.25rem 0;
         font-size: 0.875rem;
-        color: var(--color-gray-700, #374151);
+        color: var(--color-gray-700, var(--ink-secondary));
     }
 
     .qr-label {

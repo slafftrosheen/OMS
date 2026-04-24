@@ -117,7 +117,7 @@
   .app-header {
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: var(--z-overlay);
     display: grid;
     grid-template-columns: auto 1fr auto;
     align-items: center;
@@ -202,7 +202,7 @@
     border: 1px solid var(--border);
     border-radius: calc(var(--radius-md) - var(--space-xxs));
     padding: var(--space-sm);
-    z-index: 50;
+    z-index: var(--z-overlay);
   }
 
   .menu-row {

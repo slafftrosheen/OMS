@@ -3,7 +3,7 @@
  * PWA Install Prompt Component
  */
 
-import { Download, X } from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
 let { onInstall, onDismiss }: { onInstall?: () => void; onDismiss?: () => void } = $props();
 </script>
@@ -44,7 +44,7 @@ let { onInstall, onDismiss }: { onInstall?: () => void; onDismiss?: () => void }
     bottom: 1rem;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 9999;
+    z-index: var(--z-tooltip);
     max-width: 500px;
     width: calc(100% - 2rem);
     animation: slideUp 0.3s ease-out;
@@ -63,20 +63,20 @@ let { onInstall, onDismiss }: { onInstall?: () => void; onDismiss?: () => void }
 
   .prompt-content {
     background: var(--bg-0, white);
-    border: 1px solid var(--border, #e5e7eb);
+    border: 1px solid var(--border, var(--border));
     border-radius: 12px;
     padding: 1rem;
     display: flex;
     align-items: center;
     gap: 1rem;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 25px color-mix(in oklab, var(--bg-0) 15%, transparent);
   }
 
   .prompt-icon {
     width: 48px;
     height: 48px;
-    background: var(--accent-1, #3b82f6);
-    color: white;
+    background: var(--accent-1, var(--brand));
+    color: var(--bg-0);
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -92,14 +92,14 @@ let { onInstall, onDismiss }: { onInstall?: () => void; onDismiss?: () => void }
   .prompt-text strong {
     display: block;
     font-size: 1rem;
-    color: var(--text, #111827);
+    color: var(--text, var(--ink-primary));
     margin-bottom: 0.25rem;
   }
 
   .prompt-text p {
     margin: 0;
     font-size: 0.875rem;
-    color: var(--muted, #6b7280);
+    color: var(--muted, var(--ink-tertiary));
     line-height: 1.4;
   }
 
@@ -123,8 +123,8 @@ let { onInstall, onDismiss }: { onInstall?: () => void; onDismiss?: () => void }
   }
 
   .btn-primary {
-    background: var(--accent-1, #3b82f6);
-    color: white;
+    background: var(--accent-1, var(--brand));
+    color: var(--bg-0);
   }
 
   .btn-primary:hover {
@@ -133,12 +133,12 @@ let { onInstall, onDismiss }: { onInstall?: () => void; onDismiss?: () => void }
 
   .btn-ghost {
     background: transparent;
-    color: var(--muted, #6b7280);
+    color: var(--muted, var(--ink-tertiary));
     padding: 0.5rem;
   }
 
   .btn-ghost:hover {
-    background: var(--bg-2, #f3f4f6);
+    background: var(--bg-2, var(--bg-2));
   }
 
   @media (max-width: 640px) {

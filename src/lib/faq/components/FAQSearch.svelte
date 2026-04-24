@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Search } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   import Input from '$lib/ui/Input.svelte';
 
   let {

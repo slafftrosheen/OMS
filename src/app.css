@@ -132,8 +132,8 @@ html {
   gap: var(--space-xs);
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-full);
-  font-size: var(--font-size-xs, 0.75rem);
-  font-weight: var(--font-weight-semibold, 600);
+  font-size: var(--text-xs);
+  font-weight: 600;
   border: 1px solid transparent;
 }
 
@@ -222,18 +222,18 @@ html {
 }
 
 /* Additional utility classes */
-.text-xs { font-size: var(--font-size-xs, 0.75rem); }
-.text-sm { font-size: var(--font-size-sm, 0.875rem); }
-.text-base { font-size: var(--font-size-base, 1rem); }
-.text-lg { font-size: var(--font-size-lg, 1.125rem); }
-.text-xl { font-size: var(--font-size-xl, 1.25rem); }
-.text-2xl { font-size: var(--font-size-2xl, 1.5rem); }
-.text-3xl { font-size: var(--font-size-3xl, 1.875rem); }
+.text-xs { font-size: var(--text-xs); }
+.text-sm { font-size: var(--text-sm); }
+.text-base { font-size: var(--text-md); }
+.text-lg { font-size: var(--text-lg); }
+.text-xl { font-size: var(--text-xl); }
+.text-2xl { font-size: var(--text-2xl); }
+.text-3xl { font-size: var(--text-3xl); }
 
-.font-normal { font-weight: var(--font-weight-normal, 400); }
-.font-medium { font-weight: var(--font-weight-medium, 500); }
-.font-semibold { font-weight: var(--font-weight-semibold, 600); }
-.font-bold { font-weight: var(--font-weight-bold, 700); }
+.font-normal { font-weight: 400; }
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
 
 .text-center { text-align: center; }
 .text-left { text-align: left; }
@@ -297,11 +297,11 @@ html {
 .border-l { border-left: 1px solid var(--border); }
 .border-r { border-right: 1px solid var(--border); }
 
-/* Shadow utilities */
-.shadow-sm { box-shadow: var(--shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05)); }
-.shadow-md { box-shadow: var(--shadow-md, 0 4px 6px -1px rgba(0, 0, 0, 0.1)); }
-.shadow-lg { box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.1)); }
-.shadow-xl { box-shadow: var(--shadow-xl, 0 20px 25px -5px rgba(0, 0, 0, 0.1)); }
+/* Shadow utilities — map onto elevation ladder */
+.shadow-sm { box-shadow: var(--elevation-1); }
+.shadow-md { box-shadow: var(--elevation-2); }
+.shadow-lg { box-shadow: var(--elevation-3); }
+.shadow-xl { box-shadow: var(--elevation-4); }
 
 /* Width utilities */
 .w-full { width: 100%; }
@@ -334,7 +334,7 @@ html {
 /* Responsive Typography */
 @media (max-width: 768px) {
   html {
-    font-size: 15px;
+    font-size: calc(15px * var(--text-zoom, 1) * var(--font-scale, 1));
   }
 }
 
@@ -351,13 +351,13 @@ html {
 }
 
 .empty-state h3 {
-  font-size: var(--font-size-xl, 1.25rem);
+  font-size: var(--text-xl);
   color: var(--text, var(--ink-0));
   margin-bottom: var(--space-sm, 0.5rem);
 }
 
 .empty-state p {
-  font-size: var(--font-size-base, 1rem);
+  font-size: var(--text-md);
   margin-bottom: var(--space-lg, 1.5rem);
 }
 
@@ -400,13 +400,12 @@ a:visited {
 .mobile-backdrop {
   display: block;
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 950;
-  animation: fadeIn 0.2s ease;
+  inset: 0;
+  background: color-mix(in oklab, var(--bg-0) 55%, transparent);
+  backdrop-filter: var(--glass-material-thin);
+  -webkit-backdrop-filter: var(--glass-material-thin);
+  z-index: var(--z-overlay);
+  animation: fadeIn var(--motion-sm) var(--ease-standard);
 }
 
 @keyframes fadeIn {

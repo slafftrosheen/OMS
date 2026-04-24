@@ -1,43 +1,99 @@
 <script lang="ts">
+  type Tone = 'brand' | 'ok' | 'warn' | 'error';
+
   interface Props {
     value?: number | string;
     label?: string;
-    valueText?: string | undefined;
+    valueText?: string;
+    tone?: Tone;
+    showLabel?: boolean;
+    size?: 'sm' | 'md' | 'lg';
   }
 
-  let { value = 0, label = '', valueText = undefined }: Props = $props();
+  let { value = 0, label = '', valueText, tone = 'brand', showLabel = true, size = 'md' }: Props = $props();
 
-  const clamp = (input: number) => Math.min(100, Math.max(0, input));
-  const toFiniteNumber = (input: unknown) => {
-    if (typeof input === 'number') return Number.isFinite(input) ? input : 0;
-    if (typeof input === 'string') {
-      const parsed = Number.parseFloat(input);
-      return Number.isFinite(parsed) ? parsed : 0;
-    }
+  function clamp(n: number) { return Math.min(100, Math.max(0, n)); }
+  function toNum(v: unknown): number {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+    if (typeof v === 'string') { const p = parseFloat(v); return isFinite(p) ? p : 0; }
     return 0;
-  };
+  }
 
-  let rawValue = $derived(toFiniteNumber(value));
-  let numericValue = $derived(clamp(rawValue));
-  let displayValue = $derived(Number.isInteger(numericValue) ? `${Math.trunc(numericValue)}` : numericValue.toFixed(1));
-  let computedValueText = $derived(valueText ?? `${displayValue}% complete`);
-  let accessibleLabel = $derived(label ? `${label} – ${computedValueText}` : computedValueText);
-  let visibleSummary = $derived(label ? `${label} ${displayValue}%` : `${displayValue}%`);
+  const num = $derived(clamp(toNum(value)));
+  const display = $derived(Number.isInteger(num) ? `${Math.trunc(num)}` : num.toFixed(1));
+  const computedValueText = $derived(valueText ?? `${display}% complete`);
+  const ariaLabel = $derived(label ? `${label} – ${computedValueText}` : computedValueText);
+  const visibleSummary = $derived(label ? `${label} ${display}%` : `${display}%`);
 </script>
 
-<div
-  aria-label={accessibleLabel}
-  class="rf-progress progress-bar"
-  role="progressbar"
-  aria-valuenow={numericValue}
-  aria-valuemin="0"
-  aria-valuemax="100"
-  aria-valuetext={computedValueText}
->
-  <div class="bar" style={`width:${numericValue}%`}></div>
+<div class="rf-progress" data-size={size}>
+  {#if showLabel && (label || valueText)}
+    <div class="rf-progress__header">
+      {#if label}<span class="rf-progress__label">{label}</span>{/if}
+      <span class="rf-progress__value">{valueText ?? `${display}%`}</span>
+    </div>
+  {/if}
+
+  <div
+    class="rf-progress__track"
+    role="progressbar"
+    aria-valuenow={num}
+    aria-valuemin={0}
+    aria-valuemax={100}
+    aria-valuetext={computedValueText}
+    aria-label={ariaLabel}
+  >
+    <div
+      class="rf-progress__fill"
+      data-tone={tone}
+      style="width:{num}%"
+    ></div>
+  </div>
 </div>
-<div class="muted" style="font-size:.85rem;margin-top:4px">{valueText ?? visibleSummary}</div>
 
 <style>
-.progress-bar{margin-top:4px}
+  .rf-progress {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    width: 100%;
+  }
+
+  .rf-progress__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .rf-progress__label {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--ink-secondary);
+    letter-spacing: var(--tracking-tight);
+  }
+  .rf-progress__value {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--ink-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rf-progress__track {
+    width: 100%;
+    background: var(--bg-2);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+  .rf-progress[data-size="sm"] .rf-progress__track { height: 4px; }
+  .rf-progress[data-size="md"] .rf-progress__track { height: 6px; }
+  .rf-progress[data-size="lg"] .rf-progress__track { height: 10px; }
+
+  .rf-progress__fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width var(--motion-lg) var(--ease-standard);
+  }
+  .rf-progress__fill[data-tone="brand"] { background: var(--brand); }
+  .rf-progress__fill[data-tone="ok"]    { background: var(--ok); }
+  .rf-progress__fill[data-tone="warn"]  { background: var(--warn); }
+  .rf-progress__fill[data-tone="error"] { background: var(--error); }
 </style>

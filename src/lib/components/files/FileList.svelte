@@ -154,7 +154,7 @@
 
     .empty-message {
         font-size: 1rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0;
     }
 
@@ -170,14 +170,14 @@
         gap: 1rem;
         padding: 1rem;
         background: white;
-        border: 1px solid var(--color-border, #e5e7eb);
+        border: 1px solid var(--color-border, var(--border));
         border-radius: 0.5rem;
-        transition: all 0.15s ease;
+        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     }
 
     .file-item:hover {
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        border-color: var(--color-gray-300, #d1d5db);
+        box-shadow: 0 2px 4px color-mix(in oklab, var(--bg-0) 5%, transparent);
+        border-color: var(--color-gray-300, var(--border));
     }
 
     .file-icon {
@@ -204,7 +204,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
     }
 
     .file-meta {
@@ -212,11 +212,11 @@
         align-items: center;
         gap: 0.375rem;
         font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
     }
 
     .meta-separator {
-        color: var(--color-gray-400, #9ca3af);
+        color: var(--color-gray-400, var(--muted));
     }
 
     .file-actions {
@@ -227,12 +227,12 @@
 
     .action-btn {
         background: none;
-        border: 1px solid var(--color-border, #e5e7eb);
+        border: 1px solid var(--color-border, var(--border));
         padding: 0.5rem;
         border-radius: 0.375rem;
         cursor: pointer;
         font-size: 1.125rem;
-        transition: all 0.15s ease;
+        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
         width: 2.5rem;
         height: 2.5rem;
         display: flex;
@@ -241,13 +241,13 @@
     }
 
     .action-btn:hover {
-        background-color: var(--color-gray-5, #f9fafb);
-        border-color: var(--color-gray-300, #d1d5db);
+        background-color: var(--color-gray-5, var(--bg-2));
+        border-color: var(--color-gray-300, var(--border));
     }
 
     .action-btn.danger:hover {
-        background-color: #fee2e2;
-        border-color: #fecaca;
+        background-color: var(--error-soft);
+        border-color: color-mix(in oklab, var(--error) 30%, transparent);
     }
 
     @media (max-width: 640px) {

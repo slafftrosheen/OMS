@@ -4,7 +4,7 @@
  * Drag-and-drop photo uploader with preview and metadata entry
  */
 
-import { Upload, X, Image as ImageIcon, FileText, Loader2 } from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
 let {
   orderId,
@@ -501,7 +501,7 @@ function handleDragLeave() {
 
   .btn-primary {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
   }
 
   .btn-primary:hover {

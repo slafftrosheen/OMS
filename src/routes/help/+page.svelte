@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from 'svelte-i18n';
   import { base } from '$app/paths';
-  import { HelpCircle, ChevronDown, ChevronRight } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
   
   let expandedItems: Set<string> = $state(new Set(['q1']));
   

@@ -528,7 +528,7 @@
   }
 
   .btn-icon:hover {
-    background: rgba(220, 53, 69, 0.1);
+    background: color-mix(in oklab, var(--error) 10%, transparent);
   }
 
   .form-footer {
@@ -545,7 +545,7 @@
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     border: none;
   }
 
@@ -572,13 +572,13 @@
 
   .btn-primary {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
   }
 
   .btn-primary:hover:not(:disabled) {
     background: var(--accent-2);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 15%, transparent);
   }
 
   /* Tablet breakpoint - iPad landscape (1024px and below) */

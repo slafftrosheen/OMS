@@ -230,12 +230,12 @@
         font-size: 2rem;
         font-weight: 700;
         margin: 0 0 0.25rem 0;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
     }
 
     .page-subtitle {
         font-size: 1rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0;
     }
 
@@ -251,8 +251,8 @@
     .spinner {
         width: 3rem;
         height: 3rem;
-        border: 4px solid var(--color-gray-200, #e5e7eb);
-        border-top-color: var(--color-primary, #0066cc);
+        border: 4px solid var(--color-gray-200, var(--border));
+        border-top-color: var(--color-primary, var(--brand));
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
     }
@@ -288,7 +288,7 @@
         font-size: 1.5rem;
         font-weight: 600;
         margin: 0;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
     }
 
     .orders-grid {
@@ -304,7 +304,7 @@
 
     .empty-message {
         font-size: 1.125rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0 0 1rem 0;
     }
 
@@ -322,20 +322,20 @@
 
     .action-card {
         background: white;
-        border: 2px solid var(--color-border, #e5e7eb);
+        border: 2px solid var(--color-border, var(--border));
         border-radius: 0.5rem;
         padding: 1.5rem;
         text-align: center;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
     }
 
     .action-card:hover {
-        border-color: var(--color-primary, #0066cc);
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border-color: var(--color-primary, var(--brand));
+        box-shadow: 0 4px 6px -1px color-mix(in oklab, var(--bg-0) 10%, transparent);
         transform: translateY(-2px);
     }
 
@@ -347,12 +347,12 @@
         font-size: 1.125rem;
         font-weight: 600;
         margin: 0;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
     }
 
     .action-description {
         font-size: 0.875rem;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0;
     }
 

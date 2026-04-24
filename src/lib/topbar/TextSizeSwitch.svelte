@@ -1,102 +1,96 @@
 <script lang="ts">
-  import { MinusCircle, PlusCircle } from 'lucide-svelte';
   import { ui } from '$lib/state/appState.svelte';
   import { t } from 'svelte-i18n';
+  import Icon from '$lib/ui/Icon.svelte';
 
   let fontScale = $derived(($ui).fontScale);
+  let percentage = $derived(Math.round(fontScale * 100));
 
   function decrease() {
-    const newScale = Math.max(0.85, fontScale - 0.05);
-    ui.update(p => ({ ...p, fontScale: Math.round(newScale * 100) / 100 }));
+    const s = Math.max(0.85, fontScale - 0.05);
+    ui.update(p => ({ ...p, fontScale: Math.round(s * 100) / 100 }));
   }
-
   function increase() {
-    const newScale = Math.min(1.3, fontScale + 0.05);
-    ui.update(p => ({ ...p, fontScale: Math.round(newScale * 100) / 100 }));
+    const s = Math.min(1.3, fontScale + 0.05);
+    ui.update(p => ({ ...p, fontScale: Math.round(s * 100) / 100 }));
   }
-
-  function reset() {
-    ui.update(p => ({ ...p, fontScale: 1.0 }));
-  }
-
-  let percentage = $derived(Math.round(fontScale * 100));
+  function reset() { ui.update(p => ({ ...p, fontScale: 1.0 })); }
 </script>
 
-<div class="text-size-group">
+<div class="rf-textsize" role="group" aria-label={$t('topbar.textSize', { default: 'Text Size' })}>
   <button
-    class="size-btn"
+    class="rf-textsize__btn"
+    type="button"
     onclick={decrease}
     disabled={fontScale <= 0.85}
     aria-label={$t('topbar.decreaseTextSize', { default: 'Decrease text size' })}
-    title="Decrease text size"
   >
-    <MinusCircle size={16} />
+    <Icon name="minus-circle" size="xs" />
   </button>
-  
+
   <button
-    class="size-display"
+    class="rf-textsize__display"
+    type="button"
     onclick={reset}
-    aria-label={$t('topbar.resetTextSize', { default: 'Reset text size' })}
+    aria-label={$t('topbar.resetTextSize', { default: 'Reset text size to 100%' })}
     title="Reset to 100%"
   >
-    <span>{percentage}%</span>
+    {percentage}%
   </button>
-  
+
   <button
-    class="size-btn"
+    class="rf-textsize__btn"
+    type="button"
     onclick={increase}
     disabled={fontScale >= 1.3}
     aria-label={$t('topbar.increaseTextSize', { default: 'Increase text size' })}
-    title="Increase text size"
   >
-    <PlusCircle size={16} />
+    <Icon name="plus-circle" size="xs" />
   </button>
 </div>
 
 <style>
-  .text-size-group {
+  .rf-textsize {
     display: flex;
     align-items: center;
-    gap: 2px;
-    background: var(--bg-0);
+    gap: 1px;
+    background: color-mix(in oklab, var(--bg-1) 55%, var(--bg-0));
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     padding: 2px;
-    height: 36px;
+    height: var(--control-sm, 36px);
   }
 
-  .size-btn,
-  .size-display {
+  .rf-textsize__btn,
+  .rf-textsize__display {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 28px;
-    padding: 0 8px;
+    height: 26px;
+    padding: 0 var(--space-xs);
     background: transparent;
     border: none;
-    border-radius: 6px;
-    color: var(--text);
+    border-radius: calc(var(--radius-sm) - 2px);
+    color: var(--ink-secondary);
     cursor: pointer;
-    transition: all 0.15s ease;
-    font-size: 0.875rem;
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      color      var(--motion-sm) var(--ease-standard);
   }
-
-  .size-btn:hover:not(:disabled) {
+  .rf-textsize__btn:hover:not(:disabled),
+  .rf-textsize__display:hover {
     background: var(--bg-2);
+    color: var(--ink-primary);
   }
+  .rf-textsize__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .rf-textsize__btn:focus-visible,
+  .rf-textsize__display:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-  .size-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  .size-display {
-    min-width: 48px;
-    font-weight: 600;
+  .rf-textsize__display {
+    min-width: 44px;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--ink-primary);
     font-variant-numeric: tabular-nums;
-  }
-
-  .size-display:hover {
-    background: var(--bg-2);
   }
 </style>

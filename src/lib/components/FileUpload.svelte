@@ -163,7 +163,7 @@
     text-align: center;
     background: var(--bg-0);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   }
 
   .file-upload:hover {
@@ -254,7 +254,7 @@
   .error-message {
     margin-top: 1rem;
     padding: 0.75rem;
-    background: rgba(220, 53, 69, 0.1);
+    background: color-mix(in oklab, var(--error) 10%, transparent);
     border: 1px solid var(--danger);
     border-radius: 4px;
     color: var(--danger);

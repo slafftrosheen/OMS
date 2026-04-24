@@ -40,7 +40,7 @@
         position: fixed;
         top: 1rem;
         right: 1rem;
-        z-index: 9999;
+        z-index: var(--z-tooltip);
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
@@ -55,26 +55,26 @@
         padding: 1rem;
         background: white;
         border-radius: 0.5rem;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-                    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 10px 15px -3px color-mix(in oklab, var(--bg-0) 10%, transparent),
+                    0 4px 6px -2px color-mix(in oklab, var(--bg-0) 5%, transparent);
         pointer-events: auto;
         border-left: 4px solid;
     }
 
     .toast-success {
-        border-left-color: #10b981;
+        border-left-color: var(--ok);
     }
 
     .toast-error {
-        border-left-color: #ef4444;
+        border-left-color: var(--error);
     }
 
     .toast-warning {
-        border-left-color: #f59e0b;
+        border-left-color: var(--warn);
     }
 
     .toast-info {
-        border-left-color: #3b82f6;
+        border-left-color: var(--brand);
     }
 
     .toast-icon {
@@ -83,15 +83,15 @@
         flex-shrink: 0;
     }
 
-    .toast-success .toast-icon { color: #10b981; }
-    .toast-error .toast-icon { color: #ef4444; }
-    .toast-warning .toast-icon { color: #f59e0b; }
-    .toast-info .toast-icon { color: #3b82f6; }
+    .toast-success .toast-icon { color: var(--ok); }
+    .toast-error .toast-icon { color: var(--error); }
+    .toast-warning .toast-icon { color: var(--warn); }
+    .toast-info .toast-icon { color: var(--brand); }
 
     .toast-message {
         flex: 1;
         font-size: 0.875rem;
-        color: var(--color-text, #374151);
+        color: var(--color-text, var(--ink-secondary));
     }
 
     .toast-close {
@@ -99,7 +99,7 @@
         border: none;
         font-size: 1.5rem;
         line-height: 1;
-        color: var(--color-gray-400, #9ca3af);
+        color: var(--color-gray-400, var(--muted));
         cursor: pointer;
         padding: 0;
         width: 1.5rem;
@@ -113,7 +113,7 @@
     }
 
     .toast-close:hover {
-        background-color: var(--color-gray-100, #f3f4f6);
+        background-color: var(--color-gray-100, var(--bg-2));
     }
 
     @media (max-width: 640px) {

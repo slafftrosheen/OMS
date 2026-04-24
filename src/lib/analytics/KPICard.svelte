@@ -58,7 +58,7 @@ let IconComponent = $derived(icon);
 
   .kpi-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
 
   .card-header {
@@ -82,7 +82,7 @@ let IconComponent = $derived(icon);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--bg-0);
   }
 
   .card-value {

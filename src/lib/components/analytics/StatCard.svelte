@@ -49,15 +49,15 @@
         background: white;
         padding: 1.5rem;
         border-radius: 0.5rem;
-        border: 1px solid var(--color-border, #e5e7eb);
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        border: 1px solid var(--color-border, var(--border));
+        box-shadow: 0 1px 2px 0 color-mix(in oklab, var(--bg-0) 5%, transparent);
         display: flex;
         gap: 1rem;
-        transition: all 0.2s ease;
+        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     }
 
     .stat-card:hover {
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 6px -1px color-mix(in oklab, var(--bg-0) 10%, transparent);
     }
 
     .stat-icon {
@@ -68,24 +68,24 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: var(--color-gray-100, #f3f4f6);
+        background: var(--color-gray-100, var(--bg-2));
         border-radius: 0.5rem;
     }
 
     .stat-primary .stat-icon {
-        background: #dbeafe;
+        background: var(--brand-soft);
     }
 
     .stat-success .stat-icon {
-        background: #dcfce7;
+        background: var(--ok-soft);
     }
 
     .stat-warning .stat-icon {
-        background: #fef3c7;
+        background: var(--warn-soft);
     }
 
     .stat-danger .stat-icon {
-        background: #fee2e2;
+        background: var(--error-soft);
     }
 
     .stat-content {
@@ -104,7 +104,7 @@
     .stat-title {
         font-size: 0.875rem;
         font-weight: 500;
-        color: var(--color-gray-600, #6b7280);
+        color: var(--color-gray-600, var(--ink-tertiary));
         margin: 0;
         text-transform: uppercase;
         letter-spacing: 0.05em;
@@ -125,13 +125,13 @@
     .stat-value {
         font-size: 2rem;
         font-weight: 700;
-        color: var(--color-text, #111827);
+        color: var(--color-text, var(--ink-primary));
         line-height: 1;
     }
 
     .stat-subtitle {
         font-size: 0.875rem;
-        color: var(--color-gray-500, #9ca3af);
+        color: var(--color-gray-500, var(--muted));
         margin: 0;
     }
 

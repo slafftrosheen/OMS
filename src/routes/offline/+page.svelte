@@ -1,6 +1,6 @@
 <!-- src/routes/offline/+page.svelte -->
 <script>
-	import { WifiOff, RefreshCw } from 'lucide-svelte';
+	import Icon from '$lib/ui/Icon.svelte';
 
 	function handleRetry() {
 		window.location.reload();
@@ -80,7 +80,7 @@
 		gap: 0.5rem;
 		padding: 0.75rem 1.5rem;
 		background: var(--accent-1);
-		color: white;
+		color: var(--bg-0);
 		border: none;
 		border-radius: 8px;
 		font-weight: 600;

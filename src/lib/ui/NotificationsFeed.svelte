@@ -4,7 +4,7 @@
   import { TERMS } from '$lib/order/names';
   import { STATIONS, type StationTag } from '$lib/order/stages';
   import StationBadge from '$lib/ui/StationBadge.svelte';
-  import { BellRing, AlertTriangle, Clock } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {
     items?: NotificationItem[];

@@ -301,7 +301,7 @@
   border: 2px solid var(--border);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
 }
 
 .theme-option:hover {
@@ -342,7 +342,7 @@
   border-radius: var(--radius-md);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
 }
 
 .scale-option:hover {
@@ -352,7 +352,7 @@
 .scale-option.active {
   border-color: var(--accent-1, var(--brand));
   background: var(--accent-1, var(--brand));
-  color: white;
+  color: var(--bg-0);
 }
 
 .preview-text {
@@ -379,7 +379,7 @@
   border: 2px solid var(--border);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
   text-align: left;
 }
 

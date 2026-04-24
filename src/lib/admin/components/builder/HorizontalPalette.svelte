@@ -1,6 +1,6 @@
 <!-- src/lib/admin/components/builder/HorizontalPalette.svelte -->
 <script lang="ts">
-  import { GripVertical } from 'lucide-svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   let { oncomponentdrag }: { oncomponentdrag?: (component: any) => void } = $props();
 
@@ -118,7 +118,7 @@
   .horizontal-palette {
     display: flex;
     flex-direction: column;
-    background: var(--bg-2, #f3f4f6);
+    background: var(--bg-2, var(--bg-2));
   }
 
   /* Tabs */
@@ -126,8 +126,8 @@
     display: flex;
     gap: 4px;
     padding: var(--space-sm, 8px) var(--space-lg, 24px);
-    background: var(--bg-1, #e5e7eb);
-    border-bottom: 1px solid var(--border, #d1d5db);
+    background: var(--bg-1, var(--border));
+    border-bottom: 1px solid var(--border, var(--border));
   }
 
   .tab {
@@ -136,21 +136,21 @@
     border: none;
     border-radius: var(--radius-md, 8px) var(--radius-md, 8px) 0 0;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     font-weight: 600;
     font-size: var(--text-sm, 14px);
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
   }
 
   .tab:hover {
-    background: var(--bg-2, #f3f4f6);
-    color: var(--text-primary, #1a1a1a);
+    background: var(--bg-2, var(--bg-2));
+    color: var(--text-primary, var(--ink-primary));
   }
 
   .tab.active {
-    background: var(--bg-2, #f3f4f6);
-    color: var(--primary, #667EEA);
-    border-bottom: 3px solid var(--primary, #667EEA);
+    background: var(--bg-2, var(--bg-2));
+    color: var(--brand);
+    border-bottom: 3px solid var(--brand);
   }
 
   /* Content */
@@ -173,7 +173,7 @@
     font-size: var(--text-xs, 11px);
     font-weight: 700;
     text-transform: uppercase;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--ink-tertiary));
     letter-spacing: 0.5px;
   }
 
@@ -190,19 +190,19 @@
     gap: var(--space-xs, 6px);
     padding: var(--space-sm, 8px) var(--space-md, 16px);
     background: white;
-    border: 2px solid var(--border, #e5e7eb);
+    border: 2px solid var(--border, var(--border));
     border-radius: var(--radius-md, 8px);
     cursor: grab;
-    transition: all 0.15s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     flex-shrink: 0;
     min-width: 120px;
     user-select: none;
   }
 
   .component-card:hover {
-    border-color: var(--primary, #667EEA);
+    border-color: var(--brand);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 15%, transparent);
   }
 
   .component-card:active {
@@ -211,7 +211,7 @@
   }
 
   .section-card {
-    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    background: linear-gradient(135deg, var(--bg-2) 0%, var(--bg-0) 100%);
     font-weight: 700;
   }
 
@@ -220,7 +220,7 @@
   }
 
   .drag-handle {
-    color: var(--text-muted, #9ca3af);
+    color: var(--text-muted, var(--muted));
     opacity: 0.4;
     flex-shrink: 0;
   }
@@ -234,7 +234,7 @@
     font-size: var(--text-sm, 13px);
     font-weight: 600;
     white-space: nowrap;
-    color: var(--text-primary, #1a1a1a);
+    color: var(--text-primary, var(--ink-primary));
   }
 
   /* Scrollbar styling */
@@ -245,18 +245,18 @@
 
   .palette-content::-webkit-scrollbar-track,
   .components-row::-webkit-scrollbar-track {
-    background: var(--bg-1, #e5e7eb);
+    background: var(--bg-1, var(--border));
   }
 
   .palette-content::-webkit-scrollbar-thumb,
   .components-row::-webkit-scrollbar-thumb {
-    background: var(--border, #9ca3af);
+    background: var(--border, var(--muted));
     border-radius: var(--radius-full, 12px);
   }
 
   .palette-content::-webkit-scrollbar-thumb:hover,
   .components-row::-webkit-scrollbar-thumb:hover {
-    background: var(--border-strong, #6b7280);
+    background: var(--border-strong, var(--ink-tertiary));
   }
 
   /* Responsive */

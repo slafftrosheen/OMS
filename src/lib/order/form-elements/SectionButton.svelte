@@ -32,52 +32,52 @@
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     white-space: nowrap;
   }
 
   .section-btn.white {
     background: white;
     color: black;
-    border: 1px solid #E5E5E5;
+    border: 1px solid var(--border);
   }
 
   .section-btn.white:hover {
-    background: #F5F5F5;
+    background: var(--bg-2);
   }
 
   .section-btn.black {
-    background: #000000;
-    color: white;
-    border: 1px solid #000000;
+    background: var(--ink-primary)000;
+    color: var(--bg-0);
+    border: 1px solid var(--ink-primary)000;
   }
 
   .section-btn.black:hover {
-    background: #333333;
+    background: var(--ink-primary)333;
   }
 
   .section-btn.red {
-    background: #FF0000;
-    color: white;
-    border: 1px solid #FF0000;
+    background: var(--error);
+    color: var(--bg-0);
+    border: 1px solid var(--error);
   }
 
   .section-btn.red:hover {
-    background: #CC0000;
+    background: color-mix(in oklab, var(--error) 85%, black);
   }
 
   .section-btn.orange {
-    background: #FF9900;
+    background: var(--warn);
     color: black;
-    border: 1px solid #FF9900;
+    border: 1px solid var(--warn);
     font-weight: bold;
   }
 
   .section-btn.orange:hover {
-    background: #E68A00;
+    background: color-mix(in oklab, var(--warn) 85%, black);
   }
 
   .section-btn.active {
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--bg-0) 45%, transparent);
   }
 </style>

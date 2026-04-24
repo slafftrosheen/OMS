@@ -83,13 +83,13 @@
 }
 
 .section-select select:hover {
-  border-color: var(--accent, #3b82f6);
+  border-color: var(--accent, var(--brand));
 }
 
 .section-select select:focus {
   outline: none;
-  border-color: var(--accent, #3b82f6);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: var(--accent, var(--brand));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 10%, transparent);
 }
 
 .user-display {
@@ -105,8 +105,8 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--accent, #3b82f6);
-  color: white;
+  background: var(--accent, var(--brand));
+  color: var(--bg-0);
   font-size: 12px;
   font-weight: 700;
 }

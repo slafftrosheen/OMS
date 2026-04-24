@@ -1,55 +1,47 @@
 <script lang="ts">
-  import { Globe } from 'lucide-svelte';
   import { locale, t } from 'svelte-i18n';
   import { setLocale } from '$lib/i18n';
   import { clickOutside } from '$lib/utils/click-outside';
+  import Icon from '$lib/ui/Icon.svelte';
 
   let isOpen = $state(false);
   let currentLang = $derived($locale || 'en');
 
-  function toggle() {
-    isOpen = !isOpen;
-  }
-
-  function handleClickOutside() {
-    isOpen = false;
-  }
-
-  function changeLang(lang: string) {
-    setLocale(lang);
-    isOpen = false;
-  }
+  function changeLang(lang: string) { setLocale(lang); isOpen = false; }
 
   const languages = [
-    { code: 'en', label: 'English', flag: '🇬🇧' },
-    { code: 'ru', label: 'Русский', flag: '🇷🇺' },
-    { code: 'lv', label: 'Latviešu', flag: '🇱🇻' }
+    { code: 'en', label: 'English',   flag: '🇬🇧' },
+    { code: 'ru', label: 'Русский',   flag: '🇷🇺' },
+    { code: 'lv', label: 'Latviešu',  flag: '🇱🇻' },
   ];
 
   let currentFlag = $derived(languages.find(l => l.code === currentLang)?.flag || '🇬🇧');
 </script>
 
-<div class="lang-menu" use:clickOutside={handleClickOutside}>
+<div class="rf-lang" use:clickOutside={() => { isOpen = false; }}>
   <button
-    class="lang-btn"
-    onclick={toggle}
+    class="rf-lang__btn"
+    type="button"
+    onclick={() => isOpen = !isOpen}
     aria-haspopup="menu"
     aria-expanded={isOpen}
     aria-label={$t('topbar.language', { default: 'Language' })}
   >
-    <Globe size={18} aria-hidden="true" />
-    <span class="flag">{currentFlag}</span>
+    <Icon name="globe" size="sm" />
+    <span class="rf-lang__flag" aria-hidden="true">{currentFlag}</span>
   </button>
 
   {#if isOpen}
-    <div class="dropdown" role="menu">
+    <div class="rf-lang__dropdown" role="menu">
       {#each languages as lang}
         <button
           role="menuitem"
+          class="rf-lang__item"
           class:active={currentLang === lang.code}
+          type="button"
           onclick={() => changeLang(lang.code)}
         >
-          <span class="flag">{lang.flag}</span>
+          <span class="rf-lang__flag">{lang.flag}</span>
           <span>{lang.label}</span>
         </button>
       {/each}
@@ -58,83 +50,76 @@
 </div>
 
 <style>
-  .lang-menu {
-    position: relative;
-  }
+  .rf-lang { position: relative; }
 
-  .lang-btn {
+  .rf-lang__btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    height: 36px;
-    padding: 0 8px;
+    gap: var(--space-xxs);
+    height: var(--control-sm, 36px);
+    padding: 0 var(--space-sm);
     background: transparent;
     border: none;
-    border-radius: 8px;
-    color: var(--text);
+    border-radius: var(--radius-sm);
+    color: var(--ink-secondary);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      color      var(--motion-sm) var(--ease-standard);
   }
-
-  .lang-btn:hover,
-  .lang-btn[aria-expanded="true"] {
-    background: var(--bg-2);
+  .rf-lang__btn:hover,
+  .rf-lang__btn[aria-expanded="true"] {
+    background: color-mix(in oklab, var(--bg-2) 70%, transparent);
+    color: var(--ink-primary);
   }
+  .rf-lang__btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-  .flag {
-    font-size: 1.25rem;
-    line-height: 1;
-  }
+  .rf-lang__flag { font-size: 1.1rem; line-height: 1; }
 
-  .dropdown {
+  .rf-lang__dropdown {
     position: absolute;
-    top: calc(100% + 8px);
+    top: calc(100% + var(--space-sm));
     right: 0;
     min-width: 160px;
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(var(--shadow-rgb, 0 0 0) / 0.18);
-    padding: 4px;
-    z-index: 10000;
-    animation: slideDown 0.15s ease;
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--glass-material-thick);
+    -webkit-backdrop-filter: var(--glass-material-thick);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--glass-shadow-md);
+    padding: var(--space-xxs);
+    z-index: var(--z-popover);
+    animation: rf-dd-in var(--motion-sm) var(--ease-standard) both;
+  }
+  @keyframes rf-dd-in {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)   scale(1); }
   }
 
-  @keyframes slideDown {
-    from {
-      opacity: 0;
-      transform: translateY(-8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .dropdown button {
+  .rf-lang__item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-sm);
     width: 100%;
-    padding: 10px 12px;
+    padding: var(--space-xs) var(--space-sm);
     background: transparent;
     border: none;
-    border-radius: 8px;
-    color: var(--text);
+    border-radius: var(--radius-sm);
+    color: var(--ink-secondary);
     cursor: pointer;
     text-align: left;
-    transition: background 0.15s ease;
-    font-size: 0.875rem;
+    font-size: var(--text-sm);
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      color      var(--motion-sm) var(--ease-standard);
   }
-
-  .dropdown button:hover {
-    background: var(--bg-2);
-  }
-
-  .dropdown button.active {
-    background: var(--accent-1, var(--accent));
-    color: white;
+  .rf-lang__item:hover { background: color-mix(in oklab, var(--bg-2) 60%, transparent); color: var(--ink-primary); }
+  .rf-lang__item:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+  .rf-lang__item.active {
+    background: var(--brand);
+    color: var(--bg-0);
     font-weight: 600;
   }
+  .rf-lang__item.active:hover { background: color-mix(in oklab, var(--brand) 85%, black); }
 </style>

@@ -4,7 +4,7 @@
  * Generates and displays QR codes for orders
  */
 
-import { Download, Printer, RefreshCw } from 'lucide-svelte';
+import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {
     orderId: string;
@@ -81,7 +81,7 @@ function printQRCode() {
           }
           img {
             max-width: 400px;
-            border: 2px solid #000;
+            border: 2px solid var(--ink-primary);
             padding: 10px;
           }
           .info {
@@ -222,7 +222,7 @@ function printQRCode() {
   .error-message {
     padding: 0.75rem 1rem;
     background: var(--danger);
-    color: white;
+    color: var(--bg-0);
     border-radius: 6px;
     font-size: 0.875rem;
   }
@@ -294,7 +294,7 @@ function printQRCode() {
 
   .btn-primary {
     background: var(--accent-1);
-    color: white;
+    color: var(--bg-0);
   }
 
   .btn-primary:hover:not(:disabled) {
