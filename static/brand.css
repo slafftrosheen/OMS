@@ -245,6 +245,7 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   --glass-bg:              color-mix(in oklab, var(--bg-1) 72%, transparent);
   --glass-bg-strong:       color-mix(in oklab, var(--bg-1) 86%, transparent);
   --glass-tint-bg:         color-mix(in oklab, var(--brand) 6%, var(--glass-bg));
+  --glass-tint-hover:      color-mix(in oklab, var(--bg-1) 80%, var(--ink-3));
   --glass-border:          color-mix(in oklab, var(--ink-0) 9%, transparent);
   --glass-border-highlight: inset 0 1px 0 color-mix(in oklab, white 55%, transparent);
   --glass-shadow:          0 12px 32px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(15, 23, 42, 0.04);
@@ -323,6 +324,7 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   --glass-bg:              color-mix(in oklab, var(--bg-1) 66%, transparent);
   --glass-bg-strong:       color-mix(in oklab, var(--bg-1) 82%, transparent);
   --glass-tint-bg:         color-mix(in oklab, var(--brand) 5%, var(--glass-bg));
+  --glass-tint-hover:      color-mix(in oklab, var(--bg-1) 70%, white);
   --glass-border:          color-mix(in oklab, white 13%, transparent);
   --glass-border-highlight: inset 0 1px 0 color-mix(in oklab, white 10%, transparent);
   --glass-shadow:          0 12px 40px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.28);

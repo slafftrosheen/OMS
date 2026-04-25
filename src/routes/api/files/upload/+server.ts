@@ -3,6 +3,8 @@ import { json, error as svelteError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { storageService } from '$lib/server/storage/StorageService';
 import { logger } from '$lib/server/logging/logger';
+import { randomUUID } from 'node:crypto';
+import { basename } from 'node:path';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const ALLOWED_TYPES = [
@@ -18,6 +20,18 @@ const ALLOWED_TYPES = [
     'application/x-dxf',
     'application/dxf'
 ];
+
+/**
+ * Strip directory components, dangerous characters, and overlong names from a
+ * client-supplied filename.  Always prefixed by a UUID at the call site so the
+ * sanitized component is purely cosmetic — even if it sanitises to an empty
+ * string, the file will still have a unique storage name.
+ */
+function safeFilenameSegment(name: string | null | undefined): string {
+    if (!name) return 'upload';
+    const stripped = basename(name);
+    return stripped.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120) || 'upload';
+}
 
 export const POST: RequestHandler = async ({ request, locals }) => {
     const user = locals.user;
@@ -63,9 +77,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 fs.mkdirSync(uploadDir, { recursive: true });
             }
             
-            // Generate unique filename
-            const fileName = `${Date.now()}-${Math.round(Math.random() * 1000000)}-${file.name}`;
+            // Generate unique filename. UUID-prefix guarantees uniqueness even
+            // if two users upload the same name; safeFilenameSegment strips any
+            // path traversal or shell metacharacters.
+            const fileName = `${Date.now()}-${randomUUID()}-${safeFilenameSegment(file.name)}`;
             const filePath = path.join(uploadDir, fileName);
+            // Defence-in-depth: ensure the resolved path is still under uploadDir.
+            const resolved = path.resolve(filePath);
+            if (!resolved.startsWith(path.resolve(uploadDir) + path.sep)) {
+                throw svelteError(400, 'Invalid filename');
+            }
             
             // Write file to local storage
             const arrayBuffer = await file.arrayBuffer();

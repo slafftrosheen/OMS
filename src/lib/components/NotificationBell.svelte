@@ -25,15 +25,15 @@
 
   function getNotificationColor(type: string) {
     const colors: Record<string, string> = {
-      INFO: '#007bff',
-      SUCCESS: '#28a745',
-      WARNING: '#ffc107',
-      ERROR: '#dc3545',
-      ASSIGNMENT: '#6f42c1',
-      REWORK: '#fd7e14',
-      STAGE_CHANGE: '#17a2b8'
+      INFO:         'var(--link)',
+      SUCCESS:      'var(--ok)',
+      WARNING:      'var(--warn)',
+      ERROR:        'var(--error)',
+      ASSIGNMENT:   'var(--brand-2, var(--brand))',
+      REWORK:       'var(--warn-strong, var(--warn))',
+      STAGE_CHANGE: 'var(--link)'
     };
-    return colors[type] || '#6c757d';
+    return colors[type] || 'var(--ink-3)';
   }
 
   function formatTimeAgo(timestamp: string) {

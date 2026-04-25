@@ -33,14 +33,11 @@
     "crawler:brand": "tsx src/workers/crawler/brand_crawler.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.1",
-    "@supabase/mcp-server-supabase": "latest",
     "@ericblade/quagga2": "^1.12.1",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.90.1",
     "@sveltejs/kit": "^2.7.4",
     "apexcharts": "file:packages/apexcharts",
-    "bcrypt": "^6.0.0",
     "chart.js": "^4.4.0",
     "csv-writer": "1.6.0",
     "dayjs": "^1.11.18",
@@ -71,7 +68,6 @@
     "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.3.1",
-    "@types/bcrypt": "^6.0.0",
     "@types/jsbarcode": "^3.11.4",
     "@types/node": "^25.0.10",
     "@types/pg": "^8.16.0",

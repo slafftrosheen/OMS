@@ -13,21 +13,21 @@
 
     function getStatusColor(status: string) {
         const colors: Record<string, string> = {
-            pending: "#f59e0b",
-            draft: "#9ca3af",
-            active: "#3b82f6",
-            in_progress: "#3b82f6",
-            completed: "#10b981",
-            cancelled: "#ef4444",
-            on_hold: "#f59e0b",
+            pending:     "var(--warn)",
+            draft:       "var(--ink-3)",
+            active:      "var(--link)",
+            in_progress: "var(--link)",
+            completed:   "var(--ok)",
+            cancelled:   "var(--error)",
+            on_hold:     "var(--warn)",
         };
-        return colors[status] || "#6b7280";
+        return colors[status] || "var(--ink-3)";
     }
 
     function getPriorityLabel(priority: number) {
-        if (priority >= 8) return { label: "High", color: "#ef4444" };
-        if (priority >= 5) return { label: "Medium", color: "#f59e0b" };
-        return { label: "Low", color: "#10b981" };
+        if (priority >= 8) return { label: "High",   color: "var(--error)" };
+        if (priority >= 5) return { label: "Medium", color: "var(--warn)"  };
+        return                 { label: "Low",    color: "var(--ok)"     };
     }
 
     let priority = $derived(getPriorityLabel(order.priority));

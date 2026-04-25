@@ -12,7 +12,7 @@
 
 <style>
   .profile-badge {
-    background: #E91E8C;
+    background: var(--brand);
     color: var(--bg-0);
     padding: 8px 16px;
     border-radius: 4px;

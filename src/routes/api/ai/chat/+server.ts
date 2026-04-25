@@ -1,8 +1,28 @@
-import { env } from '$env/dynamic/private';
 import { error } from '@sveltejs/kit';
 import postgres from 'postgres';
+import { aiRateLimit, escapeLike, rateLimitIdentifier, requireAuth } from '$lib/server/api/helpers';
+import {
+    OLLAMA_URL,
+    DATABASE_URL,
+    ROUTER_MODEL,
+    REASONING_MODEL,
+    ENGINEER_MODEL as SYS_MODEL,
+    VISION_MODEL
+} from '$lib/server/config';
 
-export async function POST({ request }) {
+export async function POST(event) {
+    const { request, locals } = event;
+
+    // Defensive auth check on top of the global authHandler — /api/ai/chat is
+    // not in the public-routes allow-list, but we want a clear failure mode if
+    // the hook chain is ever reordered.
+    requireAuth(locals);
+
+    // Per-user rate limit on top of the global limiter. Ollama calls are
+    // expensive (deepseek-r1 takes 30s+); 12/min is enough for a power user
+    // and keeps a runaway client from saturating the GPU.
+    aiRateLimit(rateLimitIdentifier(event));
+
     const body = await request.json();
 
     // ── Payload adapter: support both { messages } and legacy { query, chatHistory } ──
@@ -32,24 +52,18 @@ export async function POST({ request }) {
         }
     }
 
-    const ollamaUrl = 'http://100.93.147.108:11434/api/chat';
+    const ollamaUrl = `${OLLAMA_URL}/api/chat`;
 
-    // ── Models ───────────────────────────────────────────────────────────────
-    const ROUTER_MODEL = 'hf.co/mradermacher/c4ai-command-r7b-12-2024-abliterated-GGUF:Q4_K_M';
-    const REASONING_MODEL = 'deepseek-r1:14b';
-    const SYS_MODEL = 'hf.co/ertghiu256/qwen-3-14b-code-and-math-reasoning-gguf:Q4_K_M';
-    const VISION_MODEL = 'llama3.2-vision';
+    // Models — all four come from $lib/server/config so .env can override them.
 
-    // ── LAZY DB CONNECTION: Intercept stale Tailscale IPs ──
-    const fallbackDbUrl = 'postgresql://postgres:postgres@192.168.8.150:54322/postgres';
-    const dbUrl = env.DATABASE_URL || fallbackDbUrl;
-    const finalDbUrl = dbUrl.includes('100.98.202.69')
-        ? dbUrl.replace('100.98.202.69', '192.168.8.150')
-        : dbUrl;
-
-    const sql = postgres(finalDbUrl, {
+    // ── LAZY DB CONNECTION ─────────────────────────────────────────────────
+    // DATABASE_URL is required.  We do NOT fall back to a hard-coded password.
+    if (!DATABASE_URL) {
+        throw error(500, 'DATABASE_URL is not configured');
+    }
+    const sql = postgres(DATABASE_URL, {
         max: 1,
-        idle_timeout: 5
+        idle_timeout: 30
     });
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -220,8 +234,8 @@ export async function POST({ request }) {
 
                 try {
                     if (toolName === 'search_by_category') {
-                        const category = (toolArgs.category as string) || 'general';
-                        const keyword = (toolArgs.keyword as string) || '';
+                        const category = escapeLike(((toolArgs.category as string) || 'general').slice(0, 64));
+                        const keyword  = escapeLike(((toolArgs.keyword  as string) || '').slice(0, 128));
                         console.log(`⚡ [DB] Category search: "${category}" + keyword: "${keyword}"`);
 
                         let rows;
@@ -229,8 +243,8 @@ export async function POST({ request }) {
                             rows = await sql`
                                 SELECT category, content
                                 FROM public.company_knowledge
-                                WHERE category ILIKE ${'%' + category + '%'}
-                                AND content ILIKE ${'%' + keyword + '%'}
+                                WHERE category ILIKE ${'%' + category + '%'} ESCAPE '\\'
+                                  AND content  ILIKE ${'%' + keyword  + '%'} ESCAPE '\\'
                                 ORDER BY crawled_at DESC
                                 LIMIT 8
                             `;
@@ -238,7 +252,7 @@ export async function POST({ request }) {
                             rows = await sql`
                                 SELECT category, content
                                 FROM public.company_knowledge
-                                WHERE category ILIKE ${'%' + category + '%'}
+                                WHERE category ILIKE ${'%' + category + '%'} ESCAPE '\\'
                                 ORDER BY crawled_at DESC
                                 LIMIT 8
                             `;
@@ -252,14 +266,14 @@ export async function POST({ request }) {
                             console.log(`⚠️ [DB] No results for category "${category}".`);
                         }
                     } else {
-                        const searchKeyword = (toolArgs.keyword as string) || '';
+                        const searchKeyword = escapeLike(((toolArgs.keyword as string) || '').slice(0, 128));
                         console.log(`⚡ [DB] Keyword search: "${searchKeyword}"`);
 
                         const rows = await sql`
                             SELECT category, content
                             FROM public.company_knowledge
-                            WHERE content ILIKE ${'%' + searchKeyword + '%'}
-                            OR category ILIKE ${'%' + searchKeyword + '%'}
+                            WHERE content  ILIKE ${'%' + searchKeyword + '%'} ESCAPE '\\'
+                               OR category ILIKE ${'%' + searchKeyword + '%'} ESCAPE '\\'
                             ORDER BY crawled_at DESC
                             LIMIT 8
                         `;

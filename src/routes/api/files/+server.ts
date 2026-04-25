@@ -20,8 +20,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     if (orderId) {
        // Join with order_files to filter by order.
        // Supabase JS allows filtering by related table existence/criteria:
-       // .select('*, order_files!inner(draft_order_id)')
-       // .eq('order_files.draft_order_id', orderId)
+       // .select('*, order_files!inner(order_id)')
+       // .eq('order_files.order_id', orderId)
        // But wait, orderId can be PO Number too based on original code?
        // "WHERE d.po_number = $${idx} OR d.id::text = $${idx}"
        // If PO Number, we need to join draft_orders too.
@@ -43,13 +43,13 @@ export const GET: RequestHandler = async ({ url, locals }) => {
        if (order) {
            targetOrderId = order.id;
            // Now filter files by this order ID via order_files
-           // We need to filter files where id is in (select file_id from order_files where draft_order_id = targetOrderId)
+           // We need to filter files where id is in (select file_id from order_files where order_id = targetOrderId)
            // .in() accepts a list. We can't do subquery easily without RPC or two steps.
            // Two steps:
            const { data: fileIds } = await locals.supabase
                .from('order_files')
                .select('file_id')
-               .eq('draft_order_id', targetOrderId);
+               .eq('order_id', targetOrderId);
 
            if (fileIds && fileIds.length > 0) {
                query = query.in('id', fileIds.map(f => f.file_id));
@@ -154,7 +154,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                  await locals.supabase
                     .from('order_files')
                     .insert({
-                        draft_order_id: order.id,
+                        order_id: order.id,
                         file_id: fileRecord.id,
                         file_type: 'attachment', // Default type
                         display_name: file.name

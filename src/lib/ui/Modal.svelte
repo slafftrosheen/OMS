@@ -118,6 +118,7 @@
   }
 
   .rf-modal__panel {
+    position: relative;
     background: var(--glass-bg-strong);
     backdrop-filter: var(--glass-material-thick);
     -webkit-backdrop-filter: var(--glass-material-thick);
@@ -129,7 +130,22 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    isolation: isolate;
   }
+  /* Q15a: subtle grain overlay on every elevated surface for the 2026 Apple feel. */
+  .rf-modal__panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    opacity: var(--grain-opacity, 0.04);
+    background-image: var(--grain-svg, none);
+    background-size: 240px 240px;
+    mix-blend-mode: var(--grain-blend-mode, overlay);
+    z-index: 0;
+  }
+  .rf-modal__panel > * { position: relative; z-index: 1; }
 
   .rf-modal__panel[data-size="sm"]   { --panel-max: 400px; }
   .rf-modal__panel[data-size="md"]   { --panel-max: 560px; }

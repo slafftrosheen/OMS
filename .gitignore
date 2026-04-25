@@ -1,1 +1,53 @@
-(src/lib/auth/authState.svelte.ts, src/lib/calendar/CalendarMonth.svelte, src/lib/inventory/ItemModal.svelte, src/lib/order/orderState.svelte.ts, src/routes/+layout.svelte, src/routes/orders/+page.svelte)
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+.svelte-kit/
+build/
+dist/
+.vite/
+.output/
+
+# Environment files (commit .env.example only)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Test / coverage
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Cache
+.eslintcache
+.svelte-kit-cache/
+
+# OS
+Thumbs.db
+
+# Local Supabase artefacts
+supabase/.branches
+supabase/.temp
+
+# Local backup tarballs (real backups go to NAS, not the repo)
+backups/*.tar
+backups/*.tar.gz
+backups/*.gz.enc

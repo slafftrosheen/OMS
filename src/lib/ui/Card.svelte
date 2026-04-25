@@ -5,7 +5,9 @@
   type Padding = 'none' | 'sm' | 'md' | 'lg';
 
   let {
-    variant = 'flat',
+    // Q14a: glass-by-default. Pass variant="flat" explicitly when an opaque
+    // surface is needed (e.g. inside a glass parent that already provides depth).
+    variant = 'glass',
     padding = 'md',
     href,
     onclick,

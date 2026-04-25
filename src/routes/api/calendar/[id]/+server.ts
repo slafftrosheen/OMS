@@ -13,7 +13,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
       .from('calendar_events')
       .select(`
         *,
-        loading_events(*, loading_event_pos(draft_order_id, draft_orders(po_number))),
+        loading_events(*, loading_event_pos(order_id, draft_orders(po_number))),
         meeting_events(*)
       `)
       .eq('id', id)
@@ -123,7 +123,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
                  if (orders && orders.length > 0) {
                      const posToInsert = orders.map(o => ({
                          loading_event_id: id,
-                         draft_order_id: o.id
+                         order_id: o.id
                      }));
                      await locals.supabase.from('loading_event_pos').insert(posToInsert);
                  }

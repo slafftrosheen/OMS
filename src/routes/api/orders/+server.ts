@@ -106,7 +106,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // Add materials if provided
     if (body.materials && Array.isArray(body.materials)) {
       const materials = body.materials.map((m: any, idx: number) => ({
-        draft_order_id: order.id,
+        order_id: order.id,
         material_type: m.material_type,
         material_category: m.material_category,
         thickness: m.thickness,
@@ -136,7 +136,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // Add custom fields if provided
     if (body.fields && Array.isArray(body.fields)) {
       const fields = body.fields.map((f: any, idx: number) => ({
-        draft_order_id: order.id,
+        order_id: order.id,
         key: f.key,
         label: f.label,
         value: f.value,
@@ -157,7 +157,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // Assign users if provided
     if (body.assignees && Array.isArray(body.assignees)) {
       const assignees = body.assignees.map((a: any) => ({
-        draft_order_id: order.id,
+        order_id: order.id,
         assignee_id: a.assignee_id ?? a.user_id,
         assigned_by: session.user.id
       }));

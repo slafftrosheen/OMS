@@ -17,11 +17,13 @@ import 'dotenv/config';
 import * as cheerio from 'cheerio';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-// ─── Network endpoints (Tailscale) ───────────────────────────────────────────
-const OLLAMA_URL = 'http://100.93.147.108:11434/api/embeddings';
-const SUPABASE_URL = 'http://100.98.202.69:54321';
+// ─── Network endpoints (env-driven, defaults to the Tailnet topology) ───────
+const OLLAMA_BASE  = (process.env.OLLAMA_URL  || `http://${process.env.OLLAMA_HOST  || '100.93.147.108'}:${process.env.OLLAMA_PORT  || '11434'}`).replace(/\/+$/, '');
+const OLLAMA_URL   = `${OLLAMA_BASE}/api/embeddings`;
+const SUPABASE_URL = (process.env.SUPABASE_URL || `http://${process.env.SUPABASE_HOST || '100.98.202.69'}:${process.env.SUPABASE_PORT || '54321'}`).replace(/\/+$/, '');
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const BASE_URL = 'https://reclamefabriek.eu';
+const EMBED_MODEL  = process.env.EMBED_MODEL || 'nomic-embed-text';
+const BASE_URL    = process.env.BRAND_CRAWLER_BASE_URL || 'https://reclamefabriek.eu';
 
 if (!SUPABASE_KEY) {
 	console.error('❌ SUPABASE_SERVICE_ROLE_KEY is not set. Exiting.');
@@ -110,7 +112,7 @@ async function getEmbedding(text: string): Promise<number[]> {
 	const res = await fetch(OLLAMA_URL, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ model: 'nomic-embed-text', prompt: text }),
+		body: JSON.stringify({ model: EMBED_MODEL, prompt: text }),
 	});
 
 	if (!res.ok) {
