@@ -1,36 +1,39 @@
 // src/routes/api/ai/generate-description/+server.ts
-import { json, error as svelteError } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
-import { aiService } from '$lib/server/ai/AIService';
+import { error as svelteError, type RequestHandler } from '@sveltejs/kit';
+import { z } from 'zod';
+import { aiRateLimit, okOne, rateLimitIdentifier, requireAuth, validate } from '$lib/server/api/helpers';
+import { ollamaComplete } from '$lib/server/ai/ollama-client';
 
-export const POST: RequestHandler = async ({ request, locals }) => {
-    const user = locals.user;
-    if (!user) {
-        throw svelteError(401, 'Unauthorized');
-    }
+const GenerateDescriptionSchema = z.object({
+    title: z.string().min(1),
+    client: z.string().min(1),
+    notes: z.string().optional().nullable()
+});
 
-    if (!aiService.isEnabled()) {
-        throw svelteError(503, 'AI service not available');
-    }
+export const POST: RequestHandler = async (event) => {
+    requireAuth(event.locals);
+    aiRateLimit(rateLimitIdentifier(event));
+
+    const input = validate(GenerateDescriptionSchema, await event.request.json().catch(() => null));
+
+    const messages = [
+        {
+            role: 'system' as const,
+            content:
+                'You write concise internal production descriptions (max 4 sentences) for a ' +
+                'signage manufacturer. Stay factual, use the client name once, mention the ' +
+                'apparent product type if implied, and avoid marketing fluff.'
+        },
+        {
+            role: 'user' as const,
+            content: `Title: ${input.title}\nClient: ${input.client}\nNotes: ${input.notes ?? '(none)'}\n\nWrite the description.`
+        }
+    ];
 
     try {
-        const { title, client, notes } = await request.json();
-
-        if (!title || !client) {
-            throw svelteError(400, 'Title and client are required');
-        }
-
-        const description = await aiService.generateDescription(title, client, notes);
-
-        return json({
-            success: true,
-            description
-        });
-
+        const description = await ollamaComplete(messages, { temperature: 0.5 });
+        return okOne({ description });
     } catch (err) {
-        if (err instanceof Response) {
-            throw err;
-        }
-        throw svelteError(500, 'Description generation failed');
+        throw svelteError(503, `AI description generation failed: ${(err as Error).message}`);
     }
 };

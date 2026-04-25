@@ -33,8 +33,6 @@
     "crawler:brand": "tsx src/workers/crawler/brand_crawler.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.1",
-    "@supabase/mcp-server-supabase": "latest",
     "@ericblade/quagga2": "^1.12.1",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.90.1",
