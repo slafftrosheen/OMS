@@ -1381,7 +1381,7 @@
   }
 
   .profile-name input {
-    background: #e91e63;
+    background: var(--brand);
     color: var(--bg-0);
     border: none;
     padding: var(--space-sm, 8px) var(--space-md, 14px);

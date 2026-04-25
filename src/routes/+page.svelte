@@ -9,6 +9,7 @@
     import LineChart from '$lib/components/analytics/LineChart.svelte';
     import Button from '$lib/components/ui/Button.svelte';
     import Card from '$lib/components/ui/Card.svelte';
+    import { tokenColor } from '$lib/utils/tokenColor';
 
     let recentOrders: any[] = $state([]);
     let chartData = $state({
@@ -61,8 +62,8 @@
                                     {
                                         label: 'Revenue',
                                         data: revenue.revenueByMonth.map((d: any) => d.revenue),
-                                        borderColor: '#10b981',
-                                        backgroundColor: 'rgba(16, 185, 129, 0.1)'
+                                        borderColor:     tokenColor('--ok', '#34c759'),
+                                        backgroundColor: tokenColor('--ok', '#34c759', 0.12)
                                     }
                                 ]
                             };
