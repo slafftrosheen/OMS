@@ -43,7 +43,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
             id, file_type, display_name,
             files(id, filename, original_name, created_at)
         `)
-        .eq('draft_order_id', order.id);
+        .eq('order_id', order.id);
 
     if (orderFiles) {
         files = orderFiles.map((of: any) => ({
@@ -124,7 +124,7 @@ export const PUT: RequestHandler = async (event) => {
     // Update profiles
     if (data.profiles && Array.isArray(data.profiles)) {
         const profilesToInsert = data.profiles.map((p: any) => ({
-            draft_order_id: order.id,
+            order_id: order.id,
             profile_template_id: p.profileTemplateId || null,
             quantity1: p.quantity || 1,
             configuration: p.configuration || {},
@@ -140,7 +140,7 @@ export const PUT: RequestHandler = async (event) => {
         if (profilesError) {
             console.warn('RPC replace_order_profiles failed, falling back to manual delete/insert', profilesError);
             // Manual fallback: delete and insert
-            await event.locals.supabase.from('order_profiles').delete().eq('draft_order_id', order.id);
+            await event.locals.supabase.from('order_profiles').delete().eq('order_id', order.id);
             const { error: insertError } = await event.locals.supabase.from('order_profiles').insert(profilesToInsert);
             if (insertError) throw insertError;
         }
@@ -149,7 +149,7 @@ export const PUT: RequestHandler = async (event) => {
     // Link new files
     if (data.newFileIds && Array.isArray(data.newFileIds) && data.newFileIds.length > 0) {
         const filesToInsert = data.newFileIds.map((fid: string) => ({
-            draft_order_id: order.id,
+            order_id: order.id,
             file_id: fid,
             file_type: 'sketch',
             display_name: null

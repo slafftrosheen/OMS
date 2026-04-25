@@ -26,7 +26,7 @@ export const DraftOrderSchema = draftOrderUpdateSchema;
 export const UpdateDraftOrderSchema = draftOrderUpdateSchema;
 export const OrderProfileSchema = z.object({
   id: z.string().optional(),
-  draft_order_id: z.string().uuid(),
+  order_id: z.string().uuid(),
   profile_template_id: z.string().uuid().optional().nullable(),
   quantity: z.number().optional(),
   configuration: z.record(z.any()).optional(),
