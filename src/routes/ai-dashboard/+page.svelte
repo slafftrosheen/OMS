@@ -4,6 +4,7 @@
 	import Icon from '$lib/ui/Icon.svelte';
 	import { t, locale } from 'svelte-i18n';
 	import { currentUser } from '$lib/auth/authState.svelte';
+	import { PUBLIC_OLLAMA_WEBUI_URL } from '$lib/config';
 
 	// ───── Types ─────────────────────────────────────────────────────────
 	interface ChatMessage {
@@ -308,7 +309,7 @@
 					<span class="desktop-only">{$t('swarm.clear', { default: 'Clear' })}</span>
 				</button>
 			{/if}
-			<a href="http://100.93.147.108:3000" target="_blank" rel="noopener noreferrer" class="action-tag primary" title={$t('swarm.webui', { default: 'WebUI' })}>
+			<a href={PUBLIC_OLLAMA_WEBUI_URL} target="_blank" rel="noopener noreferrer" class="action-tag primary" title={$t('swarm.webui', { default: 'WebUI' })}>
 				<Icon name="external-link" size="sm" />
 				<span class="desktop-only">{$t('swarm.webui', { default: 'WebUI' })}</span>
 			</a>

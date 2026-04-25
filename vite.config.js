@@ -2,37 +2,28 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import dotenv from 'dotenv';
 
-// Load environment variables
 dotenv.config();
+
+// LAN dev WebSocket host — fall back to a generic localhost when not set so
+// non-Tailnet devs can spin up `npm run dev` without editing anything.
+const HMR_HOST = process.env.VITE_HMR_HOST || process.env.FRONTEND_HOST || 'localhost';
+const WS_PROXY_TARGET = process.env.PUBLIC_WS_URL || 'ws://localhost:8000';
 
 export default defineConfig({
   plugins: [sveltekit()],
   server: {
-    host: true, // Equivalent to 0.0.0.0
+    host: true,
     strictPort: true,
-    hmr: {
-      host: '192.168.8.151', // Explicitly allow LAN WebSocket connections
-    },
-    fs: {
-      allow: ['.']
-    },
+    hmr: { host: HMR_HOST },
+    fs: { allow: ['.'] },
     proxy: {
-        '/ws': {
-            target: process.env.PUBLIC_WS_URL || 'ws://localhost:8000',
-            ws: true
-        }
+      '/ws': { target: WS_PROXY_TARGET, ws: true }
     }
   },
   build: {
     rollupOptions: {
-      // Only external libraries should be Node.js-specific modules
-      // that cannot run in the browser.
-      // - bcrypt: Node.js only, for server-side auth
-      // - exceljs: Large library used in server-side export endpoint
-      // - canvas: Node.js native module, used by qrcode (but we use svg mode/browser shim where possible)
-      external: ['bcrypt', 'exceljs', 'canvas']
-      // Removed manualChunks for chart.js as it conflicts with external
-      // Vite will automatically handle chunking for browser libraries
+      // Node-only modules that should never reach the browser bundle.
+      external: ['exceljs', 'canvas']
     }
   }
 });

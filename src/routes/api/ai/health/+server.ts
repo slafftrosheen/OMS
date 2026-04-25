@@ -1,8 +1,5 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
-
-const OLLAMA_URL = env.OLLAMA_URL || 'http://100.93.147.108:11434'; // TODO(production): env-only
-const PROBE_TIMEOUT_MS = 3_000;
+import { OLLAMA_URL, OLLAMA_PROBE_TIMEOUT as PROBE_TIMEOUT_MS } from '$lib/server/config';
 
 export const GET: RequestHandler = async () => {
     const start = Date.now();

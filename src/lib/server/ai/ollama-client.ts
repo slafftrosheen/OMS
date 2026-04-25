@@ -8,11 +8,12 @@
  * single text response is fine.
  */
 
-import { env } from '$env/dynamic/private';
-
-const DEFAULT_OLLAMA_URL = env.OLLAMA_URL || 'http://100.93.147.108:11434'; // TODO(production): env-only
-const DEFAULT_MODEL = env.OLLAMA_DEFAULT_MODEL || 'qwen2.5-coder:14b';
-const DEFAULT_TIMEOUT_MS = Number(env.OLLAMA_TIMEOUT_MS || 60_000);
+import {
+    OLLAMA_URL as DEFAULT_OLLAMA_URL,
+    OLLAMA_DEFAULT_MODEL as DEFAULT_MODEL,
+    OLLAMA_TIMEOUT_MS as DEFAULT_TIMEOUT_MS,
+    OLLAMA_KEEP_ALIVE
+} from '$lib/server/config';
 
 export interface OllamaMessage {
     role: 'system' | 'user' | 'assistant';
@@ -38,7 +39,7 @@ export async function ollamaComplete(
     const {
         model = DEFAULT_MODEL,
         timeoutMs = DEFAULT_TIMEOUT_MS,
-        keepAlive = '5m',
+        keepAlive = OLLAMA_KEEP_ALIVE,
         numCtx = 4096,
         temperature
     } = opts;

@@ -1,10 +1,7 @@
 // src/routes/api/health/+server.ts
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { dev } from '$app/environment';
-import { env } from '$env/dynamic/private';
-
-const OLLAMA_URL = env.OLLAMA_URL || 'http://100.93.147.108:11434'; // TODO(production): env-only
-const PROBE_TIMEOUT_MS = 3_000;
+import { OLLAMA_URL, OLLAMA_PROBE_TIMEOUT as PROBE_TIMEOUT_MS } from '$lib/server/config';
 
 async function probe(fn: () => Promise<void>) {
     const start = Date.now();

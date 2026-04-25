@@ -10,12 +10,11 @@
 // `tools` parameter so the LLM can request live data.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '$lib/server/logging/logger';
+import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from '$lib/server/config';
 
 // ─── Supabase admin client (service role — bypasses RLS) ─────────────────────
-const SUPABASE_URL = 'http://100.98.202.69:54321';
 
 let _supabaseAdmin: SupabaseClient | null = null;
 

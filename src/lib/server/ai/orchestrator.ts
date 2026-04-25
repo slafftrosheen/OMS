@@ -12,13 +12,22 @@
 //   4. If LLM requests tool calls → execute → feed results back → stream final
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
 import { logger } from '$lib/server/logging/logger';
 import { TOOL_DEFINITIONS, TOOL_EXECUTORS } from './tools';
+import {
+    OLLAMA_URL as OLLAMA_BASE,
+    SUPABASE_URL as SUPABASE_BASE,
+    SUPABASE_SERVICE_ROLE_KEY,
+    REASONING_MODEL,
+    OLLAMA_DEFAULT_MODEL,
+    EMBED_MODEL
+} from '$lib/server/config';
 
-// ─── Network endpoints (Tailscale flat network) ──────────────────────────────
-const OLLAMA_URL = 'http://100.93.147.108:11434/api';
-const SUPABASE_URL = 'http://100.98.202.69:54321';
+// ─── Network endpoints (resolved from $lib/server/config) ──────────────────
+// Defaults are the Tailnet topology documented in CLAUDE.md but every value
+// can be overridden via .env (see .env.example).
+const OLLAMA_URL   = `${OLLAMA_BASE}/api`;
+const SUPABASE_URL = SUPABASE_BASE;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -102,7 +111,7 @@ export interface HivemindOptions {
  */
 async function getEmbedding(
 	text: string,
-	model = 'nomic-embed-text'
+	model = EMBED_MODEL
 ): Promise<number[]> {
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -311,8 +320,8 @@ export async function askHivemind(
 		matchThreshold = 0.4,
 		matchCount = 3,
 		numCtx = 8192,
-		model = 'qwen2.5-coder:14b', // 🚀 The Execution model (loves tools!)
-		embeddingModel = 'nomic-embed-text'
+		model = OLLAMA_DEFAULT_MODEL, // 🚀 The Execution model (loves tools!)
+		embeddingModel = EMBED_MODEL
 	} = options;
 
 	logger.info('Hivemind query received', { queryLength: query.length, model });

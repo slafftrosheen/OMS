@@ -1,7 +1,14 @@
-import { env } from '$env/dynamic/private';
 import { error } from '@sveltejs/kit';
 import postgres from 'postgres';
 import { aiRateLimit, escapeLike, rateLimitIdentifier, requireAuth } from '$lib/server/api/helpers';
+import {
+    OLLAMA_URL,
+    DATABASE_URL,
+    ROUTER_MODEL,
+    REASONING_MODEL,
+    ENGINEER_MODEL as SYS_MODEL,
+    VISION_MODEL
+} from '$lib/server/config';
 
 export async function POST(event) {
     const { request, locals } = event;
@@ -45,22 +52,16 @@ export async function POST(event) {
         }
     }
 
-    const ollamaUrl = 'http://100.93.147.108:11434/api/chat';
+    const ollamaUrl = `${OLLAMA_URL}/api/chat`;
 
-    // ── Models ───────────────────────────────────────────────────────────────
-    const ROUTER_MODEL = 'hf.co/mradermacher/c4ai-command-r7b-12-2024-abliterated-GGUF:Q4_K_M';
-    const REASONING_MODEL = 'deepseek-r1:14b';
-    const SYS_MODEL = 'hf.co/ertghiu256/qwen-3-14b-code-and-math-reasoning-gguf:Q4_K_M';
-    const VISION_MODEL = 'llama3.2-vision';
+    // Models — all four come from $lib/server/config so .env can override them.
 
     // ── LAZY DB CONNECTION ─────────────────────────────────────────────────
     // DATABASE_URL is required.  We do NOT fall back to a hard-coded password.
-    // (Pre-production environment is HTTP-only on the Tailnet; the env var
-    // still has to be set so we don't leak credentials in source.)
-    if (!env.DATABASE_URL) {
+    if (!DATABASE_URL) {
         throw error(500, 'DATABASE_URL is not configured');
     }
-    const sql = postgres(env.DATABASE_URL, {
+    const sql = postgres(DATABASE_URL, {
         max: 1,
         idle_timeout: 30
     });
