@@ -97,16 +97,18 @@ export const createSupabaseClient = (event: RequestEvent) => {
         setAll: (cookiesToSet) => {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
-              // Cookie settings for local HTTP network
+              // Cookie settings.  Q13b keeps the deployment HTTP-only on the
+              // Tailnet, but we env-gate `secure` so flipping the flag once
+              // TLS lands does not require touching this file.
+              const baseUrl =
+                getEnv('PUBLIC_BASE_URL', '') ||
+                getEnv('PUBLIC_APP_URL', '');
+              const isHttps = baseUrl.startsWith('https://');
               const secureOptions = {
                 ...options,
-                // Local network uses HTTP — secure must be false
-                secure: false,
-                // Explicitly set sameSite for CSRF protection
+                secure: isHttps,
                 sameSite: 'lax' as const,
-                // HttpOnly for XSS protection
                 httpOnly: true,
-                // Path defaults to root
                 path: options.path || '/'
               };
               event.cookies.set(name, value, secureOptions);
