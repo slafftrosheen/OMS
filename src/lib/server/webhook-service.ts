@@ -4,6 +4,7 @@
  */
 
 import { supabase } from './supabase';
+import { signWebhook } from './webhook-signature';
 
 interface WebhookDelivery {
   id: string;
@@ -75,6 +76,7 @@ export class WebhookService {
         .eq('id', delivery.id);
 
       const endpoint = delivery.endpoint;
+      const bodyText = JSON.stringify(delivery.payload);
 
       // Build headers
       const headers: Record<string, string> = {
@@ -84,6 +86,14 @@ export class WebhookService {
         'X-Webhook-Delivery-Id': delivery.id,
         ...(endpoint.headers || {})
       };
+
+      // HMAC-SHA256 signature so the receiver can verify authenticity.
+      // The shared secret lives on webhook_endpoints.secret.
+      if (endpoint.secret) {
+        const signed = signWebhook(endpoint.secret, bodyText);
+        headers['X-OMS-Timestamp'] = String(signed.timestamp);
+        headers['X-OMS-Signature'] = signed.signature;
+      }
 
       // Add authentication
       if (endpoint.auth_type === 'bearer' && endpoint.auth_config?.token) {
@@ -104,7 +114,7 @@ export class WebhookService {
       const response = await fetch(endpoint.url, {
         method: 'POST',
         headers,
-        body: JSON.stringify(delivery.payload),
+        body: bodyText,
         signal: controller.signal
       });
 
