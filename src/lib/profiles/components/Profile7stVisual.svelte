@@ -20,6 +20,13 @@
   import MaterialSelect from "./fields/MaterialSelect.svelte";
   import MaterialThicknessSelect from "$lib/components/MaterialThicknessSelect.svelte";
   import {
+    type ColorValue,
+    defaultColor,
+    extractShortName,
+    getTextColor,
+    getShortName,
+  } from "$lib/profiles/helpers";
+  import {
     AlertCircle,
     Zap,
     Power,
@@ -37,17 +44,7 @@
     X,
   } from "lucide-svelte";
 
-  /**
-   * @typedef {object} ColorValue
-   * @property {string} system - The color system (e.g., 'RAL', 'Pantone').
-   * @property {string} code - The color code within the system.
-   * @property {string} hex - The hexadecimal representation of the color.
-   */
-  interface ColorValue {
-    system: string;
-    code: string;
-    hex: string;
-  }
+  // ColorValue is imported from $lib/profiles/helpers (extracted in Phase 6.1).
 
   /**
    * @typedef {object} ProfileConfiguration
@@ -148,7 +145,7 @@
     };
   }
 
-  const defaultColor: ColorValue = { system: "", code: "", hex: "" };
+  // defaultColor + helper fns are imported from $lib/profiles/helpers.
 
   // A baseline configuration to ensure all necessary properties are present.
   const defaultConfiguration: ProfileConfiguration = {
@@ -324,204 +321,6 @@
    */
   function emit() {
     onchange?.(configuration);
-  }
-
-  /**
-   * Extracts a short, display-friendly name from a material selection data.
-   * It prioritizes metadata from the data but falls back to the `getShortName` utility.
-   * @param {any} data - The change data from the MaterialSelect component.
-   * @param {string} fallbackCategory - The material category to use if the name cannot be determined from the data.
-   * @returns {string} The extracted short name.
-   */
-  function extractShortName(data: any, fallbackCategory: string): string {
-    return (
-      data.shortName ||
-      data.material?.metadata?.short_name ||
-      data.material?.metadata?.colorCode ||
-      getShortName(data.material?.code || data.value, fallbackCategory)
-    );
-  }
-
-  /**
-   * Calculates a contrasting text color (black or white) for a given hex background.
-   * @param {string} hex - The hex color string (e.g., '#RRGGBB').
-   * @returns {string} '#000' for light backgrounds or '#fff' for dark backgrounds.
-   */
-  function getTextColor(hex: string): string {
-    if (!hex || hex.length < 4) return "#000";
-    try {
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      // Using the luminance formula to determine brightness.
-      return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5 ? "#000" : "#fff";
-    } catch {
-      return "#000";
-    }
-  }
-
-  /**
-   * Generates a short, human-readable name from a material's full value string.
-   * This function contains specific logic for different material categories to extract
-   * the most relevant information (e.g., color codes for acrylics, dimensions for aluminum).
-   * @param {string} value - The full material value (e.g., 'ACRYLIC_XT_3N570').
-   * @param {string} [category] - The category of the material, used to apply specific parsing logic.
-   * @returns {string} A short, display-friendly name.
-   */
-  function getShortName(value: string, category?: string): string {
-    if (!value) return "";
-
-    // For Oracal/Vinyl - show FULL code like 8500_064 (series_colorCode)
-    if (
-      category?.includes("ORACAL") ||
-      category?.includes("VINYL") ||
-      value.toLowerCase().includes("oracal")
-    ) {
-      const fullMatch = value.match(/(\d{4})[-_\s]?(\d{2,3})/);
-      if (fullMatch) return `${fullMatch[1]}_${fullMatch[2]}`;
-      const oracalMatch = value.match(/ORACAL[_-]?(\d{4})[_-]?(\d{2,3})/i);
-      if (oracalMatch) return `${oracalMatch[1]}_${oracalMatch[2]}`;
-      const seriesMatch = value.match(/(\d{4})/);
-      const colorMatch = value.match(/[-_](\d{2,3})(?:\s|$)/);
-      if (seriesMatch && colorMatch)
-        return `${seriesMatch[1]}_${colorMatch[1]}`;
-      const anyMatch = value.match(/\b(\d{4})\D+(\d{2,3})\b/);
-      if (anyMatch) return `${anyMatch[1]}_${anyMatch[2]}`;
-      return value
-        .replace(/oracal\s*/i, "")
-        .replace(/vinyl\s*/i, "")
-        .trim()
-        .substring(0, 12)
-        .toUpperCase();
-    }
-
-    // For acrylic - extract colorCode like 3N570, WN071, 0F00, WH10
-    if (
-      category?.includes("ACRYLIC") ||
-      value.toLowerCase().includes("acrylic") ||
-      value.toLowerCase().includes("plexi")
-    ) {
-      const codePatterns = [
-        /\b(\d[A-Z]\d{3})\b/i,
-        /\b([A-Z]{2}\d{2,3})\b/i,
-        /\b(\d[A-Z]{2}\d{2})\b/i,
-      ];
-      for (const pattern of codePatterns) {
-        const match = value.match(pattern);
-        if (match) return match[1].toUpperCase();
-      }
-      const plexMatch = value.match(/(?:XT|GS|LED)[_-]?([A-Z0-9]{4,6})/i);
-      if (plexMatch) return plexMatch[1].toUpperCase();
-      if (value.toLowerCase().includes("opal")) return "OPAL";
-      if (value.toLowerCase().includes("clear") || value.includes("0F00"))
-        return "CLEAR";
-      if (/white/i.test(value) && !/opal/i.test(value)) return "WHITE";
-      const parts = value.split(/[-_\s]+/);
-      const lastPart = parts[parts.length - 1];
-      if (lastPart && /^[A-Z0-9]{4,6}$/i.test(lastPart))
-        return lastPart.toUpperCase();
-      return "PLEX";
-    }
-
-    // For ALU - show ALU + thickness or dimensions
-    if (category?.includes("ALU") || value.toLowerCase().includes("alu")) {
-      const thicknessMatch = value.match(/([\d.,]+)\s*mm/i);
-      if (thicknessMatch) return `ALU ${thicknessMatch[1].replace(",", ".")}`;
-      const profileMatch = value.match(/(\d+x\d+)/i);
-      if (profileMatch) return `ALU ${profileMatch[1]}`;
-      const codeMatch = value.match(
-        /ALU[_-]?(?:MILL|BRUSH|ANOD)?[_-]?(\d)[_-]?(\d)/i,
-      );
-      if (codeMatch) return `ALU ${codeMatch[1]}.${codeMatch[2]}`;
-      return "ALU";
-    }
-
-    // For PVC
-    if (
-      category?.includes("PVC") ||
-      value.toLowerCase().includes("pvc") ||
-      value.toLowerCase().includes("forex")
-    ) {
-      const thicknessMatch = value.match(/(\d+)\s*mm/i);
-      if (thicknessMatch) return `PVC ${thicknessMatch[1]}`;
-      if (value.toLowerCase().includes("forex")) return "FOREX";
-      return "PVC";
-    }
-
-    // For RAL paint - just the 4-digit code
-    if (category?.includes("RAL") || value.toLowerCase().includes("ral")) {
-      const ralMatch = value.match(/\b(\d{4})\b/);
-      if (ralMatch) return ralMatch[1];
-    }
-
-    // For Pantone
-    if (
-      category?.includes("PANTONE") ||
-      value.toLowerCase().includes("pantone")
-    ) {
-      const pantoneMatch = value.match(/(\d+\s*[A-Z]*)/i);
-      if (pantoneMatch) return pantoneMatch[1].trim();
-    }
-
-    // For LED modules - Brand + Color Temp (e.g., "BaltLed 4500K")
-    if (category?.includes("LED")) {
-      const parts: string[] = [];
-      const brandMatch = value.match(
-        /\b(BaltLed|Sloan|Samsung|Nichia|Osram|Cree|LemLux|LG|Seoul)\b/i,
-      );
-      if (brandMatch) parts.push(brandMatch[1]);
-      const tempMatch = value.match(/(\d{4})\s*[kK]/);
-      if (tempMatch) parts.push(`${tempMatch[1]}K`);
-      const colorMatch = value.match(
-        /\b(warm|cold|neutral|daylight|white|rgb)\b/i,
-      );
-      if (colorMatch && parts.length < 2)
-        parts.push(colorMatch[1].toUpperCase());
-      if (parts.length > 0) return parts.join(" ");
-      const wattMatch = value.match(/(\d+\.?\d*)\s*[wW]/);
-      if (wattMatch) return `${wattMatch[1]}W`;
-      return "LED";
-    }
-
-    // For PSU - Brand + Watts (e.g., "MeanWell 100W")
-    if (category?.includes("PSU")) {
-      const parts: string[] = [];
-      const brandMatch = value.match(
-        /\b(MeanWell|Mean\s*Well|Philips|Inventronics|Osram|Tridonic)\b/i,
-      );
-      if (brandMatch) parts.push(brandMatch[1].replace(/\s+/g, ""));
-      const wattMatch = value.match(/(\d+)\s*[wW]/);
-      if (wattMatch) parts.push(`${wattMatch[1]}W`);
-      if (parts.length > 0) return parts.join(" ");
-      return "PSU";
-    }
-
-    // For Cables/Wire - Dimensions + Color (e.g., "2x0.75 BLACK")
-    if (category?.includes("WIRE") || category?.includes("CABLE")) {
-      const parts: string[] = [];
-      const dimsMatch = value.match(/(\d+x[\d.,]+)/i);
-      if (dimsMatch) parts.push(dimsMatch[1]);
-      const colorMatch = value.match(
-        /\b(black|white|red|blue|green|grey|gray)\b/i,
-      );
-      if (colorMatch) parts.push(colorMatch[1].toUpperCase());
-      if (parts.length > 0) return parts.join(" ");
-      return "CABLE";
-    }
-
-    // Default fallback: try to find a code-like pattern or use the first word.
-    const codePattern = value.match(/\b([A-Z0-9]{3,8})\b/i);
-    if (
-      codePattern &&
-      !/the|and|for|with|board|sheet|foam/i.test(codePattern[1])
-    ) {
-      return codePattern[1].toUpperCase();
-    }
-    const words = value
-      .split(/[\s_-]+/)
-      .filter((w) => w.length > 1 && !/the|and|for|with/i.test(w));
-    if (words.length > 0) return words[0].substring(0, 8).toUpperCase();
-    return value.substring(0, 8).toUpperCase();
   }
 
   // A derived variable to determine if the "FRONT" section should be expanded.
