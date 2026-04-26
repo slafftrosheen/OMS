@@ -177,22 +177,26 @@ const tag = (key: string, primary: string, fallback?: string): ModelTag => ({
     fallback: readString(`${key}_FALLBACK`, fallback ?? primary)
 });
 
+// All chat/reasoning defaults below are Qwen3-era and are tool-calling-capable.
+// DeepSeek-R1 distills were dropped because the distilled variants do NOT
+// reliably support native function/tool calling — Qwen3 thinking mode covers
+// the same chain-of-thought use case and keeps tools working.
 export const MODEL = {
-    router:    tag('ROUTER_MODEL',     'hf.co/huihui-ai/Qwen2.5-7B-Instruct-1M-abliterated:Q5_K_M',
-                                       'hf.co/huihui-ai/Llama-3.2-3B-Instruct-abliterated:Q5_K_M'),
-    reasoning: tag('REASONING_MODEL',  'hf.co/huihui-ai/DeepSeek-R1-Distill-Qwen-14B-abliterated-v2-GGUF:Q4_K_M',
-                                       'hf.co/mradermacher/DeepSeek-R1-Distill-Qwen-32B-abliterated-GGUF:Q3_K_M'),
-    chat:      tag('CHAT_MODEL',       'hf.co/huihui-ai/Qwen3-14B-abliterated-GGUF:Q4_K_M',
-                                       'hf.co/huihui-ai/Qwen2.5-14B-Instruct-abliterated-v2-GGUF:Q4_K_M'),
-    engineer:  tag('ENGINEER_MODEL',   'hf.co/huihui-ai/Qwen2.5-Coder-14B-Instruct-abliterated-GGUF:Q4_K_M',
-                                       'hf.co/bartowski/Qwen2.5-Coder-32B-Instruct-GGUF:Q3_K_M'),
-    vision:    tag('VISION_MODEL',     'hf.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF:Q5_K_M',
-                                       'hf.co/bartowski/MiniCPM-V-2_6-GGUF:Q5_K_M'),
-    math:      tag('MATH_MODEL',       'hf.co/huihui-ai/Qwen2.5-Math-7B-Instruct-abliterated-GGUF:Q5_K_M',
-                                       'deepseek-math:7b'),
+    router:    tag('ROUTER_MODEL',     'command-r7b:latest',
+                                       'hf.co/bartowski/huihui-ai_Qwen3-4B-abliterated-GGUF:Q5_K_M'),
+    reasoning: tag('REASONING_MODEL',  'hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M',
+                                       'hf.co/mradermacher/Huihui-Qwen3-30B-A3B-Instruct-2507-abliterated-GGUF:Q3_K_M'),
+    chat:      tag('CHAT_MODEL',       'hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M',
+                                       'qwen3:14b'),
+    engineer:  tag('ENGINEER_MODEL',   'hf.co/mradermacher/Huihui-Qwen3-Coder-30B-A3B-Instruct-abliterated-GGUF:Q4_K_M',
+                                       'qwen3-coder:30b'),
+    vision:    tag('VISION_MODEL',     'huihui_ai/qwen3-vl-abliterated:8b-instruct',
+                                       'qwen3-vl:8b'),
+    math:      tag('MATH_MODEL',       'hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M',
+                                       'qwen3:14b'),
     default:   tag('OLLAMA_DEFAULT_MODEL',
-                                       'hf.co/huihui-ai/Qwen2.5-Coder-14B-Instruct-abliterated-GGUF:Q4_K_M',
-                                       'qwen2.5-coder:14b'),
+                                       'hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M',
+                                       'qwen3:14b'),
     embed:     tag('EMBED_MODEL',      'bge-m3', 'nomic-embed-text'),
     embedImage:tag('EMBED_IMAGE_MODEL','nomic-embed-vision-v1.5', 'nomic-embed-vision-v1.5'),
     rerank:    tag('RERANK_MODEL',     'BAAI/bge-reranker-v2-m3',
@@ -203,7 +207,7 @@ export const MODEL = {
     image:     tag('IMAGE_MODEL',      'black-forest-labs/FLUX.1-dev',
                                        'black-forest-labs/FLUX.1-schnell'),
     mesh:      tag('MESH_MODEL',       'microsoft/TRELLIS-image-large',
-                                       'tencent/Hunyuan3D-2'),
+                                       'tencent/Hunyuan3D-2.1'),
     matting:   tag('MATTING_MODEL',    'briaai/RMBG-2.0', 'ZhengPeng7/BiRefNet'),
     music:     tag('MUSIC_MODEL',      'facebook/musicgen-small', 'facebook/musicgen-small')
 } as const satisfies Record<string, ModelTag>;

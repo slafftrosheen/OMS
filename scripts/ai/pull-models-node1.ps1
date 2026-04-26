@@ -5,32 +5,43 @@
 #
 #   PowerShell:  .\pull-models-node1.ps1
 #
-# Total disk usage: ~70 GB. Adjust `$Env:OLLAMA_MODELS` to target a 300 GB+
+# Total disk usage: ~80 GB. Adjust `$Env:OLLAMA_MODELS` to target a 300 GB+
 # drive if your default Ollama model dir is on a small SSD.
+#
+# Verified tool-calling support — Qwen3 family + Command-R7B + Qwen3-VL.
+# Sources:
+#   * https://ollama.com/library/qwen3
+#   * https://ollama.com/library/qwen3-coder
+#   * https://ollama.com/library/qwen3-vl
+#   * https://ollama.com/library/command-r7b
+#   * https://huggingface.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF
+#   * https://huggingface.co/mradermacher/Huihui-Qwen3-Coder-30B-A3B-Instruct-abliterated-GGUF
+#   * https://huggingface.co/huihui-ai/Huihui-Qwen3-VL-8B-Instruct-abliterated
 
 $ErrorActionPreference = "Stop"
 $models = @(
-    # Router (fast classifier)
-    "hf.co/huihui-ai/Qwen2.5-7B-Instruct-1M-abliterated:Q5_K_M",
-    "hf.co/huihui-ai/Llama-3.2-3B-Instruct-abliterated:Q5_K_M",
+    # --- Router (Cohere RAG/tool-calling specialist + abliterated fallback) -
+    "command-r7b:latest",
+    "hf.co/bartowski/huihui-ai_Qwen3-4B-abliterated-GGUF:Q5_K_M",
 
-    # Reasoning + chat (RAG synthesis, tool calling)
-    "hf.co/huihui-ai/DeepSeek-R1-Distill-Qwen-14B-abliterated-v2-GGUF:Q4_K_M",
-    "hf.co/mradermacher/DeepSeek-R1-Distill-Qwen-32B-abliterated-GGUF:Q3_K_M",
-    "hf.co/huihui-ai/Qwen3-14B-abliterated-GGUF:Q4_K_M",
-    "hf.co/huihui-ai/Qwen2.5-14B-Instruct-abliterated-v2-GGUF:Q4_K_M",
+    # --- Reasoning + chat + math (Qwen3 thinking mode handles all three) ---
+    # Replaces DeepSeek-R1 (which doesn't reliably do tool calling).
+    "hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M",
+    "qwen3:14b",
+    # Optional MoE fallback (30B-A3B at Q3 fits 16 GB).
+    "hf.co/mradermacher/Huihui-Qwen3-30B-A3B-Instruct-2507-abliterated-GGUF:Q3_K_M",
 
-    # Coder / engineering math
-    "hf.co/huihui-ai/Qwen2.5-Coder-14B-Instruct-abliterated-GGUF:Q4_K_M",
-    "hf.co/bartowski/Qwen2.5-Coder-32B-Instruct-GGUF:Q3_K_M",
-    "hf.co/huihui-ai/Qwen2.5-Math-7B-Instruct-abliterated-GGUF:Q5_K_M",
-    "deepseek-math:7b",
+    # --- Coder / engineering -----------------------------------------------
+    "hf.co/mradermacher/Huihui-Qwen3-Coder-30B-A3B-Instruct-abliterated-GGUF:Q4_K_M",
+    "qwen3-coder:30b",
 
-    # Vision
-    "hf.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF:Q5_K_M",
-    "hf.co/bartowski/MiniCPM-V-2_6-GGUF:Q5_K_M",
+    # --- Vision (used here for chat-time image understanding; the heavy
+    # extraction pipeline runs through the sidecar on whichever node has
+    # capacity) -------------------------------------------------------------
+    "huihui_ai/qwen3-vl-abliterated:8b-instruct",
+    "qwen3-vl:8b",
 
-    # Embeddings
+    # --- Embeddings --------------------------------------------------------
     "bge-m3",
     "nomic-embed-text"
 )
@@ -41,3 +52,4 @@ foreach ($m in $models) {
 }
 
 Write-Host "`nAll node 1 models pulled. Run ``ollama list`` to verify." -ForegroundColor Green
+Write-Host "Tip: ``ollama show command-r7b --template`` confirms tool-call format." -ForegroundColor DarkGray

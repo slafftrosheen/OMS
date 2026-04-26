@@ -95,31 +95,48 @@ Add new tools by inserting a row in `ai_tools` and adding an executor in
 Every task has a **PRIMARY** model and a **FALLBACK**. The swarm router
 falls back automatically on timeout, OOM, or model-not-found errors.
 
-All chat/reasoning models below are **abliterated** (uncensored) community
-tunes from `huihui-ai`, `mradermacher`, `unsloth`, or `bartowski` on Hugging
-Face. Each fits in 16 GB VRAM at the listed quant.
+**All chat-side models below support native tool calling** — verified against
+the model cards. We deliberately do NOT use DeepSeek-R1 distills, because the
+distilled R1 variants don't reliably do native function/tool calling and
+break the orchestrator's tool loop. Qwen3's built-in **thinking mode**
+(`/think` and `/no_think` toggles) gives the same chain-of-thought quality
+plus working tool calls — see [Qwen3 GitHub](https://github.com/QwenLM/Qwen3)
+and the [Ollama tool-calling docs](https://docs.ollama.com/capabilities/tool-calling).
 
-| Role              | Primary                                                                                      | Fallback                                                                            |
-|-------------------|----------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------|
-| Router            | `huihui-ai/Qwen2.5-7B-Instruct-1M-abliterated:Q5_K_M`                                        | `huihui-ai/Llama-3.2-3B-Instruct-abliterated:Q5_K_M`                                |
-| Reasoning         | `huihui-ai/DeepSeek-R1-Distill-Qwen-14B-abliterated-v2-GGUF:Q4_K_M`                          | `mradermacher/DeepSeek-R1-Distill-Qwen-32B-abliterated-GGUF:Q3_K_M`                 |
-| General chat      | `huihui-ai/Qwen3-14B-abliterated-GGUF:Q4_K_M`                                                | `huihui-ai/Qwen2.5-14B-Instruct-abliterated-v2-GGUF:Q4_K_M`                         |
-| Coder / engineer  | `huihui-ai/Qwen2.5-Coder-14B-Instruct-abliterated-GGUF:Q4_K_M`                               | `bartowski/Qwen2.5-Coder-32B-Instruct-GGUF:Q3_K_M`                                  |
-| Vision (PDF/img)  | `unsloth/Qwen2.5-VL-7B-Instruct-GGUF:Q5_K_M`                                                 | `bartowski/MiniCPM-V-2_6-GGUF:Q5_K_M`                                               |
-| Math              | `huihui-ai/Qwen2.5-Math-7B-Instruct-abliterated-GGUF:Q5_K_M`                                 | `deepseek-math:7b`                                                                  |
-| Embed (text)      | `bge-m3` (1024d, multilingual NL/EN/DE)                                                      | `nomic-embed-text` (768d)                                                           |
-| Embed (image)     | `nomic-embed-vision-v1.5` (768d)                                                             | (same)                                                                              |
-| Reranker          | `BAAI/bge-reranker-v2-m3`                                                                    | `jinaai/jina-reranker-v2-base-multilingual`                                         |
-| Document-as-image | `vidore/colqwen2-v1.0`                                                                       | (same)                                                                              |
-| ASR               | faster-whisper `large-v3-turbo`                                                              | `large-v3`                                                                          |
-| TTS               | `hexgrad/Kokoro-82M`                                                                         | `rhasspy/piper-voices`                                                              |
-| Image gen         | `black-forest-labs/FLUX.1-dev` (FP8, 12 GB)                                                  | `black-forest-labs/FLUX.1-schnell`                                                  |
-| Mesh gen          | `microsoft/TRELLIS-image-large`                                                              | `tencent/Hunyuan3D-2`                                                               |
-| Background remove | `briaai/RMBG-2.0`                                                                            | `ZhengPeng7/BiRefNet`                                                               |
-| Music / SFX       | `facebook/musicgen-small`                                                                    | (same)                                                                              |
+Uncensored ("abliterated") variants come from
+[huihui-ai](https://huggingface.co/huihui-ai),
+[bartowski](https://huggingface.co/bartowski),
+[mradermacher](https://huggingface.co/mradermacher),
+[noctrex](https://huggingface.co/noctrex). Each fits in 16 GB VRAM at the
+listed quant.
 
-Disk budget per node: **~250 GB** (well within your 300-400 GB allocation).
+| Role              | Primary (pull tag) | Fallback | Why |
+|-------------------|--------------------|----------|-----|
+| Router            | [`command-r7b:latest`](https://ollama.com/library/command-r7b) | [`hf.co/bartowski/huihui-ai_Qwen3-4B-abliterated-GGUF:Q5_K_M`](https://huggingface.co/bartowski/huihui-ai_Qwen3-4B-abliterated-GGUF) | Cohere's RAG/tool-calling specialist; ~7B, very fast |
+| Reasoning         | [`hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M`](https://huggingface.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF) | [`hf.co/mradermacher/Huihui-Qwen3-30B-A3B-Instruct-2507-abliterated-GGUF:Q3_K_M`](https://huggingface.co/mradermacher/Huihui-Qwen3-30B-A3B-Instruct-2507-abliterated-GGUF) | Qwen3 thinking mode + tool calling. MoE 30B-A3B Q3 fits 16 GB |
+| General chat      | [`hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M`](https://huggingface.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF) | [`qwen3:14b`](https://ollama.com/library/qwen3:14b) | Same model, lower temperature for snappy replies |
+| Coder / engineer  | [`hf.co/mradermacher/Huihui-Qwen3-Coder-30B-A3B-Instruct-abliterated-GGUF:Q4_K_M`](https://huggingface.co/mradermacher/Huihui-Qwen3-Coder-30B-A3B-Instruct-abliterated-GGUF) | [`qwen3-coder:30b`](https://ollama.com/library/qwen3-coder:30b) | Tool calling fixed for Qwen3-Coder — verified |
+| Vision (PDF/img)  | [`huihui_ai/qwen3-vl-abliterated:8b-instruct`](https://ollama.com/huihui_ai/qwen3-vl-abliterated) | [`qwen3-vl:8b`](https://ollama.com/library/qwen3-vl:8b) | Qwen3-VL: vision + tools + 32-language OCR |
+| Math / brainstorm | (alias → reasoning) | (alias → reasoning) | Qwen3 thinking handles math at the same quality |
+| Embed (text)      | [`bge-m3`](https://ollama.com/library/bge-m3) (1024d, multilingual NL/EN/DE) | [`nomic-embed-text`](https://ollama.com/library/nomic-embed-text) (768d) | Multilingual matters for Dutch/EN/DE suppliers |
+| Embed (image)     | [`nomic-embed-vision-v1.5`](https://huggingface.co/nomic-ai/nomic-embed-vision-v1.5) (768d) | (same) | Cross-modal: text query finds matching photos |
+| Reranker          | [`BAAI/bge-reranker-v2-m3`](https://huggingface.co/BAAI/bge-reranker-v2-m3) | [`jinaai/jina-reranker-v2-base-multilingual`](https://huggingface.co/jinaai/jina-reranker-v2-base-multilingual) | Cuts hallucination noticeably; sub-100 ms |
+| Document-as-image | [`vidore/colqwen2-v1.0`](https://huggingface.co/vidore/colqwen2-v1.0) | (same) | Late interaction over PDF page images — perfect for spec sheets |
+| ASR               | faster-whisper [`large-v3-turbo`](https://huggingface.co/Systran/faster-whisper-large-v3) | `large-v3` | 8× faster than large-v3, near-equal accuracy |
+| TTS               | [`hexgrad/Kokoro-82M`](https://huggingface.co/hexgrad/Kokoro-82M) | [`rhasspy/piper`](https://github.com/rhasspy/piper) | Tiny footprint, runs CPU-fine |
+| Image gen         | [`black-forest-labs/FLUX.1-dev`](https://huggingface.co/black-forest-labs/FLUX.1-dev) (FP8, ~12 GB) | [`black-forest-labs/FLUX.1-schnell`](https://huggingface.co/black-forest-labs/FLUX.1-schnell) | dev = quality, schnell = 4-step real-time |
+| Mesh gen          | [`microsoft/TRELLIS-image-large`](https://huggingface.co/microsoft/TRELLIS-image-large) | [`tencent/Hunyuan3D-2.1`](https://huggingface.co/tencent/Hunyuan3D-2.1) | Image → GLB; TRELLIS gives the cleaner topology |
+| Background remove | [`briaai/RMBG-2.0`](https://huggingface.co/briaai/RMBG-2.0) | [`ZhengPeng7/BiRefNet`](https://huggingface.co/ZhengPeng7/BiRefNet) | One-click product cut-outs |
+| Music / SFX       | [`facebook/musicgen-small`](https://huggingface.co/facebook/musicgen-small) | (same) | Optional — short product video soundbeds |
+
+Disk budget per node: **~80 GB Ollama models on node 1**, **~120 GB
+diffusion/mesh weights on node 2** (well within the 300-400 GB allocation).
 Pull scripts live in `scripts/ai/pull-models-node1.ps1` and `pull-models-node2.ps1`.
+
+> **Tool-calling note:** Qwen3 tool calling needs a current Ollama (≥ 0.5).
+> If you see malformed tool args, pull the latest Ollama and re-pull the
+> Qwen3 image. See [ollama#14601](https://github.com/ollama/ollama/issues/14601)
+> for the original report; the fix is shipped.
 
 ---
 

@@ -1,20 +1,31 @@
 # Reclame AI Lab — model pull for ai2 (image-gen / mesh-gen / asr / tts /
 # rerank / colpali). The heavy generative + media node.
 #
-# Generative models live in the Python sidecar (ComfyUI / diffusers / TRELLIS
-# / faster-whisper / Kokoro / BGE reranker / ColQwen2) — see
+# Generative models live in the Python sidecar (diffusers / TRELLIS /
+# faster-whisper / Kokoro / BGE reranker / ColQwen2) — see
 # scripts/sidecar/server.py and scripts/sidecar/install-node2.ps1.
 #
-# Ollama on node 2 still needs a few small models (router/embed) so the swarm
-# can fall back when node 1 is busy.
+# Ollama on node 2 still gets a small set of router/embed/chat models so the
+# swarm can fall back when node 1 is busy.
+#
+# Sources:
+#   * https://ollama.com/library/qwen3
+#   * https://ollama.com/library/command-r7b
+#   * https://ollama.com/library/qwen3-vl
 
 $ErrorActionPreference = "Stop"
 $models = @(
-    "hf.co/huihui-ai/Qwen2.5-7B-Instruct-1M-abliterated:Q5_K_M",
-    "hf.co/huihui-ai/Llama-3.2-3B-Instruct-abliterated:Q5_K_M",
-    "hf.co/huihui-ai/Qwen3-14B-abliterated-GGUF:Q4_K_M",
+    # Lightweight router + embed for fallback duty
+    "command-r7b:latest",
+    "qwen3:4b",
     "bge-m3",
-    "nomic-embed-text"
+    "nomic-embed-text",
+
+    # Mid-weight chat model for quick questions when ai1 is saturated
+    "qwen3:14b",
+
+    # Vision — node 2 also serves multimodal chat when ai1 is busy
+    "qwen3-vl:8b"
 )
 
 foreach ($m in $models) {
