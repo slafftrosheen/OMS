@@ -136,6 +136,20 @@ import XCircle from 'lucide-svelte/icons/x-circle';
 import ZapIcon from 'lucide-svelte/icons/zap';
 import ZoomIn from 'lucide-svelte/icons/zoom-in';
 import ZoomOut from 'lucide-svelte/icons/zoom-out';
+// Reclame AI Lab additions
+import Library from 'lucide-svelte/icons/library';
+import Network from 'lucide-svelte/icons/network';
+import ListChecks from 'lucide-svelte/icons/list-checks';
+import Wrench from 'lucide-svelte/icons/wrench';
+import Eraser from 'lucide-svelte/icons/eraser';
+import UploadCloud from 'lucide-svelte/icons/upload-cloud';
+import RefreshCcw from 'lucide-svelte/icons/refresh-ccw';
+import Archive from 'lucide-svelte/icons/archive';
+import Volume2 from 'lucide-svelte/icons/volume-2';
+import Mic from 'lucide-svelte/icons/mic';
+import Lightbulb from 'lucide-svelte/icons/lightbulb';
+import Drill from 'lucide-svelte/icons/drill';
+import PackageX from 'lucide-svelte/icons/package-x';
 
 export const icons = {
   'activity': Activity,
@@ -269,6 +283,19 @@ export const icons = {
   'x': X,
   'x-circle': XCircle,
   'zap': ZapIcon,
+  'library': Library,
+  'network': Network,
+  'list-checks': ListChecks,
+  'wrench': Wrench,
+  'eraser': Eraser,
+  'upload-cloud': UploadCloud,
+  'refresh-ccw': RefreshCcw,
+  'archive': Archive,
+  'volume-2': Volume2,
+  'mic': Mic,
+  'lightbulb': Lightbulb,
+  'drill': Drill,
+  'package-x': PackageX,
   'zoom-in': ZoomIn,
   'zoom-out': ZoomOut
 } as const;

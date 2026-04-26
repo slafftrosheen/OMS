@@ -30,7 +30,8 @@
     "docker:stop": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "crawler": "tsx src/workers/crawler/index.ts",
-    "crawler:brand": "tsx src/workers/crawler/brand_crawler.ts"
+    "crawler:brand": "tsx src/workers/crawler/brand_crawler.ts",
+    "ingestor": "tsx src/workers/ingestor/index.ts"
   },
   "dependencies": {
     "@ericblade/quagga2": "^1.12.1",
@@ -39,6 +40,7 @@
     "@sveltejs/kit": "^2.7.4",
     "apexcharts": "file:packages/apexcharts",
     "chart.js": "^4.4.0",
+    "cheerio": "^1.0.0",
     "csv-writer": "1.6.0",
     "dayjs": "^1.11.18",
     "dotenv": "^16.4.5",
@@ -52,11 +54,11 @@
     "pdfjs-dist": "^4.8.69",
     "pdfkit": "0.17.2",
     "pg": "^8.16.3",
+    "postgres": "^3.4.9",
     "qrcode": "^1.5.4",
     "svelte": "^5.1.16",
     "svelte-apexcharts": "file:packages/svelte-apexcharts",
     "svelte-i18n": "file:packages/svelte-i18n",
-    "cheerio": "^1.0.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

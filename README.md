@@ -1,227 +1,347 @@
-# Réclame Fabriek — Sovereign Swarm OS
+# Réclame Fabriek OMS + Reclame AI Lab
 
-> End-to-end production OS for visual signage: order intake → CAD → CNC → finishing → assembly → QC → logistics.  
-> Augmented by a local AI orchestrator with RAG retrieval and live database tool calling.
+End-to-end production OS for visual signage — order intake → CAD → CNC →
+finishing → assembly → QC → logistics — paired with **Reclame AI Lab**, an
+in-house AI swarm that ingests every drawing/manual/photo/voice memo we
+produce and turns it into useful answers, generated content, and station
+tools (CNC feeds & speeds, paint colour match, engineering brainstorm).
 
----
-
-## Architecture Overview
-
-```
-┌────────────────────────────────────────────────────────────────────┐
-│                    Tailscale Flat Network                          │
-│                                                                    │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐ │
-│  │  Frontend Node   │  │   AI Server      │  │  Supabase Vault  │ │
-│  │  100.105.211.46  │  │  100.93.147.108  │  │  100.98.202.69   │ │
-│  │                  │  │                  │  │                  │ │
-│  │  SvelteKit App   │  │  Ollama          │  │  PostgreSQL      │ │
-│  │  (Node.js)       │  │  ├ deepseek-r1   │  │  ├ pgvector      │ │
-│  │                  │  │  ├ nomic-embed   │  │  ├ Auth           │ │
-│  │  Crawler Worker  │  │  └ Open WebUI    │  │  ├ Storage        │ │
-│  │  (background)    │  │    :3000         │  │  └ Realtime       │ │
-│  └──────────────────┘  └──────────────────┘  └──────────────────┘ │
-└────────────────────────────────────────────────────────────────────┘
-```
-
-### IP Routing Table
-
-| Node | Tailscale IP | Services | Port(s) |
-|------|-------------|----------|---------|
-| **Frontend** | `100.105.211.46` | SvelteKit OMS, Crawler Worker | `5173` (dev), `3000` (prod) |
-| **AI Server** | `100.93.147.108` | Ollama (deepseek-r1:14b, nomic-embed-text), Open WebUI | `11434`, `3000` |
-| **Supabase Vault** | `100.98.202.69` | PostgreSQL + pgvector, Auth, Storage, Realtime | `54321` |
+The whole stack runs on our own Tailnet. No public CDNs, no third-party
+inference, no telemetry leaving the building.
 
 ---
 
-## Quick Setup
+## Topology
 
-### Prerequisites
-- Node.js 18+ and npm
-- Access to the Tailscale network (all services are local-only)
+```
+┌────────────────────────┐    ┌────────────────────────┐
+│  ai1   100.93.147.108  │    │  ai2   100.93.147.109  │
+│  Win11 · RTX 5080 16GB │    │  Win11 · RTX 5080 16GB │
+│  Ollama  :11434        │    │  Ollama  :11434        │
+│  Sidecar :8800         │    │  Sidecar :8800         │
+│  caps: reasoning,      │    │  caps: image-gen,      │
+│        vision, coder,  │    │        mesh-gen, asr,  │
+│        embed           │    │        tts, rerank,    │
+│                        │    │        colpali         │
+└──────────┬─────────────┘    └─────────────┬──────────┘
+           │  Tailscale                     │
+           ▼                                ▼
+┌──────────────────────────────────────────────────────┐
+│  oms     100.98.202.69   Pi5 Bookworm · 1TB NVMe    │
+│  Self-hosted Supabase (PG + pgvector + Auth +        │
+│    Storage + Realtime + Edge Functions)             │
+│  SvelteKit (adapter-node, port 80) + ingestor worker │
+└──────────────────────────────────┬───────────────────┘
+                                   │ rsync nightly
+                                   ▼
+                       ┌──────────────────────────┐
+                       │ nas  100.98.202.70  Pi5  │
+                       │ 1TB NVMe encrypted backups│
+                       └──────────────────────────┘
+```
 
-### Installation
+> When you upgrade `oms` to the i7 / 64 GB / NVMe Linux host, only the IP
+> changes — every config knob is in `.env` and the deploy script ports across.
+
+---
+
+## Tech stack
+
+| Layer       | Stack |
+|-------------|-------|
+| Frontend    | SvelteKit 2, Svelte 5 (runes, snippets), TypeScript |
+| Adapter     | `@sveltejs/adapter-node` (precompressed) |
+| UI          | Token CSS in `static/brand.css`, `lucide-svelte`, `apexcharts`, `tldraw`-ready canvas |
+| i18n        | `svelte-i18n` (NL/EN/DE) |
+| Backend     | Self-hosted Supabase (Postgres 16 + pgvector + Auth + Storage + Realtime) |
+| AI swarm    | Ollama (chat/embed) + Python sidecar (vision extract, Flux, TRELLIS, Whisper, Kokoro, BGE reranker, ColQwen2) |
+| RAG         | bge-m3 (1024d) + nomic-embed-vision (768d) + bge-reranker-v2-m3 |
+| Tests       | Vitest, Playwright, axe-core |
+| Deployment  | docker-compose (Pi5 OMS), Windows services via NSSM (AI nodes) |
+
+---
+
+## Reclame AI Lab — what it does
+
+Mounted at **`/ai-lab`** in the OMS UI. Surfaces:
+
+| Surface          | Path                       | What it is |
+|------------------|----------------------------|------------|
+| Overview         | `/ai-lab`                  | Swarm health, knowledge counts, today's runs |
+| Chat             | `/ai-lab/chat`             | Persistent conversations, RAG citations, persona switch (engineer/CNC/paint/sales/logistics), tool calling |
+| Knowledge        | `/ai-lab/knowledge`        | Drag-drop upload (PDF/image/audio/video/text/URL), tags, status, page-by-page chunk preview |
+| Forge            | `/ai-lab/forge`            | Image gen (Flux), 3D mesh (TRELLIS), ASR, TTS, background remove |
+| Canvas           | `/ai-lab/canvas`           | Persistent infinite drawing board (tldraw-ready) |
+| Toolbox          | `/ai-lab/tools`            | Browsable list of every tool the LLM can call |
+| Runs             | `/ai-lab/runs`             | Transparency log: which model, which node, latency |
+| Swarm            | `/ai-lab/swarm`            | Live node health, warm models, inflight requests |
+
+Tools available to the chat LLM (and to operators in the station drawer):
+
+* `rag.search_knowledge`     — semantic search across uploads
+* `cnc.feeds_speeds`         — RPM/feed/stepdown suggestion grounded in vendor PDFs + history
+* `paint.match`              — paint mix recipe + bake schedule per substrate
+* `engineering.brainstorm`   — "we've done something like this before…"
+* `forge.image / mesh / asr / tts / matting`
+* `data.pending_orders / low_stock`
+
+Add new tools by inserting a row in `ai_tools` and adding an executor in
+`src/lib/server/ai/tools-registry/`. The LLM picks them up automatically.
+
+---
+
+## Models — full catalogue (uncensored where flagged)
+
+Every task has a **PRIMARY** model and a **FALLBACK**. The swarm router
+falls back automatically on timeout, OOM, or model-not-found errors.
+
+All chat/reasoning models below are **abliterated** (uncensored) community
+tunes from `huihui-ai`, `mradermacher`, `unsloth`, or `bartowski` on Hugging
+Face. Each fits in 16 GB VRAM at the listed quant.
+
+| Role              | Primary                                                                                      | Fallback                                                                            |
+|-------------------|----------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------|
+| Router            | `huihui-ai/Qwen2.5-7B-Instruct-1M-abliterated:Q5_K_M`                                        | `huihui-ai/Llama-3.2-3B-Instruct-abliterated:Q5_K_M`                                |
+| Reasoning         | `huihui-ai/DeepSeek-R1-Distill-Qwen-14B-abliterated-v2-GGUF:Q4_K_M`                          | `mradermacher/DeepSeek-R1-Distill-Qwen-32B-abliterated-GGUF:Q3_K_M`                 |
+| General chat      | `huihui-ai/Qwen3-14B-abliterated-GGUF:Q4_K_M`                                                | `huihui-ai/Qwen2.5-14B-Instruct-abliterated-v2-GGUF:Q4_K_M`                         |
+| Coder / engineer  | `huihui-ai/Qwen2.5-Coder-14B-Instruct-abliterated-GGUF:Q4_K_M`                               | `bartowski/Qwen2.5-Coder-32B-Instruct-GGUF:Q3_K_M`                                  |
+| Vision (PDF/img)  | `unsloth/Qwen2.5-VL-7B-Instruct-GGUF:Q5_K_M`                                                 | `bartowski/MiniCPM-V-2_6-GGUF:Q5_K_M`                                               |
+| Math              | `huihui-ai/Qwen2.5-Math-7B-Instruct-abliterated-GGUF:Q5_K_M`                                 | `deepseek-math:7b`                                                                  |
+| Embed (text)      | `bge-m3` (1024d, multilingual NL/EN/DE)                                                      | `nomic-embed-text` (768d)                                                           |
+| Embed (image)     | `nomic-embed-vision-v1.5` (768d)                                                             | (same)                                                                              |
+| Reranker          | `BAAI/bge-reranker-v2-m3`                                                                    | `jinaai/jina-reranker-v2-base-multilingual`                                         |
+| Document-as-image | `vidore/colqwen2-v1.0`                                                                       | (same)                                                                              |
+| ASR               | faster-whisper `large-v3-turbo`                                                              | `large-v3`                                                                          |
+| TTS               | `hexgrad/Kokoro-82M`                                                                         | `rhasspy/piper-voices`                                                              |
+| Image gen         | `black-forest-labs/FLUX.1-dev` (FP8, 12 GB)                                                  | `black-forest-labs/FLUX.1-schnell`                                                  |
+| Mesh gen          | `microsoft/TRELLIS-image-large`                                                              | `tencent/Hunyuan3D-2`                                                               |
+| Background remove | `briaai/RMBG-2.0`                                                                            | `ZhengPeng7/BiRefNet`                                                               |
+| Music / SFX       | `facebook/musicgen-small`                                                                    | (same)                                                                              |
+
+Disk budget per node: **~250 GB** (well within your 300-400 GB allocation).
+Pull scripts live in `scripts/ai/pull-models-node1.ps1` and `pull-models-node2.ps1`.
+
+---
+
+## Configuration — single source of truth
+
+Every IP, model tag, port, timeout, bucket, and feature flag lives in a single
+`.env` file at the repo root. Copy `.env.example` → `.env` and edit.
+
+* SvelteKit reads it via `$env/dynamic/private` / `$env/dynamic/public`
+* Workers (`tsx src/workers/...`) use `dotenv/config`
+* Edge Functions use `Deno.env.get(...)`
+* `PUBLIC_*` are the only vars sent to the browser
+
+Never `process.env.X` directly elsewhere — go through `src/lib/server/config.ts`.
+
+---
+
+## Deployment — all 4 nodes from scratch
+
+### Prereqs everywhere
+
+* Tailscale installed and authenticated, all 4 nodes on the same tailnet
+* Each Tailscale IP set in `.env` (or override per-machine)
+
+### 1) `oms` — Pi5 Bookworm (Supabase + frontend + ingestor)
+
+**Hardware:** Pi5 8 GB / 1 TB NVMe via the official PCIe HAT. Bookworm 64-bit.
 
 ```bash
-# 1. Clone and install
-git clone <repository-url>
-cd OMS
+# 1.1 Base packages
+sudo apt update && sudo apt install -y curl git docker.io docker-compose-v2 \
+    nodejs npm tailscale build-essential
+
+# 1.2 Clone repo
+cd /opt && sudo git clone https://github.com/slafftrosheen/oms.git reclame-oms
+cd reclame-oms
+sudo cp .env.example .env && sudo nano .env       # fill in keys + IPs
+
+# 1.3 Self-hosted Supabase
+git clone https://github.com/supabase/supabase /opt/supabase
+cd /opt/supabase/docker
+cp .env.example .env && nano .env                  # match SUPABASE_* in OMS .env
+docker compose up -d
+cd /opt/reclame-oms
+
+# 1.4 Apply migrations (extensions + AI Lab schema)
 npm install
-
-# 2. Configure environment
-cp .env.example .env
-# Edit .env — set SUPABASE_SERVICE_ROLE_KEY at minimum
-
-# 3. Run migrations
 npm run supabase:migrate:push
 
-# 4. Start dev server
-npm run dev
+# 1.5 Build the SvelteKit app
+npm run build
+
+# 1.6 Run it as a systemd service
+sudo tee /etc/systemd/system/reclame-oms.service >/dev/null <<'EOF'
+[Unit]
+Description=Reclame Fabriek OMS (SvelteKit adapter-node)
+After=network-online.target
+[Service]
+WorkingDirectory=/opt/reclame-oms
+EnvironmentFile=/opt/reclame-oms/.env
+ExecStart=/usr/bin/node build/index.js
+Restart=on-failure
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl enable --now reclame-oms
+
+# 1.7 Run the knowledge ingestor as a service
+sudo tee /etc/systemd/system/reclame-ingestor.service >/dev/null <<'EOF'
+[Unit]
+Description=Reclame AI Lab ingestion worker
+After=network-online.target reclame-oms.service
+[Service]
+WorkingDirectory=/opt/reclame-oms
+EnvironmentFile=/opt/reclame-oms/.env
+ExecStart=/usr/bin/npx tsx src/workers/ingestor/index.ts
+Restart=on-failure
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl enable --now reclame-ingestor
 ```
 
-### Environment Variables
+The OMS is now reachable on `http://100.98.202.69` over the tailnet. The
+AI Lab is at `http://100.98.202.69/ai-lab`.
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `PUBLIC_SUPABASE_URL` | ✅ | Supabase REST endpoint |
-| `PUBLIC_SUPABASE_ANON_KEY` | ✅ | Supabase anonymous/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Service role key (server-side only, used by AI tools) |
-| `DASHSCOPE_API_KEY` | Optional | Qwen/DashScope API key (legacy AI features) |
+### 2) `ai1` — Win11 + RTX 5080 (reasoning, vision, coder, embed)
 
-> Ollama and Supabase Vault endpoints are hardcoded to Tailscale IPs in `src/lib/server/ai/orchestrator.ts`.
+```powershell
+# 2.1 Install Ollama (https://ollama.com/download), point models at a 300+ GB drive
+[System.Environment]::SetEnvironmentVariable("OLLAMA_MODELS", "D:\ollama-models", "Machine")
 
----
+# 2.2 Bind Ollama to all interfaces (so the Pi5 can reach it over Tailscale)
+[System.Environment]::SetEnvironmentVariable("OLLAMA_HOST", "0.0.0.0:11434", "Machine")
+# Restart the Ollama service for vars to apply.
 
-## AI System — Sovereign Swarm OS
+# 2.3 Pull the node-1 model set (~70 GB)
+cd C:\Users\<you>\reclame-oms\scripts\ai
+.\pull-models-node1.ps1
 
-The AI subsystem is a self-hosted RAG pipeline with native tool calling, running entirely on the local Tailscale network.
-
-### Components
-
-| Component | Path | Purpose |
-|-----------|------|---------|
-| **Orchestrator** | `src/lib/server/ai/orchestrator.ts` | RAG pipeline + tool-call loop |
-| **AI Tools** | `src/lib/server/ai/tools.ts` | Database skills (read-only queries) |
-| **Chat API** | `src/routes/api/ai/chat/+server.ts` | Streaming endpoint for the dashboard |
-| **Dashboard UI** | `src/routes/ai-dashboard/+page.svelte` | Swarm OS command center |
-| **Crawler Worker** | `src/workers/crawler/index.ts` | Documentation scraper + embedder |
-
-### How It Works
-
-```
-User Query → Embed (nomic-embed-text) → Dual Vector Search
-                                          ├── match_code_chunks (internal code)
-                                          └── match_framework_docs (external docs)
-                                                    ↓
-                                         Build System Prompt + Tools
-                                                    ↓
-                                         Ollama Chat (deepseek-r1:14b)
-                                                    ↓
-                                         ┌─ Tool Calls? ──┐
-                                         │  Yes            │  No
-                                         ↓                 ↓
-                                    Execute Skills    Stream Response
-                                    Append Results        ↓
-                                    Re-send to LLM   Client Display
-                                         ↓
-                                    Stream Final
+# 2.4 Install the Python sidecar
+cd ..\sidecar
+.\install-node1.ps1
+# → Service "reclame-sidecar" starts on boot, exposes :8800
 ```
 
-### AI Skills (Tool Calling)
+Confirm:
 
-The orchestrator passes a `tools` array to Ollama. When the LLM determines it needs live data, it responds with `tool_calls` which the server executes and feeds back.
+```powershell
+curl http://localhost:11434/api/tags          # Ollama
+curl http://localhost:8800/health             # Sidecar
+```
 
-| Skill | Function | Description |
-|-------|----------|-------------|
-| `get_pending_orders` | `getPendingOrders()` | Fetches active/draft/on-hold orders with PO, client, dates |
-| `get_inventory_status` | `getInventoryStatus()` | Returns materials at or below minimum stock threshold |
-| `get_order_counts_by_status` | `getOrderCountsByStatus()` | Aggregates orders by status for dashboard summaries |
+### 3) `ai2` — Win11 + RTX 5080 (image-gen, mesh-gen, asr, tts, rerank, colpali)
 
-All skills are **read-only** and use the service-role Supabase client (RLS bypass).
+Same as node 1 but with the heavier sidecar:
 
-### Documentation Crawler
+```powershell
+[System.Environment]::SetEnvironmentVariable("OLLAMA_MODELS", "D:\ollama-models", "Machine")
+[System.Environment]::SetEnvironmentVariable("OLLAMA_HOST", "0.0.0.0:11434", "Machine")
+[System.Environment]::SetEnvironmentVariable("HF_HOME", "D:\hf-cache", "Machine")
 
-The crawler is a standalone Node.js process that scrapes external documentation, chunks it semantically, embeds via Ollama, and upserts into the `framework_docs` vector table.
+cd C:\Users\<you>\reclame-oms\scripts\ai
+.\pull-models-node2.ps1
+cd ..\sidecar
+.\install-node2.ps1
+```
+
+> First Flux/TRELLIS/ColQwen2 request downloads weights to `HF_HOME` (≈80 GB
+> total). After that everything is local.
+
+### 4) `nas` — Pi5 backup target
 
 ```bash
-# Single page
-npm run crawler -- https://svelte.dev/docs/svelte/overview
-
-# Multi-page crawl (follows same-origin links)
-npm run crawler -- https://svelte.dev/docs --follow --max-pages 50
-
-# All options
-npm run crawler -- <url> [--follow] [--max-pages N] [--chunk-size N] [--delay MS]
+sudo apt install -y rsync openssh-server
+sudo useradd -m backup
+sudo mkdir -p /mnt/oms-backups && sudo chown backup:backup /mnt/oms-backups
+# Add the oms host's public key to /home/backup/.ssh/authorized_keys
 ```
 
-Requires `SUPABASE_SERVICE_ROLE_KEY` in the environment.
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | SvelteKit 2, Svelte 5 (runes), TypeScript |
-| **Styling** | Tokenized CSS (`brand.css`), Lucide icons |
-| **Backend** | Self-hosted Supabase (PostgreSQL + Auth + Storage + Realtime) |
-| **AI** | Ollama (deepseek-r1:14b, nomic-embed-text), pgvector RAG |
-| **Deployment** | Docker + K3s on Raspberry Pi cluster |
-| **Network** | Tailscale mesh VPN |
-
----
-
-## Project Structure
-
-```
-src/
-├── lib/
-│   ├── server/
-│   │   ├── ai/
-│   │   │   ├── orchestrator.ts    # RAG + tool-call pipeline
-│   │   │   ├── tools.ts           # AI skills (DB queries)
-│   │   │   └── AIService.ts       # Legacy Qwen AI service
-│   │   ├── inventory/             # Inventory management
-│   │   ├── logging/               # Structured logger
-│   │   └── supabase.ts            # Server Supabase client
-│   ├── realtime/
-│   │   ├── realtime-service.ts    # WebSocket subscriptions
-│   │   └── use-realtime-orders.ts # Generic event hooks
-│   ├── types/
-│   │   └── database.ts            # Domain types (Order, Stage, etc.)
-│   └── ...
-├── routes/
-│   ├── ai-dashboard/              # Swarm OS UI
-│   ├── api/ai/chat/               # Streaming chat endpoint
-│   ├── orders/                    # Order management
-│   └── ...
-├── workers/
-│   └── crawler/
-│       └── index.ts               # Documentation crawler
-└── ...
-```
-
----
-
-## Design System
-
-Themes: **LightVim**, **DarkVim**, **HighContrast** — stored on `<html data-theme>`.
-
-Tokens: `--bg-0/1/2`, `--text`, `--muted`, `--border`, `--accent-1/2`, `--ok`, `--warn`, `--danger`, `--focus`.
-
-WCAG 2.2 AA compliant: body text ≥ 4.5:1, large text ≥ 3:1, UI elements ≥ 3:1.
-
----
-
-## Key Workflows
-
-1. **Create Order** — Upload PDF → fill form → assign loading date → set assignees
-2. **Station Update** — Operator proposes stage change → CR → admin applies → notifications
-3. **Rework** — Admin selects station + reason → stage set to REWORK → cycle logged
-4. **AI Query** — User asks on dashboard → orchestrator fetches live data via tools → streams response
-5. **Doc Crawl** — Operator runs crawler → pages scraped + chunked + embedded → available in RAG
-
----
-
-## Deployment
+Then on `oms`:
 
 ```bash
-# Docker
-docker build -t slaff/reclame-oms:latest .
-docker-compose up -d
-
-# K3s
-kubectl apply -f k8s/oms-deployment.yaml
+# .env already has BACKUP_REMOTE_PATH=backup@100.98.202.70:/mnt/oms-backups
+sudo crontab -e
+# 0 3 * * *  /opt/reclame-oms/scripts/backup.sh
 ```
-
-Supabase: Self-hosted on `100.98.202.69:54321`  
-Ollama: Self-hosted on `100.93.147.108:11434`
 
 ---
 
-## Contributing
+## Common operations
 
-- **Branching**: Feature branches off `main`; small PRs
-- **Commits**: Conventional (`feat/fix/chore/docs/refactor/perf/ci`)
-- **PR checklist**: Screenshots, a11y notes (axe run), i18n keys
-- **Definition of Done**: a11y checks pass, contrast ≥ AA, screenshots updated
+| Command                              | What it does |
+|--------------------------------------|---------------|
+| `npm run dev`                        | Vite dev server (LAN-accessible) |
+| `npm run build`                      | Production build (adapter-node) |
+| `npm run check`                      | svelte-check type-check |
+| `npm run test`                       | Vitest unit tests |
+| `npm run test:a11y`                  | axe-core accessibility tests |
+| `npm run supabase:migrate:create`    | Create a new migration file |
+| `npm run supabase:migrate:push`      | Apply pending migrations |
+| `npm run crawler -- <url>`           | RAG crawler for external docs |
+| `npm run crawler:brand`              | Crawl reclamefabriek.eu |
+| `npm run ingestor`                   | Knowledge ingestion worker (run as service in prod) |
+
+---
+
+## Adding a new AI tool (worked example)
+
+Goal: a `glass.thickness_lookup` tool that returns standard glass thicknesses
+for a customer-supplied size + load class.
+
+1. **Insert a row** in `ai_tools` (write a migration, or via SQL editor):
+
+   ```sql
+   insert into ai_tools (slug, label, description, icon, category, schema, endpoint)
+   values ('glass.thickness_lookup', 'Glass thickness lookup',
+           'Suggest a glass thickness for a given panel size and load.',
+           'square', 'engineering',
+           jsonb_build_object(
+             'name','glass_thickness',
+             'description','...',
+             'parameters', jsonb_build_object(
+               'type','object',
+               'properties', jsonb_build_object(
+                 'width_mm',  jsonb_build_object('type','number'),
+                 'height_mm', jsonb_build_object('type','number'),
+                 'load_kpa',  jsonb_build_object('type','number')),
+               'required', jsonb_build_array('width_mm','height_mm'))),
+           '/api/ai/engineering/glass-thickness');
+   ```
+
+2. **Add an executor** in `src/lib/server/ai/tools-registry/glass.ts`,
+   register it in `tools-registry/index.ts`, and add a route at
+   `src/routes/api/ai/engineering/glass-thickness/+server.ts`.
+
+3. The orchestrator picks it up automatically on next chat. The toolbox UI
+   lists it without redeploying.
+
+---
+
+## Troubleshooting
+
+| Symptom | First check |
+|--------|-------------|
+| Chat replies but no citations | `/api/ai/swarm` — is `bge-m3` loaded on at least one node? |
+| Knowledge stuck in `extracting` | sidecar `/health` on the chosen node; check `SIDE_CAPS` includes `vision` |
+| `Swarm: no node could serve…`   | one or both Ollama services down → check `ollama serve` and Tailscale |
+| Forge image times out           | first request loads Flux to VRAM (~60 s); subsequent are fast |
+| Pi5 OOM during build            | run `npm run build` over SSH while idle — Pi5 8 GB is on the edge |
+
+---
+
+## Roadmap
+
+* tldraw integration on `/ai-lab/canvas/[id]` (drop-in replacement for the
+  current sketch component)
+* Audio realtime (Whisper streaming) for hands-free station ops
+* ColQwen2 retrieval wired into the chat for image-heavy PDFs
+* Per-user persona templates with curated tool subsets
+* Migrate Pi5 OMS → i7/64 GB Linux box (just IP change in `.env`)
+
+---
+
+License: internal use only.

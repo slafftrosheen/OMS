@@ -1,17 +1,16 @@
 /**
  * Central server-side configuration.
  *
- * Every Tailscale IP, model name, and timeout that used to be sprinkled across
- * orchestrator.ts, tools.ts, the crawlers, the AI chat handler, and the health
- * probes now lives here.  Values resolve in order:
+ * Single source of truth: every Tailscale IP, model name, timeout, bucket
+ * and feature flag the entire stack needs is loaded from `.env` here. No
+ * other module reads `process.env` for production values directly.
  *
+ * Resolution order:
  *   1. process.env (set by Docker / K3s / pm2 / launchd)
  *   2. SvelteKit's $env/dynamic/private (mirrors process.env at runtime)
- *   3. The defaults below (today's hardcoded Tailscale topology)
+ *   3. The defaults below (today's Tailnet topology — see CLAUDE.md & README)
  *
- * The defaults are deliberately the production Tailnet IPs so the system runs
- * out-of-the-box on the current infrastructure.  Override any value through
- * the .env file (see .env.example for the full inventory).
+ * Override anything via `.env` (see `.env.example` for the full inventory).
  */
 
 import { env as dyn } from '$env/dynamic/private';
@@ -37,64 +36,244 @@ function readNumber(key: string, fallback: number): number {
     return Number.isFinite(n) ? n : fallback;
 }
 
+function readBool(key: string, fallback: boolean): boolean {
+    const v = readEnv(key);
+    if (v === undefined) return fallback;
+    return /^(1|true|yes|on)$/i.test(v.trim());
+}
+
+function readList(key: string, fallback: string[] = []): string[] {
+    const v = readEnv(key);
+    if (v === undefined) return fallback;
+    return v.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
 function trimSlash(s: string) {
     return s.replace(/\/+$/, '');
 }
 
 // ─── Tailnet topology ────────────────────────────────────────────────────────
-// Documented in CLAUDE.md.  `*_LEGACY_HOST` lets callers also reach the box
-// over its LAN IP — the original supabase.ts had a hard rewrite from
-// 100.98.202.69 -> 192.168.8.150 baked in.
+// Documented in CLAUDE.md / README. Pi5 OMS server hosts BOTH Supabase and the
+// SvelteKit frontend. Two Win11 AI nodes run the swarm. Pi5 NAS for backups.
 
-export const OLLAMA_HOST          = readString('OLLAMA_HOST',           '100.93.147.108');
-export const OLLAMA_PORT          = readNumber('OLLAMA_PORT',           11434);
+export const OMS_HOST             = readString('OMS_HOST',              '100.98.202.69');
+export const NAS_HOST             = readString('NAS_HOST',              '100.98.202.70');
+export const FRONTEND_HOST        = readString('FRONTEND_HOST',         OMS_HOST);
+
+// Legacy single-Ollama-host vars — kept so old consumers (orchestrator.ts,
+// tools.ts, ollama-client.ts) still resolve. New code should use the swarm
+// router (`src/lib/server/ai/swarm.ts`) which iterates AI_NODES below.
+export const OLLAMA_HOST          = readString('OLLAMA_HOST',           readString('NODE1_HOST', '100.93.147.108'));
+export const OLLAMA_PORT          = readNumber('OLLAMA_PORT',           readNumber('NODE1_PORT', 11434));
 export const OLLAMA_URL           = trimSlash(readString('OLLAMA_URL',  `http://${OLLAMA_HOST}:${OLLAMA_PORT}`));
-export const OLLAMA_WEBUI_URL     = trimSlash(readString('OLLAMA_WEBUI_URL', `http://${OLLAMA_HOST}:3000`));
+export const OLLAMA_WEBUI_URL     = trimSlash(readString('PUBLIC_OLLAMA_WEBUI_URL', `http://${OLLAMA_HOST}:3000`));
 
-export const SUPABASE_HOST        = readString('SUPABASE_HOST',         '100.98.202.69');
-export const SUPABASE_PORT        = readNumber('SUPABASE_PORT',         54321);
+export const SUPABASE_HOST        = readString('SUPABASE_HOST',         OMS_HOST);
+export const SUPABASE_PORT        = readNumber('SUPABASE_PORT',         8000);
 export const SUPABASE_URL         = trimSlash(readString('SUPABASE_URL', `http://${SUPABASE_HOST}:${SUPABASE_PORT}`));
-export const SUPABASE_LEGACY_HOST = readString('SUPABASE_LEGACY_HOST',  '192.168.8.150');
-export const SUPABASE_LEGACY_URL  = trimSlash(readString('SUPABASE_LEGACY_URL', `http://${SUPABASE_LEGACY_HOST}:${SUPABASE_PORT}`));
 
-export const FRONTEND_HOST        = readString('FRONTEND_HOST',         '100.105.211.46');
-
-// Direct postgres connection used by the AI chat handler's "dumb tool" path.
+// Direct postgres connection used by the AI orchestrator's "dumb tool" path.
 export const DATABASE_URL         = readEnv('DATABASE_URL');
 
 // Supabase keys (server-only — never imported into client code).
 export const SUPABASE_SERVICE_ROLE_KEY = readEnv('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 export const SUPABASE_ANON_KEY         = readEnv('PUBLIC_SUPABASE_ANON_KEY')  ?? '';
 
-// ─── AI swarm models ─────────────────────────────────────────────────────────
-// Defaults match the swarm laid out in CLAUDE.md and the user's RTX 5080 / 16GB
-// VRAM budget.  Any of these can be overridden in .env without touching code.
+// ─── AI swarm — node fleet ───────────────────────────────────────────────────
+// Auto-discovered from NODE1..NODE9 env vars. Each node carries capability
+// tags (reasoning, vision, image-gen, ...) used by the swarm router to
+// dispatch jobs. Sidecars are FastAPI servers that expose generative + media
+// endpoints Ollama doesn't handle (Flux, TRELLIS, ColQwen2, Whisper, Kokoro).
 
-export const ROUTER_MODEL    = readString('ROUTER_MODEL',
-    'hf.co/mradermacher/c4ai-command-r7b-12-2024-abliterated-GGUF:Q4_K_M');
-export const REASONING_MODEL = readString('REASONING_MODEL',  'deepseek-r1:14b');
-export const ENGINEER_MODEL  = readString('ENGINEER_MODEL',
-    'hf.co/ertghiu256/qwen-3-14b-code-and-math-reasoning-gguf:Q4_K_M');
-export const VISION_MODEL    = readString('VISION_MODEL',     'llama3.2-vision');
+export type Capability =
+    | 'reasoning'
+    | 'vision'
+    | 'coder'
+    | 'embed'
+    | 'rerank'
+    | 'image-gen'
+    | 'mesh-gen'
+    | 'asr'
+    | 'tts'
+    | 'colpali';
 
-// Default chat model used by the small synchronous endpoints (analyze-order,
-// generate-description) and the "Hands" agent in the orchestrator.
-export const OLLAMA_DEFAULT_MODEL = readString('OLLAMA_DEFAULT_MODEL', 'qwen2.5-coder:14b');
+export interface AiNode {
+    /** Index 1..9 from env (NODE1, NODE2, ...) */
+    idx: number;
+    /** Human label (e.g. "ai1") */
+    label: string;
+    /** Tailscale host */
+    host: string;
+    /** Ollama port (default 11434) */
+    port: number;
+    /** Full Ollama base URL */
+    ollamaUrl: string;
+    /** Sidecar base URL (FastAPI on :8800 by default) */
+    sidecarUrl: string;
+    /** Capability tags */
+    caps: Capability[];
+    /** Soft scheduling weight (1.0 = normal). Set 0 to drain a node. */
+    weight: number;
+    /** VRAM budget in GB (informational, used by UI) */
+    vramGb: number;
+}
 
-// Embedding model used by the crawlers and the auto-embed Edge Function.
-export const EMBED_MODEL = readString('EMBED_MODEL', 'nomic-embed-text');
+function discoverNodes(): AiNode[] {
+    const out: AiNode[] = [];
+    for (let i = 1; i <= 9; i++) {
+        const host = readEnv(`NODE${i}_HOST`);
+        if (!host) continue;
+        const port = readNumber(`NODE${i}_PORT`, 11434);
+        const label = readString(`NODE${i}_LABEL`, `ai${i}`);
+        const caps = readList(`NODE${i}_CAPS`, ['reasoning']) as Capability[];
+        const weight = Number(readString(`NODE${i}_WEIGHT`, '1.0')) || 1.0;
+        const vramGb = readNumber(`NODE${i}_VRAM_GB`, 16);
+        const sidecarUrl = trimSlash(
+            readString(`NODE${i}_SIDECAR_URL`, `http://${host}:8800`)
+        );
+        out.push({
+            idx: i,
+            label,
+            host,
+            port,
+            ollamaUrl: trimSlash(`http://${host}:${port}`),
+            sidecarUrl,
+            caps,
+            weight,
+            vramGb
+        });
+    }
+    // Backwards-compat: if no NODE* defined, synthesise one from the legacy
+    // OLLAMA_HOST so old single-node deployments still work.
+    if (out.length === 0) {
+        out.push({
+            idx: 1,
+            label: 'ai1',
+            host: OLLAMA_HOST,
+            port: OLLAMA_PORT,
+            ollamaUrl: OLLAMA_URL,
+            sidecarUrl: trimSlash(`http://${OLLAMA_HOST}:8800`),
+            caps: ['reasoning', 'vision', 'coder', 'embed', 'image-gen', 'mesh-gen', 'asr', 'tts', 'rerank', 'colpali'],
+            weight: 1.0,
+            vramGb: 16
+        });
+    }
+    return out;
+}
 
-// ─── Timeouts / keep-alive ───────────────────────────────────────────────────
+export const AI_NODES: AiNode[] = discoverNodes();
 
-export const OLLAMA_TIMEOUT_MS    = readNumber('OLLAMA_TIMEOUT_MS',    60_000);
+// ─── AI swarm — model catalog ────────────────────────────────────────────────
+// Each task has a primary + fallback. Defaults are uncensored ("abliterated")
+// community-approved tunes from huihui-ai / mradermacher / unsloth, sized for
+// 16 GB VRAM (RTX 5080) at the listed quant.
+
+export interface ModelTag {
+    primary: string;
+    fallback: string;
+}
+const tag = (key: string, primary: string, fallback?: string): ModelTag => ({
+    primary: readString(key, primary),
+    fallback: readString(`${key}_FALLBACK`, fallback ?? primary)
+});
+
+export const MODEL = {
+    router:    tag('ROUTER_MODEL',     'hf.co/huihui-ai/Qwen2.5-7B-Instruct-1M-abliterated:Q5_K_M',
+                                       'hf.co/huihui-ai/Llama-3.2-3B-Instruct-abliterated:Q5_K_M'),
+    reasoning: tag('REASONING_MODEL',  'hf.co/huihui-ai/DeepSeek-R1-Distill-Qwen-14B-abliterated-v2-GGUF:Q4_K_M',
+                                       'hf.co/mradermacher/DeepSeek-R1-Distill-Qwen-32B-abliterated-GGUF:Q3_K_M'),
+    chat:      tag('CHAT_MODEL',       'hf.co/huihui-ai/Qwen3-14B-abliterated-GGUF:Q4_K_M',
+                                       'hf.co/huihui-ai/Qwen2.5-14B-Instruct-abliterated-v2-GGUF:Q4_K_M'),
+    engineer:  tag('ENGINEER_MODEL',   'hf.co/huihui-ai/Qwen2.5-Coder-14B-Instruct-abliterated-GGUF:Q4_K_M',
+                                       'hf.co/bartowski/Qwen2.5-Coder-32B-Instruct-GGUF:Q3_K_M'),
+    vision:    tag('VISION_MODEL',     'hf.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF:Q5_K_M',
+                                       'hf.co/bartowski/MiniCPM-V-2_6-GGUF:Q5_K_M'),
+    math:      tag('MATH_MODEL',       'hf.co/huihui-ai/Qwen2.5-Math-7B-Instruct-abliterated-GGUF:Q5_K_M',
+                                       'deepseek-math:7b'),
+    default:   tag('OLLAMA_DEFAULT_MODEL',
+                                       'hf.co/huihui-ai/Qwen2.5-Coder-14B-Instruct-abliterated-GGUF:Q4_K_M',
+                                       'qwen2.5-coder:14b'),
+    embed:     tag('EMBED_MODEL',      'bge-m3', 'nomic-embed-text'),
+    embedImage:tag('EMBED_IMAGE_MODEL','nomic-embed-vision-v1.5', 'nomic-embed-vision-v1.5'),
+    rerank:    tag('RERANK_MODEL',     'BAAI/bge-reranker-v2-m3',
+                                       'jinaai/jina-reranker-v2-base-multilingual'),
+    colpali:   tag('COLPALI_MODEL',    'vidore/colqwen2-v1.0', 'vidore/colqwen2-v1.0'),
+    asr:       tag('ASR_MODEL',        'large-v3-turbo', 'large-v3'),
+    tts:       tag('TTS_MODEL',        'hexgrad/Kokoro-82M', 'rhasspy/piper-voices'),
+    image:     tag('IMAGE_MODEL',      'black-forest-labs/FLUX.1-dev',
+                                       'black-forest-labs/FLUX.1-schnell'),
+    mesh:      tag('MESH_MODEL',       'microsoft/TRELLIS-image-large',
+                                       'tencent/Hunyuan3D-2'),
+    matting:   tag('MATTING_MODEL',    'briaai/RMBG-2.0', 'ZhengPeng7/BiRefNet'),
+    music:     tag('MUSIC_MODEL',      'facebook/musicgen-small', 'facebook/musicgen-small')
+} as const satisfies Record<string, ModelTag>;
+
+// Embedding dimensionality (used by migrations + RPCs). Default = bge-m3.
+export const EMBED_DIM       = readNumber('EMBED_DIM', 1024);
+export const EMBED_DIM_FALLBACK = readNumber('EMBED_DIM_FALLBACK', 768);
+export const EMBED_IMAGE_DIM = readNumber('EMBED_IMAGE_DIM', 768);
+
+// ─── Back-compat exports (existing orchestrator/tools imports) ───────────────
+// Keep the old constants around so we don't have to rewrite every consumer.
+export const ROUTER_MODEL    = MODEL.router.primary;
+export const REASONING_MODEL = MODEL.reasoning.primary;
+export const ENGINEER_MODEL  = MODEL.engineer.primary;
+export const VISION_MODEL    = MODEL.vision.primary;
+export const OLLAMA_DEFAULT_MODEL = MODEL.default.primary;
+export const EMBED_MODEL = MODEL.embed.primary;
+export const SUPABASE_LEGACY_HOST = readString('PUBLIC_SUPABASE_LEGACY_HOST', '192.168.8.150');
+export const SUPABASE_LEGACY_URL  = trimSlash(readString('SUPABASE_LEGACY_URL',
+    `http://${SUPABASE_LEGACY_HOST}:${SUPABASE_PORT}`));
+
+// ─── Ollama tuning ───────────────────────────────────────────────────────────
+
+export const OLLAMA_TIMEOUT_MS    = readNumber('OLLAMA_TIMEOUT_MS',    120_000);
 export const OLLAMA_PROBE_TIMEOUT = readNumber('OLLAMA_PROBE_TIMEOUT_MS', 3_000);
-export const OLLAMA_KEEP_ALIVE    = readString('OLLAMA_KEEP_ALIVE',   '5m');
-// The Windows CAD workstation runs OLLAMA_KEEP_ALIVE=0s to free VRAM (see
-// CLAUDE.md "Windows CAD Protection").  Server jobs use 5m by default.
+export const OLLAMA_KEEP_ALIVE    = readString('OLLAMA_KEEP_ALIVE',   '10m');
+export const OLLAMA_NUM_CTX       = readNumber('OLLAMA_NUM_CTX',      32_768);
+export const OLLAMA_NUM_PREDICT   = readNumber('OLLAMA_NUM_PREDICT',  4_096);
+
+// ─── Storage buckets ─────────────────────────────────────────────────────────
+
+export const BUCKET = {
+    files:     readString('STORAGE_BUCKET_FILES',     'files'),
+    station:   readString('STORAGE_BUCKET_STATION',   'station-attachments'),
+    knowledge: readString('STORAGE_BUCKET_KNOWLEDGE', 'knowledge'),
+    forge:     readString('STORAGE_BUCKET_FORGE',     'forge')
+} as const;
+
+// ─── Reclame AI Lab — feature flags + tuning ─────────────────────────────────
+
+export const AILAB = {
+    enabled:        readBool('PUBLIC_AILAB_ENABLED',          true),
+    chat:           readBool('PUBLIC_AILAB_CHAT_ENABLED',     true),
+    knowledge:      readBool('PUBLIC_AILAB_KNOWLEDGE_ENABLED',true),
+    forge:          readBool('PUBLIC_AILAB_FORGE_ENABLED',    true),
+    canvas:         readBool('PUBLIC_AILAB_CANVAS_ENABLED',   true),
+    stationTools:   readBool('PUBLIC_AILAB_STATION_TOOLS_ENABLED', true),
+    runs:           readBool('PUBLIC_AILAB_RUNS_ENABLED',     true),
+
+    knowledge_maxFileMb: readNumber('KNOWLEDGE_MAX_FILE_MB', 200),
+    knowledge_chunkSize: readNumber('KNOWLEDGE_CHUNK_SIZE',  2_500),
+    knowledge_overlap:   readNumber('KNOWLEDGE_CHUNK_OVERLAP', 250),
+    knowledge_pdfDpi:    readNumber('KNOWLEDGE_PDF_RENDER_DPI', 200),
+    knowledge_topk:      readNumber('KNOWLEDGE_TOPK',        8),
+    knowledge_rerankTopN:readNumber('KNOWLEDGE_RERANK_TOPN', 4),
+
+    forge_imgSteps:    readNumber('FORGE_IMAGE_STEPS',    28),
+    forge_imgGuidance: Number(readString('FORGE_IMAGE_GUIDANCE', '3.5')) || 3.5,
+    forge_imgMaxW:     readNumber('FORGE_IMAGE_MAX_WIDTH',  1536),
+    forge_imgMaxH:     readNumber('FORGE_IMAGE_MAX_HEIGHT', 1536),
+    forge_meshSteps:   readNumber('FORGE_MESH_STEPS',     50),
+
+    queue_tickMs:      readNumber('JOB_QUEUE_TICK_MS',    2_000),
+    queue_maxAttempts: readNumber('JOB_MAX_ATTEMPTS',     3),
+    queue_timeoutMs:   readNumber('JOB_TIMEOUT_MS',       900_000),
+    rateLimitPerMin:   readNumber('AILAB_RATELIMIT_PER_MIN', 30)
+} as const;
 
 // ─── Misc URLs the UI needs ──────────────────────────────────────────────────
-// These ARE the same as their server-side counterparts but the UI cannot read
-// $env/dynamic/private.  Mirror as PUBLIC_* in .env so $lib/config exposes them.
 
-export const PUBLIC_BASE_URL = readString('PUBLIC_BASE_URL', 'http://reclame-orch.local');
+export const PUBLIC_BASE_URL = readString('PUBLIC_BASE_URL', `http://${OMS_HOST}`);
 export const PUBLIC_APP_URL  = readString('PUBLIC_APP_URL',  PUBLIC_BASE_URL);
+export const PUBLIC_APP_NAME = readString('PUBLIC_APP_NAME', 'Réclame Fabriek OMS');

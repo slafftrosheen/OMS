@@ -3,6 +3,16 @@
   import { TERMS } from '$lib/order/names';
   import type { StationTag } from '$lib/order/stages';
   import Icon from '$lib/ui/Icon.svelte';
+  import PenTool from 'lucide-svelte/icons/pen-tool';
+  import Settings2 from 'lucide-svelte/icons/settings-2';
+  import Sparkles from 'lucide-svelte/icons/sparkles';
+  import Component from 'lucide-svelte/icons/component';
+  import Flame from 'lucide-svelte/icons/flame';
+  import Paintbrush from 'lucide-svelte/icons/paintbrush';
+  import PackageCheck from 'lucide-svelte/icons/package-check';
+  import ShieldCheck from 'lucide-svelte/icons/shield-check';
+  import Truck from 'lucide-svelte/icons/truck';
+  import CircleDashed from 'lucide-svelte/icons/circle-dashed';
 
   interface Props {
     station?: StationTag | null | undefined;
