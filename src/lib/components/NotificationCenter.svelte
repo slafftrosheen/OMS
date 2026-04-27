@@ -1,4 +1,11 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import Bell from 'lucide-svelte/icons/bell';
+  import Check from 'lucide-svelte/icons/check';
+  import CheckCheck from 'lucide-svelte/icons/check-check';
+  import Clock from 'lucide-svelte/icons/clock';
+  import Info from 'lucide-svelte/icons/info';
+  import X from 'lucide-svelte/icons/x';
     import { onMount } from 'svelte';
     import { notificationService } from '$lib/notifications/NotificationService';
     import Icon from '$lib/ui/Icon.svelte';

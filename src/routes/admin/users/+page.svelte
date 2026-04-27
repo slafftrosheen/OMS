@@ -1,4 +1,12 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import Check from 'lucide-svelte/icons/check';
+  import Edit2 from 'lucide-svelte/icons/edit-2';
+  import Key from 'lucide-svelte/icons/key';
+  import Search from 'lucide-svelte/icons/search';
+  import Trash2 from 'lucide-svelte/icons/trash-2';
+  import UserPlus from 'lucide-svelte/icons/user-plus';
+  import X from 'lucide-svelte/icons/x';
 
   import { onMount } from 'svelte';
   import { base } from '$app/paths';

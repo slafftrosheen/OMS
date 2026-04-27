@@ -59,7 +59,7 @@
 
   async function deleteMaterial() {
     if (!material) return;
-    if (confirm(`Delete "${material.name_en_en || material.code}"? This cannot be undone.`)) {
+    if (confirm(`Delete "${material.name_en || material.code}"? This cannot be undone.`)) {
       await removeMaterial(material.id);
       goto(`${base}/inventory`);
     }
@@ -82,7 +82,7 @@
           </button>
         {:else}
           <button class="btn-secondary" onclick={() => editMode = true}>{$t('inventory.editItem', { default: 'Edit' })}</button>
-          <button class="btn-danger" onclick={deleteItem}>
+          <button class="btn-danger" onclick={deleteMaterial}>
             <Trash size={16} />
             Delete
           </button>
@@ -179,7 +179,7 @@
               <button class="amount-btn" onclick={() => adjustAmount = Math.max(1, adjustAmount - 1)}>
                 <Minus size={16} />
               </button>
-              <input type="number" min_stock="1" bind:value={adjustAmount} class="amount-input" />
+              <input type="number" min="1" bind:value={adjustAmount} class="amount-input" />
               <button class="amount-btn" onclick={() => adjustAmount += 1}>
                 <Plus size={16} />
               </button>

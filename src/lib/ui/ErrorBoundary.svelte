@@ -1,4 +1,7 @@
 <script lang="ts">
+  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
+  import Home from 'lucide-svelte/icons/home';
+  import RefreshCw from 'lucide-svelte/icons/refresh-cw';
   import { onMount, onDestroy } from 'svelte';
   import Icon from '$lib/ui/Icon.svelte';
   import { base } from '$app/paths';

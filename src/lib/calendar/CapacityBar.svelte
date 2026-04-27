@@ -1,4 +1,6 @@
 <script lang="ts">
+  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
+  import TrendingUp from 'lucide-svelte/icons/trending-up';
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
   

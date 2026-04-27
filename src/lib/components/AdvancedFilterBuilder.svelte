@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Filter from 'lucide-svelte/icons/filter';
+  import Plus from 'lucide-svelte/icons/plus';
+  import X from 'lucide-svelte/icons/x';
     import Icon from '$lib/ui/Icon.svelte';
 
     let {

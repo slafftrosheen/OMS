@@ -35,9 +35,9 @@
 
 <svelte:element
     this={component}
-    {href}
     class={classes}
     {onclick}
+    {...(href ? { href } : {})}
     {...restProps}
 >
     {#if header}

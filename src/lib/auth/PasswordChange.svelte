@@ -1,4 +1,9 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import Check from 'lucide-svelte/icons/check';
+  import Eye from 'lucide-svelte/icons/eye';
+  import EyeOff from 'lucide-svelte/icons/eye-off';
+  import Lock from 'lucide-svelte/icons/lock';
   import { preventDefault } from 'svelte/legacy';
 
   import { base } from '$app/paths';

@@ -1,4 +1,10 @@
 <script lang="ts">
+  import ChevronLeft from 'lucide-svelte/icons/chevron-left';
+  import ChevronRight from 'lucide-svelte/icons/chevron-right';
+  import Download from 'lucide-svelte/icons/download';
+  import FileText from 'lucide-svelte/icons/file-text';
+  import Trash2 from 'lucide-svelte/icons/trash-2';
+  import X from 'lucide-svelte/icons/x';
 
 /**
  * Attachment Gallery Component

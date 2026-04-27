@@ -115,7 +115,7 @@ export class SessionStorage<T extends Record<string, any>> {
     if (typeof window === 'undefined') return null;
     
     try {
-      const item = sessionStorage.getItem(this.getKey(key));
+      const item = window.sessionStorage.getItem(this.getKey(key));
       return item ? JSON.parse(item) : null;
     } catch (error) {
       console.error(`Failed to get ${String(key)} from session storage:`, error);
@@ -127,7 +127,7 @@ export class SessionStorage<T extends Record<string, any>> {
     if (typeof window === 'undefined') return false;
     
     try {
-      sessionStorage.setItem(this.getKey(key), JSON.stringify(value));
+      window.sessionStorage.setItem(this.getKey(key), JSON.stringify(value));
       return true;
     } catch (error) {
       console.error(`Failed to set ${String(key)} in session storage:`, error);
@@ -139,7 +139,7 @@ export class SessionStorage<T extends Record<string, any>> {
     if (typeof window === 'undefined') return false;
     
     try {
-      sessionStorage.removeItem(this.getKey(key));
+      window.sessionStorage.removeItem(this.getKey(key));
       return true;
     } catch (error) {
       console.error(`Failed to remove ${String(key)} from session storage:`, error);
@@ -151,9 +151,9 @@ export class SessionStorage<T extends Record<string, any>> {
     if (typeof window === 'undefined') return false;
     
     try {
-      const keys = Object.keys(sessionStorage);
+      const keys = Object.keys(window.sessionStorage);
       const prefixedKeys = keys.filter(k => k.startsWith(`${this.prefix}:`));
-      prefixedKeys.forEach(k => sessionStorage.removeItem(k));
+      prefixedKeys.forEach(k => window.sessionStorage.removeItem(k));
       return true;
     } catch (error) {
       console.error('Failed to clear session storage:', error);

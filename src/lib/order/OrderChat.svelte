@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MessageSquare from 'lucide-svelte/icons/message-square';
   import { onMount, onDestroy, tick } from 'svelte';
   import { t } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/authState.svelte';

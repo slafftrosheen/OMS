@@ -110,8 +110,8 @@ export class EmailService {
         }>;
         summary: string;
     }): Promise<void> {
-        const materialsHtml = data.materials.map(m => 
-            `<li><strong>${m.name}</strong>: ${m.currentStock} ${m.unit} (min: ${m.min_stock})</li>`
+        const materialsHtml = data.materials.map(m =>
+            `<li><strong>${m.name}</strong>: ${m.currentStock} ${m.unit} (min: ${m.minStock})</li>`
         ).join('');
 
         await this.sendEmail({

@@ -15,14 +15,15 @@ export const stationAssignments = derived(users, ($users) => {
 
   for (const user of $users) {
     if (!user.stations) continue;
+    const userId = String(user.id);
     for (const station of user.stations) {
       const list = map.get(station);
       if (!list) {
-        map.set(station, [user.id]);
+        map.set(station, [userId]);
         continue;
       }
-      if (!list.includes(user.id)) {
-        list.push(user.id);
+      if (!list.includes(userId)) {
+        list.push(userId);
       }
     }
   }

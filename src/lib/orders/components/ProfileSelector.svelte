@@ -1,5 +1,6 @@
 <!-- src/lib/orders/components/ProfileSelector.svelte -->
 <script lang="ts">
+  import ChevronDown from 'lucide-svelte/icons/chevron-down';
   import { onMount } from 'svelte';
   import Icon from '$lib/ui/Icon.svelte';
 

@@ -355,13 +355,9 @@
           <Icon name="help-circle" size="sm" />
           <span>{$t('nav.faq', { default: 'FAQ' })}</span>
         </a>
-        <a href="{base}/ai-lab" class:active={currentPath.includes('/ai-lab')} onclick={() => mobileMenuOpen = false}>
+        <a href="{base}/ai-lab" class:active={currentPath.includes('/ai-lab') || currentPath.includes('/ai-dashboard')} onclick={() => mobileMenuOpen = false}>
           <Icon name="sparkles" size="sm" />
           <span>Reclame AI Lab</span>
-        </a>
-        <a href="{base}/ai-dashboard" class:active={currentPath.includes('/ai-dashboard')} onclick={() => mobileMenuOpen = false}>
-          <Icon name="bot" size="sm" />
-          <span>Swarm OS</span>
         </a>
         {#if isAdmin}
           <div class="nav-divider"></div>

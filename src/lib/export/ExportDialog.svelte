@@ -1,4 +1,10 @@
 <script lang="ts">
+  import CheckCircle from 'lucide-svelte/icons/check-circle';
+  import Download from 'lucide-svelte/icons/download';
+  import FileSpreadsheet from 'lucide-svelte/icons/file-spreadsheet';
+  import FileText from 'lucide-svelte/icons/file-text';
+  import Loader2 from 'lucide-svelte/icons/loader-2';
+  import X from 'lucide-svelte/icons/x';
 
 /**
  * Export Dialog Component

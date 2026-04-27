@@ -45,11 +45,11 @@
   };
 
   let navItems = $derived([
-    { path: '/orders', label: $t('nav.orders'), icon: 'orders' },
-    { path: '/calendar', label: $t('nav.calendar'), icon: 'calendar' },
-    { path: '/inventory', label: $t('nav.inventory'), icon: 'inventory' },
-    { path: '/', label: $t('nav.dashboard'), icon: 'home' },
-    { path: '/settings', label: $t('nav.settings'), icon: 'settings' }
+    { path: '/orders', label: $t('nav.orders'), icon: 'orders' as const },
+    { path: '/calendar', label: $t('nav.calendar'), icon: 'calendar' as const },
+    { path: '/inventory', label: $t('nav.inventory'), icon: 'inventory' as const },
+    { path: '/', label: $t('nav.dashboard'), icon: 'home' as const },
+    { path: '/settings', label: $t('nav.settings'), icon: 'settings' as const }
   ]);
 </script>
 

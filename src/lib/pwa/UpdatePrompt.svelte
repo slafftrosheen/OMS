@@ -1,4 +1,6 @@
 <script lang="ts">
+  import RefreshCw from 'lucide-svelte/icons/refresh-cw';
+  import X from 'lucide-svelte/icons/x';
 /**
  * PWA Update Available Prompt Component
  */

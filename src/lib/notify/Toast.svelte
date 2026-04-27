@@ -1,4 +1,5 @@
 <script lang="ts">
+  import X from 'lucide-svelte/icons/x';
   import { notifications } from './store';
   import { fly } from 'svelte/transition';
   import Icon from '$lib/ui/Icon.svelte';

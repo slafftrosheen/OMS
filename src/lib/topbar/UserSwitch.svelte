@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { currentUser, logout } from '$lib/auth/authState.svelte';
+  import { AuthState, currentUser, logout } from '$lib/auth/authState.svelte';
+  import { getContext } from 'svelte';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
   import Icon from '$lib/ui/Icon.svelte';
@@ -8,9 +9,11 @@
   let menuEl: HTMLDivElement | undefined = $state();
   let me = $derived($currentUser);
 
+  const authState = getContext<AuthState>('authState');
+
   async function signOut() {
     open = false;
-    await logout();
+    if (authState) await logout(authState);
     goto(`${base}/login`);
   }
 

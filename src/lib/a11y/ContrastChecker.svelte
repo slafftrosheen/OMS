@@ -1,5 +1,8 @@
 <!-- src/lib/a11y/ContrastChecker.svelte -->
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import CheckCircle from 'lucide-svelte/icons/check-circle';
+  import Info from 'lucide-svelte/icons/info';
 	import { onMount } from 'svelte';
 	import { a11yTester } from '$lib/a11y/testing-utils';
 	import Icon from '$lib/ui/Icon.svelte';

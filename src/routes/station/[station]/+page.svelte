@@ -354,7 +354,7 @@
         <h2 id="scanner-title">Scan Order QR Code</h2>
         <button class="close-btn" onclick={() => $showScanner = false} aria-label="Close">×</button>
       </div>
-      <QRScanner onscan={(e) => handleQRScan(e.detail)} />
+      <QRScanner onscan={(data) => handleQRScan(data)} />
     </div>
   </div>
 {/if}

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
+  import BellRing from 'lucide-svelte/icons/bell-ring';
+  import Clock from 'lucide-svelte/icons/clock';
   import { notifications, togglePin, markSeen, type NotificationItem } from '$lib/notifications/store';
   import { t } from 'svelte-i18n';
   import { TERMS } from '$lib/order/names';

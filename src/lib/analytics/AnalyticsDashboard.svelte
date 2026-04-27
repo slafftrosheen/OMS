@@ -1,4 +1,13 @@
 <script lang="ts">
+  import Activity from 'lucide-svelte/icons/activity';
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import Calendar from 'lucide-svelte/icons/calendar';
+  import Camera from 'lucide-svelte/icons/camera';
+  import Package from 'lucide-svelte/icons/package';
+  import RefreshCw from 'lucide-svelte/icons/refresh-cw';
+  import Star from 'lucide-svelte/icons/star';
+  import TrendingUp from 'lucide-svelte/icons/trending-up';
+  import Users from 'lucide-svelte/icons/users';
 /**
  * Analytics Dashboard Component
  * Main dashboard with KPIs and charts

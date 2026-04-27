@@ -1,4 +1,8 @@
 <script lang="ts">
+  import Activity from 'lucide-svelte/icons/activity';
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import FilePlus from 'lucide-svelte/icons/file-plus';
+  import Package from 'lucide-svelte/icons/package';
   import { onMount, getContext } from 'svelte';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
@@ -231,27 +235,27 @@
 </div>
 
 <div class="kpi-section">
-  <KpiCard 
-    title="Total Orders" 
-    value={totalOrders.toString()} 
-    icon={Package}
+  <KpiCard
+    title="Total Orders"
+    value={totalOrders.toString()}
+    icon="package"
   />
-  <KpiCard 
-    title="Active Orders" 
-    value={activeOrders.toString()} 
-    icon={Activity}
+  <KpiCard
+    title="Active Orders"
+    value={activeOrders.toString()}
+    icon="activity"
   />
   {#if isAdmin}
-    <KpiCard 
-      title="Draft Orders" 
-      value={draftOrders.toString()} 
-      icon={FilePlus}
+    <KpiCard
+      title="Draft Orders"
+      value={draftOrders.toString()}
+      icon="file-plus"
     />
   {/if}
-  <KpiCard 
-    title="Urgent (≤3 days)" 
-    value={urgentOrders.toString()} 
-    icon={AlertCircle}
+  <KpiCard
+    title="Urgent (≤3 days)"
+    value={urgentOrders.toString()}
+    icon="alert-circle"
   />
 </div>
 

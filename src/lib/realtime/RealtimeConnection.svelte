@@ -1,4 +1,7 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import Wifi from 'lucide-svelte/icons/wifi';
+  import WifiOff from 'lucide-svelte/icons/wifi-off';
 /**
  * Realtime Connection Component
  * Manages WebSocket connection lifecycle and displays connection status

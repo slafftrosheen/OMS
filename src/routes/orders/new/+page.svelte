@@ -787,7 +787,7 @@
                     {#if fileItem.type === 'pdf'}
                       <Icon name="file-text" size="md" />
                     {:else if fileItem.type === 'image'}
-                      <Image size={20} />
+                      <Icon name="image" size="md" />
                     {:else}
                       <Icon name="file-text" size="md" />
                     {/if}

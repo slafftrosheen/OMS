@@ -7,9 +7,11 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { BackupService } from '$lib/server/backup/BackupService';
+import { createSupabaseClient } from '$lib/server/supabase';
 
 // POST /api/backup/process - Process scheduled backups and cleanup
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async (event) => {
+  const { request } = event;
   // Verify cron secret
   const secret = request.headers.get('x-cron-secret');
   const expectedSecret = process.env.CRON_SECRET;
@@ -19,11 +21,9 @@ export const POST: RequestHandler = async ({ request }) => {
   }
 
   try {
-    // Process scheduled backups (static method)
-    const backupsCreated = await BackupService.processScheduledBackups();
-    
-    // Clean up expired backups (static method)
-    const backupsDeleted = await BackupService.cleanupExpiredBackups();
+    const service = new BackupService(createSupabaseClient(event));
+    const backupsCreated = await service.processScheduledBackups();
+    const backupsDeleted = await service.cleanupExpiredBackups();
 
     return json({
       success: true,

@@ -1,6 +1,6 @@
 // src/lib/server/calendar/CalendarService.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
-import ical from 'ical-generator';
+import ical, { ICalEventStatus } from 'ical-generator';
 import { logger } from '../logging/logger';
 
 interface CalendarEvent {
@@ -11,7 +11,7 @@ interface CalendarEvent {
     end: Date;
     location?: string;
     url?: string;
-    status: 'confirmed' | 'tentative' | 'cancelled';
+    status: ICalEventStatus;
 }
 
 export class CalendarService {
@@ -60,7 +60,7 @@ export class CalendarService {
                 description: `${order.description || 'No description'}\n\nProgress: ${progress}%\nStatus: ${order.status}`,
                 url: `${process.env.BASE_URL}/orders/${order.id}`,
                 status: this.mapOrderStatusToCalendar(order.status),
-                categories: [order.status, `Progress: ${progress}%`]
+                categories: [{ name: order.status }, { name: `Progress: ${progress}%` }]
             });
         });
 
@@ -110,8 +110,8 @@ export class CalendarService {
                 summary: `[${station}] ${order.title} - ${order.client}`,
                 description: `Process order at ${station} station\nStage Status: ${stageStatus}\nFinal Due Date: ${dueDate.toLocaleDateString()}`,
                 url: `${process.env.BASE_URL}/orders/${order.id}`,
-                status: stageStatus === 'IN_PROGRESS' ? 'confirmed' : 'tentative',
-                categories: [station, stageStatus]
+                status: stageStatus === 'IN_PROGRESS' ? ICalEventStatus.CONFIRMED : ICalEventStatus.TENTATIVE,
+                categories: [{ name: station }, { name: stageStatus }]
             });
         });
 
@@ -150,8 +150,8 @@ export class CalendarService {
                 description: `Order: ${order.title}\nClient: ${order.client}\nLocation: ${day.loading_address || 'TBD'}`,
                 location: day.loading_address,
                 url: `${process.env.BASE_URL}/orders/${order.id}`,
-                status: 'confirmed',
-                categories: ['Loading', 'Delivery']
+                status: ICalEventStatus.CONFIRMED,
+                categories: [{ name: 'Loading' }, { name: 'Delivery' }]
             });
         });
 
@@ -210,15 +210,15 @@ export class CalendarService {
     }
 
     // Helper methods
-    private mapOrderStatusToCalendar(status: string): 'confirmed' | 'tentative' | 'cancelled' {
+    private mapOrderStatusToCalendar(status: string): ICalEventStatus {
         switch (status) {
             case 'COMPLETED':
             case 'ACTIVE':
-                return 'confirmed';
+                return ICalEventStatus.CONFIRMED;
             case 'CANCELLED':
-                return 'cancelled';
+                return ICalEventStatus.CANCELLED;
             default:
-                return 'tentative';
+                return ICalEventStatus.TENTATIVE;
         }
     }
 

@@ -3,6 +3,7 @@
   import Modal from './Modal.svelte';
   import { base } from '$app/paths';
   import { searchOrders } from '$lib/search/global-search';
+  import type { SearchHit } from '$lib/search/global-search';
   import { t } from 'svelte-i18n';
 
   interface Props {
@@ -12,6 +13,7 @@
 
   let { open = false, onClose = () => {} }: Props = $props();
   let q = $state('');
+  let hits = $state<SearchHit[]>([]);
 
   const withBase = (path: string) => {
     if (!base) return path;
@@ -20,7 +22,13 @@
   };
 
   let trimmed = $derived(q.trim());
-  let hits = $derived(open && trimmed ? searchOrders(trimmed) : []);
+  $effect(() => {
+    if (!open || !trimmed) {
+      hits = [];
+      return;
+    }
+    void searchOrders(trimmed).then((r) => { hits = r; });
+  });
   $effect(() => {
     if (!open) q = '';
   });

@@ -1,6 +1,7 @@
 <!-- src/lib/profiles/components/fields/MaterialField.svelte -->
 <script lang="ts">
-  import { onMount, derived } from 'svelte';
+  import { onMount } from 'svelte';
+  import { derived } from 'svelte/store';
   import type { Material } from '$lib/profiles/types';
   import plexiglasData from '$lib/profiles/data/plexiglas-materials.json';
 
@@ -15,7 +16,7 @@
     label?: string;
     required?: boolean;
     disabled?: boolean;
-    materialTypes?: string[];
+    materialTypes?: Array<'ACRYLIC' | 'ALUMINUM' | 'PVC' | 'ALU_PROFILE'>;
   }
 
   let {

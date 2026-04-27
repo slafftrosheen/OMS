@@ -10,9 +10,9 @@
     onselect
   }: {
     categories?: FAQCategory[];
-    selectedId?: number | null;
+    selectedId?: string | null;
     lang?: 'en' | 'ru' | 'lv';
-    onselect?: (id: number | null) => void;
+    onselect?: (id: string | null) => void;
   } = $props();
 
   const getName = (cat: FAQCategory) => {

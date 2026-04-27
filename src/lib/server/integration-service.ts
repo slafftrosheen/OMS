@@ -13,10 +13,13 @@ interface SlackMessage {
 }
 
 interface TeamsMessage {
-  text: string;
+  text?: string;
   summary?: string;
   themeColor?: string;
   sections?: any[];
+  // MessageCard fields (legacy connectors).
+  '@type'?: string;
+  '@context'?: string;
 }
 
 export class IntegrationService {

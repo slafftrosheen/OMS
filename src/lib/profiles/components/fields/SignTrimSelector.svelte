@@ -1,5 +1,6 @@
 <!-- src/lib/profiles/components/fields/SignTrimSelector.svelte -->
 <script lang="ts">
+  import Search from 'lucide-svelte/icons/search';
   import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {

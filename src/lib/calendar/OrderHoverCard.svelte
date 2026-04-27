@@ -1,4 +1,9 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import Calendar from 'lucide-svelte/icons/calendar';
+  import FileText from 'lucide-svelte/icons/file-text';
+  import Package from 'lucide-svelte/icons/package';
+  import User from 'lucide-svelte/icons/user';
   import { fade } from 'svelte/transition';
   import { t } from 'svelte-i18n';
   import type { Order } from '$lib/order/types';

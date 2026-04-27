@@ -235,7 +235,7 @@ export class ChatService {
             id: m.id,
             orderId: m.order_id,
             userId: m.user_id,
-            username: m.profiles.username,
+            username: (m.profiles as { username?: string; avatar_url?: string }[] | null)?.[0]?.username,
             message: m.message,
             attachments: m.attachments,
             replyTo: m.reply_to,
@@ -349,7 +349,7 @@ export class ChatService {
             id: m.id,
             orderId: m.order_id,
             userId: m.user_id,
-            username: m.profiles.username,
+            username: (m.profiles as { username?: string; avatar_url?: string }[] | null)?.[0]?.username,
             message: m.message,
             attachments: m.attachments,
             replyTo: m.reply_to,
@@ -442,6 +442,9 @@ export class ChatService {
             .eq('order_id', orderId)
             .gt('last_typing_at', thirtySecondsAgo);
 
-        return data?.map(t => t.profiles.username) || [];
+        return data?.map((t) => {
+            const p = (t as { profiles?: { username?: string }[] | { username?: string } }).profiles;
+            return Array.isArray(p) ? p[0]?.username : p?.username;
+        }).filter(Boolean) as string[] || [];
     }
 }

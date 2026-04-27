@@ -11,8 +11,8 @@ interface PantoneColor {
   code: string;
   name: string;
   hex: string;
-  rgb: [number, number, number];
-  cmyk?: [number, number, number, number];
+  rgb: number[];
+  cmyk?: number[];
 }
 
 /**

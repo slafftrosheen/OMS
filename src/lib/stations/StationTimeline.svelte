@@ -1,4 +1,11 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import Camera from 'lucide-svelte/icons/camera';
+  import CheckCircle from 'lucide-svelte/icons/check-circle';
+  import Clock from 'lucide-svelte/icons/clock';
+  import MessageSquare from 'lucide-svelte/icons/message-square';
+  import QrCode from 'lucide-svelte/icons/qr-code';
+  import Tool from 'lucide-svelte/icons/wrench';
 /**
  * Station Timeline Component
  * Visual timeline of all station activities for an order

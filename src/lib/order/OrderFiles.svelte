@@ -1,4 +1,12 @@
 <script lang="ts">
+  import ImageIcon from 'lucide-svelte/icons/image';
+  import Download from 'lucide-svelte/icons/download';
+  import FileIcon from 'lucide-svelte/icons/file';
+  import FileText from 'lucide-svelte/icons/file-text';
+  import FolderOpen from 'lucide-svelte/icons/folder-open';
+  import RefreshCw from 'lucide-svelte/icons/refresh-cw';
+  import Trash2 from 'lucide-svelte/icons/trash-2';
+  import Upload from 'lucide-svelte/icons/upload';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import { base } from '$app/paths';
@@ -49,9 +57,9 @@
   };
 
   const getFileIcon = (mimeType: string) => {
-    if (mimeType.startsWith('image/')) return Image;
+    if (mimeType.startsWith('image/')) return ImageIcon;
     if (mimeType === 'application/pdf') return FileText;
-    return File;
+    return FileIcon;
   };
 
   async function loadFiles() {
@@ -190,7 +198,7 @@
       </div>
     {:else if files.length === 0}
       <div class="empty-state">
-        <File size={32} />
+        <FileIcon size={32} />
         <p>{$t('files.no_files', { default: 'No files uploaded yet' })}</p>
       </div>
     {:else}

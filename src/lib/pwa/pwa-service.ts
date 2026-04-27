@@ -122,7 +122,7 @@ class PWAService {
 				userVisibleOnly: true,
 				applicationServerKey: this.urlBase64ToUint8Array(
 					import.meta.env.VITE_VAPID_PUBLIC_KEY
-				)
+				) as BufferSource
 			});
 
 			// Send subscription to server

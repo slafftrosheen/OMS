@@ -1,5 +1,7 @@
 <!-- src/routes/offline/+page.svelte -->
 <script>
+  import RefreshCw from 'lucide-svelte/icons/refresh-cw';
+  import WifiOff from 'lucide-svelte/icons/wifi-off';
 	import Icon from '$lib/ui/Icon.svelte';
 
 	function handleRetry() {

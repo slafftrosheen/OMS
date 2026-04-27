@@ -1,4 +1,11 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import BadgeCheck from 'lucide-svelte/icons/badge-check';
+  import Globe from 'lucide-svelte/icons/globe';
+  import Loader2 from 'lucide-svelte/icons/loader-2';
+  import Lock from 'lucide-svelte/icons/lock';
+  import Mail from 'lucide-svelte/icons/mail';
+  import User from 'lucide-svelte/icons/user';
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';

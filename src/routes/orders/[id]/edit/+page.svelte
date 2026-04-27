@@ -1,4 +1,15 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import ArrowLeft from 'lucide-svelte/icons/arrow-left';
+  import CheckCircle from 'lucide-svelte/icons/check-circle';
+  import Clock from 'lucide-svelte/icons/clock';
+  import Eye from 'lucide-svelte/icons/eye';
+  import FileText from 'lucide-svelte/icons/file-text';
+  import Plus from 'lucide-svelte/icons/plus';
+  import Save from 'lucide-svelte/icons/save';
+  import Trash2 from 'lucide-svelte/icons/trash-2';
+  import Upload from 'lucide-svelte/icons/upload';
+  import XCircle from 'lucide-svelte/icons/x-circle';
   import { stopPropagation } from 'svelte/legacy';
 
   import { onMount } from 'svelte';

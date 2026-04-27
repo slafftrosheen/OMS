@@ -1,5 +1,6 @@
 <!-- src/lib/profiles/components/fields/OracalSelector.svelte -->
 <script lang="ts">
+  import Search from 'lucide-svelte/icons/search';
   import { onMount } from 'svelte';
   import Icon from '$lib/ui/Icon.svelte';
 

@@ -1,5 +1,9 @@
 <!-- src/lib/notifications/ToastContainer.svelte -->
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import CheckCircle from 'lucide-svelte/icons/check-circle';
+  import Info from 'lucide-svelte/icons/info';
+  import X from 'lucide-svelte/icons/x';
 	import { onMount } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
 	import Icon from '$lib/ui/Icon.svelte';

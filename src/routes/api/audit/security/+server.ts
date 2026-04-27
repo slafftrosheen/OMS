@@ -6,9 +6,11 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { AuditService } from '$lib/server/audit-service';
+import { PermissionsService } from '$lib/server/permissions-service';
 
 // GET /api/audit/security - Get security events
-export const GET: RequestHandler = async ({ url, locals }) => {
+export const GET: RequestHandler = async (event) => {
+  const { url, locals } = event;
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
@@ -24,7 +26,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const offset = parseInt(url.searchParams.get('offset') || '0');
 
   try {
-    const result = await AuditService.getSecurityEvents({
+    const result = await AuditService.getSecurityEvents(event, {
       eventType: eventType || undefined,
       severity: severity || undefined,
       resolved: resolved === 'true' ? true : resolved === 'false' ? false : undefined,
@@ -90,7 +92,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 };
 
 // PATCH /api/audit/security/[id] - Resolve security event
-export const PATCH: RequestHandler = async ({ params, request, locals }) => {
+export const PATCH: RequestHandler = async (event) => {
+  const { params, request, locals } = event;
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
@@ -106,7 +109,8 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
   try {
     const success = await AuditService.resolveSecurityEvent(
-      params.id,
+      event,
+      ((params as Record<string, string|undefined>).id ?? ''),
       user.id,
       resolutionNotes
     );

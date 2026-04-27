@@ -84,12 +84,20 @@
     }
   }
   
-  function handleOrderHover(order: Order, event: MouseEvent) {
+  function handleOrderHover(order: Order, event: MouseEvent | FocusEvent) {
     clearTimeout(hoverTimeout);
     hoverTimeout = setTimeout(() => {
       hoverOrder = order;
-      hoverX = event.clientX + 10;
-      hoverY = event.clientY + 10;
+      // FocusEvent has no client coords; fall back to bounding box of target.
+      if ('clientX' in event) {
+        hoverX = event.clientX + 10;
+        hoverY = event.clientY + 10;
+      } else {
+        const t = event.target as HTMLElement | null;
+        const r = t?.getBoundingClientRect();
+        hoverX = (r?.right ?? 0) + 10;
+        hoverY = (r?.top ?? 0) + 10;
+      }
     }, 400);
   }
   

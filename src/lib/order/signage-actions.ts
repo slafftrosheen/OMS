@@ -1,4 +1,4 @@
-import { getOrderSync, openChangeRequest, approveChangeRequest } from './signage-store';
+import { getOrderSync, openChangeRequest, approveChangeRequest } from './orderState.svelte';
 import type { StationTag, ReworkReason, StageCycle, StageState } from './stages';
 import { get } from 'svelte/store';
 import { notify } from '$lib/notifications/store';

@@ -1,4 +1,9 @@
 <script lang="ts">
+  import Bell from 'lucide-svelte/icons/bell';
+  import Check from 'lucide-svelte/icons/check';
+  import Clock from 'lucide-svelte/icons/clock';
+  import Mail from 'lucide-svelte/icons/mail';
+  import Save from 'lucide-svelte/icons/save';
   import { preventDefault } from 'svelte/legacy';
 
 /**

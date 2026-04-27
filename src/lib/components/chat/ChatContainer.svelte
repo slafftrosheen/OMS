@@ -46,8 +46,8 @@
         }
     }
 
-    async function sendMessage(event: CustomEvent) {
-        const { message, replyTo } = event.detail;
+    async function sendMessage(data: { message: string; replyTo?: string | null }) {
+        const { message, replyTo } = data;
 
         try {
             const response = await fetch("/api/chat/messages", {
@@ -77,8 +77,8 @@
         }
     }
 
-    async function editMessage(event: CustomEvent) {
-        const { id, message } = event.detail;
+    async function editMessage(data: { id: string; message: string }) {
+        const { id, message } = data;
 
         try {
             const response = await fetch(`/api/chat/messages/${id}`, {
@@ -97,8 +97,7 @@
         }
     }
 
-    async function deleteMessage(event: CustomEvent) {
-        const messageId = event.detail;
+    async function deleteMessage(messageId: string) {
 
         if (!confirm("Are you sure you want to delete this message?")) return;
 
@@ -115,8 +114,7 @@
         }
     }
 
-    function handleReply(event: CustomEvent) {
-        const message = event.detail;
+    function handleReply(message: { id: string; username: string; message: string }) {
         replyingTo = {
             id: message.id,
             username: message.username,
@@ -124,8 +122,7 @@
         };
     }
 
-    function handleTyping(event: CustomEvent) {
-        const isTyping = event.detail;
+    function handleTyping(isTyping: boolean) {
         // Send typing indicator to server via WebSocket
         console.log("User typing:", isTyping);
     }

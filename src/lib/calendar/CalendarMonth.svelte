@@ -1,4 +1,10 @@
 <script lang="ts">
+  import CalendarCheck from 'lucide-svelte/icons/calendar-check';
+  import CalendarClock from 'lucide-svelte/icons/calendar-clock';
+  import CircleCheck from 'lucide-svelte/icons/circle-check';
+  import PlusCircle from 'lucide-svelte/icons/plus-circle';
+  import StickyNote from 'lucide-svelte/icons/sticky-note';
+  import Users from 'lucide-svelte/icons/users';
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { t, locale as activeLocale } from 'svelte-i18n';

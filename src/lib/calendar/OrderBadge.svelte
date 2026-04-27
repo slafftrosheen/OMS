@@ -1,4 +1,9 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import Beaker from 'lucide-svelte/icons/beaker';
+  import CheckCircle from 'lucide-svelte/icons/check-circle';
+  import Clock from 'lucide-svelte/icons/clock';
+  import Truck from 'lucide-svelte/icons/truck';
   import Icon from '$lib/ui/Icon.svelte';
   import type { Badge } from '$lib/order/types';
   

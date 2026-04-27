@@ -63,7 +63,7 @@ class AccessibilityTester {
 			helpUrl: violation.helpUrl,
 			nodes: violation.nodes.map((node) => ({
 				html: node.html,
-				target: node.target,
+				target: node.target as unknown as string[],
 				failureSummary: node.failureSummary || ''
 			}))
 		};

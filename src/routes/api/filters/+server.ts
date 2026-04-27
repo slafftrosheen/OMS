@@ -105,7 +105,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
         ...body,
         updated_at: new Date().toISOString()
       })
-      .eq('id', params.id)
+      .eq('id', ((params as Record<string, string|undefined>).id ?? ''))
       .eq('user_id', user.id)
       .select()
       .single();
@@ -132,7 +132,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
     const { error: dbError } = await supabase
       .from('saved_filters')
       .delete()
-      .eq('id', params.id)
+      .eq('id', ((params as Record<string, string|undefined>).id ?? ''))
       .eq('user_id', user.id);
 
     if (dbError) {

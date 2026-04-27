@@ -72,13 +72,12 @@
         }
     }
 
-    function handleFileUploaded(event: CustomEvent) {
-        files = [...files, event.detail];
+    function handleFileUploaded(file: { id: string } & Record<string, unknown>) {
+        files = [...files, file] as typeof files;
     }
 
-    function handleDeleteFile(event: CustomEvent) {
-        const fileId = event.detail.id;
-        files = files.filter((f) => f.id !== fileId);
+    function handleDeleteFile(file: { id: string }) {
+        files = files.filter((f) => f.id !== file.id);
     }
 
     function getStatusColor(status: string): string {

@@ -8,7 +8,8 @@ import type { RequestHandler } from './$types';
 import { createSupabaseClient } from '$lib/server/supabase';
 
 // GET /api/analytics - Get analytics data
-export const GET: RequestHandler = async ({ url, locals, event }) => {
+export const GET: RequestHandler = async (event) => {
+  const { url, locals } = event;
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 

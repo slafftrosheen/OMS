@@ -3,8 +3,8 @@ import type { FAQItem, FAQListResponse } from '../types';
 
 class FAQStore {
   items = $state<FAQItem[]>([]);
-  categories = $state<string[]>([]);
-  tags = $state<string[]>([]);
+  categories = $state<import('../types').FAQCategory[]>([]);
+  tags = $state<Array<{ slug: string; name: string }>>([]);
   loading = $state<boolean>(false);
   error = $state<string | null>(null);
 

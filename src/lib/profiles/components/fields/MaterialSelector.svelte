@@ -1,5 +1,9 @@
 <!-- src/lib/profiles/components/fields/MaterialSelector.svelte -->
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import CheckCircle from 'lucide-svelte/icons/check-circle';
+  import ChevronDown from 'lucide-svelte/icons/chevron-down';
+  import Package from 'lucide-svelte/icons/package';
   import { onMount } from 'svelte';
   import Icon from '$lib/ui/Icon.svelte';
   import type { Material } from '$lib/profiles/types';

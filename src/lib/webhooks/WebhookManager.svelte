@@ -1,4 +1,9 @@
 <script lang="ts">
+  import Play from 'lucide-svelte/icons/play';
+  import Plus from 'lucide-svelte/icons/plus';
+  import Settings from 'lucide-svelte/icons/settings';
+  import Trash2 from 'lucide-svelte/icons/trash-2';
+  import Webhook from 'lucide-svelte/icons/webhook';
 
 /**
  * Webhook Manager Component

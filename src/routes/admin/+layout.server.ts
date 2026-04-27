@@ -27,5 +27,5 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
         throw error(403, 'Admin role required to access this section.');
     }
 
-    return { user };
+    return { user } as unknown as App.PageData;
 };

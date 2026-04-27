@@ -1,5 +1,6 @@
 <!-- src/lib/profiles/components/fields/MultiSelectChips.svelte -->
 <script lang="ts">
+  import X from 'lucide-svelte/icons/x';
   import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {

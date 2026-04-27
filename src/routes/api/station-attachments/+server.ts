@@ -46,9 +46,15 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     throw error(500, 'Failed to fetch attachments');
   }
 
-  // Generate signed URLs for attachments
+  // Generate signed URLs for attachments. The Supabase select-string typer
+  // can't infer the renamed `uploaded_by_user:auth.users!...` join, so we
+  // erase the row type here.
+  const rows = (data ?? []) as unknown as Array<Record<string, unknown> & {
+    file_path: string;
+    thumbnail_path?: string | null;
+  }>;
   const attachmentsWithUrls = await Promise.all(
-    (data || []).map(async (attachment) => {
+    rows.map(async (attachment) => {
       const { data: signedUrl } = await supabase.storage
         .from('station-attachments')
         .createSignedUrl(attachment.file_path, 3600); // 1 hour expiry
@@ -207,7 +213,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     return json({
       data: {
-        ...attachment,
+        ...(attachment as unknown as Record<string, unknown>),
         url: signedUrl?.signedUrl || null
       }
     }, { status: 201 });
@@ -227,7 +233,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
   const { data: attachment, error: fetchError } = await supabase
     .from('station_attachments')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', ((params as Record<string, string|undefined>).id ?? ''))
     .single();
 
   if (fetchError || !attachment) {
@@ -257,7 +263,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
   const { error: dbError } = await supabase
     .from('station_attachments')
     .delete()
-    .eq('id', params.id);
+    .eq('id', ((params as Record<string, string|undefined>).id ?? ''));
 
   if (dbError) {
     console.error('[Attachments API] Database deletion error:', dbError);

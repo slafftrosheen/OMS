@@ -77,15 +77,12 @@ export function logError(
 	});
 }
 
-// Performance monitoring
+// Performance monitoring (Sentry v8 API)
 export function startTransaction(
 	name: string,
 	op: string
 ) {
 	if (dev) return null;
-
-	return Sentry.startTransaction({
-		name,
-		op
-	});
+	// Sentry v8 replaced startTransaction with startSpanManual.
+	return Sentry.startSpanManual({ name, op }, (span) => span);
 }

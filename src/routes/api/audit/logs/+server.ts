@@ -6,9 +6,11 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { AuditService } from '$lib/server/audit-service';
+import { PermissionsService } from '$lib/server/permissions-service';
 
 // GET /api/audit/logs - Get audit logs
-export const GET: RequestHandler = async ({ url, locals }) => {
+export const GET: RequestHandler = async (event) => {
+  const { url, locals } = event;
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
@@ -25,7 +27,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const offset = parseInt(url.searchParams.get('offset') || '0');
 
   try {
-    const result = await AuditService.getAuditLogs({
+    const result = await AuditService.getAuditLogs(event, {
       userId: userId || undefined,
       resourceType: resourceType || undefined,
       action: action || undefined,
