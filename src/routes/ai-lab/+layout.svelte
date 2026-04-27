@@ -13,6 +13,7 @@
   const sections: Array<{ href: string; label: string; icon: IconName; flag: string }> = [
     { href: '/ai-lab',           label: 'Overview',  icon: 'sparkles',       flag: 'PUBLIC_AILAB_ENABLED' },
     { href: '/ai-lab/chat',      label: 'Chat',      icon: 'message-square', flag: 'PUBLIC_AILAB_CHAT_ENABLED' },
+    { href: '/ai-lab/voice',     label: 'Voice',     icon: 'mic',            flag: 'PUBLIC_AILAB_CHAT_ENABLED' },
     { href: '/ai-lab/knowledge', label: 'Knowledge', icon: 'library',        flag: 'PUBLIC_AILAB_KNOWLEDGE_ENABLED' },
     { href: '/ai-lab/forge',     label: 'Forge',     icon: 'image',          flag: 'PUBLIC_AILAB_FORGE_ENABLED' },
     { href: '/ai-lab/canvas',    label: 'Canvas',    icon: 'layout-grid',    flag: 'PUBLIC_AILAB_CANVAS_ENABLED' },
