@@ -21,10 +21,8 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
     }
 
     if (download) {
-      // Get the file buffer from storage service
-      const fileBuffer = await storageService.retrieveFile(file.id, file.filename);
-
-      return new Response(fileBuffer, {
+      const { buffer } = await storageService.download(file.filename);
+      return new Response(new Uint8Array(buffer), {
         headers: {
           'Content-Type': file.mimetype || 'application/octet-stream',
           'Content-Disposition': `attachment; filename="${file.original_name || file.filename}"`
@@ -66,7 +64,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
     }
 
     // Delete from Storage
-    await storageService.deleteFile(file.filename);
+    await storageService.delete(file.filename);
 
     // Delete from Database
     const { error: dbError } = await locals.supabase

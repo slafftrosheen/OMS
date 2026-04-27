@@ -1,4 +1,9 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import Camera from 'lucide-svelte/icons/camera';
+  import CameraOff from 'lucide-svelte/icons/camera-off';
+  import CheckCircle from 'lucide-svelte/icons/check-circle';
+  import Loader2 from 'lucide-svelte/icons/loader-2';
 /**
  * QR Scanner Component
  * Mobile-optimized QR code scanner using device camera

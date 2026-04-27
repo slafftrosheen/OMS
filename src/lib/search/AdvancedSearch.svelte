@@ -1,4 +1,11 @@
 <script lang="ts">
+  import Clock from 'lucide-svelte/icons/clock';
+  import Filter from 'lucide-svelte/icons/filter';
+  import Save from 'lucide-svelte/icons/save';
+  import Search from 'lucide-svelte/icons/search';
+  import Star from 'lucide-svelte/icons/star';
+  import Tag from 'lucide-svelte/icons/tag';
+  import X from 'lucide-svelte/icons/x';
 
 /**
  * Advanced Search Component

@@ -32,13 +32,13 @@ function haystack(order) {
 /**
  * @param {string} query
  * @param {readonly any[]=} overrideOrders optional pre-fetched orders (test helper)
- * @returns {SearchHit[]}
+ * @returns {Promise<SearchHit[]>}
  */
-export function searchOrders(query, overrideOrders) {
+export async function searchOrders(query, overrideOrders) {
   const q = tokenize(query);
   if (!q.length) return [];
 
-  const orders = Array.isArray(overrideOrders) ? overrideOrders : listOrders();
+  const orders = Array.isArray(overrideOrders) ? overrideOrders : await listOrders();
   const hits = [];
 
   for (const order of orders) {

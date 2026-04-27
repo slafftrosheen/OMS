@@ -1,4 +1,5 @@
 <script lang="ts">
+  import FileText from 'lucide-svelte/icons/file-text';
   import Icon from '$lib/ui/Icon.svelte';
   import type { FileRef } from '../types';
 

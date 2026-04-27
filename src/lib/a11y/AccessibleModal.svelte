@@ -1,5 +1,6 @@
 <!-- src/lib/a11y/AccessibleModal.svelte -->
 <script lang="ts">
+  import X from 'lucide-svelte/icons/x';
 	import { onMount, onDestroy } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
 	import Icon from '$lib/ui/Icon.svelte';
@@ -14,6 +15,8 @@
 		closeOnBackdrop = true,
 		onclose
 	}: {
+		children?: import('svelte').Snippet;
+		footer?: import('svelte').Snippet;
 		open?: boolean;
 		title: string;
 		description?: string | undefined;

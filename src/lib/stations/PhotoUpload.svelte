@@ -1,4 +1,8 @@
 <script lang="ts">
+  import FileText from 'lucide-svelte/icons/file-text';
+  import Loader2 from 'lucide-svelte/icons/loader-2';
+  import Upload from 'lucide-svelte/icons/upload';
+  import X from 'lucide-svelte/icons/x';
 /**
  * Photo Upload Component
  * Drag-and-drop photo uploader with preview and metadata entry

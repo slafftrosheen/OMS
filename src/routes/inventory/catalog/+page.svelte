@@ -1,4 +1,8 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import Package from 'lucide-svelte/icons/package';
+  import Plus from 'lucide-svelte/icons/plus';
+  import Search from 'lucide-svelte/icons/search';
   import { onMount } from 'svelte';
   import { materials, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
   import Icon from '$lib/ui/Icon.svelte';
@@ -12,16 +16,16 @@
   let lowStockList = $state<any[]>([]);
 
   // Load materials and subscribe to store updates
-  onMount(async () => {
-    await loadMaterials();
-    
-    const unsubMaterials = materials.subscribe(value => {
-      materialList = value;
+  onMount(() => {
+    let unsub: (() => void) | null = null;
+    void loadMaterials().then(() => {
+      unsub = materials.subscribe((value) => {
+        materialList = value;
+        lowStockList = getLowStockMaterials();
+      });
       lowStockList = getLowStockMaterials();
     });
-    lowStockList = getLowStockMaterials();
-    
-    return () => unsubMaterials();
+    return () => { if (unsub) unsub(); };
   });
 
   let filteredMaterials = $derived(materialList.filter(mat => {

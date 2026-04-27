@@ -238,7 +238,7 @@ export class InventoryService {
         const { data: materials, error } = await this.supabase
             .from('materials')
             .select('*')
-            .lte('current_stock', this.supabase.raw('min_stock'));
+            .filter('current_stock', 'lte', 'min_stock');
 
         if (error || !materials) {
             return [];

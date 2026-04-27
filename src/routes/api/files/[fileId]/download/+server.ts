@@ -54,7 +54,7 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
 
         const disposition = inline ? 'inline' : 'attachment';
         
-        return new Response(buffer, {
+        return new Response(new Uint8Array(buffer), {
             headers: {
                 'Content-Type': metadata.contentType,
                 'Content-Length': String(metadata.size),

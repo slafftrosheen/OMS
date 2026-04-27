@@ -8,6 +8,7 @@
     { href: '/',          icon: 'layout-dashboard' as const, label: 'nav.dashboard', default: 'Dashboard' },
     { href: '/calendar',  icon: 'calendar'          as const, label: 'nav.calendar',  default: 'Calendar' },
     { href: '/inventory', icon: 'package'            as const, label: 'nav.inventory', default: 'Inventory' },
+    { href: '/ai-lab',    icon: 'sparkles'           as const, label: 'nav.aiLab',     default: 'AI Lab' },
     { href: '/settings',  icon: 'settings'           as const, label: 'nav.settings',  default: 'Settings' },
   ] as const;
 

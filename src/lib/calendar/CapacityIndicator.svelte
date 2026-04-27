@@ -1,4 +1,7 @@
 <script lang="ts">
+  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
+  import CheckCircle from 'lucide-svelte/icons/check-circle';
+  import Lock from 'lucide-svelte/icons/lock';
 /**
  * Capacity Indicator Component
  * Visual indicator for loading day capacity status

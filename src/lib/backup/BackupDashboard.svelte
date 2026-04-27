@@ -1,4 +1,14 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import CheckCircle from 'lucide-svelte/icons/check-circle';
+  import Clock from 'lucide-svelte/icons/clock';
+  import Database from 'lucide-svelte/icons/database';
+  import HardDrive from 'lucide-svelte/icons/hard-drive';
+  import Play from 'lucide-svelte/icons/play';
+  import Server from 'lucide-svelte/icons/server';
+  import Settings from 'lucide-svelte/icons/settings';
+  import Trash2 from 'lucide-svelte/icons/trash-2';
+  import Upload from 'lucide-svelte/icons/upload';
 
 /**
  * Backup Dashboard Component

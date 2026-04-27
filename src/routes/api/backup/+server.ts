@@ -119,7 +119,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
     const { error: dbError } = await supabase
       .from('backup_history')
       .delete()
-      .eq('id', params.id)
+      .eq('id', ((params as Record<string, string|undefined>).id ?? ''))
       .eq('created_by', user.id); // Only allow deleting own backups
 
     if (dbError) {

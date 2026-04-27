@@ -1,5 +1,11 @@
 <!-- src/lib/order/OrderFilesAccessible.svelte -->
 <script lang="ts">
+  import ImageIcon from 'lucide-svelte/icons/image';
+  import Download from 'lucide-svelte/icons/download';
+  import FileText from 'lucide-svelte/icons/file-text';
+  import FileIcon from 'lucide-svelte/icons/file';
+  import Upload from 'lucide-svelte/icons/upload';
+  import X from 'lucide-svelte/icons/x';
 	import { onMount } from 'svelte';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { focusManager } from '$lib/a11y/focus-manager';
@@ -143,7 +149,7 @@
 	}
 
 	function getFileIcon(type: string) {
-		if (type.startsWith('image/')) return Image;
+		if (type.startsWith('image/')) return ImageIcon;
 		if (type === 'application/pdf') return FileText;
 		return FileIcon;
 	}

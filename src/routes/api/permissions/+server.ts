@@ -92,8 +92,10 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
     // Check if user has permission to manage permissions
     await PermissionsService.requirePermission(user.id, 'users.manage');
 
+    const permissionName = ((params as Record<string, string|undefined>).permissionId ?? '');
     const success = await PermissionsService.revokePermission(
-      params.permissionId,
+      user.id,
+      permissionName,
       user.id
     );
 

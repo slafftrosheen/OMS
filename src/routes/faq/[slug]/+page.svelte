@@ -1,4 +1,8 @@
 <script lang="ts">
+  import ArrowLeft from 'lucide-svelte/icons/arrow-left';
+  import Calendar from 'lucide-svelte/icons/calendar';
+  import Eye from 'lucide-svelte/icons/eye';
+  import Tag from 'lucide-svelte/icons/tag';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
@@ -118,7 +122,7 @@
               <Tag size={16} />
               <div class="faq-tags">
                 {#each item.tags as tag}
-                  <Badge tone="neutral">{tag.name}</Badge>
+                  <Badge tone="neutral">{typeof tag === 'string' ? tag : tag.name}</Badge>
                 {/each}
               </div>
             </div>

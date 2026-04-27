@@ -1,5 +1,6 @@
 <!-- src/lib/admin/components/builder/ComponentPalette.svelte -->
 <script lang="ts">
+  import GripVertical from 'lucide-svelte/icons/grip-vertical';
   import Icon from '$lib/ui/Icon.svelte';
 
   let { ondragstart }: { ondragstart?: (data: { event: DragEvent; component: any }) => void } = $props();

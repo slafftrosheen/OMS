@@ -1,4 +1,7 @@
-import type { default as ApexOptions } from 'apexcharts';
+// Vendored apexcharts has no .d.ts; declare a permissive shape for the
+// chart-options surface we touch.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ApexOptions = any;
 import { get } from 'svelte/store';
 import { theme, type ThemeName } from '$lib/stores/theme';
 

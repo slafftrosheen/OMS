@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Eye from 'lucide-svelte/icons/eye';
   import type { FAQItem } from '../types';
   import Badge from '$lib/ui/Badge.svelte';
   import Icon from '$lib/ui/Icon.svelte';
@@ -51,7 +52,7 @@
       {#if item.tags && item.tags.length > 0}
         <div class="faq-tags">
           {#each item.tags.slice(0, 3) as tag}
-            <Badge tone="neutral">{tag.name}</Badge>
+            <Badge tone="neutral">{typeof tag === 'string' ? tag : tag.name}</Badge>
           {/each}
         </div>
       {/if}

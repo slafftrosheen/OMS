@@ -1,5 +1,6 @@
 <!-- src/lib/admin/components/builder/HorizontalPalette.svelte -->
 <script lang="ts">
+  import GripVertical from 'lucide-svelte/icons/grip-vertical';
   import Icon from '$lib/ui/Icon.svelte';
 
   let { oncomponentdrag }: { oncomponentdrag?: (component: any) => void } = $props();

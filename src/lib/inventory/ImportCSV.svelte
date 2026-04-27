@@ -16,16 +16,16 @@
       
       const [section, group, subgroup, sku, name, unit, stock, min, location] = parts;
       
-      createItem({ 
-        section: section as Section, 
-        group: group || 'General', 
-        subgroup: subgroup || 'General', 
-        sku: sku || '', 
-        name: name || '', 
-        unit: unit as any || 'PCS', 
-        stock: +(stock||0), 
-        min: +(min||0), 
-        location: location || '' 
+      createItem({
+        section: section as Section,
+        item_group: group || 'General',
+        subgroup: subgroup || 'General',
+        sku: sku || '',
+        name_en: name || '',
+        unit: unit as any || 'PCS',
+        stock: +(stock||0),
+        min_stock: +(min||0),
+        location: location || ''
       });
     }
     text='';

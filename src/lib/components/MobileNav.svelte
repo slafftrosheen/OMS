@@ -1,4 +1,12 @@
 <script lang="ts">
+  import BarChart3 from 'lucide-svelte/icons/bar-chart-3';
+  import Home from 'lucide-svelte/icons/home';
+  import Inbox from 'lucide-svelte/icons/inbox';
+  import Menu from 'lucide-svelte/icons/menu';
+  import Package from 'lucide-svelte/icons/package';
+  import Settings from 'lucide-svelte/icons/settings';
+  import Users from 'lucide-svelte/icons/users';
+  import X from 'lucide-svelte/icons/x';
     import { page } from '$app/state';
     import Icon from '$lib/ui/Icon.svelte';
     import { slide } from 'svelte/transition';

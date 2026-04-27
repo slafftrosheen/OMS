@@ -1,4 +1,8 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import RefreshCw from 'lucide-svelte/icons/refresh-cw';
+  import Wifi from 'lucide-svelte/icons/wifi';
+  import WifiOff from 'lucide-svelte/icons/wifi-off';
 /**
  * Enhanced Offline Mode Indicator Component
  * Shows online/offline status, pending sync queue, and conflicts

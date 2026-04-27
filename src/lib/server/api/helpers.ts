@@ -14,8 +14,18 @@ import type { z } from 'zod';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
+// Compatible with the global SvelteKit `Locals.user` (whose `roles` is
+// `Record<string, string>` like `{Admin: 'SuperAdmin'}`) and older callers
+// that expected `roles?: Record<string, boolean>`.
 export interface AuthLocals {
-    user?: { id: string; email?: string | null; roles?: Record<string, boolean>; role?: string | null } | null;
+    user?:
+        | {
+              id: string;
+              email?: string | null;
+              roles?: Record<string, string | boolean>;
+              role?: string | null;
+          }
+        | null;
 }
 
 export function requireAuth(locals: AuthLocals) {
@@ -28,7 +38,12 @@ export function requireAuth(locals: AuthLocals) {
 
 export function requireAdmin(locals: AuthLocals) {
     const user = requireAuth(locals);
-    const isAdmin = user.role === 'admin' || user.roles?.admin === true;
+    const adminRole = user.roles?.['admin'] ?? user.roles?.['Admin'];
+    const isAdmin =
+        user.role === 'admin' ||
+        adminRole === true ||
+        adminRole === 'admin' ||
+        adminRole === 'SuperAdmin';
     if (!isAdmin) {
         throw error(403, 'Forbidden — admin role required');
     }

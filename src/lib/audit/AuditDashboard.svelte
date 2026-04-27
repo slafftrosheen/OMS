@@ -1,4 +1,10 @@
 <script lang="ts">
+  import Activity from 'lucide-svelte/icons/activity';
+  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
+  import Clock from 'lucide-svelte/icons/clock';
+  import Download from 'lucide-svelte/icons/download';
+  import Eye from 'lucide-svelte/icons/eye';
+  import Shield from 'lucide-svelte/icons/shield';
 /**
  * Audit Dashboard Component
  * Comprehensive view of system activity and security events
@@ -16,7 +22,8 @@ let filters = $state({
   dateRange: '7d',
   user: '',
   action: '',
-  resource: ''
+  resource: '',
+  search: ''
 });
 
 onMount(() => {

@@ -123,10 +123,13 @@ export class EmailTriggers {
         .in('role', ['admin', 'manager']);
 
       if (managers) {
-        for (const manager of managers) {
+        type ManagerRow = { user_id?: string; user?: { email?: string | null } | Array<{ email?: string | null }> };
+        for (const m of managers as unknown as ManagerRow[]) {
+          const email = Array.isArray(m.user) ? m.user[0]?.email : m.user?.email;
+          if (!email) continue;
           await supabase.rpc('queue_email', {
-            p_recipient_email: manager.user.email,
-            p_recipient_user_id: manager.user_id,
+            p_recipient_email: email,
+            p_recipient_user_id: m.user_id,
             p_template_key: 'loading_day_full',
             p_variables: variables,
             p_priority: 'high'

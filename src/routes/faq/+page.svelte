@@ -16,7 +16,7 @@
   });
 
   let loading = $state(true);
-  let selectedCategoryId: number | null = $state(null);
+  let selectedCategoryId: string | null = $state(null);
   let selectedTag: string | null = $state(null);
   let searchQuery = $state("");
   let lang: "en" | "ru" | "lv" = $state("en");
@@ -25,8 +25,7 @@
     loading = true;
     try {
       const params = new URLSearchParams();
-      if (selectedCategoryId)
-        params.append("categoryId", selectedCategoryId.toString());
+      if (selectedCategoryId) params.append("categoryId", selectedCategoryId);
       if (selectedTag) params.append("tag", selectedTag);
       if (searchQuery) params.append("search", searchQuery);
       params.append("lang", lang);
@@ -42,7 +41,7 @@
     }
   }
 
-  function handleCategorySelect(categoryId: number | null) {
+  function handleCategorySelect(categoryId: string | null) {
     selectedCategoryId = categoryId;
     selectedTag = null;
     loadFAQs();

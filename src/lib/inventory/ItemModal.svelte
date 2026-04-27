@@ -6,7 +6,7 @@
   import type { Section } from './types';
 
   // Accept both 'material' and 'item' props for backwards compatibility
-  let { material, item, onClose = () => {} }: { material?: Partial<Material>; item?: Partial<Material>; onClose?: () => void } = $props();
+  let { material, item = $bindable(), onClose = () => {} }: { material?: Partial<Material>; item?: Partial<Material>; onClose?: () => void } = $props();
   
   // Use material if provided, otherwise fall back to item
   let data = $state<Partial<Material>>({

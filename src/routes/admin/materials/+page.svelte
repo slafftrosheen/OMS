@@ -1,4 +1,13 @@
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import Check from 'lucide-svelte/icons/check';
+  import ChevronDown from 'lucide-svelte/icons/chevron-down';
+  import Edit2 from 'lucide-svelte/icons/edit-2';
+  import Package from 'lucide-svelte/icons/package';
+  import Plus from 'lucide-svelte/icons/plus';
+  import Search from 'lucide-svelte/icons/search';
+  import Trash2 from 'lucide-svelte/icons/trash-2';
+  import X from 'lucide-svelte/icons/x';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import { base } from '$app/paths';

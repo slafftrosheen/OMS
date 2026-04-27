@@ -1,5 +1,8 @@
 <!-- src/lib/profiles/components/fields/ColorRAL.svelte -->
 <script lang="ts">
+  import Palette from 'lucide-svelte/icons/palette';
+  import Search from 'lucide-svelte/icons/search';
+  import X from 'lucide-svelte/icons/x';
   import { stopPropagation } from 'svelte/legacy';
 
   import { onMount } from 'svelte';

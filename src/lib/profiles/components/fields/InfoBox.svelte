@@ -1,5 +1,8 @@
 <!-- src/lib/profiles/components/fields/InfoBox.svelte -->
 <script lang="ts">
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
+  import Info from 'lucide-svelte/icons/info';
   import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {

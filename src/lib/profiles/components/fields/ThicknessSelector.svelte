@@ -1,5 +1,8 @@
 <!-- src/lib/profiles/components/fields/ThicknessSelector.svelte -->
 <script lang="ts">
+  import ChevronDown from 'lucide-svelte/icons/chevron-down';
+  import Minus from 'lucide-svelte/icons/minus';
+  import Plus from 'lucide-svelte/icons/plus';
   import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {

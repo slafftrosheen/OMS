@@ -1,5 +1,6 @@
 <!-- src/lib/profiles/components/fields/Dropdown.svelte -->
 <script lang="ts">
+  import ChevronDown from 'lucide-svelte/icons/chevron-down';
   import Icon from '$lib/ui/Icon.svelte';
 
   let {

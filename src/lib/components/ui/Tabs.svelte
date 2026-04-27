@@ -4,6 +4,7 @@
     activeTab = $bindable(tabs[0]?.id || ''),
     onchange
   }: {
+    children?: import('svelte').Snippet;
     tabs?: { id: string; label: string; icon?: any }[];
     activeTab?: string;
     onchange?: (data: { tab: string }) => void;

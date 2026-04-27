@@ -1,4 +1,16 @@
 <script lang="ts">
+  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
+  import Bell from 'lucide-svelte/icons/bell';
+  import BellRing from 'lucide-svelte/icons/bell-ring';
+  import Calendar from 'lucide-svelte/icons/calendar';
+  import Check from 'lucide-svelte/icons/check';
+  import CheckCheck from 'lucide-svelte/icons/check-check';
+  import Info from 'lucide-svelte/icons/info';
+  import MessageSquare from 'lucide-svelte/icons/message-square';
+  import Package from 'lucide-svelte/icons/package';
+  import RefreshCw from 'lucide-svelte/icons/refresh-cw';
+  import Settings from 'lucide-svelte/icons/settings';
+  import Trash2 from 'lucide-svelte/icons/trash-2';
   import { stopPropagation } from 'svelte/legacy';
 
   import { onMount } from 'svelte';

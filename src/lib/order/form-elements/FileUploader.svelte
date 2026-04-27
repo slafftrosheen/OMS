@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Upload from 'lucide-svelte/icons/upload';
+  import X from 'lucide-svelte/icons/x';
   import Icon from '$lib/ui/Icon.svelte';
   import type { FileRef } from '../types';
 

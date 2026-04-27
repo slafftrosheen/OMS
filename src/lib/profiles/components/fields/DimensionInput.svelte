@@ -1,5 +1,6 @@
 <!-- src/lib/profiles/components/fields/DimensionInput.svelte -->
 <script lang="ts">
+  import Ruler from 'lucide-svelte/icons/ruler';
   import Icon from '$lib/ui/Icon.svelte';
 
   interface Props {

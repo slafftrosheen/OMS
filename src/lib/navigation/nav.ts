@@ -1,4 +1,9 @@
 import type { ComponentType } from 'svelte';
+import Calendar from 'lucide-svelte/icons/calendar';
+import FolderOpen from 'lucide-svelte/icons/folder-open';
+import Grid from 'lucide-svelte/icons/grid';
+import HelpCircle from 'lucide-svelte/icons/help-circle';
+import PackageSearch from 'lucide-svelte/icons/package-search';
 // TODO: migrate to Icon component
 
 export interface NavLink {

@@ -371,11 +371,13 @@ export class AuditService {
    * Resolve security event
    */
   static async resolveSecurityEvent(
+    event: import('@sveltejs/kit').RequestEvent,
     eventId: string,
     resolvedBy: string,
     resolutionNotes?: string
   ): Promise<boolean> {
     try {
+      const supabase = createSupabaseClient(event);
       const { error } = await supabase
         .from('security_events')
         .update({
@@ -401,7 +403,7 @@ export class AuditService {
   /**
    * Get audit summary for dashboard
    */
-  static async getAuditSummary(event: any): Promise<any> {
+  static async getAuditSummary(event?: any): Promise<any> {
     try {
       const supabase = createSupabaseClient(event);
 
@@ -438,12 +440,14 @@ export class AuditService {
       return {
         activityCount: activityCount.count || 0,
         securityEvents: securityCount.count || 0,
-        recentActivity: recentLogs.data?.map(log => ({
+        recentActivity: (recentLogs.data as Array<Record<string, unknown> & {
+          user?: Array<{ email?: string | null }> | { email?: string | null };
+        }> | null)?.map(log => ({
           action: log.action,
-          resourceType: log.resource_type,
+          resourceType: log['resource_type'],
           status: log.status,
-          createdAt: log.created_at,
-          user: log.user?.email
+          createdAt: log['created_at'],
+          user: Array.isArray(log.user) ? log.user[0]?.email : log.user?.email
         })) || [],
         summary: {
           byAction: this.groupBy(recentLogs.data || [], 'action'),

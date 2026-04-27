@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Check from 'lucide-svelte/icons/check';
 
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';

@@ -1,4 +1,8 @@
 <script lang="ts">
+  import Hash from 'lucide-svelte/icons/hash';
+  import Plus from 'lucide-svelte/icons/plus';
+  import Search from 'lucide-svelte/icons/search';
+  import X from 'lucide-svelte/icons/x';
 
   import { onMount, onDestroy } from 'svelte';
   import { fade, slide, fly } from 'svelte/transition';

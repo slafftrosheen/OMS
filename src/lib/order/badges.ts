@@ -1,4 +1,13 @@
 import type { Badge } from './types';
+import CircleDashed from 'lucide-svelte/icons/circle-dashed';
+import Loader from 'lucide-svelte/icons/loader';
+import OctagonAlert from 'lucide-svelte/icons/octagon-alert';
+import PackageCheck from 'lucide-svelte/icons/package-check';
+import CheckCircle2 from 'lucide-svelte/icons/check-circle-2';
+import Flame from 'lucide-svelte/icons/flame';
+import PackageMinus from 'lucide-svelte/icons/package-minus';
+import FlaskConical from 'lucide-svelte/icons/flask-conical';
+import FileEdit from 'lucide-svelte/icons/file-edit';
 // TODO: migrate to Icon component
 
 export const BADGE_ICONS: Record<Badge, typeof CircleDashed> = {

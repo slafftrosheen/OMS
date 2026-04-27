@@ -12,6 +12,8 @@
         showCloseButton = true,
         onclose
     }: {
+        children?: import('svelte').Snippet;
+        footer?: import('svelte').Snippet;
         open?: boolean;
         title?: string | null;
         size?: 'sm' | 'md' | 'lg' | 'xl';

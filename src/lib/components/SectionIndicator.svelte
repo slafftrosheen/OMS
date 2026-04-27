@@ -1,8 +1,11 @@
 <script lang="ts">
   import { base } from '$app/paths';
-  import { currentUser, switchSection } from '$lib/auth/authState.svelte';
+  import { AuthState, currentUser, switchSection } from '$lib/auth/authState.svelte';
+  import { getContext } from 'svelte';
   import { logAction } from '$lib/auth/audit-log';
   import type { Section } from '$lib/auth/types';
+
+  const authState = getContext<AuthState>('authState');
   
   let user = $derived($currentUser);
   let activeSection = $derived(user?.primarySection);
@@ -12,8 +15,8 @@
     const target = event.target as HTMLSelectElement;
     const section = target.value as Section;
     
-    if (user) {
-      switchSection(section);
+    if (user && authState) {
+      switchSection(authState, section);
       logAction(user.username, section, 'switch_section', `Switched to ${section} section`);
       window.location.href = `${base}/${section.toLowerCase()}/dashboard`;
     }

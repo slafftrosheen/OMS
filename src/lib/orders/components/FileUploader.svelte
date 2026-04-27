@@ -1,5 +1,11 @@
 <!-- src/lib/orders/components/FileUploader.svelte -->
 <script lang="ts">
+  import FileIcon from 'lucide-svelte/icons/file';
+  import AlertCircle from 'lucide-svelte/icons/alert-circle';
+  import CheckCircle from 'lucide-svelte/icons/check-circle';
+  import ImageIcon from 'lucide-svelte/icons/image';
+  import Upload from 'lucide-svelte/icons/upload';
+  import X from 'lucide-svelte/icons/x';
   import { stopPropagation } from 'svelte/legacy';
 
   import Icon from '$lib/ui/Icon.svelte';

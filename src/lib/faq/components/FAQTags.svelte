@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { FAQTag } from '../types';
+  type FAQTag = { id?: string; slug: string; name: string; count?: number; usageCount?: number };
   import Badge from '$lib/ui/Badge.svelte';
 
   let {

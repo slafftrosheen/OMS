@@ -23,16 +23,16 @@
   let low: Material[] = $state([]);
 
   // Load materials and subscribe to store updates
-  onMount(async () => {
-    await loadMaterials();
-    
-    const unsubMaterials = materials.subscribe((value) => {
-      list = value;
+  onMount(() => {
+    let unsub: (() => void) | null = null;
+    void loadMaterials().then(() => {
+      unsub = materials.subscribe((value) => {
+        list = value;
+        low = getLowStockMaterials();
+      });
       low = getLowStockMaterials();
     });
-    low = getLowStockMaterials();
-    
-    return () => unsubMaterials();
+    return () => { if (unsub) unsub(); };
   });
 
   const tabs = [

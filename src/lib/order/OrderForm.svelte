@@ -56,21 +56,21 @@
       label: $t('orderform.defaults.face'),
       material: $t('orderform.defaults.acrylic'),
       thickness: $t('orderform.defaults.thickness_3mm'),
-      color: { system: 'RAL', code: 'RAL 9016' }
+      color: { system: 'RAL' as const, code: 'RAL 9016' }
     },
     {
       key: 'back',
       label: $t('orderform.defaults.back'),
       material: $t('orderform.defaults.acp'),
       thickness: $t('orderform.defaults.thickness_3mm'),
-      color: { system: 'RAL', code: 'RAL 9005' }
+      color: { system: 'RAL' as const, code: 'RAL 9005' }
     },
     {
       key: 'frame',
       label: $t('orderform.defaults.face_frame'),
       material: $t('orderform.defaults.aluminum'),
       thickness: $t('orderform.defaults.thickness_2mm'),
-      color: { system: 'Other', code: $t('orderform.defaults.natural') }
+      color: { system: 'Other' as const, code: $t('orderform.defaults.natural') }
     }
   ]);
 
@@ -83,14 +83,16 @@
   let availableMaterials: Material[] = $state([]);
   let allMaterialsLoaded = $state(false);
 
-  onMount(async () => {
-    // Load materials from the store
-    await materialsStore.load();
-    const unsub = materialsStore.subscribe((loadedMaterials) => {
-      availableMaterials = loadedMaterials;
-      allMaterialsLoaded = true;
+  onMount(() => {
+    // Load materials from the store, then subscribe.
+    let unsub: (() => void) | null = null;
+    void materialsStore.load().then(() => {
+      unsub = materialsStore.subscribe((loadedMaterials) => {
+        availableMaterials = loadedMaterials;
+        allMaterialsLoaded = true;
+      });
     });
-    return unsub;
+    return () => { if (unsub) unsub(); };
   });
 
   function resetForm() {

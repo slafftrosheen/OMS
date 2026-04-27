@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { searchOrders } from './global-search.js';
 
 describe('searchOrders', () => {
-  it('ranks results', () => {
+  it('ranks results', async () => {
     const data = [
       {
         id: 'PO-1',
@@ -34,11 +34,11 @@ describe('searchOrders', () => {
       }
     ];
 
-    const res = searchOrders('pylon kia', data);
+    const res = await searchOrders('pylon kia', data);
     expect(res[0].id).toBe('PO-2');
   });
 
-  it('deduplicates matched tokens', () => {
+  it('deduplicates matched tokens', async () => {
     const data = [
       {
         id: 'PO-5',
@@ -56,11 +56,11 @@ describe('searchOrders', () => {
       }
     ];
 
-    const [hit] = searchOrders('frame', data);
+    const [hit] = await searchOrders('frame', data);
     expect(hit.where).toEqual(['frame']);
   });
 
-  it('finds matches across fields and materials', () => {
+  it('finds matches across fields and materials', async () => {
     const data = [
       {
         id: 'PO-9',
@@ -84,7 +84,7 @@ describe('searchOrders', () => {
       }
     ];
 
-    const hits = searchOrders('berlin aluminum', data);
+    const hits = await searchOrders('berlin aluminum', data);
     expect(hits.length).toBe(1);
     expect(hits[0].id).toBe('PO-9');
     expect(hits[0].where).toEqual(['berlin', 'aluminum']);

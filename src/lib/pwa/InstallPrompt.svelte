@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Download from 'lucide-svelte/icons/download';
+  import X from 'lucide-svelte/icons/x';
 /**
  * PWA Install Prompt Component
  */

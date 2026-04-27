@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createNewOrder } from './signage-store';
+import { createNewOrder } from './orderState.svelte';
 
 describe('Order Creation', () => {
   it('should create a new order with default values', () => {

@@ -1,5 +1,6 @@
 <!-- src/lib/admin/components/builder/PropertiesPanel.svelte -->
 <script lang="ts">
+  import Settings from 'lucide-svelte/icons/settings';
   import Icon from '$lib/ui/Icon.svelte';
 
   let {

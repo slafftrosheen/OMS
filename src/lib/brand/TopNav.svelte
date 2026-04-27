@@ -6,7 +6,7 @@
   interface NavItem {
     path: string;
     label: string;
-    icon?: any;
+    icon?: import('$lib/ui/icons').IconName;
   }
 
   let { items = [
@@ -38,11 +38,7 @@
           aria-current={isActive(it.path) ? 'page' : undefined}
         >
           {#if it.icon}
-            {#if typeof it.icon === 'string'}
-              <Icon name={it.icon} aria-hidden="true" />
-            {:else}
-              <it.icon aria-hidden="true" />
-            {/if}
+            <Icon name={it.icon} />
           {/if}
           {it.label}
         </a>

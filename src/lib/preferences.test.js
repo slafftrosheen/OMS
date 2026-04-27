@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 describe('loadPreferences', () => {
   beforeEach(() => {
     global.fetch = vi.fn();
+    // @ts-expect-error stubbed for tests
     global.window = {};
   });
 
@@ -10,7 +11,8 @@ describe('loadPreferences', () => {
     const { resetPreferencesCache } = await import('$lib/preferences');
     resetPreferencesCache();
     const response = { ok: true, json: vi.fn().mockResolvedValue({ theme: 'DarkVim' }) };
-    let resolveFetch = null;
+    /** @type {(value: any) => void} */
+    let resolveFetch = () => {};
     const fetchPromise = new Promise((resolve) => {
       resolveFetch = resolve;
     });

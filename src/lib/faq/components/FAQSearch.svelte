@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Search from 'lucide-svelte/icons/search';
   import Icon from '$lib/ui/Icon.svelte';
   import Input from '$lib/ui/Input.svelte';
 

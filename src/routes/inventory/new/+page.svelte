@@ -133,11 +133,11 @@
           </div>
           <div class="form-field">
             <label for="stock">{$t('inventory.headers.stock', { default: 'Current Stock' })}</label>
-            <input id="stock" type="number" min_stock="0" step="0.01" bind:value={material.stock} />
+            <input id="stock" type="number" min="0" step="0.01" bind:value={material.stock} />
           </div>
           <div class="form-field">
             <label for="min_stock">{$t('inventory.headers.minimum', { default: 'Minimum Stock' })}</label>
-            <input id="min_stock" type="number" min_stock="0" bind:value={material.min_stock} />
+            <input id="min_stock" type="number" min="0" bind:value={material.min_stock} />
           </div>
           <div class="form-field">
             <label for="location">{$t('inventory.headers.location', { default: 'Location' })}</label>
@@ -176,7 +176,7 @@
           </div>
           <div class="form-field">
             <label for="price">{$t('inventory.modal.price_label', { default: 'Price' })}</label>
-            <input id="price" type="number" min_stock="0" step="0.01" bind:value={material.price} placeholder="0.00" />
+            <input id="price" type="number" min="0" step="0.01" bind:value={material.price} placeholder="0.00" />
           </div>
           <div class="form-field">
             <label for="barcode">{$t('inventory.modal.barcode_label', { default: 'Barcode' })}</label>

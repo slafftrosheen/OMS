@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Download from 'lucide-svelte/icons/download';
+  import Printer from 'lucide-svelte/icons/printer';
+  import RefreshCw from 'lucide-svelte/icons/refresh-cw';
 /**
  * QR Generator Component
  * Generates and displays QR codes for orders

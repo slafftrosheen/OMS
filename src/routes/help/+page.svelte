@@ -1,4 +1,7 @@
 <script lang="ts">
+  import ChevronDown from 'lucide-svelte/icons/chevron-down';
+  import ChevronRight from 'lucide-svelte/icons/chevron-right';
+  import HelpCircle from 'lucide-svelte/icons/help-circle';
   import { t } from 'svelte-i18n';
   import { base } from '$app/paths';
   import Icon from '$lib/ui/Icon.svelte';

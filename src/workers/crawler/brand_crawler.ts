@@ -171,7 +171,7 @@ function extractContent(html: string): { title: string; text: string; links: str
 
 	// Convert headers to markdown for chunking
 	container.find('h1, h2, h3, h4, h5, h6').each((_, el) => {
-		const tag = (el as cheerio.Element).tagName;
+		const tag = (el as { tagName: string }).tagName;
 		const level = parseInt(tag.charAt(1), 10);
 		const prefix = '#'.repeat(level);
 		$(el).replaceWith(`\n${prefix} ${$(el).text().trim()}\n`);

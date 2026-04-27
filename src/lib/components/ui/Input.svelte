@@ -40,7 +40,7 @@
         disabled?: boolean;
         required?: boolean;
         readonly?: boolean;
-        autocomplete?: string | null;
+        autocomplete?: import('svelte/elements').FullAutoFill | null;
         id?: string | null;
         name?: string | null;
         icon?: string | null;

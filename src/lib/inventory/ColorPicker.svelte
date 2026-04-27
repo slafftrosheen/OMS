@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Hash from 'lucide-svelte/icons/hash';
+  import Palette from 'lucide-svelte/icons/palette';
   import Icon from '$lib/ui/Icon.svelte';
   import type { ColorSpec } from './material-types';
   

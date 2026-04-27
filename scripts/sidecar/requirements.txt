@@ -1,0 +1,41 @@
+# Reclame AI Lab — sidecar (Python, runs alongside Ollama on each AI node).
+# Pinned major versions only; pip will resolve compatible patches.
+
+fastapi>=0.115
+uvicorn[standard]>=0.32
+python-multipart>=0.0.20
+pydantic>=2.9
+
+# Vision extraction (Qwen2.5-VL via llama-cpp-python or transformers)
+transformers>=4.46
+accelerate>=1.1
+sentencepiece
+pillow>=11.0
+pdf2image>=1.17
+pypdf>=5.0
+
+# Embeddings + reranker
+sentence-transformers>=3.3
+einops
+
+# ColQwen2
+colpali-engine>=0.3
+
+# ASR
+faster-whisper>=1.1
+ffmpeg-python>=0.2
+
+# TTS — Kokoro (small, MIT) or Piper
+kokoro>=0.3
+piper-tts>=1.2
+
+# Image gen — Flux via diffusers (cuda)
+diffusers>=0.32
+torch>=2.5
+safetensors>=0.5
+
+# Mesh gen — TRELLIS (install from source on node 2 once requirements are met)
+trimesh>=4.5
+
+# Background remove
+rembg>=2.0
