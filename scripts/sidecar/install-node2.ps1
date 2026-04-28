@@ -23,6 +23,7 @@
 
   Run from an ADMIN PowerShell:
     Set-ExecutionPolicy Bypass -Scope Process -Force
+    Get-ChildItem -Recurse | Unblock-File          # if files came from a zip
     .\install-node2.ps1
 #>
 
@@ -39,6 +40,18 @@ function Warn($msg) { Write-Host "  WARN $msg" -ForegroundColor Yellow }
 
 Write-Host "`nReclame sidecar — node 2 installer" -ForegroundColor Magenta
 Write-Host "====================================`n"
+
+# ─── 0. Windows hardening: long paths + Defender exclusions ──────────────────
+New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+    -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force | Out-Null
+Ok "Long path support enabled"
+
+Add-MpPreference -ExclusionPath "C:\reclame"      -ErrorAction SilentlyContinue
+Add-MpPreference -ExclusionPath "C:\ollama-models" -ErrorAction SilentlyContinue
+Add-MpPreference -ExclusionPath "C:\hf-cache"      -ErrorAction SilentlyContinue
+Ok "Windows Defender exclusions added"
+
+Get-ChildItem $PSScriptRoot -Recurse -ErrorAction SilentlyContinue | Unblock-File
 
 # ─── 1. Download NSSM if not present ─────────────────────────────────────────
 if (-not (Test-Path $NssmExe)) {

@@ -182,36 +182,34 @@ const tag = (key: string, primary: string, fallback?: string): ModelTag => ({
 // reliably support native function/tool calling — Qwen3 thinking mode covers
 // the same chain-of-thought use case and keeps tools working.
 export const MODEL = {
-    // Fast abliterated router — huihui-ai/command-r7b is uncensored Cohere 7B (~4 GB VRAM).
-    // Fallback: abliterated 4B from the VL family for ultra-fast routing when node1 is busy.
-    router:    tag('ROUTER_MODEL',     'huihui_ai/command-r7b-abliterated',
-                                       'huihui_ai/qwen3-vl-abliterated:4b'),
+    // Router (~3 GB): tiny, fast, tool-calling-capable. Used to classify intent.
+    router:    tag('ROUTER_MODEL',     'huihui_ai/qwen3-abliterated:4b',
+                                       'huihui_ai/qwen3-abliterated:8b'),
 
-    // Primary reasoning: Qwen3-14B Q4_K_M ≈ 9 GB — fits 16 GB with headroom.
-    // Fallback: 30B-A3B MoE Q3_K_M ≈ 14.7 GB — TIGHT. Set OLLAMA_NUM_CTX=16384 if using this.
-    reasoning: tag('REASONING_MODEL',  'hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M',
-                                       'hf.co/mradermacher/Huihui-Qwen3-30B-A3B-Instruct-2507-abliterated-GGUF:Q3_K_M'),
+    // Reasoning (Qwen3 thinking mode): 14B Q4_K_M ≈ 9 GB.
+    // Fallback: 30B-A3B MoE Q3_K_M ≈ 13 GB — fits 16 GB.
+    reasoning: tag('REASONING_MODEL',  'huihui_ai/qwen3-abliterated:14b',
+                                       'huihui_ai/qwen3-abliterated:30b-a3b-instruct-2507-q3_K_M'),
 
-    // Chat: same 14B primary; fallback to itself (will never escape to a census model).
-    chat:      tag('CHAT_MODEL',       'hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M',
-                                       'hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M'),
+    // Chat: same 14B primary; fallback to 8B for snappy replies under load.
+    chat:      tag('CHAT_MODEL',       'huihui_ai/qwen3-abliterated:14b',
+                                       'huihui_ai/qwen3-abliterated:8b'),
 
-    // Coder: 30B-A3B MoE Q3_K_M ≈ 15.9 GB — uses almost all 16 GB.
-    // Set OLLAMA_NUM_CTX=16384 in .env when using this model.
-    // Fallback: 14B abliterated (9 GB, always safe).
-    engineer:  tag('ENGINEER_MODEL',   'hf.co/mradermacher/Huihui-Qwen3-Coder-30B-A3B-Instruct-abliterated-GGUF:Q3_K_M',
-                                       'hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M'),
+    // Coder: Qwen3-Coder MoE Q3_K_M ≈ 14.7 GB. Q4 is 18.7 GB and OOMs on 16 GB.
+    // Fallback: 14B general (always safe at 9 GB).
+    engineer:  tag('ENGINEER_MODEL',   'huihui_ai/qwen3-coder-abliterated:30b-a3b-instruct-q3_K_M',
+                                       'huihui_ai/qwen3-abliterated:14b'),
 
-    // Vision: abliterated Qwen3-VL 8B ≈ 6 GB — good headroom for KV cache.
+    // Vision: abliterated Qwen3-VL 8B ≈ 5 GB.
     vision:    tag('VISION_MODEL',     'huihui_ai/qwen3-vl-abliterated:8b-instruct',
-                                       'huihui_ai/qwen3-vl-abliterated:4b'),
+                                       'huihui_ai/qwen3-vl-abliterated:8b-thinking'),
 
-    math:      tag('MATH_MODEL',       'hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M',
-                                       'hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M'),
+    math:      tag('MATH_MODEL',       'huihui_ai/qwen3-abliterated:14b',
+                                       'huihui_ai/qwen3-abliterated:30b-a3b-instruct-2507-q3_K_M'),
 
     default:   tag('OLLAMA_DEFAULT_MODEL',
-                                       'hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M',
-                                       'hf.co/bartowski/huihui-ai_Qwen3-14B-abliterated-GGUF:Q4_K_M'),
+                                       'huihui_ai/qwen3-abliterated:14b',
+                                       'huihui_ai/qwen3-abliterated:8b'),
 
     embed:     tag('EMBED_MODEL',      'bge-m3', 'nomic-embed-text'),
     // nomic-embed-vision is loaded via HuggingFace transformers in the sidecar (not Ollama).
