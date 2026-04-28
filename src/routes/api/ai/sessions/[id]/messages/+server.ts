@@ -1,7 +1,10 @@
-// POST /api/ai/sessions/[id]/messages — append a user message and stream the
-// assistant's reply. Persists both messages, embeds them, runs the tool loop,
-// records an ai_runs row, and returns NDJSON streaming chunks compatible with
-// the existing AI Lab chat UI.
+// POST /api/ai/sessions/[id]/messages — append a user message and run the
+// assistant reply pipeline:
+//   1. Embed user message (bge-m3).
+//   2. Dual RAG: text search (bge-m3) + vision search (ColQwen2) merged.
+//   3. Load persona template → filter available tools + inject prompt addon.
+//   4. Tool-call loop (up to 3 hops).
+//   5. Embed + persist assistant reply, update ai_runs.
 
 import type { RequestHandler } from '@sveltejs/kit';
 import { error as kitError } from '@sveltejs/kit';
@@ -18,7 +21,7 @@ import {
     findToolBySchemaName,
     executeTool
 } from '$lib/server/ai/tools-registry';
-import { searchKnowledge } from '$lib/server/ai/tools-registry/knowledge-search';
+import { searchKnowledge, searchKnowledgeImage } from '$lib/server/ai/tools-registry/knowledge-search';
 import { logger } from '$lib/server/logging/logger';
 
 let _admin: SupabaseClient | null = null;
@@ -38,7 +41,16 @@ interface OllamaMessage {
     tool_calls?: Array<{ function: { name: string; arguments: Record<string, unknown> } }>;
 }
 
-const SYSTEM_PROMPT = `You are Reclame AI, the in-house assistant for Réclame Fabriek.
+interface PersonaTemplate {
+    id: string;
+    name: string;
+    system_prompt_addon: string | null;
+    tool_slugs: string[];
+    model_override: string | null;
+    voice: string;
+}
+
+const BASE_SYSTEM_PROMPT = `You are Reclame AI, the in-house assistant for Réclame Fabriek.
 You can call tools to search the company knowledge base, find similar past
 projects, suggest CNC feeds & speeds, match paint colours, and read live OMS
 data. Always cite knowledge-base hits as [title, p.<page>] when you use them.
@@ -54,6 +66,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
         content?: string;
         images?: string[];
         persona?: string;
+        persona_template_id?: string;
         cap?: 'reasoning' | 'vision' | 'coder';
     } | null;
     if (!body?.content) throw kitError(400, 'content required');
@@ -61,15 +74,31 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     const db = admin();
     const userId = ((locals as unknown as { user?: { id?: string } }).user)?.id ?? null;
 
-    // Load session for persona/model overrides.
+    // Load session (persona slug + model override + template FK).
     const { data: sessionRow, error: sErr } = await db
         .from('chat_sessions')
-        .select('id,model,persona')
+        .select('id,model,persona,persona_template_id')
         .eq('id', sid)
         .single();
     if (sErr) throw kitError(404, sErr.message);
 
-    // Load history (last 30 messages, ordered).
+    // Resolve persona template (request body > session FK > null).
+    const templateId: string | null =
+        body.persona_template_id ??
+        (sessionRow as { persona_template_id?: string }).persona_template_id ??
+        null;
+
+    let personaTemplate: PersonaTemplate | null = null;
+    if (templateId) {
+        const { data: tmpl } = await db
+            .from('user_persona_templates')
+            .select('id,name,system_prompt_addon,tool_slugs,model_override,voice')
+            .eq('id', templateId)
+            .single();
+        personaTemplate = (tmpl as PersonaTemplate | null);
+    }
+
+    // Load history (last 30 messages).
     const { data: history } = await db
         .from('chat_messages')
         .select('role,content,tool_calls,tool_name')
@@ -78,7 +107,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
         .limit(30);
     const recent = ((history ?? []) as OllamaMessage[]).reverse();
 
-    // Embed and persist user message.
+    // Embed + persist user message.
     const userEmbed = await swarmEmbed(body.content, MODEL.embed).catch(() => null);
     await db.from('chat_messages').insert({
         session_id: sid,
@@ -87,29 +116,55 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
         embedding: userEmbed?.vector
     });
 
-    // Light RAG bootstrap: prefetch top knowledge hits to inject as context.
+    // ── Dual RAG: text + vision (ColQwen2) ─────────────────────────────────
     let citations: Array<{ source_id: string; title: string; page: number | null; score: number }> = [];
     let ragBlock = '';
     try {
-        const kb = await searchKnowledge({ query: body.content, top_k: AILAB.knowledge_topk });
-        citations = kb.hits.map((h) => ({
+        // Run both retrievers in parallel; image search fails gracefully.
+        const [textResult, imageHits] = await Promise.all([
+            searchKnowledge({ query: body.content, top_k: AILAB.knowledge_topk }),
+            searchKnowledgeImage(body.content, Math.ceil(AILAB.knowledge_topk / 2))
+        ]);
+
+        // Merge + deduplicate by source_id:page. Text hits lead; vision fills gaps.
+        const seen = new Set<string>();
+        const allHits = [...textResult.hits, ...imageHits].filter((h) => {
+            const key = `${h.source_id}:${h.page ?? 0}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        }).sort((a, b) => b.score - a.score).slice(0, AILAB.knowledge_topk);
+
+        citations = allHits.map((h) => ({
             source_id: h.source_id,
             title: h.title,
             page: h.page,
             score: h.score
         }));
-        if (kb.hits.length > 0) {
-            ragBlock = '\n\n[Relevant knowledge]\n' + kb.hits
+
+        if (allHits.length > 0) {
+            ragBlock = '\n\n[Relevant knowledge]\n' + allHits
                 .slice(0, AILAB.knowledge_rerankTopN)
-                .map((h, i) => `(${i + 1}) ${h.title}${h.page ? ` p.${h.page}` : ''}\n${h.content.slice(0, 1200)}`)
+                .map((h, i) => {
+                    const origin = imageHits.some((ih) => ih.chunk_id === h.chunk_id)
+                        ? ' [visual]' : '';
+                    return `(${i + 1}) ${h.title}${h.page ? ` p.${h.page}` : ''}${origin}\n${h.content.slice(0, 1200)}`;
+                })
                 .join('\n\n');
         }
     } catch (err) {
         logger.warn('RAG prefetch failed', err as Error);
     }
 
-    const persona = body.persona ?? (sessionRow as { persona?: string }).persona ?? '';
-    const sysPrompt = `${SYSTEM_PROMPT}${persona ? `\n\nPersona: ${persona}` : ''}${ragBlock}`;
+    // ── Build system prompt ─────────────────────────────────────────────────
+    const legacyPersona = body.persona ?? (sessionRow as { persona?: string }).persona ?? '';
+    let sysPrompt = BASE_SYSTEM_PROMPT;
+    if (personaTemplate?.system_prompt_addon) {
+        sysPrompt += `\n\n${personaTemplate.system_prompt_addon}`;
+    } else if (legacyPersona) {
+        sysPrompt += `\n\nPersona: ${legacyPersona}`;
+    }
+    sysPrompt += ragBlock;
 
     const messages: OllamaMessage[] = [
         { role: 'system', content: sysPrompt },
@@ -117,13 +172,32 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
         { role: 'user', content: body.content, images: body.images }
     ];
 
-    const tools = await loadToolDefinitions().catch(() => []);
+    // ── Tool definitions — optionally filtered by persona template ──────────
+    let allTools = await loadToolDefinitions().catch(() => []);
+    if (personaTemplate && personaTemplate.tool_slugs.length > 0) {
+        // Template specifies an explicit allow-list.
+        const allowed = new Set(personaTemplate.tool_slugs);
+        // loadToolDefinitions returns ToolDef[]; we need to re-fetch rows to
+        // cross-reference by slug. Quick workaround: filter by schema.name via
+        // the DB-backed list.
+        const { listTools } = await import('$lib/server/ai/tools-registry');
+        const rows = await listTools();
+        const allowedSchemaNames = new Set(
+            rows.filter((r) => allowed.has(r.slug)).map((r) => r.schema.name)
+        );
+        allTools = allTools.filter((t) => allowedSchemaNames.has(t.function.name));
+    }
+
+    // ── Model selection ─────────────────────────────────────────────────────
     const cap = body.cap ?? (body.images && body.images.length > 0 ? 'vision' : 'reasoning');
-    const modelTag = body.images && body.images.length > 0
-        ? MODEL.vision
-        : ((sessionRow as { model?: string }).model
-            ? { primary: (sessionRow as { model: string }).model, fallback: MODEL.chat.fallback }
-            : MODEL.chat);
+    const modelTag =
+        body.images && body.images.length > 0
+            ? MODEL.vision
+            : personaTemplate?.model_override
+                ? { primary: personaTemplate.model_override, fallback: MODEL.chat.fallback }
+                : (sessionRow as { model?: string }).model
+                    ? { primary: (sessionRow as { model: string }).model, fallback: MODEL.chat.fallback }
+                    : MODEL.chat;
 
     const startedAt = new Date();
     const runIns = await db
@@ -141,7 +215,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
         .single();
     const runId = (runIns.data as { id: string } | null)?.id ?? null;
 
-    // Tool-call loop (up to 3 hops).
+    // ── Tool-call loop (up to 3 hops) ───────────────────────────────────────
     const toolMessages: OllamaMessage[] = [];
     let finalText = '';
     let nodeLabel: string | null = null;
@@ -153,7 +227,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
             model: modelTag,
             stream: false,
             messages: [...messages, ...toolMessages],
-            tools,
+            tools: allTools,
             temperature: 0.5
         });
         nodeLabel = r.node.label;
@@ -171,7 +245,6 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
         if (!m) break;
 
         if (m.tool_calls && m.tool_calls.length > 0) {
-            // Persist the assistant tool-call message and execute each call.
             await db.from('chat_messages').insert({
                 session_id: sid,
                 role: 'assistant',
@@ -206,10 +279,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
                     tool_name: tool.slug,
                     content: JSON.stringify(result).slice(0, 64_000)
                 });
-                toolMessages.push({
-                    role: 'tool',
-                    content: JSON.stringify(result)
-                });
+                toolMessages.push({ role: 'tool', content: JSON.stringify(result) });
             }
             continue;
         }
@@ -246,14 +316,14 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
             .eq('id', runId);
     }
 
-    // Stream-style response (single chunk for simplicity; UI handles both).
     return new Response(
         JSON.stringify({
             ok: true,
             content: finalText,
             citations,
             model: usedModel,
-            node: nodeLabel
+            node: nodeLabel,
+            persona_template: personaTemplate ? { id: personaTemplate.id, name: personaTemplate.name } : null
         }),
         { headers: { 'Content-Type': 'application/json' } }
     );

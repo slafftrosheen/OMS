@@ -1,41 +1,62 @@
-# Reclame AI Lab — sidecar (Python, runs alongside Ollama on each AI node).
-# Pinned major versions only; pip will resolve compatible patches.
+# Reclame AI Lab — sidecar Python dependencies
+#
+# IMPORTANT: Do NOT install torch from this file.
+# The install scripts install torch first with the correct CUDA index:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+#
+# Then install this file:
+#   pip install -r requirements.txt
+#
+# System packages required on the host BEFORE pip install:
+#   Windows: CUDA Toolkit 12.4, cuDNN 9.x, ffmpeg added to PATH
+#            VS 2022 Build Tools (for TRELLIS and some C extensions)
+#   Linux:   apt install -y ffmpeg poppler-utils libsndfile1 espeak-ng
 
+# ── Web server ────────────────────────────────────────────────────────────────
 fastapi>=0.115
 uvicorn[standard]>=0.32
 python-multipart>=0.0.20
 pydantic>=2.9
+httpx>=0.27
 
-# Vision extraction (Qwen2.5-VL via llama-cpp-python or transformers)
-transformers>=4.46
+# ── Vision / PDF extraction (Qwen2.5-VL via transformers) ────────────────────
+transformers>=4.46.1
 accelerate>=1.1
-sentencepiece
+sentencepiece>=0.2
 pillow>=11.0
-pdf2image>=1.17
+pdf2image>=1.17        # requires poppler-utils (system package)
 pypdf>=5.0
+qwen-vl-utils>=0.0.8
 
-# Embeddings + reranker
+# ── Embeddings + reranker ─────────────────────────────────────────────────────
 sentence-transformers>=3.3
-einops
+einops>=0.8
 
-# ColQwen2
-colpali-engine>=0.3
+# ── ColQwen2 / ColPali late-interaction retrieval ─────────────────────────────
+colpali-engine>=0.3.4
 
-# ASR
+# ── ASR — faster-whisper (CUDA 12.x + cuDNN 9.x required for GPU) ────────────
+# If you have cuDNN 8.x, pin: ctranslate2==4.4.0
 faster-whisper>=1.1
-ffmpeg-python>=0.2
 
-# TTS — Kokoro (small, MIT) or Piper
-kokoro>=0.3
+# ── TTS — Kokoro-82M (Apache 2.0, CPU-capable) ───────────────────────────────
+# On Linux also: apt install -y espeak-ng
+kokoro>=0.9.4
+soundfile>=0.12
+
+# ── TTS fallback — Piper ──────────────────────────────────────────────────────
 piper-tts>=1.2
 
-# Image gen — Flux via diffusers (cuda)
+# ── Image generation — Flux via diffusers ────────────────────────────────────
+# torch installed separately (see top of file)
 diffusers>=0.32
-torch>=2.5
 safetensors>=0.5
+xformers>=0.0.28        # optional but gives 15-20 % speedup on Flux
 
-# Mesh gen — TRELLIS (install from source on node 2 once requirements are met)
+# ── Background removal — RMBG-2.0 / BiRefNet ─────────────────────────────────
+# [gpu] pulls onnxruntime-gpu; use [cpu] if GPU onnxruntime causes issues
+rembg[gpu]>=2.0
+
+# ── 3D mesh generation — trimesh (TRELLIS installed separately, see scripts) ──
 trimesh>=4.5
-
-# Background remove
-rembg>=2.0
+numpy>=1.26

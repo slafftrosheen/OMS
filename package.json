@@ -34,6 +34,7 @@
     "ingestor": "tsx src/workers/ingestor/index.ts"
   },
   "dependencies": {
+    "@tldraw/tldraw": "^2.4.4",
     "@ericblade/quagga2": "^1.12.1",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.90.1",
@@ -61,9 +62,13 @@
     "svelte": "^5.1.16",
     "svelte-apexcharts": "file:packages/svelte-apexcharts",
     "svelte-i18n": "file:packages/svelte-i18n",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
     "@eslint/js": "^9.39.2",
     "@playwright/test": "^1.57.0",
     "@sentry/node": "^8.0.0",

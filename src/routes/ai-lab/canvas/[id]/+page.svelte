@@ -1,139 +1,214 @@
 <script lang="ts">
-  // Lightweight canvas editor — saves a JSON payload (drawing primitives) to
-  // canvas_documents. A full tldraw integration can drop in later by replacing
-  // <CanvasBoard /> with the tldraw <Tldraw> component and persisting its store
-  // snapshot via PATCH /api/ai/canvas/[id].
+  // tldraw drop-in canvas — mounts the React Tldraw component inside SvelteKit
+  // via ReactDOM.createRoot(), persists editor.store.getSnapshot() to
+  // canvas_documents via PATCH /api/ai/canvas/[id].
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import Icon from '$lib/ui/Icon.svelte';
 
-  type Stroke = { points: Array<{ x: number; y: number }>; color: string; w: number };
-  type Payload = { strokes: Stroke[]; bg: string };
-
-  let canvasEl: HTMLCanvasElement | undefined = $state();
+  let containerEl: HTMLDivElement | undefined = $state();
   let title = $state('Untitled canvas');
-  let payload = $state<Payload>({ strokes: [], bg: 'transparent' });
-  let drawing = $state(false);
-  let color = $state('#ff453a');
-  let width = $state(3);
   let dirty = $state(false);
   let savedAt = $state<string | null>(null);
+  let saving = $state(false);
+  let loadError = $state<string | null>(null);
+
+  // Held across renders — tldraw Editor instance.
+  let editorRef: {
+    store: {
+      getSnapshot: () => unknown;
+      listen: (cb: () => void, opts?: { scope?: string }) => () => void;
+    };
+  } | null = null;
+  let reactRoot: { unmount: () => void } | null = null;
 
   const id = $derived(page.params.id ?? '');
 
-  async function load() {
-    if (!id) return;
-    const j = await (await fetch(`/api/ai/canvas/${id}`)).json();
-    if (j.canvas) {
-      title = j.canvas.title;
-      payload = (j.canvas.payload as Payload) ?? { strokes: [], bg: 'transparent' };
-      redraw();
-    }
-  }
-
   async function save() {
-    if (!id) return;
-    await fetch(`/api/ai/canvas/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, payload })
-    });
-    savedAt = new Date().toLocaleTimeString();
-    dirty = false;
-  }
-
-  function start(e: PointerEvent) {
-    drawing = true;
-    payload.strokes.push({ points: [{ x: e.offsetX, y: e.offsetY }], color, w: width });
-  }
-  function move(e: PointerEvent) {
-    if (!drawing) return;
-    const s = payload.strokes[payload.strokes.length - 1];
-    s.points.push({ x: e.offsetX, y: e.offsetY });
-    redraw();
-    dirty = true;
-  }
-  function end() { drawing = false; }
-
-  function redraw() {
-    const c = canvasEl;
-    if (!c) return;
-    const ctx = c.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, c.width, c.height);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    for (const s of payload.strokes) {
-      ctx.strokeStyle = s.color;
-      ctx.lineWidth = s.w;
-      ctx.beginPath();
-      s.points.forEach((p, i) => {
-        if (i === 0) ctx.moveTo(p.x, p.y);
-        else ctx.lineTo(p.x, p.y);
+    if (!id || !editorRef || saving) return;
+    saving = true;
+    try {
+      const snapshot = editorRef.store.getSnapshot();
+      await fetch(`/api/ai/canvas/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, payload: snapshot })
       });
-      ctx.stroke();
+      savedAt = new Date().toLocaleTimeString();
+      dirty = false;
+    } finally {
+      saving = false;
     }
   }
 
-  function clearAll() {
-    payload = { strokes: [], bg: payload.bg };
-    redraw();
-    dirty = true;
+  function isOldStrokeFormat(p: unknown): boolean {
+    return (
+      p != null &&
+      typeof p === 'object' &&
+      'strokes' in (p as object)
+    );
   }
 
   onMount(() => {
-    void load();
-    const t = setInterval(() => { if (dirty) void save(); }, 5_000);
-    return () => clearInterval(t);
+    if (!containerEl) return;
+
+    let autoSaveTimer: ReturnType<typeof setInterval> | null = null;
+    let unlisten: (() => void) | null = null;
+
+    (async () => {
+      try {
+        // Dynamic imports keep tldraw + React out of the SSR bundle.
+        const [
+          React,
+          { createRoot },
+          { Tldraw }
+        ] = await Promise.all([
+          import('react'),
+          import('react-dom/client'),
+          import('@tldraw/tldraw')
+        ]);
+        // CSS side-effect import — vite bundles it.
+        await import('@tldraw/tldraw/tldraw.css');
+
+        // Load saved snapshot.
+        let initialSnapshot: unknown = undefined;
+        if (id) {
+          const resp = await fetch(`/api/ai/canvas/${id}`);
+          const j = await resp.json();
+          if (j.canvas) {
+            title = j.canvas.title ?? title;
+            const p = j.canvas.payload;
+            // Gracefully skip legacy stroke payloads — tldraw format is different.
+            if (p && !isOldStrokeFormat(p) && p.store) {
+              initialSnapshot = p;
+            }
+          }
+        }
+
+        const root = createRoot(containerEl!);
+        reactRoot = root;
+
+        root.render(
+          React.createElement(Tldraw as React.ComponentType<{
+            snapshot?: unknown;
+            onMount?: (editor: typeof editorRef) => void;
+          }>, {
+            snapshot: initialSnapshot,
+            onMount(editor) {
+              editorRef = editor as typeof editorRef;
+              unlisten = (editor as typeof editorRef)!.store.listen(
+                () => { dirty = true; },
+                { scope: 'document' }
+              );
+            }
+          })
+        );
+
+        autoSaveTimer = setInterval(() => { if (dirty && !saving) void save(); }, 5_000);
+      } catch (err) {
+        loadError = (err as Error).message;
+      }
+    })();
+
+    return () => {
+      if (autoSaveTimer) clearInterval(autoSaveTimer);
+      unlisten?.();
+      reactRoot?.unmount();
+    };
   });
 </script>
 
 <div class="canvas-page">
   <header>
-    <input bind:value={title} onchange={() => (dirty = true)} class="title" />
-    <input type="color" bind:value={color} title="colour" />
-    <input type="range" min="1" max="20" bind:value={width} title="thickness" />
-    <button class="btn ghost" onclick={clearAll}><Icon name="eraser" size="sm" /> Clear</button>
-    <button class="btn" onclick={save} disabled={!dirty}><Icon name="save" size="sm" /> Save</button>
-    {#if savedAt}<span class="muted small">saved {savedAt}</span>{/if}
+    <input
+      bind:value={title}
+      onchange={() => (dirty = true)}
+      class="title"
+      aria-label="Canvas title"
+    />
+    <span class="spacer"></span>
+    {#if loadError}
+      <span class="error small">⚠ {loadError}</span>
+    {/if}
+    {#if savedAt}
+      <span class="muted small">saved {savedAt}</span>
+    {/if}
+    <button
+      class="btn"
+      onclick={save}
+      disabled={!dirty || saving}
+      aria-label="Save canvas"
+    >
+      <Icon name={saving ? 'loader' : 'save'} size="sm" />
+      {saving ? 'Saving…' : 'Save'}
+    </button>
   </header>
-  <canvas
-    bind:this={canvasEl}
-    width="1200"
-    height="700"
-    onpointerdown={start}
-    onpointermove={move}
-    onpointerup={end}
-    onpointerleave={end}
-  ></canvas>
+
+  {#if !containerEl && !loadError}
+    <div class="placeholder">Loading tldraw…</div>
+  {/if}
+
+  <div class="tldraw-shell" bind:this={containerEl}></div>
 </div>
 
 <style>
-  .canvas-page { display: flex; flex-direction: column; gap: 8px; }
-  header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .canvas-page {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: calc(100vh - var(--topbar-h, 56px) - 120px);
+    min-height: 480px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
   .title {
     flex: 1;
+    min-width: 180px;
     background: transparent;
     color: inherit;
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-md);
-    padding: 8px 10px; font: inherit; min-width: 200px;
+    padding: 7px 10px;
+    font: inherit;
   }
-  canvas {
-    width: 100%; height: 70vh; max-height: 800px;
-    background: var(--glass-bg);
-    backdrop-filter: var(--glass-blur);
-    border: 1px solid var(--glass-border);
+  .title:focus { outline: none; border-color: var(--brand); box-shadow: var(--focus-ring); }
+  .spacer { flex: 1; }
+  .tldraw-shell {
+    flex: 1;
     border-radius: var(--radius-lg);
-    touch-action: none;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+    /* tldraw manages its own background */
+    position: relative;
+  }
+  /* tldraw mounts a full-height React tree — let it fill the shell */
+  :global(.tldraw-shell > *) { height: 100% !important; }
+  .placeholder {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted, #888);
+    font-size: 0.9rem;
   }
   .btn {
-    padding: 8px 14px; border-radius: var(--radius-full);
-    background: var(--brand); color: white; border: 0; cursor: pointer; font: inherit;
-    display: inline-flex; gap: 6px; align-items: center;
+    padding: 7px 14px;
+    border-radius: var(--radius-full);
+    background: var(--brand);
+    color: white;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
   }
-  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--glass-border); }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .muted { color: var(--text-muted, #888); }
   .small { font-size: 0.75rem; }
+  .error { color: #f66; }
 </style>

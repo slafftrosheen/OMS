@@ -1,8 +1,9 @@
-// RAG knowledge search tool — bge-m3 retrieval + bge-reranker-v2-m3 rerank.
+// RAG knowledge search — bge-m3 dense text retrieval + bge-reranker cross-encoder
+// + ColQwen2 vision retrieval for image-heavy PDFs.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MODEL, AILAB } from '$lib/server/config';
-import { swarmEmbed } from '$lib/server/ai/swarm';
+import { swarmEmbed, swarmSidecar } from '$lib/server/ai/swarm';
 import { rerank } from '$lib/server/ai/ingest/extract';
 import { logger } from '$lib/server/logging/logger';
 
@@ -93,4 +94,67 @@ export async function searchKnowledge(args: SearchKnowledgeArgs): Promise<{
         embed_model: model,
         rerank_model: rerankModel
     };
+}
+
+// ─── ColQwen2 vision retrieval ────────────────────────────────────────────────
+
+/**
+ * Query the knowledge base using ColQwen2 late-interaction image embeddings.
+ * This is complementary to text search — chunks whose embedding_img was produced
+ * from rendered PDF pages / images are surfaced here even when their OCR text
+ * is sparse or missing.
+ *
+ * The sidecar at /colpali/embed_query converts the text query to a ColQwen2
+ * query embedding (768-dim) compatible with match_knowledge_image().
+ */
+export async function searchKnowledgeImage(
+    query: string,
+    top_k = 4
+): Promise<KnowledgeHit[]> {
+    const query_ = (query ?? '').trim();
+    if (!query_) return [];
+
+    let embedding: number[];
+    try {
+        const { data } = await swarmSidecar<{ embedding: number[] }>(
+            'colpali',
+            '/colpali/embed_query',
+            { query: query_, model: MODEL.colpali.primary },
+            { timeoutMs: 30_000 }
+        );
+        embedding = data.embedding;
+        if (!Array.isArray(embedding) || embedding.length === 0) return [];
+    } catch (err) {
+        logger.warn('ColQwen2 embed_query failed', { error: (err as Error).message });
+        return [];
+    }
+
+    const db = admin();
+    const { data, error } = await db.rpc('match_knowledge_image', {
+        query_embedding: embedding,
+        match_threshold: 0.25,
+        match_count: top_k * 2
+    });
+    if (error) {
+        logger.error('match_knowledge_image failed', new Error(error.message));
+        return [];
+    }
+
+    const rows = (data ?? []) as Array<{
+        id: string;
+        source_id: string;
+        title: string;
+        page: number | null;
+        content: string;
+        similarity: number;
+    }>;
+
+    return rows.slice(0, top_k).map((r) => ({
+        chunk_id: r.id,
+        source_id: r.source_id,
+        title: r.title,
+        page: r.page,
+        content: r.content,
+        score: r.similarity
+    }));
 }
