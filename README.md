@@ -226,8 +226,8 @@ AI Lab is at `http://100.98.202.69/ai-lab`.
 ### 2) `ai1` — Win11 + RTX 5080 (reasoning, vision, coder, embed)
 
 ```powershell
-# 2.1 Install Ollama (https://ollama.com/download), point models at a 300+ GB drive
-[System.Environment]::SetEnvironmentVariable("OLLAMA_MODELS", "D:\ollama-models", "Machine")
+# 2.1 Install Ollama (https://ollama.com/download)
+[System.Environment]::SetEnvironmentVariable("OLLAMA_MODELS", "C:\ollama-models", "Machine")
 
 # 2.2 Bind Ollama to all interfaces (so the Pi5 can reach it over Tailscale)
 [System.Environment]::SetEnvironmentVariable("OLLAMA_HOST", "0.0.0.0:11434", "Machine")
@@ -255,9 +255,9 @@ curl http://localhost:8800/health             # Sidecar
 Same as node 1 but with the heavier sidecar:
 
 ```powershell
-[System.Environment]::SetEnvironmentVariable("OLLAMA_MODELS", "D:\ollama-models", "Machine")
+[System.Environment]::SetEnvironmentVariable("OLLAMA_MODELS", "C:\ollama-models", "Machine")
 [System.Environment]::SetEnvironmentVariable("OLLAMA_HOST", "0.0.0.0:11434", "Machine")
-[System.Environment]::SetEnvironmentVariable("HF_HOME", "D:\hf-cache", "Machine")
+[System.Environment]::SetEnvironmentVariable("HF_HOME", "C:\hf-cache", "Machine")
 
 cd C:\Users\<you>\reclame-oms\scripts\ai
 .\pull-models-node2.ps1
