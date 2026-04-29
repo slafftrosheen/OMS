@@ -1,5 +1,5 @@
 // src/lib/monitoring/sentry.ts
-import * as Sentry from '@sentry/sveltekit';
+import * as Sentry from '@sentry/svelte';
 import { dev } from '$app/environment';
 import { env as publicEnv } from '$env/dynamic/public';
 

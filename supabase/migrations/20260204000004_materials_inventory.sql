@@ -105,20 +105,30 @@ ALTER TABLE public.inventory_stock ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory_movements ENABLE ROW LEVEL SECURITY;
 
 -- Materials: Everyone can view, authenticated can manage
+DROP POLICY IF EXISTS "Materials viewable by all" ON public.materials;
 CREATE POLICY "Materials viewable by all" ON public.materials FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can manage materials" ON public.materials;
 CREATE POLICY "Authenticated users can manage materials" ON public.materials FOR ALL USING (auth.role() = 'authenticated');
 
 -- Inventory: Everyone can view, authenticated can manage
+DROP POLICY IF EXISTS "Inventory viewable by all" ON public.inventory_items;
 CREATE POLICY "Inventory viewable by all" ON public.inventory_items FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can manage inventory" ON public.inventory_items;
 CREATE POLICY "Authenticated users can manage inventory" ON public.inventory_items FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Stock viewable by all" ON public.inventory_stock;
 CREATE POLICY "Stock viewable by all" ON public.inventory_stock FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can manage stock" ON public.inventory_stock;
 CREATE POLICY "Authenticated users can manage stock" ON public.inventory_stock FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Movements viewable by all" ON public.inventory_movements;
 CREATE POLICY "Movements viewable by all" ON public.inventory_movements FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can record movements" ON public.inventory_movements;
 CREATE POLICY "Authenticated users can record movements" ON public.inventory_movements FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Thickness options viewable by all" ON public.material_thickness_options;
 CREATE POLICY "Thickness options viewable by all" ON public.material_thickness_options FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can manage thickness options" ON public.material_thickness_options;
 CREATE POLICY "Authenticated users can manage thickness options" ON public.material_thickness_options FOR ALL USING (auth.role() = 'authenticated');
 
 -- Comments

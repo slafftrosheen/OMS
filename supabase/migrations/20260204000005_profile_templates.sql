@@ -89,19 +89,29 @@ ALTER TABLE public.profile_fields ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.template_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_profile_presets ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Templates viewable by all" ON public.profile_templates;
 CREATE POLICY "Templates viewable by all" ON public.profile_templates FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can manage templates" ON public.profile_templates;
 CREATE POLICY "Authenticated users can manage templates" ON public.profile_templates FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Sections viewable by all" ON public.profile_sections;
 CREATE POLICY "Sections viewable by all" ON public.profile_sections FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can manage sections" ON public.profile_sections;
 CREATE POLICY "Authenticated users can manage sections" ON public.profile_sections FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Fields viewable by all" ON public.profile_fields;
 CREATE POLICY "Fields viewable by all" ON public.profile_fields FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can manage fields" ON public.profile_fields;
 CREATE POLICY "Authenticated users can manage fields" ON public.profile_fields FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Versions viewable by all" ON public.template_versions;
 CREATE POLICY "Versions viewable by all" ON public.template_versions FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can create versions" ON public.template_versions;
 CREATE POLICY "Authenticated users can create versions" ON public.template_versions FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Presets viewable by all" ON public.order_profile_presets;
 CREATE POLICY "Presets viewable by all" ON public.order_profile_presets FOR SELECT USING (is_public = true OR created_by = auth.uid());
+DROP POLICY IF EXISTS "Users can manage own presets" ON public.order_profile_presets;
 CREATE POLICY "Users can manage own presets" ON public.order_profile_presets FOR ALL USING (created_by = auth.uid());
 
 -- Comments

@@ -155,30 +155,48 @@ ALTER TABLE public.order_fields ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_stages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_assignees ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Delivery presets viewable by all" ON public.delivery_presets;
 CREATE POLICY "Delivery presets viewable by all" ON public.delivery_presets FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can manage delivery presets" ON public.delivery_presets;
 CREATE POLICY "Authenticated users can manage delivery presets" ON public.delivery_presets FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Orders viewable by all authenticated" ON public.draft_orders;
 CREATE POLICY "Orders viewable by all authenticated" ON public.draft_orders FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can create orders" ON public.draft_orders;
 CREATE POLICY "Authenticated users can create orders" ON public.draft_orders FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can update orders" ON public.draft_orders;
 CREATE POLICY "Authenticated users can update orders" ON public.draft_orders FOR UPDATE USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can delete orders" ON public.draft_orders;
 CREATE POLICY "Authenticated users can delete orders" ON public.draft_orders FOR DELETE USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Order profiles viewable by all authenticated" ON public.order_profiles;
 CREATE POLICY "Order profiles viewable by all authenticated" ON public.order_profiles FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can manage order profiles" ON public.order_profiles;
 CREATE POLICY "Authenticated users can manage order profiles" ON public.order_profiles FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Order files viewable by all authenticated" ON public.order_files;
 CREATE POLICY "Order files viewable by all authenticated" ON public.order_files FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can manage order files" ON public.order_files;
 CREATE POLICY "Authenticated users can manage order files" ON public.order_files FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Order materials viewable by all authenticated" ON public.order_materials;
 CREATE POLICY "Order materials viewable by all authenticated" ON public.order_materials FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can manage order materials" ON public.order_materials;
 CREATE POLICY "Authenticated users can manage order materials" ON public.order_materials FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Order fields viewable by all authenticated" ON public.order_fields;
 CREATE POLICY "Order fields viewable by all authenticated" ON public.order_fields FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can manage order fields" ON public.order_fields;
 CREATE POLICY "Authenticated users can manage order fields" ON public.order_fields FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Order stages viewable by all authenticated" ON public.order_stages;
 CREATE POLICY "Order stages viewable by all authenticated" ON public.order_stages FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can manage order stages" ON public.order_stages;
 CREATE POLICY "Authenticated users can manage order stages" ON public.order_stages FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Order assignees viewable by all authenticated" ON public.order_assignees;
 CREATE POLICY "Order assignees viewable by all authenticated" ON public.order_assignees FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can manage order assignees" ON public.order_assignees;
 CREATE POLICY "Authenticated users can manage order assignees" ON public.order_assignees FOR ALL USING (auth.role() = 'authenticated');
 
 -- Comments

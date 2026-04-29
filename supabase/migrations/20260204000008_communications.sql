@@ -59,34 +59,44 @@ ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 -- Chat: Public rooms visible to all, private rooms to members (simplified for now)
+DROP POLICY IF EXISTS "Chat rooms viewable by all authenticated" ON public.chat_rooms;
 CREATE POLICY "Chat rooms viewable by all authenticated" ON public.chat_rooms 
     FOR SELECT USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Authenticated users can create chat rooms" ON public.chat_rooms;
 CREATE POLICY "Authenticated users can create chat rooms" ON public.chat_rooms 
     FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Chat messages viewable by all authenticated" ON public.chat_messages;
 CREATE POLICY "Chat messages viewable by all authenticated" ON public.chat_messages 
     FOR SELECT USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Authenticated users can send messages" ON public.chat_messages;
 CREATE POLICY "Authenticated users can send messages" ON public.chat_messages 
     FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Users can update own messages" ON public.chat_messages;
 CREATE POLICY "Users can update own messages" ON public.chat_messages 
     FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own messages" ON public.chat_messages;
 CREATE POLICY "Users can delete own messages" ON public.chat_messages 
     FOR DELETE USING (auth.uid() = user_id);
 
 -- Notifications: Users see own notifications
+DROP POLICY IF EXISTS "Users view own notifications" ON public.notifications;
 CREATE POLICY "Users view own notifications" ON public.notifications 
     FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "System can create notifications" ON public.notifications;
 CREATE POLICY "System can create notifications" ON public.notifications 
     FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Users can update own notifications" ON public.notifications;
 CREATE POLICY "Users can update own notifications" ON public.notifications 
     FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own notifications" ON public.notifications;
 CREATE POLICY "Users can delete own notifications" ON public.notifications 
     FOR DELETE USING (auth.uid() = user_id);
 

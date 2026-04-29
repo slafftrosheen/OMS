@@ -47,10 +47,12 @@ CREATE INDEX IF NOT EXISTS idx_conversation_messages_convo
 ALTER TABLE public.conversations          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.conversation_messages  ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "users own conversations" ON public.conversations;
 CREATE POLICY "users own conversations"
     ON public.conversations FOR ALL
     USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "users own conversation messages" ON public.conversation_messages;
 CREATE POLICY "users own conversation messages"
     ON public.conversation_messages FOR ALL
     USING (

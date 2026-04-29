@@ -19,23 +19,28 @@ DROP POLICY IF EXISTS "Authenticated read station-attachments" ON storage.object
 DROP POLICY IF EXISTS "Authenticated write station-attachments" ON storage.objects;
 
 -- files bucket
+DROP POLICY IF EXISTS "Authenticated read files" ON storage.objects;
 CREATE POLICY "Authenticated read files"
     ON storage.objects FOR SELECT
     USING (bucket_id = 'files' AND auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Authenticated write files" ON storage.objects;
 CREATE POLICY "Authenticated write files"
     ON storage.objects FOR INSERT
     WITH CHECK (bucket_id = 'files' AND auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Authenticated delete files" ON storage.objects;
 CREATE POLICY "Authenticated delete files"
     ON storage.objects FOR DELETE
     USING (bucket_id = 'files' AND auth.role() = 'authenticated');
 
 -- station-attachments bucket
+DROP POLICY IF EXISTS "Authenticated read station-attachments" ON storage.objects;
 CREATE POLICY "Authenticated read station-attachments"
     ON storage.objects FOR SELECT
     USING (bucket_id = 'station-attachments' AND auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Authenticated write station-attachments" ON storage.objects;
 CREATE POLICY "Authenticated write station-attachments"
     ON storage.objects FOR INSERT
     WITH CHECK (bucket_id = 'station-attachments' AND auth.role() = 'authenticated');

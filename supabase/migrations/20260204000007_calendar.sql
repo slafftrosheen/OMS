@@ -93,25 +93,39 @@ ALTER TABLE public.loading_days ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.capacity_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.day_capacities ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Calendar events viewable by all authenticated" ON public.calendar_events;
 CREATE POLICY "Calendar events viewable by all authenticated" ON public.calendar_events FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can manage calendar events" ON public.calendar_events;
 CREATE POLICY "Authenticated users can manage calendar events" ON public.calendar_events FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Loading events viewable by all authenticated" ON public.loading_events;
 CREATE POLICY "Loading events viewable by all authenticated" ON public.loading_events FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can manage loading events" ON public.loading_events;
 CREATE POLICY "Authenticated users can manage loading events" ON public.loading_events FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Meeting events viewable by all authenticated" ON public.meeting_events;
 CREATE POLICY "Meeting events viewable by all authenticated" ON public.meeting_events FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can manage meeting events" ON public.meeting_events;
 CREATE POLICY "Authenticated users can manage meeting events" ON public.meeting_events FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Loading event POs viewable by all authenticated" ON public.loading_event_pos;
 CREATE POLICY "Loading event POs viewable by all authenticated" ON public.loading_event_pos FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can manage loading event POs" ON public.loading_event_pos;
 CREATE POLICY "Authenticated users can manage loading event POs" ON public.loading_event_pos FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Loading days viewable by all authenticated" ON public.loading_days;
 CREATE POLICY "Loading days viewable by all authenticated" ON public.loading_days FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can manage loading days" ON public.loading_days;
 CREATE POLICY "Authenticated users can manage loading days" ON public.loading_days FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Capacity config viewable by all" ON public.capacity_config;
 CREATE POLICY "Capacity config viewable by all" ON public.capacity_config FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can manage capacity config" ON public.capacity_config;
 CREATE POLICY "Authenticated users can manage capacity config" ON public.capacity_config FOR ALL USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Day capacities viewable by all" ON public.day_capacities;
 CREATE POLICY "Day capacities viewable by all" ON public.day_capacities FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can manage day capacities" ON public.day_capacities;
 CREATE POLICY "Authenticated users can manage day capacities" ON public.day_capacities FOR ALL USING (auth.role() = 'authenticated');
 
 -- Comments

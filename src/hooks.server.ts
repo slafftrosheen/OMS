@@ -7,11 +7,17 @@ import { env as publicEnv } from '$env/dynamic/public';
 import { enforceEnvironmentSecurity } from '$lib/server/env-validator';
 import { logger } from '$lib/server/logging/logger';
 import type { SessionUser } from '$lib/server/auth/session';
-import { initSentry } from '$lib/monitoring/sentry';
-import * as Sentry from '@sentry/sveltekit';
+import * as Sentry from '@sentry/node';
 
-// Initialize Sentry
-initSentry();
+// Sentry server-side init (no DSN → no-op).
+const sentryDsn = process.env.SENTRY_DSN;
+if (sentryDsn && !dev) {
+    Sentry.init({
+        dsn: sentryDsn,
+        environment: process.env.NODE_ENV || 'production',
+        tracesSampleRate: 0.1
+    });
+}
 
 // Run validation on startup
 enforceEnvironmentSecurity();
@@ -222,15 +228,20 @@ const rateLimitHandler: Handle = async ({ event, resolve }) => {
 	return response;
 };
 
-// Combine all handlers in correct order
-// NOTE: Sentry.sentryHandle MUST be first for performance tracing
-// NOTE: supabaseHandler MUST come first among custom handlers to populate event.locals.user for rateLimitHandler
+// Thin Sentry span wrapper (@sentry/node doesn't ship sentryHandle).
+const sentryHandle: Handle = async ({ event, resolve }) => {
+    return Sentry.startSpan(
+        { name: `${event.request.method} ${event.url.pathname}`, op: 'http.server' },
+        () => resolve(event)
+    );
+};
+
 export const handle = sequence(
-	Sentry.sentryHandle(),
-	supabaseHandler,
-	rateLimitHandler,
-	securityHeaders,
-	authHandler
+    sentryHandle,
+    supabaseHandler,
+    rateLimitHandler,
+    securityHeaders,
+    authHandler
 );
 
 // Global error handler with sanitization
@@ -263,4 +274,7 @@ const customHandleError: HandleServerError = async ({ error, event, status, mess
 	};
 };
 
-export const handleError = Sentry.handleErrorWithSentry(customHandleError);
+export const handleError: HandleServerError = async (input) => {
+    Sentry.captureException(input.error);
+    return customHandleError(input);
+};
