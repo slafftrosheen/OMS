@@ -28,7 +28,10 @@ export default defineConfig({
             authToken: process.env.SENTRY_AUTH_TOKEN
           }
         : undefined,
-      autoInstrument: true
+      // autoInstrument pulls in @babel/preset-typescript at runtime, which
+      // is a devDependency not present in the deployed node_modules. We rely
+      // on Sentry.sentryHandle() in hooks.server.ts for route-level tracing.
+      autoInstrument: false
     }),
     sveltekit()
   ],
