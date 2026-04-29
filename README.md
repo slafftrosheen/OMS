@@ -218,15 +218,100 @@ cp .env.example .env && nano .env    # fill in keys + the 4 Tailscale IPs
 
 #### 1.4 Self-hosted Supabase (Postgres + Auth + Storage + Realtime)
 
+The Supabase docker bundle ships a `.env.example` with ~70 variables. Most
+have safe defaults, but **8 secrets/credentials must be changed before
+`docker compose up`** — leaving the defaults exposes the dashboard, the
+JWT signing key, and the Postgres superuser to anyone on your tailnet.
+
 ```bash
 git clone --depth 1 https://github.com/supabase/supabase /opt/supabase
 cd /opt/supabase/docker
-cp .env.example .env && nano .env    # set POSTGRES_PASSWORD, JWT_SECRET,
-                                     # ANON_KEY, SERVICE_ROLE_KEY — copy
-                                     # the same values into /opt/reclame-oms/.env
-docker compose up -d
-cd /opt/reclame-oms
+cp .env.example .env
 ```
+
+##### Generate the secrets in one shot
+
+The bundle includes `utils/generate-keys.sh` which mints `JWT_SECRET`,
+`ANON_KEY`, `SERVICE_ROLE_KEY`, and `SECRET_KEY_BASE` for you. Run it,
+then fill in the four credentials it does NOT generate:
+
+```bash
+# 1. Auto-generate JWT secret + anon key + service-role key + Realtime key
+sh ./utils/generate-keys.sh        # writes JWT_SECRET, ANON_KEY,
+                                   # SERVICE_ROLE_KEY, SECRET_KEY_BASE
+                                   # into ./.env
+
+# 2. Generate POSTGRES_PASSWORD and VAULT_ENC_KEY manually (32+ chars)
+echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"  >> /tmp/sb-extra
+echo "VAULT_ENC_KEY=$(openssl rand -hex 16)"      >> /tmp/sb-extra
+# Open /tmp/sb-extra, copy the two lines into .env, replacing the defaults.
+
+# 3. Pick a dashboard login (Studio is exposed on :3000 over the tailnet)
+nano .env
+```
+
+##### Variables that MUST be changed
+
+| Variable | What it is / how to set it |
+|----------|----------------------------|
+| `POSTGRES_PASSWORD` | Postgres superuser password. **Default is `your-super-secret-and-long-postgres-password` — change it.** Use the `openssl rand -hex 24` value from above. |
+| `JWT_SECRET` | HS256 signing secret for every JWT (≥32 chars). Set by `generate-keys.sh`. **Never reuse this anywhere else.** |
+| `ANON_KEY` | Public JWT for browser/PWA clients (signed with `JWT_SECRET`). Set by `generate-keys.sh`. |
+| `SERVICE_ROLE_KEY` | Server-side JWT with full DB access (signed with `JWT_SECRET`). Set by `generate-keys.sh`. **Server-only, never sent to the browser.** |
+| `SECRET_KEY_BASE` | Used by Realtime + Supavisor (Phoenix `secret_key_base`). Set by `generate-keys.sh`. |
+| `VAULT_ENC_KEY` | Symmetric key for Supabase Vault (DB-stored secrets). Must be exactly 32 hex chars (`openssl rand -hex 16`). |
+| `DASHBOARD_USERNAME` | Login for Studio at `:3000`. Default `supabase` — pick your own. |
+| `DASHBOARD_PASSWORD` | Studio password. **Default is `this_password_is_insecure_and_should_be_updated` — change it.** |
+
+##### Variables that MUST point at the Pi5 (not localhost)
+
+The defaults assume `localhost`. Since the OMS frontend lives on the Pi5
+itself and AI nodes / browsers reach it via the tailnet, set these to the
+Pi5's tailscale IP (replace `<PI5_IP>` with the value from `tailscale ip -4`):
+
+| Variable | Value |
+|----------|-------|
+| `SITE_URL`            | `http://<PI5_IP>` |
+| `API_EXTERNAL_URL`    | `http://<PI5_IP>:8000` |
+| `SUPABASE_PUBLIC_URL` | `http://<PI5_IP>:8000` |
+| `ADDITIONAL_REDIRECT_URLS` | `http://<PI5_IP>,http://<PI5_IP>/login` |
+
+Ports — leave as defaults unless they clash with something else on the Pi5:
+`KONG_HTTP_PORT=8000` (REST/Auth gateway), `KONG_HTTPS_PORT=8443`,
+`POSTGRES_PORT=54322` (mapped from container's 5432), `STUDIO_PORT=3000`.
+
+SMTP (optional — only needed if you want password-reset emails). Leave
+blank to disable mail entirely. If used, set `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_USER`, `SMTP_PASS`, `SMTP_SENDER_NAME`, `SMTP_ADMIN_EMAIL` — same
+pattern as any other SMTP relay.
+
+##### Bring it up
+
+```bash
+docker compose pull           # pulls all 14 images (~2 GB)
+docker compose up -d
+docker compose ps             # every service should be "running" / "healthy"
+```
+
+##### Mirror the same values into the OMS .env
+
+The OMS reads its own `/opt/reclame-oms/.env` — it doesn't share the
+Supabase one. Copy these four values across (use the values you just
+generated, NOT the defaults):
+
+```bash
+cd /opt/reclame-oms
+nano .env                     # set:
+#   PUBLIC_SUPABASE_URL=http://<PI5_IP>:8000
+#   PUBLIC_SUPABASE_ANON_KEY=<ANON_KEY from /opt/supabase/docker/.env>
+#   SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY from /opt/supabase/docker/.env>
+#   DATABASE_URL=postgresql://postgres:<POSTGRES_PASSWORD>@<PI5_IP>:54322/postgres
+```
+
+> **Studio access:** browse to `http://<PI5_IP>:3000` from any tailnet
+> machine, log in with `DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD`. Use
+> Studio's SQL editor for ad-hoc queries; the OMS migrations run via the
+> CLI in step 1.5 below.
 
 #### 1.5 Migrations + build + systemd services
 
