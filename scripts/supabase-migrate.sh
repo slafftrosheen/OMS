@@ -82,6 +82,21 @@ push_self_hosted() {
         exit 1
     fi
 
+    # Warn if DATABASE_URL points to an external IP — Docker binds postgres
+    # only on the Pi5 loopback (127.0.0.1:54322), so the script must run on
+    # the Pi5 itself and DATABASE_URL must use localhost / 127.0.0.1.
+    case "$DATABASE_URL" in
+        *@localhost:*|*@127.0.0.1:*)
+            : ;;  # OK
+        *@[0-9]*:[0-9]*)
+            echo "⚠️  Warning: DATABASE_URL contains an external IP address." >&2
+            echo "   Docker maps postgres on the Pi5's loopback only." >&2
+            echo "   Run this script ON the Pi5 and use:" >&2
+            echo "   DATABASE_URL=postgresql://postgres:<pw>@localhost:54322/postgres" >&2
+            echo "" >&2
+            ;;
+    esac
+
     echo "Pushing migrations to self-hosted Supabase ($DATABASE_URL)..."
 
     # 1. Ensure the tracking table exists (idempotent)

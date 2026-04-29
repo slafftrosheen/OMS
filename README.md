@@ -305,7 +305,8 @@ nano .env                     # set:
 #   PUBLIC_SUPABASE_URL=http://<PI5_IP>:8000
 #   PUBLIC_SUPABASE_ANON_KEY=<ANON_KEY from /opt/supabase/docker/.env>
 #   SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY from /opt/supabase/docker/.env>
-#   DATABASE_URL=postgresql://postgres:<POSTGRES_PASSWORD>@<PI5_IP>:54322/postgres
+#   DATABASE_URL=postgresql://postgres:<POSTGRES_PASSWORD>@localhost:54322/postgres
+#     ↑ must be localhost — Docker binds postgres on Pi5's loopback only
 ```
 
 > **Studio access:** browse to `http://<PI5_IP>:3000` from any tailnet
