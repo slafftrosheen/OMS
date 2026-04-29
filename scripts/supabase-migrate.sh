@@ -10,14 +10,29 @@
 
 set -e
 
-# Load .env if present so DATABASE_URL is in scope. Don't override anything
-# that's already exported in the parent shell.
-if [ -f .env ]; then
-    set -a
-    # shellcheck disable=SC1091
-    . ./.env
-    set +a
-fi
+# Safely extract only the three variables this script needs from .env.
+# We cannot `source .env` because Supabase's .env has values with unquoted
+# spaces (e.g. STUDIO_DEFAULT_ORGANIZATION=Reclame Fabriek) which bash
+# interprets as "set var=Reclame, then execute Fabriek" — causing errors.
+_load_env_var() {
+    local key=$1
+    # Skip if already set in the calling environment
+    [ -n "${!key}" ] && return
+    if [ -f .env ]; then
+        local raw
+        raw=$(grep -E "^${key}=" .env | tail -1)
+        [ -z "$raw" ] && return
+        local val="${raw#*=}"
+        # Strip surrounding single or double quotes
+        val="${val%\'}"  ; val="${val#\'}"
+        val="${val%\"}"  ; val="${val#\"}"
+        export "$key=$val"
+    fi
+}
+
+_load_env_var DATABASE_URL
+_load_env_var SUPABASE_PROJECT_ID
+_load_env_var SUPABASE_DB_PASSWORD
 
 # --- create -----------------------------------------------------------------
 create_migration() {
