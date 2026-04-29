@@ -37,7 +37,7 @@ SELECT
     s.computed_status,
     s.progress_percentage,
     s.current_station,
-    EXTRACT(DAY FROM (o.due_date - CURRENT_DATE))::int AS days_to_due,
+    (o.due_date - CURRENT_DATE)::int AS days_to_due,
     CASE
         WHEN o.due_date < CURRENT_DATE THEN 'overdue'
         WHEN o.due_date <= CURRENT_DATE + interval '2 days' AND s.progress_percentage < 80 THEN 'critical'

@@ -113,8 +113,11 @@ create index if not exists knowledge_jobs_status_idx  on knowledge_jobs (status,
 create index if not exists knowledge_jobs_source_idx  on knowledge_jobs (source_id);
 
 -- ─── Chat persistence ────────────────────────────────────────────────────────
+-- Note: tables prefixed `ai_` to avoid collision with the room-chat tables in
+-- 20260204000008_communications.sql (which already define a different
+-- `chat_messages` keyed by room_id).
 
-create table if not exists chat_sessions (
+create table if not exists ai_chat_sessions (
     id            uuid primary key default gen_random_uuid(),
     user_id       uuid,
     title         text not null default 'New conversation',
@@ -127,12 +130,12 @@ create table if not exists chat_sessions (
     created_at    timestamptz not null default now(),
     updated_at    timestamptz not null default now()
 );
-create index if not exists chat_sessions_user_idx    on chat_sessions (user_id);
-create index if not exists chat_sessions_archived_idx on chat_sessions (archived);
+create index if not exists ai_chat_sessions_user_idx     on ai_chat_sessions (user_id);
+create index if not exists ai_chat_sessions_archived_idx on ai_chat_sessions (archived);
 
-create table if not exists chat_messages (
+create table if not exists ai_chat_messages (
     id            uuid primary key default gen_random_uuid(),
-    session_id    uuid not null references chat_sessions(id) on delete cascade,
+    session_id    uuid not null references ai_chat_sessions(id) on delete cascade,
     role          text not null check (role in ('system','user','assistant','tool')),
     content       text not null,
     tool_calls    jsonb,                                       -- when role='assistant'
@@ -147,8 +150,8 @@ create table if not exists chat_messages (
     embedding     vector(1024),
     created_at    timestamptz not null default now()
 );
-create index if not exists chat_messages_session_idx on chat_messages (session_id, created_at);
-create index if not exists chat_messages_emb_hnsw    on chat_messages
+create index if not exists ai_chat_messages_session_idx on ai_chat_messages (session_id, created_at);
+create index if not exists ai_chat_messages_emb_hnsw    on ai_chat_messages
     using hnsw (embedding vector_cosine_ops) with (m = 16, ef_construction = 64);
 
 -- ─── AI swarm registry + run history ─────────────────────────────────────────
@@ -187,7 +190,7 @@ create table if not exists ai_runs (
     kind          ai_run_kind not null,
     status        ai_run_status not null default 'queued',
     user_id       uuid,
-    session_id    uuid references chat_sessions(id) on delete set null,
+    session_id    uuid references ai_chat_sessions(id) on delete set null,
     node_label    text,
     model         text,
     input         jsonb not null default '{}'::jsonb,          -- prompts, params
@@ -425,8 +428,8 @@ returns table (
     select m.id, m.session_id, m.role, m.content,
            1 - (m.embedding <=> query_embedding) as similarity,
            m.created_at
-    from   chat_messages m
-    join   chat_sessions s on s.id = m.session_id
+    from   ai_chat_messages m
+    join   ai_chat_sessions s on s.id = m.session_id
     where  m.embedding is not null
       and  (user_filter is null or s.user_id = user_filter)
       and  1 - (m.embedding <=> query_embedding) >= match_threshold
@@ -444,9 +447,9 @@ create trigger trg_knowledge_sources_updated
     before update on knowledge_sources
     for each row execute function set_updated_at();
 
-drop trigger if exists trg_chat_sessions_updated on chat_sessions;
-create trigger trg_chat_sessions_updated
-    before update on chat_sessions
+drop trigger if exists trg_ai_chat_sessions_updated on ai_chat_sessions;
+create trigger trg_ai_chat_sessions_updated
+    before update on ai_chat_sessions
     for each row execute function set_updated_at();
 
 drop trigger if exists trg_ai_nodes_updated on ai_nodes;
@@ -592,7 +595,7 @@ insert into ai_tools (slug, label, description, icon, category, schema, roles, s
          'type','object',
          'properties', jsonb_build_object(
            'audio_url', jsonb_build_object('type','string'),
-           'language',  jsonb_build_object('type','string'))),
+           'language',  jsonb_build_object('type','string')),
          'required', jsonb_build_array('audio_url'))),
      '{}','{}','/api/ai/forge/asr'),
 
