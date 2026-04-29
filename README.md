@@ -315,9 +315,16 @@ nano .env                     # set:
 
 #### 1.5 Migrations + build + systemd services
 
+The migration script applies SQL files via `psql` against `DATABASE_URL`
+from your `.env`, tracking applied versions in `supabase_migrations.schema_migrations`
+(the same table the Supabase CLI uses). Install the client first:
+
 ```bash
+sudo apt install -y postgresql-client    # provides psql
+
 npm install
-npm run supabase:migrate:push         # apply pgvector + AI Lab schema
+npm run supabase:migrate:push         # applies pgvector + AI Lab schema
+                                      # via DATABASE_URL from .env
 npm run build                         # production bundle (adapter-node)
 
 # Service: SvelteKit app
