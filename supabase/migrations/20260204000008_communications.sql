@@ -46,12 +46,12 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 );
 
 -- Indexes
-CREATE INDEX idx_chat_messages_room_id ON public.chat_messages(room_id);
-CREATE INDEX idx_chat_messages_user_id ON public.chat_messages(user_id);
-CREATE INDEX idx_chat_messages_created_at ON public.chat_messages(created_at DESC);
-CREATE INDEX idx_notifications_user_id ON public.notifications(user_id);
-CREATE INDEX idx_notifications_is_read ON public.notifications(is_read);
-CREATE INDEX idx_notifications_created_at ON public.notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_room_id ON public.chat_messages(room_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON public.chat_messages(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON public.chat_messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON public.notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications(created_at DESC);
 
 -- RLS
 ALTER TABLE public.chat_rooms ENABLE ROW LEVEL SECURITY;

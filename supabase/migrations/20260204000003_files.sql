@@ -19,9 +19,9 @@ CREATE TABLE IF NOT EXISTS public.files (
 );
 
 -- Indexes
-CREATE INDEX idx_files_uploaded_by ON public.files(uploaded_by);
-CREATE INDEX idx_files_created_at ON public.files(created_at DESC);
-CREATE INDEX idx_files_mimetype ON public.files(mimetype);
+CREATE INDEX IF NOT EXISTS idx_files_uploaded_by ON public.files(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_files_created_at ON public.files(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_files_mimetype ON public.files(mimetype);
 
 -- RLS
 ALTER TABLE public.files ENABLE ROW LEVEL SECURITY;

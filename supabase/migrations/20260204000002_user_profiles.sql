@@ -48,10 +48,10 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
 );
 
 -- Indexes
-CREATE INDEX idx_profiles_username ON public.profiles(username);
-CREATE INDEX idx_profiles_is_active ON public.profiles(is_active);
-CREATE INDEX idx_user_preferences_user_id ON public.user_preferences(user_id);
-CREATE INDEX idx_notification_preferences_user_id ON public.notification_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_username ON public.profiles(username);
+CREATE INDEX IF NOT EXISTS idx_profiles_is_active ON public.profiles(is_active);
+CREATE INDEX IF NOT EXISTS idx_user_preferences_user_id ON public.user_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_preferences_user_id ON public.notification_preferences(user_id);
 
 -- RLS Policies
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;

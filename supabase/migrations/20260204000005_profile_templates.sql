@@ -76,11 +76,11 @@ CREATE TABLE IF NOT EXISTS public.order_profile_presets (
 );
 
 -- Indexes
-CREATE INDEX idx_profile_templates_code ON public.profile_templates(code);
-CREATE INDEX idx_profile_templates_is_active ON public.profile_templates(is_active);
-CREATE INDEX idx_profile_sections_template_id ON public.profile_sections(template_id);
-CREATE INDEX idx_profile_fields_section_id ON public.profile_fields(section_id);
-CREATE INDEX idx_template_versions_template_id ON public.template_versions(template_id);
+CREATE INDEX IF NOT EXISTS idx_profile_templates_code ON public.profile_templates(code);
+CREATE INDEX IF NOT EXISTS idx_profile_templates_is_active ON public.profile_templates(is_active);
+CREATE INDEX IF NOT EXISTS idx_profile_sections_template_id ON public.profile_sections(template_id);
+CREATE INDEX IF NOT EXISTS idx_profile_fields_section_id ON public.profile_fields(section_id);
+CREATE INDEX IF NOT EXISTS idx_template_versions_template_id ON public.template_versions(template_id);
 
 -- RLS
 ALTER TABLE public.profile_templates ENABLE ROW LEVEL SECURITY;

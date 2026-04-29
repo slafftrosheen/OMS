@@ -130,20 +130,20 @@ CREATE TABLE IF NOT EXISTS public.order_assignees (
 );
 
 -- Indexes
-CREATE INDEX idx_draft_orders_po_number ON public.draft_orders(po_number);
-CREATE INDEX idx_draft_orders_client ON public.draft_orders(client);
-CREATE INDEX idx_draft_orders_status ON public.draft_orders(status);
-CREATE INDEX idx_draft_orders_loading_date ON public.draft_orders(loading_date);
-CREATE INDEX idx_draft_orders_created_at ON public.draft_orders(created_at DESC);
-CREATE INDEX idx_order_profiles_order_id ON public.order_profiles(draft_order_id);
-CREATE INDEX idx_order_files_order_id ON public.order_files(draft_order_id);
-CREATE INDEX idx_order_materials_order_id ON public.order_materials(draft_order_id);
-CREATE INDEX idx_order_fields_order_id ON public.order_fields(draft_order_id);
-CREATE INDEX idx_order_stages_order_id ON public.order_stages(draft_order_id);
-CREATE INDEX idx_order_stages_station ON public.order_stages(station);
-CREATE INDEX idx_order_stages_state ON public.order_stages(state);
-CREATE INDEX idx_order_assignees_order_id ON public.order_assignees(draft_order_id);
-CREATE INDEX idx_order_assignees_assignee_id ON public.order_assignees(assignee_id);
+CREATE INDEX IF NOT EXISTS idx_draft_orders_po_number ON public.draft_orders(po_number);
+CREATE INDEX IF NOT EXISTS idx_draft_orders_client ON public.draft_orders(client);
+CREATE INDEX IF NOT EXISTS idx_draft_orders_status ON public.draft_orders(status);
+CREATE INDEX IF NOT EXISTS idx_draft_orders_loading_date ON public.draft_orders(loading_date);
+CREATE INDEX IF NOT EXISTS idx_draft_orders_created_at ON public.draft_orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_order_profiles_order_id ON public.order_profiles(draft_order_id);
+CREATE INDEX IF NOT EXISTS idx_order_files_order_id ON public.order_files(draft_order_id);
+CREATE INDEX IF NOT EXISTS idx_order_materials_order_id ON public.order_materials(draft_order_id);
+CREATE INDEX IF NOT EXISTS idx_order_fields_order_id ON public.order_fields(draft_order_id);
+CREATE INDEX IF NOT EXISTS idx_order_stages_order_id ON public.order_stages(draft_order_id);
+CREATE INDEX IF NOT EXISTS idx_order_stages_station ON public.order_stages(station);
+CREATE INDEX IF NOT EXISTS idx_order_stages_state ON public.order_stages(state);
+CREATE INDEX IF NOT EXISTS idx_order_assignees_order_id ON public.order_assignees(draft_order_id);
+CREATE INDEX IF NOT EXISTS idx_order_assignees_assignee_id ON public.order_assignees(assignee_id);
 
 -- RLS
 ALTER TABLE public.delivery_presets ENABLE ROW LEVEL SECURITY;

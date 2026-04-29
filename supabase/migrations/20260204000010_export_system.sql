@@ -42,11 +42,11 @@ CREATE TABLE IF NOT EXISTS public.export_history (
 );
 
 -- Indexes
-CREATE INDEX idx_export_templates_type ON public.export_templates(template_type);
-CREATE INDEX idx_export_templates_is_public ON public.export_templates(is_public);
-CREATE INDEX idx_export_history_created_by ON public.export_history(created_by);
-CREATE INDEX idx_export_history_created_at ON public.export_history(created_at DESC);
-CREATE INDEX idx_export_history_status ON public.export_history(status);
+CREATE INDEX IF NOT EXISTS idx_export_templates_type ON public.export_templates(template_type);
+CREATE INDEX IF NOT EXISTS idx_export_templates_is_public ON public.export_templates(is_public);
+CREATE INDEX IF NOT EXISTS idx_export_history_created_by ON public.export_history(created_by);
+CREATE INDEX IF NOT EXISTS idx_export_history_created_at ON public.export_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_export_history_status ON public.export_history(status);
 
 -- RLS
 ALTER TABLE public.export_templates ENABLE ROW LEVEL SECURITY;
