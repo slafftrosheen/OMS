@@ -17,13 +17,13 @@ export const GET: RequestHandler = async ({ params }) => {
     if (!id) return json({ error: 'id required' }, { status: 400 });
     const c = db();
     const { data: session, error } = await c
-        .from('chat_sessions')
+        .from('ai_chat_sessions')
         .select('*')
         .eq('id', id)
         .single();
     if (error) return json({ error: error.message }, { status: 404 });
     const { data: messages } = await c
-        .from('chat_messages')
+        .from('ai_chat_messages')
         .select('id,role,content,tool_calls,tool_name,citations,model,node_label,latency_ms,tokens_in,tokens_out,created_at')
         .eq('session_id', id)
         .order('created_at', { ascending: true });
@@ -39,7 +39,7 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
     for (const k of allowed) if (k in body) patch[k] = body[k];
     if (Object.keys(patch).length === 0) return json({ ok: true });
     const { data, error } = await db()
-        .from('chat_sessions')
+        .from('ai_chat_sessions')
         .update(patch)
         .eq('id', id)
         .select('*')

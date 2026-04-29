@@ -40,8 +40,5 @@ CREATE POLICY "Authenticated write station-attachments"
     ON storage.objects FOR INSERT
     WITH CHECK (bucket_id = 'station-attachments' AND auth.role() = 'authenticated');
 
-COMMENT ON POLICY "Authenticated read files"               ON storage.objects IS 'Files bucket: any authenticated user can read.';
-COMMENT ON POLICY "Authenticated write files"              ON storage.objects IS 'Files bucket: any authenticated user can upload.';
-COMMENT ON POLICY "Authenticated delete files"             ON storage.objects IS 'Files bucket: any authenticated user can delete.';
-COMMENT ON POLICY "Authenticated read station-attachments" ON storage.objects IS 'Station-attachments bucket: any authenticated user can read.';
-COMMENT ON POLICY "Authenticated write station-attachments" ON storage.objects IS 'Station-attachments bucket: any authenticated user can upload.';
+-- COMMENT ON POLICY ... ON storage.objects requires ownership of storage.objects
+-- (owned by supabase_storage_admin, not postgres). Skipped — RLS still applied.

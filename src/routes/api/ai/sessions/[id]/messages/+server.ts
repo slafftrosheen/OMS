@@ -76,7 +76,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
     // Load session (persona slug + model override + template FK).
     const { data: sessionRow, error: sErr } = await db
-        .from('chat_sessions')
+        .from('ai_chat_sessions')
         .select('id,model,persona,persona_template_id')
         .eq('id', sid)
         .single();
@@ -100,7 +100,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
     // Load history (last 30 messages).
     const { data: history } = await db
-        .from('chat_messages')
+        .from('ai_chat_messages')
         .select('role,content,tool_calls,tool_name')
         .eq('session_id', sid)
         .order('created_at', { ascending: false })
@@ -109,7 +109,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
     // Embed + persist user message.
     const userEmbed = await swarmEmbed(body.content, MODEL.embed).catch(() => null);
-    await db.from('chat_messages').insert({
+    await db.from('ai_chat_messages').insert({
         session_id: sid,
         role: 'user',
         content: body.content,
@@ -245,7 +245,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
         if (!m) break;
 
         if (m.tool_calls && m.tool_calls.length > 0) {
-            await db.from('chat_messages').insert({
+            await db.from('ai_chat_messages').insert({
                 session_id: sid,
                 role: 'assistant',
                 content: m.content ?? '',
@@ -273,7 +273,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
                 } catch (err) {
                     result = { error: (err as Error).message };
                 }
-                await db.from('chat_messages').insert({
+                await db.from('ai_chat_messages').insert({
                     session_id: sid,
                     role: 'tool',
                     tool_name: tool.slug,
@@ -291,7 +291,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     if (!finalText) finalText = '(no response)';
 
     const finalEmbed = await swarmEmbed(finalText, MODEL.embed).catch(() => null);
-    await db.from('chat_messages').insert({
+    await db.from('ai_chat_messages').insert({
         session_id: sid,
         role: 'assistant',
         content: finalText,
@@ -301,7 +301,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
         embedding: finalEmbed?.vector,
         latency_ms: Date.now() - startedAt.getTime()
     });
-    await db.from('chat_sessions').update({ last_message_at: new Date().toISOString() }).eq('id', sid);
+    await db.from('ai_chat_sessions').update({ last_message_at: new Date().toISOString() }).eq('id', sid);
     if (runId) {
         await db
             .from('ai_runs')
