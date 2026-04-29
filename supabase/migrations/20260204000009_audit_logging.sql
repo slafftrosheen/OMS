@@ -50,14 +50,14 @@ CREATE TABLE IF NOT EXISTS public.faqs (
 );
 
 -- Indexes
-CREATE INDEX idx_audit_log_user_id ON public.audit_log(user_id);
-CREATE INDEX idx_audit_log_entity_type ON public.audit_log(entity_type);
-CREATE INDEX idx_audit_log_created_at ON public.audit_log(created_at DESC);
-CREATE INDEX idx_station_logs_user_id ON public.station_logs(user_id);
-CREATE INDEX idx_station_logs_station ON public.station_logs(station);
-CREATE INDEX idx_station_logs_created_at ON public.station_logs(created_at DESC);
-CREATE INDEX idx_search_history_user_id ON public.search_history(user_id);
-CREATE INDEX idx_search_history_created_at ON public.search_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON public.audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity_type ON public.audit_log(entity_type);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON public.audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_station_logs_user_id ON public.station_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_station_logs_station ON public.station_logs(station);
+CREATE INDEX IF NOT EXISTS idx_station_logs_created_at ON public.station_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_search_history_user_id ON public.search_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_search_history_created_at ON public.search_history(created_at DESC);
 
 -- RLS
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;

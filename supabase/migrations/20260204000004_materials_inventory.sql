@@ -87,15 +87,15 @@ CREATE TABLE IF NOT EXISTS public.inventory_movements (
 );
 
 -- Indexes
-CREATE INDEX idx_materials_category ON public.materials(category);
-CREATE INDEX idx_materials_code ON public.materials(code);
-CREATE INDEX idx_inventory_items_sku ON public.inventory_items(sku);
-CREATE INDEX idx_inventory_items_category ON public.inventory_items(category);
-CREATE INDEX idx_inventory_items_stock ON public.inventory_items(stock);
-CREATE INDEX idx_inventory_stock_material_id ON public.inventory_stock(material_id);
-CREATE INDEX idx_inventory_stock_item_id ON public.inventory_stock(item_id);
-CREATE INDEX idx_inventory_movements_item_id ON public.inventory_movements(item_id);
-CREATE INDEX idx_inventory_movements_created_at ON public.inventory_movements(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_materials_category ON public.materials(category);
+CREATE INDEX IF NOT EXISTS idx_materials_code ON public.materials(code);
+CREATE INDEX IF NOT EXISTS idx_inventory_items_sku ON public.inventory_items(sku);
+CREATE INDEX IF NOT EXISTS idx_inventory_items_category ON public.inventory_items(category);
+CREATE INDEX IF NOT EXISTS idx_inventory_items_stock ON public.inventory_items(stock);
+CREATE INDEX IF NOT EXISTS idx_inventory_stock_material_id ON public.inventory_stock(material_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_stock_item_id ON public.inventory_stock(item_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_item_id ON public.inventory_movements(item_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_created_at ON public.inventory_movements(created_at DESC);
 
 -- RLS
 ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;

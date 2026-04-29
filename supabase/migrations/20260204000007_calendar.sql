@@ -77,12 +77,12 @@ CREATE TABLE IF NOT EXISTS public.day_capacities (
 );
 
 -- Indexes
-CREATE INDEX idx_calendar_events_date ON public.calendar_events(date);
-CREATE INDEX idx_calendar_events_kind ON public.calendar_events(kind);
-CREATE INDEX idx_loading_events_id ON public.loading_events(id);
-CREATE INDEX idx_loading_event_pos_event_id ON public.loading_event_pos(loading_event_id);
-CREATE INDEX idx_loading_event_pos_order_id ON public.loading_event_pos(draft_order_id);
-CREATE INDEX idx_loading_days_date ON public.loading_days(date);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_date ON public.calendar_events(date);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_kind ON public.calendar_events(kind);
+CREATE INDEX IF NOT EXISTS idx_loading_events_id ON public.loading_events(id);
+CREATE INDEX IF NOT EXISTS idx_loading_event_pos_event_id ON public.loading_event_pos(loading_event_id);
+CREATE INDEX IF NOT EXISTS idx_loading_event_pos_order_id ON public.loading_event_pos(draft_order_id);
+CREATE INDEX IF NOT EXISTS idx_loading_days_date ON public.loading_days(date);
 
 -- RLS
 ALTER TABLE public.calendar_events ENABLE ROW LEVEL SECURITY;

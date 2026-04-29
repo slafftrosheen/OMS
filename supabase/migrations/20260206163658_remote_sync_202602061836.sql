@@ -3,7 +3,7 @@
 
 drop index if exists "public"."idx_order_profiles_draft_order";
 
-CREATE INDEX idx_order_profiles_draft_order ON public.order_profiles USING btree (draft_order_id);
+CREATE INDEX IF NOT EXISTS idx_order_profiles_draft_order ON public.order_profiles USING btree (draft_order_id);
 
 -- CREATE TRIGGER objects_delete_delete_prefix AFTER DELETE ON storage.objects FOR EACH ROW EXECUTE FUNCTION storage.delete_prefix_hierarchy_trigger();
 -- CREATE TRIGGER objects_insert_create_prefix BEFORE INSERT ON storage.objects FOR EACH ROW EXECUTE FUNCTION storage.objects_insert_prefix_trigger();
