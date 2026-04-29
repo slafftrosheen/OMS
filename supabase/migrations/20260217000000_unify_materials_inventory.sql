@@ -202,9 +202,11 @@ END $$;
 DROP POLICY IF EXISTS "Materials viewable by all" ON public.materials;
 DROP POLICY IF EXISTS "Authenticated users can manage materials" ON public.materials;
 
+DROP POLICY IF EXISTS "Materials viewable by all" ON public.materials;
 CREATE POLICY "Materials viewable by all" ON public.materials 
 FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can manage materials" ON public.materials;
 CREATE POLICY "Authenticated users can manage materials" ON public.materials 
 FOR ALL USING (auth.role() = 'authenticated');
 

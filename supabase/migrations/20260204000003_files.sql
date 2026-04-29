@@ -26,9 +26,13 @@ CREATE INDEX IF NOT EXISTS idx_files_mimetype ON public.files(mimetype);
 -- RLS
 ALTER TABLE public.files ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Files are viewable by everyone" ON public.files;
 CREATE POLICY "Files are viewable by everyone" ON public.files FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can upload files" ON public.files;
 CREATE POLICY "Authenticated users can upload files" ON public.files FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Users can update own files" ON public.files;
 CREATE POLICY "Users can update own files" ON public.files FOR UPDATE USING (auth.uid() = uploaded_by);
+DROP POLICY IF EXISTS "Users can delete own files" ON public.files;
 CREATE POLICY "Users can delete own files" ON public.files FOR DELETE USING (auth.uid() = uploaded_by);
 
 COMMENT ON TABLE public.files IS 'File storage metadata';

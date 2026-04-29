@@ -59,11 +59,15 @@ ALTER TABLE public.user_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notification_preferences ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: Users can view all profiles, update own
+DROP POLICY IF EXISTS "Users can view all profiles" ON public.profiles;
 CREATE POLICY "Users can view all profiles" ON public.profiles FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
 -- Preferences: Users manage own preferences
+DROP POLICY IF EXISTS "Users manage own preferences" ON public.user_preferences;
 CREATE POLICY "Users manage own preferences" ON public.user_preferences FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users manage own notification prefs" ON public.notification_preferences;
 CREATE POLICY "Users manage own notification prefs" ON public.notification_preferences FOR ALL USING (auth.uid() = user_id);
 
 -- Trigger: Auto-create profile on user signup

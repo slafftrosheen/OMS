@@ -36,6 +36,8 @@
   "dependencies": {
     "@tldraw/tldraw": "^2.4.4",
     "@ericblade/quagga2": "^1.12.1",
+    "@sentry/node": "^8.0.0",
+    "@sentry/sveltekit": "^8.0.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.90.1",
     "@sveltejs/kit": "^2.7.4",
@@ -71,8 +73,6 @@
     "@types/react-dom": "^18.3.0",
     "@eslint/js": "^9.39.2",
     "@playwright/test": "^1.57.0",
-    "@sentry/node": "^8.0.0",
-    "@sentry/sveltekit": "^8.0.0",
     "@sveltejs/adapter-node": "^5.5.2",
     "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6",
     "@testing-library/jest-dom": "^6.9.1",

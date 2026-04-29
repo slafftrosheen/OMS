@@ -52,15 +52,19 @@ CREATE INDEX IF NOT EXISTS idx_export_history_status ON public.export_history(st
 ALTER TABLE public.export_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.export_history ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Public templates viewable by all" ON public.export_templates;
 CREATE POLICY "Public templates viewable by all" ON public.export_templates 
     FOR SELECT USING (is_public = true OR created_by = auth.uid());
 
+DROP POLICY IF EXISTS "Users manage own templates" ON public.export_templates;
 CREATE POLICY "Users manage own templates" ON public.export_templates 
     FOR ALL USING (created_by = auth.uid());
 
+DROP POLICY IF EXISTS "Users view own export history" ON public.export_history;
 CREATE POLICY "Users view own export history" ON public.export_history 
     FOR SELECT USING (created_by = auth.uid());
 
+DROP POLICY IF EXISTS "Users create exports" ON public.export_history;
 CREATE POLICY "Users create exports" ON public.export_history 
     FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 

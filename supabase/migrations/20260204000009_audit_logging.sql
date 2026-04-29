@@ -66,33 +66,42 @@ ALTER TABLE public.search_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.faqs ENABLE ROW LEVEL SECURITY;
 
 -- Audit log: System creates, users can view own or all (depending on role)
+DROP POLICY IF EXISTS "Authenticated users view audit log" ON public.audit_log;
 CREATE POLICY "Authenticated users view audit log" ON public.audit_log 
     FOR SELECT USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "System can create audit logs" ON public.audit_log;
 CREATE POLICY "System can create audit logs" ON public.audit_log 
     FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
 -- Station logs: Viewable by all authenticated, created by users
+DROP POLICY IF EXISTS "Authenticated users view station logs" ON public.station_logs;
 CREATE POLICY "Authenticated users view station logs" ON public.station_logs 
     FOR SELECT USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Authenticated users create station logs" ON public.station_logs;
 CREATE POLICY "Authenticated users create station logs" ON public.station_logs 
     FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
 -- Search history: Users manage own history
+DROP POLICY IF EXISTS "Users view own search history" ON public.search_history;
 CREATE POLICY "Users view own search history" ON public.search_history 
     FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users create own search history" ON public.search_history;
 CREATE POLICY "Users create own search history" ON public.search_history 
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users delete own search history" ON public.search_history;
 CREATE POLICY "Users delete own search history" ON public.search_history 
     FOR DELETE USING (auth.uid() = user_id);
 
 -- FAQs: Public read, authenticated write
+DROP POLICY IF EXISTS "FAQs viewable by all" ON public.faqs;
 CREATE POLICY "FAQs viewable by all" ON public.faqs 
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users manage FAQs" ON public.faqs;
 CREATE POLICY "Authenticated users manage FAQs" ON public.faqs 
     FOR ALL USING (auth.role() = 'authenticated');
 

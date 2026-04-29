@@ -11,7 +11,7 @@
  */
 
 import { dev } from '$app/environment';
-import * as Sentry from '@sentry/sveltekit';
+import * as Sentry from '@sentry/node';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
