@@ -12,8 +12,10 @@ const validationRules: EnvValidationRule[] = [
     {
         key: 'PUBLIC_SUPABASE_URL',
         required: true,
-        pattern: /^https:\/\/.+\.supabase\.co$/,
-        errorMessage: 'Must be a valid Supabase URL'
+        // Accept any http(s) URL — this project is self-hosted only.
+        // Examples: http://100.98.202.69:8000, https://supabase.local, http://oms.tail.ts.net
+        pattern: /^https?:\/\/[^\s/]+(:\d+)?(\/.*)?$/,
+        errorMessage: 'Must be a valid http(s) URL (self-hosted Supabase, e.g. http://<tailscale-ip>:8000)'
     },
     {
         key: 'PUBLIC_SUPABASE_ANON_KEY',
