@@ -77,7 +77,7 @@ _psql_exec() {
     local sql=$1; shift
     if [ "$_use_docker" = "1" ]; then
         printf '%s\n' "$sql" \
-            | docker exec -i supabase-db psql -U postgres -d postgres "$@" -v ON_ERROR_STOP=1 -q
+            | docker exec -i supabase-db psql -U supabase_admin -d postgres "$@" -v ON_ERROR_STOP=1 -q
     else
         psql "$DATABASE_URL" "$@" -v ON_ERROR_STOP=1 -q -c "$sql"
     fi
@@ -87,7 +87,7 @@ _psql_exec() {
 _psql_file() {
     local file=$1
     if [ "$_use_docker" = "1" ]; then
-        docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q < "$file"
+        docker exec -i supabase-db psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -q < "$file"
     else
         psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$file"
     fi
@@ -95,7 +95,7 @@ _psql_file() {
 
 _psql_stdin() {
     if [ "$_use_docker" = "1" ]; then
-        docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q
+        docker exec -i supabase-db psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -q
     else
         psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q
     fi

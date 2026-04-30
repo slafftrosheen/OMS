@@ -14,6 +14,7 @@ import { suggestFeedsSpeeds } from './cnc-feeds';
 import { matchPaint } from './paint-match';
 import { findSimilarProjects } from './similar-projects';
 import { getPendingOrders, getLowStock } from './data-tools';
+import { listSketches, readSketch, saveSketch } from './maker-tools';
 
 let _admin: SupabaseClient | null = null;
 function admin(): SupabaseClient {
@@ -57,7 +58,10 @@ export const TOOL_EXECUTORS: Record<
     'paint.match':          (args) => matchPaint(args as unknown as Parameters<typeof matchPaint>[0]),
     'engineering.brainstorm': (args) => findSimilarProjects(args as unknown as { query: string }),
     'data.pending_orders':  () => getPendingOrders(),
-    'data.low_stock':       () => getLowStock()
+    'data.low_stock':       () => getLowStock(),
+    'maker.list_sketches':  () => listSketches(),
+    'maker.read_sketch':    (args) => readSketch((args as { id: string }).id),
+    'maker.save_sketch':    (args) => saveSketch((args as any).id, (args as any).title, (args as any).code, (args as any).description)
 };
 
 /** Pull active tools from the DB. Filter by role / station as needed. */
