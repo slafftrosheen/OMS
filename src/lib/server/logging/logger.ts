@@ -10,7 +10,7 @@
  * Replaces: src/lib/server/logger.ts (basic logger)
  */
 
-import { dev } from '$app/environment';
+const dev = process.env.NODE_ENV !== 'production';
 import * as Sentry from '@sentry/node';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';

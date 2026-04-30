@@ -1,5 +1,6 @@
 // src/lib/server/env-validator.ts
-import { building, dev } from '$app/environment';
+const dev = process.env.NODE_ENV !== 'production';
+const building = false;
 
 interface EnvValidationRule {
     key: string;

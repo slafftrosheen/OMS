@@ -101,9 +101,9 @@ CREATE POLICY "Users can delete own notifications" ON public.notifications
     FOR DELETE USING (auth.uid() = user_id);
 
 -- Enable realtime
-ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_rooms;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'chat_messages') THEN ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'chat_rooms') THEN ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_rooms; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'notifications') THEN ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications; END IF; END $$;
 
 -- Seed default chat rooms
 INSERT INTO public.chat_rooms (id, name, room_type, is_private)

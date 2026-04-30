@@ -13,7 +13,7 @@
  * Override anything via `.env` (see `.env.example` for the full inventory).
  */
 
-import { env as dyn } from '$env/dynamic/private';
+const dyn = process.env;
 
 // ─── Resolver ────────────────────────────────────────────────────────────────
 

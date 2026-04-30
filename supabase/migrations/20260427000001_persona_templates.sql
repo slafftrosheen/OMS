@@ -40,12 +40,12 @@ create trigger trg_persona_templates_updated
     for each row execute function set_updated_at();
 
 -- Add persona_template_id to chat_sessions so sessions remember their template.
-alter table chat_sessions
+alter table ai_chat_sessions
     add column if not exists persona_template_id uuid
         references user_persona_templates(id) on delete set null;
 
 create index if not exists chat_sessions_persona_tmpl_idx
-    on chat_sessions (persona_template_id)
+    on ai_chat_sessions (persona_template_id)
     where persona_template_id is not null;
 
 -- ─── Seed global persona templates ───────────────────────────────────────────

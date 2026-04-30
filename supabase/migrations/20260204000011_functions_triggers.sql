@@ -14,80 +14,61 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Apply updated_at triggers to relevant tables
-CREATE TRIGGER update_profiles_updated_at
-    BEFORE UPDATE ON public.profiles
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles; CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON public.profiles
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_user_preferences_updated_at
-    BEFORE UPDATE ON public.user_preferences
+DROP TRIGGER IF EXISTS update_user_preferences_updated_at ON public.user_preferences; CREATE TRIGGER update_user_preferences_updated_at BEFORE UPDATE ON public.user_preferences
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_files_updated_at
-    BEFORE UPDATE ON public.files
+DROP TRIGGER IF EXISTS update_files_updated_at ON public.files; CREATE TRIGGER update_files_updated_at BEFORE UPDATE ON public.files
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_materials_updated_at
-    BEFORE UPDATE ON public.materials
+DROP TRIGGER IF EXISTS update_materials_updated_at ON public.materials; CREATE TRIGGER update_materials_updated_at BEFORE UPDATE ON public.materials
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_inventory_items_updated_at
-    BEFORE UPDATE ON public.inventory_items
+DROP TRIGGER IF EXISTS update_inventory_items_updated_at ON public.inventory_items; CREATE TRIGGER update_inventory_items_updated_at BEFORE UPDATE ON public.inventory_items
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_inventory_stock_updated_at
-    BEFORE UPDATE ON public.inventory_stock
+DROP TRIGGER IF EXISTS update_inventory_stock_updated_at ON public.inventory_stock; CREATE TRIGGER update_inventory_stock_updated_at BEFORE UPDATE ON public.inventory_stock
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_profile_templates_updated_at
-    BEFORE UPDATE ON public.profile_templates
+DROP TRIGGER IF EXISTS update_profile_templates_updated_at ON public.profile_templates; CREATE TRIGGER update_profile_templates_updated_at BEFORE UPDATE ON public.profile_templates
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_delivery_presets_updated_at
-    BEFORE UPDATE ON public.delivery_presets
+DROP TRIGGER IF EXISTS update_delivery_presets_updated_at ON public.delivery_presets; CREATE TRIGGER update_delivery_presets_updated_at BEFORE UPDATE ON public.delivery_presets
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_draft_orders_updated_at
-    BEFORE UPDATE ON public.draft_orders
+DROP TRIGGER IF EXISTS update_draft_orders_updated_at ON public.draft_orders; CREATE TRIGGER update_draft_orders_updated_at BEFORE UPDATE ON public.draft_orders
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_order_profiles_updated_at
-    BEFORE UPDATE ON public.order_profiles
+DROP TRIGGER IF EXISTS update_order_profiles_updated_at ON public.order_profiles; CREATE TRIGGER update_order_profiles_updated_at BEFORE UPDATE ON public.order_profiles
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_order_materials_updated_at
-    BEFORE UPDATE ON public.order_materials
+DROP TRIGGER IF EXISTS update_order_materials_updated_at ON public.order_materials; CREATE TRIGGER update_order_materials_updated_at BEFORE UPDATE ON public.order_materials
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_order_stages_updated_at
-    BEFORE UPDATE ON public.order_stages
+DROP TRIGGER IF EXISTS update_order_stages_updated_at ON public.order_stages; CREATE TRIGGER update_order_stages_updated_at BEFORE UPDATE ON public.order_stages
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_calendar_events_updated_at
-    BEFORE UPDATE ON public.calendar_events
+DROP TRIGGER IF EXISTS update_calendar_events_updated_at ON public.calendar_events; CREATE TRIGGER update_calendar_events_updated_at BEFORE UPDATE ON public.calendar_events
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_loading_days_updated_at
-    BEFORE UPDATE ON public.loading_days
+DROP TRIGGER IF EXISTS update_loading_days_updated_at ON public.loading_days; CREATE TRIGGER update_loading_days_updated_at BEFORE UPDATE ON public.loading_days
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_chat_messages_updated_at
-    BEFORE UPDATE ON public.chat_messages
+DROP TRIGGER IF EXISTS update_chat_messages_updated_at ON public.chat_messages; CREATE TRIGGER update_chat_messages_updated_at BEFORE UPDATE ON public.chat_messages
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_chat_rooms_updated_at
-    BEFORE UPDATE ON public.chat_rooms
+DROP TRIGGER IF EXISTS update_chat_rooms_updated_at ON public.chat_rooms; CREATE TRIGGER update_chat_rooms_updated_at BEFORE UPDATE ON public.chat_rooms
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_order_profile_presets_updated_at
-    BEFORE UPDATE ON public.order_profile_presets
+DROP TRIGGER IF EXISTS update_order_profile_presets_updated_at ON public.order_profile_presets; CREATE TRIGGER update_order_profile_presets_updated_at BEFORE UPDATE ON public.order_profile_presets
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_export_templates_updated_at
-    BEFORE UPDATE ON public.export_templates
+DROP TRIGGER IF EXISTS update_export_templates_updated_at ON public.export_templates; CREATE TRIGGER update_export_templates_updated_at BEFORE UPDATE ON public.export_templates
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
-CREATE TRIGGER update_faqs_updated_at
-    BEFORE UPDATE ON public.faqs
+DROP TRIGGER IF EXISTS update_faqs_updated_at ON public.faqs; CREATE TRIGGER update_faqs_updated_at BEFORE UPDATE ON public.faqs
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Search function (full text search across orders)
