@@ -15,13 +15,22 @@ import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
     const user = locals.user;
+
     if (!user) {
         throw redirect(303, `/login?next=${encodeURIComponent(url.pathname)}`);
     }
 
-    const roles = (user as any).roles ?? {};
-    const role  = (user as any).role ?? null;
-    const isAdmin = roles.admin === true || role === 'admin';
+    const roles = user.roles ?? {};
+    const role = user.role ?? '';
+    
+    // Check both JSONB roles.Admin and singular role column, case-insensitively
+    const adminRoleValue = roles.Admin || roles.admin;
+    const isAdmin = 
+        adminRoleValue === 'Admin' || 
+        adminRoleValue === 'SuperAdmin' || 
+        adminRoleValue === 'admin' ||
+        adminRoleValue === true ||
+        role.toLowerCase() === 'admin';
 
     if (!isAdmin) {
         throw error(403, 'Admin role required to access this section.');

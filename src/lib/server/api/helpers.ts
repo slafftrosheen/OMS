@@ -38,12 +38,18 @@ export function requireAuth(locals: AuthLocals) {
 
 export function requireAdmin(locals: AuthLocals) {
     const user = requireAuth(locals);
-    const adminRole = user.roles?.['admin'] ?? user.roles?.['Admin'];
-    const isAdmin =
-        user.role === 'admin' ||
-        adminRole === true ||
-        adminRole === 'admin' ||
-        adminRole === 'SuperAdmin';
+    const roles = user.roles ?? {};
+    const role = user.role ?? '';
+    
+    // Check both JSONB roles.Admin and singular role column, case-insensitively
+    const adminRoleValue = roles.Admin || roles.admin;
+    const isAdmin = 
+        adminRoleValue === 'Admin' || 
+        adminRoleValue === 'SuperAdmin' || 
+        adminRoleValue === 'admin' ||
+        adminRoleValue === true ||
+        role.toLowerCase() === 'admin';
+
     if (!isAdmin) {
         throw error(403, 'Forbidden — admin role required');
     }
