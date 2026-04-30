@@ -46,7 +46,8 @@ function defaultConnectSrc() {
     `https://${legacyHost}:${supaPort}`,
     `ws://${legacyHost}:${supaPort}`,
     `wss://${legacyHost}:${supaPort}`,
-    "https://cdn.jsdelivr.net"
+    "https://cdn.jsdelivr.net",
+    "https://cdn.tldraw.com"
   ]);
 
   // HMR origin only matters in dev; harmless in prod CSP.

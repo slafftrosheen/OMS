@@ -3,6 +3,7 @@
 
   export let snapshot: unknown = undefined;
   export let onSave: (snapshot: unknown) => void = () => {};
+  export let onReady: (editor: any) => void = () => {};
 
   let containerEl: HTMLDivElement;
   let reactRoot: { unmount: () => void } | null = null;
@@ -30,6 +31,7 @@
             onSave: onSave,
             onEditorReady: (editor: any) => {
               editorRef = editor;
+              onReady(editor);
             }
           })
         );

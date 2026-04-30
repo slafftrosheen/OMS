@@ -3,19 +3,21 @@
   import Icon from '$lib/ui/Icon.svelte';
   import TldrawWrapper from '$lib/components/canvas/TldrawWrapper.svelte';
 
-  let wrapperRef: ReturnType<typeof TldrawWrapper> | null = $state(null);
+  let editorRef: any = null;
   let loaded = $state(false);
 
   onMount(() => {
     loaded = true;
   });
 
-  function addShape(type: 'maker' | 'chat' | 'forge' | 'document' | 'swarm') {
-    if (!wrapperRef) return;
-    const editor = (wrapperRef as any).getEditor?.();
-    if (!editor) return;
+  function handleEditorReady(editor: any) {
+    editorRef = editor;
+  }
 
-    const center = editor.getViewportPageCenter();
+  function addShape(type: 'maker' | 'chat' | 'forge' | 'document' | 'swarm') {
+    if (!editorRef) return;
+
+    const center = editorRef.getViewportPageCenter();
     
     let props = {};
     if (type === 'document') {
@@ -24,7 +26,7 @@
         props = { agentName: 'AI Node ' + Math.floor(Math.random()*10), caps: ['reasoning', 'vision'] };
     }
 
-    editor.createShape({
+    editorRef.createShape({
       type,
       x: center.x - 150,
       y: center.y - 150,
@@ -44,7 +46,7 @@
 
   {#if loaded}
     <div class="tldraw-shell">
-      <TldrawWrapper bind:this={wrapperRef} />
+      <TldrawWrapper onReady={handleEditorReady} />
     </div>
   {:else}
     <div class="placeholder">Loading canvas…</div>
