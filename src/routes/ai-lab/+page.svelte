@@ -65,12 +65,12 @@
   }
 
   const tiles: Array<{ href: string; icon: IconName; label: string; desc: string }> = [
-    { href: '/ai-lab/chat',      icon: 'message-square', label: 'New conversation',
-      desc: 'Tool-calling chat with citations from your knowledge base.' },
-    { href: '/ai-lab/knowledge', icon: 'upload',         label: 'Feed knowledge',
-      desc: 'Upload PDFs, drawings, photos, manuals, voice memos.' },
     { href: '/ai-lab/canvas',    icon: 'layout-grid',    label: 'Open canvas',
-      desc: 'Wire AI nodes together on an infinite board.' }
+      desc: 'Wire AI nodes together on an infinite board.' },
+    { href: '/orders',           icon: 'clipboard-list', label: 'View Orders',
+      desc: 'Manage and review production orders.' },
+    { href: '/calendar',         icon: 'calendar',       label: 'Calendar',
+      desc: 'Check upcoming delivery and meeting schedules.' }
   ];
 </script>
 

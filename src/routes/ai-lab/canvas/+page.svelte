@@ -68,6 +68,7 @@
   
   .toolbar {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     background: var(--glass-bg);
     padding: 12px;
