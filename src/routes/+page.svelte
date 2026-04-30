@@ -194,7 +194,7 @@
                     <p class="action-description">View production workflow</p>
                 </button>
 
-                <button class="action-card" onclick={() => goto('/materials')}>
+                <button class="action-card" onclick={() => goto('/admin/materials')}>
                     <span class="action-icon">📦</span>
                     <h3 class="action-title">Materials</h3>
                     <p class="action-description">Manage inventory</p>

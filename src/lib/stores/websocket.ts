@@ -30,7 +30,7 @@ function createWebSocketStore() {
     let connectionDisabled = false;
 
     // WebSocket is always supported on local K3s cluster
-    const supportsWS = true;
+    const supportsWS = Boolean(env.PUBLIC_WS_URL);
 
     function connect() {
         if (!browser) return;
