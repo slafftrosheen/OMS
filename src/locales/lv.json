@@ -40,7 +40,6 @@
     "stations": "Stacijas",
     "assets": "Resursi",
     "files": "Faili",
-    "faq": "Bieži uzdotie jautājumi",
     "settings": "Iestatījumi",
     "kanban": "Ražošana",
     "help": "Palīdzība",
@@ -358,21 +357,6 @@
   },
   "help": {
     "title": "Tastatūras saīsnes"
-  },
-  "faq": {
-    "title": "BUJ - Bieži uzdotie jautājumi",
-    "q1": "Kā izveidot jaunu pasūtījumu?",
-    "a1": "Noklikšķiniet uz pogas 'Jauns pasūtījums' Pasūtījumu lapā. Aizpildiet obligātos laukus, ieskaitot PO numuru, klientu, nosaukumu un termiņu.",
-    "q2": "Kas ir melnraksta pasūtījums?",
-    "a2": "Melnraksta pasūtījumi ir prelimināri pasūtījumi, ko izveidojis SuperAdmins ar CDR dizaina failiem. Tie ir redzami tikai Adminam un SuperAdminam līdz pārvēršanai par parastiem pasūtījumiem.",
-    "q3": "Kā piešķirt iekraušanas datumu?",
-    "a3": "Dodieties uz Kalendāra lapu, ieslēdziet administratora režīmu un noklikšķiniet uz datuma, lai atzīmētu to kā iekraušanas dienu. Pēc tam piešķiriet pasūtījumus šim datumam.",
-    "q4": "Ko nozīmē dažādi pasūtījumu žetoni?",
-    "a4": "DRAFT = preliminārs pasūtījums, URGENT = augsta prioritāte, BLOCKED = problēmas kavē progresu, IN_PROGRESS = aktīvi tiek strādāts, DONE = pabeigts.",
-    "q5": "Kā mainīt tēmu?",
-    "a5": "Izmantojiet galvenes vadīklas, lai izvēlētos vēlamo tēmu: Gaiša, Tumša vai Augsta kontrasta.",
-    "q6": "Vai varu mainīt teksta izmēru?",
-    "a6": "Jā! Izmantojiet Teksta izmēra vadīklu galvenē, lai pārslēgtos starp Mazu, Noklusējuma, Lielu un Ļoti lielu teksta izmēru."
   },
   "toast": {
     "approved": "Pieprasījums apstiprināts",

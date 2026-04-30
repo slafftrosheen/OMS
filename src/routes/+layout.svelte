@@ -351,10 +351,6 @@
           <Icon name="package" size="sm" />
           <span>{$t('nav.inventory', { default: 'Inventory' })}</span>
         </a>
-        <a href="{base}/faq" class:active={currentPath.includes('/faq')} onclick={() => mobileMenuOpen = false}>
-          <Icon name="help-circle" size="sm" />
-          <span>{$t('nav.faq', { default: 'FAQ' })}</span>
-        </a>
         <a href="{base}/ai-lab" class:active={currentPath.includes('/ai-lab') || currentPath.includes('/ai-dashboard')} onclick={() => mobileMenuOpen = false}>
           <Icon name="sparkles" size="sm" />
           <span>Reclame AI Lab</span>

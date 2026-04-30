@@ -109,16 +109,6 @@ INSERT INTO "public"."draft_orders" ("id", "po_number", "client", "title", "due_
 
 
 --
--- Data for Name: faqs; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-INSERT INTO "public"."faqs" ("id", "slug", "question", "answer", "order_index", "created_at", "updated_at") VALUES
-	('ea63a9a4-5519-4cef-9007-38b228d0b34e', 'how-to-create-order', 'How do I create a new order?', 'Navigate to Orders page and click the "New Order" button. Fill in the required fields including PO number, client, and delivery details.', 1, '2026-02-05 10:42:43.604312+00', '2026-02-05 10:42:43.604312+00'),
-	('42a70aeb-53a3-48cd-bcc5-0abec15fd8de', 'loading-schedule', 'How does loading scheduling work?', 'Loading dates are managed in the Calendar section. Admins can set capacity limits per day and assign orders to specific loading events.', 2, '2026-02-05 10:42:43.604312+00', '2026-02-05 10:42:43.604312+00'),
-	('0db63fc9-256f-4458-aa1c-0ceb5e9f3866', 'inventory-tracking', 'How is inventory tracked?', 'Inventory items are automatically updated when orders are fulfilled. You can also manually adjust stock levels in the Inventory section.', 3, '2026-02-05 10:42:43.604312+00', '2026-02-05 10:42:43.604312+00');
-
-
---
 -- Data for Name: inventory_items; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 

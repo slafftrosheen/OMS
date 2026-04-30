@@ -40,7 +40,6 @@
     "stations": "Stations",
     "assets": "Assets",
     "files": "Files",
-    "faq": "FAQ",
     "settings": "Settings",
     "kanban": "Production Board",
     "help": "Help",
@@ -358,21 +357,6 @@
   },
   "help": {
     "title": "Keyboard shortcuts"
-  },
-  "faq": {
-    "title": "FAQ - Frequently Asked Questions",
-    "q1": "How do I create a new order?",
-    "a1": "Click the 'New Order' button on the Orders page. Fill in the required fields including PO number, client, title, and due date.",
-    "q2": "What is a draft order?",
-    "a2": "Draft orders are preliminary orders created by SuperAdmin with CDR design files. They are only visible to Admin and SuperAdmin until converted to regular orders.",
-    "q3": "How do I assign a loading date?",
-    "a3": "Go to the Calendar page, toggle admin mode, and click on a date to mark it as a loading day. Then assign orders to that date.",
-    "q4": "What do the different order badges mean?",
-    "a4": "DRAFT = preliminary order, URGENT = high priority, BLOCKED = issues prevent progress, IN_PROGRESS = actively being worked on, DONE = completed.",
-    "q5": "How do I change the theme?",
-    "a5": "Use the header controls to select your preferred theme: Light, Dark, or High Contrast.",
-    "q6": "Can I change the text size?",
-    "a6": "Yes! Use the Text Size control in the header to cycle through Small, Default, Large, and Extra Large text sizes."
   },
   "toast": {
     "approved": "Change Request approved",

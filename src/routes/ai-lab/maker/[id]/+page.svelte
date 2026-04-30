@@ -49,7 +49,6 @@
     try {
       const makerjs = await import('makerjs');
       
-      // Basic sandbox-ish execution
       const fn = new Function('makerjs', 'require', `
         const module = { exports: {} };
         const requireMock = (name) => {
@@ -65,12 +64,27 @@
       if (model) {
         svg = makerjs.exporter.toSVG(model, {
           useFillRules: true,
-          annotate: true
+          annotate: true,
+          units: 'mm'
         });
       }
     } catch (e) {
       error = (e as Error).message;
     }
+  }
+
+  const snippets = [
+    { label: 'Box', code: 'var makerjs = require("makerjs");\n\nmodule.exports = new makerjs.models.Box(100, 50);' },
+    { label: 'Round Rectangle', code: 'var makerjs = require("makerjs");\n\nmodule.exports = new makerjs.models.RoundRectangle(100, 50, 10);' },
+    { label: 'Bolt Circle', code: 'var makerjs = require("makerjs");\n\nmodule.exports = new makerjs.models.BoltCircle(40, 6, 8);' },
+    { label: 'Star', code: 'var makerjs = require("makerjs");\n\nmodule.exports = new makerjs.models.Star(5, 50, 20);' }
+  ];
+
+  function applySnippet(c: string) {
+    if (dirty && !confirm('Overwrite current code with snippet?')) return;
+    code = c;
+    dirty = true;
+    render();
   }
 
   function onCodeInput(e: Event) {
@@ -118,8 +132,15 @@
   <div class="workspace">
     <div class="code-pane">
       <div class="pane-header">
-        <Icon name="code" size="sm" />
-        <span>Maker.js Script</span>
+        <div class="header-left">
+          <Icon name="code" size="sm" />
+          <span>Maker.js Script</span>
+        </div>
+        <div class="header-right snippets">
+          {#each snippets as s}
+            <button class="snippet-btn" onclick={() => applySnippet(s.code)}>{s.label}</button>
+          {/each}
+        </div>
       </div>
       <textarea
         value={code}
@@ -206,6 +227,18 @@
   
   .header-left { display: flex; align-items: center; gap: 8px; }
   
+  .snippets { display: flex; gap: 6px; }
+  .snippet-btn {
+    background: var(--bg-2);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+  .snippet-btn:hover { background: var(--brand); color: white; }
+
   .code-editor {
     flex: 1;
     background: #1a1a1a;

@@ -1,5 +1,5 @@
 // src/lib/profiles/types.ts
-// Profile templates, fields, materials, colours, files, draft orders, FAQ.
+// Profile templates, fields, materials, colours, files, draft orders.
 
 /** Available field types for profile forms. */
 export type FieldType =
@@ -189,21 +189,6 @@ export interface ProfileConfiguration {
     [sectionName: string]: {
         [fieldKey: string]: unknown;
     };
-}
-
-/** FAQ document attached to a profile template. */
-export interface FAQDocument {
-    id: number;
-    profileTemplateId?: number;
-    title: LocalizedText;
-    content: LocalizedText;
-    category: string;
-    tags: string[];
-    attachments?: FileReference[];
-    orderIndex: number;
-    isPublished: boolean;
-    createdAt: string;
-    updatedAt: string;
 }
 
 /** Profile version history entry. */

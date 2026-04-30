@@ -46,7 +46,7 @@ src/
     auth/             — authState.svelte
     order/            — orderState.svelte
     server/ai/        — RAG orchestrator + tools + chat routes
-    {domain}/         — inventory, materials, orders, profiles, scanning, calendar, chat, faq, pdf, search, export, backup, webhooks, …
+    {domain}/         — inventory, materials, orders, profiles, scanning, calendar, chat, pdf, search, export, backup, webhooks, …
 static/
   brand.css           — PRIMARY design tokens + base component styles (~370 lines)
   manifest.json, sw.js, service-worker.js, icons/, brand/
