@@ -9,55 +9,36 @@
   let editorRef: any = null;
 
   onMount(() => {
-    let unlisten: (() => void) | null = null;
-
     (async () => {
       try {
         const [
           React,
           { createRoot },
-          { Tldraw },
-          { MakerShapeUtil },
-          { ChatShapeUtil },
-          { ForgeShapeUtil }
+          { CanvasApp }
         ] = await Promise.all([
           import('react'),
           import('react-dom/client'),
-          import('@tldraw/tldraw'),
-          import('./shapes/MakerShape'),
-          import('./shapes/ChatShape'),
-          import('./shapes/ForgeShape')
+          import('./CanvasApp')
         ]);
         
-        await import('@tldraw/tldraw/tldraw.css');
-
-        const customShapeUtils = [MakerShapeUtil, ChatShapeUtil, ForgeShapeUtil];
-
         const root = createRoot(containerEl);
         reactRoot = root;
 
         root.render(
-          React.createElement(Tldraw, {
-            snapshot: snapshot,
-            shapeUtils: customShapeUtils,
-            onMount(editor: any) {
+          React.createElement(CanvasApp, {
+            initialSnapshot: snapshot,
+            onSave: onSave,
+            onEditorReady: (editor: any) => {
               editorRef = editor;
-              unlisten = editor.store.listen(
-                () => {
-                  onSave(editor.store.getSnapshot());
-                },
-                { scope: 'document' }
-              );
             }
           })
         );
       } catch (err) {
-        console.error('Failed to load tldraw', err);
+        console.error('Failed to load tldraw CanvasApp', err);
       }
     })();
 
     return () => {
-      unlisten?.();
       reactRoot?.unmount();
     };
   });
@@ -74,6 +55,7 @@
     width: 100%;
     height: 100%;
     position: relative;
+    overflow: hidden;
   }
   :global(.tldraw-wrapper > *) {
     height: 100% !important;

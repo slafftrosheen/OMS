@@ -1,92 +1,116 @@
 <script lang="ts">
-  // Canvas — list saved canvases + create. (Full tldraw integration is loaded
-  // lazily on the [id] route; this page is the index.)
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
   import Icon from '$lib/ui/Icon.svelte';
-  import { base } from '$app/paths';
+  import TldrawWrapper from '$lib/components/canvas/TldrawWrapper.svelte';
 
-  type Doc = { id: string; title: string; updated_at: string };
-  let docs = $state<Doc[]>([]);
+  let wrapperRef: ReturnType<typeof TldrawWrapper> | null = $state(null);
+  let loaded = $state(false);
 
-  async function load() {
-    const j = await (await fetch('/api/ai/canvas')).json();
-    docs = j.items ?? [];
-  }
+  onMount(() => {
+    loaded = true;
+  });
 
-  async function create() {
-    const r = await fetch('/api/ai/canvas', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Untitled canvas' })
+  function addShape(type: 'maker' | 'chat' | 'forge' | 'document' | 'swarm') {
+    if (!wrapperRef) return;
+    const editor = (wrapperRef as any).getEditor?.();
+    if (!editor) return;
+
+    const center = editor.getViewportPageCenter();
+    
+    let props = {};
+    if (type === 'document') {
+        props = { title: 'New Document', content: 'Drop text here...', status: 'ready' };
+    } else if (type === 'swarm') {
+        props = { agentName: 'AI Node ' + Math.floor(Math.random()*10), caps: ['reasoning', 'vision'] };
+    }
+
+    editor.createShape({
+      type,
+      x: center.x - 150,
+      y: center.y - 150,
+      props
     });
-    const j = await r.json();
-    if (j.canvas?.id) goto(`${base}/ai-lab/canvas/${j.canvas.id}`);
   }
-
-  async function remove(id: string) {
-    if (!confirm('Delete this canvas?')) return;
-    await fetch(`/api/ai/canvas?id=${id}`, { method: 'DELETE' });
-    await load();
-  }
-
-  onMount(() => { void load(); });
 </script>
 
-<div class="canvas-list">
-  <header>
-    <h2>Canvas</h2>
-    <button class="btn" onclick={create}><Icon name="plus" size="sm" /> New canvas</button>
-  </header>
-  <p class="muted">
-    Wire AI nodes together on an infinite board: PDF → extract → search → image →
-    annotate → export. Each canvas persists as a tldraw snapshot.
-  </p>
-  <div class="grid">
-    {#each docs as d (d.id)}
-      <a class="doc" href="{base}/ai-lab/canvas/{d.id}">
-        <Icon name="layout-grid" size="md" />
-        <strong>{d.title}</strong>
-        <span class="muted small">{new Date(d.updated_at).toLocaleString()}</span>
-        <button
-          class="x"
-          aria-label="Delete"
-          onclick={(e) => { e.preventDefault(); void remove(d.id); }}
-        ><Icon name="trash-2" size="sm" /></button>
-      </a>
-    {:else}
-      <p class="muted">No canvases yet.</p>
-    {/each}
+<div class="canvas-fullscreen">
+  <div class="toolbar">
+    <button class="btn ghost" onclick={() => addShape('maker')} title="Add Maker.js Code Block"><Icon name="code" size="sm" /> Maker</button>
+    <button class="btn ghost" onclick={() => addShape('chat')} title="Add Contextual Chat"><Icon name="message-square" size="sm" /> Chat</button>
+    <button class="btn ghost" onclick={() => addShape('forge')} title="Add Generative Image"><Icon name="image" size="sm" /> Forge</button>
+    <button class="btn ghost" onclick={() => addShape('document')} title="Add Document Node"><Icon name="library" size="sm" /> Document</button>
+    <button class="btn ghost" onclick={() => addShape('swarm')} title="Add Swarm Node"><Icon name="network" size="sm" /> Swarm</button>
   </div>
+
+  {#if loaded}
+    <div class="tldraw-shell">
+      <TldrawWrapper bind:this={wrapperRef} />
+    </div>
+  {:else}
+    <div class="placeholder">Loading canvas…</div>
+  {/if}
 </div>
 
 <style>
-  .canvas-list { display: flex; flex-direction: column; gap: 12px; }
-  header { display: flex; align-items: center; gap: 12px; }
-  .muted { color: var(--text-muted, #888); }
-  .small { font-size: 0.75rem; }
-  .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-  .doc {
-    position: relative;
-    display: flex; flex-direction: column; gap: 4px;
-    padding: 14px;
+  .canvas-fullscreen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-0);
+    z-index: 10;
+  }
+  
+  .toolbar {
+    display: flex;
+    gap: 8px;
     background: var(--glass-bg);
-    backdrop-filter: var(--glass-blur);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-lg);
-    color: inherit; text-decoration: none;
-    transition: transform var(--transition-fast);
+    padding: 12px;
+    border-bottom: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
+    z-index: 20;
   }
-  .doc:hover { transform: translateY(-2px); border-color: color-mix(in oklab, var(--brand) 40%, transparent); }
-  .x {
-    position: absolute; top: 8px; right: 8px;
-    background: transparent; border: 0; color: var(--text-muted, #888);
-    cursor: pointer; opacity: 0.6;
+
+  .tldraw-shell {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    position: relative;
   }
-  .x:hover { color: #ff453a; opacity: 1; }
+  
+  .placeholder {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted, #888);
+    font-size: 0.9rem;
+  }
+  
   .btn {
-    padding: 8px 14px; border-radius: var(--radius-full);
-    background: var(--brand); color: white; border: 0;
-    cursor: pointer; display: inline-flex; gap: 6px; align-items: center; font: inherit;
+    padding: 7px 14px;
+    border-radius: var(--radius-md);
+    background: var(--brand);
+    color: white;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 13px;
+  }
+  
+  .btn.ghost {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  
+  .btn.ghost:hover {
+    background: var(--bg-2);
   }
 </style>

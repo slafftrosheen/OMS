@@ -41,19 +41,7 @@ export class ChatShapeUtil extends BaseBoxShapeUtil<ChatShape> {
             const allShapes = this.editor.getCurrentPageShapes();
             let contextText = '';
             
-            const makerShapes = allShapes.filter(s => s.type === 'maker');
-            for (const ms of makerShapes) {
-                // Calculate distance
-                const dx = ms.x - shape.x;
-                const dy = ms.y - shape.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < 800) { // proximity radius
-                    const mProps = ms.props as any;
-                    contextText += `\n[Context from nearby MakerShape]:\nParams: ${JSON.stringify(mProps.params)}\nCode:\n${mProps.code}\n`;
-                }
-            }
-
-            const prompt = input + contextText;
+            const center = { x: shape.x + w/2, y: shape.y + h/2 };
             
             const newMessages = [...messages, { role: 'user' as const, content: input }];
             
@@ -65,20 +53,22 @@ export class ChatShapeUtil extends BaseBoxShapeUtil<ChatShape> {
             setInput('');
 
             try {
-                // Simulate an AI call or call actual API if needed
-                const res = await fetch('/api/ai/sessions/canvas-temp/messages', {
+                const res = await fetch('/api/ai/canvas/spatial-query', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content: prompt })
+                    body: JSON.stringify({ 
+                        prompt: input,
+                        center,
+                        shapes: allShapes
+                    })
                 }).catch(() => null);
                 
                 let reply = "Could not connect to AI.";
                 if (res && res.ok) {
                     const data = await res.json();
-                    reply = data.content;
+                    reply = data.reply;
                 } else if (!res) {
-                    // Fallback mock if API is strict
-                    reply = `I see you said: "${input}". ${contextText ? 'I also see the maker code nearby.' : ''}`;
+                    reply = `Error: AI spatial-query endpoint unreachable.`;
                 }
 
                 this.editor.updateShape<ChatShape>({

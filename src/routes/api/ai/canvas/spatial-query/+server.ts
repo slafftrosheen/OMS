@@ -1,5 +1,7 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { json, error as svelteError } from '@sveltejs/kit';
+import { swarmChat } from '$lib/server/ai/swarm';
+import { MODEL } from '$lib/server/config';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
     if (!locals.supabase || !locals.user) {
@@ -11,10 +13,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         return json({ error: 'Valid prompt and shapes array required' }, { status: 400 });
     }
 
-    const { prompt, shapes } = body;
+    const { prompt, shapes, center } = body;
 
     // Parse the spatial shapes into a cohesive context
-    let spatialContext = '[Spatial Context provided by the Canvas Bounding Box]:\n';
+    let spatialContext = '[Spatial Context from Canvas]:\n';
+    spatialContext += `User's prompt originated from roughly (x: ${Math.round(center?.x || 0)}, y: ${Math.round(center?.y || 0)}).\n`;
+    
     let hasContext = false;
 
     for (const shape of shapes) {
@@ -27,14 +31,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             hasContext = true;
         } else if (shape.type === 'text' && shape.props) {
             spatialContext += `\n--- Text Shape ---\n`;
+            spatialContext += `Position: (x: ${Math.round(shape.x)}, y: ${Math.round(shape.y)})\n`;
             spatialContext += `Content: ${shape.props.text}\n`;
             hasContext = true;
-        } else if (shape.type === 'forge' && shape.props) {
-            spatialContext += `\n--- Generative Image Shape ---\n`;
-            spatialContext += `Prompt used: "${shape.props.prompt}"\n`;
-            if (shape.props.imageUrl) {
-                spatialContext += `Image available at: ${shape.props.imageUrl}\n`;
-            }
+        } else if (shape.type === 'document' && shape.props) {
+            spatialContext += `\n--- Document Shape ---\n`;
+            spatialContext += `Position: (x: ${Math.round(shape.x)}, y: ${Math.round(shape.y)})\n`;
+            spatialContext += `Title: ${shape.props.title}\n`;
+            spatialContext += `Content Summary: ${shape.props.content}\n`;
             hasContext = true;
         }
     }
@@ -43,32 +47,28 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         spatialContext = '[No relevant spatial context found in the provided bounding box]\n';
     }
 
-    const fullPrompt = `${spatialContext}\nUser Request: ${prompt}`;
+    const systemPrompt = `You are a spatial-aware AI operating on an infinite 2D canvas.
+You have visibility into the user's workspace based on the [Spatial Context from Canvas] below.
+When asked to modify code or generate content, consider the spatial relationships (e.g. shapes close to the user's prompt).
+Output valid responses. If the user asks you to modify Maker.js code, output ONLY valid JavaScript code that can be run by Maker.js.
+
+${spatialContext}`;
 
     try {
-        // Forward the constructed prompt to the AI session or directly via swarmChat
-        // For simplicity, we use the local /api/ai/sessions/canvas-temp/messages endpoint pattern,
-        // or just directly use swarmChat if we don't need persistent sessions for spatial queries.
-        
-        // Since we are just making a simple query, let's use the local API
-        const res = await fetch(`${request.headers.get('origin')}/api/ai/sessions/canvas-temp/messages`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Cookie': request.headers.get('cookie') || '' 
-            },
-            body: JSON.stringify({ content: fullPrompt })
-        }).catch(() => null);
+        const result = await swarmChat({
+            model: MODEL.chat,
+            cap: 'coder', // Assuming coding capabilities might be needed often here
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: prompt }
+            ],
+            stream: false,
+            temperature: 0.3
+        });
 
-        if (res && res.ok) {
-            const data = await res.json();
-            return json({ reply: data.content });
-        } else {
-            // Fallback mock if internal routing fails due to session requirements
-            return json({ 
-                reply: `Based on the spatial context provided (found ${shapes.length} shapes), you asked: "${prompt}".\n\n(Note: This is a fallback mock response. Ensure the AI session is properly configured.)` 
-            });
-        }
+        const data = await result.response.json();
+        
+        return json({ reply: data.message?.content || "No response" });
     } catch (err: any) {
         return json({ error: err.message }, { status: 500 });
     }
