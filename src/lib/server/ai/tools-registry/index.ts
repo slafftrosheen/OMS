@@ -15,6 +15,7 @@ import { matchPaint } from './paint-match';
 import { findSimilarProjects } from './similar-projects';
 import { getPendingOrders, getLowStock } from './data-tools';
 import { listSketches, readSketch, saveSketch } from './maker-tools';
+import { generateImage, generateMesh, removeBackground, textToSpeech, transcribeAudio } from './forge-tools';
 
 let _admin: SupabaseClient | null = null;
 function admin(): SupabaseClient {
@@ -61,7 +62,12 @@ export const TOOL_EXECUTORS: Record<
     'data.low_stock':       () => getLowStock(),
     'maker.list_sketches':  () => listSketches(),
     'maker.read_sketch':    (args) => readSketch((args as { id: string }).id),
-    'maker.save_sketch':    (args) => saveSketch((args as any).id, (args as any).title, (args as any).code, (args as any).description)
+    'maker.save_sketch':    (args) => saveSketch((args as any).id, (args as any).title, (args as any).code, (args as any).description),
+    'forge.image':          (args: any) => generateImage(args),
+    'forge.mesh':           (args: any) => generateMesh(args),
+    'forge.matting':        (args: any) => removeBackground(args),
+    'forge.tts':            (args: any) => textToSpeech(args),
+    'forge.asr':            (args: any) => transcribeAudio(args)
 };
 
 /** Pull active tools from the DB. Filter by role / station as needed. */

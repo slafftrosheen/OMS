@@ -46,6 +46,9 @@
     { slug: 'forge.tts',               label: 'Text to speech' },
     { slug: 'forge.matting',           label: 'Background removal' },
     { slug: 'forge.mesh',              label: '3D mesh generation' },
+    { slug: 'maker.list_sketches',     label: 'List technical sketches' },
+    { slug: 'maker.read_sketch',       label: 'Read technical sketch' },
+    { slug: 'maker.save_sketch',       label: 'Save technical sketch' },
   ];
 
   const selectedTemplate = $derived(templates.find((t) => t.id === selectedTemplateId) ?? null);
