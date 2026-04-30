@@ -55,6 +55,8 @@ async function storeArtifact(
     };
 }
 
+import { logger } from '$lib/server/logging/logger';
+
 // ─── Image generation (Flux family) ─────────────────────────────────────────
 
 export interface ImageGenArgs {
@@ -79,12 +81,21 @@ export async function generateImage(args: ImageGenArgs): Promise<ForgeArtifact> 
         model: MODEL.image.primary,
         fallback_model: MODEL.image.fallback
     };
-    const { data } = await swarmSidecar<{ b64_png: string; seed: number }>(
-        'image-gen',
-        '/image/generate',
-        body,
-        { timeoutMs: 240_000 }
-    );
+    
+    let data;
+    try {
+        const res = await swarmSidecar<{ b64_png: string; seed: number }>(
+            'image-gen',
+            '/image/generate',
+            body,
+            { timeoutMs: 240_000 }
+        );
+        data = res.data;
+    } catch (err) {
+        logger.error(`Forge generateImage failed: no healthy sidecar available for 'image-gen'. Ensure sidecar is running and registered correctly.`);
+        throw err;
+    }
+    
     const buf = base64ToBytes(data.b64_png);
     return storeArtifact('image', `flux-${data.seed}.png`, buf, 'image/png');
 }
@@ -99,12 +110,20 @@ export interface ImageEditArgs {
 }
 
 export async function editImage(args: ImageEditArgs): Promise<ForgeArtifact> {
-    const { data } = await swarmSidecar<{ b64_png: string }>(
-        'image-gen',
-        '/image/edit',
-        { ...args, model: MODEL.image.primary },
-        { timeoutMs: 240_000 }
-    );
+    let data;
+    try {
+        const res = await swarmSidecar<{ b64_png: string }>(
+            'image-gen',
+            '/image/edit',
+            { ...args, model: MODEL.image.primary },
+            { timeoutMs: 240_000 }
+        );
+        data = res.data;
+    } catch (err) {
+        logger.error(`Forge editImage failed: no healthy sidecar available for 'image-gen'.`);
+        throw err;
+    }
+    
     const buf = base64ToBytes(data.b64_png);
     return storeArtifact('image-edit', `edit-${Date.now()}.png`, buf, 'image/png');
 }
@@ -112,12 +131,20 @@ export async function editImage(args: ImageEditArgs): Promise<ForgeArtifact> {
 // ─── Background removal / matting ──────────────────────────────────────────
 
 export async function removeBackground(imageUrl: string): Promise<ForgeArtifact> {
-    const { data } = await swarmSidecar<{ b64_png: string }>(
-        'image-gen',
-        '/image/matting',
-        { image_url: imageUrl, model: MODEL.matting.primary },
-        { timeoutMs: 120_000 }
-    );
+    let data;
+    try {
+        const res = await swarmSidecar<{ b64_png: string }>(
+            'image-gen',
+            '/image/matting',
+            { image_url: imageUrl, model: MODEL.matting.primary },
+            { timeoutMs: 120_000 }
+        );
+        data = res.data;
+    } catch (err) {
+        logger.error(`Forge removeBackground failed: no healthy sidecar available for 'image-gen' (matting).`);
+        throw err;
+    }
+    
     const buf = base64ToBytes(data.b64_png);
     return storeArtifact('matting', `cutout-${Date.now()}.png`, buf, 'image/png');
 }
@@ -136,12 +163,21 @@ export async function generateMesh(args: MeshGenArgs): Promise<ForgeArtifact> {
         model: MODEL.mesh.primary,
         fallback_model: MODEL.mesh.fallback
     };
-    const { data } = await swarmSidecar<{ b64_glb: string }>(
-        'mesh-gen',
-        '/mesh/generate',
-        body,
-        { timeoutMs: 600_000 }
-    );
+    
+    let data;
+    try {
+        const res = await swarmSidecar<{ b64_glb: string }>(
+            'mesh-gen',
+            '/mesh/generate',
+            body,
+            { timeoutMs: 600_000 }
+        );
+        data = res.data;
+    } catch (err) {
+        logger.error(`Forge generateMesh failed: no healthy sidecar available for 'mesh-gen'.`);
+        throw err;
+    }
+    
     const buf = base64ToBytes(data.b64_glb);
     return storeArtifact('mesh', `mesh-${Date.now()}.glb`, buf, 'model/gltf-binary');
 }

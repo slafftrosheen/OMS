@@ -108,6 +108,10 @@ export class AuthState {
     }
     this.setUser(null);
     this.setError(null);
+    
+    // Clear all global stores to prevent data leakage
+    const { resetAllStores } = await import('$lib/state/cleanup');
+    resetAllStores();
   }
 }
 

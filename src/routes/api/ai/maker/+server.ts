@@ -1,33 +1,35 @@
 
 import type { RequestHandler } from '@sveltejs/kit';
-import { json } from '@sveltejs/kit';
-import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from '$lib/server/config';
+import { json, error as svelteError } from '@sveltejs/kit';
 import fs from 'fs';
 import path from 'path';
 
-function db() {
-    return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-        auth: { persistSession: false, autoRefreshToken: false }
-    });
-}
-
 const SKETCH_DIR = '/opt/reclame-oms/ai-lab/sketches';
 
-export const GET: RequestHandler = async () => {
-    const { data, error } = await db()
+export const GET: RequestHandler = async ({ locals }) => {
+    if (!locals.supabase || !locals.user) {
+        throw svelteError(401, 'Unauthorized');
+    }
+
+    const { data, error } = await locals.supabase
         .from('maker_sketches')
         .select('id,title,description,created_at,updated_at')
         .order('updated_at', { ascending: false })
         .limit(100);
+    
     if (error) return json({ error: error.message }, { status: 500 });
     return json({ items: data ?? [] });
 };
 
 export const POST: RequestHandler = async ({ request, locals }) => {
+    if (!locals.supabase || !locals.user) {
+        throw svelteError(401, 'Unauthorized');
+    }
+
     const body = (await request.json().catch(() => ({}))) as { title?: string; code?: string; params?: unknown };
-    const userId = (locals.user)?.id ?? null;
-    const { data, error } = await db()
+    const userId = locals.user.id;
+    
+    const { data, error } = await locals.supabase
         .from('maker_sketches')
         .insert({
             title: body.title ?? 'Untitled sketch',
@@ -61,14 +63,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     return json({ sketch: data });
 };
 
-export const DELETE: RequestHandler = async ({ url }) => {
+export const DELETE: RequestHandler = async ({ url, locals }) => {
+    if (!locals.supabase || !locals.user) {
+        throw svelteError(401, 'Unauthorized');
+    }
+
     const id = url.searchParams.get('id');
     if (!id) return json({ error: 'id required' }, { status: 400 });
 
-    // Optional: delete from disk too?
-    // For now keep disk as a "log" or "archive" of ideas.
-
-    const { error } = await db().from('maker_sketches').delete().eq('id', id);
+    // RLS will prevent deleting other users' sketches
+    const { error } = await locals.supabase.from('maker_sketches').delete().eq('id', id);
     if (error) return json({ error: error.message }, { status: 500 });
     return json({ ok: true });
 };

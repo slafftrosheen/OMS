@@ -8,10 +8,7 @@
 
 import type { RequestHandler } from '@sveltejs/kit';
 import { error as kitError } from '@sveltejs/kit';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
-    SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY,
     MODEL,
     AILAB
 } from '$lib/server/config';
@@ -23,16 +20,6 @@ import {
 } from '$lib/server/ai/tools-registry';
 import { searchKnowledge, searchKnowledgeImage } from '$lib/server/ai/tools-registry/knowledge-search';
 import { logger } from '$lib/server/logging/logger';
-
-let _admin: SupabaseClient | null = null;
-function admin(): SupabaseClient {
-    if (!_admin) {
-        _admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-            auth: { persistSession: false, autoRefreshToken: false }
-        });
-    }
-    return _admin;
-}
 
 interface OllamaMessage {
     role: 'system' | 'user' | 'assistant' | 'tool';
@@ -58,6 +45,10 @@ Speak concisely. Never invent feeds/speeds — call the tool and report results.
 Default language is the user's last language unless asked otherwise.`;
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
+    if (!locals.supabase || !locals.user) {
+        throw kitError(401, 'Unauthorized');
+    }
+
     const sid = params.id;
     if (!sid) throw kitError(400, 'id required');
     if (!AILAB.chat) throw kitError(404, 'chat disabled');
@@ -71,16 +62,21 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     } | null;
     if (!body?.content) throw kitError(400, 'content required');
 
-    const db = admin();
-    const userId = ((locals as unknown as { user?: { id?: string } }).user)?.id ?? null;
+    const db = locals.supabase;
+    const userId = locals.user.id;
 
     // Load session (persona slug + model override + template FK).
+    // Using locals.supabase enforces RLS (auth.uid() = user_id)
     const { data: sessionRow, error: sErr } = await db
         .from('ai_chat_sessions')
         .select('id,model,persona,persona_template_id')
         .eq('id', sid)
         .single();
-    if (sErr) throw kitError(404, sErr.message);
+    
+    if (sErr) {
+        logger.error('Failed to load session', { sid, userId, error: sErr.message });
+        throw kitError(404, 'Session not found or access denied');
+    }
 
     // Resolve persona template (request body > session FK > null).
     const templateId: string | null =
@@ -90,6 +86,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
     let personaTemplate: PersonaTemplate | null = null;
     if (templateId) {
+        // user_persona_templates also should have RLS
         const { data: tmpl } = await db
             .from('user_persona_templates')
             .select('id,name,system_prompt_addon,tool_slugs,model_override,voice')

@@ -50,7 +50,23 @@ app = FastAPI(title="Reclame AI Lab sidecar")
 
 @app.get("/health")
 async def health() -> dict[str, Any]:
-    return {"ok": True, "caps": sorted(CAPS), "device": DEVICE}
+    # Map high-level capabilities to actual exposed sub-features
+    exposed_features = []
+    if "vision" in CAPS: exposed_features.append("extract")
+    if "embed" in CAPS: exposed_features.append("embed-image")
+    if "rerank" in CAPS: exposed_features.append("rerank")
+    if "colpali" in CAPS: exposed_features.append("colpali")
+    if "asr" in CAPS: exposed_features.extend(["asr", "asr-url"])
+    if "tts" in CAPS: exposed_features.append("tts")
+    if "image-gen" in CAPS: exposed_features.extend(["image-generate", "image-edit", "image-matting"])
+    if "mesh-gen" in CAPS: exposed_features.append("mesh-generate")
+
+    return {
+        "status": "up",
+        "caps": sorted(CAPS),
+        "features": exposed_features,
+        "device": DEVICE
+    }
 
 
 def _require(cap: str) -> None:

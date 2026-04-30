@@ -125,6 +125,14 @@ export async function refreshSwarmHealth(): Promise<void> {
             ]);
             s.lastSeen = Date.now();
             s.warmModels = new Set(ollama.warm);
+
+            if (!ollama.up) {
+                logger.warn(`Ollama at ${s.node.ollamaUrl} failed health check or is offline.`);
+            }
+            if (wantsSidecar && !sidecarUp) {
+                logger.warn(`Sidecar at ${s.node.sidecarUrl} failed health check or is offline.`);
+            }
+
             if (ollama.up && sidecarUp) s.lastStatus = 'up';
             else if (ollama.up || sidecarUp) s.lastStatus = 'degraded';
             else s.lastStatus = 'down';
@@ -147,12 +155,23 @@ export function pickNode(opts: PickOptions): AiNode | null {
     const candidates = [...STATE.values()].filter((s) => {
         if (opts.exclude?.has(s.node.label)) return false;
         if (s.node.weight <= 0) return false;
-        if (s.lastStatus === 'down') return false;
+        if (s.lastStatus === 'down') {
+            logger.debug(`Node ${s.node.label} skipped: status is down`);
+            return false;
+        }
         if (!s.node.caps.includes(opts.cap)) return false;
         return true;
     });
 
     if (candidates.length === 0) {
+        // Log why we failed to find a node
+        const totalNodes = STATE.size;
+        const matchingCap = [...STATE.values()].filter(s => s.node.caps.includes(opts.cap));
+        const matchingExcl = matchingCap.filter(s => !opts.exclude?.has(s.node.label));
+        const matchingUp = matchingExcl.filter(s => s.lastStatus !== 'down');
+        
+        logger.warn(`No node found for cap '${opts.cap}'. Status: ${totalNodes} total, ${matchingCap.length} match cap, ${matchingExcl.length} not excluded, ${matchingUp.length} up.`);
+
         // If we have no recent health data yet, fall back to capability-only.
         const stale = AI_NODES.filter(
             (n) => n.caps.includes(opts.cap) && !opts.exclude?.has(n.label)

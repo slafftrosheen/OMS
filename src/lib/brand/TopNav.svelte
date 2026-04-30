@@ -10,11 +10,10 @@
   }
 
   let { items = [
-    { path: '/orders', label: 'Orders' },
-    { path: '/calendar', label: 'Calendar' },
-    { path: '/inventory', label: 'Inventory' },
-    { path: '/', label: 'Dashboard' },
-    { path: '/settings', label: 'Settings' }
+    { path: '/orders', label: 'Orders', icon: 'clipboard-list' },
+    { path: '/calendar', label: 'Calendar', icon: 'calendar' },
+    { path: '/inventory', label: 'Inventory', icon: 'package' },
+    { path: '/ai-lab', label: 'AI Lab', icon: 'sparkles' }
   ] }: { items?: NavItem[] } = $props();
 
   const full = (p: string) => `${base}${p}`;

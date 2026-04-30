@@ -335,10 +335,6 @@
         {/if}
       </button>
       <nav class="main" class:mobile-open={mobileMenuOpen}>
-        <a href="{base}/" class:active={currentPath === base || currentPath === base + '/'} onclick={() => mobileMenuOpen = false}>
-          <Icon name="layout-dashboard" size="sm" />
-          <span>{$t('nav.dashboard', { default: 'Dashboard' })}</span>
-        </a>
         <a href="{base}/orders" class:active={currentPath.includes('/orders')} onclick={() => mobileMenuOpen = false}>
           <Icon name="clipboard-list" size="sm" />
           <span>{$t('nav.orders', { default: 'Orders' })}</span>

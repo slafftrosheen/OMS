@@ -3,18 +3,6 @@
 
 import type { RequestHandler } from '@sveltejs/kit';
 import { json, error as kitError } from '@sveltejs/kit';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from '$lib/server/config';
-
-let _admin: SupabaseClient | null = null;
-function admin(): SupabaseClient {
-    if (!_admin) {
-        _admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-            auth: { persistSession: false, autoRefreshToken: false }
-        });
-    }
-    return _admin;
-}
 
 export interface PersonaTemplate {
     id: string;
@@ -33,10 +21,15 @@ export interface PersonaTemplate {
 }
 
 export const GET: RequestHandler = async ({ locals }) => {
-    const userId = ((locals as unknown as { user?: { id?: string } }).user)?.id ?? null;
-    const db = admin();
+    if (!locals.supabase) {
+        throw kitError(503, 'Database not available');
+    }
+
+    const userId = locals.user?.id ?? null;
+    const db = locals.supabase;
 
     // Return global templates + user's own, ordered global-first then by name.
+    // RLS should handle visibility, but we can be explicit.
     let q = db
         .from('user_persona_templates')
         .select('*')
@@ -56,13 +49,15 @@ export const GET: RequestHandler = async ({ locals }) => {
 };
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-    const userId = ((locals as unknown as { user?: { id?: string } }).user)?.id ?? null;
-    if (!userId) throw kitError(401, 'Authentication required');
+    if (!locals.supabase || !locals.user) {
+        throw kitError(401, 'Authentication required');
+    }
 
+    const userId = locals.user.id;
     const body = (await request.json().catch(() => null)) as Partial<PersonaTemplate> | null;
     if (!body?.name?.trim()) throw kitError(400, 'name required');
 
-    const db = admin();
+    const db = locals.supabase;
     const { data, error } = await db
         .from('user_persona_templates')
         .insert({

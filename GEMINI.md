@@ -27,6 +27,54 @@
 
 ## Architectural Patterns
 - **Svelte 5 Runes:** Use `$state`, `$derived`, `$props` for new components.
-- **AI Swarm:** Logic resides in `src/lib/server/ai`. Nodes are discovered via environment variables (`NODE1_HOST`, etc.).
+- **AI Swarm:** Distributed Ollama instances and Python sidecars on Windows nodes (ai1, ai2). Logic resides in `src/lib/server/ai`. Nodes are discovered via environment variables (`NODE1_HOST`, etc.).
+- **Vector Search:** Uses `pgvector` for RAG. Core tables are `framework_docs`, `company_knowledge`, and `autonomous_memory`.
+- **Maker System:** Domain logic for CNC/sketch management resides in `src/routes/ai-lab/maker`.
 - **Tailscale:** Hardcoded IPs should be avoided; use constants from `src/lib/server/config.ts`.
 
+## Deprecated Features
+- **FAQ:** The FAQ page, associated API routes, and `public.faqs` table have been removed. Do not re-implement; use the AI Lab / Knowledge Base for similar functionality.
+
+---
+
+# Active Task: Spatial OS & Security Overhaul
+
+## Initial Blueprint
+**Context:** Major architectural refactor for SvelteKit (Svelte 5), Supabase, tldraw, makerjs, and Python sidecar.
+**Rules:**
+1. Execute sequentially.
+2. Svelte 5 syntax ($state, $derived, $effect).
+3. React Isolation for tldraw shapes.
+
+## Full Plan
+### Phase 1: Critical Security & RLS Hardening
+- Audit and harden Supabase RLS (Prevent cross-user data leakage).
+- Audit `src/routes/api/` (chat, conversations, AI sessions) for explicit user filtering.
+- Verify frontend state clearing on logout.
+
+### Phase 2: UI Restructure & Route Consolidation
+- Consolidate `ai-lab` to: `overview`, `chat`, `knowledge`, `canvas`.
+- Move `runs` and `swarm` UI into `overview`.
+- Delete: `forge/`, `maker/`, `runs/`, `swarm/`, `tools/`, `voice/`.
+
+### Phase 3: Fixing Forge & Sidecar Registration
+- Fix Python sidecar advertisement/heartbeat.
+- Fix SvelteKit node registry and health checks.
+- Route Forge requests correctly via proxy.
+
+## Current Progress (Phase 4)
+- [x] **Phase 4: The Spatial Canvas**:
+  - Built `TldrawWrapper.svelte` bridge to render `tldraw` safely inside SvelteKit.
+  - Developed custom React Shapes (`MakerShape.tsx`, `ChatShape.tsx`, `ForgeShape.tsx`) with advanced interactivity (dynamic sliders, proximity-aware prompts, generative image execution).
+  - Implemented the Spatial Query API (`/api/ai/canvas/spatial-query/+server.ts`) to process AI requests based on spatial bounding box context.
+
+## Current Progress (Phase 2 & 3)
+- [x] **Phase 2: UI Restructure**:
+  - Consolidate AI Lab Overview, replacing `runs` and `swarm` standalone views.
+  - Delete obsolete directories (`forge`, `maker`, `runs`, `swarm`, `tools`, `voice`).
+  - Update `TopNav.svelte` and `paths.js` to expose only the 4 remaining main routes.
+- [x] **Phase 3: Forge & Sidecar Fixes**:
+  - Sidecar python server (`server.py`) now exposes detailed features in `/health`.
+  - Swarm registry (`swarm.ts`) updated to independently track sidecar up/down status and explicitly log when nodes are missing/degraded.
+  - SvelteKit health endpoint (`/api/ai/health`) aggregates status for all swarm nodes.
+  - Added explicit fallback error logging in `forge/index.ts` to log *why* a node is missing.

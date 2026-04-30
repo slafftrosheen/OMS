@@ -1,32 +1,35 @@
 
 import type { RequestHandler } from '@sveltejs/kit';
-import { json } from '@sveltejs/kit';
-import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from '$lib/server/config';
+import { json, error as svelteError } from '@sveltejs/kit';
 import fs from 'fs';
 import path from 'path';
 
-function db() {
-    return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-        auth: { persistSession: false, autoRefreshToken: false }
-    });
-}
-
 const SKETCH_DIR = '/opt/reclame-oms/ai-lab/sketches';
 
-export const GET: RequestHandler = async ({ params }) => {
-    const { data, error } = await db()
+export const GET: RequestHandler = async ({ params, locals }) => {
+    if (!locals.supabase || !locals.user) {
+        throw svelteError(401, 'Unauthorized');
+    }
+
+    const { data, error } = await locals.supabase
         .from('maker_sketches')
         .select('*')
         .eq('id', params.id)
         .single();
-    if (error) return json({ error: error.message }, { status: 500 });
+    
+    if (error) return json({ error: error.message }, { status: 404 });
     return json({ sketch: data });
 };
 
-export const PATCH: RequestHandler = async ({ params, request }) => {
+export const PATCH: RequestHandler = async ({ params, request, locals }) => {
+    if (!locals.supabase || !locals.user) {
+        throw svelteError(401, 'Unauthorized');
+    }
+
     const body = await request.json();
-    const { data, error } = await db()
+    
+    // RLS handles ownership check
+    const { data, error } = await locals.supabase
         .from('maker_sketches')
         .update({
             title: body.title,
@@ -62,4 +65,19 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
     }
 
     return json({ sketch: data });
+};
+
+export const DELETE: RequestHandler = async ({ params, locals }) => {
+    if (!locals.supabase || !locals.user) {
+        throw svelteError(401, 'Unauthorized');
+    }
+
+    // RLS handles ownership check
+    const { error } = await locals.supabase
+        .from('maker_sketches')
+        .delete()
+        .eq('id', params.id);
+    
+    if (error) return json({ error: error.message }, { status: 500 });
+    return json({ ok: true });
 };
