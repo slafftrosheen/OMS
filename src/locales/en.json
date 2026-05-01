@@ -43,7 +43,10 @@
     "settings": "Settings",
     "kanban": "Production Board",
     "help": "Help",
-    "chat": "Chat"
+    "chat": "Chat",
+    "ailab": "AI Lab",
+    "users": "Users",
+    "materials": "Materials"
   },
   "header": {
     "actions": "Header actions",
@@ -328,7 +331,9 @@
     "toggle_right": "Toggle right panel (Shift+R)",
     "search": "Search orders, files, clients…",
     "progress_region": "Overall process progress",
-    "skip": "Skip to content"
+    "skip": "Skip to content",
+    "toolbar": "App toolbar",
+    "nav": "Primary navigation"
   },
   "accessibility": {
     "text_size": "Text Size",
@@ -356,7 +361,9 @@
     "show_hints": "Show helpful tooltips throughout the interface"
   },
   "help": {
-    "title": "Keyboard shortcuts"
+    "title": "Keyboard shortcuts",
+    "page_title": "Help & Documentation",
+    "contact": "Need more help? Contact your system administrator or refer to the user documentation."
   },
   "toast": {
     "approved": "Change Request approved",
@@ -385,6 +392,38 @@
     }
   },
   "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome back, {name}!",
+    "loading": "Loading dashboard...",
+    "new_order": "+ New Order",
+    "view_all": "View All",
+    "no_orders": "No active orders",
+    "create_first": "Create First Order",
+    "quick_actions": "Quick Actions",
+    "chart_overview": "Orders Overview",
+    "chart_period": "Last 30 Days",
+    "stat_total": "Total Orders",
+    "stat_active": "Active Orders",
+    "stat_completed": "Completed",
+    "stat_overdue": "Overdue",
+    "actions": {
+      "new_order": {
+        "title": "New Order",
+        "desc": "Create a new production order"
+      },
+      "production": {
+        "title": "Production Board",
+        "desc": "View production workflow"
+      },
+      "materials": {
+        "title": "Materials",
+        "desc": "Manage inventory"
+      },
+      "analytics": {
+        "title": "Analytics",
+        "desc": "View reports"
+      }
+    },
     "kpi": {
       "active": "Active Orders",
       "rd": "R&D Orders",
@@ -611,6 +650,20 @@
   "chat": {
     "title": "Team Chat",
     "rooms": "Rooms",
+    "channels_section": "Channels",
+    "stations_section": "Production Stations",
+    "online": "Online",
+    "select_room": "Select a room",
+    "station_badge": "Station",
+    "members_btn": "Members",
+    "welcome_room": "Welcome to #{name}",
+    "start_conversation": "This is the beginning of the conversation. Say hello!",
+    "create_channel_title": "Create Channel",
+    "channel_name_label": "Channel Name",
+    "channel_name_placeholder": "e.g. production-updates",
+    "create_channel_btn": "Create Channel",
+    "search_rooms": "Search rooms…",
+    "create_room_btn": "Create Room",
     "message_placeholder": "Message (use @name to mention)",
     "signed_in_as": "Signed in as",
     "mentions": "Mentions",
@@ -824,7 +877,28 @@
     "unpin_label": "Unpin notification",
     "pinned_section": "Pinned",
     "rework_requested": "{order} ({orderId}) • {station} sent to rework",
-    "stage_completed": "{order} ({orderId}) • {station} marked completed"
+    "stage_completed": "{order} ({orderId}) • {station} marked completed",
+    "mark_all_read": "Mark all read"
+  },
+  "analytics": {
+    "title": "Analytics Dashboard",
+    "loading": "Loading analytics...",
+    "timeframe": {
+      "7d": "Last 7 Days",
+      "30d": "Last 30 Days",
+      "90d": "Last 90 Days",
+      "1y": "Last Year"
+    },
+    "metrics": {
+      "total": "Total Orders",
+      "active": "Active Orders",
+      "completed": "Completed",
+      "avg_days": "Avg Days to Complete",
+      "rework": "Total Rework"
+    },
+    "at_risk": "Orders at Risk",
+    "station_workload": "Station Workload",
+    "top_rework": "Top Rework Stations"
   },
   "settings": {
     "title": "Settings",
@@ -879,7 +953,8 @@
   },
   "layout": {
     "notifications": "Notifications",
-    "chat": "Chat"
+    "chat": "Chat",
+    "realtime": "Realtime connection"
   },
   "pdf": {
     "label": "PDF",
@@ -941,7 +1016,10 @@
       "title": "Density",
       "compact": "Compact",
       "cozy": "Cozy",
-      "comfortable": "Comfortable"
+      "comfortable": "Comfortable",
+      "compact_desc": "Minimal spacing",
+      "cozy_desc": "Balanced spacing",
+      "comfortable_desc": "Generous spacing"
     },
     "quickCreate": "Quick create",
     "notifications": "Notifications",
@@ -953,7 +1031,8 @@
     "export_ics": "Export ICS",
     "print_pack": "Print pack",
     "save": "Save",
-    "discard": "Discard"
+    "discard": "Discard",
+    "unread": "unread"
   },
   "auth": {
     "login": "Log In",

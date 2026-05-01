@@ -3,25 +3,31 @@
   import { page } from '$app/state';
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
+  import { notificationStore } from '$lib/stores/notifications';
 
   const links = [
-    { href: '/',          icon: 'layout-dashboard' as const, label: 'nav.dashboard', default: 'Dashboard' },
-    { href: '/calendar',  icon: 'calendar'          as const, label: 'nav.calendar',  default: 'Calendar' },
-    { href: '/inventory', icon: 'package'            as const, label: 'nav.inventory', default: 'Inventory' },
-    { href: '/ai-lab',    icon: 'sparkles'           as const, label: 'nav.aiLab',     default: 'AI Lab' },
-    { href: '/settings',  icon: 'settings'           as const, label: 'nav.settings',  default: 'Settings' },
+    { href: '/',        icon: 'layout-dashboard' as const, label: 'nav.dashboard', default: 'Dashboard' },
+    { href: '/orders',  icon: 'clipboard-list'    as const, label: 'nav.orders',    default: 'Orders' },
+    { href: '/calendar',icon: 'calendar'           as const, label: 'nav.calendar',  default: 'Calendar' },
+    { href: '/settings',icon: 'settings'           as const, label: 'nav.settings',  default: 'Settings' },
   ] as const;
 
   let currentPath = $derived(page.url.pathname);
+  let unreadCount = $derived($notificationStore.unreadCount);
+
   function isActive(href: string) {
     const full = `${base}${href}`;
     return href === '/'
       ? currentPath === base || currentPath === `${base}/`
       : currentPath.startsWith(full);
   }
+
+  let notifActive = $derived(
+    currentPath === `${base}/notifications` || currentPath === '/notifications'
+  );
 </script>
 
-<nav class="rf-bottomnav" aria-label="Primary navigation">
+<nav class="rf-bottomnav" aria-label={$t('a11y.nav', { default: 'Primary navigation' })}>
   {#each links as link}
     {@const active = isActive(link.href)}
     <a
@@ -36,6 +42,22 @@
       <span class="rf-bottomnav__label">{$t(link.label, { default: link.default })}</span>
     </a>
   {/each}
+
+  <!-- Notifications tab with live badge -->
+  <a
+    href="{base}/notifications"
+    class="rf-bottomnav__item"
+    aria-current={notifActive ? 'page' : undefined}
+    aria-label="{$t('notifications.title', { default: 'Notifications' })}{unreadCount ? ` (${unreadCount})` : ''}"
+  >
+    <span class="rf-bottomnav__icon rf-bottomnav__icon--notif">
+      <Icon name="bell" size="md" />
+      {#if unreadCount > 0}
+        <span class="rf-bottomnav__badge" aria-hidden="true">{unreadCount > 9 ? '9+' : unreadCount}</span>
+      {/if}
+    </span>
+    <span class="rf-bottomnav__label">{$t('notifications.title', { default: 'Notifications' })}</span>
+  </a>
 </nav>
 
 <style>
@@ -76,18 +98,12 @@
     flex: 1;
     max-width: 80px;
   }
-  .rf-bottomnav__item:hover {
-    color: var(--ink-secondary);
-  }
-  .rf-bottomnav__item[aria-current="page"] {
-    color: var(--brand);
-  }
-  .rf-bottomnav__item:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
-  }
+  .rf-bottomnav__item:hover { color: var(--ink-secondary); }
+  .rf-bottomnav__item[aria-current="page"] { color: var(--brand); }
+  .rf-bottomnav__item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
   .rf-bottomnav__icon {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -103,14 +119,30 @@
     transform: translateY(-1px);
   }
 
+  .rf-bottomnav__badge {
+    position: absolute;
+    top: -3px;
+    right: -5px;
+    min-width: 15px;
+    height: 15px;
+    border-radius: var(--radius-full);
+    background: var(--error);
+    color: var(--bg-0);
+    font-size: 9px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    padding: 0 2px;
+    border: 1.5px solid var(--bg-0);
+    line-height: 1;
+  }
+
   .rf-bottomnav__label {
     font-size: calc(var(--text-xs) - 1px);
     font-weight: 500;
     line-height: 1;
   }
-  .rf-bottomnav__item[aria-current="page"] .rf-bottomnav__label {
-    font-weight: 700;
-  }
+  .rf-bottomnav__item[aria-current="page"] .rf-bottomnav__label { font-weight: 700; }
 
   @media (max-width: 1024px) {
     .rf-bottomnav { display: flex; }

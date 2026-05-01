@@ -7,15 +7,12 @@
 <section class="card">
   <h1 style="margin: 0 0 16px 0; display: flex; align-items: center; gap: 12px;">
     <HelpCircle size={28} aria-hidden="true" />
-    Help & Documentation
+    {$t('help.page_title', { default: 'Help & Documentation' })}
   </h1>
   <p class="muted">
-    Need more help? Contact your system administrator or refer to the user documentation.
+    {$t('help.contact', { default: 'Need more help? Contact your system administrator or refer to the user documentation.' })}
   </p>
   <div style="margin-top: 12px;">
     <a href={`${base}/`} class="tag">← {$t('nav.dashboard')}</a>
   </div>
 </section>
-
-<style>
-</style>

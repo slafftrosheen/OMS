@@ -27,16 +27,16 @@
     currentFontScale = p.fontScale;
   });
 
-  const themes: { id: Theme; icon: any; label: string }[] = [
-    { id: 'LightVim', icon: Sun, label: 'Light' },
-    { id: 'DarkVim', icon: Moon, label: 'Dark' },
-    { id: 'HighContrastVim', icon: Contrast, label: 'High Contrast' }
+  const themes: { id: Theme; icon: any }[] = [
+    { id: 'LightVim', icon: Sun },
+    { id: 'DarkVim', icon: Moon },
+    { id: 'HighContrastVim', icon: Contrast }
   ];
 
-  const densities: { id: Density; label: string; desc: string }[] = [
-    { id: 'compact', label: 'Compact', desc: 'Minimal spacing' },
-    { id: 'cozy', label: 'Cozy', desc: 'Balanced spacing' },
-    { id: 'comfortable', label: 'Comfortable', desc: 'Generous spacing' }
+  const densities: { id: Density }[] = [
+    { id: 'compact' },
+    { id: 'cozy' },
+    { id: 'comfortable' }
   ];
 
   const fontScales = [
@@ -96,7 +96,7 @@
               <div class="theme-icon">
                 <theme.icon size={20} />
               </div>
-              <span>{theme.label}</span>
+              <span>{$t(`header.theme.options.${theme.id === 'HighContrastVim' ? 'HighContrast' : theme.id}`, { default: theme.id })}</span>
             </button>
           {/each}
         </div>
@@ -147,8 +147,8 @@
               aria-checked={currentDensity === density.id}
               onclick={() => setDensity(density.id)}
             >
-              <span class="density-label">{density.label}</span>
-              <span class="density-desc">{density.desc}</span>
+              <span class="density-label">{$t(`ui.density.${density.id}`, { default: density.id })}</span>
+              <span class="density-desc">{$t(`ui.density.${density.id}_desc`, { default: density.id })}</span>
             </button>
           {/each}
         </div>

@@ -8,17 +8,11 @@
   import { goto, replaceState } from '$app/navigation';
 
   import Logo from '$lib/brand/Logo.svelte';
-  import NotificationsBell from '$lib/topbar/NotificationsBell.svelte';
-  import ThemeSwitch from '$lib/topbar/ThemeSwitch.svelte';
-  import LangSwitch from '$lib/topbar/LangSwitch.svelte';
-  import TextSizeSwitch from '$lib/topbar/TextSizeSwitch.svelte';
-  import DensitySwitch from '$lib/topbar/DensitySwitch.svelte';
-  import UserSwitch from '$lib/topbar/UserSwitch.svelte';
   import MobileNav from '$lib/topbar/MobileNav.svelte';
+  import BottomBar from '$lib/ui/BottomBar.svelte';
   import Toast from '$lib/notify/Toast.svelte';
   import LiveRegion from '$lib/ui/LiveRegion.svelte';
   import ChatSidebar from '$lib/chat/ChatSidebar.svelte';
-  import RealtimeConnection from '$lib/realtime/RealtimeConnection.svelte';
   import InstallPrompt from '$lib/pwa/InstallPrompt.svelte';
   import UpdatePrompt from '$lib/pwa/UpdatePrompt.svelte';
   import OfflineIndicator from '$lib/pwa/OfflineIndicator.svelte';
@@ -31,7 +25,7 @@
   import { setLocale } from '$lib/i18n';
   import Icon from '$lib/ui/Icon.svelte';
   import { AuthState, currentUser, loadCurrentUser } from '$lib/auth/authState.svelte';
-  import { initChatRealtime, toggleChat, unreadCount, isChatOpen } from '$lib/chat/chat-store';
+  import { initChatRealtime } from '$lib/chat/chat-store';
   import { websocket } from '$lib/stores/websocket';
   import { OrderState } from '$lib/order/orderState.svelte';
   import { setContext } from 'svelte';
@@ -64,11 +58,11 @@
   let currentPath = $derived(page.url.pathname);
 
   const themeColors: Record<string, string> = {
-    LightVim:        '#bf3020',
-    DarkVim:         '#ff453a',
-    HighContrastVim: '#ff3b3c'
+    LightVim:        'oklch(0.42 0.17 260)',
+    DarkVim:         'oklch(0.72 0.14 260)',
+    HighContrastVim: '#6699ff'
   };
-  let themeColor = $derived(themeColors[($ui).theme] ?? '#ff453a');
+  let themeColor = $derived(themeColors[($ui).theme] ?? 'oklch(0.72 0.14 260)');
 
   const openSearch = () => {
     searchOpen = true;
@@ -349,45 +343,20 @@
         </a>
         <a href="{base}/ai-lab" class:active={currentPath.includes('/ai-lab') || currentPath.includes('/ai-dashboard')} onclick={() => mobileMenuOpen = false}>
           <Icon name="sparkles" size="sm" />
-          <span>Reclame AI Lab</span>
+          <span>{$t('nav.ailab', { default: 'AI Lab' })}</span>
         </a>
         {#if isAdmin}
           <div class="nav-divider"></div>
           <a href="{base}/admin/users" class:active={currentPath.includes('/admin/users')} onclick={() => mobileMenuOpen = false}>
             <Icon name="users" size="sm" />
-            <span>Users</span>
+            <span>{$t('nav.users', { default: 'Users' })}</span>
           </a>
           <a href="{base}/admin/materials" class:active={currentPath.includes('/admin/materials')} onclick={() => mobileMenuOpen = false}>
             <Icon name="boxes" size="sm" />
-            <span>Materials</span>
+            <span>{$t('nav.materials', { default: 'Materials' })}</span>
           </a>
         {/if}
       </nav>
-      <div class="actions">
-        <div class="action-btn desktop-only" title={$t('topbar.language', { default: 'Language' })}><LangSwitch /></div>
-        <div class="action-group text-size-group desktop-only" title={$t('topbar.textSize', { default: 'Text Size' })}><TextSizeSwitch /></div>
-        <div class="action-btn desktop-only" title={$t('topbar.density', { default: 'Density' })}><DensitySwitch /></div>
-        <div class="action-btn" title={$t('topbar.theme', { default: 'Theme' })}><ThemeSwitch /></div>
-        <div class="action-btn" title={$t('ui.notifications', { default: 'Notifications' })}><NotificationsBell /></div>
-        <div class="action-btn" title="Realtime Connection"><RealtimeConnection /></div>
-        <button
-          class="action-btn chat-toggle"
-          class:active={$isChatOpen}
-          title={$t('ui.chat', { default: 'Chat' })}
-          onclick={toggleChat}
-        >
-          <div class="icon-wrapper">
-            <Icon name="message-square" size="md" />
-            {#if $unreadCount > 0}
-              <span class="badge">{$unreadCount > 9 ? '9+' : $unreadCount}</span>
-            {/if}
-          </div>
-        </button>
-        <a href="{base}/settings" class="action-btn settings-btn" title={$t('nav.settings', { default: 'Settings' })}>
-          <Icon name="settings" size="md" />
-        </a>
-        <UserSwitch />
-      </div>
     </header>
   {/if}
 
@@ -412,9 +381,8 @@
   <main id="main" class="rf-page">{@render children?.()}</main>
 
   {#if $currentUser}
-    <div class="mobile-nav-wrapper">
-      <MobileNav />
-    </div>
+    <MobileNav />
+    <BottomBar />
     <ChatSidebar />
   {/if}
 
@@ -433,46 +401,6 @@
   height: 1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
-}
-
-.chat-toggle {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  position: relative;
-}
-
-.chat-toggle.active {
-  color: var(--brand);
-  background: var(--brand-soft);
-}
-
-.icon-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
-
-.badge {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  background: var(--error);
-  color: var(--bg-0);
-  font-size: 10px;
-  font-weight: 700;
-  min-width: 16px;
-  height: 16px;
-  border-radius: var(--radius-full);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
-  border: 2px solid var(--bg-1);
 }
 
 .skip-link {
@@ -571,48 +499,6 @@
   flex-shrink: 0;
 }
 
-.rf-topbar .actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xxs);
-  flex-shrink: 0;
-}
-
-.rf-topbar .action-group {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.rf-topbar .action-group.text-size-group {
-  padding: 0 var(--space-xs);
-  border-radius: var(--radius-sm);
-  background: var(--bg-0);
-  border: 1px solid var(--border);
-  height: var(--control-sm, 36px);
-}
-
-.rf-topbar .action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--control-sm, 36px);
-  height: var(--control-sm, 36px);
-  min-width: var(--control-sm, 36px);
-  border-radius: var(--radius-sm);
-  color: var(--ink-secondary);
-  transition:
-    background var(--motion-sm) var(--ease-standard),
-    color      var(--motion-sm) var(--ease-standard);
-  flex-shrink: 0;
-}
-.rf-topbar .action-btn:hover {
-  background: color-mix(in oklab, var(--bg-2) 70%, transparent);
-  color: var(--ink-primary);
-}
-
-.rf-topbar .settings-btn { text-decoration: none; }
-
 .rf-topbar .mobile-menu-btn {
   display: none;
   background: transparent;
@@ -627,21 +513,18 @@
 }
 .rf-topbar .mobile-menu-btn:hover { background: var(--bg-2); }
 
-.mobile-nav-wrapper { display: none; }
-
 @media (max-width: 1024px) {
   .rf-topbar {
     padding: 0 var(--space-md);
     height: 56px;
     gap: var(--space-sm);
   }
-  .rf-topbar .brand  { flex: 1; order: 1; }
-  .rf-topbar .actions { order: 2; gap: var(--space-xxs); }
+  .rf-topbar .brand { flex: 1; order: 1; }
   .rf-topbar .mobile-menu-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    order: 3;
+    order: 2;
   }
   .rf-topbar nav.main {
     position: fixed;
@@ -667,9 +550,6 @@
     font-size: var(--text-md);
   }
   .nav-divider { width: 100%; height: 1px; margin: var(--space-sm) 0; }
-  .rf-topbar .action-btn { width: 32px; height: 32px; min-width: 32px; }
-  .desktop-only { display: none !important; }
-  .mobile-nav-wrapper { display: block; }
 
   .rf-topbar nav.main.mobile-open::before {
     content: '';

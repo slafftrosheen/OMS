@@ -126,22 +126,22 @@
   <!-- Sidebar -->
   <aside class="chat-sidebar">
     <div class="sidebar-header">
-      <h2>Chat</h2>
-      <button class="icon-btn" onclick={() => showRoomModal = true} title="Create Room">
+      <h2>{$t('chat.title', { default: 'Team Chat' })}</h2>
+      <button class="icon-btn" onclick={() => showRoomModal = true} title={$t('chat.create_room_btn', { default: 'Create Room' })}>
         <Icon name="plus" size="sm" />
       </button>
     </div>
 
     <div class="search-box">
       <Icon name="search" size="sm" />
-      <input type="text" placeholder="Search rooms…" bind:value={searchQuery} />
+      <input type="text" placeholder={$t('chat.search_rooms', { default: 'Search rooms…' })} bind:value={searchQuery} />
     </div>
 
     <div class="rooms-list">
       <!-- Channels -->
       {#if channelRooms.length > 0}
         <div class="rooms-section">
-          <span class="section-label">Channels</span>
+          <span class="section-label">{$t('chat.channels_section', { default: 'Channels' })}</span>
           {#each channelRooms as room (room.id)}
             <button
               class="room-item"
@@ -158,7 +158,7 @@
       <!-- Station rooms -->
       {#if stationRooms.length > 0}
         <div class="rooms-section">
-          <span class="section-label">Production Stations</span>
+          <span class="section-label">{$t('chat.stations_section', { default: 'Production Stations' })}</span>
           {#each stationRooms as room (room.id)}
             <button
               class="room-item station-room"
@@ -179,7 +179,7 @@
           <div class="user-avatar">{authorInitials(currentUserId)}</div>
           <div class="user-details">
             <span class="user-name">{($currentUser as any).displayName || ($currentUser as any).username}</span>
-            <span class="user-status">Online</span>
+            <span class="user-status">{$t('chat.online', { default: 'Online' })}</span>
           </div>
         </div>
       </div>
@@ -195,13 +195,13 @@
         {:else}
           <Icon name="hash" size="sm" />
         {/if}
-        <h3>{activeRoom?.name || 'Select a room'}</h3>
+        <h3>{activeRoom?.name || $t('chat.select_room', { default: 'Select a room' })}</h3>
         {#if activeRoom && (activeRoom as any).kind === 'station'}
-          <span class="station-badge">Station</span>
+          <span class="station-badge">{$t('chat.station_badge', { default: 'Station' })}</span>
         {/if}
       </div>
       <div class="header-actions">
-        <button class="icon-btn" title="Members">
+        <button class="icon-btn" title={$t('chat.members_btn', { default: 'Members' })}>
           <Icon name="users" size="sm" />
         </button>
       </div>
@@ -211,8 +211,8 @@
       {#if roomMessages.length === 0}
         <div class="empty-state">
           <Icon name="hash" size="sm" />
-          <h3>Welcome to #{activeRoom?.name}</h3>
-          <p>This is the beginning of the conversation. Say hello!</p>
+          <h3>{$t('chat.welcome_room', { default: 'Welcome to #{name}', values: { name: activeRoom?.name ?? '' } })}</h3>
+          <p>{$t('chat.start_conversation', { default: 'This is the beginning of the conversation. Say hello!' })}</p>
         </div>
       {:else}
         {#each roomMessages as message, i (message.id)}
@@ -275,17 +275,17 @@
       tabindex="-1"
     >
       <div class="modal-header">
-        <h3 id="create-room-title">Create Channel</h3>
+        <h3 id="create-room-title">{$t('chat.create_channel_title', { default: 'Create Channel' })}</h3>
         <button class="icon-btn" onclick={() => showRoomModal = false} aria-label="Close">
           <Icon name="x" size="sm" />
         </button>
       </div>
       <div class="modal-body">
         <label>
-          <span>Channel Name</span>
+          <span>{$t('chat.channel_name_label', { default: 'Channel Name' })}</span>
           <input
             type="text"
-            placeholder="e.g. production-updates"
+            placeholder={$t('chat.channel_name_placeholder', { default: 'e.g. production-updates' })}
             bind:value={newRoomName}
             onkeydown={(e) => e.key === 'Enter' && createRoom()}
           />
@@ -294,7 +294,7 @@
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick={() => showRoomModal = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
         <button class="btn btn-primary" onclick={createRoom} disabled={!newRoomName.trim()}>
-          Create Channel
+          {$t('chat.create_channel_btn', { default: 'Create Channel' })}
         </button>
       </div>
     </div>

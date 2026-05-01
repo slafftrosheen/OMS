@@ -10,6 +10,7 @@
     import Button from '$lib/components/ui/Button.svelte';
     import Card from '$lib/components/ui/Card.svelte';
     import { tokenColor } from '$lib/utils/tokenColor';
+    import { t } from 'svelte-i18n';
 
     let recentOrders: any[] = $state([]);
     let chartData = $state({
@@ -92,49 +93,49 @@
 </script>
 
 <svelte:head>
-    <title>Dashboard - OMS</title>
+    <title>{$t('dashboard.title', { default: 'Dashboard' })} - OMS</title>
 </svelte:head>
 
 <div class="dashboard-container">
     <header class="dashboard-header">
         <div>
-            <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle">Welcome back, {$currentUser?.username || 'User'}!</p>
+            <h1 class="page-title">{$t('dashboard.title', { default: 'Dashboard' })}</h1>
+            <p class="page-subtitle">{$t('dashboard.welcome', { default: 'Welcome back, {name}!', values: { name: $currentUser?.username || '' } })}</p>
         </div>
         <Button variant="primary" onclick={() => goto('/orders/new')}>
-            + New Order
+            {$t('dashboard.new_order', { default: '+ New Order' })}
         </Button>
     </header>
 
     {#if loading}
         <div class="loading-state">
             <div class="spinner"></div>
-            <p>Loading dashboard...</p>
+            <p>{$t('dashboard.loading', { default: 'Loading dashboard...' })}</p>
         </div>
     {:else}
         <!-- Stats Grid -->
         <div class="stats-grid">
             <StatCard
-                title="Total Orders"
+                title={$t('dashboard.stat_total', { default: 'Total Orders' })}
                 value={$orderStats.total}
                 icon="📋"
                 variant="default"
             />
             <StatCard
-                title="Active Orders"
+                title={$t('dashboard.stat_active', { default: 'Active Orders' })}
                 value={$orderStats.active}
                 icon="⚡"
                 variant="primary"
                 trend={{ value: 12, direction: 'up' }}
             />
             <StatCard
-                title="Completed"
+                title={$t('dashboard.stat_completed', { default: 'Completed' })}
                 value={$orderStats.completed}
                 icon="✅"
                 variant="success"
             />
             <StatCard
-                title="Overdue"
+                title={$t('dashboard.stat_overdue', { default: 'Overdue' })}
                 value={$orderStats.overdue}
                 icon="⚠️"
                 variant="danger"
@@ -145,8 +146,8 @@
         <!-- Charts Section -->
         {#if chartData.datasets.length > 0}
         <div class="charts-section">
-            <Card title="Orders Overview" padding="lg">
-                <LineChart data={chartData} title="Last 30 Days" height={300} />
+            <Card title={$t('dashboard.chart_overview', { default: 'Orders Overview' })} padding="lg">
+                <LineChart data={chartData} title={$t('dashboard.chart_period', { default: 'Last 30 Days' })} height={300} />
             </Card>
         </div>
         {/if}
@@ -154,18 +155,18 @@
         <!-- Recent Orders -->
         <section class="recent-orders">
             <div class="section-header">
-                <h2 class="section-title">Active Orders</h2>
+                <h2 class="section-title">{$t('dashboard.kpi.active', { default: 'Active Orders' })}</h2>
                 <Button variant="ghost" onclick={() => goto('/orders')}>
-                    View All →
+                    {$t('dashboard.view_all', { default: 'View All' })} →
                 </Button>
             </div>
 
             {#if recentOrders.length === 0}
                 <Card>
                     <div class="empty-state">
-                        <p class="empty-message">No active orders</p>
+                        <p class="empty-message">{$t('dashboard.no_orders', { default: 'No active orders' })}</p>
                         <Button variant="primary" onclick={() => goto('/orders/new')}>
-                            Create First Order
+                            {$t('dashboard.create_first', { default: 'Create First Order' })}
                         </Button>
                     </div>
                 </Card>
@@ -180,30 +181,30 @@
 
         <!-- Quick Actions -->
         <section class="quick-actions">
-            <h2 class="section-title">Quick Actions</h2>
+            <h2 class="section-title">{$t('dashboard.quick_actions', { default: 'Quick Actions' })}</h2>
             <div class="actions-grid">
                 <button class="action-card" onclick={() => goto('/orders/new')}>
                     <span class="action-icon">➕</span>
-                    <h3 class="action-title">New Order</h3>
-                    <p class="action-description">Create a new production order</p>
+                    <h3 class="action-title">{$t('dashboard.actions.new_order.title', { default: 'New Order' })}</h3>
+                    <p class="action-description">{$t('dashboard.actions.new_order.desc', { default: 'Create a new production order' })}</p>
                 </button>
 
                 <button class="action-card" onclick={() => goto('/production')}>
                     <span class="action-icon">🏭</span>
-                    <h3 class="action-title">Production Board</h3>
-                    <p class="action-description">View production workflow</p>
+                    <h3 class="action-title">{$t('dashboard.actions.production.title', { default: 'Production Board' })}</h3>
+                    <p class="action-description">{$t('dashboard.actions.production.desc', { default: 'View production workflow' })}</p>
                 </button>
 
                 <button class="action-card" onclick={() => goto('/admin/materials')}>
                     <span class="action-icon">📦</span>
-                    <h3 class="action-title">Materials</h3>
-                    <p class="action-description">Manage inventory</p>
+                    <h3 class="action-title">{$t('dashboard.actions.materials.title', { default: 'Materials' })}</h3>
+                    <p class="action-description">{$t('dashboard.actions.materials.desc', { default: 'Manage inventory' })}</p>
                 </button>
 
                 <button class="action-card" onclick={() => goto('/analytics')}>
                     <span class="action-icon">📊</span>
-                    <h3 class="action-title">Analytics</h3>
-                    <p class="action-description">View reports</p>
+                    <h3 class="action-title">{$t('dashboard.actions.analytics.title', { default: 'Analytics' })}</h3>
+                    <p class="action-description">{$t('dashboard.actions.analytics.desc', { default: 'View reports' })}</p>
                 </button>
             </div>
         </section>

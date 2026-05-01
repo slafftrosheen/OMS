@@ -2,41 +2,54 @@
   import Icon from '$lib/ui/Icon.svelte';
   import { notices } from '$lib/notify/bus';
   import { onMount } from 'svelte';
-  import { base } from '$app/paths';
+  import { t } from 'svelte-i18n';
+  import { notificationStore } from '$lib/stores/notifications';
+  import { currentUser } from '$lib/auth/authState.svelte';
 
   let open = $state(false);
   let btn: HTMLButtonElement | undefined = $state();
-  let dbNotifications: any[] = $state([]);
+
   let noticesList = $derived($notices);
+  let storeState = $derived($notificationStore);
+
+  // Ephemeral notices + unread DB notifications merged for display
+  let allItems = $derived([
+    ...noticesList.map((n: any) => ({ ephemeral: true, text: n.text, kind: n.kind, time: n.time, read: false, id: null })),
+    ...storeState.items.map(n => ({
+      ephemeral: false,
+      id: n.id,
+      text: n.title,
+      kind: n.type,
+      time: n.created_at,
+      read: n.read,
+      message: n.message
+    }))
+  ]);
+
+  let count = $derived(noticesList.length + storeState.unreadCount);
 
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape') { open = false; btn?.focus(); }
   }
 
-  async function loadNotifications() {
-    try {
-      const res = await fetch(`${base}/api/notifications?unreadOnly=true&limit=20`);
-      if (res.ok) {
-        const data = await res.json();
-        const list = Array.isArray(data) ? data : (data.notifications || data.data || []);
-        dbNotifications = Array.isArray(list) ? list : [];
-      }
-    } catch { dbNotifications = []; }
+  async function handleItemClick(item: any) {
+    if (!item.ephemeral && item.id && !item.read) {
+      await notificationStore.markAsRead(item.id);
+    }
+  }
+
+  async function markAllRead() {
+    const userId = $currentUser?.id;
+    if (userId) await notificationStore.markAllAsRead(userId);
   }
 
   onMount(() => {
-    loadNotifications();
-    const iv = setInterval(loadNotifications, 30000);
-    return () => clearInterval(iv);
+    const userId = $currentUser?.id;
+    if (!userId) return;
+    notificationStore.load(userId);
+    const unsubscribe = notificationStore.subscribe_realtime(userId);
+    return unsubscribe;
   });
-
-  let allNotifications = $derived([
-    ...noticesList,
-    ...(Array.isArray(dbNotifications) ? dbNotifications : []).map(n => ({
-      text: n.title, kind: n.type, time: n.createdAt
-    }))
-  ]);
-  let count = $derived(allNotifications.length);
 </script>
 
 <div class="rf-notif">
@@ -46,7 +59,7 @@
     type="button"
     aria-haspopup="menu"
     aria-expanded={open}
-    aria-label={`Notifications${count ? ` (${count} unread)` : ''}`}
+    aria-label="{$t('notifications.title', { default: 'Notifications' })}{count ? ` (${count})` : ''}"
     onclick={() => open = !open}
   >
     <Icon name="bell" size="md" />
@@ -56,6 +69,7 @@
   </button>
 
   {#if open}
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="rf-notif__dropdown"
       role="menu"
@@ -63,17 +77,34 @@
       onkeydown={onKey}
     >
       <div class="rf-notif__header">
-        <span class="rf-notif__title">Notifications</span>
-        {#if count}<span class="rf-notif__count">{count}</span>{/if}
+        <span class="rf-notif__title">{$t('notifications.title', { default: 'Notifications' })}</span>
+        <div class="rf-notif__header-actions">
+          {#if count}
+            <span class="rf-notif__count">{count}</span>
+            <button class="rf-notif__mark-all" type="button" onclick={markAllRead}>
+              {$t('notifications.mark_all_read', { default: 'Mark all read' })}
+            </button>
+          {/if}
+        </div>
       </div>
 
-      {#if allNotifications.length === 0}
-        <div class="rf-notif__empty">No notifications</div>
+      {#if allItems.length === 0}
+        <div class="rf-notif__empty">{$t('notifications.empty', { default: 'No notifications yet.' })}</div>
       {:else}
-        {#each allNotifications as n}
-          <button role="menuitem" class="rf-notif__item" type="button">
-            <span class="rf-notif__item-text" data-kind={n.kind}>{n.text}</span>
-            <span class="rf-notif__item-time">{new Date(n.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        {#each allItems as item}
+          <button
+            role="menuitem"
+            class="rf-notif__item"
+            class:unread={!item.read}
+            type="button"
+            onclick={() => handleItemClick(item)}
+          >
+            <span class="rf-notif__item-text" data-kind={item.kind}>{item.text}</span>
+            {#if item.time}
+              <span class="rf-notif__item-time">
+                {new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            {/if}
           </button>
         {/each}
       {/if}
@@ -128,7 +159,7 @@
   .rf-notif__dropdown {
     position: absolute;
     right: 0;
-    top: calc(100% + var(--space-sm));
+    bottom: calc(100% + var(--space-sm));
     width: min(360px, 92vw);
     background: var(--glass-bg-strong);
     backdrop-filter: var(--glass-material-thick);
@@ -140,11 +171,11 @@
     z-index: var(--z-popover);
     max-height: 480px;
     overflow-y: auto;
-    animation: rf-dropdown-in var(--motion-sm) var(--ease-standard) both;
+    animation: rf-dropdown-up var(--motion-sm) var(--ease-spring-soft) both;
   }
 
-  @keyframes rf-dropdown-in {
-    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  @keyframes rf-dropdown-up {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
     to   { opacity: 1; transform: translateY(0)   scale(1); }
   }
 
@@ -161,6 +192,11 @@
     font-weight: 700;
     color: var(--ink-primary);
   }
+  .rf-notif__header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
   .rf-notif__count {
     display: inline-flex;
     align-items: center;
@@ -174,6 +210,18 @@
     font-size: var(--text-xs);
     font-weight: 700;
   }
+  .rf-notif__mark-all {
+    font-size: var(--text-xs);
+    color: var(--brand);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-weight: 500;
+    box-shadow: none;
+    transform: none;
+  }
+  .rf-notif__mark-all:hover { text-decoration: underline; transform: none; filter: none; }
 
   .rf-notif__empty {
     padding: var(--space-lg) var(--space-sm);
@@ -195,9 +243,13 @@
     cursor: pointer;
     text-align: left;
     transition: background var(--motion-sm) var(--ease-standard);
+    box-shadow: none;
+    transform: none;
   }
-  .rf-notif__item:hover { background: color-mix(in oklab, var(--bg-2) 60%, transparent); }
+  .rf-notif__item:hover { background: color-mix(in oklab, var(--bg-2) 60%, transparent); transform: none; filter: none; }
   .rf-notif__item:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+  .rf-notif__item.unread { background: color-mix(in oklab, var(--brand) 6%, transparent); }
+  .rf-notif__item.unread:hover { background: color-mix(in oklab, var(--brand) 12%, transparent); }
 
   .rf-notif__item-text {
     font-size: var(--text-sm);
