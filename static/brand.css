@@ -122,7 +122,8 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   --radius-full: 999px;
 
   /* Chrome */
-  --topbar-h:  calc(60px * var(--font-scale, 1));
+  --topbar-h:    calc(60px * var(--font-scale, 1));
+  --bottombar-h: calc(44px * var(--font-scale, 1));
   --rail-safe: env(safe-area-inset-bottom, 0px);
   --content-max: 1600px;
 }
@@ -454,7 +455,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  padding-bottom: calc(var(--topbar-h, 60px) + var(--rail-safe, 0px));
+  padding-bottom: calc(var(--bottombar-h, 44px) + var(--rail-safe, 0px));
 }
 
 /* Mono */

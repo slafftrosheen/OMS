@@ -331,7 +331,9 @@
     "toggle_right": "Pārslēgt labo paneli (Shift+R)",
     "search": "Meklēt pasūtījumus, failus, klientus…",
     "progress_region": "Kopējais procesa progress",
-    "skip": "Pāriet uz saturu"
+    "skip": "Pāriet uz saturu",
+    "toolbar": "Rīkjosla",
+    "nav": "Galvenā navigācija"
   },
   "accessibility": {
     "text_size": "Teksta izmērs",
@@ -359,7 +361,9 @@
     "show_hints": "Rādīt noderīgus padomus visā saskarnē"
   },
   "help": {
-    "title": "Tastatūras saīsnes"
+    "title": "Tastatūras saīsnes",
+    "page_title": "Palīdzība un dokumentācija",
+    "contact": "Nepieciešama palīdzība? Sazinieties ar sistēmas administratoru vai skatiet lietotāja dokumentāciju."
   },
   "toast": {
     "approved": "Pieprasījums apstiprināts",
@@ -403,10 +407,22 @@
     "stat_completed": "Pabeigti",
     "stat_overdue": "Nokavēti",
     "actions": {
-      "new_order": { "title": "Jauns pasūtījums", "desc": "Izveidot jaunu ražošanas pasūtījumu" },
-      "production": { "title": "Ražošanas dēlis", "desc": "Skatīt ražošanas darbplūsmu" },
-      "materials": { "title": "Materiāli", "desc": "Pārvaldīt krājumus" },
-      "analytics": { "title": "Analītika", "desc": "Skatīt pārskatus" }
+      "new_order": {
+        "title": "Jauns pasūtījums",
+        "desc": "Izveidot jaunu ražošanas pasūtījumu"
+      },
+      "production": {
+        "title": "Ražošanas dēlis",
+        "desc": "Skatīt ražošanas darbplūsmu"
+      },
+      "materials": {
+        "title": "Materiāli",
+        "desc": "Pārvaldīt krājumus"
+      },
+      "analytics": {
+        "title": "Analītika",
+        "desc": "Skatīt pārskatus"
+      }
     },
     "kpi": {
       "active": "Aktīvie pasūtījumi",
@@ -861,7 +877,8 @@
     "unpin_label": "Atspraust",
     "pinned_section": "Piespraustie",
     "rework_requested": "{order} ({orderId}) • {station} nosūtīts uz pārstrādi",
-    "stage_completed": "{order} ({orderId}) • {station} atzīmēta kā pabeigta"
+    "stage_completed": "{order} ({orderId}) • {station} atzīmēta kā pabeigta",
+    "mark_all_read": "Atzīmēt visu izlasītu"
   },
   "analytics": {
     "title": "Analītikas panelis",
@@ -1014,7 +1031,8 @@
     "export_ics": "Eksportēt uz ICS",
     "print_pack": "Drukāt pakotni",
     "save": "Saglabāt",
-    "discard": "Atcelt"
+    "discard": "Atcelt",
+    "unread": "nelasīti"
   },
   "auth": {
     "login": "Pieslēgties",
