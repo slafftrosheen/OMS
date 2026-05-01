@@ -1,95 +1,107 @@
 <script lang="ts">
-  import AlertCircle from 'lucide-svelte/icons/alert-circle';
-  import ArrowLeft from 'lucide-svelte/icons/arrow-left';
-  import CheckCircle from 'lucide-svelte/icons/check-circle';
-  import Clock from 'lucide-svelte/icons/clock';
-  import Eye from 'lucide-svelte/icons/eye';
-  import FileText from 'lucide-svelte/icons/file-text';
-  import Plus from 'lucide-svelte/icons/plus';
-  import Save from 'lucide-svelte/icons/save';
-  import Trash2 from 'lucide-svelte/icons/trash-2';
-  import Upload from 'lucide-svelte/icons/upload';
-  import XCircle from 'lucide-svelte/icons/x-circle';
-  import { stopPropagation } from 'svelte/legacy';
-
+  /**
+   * Phase 7: Corel-style canvas layout for Order editing.
+   * Left panel = toolbox, top bar = context bar, right docker = management,
+   * top-right = primary action buttons (Save Draft / Confirm / Rework).
+   * The tldraw canvas fills the centre.
+   */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
-  import Profile7stVisual from '$lib/profiles/components/Profile7stVisual.svelte';
-  import { createId } from '$lib/utils/id';
   import { currentUser } from '$lib/auth/authState.svelte';
+  import { notifySuccess, notifyError } from '$lib/notify/toast';
+  import ChangeRequestList from '$lib/order/ChangeRequestList.svelte';
 
   let { data } = $props();
 
-  let loading = $state(true);
-  let saving = $state(false);
-  let error = $state('');
-  let successMessage = $state('');
-  
-  // Order Details
-  let orderId: number;
-  let clientName = $state('');
+  // ── Order state ─────────────────────────────────────────────────────────────
+  let orderId: number | null = $state(null);
   let poNumber = $state('');
+  let clientName = $state('');
+  let title = $state('');
   let deadline = $state('');
   let loadingDate = $state('');
   let notes = $state('');
   let priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' = $state('NORMAL');
-  let status: string = $state('draft');
-  
-  // Delivery Address
+  let status = $state('draft');
   let deliveryAddress = $state('');
   let deliveryContact = $state('');
   let deliveryPhone = $state('');
-  
-  // Files
-  interface OrderFile {
-    id: number;
-    filename: string;
-    originalName: string;
-    fileType: string;
-    uploadedAt: string;
-  }
-  let existingFiles: OrderFile[] = $state([]);
-  let newFiles: File[] = $state([]);
-  
-  // Profiles
-  type ProfileItem = {
-    id: string;
-    dbId?: number;
-    quantity: number;
-    configuration: any;
-    collapsed: boolean;
-  };
+  let deliveryEmail = $state('');
+  let profiles: any[] = $state([]);
 
-  let profiles: ProfileItem[] = $state([]);
+  // ── Canvas state ─────────────────────────────────────────────────────────────
+  let canvasLoaded = $state(false);
+  let canvasSnapshot: any = $state(null);
+  let canvasDirty = $state(false);
+  let editorRef: any = $state(null);
+  let selectedShapeTypes: string[] = $state([]);
 
-  // Check permissions
-  let isAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin' || $currentUser?.primarySection === 'Admin');
-  let canEdit = $derived(isAdmin);
+  // ── UI state ─────────────────────────────────────────────────────────────────
+  let loading = $state(true);
+  let saving = $state(false);
+  let confirming = $state(false);
+  let error = $state('');
+  let rightTab: 'layers' | 'changes' | 'chat' = $state('layers');
+  let activeTool = $state('select');
+  let aiPrompt = $state('');
+  let useSelectionCtx = $state(false);
+  let aiRunning = $state(false);
+  let aiResponse = $state('');
+
+  // ── Permissions ───────────────────────────────────────────────────────────────
+  let isAdmin = $derived(
+    ($currentUser as any)?.roles?.Admin === 'SuperAdmin' ||
+    ($currentUser as any)?.primarySection === 'Admin'
+  );
+  let canEdit = $derived(isAdmin || status === 'draft');
   let canApprove = $derived(isAdmin && status === 'draft');
-  let canReject = $derived(isAdmin && status === 'draft');
 
+  // ── Canvas seed (reactive, passed into TldrawWrapper) ────────────────────────
+  let orderSeed = $derived(orderId
+    ? {
+        orderId: String(orderId),
+        title,
+        clientName,
+        poNumber,
+        deadline,
+        loadingDate,
+        priority,
+        notes,
+        status,
+        deliveryAddress,
+        deliveryContact,
+        deliveryPhone,
+        deliveryEmail: deliveryEmail,
+        profiles: profiles.map(p => ({
+          name: p.configuration?.profileName,
+          quantity: p.quantity,
+          configuration: p.configuration,
+        })),
+      }
+    : null
+  );
+
+  // ── Load order ────────────────────────────────────────────────────────────────
   onMount(async () => {
     await loadOrder();
+    canvasLoaded = true;
   });
 
   async function loadOrder() {
     loading = true;
     error = '';
-    
     try {
       const response = await fetch(`/api/draft-orders/${data.id}`);
-      if (!response.ok) {
-        throw new Error('Order not found');
-      }
-      
+      if (!response.ok) throw new Error('Order not found');
       const order = await response.json();
-      
+
       orderId = order.id;
-      clientName = order.clientName || order.client || '';
-      poNumber = order.poNumber || order.po_number || '';
+      clientName = order.clientName || '';
+      poNumber = order.poNumber || '';
+      title = order.title || order.clientName || '';
       deadline = order.deadline ? order.deadline.split('T')[0] : '';
       loadingDate = order.loadingDate ? order.loadingDate.split('T')[0] : '';
       notes = order.notes || '';
@@ -98,32 +110,14 @@
       deliveryAddress = order.deliveryAddress || '';
       deliveryContact = order.deliveryContact || '';
       deliveryPhone = order.deliveryPhone || '';
-      
-      // Load profiles
-      if (order.profiles && Array.isArray(order.profiles)) {
-        profiles = order.profiles.map((p: any) => ({
-          id: createId(),
-          dbId: p.id,
-          quantity: p.quantity || 1,
-          configuration: p.configuration || {},
-          collapsed: true
-        }));
+      profiles = order.profiles || [];
+
+      // Load canvas snapshot if exists
+      const csRes = await fetch(`/api/draft-orders/${data.id}/canvas-state`);
+      if (csRes.ok) {
+        const cs = await csRes.json();
+        canvasSnapshot = cs.snapshot ?? null;
       }
-      
-      if (profiles.length === 0) {
-        profiles = [{
-          id: createId(),
-          quantity: 1,
-          configuration: getDefaultConfiguration(),
-          collapsed: false
-        }];
-      }
-      
-      // Load files
-      if (order.files && Array.isArray(order.files)) {
-        existingFiles = order.files;
-      }
-      
     } catch (err: any) {
       error = err.message || 'Failed to load order';
     } finally {
@@ -131,946 +125,783 @@
     }
   }
 
-  function getDefaultConfiguration() {
-    return {
-      profileName: 'Profile',
-      signType: 'EXTERIOR' as 'INTERIOR' | 'EXTERIOR',
-      CNC_FREZER: { face: 'OPAL', back: 'ALU 1.5' },
-      BENDER: { sides: 'ALU 1.2', depth: 140 },
-      FRONT: { opal: true, oracalCodes: [] },
-      PAINTING: { 
-        sides: false, sidesColor: { system: '', code: '', hex: '' },
-        back: false, backColor: { system: '', code: '', hex: '' },
-        frame: false, frameColor: { system: '', code: '', hex: '' }
-      },
-      ASSEMBLING: { 
-        led: false, ledType: '', ledTemp: '',
-        trafo: false, trafoType: 'REGULAR', trafoMounting: 'SEPARATE',
-        cables: false, cablesLength: '',
-        frame: false, frameWaterholes: false, frameMountingHoles: false
-      },
-      DELIVERY: { date: deadline, carrier: '', address: '' }
-    };
+  // ── Canvas callbacks ──────────────────────────────────────────────────────────
+  function handleEditorReady(editor: any) {
+    editorRef = editor;
+    editor.store.listen(() => {
+      canvasDirty = true;
+    }, { scope: 'document' });
   }
 
-  function addProfile() {
-    profiles = [...profiles, {
-      id: createId(),
-      quantity: 1,
-      configuration: getDefaultConfiguration(),
-      collapsed: false
-    }];
+  function handleCanvasSave(snapshot: any) {
+    canvasSnapshot = snapshot;
+    canvasDirty = true;
   }
 
-  function removeProfile(id: string) {
-    if (profiles.length > 1) {
-      profiles = profiles.filter(p => p.id !== id);
-    }
+  /** Called when a form shape field changes on the canvas — syncs back to Svelte state */
+  function handleOrderChange(oid: string, patch: any) {
+    if (patch.title !== undefined) title = patch.title;
+    if (patch.clientName !== undefined) clientName = patch.clientName;
+    if (patch.deadline !== undefined) deadline = patch.deadline;
+    if (patch.loadingDate !== undefined) loadingDate = patch.loadingDate;
+    if (patch.priority !== undefined) priority = patch.priority;
+    if (patch.notes !== undefined) notes = patch.notes;
+    if (patch.deliveryAddress !== undefined) deliveryAddress = patch.deliveryAddress;
+    if (patch.deliveryContact !== undefined) deliveryContact = patch.deliveryContact;
+    if (patch.deliveryPhone !== undefined) deliveryPhone = patch.deliveryPhone;
+    canvasDirty = true;
   }
 
-  function toggleProfileCollapse(id: string) {
-    profiles = profiles.map(p => 
-      p.id === id ? { ...p, collapsed: !p.collapsed } : p
-    );
+  function handleProfileChange(oid: string, profileIndex: number, profileData: any) {
+    profiles = profiles.map((p, i) => i === profileIndex ? { ...p, configuration: profileData } : p);
+    canvasDirty = true;
   }
 
-  async function handleFileSelect(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (input.files) {
-      newFiles = [...newFiles, ...Array.from(input.files)];
-    }
-    input.value = '';
-  }
-
-  function removeNewFile(index: number) {
-    newFiles = newFiles.filter((_, i) => i !== index);
-  }
-
-  async function saveOrder() {
-    if (!clientName.trim()) {
-      error = 'Client Name is required';
-      return;
-    }
-
+  // ── Save draft ────────────────────────────────────────────────────────────────
+  async function saveDraft() {
+    if (!clientName.trim()) { notifyError('Client name is required'); return; }
     saving = true;
-    error = '';
-    successMessage = '';
-
     try {
-      // Upload new files first
-      const fileIds: number[] = [];
-      for (const file of newFiles) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('category', 'order_sketch');
-        
-        const uploadResponse = await fetch('/api/files/upload', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (uploadResponse.ok) {
-          const uploadResult = await uploadResponse.json();
-          fileIds.push(uploadResult.id);
-        }
-      }
-
-      // Update order
-      const orderData = {
-        clientName,
-        poNumber,
-        deadline,
-        loadingDate: loadingDate || null,
-        notes,
-        priority,
-        status,
-        deliveryAddress,
-        deliveryContact,
-        deliveryPhone,
-        profiles: profiles.map(p => ({
-          id: p.dbId,
-          quantity: p.quantity,
-          configuration: p.configuration
-        })),
-        newFileIds: fileIds
-      };
-
-      const response = await fetch(`/api/draft-orders/${orderId}`, {
+      const res = await fetch(`/api/draft-orders/${orderId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderData)
+        body: JSON.stringify({
+          clientName, title, deadline, loadingDate: loadingDate || null,
+          notes, priority, status,
+          deliveryAddress, deliveryContact, deliveryPhone,
+          profiles: profiles.map(p => ({
+            id: p.dbId, quantity: p.quantity || 1, configuration: p.configuration || {}
+          })),
+        }),
       });
+      if (!res.ok) throw new Error((await res.json()).message || 'Save failed');
 
-      if (response.ok) {
-        successMessage = 'Order updated successfully!';
-        newFiles = [];
-        await loadOrder(); // Reload to get updated data
-      } else {
-        const res = await response.json();
-        error = res.message || 'Failed to save order';
+      // Persist canvas state
+      if (canvasSnapshot) {
+        await fetch(`/api/draft-orders/${data.id}/canvas-state`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snapshot: canvasSnapshot }),
+        });
       }
-    } catch (err) {
-      console.error('Error saving order:', err);
-      error = 'An unexpected error occurred';
+
+      canvasDirty = false;
+      notifySuccess('Draft saved');
+    } catch (err: any) {
+      notifyError(err.message || 'Failed to save');
     } finally {
       saving = false;
     }
   }
 
-  async function approveOrder() {
-    if (!confirm('Approve this order and move it to production queue?')) return;
-    
-    saving = true;
+  // ── Confirm order ─────────────────────────────────────────────────────────────
+  async function confirmOrder() {
+    if (!confirm('Approve this order and send it to production?')) return;
+    confirming = true;
     try {
-      const response = await fetch(`/api/draft-orders/${orderId}/approve`, {
-        method: 'POST'
-      });
-      
-      if (response.ok) {
-        successMessage = 'Order approved and sent to production!';
-        status = 'approved';
-        await loadOrder();
-      } else {
-        const res = await response.json();
-        error = res.message || 'Failed to approve order';
-      }
-    } catch (err) {
-      error = 'Failed to approve order';
+      // Save first
+      await saveDraft();
+      const res = await fetch(`/api/draft-orders/${orderId}/approve`, { method: 'POST' });
+      if (!res.ok) throw new Error((await res.json()).message || 'Approval failed');
+      status = 'approved';
+      notifySuccess('Order approved and sent to production');
+      goto(`${base}/orders/${data.id}`);
+    } catch (err: any) {
+      notifyError(err.message || 'Failed to confirm order');
     } finally {
-      saving = false;
+      confirming = false;
     }
   }
 
-  async function rejectOrder() {
-    const reason = prompt('Reason for rejection:');
+  // ── Request rework ────────────────────────────────────────────────────────────
+  async function requestRework() {
+    const reason = prompt('Reason for rework request:');
     if (!reason) return;
-    
-    saving = true;
     try {
-      const response = await fetch(`/api/draft-orders/${orderId}/reject`, {
+      const res = await fetch(`/api/draft-orders/${orderId}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason })
+        body: JSON.stringify({ reason }),
       });
-      
-      if (response.ok) {
-        successMessage = 'Order rejected and returned to SuperAdmin';
-        status = 'rejected';
-        await loadOrder();
-      } else {
-        const res = await response.json();
-        error = res.message || 'Failed to reject order';
+      if (!res.ok) throw new Error((await res.json()).message || 'Rework request failed');
+      status = 'rejected';
+      notifySuccess('Rework requested');
+    } catch (err: any) {
+      notifyError(err.message || 'Failed to request rework');
+    }
+  }
+
+  // ── Toolbar tool selection ────────────────────────────────────────────────────
+  function selectTool(tool: string) {
+    activeTool = tool;
+    if (!editorRef) return;
+    try {
+      editorRef.setCurrentTool(tool);
+    } catch { /* tool may not exist in this tldraw version */ }
+  }
+
+  function addShapeToCanvas(type: string) {
+    if (!editorRef) return;
+    const center = editorRef.getViewportPageCenter();
+    editorRef.createShape({ type, x: center.x - 150, y: center.y - 150 });
+  }
+
+  // ── AI prompt ─────────────────────────────────────────────────────────────────
+  async function runAiPrompt() {
+    if (!aiPrompt.trim()) return;
+    aiRunning = true;
+    aiResponse = '';
+    try {
+      let context = '';
+      if (useSelectionCtx && editorRef) {
+        const sel = editorRef.getSelectedShapes?.() ?? [];
+        context = JSON.stringify(sel.map((s: any) => ({ type: s.type, props: s.props })));
       }
-    } catch (err) {
-      error = 'Failed to reject order';
+
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: 'You are a manufacturing assistant for a signage production company. Help with design, materials, and CAD decisions.' },
+            ...(context ? [{ role: 'user', content: `Canvas context: ${context}` }] : []),
+            { role: 'user', content: aiPrompt },
+          ],
+        }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        aiResponse = d.message?.content || d.reply || d.content || JSON.stringify(d);
+      } else {
+        aiResponse = 'AI service unavailable.';
+      }
+    } catch {
+      aiResponse = 'Failed to reach AI service.';
     } finally {
-      saving = false;
+      aiRunning = false;
     }
   }
 
-  function getStatusColor(s: string): string {
-    switch (s) {
-      case 'draft': return 'status-draft';
-      case 'pending': return 'status-pending';
-      case 'approved': return 'status-approved';
-      case 'rejected': return 'status-rejected';
-      case 'in_production': return 'status-production';
-      case 'completed': return 'status-completed';
-      default: return '';
-    }
-  }
+  // ── Tool definitions ──────────────────────────────────────────────────────────
+  const tools = [
+    { id: 'select', icon: 'mouse-pointer-2', label: 'Select' },
+    { id: 'draw', icon: 'pen-line', label: 'Draw' },
+    { id: 'text', icon: 'type', label: 'Text' },
+    { id: 'eraser', icon: 'eraser', label: 'Erase' },
+  ];
 
-  function getStatusIcon(s: string) {
-    switch (s) {
-      case 'draft': return FileText;
-      case 'approved': return CheckCircle;
-      case 'rejected': return XCircle;
-      case 'in_production': return Clock;
-      default: return FileText;
-    }
-  }
+  const nodeSpawners = [
+    { id: 'maker', icon: 'code', label: 'Maker.js' },
+    { id: 'order-details', icon: 'clipboard-list', label: 'Order Details' },
+    { id: 'order-address', icon: 'map-pin', label: 'Address' },
+    { id: 'profile-7st', icon: 'layers', label: 'Profile 7st' },
+  ];
 
-  const SvelteComponent = $derived(getStatusIcon(status));
+  const STATUS_COLOR: Record<string, string> = {
+    draft: 'var(--warn, #ff9500)',
+    approved: 'var(--ok, #34c759)',
+    rejected: 'var(--error, #ff453a)',
+    in_production: 'var(--brand, #e63329)',
+    completed: 'var(--ok, #34c759)',
+  };
 </script>
 
 <svelte:head>
-  <title>Edit Order {poNumber} | OMS</title>
+  <title>Canvas — {poNumber || 'Order'} | OMS</title>
 </svelte:head>
 
-<div class="edit-order-page">
-  <!-- Header -->
-  <header class="page-header">
-    <div class="header-left">
-      <a href="{base}/orders" class="back-link">
-        <ArrowLeft size={20} />
-        Back to Orders
+<div class="canvas-editor">
+  <!-- ── Top Bar ─────────────────────────────────────────────────────────── -->
+  <header class="top-bar">
+    <div class="top-bar-left">
+      <a href="{base}/orders/{data.id}" class="back-btn" title="Back to order">
+        <Icon name="arrow-left" size="sm" />
       </a>
-      <div class="title-row">
-        <h1>Edit Order</h1>
-        <span class="po-number">{poNumber}</span>
-        <span class="status-badge {getStatusColor(status)}">
-          <SvelteComponent size={14} />
-          {status.toUpperCase().replace('_', ' ')}
-        </span>
+      <div class="order-identity">
+        <span class="po-tag">{poNumber || '…'}</span>
+        <span class="status-dot" style="background: {STATUS_COLOR[status] ?? '#888'}"></span>
+        <span class="status-label">{status.toUpperCase().replace('_', ' ')}</span>
+        {#if canvasDirty}
+          <span class="unsaved-dot" title="Unsaved changes"></span>
+        {/if}
       </div>
     </div>
-    <div class="header-actions">
-      {#if canReject}
-        <button class="btn btn-danger" onclick={rejectOrder} disabled={saving}>
-          <XCircle size={18} />
-          Reject
+
+    <!-- Context bar: shows selection-aware controls -->
+    <div class="context-bar">
+      {#if selectedShapeTypes.length === 0}
+        <span class="ctx-hint">Select a shape to see properties</span>
+      {:else}
+        <span class="ctx-hint">{selectedShapeTypes.join(', ')} selected</span>
+      {/if}
+    </div>
+
+    <!-- Primary actions — always visible -->
+    <div class="top-bar-actions">
+      <button class="action-btn ghost" onclick={() => goto(`${base}/orders/${data.id}`)}>
+        <Icon name="eye" size="sm" /> View
+      </button>
+      {#if isAdmin}
+        <button class="action-btn warn" onclick={requestRework}>
+          <Icon name="rotate-ccw" size="sm" /> Rework
         </button>
       {/if}
+      <button class="action-btn primary" onclick={saveDraft} disabled={saving}>
+        <Icon name="save" size="sm" /> {saving ? 'Saving…' : 'Save Draft'}
+      </button>
       {#if canApprove}
-        <button class="btn btn-success" onclick={approveOrder} disabled={saving}>
-          <CheckCircle size={18} />
-          Approve
-        </button>
-      {/if}
-      {#if canEdit}
-        <button class="btn btn-primary" onclick={saveOrder} disabled={saving}>
-          <Save size={18} />
-          {saving ? 'Saving...' : 'Save Changes'}
+        <button class="action-btn success" onclick={confirmOrder} disabled={confirming}>
+          <Icon name="check-circle" size="sm" /> {confirming ? 'Confirming…' : 'Confirm Order'}
         </button>
       {/if}
     </div>
   </header>
 
-  {#if loading}
-    <div class="loading-state">
-      <div class="spinner"></div>
-      <p>Loading order...</p>
-    </div>
-  {:else if error && !clientName}
-    <div class="error-state">
-      <AlertCircle size={48} />
-      <h2>Error Loading Order</h2>
-      <p>{error}</p>
-      <a href="{base}/orders" class="btn btn-secondary">Back to Orders</a>
-    </div>
-  {:else}
-    {#if error}
-      <div class="alert alert-error">
-        <AlertCircle size={18} />
-        {error}
+  <div class="canvas-body">
+    <!-- ── Left Toolbox ────────────────────────────────────────────────── -->
+    <aside class="toolbox">
+      <div class="tool-section">
+        <span class="tool-section-label">Tools</span>
+        {#each tools as tool}
+          <button
+            class="tool-btn"
+            class:active={activeTool === tool.id}
+            onclick={() => selectTool(tool.id)}
+            title={tool.label}
+          >
+            <Icon name={tool.icon} size="sm" />
+          </button>
+        {/each}
       </div>
-    {/if}
-    
-    {#if successMessage}
-      <div class="alert alert-success">
-        <CheckCircle size={18} />
-        {successMessage}
+
+      <div class="tool-divider"></div>
+
+      <div class="tool-section">
+        <span class="tool-section-label">Nodes</span>
+        {#each nodeSpawners as node}
+          <button
+            class="tool-btn"
+            onclick={() => addShapeToCanvas(node.id)}
+            title={node.label}
+          >
+            <Icon name={node.icon} size="sm" />
+          </button>
+        {/each}
       </div>
-    {/if}
+    </aside>
 
-    <div class="edit-form">
-      <!-- Order Details Section -->
-      <section class="form-section">
-        <h2>Order Details</h2>
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="clientName">Client Name *</label>
-            <input 
-              type="text" 
-              id="clientName" 
-              bind:value={clientName} 
-              placeholder="Enter client name"
-              disabled={!canEdit}
-            />
-          </div>
-          
-          <div class="form-group">
-            <label for="poNumber">PO Number</label>
-            <input 
-              type="text" 
-              id="poNumber" 
-              bind:value={poNumber} 
-              placeholder="PO-YYYY-XXX"
-              disabled
-            />
-          </div>
-          
-          <div class="form-group">
-            <label for="priority">Priority</label>
-            <select id="priority" bind:value={priority} disabled={!canEdit}>
-              <option value="LOW">Low</option>
-              <option value="NORMAL">Normal</option>
-              <option value="HIGH">High</option>
-              <option value="URGENT">Urgent</option>
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="deadline">Deadline</label>
-            <input 
-              type="date" 
-              id="deadline" 
-              bind:value={deadline}
-              disabled={!canEdit}
-            />
-          </div>
-          
-          <div class="form-group">
-            <label for="loadingDate">Loading Date</label>
-            <input 
-              type="date" 
-              id="loadingDate" 
-              bind:value={loadingDate}
-              disabled={!canEdit}
-            />
-          </div>
-          
-          <div class="form-group full-width">
-            <label for="notes">Notes</label>
-            <textarea 
-              id="notes" 
-              bind:value={notes} 
-              rows="3"
-              placeholder="Additional notes for this order..."
-              disabled={!canEdit}
-            ></textarea>
-          </div>
+    <!-- ── Canvas ─────────────────────────────────────────────────────── -->
+    <main class="canvas-area">
+      {#if loading}
+        <div class="canvas-loading">
+          <div class="spinner"></div>
+          <p>Loading order canvas…</p>
         </div>
-      </section>
-
-      <!-- Delivery Section -->
-      <section class="form-section">
-        <h2>Delivery Information</h2>
-        <div class="form-grid">
-          <div class="form-group full-width">
-            <label for="deliveryAddress">Delivery Address</label>
-            <textarea 
-              id="deliveryAddress" 
-              bind:value={deliveryAddress} 
-              rows="3"
-              placeholder="Full delivery address..."
-              disabled={!canEdit}
-            ></textarea>
-          </div>
-          
-          <div class="form-group">
-            <label for="deliveryContact">Contact Person</label>
-            <input 
-              type="text" 
-              id="deliveryContact" 
-              bind:value={deliveryContact}
-              placeholder="Contact name"
-              disabled={!canEdit}
-            />
-          </div>
-          
-          <div class="form-group">
-            <label for="deliveryPhone">Contact Phone</label>
-            <input 
-              type="tel" 
-              id="deliveryPhone" 
-              bind:value={deliveryPhone}
-              placeholder="+371 XXXXXXXX"
-              disabled={!canEdit}
-            />
-          </div>
+      {:else if error}
+        <div class="canvas-error">
+          <Icon name="alert-circle" size="md" />
+          <p>{error}</p>
+          <a href="{base}/orders" class="action-btn primary">Back to Orders</a>
         </div>
-      </section>
+      {:else if canvasLoaded}
+        {#await import('$lib/components/canvas/TldrawWrapper.svelte') then { default: TldrawWrapper }}
+          <TldrawWrapper
+            snapshot={canvasSnapshot}
+            orderSeed={orderSeed}
+            onReady={handleEditorReady}
+            onSave={handleCanvasSave}
+            onOrderChange={handleOrderChange}
+            onProfileChange={handleProfileChange}
+            hideUI={false}
+          />
+        {/await}
+      {/if}
+    </main>
 
-      <!-- Files Section -->
-      <section class="form-section">
-        <h2>Files & Sketches</h2>
-        
-        {#if existingFiles.length > 0}
-          <div class="existing-files">
-            <h3>Existing Files</h3>
-            <ul class="file-list">
-              {#each existingFiles as file}
-                <li class="file-item">
-                  <FileText size={18} />
-                  <span class="file-name">{file.originalName || file.filename}</span>
-                  <a href="/uploads/{file.filename}" target="_blank" class="file-view">
-                    <Eye size={16} />
-                    View
-                  </a>
-                </li>
-              {/each}
-            </ul>
+    <!-- ── Right Docker ────────────────────────────────────────────────── -->
+    <aside class="right-docker">
+      <!-- Tab bar -->
+      <div class="docker-tabs">
+        <button class="dtab" class:active={rightTab === 'layers'} onclick={() => rightTab = 'layers'}>
+          <Icon name="layers" size="sm" /> Zones
+        </button>
+        <button class="dtab" class:active={rightTab === 'changes'} onclick={() => rightTab = 'changes'}>
+          <Icon name="git-pull-request" size="sm" /> Changes
+        </button>
+        <button class="dtab" class:active={rightTab === 'chat'} onclick={() => rightTab = 'chat'}>
+          <Icon name="message-square" size="sm" /> AI
+        </button>
+      </div>
+
+      <!-- Tab content -->
+      <div class="docker-content">
+        {#if rightTab === 'layers'}
+          <div class="zone-list">
+            <p class="zone-intro">Production zones auto-spawned with this order.</p>
+            {#each ['Laser (DXF)', 'CNC Routing', 'Bender', 'Visuals (PDF/Rasters)'] as zone}
+              <div class="zone-row">
+                <span class="zone-icon">⬛</span>
+                <span class="zone-name">{zone}</span>
+              </div>
+            {/each}
+            <div class="zone-divider"></div>
+            <p class="zone-intro" style="margin-top: 8px;">Form nodes</p>
+            {#each ['Order Details', 'Delivery Address', ...profiles.map((_, i) => `Profile ${i + 1}`)] as node}
+              <div class="zone-row">
+                <span class="zone-icon">📋</span>
+                <span class="zone-name">{node}</span>
+              </div>
+            {/each}
           </div>
-        {/if}
-        
-        {#if canEdit}
-          <div class="upload-section">
-            <h3>Upload New Files</h3>
-            <label class="file-upload-zone">
-              <input 
-                type="file" 
-                accept=".pdf,.cdr,.ai,.eps,.jpg,.jpeg,.png,.svg"
-                multiple
-                onchange={handleFileSelect}
-              />
-              <Upload size={24} />
-              <span>Click or drag files here</span>
-              <span class="file-types">PDF, CDR, AI, EPS, JPG, PNG, SVG</span>
-            </label>
-            
-            {#if newFiles.length > 0}
-              <ul class="new-files-list">
-                {#each newFiles as file, i}
-                  <li class="file-item">
-                    <FileText size={18} />
-                    <span class="file-name">{file.name}</span>
-                    <button class="remove-file" onclick={() => removeNewFile(i)}>
-                      <Trash2 size={16} />
-                    </button>
-                  </li>
-                {/each}
-              </ul>
+
+        {:else if rightTab === 'changes'}
+          <div class="changes-panel">
+            {#if orderId}
+              <ChangeRequestList orderId={String(orderId)} />
+            {:else}
+              <p class="zone-intro">Loading…</p>
             {/if}
           </div>
-        {/if}
-      </section>
 
-      <!-- Profiles Section -->
-      <section class="form-section profiles-section">
-        <div class="section-header">
-          <h2>Order Profiles ({profiles.length})</h2>
-          {#if canEdit}
-            <button class="btn btn-secondary" onclick={addProfile}>
-              <Plus size={18} />
-              Add Profile
-            </button>
-          {/if}
-        </div>
-        
-        <div class="profiles-list">
-          {#each profiles as profile, index (profile.id)}
-            <div class="profile-card" class:collapsed={profile.collapsed}>
-              <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-              <div class="profile-header" onclick={() => toggleProfileCollapse(profile.id)}>
-                <div class="profile-title">
-                  <span class="profile-index">#{index + 1}</span>
-                  <span class="profile-name">{profile.configuration?.profileName || 'Untitled Profile'}</span>
-                  <span class="profile-qty">Qty: {profile.quantity}</span>
+        {:else if rightTab === 'chat'}
+          <!-- Phase 8: AI Chat panel -->
+          <div class="ai-panel">
+            <label class="ai-ctx-toggle">
+              <input type="checkbox" bind:checked={useSelectionCtx} />
+              <span>Use selected shapes as context</span>
+            </label>
+
+            <div class="ai-chat-history">
+              {#if aiResponse}
+                <div class="ai-message">
+                  <div class="ai-label">Assistant</div>
+                  <p>{aiResponse}</p>
                 </div>
-                <div class="profile-actions">
-                  {#if canEdit && profiles.length > 1}
-                    <button 
-                      class="action-btn danger" 
-                      onclick={stopPropagation(() => removeProfile(profile.id))}
-                      title="Remove profile"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  {/if}
-                  <span class="collapse-icon">{profile.collapsed ? '▶' : '▼'}</span>
-                </div>
-              </div>
-              
-              {#if !profile.collapsed}
-                <div class="profile-content">
-                  <div class="quantity-row">
-                    <label>
-                      Quantity:
-                      <input 
-                        type="number" 
-                        min="1" 
-                        bind:value={profile.quantity}
-                        disabled={!canEdit}
-                      />
-                    </label>
-                  </div>
-                  
-                  <Profile7stVisual 
-                    bind:configuration={profile.configuration}
-                    readonly={!canEdit}
-                  />
+              {:else}
+                <div class="ai-empty">
+                  <Icon name="bot" size="sm" />
+                  <p>Ask about materials, dimensions, or let the AI clean up your sketches.</p>
                 </div>
               {/if}
             </div>
-          {/each}
-        </div>
-      </section>
-    </div>
-  {/if}
+
+            <div class="ai-input-row">
+              <textarea
+                bind:value={aiPrompt}
+                placeholder="Ask the AI assistant…"
+                rows={3}
+                onkeydown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    runAiPrompt();
+                  }
+                }}
+              ></textarea>
+              <button class="ai-send-btn" onclick={runAiPrompt} disabled={aiRunning || !aiPrompt.trim()}>
+                {#if aiRunning}
+                  <div class="spinner sm"></div>
+                {:else}
+                  <Icon name="send" size="sm" />
+                {/if}
+              </button>
+            </div>
+          </div>
+        {/if}
+      </div>
+    </aside>
+  </div>
 </div>
 
 <style>
-  .edit-order-page {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: var(--space-lg);
-  }
-
-  .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: var(--space-xl);
-    gap: var(--space-lg);
-    flex-wrap: wrap;
-  }
-
-  .header-left {
+  /* ── Layout ──────────────────────────────────────────────────────────────── */
+  .canvas-editor {
+    position: fixed;
+    inset: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--space-sm);
+    background: var(--bg-0);
+    z-index: 1;
+    overflow: hidden;
   }
 
-  .back-link {
-    display: inline-flex;
+  /* ── Top bar ─────────────────────────────────────────────────────────────── */
+  .top-bar {
+    height: 52px;
+    display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-md);
+    padding: 0 var(--space-md);
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    border-bottom: 1px solid var(--glass-border);
+    z-index: 20;
+    flex-shrink: 0;
+  }
+
+  .top-bar-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-width: 0;
+  }
+
+  .back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
     color: var(--text-muted);
     text-decoration: none;
-    font-size: 0.9rem;
+    transition: background var(--transition-fast);
   }
+  .back-btn:hover { background: var(--bg-2); color: var(--text); }
 
-  .back-link:hover {
-    color: var(--text);
-  }
-
-  .title-row {
+  .order-identity {
     display: flex;
-    align-items: center;
-    gap: var(--space-md);
-    flex-wrap: wrap;
-  }
-
-  .title-row h1 {
-    margin: 0;
-    font-size: 1.5rem;
-  }
-
-  .po-number {
-    font-size: 1rem;
-    color: var(--primary);
-    font-weight: 600;
-  }
-
-  .status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-  }
-
-  .status-draft { background: var(--warn-soft); color: color-mix(in oklab, var(--warn) 65%, black); }
-  .status-pending { background: var(--brand-soft); color: color-mix(in oklab, var(--brand) 85%, black); }
-  .status-approved { background: var(--ok-soft); color: color-mix(in oklab, var(--ok) 60%, black); }
-  .status-rejected { background: var(--error-soft); color: color-mix(in oklab, var(--error) 85%, black); }
-  .status-production { background: var(--brand-soft); color: color-mix(in oklab, var(--brand) 80%, black); }
-  .status-completed { background: var(--ok-soft); color: color-mix(in oklab, var(--ok) 60%, black); }
-
-  .header-actions {
-    display: flex;
-    gap: var(--space-sm);
-  }
-
-  .btn {
-    display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 16px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
-    border: 1px solid transparent;
+    font-size: 13px;
   }
 
-  .btn-primary {
-    background: linear-gradient(135deg, var(--brand), var(--brand));
-    color: var(--bg-0);
-  }
-
-  .btn-secondary {
-    background: var(--bg-2);
-    color: var(--text);
-    border-color: var(--border);
-  }
-
-  .btn-success {
-    background: linear-gradient(135deg, var(--ok), color-mix(in oklab, var(--ok) 85%, black));
-    color: var(--bg-0);
-  }
-
-  .btn-danger {
-    background: linear-gradient(135deg, var(--error), var(--error));
-    color: var(--bg-0);
-  }
-
-  .btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  /* Loading & Error States */
-  .loading-state, .error-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 400px;
-    gap: var(--space-md);
-    color: var(--text-muted);
-  }
-
-  .spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid var(--border);
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  /* Alerts */
-  .alert {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-md);
-    border-radius: 8px;
-    margin-bottom: var(--space-lg);
-    font-weight: 500;
-  }
-
-  .alert-error {
-    background: var(--error-soft);
-    color: color-mix(in oklab, var(--error) 85%, black);
-    border: 1px solid color-mix(in oklab, var(--error) 30%, transparent);
-  }
-
-  .alert-success {
-    background: var(--ok-soft);
-    color: color-mix(in oklab, var(--ok) 60%, black);
-    border: 1px solid color-mix(in oklab, var(--ok) 35%, transparent);
-  }
-
-  /* Form Sections */
-  .form-section {
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: var(--space-lg);
-    margin-bottom: var(--space-lg);
-  }
-
-  .form-section h2 {
-    margin: 0 0 var(--space-lg) 0;
-    font-size: 1.1rem;
-    color: var(--text);
-    padding-bottom: var(--space-sm);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--space-lg);
-    padding-bottom: var(--space-sm);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .section-header h2 {
-    margin: 0;
-    border-bottom: none;
-    padding-bottom: 0;
-  }
-
-  .form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: var(--space-md);
-  }
-
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .form-group.full-width {
-    grid-column: 1 / -1;
-  }
-
-  .form-group label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-muted);
-  }
-
-  .form-group input,
-  .form-group select,
-  .form-group textarea {
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg-0);
-    font-size: 0.9rem;
-    color: var(--text);
-  }
-
-  .form-group input:focus,
-  .form-group select:focus,
-  .form-group textarea:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 10%, transparent);
-  }
-
-  .form-group input:disabled,
-  .form-group select:disabled,
-  .form-group textarea:disabled {
-    background: var(--bg-2);
-    cursor: not-allowed;
-  }
-
-  /* Files */
-  .existing-files, .upload-section {
-    margin-bottom: var(--space-lg);
-  }
-
-  .existing-files h3, .upload-section h3 {
-    font-size: 0.9rem;
-    margin: 0 0 var(--space-sm) 0;
-    color: var(--text-muted);
-  }
-
-  .file-list, .new-files-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xs);
-  }
-
-  .file-item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-sm);
-    background: var(--bg-2);
-    border-radius: 6px;
-  }
-
-  .file-name {
-    flex: 1;
-    font-size: 0.9rem;
-  }
-
-  .file-view {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--primary);
-    font-size: 0.85rem;
-  }
-
-  .remove-file {
-    background: none;
-    border: none;
-    color: var(--danger, var(--error));
-    cursor: pointer;
-    padding: 4px;
-  }
-
-  .file-upload-zone {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-sm);
-    padding: var(--space-xl);
-    border: 2px dashed var(--border);
-    border-radius: 12px;
-    cursor: pointer;
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
-  }
-
-  .file-upload-zone:hover {
-    border-color: var(--primary);
-    background: var(--bg-2);
-  }
-
-  .file-upload-zone input {
-    display: none;
-  }
-
-  .file-types {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-  }
-
-  /* Profiles */
-  .profiles-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
-  }
-
-  .profile-card {
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-    background: var(--bg-0);
-  }
-
-  .profile-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--space-md);
-    background: var(--bg-2);
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .profile-header:hover {
-    background: var(--bg-3, var(--bg-2));
-  }
-
-  .profile-title {
-    display: flex;
-    align-items: center;
-    gap: var(--space-md);
-  }
-
-  .profile-index {
+  .po-tag {
     font-weight: 700;
-    color: var(--primary);
+    color: var(--brand);
   }
 
-  .profile-name {
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .status-label {
+    font-size: 11px;
     font-weight: 600;
-  }
-
-  .profile-qty {
-    font-size: 0.85rem;
     color: var(--text-muted);
-    padding: 2px 8px;
-    background: var(--bg-1);
-    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
 
-  .profile-actions {
+  .unsaved-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--warn, #ff9500);
+    flex-shrink: 0;
+  }
+
+  .context-bar {
+    flex: 1;
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
+    justify-content: center;
   }
 
-  .action-btn {
-    background: none;
+  .ctx-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .top-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex-shrink: 0;
+  }
+
+  /* ── Body: toolbox + canvas + docker ────────────────────────────────────── */
+  .canvas-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 52px 1fr 280px;
+    overflow: hidden;
+  }
+
+  /* ── Left toolbox ────────────────────────────────────────────────────────── */
+  .toolbox {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 0;
+    background: var(--bg-1);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    z-index: 10;
+  }
+
+  .tool-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    width: 100%;
+  }
+
+  .tool-section-label {
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+    padding: 0 4px;
+  }
+
+  .tool-btn {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     border: none;
-    padding: 6px;
-    border-radius: 6px;
+    background: transparent;
+    border-radius: 8px;
+    color: var(--text-muted);
     cursor: pointer;
-    color: var(--text-muted);
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
+    transition: background var(--transition-fast), color var(--transition-fast);
+  }
+  .tool-btn:hover { background: var(--bg-2); color: var(--text); }
+  .tool-btn.active { background: color-mix(in oklab, var(--brand) 12%, transparent); color: var(--brand); }
+
+  .tool-divider {
+    width: 28px;
+    height: 1px;
+    background: var(--border);
+    margin: 6px 0;
   }
 
-  .action-btn:hover {
+  /* ── Canvas area ────────────────────────────────────────────────────────── */
+  .canvas-area {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .canvas-loading,
+  .canvas-error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    color: var(--text-muted);
+  }
+
+  /* ── Right docker ────────────────────────────────────────────────────────── */
+  .right-docker {
+    display: flex;
+    flex-direction: column;
     background: var(--bg-1);
+    border-left: 1px solid var(--border);
+    overflow: hidden;
+    z-index: 10;
   }
 
-  .action-btn.danger:hover {
-    color: var(--danger, var(--error));
-    background: var(--error-soft);
+  .docker-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
   }
 
-  .collapse-icon {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-  }
-
-  .profile-content {
-    padding: var(--space-lg);
-    border-top: 1px solid var(--border);
-  }
-
-  .quantity-row {
-    margin-bottom: var(--space-lg);
-  }
-
-  .quantity-row label {
+  .dtab {
+    flex: 1;
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
+    justify-content: center;
+    gap: 4px;
+    padding: 10px 4px;
+    font-size: 11px;
     font-weight: 600;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color var(--transition-fast), border-color var(--transition-fast);
+  }
+  .dtab:hover { color: var(--text); }
+  .dtab.active { color: var(--brand); border-bottom-color: var(--brand); }
+
+  .docker-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-md);
   }
 
-  .quantity-row input {
-    width: 80px;
-    padding: 6px 10px;
-    border: 1px solid var(--border);
+  /* Zone list */
+  .zone-intro {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin: 0 0 var(--space-sm);
+  }
+
+  .zone-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
     border-radius: 6px;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .zone-row:hover { background: var(--bg-2); }
+  .zone-icon { font-size: 14px; }
+  .zone-name { flex: 1; }
+  .zone-divider { height: 1px; background: var(--border); margin: 8px 0; }
+
+  /* Changes panel */
+  .changes-panel { min-height: 100px; }
+
+  /* AI panel */
+  .ai-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    height: 100%;
   }
 
-  /* Responsive */
-  @media (max-width: 768px) {
-    .edit-order-page {
-      padding: var(--space-md);
-    }
-
-    .page-header {
-      flex-direction: column;
-    }
-
-    .header-actions {
-      width: 100%;
-      justify-content: flex-end;
-    }
-
-    .title-row {
-      flex-direction: column;
-      align-items: flex-start;
-    }
+  .ai-ctx-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
   }
+
+  .ai-chat-history {
+    flex: 1;
+    min-height: 120px;
+    max-height: 340px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: var(--space-sm);
+    background: var(--bg-0);
+  }
+
+  .ai-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: var(--space-lg) 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-align: center;
+  }
+
+  .ai-message .ai-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--brand);
+    margin-bottom: 4px;
+  }
+
+  .ai-message p {
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    margin: 0;
+  }
+
+  .ai-input-row {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+  }
+
+  .ai-input-row textarea {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-0);
+    color: var(--text);
+    font-size: 12px;
+    font-family: inherit;
+    resize: none;
+    line-height: 1.4;
+  }
+  .ai-input-row textarea:focus { outline: none; border-color: var(--brand); }
+
+  .ai-send-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 8px;
+    background: var(--brand);
+    color: var(--bg-0);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: opacity var(--transition-fast);
+  }
+  .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Action buttons ──────────────────────────────────────────────────────── */
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background var(--transition-fast), opacity var(--transition-fast);
+    text-decoration: none;
+  }
+  .action-btn.ghost {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text-muted);
+  }
+  .action-btn.ghost:hover { background: var(--bg-2); color: var(--text); }
+  .action-btn.primary {
+    background: var(--brand);
+    color: var(--bg-0);
+  }
+  .action-btn.primary:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--brand) 80%, black);
+  }
+  .action-btn.success {
+    background: var(--ok, #34c759);
+    color: var(--bg-0);
+  }
+  .action-btn.success:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--ok, #34c759) 80%, black);
+  }
+  .action-btn.warn {
+    background: transparent;
+    border-color: var(--warn, #ff9500);
+    color: var(--warn, #ff9500);
+  }
+  .action-btn.warn:hover { background: color-mix(in oklab, var(--warn, #ff9500) 10%, transparent); }
+  .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Spinner ─────────────────────────────────────────────────────────────── */
+  .spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--border);
+    border-top-color: var(--brand);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  .spinner.sm { width: 16px; height: 16px; border-width: 2px; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
