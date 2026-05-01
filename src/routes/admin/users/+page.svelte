@@ -14,21 +14,25 @@
   import { currentUser } from '$lib/auth/authState.svelte';
   import Icon from '$lib/ui/Icon.svelte';
 
-  interface User {
-    id: number;
+  import type { Role, StationId } from '$lib/auth/types';
+  import { ROLE_LABELS, STATION_LABELS, STATION_IDS } from '$lib/auth/types';
+
+  interface AdminUser {
+    id: string;
     username: string;
     displayName: string;
     email?: string;
-    primarySection: string;
-    sections: string[];
-    roles: Record<string, string>;
-    stations: string[];
+    role: Role;
+    stations: { stationId: StationId; isHead: boolean }[];
     isActive: boolean;
     lastLoginAt?: string;
     createdAt?: string;
+    avatarUrl?: string;
   }
 
-  let users: User[] = $state([]);
+  const ALL_ROLES: Role[] = ['RD', 'Boss', 'HeadOfProduction', 'StationHead', 'Operator'];
+
+  let users: AdminUser[] = $state([]);
   let loading = $state(true);
   let error = $state('');
   let searchQuery = $state('');
@@ -37,7 +41,7 @@
   // Modal state
   let showModal = $state(false);
   let modalMode: 'create' | 'edit' | 'password' = $state('create');
-  let editingUser: User | null = $state(null);
+  let editingUser: AdminUser | null = $state(null);
   let saving = $state(false);
   let modalError = $state('');
   let successMessage = $state('');
@@ -48,20 +52,11 @@
     displayName: '',
     email: '',
     password: '',
-    primarySection: 'Production',
-    sections: ['Production'] as string[],
-    roles: {
-      Admin: 'Viewer',
-      Production: 'Operator',
-      Logistics: 'Viewer'
-    } as Record<string, string>,
-    stations: [] as string[],
+    role: 'Operator' as Role,
+    stations: [] as StationId[],
+    stationHeads: [] as StationId[],  // stations where user is head
     isActive: true
   });
-
-  const allSections = ['Admin', 'Production', 'Logistics'];
-  const allRoles = ['SuperAdmin', 'StationLead', 'Operator', 'Viewer'];
-  const allStations = ['CNC', 'SANDING', 'PAINTING', 'ASSEMBLY', 'WELDING', 'LOGISTICS', 'QUALITY'];
 
   let filteredUsers = $derived(users.filter(u => {
     const matchesSearch = searchQuery === '' ||
@@ -71,7 +66,9 @@
     return matchesSearch && matchesActive;
   }));
 
-  let canManageUsers = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
+  let canManageUsers = $derived(
+    $currentUser?.role === 'RD' || $currentUser?.role === 'Boss'
+  );
 
   onMount(async () => {
     await loadUsers();
@@ -83,7 +80,23 @@
     try {
       const res = await fetch(`${base}/api/users?active=false`);
       if (res.ok) {
-        users = await res.json();
+        const raw: any[] = await res.json();
+        users = raw.map(u => ({
+          id: u.id,
+          username: u.username ?? '',
+          displayName: u.displayName ?? u.display_name ?? u.username ?? '',
+          email: u.email,
+          avatarUrl: u.avatarUrl ?? u.avatar_url,
+          role: u.role ?? 'Operator',
+          stations: Array.isArray(u.stations)
+            ? u.stations.map((s: any) =>
+                typeof s === 'string' ? { stationId: s as StationId, isHead: false } : s
+              )
+            : [],
+          isActive: u.isActive ?? u.is_active ?? true,
+          lastLoginAt: u.lastLoginAt ?? u.last_login_at,
+          createdAt: u.createdAt ?? u.created_at,
+        }));
       } else {
         error = 'Failed to load users';
       }
@@ -102,17 +115,16 @@
       displayName: '',
       email: '',
       password: '',
-      primarySection: 'Production',
-      sections: ['Production'],
-      roles: { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' },
+      role: 'Operator',
       stations: [],
+      stationHeads: [],
       isActive: true
     };
     modalError = '';
     showModal = true;
   }
 
-  function openEditModal(user: User) {
+  function openEditModal(user: AdminUser) {
     modalMode = 'edit';
     editingUser = user;
     formData = {
@@ -120,17 +132,16 @@
       displayName: user.displayName,
       email: user.email || '',
       password: '',
-      primarySection: user.primarySection,
-      sections: [...user.sections],
-      roles: { ...user.roles },
-      stations: [...user.stations],
+      role: user.role,
+      stations: user.stations.map(s => s.stationId),
+      stationHeads: user.stations.filter(s => s.isHead).map(s => s.stationId),
       isActive: user.isActive
     };
     modalError = '';
     showModal = true;
   }
 
-  function openPasswordModal(user: User) {
+  function openPasswordModal(user: AdminUser) {
     modalMode = 'password';
     editingUser = user;
     formData.password = '';
@@ -144,22 +155,23 @@
     modalError = '';
   }
 
-  function toggleSection(section: string) {
-    if (formData.sections.includes(section)) {
-      formData.sections = formData.sections.filter(s => s !== section);
-      if (formData.primarySection === section) {
-        formData.primarySection = formData.sections[0] || 'Production';
-      }
+  function toggleStation(stationId: StationId) {
+    if (formData.stations.includes(stationId)) {
+      formData.stations = formData.stations.filter(s => s !== stationId);
+      formData.stationHeads = formData.stationHeads.filter(s => s !== stationId);
     } else {
-      formData.sections = [...formData.sections, section];
+      formData.stations = [...formData.stations, stationId];
     }
   }
 
-  function toggleStation(station: string) {
-    if (formData.stations.includes(station)) {
-      formData.stations = formData.stations.filter(s => s !== station);
+  function toggleStationHead(stationId: StationId) {
+    if (formData.stationHeads.includes(stationId)) {
+      formData.stationHeads = formData.stationHeads.filter(s => s !== stationId);
     } else {
-      formData.stations = [...formData.stations, station];
+      if (!formData.stations.includes(stationId)) {
+        formData.stations = [...formData.stations, stationId];
+      }
+      formData.stationHeads = [...formData.stationHeads, stationId];
     }
   }
 
@@ -179,11 +191,6 @@
       return;
     }
 
-    if (formData.sections.length === 0) {
-      modalError = $t('admin.users.messages.validation.section_required');
-      return;
-    }
-
     saving = true;
     modalError = '';
 
@@ -191,10 +198,11 @@
       const payload: any = {
         displayName: formData.displayName,
         email: formData.email || null,
-        primarySection: formData.primarySection,
-        sections: formData.sections,
-        roles: formData.roles,
-        stations: formData.stations,
+        role: formData.role,
+        stations: formData.stations.map(sid => ({
+          stationId: sid,
+          isHead: formData.stationHeads.includes(sid)
+        })),
         isActive: formData.isActive
       };
 
@@ -273,7 +281,7 @@
     setTimeout(() => successMessage = '', 3000);
   }
 
-  async function deactivateUser(user: User) {
+  async function deactivateUser(user: AdminUser) {
     if (!confirm($t('admin.users.messages.confirm_deactivate', { name: user.displayName }))) return;
 
     try {
@@ -291,7 +299,7 @@
     setTimeout(() => successMessage = '', 3000);
   }
 
-  async function reactivateUser(user: User) {
+  async function reactivateUser(user: AdminUser) {
     try {
       const res = await fetch(`${base}/api/users/${user.id}`, {
         method: 'PUT',
@@ -309,12 +317,13 @@
     setTimeout(() => successMessage = '', 3000);
   }
 
-  function getRoleBadgeClass(role: string) {
+  function getRoleBadgeClass(role: Role) {
     switch (role) {
-      case 'SuperAdmin': return 'badge-admin';
-      case 'StationLead': return 'badge-lead';
-      case 'Operator': return 'badge-operator';
-      default: return 'badge-viewer';
+      case 'RD':               return 'badge-rd';
+      case 'Boss':             return 'badge-boss';
+      case 'HeadOfProduction': return 'badge-hop';
+      case 'StationHead':      return 'badge-lead';
+      default:                 return 'badge-operator';
     }
   }
 
@@ -377,9 +386,8 @@
         <thead>
           <tr>
             <th>{$t('admin.users.table.user')}</th>
-            <th>{$t('admin.users.table.section')}</th>
-            <th>{$t('admin.users.table.roles')}</th>
-            <th>{$t('admin.users.table.stations')}</th>
+            <th>Role</th>
+            <th>Stations</th>
             <th>{$t('admin.users.table.status')}</th>
             <th>{$t('admin.users.table.last_login')}</th>
             {#if canManageUsers}
@@ -400,28 +408,24 @@
                 </div>
               </td>
               <td>
-                <span class="section-badge">{user.primarySection}</span>
-                {#if user.sections.length > 1}
-                  <span class="extra-sections">+{user.sections.length - 1}</span>
-                {/if}
-              </td>
-              <td>
-                <span class="role-badge {getRoleBadgeClass(user.roles[user.primarySection])}">
-                  {user.roles[user.primarySection]}
+                <span class="role-badge {getRoleBadgeClass(user.role)}">
+                  {ROLE_LABELS[user.role] ?? user.role}
                 </span>
               </td>
               <td>
                 {#if user.stations.length > 0}
                   <div class="stations-list">
-                    {#each user.stations.slice(0, 2) as station}
-                      <span class="station-tag">{station}</span>
+                    {#each user.stations.slice(0, 2) as s}
+                      <span class="station-tag" class:head={s.isHead}>
+                        {STATION_LABELS[s.stationId] ?? s.stationId}{s.isHead ? ' ★' : ''}
+                      </span>
                     {/each}
                     {#if user.stations.length > 2}
                       <span class="extra-stations">+{user.stations.length - 2}</span>
                     {/if}
                   </div>
                 {:else}
-                  <span class="no-stations">{$t('admin.users.all_stations')}</span>
+                  <span class="no-stations">—</span>
                 {/if}
               </td>
               <td>
@@ -452,7 +456,7 @@
             </tr>
           {:else}
             <tr>
-              <td colspan={canManageUsers ? 7 : 6} class="empty-state">
+              <td colspan={canManageUsers ? 6 : 5} class="empty-state">
                 {$t('admin.users.no_users')}
               </td>
             </tr>
@@ -551,61 +555,42 @@
           </div>
 
           <div class="form-group">
-            <span class="group-label" id="sections-label">{$t('admin.users.form.sections')}</span>
-            <div class="checkbox-group" role="group" aria-labelledby="sections-label">
-              {#each allSections as section}
-                <label class="checkbox-item">
-                  <input 
-                    type="checkbox" 
-                    checked={formData.sections.includes(section)}
-                    onchange={() => toggleSection(section)}
-                  />
-                  {section}
-                </label>
-              {/each}
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="primary-section">{$t('admin.users.form.primary_section')}</label>
-            <select id="primary-section" bind:value={formData.primarySection}>
-              {#each formData.sections as section}
-                <option value={section}>{section}</option>
+            <label for="user-role">Role</label>
+            <select id="user-role" bind:value={formData.role}>
+              {#each ALL_ROLES as r}
+                <option value={r}>{ROLE_LABELS[r]}</option>
               {/each}
             </select>
           </div>
 
           <div class="form-group">
-            <span class="group-label" id="roles-per-section-label">{$t('admin.users.form.roles_per_section')}</span>
-            <div class="roles-grid" role="group" aria-labelledby="roles-per-section-label">
-              {#each formData.sections as section}
-                <div class="role-row">
-                  <span class="role-section">{section}</span>
-                  <select aria-label="Role for {section}" bind:value={formData.roles[section]}>
-                    {#each allRoles as role}
-                      <option value={role}>{role}</option>
-                    {/each}
-                  </select>
+            <span class="group-label" id="station-assignments-label">Station Assignments</span>
+            <p class="form-hint">Check a station to assign. Star (★) marks the station head.</p>
+            <div class="stations-grid" role="group" aria-labelledby="station-assignments-label">
+              {#each STATION_IDS as sid}
+                {@const assigned = formData.stations.includes(sid)}
+                {@const isHead = formData.stationHeads.includes(sid)}
+                <div class="station-assign-row">
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={assigned}
+                      onchange={() => toggleStation(sid)}
+                    />
+                    {STATION_LABELS[sid]}
+                  </label>
+                  {#if assigned && formData.role === 'StationHead'}
+                    <label class="checkbox-item head-toggle" title="Station Head for this station">
+                      <input
+                        type="checkbox"
+                        checked={isHead}
+                        onchange={() => toggleStationHead(sid)}
+                      />
+                      ★ Head</label>
+                  {/if}
                 </div>
               {/each}
             </div>
-          </div>
-
-          <div class="form-group">
-            <span class="group-label" id="station-assignments-label">{$t('admin.users.form.station_assignments')}</span>
-            <div class="checkbox-group stations-group" role="group" aria-labelledby="station-assignments-label">
-              {#each allStations as station}
-                <label class="checkbox-item">
-                  <input 
-                    type="checkbox" 
-                    checked={formData.stations.includes(station)}
-                    onchange={() => toggleStation(station)}
-                  />
-                  {station}
-                </label>
-              {/each}
-            </div>
-            <small>{$t('admin.users.form.all_stations_hint')}</small>
           </div>
 
           {#if modalMode === 'edit'}
@@ -858,10 +843,11 @@
     font-weight: 500;
   }
 
-  .badge-admin { background: var(--warn-soft); color: color-mix(in oklab, var(--warn) 65%, black); }
-  .badge-lead { background: var(--brand-soft); color: color-mix(in oklab, var(--brand) 85%, black); }
-  .badge-operator { background: var(--ok-soft); color: color-mix(in oklab, var(--ok) 60%, black); }
-  .badge-viewer { background: var(--bg-2); color: var(--text-2); }
+  .badge-rd       { background: color-mix(in oklab, var(--brand) 15%, transparent); color: var(--brand); border: 1px solid color-mix(in oklab, var(--brand) 30%, transparent); }
+  .badge-boss     { background: color-mix(in oklab, var(--warn) 15%, transparent); color: color-mix(in oklab, var(--warn) 70%, black); border: 1px solid color-mix(in oklab, var(--warn) 30%, transparent); }
+  .badge-hop      { background: color-mix(in oklab, var(--ok) 12%, transparent); color: color-mix(in oklab, var(--ok) 65%, black); border: 1px solid color-mix(in oklab, var(--ok) 25%, transparent); }
+  .badge-lead     { background: var(--bg-2); color: var(--text); border: 1px solid var(--border); }
+  .badge-operator { background: var(--bg-1); color: var(--text-2); border: 1px solid var(--border); }
 
   .stations-list {
     display: flex;
@@ -1074,8 +1060,38 @@
     cursor: pointer;
   }
 
-  .stations-group {
+  .stations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .station-assign-row {
+    display: flex;
+    align-items: center;
     gap: 8px;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-0);
+    border: 1px solid var(--border);
+  }
+
+  .head-toggle {
+    color: var(--warn);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .station-tag.head {
+    border-color: var(--warn);
+    color: var(--warn);
+  }
+
+  .form-hint {
+    font-size: 12px;
+    color: var(--text-3);
+    margin: 2px 0 8px;
   }
 
   .roles-grid {

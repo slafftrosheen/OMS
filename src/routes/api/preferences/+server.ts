@@ -75,7 +75,11 @@ export const GET: RequestHandler = async ({ locals }) => {
       pdfZoom: prefs.pdf_zoom,
       sidebarCollapsed: prefs.sidebar_collapsed,
       notificationsEnabled: prefs.notifications_enabled,
-      customSettings: prefs.custom_settings || {}
+      notificationSound: prefs.notification_sound ?? true,
+      customSettings: {
+        ...(prefs.custom_settings || {}),
+        fontScale: prefs.font_scale ?? prefs.custom_settings?.fontScale ?? 1.0
+      }
     });
   } catch (err) {
     console.error('Failed to fetch preferences:', err);
@@ -105,6 +109,14 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
     if (data.sidebarCollapsed !== undefined) updates.sidebar_collapsed = data.sidebarCollapsed;
     if (data.notificationsEnabled !== undefined) updates.notifications_enabled = data.notificationsEnabled;
     if (data.customSettings !== undefined) updates.custom_settings = data.customSettings;
+
+    // Also keep font_scale and notification_sound in dedicated columns
+    if (data.customSettings?.fontScale !== undefined) {
+      updates.font_scale = data.customSettings.fontScale;
+    }
+    if (data.notificationSound !== undefined) {
+      updates.notification_sound = data.notificationSound;
+    }
 
     if (Object.keys(updates).length === 0) {
       return json({ error: 'No fields to update' }, { status: 400 });

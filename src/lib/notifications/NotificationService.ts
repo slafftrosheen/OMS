@@ -1,149 +1,196 @@
-// src/lib/notifications/NotificationService.ts
 import { writable, get } from 'svelte/store';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface Notification {
-    id: string;
-    user_id: string;
-    title: string;
-    message: string;
-    type: 'info' | 'success' | 'warning' | 'error';
-    read: boolean;
-    action_url?: string;
-    created_at: string;
+  id: string;
+  user_id: string;
+  notification_type: string;
+  title: string;
+  message: string | null;
+  link: string | null;
+  is_read: boolean;
+  source_type: string | null;
+  source_id: string | null;
+  created_at: string;
+}
+
+// Simple one-shot beep generated via Web Audio API — no CDN dependency
+function buildNotificationSound(): (() => void) | null {
+  if (typeof window === 'undefined') return null;
+
+  return () => {
+    try {
+      const ctx = new AudioContext();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.type = 'sine';
+      o.frequency.setValueAtTime(880, ctx.currentTime);
+      g.gain.setValueAtTime(0.15, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      o.start(ctx.currentTime);
+      o.stop(ctx.currentTime + 0.3);
+      o.onended = () => ctx.close();
+    } catch {
+      // Audio not available
+    }
+  };
 }
 
 class NotificationService {
-    private supabase: SupabaseClient | null = null;
-    private notifications = writable<Notification[]>([]);
-    private unreadCount = writable<number>(0);
-    private channel: any = null;
+  private supabase: SupabaseClient | null = null;
+  private userId: string | null = null;
+  private notifications = writable<Notification[]>([]);
+  private unreadCount = writable<number>(0);
+  private channel: any = null;
+  private soundEnabled = true;
+  private playSound = buildNotificationSound();
 
-    initialize(supabase: SupabaseClient, userId: string) {
-        this.supabase = supabase;
+  initialize(supabase: SupabaseClient, userId: string, soundEnabled = true) {
+    // Clean up previous subscription if re-initialising
+    this.cleanup();
 
-        // Load existing notifications
-        this.loadNotifications(userId);
+    this.supabase = supabase;
+    this.userId = userId;
+    this.soundEnabled = soundEnabled;
 
-        // Subscribe to realtime updates for notifications
-        this.channel = supabase
-            .channel('notifications')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'notifications',
-                    filter: `user_id=eq.${userId}`
-                },
-                (payload) => {
-                    this.handleRealtimeNotification(payload);
-                }
-            )
-            .subscribe();
-    }
-    
-    private handleRealtimeNotification(payload: any) {
-        const { eventType, new: newRecord, old: oldRecord } = payload;
-        
-        if (eventType === 'INSERT') {
-            // Check if we already have this notification
-            const exists = get(this.notifications).some(n => n.id === newRecord.id);
-            if (!exists) {
-                this.notifications.update(n => [newRecord, ...n]);
-                this.updateUnreadCount();
-                this.showBrowserNotification(newRecord);
-            }
-        } else if (eventType === 'UPDATE') {
-            this.notifications.update(n =>
-                n.map(notif => notif.id === newRecord.id ? newRecord : notif)
-            );
-            this.updateUnreadCount();
-        }
-    }
+    this.loadNotifications(userId);
 
-    private async loadNotifications(userId: string) {
-        if (!this.supabase) return;
+    // Per-user realtime — filter is enforced at the channel level AND by RLS
+    this.channel = supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload: any) => this.handleRealtimeNotification(payload)
+      )
+      .subscribe();
+  }
 
-        const { data, error } = await this.supabase
-            .from('notifications')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(50);
+  setSoundEnabled(enabled: boolean) {
+    this.soundEnabled = enabled;
+  }
 
-        if (!error && data) {
-            this.notifications.set(data);
-            this.updateUnreadCount();
-        }
-    }
+  private handleRealtimeNotification(payload: any) {
+    const { eventType, new: newRecord } = payload;
 
-    private updateUnreadCount() {
-        const notifs = get(this.notifications);
-        const count = notifs.filter(n => !n.read).length;
-        this.unreadCount.set(count);
-    }
-
-    private async showBrowserNotification(notification: Notification) {
-        if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(notification.title, {
-                body: notification.message,
-                icon: '/favicon.png',
-                tag: notification.id
-            });
-        }
-    }
-
-    async markAsRead(notificationId: string) {
-        if (!this.supabase) return;
-
-        await this.supabase
-            .from('notifications')
-            .update({ read: true })
-            .eq('id', notificationId);
-
-        this.notifications.update(n =>
-            n.map(notif => notif.id === notificationId ? { ...notif, read: true } : notif)
-        );
+    if (eventType === 'INSERT') {
+      const exists = get(this.notifications).some(n => n.id === newRecord.id);
+      if (!exists) {
+        this.notifications.update(n => [newRecord, ...n]);
         this.updateUnreadCount();
+        this.triggerSound();
+        this.showBrowserNotification(newRecord);
+      }
+    } else if (eventType === 'UPDATE') {
+      this.notifications.update(n =>
+        n.map(notif => notif.id === newRecord.id ? { ...notif, ...newRecord } : notif)
+      );
+      this.updateUnreadCount();
+    } else if (eventType === 'DELETE') {
+      this.notifications.update(n => n.filter(notif => notif.id !== payload.old?.id));
+      this.updateUnreadCount();
     }
+  }
 
-    async markAllAsRead() {
-        if (!this.supabase) return;
-
-        const notifs = get(this.notifications);
-        const unreadIds = notifs.filter(n => !n.read).map(n => n.id);
-
-        if (unreadIds.length > 0) {
-            await this.supabase
-                .from('notifications')
-                .update({ read: true })
-                .in('id', unreadIds);
-
-            this.notifications.update(n => n.map(notif => ({ ...notif, read: true })));
-            this.unreadCount.set(0);
-        }
+  private triggerSound() {
+    if (this.soundEnabled && this.playSound) {
+      this.playSound();
     }
+  }
 
-    async requestPermission() {
-        if ('Notification' in window && Notification.permission === 'default') {
-            await Notification.requestPermission();
-        }
-    }
+  private async loadNotifications(userId: string) {
+    if (!this.supabase) return;
 
-    getNotifications() {
-        return this.notifications;
-    }
+    const { data, error } = await this.supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
 
-    getUnreadCount() {
-        return this.unreadCount;
+    if (!error && data) {
+      this.notifications.set(data as Notification[]);
+      this.updateUnreadCount();
     }
+  }
 
-    cleanup() {
-        if (this.supabase && this.channel) {
-            this.supabase.removeChannel(this.channel);
-        }
+  private updateUnreadCount() {
+    const count = get(this.notifications).filter(n => !n.is_read).length;
+    this.unreadCount.set(count);
+  }
+
+  private async showBrowserNotification(notification: Notification) {
+    if (typeof window === 'undefined') return;
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+
+    new window.Notification(notification.title, {
+      body: notification.message ?? undefined,
+      icon: '/icons/icon-192.png',
+      tag: notification.id,
+    });
+  }
+
+  async requestPermission() {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        await Notification.requestPermission();
+      }
     }
+  }
+
+  async markAsRead(notificationId: string) {
+    if (!this.supabase) return;
+    await this.supabase
+      .from('notifications')
+      .update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('id', notificationId);
+
+    this.notifications.update(n =>
+      n.map(notif => notif.id === notificationId ? { ...notif, is_read: true } : notif)
+    );
+    this.updateUnreadCount();
+  }
+
+  async markAllAsRead() {
+    if (!this.supabase || !this.userId) return;
+    await this.supabase
+      .from('notifications')
+      .update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('user_id', this.userId)
+      .eq('is_read', false);
+
+    this.notifications.update(n => n.map(notif => ({ ...notif, is_read: true })));
+    this.unreadCount.set(0);
+  }
+
+  async dismiss(notificationId: string) {
+    if (!this.supabase) return;
+    await this.supabase
+      .from('notifications')
+      .update({ is_dismissed: true })
+      .eq('id', notificationId);
+
+    this.notifications.update(n => n.filter(notif => notif.id !== notificationId));
+    this.updateUnreadCount();
+  }
+
+  getNotifications() { return this.notifications; }
+  getUnreadCount()   { return this.unreadCount; }
+
+  cleanup() {
+    if (this.supabase && this.channel) {
+      this.supabase.removeChannel(this.channel);
+      this.channel = null;
+    }
+  }
 }
 
 export const notificationService = new NotificationService();
