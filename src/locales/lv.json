@@ -43,7 +43,10 @@
     "settings": "Iestatījumi",
     "kanban": "Ražošana",
     "help": "Palīdzība",
-    "chat": "Čats"
+    "chat": "Čats",
+    "ailab": "MI Laboratorija",
+    "users": "Lietotāji",
+    "materials": "Materiāli"
   },
   "header": {
     "actions": "Galvenes darbības",
@@ -170,7 +173,7 @@
   },
   "roles": {
     "label": "Loma",
-    "superadmin": "Super Admins",
+    "superadmin": "Galvenais administrators",
     "stationlead": "Stacijas vadītājs",
     "operator": "Operators",
     "viewer": "Skatītājs",
@@ -381,10 +384,30 @@
       "station_empty": "Nav rindas",
       "rework_watch": "Pārstrāžu uzraudzība",
       "rework_none": "Atkārtotu darbu nav.",
-      "order_count": "{count} pasūtījumi"
+      "order_count": "{count} pasūtījumu"
     }
   },
   "dashboard": {
+    "title": "Panelis",
+    "welcome": "Laipni lūdzam atpakaļ, {name}!",
+    "loading": "Ielādē paneli...",
+    "new_order": "+ Jauns pasūtījums",
+    "view_all": "Skatīt visus",
+    "no_orders": "Nav aktīvo pasūtījumu",
+    "create_first": "Izveidot pirmo pasūtījumu",
+    "quick_actions": "Ātrās darbības",
+    "chart_overview": "Pasūtījumu pārskats",
+    "chart_period": "Pēdējās 30 dienas",
+    "stat_total": "Kopā pasūtījumi",
+    "stat_active": "Aktīvie pasūtījumi",
+    "stat_completed": "Pabeigti",
+    "stat_overdue": "Nokavēti",
+    "actions": {
+      "new_order": { "title": "Jauns pasūtījums", "desc": "Izveidot jaunu ražošanas pasūtījumu" },
+      "production": { "title": "Ražošanas dēlis", "desc": "Skatīt ražošanas darbplūsmu" },
+      "materials": { "title": "Materiāli", "desc": "Pārvaldīt krājumus" },
+      "analytics": { "title": "Analītika", "desc": "Skatīt pārskatus" }
+    },
     "kpi": {
       "active": "Aktīvie pasūtījumi",
       "rd": "R&D pasūtījumi",
@@ -611,6 +634,20 @@
   "chat": {
     "title": "Komandas čats",
     "rooms": "Istabas",
+    "channels_section": "Kanāli",
+    "stations_section": "Ražošanas stacijas",
+    "online": "Tiešsaistē",
+    "select_room": "Izvēlieties istabu",
+    "station_badge": "Stacija",
+    "members_btn": "Dalībnieki",
+    "welcome_room": "Laipni lūdzam #{name}",
+    "start_conversation": "Šī ir sarakstes sākums. Sveiciet!",
+    "create_channel_title": "Izveidot kanālu",
+    "channel_name_label": "Kanāla nosaukums",
+    "channel_name_placeholder": "piem. ražošanas-atjauninājumi",
+    "create_channel_btn": "Izveidot kanālu",
+    "search_rooms": "Meklēt istabas…",
+    "create_room_btn": "Izveidot istabu",
     "message_placeholder": "Ziņa (izmanto @name pieminēšanai)",
     "signed_in_as": "Pieslēdzies kā",
     "mentions": "Pieminējumi",
@@ -826,6 +863,26 @@
     "rework_requested": "{order} ({orderId}) • {station} nosūtīts uz pārstrādi",
     "stage_completed": "{order} ({orderId}) • {station} atzīmēta kā pabeigta"
   },
+  "analytics": {
+    "title": "Analītikas panelis",
+    "loading": "Ielādē analītiku...",
+    "timeframe": {
+      "7d": "Pēdējās 7 dienas",
+      "30d": "Pēdējās 30 dienas",
+      "90d": "Pēdējās 90 dienas",
+      "1y": "Pēdējais gads"
+    },
+    "metrics": {
+      "total": "Kopā pasūtījumi",
+      "active": "Aktīvie pasūtījumi",
+      "completed": "Pabeigti",
+      "avg_days": "Vid. dienas līdz pabeigšanai",
+      "rework": "Kopā pārstrādes"
+    },
+    "at_risk": "Apdraudētie pasūtījumi",
+    "station_workload": "Staciju noslodze",
+    "top_rework": "Galvenās pārstrādes stacijas"
+  },
   "settings": {
     "title": "Iestatījumi",
     "sections": {
@@ -879,7 +936,8 @@
   },
   "layout": {
     "notifications": "Paziņojumi",
-    "chat": "Čats"
+    "chat": "Čats",
+    "realtime": "Reāllaika savienojums"
   },
   "pdf": {
     "label": "PDF",
@@ -941,7 +999,10 @@
       "title": "Interfeisa blīvums",
       "compact": "Kompakts",
       "cozy": "Ērts",
-      "comfortable": "Plašs"
+      "comfortable": "Plašs",
+      "compact_desc": "Minimāla atstarpe",
+      "cozy_desc": "Līdzsvarota atstarpe",
+      "comfortable_desc": "Plaša atstarpe"
     },
     "quickCreate": "Ātrā izveide",
     "notifications": "Paziņojumi",

@@ -179,7 +179,7 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
 /* ---------- 9. Focus ring ---------- */
 
 :root {
-  --focus-ring: 0 0 0 3px color-mix(in oklab, var(--brand, oklch(0.55 0.22 25)) 40%, transparent);
+  --focus-ring: 0 0 0 3px color-mix(in oklab, var(--brand, oklch(0.42 0.17 260)) 40%, transparent);
 }
 
 /* ============================================================
@@ -189,21 +189,21 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
 
 /* ---------- LIGHTVIM ---------- */
 :root[data-theme="LightVim"] {
-  /* Surfaces */
-  --bg-0: oklch(0.985 0.005 240);
-  --bg-1: oklch(1.000 0.000 0);
-  --bg-2: oklch(0.945 0.010 240);
-  --bg-3: oklch(0.920 0.012 240);
+  /* Surfaces — warm off-white, slight blue-grey cast */
+  --bg-0: oklch(0.978 0.004 255);
+  --bg-1: oklch(0.998 0.002 255);
+  --bg-2: oklch(0.948 0.008 255);
+  --bg-3: oklch(0.922 0.012 255);
   --surface-0: var(--bg-0);
   --surface-1: var(--bg-1);
   --surface-2: var(--bg-2);
   --surface-3: var(--bg-3);
 
-  /* Ink */
-  --ink-0: #0b1120;
-  --ink-1: #1f2937;
-  --ink-2: #4b5563;
-  --ink-3: #9ca3af;
+  /* Ink — near-black with a warm blue tint; never pure #000 */
+  --ink-0: oklch(0.18 0.020 258);
+  --ink-1: oklch(0.28 0.018 258);
+  --ink-2: oklch(0.46 0.014 258);
+  --ink-3: oklch(0.65 0.008 258);
   --text:   var(--ink-0);
   --muted:  var(--ink-2);
   --ink-primary:    var(--ink-0);
@@ -212,77 +212,77 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   --ink-quaternary: var(--ink-3);
 
   /* Borders */
-  --border:         oklch(0.90 0.01 245);
-  --border-strong:  oklch(0.80 0.02 245);
+  --border:         oklch(0.880 0.012 258);
+  --border-strong:  oklch(0.800 0.018 258);
   --divider:        color-mix(in oklab, var(--ink-0) 8%, transparent);
   --separator-opaque: color-mix(in oklab, var(--ink-0) 10%, var(--bg-1));
-  --focus:          oklch(0.60 0.15 260);
+  --focus:          oklch(0.58 0.18 260);
 
-  /* Brand & accents */
-  --brand:    oklch(0.55 0.22 25);
-  --brand-2:  oklch(0.62 0.06 80);
+  /* Brand — slate indigo; calm, professional, WCAG AA on white */
+  --brand:    oklch(0.42 0.17 260);
+  --brand-2:  oklch(0.56 0.13 195);
   --accent-1: var(--brand);
   --accent-2: var(--brand-2);
 
-  /* Brand / state soft & strong tints */
-  --brand-soft:   color-mix(in oklab, var(--brand) 12%, var(--bg-1));
-  --brand-strong: color-mix(in oklab, var(--brand) 82%, black);
-  --ok-soft:      color-mix(in oklab, var(--ok)    12%, var(--bg-1));
-  --ok-strong:    color-mix(in oklab, var(--ok)    82%, black);
-  --warn-soft:    color-mix(in oklab, var(--warn)  14%, var(--bg-1));
-  --warn-strong:  color-mix(in oklab, var(--warn)  82%, black);
-  --error-soft:   color-mix(in oklab, var(--error) 12%, var(--bg-1));
-  --error-strong: color-mix(in oklab, var(--error) 82%, black);
-
-  /* States */
-  --ok:     oklch(0.62 0.16 150);
-  --warn:   oklch(0.72 0.18 70);
-  --error:  oklch(0.55 0.22 25);
+  /* States — clearly distinct from brand */
+  --ok:     oklch(0.52 0.14 158);
+  --warn:   oklch(0.62 0.17 72);
+  --error:  oklch(0.50 0.19 22);
   --danger: var(--error);
-  --link:   oklch(0.50 0.20 260);
+  --link:   oklch(0.44 0.17 260);
+
+  /* Brand / state soft & strong tints */
+  --brand-soft:   color-mix(in oklab, var(--brand) 10%, var(--bg-1));
+  --brand-strong: color-mix(in oklab, var(--brand) 80%, black);
+  --ok-soft:      color-mix(in oklab, var(--ok)    10%, var(--bg-1));
+  --ok-strong:    color-mix(in oklab, var(--ok)    80%, black);
+  --warn-soft:    color-mix(in oklab, var(--warn)  12%, var(--bg-1));
+  --warn-strong:  color-mix(in oklab, var(--warn)  80%, black);
+  --error-soft:   color-mix(in oklab, var(--error) 10%, var(--bg-1));
+  --error-strong: color-mix(in oklab, var(--error) 80%, black);
 
   /* Glass materials */
-  --glass-bg:              color-mix(in oklab, var(--bg-1) 72%, transparent);
-  --glass-bg-strong:       color-mix(in oklab, var(--bg-1) 86%, transparent);
-  --glass-tint-bg:         color-mix(in oklab, var(--brand) 6%, var(--glass-bg));
-  --glass-tint-hover:      color-mix(in oklab, var(--bg-1) 80%, var(--ink-3));
-  --glass-border:          color-mix(in oklab, var(--ink-0) 9%, transparent);
-  --glass-border-highlight: inset 0 1px 0 color-mix(in oklab, white 55%, transparent);
-  --glass-shadow:          0 12px 32px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(15, 23, 42, 0.04);
-  --glass-shadow-sm:       0 4px 12px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --glass-bg:              color-mix(in oklab, var(--bg-1) 74%, transparent);
+  --glass-bg-strong:       color-mix(in oklab, var(--bg-1) 88%, transparent);
+  --glass-tint-bg:         color-mix(in oklab, var(--brand) 5%, var(--glass-bg));
+  --glass-tint-hover:      color-mix(in oklab, var(--bg-1) 82%, var(--ink-3));
+  --glass-border:          color-mix(in oklab, var(--ink-0) 8%, transparent);
+  --glass-border-highlight: inset 0 1px 0 color-mix(in oklab, white 60%, transparent);
+  --glass-shadow:          0 8px 24px rgba(16, 24, 48, 0.07), 0 2px 6px rgba(16, 24, 48, 0.04);
+  --glass-shadow-sm:       0 3px 10px rgba(16, 24, 48, 0.05), 0 1px 3px rgba(16, 24, 48, 0.03);
   --glass-shadow-md:       var(--glass-shadow);
-  --glass-shadow-lg:       0 24px 48px rgba(15, 23, 42, 0.10), 0 6px 16px rgba(15, 23, 42, 0.05);
+  --glass-shadow-lg:       0 20px 44px rgba(16, 24, 48, 0.10), 0 5px 14px rgba(16, 24, 48, 0.05);
 
-  /* Elevation ladder (flat shadow, when glass not used) */
+  /* Elevation ladder */
   --elevation-0: none;
-  --elevation-1: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --elevation-2: 0 4px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
-  --elevation-3: 0 12px 28px rgba(15, 23, 42, 0.08), 0 3px 8px rgba(15, 23, 42, 0.04);
-  --elevation-4: 0 24px 48px rgba(15, 23, 42, 0.12), 0 6px 16px rgba(15, 23, 42, 0.05);
+  --elevation-1: 0 1px 2px rgba(16, 24, 48, 0.04);
+  --elevation-2: 0 3px 10px rgba(16, 24, 48, 0.06), 0 1px 3px rgba(16, 24, 48, 0.03);
+  --elevation-3: 0 10px 24px rgba(16, 24, 48, 0.08), 0 3px 7px rgba(16, 24, 48, 0.04);
+  --elevation-4: 0 20px 44px rgba(16, 24, 48, 0.11), 0 5px 14px rgba(16, 24, 48, 0.05);
 
-  --shadow-rgb: 15 23 42;
-  --grain-opacity: 0.035;
+  --shadow-rgb: 16 24 48;
+  --grain-opacity: 0.030;
   --grain-blend-mode: multiply;
   color-scheme: light;
 }
 
 /* ---------- DARKVIM ---------- */
 :root[data-theme="DarkVim"] {
-  /* Surfaces */
+  /* Surfaces — pure OLED blacks with subtle blue-grey steps */
   --bg-0: #000000;
-  --bg-1: #0e0e10;
-  --bg-2: #17171a;
-  --bg-3: #1f1f24;
+  --bg-1: #0c0c0f;
+  --bg-2: #141418;
+  --bg-3: #1c1c22;
   --surface-0: var(--bg-0);
   --surface-1: var(--bg-1);
   --surface-2: var(--bg-2);
   --surface-3: var(--bg-3);
 
-  /* Ink */
-  --ink-0: #ffffff;
-  --ink-1: #e4e4e7;
-  --ink-2: #a1a1aa;
-  --ink-3: #52525b;
+  /* Ink — cool white; secondary at 88% keeps good contrast on dark */
+  --ink-0: oklch(0.97 0.005 258);
+  --ink-1: oklch(0.88 0.008 258);
+  --ink-2: oklch(0.68 0.010 258);
+  --ink-3: oklch(0.42 0.008 258);
   --text:   var(--ink-0);
   --muted:  var(--ink-2);
   --ink-primary:    var(--ink-0);
@@ -291,56 +291,56 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   --ink-quaternary: var(--ink-3);
 
   /* Borders */
-  --border:         #27272a;
-  --border-strong:  #3f3f46;
-  --divider:        color-mix(in oklab, white 10%, transparent);
-  --separator-opaque: color-mix(in oklab, white 10%, var(--bg-1));
-  --focus:          #60a5fa;
+  --border:         oklch(0.22 0.010 258);
+  --border-strong:  oklch(0.32 0.012 258);
+  --divider:        color-mix(in oklab, white 9%, transparent);
+  --separator-opaque: color-mix(in oklab, white 9%, var(--bg-1));
+  --focus:          oklch(0.74 0.15 260);
 
-  /* Brand & accents — Apple system colors for dark OLED */
-  --brand:    #ef4444;
-  --brand-2:  #0a84ff;
+  /* Brand — periwinkle / cornflower; calm on dark OLED */
+  --brand:    oklch(0.72 0.14 260);
+  --brand-2:  oklch(0.66 0.12 195);
   --accent-1: var(--brand);
   --accent-2: var(--brand-2);
 
-  /* States */
-  --ok:     #34c759;
-  --warn:   #ff9f0a;
-  --error:  #ef4444;
+  /* States — clearly separated from brand */
+  --ok:     oklch(0.74 0.16 158);
+  --warn:   oklch(0.80 0.15 78);
+  --error:  oklch(0.68 0.17 22);
   --danger: var(--error);
-  --link:   #0a84ff;
+  --link:   oklch(0.76 0.14 260);
 
   /* Brand / state soft & strong tints */
-  --brand-soft:   color-mix(in oklab, var(--brand) 18%, var(--bg-1));
-  --brand-strong: color-mix(in oklab, var(--brand) 85%, white);
-  --ok-soft:      color-mix(in oklab, var(--ok)    16%, var(--bg-1));
-  --ok-strong:    color-mix(in oklab, var(--ok)    85%, white);
-  --warn-soft:    color-mix(in oklab, var(--warn)  16%, var(--bg-1));
-  --warn-strong:  color-mix(in oklab, var(--warn)  85%, white);
-  --error-soft:   color-mix(in oklab, var(--error) 18%, var(--bg-1));
-  --error-strong: color-mix(in oklab, var(--error) 85%, white);
+  --brand-soft:   color-mix(in oklab, var(--brand) 16%, var(--bg-1));
+  --brand-strong: color-mix(in oklab, var(--brand) 82%, white);
+  --ok-soft:      color-mix(in oklab, var(--ok)    14%, var(--bg-1));
+  --ok-strong:    color-mix(in oklab, var(--ok)    82%, white);
+  --warn-soft:    color-mix(in oklab, var(--warn)  14%, var(--bg-1));
+  --warn-strong:  color-mix(in oklab, var(--warn)  82%, white);
+  --error-soft:   color-mix(in oklab, var(--error) 16%, var(--bg-1));
+  --error-strong: color-mix(in oklab, var(--error) 82%, white);
 
   /* Glass materials */
-  --glass-bg:              color-mix(in oklab, var(--bg-1) 66%, transparent);
-  --glass-bg-strong:       color-mix(in oklab, var(--bg-1) 82%, transparent);
+  --glass-bg:              color-mix(in oklab, var(--bg-1) 68%, transparent);
+  --glass-bg-strong:       color-mix(in oklab, var(--bg-1) 84%, transparent);
   --glass-tint-bg:         color-mix(in oklab, var(--brand) 5%, var(--glass-bg));
-  --glass-tint-hover:      color-mix(in oklab, var(--bg-1) 70%, white);
-  --glass-border:          color-mix(in oklab, white 13%, transparent);
-  --glass-border-highlight: inset 0 1px 0 color-mix(in oklab, white 10%, transparent);
-  --glass-shadow:          0 12px 40px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.28);
-  --glass-shadow-sm:       0 4px 12px rgba(0, 0, 0, 0.40), 0 1px 3px rgba(0, 0, 0, 0.25);
+  --glass-tint-hover:      color-mix(in oklab, var(--bg-1) 72%, white);
+  --glass-border:          color-mix(in oklab, white 11%, transparent);
+  --glass-border-highlight: inset 0 1px 0 color-mix(in oklab, white 9%, transparent);
+  --glass-shadow:          0 10px 36px rgba(0, 0, 0, 0.50), 0 2px 8px rgba(0, 0, 0, 0.26);
+  --glass-shadow-sm:       0 4px 12px rgba(0, 0, 0, 0.38), 0 1px 3px rgba(0, 0, 0, 0.22);
   --glass-shadow-md:       var(--glass-shadow);
-  --glass-shadow-lg:       0 24px 60px rgba(0, 0, 0, 0.65), 0 6px 18px rgba(0, 0, 0, 0.35);
+  --glass-shadow-lg:       0 22px 56px rgba(0, 0, 0, 0.60), 0 6px 18px rgba(0, 0, 0, 0.32);
 
   /* Elevation ladder */
   --elevation-0: none;
-  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.40);
-  --elevation-2: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.30);
-  --elevation-3: 0 12px 28px rgba(0, 0, 0, 0.55), 0 3px 8px rgba(0, 0, 0, 0.30);
-  --elevation-4: 0 24px 48px rgba(0, 0, 0, 0.70), 0 6px 16px rgba(0, 0, 0, 0.35);
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.36);
+  --elevation-2: 0 4px 12px rgba(0, 0, 0, 0.42), 0 1px 3px rgba(0, 0, 0, 0.26);
+  --elevation-3: 0 10px 26px rgba(0, 0, 0, 0.50), 0 3px 8px rgba(0, 0, 0, 0.28);
+  --elevation-4: 0 22px 46px rgba(0, 0, 0, 0.64), 0 6px 16px rgba(0, 0, 0, 0.32);
 
   --shadow-rgb: 0 0 0;
-  --grain-opacity: 0.06;
+  --grain-opacity: 0.055;
   --grain-blend-mode: overlay;
   color-scheme: dark;
 }
@@ -351,17 +351,17 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   --bg-0: #000; --bg-1: #111; --bg-2: #222; --bg-3: #333;
   --surface-0: var(--bg-0); --surface-1: var(--bg-1); --surface-2: var(--bg-2); --surface-3: var(--bg-3);
 
-  --ink-0: #fff; --ink-1: #fff; --ink-2: #ccc; --ink-3: #999;
-  --text: #fff; --muted: #ccc;
-  --ink-primary: #fff; --ink-secondary: #fff; --ink-tertiary: #ccc; --ink-quaternary: #999;
+  --ink-0: #fff; --ink-1: #fff; --ink-2: #ddd; --ink-3: #aaa;
+  --text: #fff; --muted: #ddd;
+  --ink-primary: #fff; --ink-secondary: #fff; --ink-tertiary: #ddd; --ink-quaternary: #aaa;
 
   --border: #fff; --border-strong: #fff;
   --divider: #fff; --separator-opaque: #fff; --focus: #0ff;
 
-  --brand: #dc2626; --brand-2: #f0dfc8;
-  --accent-1: #dc2626; --accent-2: #f0dfc8;
+  --brand: #6699ff; --brand-2: #66ddcc;
+  --accent-1: #6699ff; --accent-2: #66ddcc;
 
-  --ok: #0f0; --warn: #ff0; --error: #dc2626; --danger: #dc2626; --link: #0ff;
+  --ok: #66ee88; --warn: #ffdd44; --error: #ff6655; --danger: #ff6655; --link: #88ccff;
 
   --brand-soft:   var(--bg-2);
   --brand-strong: var(--brand);
@@ -395,37 +395,43 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
 /* Bake DarkVim values at the bare :root so SSR render before hydration
    still looks correct. Real theme class overrides on client. */
 :root {
-  --bg-0: #000000; --bg-1: #0e0e10; --bg-2: #17171a; --bg-3: #1f1f24;
-  --surface-0: #000000; --surface-1: #0e0e10; --surface-2: #17171a; --surface-3: #1f1f24;
-  --ink-0: #ffffff; --ink-1: #e4e4e7; --ink-2: #a1a1aa; --ink-3: #52525b;
-  --text: #ffffff; --muted: #a1a1aa;
-  --ink-primary: #ffffff; --ink-secondary: #e4e4e7; --ink-tertiary: #a1a1aa; --ink-quaternary: #52525b;
-  --border: #27272a; --border-strong: #3f3f46;
-  --divider: rgba(255,255,255,.10); --separator-opaque: rgba(255,255,255,.10); --focus: #60a5fa;
-  --brand: #ff453a; --brand-2: #0a84ff; --accent-1: #ff453a; --accent-2: #0a84ff;
-  --ok: #34c759; --warn: #ff9f0a; --error: #ff453a; --danger: #ff453a; --link: #0a84ff;
-  --brand-soft:  color-mix(in oklab, #ff453a 18%, #0e0e10);
-  --brand-strong:color-mix(in oklab, #ff453a 85%, white);
-  --ok-soft:     color-mix(in oklab, #34c759 16%, #0e0e10);
-  --ok-strong:   color-mix(in oklab, #34c759 85%, white);
-  --warn-soft:   color-mix(in oklab, #ff9f0a 16%, #0e0e10);
-  --warn-strong: color-mix(in oklab, #ff9f0a 85%, white);
-  --error-soft:  color-mix(in oklab, #ff453a 18%, #0e0e10);
-  --error-strong:color-mix(in oklab, #ff453a 85%, white);
-  --glass-bg:              rgba(14, 14, 16, 0.66);
-  --glass-bg-strong:       rgba(14, 14, 16, 0.82);
-  --glass-tint-bg:         rgba(14, 14, 16, 0.66);
-  --glass-border:          rgba(255, 255, 255, 0.13);
-  --glass-border-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.10);
-  --glass-shadow:          0 12px 40px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.28);
-  --glass-shadow-sm:       0 4px 12px rgba(0, 0, 0, 0.40);
+  --bg-0: #000000; --bg-1: #0c0c0f; --bg-2: #141418; --bg-3: #1c1c22;
+  --surface-0: #000000; --surface-1: #0c0c0f; --surface-2: #141418; --surface-3: #1c1c22;
+  --ink-0: oklch(0.97 0.005 258); --ink-1: oklch(0.88 0.008 258);
+  --ink-2: oklch(0.68 0.010 258); --ink-3: oklch(0.42 0.008 258);
+  --text: oklch(0.97 0.005 258); --muted: oklch(0.68 0.010 258);
+  --ink-primary: oklch(0.97 0.005 258); --ink-secondary: oklch(0.88 0.008 258);
+  --ink-tertiary: oklch(0.68 0.010 258); --ink-quaternary: oklch(0.42 0.008 258);
+  --border: oklch(0.22 0.010 258); --border-strong: oklch(0.32 0.012 258);
+  --divider: rgba(255,255,255,.09); --separator-opaque: rgba(255,255,255,.09);
+  --focus: oklch(0.74 0.15 260);
+  --brand: oklch(0.72 0.14 260); --brand-2: oklch(0.66 0.12 195);
+  --accent-1: oklch(0.72 0.14 260); --accent-2: oklch(0.66 0.12 195);
+  --ok: oklch(0.74 0.16 158); --warn: oklch(0.80 0.15 78);
+  --error: oklch(0.68 0.17 22); --danger: oklch(0.68 0.17 22);
+  --link: oklch(0.76 0.14 260);
+  --brand-soft:  color-mix(in oklab, oklch(0.72 0.14 260) 16%, #0c0c0f);
+  --brand-strong:color-mix(in oklab, oklch(0.72 0.14 260) 82%, white);
+  --ok-soft:     color-mix(in oklab, oklch(0.74 0.16 158) 14%, #0c0c0f);
+  --ok-strong:   color-mix(in oklab, oklch(0.74 0.16 158) 82%, white);
+  --warn-soft:   color-mix(in oklab, oklch(0.80 0.15 78)  14%, #0c0c0f);
+  --warn-strong: color-mix(in oklab, oklch(0.80 0.15 78)  82%, white);
+  --error-soft:  color-mix(in oklab, oklch(0.68 0.17 22)  16%, #0c0c0f);
+  --error-strong:color-mix(in oklab, oklch(0.68 0.17 22)  82%, white);
+  --glass-bg:              rgba(12, 12, 15, 0.68);
+  --glass-bg-strong:       rgba(12, 12, 15, 0.84);
+  --glass-tint-bg:         rgba(12, 12, 15, 0.68);
+  --glass-border:          rgba(255, 255, 255, 0.11);
+  --glass-border-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --glass-shadow:          0 10px 36px rgba(0, 0, 0, 0.50), 0 2px 8px rgba(0, 0, 0, 0.26);
+  --glass-shadow-sm:       0 4px 12px rgba(0, 0, 0, 0.38);
   --glass-shadow-md:       var(--glass-shadow);
-  --glass-shadow-lg:       0 24px 60px rgba(0, 0, 0, 0.65);
+  --glass-shadow-lg:       0 22px 56px rgba(0, 0, 0, 0.60);
   --elevation-0: none;
-  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.40);
-  --elevation-2: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --elevation-3: 0 12px 28px rgba(0, 0, 0, 0.55);
-  --elevation-4: 0 24px 48px rgba(0, 0, 0, 0.70);
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.36);
+  --elevation-2: 0 4px 12px rgba(0, 0, 0, 0.42);
+  --elevation-3: 0 10px 26px rgba(0, 0, 0, 0.50);
+  --elevation-4: 0 22px 46px rgba(0, 0, 0, 0.64);
   --shadow-rgb: 0 0 0;
   color-scheme: dark;
 }

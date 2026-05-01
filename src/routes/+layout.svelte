@@ -349,17 +349,17 @@
         </a>
         <a href="{base}/ai-lab" class:active={currentPath.includes('/ai-lab') || currentPath.includes('/ai-dashboard')} onclick={() => mobileMenuOpen = false}>
           <Icon name="sparkles" size="sm" />
-          <span>Reclame AI Lab</span>
+          <span>{$t('nav.ailab', { default: 'AI Lab' })}</span>
         </a>
         {#if isAdmin}
           <div class="nav-divider"></div>
           <a href="{base}/admin/users" class:active={currentPath.includes('/admin/users')} onclick={() => mobileMenuOpen = false}>
             <Icon name="users" size="sm" />
-            <span>Users</span>
+            <span>{$t('nav.users', { default: 'Users' })}</span>
           </a>
           <a href="{base}/admin/materials" class:active={currentPath.includes('/admin/materials')} onclick={() => mobileMenuOpen = false}>
             <Icon name="boxes" size="sm" />
-            <span>Materials</span>
+            <span>{$t('nav.materials', { default: 'Materials' })}</span>
           </a>
         {/if}
       </nav>
@@ -369,7 +369,7 @@
         <div class="action-btn desktop-only" title={$t('topbar.density', { default: 'Density' })}><DensitySwitch /></div>
         <div class="action-btn" title={$t('topbar.theme', { default: 'Theme' })}><ThemeSwitch /></div>
         <div class="action-btn" title={$t('ui.notifications', { default: 'Notifications' })}><NotificationsBell /></div>
-        <div class="action-btn" title="Realtime Connection"><RealtimeConnection /></div>
+        <div class="action-btn" title={$t('layout.realtime', { default: 'Realtime connection' })}><RealtimeConnection /></div>
         <button
           class="action-btn chat-toggle"
           class:active={$isChatOpen}

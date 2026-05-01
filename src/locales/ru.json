@@ -1,4 +1,1116 @@
 {
+  "app": {
+    "title": "Reclame Fabriek — OMS",
+    "brand": {
+      "label": "Reclame OMS",
+      "aria": "Reclame OMS"
+    }
+  },
+  "terms": {
+    "station": "Станция",
+    "stationLog": "Журнал станции",
+    "stationLogs": "Журналы станций",
+    "changeRequest": "Запрос изменений",
+    "changeRequests": "Запросы изменений",
+    "workstream": "Рабочий поток",
+    "workstreams": "Рабочие потоки",
+    "approve": "Утвердить",
+    "decline": "Отклонить",
+    "attachRevision": "Прикрепить ревизию",
+    "currentRevision": "Текущая ревизия"
+  },
+  "stations": {
+    "CAD": "CAD",
+    "CNC": "ЧПУ",
+    "SANDING": "Шлифовка",
+    "BENDING": "Гибка",
+    "WELDING": "Сварка",
+    "PAINT": "Покраска",
+    "FILM_COATING": "Плёночное покрытие",
+    "GLUEING": "Склейка",
+    "ASSEMBLY": "Сборка",
+    "QC": "КК",
+    "LOGISTICS": "Логистика"
+  },
+  "nav": {
+    "dashboard": "Панель",
+    "calendar": "Календарь",
+    "orders": "Заказы",
+    "inventory": "Склад",
+    "stations": "Станции",
+    "assets": "Ресурсы",
+    "files": "Файлы",
+    "settings": "Настройки",
+    "kanban": "Производство",
+    "help": "Помощь",
+    "chat": "Чат",
+    "ailab": "ИИ Лаборатория",
+    "users": "Пользователи",
+    "materials": "Материалы"
+  },
+  "header": {
+    "actions": "Действия шапки",
+    "theme": {
+      "label": "Тема",
+      "options": {
+        "LightVim": "Светлая",
+        "DarkVim": "Тёмная",
+        "HighContrast": "Высокий контраст"
+      }
+    },
+    "language": {
+      "label": "Язык",
+      "options": {
+        "en": "English",
+        "ru": "Русский",
+        "lv": "Latviešu"
+      }
+    },
+    "notifications": {
+      "label": "Уведомления",
+      "srCount": "{count} уведомлений"
+    },
+    "user": {
+      "label": "Пользователь",
+      "switch": "Сменить пользователя"
+    },
+    "toggle_menu": "Открыть меню"
+  },
+  "topbar": {
+    "theme": "Тема",
+    "language": "Язык",
+    "textSize": "Размер текста",
+    "chat": "Чат",
+    "notifications": "Уведомления",
+    "density": "Плотность"
+  },
+  "orders": {
+    "status": "Статус",
+    "stage": "Этап",
+    "rd": "R&D (этапы могут повторяться)",
+    "redoStage": "Отметить этап на переработку…",
+    "reason": "Причина",
+    "reasons": {
+      "recut": "Перекрой",
+      "resand": "Перешлифовка",
+      "reweld": "Переварка",
+      "repaint": "Перекраска"
+    },
+    "compare": "Сравнить",
+    "active_stages": "Активные этапы",
+    "rd_project": "R&D проект",
+    "client": "Клиент",
+    "title": "Название",
+    "due": "Срок",
+    "materials": "Материалы",
+    "new": {
+      "title": "Создать черновик",
+      "back": "Назад к заказам",
+      "save": "Сохранить черновик",
+      "sections": {
+        "profiles": "Профили заказа",
+        "files": "Эскизы и файлы",
+        "details": "Детали заказа",
+        "delivery": "Адрес доставки"
+      },
+      "files": {
+        "hint": "Загрузите PDF и CDR файлы с эскизами заказа.",
+        "drag_drop": "Перетащите или нажмите",
+        "formats": "PDF, CDR, AI, EPS, JPG, PNG",
+        "preview": "Предпросмотр",
+        "no_preview": "Выберите файл для предпросмотра",
+        "loading_pdf": "Загрузка PDF..."
+      },
+      "details": {
+        "po": "Номер PO",
+        "priority": "Приоритет",
+        "client": "Клиент",
+        "client_placeholder": "Введите имя или выберите из шаблонов",
+        "deadline": "Срок",
+        "loading": "Дата отгрузки",
+        "loading_hint": "Можно назначить позже",
+        "notes": "Примечания",
+        "notes_placeholder": "Дополнительные примечания для производства..."
+      },
+      "delivery": {
+        "select_preset": "Выбрать из сохранённых адресов...",
+        "manual": "Ввести адрес вручную",
+        "address": "Адрес",
+        "address_placeholder": "Улица, Город, Индекс, Страна",
+        "contact": "Контактное лицо",
+        "phone": "Телефон"
+      },
+      "presets": {
+        "load": "Загрузить шаблон",
+        "save_as": "Сохранить как шаблон",
+        "empty": "Нет сохранённых шаблонов. Создайте его, нажав «Сохранить как шаблон» в профиле.",
+        "name": "Название шаблона",
+        "description": "Описание",
+        "public": "Сделать публичным (видно всем)",
+        "saved": "Шаблон успешно сохранён!",
+        "loaded": "Загружен шаблон: {name}",
+        "deleted": "Шаблон удалён",
+        "confirm_delete": "Вы уверены, что хотите удалить этот шаблон?"
+      },
+      "messages": {
+        "success": "Черновик успешно создан! Администратор уведомлён.",
+        "validation": {
+          "client": "Имя клиента обязательно",
+          "po": "Номер PO обязателен",
+          "files": "Загрузите хотя бы один файл (CDR или PDF)",
+          "address": "Выберите или введите адрес доставки"
+        }
+      }
+    }
+  },
+  "print": {
+    "due_label": "Срок",
+    "loading_label": "Отгрузка",
+    "materials_title": "Материалы",
+    "label_header": "Метка",
+    "value_header": "Значение",
+    "stages_checklist_title": "Контрольный список этапов"
+  },
+  "sections": {
+    "admin": "Администрация",
+    "production": "Производство",
+    "logistics": "Логистика"
+  },
+  "roles": {
+    "label": "Роль",
+    "superadmin": "Супер Администратор",
+    "stationlead": "Руководитель станции",
+    "operator": "Оператор",
+    "viewer": "Наблюдатель",
+    "admin": "Администратор",
+    "station": "Станция"
+  },
+  "permissions": {
+    "create_order": "Создание заказа",
+    "edit_inventory": "Редактирование склада",
+    "approve_change": "Утверждение изменений",
+    "assign_loading": "Назначение отгрузки",
+    "view_orders": "Просмотр заказов",
+    "update_order": "Обновление заказа",
+    "view_calendar": "Просмотр календаря",
+    "update_calendar": "Обновление календаря",
+    "export_manifest": "Экспорт манифеста"
+  },
+  "order": {
+    "overview": "Обзор",
+    "revisions": "Ревизии",
+    "changes": "Запросы изменений",
+    "logs": "Журналы станций",
+    "workstreams": "Рабочие потоки",
+    "fields": "Ключевые поля",
+    "materials": "Материалы",
+    "progress": "Прогресс процесса",
+    "progress_help": "Каждый этап отображает выполнение от 0 до 100 процентов.",
+    "progressbar_label": "Прогресс {name}",
+    "currentPdf": "Текущий PDF заказа",
+    "no_file": "Файл не найден.",
+    "attach_help": "Вставьте путь к PDF в static/files/…",
+    "attach": "Прикрепить",
+    "attach_admin_heading": "Прикрепить ревизию (Администратор)",
+    "current_revision": "Текущая ревизия",
+    "create_change_request": "Создать запрос изменений",
+    "create_change_request_hint": "Переключитесь на роль станции.",
+    "timeline": "Хронология",
+    "badges": "Метки",
+    "badgeLabels": {
+      "OPEN": "Открыт",
+      "IN_PROGRESS": "В работе",
+      "BLOCKED": "Заблокирован",
+      "READY_TO_SHIP": "Готов к отправке",
+      "DONE": "Завершён",
+      "URGENT": "Срочно",
+      "LOW_STOCK": "Мало материала",
+      "R&D": "R&D",
+      "DRAFT": "Черновик"
+    },
+    "quick_station_log": "Быстрый журнал станции",
+    "station_label": "Станция",
+    "progress_percent": "Прогресс (%)",
+    "note_required": "Примечание (обязательно для изменений)",
+    "log": "Записать",
+    "title_placeholder": "Название",
+    "message_optional_placeholder": "Сообщение (необязательно)",
+    "new_due_date": "Новый срок",
+    "sanding_progress": "Прогресс шлифовки (%)",
+    "station_note": "Примечание станции",
+    "submit": "Отправить",
+    "changeRequests": {
+      "heading": "Запросы изменений",
+      "empty": "Нет активных запросов изменений.",
+      "proposed": "Предложенные изменения",
+      "selected": "Выбранный запрос",
+      "select_prompt": "Выберите запрос для сравнения полей.",
+      "from": "от {author}",
+      "status": "Статус: {status}"
+    },
+    "compare": {
+      "fields": "Ключевые поля",
+      "materials": "Материалы",
+      "stages": "Этапы"
+    },
+    "log_details": "Подробности",
+    "log_recorded_by": "записал {author}",
+    "log_recorded_station": " · {station}",
+    "chat": "Чат",
+    "files": "Файлы"
+  },
+  "orderPage": {
+    "loading": {
+      "title": "Дата отгрузки",
+      "clear": "Очистить",
+      "current": "Текущая:"
+    },
+    "requests": {
+      "title": "Открытые запросы",
+      "approve": "Утвердить",
+      "decline": "Отклонить",
+      "empty": "Нет открытых запросов."
+    }
+  },
+  "orderLists": {
+    "title": "Заказы",
+    "new": "Новый заказ",
+    "headers": {
+      "po": "PO",
+      "client": "Клиент",
+      "title": "Название",
+      "summary": "Сводка этапов",
+      "loading": "Отгрузка",
+      "due": "Срок",
+      "badges": "Метки",
+      "stages": "Этапы процесса",
+      "all_badges": "Все метки"
+    },
+    "empty": "Заказы не найдены.",
+    "no_badges": "Нет меток",
+    "filter_placeholder": "Фильтр по клиенту…",
+    "filter_label": "Фильтр"
+  },
+  "materialsEditor": {
+    "title": "Редактор материалов",
+    "delete": "Удалить строку",
+    "add": "Добавить материал",
+    "applyAdmin": "Применить (Администратор)",
+    "propose": "Предложить обновление",
+    "key": "Ключ",
+    "label": "Метка",
+    "value": "Значение",
+    "default_label": "Элемент"
+  },
+  "progressEditor": {
+    "title": "Редактор процесса",
+    "reset": "Сбросить",
+    "applyAdmin": "Применить (Администратор)",
+    "propose": "Предложить обновление"
+  },
+  "stageEditor": {
+    "title": "Редактор этапов",
+    "next": "Следующий статус",
+    "apply": "Применить",
+    "propose": "Предложить"
+  },
+  "revisions": {
+    "title": "Ревизии файлов",
+    "active": "Используется",
+    "use": "Использовать",
+    "download": "Скачать",
+    "empty": "Ревизий нет.",
+    "by": "от {author}"
+  },
+  "themes": {
+    "light": "LightVim",
+    "dark": "DarkVim",
+    "hc": "Высокий контраст"
+  },
+  "a11y": {
+    "toggle_right": "Правая панель (Shift+R)",
+    "search": "Поиск заказов, файлов, клиентов…",
+    "progress_region": "Общий прогресс процесса",
+    "skip": "Перейти к содержимому"
+  },
+  "accessibility": {
+    "text_size": "Размер текста",
+    "text_size_toggle": "Переключить размер текста",
+    "text_size_hint": "Нажмите для переключения размера текста",
+    "text_size_options": {
+      "sm": {
+        "label": "Маленький текст",
+        "abbr": "Мал."
+      },
+      "md": {
+        "label": "Стандартный текст",
+        "abbr": "Станд."
+      },
+      "lg": {
+        "label": "Крупный текст",
+        "abbr": "Крупный"
+      },
+      "xl": {
+        "label": "Очень крупный текст",
+        "abbr": "Оч. кр."
+      }
+    },
+    "help_hints": "Подсказки",
+    "show_hints": "Показывать подсказки в интерфейсе"
+  },
+  "help": {
+    "title": "Горячие клавиши"
+  },
+  "toast": {
+    "approved": "Запрос изменений утверждён",
+    "declined": "Запрос изменений отклонён",
+    "revision_attached": "Ревизия прикреплена",
+    "revision_switched": "Текущая ревизия изменена"
+  },
+  "launchpad": {
+    "themes": "Темы",
+    "language": "Язык",
+    "digest": {
+      "title": "Сводка операций",
+      "subtitle": "Фокус смены по активным заказам.",
+      "next_load": "Следующий день отгрузки",
+      "no_loading": "Дата отгрузки не назначена.",
+      "due_soon": "Срок в течение 7 дней",
+      "due_none": "Дедлайнов на этой неделе нет.",
+      "due_in": "Срок через {days} д.",
+      "blocked": "Заблокированные работы",
+      "blocked_clear": "Все станции свободны.",
+      "station_health": "Загрузка станций",
+      "station_empty": "Очередь пуста",
+      "rework_watch": "Контроль переработок",
+      "rework_none": "Повторов не зафиксировано.",
+      "order_count": "{count} заказов"
+    }
+  },
+  "dashboard": {
+    "title": "Панель управления",
+    "welcome": "С возвращением, {name}!",
+    "loading": "Загрузка панели...",
+    "new_order": "+ Новый заказ",
+    "view_all": "Смотреть все",
+    "no_orders": "Активных заказов нет",
+    "create_first": "Создать первый заказ",
+    "quick_actions": "Быстрые действия",
+    "chart_overview": "Обзор заказов",
+    "chart_period": "Последние 30 дней",
+    "stat_total": "Всего заказов",
+    "stat_active": "Активные заказы",
+    "stat_completed": "Завершено",
+    "stat_overdue": "Просроченные",
+    "actions": {
+      "new_order": { "title": "Новый заказ", "desc": "Создать новый производственный заказ" },
+      "production": { "title": "Доска производства", "desc": "Просмотр производственного процесса" },
+      "materials": { "title": "Материалы", "desc": "Управление складом" },
+      "analytics": { "title": "Аналитика", "desc": "Просмотр отчётов" }
+    },
+    "kpi": {
+      "active": "Активные заказы",
+      "rd": "R&D заказы",
+      "blocked": "Заблокированные",
+      "rework": "Всего переработок"
+    },
+    "charts": {
+      "throughput": "Недельная производительность",
+      "stages": "Этапы заказов",
+      "materials": "Остатки материалов (ключевые)"
+    },
+    "materials": {
+      "aluminum": "Алюминий",
+      "acrylic": "Акрил",
+      "acp": "АКП",
+      "paint": "Краска",
+      "vinyl": "Винил"
+    },
+    "topRework": {
+      "label": "Станция с наибольшим числом переработок",
+      "none": "Нет"
+    },
+    "list": {
+      "title": "Активные заказы"
+    },
+    "series": {
+      "jobs": "Заказы",
+      "qty": "Кол-во"
+    }
+  },
+  "compare": {
+    "heading": "Сравнение",
+    "field": "Поле",
+    "before": "Текущее",
+    "after": "Предложенное",
+    "empty": "Различий нет.",
+    "item": "Элемент",
+    "stage": "Этап"
+  },
+  "badges": {
+    "heading": "Метки"
+  },
+  "station": {
+    "quick_log_note_placeholder": "Примечание (обязательно для изменений)",
+    "quick_log_heading": "Быстрый журнал станции",
+    "station_label": "Станция",
+    "progress_label": "Прогресс (%)",
+    "log": "Записать"
+  },
+  "calendar": {
+    "title": "Календарь",
+    "upcoming": "Предстоящие",
+    "all": "Все",
+    "loading": "Отгрузка",
+    "meeting": "Встреча",
+    "note": "Примечание",
+    "quickCreate": "Быстрое создание",
+    "loading_mode": "Режим отгрузки",
+    "loading_on": "Вкл.",
+    "loading_off": "Выкл.",
+    "capacity": "Вместимость",
+    "loading_day": "День отгрузки",
+    "loading_day_with_date": "День отгрузки: {date}",
+    "meta": "Вместимость {capacity} · Примечание: {note}",
+    "note_empty": "—",
+    "summary": {
+      "idle": "Отгрузка не запланирована",
+      "open": "Открытый день отгрузки",
+      "available": "Вместимость доступна",
+      "busy": "Почти заполнено",
+      "full": "Вместимость исчерпана",
+      "unlimited": "Запланировано {assigned} заказов",
+      "capacity": "{assigned} из {capacity} слотов занято",
+      "note": "Примечания: {note}",
+      "no_note": "Примечаний пока нет"
+    },
+    "over_capacity": "Превышение вместимости",
+    "near_capacity": "Близко к пределу",
+    "capacity_label": "Вместимость",
+    "orders_assigned": "заказов назначено",
+    "legend": {
+      "title": "Легенда календаря",
+      "idle": "Отгрузка выключена",
+      "open": "Открытый день",
+      "available": "Есть свободные места",
+      "busy": "Почти полный",
+      "full": "Полный день"
+    },
+    "detail": {
+      "title": "Выбранный день",
+      "capacity": "Вместимость",
+      "assignments": "Назначения",
+      "orders_count": "Запланировано {count} заказов",
+      "note": "Примечание",
+      "no_note": "Примечаний пока нет",
+      "inactive": "Отгрузка отключена",
+      "pick": "Выберите день для просмотра деталей отгрузки",
+      "orders": "Запланированные заказы",
+      "orders_empty": "На этот день заказов нет.",
+      "order_due": "Срок {date}"
+    },
+    "days": {
+      "Mon": "Пн",
+      "Tue": "Вт",
+      "Wed": "Ср",
+      "Thu": "Чт",
+      "Fri": "Пт",
+      "Sat": "Сб",
+      "Sun": "Вс"
+    },
+    "columns": {
+      "po": "PO",
+      "client": "Клиент",
+      "title": "Название",
+      "due": "Срок",
+      "loading": "Отгрузка"
+    },
+    "empty": "Заказов не назначено.",
+    "add_entry": "Добавить запись",
+    "type_loading": "Отгрузка",
+    "type_meeting": "Встреча",
+    "type_note": "Примечание",
+    "carrier": "Перевозчик",
+    "window_from": "С",
+    "window_to": "До",
+    "attendees": "Участники",
+    "location": "Место",
+    "notes": "Примечания"
+  },
+  "calendar_page": {
+    "tooltip": "Включите режим администратора для пометки дней отгрузки. Нажмите на день для просмотра или назначения заказов.",
+    "new_loading": "Новая отгрузка",
+    "new_meeting": "Новая встреча",
+    "new_note": "Новое примечание",
+    "view_mode_label": "Режим просмотра",
+    "grid_view": "Сетка",
+    "list_view": "Список",
+    "prev_month_label": "Предыдущий месяц",
+    "next_month_label": "Следующий месяц",
+    "export_ics": "Экспорт ICS",
+    "carrier_label": "Перевозчик",
+    "note_label": "Примечание"
+  },
+  "eventEditor": {
+    "createEvent": "Создать событие",
+    "editEvent": "Редактировать событие",
+    "close": "Закрыть",
+    "type": "Тип",
+    "typeLoading": "Отгрузка",
+    "typeMeeting": "Встреча",
+    "typeNote": "Примечание",
+    "date": "Дата",
+    "carrier": "Перевозчик",
+    "carrierPlaceholder": "DHL / Собственный транспорт",
+    "notes": "Примечания",
+    "title": "Название",
+    "titlePlaceholderMeeting": "Встреча по проекту / Выезд на объект",
+    "titlePlaceholderNote": "Краткое название заметки",
+    "startTime": "Начало",
+    "endTime": "Конец",
+    "location": "Место",
+    "locationPlaceholder": "Цех / Объект клиента",
+    "attendees": "Участники",
+    "attendeesPlaceholder": "Имена через запятую",
+    "notesPlaceholder": "Введите заметку здесь...",
+    "cancel": "Отмена",
+    "save": "Сохранить"
+  },
+  "orderform": {
+    "title": "Новый заказ",
+    "pdf": "Предпросмотр PDF",
+    "basics": "Основные данные",
+    "materials": "Цвета и материалы",
+    "po": "Номер PO (уникальный)",
+    "client": "Клиент",
+    "order_title": "Название",
+    "due": "Срок",
+    "due_date": "Дата срока",
+    "loading": "Дата отгрузки",
+    "loading_link": "Отгрузка (ссылка на запись в календаре)",
+    "carrier": "Перевозчик",
+    "scheduling": "Планирование",
+    "add_section": "Добавить раздел",
+    "create": "Создать заказ",
+    "cancel": "Отмена",
+    "section_label": "Раздел",
+    "material_label": "Материал",
+    "thickness_placeholder": "Толщина (напр., 3мм)",
+    "color_placeholder": "Код цвета",
+    "optional_hex": "Дополнительный HEX",
+    "invalid_hex": "Неверный HEX",
+    "unknown_ral": "Неизвестный код RAL",
+    "remove": "Удалить",
+    "pdf_source": "Источник PDF",
+    "pdf_hint": "Вставьте путь к PDF в {path}",
+    "pdf_path_label": "Путь к PDF",
+    "pdf_placeholder": "{base}/files/PO-....pdf",
+    "pdf_default_name": "order.pdf",
+    "close": "Закрыть",
+    "remove_short": "–",
+    "color_system": {
+      "ral": "RAL",
+      "pantone": "Pantone",
+      "hex": "HEX",
+      "other": "Другой"
+    },
+    "defaults": {
+      "face": "Лицевая",
+      "back": "Обратная",
+      "face_frame": "Лицевая рама",
+      "part": "Деталь",
+      "acrylic": "Акрил",
+      "aluminum": "Алюминий",
+      "acp": "АКП",
+      "natural": "Натуральный",
+      "thickness_2mm": "2мм",
+      "thickness_3mm": "3мм"
+    }
+  },
+  "actions": {
+    "cancel": "Отмена",
+    "saving": "Сохранение..."
+  },
+  "chat": {
+    "title": "Командный чат",
+    "rooms": "Комнаты",
+    "channels_section": "Каналы",
+    "stations_section": "Производственные станции",
+    "online": "В сети",
+    "select_room": "Выберите комнату",
+    "station_badge": "Станция",
+    "members_btn": "Участники",
+    "welcome_room": "Добро пожаловать в #{name}",
+    "start_conversation": "Это начало беседы. Поздоровайтесь!",
+    "create_channel_title": "Создать канал",
+    "channel_name_label": "Название канала",
+    "channel_name_placeholder": "напр. обновления-производства",
+    "create_channel_btn": "Создать канал",
+    "search_rooms": "Поиск комнат…",
+    "create_room_btn": "Создать комнату",
+    "message_placeholder": "Сообщение (используйте @имя для упоминания)",
+    "signed_in_as": "Вы вошли как",
+    "mentions": "Упоминания",
+    "to": "Кому",
+    "sending_to": "Адресовать",
+    "remove_mention": "Убрать упоминание {name}",
+    "empty": "Сообщений пока нет.",
+    "quick_mentions": "Быстрые упоминания",
+    "quick_mentions_station": "Упомянуть сотрудников {station}",
+    "system": {
+      "name": "Система",
+      "note_label": "Примечание",
+      "rework": {
+        "summary": "Отправлено на переработку",
+        "body": "Отправлено на переработку — {reason}"
+      },
+      "completed": {
+        "summary": "Этап завершён",
+        "badge": "Завершено",
+        "body": "Этап отмечен как завершённый"
+      }
+    },
+    "no_messages": "Сообщений пока нет",
+    "order_discussion": "Обсуждение заказа",
+    "type_message": "Введите сообщение..."
+  },
+  "loading": {
+    "assign": "Назначить",
+    "schedule": "Расписание",
+    "export_csv": "Экспорт CSV",
+    "updated": "Дата отгрузки обновлена",
+    "board": "Доска отгрузки",
+    "remove": "Убрать",
+    "carrier": "Перевозчик",
+    "notes": "Примечания"
+  },
+  "materials": {
+    "title": "Материалы",
+    "add": "Добавить",
+    "type": "Тип",
+    "thk": "Толщина (мм)",
+    "colorSys": "Система цветов",
+    "code": "Код",
+    "qty": "Кол-во",
+    "notes": "Примечания"
+  },
+  "inv": {
+    "import": "Массовый импорт",
+    "scan": "Сканировать штрихкод",
+    "labels": "Печать этикеток"
+  },
+  "users": {
+    "current": "Пользователь"
+  },
+  "rework": {
+    "send": "Отправить на переработку",
+    "reason": "Причина",
+    "note": "Примечание для производства",
+    "x_repeat": "повтор",
+    "reasons": {
+      "RECUT": "Перекрой",
+      "RESAND": "Перешлифовка",
+      "REBEND": "Перегибка",
+      "REWELD": "Переварка",
+      "REPAINT": "Перекраска",
+      "REASSEMBLE": "Пересборка",
+      "RECHECK": "Повторная проверка",
+      "CUSTOM": "Другое"
+    }
+  },
+  "commands": {
+    "title": "Поиск заказов",
+    "placeholder": "Поиск заказов, клиентов, полей…",
+    "aria": "Поиск заказов",
+    "match_label": "Совпадение",
+    "no_matches": "Совпадений нет",
+    "start_typing": "Начните вводить для поиска заказов.",
+    "tip": "Совет: нажмите ⌘K / Ctrl-K"
+  },
+  "inventory": {
+    "title": "Склад",
+    "catalog": "Каталог материалов",
+    "add_material": "Добавить материал",
+    "low_stock_items": "материалов с низким остатком",
+    "show_all": "Показать все",
+    "show_alerts": "Только предупреждения",
+    "search_materials": "Поиск материалов...",
+    "all_categories": "Все категории",
+    "sheet_metal": "Листовой металл",
+    "composite": "Композит",
+    "plastic": "Пластик",
+    "vinyl": "Винил",
+    "finishing": "Отделка",
+    "hardware": "Фурнитура",
+    "in_stock": "В наличии",
+    "usage_history": "История использования",
+    "add_stock": "Добавить остаток",
+    "search": "Поиск",
+    "search_placeholder": "Артикул, название, цвет, местоположение…",
+    "add_item": "Добавить позицию",
+    "movements": "Движения",
+    "low_stock": "Низкий остаток",
+    "minimum_label": "Минимум {value}",
+    "count": "{count} позиций",
+    "newItem": "Новая позиция",
+    "editItem": "Редактировать позицию",
+    "save": "Сохранить",
+    "section": "Раздел",
+    "group": "Группа",
+    "subgroup": "Подгруппа",
+    "filters": {
+      "sections_label": "Разделы",
+      "search_placeholder": "Поиск по названию/артикулу…",
+      "group_placeholder": "Группа…",
+      "subgroup_placeholder": "Подгруппа…"
+    },
+    "filter_sections": {
+      "all": "все",
+      "materials": "материалы",
+      "leftovers": "остатки",
+      "paints": "краски",
+      "tools": "инструменты",
+      "cons": "расходники"
+    },
+    "import": {
+      "title": "Массовый импорт (CSV)",
+      "placeholder": "раздел,группа,подгруппа,артикул,название,единица,остаток,минимум,место",
+      "import_button": "Импорт"
+    },
+    "modal": {
+      "group_placeholder": "напр., Акрил / Алюминий",
+      "subgroup_label": "Подгруппа",
+      "subgroup_placeholder": "напр., Листы / Профили",
+      "sku_label": "Артикул",
+      "unit_placeholder": "шт / м / кг",
+      "location_placeholder": "Стеллаж A2",
+      "supplier_label": "Поставщик",
+      "price_label": "Цена (EUR)",
+      "barcode_label": "Штрихкод",
+      "barcode_placeholder": "EAN/QR id"
+    },
+    "movements_page": {
+      "title": "Движения на складе",
+      "description": "Журнал движений появится здесь в следующем обновлении."
+    },
+    "new_page": {
+      "title": "Добавить позицию склада",
+      "description": "Форма для создания новой позиции склада."
+    },
+    "empty_filter": "По этому фильтру позиций нет.",
+    "materials": "Материалы",
+    "leftovers": "Остатки",
+    "paints": "Краски",
+    "tools": "Инструменты",
+    "consumables": "Расходники",
+    "add": "Добавить",
+    "headers": {
+      "sku": "Артикул",
+      "name": "Название",
+      "category": "Категория",
+      "unit": "Единица",
+      "stock": "Остаток",
+      "minimum": "Минимум",
+      "location": "Местоположение",
+      "updated": "Обновлено"
+    },
+    "labels": {
+      "vendor": "Поставщик",
+      "color": "Цвет",
+      "thickness": "Толщина",
+      "offcut": "Обрезок",
+      "bin": "Ящик",
+      "weight": "Вес",
+      "stock": "Остаток",
+      "on_hand": "В наличии",
+      "min": "Мин.",
+      "location": "Местоположение",
+      "updated": "Обновлено"
+    },
+    "actions": {
+      "add": "Добавить",
+      "consume": "Списать",
+      "back": "Назад"
+    },
+    "prompt": {
+      "add": "Добавить количество:",
+      "consume": "Списать количество:"
+    },
+    "3dprinting": "3D печать",
+    "basicInfo": "Основная информация",
+    "colorInfo": "Информация о цвете",
+    "stockInfo": "Информация об остатке",
+    "supplierInfo": "Информация о поставщике",
+    "hexColor": "HEX цвет",
+    "electronics": "Электроника"
+  },
+  "notifications": {
+    "title": "Уведомления",
+    "empty": "Уведомлений пока нет.",
+    "filter": {
+      "station": "Фильтр по станции",
+      "urgency": "Срочность",
+      "all_stations": "Все станции",
+      "all_urgencies": "Все уровни срочности"
+    },
+    "urgency": {
+      "normal": "Обычное",
+      "urgent": "Срочное"
+    },
+    "pin_label": "Закрепить",
+    "unpin_label": "Открепить",
+    "pinned_section": "Закреплённые",
+    "rework_requested": "{order} ({orderId}) • {station} отправлен на переработку",
+    "stage_completed": "{order} ({orderId}) • {station} отмечен завершённым"
+  },
+  "analytics": {
+    "title": "Панель аналитики",
+    "loading": "Загрузка аналитики...",
+    "timeframe": {
+      "7d": "Последние 7 дней",
+      "30d": "Последние 30 дней",
+      "90d": "Последние 90 дней",
+      "1y": "Последний год"
+    },
+    "metrics": {
+      "total": "Всего заказов",
+      "active": "Активные заказы",
+      "completed": "Завершено",
+      "avg_days": "Ср. дней до завершения",
+      "rework": "Всего переработок"
+    },
+    "at_risk": "Заказы под угрозой",
+    "station_workload": "Загрузка станций",
+    "top_rework": "Станции с наибольшим числом переработок"
+  },
+  "settings": {
+    "title": "Настройки",
+    "sections": {
+      "branding": "Бренд",
+      "integrations": "Интеграции"
+    },
+    "branding": {
+      "logo": {
+        "label": "Логотип",
+        "path": "static/brand/logo.png",
+        "note": "(разместите PNG там)"
+      },
+      "colors": {
+        "label": "Цвета",
+        "path": "static/brand.css"
+      }
+    },
+    "integrations": {
+      "telegram": "Telegram (макет)",
+      "n8n": "n8n (макет)",
+      "openrouter": "OpenRouter (макет)"
+    },
+    "appearance": "Внешний вид",
+    "accessibility": "Доступность",
+    "density": "Плотность",
+    "densityHint": "Управление расстоянием между элементами",
+    "description": "Настройте интерфейс под себя",
+    "interfaceLanguage": "Язык интерфейса",
+    "language": "Язык",
+    "previewText": "Предпросмотр: Съешь же ещё этих мягких французских булок, да выпей чаю.",
+    "security": "Безопасность",
+    "textSize": "Размер текста",
+    "textSizeHint": "Настройте размер текста для удобного чтения",
+    "password": {
+      "confirm": "Подтвердите пароль",
+      "current": "Текущий пароль",
+      "hint": "Оставьте пустым, чтобы сохранить текущий пароль",
+      "new": "Новый пароль",
+      "submit": "Обновить пароль",
+      "title": "Изменить пароль"
+    }
+  },
+  "files": {
+    "title": "Файлы",
+    "download": "Скачать",
+    "error": "Не удалось загрузить файл. Проверьте путь или загрузите в static/files.",
+    "path_label": "Путь к файлу",
+    "drop_or_click": "Перетащите файлы или нажмите для загрузки",
+    "no_files": "Файлов не загружено",
+    "order_files": "Файлы заказа"
+  },
+  "layout": {
+    "notifications": "Уведомления",
+    "chat": "Чат",
+    "realtime": "Соединение в реальном времени"
+  },
+  "pdf": {
+    "label": "PDF",
+    "open": "Открыть",
+    "placeholder": "Добавьте путь к PDF для предпросмотра.",
+    "prev": "Назад",
+    "next": "Вперёд",
+    "page": "Стр. {current} / {total}",
+    "error": "Не удалось отобразить PDF. Проверьте путь к файлу.",
+    "loading": "Загрузка PDF..."
+  },
+  "branches": {
+    "title": "Ветки",
+    "headers": {
+      "name": "Название",
+      "head": "HEAD",
+      "commits": "Коммиты",
+      "actions": "Действия"
+    },
+    "empty": "Веток пока нет.",
+    "default": "(по умолчанию)",
+    "set_default": "Сделать основной",
+    "delete": "Удалить",
+    "rollback": "Откатить до самой старой"
+  },
+  "language": {
+    "title": "Язык"
+  },
+  "theme": {
+    "title": "Тема",
+    "hint": "Выберите предпочитаемую цветовую схему"
+  },
+  "rd": {
+    "flag": "R&D заказ",
+    "notes": "R&D примечания (видны всем станциям)"
+  },
+  "stages": {
+    "NOT_STARTED": "Не начат",
+    "QUEUED": "В очереди",
+    "IN_PROGRESS": "В работе",
+    "BLOCKED": "Заблокирован",
+    "REWORK": "Переработка",
+    "COMPLETED": "Завершён"
+  },
+  "draft": {
+    "title": "Черновики заказов",
+    "add": "Добавить черновик",
+    "create": "Создать черновик",
+    "cdr_file": "CDR файл",
+    "cdr_file_placeholder": "Путь к CDR файлу (напр., /files/design.cdr)",
+    "attach_cdr": "Прикрепить CDR",
+    "notification": "Черновик заказа {id} создан",
+    "cdr_attached": "CDR файл прикреплён и готов к проверке",
+    "convert_to_order": "Перевести в заказ",
+    "download_cdr": "Скачать CDR"
+  },
+  "ui": {
+    "density": {
+      "title": "Плотность",
+      "compact": "Компактная",
+      "cozy": "Комфортная",
+      "comfortable": "Просторная",
+      "compact_desc": "Минимальные отступы",
+      "cozy_desc": "Сбалансированные отступы",
+      "comfortable_desc": "Большие отступы"
+    },
+    "quickCreate": "Быстрое создание",
+    "notifications": "Уведомления",
+    "chat": "Командный чат",
+    "textsize": "Размер текста",
+    "new_loading": "Новая отгрузка",
+    "new_meeting": "Новая встреча",
+    "new_note": "Новое примечание",
+    "export_ics": "Экспорт ICS",
+    "print_pack": "Печать пакета",
+    "save": "Сохранить",
+    "discard": "Отменить"
+  },
+  "auth": {
+    "login": "Войти",
+    "signup": "Регистрация",
+    "signIn": "Войти",
+    "createAccount": "Создать аккаунт",
+    "signingIn": "Вход...",
+    "creatingAccount": "Создание аккаунта...",
+    "username": "Имя пользователя",
+    "email": "Email",
+    "password": "Пароль",
+    "confirmPassword": "Подтвердите пароль",
+    "usernamePlaceholder": "напр. ivanov",
+    "emailPlaceholder": "ivan@example.com",
+    "passwordPlaceholder": "Введите пароль",
+    "passwordPlaceholderNew": "Мин. 8 символов",
+    "confirmPasswordPlaceholder": "Повторите пароль",
+    "noAccount": "Нет аккаунта?",
+    "haveAccount": "Уже есть аккаунт?",
+    "accountCreated": "Аккаунт создан! Теперь можете войти.",
+    "errors": {
+      "required": "Email и пароль обязательны",
+      "emailRequired": "Email обязателен",
+      "usernameRequired": "Для регистрации необходимо имя пользователя",
+      "passwordMismatch": "Пароли не совпадают",
+      "passwordLength": "Пароль должен содержать не менее 8 символов",
+      "invalidCredentials": "Неверные учётные данные",
+      "signupFailed": "Регистрация не удалась",
+      "connectionError": "Ошибка подключения. Попробуйте ещё раз."
+    },
+    "subtitle": "Система управления производством",
+    "footer": "© 2026 Reclame Factory"
+  },
+  "admin": {
+    "users": {
+      "title": "Управление пользователями",
+      "subtitle": "Управление пользователями, ролями и правами",
+      "add": "Добавить пользователя",
+      "edit": "Редактировать пользователя",
+      "reset_password": "Сбросить пароль",
+      "status": {
+        "active": "Активен",
+        "inactive": "Неактивен"
+      },
+      "table": {
+        "user": "Пользователь",
+        "section": "Отдел",
+        "roles": "Роли",
+        "stations": "Станции",
+        "status": "Статус",
+        "last_login": "Вход",
+        "actions": "Действия"
+      },
+      "form": {
+        "username": "Имя пользователя",
+        "display_name": "Отображаемое имя",
+        "email": "Email (необязательно)",
+        "password": "Пароль",
+        "new_password": "Новый пароль",
+        "sections": "Отделы",
+        "primary_section": "Основной отдел",
+        "roles_per_section": "Роли по отделам",
+        "station_assignments": "Назначенные станции",
+        "all_stations_hint": "Оставьте пустым для доступа ко всем станциям",
+        "is_active": "Пользователь активен",
+        "placeholders": {
+          "username": "напр. ivanov",
+          "display_name": "напр. Иван Иванов",
+          "email": "ivan@example.com",
+          "password": "Мин. 8 символов",
+          "new_password": "Введите новый пароль (мин. 8 символов)"
+        }
+      },
+      "messages": {
+        "created": "Пользователь успешно создан",
+        "updated": "Пользователь успешно обновлён",
+        "password_reset": "Пароль успешно сброшен",
+        "deactivated": "Пользователь деактивирован",
+        "reactivated": "Пользователь активирован",
+        "confirm_deactivate": "Вы уверены, что хотите деактивировать {name}?",
+        "load_error": "Ошибка загрузки пользователей",
+        "save_error": "Ошибка сохранения пользователя",
+        "validation": {
+          "required": "Имя пользователя и отображаемое имя обязательны",
+          "password_required": "Пароль обязателен для новых пользователей",
+          "section_required": "Выберите хотя бы один отдел",
+          "password_length": "Пароль должен содержать не менее 8 символов"
+        }
+      },
+      "show_inactive": "Показать неактивных",
+      "loading": "Загрузка пользователей...",
+      "no_users": "Пользователи не найдены",
+      "never": "Никогда",
+      "all_stations": "Все станции"
+    }
+  },
   "swarm": {
     "title": "Réclame Fabriek Ассистент",
     "subtitle": "Интеллектуальный маршрутизатор",

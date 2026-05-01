@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { writable } from 'svelte/store';
+  import { t } from 'svelte-i18n';
 
   interface AnalyticsData {
     statistics: {
@@ -44,40 +45,40 @@
 </script>
 
 <svelte:head>
-  <title>Analytics Dashboard - OMS</title>
+  <title>{$t('analytics.title', { default: 'Analytics Dashboard' })} - OMS</title>
 </svelte:head>
 
 <div class="analytics-page">
   <header class="page-header">
-    <h1>Analytics Dashboard</h1>
+    <h1>{$t('analytics.title', { default: 'Analytics Dashboard' })}</h1>
     <div class="timeframe-selector">
       <button
         class="timeframe-btn"
         class:active={$timeframe === '7d'}
         onclick={() => $timeframe = '7d'}
       >
-        Last 7 Days
+        {$t('analytics.timeframe.7d', { default: 'Last 7 Days' })}
       </button>
       <button
         class="timeframe-btn"
         class:active={$timeframe === '30d'}
         onclick={() => $timeframe = '30d'}
       >
-        Last 30 Days
+        {$t('analytics.timeframe.30d', { default: 'Last 30 Days' })}
       </button>
       <button
         class="timeframe-btn"
         class:active={$timeframe === '90d'}
         onclick={() => $timeframe = '90d'}
       >
-        Last 90 Days
+        {$t('analytics.timeframe.90d', { default: 'Last 90 Days' })}
       </button>
       <button
         class="timeframe-btn"
         class:active={$timeframe === '1y'}
         onclick={() => $timeframe = '1y'}
       >
-        Last Year
+        {$t('analytics.timeframe.1y', { default: 'Last Year' })}
       </button>
     </div>
   </header>
@@ -85,7 +86,7 @@
   {#if $loading}
     <div class="loading-state">
       <div class="spinner"></div>
-      <p>Loading analytics...</p>
+      <p>{$t('analytics.loading', { default: 'Loading analytics...' })}</p>
     </div>
   {:else if $analytics}
     <!-- Key Metrics -->
@@ -94,7 +95,7 @@
         <div class="metric-icon">📊</div>
         <div class="metric-content">
           <span class="metric-value">{$analytics.statistics.total_orders || 0}</span>
-          <span class="metric-label">Total Orders</span>
+          <span class="metric-label">{$t('analytics.metrics.total', { default: 'Total Orders' })}</span>
         </div>
       </div>
 
@@ -102,7 +103,7 @@
         <div class="metric-icon">🔵</div>
         <div class="metric-content">
           <span class="metric-value">{$analytics.statistics.active_orders || 0}</span>
-          <span class="metric-label">Active Orders</span>
+          <span class="metric-label">{$t('analytics.metrics.active', { default: 'Active Orders' })}</span>
         </div>
       </div>
 
@@ -110,7 +111,7 @@
         <div class="metric-icon">✅</div>
         <div class="metric-content">
           <span class="metric-value">{$analytics.statistics.completed_orders || 0}</span>
-          <span class="metric-label">Completed</span>
+          <span class="metric-label">{$t('analytics.metrics.completed', { default: 'Completed' })}</span>
         </div>
       </div>
 
@@ -118,7 +119,7 @@
         <div class="metric-icon">⏱️</div>
         <div class="metric-content">
           <span class="metric-value">{($analytics.statistics.avg_completion_days || 0).toFixed(1)}</span>
-          <span class="metric-label">Avg Days to Complete</span>
+          <span class="metric-label">{$t('analytics.metrics.avg_days', { default: 'Avg Days to Complete' })}</span>
         </div>
       </div>
 
@@ -126,7 +127,7 @@
         <div class="metric-icon">🔄</div>
         <div class="metric-content">
           <span class="metric-value">{$analytics.statistics.total_rework || 0}</span>
-          <span class="metric-label">Total Rework</span>
+          <span class="metric-label">{$t('analytics.metrics.rework', { default: 'Total Rework' })}</span>
         </div>
       </div>
     </section>
@@ -134,7 +135,7 @@
     <!-- Orders at Risk -->
     {#if $analytics.orders_at_risk.length > 0}
       <section class="section-card">
-        <h2>⚠️ Orders at Risk</h2>
+        <h2>⚠️ {$t('analytics.at_risk', { default: 'Orders at Risk' })}</h2>
         <div class="risk-list">
           {#each $analytics.orders_at_risk.slice(0, 5) as order}
             <div class="risk-item">
@@ -161,7 +162,7 @@
 
     <!-- Station Workload -->
     <section class="section-card">
-      <h2>🏭 Station Workload</h2>
+      <h2>🏭 {$t('analytics.station_workload', { default: 'Station Workload' })}</h2>
       <div class="station-grid">
         {#each Object.entries($analytics.station_workload) as [station, workload]}
           <div class="station-card">
@@ -183,7 +184,7 @@
     <!-- Top Rework Stations -->
     {#if $analytics.top_rework_stations.length > 0}
       <section class="section-card">
-        <h2>🔧 Top Rework Stations</h2>
+        <h2>🔧 {$t('analytics.top_rework', { default: 'Top Rework Stations' })}</h2>
         <div class="rework-chart">
           {#each $analytics.top_rework_stations as item}
             <div class="rework-bar">
