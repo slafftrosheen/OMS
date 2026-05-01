@@ -1,9 +1,30 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import type { OrderSeed } from './templates/DraftOrderTemplate';
 
-  export let snapshot: unknown = undefined;
-  export let onSave: (snapshot: unknown) => void = () => {};
-  export let onReady: (editor: any) => void = () => {};
+  interface Props {
+    snapshot?: unknown;
+    onSave?: (snapshot: unknown) => void;
+    onReady?: (editor: any) => void;
+    /** Seed data → triggers DraftOrderTemplate auto-spawn */
+    orderSeed?: OrderSeed | null;
+    /** Called when any order-details or order-address field changes on canvas */
+    onOrderChange?: (orderId: string, patch: Partial<OrderSeed>) => void;
+    /** Called when a profile-7st field changes on canvas */
+    onProfileChange?: (orderId: string, profileIndex: number, profileData: any) => void;
+    /** Pass true to hide the default tldraw UI chrome */
+    hideUI?: boolean;
+  }
+
+  let {
+    snapshot = undefined,
+    onSave = () => {},
+    onReady = () => {},
+    orderSeed = null,
+    onOrderChange = undefined,
+    onProfileChange = undefined,
+    hideUI = false,
+  }: Props = $props();
 
   let containerEl: HTMLDivElement;
   let reactRoot: { unmount: () => void } | null = null;
@@ -12,27 +33,27 @@
   onMount(() => {
     (async () => {
       try {
-        const [
-          React,
-          { createRoot },
-          { CanvasApp }
-        ] = await Promise.all([
+        const [React, { createRoot }, { CanvasApp }] = await Promise.all([
           import('react'),
           import('react-dom/client'),
-          import('./CanvasApp')
+          import('./CanvasApp'),
         ]);
-        
+
         const root = createRoot(containerEl);
         reactRoot = root;
 
         root.render(
           React.createElement(CanvasApp, {
             initialSnapshot: snapshot,
-            onSave: onSave,
+            onSave,
             onEditorReady: (editor: any) => {
               editorRef = editor;
               onReady(editor);
-            }
+            },
+            orderSeed,
+            onOrderChange,
+            onProfileChange,
+            hideUI,
           })
         );
       } catch (err) {

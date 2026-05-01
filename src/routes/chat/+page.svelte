@@ -1,5 +1,4 @@
 <script lang="ts">
-
   import { onMount, onDestroy } from 'svelte';
   import { t } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/authState.svelte';
@@ -10,28 +9,30 @@
   import type { StationTag } from '$lib/order/stages';
   import StationBadge from '$lib/ui/StationBadge.svelte';
 
+  type Room = { id: string; name: string; kind?: string; station?: string };
+
   let activeRoomId = $state('general');
   let messageText = $state('');
   let scroller: HTMLDivElement | null = $state(null);
   let showRoomModal = $state(false);
   let newRoomName = $state('');
   let searchQuery = $state('');
-  let pollingInterval: ReturnType<typeof setInterval> = $state(undefined);
+  let pollingInterval: ReturnType<typeof setInterval> | undefined = $state(undefined);
 
-  let activeRoom = $derived($rooms.find(r => r.id === activeRoomId) || $rooms[0]);
-  let roomMessages = $derived($messages.filter(m => m.roomId === activeRoomId));
-  let filteredRooms = $derived(searchQuery 
-    ? $rooms.filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase()))
+  let activeRoom = $derived($rooms.find((r: Room) => r.id === activeRoomId) || $rooms[0]);
+  let roomMessages = $derived($messages.filter((m: any) => m.roomId === activeRoomId));
+  let filteredRooms = $derived(searchQuery
+    ? $rooms.filter((r: Room) => r.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : $rooms);
 
-  // Extract ID safely to avoid type casting in template
+  let channelRooms = $derived(filteredRooms.filter((r: Room) => !r.kind || r.kind === 'channel'));
+  let stationRooms = $derived(filteredRooms.filter((r: Room) => r.kind === 'station'));
+
   let currentUserId = $derived(($currentUser as any)?.id || '');
 
   function scrollToBottom() {
     if (scroller) {
-      setTimeout(() => {
-        if (scroller) scroller.scrollTop = scroller.scrollHeight;
-      }, 50);
+      setTimeout(() => { if (scroller) scroller.scrollTop = scroller.scrollHeight; }, 50);
     }
   }
 
@@ -65,8 +66,7 @@
   }
 
   function formatTime(iso: string) {
-    const date = new Date(iso);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
   function formatDate(iso: string) {
@@ -74,7 +74,6 @@
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
     if (date.toDateString() === today.toDateString()) return 'Today';
     if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
     return date.toLocaleDateString();
@@ -82,20 +81,18 @@
 
   function authorName(id: string) {
     if (id === 'system') return 'System';
-    // Use loose equality for ID matching as it might be string/number mix
-    // Cast user to any if needed to access properties safely in template
-    const user = $users.find(u => String((u as any).id) === String(id));
+    const user = $users.find((u: any) => String((u as any).id) === String(id));
     return (user as any)?.displayName || (user as any)?.username || 'Unknown';
   }
 
   function authorInitials(id: string) {
     const name = authorName(id);
-    return name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+    return name.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase();
   }
 
   function authorStation(id: string): StationTag | null {
     if (id === 'system') return null;
-    const user = $users.find(u => String((u as any).id) === String(id));
+    const user = $users.find((u: any) => String((u as any).id) === String(id));
     return (user as any)?.stations?.[0] ?? null;
   }
 
@@ -106,12 +103,15 @@
     return current.toDateString() !== prev.toDateString();
   }
 
+  function stationColor(kind: string | undefined): string {
+    return kind === 'station' ? 'var(--brand)' : 'var(--text-muted)';
+  }
+
   onMount(async () => {
     await Promise.all([loadRooms(), loadUsers()]);
     await loadMessages(activeRoomId);
     scrollToBottom();
-    
-    // Poll for new messages every 5 seconds
+
     pollingInterval = setInterval(() => {
       loadMessages(activeRoomId);
     }, 5000);
@@ -131,35 +131,54 @@
         <Icon name="plus" size="sm" />
       </button>
     </div>
-    
+
     <div class="search-box">
       <Icon name="search" size="sm" />
-      <input type="text" placeholder="Search rooms..." bind:value={searchQuery} />
+      <input type="text" placeholder="Search rooms…" bind:value={searchQuery} />
     </div>
 
     <div class="rooms-list">
-      <div class="rooms-section">
-        <span class="section-label">Channels</span>
-        {#each filteredRooms as room (room.id)}
-          <button 
-            class="room-item" 
-            class:active={room.id === activeRoomId}
-            onclick={() => selectRoom(room.id)}
-          >
-            <Icon name="hash" size="sm" />
-            <span class="room-name">{room.name}</span>
-          </button>
-        {/each}
-      </div>
+      <!-- Channels -->
+      {#if channelRooms.length > 0}
+        <div class="rooms-section">
+          <span class="section-label">Channels</span>
+          {#each channelRooms as room (room.id)}
+            <button
+              class="room-item"
+              class:active={room.id === activeRoomId}
+              onclick={() => selectRoom(room.id)}
+            >
+              <Icon name="hash" size="sm" />
+              <span class="room-name">{room.name}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+
+      <!-- Station rooms -->
+      {#if stationRooms.length > 0}
+        <div class="rooms-section">
+          <span class="section-label">Production Stations</span>
+          {#each stationRooms as room (room.id)}
+            <button
+              class="room-item station-room"
+              class:active={room.id === activeRoomId}
+              onclick={() => selectRoom(room.id)}
+            >
+              <Icon name="cpu" size="sm" />
+              <span class="room-name">{room.name}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
     </div>
 
     {#if $currentUser}
       <div class="sidebar-footer">
         <div class="user-info">
-          <!-- Cast $currentUser to any to bypass potential type mismatch on id -->
           <div class="user-avatar">{authorInitials(currentUserId)}</div>
           <div class="user-details">
-            <span class="user-name">{$currentUser.displayName || $currentUser.username}</span>
+            <span class="user-name">{($currentUser as any).displayName || ($currentUser as any).username}</span>
             <span class="user-status">Online</span>
           </div>
         </div>
@@ -171,15 +190,19 @@
   <main class="chat-main">
     <header class="chat-header">
       <div class="header-left">
-        <Icon name="hash" size="sm" />
+        {#if activeRoom && (activeRoom as any).kind === 'station'}
+          <Icon name="cpu" size="sm" />
+        {:else}
+          <Icon name="hash" size="sm" />
+        {/if}
         <h3>{activeRoom?.name || 'Select a room'}</h3>
+        {#if activeRoom && (activeRoom as any).kind === 'station'}
+          <span class="station-badge">Station</span>
+        {/if}
       </div>
       <div class="header-actions">
         <button class="icon-btn" title="Members">
           <Icon name="users" size="sm" />
-        </button>
-        <button class="icon-btn" title="Settings">
-          <Icon name="settings" size="sm" />
         </button>
       </div>
     </header>
@@ -198,7 +221,7 @@
               <span>{formatDate(message.ts)}</span>
             </div>
           {/if}
-          
+
           <article class="message" class:system={message.variant === 'system'}>
             <div class="message-avatar">{authorInitials(message.authorId)}</div>
             <div class="message-content">
@@ -224,9 +247,9 @@
     </div>
 
     <div class="message-input-container">
-      <MentionInput 
-        onCommit={handleSend} 
-        placeholder={`Message #${activeRoom?.name || 'general'}...`}
+      <MentionInput
+        onCommit={handleSend}
+        placeholder={`Message #${activeRoom?.name || 'general'}…`}
       />
     </div>
   </main>
@@ -260,8 +283,8 @@
       <div class="modal-body">
         <label>
           <span>Channel Name</span>
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="e.g. production-updates"
             bind:value={newRoomName}
             onkeydown={(e) => e.key === 'Enter' && createRoom()}
@@ -286,7 +309,6 @@
     background: var(--bg-0);
   }
 
-  /* Sidebar */
   .chat-sidebar {
     display: flex;
     flex-direction: column;
@@ -302,11 +324,7 @@
     border-bottom: 1px solid var(--border);
   }
 
-  .sidebar-header h2 {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 700;
-  }
+  .sidebar-header h2 { margin: 0; font-size: 1.1rem; font-weight: 700; }
 
   .search-box {
     display: flex;
@@ -326,10 +344,8 @@
     font-size: 0.9rem;
     color: var(--text);
   }
-
-  .search-box input::placeholder {
-    color: var(--text-muted);
-  }
+  .search-box input::placeholder { color: var(--text-muted); }
+  .search-box input:focus { outline: none; }
 
   .rooms-list {
     flex: 1;
@@ -337,9 +353,7 @@
     padding: 0 var(--space-sm);
   }
 
-  .rooms-section {
-    margin-bottom: var(--space-lg);
-  }
+  .rooms-section { margin-bottom: var(--space-md); }
 
   .section-label {
     display: block;
@@ -363,26 +377,14 @@
     font-size: 0.9rem;
     color: var(--text-muted);
     cursor: pointer;
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
+    transition: background var(--transition-fast), color var(--transition-fast);
     text-align: left;
   }
+  .room-item:hover { background: var(--bg-2); color: var(--text); }
+  .room-item.active { background: var(--brand); color: var(--bg-0); }
+  .room-item.station-room { font-size: 0.85rem; }
 
-  .room-item:hover {
-    background: var(--bg-2);
-    color: var(--text);
-  }
-
-  .room-item.active {
-    background: var(--brand);
-    color: var(--bg-0);
-  }
-
-  .room-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+  .room-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .sidebar-footer {
     padding: var(--space-md);
@@ -390,46 +392,23 @@
     background: var(--bg-2);
   }
 
-  .user-info {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-  }
+  .user-info { display: flex; align-items: center; gap: var(--space-sm); }
 
   .user-avatar {
-    width: 36px;
-    height: 36px;
+    width: 36px; height: 36px;
     border-radius: 8px;
-    background: linear-gradient(135deg, var(--brand), var(--brand));
+    background: var(--brand);
     color: var(--bg-0);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 0.8rem;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.8rem;
   }
 
-  .user-details {
-    display: flex;
-    flex-direction: column;
-  }
+  .user-details { display: flex; flex-direction: column; }
+  .user-name { font-weight: 600; font-size: 0.9rem; }
+  .user-status { font-size: 0.75rem; color: var(--ok, #34c759); }
 
-  .user-name {
-    font-weight: 600;
-    font-size: 0.9rem;
-  }
-
-  .user-status {
-    font-size: 0.75rem;
-    color: var(--success, var(--ok));
-  }
-
-  /* Main Chat */
-  .chat-main {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
+  /* Main */
+  .chat-main { display: flex; flex-direction: column; min-width: 0; }
 
   .chat-header {
     display: flex;
@@ -440,43 +419,27 @@
     border-bottom: 1px solid var(--border);
   }
 
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    color: var(--text-muted);
+  .header-left { display: flex; align-items: center; gap: var(--space-sm); color: var(--text-muted); }
+  .header-left h3 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text); }
+
+  .station-badge {
+    font-size: 0.65rem; font-weight: 700;
+    padding: 2px 8px; border-radius: 999px;
+    background: color-mix(in oklab, var(--brand) 12%, transparent);
+    color: var(--brand);
+    text-transform: uppercase; letter-spacing: 0.06em;
   }
 
-  .header-left h3 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .header-actions {
-    display: flex;
-    gap: 4px;
-  }
+  .header-actions { display: flex; gap: 4px; }
 
   .icon-btn {
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    background: transparent;
-    border-radius: 8px;
-    cursor: pointer;
-    color: var(--text-muted);
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    border: none; background: transparent; border-radius: 8px;
+    cursor: pointer; color: var(--text-muted);
+    transition: background var(--transition-fast), color var(--transition-fast);
   }
-
-  .icon-btn:hover {
-    background: var(--bg-2);
-    color: var(--text);
-  }
+  .icon-btn:hover { background: var(--bg-2); color: var(--text); }
 
   /* Messages */
   .messages-container {
@@ -493,104 +456,58 @@
     height: 100%;
     color: var(--text-muted);
     text-align: center;
+    gap: var(--space-sm);
   }
-
-  .empty-state h3 {
-    margin: var(--space-md) 0 var(--space-xs);
-    color: var(--text);
-  }
+  .empty-state h3 { margin: var(--space-md) 0 var(--space-xs); color: var(--text); }
 
   .date-separator {
-    display: flex;
-    align-items: center;
-    gap: var(--space-md);
+    display: flex; align-items: center; gap: var(--space-md);
     margin: var(--space-lg) 0;
-    color: var(--text-muted);
-    font-size: 0.75rem;
+    color: var(--text-muted); font-size: 0.75rem;
   }
-
-  .date-separator::before,
-  .date-separator::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border);
+  .date-separator::before, .date-separator::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
   }
 
   .message {
     display: flex;
     gap: var(--space-md);
     padding: var(--space-sm) 0;
+    border-radius: 4px;
   }
-
   .message:hover {
     background: var(--bg-2);
     margin: 0 calc(-1 * var(--space-lg));
     padding: var(--space-sm) var(--space-lg);
-    border-radius: 4px;
   }
-
-  .message.system {
-    opacity: 0.7;
-  }
+  .message.system { opacity: 0.7; }
 
   .message-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
+    width: 40px; height: 40px; border-radius: 50%;
     background: var(--bg-2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 0.85rem;
-    color: var(--text-muted);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.85rem; color: var(--text-muted);
     flex-shrink: 0;
   }
 
-  .message-content {
-    flex: 1;
-    min-width: 0;
-  }
+  .message-content { flex: 1; min-width: 0; }
 
   .message-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
+    display: flex; align-items: center; gap: var(--space-sm);
     margin-bottom: 2px;
   }
 
-  .author-name {
-    font-weight: 600;
-    font-size: 0.9rem;
-  }
+  .author-name { font-weight: 600; font-size: 0.9rem; }
+  .message-time { font-size: 0.75rem; color: var(--text-muted); }
+  .message-text { margin: 0; line-height: 1.5; word-wrap: break-word; }
 
-  .message-time {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-
-  .message-text {
-    margin: 0;
-    line-height: 1.5;
-    word-wrap: break-word;
-  }
-
-  .message-mentions {
-    display: flex;
-    gap: 4px;
-    margin-top: 4px;
-  }
-
+  .message-mentions { display: flex; gap: 4px; margin-top: 4px; }
   .mention-tag {
-    font-size: 0.75rem;
-    padding: 2px 6px;
+    font-size: 0.75rem; padding: 2px 6px;
     background: color-mix(in oklab, var(--brand) 15%, transparent);
-    color: var(--brand);
-    border-radius: 4px;
+    color: var(--brand); border-radius: 4px;
   }
 
-  /* Message Input */
   .message-input-container {
     padding: var(--space-md) var(--space-lg);
     background: var(--bg-1);
@@ -599,110 +516,54 @@
 
   /* Modal */
   .modal-backdrop {
-    position: fixed;
-    inset: 0;
+    position: fixed; inset: 0;
     background: color-mix(in oklab, var(--bg-0) 45%, transparent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: var(--z-modal);
+    display: flex; align-items: center; justify-content: center;
+    z-index: var(--z-modal, 1000);
   }
 
   .modal {
     background: var(--bg-1);
     border-radius: 12px;
-    width: 90%;
-    max-width: 400px;
-    box-shadow: 0 20px 60px color-mix(in oklab, var(--bg-0) 45%, transparent);
+    width: 90%; max-width: 400px;
+    box-shadow: 0 20px 60px color-mix(in oklab, black 30%, transparent);
   }
 
   .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    display: flex; justify-content: space-between; align-items: center;
     padding: var(--space-md) var(--space-lg);
     border-bottom: 1px solid var(--border);
   }
+  .modal-header h3 { margin: 0; font-size: 1.1rem; }
 
-  .modal-header h3 {
-    margin: 0;
-    font-size: 1.1rem;
-  }
-
-  .modal-body {
-    padding: var(--space-lg);
-  }
-
-  .modal-body label {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    font-size: 0.9rem;
-    font-weight: 500;
-  }
-
+  .modal-body { padding: var(--space-lg); }
+  .modal-body label { display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem; font-weight: 500; }
   .modal-body input {
     padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 0.95rem;
-    background: var(--bg-0);
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 0.95rem; background: var(--bg-0); color: var(--text);
   }
-
-  .modal-body input:focus {
-    outline: none;
-    border-color: var(--brand);
-  }
+  .modal-body input:focus { outline: none; border-color: var(--brand); }
 
   .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-sm);
+    display: flex; justify-content: flex-end; gap: var(--space-sm);
     padding: var(--space-md) var(--space-lg);
     border-top: 1px solid var(--border);
   }
 
   .btn {
-    padding: 10px 16px;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    border: 1px solid transparent;
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
+    padding: 10px 16px; border-radius: 8px; font-size: 0.9rem; font-weight: 600;
+    cursor: pointer; border: 1px solid transparent;
+    transition: background var(--transition-fast);
   }
+  .btn-primary { background: var(--brand); color: var(--bg-0); }
+  .btn-primary:hover:not(:disabled) { background: color-mix(in oklab, var(--brand) 85%, black); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--text-muted); }
+  .btn-ghost:hover { background: var(--bg-2); }
 
-  .btn-primary {
-    background: var(--brand);
-    color: var(--bg-0);
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--brand) 85%, black);
-  }
-
-  .btn-primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .btn-ghost {
-    background: transparent;
-    color: var(--text-muted);
-  }
-
-  .btn-ghost:hover {
-    background: var(--bg-2);
-  }
-
-  /* Responsive */
   @media (max-width: 768px) {
-    .chat-page {
-      grid-template-columns: 1fr;
-    }
-
-    .chat-sidebar {
-      display: none;
-    }
+    .chat-page { grid-template-columns: 1fr; }
+    .chat-sidebar { display: none; }
   }
 </style>
