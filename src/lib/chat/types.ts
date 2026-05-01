@@ -5,6 +5,29 @@ export type Room = {
   members?: string[];
 };
 
+export type AttachmentKind = 'file' | 'image' | 'voice' | 'video';
+
+export type Attachment = {
+  id: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  kind: AttachmentKind;
+  url: string | null;
+  duration?: number | null;   // seconds, for voice/video
+  width?: number | null;
+  height?: number | null;
+  storagePath?: string;
+  createdAt?: string;
+};
+
+export type MessageAuthor = {
+  id: string;
+  displayName: string | null;
+  username: string | null;
+  avatarUrl: string | null;
+};
+
 export type Message = {
   id: string;
   roomId: string;
@@ -14,6 +37,10 @@ export type Message = {
   mentions?: string[];
   variant?: 'user' | 'system';
   event?: SystemMessageEvent;
+  attachments?: Attachment[];
+  replyToId?: string | null;
+  reactions?: Record<string, string[]>; // emoji → userId[]
+  author?: MessageAuthor | null;
 };
 
 export type SystemMessageEvent =

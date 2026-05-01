@@ -1,7 +1,16 @@
 // user-store.ts
 import { base } from '$app/paths';
 import { writable } from 'svelte/store';
-import type { User, Section } from './types';
+import type { User, Role, Section } from './types';
+
+function deriveRoleFromLegacy(roles: Record<string, string> | undefined): Role {
+  if (!roles) return 'Operator';
+  const vals = Object.values(roles);
+  if (vals.includes('SuperAdmin')) return 'RD';
+  if (vals.includes('StationLead')) return 'StationHead';
+  if (vals.includes('Viewer')) return 'Operator';
+  return 'Operator';
+}
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -67,9 +76,25 @@ export class AuthState {
 
         const data = await res.json();
         if (data.user) {
+          const raw = data.user;
+          // Normalise flat role from new schema; fall back to deriving from legacy roles JSONB
+          const role: User['role'] = raw.role ?? deriveRoleFromLegacy(raw.roles);
           const user: User = {
-            ...data.user,
-            passwordHash: ''
+            id: raw.id,
+            username: raw.username ?? '',
+            displayName: raw.displayName ?? raw.display_name ?? raw.username ?? '',
+            email: raw.email,
+            avatarUrl: raw.avatarUrl ?? raw.avatar_url,
+            role,
+            stations: Array.isArray(raw.stations)
+              ? raw.stations.map((s: any) =>
+                  typeof s === 'string' ? { stationId: s, isHead: false } : s
+                )
+              : [],
+            // Legacy compat
+            primarySection: raw.primarySection,
+            sections: raw.sections,
+            roles: raw.roles,
           };
           this.setUser(user);
           this.setLoading(false);

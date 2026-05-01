@@ -1,6 +1,66 @@
-// types.ts
-export type Section = 'Admin' | 'Production' | 'Logistics';
-export type Role = 'SuperAdmin' | 'StationLead' | 'Operator' | 'Viewer';
+// Role hierarchy (from highest to lowest privilege)
+// RD / Boss         — full superuser, all features, R&D orders
+// HeadOfProduction  — full except draft order creation; notified on new drafts
+// StationHead       — full read + station-scoped writes (own station name)
+// Operator          — full read, no AI lab, no admin
+
+export type Role =
+  | 'RD'
+  | 'Boss'
+  | 'HeadOfProduction'
+  | 'StationHead'
+  | 'Operator';
+
+export const ROLE_LABELS: Record<Role, string> = {
+  RD:               'R&D',
+  Boss:             'Boss',
+  HeadOfProduction: 'Head of Production',
+  StationHead:      'Station Head',
+  Operator:         'Operator',
+};
+
+export const ROLE_ORDER: Role[] = [
+  'RD',
+  'Boss',
+  'HeadOfProduction',
+  'StationHead',
+  'Operator',
+];
+
+// Canonical production stations
+export type StationId =
+  | 'cnc'
+  | 'sanding'
+  | 'bending'
+  | 'welding'
+  | 'painting'
+  | 'film_covering'
+  | 'glueing'
+  | 'assembly'
+  | 'anton'
+  | 'qc'
+  | 'packing';
+
+export const STATION_LABELS: Record<StationId, string> = {
+  cnc:          'CNC',
+  sanding:      'Sanding',
+  bending:      'Bending',
+  welding:      'Welding',
+  painting:     'Painting',
+  film_covering:'Film Covering',
+  glueing:      'Glueing',
+  assembly:     'Assembly',
+  anton:        'Anton Station',
+  qc:           'Quality Control',
+  packing:      'Packing',
+};
+
+export const STATION_IDS = Object.keys(STATION_LABELS) as StationId[];
+
+export interface UserStation {
+  stationId: StationId;
+  isHead: boolean;
+}
 
 export interface User {
   id: string;
@@ -8,9 +68,11 @@ export interface User {
   displayName: string;
   email?: string;
   avatarUrl?: string;
-  passwordHash: string;
-  primarySection: Section;
-  sections: Section[]; // Accessible sections
-  roles: Record<Section, Role>; // Role per section
-  stations?: string[]; // Assigned stations e.g. ["CNC", "Assembly"]
+  role: Role;
+  stations: UserStation[];
+  // Legacy fields kept for backward compat during transition
+  primarySection?: string;
+  sections?: string[];
+  roles?: Record<string, string>;
+  passwordHash?: string;
 }

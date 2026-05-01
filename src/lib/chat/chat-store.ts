@@ -1,11 +1,9 @@
 import { writable, get } from 'svelte/store';
-import type { Room, Message, SystemMessageEvent } from './types';
+import type { Room, Message, Attachment, SystemMessageEvent } from './types';
 import { currentUser } from '$lib/auth/authState.svelte';
 import { users } from '$lib/users/user-store';
-import { createId } from '$lib/utils/id';
 import { base } from '$app/paths';
 import { notify } from '$lib/notifications/store';
-import { browser } from '$app/environment';
 import { env } from '$env/dynamic/public';
 import { supabase } from '$lib/supabase-client';
 
@@ -88,10 +86,12 @@ Received URL: ${supabaseUrl || 'undefined'}, Key: ${supabaseKey ? '***' : 'undef
           id: newMessage.id,
           roomId: newMessage.room_id,
           authorId: newMessage.user_id || 'system',
-          text: newMessage.content,
+          text: newMessage.content ?? newMessage.text ?? '',
           ts: newMessage.created_at,
           mentions: [],
-          variant: newMessage.user_id ? 'user' : 'system'
+          variant: newMessage.user_id ? 'user' : 'system',
+          attachments: [],
+          replyToId: newMessage.reply_to_id ?? null,
         };
 
         // Update store (check for duplicates)
@@ -175,7 +175,47 @@ type MessageOptions = {
   authorId?: string;
   variant?: Message['variant'];
   event?: SystemMessageEvent;
+  attachments?: Attachment[];
+  replyToId?: string | null;
 };
+
+/**
+ * Upload a file to a chat room and return the attachment record.
+ * Call this before or after sending the text message; pass the
+ * returned attachment ID as part of the message payload.
+ */
+export async function uploadAttachment(
+  roomId: string,
+  file: File,
+  messageId?: string
+): Promise<Attachment | null> {
+  if (!isBrowser) return null;
+
+  const form = new FormData();
+  form.append('roomId', roomId);
+  form.append('file', file);
+  if (messageId) form.append('messageId', messageId);
+
+  try {
+    const res = await fetch(`${base}/api/chat/attachments`, {
+      method: 'POST',
+      body: form,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      notify(err.error ?? 'File upload failed', { urgency: 'urgent' });
+      return null;
+    }
+
+    const data = await res.json();
+    return data.attachment as Attachment;
+  } catch (err) {
+    console.error('uploadAttachment failed:', err);
+    notify('File upload failed', { urgency: 'urgent' });
+    return null;
+  }
+}
 
 export async function sendMessage(
   roomId: string,
@@ -197,7 +237,9 @@ export async function sendMessage(
     text: payload,
     mentions,
     variant: options.variant ?? 'user',
-    event: options.event
+    event: options.event,
+    attachments: options.attachments ?? [],
+    replyToId: options.replyToId ?? null,
   };
 
   messages.update((value) => [...value, optimisticMessage]);
@@ -213,7 +255,9 @@ export async function sendMessage(
           text: payload,
           variant: options.variant ?? 'user',
           mentions,
-          event: options.event
+          event: options.event,
+          attachments: options.attachments ?? [],
+          replyToId: options.replyToId ?? null,
         })
       });
       
