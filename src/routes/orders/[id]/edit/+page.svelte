@@ -466,10 +466,13 @@
         context = JSON.stringify(sel.map((s: any) => ({ type: s.type, props: s.props })));
       }
 
-      const res = await fetch('/api/ai/chat', {
+      // Use SSE streaming so tokens render progressively instead of waiting
+      // for the full reply. Falls back to plain JSON if the stream errors.
+      const res = await fetch('/api/ai/chat?stream=1', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          stream: true,
           messages: [
             { role: 'system', content: 'You are a manufacturing assistant for a signage production company. Help with design, materials, and CAD decisions.' },
             ...(context ? [{ role: 'user', content: `Canvas context: ${context}` }] : []),
@@ -477,12 +480,36 @@
           ],
         }),
       });
-      if (res.ok) {
-        const d = await res.json();
-        aiResponse = d.message?.content || d.reply || d.content || JSON.stringify(d);
-      } else {
+
+      if (!res.ok || !res.body) {
         aiResponse = 'AI service unavailable.';
+        return;
       }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() ?? '';
+        for (const evt of events) {
+          const line = evt.split('\n').find((l) => l.startsWith('data:'));
+          if (!line) continue;
+          try {
+            const data = JSON.parse(line.slice(5).trim());
+            if (data.delta) aiResponse += data.delta;
+            if (data.error) aiResponse = `AI error: ${data.error}`;
+            if (data.done && data.content) aiResponse = data.content;
+          } catch {
+            // skip
+          }
+        }
+      }
+      if (!aiResponse) aiResponse = '(no response)';
     } catch {
       aiResponse = 'Failed to reach AI service.';
     } finally {
