@@ -393,8 +393,70 @@
   }
 
   // ── AI prompt ─────────────────────────────────────────────────────────────────
+  /** Detect whether the prompt should be routed to the shape-replacement endpoint. */
+  function isReplaceIntent(text: string): boolean {
+    const re = /\b(clean(?:\s*it)?\s*up|replace\s+with|convert\s+to|make\s+(?:this|it)\s+(?:a|an|into)|turn\s+(?:this|it)\s+into|generate\s+(?:a\s+)?maker|to\s+maker)/i;
+    return re.test(text);
+  }
+
+  async function replaceSelectionWithMaker(prompt: string) {
+    const sel = editorRef?.getSelectedShapes?.() ?? [];
+    if (sel.length === 0) {
+      notifyError('Select a shape first');
+      return;
+    }
+    aiRunning = true;
+    aiResponse = '';
+    try {
+      const selection = sel.map((s: any) => ({
+        type: s.type,
+        x: Math.round(s.x ?? 0),
+        y: Math.round(s.y ?? 0),
+        w: s.props?.w,
+        h: s.props?.h,
+        props: s.props,
+      }));
+      const res = await fetch('/api/ai/canvas/replace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, selection }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'AI replace failed');
+      }
+      const { code, params } = await res.json();
+      const anchor = sel[0];
+      editorRef.batch(() => {
+        editorRef.deleteShapes(sel.map((s: any) => s.id));
+        editorRef.createShape({
+          type: 'maker',
+          x: anchor.x ?? 0,
+          y: anchor.y ?? 0,
+          props: { w: 320, h: 320, code, params: params ?? {} },
+        });
+      });
+      aiResponse = 'Replaced selection with a Maker.js node.';
+      notifySuccess('Sketch replaced');
+    } catch (err: any) {
+      aiResponse = `Replacement failed: ${err.message ?? 'unknown'}`;
+      notifyError(aiResponse);
+    } finally {
+      aiRunning = false;
+    }
+  }
+
   async function runAiPrompt() {
     if (!aiPrompt.trim()) return;
+    const prompt = aiPrompt;
+
+    // If the user is asking the AI to clean up the selection, route to the
+    // shape-replacement endpoint instead of plain chat.
+    if (useSelectionCtx && isReplaceIntent(prompt)) {
+      await replaceSelectionWithMaker(prompt);
+      return;
+    }
+
     aiRunning = true;
     aiResponse = '';
     try {
@@ -411,7 +473,7 @@
           messages: [
             { role: 'system', content: 'You are a manufacturing assistant for a signage production company. Help with design, materials, and CAD decisions.' },
             ...(context ? [{ role: 'user', content: `Canvas context: ${context}` }] : []),
-            { role: 'user', content: aiPrompt },
+            { role: 'user', content: prompt },
           ],
         }),
       });
@@ -425,6 +487,72 @@
       aiResponse = 'Failed to reach AI service.';
     } finally {
       aiRunning = false;
+    }
+  }
+
+  // ── PDF "Extract to Order Forms" — context menu action ──────────────────────
+  let pdfMenu: { x: number; y: number; fileId: string; shapeId: string } | null = $state(null);
+  let pdfMenuRunning = $state(false);
+
+  function openPdfMenuFromEvent(e: MouseEvent) {
+    if (!editorRef) return;
+    // Find a selected document shape that has a fileId and is a PDF
+    const sel = editorRef.getSelectedShapes?.() ?? [];
+    const pdfShape = sel.find((s: any) =>
+      s.type === 'document' && s.props?.kind === 'pdf' && s.props?.fileId
+    );
+    if (!pdfShape) return;
+    e.preventDefault();
+    pdfMenu = {
+      x: e.clientX,
+      y: e.clientY,
+      fileId: pdfShape.props.fileId,
+      shapeId: pdfShape.id,
+    };
+  }
+
+  function closePdfMenu() {
+    pdfMenu = null;
+  }
+
+  async function extractPdfToForms() {
+    if (!pdfMenu || !orderId) return;
+    pdfMenuRunning = true;
+    try {
+      const res = await fetch('/api/ai/canvas/extract-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId: pdfMenu.fileId, orderId: String(orderId) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Extraction failed');
+      }
+      const data = await res.json();
+      // Apply to local Svelte state — orderSeed is derived from these vars,
+      // which propagates back into the canvas form shapes via syncOrderDataToCanvas.
+      if (data.details) {
+        if (data.details.title !== undefined) title = data.details.title ?? title;
+        if (data.details.clientName !== undefined) clientName = data.details.clientName ?? clientName;
+        if (data.details.poNumber !== undefined) poNumber = data.details.poNumber ?? poNumber;
+        if (data.details.deadline !== undefined) deadline = data.details.deadline ?? deadline;
+        if (data.details.loadingDate !== undefined) loadingDate = data.details.loadingDate ?? loadingDate;
+        if (data.details.priority !== undefined) priority = data.details.priority ?? priority;
+        if (data.details.notes !== undefined) notes = data.details.notes ?? notes;
+      }
+      if (data.address) {
+        if (data.address.deliveryAddress !== undefined) deliveryAddress = data.address.deliveryAddress ?? deliveryAddress;
+        if (data.address.deliveryContact !== undefined) deliveryContact = data.address.deliveryContact ?? deliveryContact;
+        if (data.address.deliveryPhone !== undefined) deliveryPhone = data.address.deliveryPhone ?? deliveryPhone;
+        if (data.address.deliveryEmail !== undefined) deliveryEmail = data.address.deliveryEmail ?? deliveryEmail;
+      }
+      canvasDirty = true;
+      notifySuccess('Order forms updated from PDF');
+    } catch (err: any) {
+      notifyError(err.message || 'PDF extraction failed');
+    } finally {
+      pdfMenuRunning = false;
+      closePdfMenu();
     }
   }
 
@@ -595,7 +723,7 @@
     </aside>
 
     <!-- ── Canvas ─────────────────────────────────────────────────────── -->
-    <main class="canvas-area">
+    <main class="canvas-area" oncontextmenu={openPdfMenuFromEvent} role="presentation">
       {#if loading}
         <div class="canvas-loading">
           <div class="spinner"></div>
@@ -620,6 +748,25 @@
             hideUI={false}
           />
         {/await}
+      {/if}
+
+      {#if pdfMenu}
+        <div
+          class="pdf-ctx-overlay"
+          onclick={closePdfMenu}
+          oncontextmenu={(e) => { e.preventDefault(); closePdfMenu(); }}
+          role="presentation"
+        ></div>
+        <div class="pdf-ctx-menu" style="left: {pdfMenu.x}px; top: {pdfMenu.y}px;">
+          <button
+            class="pdf-ctx-item"
+            onclick={extractPdfToForms}
+            disabled={pdfMenuRunning}
+          >
+            <Icon name="sparkles" size="sm" />
+            {pdfMenuRunning ? 'Extracting…' : 'Extract to Order Forms'}
+          </button>
+        </div>
       {/if}
     </main>
 
@@ -892,6 +1039,43 @@
     margin-bottom: var(--space-sm);
   }
   .cr-refresh-btn:hover { background: var(--bg-2); color: var(--text); }
+
+  /* ── PDF context menu ────────────────────────────────────────────────────── */
+  .pdf-ctx-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: transparent;
+  }
+  .pdf-ctx-menu {
+    position: fixed;
+    z-index: 91;
+    min-width: 200px;
+    padding: 4px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--glass-shadow, 0 8px 24px rgba(0,0,0,0.18));
+  }
+  .pdf-ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .pdf-ctx-item:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--brand) 12%, transparent);
+    color: var(--brand);
+  }
+  .pdf-ctx-item:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .top-bar-actions {
     display: flex;
