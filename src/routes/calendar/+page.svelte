@@ -259,16 +259,16 @@
   <div class="calendar-topbar">
     <div class="topbar-left">
       <Icon name="calendar" size="md" />
-      <h1>Loading Schedule</h1>
+      <h1>{$t('calendar.schedule_title')}</h1>
     </div>
     <div class="topbar-right">
       <button class="btn-secondary" onclick={() => selectedDate && (showNewLoadingDayModal = true)} disabled={!selectedDate}>
         <Icon name="plus" size="sm" />
-        Mark Loading Day
+        {$t('calendar.mark_loading_day')}
       </button>
       <button class="btn-ghost" onclick={() => exportDayCSV()} disabled={!selectedDate}>
         <Icon name="download" size="sm" />
-        Export CSV
+        {$t('calendar.export_csv')}
       </button>
     </div>
   </div>
@@ -330,7 +330,7 @@
     <!-- Right: Schedule List -->
     <div class="schedule-section">
       <div class="schedule-header">
-        <h3>{selectedDate ? `Schedule for ${selectedDate}` : 'Select a date'}</h3>
+        <h3>{selectedDate ? $t('calendar.schedule_for', { values: { date: selectedDate } }) : $t('calendar.select_date')}</h3>
         {#if selectedDate && selectedDayOrders.length > 0}
           <span class="order-badge">{selectedDayOrders.length} {selectedDayOrders.length === 1 ? 'order' : 'orders'}</span>
         {/if}
@@ -339,7 +339,7 @@
       {#if selectedDate && selectedLoadingDay}
         <div class="loading-day-info">
           <Icon name="truck" size="sm" />
-          <span>Loading Day</span>
+          <span>{$t('calendar.loading_day')}</span>
           {#if selectedLoadingDay.carrier}
             <span class="carrier-badge">{selectedLoadingDay.carrier}</span>
           {/if}
@@ -351,10 +351,10 @@
           {#if selectedDayOrders.length === 0}
             <div class="empty-state">
               <Icon name="calendar" size="md" />
-              <p>No orders scheduled for this date</p>
+              <p>{$t('calendar.no_orders_date')}</p>
               <button class="btn-secondary" onclick={openAddOrderModal}>
                 <Icon name="plus" size="sm" />
-                Add Order to Schedule
+                {$t('calendar.add_order')}
               </button>
             </div>
           {:else}
@@ -371,21 +371,21 @@
                   </div>
                   <h4 class="order-title">{order.title}</h4>
                   <div class="order-meta">
-                    <span class="meta-item">Client: {order.client}</span>
-                    <span class="meta-item">Due: {order.due}</span>
+                    <span class="meta-item">{$t('calendar.client_prefix')} {order.client}</span>
+                    <span class="meta-item">{$t('calendar.due_prefix')} {order.due}</span>
                   </div>
                 </div>
               {/each}
             </div>
             <button class="btn-secondary add-more-btn" onclick={openAddOrderModal}>
               <Icon name="plus" size="sm" />
-              Add More Orders
+              {$t('calendar.add_more')}
             </button>
           {/if}
         {:else}
           <div class="empty-state">
             <Icon name="calendar" size="md" />
-            <p>Select a date to view scheduled orders</p>
+            <p>{$t('calendar.select_date_view')}</p>
           </div>
         {/if}
       </div>
@@ -395,28 +395,28 @@
   <!-- Bottom: All Orders -->
   <div class="all-orders-section">
     <div class="section-header">
-      <h3>All Orders</h3>
+      <h3>{$t('calendar.all_orders')}</h3>
       <div class="filter-group">
         <button
           class="filter-btn"
           class:active={filterStatus === 'all'}
           onclick={() => filterStatus = 'all'}
         >
-          All ({orders.length})
+          {$t('calendar.all')} ({orders.length})
         </button>
         <button
           class="filter-btn"
           class:active={filterStatus === 'scheduled'}
           onclick={() => filterStatus = 'scheduled'}
         >
-          Scheduled ({orders.filter(o => o.loadingDate).length})
+          {$t('calendar.scheduled')} ({orders.filter(o => o.loadingDate).length})
         </button>
         <button
           class="filter-btn"
           class:active={filterStatus === 'unscheduled'}
           onclick={() => filterStatus = 'unscheduled'}
         >
-          Unscheduled ({orders.filter(o => !o.loadingDate).length})
+          {$t('calendar.unscheduled')} ({orders.filter(o => !o.loadingDate).length})
         </button>
       </div>
     </div>
@@ -455,14 +455,14 @@
       tabindex="-1"
     >
       <div class="modal-header">
-        <h3 id="add-order-title">Add Order to {selectedDate}</h3>
+        <h3 id="add-order-title">{$t('calendar.add_order_date', { values: { date: selectedDate } })}</h3>
         <button class="btn-icon" onclick={() => showAddOrderModal = false} aria-label="Close">
           <Icon name="x" size="sm" />
         </button>
       </div>
       <div class="modal-body">
         {#if availableOrders.length === 0}
-          <p class="empty-text">No unscheduled orders available</p>
+          <p class="empty-text">{$t('calendar.no_unscheduled')}</p>
         {:else}
           <div class="available-orders">
             {#each availableOrders as order}
@@ -471,7 +471,7 @@
                   <span class="order-po">{order.poNumber || order.id}</span>
                   <span class="order-client">{order.client}</span>
                 </div>
-                <span class="order-due">Due: {order.due}</span>
+                <span class="order-due">{$t('calendar.due_prefix')} {order.due}</span>
                 <Check size={18} class="add-icon" />
               </button>
             {/each}
@@ -502,18 +502,18 @@
       tabindex="-1"
     >
       <div class="modal-header">
-        <h3 id="loading-day-title">Mark Loading Day - {selectedDate}</h3>
+        <h3 id="loading-day-title">{$t('calendar.mark_loading_day_date', { values: { date: selectedDate } })}</h3>
         <button class="btn-icon" onclick={() => showNewLoadingDayModal = false} aria-label="Close">
           <Icon name="x" size="sm" />
         </button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label for="carrier">Carrier (optional)</label>
+          <label for="carrier">{$t('calendar.carrier_optional')}</label>
           <input type="text" id="carrier" bind:value={newLoadingDayCarrier} placeholder="e.g., DPD, DHL, Own transport" />
         </div>
         <div class="form-group">
-          <label for="note">Note (optional)</label>
+          <label for="note">{$t('calendar.note_optional')}</label>
           <textarea id="note" bind:value={newLoadingDayNote} placeholder="Any special instructions..."></textarea>
         </div>
       </div>
@@ -521,7 +521,7 @@
         <button class="btn-ghost" onclick={() => showNewLoadingDayModal = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
         <button class="btn-secondary" onclick={createLoadingDay}>
           <Icon name="truck" size="sm" />
-          Create Loading Day
+          {$t('calendar.create_loading_day')}
         </button>
       </div>
     </div>

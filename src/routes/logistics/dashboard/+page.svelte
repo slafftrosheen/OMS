@@ -8,48 +8,48 @@
 </script>
 
 <svelte:head>
-  <title>Logistics Dashboard - Reclame OMS</title>
+  <title>{$t('logistics_dash.title')} - Reclame OMS</title>
 </svelte:head>
 
 {#if user}
   <div class="dashboard-container">
     <header class="dashboard-header">
-      <h1>{$t('sections.logistics', 'Logistics')} Dashboard</h1>
+      <h1>{$t('logistics_dash.title')}</h1>
       <p class="subtitle">
-        Welcome, {user.displayName}! 
+        {user.displayName}
         <span class="role-badge">{user.roles.Logistics}</span>
       </p>
     </header>
-    
+
     <div class="dashboard-grid">
       <div class="card">
-        <h2>Quick Actions</h2>
+        <h2>{$t('logistics_dash.quick_actions')}</h2>
         <div class="actions">
           {#if can(user, 'Logistics', 'viewCalendar')}
-            <a href="{base}/calendar" class="action-btn">View Calendar</a>
+            <a href="{base}/calendar" class="action-btn">{$t('logistics_dash.view_calendar')}</a>
           {/if}
           {#if can(user, 'Logistics', 'updateCalendar')}
-            <a href="{base}/calendar" class="action-btn">Update Calendar</a>
+            <a href="{base}/calendar" class="action-btn">{$t('logistics_dash.update_calendar')}</a>
           {/if}
           {#if can(user, 'Logistics', 'exportManifest')}
-            <a href="{base}/inventory" class="action-btn">Export Manifest</a>
+            <a href="{base}/inventory" class="action-btn">{$t('logistics_dash.export_manifest')}</a>
           {/if}
         </div>
       </div>
-      
+
       <div class="card">
-        <h2>Section Overview</h2>
-        <p>Manage logistics, shipping, and delivery coordination.</p>
+        <h2>{$t('logistics_dash.section_overview')}</h2>
+        <p>{$t('logistics_dash.section_desc')}</p>
         <ul>
-          <li>Delivery Scheduling</li>
-          <li>Inventory Tracking</li>
-          <li>Manifest Generation</li>
-          <li>Loading Assignments</li>
+          <li>{$t('logistics_dash.delivery_scheduling')}</li>
+          <li>{$t('logistics_dash.inventory_tracking')}</li>
+          <li>{$t('logistics_dash.manifest_generation')}</li>
+          <li>{$t('logistics_dash.loading_assignments')}</li>
         </ul>
       </div>
-      
+
       <div class="card">
-        <h2>Your Sections</h2>
+        <h2>{$t('logistics_dash.your_sections')}</h2>
         <div class="section-list">
           {#each user.sections as section}
             <a href="{base}/{section.toLowerCase()}/dashboard" class="section-link">

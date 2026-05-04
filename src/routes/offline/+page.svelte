@@ -2,7 +2,7 @@
 <script>
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
   import WifiOff from 'lucide-svelte/icons/wifi-off';
-	import Icon from '$lib/ui/Icon.svelte';
+  import { t } from 'svelte-i18n';
 
 	function handleRetry() {
 		window.location.reload();
@@ -10,7 +10,7 @@
 </script>
 
 <svelte:head>
-	<title>Offline - OMS</title>
+	<title>{$t('offline.title')} - OMS</title>
 </svelte:head>
 
 <div class="offline-page">
@@ -18,25 +18,23 @@
 		<div class="offline-icon">
 			<WifiOff size={64} />
 		</div>
-		
-		<h1>You're Offline</h1>
-		<p>
-			No internet connection detected. Some features may be limited while offline.
-		</p>
+
+		<h1>{$t('offline.title')}</h1>
+		<p>{$t('offline.description')}</p>
 
 		<div class="offline-actions">
 			<button class="btn-retry" onclick={handleRetry}>
 				<RefreshCw size={20} />
-				Try Again
+				{$t('offline.retry')}
 			</button>
 		</div>
 
 		<div class="offline-info">
-			<h2>What you can do offline:</h2>
+			<h2>{$t('offline.what_can_do')}</h2>
 			<ul>
-				<li>View recently accessed orders</li>
-				<li>Browse cached inventory data</li>
-				<li>View loading calendar (cached)</li>
+				<li>{$t('offline.recent_orders')}</li>
+				<li>{$t('offline.cached_inventory')}</li>
+				<li>{$t('offline.cached_calendar')}</li>
 			</ul>
 		</div>
 	</div>
@@ -48,7 +46,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		padding: 2rem;
+		padding: var(--space-xl);
 		background: var(--bg-0);
 	}
 
@@ -59,61 +57,75 @@
 
 	.offline-icon {
 		display: inline-flex;
-		padding: 2rem;
-		background: var(--bg-1);
-		border-radius: 50%;
+		padding: var(--space-xl);
+		background: var(--glass-bg);
+		backdrop-filter: var(--glass-blur);
+		border: 1px solid var(--glass-border);
+		border-radius: var(--radius-full);
 		color: var(--muted);
-		margin-bottom: 2rem;
+		margin-bottom: var(--space-xl);
 	}
 
 	h1 {
-		margin: 0 0 1rem 0;
-		font-size: 2rem;
+		margin: 0 0 var(--space-md) 0;
+		font-size: var(--text-3xl);
 	}
 
 	p {
 		color: var(--muted);
-		margin: 0 0 2rem 0;
+		margin: 0 0 var(--space-xl) 0;
+		font-size: var(--text-md);
+		line-height: 1.6;
+	}
+
+	.offline-actions {
+		margin-bottom: var(--space-xl);
 	}
 
 	.btn-retry {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.75rem 1.5rem;
-		background: var(--accent-1);
+		gap: var(--space-sm);
+		padding: var(--space-sm) var(--space-lg);
+		background: var(--brand);
 		color: var(--bg-0);
 		border: none;
-		border-radius: 8px;
+		border-radius: var(--radius-full);
 		font-weight: 600;
+		font-size: var(--text-md);
 		cursor: pointer;
-		transition: background 0.2s;
+		transition: opacity var(--transition-fast);
 	}
 
-	.btn-retry:hover {
-		background: var(--accent-2);
-	}
+	.btn-retry:hover { opacity: 0.85; }
+	.btn-retry:focus-visible { box-shadow: var(--focus-ring); outline: none; }
 
 	.offline-info {
-		margin-top: 3rem;
-		padding: 1.5rem;
-		background: var(--bg-1);
-		border-radius: 8px;
+		margin-top: var(--space-2xl);
+		padding: var(--space-lg);
+		background: var(--glass-bg);
+		backdrop-filter: var(--glass-blur);
+		border: 1px solid var(--glass-border);
+		border-radius: var(--radius-lg);
 		text-align: left;
 	}
 
 	.offline-info h2 {
-		margin: 0 0 1rem 0;
-		font-size: 1.125rem;
+		margin: 0 0 var(--space-md) 0;
+		font-size: var(--text-lg);
+		font-weight: 600;
 	}
 
 	.offline-info ul {
 		margin: 0;
-		padding-left: 1.5rem;
+		padding-left: var(--space-lg);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
 	}
 
 	.offline-info li {
-		margin-bottom: 0.5rem;
 		color: var(--muted);
+		font-size: var(--text-md);
 	}
 </style>

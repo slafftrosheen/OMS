@@ -378,19 +378,19 @@
 </script>
 
 <svelte:head>
-  <title>Materials Catalog - Admin</title>
+  <title>{$t('admin_materials.title')} - Admin</title>
 </svelte:head>
 
 <div class="materials-page">
   <header class="page-header">
     <div>
-      <h1><Package size={28} /> Materials Catalog</h1>
-      <p class="subtitle">Manage material definitions and specifications</p>
+      <h1><Package size={28} /> {$t('admin_materials.title')}</h1>
+      <p class="subtitle">{$t('admin_materials.subtitle')}</p>
     </div>
     {#if canManage}
       <button class="btn-primary" onclick={openCreateModal}>
         <Plus size={18} />
-        Add Material
+        {$t('admin_materials.add_material')}
       </button>
     {/if}
   </header>
@@ -412,10 +412,10 @@
   <div class="controls">
     <div class="search-box">
       <Search size={18} />
-      <input type="text" placeholder="Search materials..." bind:value={searchQuery} />
+      <input type="text" placeholder={$t('admin_materials.search_placeholder')} bind:value={searchQuery} />
     </div>
     <select bind:value={categoryFilter}>
-      <option value="">All Categories</option>
+      <option value="">{$t('admin_materials.all_categories')}</option>
       {#each categories as cat}
         <option value={cat.value}>{cat.label}</option>
       {/each}
@@ -423,11 +423,11 @@
   </div>
 
   {#if loading}
-    <div class="loading">Loading materials...</div>
+    <div class="loading">{$t('admin_materials.loading')}</div>
   {:else if Object.keys(groupedMaterials).length === 0}
     <div class="empty-state">
       <Package size={48} />
-      <p>No materials found</p>
+      <p>{$t('admin_materials.no_materials')}</p>
     </div>
   {:else}
     {#each Object.entries(groupedMaterials) as [category, items]}
@@ -458,7 +458,7 @@
                   </div>
                 {/if}
                 {#if material.metadata?.transmittance}
-                  <div class="transmittance">Light: {material.metadata.transmittance}</div>
+                  <div class="transmittance">{$t('admin_materials.light_prefix')} {material.metadata.transmittance}</div>
                 {/if}
               </div>
               {#if canManage}
@@ -491,7 +491,7 @@
       tabindex="-1"
     >
       <div class="modal-header">
-        <h2>{modalMode === 'create' ? 'Add Material' : 'Edit Material'}</h2>
+        <h2>{modalMode === 'create' ? $t('admin_materials.add_material') : $t('admin_materials.edit_material')}</h2>
         <button class="btn-close" onclick={closeModal}><X size={20} /></button>
       </div>
 
@@ -505,7 +505,7 @@
       <div class="modal-body">
         <div class="form-row">
           <div class="form-group">
-            <label for="category">Category</label>
+            <label for="category">{$t('admin_materials.form.category')}</label>
             <select id="category" bind:value={formData.category}>
               {#each categories as cat}
                 <option value={cat.value}>{cat.label}</option>
@@ -513,29 +513,29 @@
             </select>
           </div>
           <div class="form-group">
-            <label for="code">Code</label>
+            <label for="code">{$t('admin_materials.form.code')}</label>
             <input type="text" id="code" bind:value={formData.code} placeholder="e.g. PLEXIGLAS_XT_0F00" />
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="name-en">Name (English)</label>
+            <label for="name-en">{$t('admin_materials.form.name_en')}</label>
             <input type="text" id="name-en" bind:value={formData.nameEn} placeholder="Material name" />
           </div>
           <div class="form-group">
-            <label for="brand">Brand</label>
+            <label for="brand">{$t('admin_materials.form.brand')}</label>
             <input type="text" id="brand" bind:value={formData.brand} placeholder="e.g. PLEXIGLAS®" />
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="name-ru">Name (Russian)</label>
+            <label for="name-ru">{$t('admin_materials.form.name_ru')}</label>
             <input type="text" id="name-ru" bind:value={formData.nameRu} placeholder="Название материала" />
           </div>
           <div class="form-group">
-            <label for="name-lv">Name (Latvian)</label>
+            <label for="name-lv">{$t('admin_materials.form.name_lv')}</label>
             <input type="text" id="name-lv" bind:value={formData.nameLv} placeholder="Materiāla nosaukums" />
           </div>
         </div>
@@ -543,7 +543,7 @@
         <!-- Sheet materials: thickness -->
         {#if isSheet}
           <div class="form-group">
-            <label for="thickness">Thickness Options (mm, comma-separated)</label>
+            <label for="thickness">{$t('admin_materials.form.thickness')}</label>
             <input type="text" id="thickness" bind:value={formData.thicknessOptions} placeholder="2, 3, 4, 5, 6, 8, 10" />
           </div>
         {/if}
@@ -551,26 +551,26 @@
         <!-- Color fields (for most materials) -->
         <div class="form-row">
           <div class="form-group">
-            <label for="hex">Color (HEX)</label>
+            <label for="hex">{$t('admin_materials.form.hex_color')}</label>
             <div class="color-input">
               <input type="color" bind:value={formData.hex} />
               <input type="text" id="hex" bind:value={formData.hex} placeholder="#FFFFFF" />
             </div>
           </div>
           <div class="form-group">
-            <label for="color-code">Color Code</label>
+            <label for="color-code">{$t('admin_materials.form.color_code')}</label>
             <input type="text" id="color-code" bind:value={formData.colorCode} placeholder="e.g. 0F00, RAL 9010" />
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="type">Type</label>
+            <label for="type">{$t('admin_materials.form.type')}</label>
             <input type="text" id="type" bind:value={formData.type} placeholder="e.g. extruded, cast, matte, gloss" />
           </div>
           {#if isSheet}
             <div class="form-group">
-              <label for="transmittance">Light Transmittance</label>
+              <label for="transmittance">{$t('admin_materials.form.transmittance')}</label>
               <input type="text" id="transmittance" bind:value={formData.transmittance} placeholder="e.g. 92%" />
             </div>
           {/if}
@@ -579,34 +579,34 @@
         <!-- Electronics fields -->
         {#if isElectronics}
           <div class="form-section">
-            <h3 class="section-title">Electronics Specifications</h3>
+            <h3 class="section-title">{$t('admin_materials.form.electronics_specs')}</h3>
             <div class="form-row">
               <div class="form-group">
-                <label for="voltage">Voltage (V)</label>
+                <label for="voltage">{$t('admin_materials.form.voltage')}</label>
                 <input type="text" id="voltage" bind:value={formData.voltage} placeholder="e.g. 12V, 24V, 220V" />
               </div>
               <div class="form-group">
-                <label for="wattage">Wattage (W)</label>
+                <label for="wattage">{$t('admin_materials.form.wattage')}</label>
                 <input type="text" id="wattage" bind:value={formData.wattage} placeholder="e.g. 14.4W/m, 100W" />
               </div>
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label for="colorTemp">Color Temperature</label>
+                <label for="colorTemp">{$t('admin_materials.form.color_temp')}</label>
                 <input type="text" id="colorTemp" bind:value={formData.colorTemp} placeholder="e.g. 3000K, 4000K, 6500K, RGB" />
               </div>
               <div class="form-group">
-                <label for="ipRating">IP Rating</label>
+                <label for="ipRating">{$t('admin_materials.form.ip_rating')}</label>
                 <input type="text" id="ipRating" bind:value={formData.ipRating} placeholder="e.g. IP20, IP65, IP68" />
               </div>
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label for="ledCount">LED Count</label>
+                <label for="ledCount">{$t('admin_materials.form.led_count')}</label>
                 <input type="text" id="ledCount" bind:value={formData.ledCount} placeholder="e.g. 60/m, 120/m" />
               </div>
               <div class="form-group">
-                <label for="length">Length</label>
+                <label for="length">{$t('admin_materials.form.length')}</label>
                 <input type="text" id="length" bind:value={formData.length} placeholder="e.g. 5m, 1m" />
               </div>
             </div>
@@ -616,14 +616,14 @@
         <!-- Filament fields -->
         {#if isFilament}
           <div class="form-section">
-            <h3 class="section-title">Filament/Resin Specifications</h3>
+            <h3 class="section-title">{$t('admin_materials.form.filament_specs')}</h3>
             <div class="form-row">
               <div class="form-group">
-                <label for="diameter">Diameter</label>
+                <label for="diameter">{$t('admin_materials.form.diameter')}</label>
                 <input type="text" id="diameter" bind:value={formData.diameter} placeholder="e.g. 1.75mm, 2.85mm" />
               </div>
               <div class="form-group">
-                <label for="weight">Weight</label>
+                <label for="weight">{$t('admin_materials.form.weight')}</label>
                 <input type="text" id="weight" bind:value={formData.weight} placeholder="e.g. 1kg, 500g, 1000ml" />
               </div>
             </div>
@@ -633,14 +633,14 @@
         <!-- Hardware fields -->
         {#if isHardware}
           <div class="form-section">
-            <h3 class="section-title">Hardware Specifications</h3>
+            <h3 class="section-title">{$t('admin_materials.form.hardware_specs')}</h3>
             <div class="form-row">
               <div class="form-group">
-                <label for="length">Length/Size</label>
+                <label for="length">{$t('admin_materials.form.length_size')}</label>
                 <input type="text" id="length" bind:value={formData.length} placeholder="e.g. M4x20, 6x40mm" />
               </div>
               <div class="form-group">
-                <label for="packSize">Pack Size</label>
+                <label for="packSize">{$t('admin_materials.form.pack_size')}</label>
                 <input type="text" id="packSize" bind:value={formData.packSize} placeholder="e.g. 100pcs, 50pcs" />
               </div>
             </div>
@@ -649,25 +649,25 @@
 
         <!-- Dimensions (for various materials) -->
         <div class="form-section">
-          <h3 class="section-title">Dimensions & Packaging</h3>
+          <h3 class="section-title">{$t('admin_materials.form.dims_packaging')}</h3>
           <div class="form-row">
             <div class="form-group">
-              <label for="width">Width</label>
+              <label for="width">{$t('admin_materials.form.width')}</label>
               <input type="text" id="width" bind:value={formData.width} placeholder="e.g. 1000mm, 1220mm" />
             </div>
             <div class="form-group">
-              <label for="height">Height/Length</label>
+              <label for="height">{$t('admin_materials.form.height_length')}</label>
               <input type="text" id="height" bind:value={formData.height} placeholder="e.g. 2000mm, 50m" />
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label for="minOrder">Min Order Qty</label>
+              <label for="minOrder">{$t('admin_materials.form.min_order')}</label>
               <input type="text" id="minOrder" bind:value={formData.minOrder} placeholder="e.g. 1, 10, 100" />
             </div>
             {#if !isHardware}
               <div class="form-group">
-                <label for="packSize2">Pack Size</label>
+                <label for="packSize2">{$t('admin_materials.form.pack_size')}</label>
                 <input type="text" id="packSize2" bind:value={formData.packSize} placeholder="e.g. 1 sheet, 1 roll" />
               </div>
             {/if}
@@ -676,9 +676,9 @@
       </div>
 
       <div class="modal-footer">
-        <button class="btn-secondary" onclick={closeModal} disabled={saving}>Cancel</button>
+        <button class="btn-secondary" onclick={closeModal} disabled={saving}>{$t('admin_materials.cancel')}</button>
         <button class="btn-primary" onclick={saveMaterial} disabled={saving}>
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? $t('admin_materials.saving') : $t('admin_materials.save')}
         </button>
       </div>
     </div>

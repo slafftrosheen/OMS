@@ -5,6 +5,7 @@
    */
   import { onMount } from 'svelte';
   import Icon from '$lib/ui/Icon.svelte';
+  import { t } from 'svelte-i18n';
 
   type KnowledgeSource = {
     id: string;
@@ -134,19 +135,19 @@
       <Icon name="search" size="sm" />
       <input
         type="text"
-        placeholder="Search knowledge sources…"
+        placeholder={$t('ailab.knowledge.search_placeholder')}
         bind:value={search}
         oninput={onSearchChange}
       />
     </div>
 
     <select bind:value={statusFilter} onchange={load}>
-      <option value="">All statuses</option>
-      <option value="ready">Ready</option>
-      <option value="queued">Queued</option>
-      <option value="extracting">Extracting</option>
-      <option value="embedding">Embedding</option>
-      <option value="failed">Failed</option>
+      <option value="">{$t('ailab.knowledge.status.all')}</option>
+      <option value="ready">{$t('ailab.knowledge.status.ready')}</option>
+      <option value="queued">{$t('ailab.knowledge.status.queued')}</option>
+      <option value="extracting">{$t('ailab.knowledge.status.extracting')}</option>
+      <option value="embedding">{$t('ailab.knowledge.status.embedding')}</option>
+      <option value="failed">{$t('ailab.knowledge.status.failed')}</option>
     </select>
 
     <label class="upload-btn" class:disabled={uploading}>
@@ -160,7 +161,7 @@
         disabled={uploading}
       />
       <Icon name="upload" size="sm" />
-      {uploading ? 'Uploading…' : 'Upload'}
+      {uploading ? $t('ailab.knowledge.uploading') : $t('ailab.knowledge.upload')}
     </label>
 
     <button class="refresh-btn" onclick={load} disabled={loading} title="Refresh">
@@ -178,31 +179,31 @@
 
   <!-- Stats -->
   <div class="stats-row">
-    <span class="stat">{total} sources total</span>
-    <span class="stat ready">{items.filter(i => i.status === 'ready').length} ready</span>
-    <span class="stat warn">{items.filter(i => ['queued', 'extracting', 'embedding'].includes(i.status)).length} processing</span>
-    <span class="stat err">{items.filter(i => i.status === 'failed').length} failed</span>
+    <span class="stat">{total} {$t('ailab.knowledge.stats_total')}</span>
+    <span class="stat ready">{items.filter(i => i.status === 'ready').length} {$t('ailab.knowledge.stats_ready')}</span>
+    <span class="stat warn">{items.filter(i => ['queued', 'extracting', 'embedding'].includes(i.status)).length} {$t('ailab.knowledge.stats_processing')}</span>
+    <span class="stat err">{items.filter(i => i.status === 'failed').length} {$t('ailab.knowledge.stats_failed')}</span>
   </div>
 
   <!-- Table -->
   {#if loading}
-    <div class="empty-state">Loading knowledge sources…</div>
+    <div class="empty-state">{$t('ailab.knowledge.loading')}</div>
   {:else if items.length === 0}
     <div class="empty-state">
       <Icon name="library" size="md" />
-      <p>No knowledge sources found. Upload PDFs or documents to build the RAG index.</p>
+      <p>{$t('ailab.knowledge.no_sources')}</p>
     </div>
   {:else}
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Title</th>
-            <th>Kind</th>
-            <th>Status</th>
-            <th>Size</th>
-            <th>Pages</th>
-            <th>Added</th>
+            <th>{$t('ailab.knowledge.cols.title')}</th>
+            <th>{$t('ailab.knowledge.cols.kind')}</th>
+            <th>{$t('ailab.knowledge.cols.status')}</th>
+            <th>{$t('ailab.knowledge.cols.size')}</th>
+            <th>{$t('ailab.knowledge.cols.pages')}</th>
+            <th>{$t('ailab.knowledge.cols.added')}</th>
             <th></th>
           </tr>
         </thead>

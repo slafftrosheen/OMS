@@ -5,6 +5,7 @@
   import Icon from '$lib/ui/Icon.svelte';
   import type { IconName } from '$lib/ui/icons';
   import { base } from '$app/paths';
+  import { t } from 'svelte-i18n';
 
   type NodeState = {
     label: string; host: string; port: number; sidecarUrl: string;
@@ -64,13 +65,10 @@
     return `${Math.floor(s / 3600)}h ago`;
   }
 
-  const tiles: Array<{ href: string; icon: IconName; label: string; desc: string }> = [
-    { href: '/ai-lab/canvas',    icon: 'layout-grid',    label: 'Open canvas',
-      desc: 'Wire AI nodes together on an infinite board.' },
-    { href: '/orders',           icon: 'clipboard-list', label: 'View Orders',
-      desc: 'Manage and review production orders.' },
-    { href: '/calendar',         icon: 'calendar',       label: 'Calendar',
-      desc: 'Check upcoming delivery and meeting schedules.' }
+  const tiles: Array<{ href: string; icon: IconName; labelKey: string; descKey: string }> = [
+    { href: '/ai-lab/canvas', icon: 'layout-grid',    labelKey: 'ailab.sections.canvas', descKey: 'ailab.tiles.canvas_desc' },
+    { href: '/orders',        icon: 'clipboard-list', labelKey: 'nav.orders',            descKey: 'ailab.tiles.orders_desc' },
+    { href: '/calendar',      icon: 'calendar',       labelKey: 'nav.calendar',          descKey: 'ailab.tiles.calendar_desc' }
   ];
 </script>
 
@@ -78,37 +76,37 @@
   <!-- Headline Stats -->
   <section class="status-grid">
     <div class="card stat-card">
-      <div class="card-head"><Icon name="network" size="sm" /><span>Swarm Status</span></div>
+      <div class="card-head"><Icon name="network" size="sm" /><span>{$t('ailab.active_swarm')}</span></div>
       <div class="nums">
-        <div><strong>{nodes.filter(n => n.lastStatus === 'up').length}</strong><span>up</span></div>
-        <div><strong>{nodes.filter(n => n.lastStatus === 'down').length}</strong><span>down</span></div>
+        <div><strong>{nodes.filter(n => n.lastStatus === 'up').length}</strong><span>{$t('ailab.knowledge.status.ready')}</span></div>
+        <div><strong>{nodes.filter(n => n.lastStatus === 'down').length}</strong><span>{$t('ailab.knowledge.status.failed')}</span></div>
       </div>
     </div>
 
     <div class="card stat-card">
-      <div class="card-head"><Icon name="library" size="sm" /><span>Knowledge Base</span></div>
+      <div class="card-head"><Icon name="library" size="sm" /><span>{$t('ailab.sections.knowledge')}</span></div>
       <div class="nums">
-        <div><strong>{knowledgeCounts.ready}</strong><span>ready</span></div>
-        <div><strong>{knowledgeCounts.queued}</strong><span>processing</span></div>
+        <div><strong>{knowledgeCounts.ready}</strong><span>{$t('ailab.knowledge.stats_ready')}</span></div>
+        <div><strong>{knowledgeCounts.queued}</strong><span>{$t('ailab.knowledge.stats_processing')}</span></div>
       </div>
     </div>
 
     <div class="card stat-card">
-      <div class="card-head"><Icon name="list-checks" size="sm" /><span>Activity Today</span></div>
+      <div class="card-head"><Icon name="list-checks" size="sm" /><span>{$t('ailab.recent_runs')}</span></div>
       <div class="nums">
-        <div><strong>{runsTodayCount}</strong><span>AI runs</span></div>
+        <div><strong>{runsTodayCount}</strong><span>{$t('ailab.cols.kind')}</span></div>
       </div>
     </div>
   </section>
 
   <!-- Quick Access Tiles -->
   <section class="tiles-grid">
-    {#each tiles as t}
-      <a class="tile" href="{base}{t.href}">
-        <div class="tile-icon"><Icon name={t.icon} size="md" /></div>
+    {#each tiles as tile}
+      <a class="tile" href="{base}{tile.href}">
+        <div class="tile-icon"><Icon name={tile.icon} size="md" /></div>
         <div class="tile-content">
-          <strong>{t.label}</strong>
-          <p>{t.desc}</p>
+          <strong>{$t(tile.labelKey)}</strong>
+          <p>{$t(tile.descKey)}</p>
         </div>
       </a>
     {/each}
@@ -118,7 +116,7 @@
     <!-- Swarm Details -->
     <section class="swarm-details">
       <header class="section-head">
-        <h3>Active Swarm</h3>
+        <h3>{$t('ailab.active_swarm')}</h3>
         <button class="btn-refresh" onclick={refresh}><Icon name="refresh-ccw" size="sm" /></button>
       </header>
       <div class="nodes-list">
@@ -143,7 +141,7 @@
             </div>
           </article>
         {:else}
-          <div class="card empty">No nodes connected to swarm.</div>
+          <div class="card empty">{$t('ailab.swarm_no_nodes')}</div>
         {/each}
       </div>
     </section>
@@ -151,18 +149,18 @@
     <!-- Recent Runs -->
     <section class="runs-history">
       <header class="section-head">
-        <h3>Recent AI Runs</h3>
-        <a href="{base}/ai-lab/runs" class="muted small">View all</a>
+        <h3>{$t('ailab.recent_runs')}</h3>
+        <a href="{base}/ai-lab/runs" class="muted small">{$t('ailab.swarm_view_all')}</a>
       </header>
       <div class="runs-table-wrapper">
         <table class="runs-table">
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Kind</th>
-              <th>Status</th>
-              <th>Model</th>
-              <th>Secs</th>
+              <th>{$t('ailab.cols.time')}</th>
+              <th>{$t('ailab.cols.kind')}</th>
+              <th>{$t('ailab.cols.status')}</th>
+              <th>{$t('ailab.cols.model')}</th>
+              <th>{$t('ailab.cols.secs')}</th>
             </tr>
           </thead>
           <tbody>

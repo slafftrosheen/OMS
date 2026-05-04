@@ -7,14 +7,15 @@
   import Icon from '$lib/ui/Icon.svelte';
   import type { IconName } from '$lib/ui/icons';
   import { env } from '$env/dynamic/public';
+  import { t } from 'svelte-i18n';
 
   let { children } = $props();
 
-  const sections: Array<{ href: string; label: string; icon: IconName; flag: string }> = [
-    { href: '/ai-lab',           label: 'Overview',  icon: 'sparkles',       flag: 'PUBLIC_AILAB_ENABLED' },
-    { href: '/ai-lab/chat',      label: 'Chat',      icon: 'message-square', flag: 'PUBLIC_AILAB_CHAT_ENABLED' },
-    { href: '/ai-lab/knowledge', label: 'Knowledge', icon: 'library',        flag: 'PUBLIC_AILAB_KNOWLEDGE_ENABLED' },
-    { href: '/ai-lab/canvas',    label: 'Canvas',    icon: 'layout-grid',    flag: 'PUBLIC_AILAB_CANVAS_ENABLED' }
+  const sections: Array<{ href: string; labelKey: string; icon: IconName; flag: string }> = [
+    { href: '/ai-lab',           labelKey: 'ailab.sections.overview',  icon: 'sparkles',       flag: 'PUBLIC_AILAB_ENABLED' },
+    { href: '/ai-lab/chat',      labelKey: 'ailab.sections.chat',      icon: 'message-square', flag: 'PUBLIC_AILAB_CHAT_ENABLED' },
+    { href: '/ai-lab/knowledge', labelKey: 'ailab.sections.knowledge', icon: 'library',        flag: 'PUBLIC_AILAB_KNOWLEDGE_ENABLED' },
+    { href: '/ai-lab/canvas',    labelKey: 'ailab.sections.canvas',    icon: 'layout-grid',    flag: 'PUBLIC_AILAB_CANVAS_ENABLED' }
   ];
 
   const visible = $derived(
@@ -27,17 +28,17 @@
   <header class="lab-header">
     <div class="lab-brand">
       <Icon name="sparkles" size="md" />
-      <h1>Reclame AI Lab</h1>
-      <span class="lab-tag">internal toolset</span>
+      <h1>{$t('ailab.title')}</h1>
+      <span class="lab-tag">{$t('ailab.internal_toolset')}</span>
     </div>
-    <nav class="lab-nav" aria-label="AI Lab sections">
+    <nav class="lab-nav" aria-label={$t('ailab.title')}>
       {#each visible as s (s.href)}
         <a
           href="{base}{s.href}"
           class:active={path === `${base}${s.href}` || path.startsWith(`${base}${s.href}/`)}
         >
           <Icon name={s.icon} size="sm" />
-          <span>{s.label}</span>
+          <span>{$t(s.labelKey)}</span>
         </a>
       {/each}
     </nav>
