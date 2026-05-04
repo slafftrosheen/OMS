@@ -1,258 +1,224 @@
 <script lang="ts">
-  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
-  import Bell from 'lucide-svelte/icons/bell';
   import BellRing from 'lucide-svelte/icons/bell-ring';
-  import Calendar from 'lucide-svelte/icons/calendar';
   import Check from 'lucide-svelte/icons/check';
   import CheckCheck from 'lucide-svelte/icons/check-check';
   import Info from 'lucide-svelte/icons/info';
   import MessageSquare from 'lucide-svelte/icons/message-square';
   import Package from 'lucide-svelte/icons/package';
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
-  import Settings from 'lucide-svelte/icons/settings';
+  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
   import Trash2 from 'lucide-svelte/icons/trash-2';
-  import { stopPropagation } from 'svelte/legacy';
+  import CalendarIcon from 'lucide-svelte/icons/calendar';
+  import Settings from 'lucide-svelte/icons/settings';
 
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
   import { currentUser } from '$lib/auth/authState.svelte';
+  import { notificationStore } from '$lib/stores/notifications';
+  import type { Notification } from '$lib/stores/notifications';
 
-  interface Notification {
-    id: number;
-    type: string;
-    title: string;
-    message: string;
-    link: string | null;
-    isRead: boolean;
-    sourceType: string | null;
-    sourceId: string | null;
-    createdAt: string;
-    readAt: string | null;
-  }
-
-  let notifications: Notification[] = $state([]);
-  let loading = $state(true);
   let filter: 'all' | 'unread' | 'read' = $state('all');
   let typeFilter: string = $state('all');
+  let refreshing = $state(false);
 
-  const notificationTypes = [
-    { value: 'all', label: 'All Types' },
-    { value: 'order', label: 'Orders' },
-    { value: 'chat', label: 'Messages' },
-    { value: 'system', label: 'System' },
-    { value: 'inventory', label: 'Inventory' }
-  ];
+  let storeState  = $derived($notificationStore);
+  let allItems    = $derived(storeState.items);
+  let unreadCount = $derived(storeState.unreadCount);
 
-  let filteredNotifications = $derived(notifications.filter(n => {
-    if (filter === 'unread' && n.isRead) return false;
-    if (filter === 'read' && !n.isRead) return false;
-    if (typeFilter !== 'all' && n.type !== typeFilter) return false;
+  let filteredNotifications = $derived(allItems.filter((n: Notification) => {
+    if (filter === 'unread' && n.read)  return false;
+    if (filter === 'read'   && !n.read) return false;
+    if (typeFilter !== 'all' && n.type !== typeFilter.toUpperCase()) return false;
     return true;
   }));
 
-  let unreadCount = $derived(notifications.filter(n => !n.isRead).length);
-
-  async function loadNotifications() {
-    loading = true;
-    try {
-      const response = await fetch('/api/notifications');
-      if (response.ok) {
-        notifications = await response.json();
-      }
-    } catch (err) {
-      console.error('Failed to load notifications:', err);
-    } finally {
-      loading = false;
-    }
+  async function handleRefresh() {
+    refreshing = true;
+    const userId = $currentUser?.id;
+    if (userId) await notificationStore.load(userId);
+    refreshing = false;
   }
 
-  async function markAsRead(ids: number[]) {
-    try {
-      await fetch('/api/notifications', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids })
-      });
-      notifications = notifications.map(n => 
-        ids.includes(n.id) ? { ...n, isRead: true, readAt: new Date().toISOString() } : n
-      );
-    } catch (err) {
-      console.error('Failed to mark as read:', err);
-    }
+  async function handleMarkAllRead() {
+    const userId = $currentUser?.id;
+    if (userId) await notificationStore.markAllAsRead(userId);
   }
 
-  async function markAllAsRead() {
-    try {
-      await fetch('/api/notifications', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markAllRead: true })
-      });
-      notifications = notifications.map(n => ({ ...n, isRead: true, readAt: new Date().toISOString() }));
-    } catch (err) {
-      console.error('Failed to mark all as read:', err);
-    }
+  async function handleMarkRead(id: string) {
+    await notificationStore.markAsRead(id);
   }
 
-  async function dismissNotification(id: number) {
-    try {
-      await fetch(`/api/notifications?id=${id}`, { method: 'DELETE' });
-      notifications = notifications.filter(n => n.id !== id);
-    } catch (err) {
-      console.error('Failed to dismiss notification:', err);
-    }
+  async function handleDismiss(id: string) {
+    await notificationStore.delete(id);
   }
 
-  async function clearAllRead() {
-    try {
-      await fetch('/api/notifications', { method: 'DELETE' });
-      notifications = notifications.filter(n => !n.isRead);
-    } catch (err) {
-      console.error('Failed to clear notifications:', err);
-    }
+  async function handleClearRead() {
+    const readItems = allItems.filter((n: Notification) => n.read);
+    for (const n of readItems) await notificationStore.delete(n.id);
   }
 
   function getIcon(type: string) {
-    switch (type) {
-      case 'order': return Package;
-      case 'chat': return MessageSquare;
-      case 'calendar': return Calendar;
-      case 'alert': return AlertTriangle;
-      case 'system': return Settings;
-      default: return Info;
+    switch (type?.toLowerCase()) {
+      case 'assignment':
+      case 'order':        return Package;
+      case 'rework':
+      case 'stage_change': return AlertTriangle;
+      case 'chat':
+      case 'info':         return MessageSquare;
+      case 'success':      return Check;
+      case 'warning':      return AlertTriangle;
+      case 'error':        return AlertTriangle;
+      default:             return Info;
     }
   }
 
   function formatDate(dateStr: string): string {
-    const date = new Date(dateStr);
-    const now = new Date();
+    const date   = new Date(dateStr);
+    const now    = new Date();
     const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    const mins   = Math.floor(diffMs / 60_000);
+    const hours  = Math.floor(diffMs / 3_600_000);
+    const days   = Math.floor(diffMs / 86_400_000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (mins  <  1) return '< 1m';
+    if (mins  < 60) return `${mins}m`;
+    if (hours < 24) return `${hours}h`;
+    if (days  <  7) return `${days}d`;
     return date.toLocaleDateString();
   }
 
-  onMount(loadNotifications);
+  onMount(() => {
+    const userId = $currentUser?.id;
+    if (!userId) return;
+    notificationStore.load(userId);
+    return notificationStore.subscribe_realtime(userId);
+  });
 </script>
 
-<div class="notifications-page">
-  <header class="page-header">
-    <div class="header-left">
-      <h1>
-        <Bell size={24} />
-        {$t('notifications.title')}
-      </h1>
+<svelte:head>
+  <title>{$t('notifications.title')} — OMS</title>
+</svelte:head>
+
+<div class="notif-page">
+  <!-- Header -->
+  <header class="notif-header">
+    <div class="notif-header__left">
+      <Icon name="bell" size="lg" />
+      <h1>{$t('notifications.title')}</h1>
       {#if unreadCount > 0}
-        <span class="unread-badge">{unreadCount} unread</span>
+        <span class="notif-header__badge">{unreadCount} {$t('notifications.filter.unread')}</span>
       {/if}
     </div>
-    <div class="header-actions">
-      <button class="btn btn-ghost" onclick={loadNotifications} disabled={loading}>
-        <span class:spinning={loading}><RefreshCw size={18} /></span>
+    <div class="notif-header__actions">
+      <button
+        class="notif-action-btn"
+        onclick={handleRefresh}
+        disabled={refreshing || storeState.loading}
+        aria-label={$t('notifications.refresh', { default: 'Refresh' })}
+        title={$t('notifications.refresh', { default: 'Refresh' })}
+      >
+        <span class:spinning={refreshing || storeState.loading}>
+          <RefreshCw size={16} />
+        </span>
       </button>
       {#if unreadCount > 0}
-        <button class="btn btn-secondary" onclick={markAllAsRead}>
-          <CheckCheck size={18} />
-          Mark all read
+        <button class="notif-action-btn notif-action-btn--label" onclick={handleMarkAllRead}>
+          <CheckCheck size={16} />
+          {$t('notifications.mark_all_read')}
         </button>
       {/if}
-      <button class="btn btn-ghost" onclick={clearAllRead} title="Clear all read notifications">
-        <Trash2 size={18} />
+      <button
+        class="notif-action-btn"
+        onclick={handleClearRead}
+        aria-label={$t('notifications.clear_read', { default: 'Clear read' })}
+        title={$t('notifications.clear_read', { default: 'Clear read' })}
+      >
+        <Trash2 size={16} />
       </button>
     </div>
   </header>
 
-  <div class="filters">
-    <div class="filter-tabs">
-      <button class="filter-tab" class:active={filter === 'all'} onclick={() => filter = 'all'}>
-        All ({notifications.length})
+  <!-- Filters -->
+  <div class="notif-filters">
+    <div class="notif-tabs">
+      <button class="notif-tab" class:active={filter === 'all'}    onclick={() => filter = 'all'}>
+        {$t('notifications.filter.all', { default: 'All' })} ({allItems.length})
       </button>
-      <button class="filter-tab" class:active={filter === 'unread'} onclick={() => filter = 'unread'}>
-        Unread ({unreadCount})
+      <button class="notif-tab" class:active={filter === 'unread'} onclick={() => filter = 'unread'}>
+        {$t('notifications.filter.unread', { default: 'Unread' })} ({unreadCount})
       </button>
-      <button class="filter-tab" class:active={filter === 'read'} onclick={() => filter = 'read'}>
-        Read ({notifications.length - unreadCount})
+      <button class="notif-tab" class:active={filter === 'read'}   onclick={() => filter = 'read'}>
+        {$t('notifications.filter.read', { default: 'Read' })} ({allItems.length - unreadCount})
       </button>
     </div>
-    <select class="type-filter" bind:value={typeFilter}>
-      {#each notificationTypes as type}
-        <option value={type.value}>{type.label}</option>
-      {/each}
+    <select class="notif-type-select" bind:value={typeFilter}>
+      <option value="all"       >{$t('notifications.filter.type_all',  { default: 'All Types' })}</option>
+      <option value="order"     >{$t('notifications.filter.orders',    { default: 'Orders' })}</option>
+      <option value="chat"      >{$t('notifications.filter.messages',  { default: 'Messages' })}</option>
+      <option value="system"    >{$t('notifications.filter.system',    { default: 'System' })}</option>
+      <option value="inventory" >{$t('notifications.filter.inventory', { default: 'Inventory' })}</option>
     </select>
   </div>
 
-  <div class="notifications-list">
-    {#if loading}
-      <div class="loading-state">
-        <div class="spinner"></div>
-        <p>Loading notifications...</p>
+  <!-- List -->
+  <div class="notif-list">
+    {#if storeState.loading && allItems.length === 0}
+      <div class="notif-state">
+        <div class="rf-spinner"></div>
+        <p>{$t('notifications.loading', { default: 'Loading notifications…' })}</p>
       </div>
     {:else if filteredNotifications.length === 0}
-      <div class="empty-state">
-        <BellRing size={48} />
-        <h3>No notifications</h3>
-        <p class="muted">You're all caught up!</p>
+      <div class="notif-state">
+        <BellRing size={48} class="notif-state__icon" />
+        <p class="notif-state__title">{$t('notifications.no_notifs', { default: 'No notifications' })}</p>
+        <p class="notif-state__sub">{$t('notifications.caught_up', { default: "You're all caught up!" })}</p>
       </div>
     {:else}
-      {#each filteredNotifications as notification (notification.id)}
-        {@const SvelteComponent = getIcon(notification.type)}
-        <div 
-          class="notification-card" 
-          class:unread={!notification.isRead}
-          role="article"
-          aria-label="Notification: {notification.title}"
-        >
-          <div class="notification-icon" data-type={notification.type}>
-            <SvelteComponent size={20} />
+      {#each filteredNotifications as n (n.id)}
+        {@const ItemIcon = getIcon(n.type)}
+        <div class="notif-card" class:notif-card--unread={!n.read} role="article">
+          <div class="notif-card__icon" data-type={n.type?.toLowerCase()}>
+            <ItemIcon size={18} />
           </div>
-          <div 
-            class="notification-content"
+
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="notif-card__body"
+            onclick={() => !n.read && handleMarkRead(n.id)}
+            onkeypress={(e) => e.key === 'Enter' && !n.read && handleMarkRead(n.id)}
             role="button"
             tabindex="0"
-            onclick={() => !notification.isRead && markAsRead([notification.id])}
-            onkeypress={(e) => e.key === 'Enter' && !notification.isRead && markAsRead([notification.id])}
           >
-            <h4>{notification.title}</h4>
-            <p>{notification.message}</p>
-            <div class="notification-meta">
-              <span class="time">{formatDate(notification.createdAt)}</span>
-              {#if notification.sourceType}
-                <span class="source">{notification.sourceType}</span>
-              {/if}
-            </div>
+            <p class="notif-card__title">{n.title}</p>
+            {#if n.message}
+              <p class="notif-card__msg">{n.message}</p>
+            {/if}
+            <span class="notif-card__time">{formatDate(n.created_at)}</span>
           </div>
-          <div class="notification-actions" role="group" aria-label="Notification actions">
-            {#if !notification.isRead}
-              <button 
-                class="action-btn" 
+
+          <div class="notif-card__actions">
+            {#if !n.read}
+              <button
+                class="notif-icon-btn"
                 type="button"
-                aria-label="Mark as read"
-                title="Mark as read"
-                onclick={stopPropagation(() => markAsRead([notification.id]))}
+                aria-label={$t('notifications.mark_read', { default: 'Mark as read' })}
+                title={$t('notifications.mark_read', { default: 'Mark as read' })}
+                onclick={() => handleMarkRead(n.id)}
               >
-                <Check size={16} />
+                <Check size={14} />
               </button>
             {/if}
-            <button 
-              class="action-btn" 
+            <button
+              class="notif-icon-btn notif-icon-btn--danger"
               type="button"
-              aria-label="Dismiss notification"
-              title="Dismiss"
-              onclick={stopPropagation(() => dismissNotification(notification.id))}
+              aria-label={$t('notifications.dismiss', { default: 'Dismiss' })}
+              title={$t('notifications.dismiss', { default: 'Dismiss' })}
+              onclick={() => handleDismiss(n.id)}
             >
-              <Trash2 size={16} />
+              <Trash2 size={14} />
             </button>
           </div>
-          {#if notification.link}
-            <a href={notification.link} class="notification-link">View →</a>
-          {/if}
         </div>
       {/each}
     {/if}
@@ -260,349 +226,268 @@
 </div>
 
 <style>
-  .notifications-page {
-    max-width: 800px;
+  .notif-page {
+    max-width: 720px;
     margin: 0 auto;
-    padding: var(--space-lg);
   }
 
-  .page-header {
+  /* Header */
+  .notif-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--space-lg);
     flex-wrap: wrap;
     gap: var(--space-md);
+    margin-bottom: var(--space-xl);
   }
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: var(--space-md);
-  }
-
-  .header-left h1 {
+  .notif-header__left {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    margin: 0;
-    font-size: 1.5rem;
+  }
+  .notif-header__left h1 {
+    font-size: var(--text-2xl);
     font-weight: 700;
+    margin: 0;
   }
-
-  .unread-badge {
-    font-size: 0.75rem;
-    font-weight: 600;
-    padding: 4px 10px;
-    border-radius: 20px;
-    background: var(--primary, var(--brand));
-    color: var(--bg-0);
+  .notif-header__badge {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    padding: var(--space-xxs) var(--space-sm);
+    border-radius: var(--radius-full);
+    background: var(--brand-soft);
+    color: var(--brand);
+    letter-spacing: var(--tracking-wide);
   }
-
-  .header-actions {
+  .notif-header__actions {
     display: flex;
-    gap: var(--space-sm);
+    align-items: center;
+    gap: var(--space-xs);
   }
 
-  .btn {
+  /* Buttons */
+  .notif-action-btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    border-radius: 8px;
-    font-size: 14px;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-material-thin);
+    -webkit-backdrop-filter: var(--glass-material-thin);
+    color: var(--ink-secondary);
+    font-size: var(--text-sm);
     font-weight: 500;
     cursor: pointer;
-    border: 1px solid transparent;
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      color      var(--motion-sm) var(--ease-standard),
+      transform  var(--motion-sm) var(--ease-spring-soft);
+    box-shadow: none;
   }
+  .notif-action-btn:hover { background: var(--bg-2); color: var(--ink-primary); transform: none; filter: none; }
+  .notif-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .notif-action-btn--label { gap: var(--space-xs); padding: var(--space-xs) var(--space-md); }
 
-  .btn-secondary {
-    background: var(--bg-1);
-    color: var(--text);
-    border-color: var(--border);
-  }
+  :global(.spinning) { animation: rf-spin 0.8s linear infinite; }
 
-  .btn-secondary:hover {
-    background: var(--bg-2);
-  }
-
-  .btn-ghost {
-    background: transparent;
-    color: var(--text-muted);
-  }
-
-  .btn-ghost:hover {
-    background: var(--bg-2);
-    color: var(--text);
-  }
-
-  :global(.spinning) {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  .filters {
+  /* Filters */
+  .notif-filters {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--space-lg);
     gap: var(--space-md);
     flex-wrap: wrap;
+    margin-bottom: var(--space-lg);
   }
-
-  .filter-tabs {
+  .notif-tabs {
     display: flex;
     background: var(--bg-2);
-    border-radius: 8px;
-    padding: 4px;
+    border-radius: var(--radius-md);
+    padding: 3px;
     gap: 2px;
   }
-
-  .filter-tab {
-    padding: 8px 16px;
+  .notif-tab {
+    padding: var(--space-xs) var(--space-md);
     border: none;
     background: transparent;
-    border-radius: 6px;
-    font-size: 13px;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
     font-weight: 500;
     cursor: pointer;
-    color: var(--text-muted);
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
+    color: var(--ink-tertiary);
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      color      var(--motion-sm) var(--ease-standard);
+    box-shadow: none;
+  }
+  .notif-tab:hover  { color: var(--ink-secondary); transform: none; filter: none; }
+  .notif-tab.active {
+    background: var(--glass-bg-strong);
+    color: var(--ink-primary);
+    box-shadow: var(--glass-shadow-sm);
+  }
+  .notif-type-select {
+    min-width: 140px;
   }
 
-  .filter-tab:hover {
-    color: var(--text);
-  }
-
-  .filter-tab.active {
-    background: var(--bg-1);
-    color: var(--text);
-    box-shadow: 0 1px 3px color-mix(in oklab, var(--bg-0) 10%, transparent);
-  }
-
-  .type-filter {
-    padding: 8px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg-1);
-    font-size: 13px;
-    cursor: pointer;
-  }
-
-  .notifications-list {
+  /* List */
+  .notif-list {
     display: flex;
     flex-direction: column;
-    gap: var(--space-sm);
+    gap: var(--space-xs);
   }
 
-  .notification-card {
+  /* Empty / loading state */
+  .notif-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    padding: var(--space-4xl) var(--space-xl);
+    color: var(--ink-tertiary);
+    text-align: center;
+    animation: rf-fade-up var(--motion-md) var(--ease-standard) both;
+  }
+  :global(.notif-state__icon) { opacity: 0.3; }
+  .notif-state__title {
+    font-size: var(--text-lg);
+    font-weight: 600;
+    color: var(--ink-secondary);
+    margin: 0;
+  }
+  .notif-state__sub {
+    font-size: var(--text-sm);
+    color: var(--ink-tertiary);
+    margin: 0;
+  }
+
+  /* Card */
+  .notif-card {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: 40px 1fr auto;
+    align-items: flex-start;
     gap: var(--space-md);
     padding: var(--space-md);
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    cursor: pointer;
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
-    text-align: left;
-    width: 100%;
-    font: inherit;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-material-thin);
+    -webkit-backdrop-filter: var(--glass-material-thin);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    transition:
+      background  var(--motion-sm) var(--ease-standard),
+      box-shadow  var(--motion-sm) var(--ease-standard),
+      transform   var(--motion-sm) var(--ease-spring-soft);
+    animation: rf-fade-up var(--motion-md) var(--ease-standard) both;
+  }
+  .notif-card:hover {
+    background: var(--glass-bg-strong);
+    box-shadow: var(--glass-shadow-sm);
+    transform: translateY(-1px);
+  }
+  .notif-card--unread {
+    background: color-mix(in oklab, var(--brand) 5%, var(--glass-bg));
+    border-left: 3px solid var(--brand);
+  }
+  .notif-card--unread:hover {
+    background: color-mix(in oklab, var(--brand) 8%, var(--glass-bg-strong));
   }
 
-  .notification-card:hover {
-    border-color: var(--primary, var(--brand));
-    box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 8%, transparent);
-  }
-
-  .notification-card.unread {
-    background: color-mix(in oklab, var(--primary, var(--brand)) 5%, var(--bg-1));
-    border-left: 3px solid var(--primary, var(--brand));
-  }
-
-  .notification-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
+  .notif-card__icon {
+    width: 40px; height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: var(--radius-sm);
     background: var(--bg-2);
-    color: var(--text-muted);
+    color: var(--ink-tertiary);
+    flex-shrink: 0;
+  }
+  .notif-card__icon[data-type="order"],
+  .notif-card__icon[data-type="assignment"] {
+    background: color-mix(in oklab, var(--brand) 14%, transparent);
+    color: var(--brand);
+  }
+  .notif-card__icon[data-type="rework"],
+  .notif-card__icon[data-type="warning"],
+  .notif-card__icon[data-type="error"] {
+    background: color-mix(in oklab, var(--error) 14%, transparent);
+    color: var(--error);
+  }
+  .notif-card__icon[data-type="chat"],
+  .notif-card__icon[data-type="info"] {
+    background: color-mix(in oklab, var(--ok) 14%, transparent);
+    color: var(--ok);
   }
 
-  .notification-icon[data-type="order"] {
-    background: color-mix(in oklab, var(--primary, var(--brand)) 15%, transparent);
-    color: var(--primary, var(--brand));
-  }
-
-  .notification-icon[data-type="alert"] {
-    background: color-mix(in oklab, var(--danger, var(--error)) 15%, transparent);
-    color: var(--danger, var(--error));
-  }
-
-  .notification-icon[data-type="chat"] {
-    background: color-mix(in oklab, var(--success, var(--ok)) 15%, transparent);
-    color: var(--success, var(--ok));
-  }
-
-  .notification-content {
+  .notif-card__body {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-xxs);
     min-width: 0;
     cursor: pointer;
-    border-radius: 8px;
-    padding: 4px;
-    transition: background 0.2s ease;
+    padding: 2px var(--space-xs);
+    border-radius: var(--radius-sm);
+    transition: background var(--motion-sm) var(--ease-standard);
   }
+  .notif-card__body:hover { background: color-mix(in oklab, var(--bg-2) 60%, transparent); }
+  .notif-card__body:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-  .notification-content:hover {
-    background: var(--bg-2);
-  }
-
-  .notification-content:focus {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-  }
-
-  .notification-content h4 {
-    margin: 0;
-    font-size: 0.95rem;
+  .notif-card__title {
+    font-size: var(--text-sm);
     font-weight: 600;
-    color: var(--text);
-  }
-
-  .notification-content p {
+    color: var(--ink-primary);
     margin: 0;
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    line-height: 1.4;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .notif-card__msg {
+    font-size: var(--text-xs);
+    color: var(--ink-tertiary);
+    margin: 0;
+    line-height: var(--leading-snug);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .notif-card__time {
+    font-size: var(--text-xs);
+    color: var(--ink-quaternary);
+    font-variant-numeric: tabular-nums;
+  }
 
-  .notification-meta {
+  .notif-card__actions {
     display: flex;
-    gap: var(--space-sm);
-    font-size: 0.75rem;
-    color: var(--text-muted);
+    gap: var(--space-xxs);
+    flex-shrink: 0;
   }
-
-  .notification-meta .source {
-    padding: 2px 6px;
-    background: var(--bg-2);
-    border-radius: 4px;
-  }
-
-  .notification-actions {
-    display: flex;
-    gap: 4px;
-    align-items: flex-start;
-  }
-
-  .action-btn {
-    width: 32px;
-    height: 32px;
+  .notif-icon-btn {
+    width: 30px; height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
     border: none;
     background: transparent;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    color: var(--text-muted);
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
+    color: var(--ink-tertiary);
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      color      var(--motion-sm) var(--ease-standard);
+    box-shadow: none;
   }
+  .notif-icon-btn:hover { background: var(--bg-2); color: var(--ink-primary); transform: none; filter: none; }
+  .notif-icon-btn--danger:hover { background: var(--error-soft); color: var(--error); }
 
-  .action-btn:hover {
-    background: var(--bg-2);
-    color: var(--text);
-  }
-
-  .notification-link {
-    grid-column: 2;
-    font-size: 0.85rem;
-    color: var(--primary, var(--brand));
-    text-decoration: none;
-    font-weight: 500;
-  }
-
-  .notification-link:hover {
-    text-decoration: underline;
-  }
-
-  .empty-state, .loading-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 60px 20px;
-    color: var(--text-muted);
-    text-align: center;
-  }
-
-  .empty-state h3, .loading-state h3 {
-    margin: var(--space-md) 0 var(--space-xs);
-    font-size: 1.1rem;
-    color: var(--text);
-  }
-
-  .spinner {
-    width: 32px;
-    height: 32px;
-    border: 3px solid var(--border);
-    border-top-color: var(--primary, var(--brand));
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @media (max-width: 640px) {
-    .notifications-page {
-      padding: var(--space-md);
-    }
-
-    .page-header {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .filters {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .filter-tabs {
-      width: 100%;
-      justify-content: center;
-    }
-
-    .type-filter {
-      width: 100%;
-    }
-
-    .notification-card {
-      grid-template-columns: 1fr;
-    }
-
-    .notification-icon {
-      display: none;
-    }
-
-    .notification-actions {
-      position: absolute;
-      top: var(--space-sm);
-      right: var(--space-sm);
-    }
-
-    .notification-card {
-      position: relative;
-      padding-right: 80px;
-    }
+  @media (max-width: 600px) {
+    .notif-header { flex-direction: column; align-items: flex-start; }
+    .notif-filters { flex-direction: column; align-items: stretch; }
+    .notif-tabs { width: 100%; }
+    .notif-tab { flex: 1; text-align: center; }
+    .notif-type-select { width: 100%; }
+    .notif-card { grid-template-columns: 36px 1fr auto; gap: var(--space-sm); }
   }
 </style>

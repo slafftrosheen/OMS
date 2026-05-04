@@ -8,48 +8,48 @@
 </script>
 
 <svelte:head>
-  <title>Admin Dashboard - Reclame OMS</title>
+  <title>{$t('admin_dash.title')} - Reclame OMS</title>
 </svelte:head>
 
 {#if user}
   <div class="dashboard-container">
     <header class="dashboard-header">
-      <h1>{$t('sections.admin', 'Admin')} Dashboard</h1>
+      <h1>{$t('admin_dash.title')}</h1>
       <p class="subtitle">
-        Welcome, {user.displayName}! 
+        {user.displayName}
         <span class="role-badge">{user.roles.Admin}</span>
       </p>
     </header>
-    
+
     <div class="dashboard-grid">
       <div class="card">
-        <h2>Quick Actions</h2>
+        <h2>{$t('admin_dash.quick_actions')}</h2>
         <div class="actions">
           {#if can(user, 'Admin', 'createOrder')}
-            <a href="{base}/orders" class="action-btn">Create Order</a>
+            <a href="{base}/orders" class="action-btn">{$t('admin_dash.create_order')}</a>
           {/if}
           {#if can(user, 'Admin', 'editInventory')}
-            <a href="{base}/inventory" class="action-btn">Manage Inventory</a>
+            <a href="{base}/inventory" class="action-btn">{$t('admin_dash.manage_inventory')}</a>
           {/if}
           {#if can(user, 'Admin', 'approveChange')}
-            <a href="{base}/orders" class="action-btn">Approve Changes</a>
+            <a href="{base}/orders" class="action-btn">{$t('admin_dash.approve_changes')}</a>
           {/if}
         </div>
       </div>
-      
+
       <div class="card">
-        <h2>Section Overview</h2>
-        <p>Manage all aspects of the organization from this section.</p>
+        <h2>{$t('admin_dash.section_overview')}</h2>
+        <p>{$t('admin_dash.section_desc')}</p>
         <ul>
-          <li>Order Management</li>
-          <li>Inventory Control</li>
-          <li>User Administration</li>
-          <li>System Settings</li>
+          <li>{$t('admin_dash.order_management')}</li>
+          <li>{$t('admin_dash.inventory_control')}</li>
+          <li>{$t('admin_dash.user_admin')}</li>
+          <li>{$t('admin_dash.system_settings')}</li>
         </ul>
       </div>
-      
+
       <div class="card">
-        <h2>Your Sections</h2>
+        <h2>{$t('admin_dash.your_sections')}</h2>
         <div class="section-list">
           {#each user.sections as section}
             <a href="{base}/{section.toLowerCase()}/dashboard" class="section-link">

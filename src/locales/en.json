@@ -551,7 +551,27 @@
     "window_to": "To",
     "attendees": "Attendees",
     "location": "Location",
-    "notes": "Notes"
+    "notes": "Notes",
+    "schedule_title": "Loading Schedule",
+    "mark_loading_day": "Mark Loading Day",
+    "add_order": "Add Order to Schedule",
+    "all_orders": "All Orders",
+    "add_order_date": "Add Order to {date}",
+    "mark_loading_day_date": "Mark Loading Day — {date}",
+    "create_loading_day": "Create Loading Day",
+    "export_csv": "Export CSV",
+    "schedule_for": "Schedule for {date}",
+    "select_date": "Select a date",
+    "no_orders_date": "No orders scheduled for this date",
+    "add_more": "Add More Orders",
+    "select_date_view": "Select a date to view scheduled orders",
+    "scheduled": "Scheduled",
+    "unscheduled": "Unscheduled",
+    "client_prefix": "Client:",
+    "due_prefix": "Due:",
+    "no_unscheduled": "No unscheduled orders available",
+    "carrier_optional": "Carrier (optional)",
+    "note_optional": "Note (optional)"
   },
   "calendar_page": {
     "tooltip": "Toggle admin mode to mark loading days. Click days to view or assign orders.",
@@ -863,11 +883,28 @@
   "notifications": {
     "title": "Notifications",
     "empty": "No notifications yet.",
+    "loading": "Loading notifications…",
+    "caught_up": "You're all caught up!",
+    "no_notifs": "No notifications",
+    "mark_read": "Mark as read",
+    "dismiss": "Dismiss",
+    "clear_read": "Clear read",
+    "refresh": "Refresh",
+    "unread_count": "{count} unread",
+    "view": "View",
     "filter": {
       "station": "Station filter",
       "urgency": "Urgency",
       "all_stations": "All stations",
-      "all_urgencies": "All urgency levels"
+      "all_urgencies": "All urgency levels",
+      "all": "All",
+      "unread": "Unread",
+      "read": "Read",
+      "type_all": "All Types",
+      "orders": "Orders",
+      "messages": "Messages",
+      "system": "System",
+      "inventory": "Inventory"
     },
     "urgency": {
       "normal": "Normal",
@@ -1129,6 +1166,154 @@
       "all_stations": "All stations"
     }
   },
+  "offline": {
+    "title": "You're Offline",
+    "description": "No internet connection detected. Some features may be limited while offline.",
+    "retry": "Try Again",
+    "what_can_do": "What you can do offline:",
+    "recent_orders": "View recently accessed orders",
+    "cached_inventory": "Browse cached inventory data",
+    "cached_calendar": "View loading calendar (cached)"
+  },
+  "ailab": {
+    "title": "Reclame AI Lab",
+    "active_swarm": "Active Swarm",
+    "recent_runs": "Recent AI Runs",
+    "no_runs": "No recent runs.",
+    "cols": {
+      "time": "Time",
+      "kind": "Kind",
+      "status": "Status",
+      "model": "Model",
+      "secs": "Secs"
+    },
+    "chat": {
+      "title": "Reclame AI Chat",
+      "start_desc": "Start a conversation or select one from the left.",
+      "conversations": "Conversations",
+      "new_convo": "New conversation",
+      "loading_sessions": "Loading…",
+      "no_convos": "No conversations yet.",
+      "start_one": "Start one",
+      "loading_msgs": "Loading messages…",
+      "send_to_start": "Send a message to get started.",
+      "placeholder": "Ask Reclame AI…"
+    },
+    "knowledge": {
+      "status": {
+        "all": "All statuses",
+        "ready": "Ready",
+        "queued": "Queued",
+        "extracting": "Extracting",
+        "embedding": "Embedding",
+        "failed": "Failed"
+      },
+      "cols": {
+        "title": "Title",
+        "kind": "Kind",
+        "status": "Status",
+        "size": "Size",
+        "pages": "Pages",
+        "added": "Added"
+      },
+      "search_placeholder": "Search knowledge sources…",
+      "upload": "Upload",
+      "uploading": "Uploading…",
+      "loading": "Loading knowledge sources…",
+      "no_sources": "No knowledge sources found. Upload PDFs or documents to build the RAG index.",
+      "stats_total": "sources total",
+      "stats_ready": "ready",
+      "stats_processing": "processing",
+      "stats_failed": "failed"
+    },
+    "internal_toolset": "internal toolset",
+    "sections": {
+      "overview": "Overview",
+      "chat": "Chat",
+      "knowledge": "Knowledge",
+      "canvas": "Canvas"
+    },
+    "swarm_no_nodes": "No nodes connected to swarm.",
+    "swarm_view_all": "View all",
+    "tiles": {
+      "canvas_desc": "Wire AI nodes together on an infinite board.",
+      "orders_desc": "Manage and review production orders.",
+      "calendar_desc": "Check upcoming delivery and meeting schedules."
+    }
+  },
+  "admin_dash": {
+    "title": "Admin Dashboard",
+    "quick_actions": "Quick Actions",
+    "section_overview": "Section Overview",
+    "section_desc": "Manage all aspects of the organisation from this section.",
+    "order_management": "Order Management",
+    "inventory_control": "Inventory Control",
+    "user_admin": "User Administration",
+    "system_settings": "System Settings",
+    "your_sections": "Your Sections",
+    "create_order": "Create Order",
+    "manage_inventory": "Manage Inventory",
+    "approve_changes": "Approve Changes"
+  },
+  "logistics_dash": {
+    "title": "Logistics Dashboard",
+    "quick_actions": "Quick Actions",
+    "section_overview": "Section Overview",
+    "section_desc": "Manage logistics, shipping, and delivery coordination.",
+    "delivery_scheduling": "Delivery Scheduling",
+    "inventory_tracking": "Inventory Tracking",
+    "manifest_generation": "Manifest Generation",
+    "loading_assignments": "Loading Assignments",
+    "your_sections": "Your Sections",
+    "view_calendar": "View Calendar",
+    "update_calendar": "Update Calendar",
+    "export_manifest": "Export Manifest"
+  },
+  "admin_materials": {
+    "title": "Materials Catalog",
+    "all_categories": "All Categories",
+    "form": {
+      "category": "Category",
+      "code": "Code",
+      "name_en": "Name (English)",
+      "brand": "Brand",
+      "name_ru": "Name (Russian)",
+      "name_lv": "Name (Latvian)",
+      "thickness": "Thickness Options (mm, comma-separated)",
+      "hex_color": "Color (HEX)",
+      "color_code": "Color Code",
+      "type": "Type",
+      "transmittance": "Light Transmittance",
+      "voltage": "Voltage (V)",
+      "wattage": "Wattage (W)",
+      "color_temp": "Color Temperature",
+      "length": "Length",
+      "diameter": "Diameter",
+      "weight": "Weight",
+      "length_size": "Length / Size",
+      "pack_size": "Pack Size",
+      "width": "Width",
+      "height_length": "Height / Length",
+      "min_order": "Min Order Qty",
+      "ip_rating": "IP Rating",
+      "led_count": "LED Count",
+      "electronics_specs": "Electronics Specifications",
+      "filament_specs": "Filament/Resin Specifications",
+      "hardware_specs": "Hardware Specifications",
+      "dims_packaging": "Dimensions & Packaging"
+    },
+    "subtitle": "Manage material definitions and specifications",
+    "add_material": "Add Material",
+    "edit_material": "Edit Material",
+    "search_placeholder": "Search materials…",
+    "loading": "Loading materials…",
+    "no_materials": "No materials found",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "error_required": "Code and category are required",
+    "light_prefix": "Light:"
+  },
   "swarm": {
     "title": "Réclame Fabriek Assistant",
     "subtitle": "Intelligence & Command Router",
@@ -1163,5 +1348,18 @@
       "system_health": "Perform a systems health check: summarize the stack, infra, and potential issues.",
       "our_capabilities": "Summarize Réclame Fabriek's capabilities, past projects, and core services."
     }
+  },
+  "production_dash": {
+    "title": "Production Dashboard",
+    "quick_actions": "Quick Actions",
+    "view_orders": "View Orders",
+    "production_board": "Production Board",
+    "station_info": "Station Information",
+    "assigned_stations": "Your assigned stations:",
+    "no_stations": "No stations assigned",
+    "your_sections": "Your Sections"
+  },
+  "common": {
+    "coming_soon": "Coming soon"
   }
 }

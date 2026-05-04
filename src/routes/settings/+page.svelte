@@ -195,14 +195,14 @@
             <strong>Telegram</strong>
             <span class="muted">{$t('settings.integrations.telegram', { default: 'Notifications via Telegram bot' })}</span>
           </div>
-          <span class="status-badge">Coming soon</span>
+          <span class="status-badge">{$t('common.coming_soon')}</span>
         </div>
         <div class="integration-item">
           <div class="integration-info">
             <strong>n8n</strong>
             <span class="muted">{$t('settings.integrations.n8n', { default: 'Workflow automation' })}</span>
           </div>
-          <span class="status-badge">Coming soon</span>
+          <span class="status-badge">{$t('common.coming_soon')}</span>
         </div>
       </div>
     </section>

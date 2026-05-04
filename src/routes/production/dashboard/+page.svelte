@@ -8,49 +8,49 @@
 </script>
 
 <svelte:head>
-  <title>Production Dashboard - Reclame OMS</title>
+  <title>{$t('production_dash.title')} - Reclame OMS</title>
 </svelte:head>
 
 {#if user}
   <div class="dashboard-container">
     <header class="dashboard-header">
-      <h1>{$t('sections.production', 'Production')} Dashboard</h1>
+      <h1>{$t('production_dash.title')}</h1>
       <p class="subtitle">
-        Welcome, {user.displayName}! 
+        {user.displayName}
         <span class="role-badge">{user.roles.Production}</span>
       </p>
     </header>
-    
+
     <div class="dashboard-grid">
       <div class="card">
-        <h2>Quick Actions</h2>
+        <h2>{$t('production_dash.quick_actions')}</h2>
         <div class="actions">
           {#if can(user, 'Production', 'viewOrders')}
-            <a href="{base}/orders" class="action-btn">View Orders</a>
+            <a href="{base}/orders" class="action-btn">{$t('production_dash.view_orders')}</a>
           {/if}
           {#if can(user, 'Production', 'updateOrder')}
-            <a href="{base}/kanban" class="action-btn">Production Board</a>
+            <a href="{base}/kanban" class="action-btn">{$t('production_dash.production_board')}</a>
           {/if}
-          <a href="{base}/calendar" class="action-btn">Calendar</a>
+          <a href="{base}/calendar" class="action-btn">{$t('nav.calendar')}</a>
         </div>
       </div>
-      
+
       <div class="card">
-        <h2>Station Information</h2>
+        <h2>{$t('production_dash.station_info')}</h2>
         {#if user.stations && user.stations.length > 0}
-          <p>Your assigned stations:</p>
+          <p>{$t('production_dash.assigned_stations')}</p>
           <div class="station-list">
             {#each user.stations as station}
               <span class="station-badge">{station}</span>
             {/each}
           </div>
         {:else}
-          <p>No stations assigned</p>
+          <p>{$t('production_dash.no_stations')}</p>
         {/if}
       </div>
-      
+
       <div class="card">
-        <h2>Your Sections</h2>
+        <h2>{$t('production_dash.your_sections')}</h2>
         <div class="section-list">
           {#each user.sections as section}
             <a href="{base}/{section.toLowerCase()}/dashboard" class="section-link">

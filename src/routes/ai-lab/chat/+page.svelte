@@ -5,6 +5,7 @@
    */
   import { onMount } from 'svelte';
   import Icon from '$lib/ui/Icon.svelte';
+  import { t } from 'svelte-i18n';
 
   type Session = {
     id: string;
@@ -157,18 +158,18 @@
   <!-- Sidebar: sessions -->
   <aside class="sessions-panel">
     <div class="sessions-header">
-      <span class="sessions-title">Conversations</span>
-      <button class="icon-btn" onclick={createSession} title="New conversation">
+      <span class="sessions-title">{$t('ailab.chat.conversations')}</span>
+      <button class="icon-btn" onclick={createSession} title={$t('ailab.chat.new_convo')}>
         <Icon name="plus" size="sm" />
       </button>
     </div>
 
     {#if sessionsLoading}
-      <div class="empty-state">Loading…</div>
+      <div class="empty-state">{$t('ailab.chat.loading_sessions')}</div>
     {:else if sessions.length === 0}
       <div class="empty-state">
-        <p>No conversations yet.</p>
-        <button class="btn-create" onclick={createSession}>Start one</button>
+        <p>{$t('ailab.chat.no_convos')}</p>
+        <button class="btn-create" onclick={createSession}>{$t('ailab.chat.start_one')}</button>
       </div>
     {:else}
       <div class="session-list">
@@ -193,9 +194,9 @@
     {#if !activeSession}
       <div class="empty-chat">
         <Icon name="message-square" size="md" />
-        <h3>Reclame AI Chat</h3>
-        <p>Start a conversation or select one from the left.</p>
-        <button class="btn-create" onclick={createSession}>New conversation</button>
+        <h3>{$t('ailab.chat.title')}</h3>
+        <p>{$t('ailab.chat.start_desc')}</p>
+        <button class="btn-create" onclick={createSession}>{$t('ailab.chat.new_convo')}</button>
       </div>
     {:else}
       <header class="chat-header">
@@ -213,9 +214,9 @@
 
       <div class="messages" bind:this={scroller}>
         {#if loading}
-          <div class="empty-state">Loading messages…</div>
+          <div class="empty-state">{$t('ailab.chat.loading_msgs')}</div>
         {:else if messages.length === 0}
-          <div class="empty-state">Send a message to get started.</div>
+          <div class="empty-state">{$t('ailab.chat.send_to_start')}</div>
         {:else}
           {#each messages as msg (msg.id)}
             <div class="msg" class:user={msg.role === 'user'} class:assistant={msg.role === 'assistant'}>
@@ -244,7 +245,7 @@
       <div class="input-area">
         <textarea
           bind:value={input}
-          placeholder="Ask Reclame AI…"
+          placeholder={$t('ailab.chat.placeholder')}
           rows={3}
           disabled={sendLoading}
           onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}

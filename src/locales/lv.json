@@ -551,7 +551,27 @@
     "over_capacity": "Pārsniegta kapacitāte",
     "near_capacity": "Tuvu kapacitātei",
     "capacity_label": "Kapacitāte",
-    "orders_assigned": "piešķirti pasūtījumi"
+    "orders_assigned": "piešķirti pasūtījumi",
+    "schedule_title": "Iekraušanas grafiks",
+    "mark_loading_day": "Atzīmēt iekraušanas dienu",
+    "add_order": "Pievienot pasūtījumu grafikam",
+    "all_orders": "Visi pasūtījumi",
+    "add_order_date": "Pievienot pasūtījumu {date}",
+    "mark_loading_day_date": "Atzīmēt iekraušanas dienu — {date}",
+    "create_loading_day": "Izveidot iekraušanas dienu",
+    "export_csv": "Eksportēt CSV",
+    "schedule_for": "Grafiks {date}",
+    "select_date": "Izvēlieties datumu",
+    "no_orders_date": "Nav pasūtījumu šajā datumā",
+    "add_more": "Pievienot vairāk pasūtījumu",
+    "select_date_view": "Izvēlieties datumu, lai skatītu pasūtījumus",
+    "scheduled": "Ieplānoti",
+    "unscheduled": "Neieplānoti",
+    "client_prefix": "Klients:",
+    "due_prefix": "Termiņš:",
+    "no_unscheduled": "Nav neieplānotu pasūtījumu",
+    "carrier_optional": "Pārvadātājs (pēc izvēles)",
+    "note_optional": "Piezīme (pēc izvēles)"
   },
   "calendar_page": {
     "tooltip": "Pārslēdziet administratora režīmu, lai atzīmētu iekraušanas dienas. Noklikšķiniet uz dienām, lai apskatītu vai piesaistītu pasūtījumus.",
@@ -863,11 +883,28 @@
   "notifications": {
     "title": "Paziņojumi",
     "empty": "Pagaidām paziņojumu nav.",
+    "loading": "Ielādē paziņojumus…",
+    "caught_up": "Viss izlasīts!",
+    "no_notifs": "Nav paziņojumu",
+    "mark_read": "Atzīmēt kā izlasītu",
+    "dismiss": "Aizvērt",
+    "clear_read": "Dzēst izlasītos",
+    "refresh": "Atjaunināt",
+    "unread_count": "{count} nelasīti",
+    "view": "Apskatīt",
     "filter": {
       "station": "Filtrēt pēc stacijas",
       "urgency": "Steidzamība",
       "all_stations": "Visas stacijas",
-      "all_urgencies": "Visi steidzamības līmeņi"
+      "all_urgencies": "Visi steidzamības līmeņi",
+      "all": "Visi",
+      "unread": "Nelasīti",
+      "read": "Izlasīti",
+      "type_all": "Visi veidi",
+      "orders": "Pasūtījumi",
+      "messages": "Ziņojumi",
+      "system": "Sistēma",
+      "inventory": "Krājumi"
     },
     "urgency": {
       "normal": "Parasta",
@@ -1129,6 +1166,154 @@
       "all_stations": "Visas stacijas"
     }
   },
+  "offline": {
+    "title": "Jūs esat bezsaistē",
+    "description": "Nav interneta savienojuma. Daži funkcionalitātes aspekti var nebūt pieejami bezsaistē.",
+    "retry": "Mēģināt vēlreiz",
+    "what_can_do": "Ko var darīt bezsaistē:",
+    "recent_orders": "Skatīt nesenā veidā piekļūtos pasūtījumus",
+    "cached_inventory": "Pārlūkot kešotus krājumu datus",
+    "cached_calendar": "Skatīt iekraušanas kalendāru (kešots)"
+  },
+  "ailab": {
+    "title": "Reclame MI Laboratorija",
+    "active_swarm": "Aktīvais rūķis",
+    "recent_runs": "Nesenās MI darbības",
+    "no_runs": "Nav nesenās darbības.",
+    "cols": {
+      "time": "Laiks",
+      "kind": "Veids",
+      "status": "Statuss",
+      "model": "Modelis",
+      "secs": "Sekundes"
+    },
+    "chat": {
+      "title": "Reclame MI Čats",
+      "start_desc": "Sāciet sarunu vai izvēlieties to no kreisās puses.",
+      "conversations": "Sarunas",
+      "new_convo": "Jauna saruna",
+      "loading_sessions": "Ielādē…",
+      "no_convos": "Sarunu vēl nav.",
+      "start_one": "Sākt",
+      "loading_msgs": "Ielādē ziņojumus…",
+      "send_to_start": "Nosūtiet ziņojumu, lai sāktu.",
+      "placeholder": "Jautājiet Reclame AI…"
+    },
+    "knowledge": {
+      "status": {
+        "all": "Visi statusi",
+        "ready": "Gatavs",
+        "queued": "Rindā",
+        "extracting": "Izvelk",
+        "embedding": "Veido ieguldījumu",
+        "failed": "Neizdevās"
+      },
+      "cols": {
+        "title": "Nosaukums",
+        "kind": "Veids",
+        "status": "Statuss",
+        "size": "Izmērs",
+        "pages": "Lapas",
+        "added": "Pievienots"
+      },
+      "search_placeholder": "Meklēt zināšanu avotus…",
+      "upload": "Augšupielādēt",
+      "uploading": "Augšupielādē…",
+      "loading": "Ielādē zināšanu avotus…",
+      "no_sources": "Zināšanu avoti nav atrasti. Augšupielādējiet PDF vai dokumentus, lai veidotu RAG indeksu.",
+      "stats_total": "avoti kopā",
+      "stats_ready": "gatavi",
+      "stats_processing": "apstrādā",
+      "stats_failed": "kļūda"
+    },
+    "internal_toolset": "iekšējais rīku komplekts",
+    "sections": {
+      "overview": "Pārskats",
+      "chat": "Čats",
+      "knowledge": "Zināšanas",
+      "canvas": "Kanva"
+    },
+    "swarm_no_nodes": "Nav pievienotu mezglu.",
+    "swarm_view_all": "Skatīt visus",
+    "tiles": {
+      "canvas_desc": "Savienojiet AI mezglus uz bezgalīgas tāfeles.",
+      "orders_desc": "Pārvaldiet un pārskatiet ražošanas pasūtījumus.",
+      "calendar_desc": "Pārbaudiet piegādes un sanāksmju grafiku."
+    }
+  },
+  "admin_dash": {
+    "title": "Administratora panelis",
+    "quick_actions": "Ātrās darbības",
+    "section_overview": "Nodaļu pārskats",
+    "section_desc": "Pārvaldiet visus organizācijas aspektus no šīs sadaļas.",
+    "order_management": "Pasūtījumu pārvaldība",
+    "inventory_control": "Krājumu kontrole",
+    "user_admin": "Lietotāju administrēšana",
+    "system_settings": "Sistēmas iestatījumi",
+    "your_sections": "Jūsu nodaļas",
+    "create_order": "Izveidot pasūtījumu",
+    "manage_inventory": "Pārvaldīt krājumus",
+    "approve_changes": "Apstiprināt izmaiņas"
+  },
+  "logistics_dash": {
+    "title": "Loģistikas panelis",
+    "quick_actions": "Ātrās darbības",
+    "section_overview": "Nodaļu pārskats",
+    "section_desc": "Pārvaldiet loģistiku, piegādes un piegādes koordināciju.",
+    "delivery_scheduling": "Piegādes plānošana",
+    "inventory_tracking": "Krājumu izsekošana",
+    "manifest_generation": "Manifesta ģenerēšana",
+    "loading_assignments": "Iekraušanas piešķīrumi",
+    "your_sections": "Jūsu nodaļas",
+    "view_calendar": "Skatīt kalendāru",
+    "update_calendar": "Atjaunināt kalendāru",
+    "export_manifest": "Eksportēt manifestu"
+  },
+  "admin_materials": {
+    "title": "Materiālu katalogs",
+    "all_categories": "Visas kategorijas",
+    "form": {
+      "category": "Kategorija",
+      "code": "Kods",
+      "name_en": "Nosaukums (angliski)",
+      "brand": "Zīmols",
+      "name_ru": "Nosaukums (krieviski)",
+      "name_lv": "Nosaukums (latviski)",
+      "thickness": "Biezuma varianti (mm, atdalīti ar komatu)",
+      "hex_color": "Krāsa (HEX)",
+      "color_code": "Krāsas kods",
+      "type": "Tips",
+      "transmittance": "Gaismas caurspīdīgums",
+      "voltage": "Spriegums (V)",
+      "wattage": "Jauda (W)",
+      "color_temp": "Krāsas temperatūra",
+      "length": "Garums",
+      "diameter": "Diametrs",
+      "weight": "Svars",
+      "length_size": "Garums / Izmērs",
+      "pack_size": "Iepakojuma izmērs",
+      "width": "Platums",
+      "height_length": "Augstums / Garums",
+      "min_order": "Min. pasūtījuma daudzums",
+      "ip_rating": "IP aizsardzības klase",
+      "led_count": "LED skaits",
+      "electronics_specs": "Elektronikas specifikācijas",
+      "filament_specs": "Filaments/sveķa specifikācijas",
+      "hardware_specs": "Furnitūras specifikācijas",
+      "dims_packaging": "Izmēri un iepakojums"
+    },
+    "subtitle": "Pārvaldīt materiālu definīcijas un specifikācijas",
+    "add_material": "Pievienot materiālu",
+    "edit_material": "Rediģēt materiālu",
+    "search_placeholder": "Meklēt materiālus…",
+    "loading": "Ielādē materiālus…",
+    "no_materials": "Materiāli nav atrasti",
+    "save": "Saglabāt",
+    "saving": "Saglabā…",
+    "cancel": "Atcelt",
+    "error_required": "Kods un kategorija ir obligāti",
+    "light_prefix": "Gaisma:"
+  },
   "swarm": {
     "title": "Réclame Fabriek Asistents",
     "subtitle": "Intelekta un vadības maršrutētājs",
@@ -1163,5 +1348,18 @@
       "system_health": "Veiciet sistēmas veselības pārbaudi: apkopojiet steku, infrastruktūru un iespējamās problēmas. (Atbildi latviski)",
       "our_capabilities": "Apkopojiet Réclame Fabriek iespējas, iepriekšējos projektus un pamatpakalpojumus. (Atbildi latviski)"
     }
+  },
+  "production_dash": {
+    "title": "Ražošanas panelis",
+    "quick_actions": "Ātrās darbības",
+    "view_orders": "Skatīt pasūtījumus",
+    "production_board": "Ražošanas tāfele",
+    "station_info": "Stacijas informācija",
+    "assigned_stations": "Jūsu piešķirtās stacijas:",
+    "no_stations": "Stacijas nav piešķirtas",
+    "your_sections": "Jūsu sadaļas"
+  },
+  "common": {
+    "coming_soon": "Drīzumā"
   }
 }
