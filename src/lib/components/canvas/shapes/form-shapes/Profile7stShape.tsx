@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { getOrderBridge } from '../../state-bridge';
 
 export type Profile7stData = {
     profileName: string;
@@ -91,8 +92,7 @@ export class Profile7stShapeUtil extends BaseBoxShapeUtil<Profile7stShape> {
                 type: 'profile-7st',
                 props: { ...shape.props, data: newData },
             });
-            const cb = (window as any).__omsProfileChange;
-            if (typeof cb === 'function') cb(shape.props.orderId, profileIndex, newData);
+            getOrderBridge(this.editor)?.onProfileChange?.(shape.props.orderId, profileIndex, newData);
         }, [shape, d]);
 
         const stopProp = (e: React.PointerEvent) => e.stopPropagation();

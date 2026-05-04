@@ -10,6 +10,7 @@ import { OrderDetailsShapeUtil } from './shapes/form-shapes/OrderDetailsShape';
 import { OrderAddressShapeUtil } from './shapes/form-shapes/OrderAddressShape';
 import { Profile7stShapeUtil } from './shapes/form-shapes/Profile7stShape';
 import { spawnDraftOrderTemplate, syncOrderDataToCanvas, type OrderSeed, type SpawnedShapes } from './templates/DraftOrderTemplate';
+import { setOrderBridge, clearOrderBridge } from './state-bridge';
 
 const customShapeUtils = [
     MakerShapeUtil,
@@ -49,18 +50,13 @@ export function CanvasApp({
     const editorRef = useRef<Editor | null>(null);
     const seedRef = useRef<OrderSeed | null>(orderSeed ?? null);
 
-    // Wire Svelte callbacks into window globals so shape components can call them
+    // Wire Svelte callbacks into the editor-scoped bridge (replaces window globals,
+    // so multiple canvases / HMR cannot collide).
     useEffect(() => {
-        if (onOrderChange) {
-            (window as any).__omsOrderChange = onOrderChange;
-        }
-        if (onProfileChange) {
-            (window as any).__omsProfileChange = onProfileChange;
-        }
-        return () => {
-            delete (window as any).__omsOrderChange;
-            delete (window as any).__omsProfileChange;
-        };
+        const editor = editorRef.current;
+        if (!editor) return;
+        setOrderBridge(editor, { onOrderChange, onProfileChange });
+        return () => clearOrderBridge(editor);
     }, [onOrderChange, onProfileChange]);
 
     // Sync updated seed data into canvas without re-spawning
@@ -73,6 +69,9 @@ export function CanvasApp({
 
     const handleMount = (editor: Editor) => {
         editorRef.current = editor;
+
+        // Register the bridge immediately so any shape created during spawn can fire callbacks
+        setOrderBridge(editor, { onOrderChange, onProfileChange });
 
         if (onEditorReady) onEditorReady(editor);
 
