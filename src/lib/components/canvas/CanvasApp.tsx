@@ -11,6 +11,7 @@ import { OrderAddressShapeUtil } from './shapes/form-shapes/OrderAddressShape';
 import { Profile7stShapeUtil } from './shapes/form-shapes/Profile7stShape';
 import { spawnDraftOrderTemplate, syncOrderDataToCanvas, type OrderSeed, type SpawnedShapes } from './templates/DraftOrderTemplate';
 import { setOrderBridge, clearOrderBridge } from './state-bridge';
+import { wireAssetDropHandler } from './asset-uploader';
 
 const customShapeUtils = [
     MakerShapeUtil,
@@ -33,6 +34,8 @@ export interface CanvasAppProps {
     onOrderChange?: (orderId: string, patch: Partial<OrderSeed>) => void;
     /** Called when a profile shape changes */
     onProfileChange?: (orderId: string, profileIndex: number, profileData: any) => void;
+    /** Called when a file has been uploaded and rendered on the canvas */
+    onAssetUploaded?: (orderId: string, asset: { url: string; fileName: string; kind: string }) => void;
     /** If true, hides the default tldraw UI chrome */
     hideUI?: boolean;
 }
@@ -44,20 +47,28 @@ export function CanvasApp({
     orderSeed,
     onOrderChange,
     onProfileChange,
+    onAssetUploaded,
     hideUI = false,
 }: CanvasAppProps) {
     const spawnedRef = useRef<SpawnedShapes | null>(null);
     const editorRef = useRef<Editor | null>(null);
     const seedRef = useRef<OrderSeed | null>(orderSeed ?? null);
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const dropCleanupRef = useRef<(() => void) | null>(null);
+
+    // Keep seedRef current so the drop handler can read the latest orderId
+    useEffect(() => {
+        seedRef.current = orderSeed ?? null;
+    }, [orderSeed]);
 
     // Wire Svelte callbacks into the editor-scoped bridge (replaces window globals,
     // so multiple canvases / HMR cannot collide).
     useEffect(() => {
         const editor = editorRef.current;
         if (!editor) return;
-        setOrderBridge(editor, { onOrderChange, onProfileChange });
+        setOrderBridge(editor, { onOrderChange, onProfileChange, onAssetUploaded });
         return () => clearOrderBridge(editor);
-    }, [onOrderChange, onProfileChange]);
+    }, [onOrderChange, onProfileChange, onAssetUploaded]);
 
     // Sync updated seed data into canvas without re-spawning
     useEffect(() => {
@@ -71,7 +82,7 @@ export function CanvasApp({
         editorRef.current = editor;
 
         // Register the bridge immediately so any shape created during spawn can fire callbacks
-        setOrderBridge(editor, { onOrderChange, onProfileChange });
+        setOrderBridge(editor, { onOrderChange, onProfileChange, onAssetUploaded });
 
         if (onEditorReady) onEditorReady(editor);
 
@@ -83,6 +94,16 @@ export function CanvasApp({
             { scope: 'document' }
         );
 
+        // Wire native drag-drop on the canvas container to auto-upload files
+        if (containerRef.current) {
+            dropCleanupRef.current?.();
+            dropCleanupRef.current = wireAssetDropHandler(
+                containerRef.current,
+                editor,
+                () => seedRef.current?.orderId ?? null,
+            );
+        }
+
         // Spawn the draft order template if a seed is provided and we haven't already
         const seed = seedRef.current;
         if (seed && !initialSnapshot && !spawnedRef.current) {
@@ -93,8 +114,12 @@ export function CanvasApp({
         }
     };
 
+    useEffect(() => () => {
+        dropCleanupRef.current?.();
+    }, []);
+
     return (
-        <div style={{ width: '100%', height: '100%' }}>
+        <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
             <Tldraw
                 snapshot={initialSnapshot as any}
                 shapeUtils={customShapeUtils}

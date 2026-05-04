@@ -157,6 +157,11 @@
     canvasDirty = true;
   }
 
+  function handleAssetUploaded(oid: string, asset: { url: string; fileName: string; kind: string }) {
+    canvasDirty = true;
+    notifySuccess(`Uploaded ${asset.fileName}`);
+  }
+
   // ── Save draft ────────────────────────────────────────────────────────────────
   async function saveDraft() {
     if (!clientName.trim()) { notifyError('Client name is required'); return; }
@@ -412,6 +417,7 @@
             onSave={handleCanvasSave}
             onOrderChange={handleOrderChange}
             onProfileChange={handleProfileChange}
+            onAssetUploaded={handleAssetUploaded}
             hideUI={false}
           />
         {/await}

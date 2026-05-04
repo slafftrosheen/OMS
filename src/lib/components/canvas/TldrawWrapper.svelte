@@ -12,6 +12,8 @@
     onOrderChange?: (orderId: string, patch: Partial<OrderSeed>) => void;
     /** Called when a profile-7st field changes on canvas */
     onProfileChange?: (orderId: string, profileIndex: number, profileData: any) => void;
+    /** Called when a file has been uploaded via drag-drop and rendered on the canvas */
+    onAssetUploaded?: (orderId: string, asset: { url: string; fileName: string; kind: string }) => void;
     /** Pass true to hide the default tldraw UI chrome */
     hideUI?: boolean;
   }
@@ -23,6 +25,7 @@
     orderSeed = null,
     onOrderChange = undefined,
     onProfileChange = undefined,
+    onAssetUploaded = undefined,
     hideUI = false,
   }: Props = $props();
 
@@ -53,6 +56,7 @@
             orderSeed,
             onOrderChange,
             onProfileChange,
+            onAssetUploaded,
             hideUI,
           })
         );
