@@ -2,6 +2,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { goto } from "$app/navigation";
+    import { t } from "svelte-i18n";
     import StationBoard from "$lib/components/production/StationBoard.svelte";
     import QRScanner from "$lib/components/qr/QRScanner.svelte";
     import Button from "$lib/components/ui/Button.svelte";
@@ -88,29 +89,29 @@
 </script>
 
 <svelte:head>
-    <title>Production Board - OMS</title>
+    <title>{$t('production.title')} — OMS</title>
 </svelte:head>
 
 <div class="production-container">
     <header class="production-header">
         <div>
-            <h1 class="page-title">Production Board</h1>
-            <p class="page-subtitle">Real-time production workflow</p>
+            <h1 class="page-title">{$t('production.title')}</h1>
+            <p class="page-subtitle">{$t('production.subtitle')}</p>
         </div>
         <div class="header-actions">
             <Button variant="outline" onclick={() => (showScanner = true)}>
-                📱 Scan QR
+                {$t('stationView.scan_qr')}
             </Button>
             <Button variant="primary" onclick={loadProductionData}>
-                🔄 Refresh
+                {$t('common.refresh')}
             </Button>
         </div>
     </header>
 
     {#if loading}
         <div class="loading-state">
-            <div class="spinner"></div>
-            <p>Loading production board...</p>
+            <div class="rf-spinner"></div>
+            <p>{$t('production.loading', { default: 'Loading production board…' })}</p>
         </div>
     {:else}
         <div class="stations-grid">
@@ -171,21 +172,6 @@
         justify-content: center;
         flex: 1;
         gap: 1rem;
-    }
-
-    .spinner {
-        width: 3rem;
-        height: 3rem;
-        border: 4px solid var(--color-gray-200, var(--border));
-        border-top-color: var(--color-primary, var(--brand));
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
     }
 
     .stations-grid {

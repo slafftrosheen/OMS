@@ -105,8 +105,8 @@
           {/if}
           <div class="info-title">
             {#if editMode}
-              <input class="edit-input title-input" bind:value={editedMaterial.name_en} placeholder="Material name" />
-              <input class="edit-input sku-input" bind:value={editedMaterial.sku} placeholder="SKU" />
+              <input class="edit-input title-input" bind:value={editedMaterial.name_en} placeholder={$t('inventoryDetail.material_name')} />
+              <input class="edit-input sku-input" bind:value={editedMaterial.sku} placeholder={$t('common.sku')} />
             {:else}
               <h1>{material.name_en}</h1>
               <span class="sku">{material.sku}</span>
@@ -184,9 +184,9 @@
                 <Plus size={16} />
               </button>
             </div>
-            <input 
-              type="text" 
-              placeholder="Note (optional)" 
+            <input
+              type="text"
+              placeholder={$t('common.note_optional')}
               bind:value={adjustNote}
               class="note-input"
             />
@@ -211,25 +211,25 @@
           <div class="details-grid">
             {#if material.supplier}
               <div class="detail-material">
-                <span class="detail-label">Supplier</span>
+                <span class="detail-label">{$t('inventoryDetail.supplier')}</span>
                 <span class="detail-value">{material.supplier}</span>
               </div>
             {/if}
             {#if material.price}
               <div class="detail-material">
-                <span class="detail-label">Price</span>
+                <span class="detail-label">{$t('inventoryDetail.price')}</span>
                 <span class="detail-value">€{material.price.toFixed(2)}</span>
               </div>
             {/if}
             {#if material.barcode}
               <div class="detail-material">
-                <span class="detail-label">Barcode</span>
+                <span class="detail-label">{$t('inventoryDetail.barcode')}</span>
                 <span class="detail-value mono">{material.barcode}</span>
               </div>
             {/if}
             {#if material.thickness_mm}
               <div class="detail-material">
-                <span class="detail-label">Thickness</span>
+                <span class="detail-label">{$t('inventoryDetail.thickness')}</span>
                 <span class="detail-value">{material.thickness_mm} mm</span>
               </div>
             {/if}
@@ -239,8 +239,8 @@
     </div>
   {:else}
     <div class="loading-state">
-      <div class="spinner"></div>
-      <p>Loading material...</p>
+      <div class="rf-spinner"></div>
+      <p>{$t('inventoryDetail.loading', { default: 'Loading material…' })}</p>
     </div>
   {/if}
 </div>

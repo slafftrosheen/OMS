@@ -61,7 +61,7 @@
 
 <style>
     .card {
-        background: white;
+        background: var(--bg-1);
         border: 1px solid var(--color-border, var(--border));
         border-radius: 0.5rem;
         box-shadow: 0 1px 2px 0 color-mix(in oklab, var(--bg-0) 5%, transparent);

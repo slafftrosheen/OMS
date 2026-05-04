@@ -3,16 +3,18 @@
   import { notices } from '$lib/notify/bus';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
+  import { base } from '$app/paths';
   import { notificationStore } from '$lib/stores/notifications';
   import { currentUser } from '$lib/auth/authState.svelte';
 
   let open = $state(false);
   let btn: HTMLButtonElement | undefined = $state();
+  let root: HTMLDivElement | undefined = $state();
 
   let noticesList = $derived($notices);
   let storeState = $derived($notificationStore);
 
-  // Ephemeral notices + unread DB notifications merged for display
+  // Ephemeral notices + DB notifications merged for display
   let allItems = $derived([
     ...noticesList.map((n: any) => ({ ephemeral: true, text: n.text, kind: n.kind, time: n.time, read: false, id: null })),
     ...storeState.items.map(n => ({
@@ -32,6 +34,12 @@
     if (e.key === 'Escape') { open = false; btn?.focus(); }
   }
 
+  function onDocClick(e: MouseEvent) {
+    if (!open || !root) return;
+    if (root.contains(e.target as Node)) return;
+    open = false;
+  }
+
   async function handleItemClick(item: any) {
     if (!item.ephemeral && item.id && !item.read) {
       await notificationStore.markAsRead(item.id);
@@ -43,23 +51,41 @@
     if (userId) await notificationStore.markAllAsRead(userId);
   }
 
+  function formatRelative(ts: string | number) {
+    const d = new Date(ts).getTime();
+    const now = Date.now();
+    const diffSec = Math.floor((now - d) / 1000);
+    if (diffSec < 60)        return $t('notifications.time.just_now', { default: 'just now' });
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60)        return `${diffMin}m`;
+    const diffHr  = Math.floor(diffMin / 60);
+    if (diffHr  < 24)        return `${diffHr}h`;
+    const diffD   = Math.floor(diffHr / 24);
+    if (diffD   < 7)         return `${diffD}d`;
+    return new Date(ts).toLocaleDateString();
+  }
+
   onMount(() => {
     const userId = $currentUser?.id;
     if (!userId) return;
     notificationStore.load(userId);
     const unsubscribe = notificationStore.subscribe_realtime(userId);
-    return unsubscribe;
+    document.addEventListener('click', onDocClick, true);
+    return () => {
+      document.removeEventListener('click', onDocClick, true);
+      unsubscribe?.();
+    };
   });
 </script>
 
-<div class="rf-notif">
+<div class="rf-notif" bind:this={root}>
   <button
     bind:this={btn}
     class="rf-notif__trigger"
     type="button"
     aria-haspopup="menu"
     aria-expanded={open}
-    aria-label="{$t('notifications.title', { default: 'Notifications' })}{count ? ` (${count})` : ''}"
+    aria-label="{$t('notifications.title')}{count ? ` (${count})` : ''}"
     onclick={() => open = !open}
   >
     <Icon name="bell" size="md" />
@@ -77,37 +103,49 @@
       onkeydown={onKey}
     >
       <div class="rf-notif__header">
-        <span class="rf-notif__title">{$t('notifications.title', { default: 'Notifications' })}</span>
+        <span class="rf-notif__title">{$t('notifications.title')}</span>
         <div class="rf-notif__header-actions">
-          {#if count}
-            <span class="rf-notif__count">{count}</span>
+          {#if storeState.unreadCount}
+            <span class="rf-notif__count" aria-label="{storeState.unreadCount} {$t('notifications.filter.unread')}">
+              {storeState.unreadCount}
+            </span>
             <button class="rf-notif__mark-all" type="button" onclick={markAllRead}>
-              {$t('notifications.mark_all_read', { default: 'Mark all read' })}
+              {$t('notifications.mark_all_read')}
             </button>
           {/if}
         </div>
       </div>
 
       {#if allItems.length === 0}
-        <div class="rf-notif__empty">{$t('notifications.empty', { default: 'No notifications yet.' })}</div>
+        <div class="rf-notif__empty">
+          <Icon name="bell" size="lg" />
+          <span>{$t('notifications.empty', { default: 'No notifications yet.' })}</span>
+        </div>
       {:else}
-        {#each allItems as item}
-          <button
-            role="menuitem"
-            class="rf-notif__item"
-            class:unread={!item.read}
-            type="button"
-            onclick={() => handleItemClick(item)}
-          >
-            <span class="rf-notif__item-text" data-kind={item.kind}>{item.text}</span>
-            {#if item.time}
-              <span class="rf-notif__item-time">
-                {new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            {/if}
-          </button>
-        {/each}
+        <div class="rf-notif__list">
+          {#each allItems.slice(0, 8) as item}
+            <button
+              role="menuitem"
+              class="rf-notif__item"
+              class:unread={!item.read}
+              type="button"
+              onclick={() => handleItemClick(item)}
+            >
+              <span class="rf-notif__item-dot" data-kind={item.kind} aria-hidden="true"></span>
+              <span class="rf-notif__item-text">{item.text}</span>
+              {#if item.time}
+                <span class="rf-notif__item-time">{formatRelative(item.time)}</span>
+              {/if}
+            </button>
+          {/each}
+        </div>
       {/if}
+
+      <div class="rf-notif__footer">
+        <a class="rf-notif__view-all" href="{base}/notifications" onclick={() => open = false}>
+          {$t('notifications.view_all', { default: 'View all' })}
+        </a>
+      </div>
     </div>
   {/if}
 </div>
@@ -224,19 +262,33 @@
   .rf-notif__mark-all:hover { text-decoration: underline; transform: none; filter: none; }
 
   .rf-notif__empty {
-    padding: var(--space-lg) var(--space-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-2xl) var(--space-sm);
     text-align: center;
     color: var(--ink-tertiary);
     font-size: var(--text-sm);
+    opacity: 0.85;
+  }
+  .rf-notif__empty :global(svg) {
+    opacity: 0.4;
+  }
+
+  .rf-notif__list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .rf-notif__item {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 8px 1fr auto;
+    align-items: center;
     gap: var(--space-sm);
     width: 100%;
-    padding: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
     border-radius: var(--radius-sm);
     border: none;
     background: transparent;
@@ -251,16 +303,53 @@
   .rf-notif__item.unread { background: color-mix(in oklab, var(--brand) 6%, transparent); }
   .rf-notif__item.unread:hover { background: color-mix(in oklab, var(--brand) 12%, transparent); }
 
+  .rf-notif__item-dot {
+    width: 8px; height: 8px;
+    border-radius: var(--radius-full);
+    background: var(--ink-3);
+    align-self: center;
+    flex-shrink: 0;
+  }
+  .rf-notif__item.unread .rf-notif__item-dot { background: var(--brand); box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 22%, transparent); }
+  .rf-notif__item-dot[data-kind="ASSIGNMENT"],
+  .rf-notif__item-dot[data-kind="STAGE_CHANGE"] { background: var(--brand); }
+  .rf-notif__item-dot[data-kind="REWORK"],
+  .rf-notif__item-dot[data-kind="WARNING"] { background: var(--warn); }
+  .rf-notif__item-dot[data-kind="ERROR"] { background: var(--error); }
+  .rf-notif__item-dot[data-kind="SUCCESS"] { background: var(--ok); }
+
   .rf-notif__item-text {
     font-size: var(--text-sm);
     color: var(--ink-secondary);
-    flex: 1;
     line-height: var(--leading-snug);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
+  .rf-notif__item.unread .rf-notif__item-text { color: var(--ink-primary); font-weight: 500; }
   .rf-notif__item-time {
     font-size: var(--text-xs);
     color: var(--ink-tertiary);
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
   }
+
+  .rf-notif__footer {
+    margin-top: var(--space-xs);
+    padding: var(--space-xs);
+    border-top: 1px solid var(--divider);
+    text-align: center;
+  }
+  .rf-notif__view-all {
+    display: inline-block;
+    padding: var(--space-xs) var(--space-md);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--brand);
+    text-decoration: none;
+    transition: background var(--motion-sm) var(--ease-standard);
+  }
+  .rf-notif__view-all:hover { background: var(--brand-soft); }
+  .rf-notif__view-all:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 </style>

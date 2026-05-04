@@ -36,17 +36,18 @@
 
   <!-- Right cluster: actions -->
   <div class="rf-bottombar__cluster rf-bottombar__cluster--right">
-    <div class="rf-bottombar__item" title={$t('layout.realtime', { default: 'Realtime connection' })}>
+    <div class="rf-bottombar__item" title={$t('bottombar.realtime')}>
       <RealtimeConnection />
     </div>
-    <div class="rf-bottombar__item" title={$t('ui.notifications', { default: 'Notifications' })}>
+    <div class="rf-bottombar__item" title={$t('bottombar.notifications')}>
       <NotificationsBell />
     </div>
     <button
       class="rf-bottombar__item rf-bottombar__chat"
       class:active={$isChatOpen}
-      title={$t('ui.chat', { default: 'Chat' })}
+      title={$t('bottombar.chat')}
       type="button"
+      aria-label={$t('bottombar.chat')}
       onclick={toggleChat}
     >
       <div class="rf-bottombar__chat-icon">
@@ -61,8 +62,8 @@
     <a
       href="{base}/settings"
       class="rf-bottombar__item rf-bottombar__settings"
-      title={$t('nav.settings', { default: 'Settings' })}
-      aria-label={$t('nav.settings', { default: 'Settings' })}
+      title={$t('bottombar.settings')}
+      aria-label={$t('bottombar.settings')}
     >
       <Icon name="settings" size="md" />
     </a>
@@ -76,20 +77,22 @@
     left: 0;
     right: 0;
     bottom: 0;
-    height: var(--bottombar-h, 44px);
+    height: var(--bottombar-h, 52px);
     display: none;
     align-items: center;
     justify-content: space-between;
     padding:
       0
-      max(var(--space-md), env(safe-area-inset-right, 0px))
+      max(var(--space-lg), env(safe-area-inset-right, 0px))
       0
-      max(var(--space-md), env(safe-area-inset-left, 0px));
+      max(var(--space-lg), env(safe-area-inset-left, 0px));
     background: var(--glass-bg-strong);
     backdrop-filter: var(--glass-material-regular);
     -webkit-backdrop-filter: var(--glass-material-regular);
     border-top: 1px solid var(--separator-opaque, var(--divider));
+    box-shadow: var(--glass-border-highlight), 0 -4px 24px rgb(var(--shadow-rgb) / 0.06);
     z-index: var(--z-docked);
+    animation: rf-fade-in var(--motion-md) var(--ease-standard) both;
   }
 
   @media (min-width: 1025px) {
@@ -101,6 +104,7 @@
     align-items: center;
     gap: var(--space-xxs);
   }
+  .rf-bottombar__cluster--right { gap: var(--space-xs); }
 
   .rf-bottombar__item {
     display: flex;
@@ -112,22 +116,24 @@
     color: var(--ink-secondary);
     transition:
       background var(--motion-sm) var(--ease-standard),
-      color      var(--motion-sm) var(--ease-standard);
+      color      var(--motion-sm) var(--ease-standard),
+      transform  var(--motion-xs) var(--ease-spring-soft);
     flex-shrink: 0;
   }
   .rf-bottombar__item:hover {
     background: color-mix(in oklab, var(--bg-2) 70%, transparent);
     color: var(--ink-primary);
   }
+  .rf-bottombar__item:active { transform: scale(0.94); }
 
   .rf-bottombar__text-size {
     padding: 0 var(--space-xs);
-    background: var(--bg-0);
+    background: color-mix(in oklab, var(--bg-1) 60%, var(--bg-0));
     border: 1px solid var(--border);
     min-width: unset;
   }
   .rf-bottombar__text-size:hover {
-    background: var(--bg-0);
+    background: var(--bg-1);
   }
 
   /* Chat button */
@@ -137,7 +143,9 @@
     cursor: pointer;
     padding: 0;
     position: relative;
+    box-shadow: none;
   }
+  .rf-bottombar__chat:hover { transform: scale(1.05); filter: none; }
   .rf-bottombar__chat.active {
     color: var(--brand);
     background: var(--brand-soft);
@@ -169,6 +177,7 @@
     padding: 0 4px;
     border: 2px solid var(--bg-0);
     line-height: 1;
+    animation: rf-scale-in var(--motion-sm) var(--ease-spring-soft) both;
   }
 
   /* Settings link */

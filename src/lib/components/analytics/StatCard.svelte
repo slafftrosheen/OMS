@@ -46,7 +46,7 @@
 
 <style>
     .stat-card {
-        background: white;
+        background: var(--bg-1);
         padding: 1.5rem;
         border-radius: 0.5rem;
         border: 1px solid var(--color-border, var(--border));

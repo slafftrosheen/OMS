@@ -73,12 +73,13 @@
     backdrop-filter: var(--glass-material-thick);
     -webkit-backdrop-filter: var(--glass-material-thick);
     border-top: 1px solid var(--separator-opaque, var(--divider));
-    box-shadow: 0 -4px 24px rgb(var(--shadow-rgb) / 0.08);
+    box-shadow: var(--glass-border-highlight), 0 -8px 32px rgb(var(--shadow-rgb) / 0.10);
     display: none;
     justify-content: space-around;
     align-items: flex-start;
     gap: var(--space-xxs);
     z-index: var(--z-docked);
+    animation: rf-slide-up var(--motion-md) var(--ease-emphasized) both;
   }
 
   .rf-bottomnav__item {
@@ -91,11 +92,15 @@
     text-decoration: none;
     color: var(--ink-tertiary);
     flex: 1;
-    max-width: 88px;
-    min-width: 44px;
-    transition: color var(--motion-sm) var(--ease-standard);
+    max-width: 92px;
+    min-width: 48px;
+    min-height: 56px;
+    transition:
+      color     var(--motion-sm) var(--ease-standard),
+      transform var(--motion-xs) var(--ease-spring-soft);
   }
   .rf-bottomnav__item:hover  { color: var(--ink-secondary); }
+  .rf-bottomnav__item:active { transform: scale(0.94); }
   .rf-bottomnav__item[aria-current="page"] { color: var(--brand); }
   .rf-bottomnav__item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
@@ -105,8 +110,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 28px;
+    width: 44px;
+    height: 32px;
     border-radius: var(--radius-md);
     transition:
       background var(--motion-sm) var(--ease-standard),
@@ -114,7 +119,8 @@
   }
   .rf-bottomnav__item[aria-current="page"] .rf-bottomnav__pill {
     background: var(--brand-soft);
-    transform: translateY(-2px);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 14px color-mix(in oklab, var(--brand) 22%, transparent);
   }
 
   .rf-bottomnav__badge {
@@ -123,7 +129,7 @@
     min-width: 16px; height: 16px;
     border-radius: var(--radius-full);
     background: var(--error);
-    color: #fff;
+    color: var(--bg-0);
     font-size: 9px;
     font-weight: 700;
     display: grid;
@@ -147,5 +153,8 @@
 
   @media (max-width: 1024px) {
     .rf-bottomnav { display: flex; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rf-bottomnav { animation: none; }
   }
 </style>

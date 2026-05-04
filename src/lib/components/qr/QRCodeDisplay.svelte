@@ -187,7 +187,7 @@
         align-items: center;
         gap: 1rem;
         padding: 1.5rem;
-        background: white;
+        background: var(--bg-1);
         border: 1px solid var(--color-border, var(--border));
         border-radius: 0.5rem;
         box-shadow: 0 2px 4px color-mix(in oklab, var(--bg-0) 5%, transparent);

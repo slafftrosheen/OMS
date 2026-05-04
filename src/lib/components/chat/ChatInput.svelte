@@ -151,7 +151,7 @@
         flex-direction: column;
         gap: 0.5rem;
         padding: 1rem;
-        background: white;
+        background: var(--bg-1);
         border-top: 1px solid var(--color-border, var(--border));
     }
 

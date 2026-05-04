@@ -289,13 +289,13 @@
       
       <div class="calendar-body">
         <div class="weekdays">
-          <div class="weekday">Sun</div>
-          <div class="weekday">Mon</div>
-          <div class="weekday">Tue</div>
-          <div class="weekday">Wed</div>
-          <div class="weekday">Thu</div>
-          <div class="weekday">Fri</div>
-          <div class="weekday">Sat</div>
+          <div class="weekday">{$t('calendar_widget.weekdays_short.sun')}</div>
+          <div class="weekday">{$t('calendar_widget.weekdays_short.mon')}</div>
+          <div class="weekday">{$t('calendar_widget.weekdays_short.tue')}</div>
+          <div class="weekday">{$t('calendar_widget.weekdays_short.wed')}</div>
+          <div class="weekday">{$t('calendar_widget.weekdays_short.thu')}</div>
+          <div class="weekday">{$t('calendar_widget.weekdays_short.fri')}</div>
+          <div class="weekday">{$t('calendar_widget.weekdays_short.sat')}</div>
         </div>
         
         <div class="days-grid">
@@ -364,7 +364,7 @@
                   <div class="order-header">
                     <span class="order-id">{order.poNumber || order.id}</span>
                     <div class="order-actions">
-                      <button class="btn-icon-sm" onclick={() => removeOrderFromLoadingDate(order.id)} title="Remove from schedule">
+                      <button class="btn-icon-sm" onclick={() => removeOrderFromLoadingDate(order.id)} title={$t('calendar_widget.remove_from_schedule')} aria-label={$t('calendar_widget.remove_from_schedule')}>
                         <Icon name="x" size="sm" />
                       </button>
                     </div>
@@ -456,7 +456,7 @@
     >
       <div class="modal-header">
         <h3 id="add-order-title">{$t('calendar.add_order_date', { values: { date: selectedDate } })}</h3>
-        <button class="btn-icon" onclick={() => showAddOrderModal = false} aria-label="Close">
+        <button class="btn-icon" onclick={() => showAddOrderModal = false} aria-label={$t('common.close')}>
           <Icon name="x" size="sm" />
         </button>
       </div>
@@ -503,7 +503,7 @@
     >
       <div class="modal-header">
         <h3 id="loading-day-title">{$t('calendar.mark_loading_day_date', { values: { date: selectedDate } })}</h3>
-        <button class="btn-icon" onclick={() => showNewLoadingDayModal = false} aria-label="Close">
+        <button class="btn-icon" onclick={() => showNewLoadingDayModal = false} aria-label={$t('common.close')}>
           <Icon name="x" size="sm" />
         </button>
       </div>
@@ -514,7 +514,7 @@
         </div>
         <div class="form-group">
           <label for="note">{$t('calendar.note_optional')}</label>
-          <textarea id="note" bind:value={newLoadingDayNote} placeholder="Any special instructions..."></textarea>
+          <textarea id="note" bind:value={newLoadingDayNote} placeholder={$t('calendar_widget.any_special')}></textarea>
         </div>
       </div>
       <div class="modal-footer">

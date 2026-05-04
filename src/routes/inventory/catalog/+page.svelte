@@ -39,7 +39,7 @@
 </script>
 
 <svelte:head>
-  <title>Material Catalog - Reclame OMS</title>
+  <title>{$t('inventory.catalog', { default: 'Material Catalog' })} — Reclame OMS</title>
 </svelte:head>
 
 <section class="page-container">
@@ -74,38 +74,38 @@
     </div>
     
     <select bind:value={categoryFilter}>
-      <option value="ALL">{$t('inventory.all_categories') || 'All Categories'}</option>
-      <optgroup label="Acrylics">
-        <option value="ACRYLIC_XT">Acrylic XT</option>
-        <option value="ACRYLIC_GS">Acrylic GS</option>
-        <option value="ACRYLIC_LED">Acrylic LED</option>
-        <option value="ACRYLIC_SPECIAL">Acrylic Special</option>
+      <option value="ALL">{$t('inventory.all_categories', { default: 'All Categories' })}</option>
+      <optgroup label={$t('inventoryCatalog.group_acrylics')}>
+        <option value="ACRYLIC_XT">{$t('inventoryCatalog.materials.ACRYLIC_XT')}</option>
+        <option value="ACRYLIC_GS">{$t('inventoryCatalog.materials.ACRYLIC_GS')}</option>
+        <option value="ACRYLIC_LED">{$t('inventoryCatalog.materials.ACRYLIC_LED')}</option>
+        <option value="ACRYLIC_SPECIAL">{$t('inventoryCatalog.materials.ACRYLIC_SPECIAL')}</option>
       </optgroup>
-      <optgroup label="Metals">
-        <option value="ALU_SHEET">Alu Sheet</option>
-        <option value="ALU_COMPOSITE">Alu Composite (ACP)</option>
-        <option value="ALU_PROFILE">Alu Profile</option>
-        <option value="STEEL">Steel / Stainless</option>
+      <optgroup label={$t('inventoryCatalog.group_metals')}>
+        <option value="ALU_SHEET">{$t('inventoryCatalog.materials.ALU_SHEET')}</option>
+        <option value="ALU_COMPOSITE">{$t('inventoryCatalog.materials.ALU_COMPOSITE', { default: 'Alu Composite (ACP)' })}</option>
+        <option value="ALU_PROFILE">{$t('inventoryCatalog.materials.ALU_PROFILE')}</option>
+        <option value="STEEL">{$t('inventoryCatalog.materials.STEEL')}</option>
       </optgroup>
-      <optgroup label="Films & Vinyl">
-        <option value="VINYL_ORACAL">Vinyl Oracal</option>
-        <option value="VINYL_SPECIAL">Vinyl Special</option>
+      <optgroup label={$t('inventoryCatalog.group_films_vinyl')}>
+        <option value="VINYL_ORACAL">{$t('inventoryCatalog.materials.VINYL_ORACAL')}</option>
+        <option value="VINYL_SPECIAL">{$t('inventoryCatalog.materials.VINYL_SPECIAL')}</option>
       </optgroup>
-      <optgroup label="Paints">
-        <option value="PAINT_RAL">Paint RAL</option>
-        <option value="PAINT_PANTONE">Paint Pantone</option>
+      <optgroup label={$t('inventoryCatalog.group_paints')}>
+        <option value="PAINT_RAL">{$t('inventoryCatalog.materials.PAINT_RAL')}</option>
+        <option value="PAINT_PANTONE">{$t('inventoryCatalog.materials.PAINT_PANTONE')}</option>
       </optgroup>
-      <optgroup label="Electronics">
-        <option value="LED_MODULE">LED Module</option>
-        <option value="LED_STRIP">LED Strip</option>
-        <option value="PSU_MEANWELL">Power Supply</option>
-        <option value="WIRE">Wire / Cable</option>
+      <optgroup label={$t('inventoryCatalog.group_electronics')}>
+        <option value="LED_MODULE">{$t('inventoryCatalog.materials.LED_MODULE')}</option>
+        <option value="LED_STRIP">{$t('inventoryCatalog.materials.LED_STRIP')}</option>
+        <option value="PSU_MEANWELL">{$t('inventoryCatalog.materials.PSU_MEANWELL')}</option>
+        <option value="WIRE">{$t('inventoryCatalog.materials.WIRE')}</option>
       </optgroup>
-      <optgroup label="Other">
-        <option value="PVC_FOAM">PVC Foam (Forex)</option>
-        <option value="HARDWARE">Hardware</option>
-        <option value="CONSUMABLE">Consumables</option>
-        <option value="3D_PRINTING">3D Printing</option>
+      <optgroup label={$t('inventoryCatalog.group_other', { default: 'Other' })}>
+        <option value="PVC_FOAM">{$t('inventoryCatalog.materials.PVC_FOAM', { default: 'PVC Foam (Forex)' })}</option>
+        <option value="HARDWARE">{$t('inventoryCatalog.materials.HARDWARE', { default: 'Hardware' })}</option>
+        <option value="CONSUMABLE">{$t('inventoryCatalog.materials.CONSUMABLE', { default: 'Consumables' })}</option>
+        <option value="3D_PRINTING">{$t('inventoryCatalog.materials.3D_PRINTING', { default: '3D Printing' })}</option>
       </optgroup>
     </select>
   </div>
@@ -146,10 +146,10 @@
     {:else}
       <div class="empty-state">
         <Package size={48} />
-        <p>No materials found</p>
+        <p>{$t('inventory.no_materials', { default: 'No materials found' })}</p>
         {#if searchQuery || categoryFilter !== 'ALL'}
           <button class="btn ghost" onclick={() => { searchQuery = ''; categoryFilter = 'ALL'; }}>
-            Clear Filters
+            {$t('inventory.clear_filters', { default: 'Clear Filters' })}
           </button>
         {/if}
       </div>
@@ -159,40 +159,40 @@
 
 <style>
   .page-container {
-    max-width: 1400px;
+    max-width: var(--content-max);
     margin: 0 auto;
-    padding: 24px;
+    padding: var(--space-xl);
   }
-  
+
   .page-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
+    margin-bottom: var(--space-xl);
   }
-  
+
   .header-title {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--space-md);
   }
-  
+
   .header-title h1 {
     margin: 0;
-    font-size: 28px;
+    font-size: var(--text-3xl);
     font-weight: 700;
   }
   
   .alert-banner {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    background: color-mix(in srgb, orange 15%, transparent);
-    border: 1px solid orange;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    color: orange;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+    background: var(--warn-soft);
+    border: 1px solid color-mix(in oklab, var(--warn) 35%, transparent);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-lg);
+    color: var(--warn);
   }
   
   .filters-bar {

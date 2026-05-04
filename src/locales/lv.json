@@ -1360,6 +1360,186 @@
     "your_sections": "Jūsu sadaļas"
   },
   "common": {
-    "coming_soon": "Drīzumā"
+    "coming_soon": "Drīzumā",
+    "back": "Atpakaļ",
+    "edit": "Rediģēt",
+    "save": "Saglabāt",
+    "cancel": "Atcelt",
+    "delete": "Dzēst",
+    "confirm": "Apstiprināt",
+    "close": "Aizvērt",
+    "refresh": "Atjaunot",
+    "search": "Meklēt",
+    "actions": "Darbības",
+    "description": "Apraksts",
+    "client": "Klients",
+    "due_date": "Termiņš",
+    "price": "Cena",
+    "progress": "Progress",
+    "created": "Izveidots",
+    "updated": "Atjaunots",
+    "last_updated": "Pēdējie atjauninājumi",
+    "status": "Statuss",
+    "role": "Loma",
+    "preview": "Priekšskatījums",
+    "remove": "Noņemt",
+    "duplicate": "Dublēt",
+    "zoom_in": "Pietuvināt",
+    "zoom_out": "Attālināt",
+    "reset": "Atiestatīt",
+    "previous_page": "Iepriekšējā lapa",
+    "next_page": "Nākamā lapa",
+    "first_page": "Pirmā lapa",
+    "last_page": "Pēdējā lapa",
+    "no_description": "Apraksts nav norādīts",
+    "default": "Noklusējums",
+    "required": "Obligāts",
+    "optional": "Pēc izvēles",
+    "dismiss": "Aizvērt",
+    "dismiss_error": "Aizvērt kļūdu",
+    "sku": "SKU",
+    "note_optional": "Piezīme (pēc izvēles)",
+    "no_results": "Nav rezultātu",
+    "retry": "Mēģināt vēlreiz"
+  },
+  "orderDetail": {
+    "not_found": "Pasūtījums nav atrasts",
+    "back_to_orders": "Atpakaļ uz pasūtījumiem",
+    "loading": "Ielādē pasūtījumu…",
+    "qr_code": "QR kods",
+    "qr_modal_title": "Pasūtījuma QR kods",
+    "description": "Apraksts",
+    "details": "Pasūtījuma detaļas",
+    "order_id": "Pasūtījuma ID",
+    "reworks": "Pārstrādes",
+    "upload_files": "Augšupielādēt failus",
+    "uploaded_files": "Augšupielādētie faili",
+    "timeline": "Pasūtījuma laika līnija",
+    "timeline_coming_soon": "Laika līnija drīzumā…",
+    "tabs": {
+      "overview": "Pārskats",
+      "stages": "Ražošanas posmi",
+      "files": "Faili",
+      "chat": "Diskusija",
+      "timeline": "Laika līnija"
+    },
+    "stage_status": {
+      "NOT_STARTED": "Nav sākts",
+      "IN_PROGRESS": "Darbā",
+      "COMPLETED": "Pabeigts",
+      "BLOCKED": "Bloķēts",
+      "SKIPPED": "Izlaists"
+    }
+  },
+  "ordersList": {
+    "manage_subtitle": "Pārvaldiet un sekojiet visiem pasūtījumiem",
+    "total_orders": "Pasūtījumi kopā",
+    "active_orders": "Aktīvie pasūtījumi",
+    "draft_orders": "Melnraksti",
+    "draft_badge": "MELNRAKSTS",
+    "view_order": "Skatīt pasūtījumu",
+    "edit_order": "Rediģēt pasūtījumu",
+    "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
+  },
+  "orderForm": {
+    "priority": {
+      "LOW": "Zems",
+      "NORMAL": "Parasts",
+      "HIGH": "Augsts",
+      "URGENT": "Steidzams"
+    },
+    "save_as_preset": "Saglabāt kā šablonu",
+    "preset_empty_hint": "Saglabātu šablonu vēl nav. Izveidojiet, nospiežot „Saglabāt kā šablonu\" jebkurā profilā.",
+    "preset_name": "Šablona nosaukums",
+    "preset_description": "Apraksts",
+    "default_badge": "Noklusējums",
+    "public_badge": "Publisks",
+    "preview": "Priekšskatījums",
+    "remove_file": "Noņemt",
+    "duplicate_profile": "Dublēt",
+    "delete_preset": "Dzēst"
+  },
+  "canvas": {
+    "back_to_order": "Atpakaļ uz pasūtījumu",
+    "unsaved": "Nesaglabātas izmaiņas",
+    "ctx_hint": "Izvēlieties figūru, lai redzētu īpašības",
+    "tools": "Rīki",
+    "nodes": "Mezgli",
+    "boolean": "Loģiskie",
+    "union": "Apvienot izvēlētās Maker.js figūras",
+    "subtract": "Atņemt izvēlētās Maker.js figūras",
+    "intersect": "Krustot izvēlētās Maker.js figūras",
+    "zones_intro": "Ražošanas zonas, izveidotas ar šo pasūtījumu.",
+    "form_nodes": "Formas mezgli",
+    "no_change_requests": "Izmaiņu pieprasījumu vēl nav.",
+    "ai_assistant": "Asistents",
+    "ai_placeholder": "Jautājiet AI asistentam…",
+    "refresh": "Atjaunot"
+  },
+  "inventoryCatalog": {
+    "group_acrylics": "Akrils",
+    "group_metals": "Metāli",
+    "group_films_vinyl": "Plēves un vinils",
+    "group_paints": "Krāsas",
+    "group_electronics": "Elektronika",
+    "materials": {
+      "ACRYLIC_XT": "Akrils XT",
+      "ACRYLIC_GS": "Akrils GS",
+      "ACRYLIC_LED": "Akrils LED",
+      "ACRYLIC_SPECIAL": "Speciālais akrils",
+      "ALU_SHEET": "Alumīnija loksne",
+      "ALU_PROFILE": "Alumīnija profils",
+      "STEEL": "Tērauds / nerūsējošais",
+      "VINYL_ORACAL": "Vinils Oracal",
+      "VINYL_SPECIAL": "Speciālais vinils",
+      "PAINT_RAL": "Krāsa RAL",
+      "PAINT_PANTONE": "Krāsa Pantone",
+      "LED_MODULE": "LED modulis",
+      "LED_STRIP": "LED lente",
+      "PSU_MEANWELL": "Barošanas bloks",
+      "WIRE": "Vads / kabelis"
+    }
+  },
+  "calendar_widget": {
+    "weekdays_short": {
+      "sun": "Sv",
+      "mon": "Pr",
+      "tue": "Ot",
+      "wed": "Tr",
+      "thu": "Ce",
+      "fri": "Pk",
+      "sat": "Se"
+    },
+    "remove_from_schedule": "Izņemt no grafika",
+    "any_special": "Īpašas norādes…"
+  },
+  "adminUsers": {
+    "role": "Loma",
+    "station_assignments": "Stacijas piesaistes",
+    "station_head_title": "Stacijas vadītājs"
+  },
+  "stationView": {
+    "in_progress": "Darbā",
+    "queued": "Rindā",
+    "blocked": "Bloķēts",
+    "rework": "Pārstrāde",
+    "scan_qr": "Skenēt pasūtījuma QR kodu"
+  },
+  "inventoryDetail": {
+    "material_name": "Materiāla nosaukums",
+    "supplier": "Piegādātājs",
+    "price": "Cena",
+    "barcode": "Svītrkods",
+    "thickness": "Biezums"
+  },
+  "production": {
+    "title": "Ražošanas panelis",
+    "subtitle": "Ražošanas plūsma reāllaikā"
+  },
+  "bottombar": {
+    "realtime": "Reāllaika savienojums",
+    "chat": "Tērzēšana",
+    "notifications": "Paziņojumi",
+    "settings": "Iestatījumi"
   }
 }

@@ -1360,6 +1360,186 @@
     "your_sections": "Your Sections"
   },
   "common": {
-    "coming_soon": "Coming soon"
+    "coming_soon": "Coming soon",
+    "back": "Back",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "close": "Close",
+    "refresh": "Refresh",
+    "search": "Search",
+    "actions": "Actions",
+    "description": "Description",
+    "client": "Client",
+    "due_date": "Due Date",
+    "price": "Price",
+    "progress": "Progress",
+    "created": "Created",
+    "updated": "Updated",
+    "last_updated": "Last Updated",
+    "status": "Status",
+    "role": "Role",
+    "preview": "Preview",
+    "remove": "Remove",
+    "duplicate": "Duplicate",
+    "zoom_in": "Zoom in",
+    "zoom_out": "Zoom out",
+    "reset": "Reset",
+    "previous_page": "Previous page",
+    "next_page": "Next page",
+    "first_page": "First page",
+    "last_page": "Last page",
+    "no_description": "No description provided",
+    "default": "Default",
+    "required": "Required",
+    "optional": "Optional",
+    "dismiss": "Dismiss",
+    "dismiss_error": "Dismiss error",
+    "sku": "SKU",
+    "note_optional": "Note (optional)",
+    "no_results": "No results",
+    "retry": "Retry"
+  },
+  "orderDetail": {
+    "not_found": "Order not found",
+    "back_to_orders": "Back to Orders",
+    "loading": "Loading order…",
+    "qr_code": "QR Code",
+    "qr_modal_title": "Order QR Code",
+    "description": "Description",
+    "details": "Order Details",
+    "order_id": "Order ID",
+    "reworks": "Reworks",
+    "upload_files": "Upload Files",
+    "uploaded_files": "Uploaded Files",
+    "timeline": "Order Timeline",
+    "timeline_coming_soon": "Timeline feature coming soon…",
+    "tabs": {
+      "overview": "Overview",
+      "stages": "Production Stages",
+      "files": "Files",
+      "chat": "Discussion",
+      "timeline": "Timeline"
+    },
+    "stage_status": {
+      "NOT_STARTED": "Not Started",
+      "IN_PROGRESS": "In Progress",
+      "COMPLETED": "Completed",
+      "BLOCKED": "Blocked",
+      "SKIPPED": "Skipped"
+    }
+  },
+  "ordersList": {
+    "manage_subtitle": "Manage and track all orders",
+    "total_orders": "Total Orders",
+    "active_orders": "Active Orders",
+    "draft_orders": "Draft Orders",
+    "draft_badge": "DRAFT",
+    "view_order": "View Order",
+    "edit_order": "Edit Order",
+    "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
+  },
+  "orderForm": {
+    "priority": {
+      "LOW": "Low",
+      "NORMAL": "Normal",
+      "HIGH": "High",
+      "URGENT": "Urgent"
+    },
+    "save_as_preset": "Save as Preset",
+    "preset_empty_hint": "No saved presets yet. Create one by clicking \"Save as Preset\" on any profile.",
+    "preset_name": "Preset Name",
+    "preset_description": "Description",
+    "default_badge": "Default",
+    "public_badge": "Public",
+    "preview": "Preview",
+    "remove_file": "Remove",
+    "duplicate_profile": "Duplicate",
+    "delete_preset": "Delete"
+  },
+  "canvas": {
+    "back_to_order": "Back to order",
+    "unsaved": "Unsaved changes",
+    "ctx_hint": "Select a shape to see properties",
+    "tools": "Tools",
+    "nodes": "Nodes",
+    "boolean": "Boolean",
+    "union": "Union selected Maker.js shapes",
+    "subtract": "Subtract selected Maker.js shapes",
+    "intersect": "Intersect selected Maker.js shapes",
+    "zones_intro": "Production zones auto-spawned with this order.",
+    "form_nodes": "Form nodes",
+    "no_change_requests": "No change requests yet.",
+    "ai_assistant": "Assistant",
+    "ai_placeholder": "Ask the AI assistant…",
+    "refresh": "Refresh"
+  },
+  "inventoryCatalog": {
+    "group_acrylics": "Acrylics",
+    "group_metals": "Metals",
+    "group_films_vinyl": "Films & Vinyl",
+    "group_paints": "Paints",
+    "group_electronics": "Electronics",
+    "materials": {
+      "ACRYLIC_XT": "Acrylic XT",
+      "ACRYLIC_GS": "Acrylic GS",
+      "ACRYLIC_LED": "Acrylic LED",
+      "ACRYLIC_SPECIAL": "Acrylic Special",
+      "ALU_SHEET": "Alu Sheet",
+      "ALU_PROFILE": "Alu Profile",
+      "STEEL": "Steel / Stainless",
+      "VINYL_ORACAL": "Vinyl Oracal",
+      "VINYL_SPECIAL": "Vinyl Special",
+      "PAINT_RAL": "Paint RAL",
+      "PAINT_PANTONE": "Paint Pantone",
+      "LED_MODULE": "LED Module",
+      "LED_STRIP": "LED Strip",
+      "PSU_MEANWELL": "Power Supply",
+      "WIRE": "Wire / Cable"
+    }
+  },
+  "calendar_widget": {
+    "weekdays_short": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    },
+    "remove_from_schedule": "Remove from schedule",
+    "any_special": "Any special instructions…"
+  },
+  "adminUsers": {
+    "role": "Role",
+    "station_assignments": "Station Assignments",
+    "station_head_title": "Station Head for this station"
+  },
+  "stationView": {
+    "in_progress": "In Progress",
+    "queued": "Queued",
+    "blocked": "Blocked",
+    "rework": "Rework",
+    "scan_qr": "Scan Order QR Code"
+  },
+  "inventoryDetail": {
+    "material_name": "Material name",
+    "supplier": "Supplier",
+    "price": "Price",
+    "barcode": "Barcode",
+    "thickness": "Thickness"
+  },
+  "production": {
+    "title": "Production Board",
+    "subtitle": "Real-time production workflow"
+  },
+  "bottombar": {
+    "realtime": "Realtime connection",
+    "chat": "Chat",
+    "notifications": "Notifications",
+    "settings": "Settings"
   }
 }

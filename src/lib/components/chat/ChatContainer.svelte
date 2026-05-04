@@ -216,7 +216,7 @@
         display: flex;
         flex-direction: column;
         height: 100%;
-        background: white;
+        background: var(--bg-1);
         border-radius: 0.5rem;
         border: 1px solid var(--color-border, var(--border));
         overflow: hidden;

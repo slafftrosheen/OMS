@@ -305,7 +305,7 @@
         position: absolute;
         top: -2rem;
         right: 0;
-        background: white;
+        background: var(--bg-1);
         border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
         padding: 0.25rem;

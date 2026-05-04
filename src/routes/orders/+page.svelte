@@ -196,9 +196,9 @@
     <div class="error-content">
       <Icon name="alert-circle" size="md" />
       <div class="error-text">
-        <strong>Error:</strong> {errorMessage}
+        <strong>{$t('orderLists.errors.label', { default: 'Error' })}:</strong> {errorMessage}
       </div>
-      <button class="error-close" onclick={() => errorMessage = ''} aria-label="Dismiss error">
+      <button class="error-close" onclick={() => errorMessage = ''} aria-label={$t('common.dismiss_error')}>
         ×
       </button>
     </div>
@@ -207,53 +207,53 @@
 
 {#if isLoading && !hasLoadedOnce}
   <div class="loading-container">
-    <div class="spinner"></div>
-    <p>Loading orders...</p>
+    <div class="rf-spinner"></div>
+    <p>{$t('orderLists.loading', { default: 'Loading orders…' })}</p>
   </div>
 {:else}
 <div class="page-header">
   <div class="header-left">
     <h1 class="page-title">{$t('orderLists.title')}</h1>
-    <p class="page-subtitle">Manage and track all orders</p>
+    <p class="page-subtitle">{$t('ordersList.manage_subtitle')}</p>
   </div>
   <div class="header-actions">
     {#if isSuperAdmin}
       <button class="btn btn-primary" onclick={createNewOrder}>
         <Icon name="plus" size="sm" />
-        Create Draft Order
+        {$t('orderLists.create_draft', { default: 'Create Draft Order' })}
       </button>
     {/if}
     <button class="btn btn-secondary" onclick={refresh} disabled={refreshing}>
       <span class:spinning={refreshing}><Icon name="refresh-cw" size="sm" /></span>
-      Refresh
+      {$t('common.refresh')}
     </button>
     <button class="btn btn-ghost" onclick={exportToPDF}>
       <Icon name="download" size="sm" />
-      Export
+      {$t('orderLists.export', { default: 'Export' })}
     </button>
   </div>
 </div>
 
 <div class="kpi-section">
   <KpiCard
-    title="Total Orders"
+    title={$t('ordersList.total_orders')}
     value={totalOrders.toString()}
     icon="package"
   />
   <KpiCard
-    title="Active Orders"
+    title={$t('ordersList.active_orders')}
     value={activeOrders.toString()}
     icon="activity"
   />
   {#if isAdmin}
     <KpiCard
-      title="Draft Orders"
+      title={$t('ordersList.draft_orders')}
       value={draftOrders.toString()}
       icon="file-plus"
     />
   {/if}
   <KpiCard
-    title="Urgent (≤3 days)"
+    title={$t('orderLists.urgent_3d', { default: 'Urgent (≤3 days)' })}
     value={urgentOrders.toString()}
     icon="alert-circle"
   />
@@ -268,20 +268,20 @@
       </div>
       <div class="status-filters">
         <button class="filter-btn" class:active={statusFilter === 'all'} onclick={() => { statusFilter = 'all'; currentPage = 1; }}>
-          All ({rows.length})
+          {$t('orderLists.filters.all', { default: 'All' })} ({rows.length})
         </button>
         <button class="filter-btn" class:active={statusFilter === 'active'} onclick={() => { statusFilter = 'active'; currentPage = 1; }}>
-          Active ({activeOrders})
+          {$t('orderLists.filters.active', { default: 'Active' })} ({activeOrders})
         </button>
         {#if isAdmin}
           <button class="filter-btn" class:active={statusFilter === 'draft'} onclick={() => { statusFilter = 'draft'; currentPage = 1; }}>
-            Drafts ({draftOrders})
+            {$t('orderLists.filters.drafts', { default: 'Drafts' })} ({draftOrders})
           </button>
         {/if}
       </div>
     </div>
     <div class="filter-right">
-      <Tooltip text="Click column headers to sort. Click the arrow button to expand order details." />
+      <Tooltip text={$t('ordersList.sort_hint')} />
     </div>
   </div>
 
@@ -317,18 +317,18 @@
               </button>
             </th>
             <th style="width:200px">{$t('orderLists.headers.badges')}</th>
-            <th style="width:80px">Actions</th>
+            <th style="width:80px">{$t('common.actions')}</th>
           </tr>
         </thead>
         <tbody>
           {#each paginatedRows as row (row.id)}
             <tr class="order-row rowi" class:expanded={row.expanded} class:is-draft={row.isDraft}>
               <td>
-                <button 
-                  class="expand-btn" 
+                <button
+                  class="expand-btn"
                   onclick={() => toggleExpand(row.id)}
                   aria-expanded={row.expanded}
-                  aria-label={row.expanded ? 'Collapse' : 'Expand'}>
+                  aria-label={row.expanded ? $t('orderLists.collapse', { default: 'Collapse' }) : $t('orderLists.expand', { default: 'Expand' })}>
                   {row.expanded ? '▼' : '▶'}
                 </button>
               </td>
@@ -344,11 +344,11 @@
                     }}
                     ondragend={() => dragging.set(null)}
                     aria-grabbed="true"
-                    aria-label={`Drag ${row.id} to a loading day`}>
+                    aria-label={$t('orderLists.drag_aria', { default: 'Drag {id} to a loading day', values: { id: row.id } })}>
                     {row.id}
                   </a>
                   {#if row.isDraft}
-                    <span class="draft-badge">DRAFT</span>
+                    <span class="draft-badge">{$t('ordersList.draft_badge')}</span>
                   {/if}
                 </div>
               </td>
@@ -374,11 +374,11 @@
               </td>
               <td>
                 <div class="actions-cell">
-                  <a href={row.href} class="action-icon" title="View Order">
+                  <a href={row.href} class="action-icon" title={$t('ordersList.view_order')}>
                     <Icon name="eye" size="sm" />
                   </a>
                   {#if isAdmin}
-                    <a href="{base}/orders/{row.id}/edit" class="action-icon" title="Edit Order">
+                    <a href="{base}/orders/{row.id}/edit" class="action-icon" title={$t('ordersList.edit_order')}>
                       <Icon name="edit" size="sm" />
                     </a>
                   {/if}
@@ -419,7 +419,7 @@
                       </div>
                     {/if}
                     <div class="expanded-actions">
-                      <a href={row.href} class="tag">View Details →</a>
+                      <a href={row.href} class="tag">{$t('orderLists.view_details', { default: 'View Details' })} →</a>
                     </div>
                   </div>
                 </td>
@@ -430,21 +430,21 @@
             <tr>
               <td colspan="8" class="empty-message">
                 {#if isLoading}
-                  <div class="spinner" style="margin: 0 auto;"></div>
+                  <div class="rf-spinner" style="margin: 0 auto;"></div>
                 {:else if errorMessage}
                   <div class="empty-state">
                     <Icon name="alert-circle" size="xl" />
-                    <h3>Unable to load orders</h3>
-                    <p>There was a problem loading the orders list.</p>
+                    <h3>{$t('orderLists.errors.title', { default: 'Unable to load orders' })}</h3>
+                    <p>{$t('orderLists.errors.body', { default: 'There was a problem loading the orders list.' })}</p>
                     <button class="btn btn-primary" onclick={refresh}>
-                      Try Again
+                      {$t('common.retry')}
                     </button>
                   </div>
                 {:else}
                   <div class="empty-state">
                     <Icon name="package" size="xl" />
                     <h3>{$t('orderLists.empty')}</h3>
-                    <p>No orders match your current filters.</p>
+                    <p>{$t('orderLists.empty_body', { default: 'No orders match your current filters.' })}</p>
                   </div>
                 {/if}
               </td>
@@ -458,48 +458,59 @@
   {#if totalPages > 1}
     <div class="pagination">
       <div class="pagination-info">
-        Showing {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, visible.length)} of {visible.length} orders
+        {$t('orderLists.pagination_info', {
+          default: 'Showing {from} – {to} of {total}',
+          values: {
+            from: (currentPage - 1) * itemsPerPage + 1,
+            to: Math.min(currentPage * itemsPerPage, visible.length),
+            total: visible.length
+          }
+        })}
       </div>
       <div class="pagination-controls">
-        <button 
-          class="pagination-btn" 
+        <button
+          class="pagination-btn"
           disabled={currentPage === 1}
           onclick={() => currentPage = 1}
-          title="First page"
+          title={$t('common.first_page')}
+          aria-label={$t('common.first_page')}
         >
           ««
         </button>
-        <button 
-          class="pagination-btn" 
+        <button
+          class="pagination-btn"
           disabled={currentPage === 1}
           onclick={() => currentPage--}
-          title="Previous page"
+          title={$t('common.previous_page')}
+          aria-label={$t('common.previous_page')}
         >
           <Icon name="chevron-left" size="sm" />
         </button>
         <span class="pagination-current">
-          Page {currentPage} of {totalPages}
+          {$t('orderLists.page_of', { default: 'Page {current} of {total}', values: { current: currentPage, total: totalPages } })}
         </span>
-        <button 
-          class="pagination-btn" 
+        <button
+          class="pagination-btn"
           disabled={currentPage === totalPages}
           onclick={() => currentPage++}
-          title="Next page"
+          title={$t('common.next_page')}
+          aria-label={$t('common.next_page')}
         >
           <Icon name="chevron-right" size="sm" />
         </button>
-        <button 
-          class="pagination-btn" 
+        <button
+          class="pagination-btn"
           disabled={currentPage === totalPages}
           onclick={() => currentPage = totalPages}
-          title="Last page"
+          title={$t('common.last_page')}
+          aria-label={$t('common.last_page')}
         >
           »»
         </button>
       </div>
       <div class="items-per-page">
         <label>
-          <span>Per page:</span>
+          <span>{$t('orderLists.per_page', { default: 'Per page:' })}</span>
           <select bind:value={itemsPerPage} onchange={() => currentPage = 1}>
             <option value={10}>10</option>
             <option value={20}>20</option>

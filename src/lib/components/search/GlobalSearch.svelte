@@ -262,7 +262,7 @@
     .search-modal {
         width: 100%;
         max-width: 600px;
-        background: white;
+        background: var(--bg-1);
         border-radius: 0.75rem;
         box-shadow: 0 20px 25px -5px color-mix(in oklab, var(--bg-0) 10%, transparent),
                     0 10px 10px -5px oklch(0% 0 0 / 4%);

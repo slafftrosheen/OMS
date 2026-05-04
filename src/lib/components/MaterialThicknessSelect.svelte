@@ -98,7 +98,7 @@
     font-size: 14px;
     color: var(--text-primary, var(--ink-primary));
     font-family: inherit;
-    background: var(--input-bg, white);
+    background: var(--bg-1);
     transition: all 0.2s;
     cursor: pointer;
   }
@@ -127,7 +127,7 @@
     padding: 12px 16px;
     border: 1px solid var(--border, var(--border));
     border-radius: 8px;
-    background: var(--input-bg, white);
+    background: var(--bg-1);
     min-height: 44px;
   }
   
