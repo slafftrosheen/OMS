@@ -28,10 +28,10 @@
     };
 
     const entityColors = {
-        order: "#3b82f6",
-        material: "#10b981",
-        inventory: "#f59e0b",
-        user: "#8b5cf6",
+        order:     "var(--brand)",
+        material:  "var(--ok)",
+        inventory: "var(--warn)",
+        user:      "var(--link)",
     };
 
     const performSearch = debounce(async (searchQuery: string) => {
@@ -243,11 +243,14 @@
     .search-modal {
         width: 90%;
         max-width: 700px;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 20px 60px color-mix(in oklab, var(--bg-0) 45%, transparent);
+        background: var(--glass-bg-strong);
+        backdrop-filter: var(--glass-material-thick);
+        -webkit-backdrop-filter: var(--glass-material-thick);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--glass-shadow-lg), var(--glass-border-highlight);
         overflow: hidden;
-        animation: slideUp 0.2s ease;
+        animation: slideUp var(--motion-md) var(--ease-emphasized);
     }
 
     @keyframes slideUp {
@@ -284,11 +287,13 @@
     .close-btn {
         background: none;
         border: none;
-        padding: 4px;
+        padding: var(--space-xs);
         cursor: pointer;
         color: var(--ink-tertiary);
-        border-radius: 4px;
-        transition: all 0.2s;
+        border-radius: var(--radius-xs);
+        transition:
+            background var(--motion-sm) var(--ease-standard),
+            color      var(--motion-sm) var(--ease-standard);
     }
 
     .close-btn:hover {
@@ -315,20 +320,20 @@
     .result-item {
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 12px 20px;
+        gap: var(--space-md);
+        padding: var(--space-md) var(--space-lg);
         border: none;
-        background: white;
+        background: transparent;
         width: 100%;
         text-align: left;
         cursor: pointer;
-        transition: background 0.15s;
-        border-bottom: 1px solid var(--bg-2);
+        transition: background var(--motion-sm) var(--ease-standard);
+        border-bottom: 1px solid var(--divider);
     }
 
     .result-item:hover,
     .result-item.selected {
-        background: var(--bg-2);
+        background: color-mix(in oklab, var(--bg-2) 60%, transparent);
     }
 
     .result-icon {
@@ -407,23 +412,23 @@
     }
 
     .search-footer {
-        padding: 12px 20px;
-        border-top: 1px solid var(--border);
-        background: var(--bg-2);
+        padding: var(--space-md) var(--space-lg);
+        border-top: 1px solid var(--divider);
+        background: color-mix(in oklab, var(--bg-2) 50%, transparent);
     }
 
     .footer-shortcuts {
         display: flex;
-        gap: 15px;
-        font-size: 0.813rem;
+        gap: var(--space-lg);
+        font-size: var(--text-xs);
         color: var(--ink-tertiary);
     }
 
     kbd {
         padding: 2px 6px;
-        background: white;
+        background: var(--bg-1);
         border: 1px solid var(--border);
-        border-radius: 4px;
+        border-radius: var(--radius-xs);
         font-family: monospace;
         font-size: 0.75rem;
         box-shadow: 0 1px 2px color-mix(in oklab, var(--bg-0) 5%, transparent);

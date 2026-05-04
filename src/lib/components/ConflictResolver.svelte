@@ -338,7 +338,7 @@
     }
 
     .modal {
-        background: white;
+        background: var(--bg-1);
         border-radius: 12px;
         width: min(900px, 90vw);
         max-height: 90vh;
@@ -495,7 +495,7 @@
         border: 2px solid var(--border);
         border-radius: 8px;
         padding: 15px;
-        background: white;
+        background: var(--bg-1);
     }
 
     .version-panel.merged {

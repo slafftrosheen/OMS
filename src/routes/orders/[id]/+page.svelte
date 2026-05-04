@@ -3,6 +3,7 @@
     import { page } from "$app/state";
     import { goto } from "$app/navigation";
     import { onMount } from "svelte";
+    import { t } from "svelte-i18n";
     import Button from "$lib/components/ui/Button.svelte";
     import Card from "$lib/components/ui/Card.svelte";
     import Badge from "$lib/components/ui/Badge.svelte";
@@ -21,13 +22,13 @@
     let showQRModal = $state(false);
     let activeTab = $state("overview");
 
-    const tabs = [
-        { id: "overview", label: "Overview" },
-        { id: "stages", label: "Production Stages" },
-        { id: "files", label: "Files" },
-        { id: "chat", label: "Discussion" },
-        { id: "timeline", label: "Timeline" },
-    ];
+    let tabs = $derived([
+        { id: "overview",  label: $t("orderDetail.tabs.overview") },
+        { id: "stages",    label: $t("orderDetail.tabs.stages") },
+        { id: "files",     label: $t("orderDetail.tabs.files") },
+        { id: "chat",      label: $t("orderDetail.tabs.chat") },
+        { id: "timeline",  label: $t("orderDetail.tabs.timeline") },
+    ]);
 
     async function loadOrderData() {
         loading = true;
@@ -82,13 +83,13 @@
 
     function getStatusColor(status: string): string {
         const colors: Record<string, string> = {
-            NOT_STARTED: "#6b7280",
-            IN_PROGRESS: "#3b82f6",
-            COMPLETED: "#10b981",
-            BLOCKED: "#ef4444",
-            SKIPPED: "#f59e0b",
+            NOT_STARTED: "var(--ink-3)",
+            IN_PROGRESS: "var(--brand)",
+            COMPLETED:   "var(--ok)",
+            BLOCKED:     "var(--error)",
+            SKIPPED:     "var(--warn)",
         };
-        return colors[status] || "#6b7280";
+        return colors[status] || "var(--ink-3)";
     }
 
     onMount(() => {
@@ -97,20 +98,20 @@
 </script>
 
 <svelte:head>
-    <title>Order {orderId} - OMS</title>
+    <title>{$t("orderDetail.title_prefix", { default: "Order" })} {orderId} — OMS</title>
 </svelte:head>
 
 <div class="order-detail-container">
     {#if loading}
         <div class="loading-state">
-            <div class="spinner"></div>
-            <p>Loading order...</p>
+            <div class="rf-spinner"></div>
+            <p>{$t("orderDetail.loading")}</p>
         </div>
     {:else if !order}
         <div class="error-state">
-            <p class="error-message">Order not found</p>
+            <p class="error-message">{$t("orderDetail.not_found")}</p>
             <Button variant="primary" onclick={() => goto("/orders")}>
-                Back to Orders
+                {$t("orderDetail.back_to_orders")}
             </Button>
         </div>
     {:else}
@@ -118,7 +119,7 @@
         <header class="order-header">
             <div class="header-left">
                 <Button variant="ghost" onclick={() => goto("/orders")}>
-                    ← Back
+                    ← {$t("common.back")}
                 </Button>
                 <div class="header-info">
                     <h1 class="order-title">{order.title}</h1>
@@ -131,13 +132,13 @@
             </div>
             <div class="header-actions">
                 <Button variant="outline" onclick={() => (showQRModal = true)}>
-                    📱 QR Code
+                    {$t("orderDetail.qr_code")}
                 </Button>
                 <Button
                     variant="primary"
                     onclick={() => goto(`/orders/${orderId}/edit`)}
                 >
-                    ✏️ Edit
+                    {$t("common.edit")}
                 </Button>
             </div>
         </header>
@@ -146,13 +147,13 @@
         <div class="info-cards">
             <Card padding="md">
                 <div class="info-card-content">
-                    <span class="info-label">Client</span>
+                    <span class="info-label">{$t("common.client")}</span>
                     <span class="info-value">{order.client}</span>
                 </div>
             </Card>
             <Card padding="md">
                 <div class="info-card-content">
-                    <span class="info-label">Due Date</span>
+                    <span class="info-label">{$t("common.due_date")}</span>
                     <span class="info-value"
                         >{new Date(order.due_date).toLocaleDateString()}</span
                     >
@@ -160,15 +161,15 @@
             </Card>
             <Card padding="md">
                 <div class="info-card-content">
-                    <span class="info-label">Price</span>
+                    <span class="info-label">{$t("common.price")}</span>
                     <span class="info-value"
-                        >€{order.price?.toLocaleString() || "N/A"}</span
+                        >€{order.price?.toLocaleString() || "—"}</span
                     >
                 </div>
             </Card>
             <Card padding="md">
                 <div class="info-card-content">
-                    <span class="info-label">Progress</span>
+                    <span class="info-label">{$t("common.progress")}</span>
                     <span class="info-value">
                         {Math.round(
                             (Object.values(order.stages).filter(
@@ -186,20 +187,20 @@
         <Tabs {tabs} bind:activeTab>
             {#if activeTab === "overview"}
                 <div class="tab-content">
-                    <Card title="Description" padding="lg">
+                    <Card title={$t("orderDetail.description")} padding="lg">
                         <p class="description-text">
-                            {order.description || "No description provided"}
+                            {order.description || $t("common.no_description")}
                         </p>
                     </Card>
 
-                    <Card title="Order Details" padding="lg">
+                    <Card title={$t("orderDetail.details")} padding="lg">
                         <dl class="details-list">
                             <div class="detail-item">
-                                <dt>Order ID</dt>
+                                <dt>{$t("orderDetail.order_id")}</dt>
                                 <dd>{order.id}</dd>
                             </div>
                             <div class="detail-item">
-                                <dt>Created</dt>
+                                <dt>{$t("common.created")}</dt>
                                 <dd>
                                     {new Date(
                                         order.created_at,
@@ -207,7 +208,7 @@
                                 </dd>
                             </div>
                             <div class="detail-item">
-                                <dt>Last Updated</dt>
+                                <dt>{$t("common.last_updated")}</dt>
                                 <dd>
                                     {new Date(
                                         order.updated_at,
@@ -215,7 +216,7 @@
                                 </dd>
                             </div>
                             <div class="detail-item">
-                                <dt>Reworks</dt>
+                                <dt>{$t("orderDetail.reworks")}</dt>
                                 <dd>{order.rework_count}</dd>
                             </div>
                         </dl>
@@ -223,7 +224,7 @@
                 </div>
             {:else if activeTab === "stages"}
                 <div class="tab-content">
-                    <Card title="Production Stages" padding="lg">
+                    <Card title={$t("orderDetail.tabs.stages")} padding="lg">
                         <div class="stages-grid">
                             {#each Object.entries(order.stages) as [stage, status]}
                                 <div
@@ -240,7 +241,7 @@
                                                 : "info"}
                                             size="sm"
                                         >
-                                            {String(status).replace("_", " ")}
+                                            {$t(`orderDetail.stage_status.${status}`, { default: String(status).replace("_", " ") })}
                                         </Badge>
                                     </div>
                                     <select
@@ -252,17 +253,11 @@
                                                 e.currentTarget.value,
                                             )}
                                     >
-                                        <option value="NOT_STARTED"
-                                            >Not Started</option
-                                        >
-                                        <option value="IN_PROGRESS"
-                                            >In Progress</option
-                                        >
-                                        <option value="COMPLETED"
-                                            >Completed</option
-                                        >
-                                        <option value="BLOCKED">Blocked</option>
-                                        <option value="SKIPPED">Skipped</option>
+                                        <option value="NOT_STARTED">{$t("orderDetail.stage_status.NOT_STARTED")}</option>
+                                        <option value="IN_PROGRESS">{$t("orderDetail.stage_status.IN_PROGRESS")}</option>
+                                        <option value="COMPLETED">{$t("orderDetail.stage_status.COMPLETED")}</option>
+                                        <option value="BLOCKED">{$t("orderDetail.stage_status.BLOCKED")}</option>
+                                        <option value="SKIPPED">{$t("orderDetail.stage_status.SKIPPED")}</option>
                                     </select>
                                 </div>
                             {/each}
@@ -271,14 +266,14 @@
                 </div>
             {:else if activeTab === "files"}
                 <div class="tab-content">
-                    <Card title="Upload Files" padding="lg">
+                    <Card title={$t("orderDetail.upload_files")} padding="lg">
                         <FileUpload
                             {orderId}
                             onuploaded={handleFileUploaded}
                         />
                     </Card>
 
-                    <Card title="Uploaded Files" padding="lg">
+                    <Card title={$t("orderDetail.uploaded_files")} padding="lg">
                         <FileList {files} ondelete={handleDeleteFile} />
                     </Card>
                 </div>
@@ -288,9 +283,9 @@
                 </div>
             {:else if activeTab === "timeline"}
                 <div class="tab-content">
-                    <Card title="Order Timeline" padding="lg">
+                    <Card title={$t("orderDetail.timeline")} padding="lg">
                         <p class="coming-soon">
-                            Timeline feature coming soon...
+                            {$t("orderDetail.timeline_coming_soon")}
                         </p>
                     </Card>
                 </div>
@@ -300,7 +295,7 @@
 </div>
 
 <!-- QR Code Modal -->
-<Modal bind:open={showQRModal} title="Order QR Code" size="sm">
+<Modal bind:open={showQRModal} title={$t("orderDetail.qr_modal_title")} size="sm">
     <QRCodeDisplay {orderId} />
 </Modal>
 
@@ -324,24 +319,9 @@
         gap: 1rem;
     }
 
-    .spinner {
-        width: 3rem;
-        height: 3rem;
-        border: 4px solid var(--color-gray-200, var(--border));
-        border-top-color: var(--color-primary, var(--brand));
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-
     .error-message {
-        font-size: 1.125rem;
-        color: var(--color-danger, var(--error));
+        font-size: var(--text-lg);
+        color: var(--error);
         margin: 0;
     }
 

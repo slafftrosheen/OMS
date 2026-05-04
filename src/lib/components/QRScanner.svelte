@@ -197,7 +197,7 @@
     position: absolute;
     width: 30px;
     height: 30px;
-    border: 3px solid #00ff00;
+    border: 3px solid var(--ok);
   }
 
   .corner-tl {

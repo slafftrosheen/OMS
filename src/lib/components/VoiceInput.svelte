@@ -189,7 +189,7 @@
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-full);
     background: transparent;
-    color: var(--text, #ddd);
+    color: var(--text);
     cursor: pointer;
     font: inherit;
     transition: background var(--transition-fast), border-color var(--transition-fast),
@@ -209,8 +209,8 @@
     color: var(--brand);
   }
   .voice-btn.error {
-    border-color: #f66;
-    color: #f66;
+    border-color: var(--error);
+    color: var(--error);
   }
 
   /* Pulsing level ring */

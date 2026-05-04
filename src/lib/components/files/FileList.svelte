@@ -169,7 +169,7 @@
         align-items: center;
         gap: 1rem;
         padding: 1rem;
-        background: white;
+        background: var(--bg-1);
         border: 1px solid var(--color-border, var(--border));
         border-radius: 0.5rem;
         transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);

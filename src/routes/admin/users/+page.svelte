@@ -555,7 +555,7 @@
           </div>
 
           <div class="form-group">
-            <label for="user-role">Role</label>
+            <label for="user-role">{$t('adminUsers.role')}</label>
             <select id="user-role" bind:value={formData.role}>
               {#each ALL_ROLES as r}
                 <option value={r}>{ROLE_LABELS[r]}</option>
@@ -564,8 +564,8 @@
           </div>
 
           <div class="form-group">
-            <span class="group-label" id="station-assignments-label">Station Assignments</span>
-            <p class="form-hint">Check a station to assign. Star (★) marks the station head.</p>
+            <span class="group-label" id="station-assignments-label">{$t('adminUsers.station_assignments')}</span>
+            <p class="form-hint">{$t('adminUsers.assign_hint', { default: 'Check a station to assign. Star (★) marks the station head.' })}</p>
             <div class="stations-grid" role="group" aria-labelledby="station-assignments-label">
               {#each STATION_IDS as sid}
                 {@const assigned = formData.stations.includes(sid)}
@@ -580,13 +580,13 @@
                     {STATION_LABELS[sid]}
                   </label>
                   {#if assigned && formData.role === 'StationHead'}
-                    <label class="checkbox-item head-toggle" title="Station Head for this station">
+                    <label class="checkbox-item head-toggle" title={$t('adminUsers.station_head_title')}>
                       <input
                         type="checkbox"
                         checked={isHead}
                         onchange={() => toggleStationHead(sid)}
                       />
-                      ★ Head</label>
+                      ★ {$t('adminUsers.head_short', { default: 'Head' })}</label>
                   {/if}
                 </div>
               {/each}

@@ -100,7 +100,7 @@
 <style>
     .mobile-order-card {
         display: block;
-        background: white;
+        background: var(--bg-1);
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 15px;

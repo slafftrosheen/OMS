@@ -2,6 +2,7 @@
   import { page } from '$app/state';
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
+  import { t } from 'svelte-i18n';
   import { realtimeStore } from '$lib/stores/realtime';
   // import StageBoard from '$lib/components/orders/StageBoard.svelte';
   // import OrderCard from '$lib/components/orders/OrderCard.svelte';
@@ -160,19 +161,19 @@
       <div class="header-stats">
         <div class="stat" class:active={inProgressCount > 0}>
           <span class="stat-value">{inProgressCount}</span>
-          <span class="stat-label">In Progress</span>
+          <span class="stat-label">{$t('stationView.in_progress')}</span>
         </div>
         <div class="stat" class:warning={queuedCount > 5}>
           <span class="stat-value">{queuedCount}</span>
-          <span class="stat-label">Queued</span>
+          <span class="stat-label">{$t('stationView.queued')}</span>
         </div>
         <div class="stat" class:danger={blockedCount > 0}>
           <span class="stat-value">{blockedCount}</span>
-          <span class="stat-label">Blocked</span>
+          <span class="stat-label">{$t('stationView.blocked')}</span>
         </div>
         <div class="stat" class:warning={reworkCount > 0}>
           <span class="stat-value">{reworkCount}</span>
-          <span class="stat-label">Rework</span>
+          <span class="stat-label">{$t('stationView.rework')}</span>
         </div>
       </div>
     </div>
@@ -351,8 +352,8 @@
       aria-labelledby="scanner-title"
     >
       <div class="modal-header">
-        <h2 id="scanner-title">Scan Order QR Code</h2>
-        <button class="close-btn" onclick={() => $showScanner = false} aria-label="Close">×</button>
+        <h2 id="scanner-title">{$t('stationView.scan_qr')}</h2>
+        <button class="close-btn" onclick={() => $showScanner = false} aria-label={$t('common.close')}>×</button>
       </div>
       <QRScanner onscan={(data) => handleQRScan(data)} />
     </div>

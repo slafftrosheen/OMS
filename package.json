@@ -59,6 +59,7 @@
     "pantone-colors": "^1.0.3",
     "pdfjs-dist": "^4.8.69",
     "pdfkit": "0.17.2",
+    "pdf-parse": "^1.1.1",
     "pg": "^8.16.3",
     "postgres": "^3.4.9",
     "qrcode": "^1.5.4",

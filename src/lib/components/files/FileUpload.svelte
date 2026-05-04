@@ -216,7 +216,7 @@
 
     .drop-zone:hover {
         border-color: var(--color-primary, var(--brand));
-        background: white;
+        background: var(--bg-1);
     }
 
     .drop-zone.dragging {

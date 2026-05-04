@@ -711,14 +711,14 @@
               <label for="qty-{profile.id}">Qty:</label>
               <input type="number" id="qty-{profile.id}" bind:value={profile.quantity} min="1" max="100" class="qty-input" />
             </div>
-            <button class="btn-icon" onclick={() => saveAsPreset(i)} title="Save as Preset">
+            <button class="btn-icon" onclick={() => saveAsPreset(i)} title={$t('orderForm.save_as_preset')} aria-label={$t('orderForm.save_as_preset')}>
               <Icon name="bookmark-plus" size="sm" />
             </button>
-            <button class="btn-icon" onclick={() => duplicateProfile(profile.id)} title="Duplicate">
+            <button class="btn-icon" onclick={() => duplicateProfile(profile.id)} title={$t('common.duplicate')} aria-label={$t('common.duplicate')}>
               <Icon name="plus" size="sm" />
             </button>
             {#if profiles.length > 1}
-              <button class="btn-icon danger" onclick={() => removeProfile(profile.id)} title="Remove">
+              <button class="btn-icon danger" onclick={() => removeProfile(profile.id)} title={$t('common.remove')} aria-label={$t('common.remove')}>
                 <Icon name="trash-2" size="sm" />
               </button>
             {/if}
@@ -798,11 +798,11 @@
                   </div>
                   <div class="file-list-actions">
                     {#if fileItem.type === 'pdf' || fileItem.type === 'image'}
-                      <button class="btn-icon-sm" onclick={(e) => { e.stopPropagation(); selectFile(i); }} title="Preview">
+                      <button class="btn-icon-sm" onclick={(e) => { e.stopPropagation(); selectFile(i); }} title={$t('common.preview')} aria-label={$t('common.preview')}>
                         <Icon name="eye" size="xs" />
                       </button>
                     {/if}
-                    <button class="btn-icon-sm danger" onclick={(e) => { e.stopPropagation(); removeFile(i); }} title="Remove">
+                    <button class="btn-icon-sm danger" onclick={(e) => { e.stopPropagation(); removeFile(i); }} title={$t('common.remove')} aria-label={$t('common.remove')}>
                       <Icon name="trash-2" size="xs" />
                     </button>
                   </div>
@@ -821,23 +821,23 @@
             <span class="preview-filename">{selectedFile.file.name}</span>
             <div class="preview-controls">
               {#if selectedFile.type === 'pdf' && pdfTotalPages > 1}
-                <button class="btn-icon-sm" onclick={prevPdfPage} disabled={pdfCurrentPage <= 1} title="Previous Page">
+                <button class="btn-icon-sm" onclick={prevPdfPage} disabled={pdfCurrentPage <= 1} title={$t('common.previous_page')} aria-label={$t('common.previous_page')}>
                   <Icon name="chevron-left" size="sm" />
                 </button>
                 <span class="page-indicator">{pdfCurrentPage} / {pdfTotalPages}</span>
-                <button class="btn-icon-sm" onclick={nextPdfPage} disabled={pdfCurrentPage >= pdfTotalPages} title="Next Page">
+                <button class="btn-icon-sm" onclick={nextPdfPage} disabled={pdfCurrentPage >= pdfTotalPages} title={$t('common.next_page')} aria-label={$t('common.next_page')}>
                   <Icon name="chevron-right" size="sm" />
                 </button>
                 <span class="divider">|</span>
               {/if}
-              <button class="btn-icon-sm" onclick={zoomOut} title="Zoom Out" disabled={previewZoom <= 0.5}>
+              <button class="btn-icon-sm" onclick={zoomOut} title={$t('common.zoom_out')} aria-label={$t('common.zoom_out')} disabled={previewZoom <= 0.5}>
                 <Icon name="zoom-out" size="sm" />
               </button>
               <span class="zoom-level">{Math.round(previewZoom * 100)}%</span>
-              <button class="btn-icon-sm" onclick={zoomIn} title="Zoom In" disabled={previewZoom >= 3}>
+              <button class="btn-icon-sm" onclick={zoomIn} title={$t('common.zoom_in')} aria-label={$t('common.zoom_in')} disabled={previewZoom >= 3}>
                 <Icon name="zoom-in" size="sm" />
               </button>
-              <button class="btn-icon-sm" onclick={resetZoom} title="Reset">
+              <button class="btn-icon-sm" onclick={resetZoom} title={$t('common.reset')} aria-label={$t('common.reset')}>
                 <Icon name="maximize" size="sm" />
               </button>
             </div>
@@ -890,10 +890,10 @@
         <div class="form-group">
           <label for="priority">{$t('orders.new.details.priority')}</label>
           <select id="priority" bind:value={priority}>
-            <option value="LOW">Low</option>
-            <option value="NORMAL">Normal</option>
-            <option value="HIGH">High</option>
-            <option value="URGENT">Urgent</option>
+            <option value="LOW">{$t('orderForm.priority.LOW')}</option>
+            <option value="NORMAL">{$t('orderForm.priority.NORMAL')}</option>
+            <option value="HIGH">{$t('orderForm.priority.HIGH')}</option>
+            <option value="URGENT">{$t('orderForm.priority.URGENT')}</option>
           </select>
         </div>
       </div>
@@ -961,7 +961,7 @@
                         <span class="preset-name">{preset.presetName}</span>
                         <span class="preset-address">{preset.addressLine1}, {preset.city}</span>
                         {#if preset.isDefault}
-                          <span class="default-badge">Default</span>
+                          <span class="default-badge">{$t('orderForm.default_badge')}</span>
                         {/if}
                       </button>
                     {/each}
@@ -1051,7 +1051,7 @@
         </div>
         <div class="modal-body">
           {#if profilePresets.length === 0}
-            <p class="empty-state">No saved presets yet. Create one by clicking "Save as Preset" on any profile.</p>
+            <p class="empty-state">{$t('orderForm.preset_empty_hint')}</p>
           {:else}
             <div class="preset-list">
               {#each profilePresets as preset}
@@ -1060,7 +1060,7 @@
                     <div class="preset-item-header">
                       <strong>{preset.name}</strong>
                       {#if preset.isPublic}
-                        <span class="public-badge">Public</span>
+                        <span class="public-badge">{$t('orderForm.public_badge')}</span>
                       {/if}
                     </div>
                     {#if preset.description}
@@ -1068,10 +1068,10 @@
                     {/if}
                   </div>
                   <div class="preset-item-actions">
-                    <button class="btn-icon" onclick={() => loadPreset(preset.id)} title="Load">
+                    <button class="btn-icon" onclick={() => loadPreset(preset.id)} title={$t('orderForm.load_preset', { default: 'Load' })} aria-label={$t('orderForm.load_preset', { default: 'Load' })}>
                       <Icon name="download" size="sm" />
                     </button>
-                    <button class="btn-icon danger" onclick={() => deletePreset(preset.id)} title="Delete">
+                    <button class="btn-icon danger" onclick={() => deletePreset(preset.id)} title={$t('orderForm.delete_preset')} aria-label={$t('orderForm.delete_preset')}>
                       <Icon name="trash-2" size="sm" />
                     </button>
                   </div>

@@ -53,7 +53,7 @@
         align-items: center;
         gap: 0.75rem;
         padding: 1rem;
-        background: white;
+        background: var(--bg-1);
         border-radius: 0.5rem;
         box-shadow: 0 10px 15px -3px color-mix(in oklab, var(--bg-0) 10%, transparent),
                     0 4px 6px -2px color-mix(in oklab, var(--bg-0) 5%, transparent);

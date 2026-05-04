@@ -1360,6 +1360,186 @@
     "your_sections": "Ваши разделы"
   },
   "common": {
-    "coming_soon": "Скоро"
+    "coming_soon": "Скоро",
+    "back": "Назад",
+    "edit": "Изменить",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "confirm": "Подтвердить",
+    "close": "Закрыть",
+    "refresh": "Обновить",
+    "search": "Поиск",
+    "actions": "Действия",
+    "description": "Описание",
+    "client": "Клиент",
+    "due_date": "Срок",
+    "price": "Цена",
+    "progress": "Прогресс",
+    "created": "Создано",
+    "updated": "Обновлено",
+    "last_updated": "Последнее обновление",
+    "status": "Статус",
+    "role": "Роль",
+    "preview": "Предпросмотр",
+    "remove": "Убрать",
+    "duplicate": "Дублировать",
+    "zoom_in": "Приблизить",
+    "zoom_out": "Отдалить",
+    "reset": "Сброс",
+    "previous_page": "Предыдущая страница",
+    "next_page": "Следующая страница",
+    "first_page": "Первая страница",
+    "last_page": "Последняя страница",
+    "no_description": "Описание не указано",
+    "default": "По умолчанию",
+    "required": "Обязательно",
+    "optional": "Опционально",
+    "dismiss": "Скрыть",
+    "dismiss_error": "Скрыть ошибку",
+    "sku": "Артикул",
+    "note_optional": "Заметка (необязательно)",
+    "no_results": "Ничего не найдено",
+    "retry": "Повторить"
+  },
+  "orderDetail": {
+    "not_found": "Заказ не найден",
+    "back_to_orders": "К списку заказов",
+    "loading": "Загрузка заказа…",
+    "qr_code": "QR-код",
+    "qr_modal_title": "QR-код заказа",
+    "description": "Описание",
+    "details": "Детали заказа",
+    "order_id": "ID заказа",
+    "reworks": "Переделки",
+    "upload_files": "Загрузить файлы",
+    "uploaded_files": "Загруженные файлы",
+    "timeline": "Хронология заказа",
+    "timeline_coming_soon": "Хронология скоро будет доступна…",
+    "tabs": {
+      "overview": "Обзор",
+      "stages": "Этапы производства",
+      "files": "Файлы",
+      "chat": "Обсуждение",
+      "timeline": "Хронология"
+    },
+    "stage_status": {
+      "NOT_STARTED": "Не начат",
+      "IN_PROGRESS": "В работе",
+      "COMPLETED": "Завершено",
+      "BLOCKED": "Заблокировано",
+      "SKIPPED": "Пропущено"
+    }
+  },
+  "ordersList": {
+    "manage_subtitle": "Управление и отслеживание заказов",
+    "total_orders": "Всего заказов",
+    "active_orders": "Активные заказы",
+    "draft_orders": "Черновики",
+    "draft_badge": "ЧЕРНОВИК",
+    "view_order": "Открыть заказ",
+    "edit_order": "Редактировать заказ",
+    "sort_hint": "Нажмите на заголовок колонки для сортировки. Стрелка раскрывает детали заказа."
+  },
+  "orderForm": {
+    "priority": {
+      "LOW": "Низкий",
+      "NORMAL": "Обычный",
+      "HIGH": "Высокий",
+      "URGENT": "Срочный"
+    },
+    "save_as_preset": "Сохранить как пресет",
+    "preset_empty_hint": "Сохранённых пресетов пока нет. Создайте, нажав «Сохранить как пресет» в профиле.",
+    "preset_name": "Название пресета",
+    "preset_description": "Описание",
+    "default_badge": "По умолчанию",
+    "public_badge": "Публичный",
+    "preview": "Предпросмотр",
+    "remove_file": "Убрать",
+    "duplicate_profile": "Дублировать",
+    "delete_preset": "Удалить"
+  },
+  "canvas": {
+    "back_to_order": "К заказу",
+    "unsaved": "Несохранённые изменения",
+    "ctx_hint": "Выберите фигуру, чтобы увидеть свойства",
+    "tools": "Инструменты",
+    "nodes": "Узлы",
+    "boolean": "Булевы операции",
+    "union": "Объединить выбранные фигуры Maker.js",
+    "subtract": "Вычесть выбранные фигуры Maker.js",
+    "intersect": "Пересечь выбранные фигуры Maker.js",
+    "zones_intro": "Производственные зоны, созданные с заказом.",
+    "form_nodes": "Узлы форм",
+    "no_change_requests": "Запросов на изменения пока нет.",
+    "ai_assistant": "Ассистент",
+    "ai_placeholder": "Спросите ИИ-ассистента…",
+    "refresh": "Обновить"
+  },
+  "inventoryCatalog": {
+    "group_acrylics": "Акрил",
+    "group_metals": "Металлы",
+    "group_films_vinyl": "Плёнки и винил",
+    "group_paints": "Краски",
+    "group_electronics": "Электроника",
+    "materials": {
+      "ACRYLIC_XT": "Акрил XT",
+      "ACRYLIC_GS": "Акрил GS",
+      "ACRYLIC_LED": "Акрил LED",
+      "ACRYLIC_SPECIAL": "Специальный акрил",
+      "ALU_SHEET": "Лист алюминия",
+      "ALU_PROFILE": "Профиль алюминия",
+      "STEEL": "Сталь / нержавейка",
+      "VINYL_ORACAL": "Винил Oracal",
+      "VINYL_SPECIAL": "Специальный винил",
+      "PAINT_RAL": "Краска RAL",
+      "PAINT_PANTONE": "Краска Pantone",
+      "LED_MODULE": "LED-модуль",
+      "LED_STRIP": "LED-лента",
+      "PSU_MEANWELL": "Блок питания",
+      "WIRE": "Провод / кабель"
+    }
+  },
+  "calendar_widget": {
+    "weekdays_short": {
+      "sun": "Вс",
+      "mon": "Пн",
+      "tue": "Вт",
+      "wed": "Ср",
+      "thu": "Чт",
+      "fri": "Пт",
+      "sat": "Сб"
+    },
+    "remove_from_schedule": "Убрать из расписания",
+    "any_special": "Особые указания…"
+  },
+  "adminUsers": {
+    "role": "Роль",
+    "station_assignments": "Привязки к станциям",
+    "station_head_title": "Старший станции"
+  },
+  "stationView": {
+    "in_progress": "В работе",
+    "queued": "В очереди",
+    "blocked": "Заблокировано",
+    "rework": "Переделка",
+    "scan_qr": "Сканировать QR-код заказа"
+  },
+  "inventoryDetail": {
+    "material_name": "Название материала",
+    "supplier": "Поставщик",
+    "price": "Цена",
+    "barcode": "Штрихкод",
+    "thickness": "Толщина"
+  },
+  "production": {
+    "title": "Производственная панель",
+    "subtitle": "Производственный поток в реальном времени"
+  },
+  "bottombar": {
+    "realtime": "Подключение в реальном времени",
+    "chat": "Чат",
+    "notifications": "Уведомления",
+    "settings": "Настройки"
   }
 }

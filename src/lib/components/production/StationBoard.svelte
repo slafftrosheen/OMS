@@ -98,7 +98,7 @@
 
 <style>
     .station-board {
-        background: white;
+        background: var(--bg-1);
         border: 2px solid var(--color-border, var(--border));
         border-radius: 0.5rem;
         overflow: hidden;
@@ -183,7 +183,7 @@
         font-size: 0.875rem;
         font-weight: 500;
         cursor: pointer;
-        background: white;
+        background: var(--bg-1);
         transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
     }
 

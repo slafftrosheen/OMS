@@ -370,12 +370,13 @@
   left: -9999px; top: -9999px;
   padding: var(--space-sm) var(--space-lg);
   background: var(--brand);
-  color: #fff;
+  color: var(--bg-0);
   border-radius: var(--radius-sm);
   font-weight: 600;
   font-size: var(--text-sm);
   z-index: var(--z-toast);
   text-decoration: none;
+  box-shadow: var(--elevation-3);
   transition: none;
 }
 
@@ -397,12 +398,13 @@
   align-items: center;
   gap: var(--space-md);
   padding: 0 clamp(var(--space-md), 3vw, var(--space-2xl));
-  height: var(--topbar-h, 64px);
+  height: var(--topbar-h, 60px);
   background: var(--glass-bg-strong);
   backdrop-filter: var(--glass-material-regular);
   -webkit-backdrop-filter: var(--glass-material-regular);
   border-bottom: 1px solid var(--separator-opaque, var(--divider));
-  box-shadow: var(--glass-shadow-sm);
+  box-shadow: var(--glass-shadow-sm), var(--glass-border-highlight);
+  animation: rf-fade-in var(--motion-md) var(--ease-standard) both;
 }
 
 .rf-topbar__brand {
@@ -441,18 +443,30 @@
   font-weight: 500;
   white-space: nowrap;
   flex-shrink: 0;
+  position: relative;
   transition:
     color      var(--motion-sm) var(--ease-standard),
-    background var(--motion-sm) var(--ease-standard);
+    background var(--motion-sm) var(--ease-standard),
+    transform  var(--motion-xs) var(--ease-spring-soft);
 }
 .rf-topbar__nav a:hover {
   color: var(--ink-primary);
   background: color-mix(in oklab, var(--bg-2) 70%, transparent);
 }
+.rf-topbar__nav a:active { transform: scale(0.97); }
 .rf-topbar__nav a.active {
   background: var(--brand-soft);
   color: var(--brand);
   font-weight: 600;
+}
+.rf-topbar__nav a.active::after {
+  content: '';
+  position: absolute;
+  inset: auto var(--space-md) -1px var(--space-md);
+  height: 2px;
+  background: var(--brand);
+  border-radius: var(--radius-full);
+  opacity: 0.85;
 }
 .rf-topbar__nav a.active:hover {
   background: color-mix(in oklab, var(--brand-soft) 80%, var(--bg-2));

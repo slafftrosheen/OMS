@@ -171,7 +171,7 @@
 
 <style>
     .filter-builder {
-        background: white;
+        background: var(--bg-1);
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 20px;
@@ -289,7 +289,7 @@
     }
 
     .clear-btn {
-        background: white;
+        background: var(--bg-1);
         border: 1px solid var(--border);
         color: var(--ink-tertiary);
     }

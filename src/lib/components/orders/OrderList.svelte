@@ -210,7 +210,7 @@
     }
 
     .stat-card {
-        background: white;
+        background: var(--bg-1);
         padding: 1.5rem;
         border-radius: 0.5rem;
         border: 1px solid var(--color-border, var(--border));
@@ -235,7 +235,7 @@
     .stat-overdue .stat-value { color: var(--error); }
 
     .filters-section {
-        background: white;
+        background: var(--bg-1);
         padding: 1.25rem;
         border-radius: 0.5rem;
         border: 1px solid var(--color-border, var(--border));
@@ -294,7 +294,7 @@
         border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
         font-size: 0.875rem;
-        background: white;
+        background: var(--bg-1);
         cursor: pointer;
     }
 
@@ -302,7 +302,7 @@
         padding: 0.375rem 0.75rem;
         border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
-        background: white;
+        background: var(--bg-1);
         cursor: pointer;
         font-size: 1.25rem;
         line-height: 1;
@@ -318,7 +318,7 @@
         padding: 0.5rem 1rem;
         border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
-        background: white;
+        background: var(--bg-1);
         color: var(--color-gray-700, var(--ink-secondary));
         font-size: 0.875rem;
         font-weight: 500;

@@ -122,11 +122,20 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   --radius-full: 999px;
 
   /* Chrome heights */
-  --topbar-h:       calc(64px * var(--font-scale, 1));
+  --topbar-h:       calc(60px * var(--font-scale, 1));
   --bottombar-h:    calc(52px * var(--font-scale, 1));
-  --mobile-nav-h:   calc(68px * var(--font-scale, 1));
+  --mobile-nav-h:   calc(72px * var(--font-scale, 1));
   --rail-safe:      env(safe-area-inset-bottom, 0px);
   --content-max:    1600px;
+
+  /* Breakpoints — single source for consumers (CSS @media uses px values
+     equivalent to these, kept here for documentation + JS access). */
+  --bp-xs:  480px;
+  --bp-sm:  640px;
+  --bp-md:  768px;
+  --bp-lg:  1024px;
+  --bp-xl:  1280px;
+  --bp-2xl: 1536px;
 }
 
 /* ---------- 5. Motion tokens ---------- */
@@ -190,22 +199,24 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
    THEMES
    ============================================================ */
 
-/* ---------- LIGHTVIM ---------- */
+/* ---------- LIGHTVIM ----------
+   Calm porcelain light palette. Ultra-low chroma surfaces, indigo brand
+   with low saturation, ink WCAG AA on every surface step. */
 :root[data-theme="LightVim"] {
-  /* Surfaces — warm off-white, gentle blue-grey cast */
-  --bg-0: oklch(0.975 0.005 252);
-  --bg-1: oklch(0.996 0.003 252);
-  --bg-2: oklch(0.944 0.010 252);
-  --bg-3: oklch(0.918 0.015 252);
+  /* Surfaces — warm porcelain with the faintest slate cast */
+  --bg-0: oklch(0.985 0.003 252);
+  --bg-1: oklch(0.998 0.002 252);
+  --bg-2: oklch(0.952 0.006 252);
+  --bg-3: oklch(0.922 0.010 252);
   --surface-0: var(--bg-0);
   --surface-1: var(--bg-1);
   --surface-2: var(--bg-2);
   --surface-3: var(--bg-3);
 
-  /* Ink — near-black with a warm blue tint; WCAG AA guaranteed */
-  --ink-0: oklch(0.15 0.022 258);
-  --ink-1: oklch(0.26 0.020 258);
-  --ink-2: oklch(0.44 0.016 258);
+  /* Ink — graphite, slight cool cast, AAA-friendly contrast on bg-0/1 */
+  --ink-0: oklch(0.18 0.018 258);
+  --ink-1: oklch(0.30 0.016 258);
+  --ink-2: oklch(0.46 0.014 258);
   --ink-3: oklch(0.62 0.010 258);
   --text:   var(--ink-0);
   --muted:  var(--ink-2);
@@ -215,24 +226,25 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   --ink-quaternary: var(--ink-3);
 
   /* Borders */
-  --border:         oklch(0.868 0.014 256);
-  --border-strong:  oklch(0.790 0.020 256);
-  --divider:        color-mix(in oklab, var(--ink-0) 7%, transparent);
-  --separator-opaque: color-mix(in oklab, var(--ink-0) 8%, var(--bg-1));
-  --focus:          oklch(0.56 0.19 258);
+  --border:         oklch(0.882 0.010 256);
+  --border-strong:  oklch(0.798 0.014 256);
+  --divider:        color-mix(in oklab, var(--ink-0) 6%, transparent);
+  --separator-opaque: color-mix(in oklab, var(--ink-0) 7%, var(--bg-1));
+  --focus:          oklch(0.56 0.16 258);
 
-  /* Brand — slate-indigo; calm, WCAG AA on bg-0 (white text on brand bg) */
-  --brand:    oklch(0.40 0.18 258);
-  --brand-2:  oklch(0.54 0.14 193);
+  /* Brand — calm slate-indigo. Less chroma than v1 — a 2026 read.
+     White text on brand bg passes WCAG AA at body sizes. */
+  --brand:    oklch(0.44 0.13 258);
+  --brand-2:  oklch(0.58 0.10 193);
   --accent-1: var(--brand);
   --accent-2: var(--brand-2);
 
-  /* States */
-  --ok:     oklch(0.50 0.15 155);
-  --warn:   oklch(0.60 0.18 70);
-  --error:  oklch(0.48 0.20 20);
+  /* States — subdued but distinguishable */
+  --ok:     oklch(0.52 0.12 155);
+  --warn:   oklch(0.62 0.14 70);
+  --error:  oklch(0.50 0.16 22);
   --danger: var(--error);
-  --link:   oklch(0.42 0.18 258);
+  --link:   oklch(0.46 0.13 258);
 
   /* Tints */
   --brand-soft:   color-mix(in oklab, var(--brand) 10%, var(--bg-1));
@@ -269,23 +281,27 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   color-scheme: light;
 }
 
-/* ---------- DARKVIM ---------- */
+/* ---------- DARKVIM ----------
+   Apple-deep dark theme. Pure OLED blacks for surface-0, near-black with
+   slight cool tint for layered surfaces, periwinkle brand at the right
+   chroma so it reads "premium" not "neon". */
 :root[data-theme="DarkVim"] {
-  /* Surfaces — pure OLED blacks, subtle cool-grey steps */
+  /* Surfaces — pure OLED blacks, soft cool-grey steps */
   --bg-0: #000000;
-  --bg-1: #0b0b0e;
-  --bg-2: #131316;
-  --bg-3: #1a1a1f;
+  --bg-1: #0c0c10;
+  --bg-2: #15151a;
+  --bg-3: #1d1d24;
   --surface-0: var(--bg-0);
   --surface-1: var(--bg-1);
   --surface-2: var(--bg-2);
   --surface-3: var(--bg-3);
 
-  /* Ink — bright-but-soft whites for readability on OLED */
-  --ink-0: oklch(0.96 0.005 255);
-  --ink-1: oklch(0.86 0.008 255);
-  --ink-2: oklch(0.65 0.010 255);
-  --ink-3: oklch(0.40 0.008 255);
+  /* Ink — bright-but-soft whites tuned to OLED. ink-2 raised slightly so
+     muted body copy stays comfortably readable on dark glass surfaces. */
+  --ink-0: oklch(0.97 0.004 255);
+  --ink-1: oklch(0.88 0.006 255);
+  --ink-2: oklch(0.70 0.010 255);
+  --ink-3: oklch(0.46 0.008 255);
   --text:   var(--ink-0);
   --muted:  var(--ink-2);
   --ink-primary:    var(--ink-0);
@@ -294,24 +310,24 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   --ink-quaternary: var(--ink-3);
 
   /* Borders */
-  --border:         oklch(0.20 0.010 255);
-  --border-strong:  oklch(0.30 0.012 255);
+  --border:         oklch(0.22 0.008 255);
+  --border-strong:  oklch(0.32 0.010 255);
   --divider:        color-mix(in oklab, white 8%, transparent);
-  --separator-opaque: color-mix(in oklab, white 8%, var(--bg-1));
-  --focus:          oklch(0.76 0.15 258);
+  --separator-opaque: color-mix(in oklab, white 7%, var(--bg-1));
+  --focus:          oklch(0.78 0.12 258);
 
-  /* Brand — periwinkle; calm on OLED */
-  --brand:    oklch(0.74 0.14 258);
-  --brand-2:  oklch(0.68 0.12 193);
+  /* Brand — soft periwinkle. Lower chroma than v1, easier on the eyes. */
+  --brand:    oklch(0.76 0.11 258);
+  --brand-2:  oklch(0.72 0.09 193);
   --accent-1: var(--brand);
   --accent-2: var(--brand-2);
 
-  /* States */
-  --ok:     oklch(0.76 0.16 155);
-  --warn:   oklch(0.82 0.14 76);
-  --error:  oklch(0.70 0.17 20);
+  /* States — calm-saturated on dark */
+  --ok:     oklch(0.78 0.13 155);
+  --warn:   oklch(0.84 0.11 76);
+  --error:  oklch(0.72 0.14 20);
   --danger: var(--error);
-  --link:   oklch(0.78 0.14 258);
+  --link:   oklch(0.80 0.11 258);
 
   /* Tints */
   --brand-soft:   color-mix(in oklab, var(--brand) 15%, var(--bg-1));
@@ -348,23 +364,26 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   color-scheme: dark;
 }
 
-/* ---------- HIGH CONTRAST ---------- */
+/* ---------- HIGH CONTRAST ----------
+   For users that need maximum contrast and zero glass effects. Slightly
+   off-white text and softened primaries to reduce after-image fatigue
+   while preserving WCAG AAA-grade contrast. */
 :root[data-theme="HighContrast"],
 :root[data-theme="HighContrastVim"] {
-  --bg-0: #000; --bg-1: #111; --bg-2: #222; --bg-3: #333;
+  --bg-0: #000; --bg-1: #0c0c0c; --bg-2: #1c1c1c; --bg-3: #2c2c2c;
   --surface-0: var(--bg-0); --surface-1: var(--bg-1); --surface-2: var(--bg-2); --surface-3: var(--bg-3);
 
-  --ink-0: #fff; --ink-1: #fff; --ink-2: #ddd; --ink-3: #aaa;
-  --text: #fff; --muted: #ddd;
-  --ink-primary: #fff; --ink-secondary: #fff; --ink-tertiary: #ddd; --ink-quaternary: #aaa;
+  --ink-0: #f5f5f5; --ink-1: #ededed; --ink-2: #dcdcdc; --ink-3: #b8b8b8;
+  --text: #f5f5f5; --muted: #dcdcdc;
+  --ink-primary: #f5f5f5; --ink-secondary: #ededed; --ink-tertiary: #dcdcdc; --ink-quaternary: #b8b8b8;
 
-  --border: #fff; --border-strong: #fff;
-  --divider: #fff; --separator-opaque: #fff; --focus: #0ff;
+  --border: #f5f5f5; --border-strong: #f5f5f5;
+  --divider: #f5f5f5; --separator-opaque: #f5f5f5; --focus: #5cf5ff;
 
-  --brand: #6699ff; --brand-2: #66ddcc;
-  --accent-1: #6699ff; --accent-2: #66ddcc;
+  --brand: #7ea4ff; --brand-2: #7eddcc;
+  --accent-1: #7ea4ff; --accent-2: #7eddcc;
 
-  --ok: #66ee88; --warn: #ffdd44; --error: #ff6655; --danger: #ff6655; --link: #88ccff;
+  --ok: #7eea8c; --warn: #ffd95c; --error: #ff7666; --danger: #ff7666; --link: #9ec4ff;
 
   --brand-soft:   var(--bg-2);
   --brand-strong: var(--brand);
@@ -395,32 +414,32 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
 
 /* ---------- Default fallback (unset data-theme) — baked DarkVim ---------- */
 :root {
-  --bg-0: #000000; --bg-1: #0b0b0e; --bg-2: #131316; --bg-3: #1a1a1f;
-  --surface-0: #000000; --surface-1: #0b0b0e; --surface-2: #131316; --surface-3: #1a1a1f;
-  --ink-0: oklch(0.96 0.005 255); --ink-1: oklch(0.86 0.008 255);
-  --ink-2: oklch(0.65 0.010 255); --ink-3: oklch(0.40 0.008 255);
-  --text: oklch(0.96 0.005 255); --muted: oklch(0.65 0.010 255);
-  --ink-primary: oklch(0.96 0.005 255); --ink-secondary: oklch(0.86 0.008 255);
-  --ink-tertiary: oklch(0.65 0.010 255); --ink-quaternary: oklch(0.40 0.008 255);
-  --border: oklch(0.20 0.010 255); --border-strong: oklch(0.30 0.012 255);
-  --divider: rgba(255,255,255,.08); --separator-opaque: rgba(255,255,255,.08);
-  --focus: oklch(0.76 0.15 258);
-  --brand: oklch(0.74 0.14 258); --brand-2: oklch(0.68 0.12 193);
-  --accent-1: oklch(0.74 0.14 258); --accent-2: oklch(0.68 0.12 193);
-  --ok: oklch(0.76 0.16 155); --warn: oklch(0.82 0.14 76);
-  --error: oklch(0.70 0.17 20); --danger: oklch(0.70 0.17 20);
-  --link: oklch(0.78 0.14 258);
-  --brand-soft:   color-mix(in oklab, oklch(0.74 0.14 258) 15%, #0b0b0e);
-  --brand-strong: color-mix(in oklab, oklch(0.74 0.14 258) 84%, white);
-  --ok-soft:      color-mix(in oklab, oklch(0.76 0.16 155) 13%, #0b0b0e);
-  --ok-strong:    color-mix(in oklab, oklch(0.76 0.16 155) 84%, white);
-  --warn-soft:    color-mix(in oklab, oklch(0.82 0.14 76)  13%, #0b0b0e);
-  --warn-strong:  color-mix(in oklab, oklch(0.82 0.14 76)  84%, white);
-  --error-soft:   color-mix(in oklab, oklch(0.70 0.17 20)  15%, #0b0b0e);
-  --error-strong: color-mix(in oklab, oklch(0.70 0.17 20)  84%, white);
-  --glass-bg:               rgba(11, 11, 14, 0.70);
-  --glass-bg-strong:        rgba(11, 11, 14, 0.86);
-  --glass-tint-bg:          rgba(11, 11, 14, 0.70);
+  --bg-0: #000000; --bg-1: #0c0c10; --bg-2: #15151a; --bg-3: #1d1d24;
+  --surface-0: #000000; --surface-1: #0c0c10; --surface-2: #15151a; --surface-3: #1d1d24;
+  --ink-0: oklch(0.97 0.004 255); --ink-1: oklch(0.88 0.006 255);
+  --ink-2: oklch(0.70 0.010 255); --ink-3: oklch(0.46 0.008 255);
+  --text: oklch(0.97 0.004 255); --muted: oklch(0.70 0.010 255);
+  --ink-primary: oklch(0.97 0.004 255); --ink-secondary: oklch(0.88 0.006 255);
+  --ink-tertiary: oklch(0.70 0.010 255); --ink-quaternary: oklch(0.46 0.008 255);
+  --border: oklch(0.22 0.008 255); --border-strong: oklch(0.32 0.010 255);
+  --divider: rgba(255,255,255,.08); --separator-opaque: rgba(255,255,255,.07);
+  --focus: oklch(0.78 0.12 258);
+  --brand: oklch(0.76 0.11 258); --brand-2: oklch(0.72 0.09 193);
+  --accent-1: oklch(0.76 0.11 258); --accent-2: oklch(0.72 0.09 193);
+  --ok: oklch(0.78 0.13 155); --warn: oklch(0.84 0.11 76);
+  --error: oklch(0.72 0.14 20); --danger: oklch(0.72 0.14 20);
+  --link: oklch(0.80 0.11 258);
+  --brand-soft:   color-mix(in oklab, oklch(0.76 0.11 258) 15%, #0c0c10);
+  --brand-strong: color-mix(in oklab, oklch(0.76 0.11 258) 84%, white);
+  --ok-soft:      color-mix(in oklab, oklch(0.78 0.13 155) 13%, #0c0c10);
+  --ok-strong:    color-mix(in oklab, oklch(0.78 0.13 155) 84%, white);
+  --warn-soft:    color-mix(in oklab, oklch(0.84 0.11 76)  13%, #0c0c10);
+  --warn-strong:  color-mix(in oklab, oklch(0.84 0.11 76)  84%, white);
+  --error-soft:   color-mix(in oklab, oklch(0.72 0.14 20)  15%, #0c0c10);
+  --error-strong: color-mix(in oklab, oklch(0.72 0.14 20)  84%, white);
+  --glass-bg:               rgba(12, 12, 16, 0.72);
+  --glass-bg-strong:        rgba(12, 12, 16, 0.88);
+  --glass-tint-bg:          rgba(12, 12, 16, 0.72);
   --glass-border:           rgba(255, 255, 255, 0.10);
   --glass-border-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   --glass-shadow:           0 10px 40px rgba(0, 0, 0, 0.55), 0 2px 10px rgba(0, 0, 0, 0.30);
@@ -433,7 +452,7 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   --elevation-3: 0 10px 28px rgba(0, 0, 0, 0.54);
   --elevation-4: 0 24px 52px rgba(0, 0, 0, 0.68);
   --shadow-rgb: 0 0 0;
-  --grain-opacity: 0.050;
+  --grain-opacity: 0.045;
   --grain-blend-mode: overlay;
   color-scheme: dark;
 }
@@ -595,8 +614,14 @@ body::before {
 .rf-page {
   width: min(100%, var(--content-max));
   margin: 0 auto;
-  padding: var(--space-lg);
+  padding: var(--space-xl) var(--space-lg);
   animation: rf-page-enter var(--motion-md) var(--ease-standard) both;
+}
+
+@media (max-width: 1024px) {
+  .rf-page {
+    padding: var(--space-md);
+  }
 }
 
 /* Density tokens */
