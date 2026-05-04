@@ -37,7 +37,37 @@
   let canvasSnapshot: any = $state(null);
   let canvasDirty = $state(false);
   let editorRef: any = $state(null);
-  let selectedShapeTypes: string[] = $state([]);
+  let selectedShape: { id: string; type: string; x: number; y: number; w: number | null; h: number | null; thickness: number | null; rotation: number } | null = $state(null);
+  let multiSelectCount = $state(0);
+  let selectedShapeTypes: string[] = $derived(
+    multiSelectCount > 1 ? [`${multiSelectCount} shapes`]
+    : selectedShape ? [selectedShape.type]
+    : []
+  );
+
+  // ── Change-requests (loaded for the right docker) ────────────────────────────
+  let changeRequests: any[] = $state([]);
+
+  async function loadChangeRequests() {
+    if (!orderId) return;
+    try {
+      const res = await fetch(`/api/draft-orders/${orderId}/change-requests`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          changeRequests = data.map((cr: any) => ({
+            id: cr.id,
+            title: cr.title || cr.station || 'Change request',
+            author: cr.proposed_by_user?.email || 'unknown',
+            status: cr.status,
+            message: cr.description || cr.reason || '',
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load change requests:', err);
+    }
+  }
 
   // ── UI state ─────────────────────────────────────────────────────────────────
   let loading = $state(true);
@@ -88,6 +118,7 @@
   onMount(async () => {
     await loadOrder();
     canvasLoaded = true;
+    await loadChangeRequests();
   });
 
   async function loadOrder() {
@@ -131,6 +162,116 @@
     editor.store.listen(() => {
       canvasDirty = true;
     }, { scope: 'document' });
+    // Selection listener: update Svelte state whenever the user selects shapes
+    editor.store.listen(() => {
+      try {
+        const sel = editor.getSelectedShapes?.() ?? [];
+        multiSelectCount = sel.length;
+        if (sel.length === 1) {
+          const s = sel[0];
+          selectedShape = {
+            id: s.id,
+            type: s.type,
+            x: Math.round(s.x ?? 0),
+            y: Math.round(s.y ?? 0),
+            w: s.props?.w ?? null,
+            h: s.props?.h ?? null,
+            thickness: s.meta?.thickness ?? s.props?.thickness ?? null,
+            rotation: Math.round((s.rotation ?? 0) * 1000) / 1000,
+          };
+        } else {
+          selectedShape = null;
+        }
+      } catch (err) {
+        // ignore – selection store may be transitioning
+      }
+    }, { scope: 'session' });
+  }
+
+  // ── Context-bar field updaters (write back to canvas on input) ───────────────
+  function updateSelectedGeom(patch: Partial<{ x: number; y: number; w: number; h: number; rotation: number }>) {
+    if (!editorRef || !selectedShape) return;
+    const s = editorRef.getShape(selectedShape.id);
+    if (!s) return;
+    const next: any = { id: s.id, type: s.type };
+    if (patch.x !== undefined) next.x = patch.x;
+    if (patch.y !== undefined) next.y = patch.y;
+    if (patch.rotation !== undefined) next.rotation = patch.rotation;
+    if (patch.w !== undefined || patch.h !== undefined) {
+      next.props = { ...s.props };
+      if (patch.w !== undefined) next.props.w = patch.w;
+      if (patch.h !== undefined) next.props.h = patch.h;
+    }
+    editorRef.updateShape(next);
+  }
+
+  function updateSelectedThickness(thickness: number) {
+    if (!editorRef || !selectedShape) return;
+    const s = editorRef.getShape(selectedShape.id);
+    if (!s) return;
+    editorRef.updateShape({
+      id: s.id,
+      type: s.type,
+      meta: { ...(s.meta ?? {}), thickness },
+    });
+  }
+
+  // ── Boolean Tool: union / subtract / intersect of selected MakerShapes ──────
+  async function applyBooleanOp(op: 'union' | 'subtract' | 'intersect') {
+    if (!editorRef) return;
+    const sel = editorRef.getSelectedShapes?.() ?? [];
+    const makers = sel.filter((s: any) => s.type === 'maker');
+    if (makers.length < 2) {
+      notifyError('Select 2+ Maker.js shapes to combine');
+      return;
+    }
+    try {
+      const makerjs = (await import('makerjs')).default;
+      // Evaluate each selected maker code and produce a model
+      const models: any[] = [];
+      for (const m of makers) {
+        const code: string = m.props?.code ?? '';
+        const params = m.props?.params ?? {};
+        const fn = new Function('require', 'module', code + '\nreturn module.exports;');
+        const mod = fn((name: string) => {
+          if (name === 'makerjs') return makerjs;
+          throw new Error('Only makerjs is supported');
+        }, { exports: {} });
+        const args = mod.metaParameters
+          ? mod.metaParameters.map((p: any) => params[p.name] ?? p.value ?? 50)
+          : Object.values(params);
+        models.push(new mod(...args));
+      }
+      // Combine pairwise
+      let combined = models[0];
+      for (let i = 1; i < models.length; i++) {
+        combined = makerjs.model.combine(
+          combined,
+          models[i],
+          op === 'subtract' || op === 'intersect',
+          op === 'union' || op === 'intersect',
+          op === 'subtract' || op === 'union',
+          op !== 'intersect',
+        );
+      }
+      // Serialise back to a maker code string
+      const code = `module.exports = function() {\n  this.models = ${JSON.stringify(combined.models ?? {})};\n  this.paths = ${JSON.stringify(combined.paths ?? {})};\n};`;
+      const center = makers[0];
+      // Place the result and remove the originals
+      editorRef.batch(() => {
+        editorRef.deleteShapes(makers.map((m: any) => m.id));
+        editorRef.createShape({
+          type: 'maker',
+          x: center.x ?? 0,
+          y: center.y ?? 0,
+          props: { w: 320, h: 320, code, params: {} },
+        });
+      });
+      notifySuccess(`Boolean ${op} applied`);
+    } catch (err: any) {
+      console.error('Boolean op failed', err);
+      notifyError(`Boolean ${op} failed: ${err.message ?? 'unknown'}`);
+    }
   }
 
   function handleCanvasSave(snapshot: any) {
@@ -155,6 +296,11 @@
   function handleProfileChange(oid: string, profileIndex: number, profileData: any) {
     profiles = profiles.map((p, i) => i === profileIndex ? { ...p, configuration: profileData } : p);
     canvasDirty = true;
+  }
+
+  function handleAssetUploaded(oid: string, asset: { url: string; fileName: string; kind: string }) {
+    canvasDirty = true;
+    notifySuccess(`Uploaded ${asset.fileName}`);
   }
 
   // ── Save draft ────────────────────────────────────────────────────────────────
@@ -247,8 +393,70 @@
   }
 
   // ── AI prompt ─────────────────────────────────────────────────────────────────
+  /** Detect whether the prompt should be routed to the shape-replacement endpoint. */
+  function isReplaceIntent(text: string): boolean {
+    const re = /\b(clean(?:\s*it)?\s*up|replace\s+with|convert\s+to|make\s+(?:this|it)\s+(?:a|an|into)|turn\s+(?:this|it)\s+into|generate\s+(?:a\s+)?maker|to\s+maker)/i;
+    return re.test(text);
+  }
+
+  async function replaceSelectionWithMaker(prompt: string) {
+    const sel = editorRef?.getSelectedShapes?.() ?? [];
+    if (sel.length === 0) {
+      notifyError('Select a shape first');
+      return;
+    }
+    aiRunning = true;
+    aiResponse = '';
+    try {
+      const selection = sel.map((s: any) => ({
+        type: s.type,
+        x: Math.round(s.x ?? 0),
+        y: Math.round(s.y ?? 0),
+        w: s.props?.w,
+        h: s.props?.h,
+        props: s.props,
+      }));
+      const res = await fetch('/api/ai/canvas/replace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, selection }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'AI replace failed');
+      }
+      const { code, params } = await res.json();
+      const anchor = sel[0];
+      editorRef.batch(() => {
+        editorRef.deleteShapes(sel.map((s: any) => s.id));
+        editorRef.createShape({
+          type: 'maker',
+          x: anchor.x ?? 0,
+          y: anchor.y ?? 0,
+          props: { w: 320, h: 320, code, params: params ?? {} },
+        });
+      });
+      aiResponse = 'Replaced selection with a Maker.js node.';
+      notifySuccess('Sketch replaced');
+    } catch (err: any) {
+      aiResponse = `Replacement failed: ${err.message ?? 'unknown'}`;
+      notifyError(aiResponse);
+    } finally {
+      aiRunning = false;
+    }
+  }
+
   async function runAiPrompt() {
     if (!aiPrompt.trim()) return;
+    const prompt = aiPrompt;
+
+    // If the user is asking the AI to clean up the selection, route to the
+    // shape-replacement endpoint instead of plain chat.
+    if (useSelectionCtx && isReplaceIntent(prompt)) {
+      await replaceSelectionWithMaker(prompt);
+      return;
+    }
+
     aiRunning = true;
     aiResponse = '';
     try {
@@ -258,27 +466,120 @@
         context = JSON.stringify(sel.map((s: any) => ({ type: s.type, props: s.props })));
       }
 
-      const res = await fetch('/api/ai/chat', {
+      // Use SSE streaming so tokens render progressively instead of waiting
+      // for the full reply. Falls back to plain JSON if the stream errors.
+      const res = await fetch('/api/ai/chat?stream=1', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          stream: true,
           messages: [
             { role: 'system', content: 'You are a manufacturing assistant for a signage production company. Help with design, materials, and CAD decisions.' },
             ...(context ? [{ role: 'user', content: `Canvas context: ${context}` }] : []),
-            { role: 'user', content: aiPrompt },
+            { role: 'user', content: prompt },
           ],
         }),
       });
-      if (res.ok) {
-        const d = await res.json();
-        aiResponse = d.message?.content || d.reply || d.content || JSON.stringify(d);
-      } else {
+
+      if (!res.ok || !res.body) {
         aiResponse = 'AI service unavailable.';
+        return;
       }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() ?? '';
+        for (const evt of events) {
+          const line = evt.split('\n').find((l) => l.startsWith('data:'));
+          if (!line) continue;
+          try {
+            const data = JSON.parse(line.slice(5).trim());
+            if (data.delta) aiResponse += data.delta;
+            if (data.error) aiResponse = `AI error: ${data.error}`;
+            if (data.done && data.content) aiResponse = data.content;
+          } catch {
+            // skip
+          }
+        }
+      }
+      if (!aiResponse) aiResponse = '(no response)';
     } catch {
       aiResponse = 'Failed to reach AI service.';
     } finally {
       aiRunning = false;
+    }
+  }
+
+  // ── PDF "Extract to Order Forms" — context menu action ──────────────────────
+  let pdfMenu: { x: number; y: number; fileId: string; shapeId: string } | null = $state(null);
+  let pdfMenuRunning = $state(false);
+
+  function openPdfMenuFromEvent(e: MouseEvent) {
+    if (!editorRef) return;
+    // Find a selected document shape that has a fileId and is a PDF
+    const sel = editorRef.getSelectedShapes?.() ?? [];
+    const pdfShape = sel.find((s: any) =>
+      s.type === 'document' && s.props?.kind === 'pdf' && s.props?.fileId
+    );
+    if (!pdfShape) return;
+    e.preventDefault();
+    pdfMenu = {
+      x: e.clientX,
+      y: e.clientY,
+      fileId: pdfShape.props.fileId,
+      shapeId: pdfShape.id,
+    };
+  }
+
+  function closePdfMenu() {
+    pdfMenu = null;
+  }
+
+  async function extractPdfToForms() {
+    if (!pdfMenu || !orderId) return;
+    pdfMenuRunning = true;
+    try {
+      const res = await fetch('/api/ai/canvas/extract-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId: pdfMenu.fileId, orderId: String(orderId) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Extraction failed');
+      }
+      const data = await res.json();
+      // Apply to local Svelte state — orderSeed is derived from these vars,
+      // which propagates back into the canvas form shapes via syncOrderDataToCanvas.
+      if (data.details) {
+        if (data.details.title !== undefined) title = data.details.title ?? title;
+        if (data.details.clientName !== undefined) clientName = data.details.clientName ?? clientName;
+        if (data.details.poNumber !== undefined) poNumber = data.details.poNumber ?? poNumber;
+        if (data.details.deadline !== undefined) deadline = data.details.deadline ?? deadline;
+        if (data.details.loadingDate !== undefined) loadingDate = data.details.loadingDate ?? loadingDate;
+        if (data.details.priority !== undefined) priority = data.details.priority ?? priority;
+        if (data.details.notes !== undefined) notes = data.details.notes ?? notes;
+      }
+      if (data.address) {
+        if (data.address.deliveryAddress !== undefined) deliveryAddress = data.address.deliveryAddress ?? deliveryAddress;
+        if (data.address.deliveryContact !== undefined) deliveryContact = data.address.deliveryContact ?? deliveryContact;
+        if (data.address.deliveryPhone !== undefined) deliveryPhone = data.address.deliveryPhone ?? deliveryPhone;
+        if (data.address.deliveryEmail !== undefined) deliveryEmail = data.address.deliveryEmail ?? deliveryEmail;
+      }
+      canvasDirty = true;
+      notifySuccess('Order forms updated from PDF');
+    } catch (err: any) {
+      notifyError(err.message || 'PDF extraction failed');
+    } finally {
+      pdfMenuRunning = false;
+      closePdfMenu();
     }
   }
 
@@ -329,10 +630,59 @@
 
     <!-- Context bar: shows selection-aware controls -->
     <div class="context-bar">
-      {#if selectedShapeTypes.length === 0}
+      {#if !selectedShape && multiSelectCount === 0}
         <span class="ctx-hint">Select a shape to see properties</span>
-      {:else}
-        <span class="ctx-hint">{selectedShapeTypes.join(', ')} selected</span>
+      {:else if multiSelectCount > 1}
+        <span class="ctx-hint">{multiSelectCount} shapes selected</span>
+        <div class="ctx-divider"></div>
+        <button class="ctx-btn" onclick={() => applyBooleanOp('union')} title="Union (Maker.js)">∪ Union</button>
+        <button class="ctx-btn" onclick={() => applyBooleanOp('subtract')} title="Subtract (Maker.js)">− Subtract</button>
+        <button class="ctx-btn" onclick={() => applyBooleanOp('intersect')} title="Intersect (Maker.js)">∩ Intersect</button>
+      {:else if selectedShape}
+        <span class="ctx-tag">{selectedShape.type}</span>
+        <label class="ctx-field">
+          X
+          <input type="number" value={selectedShape.x}
+            onchange={(e) => updateSelectedGeom({ x: parseFloat(e.currentTarget.value) })}
+            step="1" />
+        </label>
+        <label class="ctx-field">
+          Y
+          <input type="number" value={selectedShape.y}
+            onchange={(e) => updateSelectedGeom({ y: parseFloat(e.currentTarget.value) })}
+            step="1" />
+        </label>
+        {#if selectedShape.w !== null}
+          <label class="ctx-field">
+            W
+            <input type="number" value={selectedShape.w}
+              onchange={(e) => updateSelectedGeom({ w: parseFloat(e.currentTarget.value) })}
+              step="1" min="1" />
+          </label>
+        {/if}
+        {#if selectedShape.h !== null}
+          <label class="ctx-field">
+            H
+            <input type="number" value={selectedShape.h}
+              onchange={(e) => updateSelectedGeom({ h: parseFloat(e.currentTarget.value) })}
+              step="1" min="1" />
+          </label>
+        {/if}
+        <label class="ctx-field">
+          Thickness
+          <select value={selectedShape.thickness ?? ''}
+            onchange={(e) => updateSelectedThickness(parseFloat(e.currentTarget.value))}>
+            <option value="">—</option>
+            <option value="3">3 mm</option>
+            <option value="5">5 mm</option>
+            <option value="8">8 mm</option>
+            <option value="10">10 mm</option>
+            <option value="13">13 mm</option>
+            <option value="15">15 mm</option>
+            <option value="20">20 mm</option>
+            <option value="25">25 mm</option>
+          </select>
+        </label>
       {/if}
     </div>
 
@@ -388,10 +738,19 @@
           </button>
         {/each}
       </div>
+
+      <div class="tool-divider"></div>
+
+      <div class="tool-section">
+        <span class="tool-section-label">Boolean</span>
+        <button class="tool-btn" title="Union selected Maker.js shapes" onclick={() => applyBooleanOp('union')}>∪</button>
+        <button class="tool-btn" title="Subtract selected Maker.js shapes" onclick={() => applyBooleanOp('subtract')}>−</button>
+        <button class="tool-btn" title="Intersect selected Maker.js shapes" onclick={() => applyBooleanOp('intersect')}>∩</button>
+      </div>
     </aside>
 
     <!-- ── Canvas ─────────────────────────────────────────────────────── -->
-    <main class="canvas-area">
+    <main class="canvas-area" oncontextmenu={openPdfMenuFromEvent} role="presentation">
       {#if loading}
         <div class="canvas-loading">
           <div class="spinner"></div>
@@ -412,9 +771,29 @@
             onSave={handleCanvasSave}
             onOrderChange={handleOrderChange}
             onProfileChange={handleProfileChange}
+            onAssetUploaded={handleAssetUploaded}
             hideUI={false}
           />
         {/await}
+      {/if}
+
+      {#if pdfMenu}
+        <div
+          class="pdf-ctx-overlay"
+          onclick={closePdfMenu}
+          oncontextmenu={(e) => { e.preventDefault(); closePdfMenu(); }}
+          role="presentation"
+        ></div>
+        <div class="pdf-ctx-menu" style="left: {pdfMenu.x}px; top: {pdfMenu.y}px;">
+          <button
+            class="pdf-ctx-item"
+            onclick={extractPdfToForms}
+            disabled={pdfMenuRunning}
+          >
+            <Icon name="sparkles" size="sm" />
+            {pdfMenuRunning ? 'Extracting…' : 'Extract to Order Forms'}
+          </button>
+        </div>
       {/if}
     </main>
 
@@ -457,7 +836,14 @@
         {:else if rightTab === 'changes'}
           <div class="changes-panel">
             {#if orderId}
-              <ChangeRequestList orderId={String(orderId)} />
+              <button class="cr-refresh-btn" onclick={loadChangeRequests} title="Refresh">
+                <Icon name="refresh-cw" size="sm" /> Refresh
+              </button>
+              {#if changeRequests.length === 0}
+                <p class="zone-intro" style="margin-top: 8px;">No change requests yet.</p>
+              {:else}
+                <ChangeRequestList items={changeRequests as any} isAdmin={isAdmin} />
+              {/if}
             {:else}
               <p class="zone-intro">Loading…</p>
             {/if}
@@ -606,6 +992,117 @@
     font-size: 12px;
     color: var(--text-muted);
   }
+
+  .ctx-tag {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: color-mix(in oklab, var(--brand) 12%, transparent);
+    color: var(--brand);
+  }
+
+  .ctx-divider {
+    width: 1px;
+    height: 22px;
+    background: var(--border);
+    margin: 0 4px;
+  }
+
+  .ctx-field {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+
+  .ctx-field input,
+  .ctx-field select {
+    width: 56px;
+    height: 26px;
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-0);
+    color: var(--text);
+    font-size: 12px;
+    font-family: inherit;
+  }
+  .ctx-field select { width: 88px; }
+  .ctx-field input:focus,
+  .ctx-field select:focus { outline: none; border-color: var(--brand); }
+
+  .ctx-btn {
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-0);
+    color: var(--text);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+  }
+  .ctx-btn:hover { background: var(--bg-2); border-color: var(--brand); color: var(--brand); }
+
+  .cr-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-0);
+    color: var(--text-muted);
+    font-size: 11px;
+    cursor: pointer;
+    margin-bottom: var(--space-sm);
+  }
+  .cr-refresh-btn:hover { background: var(--bg-2); color: var(--text); }
+
+  /* ── PDF context menu ────────────────────────────────────────────────────── */
+  .pdf-ctx-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: transparent;
+  }
+  .pdf-ctx-menu {
+    position: fixed;
+    z-index: 91;
+    min-width: 200px;
+    padding: 4px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--glass-shadow, 0 8px 24px rgba(0,0,0,0.18));
+  }
+  .pdf-ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .pdf-ctx-item:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--brand) 12%, transparent);
+    color: var(--brand);
+  }
+  .pdf-ctx-item:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .top-bar-actions {
     display: flex;

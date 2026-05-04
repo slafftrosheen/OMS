@@ -122,11 +122,28 @@
 
       if (res.ok) {
         const data = await res.json();
-        // Reload full message list to get both user + assistant messages
-        const reload = await fetch(`/api/ai/sessions/${activeSession.id}`);
-        if (reload.ok) {
-          const d = await reload.json();
-          messages = d.messages ?? [];
+        // Use the API response directly instead of a full refetch.
+        // Replace the temp id on the optimistic user message with a stable one
+        // and append the assistant reply.
+        messages = [
+          ...messages.map(m => m.id === optimistic.id
+            ? { ...m, id: `${optimistic.id}-final` }
+            : m
+          ),
+          {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            content: data.content ?? '(no response)',
+            model: data.model ?? null,
+            node_label: data.node ?? null,
+            latency_ms: null,
+            created_at: new Date().toISOString(),
+          },
+        ];
+        // Update session's last_message_at locally so the sidebar reflects activity
+        if (activeSession) {
+          activeSession = { ...activeSession, last_message_at: new Date().toISOString() };
+          sessions = sessions.map(s => s.id === activeSession!.id ? activeSession! : s);
         }
         scrollToBottom();
       } else {

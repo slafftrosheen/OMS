@@ -28,6 +28,8 @@
   let messageText = $state('');
   let scroller: HTMLDivElement | null = $state(null);
   let showRoomModal = $state(false);
+  let showDmModal = $state(false);
+  let dmFilter = $state('');
   let newRoomName = $state('');
   let searchQuery = $state('');
   
@@ -70,6 +72,41 @@
     newRoomName = '';
     selectRoom(roomId);
   }
+
+  /** Start (or reopen) a DM with another user. */
+  async function startDM(peerId: string, peerLabel: string) {
+    try {
+      const res = await fetch('/api/chat/dm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ peerId }),
+      });
+      if (!res.ok) {
+        console.error('DM creation failed:', await res.text());
+        return;
+      }
+      const data = await res.json();
+      const room = data.room;
+      // Make sure the room appears in our local list & is selected
+      await ensureRoom({ id: room.id, name: peerLabel });
+      showDmModal = false;
+      dmFilter = '';
+      selectRoom(room.id);
+    } catch (err) {
+      console.error('startDM failed:', err);
+    }
+  }
+
+  let dmCandidates = $derived.by(() => {
+    const me = $currentUser?.id;
+    const list = $users.filter(u => String(u.id) !== String(me));
+    if (!dmFilter.trim()) return list;
+    const q = dmFilter.toLowerCase();
+    return list.filter(u =>
+      (u.displayName ?? '').toLowerCase().includes(q) ||
+      (u.username ?? '').toLowerCase().includes(q)
+    );
+  });
 
   function formatTime(iso: string) {
     const date = new Date(iso);
@@ -148,6 +185,9 @@
       </div>
       <div class="header-actions">
         {#if view === 'list'}
+          <button class="icon-btn" onclick={() => showDmModal = true} title="New direct message">
+            <Icon name="user-plus" size="sm" />
+          </button>
           <button class="icon-btn" onclick={() => showRoomModal = true} title="New Channel">
             <Plus size={18} />
           </button>
@@ -157,6 +197,43 @@
         </button>
       </div>
     </header>
+
+    {#if showDmModal}
+      <div class="dm-modal-backdrop" onclick={() => showDmModal = false} role="presentation"></div>
+      <div class="dm-modal">
+        <div class="dm-modal-header">
+          <span>Start direct message</span>
+          <button class="icon-btn" onclick={() => showDmModal = false}>
+            <X size={16} />
+          </button>
+        </div>
+        <input
+          type="text"
+          class="dm-modal-search"
+          placeholder="Search people…"
+          bind:value={dmFilter}
+          autofocus
+        />
+        <div class="dm-modal-list">
+          {#if dmCandidates.length === 0}
+            <p class="dm-modal-empty">No matching users.</p>
+          {:else}
+            {#each dmCandidates as u (u.id)}
+              {@const label = u.displayName || u.username || 'User'}
+              <button class="dm-modal-row" onclick={() => startDM(String(u.id), label)}>
+                <div class="dm-avatar">{(label.split(' ').map(p => p[0]).join('') || '?').slice(0, 2).toUpperCase()}</div>
+                <div class="dm-meta">
+                  <span class="dm-name">{label}</span>
+                  {#if u.username && u.username !== u.displayName}
+                    <span class="dm-username">@{u.username}</span>
+                  {/if}
+                </div>
+              </button>
+            {/each}
+          {/if}
+        </div>
+      </div>
+    {/if}
 
     <!-- Content Area -->
     <div class="drawer-content">
@@ -661,4 +738,88 @@
       width: 100%;
     }
   }
+
+  /* ── DM modal ──────────────────────────────────────────────────────────── */
+  .dm-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 80;
+  }
+  .dm-modal {
+    position: fixed;
+    z-index: 81;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(380px, 90vw);
+    max-height: 70vh;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--glass-shadow, 0 12px 36px rgba(0,0,0,0.25));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .dm-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .dm-modal-search {
+    width: 100%;
+    padding: 10px 14px;
+    border: none;
+    background: var(--bg-0);
+    color: var(--text);
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    outline: none;
+  }
+  .dm-modal-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px;
+  }
+  .dm-modal-empty {
+    padding: 16px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .dm-modal-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .dm-modal-row:hover { background: var(--bg-2); }
+  .dm-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: color-mix(in oklab, var(--brand) 14%, transparent);
+    color: var(--brand);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .dm-meta { display: flex; flex-direction: column; min-width: 0; }
+  .dm-name { font-size: 13px; font-weight: 500; }
+  .dm-username { font-size: 11px; color: var(--text-muted); }
 </style>

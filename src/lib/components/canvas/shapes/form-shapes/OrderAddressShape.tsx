@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { getOrderBridge } from '../../state-bridge';
 
 export type OrderAddressShapeProps = {
     w: number;
@@ -49,8 +50,7 @@ export class OrderAddressShapeUtil extends BaseBoxShapeUtil<OrderAddressShape> {
                 type: 'order-address',
                 props: { ...shape.props, ...patch },
             });
-            const cb = (window as any).__omsOrderChange;
-            if (typeof cb === 'function') cb(shape.props.orderId, { ...shape.props, ...patch });
+            getOrderBridge(this.editor)?.onOrderChange?.(shape.props.orderId, { ...shape.props, ...patch });
         }, [shape]);
 
         const stopProp = (e: React.PointerEvent) => e.stopPropagation();

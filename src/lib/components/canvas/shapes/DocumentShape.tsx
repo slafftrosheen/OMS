@@ -16,6 +16,14 @@ export type DocumentShape = {
         title: string;
         content: string;
         status: 'queued' | 'ready' | 'failed';
+        /** Persisted asset URL (image, pdf, or generic file) */
+        url?: string;
+        /** MIME type, used to choose render mode */
+        mime?: string;
+        /** Display variant — 'image' inlines the asset, 'pdf' shows preview frame, 'file' is a card */
+        kind?: 'image' | 'pdf' | 'file' | 'note';
+        /** Linked DB id from order_files (used by AI extract / context menus) */
+        fileId?: string;
     };
 };
 
@@ -27,14 +35,63 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
             w: 240,
             h: 300,
             title: 'New Document',
-            content: 'Drag and drop content here...',
-            status: 'ready'
+            content: '',
+            status: 'ready',
+            url: undefined,
+            mime: undefined,
+            kind: 'note',
+            fileId: undefined,
         };
     }
 
     override component(shape: DocumentShape) {
-        const { w, h, title, content, status } = shape.props;
-        
+        const { w, h, title, content, status, url, kind, mime } = shape.props;
+        const stop = (e: React.MouseEvent | React.PointerEvent) => e.stopPropagation();
+
+        const renderBody = () => {
+            if (kind === 'image' && url) {
+                return (
+                    <img
+                        src={url}
+                        alt={title}
+                        draggable={false}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#0001' }}
+                    />
+                );
+            }
+            if (kind === 'pdf' && url) {
+                return (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <object
+                            data={url}
+                            type={mime || 'application/pdf'}
+                            style={{ flex: 1, width: '100%', minHeight: 0 }}
+                        >
+                            <a href={url} target="_blank" rel="noopener noreferrer" style={linkStyle} onClick={stop}>
+                                Open PDF in new tab ↗
+                            </a>
+                        </object>
+                    </div>
+                );
+            }
+            if (kind === 'file' && url) {
+                return (
+                    <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 8 }}>
+                        <div style={{ fontSize: 36 }}>📎</div>
+                        <a href={url} target="_blank" rel="noopener noreferrer" style={linkStyle} onClick={stop}>
+                            Download {title} ↗
+                        </a>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted, #888)' }}>{mime || 'file'}</span>
+                    </div>
+                );
+            }
+            return (
+                <div style={{ padding: 12, fontSize: 12, color: 'var(--text-muted, #888)' }}>
+                    {content || 'Drag a PDF or image into the Visuals zone…'}
+                </div>
+            );
+        };
+
         return (
             <HTMLContainer
                 id={shape.id}
@@ -43,34 +100,57 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
                     height: h,
                     display: 'flex',
                     flexDirection: 'column',
-                    backgroundColor: 'var(--bg-0)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    boxShadow: 'var(--glass-shadow)',
+                    background: 'var(--bg-0, #fff)',
+                    border: '1px solid var(--border, rgba(0,0,0,0.12))',
+                    borderRadius: 8,
+                    boxShadow: 'var(--glass-shadow, 0 4px 16px rgba(0,0,0,0.1))',
                     overflow: 'hidden',
-                    pointerEvents: 'all'
+                    pointerEvents: 'all',
                 }}
             >
-                <div style={{ padding: '8px', background: 'var(--bg-2)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ fontSize: '14px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{title}</strong>
-                    <span style={{ 
-                        fontSize: '10px', 
-                        padding: '2px 6px', 
-                        borderRadius: '4px',
-                        background: status === 'ready' ? '#e2f5ea' : (status === 'failed' ? '#fee2e2' : '#fef3c7'),
-                        color: status === 'ready' ? '#166534' : (status === 'failed' ? '#991b1b' : '#92400e')
-                    }}>
-                        {status}
-                    </span>
+                <div style={{
+                    padding: '6px 10px',
+                    background: 'var(--bg-2, #f4f4f5)',
+                    borderBottom: '1px solid var(--border, rgba(0,0,0,0.08))',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 6,
+                    flexShrink: 0,
+                }}>
+                    <strong style={{
+                        fontSize: 12,
+                        textOverflow: 'ellipsis',
+                        overflow: 'hidden',
+                        whiteSpace: 'nowrap',
+                        flex: 1,
+                    }}>{title}</strong>
+                    <span style={{
+                        fontSize: 9,
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        background: status === 'ready' ? '#d1fae5' : (status === 'failed' ? '#fee2e2' : '#fef3c7'),
+                        color: status === 'ready' ? '#065f46' : (status === 'failed' ? '#991b1b' : '#92400e'),
+                        textTransform: 'uppercase',
+                        fontWeight: 700,
+                        letterSpacing: '0.04em',
+                    }}>{status}</span>
                 </div>
-                <div style={{ padding: '8px', fontSize: '12px', flex: 1, overflowY: 'auto', color: 'var(--text-muted)' }}>
-                    {content}
+                <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                    {renderBody()}
                 </div>
             </HTMLContainer>
         );
     }
 
     override indicator(shape: DocumentShape) {
-        return <rect width={shape.props.w} height={shape.props.h} />;
+        return <rect width={shape.props.w} height={shape.props.h} rx={8} />;
     }
 }
+
+const linkStyle: React.CSSProperties = {
+    fontSize: 12,
+    color: 'var(--brand, #e63329)',
+    textDecoration: 'none',
+    fontWeight: 600,
+};

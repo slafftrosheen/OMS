@@ -1,12 +1,20 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { postStationMessage } from '$lib/server/chat/stationMessenger';
 
 /**
- * POST /api/draft-orders/[id]/approve - Approve a draft order
+ * Workflow stages for a production order — must match the rooms seeded in
+ * 20260501000001_chat_rooms.sql (so approve can post the routing message).
+ */
+const WORKFLOW_STAGES = ['CAD', 'CNC', 'EDGE', 'ASSEMBLY', 'PAINT', 'PACKAGING', 'DELIVERY'] as const;
+
+/**
+ * POST /api/draft-orders/[id]/approve - Approve a draft order, route it to the
+ * production pipeline by creating order_stages rows and queuing the first stage.
  */
 export const POST: RequestHandler = async ({ params, locals }) => {
   const user = locals.user;
-  
+
   if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
     return json({ message: 'Admin access required' }, { status: 403 });
   }
@@ -28,6 +36,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
         return json({ message: 'Only draft orders can be approved' }, { status: 400 });
     }
 
+    // 1. Flip the draft to approved
     const { error: updateError } = await locals.supabase
         .from('draft_orders')
         .update({
@@ -40,7 +49,43 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 
     if (updateError) throw updateError;
 
-    // Notify SuperAdmins
+    // 2. Initialize the production pipeline: one order_stages row per workflow
+    //    stage, first stage is QUEUED, rest NOT_STARTED. Idempotent via upsert
+    //    so re-approval (after rejection) does not crash.
+    const stageRows = WORKFLOW_STAGES.map((station, idx) => ({
+        draft_order_id: order.id,
+        station,
+        state: idx === 0 ? 'QUEUED' : 'NOT_STARTED',
+    }));
+
+    const { error: stagesError } = await locals.supabase
+        .from('order_stages')
+        .upsert(stageRows, { onConflict: 'draft_order_id,station' });
+
+    if (stagesError) {
+        // Surface but don't block approval — log to audit instead
+        console.error('Failed to initialize order_stages:', stagesError);
+    }
+
+    // 3. Audit
+    await locals.supabase.from('audit_log').insert({
+        user_id: user.id,
+        username: user.username,
+        action: 'APPROVE_ORDER',
+        entity_type: 'order',
+        entity_id: order.id,
+        details: { po_number: order.po_number, first_stage: WORKFLOW_STAGES[0] }
+    });
+
+    // 4. Post a station-room message announcing the new order at the first stage
+    await postStationMessage(locals.supabase, {
+        station: WORKFLOW_STAGES[0],
+        poNumber: order.po_number,
+        state: 'QUEUED',
+        actorName: user.username,
+    });
+
+    // 5. Notify SuperAdmins
     const { data: superAdmins } = await locals.supabase
         .from('profiles')
         .select('id')
@@ -52,7 +97,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
             user_id: admin.id,
             notification_type: 'order',
             title: 'Order Approved',
-            message: `Order ${order.po_number} has been approved and moved to production`,
+            message: `Order ${order.po_number} queued for ${WORKFLOW_STAGES[0]}`,
             link: `/orders/${order.po_number}`,
             source_type: 'order',
             source_id: order.id
@@ -61,17 +106,12 @@ export const POST: RequestHandler = async ({ params, locals }) => {
         await locals.supabase.from('notifications').insert(notifications);
     }
 
-    // Audit Log
-    await locals.supabase.from('audit_log').insert({
-        user_id: user.id,
-        username: user.username,
-        action: 'APPROVE_ORDER',
-        entity_type: 'order',
-        entity_id: order.id,
-        details: { po_number: order.po_number }
+    return json({
+        success: true,
+        message: 'Order approved successfully',
+        poNumber: order.po_number,
+        firstStage: WORKFLOW_STAGES[0],
     });
-
-    return json({ success: true, message: 'Order approved successfully', poNumber: order.po_number });
 
   } catch (err: any) {
     console.error('Error approving order:', err);

@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { getOrderBridge } from '../../state-bridge';
 
 export type OrderDetailsShapeProps = {
     w: number;
@@ -62,9 +63,7 @@ export class OrderDetailsShapeUtil extends BaseBoxShapeUtil<OrderDetailsShape> {
                 type: 'order-details',
                 props: { ...shape.props, ...patch },
             });
-            // Fire external callback if wired
-            const cb = (window as any).__omsOrderChange;
-            if (typeof cb === 'function') cb(shape.props.orderId, { ...shape.props, ...patch });
+            getOrderBridge(this.editor)?.onOrderChange?.(shape.props.orderId, { ...shape.props, ...patch });
         }, [shape]);
 
         const stopProp = (e: React.PointerEvent) => e.stopPropagation();
