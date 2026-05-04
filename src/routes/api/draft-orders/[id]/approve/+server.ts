@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { postStationMessage } from '$lib/server/chat/stationMessenger';
 
 /**
  * Workflow stages for a production order — must match the rooms seeded in
@@ -77,16 +78,12 @@ export const POST: RequestHandler = async ({ params, locals }) => {
     });
 
     // 4. Post a station-room message announcing the new order at the first stage
-    try {
-        await locals.supabase.from('chat_messages').insert({
-            room_id: `station-${WORKFLOW_STAGES[0].toLowerCase()}`,
-            user_id: null,
-            content: `Order ${order.po_number} approved by ${user.username} — queued for ${WORKFLOW_STAGES[0]}`,
-            text: `Order ${order.po_number} approved by ${user.username} — queued for ${WORKFLOW_STAGES[0]}`,
-        });
-    } catch (chatErr) {
-        console.warn('Failed to post station-room message:', chatErr);
-    }
+    await postStationMessage(locals.supabase, {
+        station: WORKFLOW_STAGES[0],
+        poNumber: order.po_number,
+        state: 'QUEUED',
+        actorName: user.username,
+    });
 
     // 5. Notify SuperAdmins
     const { data: superAdmins } = await locals.supabase
