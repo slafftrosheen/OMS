@@ -20,6 +20,7 @@
   import { BADGE_ICONS, badgeTone } from '$lib/order/badges';
   import Badge from '$lib/ui/Badge.svelte';
   import { currentUser } from '$lib/auth/authState.svelte';
+  import { can } from '$lib/auth/permission-utils';
   import { dragging } from '$lib/dnd';
   import Icon from '$lib/ui/Icon.svelte';
   import KpiCard from '$lib/ui/KpiCard.svelte';
@@ -222,6 +223,12 @@
         <Icon name="plus" size="sm" />
         {$t('orderLists.create_draft', { default: 'Create Draft Order' })}
       </button>
+    {/if}
+    {#if can($currentUser, 'reviewQueue')}
+      <a class="btn btn-secondary" href="{base}/orders/review">
+        <Icon name="check-square" size="sm" />
+        {$t('orderLists.review_queue', { default: 'Review queue' })}
+      </a>
     {/if}
     <button class="btn btn-secondary" onclick={refresh} disabled={refreshing}>
       <span class:spinning={refreshing}><Icon name="refresh-cw" size="sm" /></span>

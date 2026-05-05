@@ -15,7 +15,9 @@ const pagesToTest: PageTest[] = [
 	{ url: '/login', name: 'Login' },
 	{ url: '/orders', name: 'Orders List', waitFor: 'h1' },
 	{ url: '/orders/new', name: 'New Order' },
+	{ url: '/orders/review', name: 'Review Queue', waitFor: 'h1' },
 	{ url: '/inventory', name: 'Inventory' },
+	{ url: '/inventory/movements', name: 'Inventory Movements', waitFor: 'h1' },
 	{ url: '/calendar', name: 'Calendar' },
 	{ url: '/settings', name: 'Settings' }
 ];

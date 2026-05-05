@@ -2,6 +2,7 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { getPagination } from '$lib/server/pagination';
 import { apiError } from '$lib/server/errors';
+import { notifyDraftCreated } from '$lib/server/notifications/orderNotifier';
 
 /**
  * GET /api/draft-orders - List all draft orders with pagination
@@ -94,15 +95,25 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   try {
     const body = await request.json();
 
-    // Map frontend fields (clientName, deadline, priority) to database schema (client, due_date, priority)
+    // Map frontend fields (clientName, deadline, priority) to database schema (client, due_date, priority).
+    // PO is no longer required at creation — Boss assigns it at confirmation.
     const client = body.clientName || body.client;
     const due_date = body.deadline || body.due_date;
-    const po_number = body.poNumber || body.po_number;
-    const title = body.title || `${client} Order ${po_number}`; // Safely synthesize title
+    const po_number = body.poNumber || body.po_number || null;
 
-    if (!client || !due_date || !po_number) {
-      return json({ error: 'Missing required fields: client, due_date, po_number' }, { status: 400 });
+    if (!client || !due_date) {
+      return json({ error: 'Missing required fields: client, due_date' }, { status: 400 });
     }
+
+    if (po_number && (typeof po_number !== 'string' || po_number.length > 16)) {
+      return json({ error: 'PO number must be 1-16 characters' }, { status: 400 });
+    }
+
+    // Default lifecycle for new drafts is PENDING_REVIEW so HoP sees them
+    // immediately in the review queue. Caller can override (e.g. for an
+    // explicit save-as-draft action that stays private to the creator).
+    const status = body.status || 'PENDING_REVIEW';
+    const title = body.title || `${client} – ${po_number ?? 'pending'}`;
 
     // 1. Create the order
     const { data: order, error: orderError } = await locals.supabase
@@ -114,7 +125,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         due_date,
         loading_date: body.loadingDate || null,
         priority: body.priority || 'NORMAL',
-        status: body.status || 'draft',
+        status,
         notes: body.notes || '',
         delivery_preset_id: body.deliveryPresetId || null,
         delivery_address: body.deliveryAddress || '',
@@ -127,6 +138,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     if (orderError) {
       console.error('Database order creation error:', orderError);
+      // Surface the unique-violation on po_number with a friendly message
+      if (orderError.code === '23505' && /po_number/.test(orderError.message)) {
+        return json({ error: 'PO number already in use' }, { status: 409 });
+      }
       return json({ error: `Failed to create order: ${orderError.message}` }, { status: 500 });
     }
 
@@ -147,6 +162,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       if (profileError) {
         console.error('Database profile insertion error:', profileError);
         // Continue but log error (don't fail the whole order creation)
+      }
+    }
+
+    // 3. Fire HoP/Boss notifications for drafts entering review.
+    //    Don't fail the request on notification errors — they're best-effort.
+    if (status === 'PENDING_REVIEW' || status === 'draft') {
+      try {
+        await notifyDraftCreated(locals.supabase, {
+          orderId: order.id,
+          internalRef: order.internal_ref ?? null,
+          client,
+          createdById: session.user.id,
+        });
+      } catch (notifyErr) {
+        console.error('notifyDraftCreated failed:', notifyErr);
       }
     }
 
