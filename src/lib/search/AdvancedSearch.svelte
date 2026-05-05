@@ -13,6 +13,7 @@
  */
 
 import { onMount } from 'svelte';
+import { notifications } from '$lib/notify/store';
 import { slide } from 'svelte/transition';
 import Icon from '$lib/ui/Icon.svelte';
 
@@ -122,7 +123,7 @@ async function handleSearch() {
 
   } catch (err) {
     console.error('Search error:', err);
-    alert('Search failed. Please try again.');
+    notifications.error('Search failed. Please try again.');
   } finally {
     searching = false;
   }
@@ -174,7 +175,7 @@ function applyFilter(filter: any) {
 
 async function saveFilter() {
   if (!filterName) {
-    alert('Please enter a filter name');
+    notifications.warning('Please enter a filter name');
     return;
   }
 
@@ -205,7 +206,7 @@ async function saveFilter() {
 
   } catch (err) {
     console.error('Save filter error:', err);
-    alert('Failed to save filter');
+    notifications.error('Failed to save filter');
   }
 }
 

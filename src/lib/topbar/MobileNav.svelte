@@ -4,6 +4,7 @@
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
   import { notificationStore } from '$lib/stores/notifications';
+  import { toggleChat, isChatOpen, unreadCount as chatUnread } from '$lib/chat/chat-store';
 
   const links = [
     { href: '/',         icon: 'layout-dashboard' as const, label: 'nav.dashboard', default: 'Dashboard' },
@@ -14,6 +15,8 @@
 
   let currentPath  = $derived(page.url.pathname);
   let unreadCount  = $derived($notificationStore.unreadCount);
+  let chatOpen     = $derived($isChatOpen);
+  let chatUnreadN  = $derived($chatUnread);
 
   function isActive(href: string) {
     const full = `${base}${href}`;
@@ -42,6 +45,24 @@
       <span class="rf-bottomnav__label">{$t(link.label, { default: link.default })}</span>
     </a>
   {/each}
+
+  <!-- Chat toggle with unread badge -->
+  <button
+    class="rf-bottomnav__item rf-bottomnav__item--btn"
+    class:is-active={chatOpen}
+    onclick={toggleChat}
+    aria-pressed={chatOpen}
+    aria-label="{$t('chat.title', { default: 'Chat' })}{chatUnreadN ? ` (${chatUnreadN})` : ''}"
+    type="button"
+  >
+    <span class="rf-bottomnav__pill rf-bottomnav__pill--chat" aria-hidden="true">
+      <Icon name="message-square" size="md" />
+      {#if chatUnreadN > 0}
+        <span class="rf-bottomnav__badge">{chatUnreadN > 9 ? '9+' : chatUnreadN}</span>
+      {/if}
+    </span>
+    <span class="rf-bottomnav__label">{$t('chat.title', { default: 'Chat' })}</span>
+  </button>
 
   <!-- Notifications with live badge -->
   <a
@@ -147,6 +168,24 @@
     letter-spacing: var(--tracking-wide);
   }
   .rf-bottomnav__item[aria-current="page"] .rf-bottomnav__label {
+    font-weight: 700;
+    color: var(--brand);
+  }
+
+  /* Button variant of nav item (chat toggle) */
+  .rf-bottomnav__item--btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+  }
+  .rf-bottomnav__item--btn.is-active { color: var(--brand); }
+  .rf-bottomnav__item--btn.is-active .rf-bottomnav__pill {
+    background: var(--brand-soft);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 14px color-mix(in oklab, var(--brand) 22%, transparent);
+  }
+  .rf-bottomnav__item--btn.is-active .rf-bottomnav__label {
     font-weight: 700;
     color: var(--brand);
   }

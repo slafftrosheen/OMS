@@ -15,6 +15,7 @@
     import Modal from "$lib/components/ui/Modal.svelte";
     import { currentUser } from "$lib/auth/authState.svelte";
     import { can, normaliseStatus, ORDER_STATUS_LABELS } from "$lib/auth/permission-utils";
+    import { notifications } from "$lib/notify/store";
 
     let orderId = $derived(page.params.id);
 
@@ -65,58 +66,103 @@
 
     let lifecycleBusy = $state(false);
 
-    async function dispatchOrder() {
-        if (!confirm($t('orderDetail.dispatch_confirm', { default: 'Mark this order as dispatched?' }) as string)) return;
+    // Confirmation dialog state
+    let confirmModal = $state<{
+        open: boolean;
+        title: string;
+        body: string;
+        action: () => Promise<void>;
+    }>({ open: false, title: '', body: '', action: async () => {} });
+
+    // Void & reissue modal state
+    let voidModal = $state(false);
+    let voidReason = $state('');
+
+    function openConfirm(title: string, body: string, action: () => Promise<void>) {
+        confirmModal = { open: true, title, body, action };
+    }
+
+    async function runConfirmedAction() {
+        confirmModal = { ...confirmModal, open: false };
+        await confirmModal.action();
+    }
+
+    async function doDispatch() {
         lifecycleBusy = true;
         try {
             const res = await fetch(`/api/orders/${orderId}/dispatch`, { method: 'POST' });
             const payload = await res.json().catch(() => ({}));
             if (!res.ok) {
-                alert(payload?.error ?? 'Failed to dispatch');
+                notifications.error(payload?.error ?? $t('orderDetail.dispatch_error', { default: 'Failed to dispatch' }));
                 return;
             }
+            notifications.success($t('orderDetail.dispatched', { default: 'Order dispatched' }));
             await loadOrderData();
         } finally {
             lifecycleBusy = false;
         }
     }
 
-    async function archiveOrder() {
-        if (!confirm($t('orderDetail.archive_confirm', { default: 'Archive this order? Files stay attached.' }) as string)) return;
+    function dispatchOrder() {
+        openConfirm(
+            $t('orderDetail.dispatch_title', { default: 'Dispatch Order' }),
+            $t('orderDetail.dispatch_confirm', { default: 'Mark this order as dispatched?' }),
+            doDispatch
+        );
+    }
+
+    async function doArchive() {
         lifecycleBusy = true;
         try {
             const res = await fetch(`/api/orders/${orderId}/archive`, { method: 'POST' });
             const payload = await res.json().catch(() => ({}));
             if (!res.ok) {
-                alert(payload?.error ?? 'Failed to archive');
+                notifications.error(payload?.error ?? $t('orderDetail.archive_error', { default: 'Failed to archive' }));
                 return;
             }
+            notifications.success($t('orderDetail.archived', { default: 'Order archived' }));
             await loadOrderData();
         } finally {
             lifecycleBusy = false;
         }
     }
 
-    async function voidAndReissue() {
-        const reason = prompt($t('orderDetail.void_reason_prompt', { default: 'Reason for voiding?' }) as string);
-        if (!reason) return;
+    function archiveOrder() {
+        openConfirm(
+            $t('orderDetail.archive_title', { default: 'Archive Order' }),
+            $t('orderDetail.archive_confirm', { default: 'Archive this order? Files stay attached.' }),
+            doArchive
+        );
+    }
+
+    async function submitVoidAndReissue() {
+        if (!voidReason.trim()) return;
+        voidModal = false;
         lifecycleBusy = true;
         try {
             const res = await fetch(`/api/orders/${orderId}/void-reissue`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reason }),
+                body: JSON.stringify({ reason: voidReason }),
             });
             const payload = await res.json().catch(() => ({}));
             if (!res.ok) {
-                alert(payload?.error ?? 'Failed to void & reissue');
+                notifications.error(payload?.error ?? $t('orderDetail.void_error', { default: 'Failed to void & reissue' }));
                 return;
             }
-            alert(`Voided. New draft: ${payload.reissuedInternalRef}`);
+            notifications.success(
+                $t('orderDetail.voided', { default: `Voided. New draft: ${payload.reissuedInternalRef}`, values: { ref: payload.reissuedInternalRef } })
+            );
             goto(`/orders/${payload.reissuedId}`);
         } finally {
             lifecycleBusy = false;
+            voidReason = '';
         }
+    }
+
+    function voidAndReissue() {
+        voidReason = '';
+        voidModal = true;
     }
 
     async function loadOrderData() {
@@ -452,6 +498,45 @@
     <QRCodeDisplay {orderId} />
 </Modal>
 
+<!-- Generic Confirm Modal -->
+{#if confirmModal.open}
+<Modal bind:open={confirmModal.open} title={confirmModal.title} size="sm">
+    <p class="confirm-body">{confirmModal.body}</p>
+    <div class="confirm-actions">
+        <Button variant="outline" onclick={() => confirmModal = { ...confirmModal, open: false }}>
+            {$t('actions.cancel', { default: 'Cancel' })}
+        </Button>
+        <Button variant="primary" onclick={runConfirmedAction} disabled={lifecycleBusy}>
+            {$t('actions.confirm', { default: 'Confirm' })}
+        </Button>
+    </div>
+</Modal>
+{/if}
+
+<!-- Void & Reissue Modal -->
+{#if voidModal}
+<Modal bind:open={voidModal} title={$t('orderDetail.void_title', { default: 'Void & Reissue' })} size="sm">
+    <p class="confirm-body">{$t('orderDetail.void_body', { default: 'This will void the current order and create a new draft. Please provide a reason.' })}</p>
+    <label class="void-label">
+        {$t('orderDetail.void_reason_label', { default: 'Reason' })}
+        <textarea
+            class="void-textarea"
+            bind:value={voidReason}
+            rows="3"
+            placeholder={$t('orderDetail.void_reason_placeholder', { default: 'e.g. Client requested changes after sign-off' })}
+        ></textarea>
+    </label>
+    <div class="confirm-actions">
+        <Button variant="outline" onclick={() => voidModal = false}>
+            {$t('actions.cancel', { default: 'Cancel' })}
+        </Button>
+        <Button variant="danger" onclick={submitVoidAndReissue} disabled={!voidReason.trim() || lifecycleBusy}>
+            {$t('orderDetail.void_confirm_btn', { default: 'Void & Reissue' })}
+        </Button>
+    </div>
+</Modal>
+{/if}
+
 <style>
     .order-detail-container {
         padding: 2rem;
@@ -476,6 +561,43 @@
         font-size: var(--text-lg);
         color: var(--error);
         margin: 0;
+    }
+
+    .confirm-body {
+        margin: 0 0 var(--space-lg);
+        color: var(--ink-secondary);
+        line-height: 1.5;
+    }
+
+    .confirm-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: var(--space-sm);
+    }
+
+    .void-label {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs);
+        font-size: var(--text-sm);
+        font-weight: 600;
+        margin-bottom: var(--space-lg);
+    }
+
+    .void-textarea {
+        padding: var(--space-sm) var(--space-md);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--bg-0);
+        color: var(--text);
+        font-size: var(--text-sm);
+        font-family: inherit;
+        resize: vertical;
+    }
+    .void-textarea:focus {
+        outline: none;
+        border-color: var(--brand);
+        box-shadow: var(--focus-ring);
     }
 
     .consumption-table {

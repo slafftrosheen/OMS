@@ -2,6 +2,7 @@
   import Upload from 'lucide-svelte/icons/upload';
   import X from 'lucide-svelte/icons/x';
   import Icon from '$lib/ui/Icon.svelte';
+  import { notifications } from '$lib/notify/store';
   import type { FileRef } from '../types';
 
   let {
@@ -55,7 +56,7 @@
     const acceptedTypes = accept.split(',').map(t => t.trim().toLowerCase());
     
     if (!acceptedTypes.includes(extension)) {
-      alert(`Invalid file type. Please upload ${accept} files only.`);
+      notifications.error(`Invalid file type. Accepted: ${accept}`);
       return;
     }
     

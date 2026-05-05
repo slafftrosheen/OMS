@@ -9,6 +9,7 @@
  */
 
 import Icon from '$lib/ui/Icon.svelte';
+import { notifications } from '$lib/notify/store';
 
 let {
   orderId,
@@ -63,18 +64,18 @@ function handleFileSelect(event: Event) {
 
 function addFiles(newFiles: File[]) {
   if (files.length + newFiles.length > maxFiles) {
-    alert(`Maximum ${maxFiles} files allowed`);
+    notifications.warning(`Maximum ${maxFiles} files allowed`);
     return;
   }
 
   for (const file of newFiles) {
     if (!accept.split(',').includes(file.type)) {
-      alert(`Invalid file type: ${file.type}`);
+      notifications.error(`Invalid file type: ${file.type}`);
       continue;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      alert(`File too large: ${file.name} (max 10MB)`);
+      notifications.warning(`File too large: ${file.name} (max 10MB)`);
       continue;
     }
 
@@ -100,7 +101,7 @@ function removeFile(index: number) {
 
 async function handleUpload() {
   if (files.length === 0) {
-    alert('Please select at least one file');
+    notifications.warning('Please select at least one file');
     return;
   }
 
@@ -150,7 +151,7 @@ async function handleUpload() {
 
   } catch (err) {
     console.error('Upload error:', err);
-    alert(err instanceof Error ? err.message : 'Upload failed');
+    notifications.error(err instanceof Error ? err.message : 'Upload failed');
   } finally {
     uploading = false;
     uploadProgress = 0;

@@ -17,6 +17,7 @@
 
 import { onMount } from 'svelte';
 import Icon from '$lib/ui/Icon.svelte';
+import { notifications } from '$lib/notify/store';
 
 let backups: any[] = $state([]);
 let statistics: any = $state(null);
@@ -67,7 +68,7 @@ async function loadStatistics() {
 
 async function createBackup() {
   if (!newBackup.name.trim()) {
-    alert('Please enter a backup name');
+    notifications.warning('Please enter a backup name');
     return;
   }
 
@@ -123,14 +124,14 @@ async function restoreBackup(backupId: string) {
     });
 
     if (response.ok) {
-      alert('Restore initiated successfully!');
+      notifications.success('Restore initiated successfully!');
     } else {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Restore failed');
     }
   } catch (err) {
     console.error('Restore error:', err);
-    alert('Restore failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    notifications.error('Restore failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
   }
 }
 
@@ -150,7 +151,7 @@ async function deleteBackup(backupId: string) {
     }
   } catch (err) {
     console.error('Delete error:', err);
-    alert('Delete failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    notifications.error('Delete failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
   }
 }
 
