@@ -7,6 +7,7 @@
   import { can } from '$lib/auth/permission-utils';
   import Icon from '$lib/ui/Icon.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import { notifications } from '$lib/notify/store';
 
   type PendingOrder = {
     id: string;
@@ -34,6 +35,10 @@
   let poInput = $state('');
   let confirming = $state(false);
   let confirmError = $state('');
+
+  let rejectTarget = $state<PendingOrder | null>(null);
+  let rejectReason = $state('');
+  let rejecting = $state(false);
 
   let canReview = $derived(can($currentUser, 'reviewQueue'));
   let canAssignPo = $derived(can($currentUser, 'assignPoNumber'));
@@ -98,23 +103,38 @@
     }
   }
 
-  async function rejectOrder(order: PendingOrder) {
-    const reason = prompt('Reason for rejection?');
-    if (!reason) return;
+  function openReject(order: PendingOrder) {
+    rejectTarget = order;
+    rejectReason = '';
+  }
+
+  function closeReject() {
+    rejectTarget = null;
+    rejectReason = '';
+  }
+
+  async function submitReject() {
+    if (!rejectTarget || !rejectReason.trim()) return;
+    rejecting = true;
     try {
-      const res = await fetch(`${base}/api/draft-orders/${order.id}/reject`, {
+      const res = await fetch(`${base}/api/draft-orders/${rejectTarget.id}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason: rejectReason.trim() }),
       });
       if (!res.ok) {
         const p = await res.json().catch(() => ({}));
-        alert(p?.message ?? 'Failed to reject');
+        notifications.error(p?.message ?? 'Failed to reject');
         return;
       }
+      notifications.success('Order rejected');
+      closeReject();
       await load();
     } catch (err) {
       console.error(err);
+      notifications.error('Failed to reject order');
+    } finally {
+      rejecting = false;
     }
   }
 
@@ -186,7 +206,7 @@
                 <Icon name="check" size="sm" />
                 {$t('orders.review.confirm', { default: 'Confirm & assign PO' })}
               </Button>
-              <Button variant="ghost" onclick={() => rejectOrder(order)}>
+              <Button variant="ghost" onclick={() => openReject(order)}>
                 <Icon name="x" size="sm" />
                 {$t('orders.review.reject', { default: 'Reject' })}
               </Button>
@@ -298,6 +318,53 @@
           {:else}
             <Icon name="check" size="sm" />
             {$t('orders.review.confirm_submit', { default: 'Confirm order' })}
+          {/if}
+        </Button>
+      </footer>
+    </div>
+  </div>
+{/if}
+
+{#if rejectTarget}
+  <div
+    class="modal-backdrop"
+    onclick={closeReject}
+    onkeydown={(e) => e.key === 'Escape' && closeReject()}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="reject-title"
+    tabindex="-1"
+  >
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="document">
+      <header class="modal-header">
+        <h2 id="reject-title">{$t('orders.review.reject_title', { default: 'Reject order' })}</h2>
+        <button class="icon-btn" onclick={closeReject} aria-label="Close">
+          <Icon name="x" size="sm" />
+        </button>
+      </header>
+      <div class="modal-body">
+        <p class="muted">{rejectTarget.internal_ref} · {rejectTarget.client}</p>
+        <label for="reject-reason">
+          {$t('orders.review.reject_reason', { default: 'Reason for rejection' })}
+        </label>
+        <textarea
+          id="reject-reason"
+          bind:value={rejectReason}
+          rows="4"
+          placeholder={$t('orders.review.reject_placeholder', { default: 'Describe why this order is being rejected…' })}
+        ></textarea>
+      </div>
+      <footer class="modal-footer">
+        <Button variant="secondary" onclick={closeReject}>
+          {$t('actions.cancel', { default: 'Cancel' })}
+        </Button>
+        <Button variant="ghost" onclick={submitReject} disabled={rejecting || !rejectReason.trim()}>
+          {#if rejecting}
+            <Icon name="loader" size="sm" />
+            {$t('actions.rejecting', { default: 'Rejecting…' })}
+          {:else}
+            <Icon name="x" size="sm" />
+            {$t('orders.review.reject_submit', { default: 'Reject order' })}
           {/if}
         </Button>
       </footer>
@@ -524,5 +591,21 @@
     font-size: 13px;
     color: var(--ink-tertiary);
     font-family: var(--font-mono, ui-monospace, monospace);
+  }
+  .modal-body textarea {
+    font-size: 14px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm, 8px);
+    border: 1px solid var(--glass-border);
+    background: var(--surface-soft, color-mix(in oklab, var(--ink-primary) 4%, transparent));
+    color: var(--ink-primary);
+    font-family: inherit;
+    resize: vertical;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .modal-body textarea:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
   }
 </style>

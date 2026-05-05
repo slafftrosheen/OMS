@@ -9,6 +9,7 @@
   import ArrowLeft from 'lucide-svelte/icons/arrow-left';
   import Save from 'lucide-svelte/icons/save';
   import Package from 'lucide-svelte/icons/package';
+  import { notifications } from '$lib/notify/store';
 
   let material: Partial<Material> = $state({
     section: 'materials',
@@ -43,7 +44,7 @@
 
   async function save() {
     if (!material.sku || !material.name_en) {
-      alert('SKU and Name are required');
+      notifications.warning('SKU and Name are required');
       return;
     }
 
@@ -53,7 +54,7 @@
       goto(`${base}/inventory`);
     } catch (err) {
       console.error('Failed to save material:', err);
-      alert('Failed to save material');
+      notifications.error('Failed to save material');
     } finally {
       saving = false;
     }

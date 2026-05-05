@@ -12,6 +12,7 @@
 
 import { onMount } from 'svelte';
 import Icon from '$lib/ui/Icon.svelte';
+import { notifications } from '$lib/notify/store';
 
 let webhooks: any[] = $state([]);
 let integrations: any[] = $state([]);
@@ -152,12 +153,12 @@ async function testWebhook(id: string) {
     const result = await response.json();
     
     if (result.success) {
-      alert('Webhook test successful!');
+      notifications.success('Webhook test successful!');
     } else {
-      alert(`Webhook test failed: ${result.error}`);
+      notifications.error(`Webhook test failed: ${result.error}`);
     }
   } catch (error) {
-    alert('Test failed');
+    notifications.error('Test failed');
   }
 }
 

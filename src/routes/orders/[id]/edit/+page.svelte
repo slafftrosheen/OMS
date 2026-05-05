@@ -342,7 +342,6 @@
 
   // ── Confirm order ─────────────────────────────────────────────────────────────
   async function confirmOrder() {
-    if (!confirm('Approve this order and send it to production?')) return;
     confirming = true;
     try {
       // Save first
@@ -350,6 +349,7 @@
       const res = await fetch(`/api/draft-orders/${orderId}/approve`, { method: 'POST' });
       if (!res.ok) throw new Error((await res.json()).message || 'Approval failed');
       status = 'approved';
+      confirmOrderModal = false;
       notifySuccess('Order approved and sent to production');
       goto(`${base}/orders/${data.id}`);
     } catch (err: any) {
@@ -360,17 +360,18 @@
   }
 
   // ── Request rework ────────────────────────────────────────────────────────────
-  async function requestRework() {
-    const reason = prompt('Reason for rework request:');
-    if (!reason) return;
+  async function submitRework() {
+    if (!reworkReason.trim()) return;
     try {
       const res = await fetch(`/api/draft-orders/${orderId}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason: reworkReason.trim() }),
       });
       if (!res.ok) throw new Error((await res.json()).message || 'Rework request failed');
       status = 'rejected';
+      reworkModal = false;
+      reworkReason = '';
       notifySuccess('Rework requested');
     } catch (err: any) {
       notifyError(err.message || 'Failed to request rework');
@@ -518,6 +519,10 @@
   }
 
   // ── PDF "Extract to Order Forms" — context menu action ──────────────────────
+  let confirmOrderModal = $state(false);
+  let reworkModal = $state(false);
+  let reworkReason = $state('');
+
   let pdfMenu: { x: number; y: number; fileId: string; shapeId: string } | null = $state(null);
   let pdfMenuRunning = $state(false);
 
@@ -692,7 +697,7 @@
         <Icon name="eye" size="sm" /> View
       </button>
       {#if isAdmin}
-        <button class="action-btn warn" onclick={requestRework}>
+        <button class="action-btn warn" onclick={() => { reworkModal = true; reworkReason = ''; }}>
           <Icon name="rotate-ccw" size="sm" /> Rework
         </button>
       {/if}
@@ -700,7 +705,7 @@
         <Icon name="save" size="sm" /> {saving ? 'Saving…' : 'Save Draft'}
       </button>
       {#if canApprove}
-        <button class="action-btn success" onclick={confirmOrder} disabled={confirming}>
+        <button class="action-btn success" onclick={() => confirmOrderModal = true} disabled={confirming}>
           <Icon name="check-circle" size="sm" /> {confirming ? 'Confirming…' : 'Confirm Order'}
         </button>
       {/if}
@@ -897,6 +902,42 @@
     </aside>
   </div>
 </div>
+
+{#if confirmOrderModal}
+  <div class="edit-modal-backdrop" onclick={() => confirmOrderModal = false} role="dialog" aria-modal="true" tabindex="-1">
+    <div class="edit-modal" onclick={(e) => e.stopPropagation()} role="document">
+      <h3>Approve order?</h3>
+      <p>This will send the order to production. Make sure all details are correct.</p>
+      <div class="edit-modal-actions">
+        <button class="action-btn ghost" onclick={() => confirmOrderModal = false}>Cancel</button>
+        <button class="action-btn success" onclick={confirmOrder} disabled={confirming}>
+          {confirming ? 'Confirming…' : 'Confirm Order'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if reworkModal}
+  <div class="edit-modal-backdrop" onclick={() => reworkModal = false} role="dialog" aria-modal="true" tabindex="-1">
+    <div class="edit-modal" onclick={(e) => e.stopPropagation()} role="document">
+      <h3>Request rework</h3>
+      <label for="rework-reason-input">Reason for rework request</label>
+      <textarea
+        id="rework-reason-input"
+        bind:value={reworkReason}
+        rows="4"
+        placeholder="Describe what needs to be changed…"
+      ></textarea>
+      <div class="edit-modal-actions">
+        <button class="action-btn ghost" onclick={() => reworkModal = false}>Cancel</button>
+        <button class="action-btn warn" onclick={submitRework} disabled={!reworkReason.trim()}>
+          Request Rework
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   /* ── Layout ──────────────────────────────────────────────────────────────── */
@@ -1401,4 +1442,49 @@
   .spinner.sm { width: 16px; height: 16px; border-width: 2px; }
 
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Edit page modals ────────────────────────────────────────────────────── */
+  .edit-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: color-mix(in oklab, black 55%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 200;
+  }
+  .edit-modal {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg, 24px);
+    padding: 24px;
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.36);
+  }
+  .edit-modal h3 { margin: 0; font-size: 16px; color: var(--text); }
+  .edit-modal p, .edit-modal label { margin: 0; font-size: 13px; color: var(--text-muted); }
+  .edit-modal textarea {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-0);
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .edit-modal textarea:focus { outline: none; border-color: var(--brand); }
+  .edit-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+  }
 </style>

@@ -1,6 +1,6 @@
 import { ordersStore } from '$lib/stores/orders';
 import { notificationStore } from '$lib/stores/notifications';
-import { chatStore } from '$lib/stores/chat';
+import { messages, rooms } from '$lib/chat/chat-store';
 import { loads } from './loads';
 import { uiState } from './appState.svelte';
 
@@ -12,7 +12,8 @@ export function resetAllStores() {
     // Svelte 4 / Writable stores
     ordersStore.reset?.();
     notificationStore.clear?.();
-    chatStore.clear?.();
+    messages.set([]);
+    rooms.set([]);
     loads.set([]);
     
     // Add other stores as discovered

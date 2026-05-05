@@ -13,6 +13,7 @@
 
 import { onMount } from 'svelte';
 import Icon from '$lib/ui/Icon.svelte';
+import { notifications } from '$lib/notify/store';
 
 interface Props {
   orderId: string;
@@ -114,7 +115,7 @@ async function deleteAttachment(id: string) {
     if (selectedImage?.id === id) closeLightbox();
   } catch (err) {
     console.error('Delete error:', err);
-    alert('Failed to delete attachment');
+    notifications.error('Failed to delete attachment');
   }
 }
 

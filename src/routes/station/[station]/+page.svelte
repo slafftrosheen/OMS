@@ -4,12 +4,15 @@
   import { writable } from 'svelte/store';
   import { t } from 'svelte-i18n';
   import { realtimeStore } from '$lib/stores/realtime';
-  // import StageBoard from '$lib/components/orders/StageBoard.svelte';
-  // import OrderCard from '$lib/components/orders/OrderCard.svelte';
-  import QRScanner from '$lib/components/QRScanner.svelte';
+  import QRScanner from '$lib/components/qr/QRScanner.svelte';
   import StationCompleteModal from '$lib/components/station/StationCompleteModal.svelte';
+  import { notifications } from '$lib/notify/store';
+  import { ensureRoom, loadMessages } from '$lib/chat/chat-store';
+  import ChatPane from '$lib/ui/ChatPane.svelte';
+  import Icon from '$lib/ui/Icon.svelte';
 
   let station = $derived(page.params.station.toUpperCase());
+  let stationRoomId = $derived(`station-${page.params.station.toLowerCase()}`);
 
   interface StationOrder {
     id: string;
@@ -28,6 +31,19 @@
 
   let completeModalOpen = $state(false);
   let completeTarget = $state<StationOrder | null>(null);
+  let showChat = $state(false);
+
+  // Block modal state
+  let blockModalOpen = $state(false);
+  let blockTargetId = $state('');
+  let blockReason = $state('');
+
+  // Rework modal state
+  let reworkModalOpen = $state(false);
+  let reworkTargetId = $state('');
+  let reworkReason = $state('RECUT');
+  let reworkDescription = $state('');
+  const REWORK_REASONS = ['RECUT', 'REPAINT', 'REWELD', 'REPRINT', 'QUALITY', 'OTHER'];
 
   let unsubscribe: (() => void) | null = null;
   let refreshInterval: ReturnType<typeof setInterval>;
@@ -37,11 +53,10 @@
     try {
       const response = await fetch(`/api/station/${station}/orders`);
       if (!response.ok) throw new Error('Failed to load orders');
-
-      const data = await response.json();
-      $orders = data;
+      $orders = await response.json();
     } catch (err) {
       console.error('Failed to load station orders:', err);
+      notifications.error($t('stationView.load_error', { default: 'Failed to load station orders' }));
     } finally {
       $loading = false;
     }
@@ -54,17 +69,14 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ state: newState })
       });
-
       if (!response.ok) throw new Error('Failed to update stage');
-
       await loadStationOrders();
     } catch (err: any) {
-      alert('Failed to update stage: ' + err.message);
+      notifications.error(err.message ?? $t('stationView.update_error', { default: 'Failed to update stage' }));
     }
   }
 
   async function handleQRScan(qrData: string) {
-    // QR format: ORDER:{orderId}
     if (qrData.startsWith('ORDER:')) {
       const orderId = qrData.replace('ORDER:', '');
       await updateStageState(orderId, 'IN_PROGRESS');
@@ -73,10 +85,7 @@
   }
 
   async function startOrder(orderId: string) {
-    // Use window.confirm to avoid TS warning or better yet, a custom modal
-    if (window.confirm('Start this order at this station?')) {
-      await updateStageState(orderId, 'IN_PROGRESS');
-    }
+    await updateStageState(orderId, 'IN_PROGRESS');
   }
 
   function completeOrder(orderId: string) {
@@ -97,20 +106,12 @@
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items,
-            skipped: opts.skipped,
-            skipReason: opts.skipReason,
-          }),
+          body: JSON.stringify({ items, skipped: opts.skipped, skipReason: opts.skipReason }),
         },
       );
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, error: payload?.error ?? `HTTP ${res.status}` };
-      return {
-        ok: true,
-        consumed: payload?.consumed ?? 0,
-        lowStock: payload?.lowStock ?? [],
-      };
+      return { ok: true, consumed: payload?.consumed ?? 0, lowStock: payload?.lowStock ?? [] };
     } catch (err: any) {
       return { ok: false, error: err?.message ?? 'Network error' };
     }
@@ -120,49 +121,57 @@
     completeTarget = null;
     if (p.lowStock.length > 0) {
       const skus = p.lowStock.map((h: any) => h.sku || h.name).join(', ');
-      alert(`Low stock after this completion: ${skus}. HoP has been notified.`);
+      notifications.warning(
+        $t('stationView.low_stock_warning', { default: `Low stock: ${skus}. HoP has been notified.`, values: { skus } })
+      );
     }
     loadStationOrders();
   }
 
-  async function blockOrder(orderId: string) {
-    const reason = prompt('Enter blocking reason:');
-    if (reason) {
-      try {
-        await fetch(`/api/orders/${orderId}/stages?station=${station}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            state: 'BLOCKED',
-            blocked_reason: reason
-          })
-        });
-        await loadStationOrders();
-      } catch (err) {
-        alert('Failed to block order');
-      }
+  function openBlockModal(orderId: string) {
+    blockTargetId = orderId;
+    blockReason = '';
+    blockModalOpen = true;
+  }
+
+  async function submitBlock() {
+    if (!blockReason.trim()) return;
+    blockModalOpen = false;
+    try {
+      const res = await fetch(`/api/orders/${blockTargetId}/stages?station=${station}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: 'BLOCKED', blocked_reason: blockReason })
+      });
+      if (!res.ok) throw new Error('Failed to block order');
+      notifications.info($t('stationView.order_blocked', { default: 'Order blocked' }));
+      await loadStationOrders();
+    } catch (err) {
+      notifications.error($t('stationView.block_error', { default: 'Failed to block order' }));
     }
   }
 
-  async function requestRework(orderId: string) {
-    const reason = prompt('Select rework reason:', 'RECUT');
-    const description = prompt('Describe the issue:');
+  function openReworkModal(orderId: string) {
+    reworkTargetId = orderId;
+    reworkReason = 'RECUT';
+    reworkDescription = '';
+    reworkModalOpen = true;
+  }
 
-    if (reason && description) {
-      try {
-        await fetch(`/api/orders/${orderId}/rework`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            station,
-            reason,
-            description
-          })
-        });
-        await loadStationOrders();
-      } catch (err) {
-        alert('Failed to create rework request');
-      }
+  async function submitRework() {
+    if (!reworkDescription.trim()) return;
+    reworkModalOpen = false;
+    try {
+      const res = await fetch(`/api/orders/${reworkTargetId}/rework`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ station, reason: reworkReason, description: reworkDescription })
+      });
+      if (!res.ok) throw new Error('Failed to create rework request');
+      notifications.info($t('stationView.rework_created', { default: 'Rework request created' }));
+      await loadStationOrders();
+    } catch (err) {
+      notifications.error($t('stationView.rework_error', { default: 'Failed to create rework request' }));
     }
   }
 
@@ -171,21 +180,23 @@
     return order.stage?.state === $filter;
   }));
 
-  let queuedCount = $derived($orders.filter(o => o.stage?.state === 'QUEUED').length);
+  let queuedCount     = $derived($orders.filter(o => o.stage?.state === 'QUEUED').length);
   let inProgressCount = $derived($orders.filter(o => o.stage?.state === 'IN_PROGRESS').length);
-  let blockedCount = $derived($orders.filter(o => o.stage?.state === 'BLOCKED').length);
-  let reworkCount = $derived($orders.filter(o => o.stage?.state === 'REWORK').length);
+  let blockedCount    = $derived($orders.filter(o => o.stage?.state === 'BLOCKED').length);
+  let reworkCount     = $derived($orders.filter(o => o.stage?.state === 'REWORK').length);
 
   onMount(async () => {
     await loadStationOrders();
 
-    // Subscribe to real-time updates
     unsubscribe = realtimeStore.subscribeToStation(station, () => {
       loadStationOrders();
     });
 
-    // Refresh every 30 seconds
     refreshInterval = setInterval(loadStationOrders, 30000);
+
+    // Ensure this station's chat room exists and load its messages
+    await ensureRoom({ id: stationRoomId, name: station, kind: 'station', station: page.params.station.toLowerCase() });
+    await loadMessages(stationRoomId);
   });
 
   onDestroy(() => {
@@ -224,20 +235,16 @@
 
     <div class="header-actions">
       <button class="btn btn-primary" onclick={() => $showScanner = true}>
-        <svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-          <line x1="9" y1="9" x2="15" y2="9"/>
-          <line x1="9" y1="12" x2="15" y2="12"/>
-          <line x1="9" y1="15" x2="15" y2="15"/>
-        </svg>
-        Scan QR
+        <Icon name="scan-line" size="sm" />
+        {$t('stationView.scan_qr', { default: 'Scan QR' })}
+      </button>
+      <button class="btn btn-outline" onclick={() => showChat = !showChat} class:btn-active={showChat}>
+        <Icon name="message-square" size="sm" />
+        {$t('stationView.station_chat', { default: 'Station Chat' })}
       </button>
       <button class="btn btn-outline" onclick={loadStationOrders}>
-        <svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <polyline points="23 4 23 10 17 10"/>
-          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-        </svg>
-        Refresh
+        <Icon name="refresh-cw" size="sm" />
+        {$t('common.refresh', { default: 'Refresh' })}
       </button>
     </div>
   </header>
@@ -340,36 +347,43 @@
           <div class="order-actions">
             {#if order.stage?.state === 'QUEUED' || order.stage?.state === 'NOT_STARTED'}
               <button class="btn btn-sm btn-success" onclick={() => startOrder(order.id)}>
-                ▶️ Start
+                <Icon name="play" size="sm" />
+                {$t('stationView.start', { default: 'Start' })}
               </button>
             {/if}
 
             {#if order.stage?.state === 'IN_PROGRESS'}
               <button class="btn btn-sm btn-success" onclick={() => completeOrder(order.id)}>
-                ✓ Complete
+                <Icon name="check" size="sm" />
+                {$t('stationView.complete', { default: 'Complete' })}
               </button>
-              <button class="btn btn-sm btn-warning" onclick={() => requestRework(order.id)}>
-                🔄 Rework
+              <button class="btn btn-sm btn-warning" onclick={() => openReworkModal(order.id)}>
+                <Icon name="rotate-ccw" size="sm" />
+                {$t('stationView.rework', { default: 'Rework' })}
               </button>
-              <button class="btn btn-sm btn-danger" onclick={() => blockOrder(order.id)}>
-                🚫 Block
+              <button class="btn btn-sm btn-danger" onclick={() => openBlockModal(order.id)}>
+                <Icon name="ban" size="sm" />
+                {$t('stationView.block', { default: 'Block' })}
               </button>
             {/if}
 
             {#if order.stage?.state === 'BLOCKED'}
               <button class="btn btn-sm btn-primary" onclick={() => updateStageState(order.id, 'IN_PROGRESS')}>
-                ▶️ Resume
+                <Icon name="play" size="sm" />
+                {$t('stationView.resume', { default: 'Resume' })}
               </button>
             {/if}
 
             {#if order.stage?.state === 'REWORK'}
               <button class="btn btn-sm btn-primary" onclick={() => updateStageState(order.id, 'IN_PROGRESS')}>
-                🔧 Start Rework
+                <Icon name="wrench" size="sm" />
+                {$t('stationView.start_rework', { default: 'Start Rework' })}
               </button>
             {/if}
 
             <a href="/orders/{order.id}" class="btn btn-sm btn-outline">
-              👁️ Details
+              <Icon name="eye" size="sm" />
+              {$t('common.details', { default: 'Details' })}
             </a>
           </div>
         </article>
@@ -411,6 +425,132 @@
   onComplete={submitCompletion}
   onSubmitted={onCompletionSubmitted}
 />
+
+<!-- Station Chat Panel -->
+{#if showChat}
+  <div class="station-chat-overlay" role="complementary" aria-label="{station} station chat">
+    <div class="station-chat-panel">
+      <div class="station-chat-panel__header">
+        <span class="station-chat-panel__title">
+          <Icon name="message-square" size="sm" />
+          {station} — {$t('stationView.station_chat', { default: 'Station Chat' })}
+        </span>
+        <button class="station-chat-panel__close" onclick={() => showChat = false} aria-label={$t('common.close', { default: 'Close' })}>
+          <Icon name="x" size="sm" />
+        </button>
+      </div>
+      <div class="station-chat-panel__body">
+        <ChatPane />
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Block Order Modal -->
+{#if blockModalOpen}
+  <div
+    class="modal-overlay"
+    onclick={() => blockModalOpen = false}
+    onkeydown={(e) => e.key === 'Escape' && (blockModalOpen = false)}
+    role="button"
+    tabindex="0"
+    aria-label={$t('common.close', { default: 'Close' })}
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div
+      class="modal-content"
+      onclick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="block-modal-title"
+    >
+      <div class="modal-header">
+        <h2 id="block-modal-title">{$t('stationView.block_order', { default: 'Block Order' })}</h2>
+        <button class="close-btn" onclick={() => blockModalOpen = false} aria-label={$t('common.close', { default: 'Close' })}>
+          <Icon name="x" size="sm" />
+        </button>
+      </div>
+      <div class="modal-body">
+        <label class="modal-label">
+          {$t('stationView.block_reason_label', { default: 'Reason for blocking' })}
+          <textarea
+            class="modal-textarea"
+            bind:value={blockReason}
+            rows="3"
+            placeholder={$t('stationView.block_reason_placeholder', { default: 'Describe why this order is blocked…' })}
+          ></textarea>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick={() => blockModalOpen = false}>
+          {$t('actions.cancel', { default: 'Cancel' })}
+        </button>
+        <button class="btn btn-danger" onclick={submitBlock} disabled={!blockReason.trim()}>
+          <Icon name="ban" size="sm" />
+          {$t('stationView.confirm_block', { default: 'Block Order' })}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Rework Request Modal -->
+{#if reworkModalOpen}
+  <div
+    class="modal-overlay"
+    onclick={() => reworkModalOpen = false}
+    onkeydown={(e) => e.key === 'Escape' && (reworkModalOpen = false)}
+    role="button"
+    tabindex="0"
+    aria-label={$t('common.close', { default: 'Close' })}
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div
+      class="modal-content"
+      onclick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rework-modal-title"
+    >
+      <div class="modal-header">
+        <h2 id="rework-modal-title">{$t('stationView.request_rework', { default: 'Request Rework' })}</h2>
+        <button class="close-btn" onclick={() => reworkModalOpen = false} aria-label={$t('common.close', { default: 'Close' })}>
+          <Icon name="x" size="sm" />
+        </button>
+      </div>
+      <div class="modal-body">
+        <label class="modal-label">
+          {$t('stationView.rework_reason_label', { default: 'Rework reason' })}
+          <select class="modal-select" bind:value={reworkReason}>
+            {#each REWORK_REASONS as r}
+              <option value={r}>{r}</option>
+            {/each}
+          </select>
+        </label>
+        <label class="modal-label">
+          {$t('stationView.rework_description_label', { default: 'Describe the issue' })}
+          <textarea
+            class="modal-textarea"
+            bind:value={reworkDescription}
+            rows="3"
+            placeholder={$t('stationView.rework_description_placeholder', { default: 'What needs to be redone and why…' })}
+          ></textarea>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick={() => reworkModalOpen = false}>
+          {$t('actions.cancel', { default: 'Cancel' })}
+        </button>
+        <button class="btn btn-warning" onclick={submitRework} disabled={!reworkDescription.trim()}>
+          <Icon name="rotate-ccw" size="sm" />
+          {$t('stationView.confirm_rework', { default: 'Submit Rework' })}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .station-board-page {
@@ -756,7 +896,6 @@
   .close-btn {
     background: transparent;
     border: none;
-    font-size: 2rem;
     color: var(--muted);
     cursor: pointer;
     padding: 0;
@@ -772,6 +911,123 @@
   .close-btn:hover {
     background: var(--bg-2);
     color: var(--text);
+  }
+
+  .modal-body {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .modal-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .modal-textarea,
+  .modal-select {
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-0);
+    color: var(--text);
+    font-size: 0.875rem;
+    font-family: inherit;
+    resize: vertical;
+  }
+  .modal-textarea:focus,
+  .modal-select:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: var(--focus-ring);
+  }
+
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .btn-active {
+    background: var(--brand-soft);
+    color: var(--brand);
+    border-color: var(--brand);
+  }
+
+  /* Station chat panel */
+  .station-chat-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-modal) - 1);
+    pointer-events: none;
+    display: flex;
+    justify-content: flex-end;
+    align-items: stretch;
+  }
+
+  .station-chat-panel {
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    width: min(420px, 100vw);
+    height: 100%;
+    background: var(--bg-1);
+    border-left: 1px solid var(--border);
+    box-shadow: var(--glass-shadow-lg);
+    animation: rf-slide-right var(--motion-md) var(--ease-emphasized) both;
+  }
+
+  @keyframes rf-slide-right {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(0); }
+  }
+
+  .station-chat-panel__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
+    flex-shrink: 0;
+  }
+
+  .station-chat-panel__title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text);
+  }
+
+  .station-chat-panel__close {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    transition: background var(--motion-sm) var(--ease-standard);
+  }
+  .station-chat-panel__close:hover { background: var(--bg-0); }
+
+  .station-chat-panel__body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   @media (max-width: 768px) {

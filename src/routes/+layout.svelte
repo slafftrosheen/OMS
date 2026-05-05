@@ -17,7 +17,7 @@
   import UpdatePrompt from '$lib/pwa/UpdatePrompt.svelte';
   import OfflineIndicator from '$lib/pwa/OfflineIndicator.svelte';
   import { role } from '$lib/ui/RoleSwitch.svelte';
-  import GlobalSearch from '$lib/components/GlobalSearch.svelte';
+  import GlobalSearch from '$lib/components/search/GlobalSearch.svelte';
   import Keybindings from '$lib/help/Keybindings.svelte';
   import { t } from 'svelte-i18n';
   import { startPreferenceUrlSync } from '$lib/settings/url-sync';
@@ -349,7 +349,7 @@
 
   <Toast />
   <LiveRegion />
-  <GlobalSearch bind:visible={searchOpen} />
+  <GlobalSearch bind:open={searchOpen} />
   <Keybindings bind:open={showKb} />
 {/if}
 
