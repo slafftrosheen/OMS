@@ -9,6 +9,14 @@ import { SwarmShapeUtil } from './shapes/SwarmShape';
 import { OrderDetailsShapeUtil } from './shapes/form-shapes/OrderDetailsShape';
 import { OrderAddressShapeUtil } from './shapes/form-shapes/OrderAddressShape';
 import { Profile7stShapeUtil } from './shapes/form-shapes/Profile7stShape';
+import { WebSearchShapeUtil } from './shapes/WebSearchShape';
+import { CrawlShapeUtil } from './shapes/CrawlShape';
+import {
+    LumiGridShapeUtil,
+    LedStripShapeUtil,
+    LedMatrixShapeUtil,
+    BoxLetterShapeUtil
+} from './shapes/SignageShapes';
 import { spawnDraftOrderTemplate, syncOrderDataToCanvas, type OrderSeed, type SpawnedShapes } from './templates/DraftOrderTemplate';
 import { setOrderBridge, clearOrderBridge } from './state-bridge';
 import { wireAssetDropHandler } from './asset-uploader';
@@ -22,6 +30,12 @@ const customShapeUtils = [
     OrderDetailsShapeUtil,
     OrderAddressShapeUtil,
     Profile7stShapeUtil,
+    WebSearchShapeUtil,
+    CrawlShapeUtil,
+    LumiGridShapeUtil,
+    LedStripShapeUtil,
+    LedMatrixShapeUtil,
+    BoxLetterShapeUtil
 ];
 
 export interface CanvasAppProps {
