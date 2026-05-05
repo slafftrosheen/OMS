@@ -239,8 +239,8 @@ ALTER TABLE public.canvas_documents ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "canvas_owner" ON public.canvas_documents;
 CREATE POLICY "canvas_owner" ON public.canvas_documents
-    FOR ALL USING (auth.uid() = owner_id)
-    WITH CHECK (auth.uid() = owner_id);
+    FOR ALL USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
 
 -- ----------------------------------------------------------------
 -- 11. Notifications: ensure hard per-user RLS (re-apply clean)
