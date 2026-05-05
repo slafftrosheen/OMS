@@ -50,11 +50,21 @@ export function can(user: User | null, feature: string): boolean {
     case 'createRDOrder':
       return isSuperuser(user);
 
+    // Boss only — manual PO assignment is a Boss-level decision
+    case 'assignPoNumber':
+    case 'voidAndReissue':
+      return user.role === 'Boss';
+
     // Head of Production and above
     case 'editOrder':
     case 'addProductionFiles':
+    case 'confirmOrder':
     case 'confirmProduction':
+    case 'reviewQueue':
+    case 'assignLoadingDay':
+    case 'markDispatched':
     case 'viewAllOrders':
+    case 'viewPreConfirmedDrafts':
       return hasRoleAtLeast(user, 'HeadOfProduction');
 
     // Station heads can rename their own station
@@ -73,6 +83,82 @@ export function can(user: User | null, feature: string): boolean {
     default:
       return false;
   }
+}
+
+// ---------------------------------------------------------------
+// Order lifecycle state machine
+// ---------------------------------------------------------------
+
+export type OrderStatus =
+  | 'DRAFT'
+  | 'PENDING_REVIEW'
+  | 'CONFIRMED'
+  | 'IN_PRODUCTION'
+  | 'READY_TO_LOAD'
+  | 'DISPATCHED'
+  | 'ARCHIVED'
+  | 'CANCELLED'
+  | 'ON_HOLD'
+  | 'VOIDED';
+
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  DRAFT:          'Draft',
+  PENDING_REVIEW: 'Pending Review',
+  CONFIRMED:      'Confirmed',
+  IN_PRODUCTION:  'In Production',
+  READY_TO_LOAD:  'Ready to Load',
+  DISPATCHED:     'Dispatched',
+  ARCHIVED:       'Archived',
+  CANCELLED:      'Cancelled',
+  ON_HOLD:        'On Hold',
+  VOIDED:         'Voided',
+};
+
+/**
+ * Normalise legacy status values (lower-case 'draft', 'approved', etc.)
+ * onto the new uppercase canonical states. Rows already in the wild
+ * keep working until backfilled.
+ */
+export function normaliseStatus(raw: string | null | undefined): OrderStatus {
+  if (!raw) return 'DRAFT';
+  const upper = raw.toUpperCase();
+  switch (upper) {
+    case 'DRAFT':           return 'DRAFT';
+    case 'PENDING_REVIEW':  return 'PENDING_REVIEW';
+    case 'APPROVED':        return 'CONFIRMED';
+    case 'CONFIRMED':       return 'CONFIRMED';
+    case 'QUEUED':
+    case 'IN_PROGRESS':
+    case 'IN_PRODUCTION':   return 'IN_PRODUCTION';
+    case 'READY_TO_LOAD':   return 'READY_TO_LOAD';
+    case 'DISPATCHED':      return 'DISPATCHED';
+    case 'COMPLETED':
+    case 'ARCHIVED':        return 'ARCHIVED';
+    case 'REJECTED':
+    case 'CANCELLED':       return 'CANCELLED';
+    case 'ON_HOLD':         return 'ON_HOLD';
+    case 'VOIDED':          return 'VOIDED';
+    default:                return 'DRAFT';
+  }
+}
+
+/**
+ * Whether a user is allowed to view a single draft order based on its
+ * status. Mirrors `is_draft_visible_to_user` SQL helper for client-side
+ * gating. Server-side enforcement is the RLS policy.
+ */
+export function canViewOrder(
+  user: User | null,
+  status: string | null | undefined,
+  createdById: string | null | undefined
+): boolean {
+  if (!user) return false;
+  const norm = normaliseStatus(status);
+  // Public lifecycle states
+  if (norm !== 'DRAFT' && norm !== 'PENDING_REVIEW') return true;
+  // Pre-confirmation: creator + privileged roles
+  if (createdById && createdById === user.id) return true;
+  return isSuperuser(user) || isHeadOfProduction(user);
 }
 
 // ---------------------------------------------------------------

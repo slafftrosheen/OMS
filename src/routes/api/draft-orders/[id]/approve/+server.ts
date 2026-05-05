@@ -7,16 +7,28 @@ import { postStationMessage } from '$lib/server/chat/stationMessenger';
  * 20260501000001_chat_rooms.sql (so approve can post the routing message).
  */
 const WORKFLOW_STAGES = ['CAD', 'CNC', 'EDGE', 'ASSEMBLY', 'PAINT', 'PACKAGING', 'DELIVERY'] as const;
+const PRIVILEGED_ROLES = new Set(['RD', 'Boss', 'HeadOfProduction']);
 
 /**
- * POST /api/draft-orders/[id]/approve - Approve a draft order, route it to the
- * production pipeline by creating order_stages rows and queuing the first stage.
+ * POST /api/draft-orders/[id]/approve - Legacy approval endpoint. The
+ * canonical confirmation path is /api/draft-orders/[id]/confirm (which
+ * also accepts a Boss-supplied PO). This endpoint is kept for the older
+ * UI buttons and only succeeds if the row already has a po_number.
  */
 export const POST: RequestHandler = async ({ params, locals }) => {
-  const user = locals.user;
+  const session = await locals.getSession();
+  if (!session) {
+    return json({ message: 'Unauthorized' }, { status: 401 });
+  }
 
-  if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
-    return json({ message: 'Admin access required' }, { status: 403 });
+  const { data: actor } = await locals.supabase
+    .from('profiles')
+    .select('id, role, display_name, username')
+    .eq('id', session.user.id)
+    .single();
+
+  if (!actor || !PRIVILEGED_ROLES.has(actor.role)) {
+    return json({ message: 'Privileged role required (RD / Boss / HeadOfProduction)' }, { status: 403 });
   }
 
   const idParam = params.id;
@@ -32,18 +44,24 @@ export const POST: RequestHandler = async ({ params, locals }) => {
         return json({ message: 'Order not found' }, { status: 404 });
     }
 
-    if (order.status !== 'draft') {
-        return json({ message: 'Only draft orders can be approved' }, { status: 400 });
+    if (order.status !== 'draft' && order.status !== 'DRAFT' && order.status !== 'PENDING_REVIEW') {
+        return json({ message: 'Only draft / pending-review orders can be approved' }, { status: 400 });
     }
 
-    // 1. Flip the draft to approved
+    if (!order.po_number) {
+        return json({
+          message: 'PO number must be assigned before approval. Use /confirm to set the PO.',
+        }, { status: 400 });
+    }
+
+    // 1. Flip the draft to CONFIRMED (canonical state)
     const { error: updateError } = await locals.supabase
         .from('draft_orders')
         .update({
-            status: 'approved',
-            approved_at: new Date().toISOString(),
-            approved_by: user.username,
-            updated_at: new Date().toISOString()
+            status: 'CONFIRMED',
+            confirmed_at: new Date().toISOString(),
+            confirmed_by: actor.id,
+            updated_by: actor.id,
         })
         .eq('id', order.id);
 
@@ -67,43 +85,26 @@ export const POST: RequestHandler = async ({ params, locals }) => {
         console.error('Failed to initialize order_stages:', stagesError);
     }
 
-    // 3. Audit
+    // 3. Audit (best-effort)
     await locals.supabase.from('audit_log').insert({
-        user_id: user.id,
-        username: user.username,
+        user_id: actor.id,
+        username: actor.username ?? actor.display_name ?? null,
         action: 'APPROVE_ORDER',
         entity_type: 'order',
         entity_id: order.id,
         details: { po_number: order.po_number, first_stage: WORKFLOW_STAGES[0] }
-    });
+    }).then(({ error }) => { if (error) console.error('audit_log insert failed:', error); });
 
     // 4. Post a station-room message announcing the new order at the first stage
-    await postStationMessage(locals.supabase, {
-        station: WORKFLOW_STAGES[0],
-        poNumber: order.po_number,
-        state: 'QUEUED',
-        actorName: user.username,
-    });
-
-    // 5. Notify SuperAdmins
-    const { data: superAdmins } = await locals.supabase
-        .from('profiles')
-        .select('id')
-        .eq('roles->>Admin', 'SuperAdmin')
-        .eq('is_active', true);
-
-    if (superAdmins && superAdmins.length > 0) {
-        const notifications = superAdmins.map(admin => ({
-            user_id: admin.id,
-            notification_type: 'order',
-            title: 'Order Approved',
-            message: `Order ${order.po_number} queued for ${WORKFLOW_STAGES[0]}`,
-            link: `/orders/${order.po_number}`,
-            source_type: 'order',
-            source_id: order.id
-        }));
-
-        await locals.supabase.from('notifications').insert(notifications);
+    try {
+      await postStationMessage(locals.supabase, {
+          station: WORKFLOW_STAGES[0],
+          poNumber: order.po_number,
+          state: 'QUEUED',
+          actorName: actor.display_name || actor.username || 'system',
+      });
+    } catch (err) {
+      console.error('postStationMessage failed:', err);
     }
 
     return json({

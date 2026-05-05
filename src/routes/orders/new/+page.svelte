@@ -338,7 +338,6 @@
   // SVELTE 5: Use onMount for one-time initialization
   onMount(() => {
     Promise.all([
-      generatePONumber(),
       loadDeliveryPresets(),
       loadProfilePresets()
     ]);
@@ -348,18 +347,6 @@
     date.setDate(date.getDate() + 14);
     deadline = date.toISOString().split('T')[0];
   });
-
-  async function generatePONumber() {
-    try {
-      const response = await fetch('/api/draft-orders/generate-po');
-      const data = await response.json();
-      poNumber = data.poNumber;
-    } catch (err) {
-      console.error('Failed to generate PO number:', err);
-      const now = new Date();
-      poNumber = `PO-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-    }
-  }
 
   async function loadDeliveryPresets() {
     try {
@@ -526,10 +513,6 @@
       error = $t('orders.new.messages.validation.client');
       return;
     }
-    if (!poNumber.trim()) {
-      error = $t('orders.new.messages.validation.po');
-      return;
-    }
     if (uploadedFiles.length === 0) {
       error = $t('orders.new.messages.validation.files');
       return;
@@ -544,15 +527,16 @@
     successMessage = '';
 
     try {
-      // 1. Create the base Order First
+      // PO is no longer assigned at draft creation. Boss inputs a
+      // pre-generated PO at the confirmation step. Drafts route through
+      // PENDING_REVIEW so HoP sees them in the review queue.
       const orderData = {
         clientName,
-        poNumber,
         deadline,
         loadingDate: loadingDate || null,
         notes,
         priority,
-        status: 'draft',
+        status: 'PENDING_REVIEW',
         deliveryPresetId: selectedPresetId,
         deliveryAddress,
         deliveryContact,
@@ -885,7 +869,10 @@
       <div class="form-row">
         <div class="form-group">
           <label for="poNumber">{$t('orders.new.details.po')}</label>
-          <input type="text" id="poNumber" bind:value={poNumber} readonly class="readonly" />
+          <div class="po-pending" id="poNumber" aria-live="polite">
+            <Icon name="info" size="xs" />
+            <span>{$t('orders.new.details.po_pending', { default: 'Will be assigned by Boss at confirmation' })}</span>
+          </div>
         </div>
         <div class="form-group">
           <label for="priority">{$t('orders.new.details.priority')}</label>
@@ -1161,6 +1148,18 @@
 
 <style>
   /* [All existing styles remain exactly the same - only script section changed] */
+  .po-pending {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px dashed var(--border-color, color-mix(in oklab, var(--ink-primary) 20%, transparent));
+    border-radius: var(--radius-sm, 8px);
+    background: var(--surface-soft, color-mix(in oklab, var(--ink-primary) 4%, transparent));
+    color: var(--text-secondary, var(--ink-tertiary));
+    font-size: 13px;
+    line-height: 1.3;
+  }
   .page-container {
     padding: var(--space-sm, 8px) var(--space-xs, 4px);
     max-width: 100%;

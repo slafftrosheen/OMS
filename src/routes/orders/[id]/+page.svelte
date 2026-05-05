@@ -13,6 +13,8 @@
     import FileList from "$lib/components/files/FileList.svelte";
     import QRCodeDisplay from "$lib/components/qr/QRCodeDisplay.svelte";
     import Modal from "$lib/components/ui/Modal.svelte";
+    import { currentUser } from "$lib/auth/authState.svelte";
+    import { can, normaliseStatus, ORDER_STATUS_LABELS } from "$lib/auth/permission-utils";
 
     let orderId = $derived(page.params.id);
 
@@ -116,6 +118,18 @@
         </div>
     {:else}
         <!-- Header -->
+        {#if normaliseStatus(order.status) === 'PENDING_REVIEW' && can($currentUser, 'reviewQueue')}
+            <div class="lifecycle-banner">
+                <span>
+                    {$t('orderDetail.pending_review_msg', {
+                      default: 'This draft is awaiting Head of Production review and PO assignment.',
+                    })}
+                </span>
+                <Button variant="primary" onclick={() => goto('/orders/review')}>
+                    {$t('orderDetail.go_to_review', { default: 'Go to review queue' })}
+                </Button>
+            </div>
+        {/if}
         <header class="order-header">
             <div class="header-left">
                 <Button variant="ghost" onclick={() => goto("/orders")}>
@@ -124,9 +138,9 @@
                 <div class="header-info">
                     <h1 class="order-title">{order.title}</h1>
                     <Badge
-                        variant={order.status === "ACTIVE" ? "info" : "success"}
+                        variant={normaliseStatus(order.status) === 'CONFIRMED' || normaliseStatus(order.status) === 'IN_PRODUCTION' ? 'info' : normaliseStatus(order.status) === 'DISPATCHED' || normaliseStatus(order.status) === 'ARCHIVED' ? 'success' : 'warning'}
                     >
-                        {order.status}
+                        {ORDER_STATUS_LABELS[normaliseStatus(order.status)]}
                     </Badge>
                 </div>
             </div>
@@ -323,6 +337,20 @@
         font-size: var(--text-lg);
         color: var(--error);
         margin: 0;
+    }
+
+    .lifecycle-banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: var(--radius-md, 16px);
+        background: color-mix(in oklab, #ff9500 14%, transparent);
+        border: 1px solid color-mix(in oklab, #ff9500 30%, transparent);
+        color: var(--ink-primary);
+        font-size: 14px;
+        flex-wrap: wrap;
     }
 
     .order-header {
