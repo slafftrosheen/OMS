@@ -60,42 +60,56 @@ export function getNodeRunner(type: string): NodeRunner | undefined {
 
 // ─── Graph traversal ────────────────────────────────────────────────────────
 
+type ArrowBinding = {
+    fromId: string;
+    toId: string;
+    props: { terminal: 'start' | 'end' };
+};
+
+interface MaybeBindingsApi {
+    getBindingsToShape?: (id: string, type: string) => ArrowBinding[];
+    getBindingsFromShape?: (id: string, type: string) => ArrowBinding[];
+}
+
 /**
- * Find every shape whose `end` terminal arrow points at `targetId`. Returns
- * the source shape ids in arrival order.
+ * Find every shape whose arrow's "end" terminal binds to `targetId`. Returns
+ * the source shape ids (the arrow's "start" terminal) in arrival order.
+ *
+ * Uses the modern tldraw bindings registry where `fromId` is the arrow and
+ * `toId` is the bound shape. Falls back to the legacy in-props arrow style
+ * for older versions.
  */
 export function findUpstreamIds(editor: Editor, targetId: string): string[] {
-    const all = editor.getCurrentPageShapes();
     const incoming: string[] = [];
+    const anyEd = editor as unknown as MaybeBindingsApi;
+
+    if (anyEd.getBindingsToShape && anyEd.getBindingsFromShape) {
+        try {
+            const incomingArrows = anyEd.getBindingsToShape(targetId, 'arrow') ?? [];
+            for (const b of incomingArrows) {
+                if (b.props?.terminal !== 'end') continue;
+                // The opposite end of the same arrow is what we want.
+                const arrowId = b.fromId;
+                const sibling = (anyEd.getBindingsFromShape!(arrowId, 'arrow') ?? [])
+                    .find((s) => s.props?.terminal === 'start');
+                if (sibling?.toId && sibling.toId !== targetId && !incoming.includes(sibling.toId)) {
+                    incoming.push(sibling.toId);
+                }
+            }
+            if (incoming.length > 0) return incoming;
+        } catch { /* tldraw version may not expose this — fall through */ }
+    }
+
+    // Legacy: arrows store endpoints inside their own props.
+    const all = editor.getCurrentPageShapes();
     for (const s of all) {
         if (s.type !== 'arrow') continue;
-        // tldraw arrow shape stores both `start` and `end` as
-        // { type: 'point', x, y } | { type: 'binding', boundShapeId, ... }.
-        // We support both new-style bindings (editor.getBindingsFromShape) and
-        // the legacy props shape.
         const props = (s as unknown as { props?: { start?: any; end?: any } }).props ?? {};
         const startBound = props.start?.boundShapeId as string | undefined;
         const endBound = props.end?.boundShapeId as string | undefined;
-        if (endBound === targetId && startBound && startBound !== targetId) {
+        if (endBound === targetId && startBound && startBound !== targetId && !incoming.includes(startBound)) {
             incoming.push(startBound);
         }
-    }
-    // Newer tldraw versions store bindings in a separate registry.
-    const anyEditor = editor as unknown as {
-        getBindingsToShape?: (id: string, type?: string) => Array<{ fromId?: string; toId?: string }>;
-    };
-    if (anyEditor.getBindingsToShape) {
-        try {
-            const binds = anyEditor.getBindingsToShape(targetId, 'arrow') ?? [];
-            for (const b of binds) {
-                const arrow = b.fromId ? editor.getShape(b.fromId as any) : null;
-                if (!arrow) continue;
-                const otherEnd = (arrow as any)?.props?.start?.boundShapeId;
-                if (otherEnd && otherEnd !== targetId && !incoming.includes(otherEnd)) {
-                    incoming.push(otherEnd);
-                }
-            }
-        } catch { /* tldraw version may not expose this */ }
     }
     return incoming;
 }

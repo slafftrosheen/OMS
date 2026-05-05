@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 import { registerNodeRunner } from '../node-runner';
 import {
     bodyStyle,
@@ -12,36 +12,26 @@ import {
     labelStyle
 } from './_node-styles';
 
-export type CrawlShape = {
-    id: string;
-    type: 'crawl';
-    x: number;
-    y: number;
-    rotation: number;
-    isLocked: boolean;
-    opacity: number;
-    meta: {};
-    props: {
-        w: number;
-        h: number;
+export type CrawlShape = TLBaseShape<'crawl', {
+    w: number;
+    h: number;
+    url: string;
+    selector: string;
+    includeLinks: boolean;
+    maxChars: number;
+    status: 'idle' | 'running' | 'done' | 'error';
+    error: string | null;
+    output: {
         url: string;
-        selector: string;
-        includeLinks: boolean;
-        maxChars: number;
-        status: 'idle' | 'running' | 'done' | 'error';
-        error: string | null;
-        output: {
-            url: string;
-            final_url: string;
-            title: string;
-            text: string;
-            links: string[];
-            bytes: number;
-            mime: string;
-            note?: string;
-        } | null;
-    };
-};
+        final_url: string;
+        title: string;
+        text: string;
+        links: string[];
+        bytes: number;
+        mime: string;
+        note?: string;
+    } | null;
+}>;
 
 const ACCENT = '#5856d6';
 

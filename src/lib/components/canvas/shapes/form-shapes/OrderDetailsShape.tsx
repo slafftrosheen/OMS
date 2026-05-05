@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 import { getOrderBridge } from '../../state-bridge';
 
 export type OrderDetailsShapeProps = {
@@ -16,17 +16,7 @@ export type OrderDetailsShapeProps = {
     status: string;
 };
 
-export type OrderDetailsShape = {
-    id: string;
-    type: 'order-details';
-    x: number;
-    y: number;
-    rotation: number;
-    isLocked: boolean;
-    opacity: number;
-    meta: {};
-    props: OrderDetailsShapeProps;
-};
+export type OrderDetailsShape = TLBaseShape<'order-details', OrderDetailsShapeProps>;
 
 const PRIORITY_COLORS: Record<string, string> = {
     LOW: '#34c759',

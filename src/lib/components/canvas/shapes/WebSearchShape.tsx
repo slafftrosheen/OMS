@@ -1,33 +1,23 @@
 import React, { useState } from 'react';
-import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 import { registerNodeRunner } from '../node-runner';
 
-export type WebSearchShape = {
-    id: string;
-    type: 'web-search';
-    x: number;
-    y: number;
-    rotation: number;
-    isLocked: boolean;
-    opacity: number;
-    meta: {};
-    props: {
-        w: number;
-        h: number;
+export type WebSearchShape = TLBaseShape<'web-search', {
+    w: number;
+    h: number;
+    query: string;
+    topK: number;
+    language: string;
+    site: string;
+    status: 'idle' | 'running' | 'done' | 'error';
+    error: string | null;
+    output: {
+        backend: string;
         query: string;
-        topK: number;
-        language: string;
-        site: string;
-        status: 'idle' | 'running' | 'done' | 'error';
-        error: string | null;
-        output: {
-            backend: string;
-            query: string;
-            hits: Array<{ title: string; url: string; snippet: string; engine: string | null }>;
-            note?: string;
-        } | null;
-    };
-};
+        hits: Array<{ title: string; url: string; snippet: string; engine: string | null }>;
+        note?: string;
+    } | null;
+}>;
 
 export class WebSearchShapeUtil extends BaseBoxShapeUtil<WebSearchShape> {
     static override type = 'web-search' as const;

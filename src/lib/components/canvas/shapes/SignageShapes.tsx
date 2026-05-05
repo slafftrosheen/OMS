@@ -4,7 +4,7 @@
 // pick up the calculation summary.
 
 import React, { useState } from 'react';
-import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 import { registerNodeRunner } from '../node-runner';
 import {
     bodyStyle,
@@ -162,11 +162,7 @@ function PlanCard<T extends BasePlanProps>(props: {
 
 // ─── LumiGrid ──────────────────────────────────────────────────────────────
 
-export type LumiGridShape = {
-    id: string; type: 'lumigrid';
-    x: number; y: number; rotation: number; isLocked: boolean; opacity: number; meta: {};
-    props: BasePlanProps;
-};
+export type LumiGridShape = TLBaseShape<'lumigrid', BasePlanProps>;
 
 const LUMIGRID_FIELDS: FieldDef[] = [
     { key: 'channels', label: 'Channels', type: 'number', placeholder: '4' },
@@ -216,11 +212,7 @@ export class LumiGridShapeUtil extends BaseBoxShapeUtil<LumiGridShape> {
 
 // ─── LED Strip ─────────────────────────────────────────────────────────────
 
-export type LedStripShape = {
-    id: string; type: 'led-strip';
-    x: number; y: number; rotation: number; isLocked: boolean; opacity: number; meta: {};
-    props: BasePlanProps;
-};
+export type LedStripShape = TLBaseShape<'led-strip', BasePlanProps>;
 
 const STRIP_FIELDS: FieldDef[] = [
     { key: 'length_m', label: 'Length (m)', type: 'number', placeholder: '5' },
@@ -269,11 +261,7 @@ export class LedStripShapeUtil extends BaseBoxShapeUtil<LedStripShape> {
 
 // ─── LED Matrix ────────────────────────────────────────────────────────────
 
-export type LedMatrixShape = {
-    id: string; type: 'led-matrix';
-    x: number; y: number; rotation: number; isLocked: boolean; opacity: number; meta: {};
-    props: BasePlanProps;
-};
+export type LedMatrixShape = TLBaseShape<'led-matrix', BasePlanProps>;
 
 const MATRIX_FIELDS: FieldDef[] = [
     { key: 'pitch_mm', label: 'Pitch mm', type: 'number', placeholder: '4' },
@@ -322,11 +310,7 @@ export class LedMatrixShapeUtil extends BaseBoxShapeUtil<LedMatrixShape> {
 
 // ─── BoxLetter ─────────────────────────────────────────────────────────────
 
-export type BoxLetterShape = {
-    id: string; type: 'boxletter';
-    x: number; y: number; rotation: number; isLocked: boolean; opacity: number; meta: {};
-    props: BasePlanProps;
-};
+export type BoxLetterShape = TLBaseShape<'boxletter', BasePlanProps>;
 
 const BOXLETTER_FIELDS: FieldDef[] = [
     { key: 'height_mm', label: 'Cap height mm', type: 'number', placeholder: '300' },

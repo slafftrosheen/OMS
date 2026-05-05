@@ -1,31 +1,21 @@
 import React from 'react';
-import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 
-export type DocumentShape = {
-    id: string;
-    type: 'document';
-    x: number;
-    y: number;
-    rotation: number;
-    isLocked: boolean;
-    opacity: number;
-    meta: {};
-    props: {
-        w: number;
-        h: number;
-        title: string;
-        content: string;
-        status: 'queued' | 'ready' | 'failed';
-        /** Persisted asset URL (image, pdf, or generic file) */
-        url?: string;
-        /** MIME type, used to choose render mode */
-        mime?: string;
-        /** Display variant — 'image' inlines the asset, 'pdf' shows preview frame, 'file' is a card */
-        kind?: 'image' | 'pdf' | 'file' | 'note';
-        /** Linked DB id from order_files (used by AI extract / context menus) */
-        fileId?: string;
-    };
-};
+export type DocumentShape = TLBaseShape<'document', {
+    w: number;
+    h: number;
+    title: string;
+    content: string;
+    status: 'queued' | 'ready' | 'failed';
+    /** Persisted asset URL (image, pdf, or generic file) */
+    url?: string;
+    /** MIME type, used to choose render mode */
+    mime?: string;
+    /** Display variant — 'image' inlines the asset, 'pdf' shows preview frame, 'file' is a card */
+    kind?: 'image' | 'pdf' | 'file' | 'note';
+    /** Linked DB id from order_files (used by AI extract / context menus) */
+    fileId?: string;
+}>;
 
 export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
     static override type = 'document' as const;
