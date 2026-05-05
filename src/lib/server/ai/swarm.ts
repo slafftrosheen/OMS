@@ -26,6 +26,7 @@ import {
     OLLAMA_NUM_PREDICT
 } from '$lib/server/config';
 import { logger } from '$lib/server/logging/logger';
+import { withSlot, nodeLoad } from '$lib/server/ai/queue';
 
 // ─── In-memory node state ────────────────────────────────────────────────────
 
@@ -180,12 +181,15 @@ export function pickNode(opts: PickOptions): AiNode | null {
     }
 
     // Sort: warm-with-model first, then least-loaded × inverse-weight.
+    // Use the *true* load from the queue (inflight + waiting) rather than just
+    // the legacy `inflight` counter so chat doesn't get scheduled on a node
+    // that's already buried under image-gen jobs.
     candidates.sort((a, b) => {
         const aWarm = opts.model && a.warmModels.has(opts.model) ? 0 : 1;
         const bWarm = opts.model && b.warmModels.has(opts.model) ? 0 : 1;
         if (aWarm !== bWarm) return aWarm - bWarm;
-        const aLoad = a.inflight / Math.max(0.0001, a.node.weight);
-        const bLoad = b.inflight / Math.max(0.0001, b.node.weight);
+        const aLoad = (a.inflight + nodeLoad(a.node.label)) / Math.max(0.0001, a.node.weight);
+        const bLoad = (b.inflight + nodeLoad(b.node.label)) / Math.max(0.0001, b.node.weight);
         return aLoad - bLoad;
     });
 
@@ -231,8 +235,10 @@ export async function swarmChat(opts: ChatOptions): Promise<ChatResult> {
             tried.add(node.label);
 
             try {
-                const res = await track(node.label, () =>
-                    callOllamaChat(node, model, opts)
+                // Through the per-(node × cap) queue so heavy image-gen jobs
+                // can't starve chat traffic on the same box.
+                const res = await withSlot(node.label, cap, () =>
+                    track(node.label, () => callOllamaChat(node, model, opts))
                 );
                 if (res.ok) return { node, model, response: res };
                 logger.warn('Swarm chat non-OK', {
@@ -300,24 +306,26 @@ export async function swarmEmbed(
             if (!node) break;
             tried.add(node.label);
             try {
-                const res = await track(node.label, async () => {
-                    const ctrl = new AbortController();
-                    const timer = setTimeout(() => ctrl.abort(), OLLAMA_TIMEOUT_MS);
-                    try {
-                        return await fetch(`${node.ollamaUrl}/api/embeddings`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                model: m,
-                                prompt: text,
-                                keep_alive: OLLAMA_KEEP_ALIVE
-                            }),
-                            signal: ctrl.signal
-                        });
-                    } finally {
-                        clearTimeout(timer);
-                    }
-                });
+                const res = await withSlot(node.label, 'embed', () =>
+                    track(node.label, async () => {
+                        const ctrl = new AbortController();
+                        const timer = setTimeout(() => ctrl.abort(), OLLAMA_TIMEOUT_MS);
+                        try {
+                            return await fetch(`${node.ollamaUrl}/api/embeddings`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    model: m,
+                                    prompt: text,
+                                    keep_alive: OLLAMA_KEEP_ALIVE
+                                }),
+                                signal: ctrl.signal
+                            });
+                        } finally {
+                            clearTimeout(timer);
+                        }
+                    })
+                );
                 if (!res.ok) continue;
                 const j = (await res.json()) as { embedding: number[] };
                 if (Array.isArray(j.embedding)) {
@@ -345,23 +353,25 @@ export async function swarmSidecar<T = unknown>(
         if (!node) break;
         tried.add(node.label);
         try {
-            const res = await track(node.label, async () => {
-                const ctrl = new AbortController();
-                const timer = setTimeout(
-                    () => ctrl.abort(),
-                    opts.timeoutMs ?? OLLAMA_TIMEOUT_MS
-                );
-                try {
-                    return await fetch(`${node.sidecarUrl}${path}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body),
-                        signal: ctrl.signal
-                    });
-                } finally {
-                    clearTimeout(timer);
-                }
-            });
+            const res = await withSlot(node.label, cap, () =>
+                track(node.label, async () => {
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(
+                        () => ctrl.abort(),
+                        opts.timeoutMs ?? OLLAMA_TIMEOUT_MS
+                    );
+                    try {
+                        return await fetch(`${node.sidecarUrl}${path}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body),
+                            signal: ctrl.signal
+                        });
+                    } finally {
+                        clearTimeout(timer);
+                    }
+                })
+            );
             if (!res.ok) {
                 logger.warn('Sidecar non-OK', {
                     node: node.label,
@@ -392,22 +402,24 @@ export async function swarmSidecarUpload(
         if (!node) break;
         tried.add(node.label);
         try {
-            const res = await track(node.label, async () => {
-                const ctrl = new AbortController();
-                const timer = setTimeout(
-                    () => ctrl.abort(),
-                    opts.timeoutMs ?? OLLAMA_TIMEOUT_MS
-                );
-                try {
-                    return await fetch(`${node.sidecarUrl}${path}`, {
-                        method: 'POST',
-                        body: form,
-                        signal: ctrl.signal
-                    });
-                } finally {
-                    clearTimeout(timer);
-                }
-            });
+            const res = await withSlot(node.label, cap, () =>
+                track(node.label, async () => {
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(
+                        () => ctrl.abort(),
+                        opts.timeoutMs ?? OLLAMA_TIMEOUT_MS
+                    );
+                    try {
+                        return await fetch(`${node.sidecarUrl}${path}`, {
+                            method: 'POST',
+                            body: form,
+                            signal: ctrl.signal
+                        });
+                    } finally {
+                        clearTimeout(timer);
+                    }
+                })
+            );
             if (res.ok) return { response: res, node };
         } catch (err) {
             logger.warn('Sidecar upload error', {

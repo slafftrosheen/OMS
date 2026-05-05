@@ -296,3 +296,43 @@ export const AILAB = {
 export const PUBLIC_BASE_URL = readString('PUBLIC_BASE_URL', `http://${OMS_HOST}`);
 export const PUBLIC_APP_URL  = readString('PUBLIC_APP_URL',  PUBLIC_BASE_URL);
 export const PUBLIC_APP_NAME = readString('PUBLIC_APP_NAME', 'Réclame Fabriek OMS');
+
+// ─── Web search / crawl ────────────────────────────────────────────────────
+// Self-hosted SearxNG on the Tailnet provides JSON results without leaking
+// queries to public engines. Set SEARCH_BACKEND_URL to a SearxNG instance.
+// The crawl tool reuses the brand-crawler primitives but is single-shot.
+
+export const SEARCH_BACKEND      = readString('SEARCH_BACKEND', 'searxng');
+export const SEARCH_BACKEND_URL  = trimSlash(
+    readString('SEARCH_BACKEND_URL', `http://${OMS_HOST}:8888`)
+);
+export const SEARCH_DEFAULT_LANG = readString('SEARCH_DEFAULT_LANG', 'en');
+export const CRAWL_USER_AGENT    = readString('CRAWL_USER_AGENT',
+    'ReclameFabriek-OMS/1.0 (+air-gapped tailnet)');
+export const CRAWL_MAX_BYTES     = readNumber('CRAWL_MAX_BYTES', 2_000_000);
+export const CRAWL_TIMEOUT_MS    = readNumber('CRAWL_TIMEOUT_MS', 15_000);
+
+// ─── Signage / LumiGrid defaults ───────────────────────────────────────────
+// Réclame Fabriek's house controllers + LED inventories. Calculators in the
+// AI Lab default to these so the operator only types deltas.
+
+export const SIGNAGE = {
+    /** PWM clock the LumiGrid controllers run at by default. */
+    pwmHz:           readNumber('LUMIGRID_PWM_HZ', 24_000),
+    /** Default gamma for perceptual dimming on the LumiGrid. */
+    gamma:           Number(readString('LUMIGRID_GAMMA', '2.2')) || 2.2,
+    /** Bit-depth for the LumiGrid PWM output (16 bit on current rev). */
+    pwmBits:         readNumber('LUMIGRID_PWM_BITS', 16),
+    /** Default LED strip voltage in volts. */
+    stripVolts:      readNumber('LED_STRIP_VOLTS', 24),
+    /** Default LEDs per metre on the in-house addressable strip. */
+    stripLedsPerM:   readNumber('LED_STRIP_LEDS_PER_M', 60),
+    /** Worst-case current per pixel at full white, in mA. */
+    stripMaPerLed:   readNumber('LED_STRIP_MA_PER_LED', 60),
+    /** Default refresh rate target for matrix displays. */
+    matrixHz:        readNumber('LED_MATRIX_HZ', 60),
+    /** Maximum drop tolerated end-to-end on a 24 V strip (V). */
+    stripMaxDrop:    Number(readString('LED_STRIP_MAX_DROP', '0.6')) || 0.6,
+    /** Default copper resistivity for power injection calc (Ω·mm²/m). */
+    copperRho:       Number(readString('COPPER_RHO', '0.0175')) || 0.0175
+} as const;

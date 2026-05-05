@@ -1,23 +1,13 @@
 import React from 'react';
-import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 import makerjs from 'makerjs';
 
-export type MakerShape = {
-    id: string;
-    type: 'maker';
-    x: number;
-    y: number;
-    rotation: number;
-    isLocked: boolean;
-    opacity: number;
-    meta: {};
-    props: {
-        w: number;
-        h: number;
-        code: string;
-        params: Record<string, number>;
-    };
-};
+export type MakerShape = TLBaseShape<'maker', {
+    w: number;
+    h: number;
+    code: string;
+    params: Record<string, number>;
+}>;
 
 export class MakerShapeUtil extends BaseBoxShapeUtil<MakerShape> {
     static override type = 'maker' as const;

@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 import { getOrderBridge } from '../../state-bridge';
 
 export type OrderAddressShapeProps = {
@@ -13,17 +13,7 @@ export type OrderAddressShapeProps = {
     shippingMethod: string;
 };
 
-export type OrderAddressShape = {
-    id: string;
-    type: 'order-address';
-    x: number;
-    y: number;
-    rotation: number;
-    isLocked: boolean;
-    opacity: number;
-    meta: {};
-    props: OrderAddressShapeProps;
-};
+export type OrderAddressShape = TLBaseShape<'order-address', OrderAddressShapeProps>;
 
 export class OrderAddressShapeUtil extends BaseBoxShapeUtil<OrderAddressShape> {
     static override type = 'order-address' as const;

@@ -150,6 +150,13 @@ import Mic from 'lucide-svelte/icons/mic';
 import Lightbulb from 'lucide-svelte/icons/lightbulb';
 import Drill from 'lucide-svelte/icons/drill';
 import PackageX from 'lucide-svelte/icons/package-x';
+import Sliders from 'lucide-svelte/icons/sliders';
+import Code from 'lucide-svelte/icons/code';
+import MicOff from 'lucide-svelte/icons/mic-off';
+import VolumeX from 'lucide-svelte/icons/volume-x';
+import StopCircle from 'lucide-svelte/icons/stop-circle';
+import Video from 'lucide-svelte/icons/video';
+import Headphones from 'lucide-svelte/icons/headphones';
 
 export const icons = {
   'activity': Activity,
@@ -296,6 +303,13 @@ export const icons = {
   'lightbulb': Lightbulb,
   'drill': Drill,
   'package-x': PackageX,
+  'sliders': Sliders,
+  'code': Code,
+  'mic-off': MicOff,
+  'volume-x': VolumeX,
+  'stop-circle': StopCircle,
+  'video': Video,
+  'headphones': Headphones,
   'zoom-in': ZoomIn,
   'zoom-out': ZoomOut
 } as const;

@@ -1,22 +1,12 @@
 import React, { useState } from 'react';
-import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 
-export type ForgeShape = {
-    id: string;
-    type: 'forge';
-    x: number;
-    y: number;
-    rotation: number;
-    isLocked: boolean;
-    opacity: number;
-    meta: {};
-    props: {
-        w: number;
-        h: number;
-        prompt: string;
-        imageUrl: string | null;
-    };
-};
+export type ForgeShape = TLBaseShape<'forge', {
+    w: number;
+    h: number;
+    prompt: string;
+    imageUrl: string | null;
+}>;
 
 export class ForgeShapeUtil extends BaseBoxShapeUtil<ForgeShape> {
     static override type = 'forge' as const;

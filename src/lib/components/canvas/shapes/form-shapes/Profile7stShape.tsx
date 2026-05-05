@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 import { getOrderBridge } from '../../state-bridge';
 
 export type Profile7stData = {
@@ -45,17 +45,7 @@ export type Profile7stShapeProps = {
     data: Profile7stData;
 };
 
-export type Profile7stShape = {
-    id: string;
-    type: 'profile-7st';
-    x: number;
-    y: number;
-    rotation: number;
-    isLocked: boolean;
-    opacity: number;
-    meta: {};
-    props: Profile7stShapeProps;
-};
+export type Profile7stShape = TLBaseShape<'profile-7st', Profile7stShapeProps>;
 
 const MATERIAL_OPTIONS = ['OPAL', 'ALU 1.3', 'ALU 1.5', 'FRONT', 'SIDES', 'BACK'];
 const FRAME_TYPES = ['NO FRAME', 'WITH FRAME', 'HALF FRAME', 'CUSTOM'];

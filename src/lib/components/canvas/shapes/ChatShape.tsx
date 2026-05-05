@@ -1,21 +1,11 @@
 import React, { useState } from 'react';
-import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 
-export type ChatShape = {
-    id: string;
-    type: 'chat';
-    x: number;
-    y: number;
-    rotation: number;
-    isLocked: boolean;
-    opacity: number;
-    meta: {};
-    props: {
-        w: number;
-        h: number;
-        messages: Array<{ role: 'user' | 'assistant', content: string }>;
-    };
-};
+export type ChatShape = TLBaseShape<'chat', {
+    w: number;
+    h: number;
+    messages: Array<{ role: 'user' | 'assistant', content: string }>;
+}>;
 
 export class ChatShapeUtil extends BaseBoxShapeUtil<ChatShape> {
     static override type = 'chat' as const;

@@ -1,22 +1,12 @@
 import React from 'react';
-import { BaseBoxShapeUtil, HTMLContainer } from '@tldraw/tldraw';
+import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 
-export type SwarmShape = {
-    id: string;
-    type: 'swarm';
-    x: number;
-    y: number;
-    rotation: number;
-    isLocked: boolean;
-    opacity: number;
-    meta: {};
-    props: {
-        w: number;
-        h: number;
-        agentName: string;
-        caps: string[];
-    };
-};
+export type SwarmShape = TLBaseShape<'swarm', {
+    w: number;
+    h: number;
+    agentName: string;
+    caps: string[];
+}>;
 
 export class SwarmShapeUtil extends BaseBoxShapeUtil<SwarmShape> {
     static override type = 'swarm' as const;
