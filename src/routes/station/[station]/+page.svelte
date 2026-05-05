@@ -7,6 +7,7 @@
   // import StageBoard from '$lib/components/orders/StageBoard.svelte';
   // import OrderCard from '$lib/components/orders/OrderCard.svelte';
   import QRScanner from '$lib/components/QRScanner.svelte';
+  import StationCompleteModal from '$lib/components/station/StationCompleteModal.svelte';
 
   let station = $derived(page.params.station.toUpperCase());
 
@@ -24,6 +25,9 @@
   const loading = writable(true);
   const filter = writable<'ALL' | 'QUEUED' | 'IN_PROGRESS' | 'BLOCKED' | 'REWORK'>('ALL');
   const showScanner = writable(false);
+
+  let completeModalOpen = $state(false);
+  let completeTarget = $state<StationOrder | null>(null);
 
   let unsubscribe: (() => void) | null = null;
   let refreshInterval: ReturnType<typeof setInterval>;
@@ -75,10 +79,50 @@
     }
   }
 
-  async function completeOrder(orderId: string) {
-    if (window.confirm('Mark this stage as completed?')) {
-      await updateStageState(orderId, 'COMPLETED');
+  function completeOrder(orderId: string) {
+    const target = $orders.find((o) => o.id === orderId);
+    if (!target) return;
+    completeTarget = target;
+    completeModalOpen = true;
+  }
+
+  async function submitCompletion(
+    items: Array<{ item_id: string; quantity: number }>,
+    opts: { skipped: boolean; skipReason: string | null },
+  ) {
+    if (!completeTarget) return { ok: false, error: 'No target' };
+    try {
+      const res = await fetch(
+        `/api/orders/${completeTarget.id}/stages/${station}/complete`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items,
+            skipped: opts.skipped,
+            skipReason: opts.skipReason,
+          }),
+        },
+      );
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: payload?.error ?? `HTTP ${res.status}` };
+      return {
+        ok: true,
+        consumed: payload?.consumed ?? 0,
+        lowStock: payload?.lowStock ?? [],
+      };
+    } catch (err: any) {
+      return { ok: false, error: err?.message ?? 'Network error' };
     }
+  }
+
+  function onCompletionSubmitted(p: { consumed: number; skipped: boolean; lowStock: any[] }) {
+    completeTarget = null;
+    if (p.lowStock.length > 0) {
+      const skus = p.lowStock.map((h: any) => h.sku || h.name).join(', ');
+      alert(`Low stock after this completion: ${skus}. HoP has been notified.`);
+    }
+    loadStationOrders();
   }
 
   async function blockOrder(orderId: string) {
@@ -359,6 +403,14 @@
     </div>
   </div>
 {/if}
+
+<StationCompleteModal
+  bind:open={completeModalOpen}
+  station={station}
+  orderRef={completeTarget?.po_number ?? completeTarget?.id ?? ''}
+  onComplete={submitCompletion}
+  onSubmitted={onCompletionSubmitted}
+/>
 
 <style>
   .station-board-page {

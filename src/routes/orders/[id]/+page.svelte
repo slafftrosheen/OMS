@@ -25,12 +25,99 @@
     let activeTab = $state("overview");
 
     let tabs = $derived([
-        { id: "overview",  label: $t("orderDetail.tabs.overview") },
-        { id: "stages",    label: $t("orderDetail.tabs.stages") },
-        { id: "files",     label: $t("orderDetail.tabs.files") },
-        { id: "chat",      label: $t("orderDetail.tabs.chat") },
-        { id: "timeline",  label: $t("orderDetail.tabs.timeline") },
+        { id: "overview",     label: $t("orderDetail.tabs.overview") },
+        { id: "stages",       label: $t("orderDetail.tabs.stages") },
+        { id: "files",        label: $t("orderDetail.tabs.files") },
+        { id: "consumption",  label: $t("orderDetail.tabs.consumption", { default: "Consumption" }) },
+        { id: "chat",         label: $t("orderDetail.tabs.chat") },
+        { id: "timeline",     label: $t("orderDetail.tabs.timeline") },
     ]);
+
+    type ConsumptionRow = {
+        order_id: string;
+        station: string;
+        item_id: string;
+        sku: string | null;
+        name: string | null;
+        total_quantity: number;
+        first_logged_at: string;
+        last_logged_at: string;
+    };
+    let consumption = $state<ConsumptionRow[]>([]);
+    let consumptionLoading = $state(false);
+
+    async function loadConsumption() {
+        if (!orderId) return;
+        consumptionLoading = true;
+        try {
+            const res = await fetch(`/api/orders/${orderId}/consumption`);
+            if (res.ok) consumption = await res.json();
+        } catch (err) {
+            console.error('Failed to load consumption:', err);
+        } finally {
+            consumptionLoading = false;
+        }
+    }
+
+    $effect(() => {
+        if (activeTab === 'consumption') loadConsumption();
+    });
+
+    let lifecycleBusy = $state(false);
+
+    async function dispatchOrder() {
+        if (!confirm($t('orderDetail.dispatch_confirm', { default: 'Mark this order as dispatched?' }) as string)) return;
+        lifecycleBusy = true;
+        try {
+            const res = await fetch(`/api/orders/${orderId}/dispatch`, { method: 'POST' });
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(payload?.error ?? 'Failed to dispatch');
+                return;
+            }
+            await loadOrderData();
+        } finally {
+            lifecycleBusy = false;
+        }
+    }
+
+    async function archiveOrder() {
+        if (!confirm($t('orderDetail.archive_confirm', { default: 'Archive this order? Files stay attached.' }) as string)) return;
+        lifecycleBusy = true;
+        try {
+            const res = await fetch(`/api/orders/${orderId}/archive`, { method: 'POST' });
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(payload?.error ?? 'Failed to archive');
+                return;
+            }
+            await loadOrderData();
+        } finally {
+            lifecycleBusy = false;
+        }
+    }
+
+    async function voidAndReissue() {
+        const reason = prompt($t('orderDetail.void_reason_prompt', { default: 'Reason for voiding?' }) as string);
+        if (!reason) return;
+        lifecycleBusy = true;
+        try {
+            const res = await fetch(`/api/orders/${orderId}/void-reissue`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason }),
+            });
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(payload?.error ?? 'Failed to void & reissue');
+                return;
+            }
+            alert(`Voided. New draft: ${payload.reissuedInternalRef}`);
+            goto(`/orders/${payload.reissuedId}`);
+        } finally {
+            lifecycleBusy = false;
+        }
+    }
 
     async function loadOrderData() {
         loading = true;
@@ -154,6 +241,21 @@
                 >
                     {$t("common.edit")}
                 </Button>
+                {#if (normaliseStatus(order.status) === 'READY_TO_LOAD' || normaliseStatus(order.status) === 'IN_PRODUCTION' || normaliseStatus(order.status) === 'CONFIRMED') && can($currentUser, 'markDispatched')}
+                    <Button variant="primary" onclick={dispatchOrder} disabled={lifecycleBusy}>
+                        {$t('orderDetail.mark_dispatched', { default: 'Mark dispatched' })}
+                    </Button>
+                {/if}
+                {#if normaliseStatus(order.status) === 'DISPATCHED' && can($currentUser, 'markDispatched')}
+                    <Button variant="outline" onclick={archiveOrder} disabled={lifecycleBusy}>
+                        {$t('orderDetail.archive', { default: 'Archive' })}
+                    </Button>
+                {/if}
+                {#if can($currentUser, 'voidAndReissue') && normaliseStatus(order.status) !== 'VOIDED' && normaliseStatus(order.status) !== 'ARCHIVED'}
+                    <Button variant="ghost" onclick={voidAndReissue} disabled={lifecycleBusy}>
+                        {$t('orderDetail.void_reissue', { default: 'Void & reissue' })}
+                    </Button>
+                {/if}
             </div>
         </header>
 
@@ -291,6 +393,43 @@
                         <FileList {files} ondelete={handleDeleteFile} />
                     </Card>
                 </div>
+            {:else if activeTab === "consumption"}
+                <div class="tab-content">
+                    <Card title={$t("orderDetail.tabs.consumption", { default: "Consumption" })} padding="lg">
+                        {#if consumptionLoading}
+                            <p class="muted">{$t('actions.loading', { default: 'Loading…' })}</p>
+                        {:else if consumption.length === 0}
+                            <p class="muted">
+                                {$t('orderDetail.consumption_empty', {
+                                    default: 'No materials have been declared yet.',
+                                })}
+                            </p>
+                        {:else}
+                            <table class="consumption-table">
+                                <thead>
+                                    <tr>
+                                        <th>{$t('orderDetail.consumption.station', { default: 'Station' })}</th>
+                                        <th>{$t('orderDetail.consumption.sku', { default: 'SKU' })}</th>
+                                        <th>{$t('orderDetail.consumption.item', { default: 'Item' })}</th>
+                                        <th class="num">{$t('orderDetail.consumption.qty', { default: 'Qty' })}</th>
+                                        <th>{$t('orderDetail.consumption.last_logged', { default: 'Last logged' })}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {#each consumption as row}
+                                        <tr>
+                                            <td>{row.station}</td>
+                                            <td class="mono">{row.sku ?? '—'}</td>
+                                            <td>{row.name ?? '—'}</td>
+                                            <td class="num">{row.total_quantity}</td>
+                                            <td>{new Date(row.last_logged_at).toLocaleString()}</td>
+                                        </tr>
+                                    {/each}
+                                </tbody>
+                            </table>
+                        {/if}
+                    </Card>
+                </div>
             {:else if activeTab === "chat"}
                 <div class="tab-content-full">
                     <ChatContainer {orderId} />
@@ -338,6 +477,28 @@
         color: var(--error);
         margin: 0;
     }
+
+    .consumption-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+    .consumption-table th,
+    .consumption-table td {
+        text-align: left;
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--glass-border);
+    }
+    .consumption-table th {
+        font-weight: 600;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--ink-tertiary);
+    }
+    .consumption-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .consumption-table .mono { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; }
+    .muted { color: var(--ink-tertiary); }
 
     .lifecycle-banner {
         display: flex;

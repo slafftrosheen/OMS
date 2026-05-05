@@ -206,6 +206,25 @@ export const PATCH: RequestHandler = async (event) => {
        throw error(400, 'No fields to update');
     }
 
+    // Lifecycle side effect: assigning a loading_date on a CONFIRMED /
+    // IN_PRODUCTION order moves it into READY_TO_LOAD. Clearing the
+    // date on a READY_TO_LOAD order rolls it back to IN_PRODUCTION.
+    // Skip if the caller already set status explicitly.
+    if (data.status === undefined && data.loadingDate !== undefined) {
+        const { data: current } = await event.locals.supabase
+            .from('draft_orders')
+            .select('status')
+            .eq('id', order.id)
+            .single();
+        if (current) {
+            if (data.loadingDate && (current.status === 'CONFIRMED' || current.status === 'IN_PRODUCTION' || current.status === 'approved')) {
+                updates.status = 'READY_TO_LOAD';
+            } else if (!data.loadingDate && current.status === 'READY_TO_LOAD') {
+                updates.status = 'IN_PRODUCTION';
+            }
+        }
+    }
+
     const { data: updatedOrder, error: updateError } = await event.locals.supabase
         .from('draft_orders')
         .update(updates)
