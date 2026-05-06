@@ -1,192 +1,217 @@
-<!-- src/lib/components/ui/Button.svelte -->
+<!-- src/lib/components/ui/Button.svelte — 2026 -->
 <script lang="ts">
-    let { children, 
-        variant = 'primary', 
-        size = 'md', 
-        disabled = false, 
-        loading = false, 
-        type = 'button', 
-        fullWidth = false, 
-        icon = null, 
-        iconPosition = 'left',
-        onclick,
-        ...restProps
-    }: {
-        variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
-        size?: 'sm' | 'md' | 'lg';
-        disabled?: boolean;
-        loading?: boolean;
-        type?: 'button' | 'submit' | 'reset';
-        fullWidth?: boolean;
-        icon?: string | null;
-        iconPosition?: 'left' | 'right';
-        onclick?: (event: MouseEvent) => void;
-        [key: string]: any;
-    } = $props();
+  let {
+    children,
+    variant = 'primary',
+    size = 'md',
+    disabled = false,
+    loading = false,
+    type = 'button',
+    fullWidth = false,
+    icon = null,
+    iconPosition = 'left',
+    onclick,
+    ...restProps
+  }: {
+    variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
+    size?: 'sm' | 'md' | 'lg';
+    disabled?: boolean;
+    loading?: boolean;
+    type?: 'button' | 'submit' | 'reset';
+    fullWidth?: boolean;
+    icon?: string | null;
+    iconPosition?: 'left' | 'right';
+    onclick?: (event: MouseEvent) => void;
+    [key: string]: any;
+  } = $props();
 
-    function handleClick(event: MouseEvent) {
-        if (!disabled && !loading) {
-            onclick?.(event);
-        }
-    }
+  function handleClick(event: MouseEvent) {
+    if (!disabled && !loading) onclick?.(event);
+  }
 
-    let classes = $derived([
-        'btn',
-        `btn-${variant}`,
-        `btn-${size}`,
-        fullWidth && 'btn-full',
-        disabled && 'btn-disabled',
-        loading && 'btn-loading'
-    ].filter(Boolean).join(' '));
+  let classes = $derived([
+    'btn',
+    `btn-${variant}`,
+    `btn-${size}`,
+    fullWidth && 'btn-full',
+    disabled && 'btn-disabled',
+    loading && 'btn-loading'
+  ].filter(Boolean).join(' '));
 </script>
 
 <button
-    {type}
-    class={classes}
-    disabled={disabled || loading}
-    onclick={handleClick}
-    {...restProps}
+  {type}
+  class={classes}
+  disabled={disabled || loading}
+  onclick={handleClick}
+  {...restProps}
 >
-    {#if loading}
-        <span class="btn-spinner" aria-hidden="true"></span>
-    {:else if icon && iconPosition === 'left'}
-        <span class="btn-icon btn-icon-left" aria-hidden="true">{icon}</span>
-    {/if}
-    
-    {@render children?.()}
-    
-    {#if !loading && icon && iconPosition === 'right'}
-        <span class="btn-icon btn-icon-right" aria-hidden="true">{icon}</span>
-    {/if}
+  {#if loading}
+    <span class="btn-spinner" aria-hidden="true"></span>
+  {:else if icon && iconPosition === 'left'}
+    <span class="btn-icon btn-icon-left" aria-hidden="true">{icon}</span>
+  {/if}
+
+  {@render children?.()}
+
+  {#if !loading && icon && iconPosition === 'right'}
+    <span class="btn-icon btn-icon-right" aria-hidden="true">{icon}</span>
+  {/if}
 </button>
 
 <style>
-    .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        font-weight: 500;
-        border-radius: 0.375rem;
-        border: 1px solid transparent;
-        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
-        cursor: pointer;
-        font-family: inherit;
-        line-height: 1.5;
-        text-decoration: none;
-        white-space: nowrap;
-    }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    font-weight: 600;
+    letter-spacing: var(--tracking-tight);
+    border-radius: var(--radius-full);
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1.2;
+    text-decoration: none;
+    white-space: nowrap;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    transition:
+      transform   var(--motion-sm) var(--ease-spring-soft),
+      filter      var(--motion-sm) var(--ease-standard),
+      background  var(--motion-sm) var(--ease-standard),
+      color       var(--motion-sm) var(--ease-standard),
+      box-shadow  var(--motion-sm) var(--ease-standard);
+  }
 
-    .btn:focus-visible {
-        outline: 2px solid var(--color-primary);
-        outline-offset: 2px;
-    }
+  .btn:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
 
-    /* Sizes */
-    .btn-sm {
-        padding: 0.375rem 0.75rem;
-        font-size: 0.875rem;
-    }
+  .btn:not(:disabled):active { transform: scale(0.97); }
 
-    .btn-md {
-        padding: 0.5rem 1rem;
-        font-size: 1rem;
-    }
+  /* Sizes (use scale-aware tokens) */
+  .btn-sm {
+    height: var(--control-sm);
+    padding: 0 var(--space-md);
+    font-size: var(--text-sm);
+  }
+  .btn-md {
+    height: var(--control-size);
+    padding: 0 var(--space-lg);
+    font-size: var(--text-md);
+  }
+  .btn-lg {
+    height: calc(var(--control-size) + 8px);
+    padding: 0 var(--space-xl);
+    font-size: var(--text-md);
+  }
 
-    .btn-lg {
-        padding: 0.75rem 1.5rem;
-        font-size: 1.125rem;
-    }
+  /* Primary — brand fill with subtle gradient + glow */
+  .btn-primary {
+    background:
+      linear-gradient(180deg,
+        color-mix(in oklab, var(--brand) 96%, white) 0%,
+        var(--brand) 100%);
+    color: #ffffff;
+    box-shadow:
+      0 4px 14px -2px color-mix(in oklab, var(--brand) 35%, transparent),
+      inset 0 1px 0 color-mix(in oklab, white 22%, transparent);
+  }
+  .btn-primary:not(:disabled):hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+    box-shadow:
+      0 8px 22px -4px color-mix(in oklab, var(--brand) 45%, transparent),
+      inset 0 1px 0 color-mix(in oklab, white 30%, transparent);
+  }
 
-    /* Variants */
-    .btn-primary {
-        background: var(--color-primary, var(--brand));
-        color: var(--bg-0);
-        border-color: var(--color-primary, var(--brand));
-    }
+  /* Secondary — neutral glass surface */
+  .btn-secondary {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-material-thin);
+    -webkit-backdrop-filter: var(--glass-material-thin);
+    color: var(--ink-primary);
+    border-color: var(--border);
+  }
+  .btn-secondary:not(:disabled):hover {
+    background: var(--bg-2);
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+  }
 
-    .btn-primary:hover:not(:disabled) {
-        background: var(--color-primary-dark, var(--brand));
-        border-color: var(--color-primary-dark, var(--brand));
-    }
+  /* Danger */
+  .btn-danger {
+    background:
+      linear-gradient(180deg,
+        color-mix(in oklab, var(--error) 96%, white) 0%,
+        var(--error) 100%);
+    color: #ffffff;
+    box-shadow:
+      0 4px 14px -2px color-mix(in oklab, var(--error) 35%, transparent),
+      inset 0 1px 0 color-mix(in oklab, white 22%, transparent);
+  }
+  .btn-danger:not(:disabled):hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+  }
 
-    .btn-secondary {
-        background: var(--ink-secondary);
-        color: var(--bg-0);
-        border-color: var(--ink-secondary);
-    }
+  /* Ghost */
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink-secondary);
+  }
+  .btn-ghost:not(:disabled):hover {
+    background: color-mix(in oklab, var(--bg-2) 80%, transparent);
+    color: var(--ink-primary);
+  }
 
-    .btn-secondary:hover:not(:disabled) {
-        background: var(--color-secondary-dark, var(--ink-tertiary));
-        border-color: var(--color-secondary-dark, var(--ink-tertiary));
-    }
+  /* Outline */
+  .btn-outline {
+    background: transparent;
+    color: var(--brand);
+    border-color: color-mix(in oklab, var(--brand) 50%, transparent);
+  }
+  .btn-outline:not(:disabled):hover {
+    background: var(--brand-soft);
+    border-color: var(--brand);
+    transform: translateY(-1px);
+  }
 
-    .btn-danger {
-        background: var(--color-danger, var(--error));
-        color: var(--bg-0);
-        border-color: var(--color-danger, var(--error));
-    }
+  /* States */
+  .btn-disabled, .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+  }
 
-    .btn-danger:hover:not(:disabled) {
-        background: var(--color-danger-dark, var(--error));
-        border-color: var(--color-danger-dark, var(--error));
-    }
+  .btn-loading { color: transparent; pointer-events: none; }
 
-    .btn-ghost {
-        background: transparent;
-        color: var(--color-text, var(--ink-primary));
-        border-color: transparent;
-    }
+  .btn-full { width: 100%; }
 
-    .btn-ghost:hover:not(:disabled) {
-        background: var(--color-gray-100, var(--bg-2));
-    }
+  /* Spinner */
+  .btn-spinner {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: btn-spin 0.7s linear infinite;
+    color: var(--ink-primary);
+  }
+  .btn-primary .btn-spinner,
+  .btn-danger .btn-spinner { color: white; }
 
-    .btn-outline {
-        background: transparent;
-        color: var(--color-primary, var(--brand));
-        border-color: var(--color-primary, var(--brand));
-    }
+  @keyframes btn-spin { to { transform: rotate(360deg); } }
 
-    .btn-outline:hover:not(:disabled) {
-        background: var(--color-primary, var(--brand));
-        color: var(--bg-0);
-    }
-
-    /* States */
-    .btn-disabled,
-    .btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    .btn-loading {
-        position: relative;
-        color: transparent;
-        pointer-events: none;
-    }
-
-    .btn-full {
-        width: 100%;
-    }
-
-    /* Spinner */
-    .btn-spinner {
-        position: absolute;
-        width: 1rem;
-        height: 1rem;
-        border: 2px solid currentColor;
-        border-right-color: transparent;
-        border-radius: 50%;
-        animation: spin 0.6s linear infinite;
-    }
-
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-
-    .btn-icon {
-        display: inline-flex;
-        font-size: 1.25em;
-    }
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    font-size: 1.1em;
+  }
 </style>

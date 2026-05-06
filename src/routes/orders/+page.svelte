@@ -4,6 +4,7 @@
   import FilePlus from 'lucide-svelte/icons/file-plus';
   import Package from 'lucide-svelte/icons/package';
   import { onMount, getContext } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
 
@@ -82,19 +83,26 @@
   let currentPage = $state(1);
   let itemsPerPage = $state(20);
   let hasLoadedOnce = $state(false);
+  // Track expanded row ids in dedicated state — `rows` is $derived and immutable
+  let expandedIds = $state<Set<string>>(new SvelteSet());
 
   let qLower = $derived(q.trim().toLowerCase());
-  
+
   // Use $derived for reactive filtering instead of $effect + untrack
   let filteredOrders = $derived.by(() => {
     const orders = orderState.orders;
-    return isAdmin 
-      ? orders 
+    return isAdmin
+      ? orders
       : orders.filter((order: any) => !order.isDraft);
   });
 
-  // Update rows reactively using $derived (not imperative assignment)
-  let rows = $derived(filteredOrders.map(toRow));
+  // Map orders → row view-model. `expanded` is read live from expandedIds,
+  // so toggling re-renders without mutating `rows`.
+  let rows = $derived(filteredOrders.map((o) => {
+    const r = toRow(o);
+    r.expanded = expandedIds.has(r.id);
+    return r;
+  }));
 
   let isLoading = $derived(orderState.loading);
   let errorMessage = $derived(orderState.lastError || '');
@@ -163,9 +171,8 @@
   }
 
   function toggleExpand(rowId: string) {
-    rows = rows.map(row => 
-      row.id === rowId ? { ...row, expanded: !row.expanded } : row
-    );
+    if (expandedIds.has(rowId)) expandedIds.delete(rowId);
+    else expandedIds.add(rowId);
   }
 
   const stationLabel = (code: Station) => $t(TERMS.stations[code]);
@@ -571,48 +578,64 @@
   .btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 10px 16px;
-    border-radius: 8px;
-    font-size: 14px;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-lg);
+    border-radius: var(--radius-full);
+    font-size: var(--text-sm);
     font-weight: 600;
+    letter-spacing: var(--tracking-tight);
     cursor: pointer;
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      color      var(--motion-sm) var(--ease-standard),
+      transform  var(--motion-sm) var(--ease-spring-soft),
+      box-shadow var(--motion-sm) var(--ease-standard);
     border: 1px solid transparent;
   }
 
   .btn-primary {
-    background: var(--brand);
-    color: var(--bg-0);
+    background:
+      linear-gradient(180deg,
+        color-mix(in oklab, var(--brand) 96%, white) 0%,
+        var(--brand) 100%);
+    color: #fff;
     border-color: transparent;
-    box-shadow: 0 2px 8px color-mix(in oklab, var(--brand) 30%, transparent);
+    box-shadow:
+      0 4px 14px -2px color-mix(in oklab, var(--brand) 35%, transparent),
+      inset 0 1px 0 color-mix(in oklab, white 22%, transparent);
   }
 
-  .btn-primary:hover {
+  .btn-primary:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px color-mix(in oklab, var(--brand) 40%, transparent);
+    filter: brightness(1.06);
+    box-shadow:
+      0 8px 22px -4px color-mix(in oklab, var(--brand) 45%, transparent),
+      inset 0 1px 0 color-mix(in oklab, white 30%, transparent);
   }
 
   .btn-secondary {
-    background: var(--bg-1);
+    background: var(--glass-bg);
     color: var(--text);
     border-color: var(--border);
+    backdrop-filter: var(--glass-material-thin);
+    -webkit-backdrop-filter: var(--glass-material-thin);
   }
 
-  .btn-secondary:hover {
+  .btn-secondary:hover:not(:disabled) {
     background: var(--bg-2);
-    border-color: var(--text-muted);
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
   }
 
   .btn-ghost {
     background: transparent;
-    color: var(--text-muted);
+    color: var(--ink-secondary);
     border-color: transparent;
   }
 
-  .btn-ghost:hover {
-    background: var(--bg-2);
-    color: var(--text);
+  .btn-ghost:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--bg-2) 70%, transparent);
+    color: var(--ink-primary);
   }
 
   .btn:disabled {

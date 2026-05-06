@@ -146,17 +146,21 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   --motion-md: 240ms;
   --motion-lg: 360ms;
   --motion-xl: 520ms;
+  --motion-2xl: 720ms;
 
   --ease-standard:    cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-emphasized:  cubic-bezier(0.3, 0.0, 0.0, 1);
   --ease-spring-soft: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-spring:      cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --ease-spring-elastic: cubic-bezier(0.68, -0.55, 0.265, 1.55);
   --ease-out:         cubic-bezier(0.0, 0.0, 0.2, 1);
   --ease-in:          cubic-bezier(0.4, 0.0, 1.0, 1);
   --ease-in-out:      cubic-bezier(0.4, 0.0, 0.6, 1);
+  --ease-anticipate:  cubic-bezier(0.7, -0.4, 0.4, 1.4);
 
   --transition-fast:   var(--motion-sm) var(--ease-standard);
   --transition-smooth: var(--motion-md) var(--ease-standard);
+  --transition-spring: var(--motion-md) var(--ease-spring-soft);
 }
 
 /* ---------- 6. Z-index scale ---------- */
@@ -193,6 +197,43 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
 
 :root {
   --focus-ring: 0 0 0 3px color-mix(in oklab, var(--brand, oklch(0.42 0.17 260)) 40%, transparent);
+  --focus-ring-soft: 0 0 0 4px color-mix(in oklab, var(--brand, oklch(0.42 0.17 260)) 22%, transparent);
+}
+
+/* ---------- 10. Ambient mesh & depth (2026) ---------- */
+/* These tokens render multi-stop conic / radial gradients on full surfaces
+   for that "Visionix / Linear / Apple Intelligence" 2026 feel.
+   Theme blocks below override the stops per palette. */
+:root {
+  --mesh-stop-1: var(--brand);
+  --mesh-stop-2: var(--brand-2, var(--brand));
+  --mesh-stop-3: var(--accent-2, var(--brand));
+
+  /* Depth elevation — soft outer glow + inner highlight pair */
+  --depth-glow-sm: 0 0 0 1px color-mix(in oklab, var(--brand) 12%, transparent);
+  --depth-glow-md: 0 0 32px -8px color-mix(in oklab, var(--brand) 28%, transparent);
+  --depth-glow-lg: 0 0 64px -12px color-mix(in oklab, var(--brand) 35%, transparent);
+
+  /* Gradient stroke (border) for premium cards */
+  --gradient-stroke: linear-gradient(135deg,
+    color-mix(in oklab, var(--brand) 60%, transparent) 0%,
+    color-mix(in oklab, var(--brand-2, var(--brand)) 35%, transparent) 50%,
+    color-mix(in oklab, var(--accent-2, var(--brand)) 50%, transparent) 100%);
+
+  /* Subtle aurora gradient for hero / empty states */
+  --aurora:
+    radial-gradient(ellipse 80% 60% at 12% 8%,  color-mix(in oklab, var(--brand)   18%, transparent), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 90% 12%, color-mix(in oklab, var(--brand-2, var(--brand)) 14%, transparent), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, color-mix(in oklab, var(--accent-2, var(--brand)) 12%, transparent), transparent 60%);
+
+  /* Spotlight for interactive cards (used as ::before overlay) */
+  --spotlight:
+    radial-gradient(circle 320px at var(--mx, 50%) var(--my, 50%),
+      color-mix(in oklab, var(--brand) 14%, transparent) 0%,
+      transparent 65%);
+
+  /* Brand gradient text */
+  --text-gradient: linear-gradient(135deg, var(--brand) 0%, color-mix(in oklab, var(--brand) 55%, var(--brand-2, var(--brand))) 100%);
 }
 
 /* ============================================================
@@ -601,6 +642,49 @@ body::before {
   50%       { opacity: 0.45; }
 }
 
+@keyframes rf-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand) 36%, transparent); }
+  50%       { box-shadow: 0 0 0 8px color-mix(in oklab, var(--brand)  0%, transparent); }
+}
+
+@keyframes rf-shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+
+@keyframes rf-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+
+@keyframes rf-aurora-drift {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50%  { transform: translate3d(2%, -1%, 0) rotate(0.6deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+}
+
+@keyframes rf-stagger-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); filter: blur(4px); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    filter: blur(0); }
+}
+
+@keyframes rf-bounce-in {
+  0%   { opacity: 0; transform: scale(0.6); }
+  60%  { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes rf-slide-right {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes rf-progress-indeterminate {
+  0%   { transform: translateX(-100%) scaleX(0.4); }
+  50%  { transform: translateX(20%)   scaleX(0.55); }
+  100% { transform: translateX(110%)  scaleX(0.4); }
+}
+
 /* Page entry — applied to .rf-page */
 @keyframes rf-page-enter {
   from { opacity: 0; transform: translateY(6px); }
@@ -660,11 +744,25 @@ body::before {
 /* Clickable/interactive cards get lift on hover */
 .card[onclick], a.card, button.card {
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.card[onclick]::before, a.card::before, button.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: var(--spotlight);
+  transition: opacity var(--motion-md) var(--ease-standard);
+  border-radius: inherit;
 }
 .card[onclick]:hover, a.card:hover, button.card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--glass-shadow-lg), var(--glass-border-highlight);
+  transform: translateY(-3px);
+  box-shadow: var(--glass-shadow-lg), var(--glass-border-highlight), var(--depth-glow-md);
+  border-color: color-mix(in oklab, var(--brand) 25%, var(--glass-border));
 }
+.card[onclick]:hover::before, a.card:hover::before, button.card:hover::before { opacity: 1; }
 
 .rf-glass--thin    { backdrop-filter: var(--glass-material-thin);    -webkit-backdrop-filter: var(--glass-material-thin); }
 .rf-glass--regular { backdrop-filter: var(--glass-material-regular); -webkit-backdrop-filter: var(--glass-material-regular); }
@@ -984,3 +1082,200 @@ textarea:focus {
   body::before { display: none; }
   * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; box-shadow: none !important; }
 }
+
+/* ============================================================
+   2026 UTILITY CLASSES — gradient text, aurora hero, shimmer,
+   bento grid, depth helpers, scroll reveal.
+   ============================================================ */
+
+/* Gradient text (brand → brand-2) */
+.rf-text-gradient {
+  background: var(--text-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Aurora background — for hero / login / empty states */
+.rf-aurora {
+  position: relative;
+  isolation: isolate;
+}
+.rf-aurora::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  z-index: -1;
+  background: var(--aurora);
+  filter: blur(40px) saturate(120%);
+  animation: rf-aurora-drift 14s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Shimmer skeleton */
+.rf-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-2) 0%,
+    color-mix(in oklab, var(--bg-3) 80%, var(--ink-3)) 50%,
+    var(--bg-2) 100%);
+  background-size: 200% 100%;
+  animation: rf-shimmer 1.6s linear infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* Bento grid — 2026's signature dashboard layout */
+.rf-bento {
+  display: grid;
+  gap: var(--space-lg);
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+}
+.rf-bento--lg {
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
+}
+.rf-bento > .span-2 { grid-column: span 2; }
+.rf-bento > .span-3 { grid-column: span 3; }
+.rf-bento > .row-2  { grid-row: span 2; }
+@media (max-width: 768px) {
+  .rf-bento > .span-2, .rf-bento > .span-3 { grid-column: span 1; }
+}
+
+/* Depth helpers */
+.rf-depth-sm { box-shadow: var(--elevation-2), var(--depth-glow-sm); }
+.rf-depth-md { box-shadow: var(--elevation-3), var(--depth-glow-md); }
+.rf-depth-lg { box-shadow: var(--elevation-4), var(--depth-glow-lg); }
+
+/* Float animation */
+.rf-float { animation: rf-float 3.6s ease-in-out infinite; }
+
+/* Glow pulse (for live/active indicators) */
+.rf-glow-pulse {
+  position: relative;
+}
+.rf-glow-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: rf-glow-pulse 1.8s ease-out infinite;
+}
+
+/* Stagger reveal — apply CSS variable --i (index) on children */
+.rf-stagger > * {
+  opacity: 0;
+  animation: rf-stagger-in var(--motion-lg) var(--ease-emphasized) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+/* Bounce-in (for badges / new-item flash) */
+.rf-bounce-in { animation: rf-bounce-in var(--motion-lg) var(--ease-spring-elastic) both; }
+
+/* Slide-fade variants */
+.rf-fade-in     { animation: rf-fade-in     var(--motion-md) var(--ease-standard) both; }
+.rf-fade-up     { animation: rf-fade-up     var(--motion-md) var(--ease-standard) both; }
+.rf-slide-up    { animation: rf-slide-up    var(--motion-md) var(--ease-emphasized) both; }
+.rf-slide-down  { animation: rf-slide-down  var(--motion-md) var(--ease-emphasized) both; }
+.rf-slide-right { animation: rf-slide-right var(--motion-md) var(--ease-emphasized) both; }
+.rf-scale-in    { animation: rf-scale-in    var(--motion-sm) var(--ease-spring-soft) both; }
+
+/* Indeterminate progress bar wrapper */
+.rf-progress {
+  position: relative;
+  height: 3px;
+  width: 100%;
+  background: color-mix(in oklab, var(--brand) 12%, transparent);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.rf-progress::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--brand), transparent);
+  transform-origin: left;
+  animation: rf-progress-indeterminate 1.4s ease-in-out infinite;
+}
+
+/* Gradient stroke card — for premium / feature highlights */
+.rf-card-stroke {
+  position: relative;
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+.rf-card-stroke::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--gradient-stroke);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Live status dot — for online/connected indicators */
+.rf-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--ink-3);
+  position: relative;
+  flex-shrink: 0;
+}
+.rf-status-dot[data-status="online"],
+.rf-status-dot[data-status="up"],
+.rf-status-dot[data-status="ready"] {
+  background: var(--ok);
+  box-shadow: 0 0 0 0 color-mix(in oklab, var(--ok) 40%, transparent);
+  animation: rf-glow-pulse 2s ease-out infinite;
+}
+.rf-status-dot[data-status="warn"],
+.rf-status-dot[data-status="processing"],
+.rf-status-dot[data-status="running"] { background: var(--warn); }
+.rf-status-dot[data-status="error"],
+.rf-status-dot[data-status="down"],
+.rf-status-dot[data-status="failed"]  { background: var(--error); }
+
+/* Subtle hover lift on any element */
+.rf-hover-lift {
+  transition: transform var(--motion-sm) var(--ease-spring-soft),
+              box-shadow var(--motion-sm) var(--ease-standard);
+}
+.rf-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elevation-3);
+}
+
+/* Numeric / KPI display */
+.rf-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'cv01' 1;
+  letter-spacing: var(--tracking-tight);
+}
+
+/* Pill / segmented helpers */
+.rf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xxs) var(--space-sm);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  background: color-mix(in oklab, var(--brand) 12%, transparent);
+  color: var(--brand);
+  border: 1px solid color-mix(in oklab, var(--brand) 22%, transparent);
+}
+.rf-pill[data-tone="success"] { background: color-mix(in oklab, var(--ok)    14%, transparent); color: var(--ok);    border-color: color-mix(in oklab, var(--ok)    25%, transparent); }
+.rf-pill[data-tone="warn"]    { background: color-mix(in oklab, var(--warn)  14%, transparent); color: var(--warn);  border-color: color-mix(in oklab, var(--warn)  25%, transparent); }
+.rf-pill[data-tone="danger"]  { background: color-mix(in oklab, var(--error) 14%, transparent); color: var(--error); border-color: color-mix(in oklab, var(--error) 25%, transparent); }
+.rf-pill[data-tone="muted"]   { background: color-mix(in oklab, var(--ink-2) 12%, transparent); color: var(--ink-2); border-color: color-mix(in oklab, var(--ink-2) 22%, transparent); }
