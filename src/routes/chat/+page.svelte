@@ -17,6 +17,7 @@
   let showRoomModal = $state(false);
   let newRoomName = $state('');
   let searchQuery = $state('');
+  let showMembers = $state(false);
   let pollingInterval: ReturnType<typeof setInterval> | undefined = $state(undefined);
 
   let activeRoom = $derived($rooms.find((r: Room) => r.id === activeRoomId) || $rooms[0]);
@@ -201,11 +202,35 @@
         {/if}
       </div>
       <div class="header-actions">
-        <button class="icon-btn" title={$t('chat.members_btn', { default: 'Members' })}>
+        <button
+          class="icon-btn"
+          onclick={() => showMembers = !showMembers}
+          aria-expanded={showMembers}
+          title={$t('chat.members_btn', { default: 'Members' })}
+        >
           <Icon name="users" size="sm" />
         </button>
       </div>
     </header>
+
+    {#if showMembers}
+      <aside class="members-panel" aria-label={$t('chat.members_btn', { default: 'Members' })}>
+        <header class="members-panel__header">
+          <span>{$t('chat.members_count', { default: '{n} members', values: { n: $users.length } })}</span>
+          <button class="icon-btn" onclick={() => showMembers = false} aria-label="Close">
+            <Icon name="x" size="sm" />
+          </button>
+        </header>
+        <ul class="members-panel__list">
+          {#each $users as u ((u as any).id)}
+            <li class="members-panel__item">
+              <span class="member-avatar">{authorInitials(String((u as any).id))}</span>
+              <span class="member-name">{(u as any).displayName || (u as any).username}</span>
+            </li>
+          {/each}
+        </ul>
+      </aside>
+    {/if}
 
     <div class="messages-container" bind:this={scroller}>
       {#if roomMessages.length === 0}
@@ -305,15 +330,18 @@
   .chat-page {
     display: grid;
     grid-template-columns: 280px 1fr;
-    height: calc(100vh - 60px);
+    height: calc(100dvh - var(--topbar-h));
     background: var(--bg-0);
+    animation: rf-fade-in var(--motion-md) var(--ease-standard) both;
   }
 
   .chat-sidebar {
     display: flex;
     flex-direction: column;
-    background: var(--bg-1);
-    border-right: 1px solid var(--border);
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-material-thin);
+    -webkit-backdrop-filter: var(--glass-material-thin);
+    border-right: 1px solid var(--separator-opaque, var(--divider));
   }
 
   .sidebar-header {
@@ -321,30 +349,44 @@
     justify-content: space-between;
     align-items: center;
     padding: var(--space-md) var(--space-lg);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--divider);
   }
 
-  .sidebar-header h2 { margin: 0; font-size: 1.1rem; font-weight: 700; }
+  .sidebar-header h2 {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: 700;
+    letter-spacing: var(--tracking-tight);
+  }
 
   .search-box {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-sm);
     margin: var(--space-md);
-    padding: 8px 12px;
-    background: var(--bg-2);
-    border-radius: 8px;
-    color: var(--text-muted);
+    padding: var(--space-sm) var(--space-md);
+    background: color-mix(in oklab, var(--bg-1) 60%, var(--bg-0));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    color: var(--ink-tertiary);
+    transition:
+      border-color var(--motion-sm) var(--ease-standard),
+      box-shadow   var(--motion-sm) var(--ease-standard);
+  }
+  .search-box:focus-within {
+    border-color: var(--brand);
+    box-shadow: var(--focus-ring-soft);
   }
 
   .search-box input {
     flex: 1;
     border: none;
     background: transparent;
-    font-size: 0.9rem;
+    font-size: var(--text-sm);
     color: var(--text);
+    min-width: 0;
   }
-  .search-box input::placeholder { color: var(--text-muted); }
+  .search-box input::placeholder { color: var(--ink-tertiary); opacity: 0.7; }
   .search-box input:focus { outline: none; }
 
   .rooms-list {
@@ -357,57 +399,99 @@
 
   .section-label {
     display: block;
-    padding: var(--space-sm) var(--space-sm);
-    font-size: 0.7rem;
+    padding: var(--space-sm);
+    font-size: var(--text-xs);
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
+    letter-spacing: var(--tracking-wider);
+    color: var(--ink-tertiary);
   }
 
   .room-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-sm);
     width: 100%;
-    padding: 8px 12px;
+    padding: var(--space-sm) var(--space-md);
     border: none;
     background: transparent;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    color: var(--text-muted);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--ink-secondary);
     cursor: pointer;
-    transition: background var(--transition-fast), color var(--transition-fast);
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      color      var(--motion-sm) var(--ease-standard),
+      transform  var(--motion-xs) var(--ease-spring-soft);
     text-align: left;
+    box-shadow: none;
   }
-  .room-item:hover { background: var(--bg-2); color: var(--text); }
-  .room-item.active { background: var(--brand); color: var(--bg-0); }
-  .room-item.station-room { font-size: 0.85rem; }
+  .room-item:hover {
+    background: color-mix(in oklab, var(--bg-2) 70%, transparent);
+    color: var(--ink-primary);
+    transform: translateX(2px);
+  }
+  .room-item.active {
+    background: var(--brand-soft);
+    color: var(--brand);
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand) 22%, transparent);
+  }
 
-  .room-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .room-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   .sidebar-footer {
     padding: var(--space-md);
-    border-top: 1px solid var(--border);
-    background: var(--bg-2);
+    border-top: 1px solid var(--divider);
+    background: color-mix(in oklab, var(--bg-1) 50%, transparent);
   }
 
   .user-info { display: flex; align-items: center; gap: var(--space-sm); }
 
   .user-avatar {
     width: 36px; height: 36px;
-    border-radius: 8px;
-    background: var(--brand);
-    color: var(--bg-0);
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg,
+      color-mix(in oklab, var(--brand) 92%, white) 0%,
+      var(--brand) 100%);
+    color: white;
     display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 0.8rem;
+    font-weight: 700;
+    font-size: var(--text-xs);
+    box-shadow: 0 2px 8px color-mix(in oklab, var(--brand) 30%, transparent);
   }
 
-  .user-details { display: flex; flex-direction: column; }
-  .user-name { font-weight: 600; font-size: 0.9rem; }
-  .user-status { font-size: 0.75rem; color: var(--ok, #34c759); }
+  .user-details { display: flex; flex-direction: column; min-width: 0; }
+  .user-name {
+    font-weight: 600;
+    font-size: var(--text-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .user-status {
+    font-size: var(--text-xs);
+    color: var(--ok);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+  .user-status::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--ok);
+    box-shadow: 0 0 8px color-mix(in oklab, var(--ok) 60%, transparent);
+    animation: rf-glow-pulse 2s ease-out infinite;
+  }
 
-  /* Main */
+  /* ---------- Main ---------- */
   .chat-main { display: flex; flex-direction: column; min-width: 0; }
 
   .chat-header {
@@ -415,37 +499,72 @@
     justify-content: space-between;
     align-items: center;
     padding: var(--space-md) var(--space-lg);
-    background: var(--bg-1);
-    border-bottom: 1px solid var(--border);
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-material-thin);
+    -webkit-backdrop-filter: var(--glass-material-thin);
+    border-bottom: 1px solid var(--divider);
   }
 
-  .header-left { display: flex; align-items: center; gap: var(--space-sm); color: var(--text-muted); }
-  .header-left h3 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text); }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--ink-tertiary);
+    min-width: 0;
+  }
+  .header-left h3 {
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   .station-badge {
-    font-size: 0.65rem; font-weight: 700;
-    padding: 2px 8px; border-radius: 999px;
-    background: color-mix(in oklab, var(--brand) 12%, transparent);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    padding: var(--space-xxs) var(--space-sm);
+    border-radius: var(--radius-full);
+    background: color-mix(in oklab, var(--brand) 14%, transparent);
     color: var(--brand);
-    text-transform: uppercase; letter-spacing: 0.06em;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wider);
   }
 
-  .header-actions { display: flex; gap: 4px; }
+  .header-actions { display: flex; gap: var(--space-xs); }
 
   .icon-btn {
-    width: 36px; height: 36px;
-    display: flex; align-items: center; justify-content: center;
-    border: none; background: transparent; border-radius: 8px;
-    cursor: pointer; color: var(--text-muted);
-    transition: background var(--transition-fast), color var(--transition-fast);
+    width: var(--control-sm);
+    height: var(--control-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    color: var(--ink-tertiary);
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      color      var(--motion-sm) var(--ease-standard),
+      transform  var(--motion-xs) var(--ease-spring-soft);
+    box-shadow: none;
   }
-  .icon-btn:hover { background: var(--bg-2); color: var(--text); }
+  .icon-btn:hover {
+    background: color-mix(in oklab, var(--bg-2) 70%, transparent);
+    color: var(--ink-primary);
+    transform: scale(1.05);
+  }
+  .icon-btn:active { transform: scale(0.95); }
 
-  /* Messages */
+  /* ---------- Messages ---------- */
   .messages-container {
     flex: 1;
     overflow-y: auto;
     padding: var(--space-lg);
+    scroll-behavior: smooth;
   }
 
   .empty-state {
@@ -454,116 +573,295 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: var(--text-muted);
+    color: var(--ink-tertiary);
     text-align: center;
     gap: var(--space-sm);
+    animation: rf-fade-up var(--motion-lg) var(--ease-standard) both;
   }
-  .empty-state h3 { margin: var(--space-md) 0 var(--space-xs); color: var(--text); }
+  .empty-state h3 {
+    margin: var(--space-md) 0 var(--space-xs);
+    color: var(--text);
+    font-size: var(--text-lg);
+  }
 
   .date-separator {
-    display: flex; align-items: center; gap: var(--space-md);
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
     margin: var(--space-lg) 0;
-    color: var(--text-muted); font-size: 0.75rem;
+    color: var(--ink-tertiary);
+    font-size: var(--text-xs);
+    font-weight: 500;
   }
   .date-separator::before, .date-separator::after {
-    content: ''; flex: 1; height: 1px; background: var(--border);
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--divider);
+  }
+  .date-separator span {
+    padding: var(--space-xxs) var(--space-md);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-full);
+    backdrop-filter: var(--glass-material-thin);
+    -webkit-backdrop-filter: var(--glass-material-thin);
   }
 
   .message {
     display: flex;
     gap: var(--space-md);
-    padding: var(--space-sm) 0;
-    border-radius: 4px;
+    padding: var(--space-sm);
+    border-radius: var(--radius-md);
+    transition: background var(--motion-sm) var(--ease-standard);
+    animation: rf-fade-up var(--motion-md) var(--ease-standard) both;
   }
   .message:hover {
-    background: var(--bg-2);
-    margin: 0 calc(-1 * var(--space-lg));
-    padding: var(--space-sm) var(--space-lg);
+    background: color-mix(in oklab, var(--bg-2) 50%, transparent);
   }
   .message.system { opacity: 0.7; }
 
   .message-avatar {
-    width: 40px; height: 40px; border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
     background: var(--bg-2);
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 0.85rem; color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: var(--text-xs);
+    color: var(--ink-secondary);
     flex-shrink: 0;
+    border: 1px solid var(--glass-border);
   }
 
   .message-content { flex: 1; min-width: 0; }
 
   .message-header {
-    display: flex; align-items: center; gap: var(--space-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
     margin-bottom: 2px;
+    flex-wrap: wrap;
   }
 
-  .author-name { font-weight: 600; font-size: 0.9rem; }
-  .message-time { font-size: 0.75rem; color: var(--text-muted); }
-  .message-text { margin: 0; line-height: 1.5; word-wrap: break-word; }
+  .author-name {
+    font-weight: 600;
+    font-size: var(--text-sm);
+  }
+  .message-time {
+    font-size: var(--text-xs);
+    color: var(--ink-tertiary);
+  }
+  .message-text {
+    margin: 0;
+    line-height: var(--leading-normal);
+    word-wrap: break-word;
+    color: var(--ink-primary);
+  }
 
-  .message-mentions { display: flex; gap: 4px; margin-top: 4px; }
+  .message-mentions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-top: var(--space-xs);
+  }
   .mention-tag {
-    font-size: 0.75rem; padding: 2px 6px;
-    background: color-mix(in oklab, var(--brand) 15%, transparent);
-    color: var(--brand); border-radius: 4px;
+    font-size: var(--text-xs);
+    padding: var(--space-xxs) var(--space-sm);
+    background: color-mix(in oklab, var(--brand) 14%, transparent);
+    color: var(--brand);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
   }
 
   .message-input-container {
     padding: var(--space-md) var(--space-lg);
-    background: var(--bg-1);
-    border-top: 1px solid var(--border);
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-material-thin);
+    -webkit-backdrop-filter: var(--glass-material-thin);
+    border-top: 1px solid var(--divider);
   }
 
-  /* Modal */
+  /* ---------- Modal ---------- */
   .modal-backdrop {
-    position: fixed; inset: 0;
-    background: color-mix(in oklab, var(--bg-0) 45%, transparent);
-    display: flex; align-items: center; justify-content: center;
-    z-index: var(--z-modal, 1000);
+    position: fixed;
+    inset: 0;
+    background: color-mix(in oklab, var(--bg-0) 60%, transparent);
+    backdrop-filter: var(--glass-material-thin);
+    -webkit-backdrop-filter: var(--glass-material-thin);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal);
+    animation: rf-fade-in var(--motion-sm) var(--ease-standard) both;
   }
 
   .modal {
-    background: var(--bg-1);
-    border-radius: 12px;
-    width: 90%; max-width: 400px;
-    box-shadow: 0 20px 60px color-mix(in oklab, black 30%, transparent);
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--glass-material-thick);
+    -webkit-backdrop-filter: var(--glass-material-thick);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    width: 90%;
+    max-width: 440px;
+    box-shadow: var(--glass-shadow-lg), var(--glass-border-highlight);
+    animation: rf-slide-up var(--motion-md) var(--ease-emphasized) both;
   }
 
   .modal-header {
-    display: flex; justify-content: space-between; align-items: center;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     padding: var(--space-md) var(--space-lg);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--divider);
   }
-  .modal-header h3 { margin: 0; font-size: 1.1rem; }
+  .modal-header h3 {
+    margin: 0;
+    font-size: var(--text-lg);
+    letter-spacing: var(--tracking-tight);
+  }
 
   .modal-body { padding: var(--space-lg); }
-  .modal-body label { display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem; font-weight: 500; }
-  .modal-body input {
-    padding: 10px 12px;
-    border: 1px solid var(--border); border-radius: 8px;
-    font-size: 0.95rem; background: var(--bg-0); color: var(--text);
+  .modal-body label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    font-size: var(--text-sm);
+    font-weight: 500;
   }
-  .modal-body input:focus { outline: none; border-color: var(--brand); }
+  .modal-body input {
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: var(--text-md);
+    background: color-mix(in oklab, var(--bg-1) 55%, var(--bg-0));
+    color: var(--text);
+    transition:
+      border-color var(--motion-sm) var(--ease-standard),
+      box-shadow   var(--motion-sm) var(--ease-standard);
+  }
+  .modal-body input:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: var(--focus-ring);
+  }
 
   .modal-footer {
-    display: flex; justify-content: flex-end; gap: var(--space-sm);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-sm);
     padding: var(--space-md) var(--space-lg);
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--divider);
   }
 
   .btn {
-    padding: 10px 16px; border-radius: 8px; font-size: 0.9rem; font-weight: 600;
-    cursor: pointer; border: 1px solid transparent;
-    transition: background var(--transition-fast);
+    padding: var(--space-sm) var(--space-lg);
+    border-radius: var(--radius-full);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition:
+      background var(--motion-sm) var(--ease-standard),
+      transform  var(--motion-sm) var(--ease-spring-soft),
+      filter     var(--motion-sm) var(--ease-standard);
+    box-shadow: none;
   }
-  .btn-primary { background: var(--brand); color: var(--bg-0); }
-  .btn-primary:hover:not(:disabled) { background: color-mix(in oklab, var(--brand) 85%, black); }
+  .btn-primary {
+    background:
+      linear-gradient(180deg,
+        color-mix(in oklab, var(--brand) 96%, white) 0%,
+        var(--brand) 100%);
+    color: #fff;
+    box-shadow:
+      0 4px 14px -2px color-mix(in oklab, var(--brand) 35%, transparent),
+      inset 0 1px 0 color-mix(in oklab, white 22%, transparent);
+  }
+  .btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+  }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-ghost { background: transparent; color: var(--text-muted); }
-  .btn-ghost:hover { background: var(--bg-2); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink-secondary);
+  }
+  .btn-ghost:hover { background: color-mix(in oklab, var(--bg-2) 70%, transparent); }
+
+  /* ---------- Members panel ---------- */
+  .members-panel {
+    position: absolute;
+    right: var(--space-md);
+    top: calc(var(--topbar-h) + 56px);
+    width: 280px;
+    max-height: 60dvh;
+    overflow: auto;
+    z-index: var(--z-popover);
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--glass-material-thick);
+    -webkit-backdrop-filter: var(--glass-material-thick);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--glass-shadow-lg), var(--glass-border-highlight);
+    animation: rf-slide-down var(--motion-md) var(--ease-emphasized) both;
+  }
+  .members-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md);
+    border-bottom: 1px solid var(--divider);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--ink-tertiary);
+  }
+  .members-panel__list {
+    list-style: none;
+    margin: 0;
+    padding: var(--space-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xxs);
+  }
+  .members-panel__item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    border-radius: var(--radius-md);
+    transition: background var(--motion-sm) var(--ease-standard);
+  }
+  .members-panel__item:hover {
+    background: color-mix(in oklab, var(--bg-2) 70%, transparent);
+  }
+  .member-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
+    background: var(--bg-2);
+    border: 1px solid var(--glass-border);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ink-secondary);
+    flex-shrink: 0;
+  }
+  .member-name {
+    font-size: var(--text-sm);
+    color: var(--ink-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   @media (max-width: 768px) {
     .chat-page { grid-template-columns: 1fr; }
     .chat-sidebar { display: none; }
+    .members-panel { right: var(--space-sm); width: calc(100vw - var(--space-md)); }
   }
 </style>

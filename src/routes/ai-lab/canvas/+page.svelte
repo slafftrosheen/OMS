@@ -237,15 +237,21 @@
     top: 56px;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--glass-bg);
-    backdrop-filter: var(--glass-blur);
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--glass-material-thick);
+    -webkit-backdrop-filter: var(--glass-material-thick);
     border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-shadow);
-    padding: 8px 16px;
+    box-shadow: var(--glass-shadow-lg), var(--glass-border-highlight);
+    padding: var(--space-sm) var(--space-lg);
     border-radius: var(--radius-full);
-    font-size: 12px;
+    font-size: var(--text-sm);
     z-index: 30;
     color: var(--text);
+    animation: rf-slide-down var(--motion-md) var(--ease-emphasized) both;
   }
-  .toast.error { border-color: #ff453a; color: #ff453a; }
+  .toast.error {
+    border-color: color-mix(in oklab, var(--error) 40%, var(--glass-border));
+    color: var(--error);
+    background: color-mix(in oklab, var(--error) 8%, var(--glass-bg-strong));
+  }
 </style>

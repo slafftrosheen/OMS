@@ -45,6 +45,7 @@
   let showInstallPrompt      = $state(false);
   let showUpdatePrompt       = $state(false);
   let isOnline               = $state(true);
+  let topbarScrolled         = $state(false);
 
   const publicRoutes = ['/login', '/help'];
   const INSTALL_PROMPT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
@@ -166,6 +167,18 @@
     window.addEventListener('online',  () => { isOnline = true; });
     window.addEventListener('offline', () => { isOnline = false; });
 
+    // Scroll-aware topbar shadow (rAF-throttled)
+    let scrollTicking = false;
+    const onScroll = () => {
+      if (scrollTicking) return;
+      scrollTicking = true;
+      requestAnimationFrame(() => {
+        topbarScrolled = window.scrollY > 4;
+        scrollTicking = false;
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+
     stopPreferenceSync = startPreferenceUrlSync();
 
     const handler = (e: KeyboardEvent) => {
@@ -203,6 +216,7 @@
     return () => {
       stopPreferenceSync?.();
       window.removeEventListener('keydown', handler);
+      window.removeEventListener('scroll', onScroll);
       if (stopChatRealtime) stopChatRealtime();
       websocket.disconnect();
     };
@@ -236,7 +250,7 @@
   </a>
 
   {#if $currentUser}
-    <header class="rf-topbar" role="banner">
+    <header class="rf-topbar" class:rf-topbar--scrolled={topbarScrolled} role="banner">
       <!-- Brand -->
       <a href="{base}/" class="rf-topbar__brand" aria-label={$t('app.brand.label', { default: 'OMS' })}>
         <Logo />
@@ -399,12 +413,22 @@
   gap: var(--space-md);
   padding: 0 clamp(var(--space-md), 3vw, var(--space-2xl));
   height: var(--topbar-h, 60px);
-  background: var(--glass-bg-strong);
+  background: color-mix(in oklab, var(--glass-bg-strong) 88%, transparent);
   backdrop-filter: var(--glass-material-regular);
   -webkit-backdrop-filter: var(--glass-material-regular);
-  border-bottom: 1px solid var(--separator-opaque, var(--divider));
-  box-shadow: var(--glass-shadow-sm), var(--glass-border-highlight);
+  border-bottom: 1px solid transparent;
+  box-shadow: 0 0 0 transparent, var(--glass-border-highlight);
   animation: rf-fade-in var(--motion-md) var(--ease-standard) both;
+  transition:
+    border-color var(--motion-md) var(--ease-standard),
+    box-shadow   var(--motion-md) var(--ease-standard),
+    background   var(--motion-md) var(--ease-standard);
+}
+
+.rf-topbar--scrolled {
+  background: var(--glass-bg-strong);
+  border-bottom-color: var(--separator-opaque, var(--divider));
+  box-shadow: var(--glass-shadow-sm), var(--glass-border-highlight);
 }
 
 .rf-topbar__brand {
@@ -436,7 +460,7 @@
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-xs) var(--space-md);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   text-decoration: none;
   color: var(--ink-secondary);
   font-size: var(--text-sm);
@@ -447,29 +471,37 @@
   transition:
     color      var(--motion-sm) var(--ease-standard),
     background var(--motion-sm) var(--ease-standard),
-    transform  var(--motion-xs) var(--ease-spring-soft);
+    transform  var(--motion-xs) var(--ease-spring-soft),
+    box-shadow var(--motion-sm) var(--ease-standard);
 }
 .rf-topbar__nav a:hover {
   color: var(--ink-primary);
   background: color-mix(in oklab, var(--bg-2) 70%, transparent);
+  transform: translateY(-1px);
 }
-.rf-topbar__nav a:active { transform: scale(0.97); }
+.rf-topbar__nav a:active { transform: scale(0.96); }
 .rf-topbar__nav a.active {
   background: var(--brand-soft);
   color: var(--brand);
   font-weight: 600;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--brand) 22%, transparent),
+    0 4px 12px -4px color-mix(in oklab, var(--brand) 30%, transparent);
 }
 .rf-topbar__nav a.active::after {
   content: '';
   position: absolute;
-  inset: auto var(--space-md) -1px var(--space-md);
+  inset: auto 35% -6px 35%;
   height: 2px;
   background: var(--brand);
   border-radius: var(--radius-full);
-  opacity: 0.85;
+  box-shadow: 0 0 8px color-mix(in oklab, var(--brand) 60%, transparent);
+  opacity: 0.95;
+  animation: rf-fade-in var(--motion-md) var(--ease-standard) both;
 }
 .rf-topbar__nav a.active:hover {
   background: color-mix(in oklab, var(--brand-soft) 80%, var(--bg-2));
+  transform: translateY(-1px);
 }
 
 .rf-topbar__divider {

@@ -25,10 +25,10 @@
 </script>
 
 <div class="ai-lab">
-  <header class="lab-header">
+  <header class="lab-header rf-aurora">
     <div class="lab-brand">
-      <Icon name="sparkles" size="md" />
-      <h1>{$t('ailab.title')}</h1>
+      <span class="lab-brand__glyph"><Icon name="sparkles" size="md" /></span>
+      <h1 class="rf-text-gradient">{$t('ailab.title')}</h1>
       <span class="lab-tag">{$t('ailab.internal_toolset')}</span>
     </div>
     <nav class="lab-nav" aria-label={$t('ailab.title')}>
@@ -67,53 +67,82 @@
     gap: calc(var(--space-sm) * var(--density, 1));
     background: var(--glass-bg);
     backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
     border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-shadow);
+    box-shadow: var(--glass-shadow), var(--glass-border-highlight);
     border-radius: var(--radius-lg);
-    padding: calc(var(--space-md) * var(--density, 1)) calc(var(--space-lg) * var(--density, 1));
+    padding: var(--space-lg) var(--space-xl);
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
   }
 
   .lab-brand {
     display: flex;
     align-items: center;
-    gap: calc(var(--space-sm) * var(--density, 1));
+    gap: var(--space-md);
+  }
+  .lab-brand__glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    background: color-mix(in oklab, var(--brand) 14%, transparent);
+    color: var(--brand);
+    animation: rf-float 3.6s ease-in-out infinite;
   }
   .lab-brand h1 {
     margin: 0;
-    font-size: calc(1.4rem * var(--font-scale, 1));
+    font-size: var(--text-2xl);
     font-weight: 700;
+    letter-spacing: var(--tracking-tighter);
   }
   .lab-tag {
     margin-left: auto;
-    font-size: calc(0.75rem * var(--font-scale, 1));
-    color: var(--text-muted, #888);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--ink-tertiary);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-full);
-    padding: 2px 10px;
+    padding: var(--space-xxs) var(--space-md);
+    background: color-mix(in oklab, var(--bg-1) 50%, transparent);
   }
 
   .lab-nav {
     display: flex;
     flex-wrap: wrap;
-    gap: calc(var(--space-xs) * var(--density, 1));
+    gap: var(--space-xs);
   }
   .lab-nav a {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-md);
     border-radius: var(--radius-full);
     border: 1px solid transparent;
-    color: var(--text, #ddd);
-    font-size: calc(0.9rem * var(--font-scale, 1));
+    color: var(--ink-secondary);
+    font-size: var(--text-sm);
+    font-weight: 500;
     text-decoration: none;
-    transition: background var(--transition-fast), border-color var(--transition-fast);
+    transition:
+      background   var(--motion-sm) var(--ease-standard),
+      border-color var(--motion-sm) var(--ease-standard),
+      color        var(--motion-sm) var(--ease-standard),
+      transform    var(--motion-xs) var(--ease-spring-soft);
   }
-  .lab-nav a:hover { background: color-mix(in oklab, var(--brand) 8%, transparent); }
+  .lab-nav a:hover {
+    background: color-mix(in oklab, var(--brand) 8%, transparent);
+    color: var(--ink-primary);
+    transform: translateY(-1px);
+  }
   .lab-nav a.active {
-    background: color-mix(in oklab, var(--brand) 16%, transparent);
-    border-color: color-mix(in oklab, var(--brand) 40%, transparent);
+    background: var(--brand-soft);
+    border-color: color-mix(in oklab, var(--brand) 35%, transparent);
     color: var(--brand);
+    font-weight: 600;
+    box-shadow: 0 4px 12px -4px color-mix(in oklab, var(--brand) 30%, transparent);
   }
   .lab-nav a:focus-visible { box-shadow: var(--focus-ring); outline: none; }
 
@@ -121,6 +150,6 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: calc(var(--space-md) * var(--density, 1));
+    gap: var(--space-md);
   }
 </style>
