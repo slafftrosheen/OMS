@@ -157,6 +157,33 @@ import VolumeX from 'lucide-svelte/icons/volume-x';
 import StopCircle from 'lucide-svelte/icons/stop-circle';
 import Video from 'lucide-svelte/icons/video';
 import Headphones from 'lucide-svelte/icons/headphones';
+import SkipForward from 'lucide-svelte/icons/skip-forward';
+import SkipBack from 'lucide-svelte/icons/skip-back';
+import Pause from 'lucide-svelte/icons/pause';
+import CircleAlert from 'lucide-svelte/icons/circle-alert';
+import Layers from 'lucide-svelte/icons/layers';
+import Workflow from 'lucide-svelte/icons/workflow';
+import Hammer from 'lucide-svelte/icons/hammer';
+import Scissors from 'lucide-svelte/icons/scissors';
+import Wand from 'lucide-svelte/icons/wand-sparkles';
+import Bookmark from 'lucide-svelte/icons/bookmark';
+import History from 'lucide-svelte/icons/history';
+import Inspect from 'lucide-svelte/icons/inspect';
+import Compass from 'lucide-svelte/icons/compass';
+import Gauge from 'lucide-svelte/icons/gauge';
+import Radar from 'lucide-svelte/icons/radar';
+import ScanLine from 'lucide-svelte/icons/scan-line';
+import Move from 'lucide-svelte/icons/move';
+import Smartphone from 'lucide-svelte/icons/smartphone';
+import Brush from 'lucide-svelte/icons/brush';
+import Database from 'lucide-svelte/icons/database';
+import CloudUpload from 'lucide-svelte/icons/cloud-upload';
+import CloudDownload from 'lucide-svelte/icons/cloud-download';
+import Share2 from 'lucide-svelte/icons/share-2';
+import Reply from 'lucide-svelte/icons/reply';
+import AtSign from 'lucide-svelte/icons/at-sign';
+import Hash2 from 'lucide-svelte/icons/hash';
+import Ban from 'lucide-svelte/icons/ban';
 
 export const icons = {
   'activity': Activity,
@@ -310,6 +337,32 @@ export const icons = {
   'stop-circle': StopCircle,
   'video': Video,
   'headphones': Headphones,
+  'skip-forward': SkipForward,
+  'skip-back': SkipBack,
+  'pause': Pause,
+  'circle-alert': CircleAlert,
+  'layers': Layers,
+  'workflow': Workflow,
+  'hammer': Hammer,
+  'scissors': Scissors,
+  'wand-sparkles': Wand,
+  'bookmark': Bookmark,
+  'history': History,
+  'inspect': Inspect,
+  'compass': Compass,
+  'gauge': Gauge,
+  'radar': Radar,
+  'scan-line': ScanLine,
+  'move': Move,
+  'smartphone': Smartphone,
+  'brush': Brush,
+  'database': Database,
+  'cloud-upload': CloudUpload,
+  'cloud-download': CloudDownload,
+  'share-2': Share2,
+  'reply': Reply,
+  'at-sign': AtSign,
+  'ban': Ban,
   'zoom-in': ZoomIn,
   'zoom-out': ZoomOut
 } as const;

@@ -13,6 +13,10 @@
   import { base } from '$app/paths';
   import { currentUser } from '$lib/auth/authState.svelte';
   import Icon from '$lib/ui/Icon.svelte';
+  import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
+  import { emptyConfirm, type ConfirmState } from '$lib/components/ui/confirm-types';
+
+  let confirmState = $state<ConfirmState>(emptyConfirm());
 
   interface Material {
     id: number;
@@ -349,23 +353,31 @@
     setTimeout(() => successMessage = '', 3000);
   }
 
-  async function deleteMaterial(material: Material) {
-    if (!confirm(`Delete "${material.name_en || material.code}"? This cannot be undone.`)) return;
-
-    try {
-      const res = await fetch(`${base}/api/materials/${material.id}`, { method: 'DELETE' });
-      if (res.ok) {
-        successMessage = 'Material deleted';
-        await loadMaterials();
-      } else {
-        const data = await res.json();
-        error = data.error || 'Failed to delete material';
+  function deleteMaterial(material: Material) {
+    confirmState = {
+      open: true,
+      title: $t('admin_materials.delete_title', { default: 'Delete material' }),
+      body: $t('admin_materials.delete_confirm', {
+        default: 'Permanently delete "{name}"? This cannot be undone.',
+        values: { name: material.name_en || material.code }
+      }),
+      tone: 'danger',
+      action: async () => {
+        try {
+          const res = await fetch(`${base}/api/materials/${material.id}`, { method: 'DELETE' });
+          if (res.ok) {
+            successMessage = 'Material deleted';
+            await loadMaterials();
+          } else {
+            const data = await res.json();
+            error = data.error || 'Failed to delete material';
+          }
+        } catch (e) {
+          error = 'Failed to connect to server';
+        }
+        setTimeout(() => { successMessage = ''; error = ''; }, 3000);
       }
-    } catch (e) {
-      error = 'Failed to connect to server';
-    }
-
-    setTimeout(() => { successMessage = ''; error = ''; }, 3000);
+    };
   }
 
   function getCategoryLabel(cat: string): string {
@@ -684,6 +696,8 @@
     </div>
   </div>
 {/if}
+
+<ConfirmModal bind:state={confirmState} />
 
 <style>
   .materials-page {

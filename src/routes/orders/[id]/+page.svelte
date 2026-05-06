@@ -13,6 +13,7 @@
     import FileList from "$lib/components/files/FileList.svelte";
     import QRCodeDisplay from "$lib/components/qr/QRCodeDisplay.svelte";
     import Modal from "$lib/components/ui/Modal.svelte";
+    import OrderTimeline from "$lib/order/OrderTimeline.svelte";
     import { currentUser } from "$lib/auth/authState.svelte";
     import { can, normaliseStatus, ORDER_STATUS_LABELS } from "$lib/auth/permission-utils";
     import { notifications } from "$lib/notify/store";
@@ -174,15 +175,18 @@
                 fetch(`/api/files?order_id=${orderId}`),
             ]);
 
-            const orderData = await orderRes.json();
-            const filesData = await filesRes.json();
-
-            if (orderData.success) {
-                order = orderData.order;
+            if (orderRes.ok) {
+                const orderData = await orderRes.json();
+                // API returns the order fields at top level (with stages, materials,
+                // assignees, rework_cycles, revisions, activity_log).
+                order = orderData?.order ?? orderData;
+            } else {
+                order = null;
             }
 
-            if (filesData.success) {
-                files = filesData.files;
+            if (filesRes.ok) {
+                const filesData = await filesRes.json();
+                files = Array.isArray(filesData) ? filesData : (filesData.files ?? []);
             }
         } catch (error) {
             console.error("Failed to load order:", error);
@@ -483,9 +487,7 @@
             {:else if activeTab === "timeline"}
                 <div class="tab-content">
                     <Card title={$t("orderDetail.timeline")} padding="lg">
-                        <p class="coming-soon">
-                            {$t("orderDetail.timeline_coming_soon")}
-                        </p>
+                        <OrderTimeline {order} {consumption} />
                     </Card>
                 </div>
             {/if}

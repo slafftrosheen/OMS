@@ -1,6 +1,11 @@
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { onMount, onDestroy } from "svelte";
     import { currentUser } from "$lib/auth/authState.svelte";
+    import { realtimeService } from "$lib/realtime/realtime-service";
+    import { notifications } from "$lib/notify/store";
+    import { t } from "svelte-i18n";
+    import Modal from "$lib/components/ui/Modal.svelte";
+    import Button from "$lib/components/ui/Button.svelte";
     import ChatMessage from "./ChatMessage.svelte";
     import ChatInput from "./ChatInput.svelte";
 
@@ -97,20 +102,35 @@
         }
     }
 
-    async function deleteMessage(messageId: string) {
+    let pendingDeleteId = $state<string | null>(null);
+    let confirmDeleteOpen = $state(false);
 
-        if (!confirm("Are you sure you want to delete this message?")) return;
+    function deleteMessage(messageId: string) {
+        pendingDeleteId = messageId;
+        confirmDeleteOpen = true;
+    }
 
+    async function confirmDeleteMessage() {
+        const id = pendingDeleteId;
+        confirmDeleteOpen = false;
+        pendingDeleteId = null;
+        if (!id) return;
         try {
-            const response = await fetch(`/api/chat/messages/${messageId}`, {
+            const response = await fetch(`/api/chat/messages/${id}`, {
                 method: "DELETE",
             });
-
             if (response.ok) {
-                messages = messages.filter((m) => m.id !== messageId);
+                messages = messages.filter((m) => m.id !== id);
+            } else {
+                notifications.error(
+                    $t("chat.delete_failed", { default: "Failed to delete message" })
+                );
             }
         } catch (error) {
             console.error("Failed to delete message:", error);
+            notifications.error(
+                $t("chat.delete_failed", { default: "Failed to delete message" })
+            );
         }
     }
 
@@ -122,9 +142,29 @@
         };
     }
 
+    let typingThrottle: ReturnType<typeof setTimeout> | null = null;
+
     function handleTyping(isTyping: boolean) {
-        // Send typing indicator to server via WebSocket
-        console.log("User typing:", isTyping);
+        const me = $currentUser;
+        if (!me || !orderId) return;
+        // Throttle typing broadcasts to once per second per user.
+        if (typingThrottle && isTyping) return;
+        typingThrottle = setTimeout(() => { typingThrottle = null; }, 1000);
+        try {
+            realtimeService.broadcast(
+                `order:${orderId}:chat`,
+                "typing",
+                {
+                    userId: me.id,
+                    username: (me as any).profile?.full_name || me.email || "Someone",
+                    isTyping,
+                    ts: Date.now(),
+                }
+            );
+        } catch (err) {
+            // Realtime is best-effort — silently degrade if backend unavailable.
+            console.warn("typing broadcast failed", err);
+        }
     }
 
     function handleScroll() {
@@ -144,6 +184,13 @@
 
     onMount(() => {
         loadMessages();
+    });
+
+    onDestroy(() => {
+        if (typingThrottle) {
+            clearTimeout(typingThrottle);
+            typingThrottle = null;
+        }
     });
 
     $effect(() => {
@@ -211,42 +258,58 @@
     />
 </div>
 
+<Modal
+    bind:open={confirmDeleteOpen}
+    title={$t("chat.delete_title", { default: "Delete message" })}
+    size="sm"
+>
+    <p>{$t("chat.delete_confirm", { default: "This message will be permanently removed from the conversation." })}</p>
+    <div class="confirm-actions">
+        <Button variant="outline" onclick={() => { confirmDeleteOpen = false; pendingDeleteId = null; }}>
+            {$t("actions.cancel", { default: "Cancel" })}
+        </Button>
+        <Button variant="primary" onclick={confirmDeleteMessage}>
+            {$t("actions.delete", { default: "Delete" })}
+        </Button>
+    </div>
+</Modal>
+
 <style>
     .chat-container {
         display: flex;
         flex-direction: column;
         height: 100%;
         background: var(--bg-1);
-        border-radius: 0.5rem;
-        border: 1px solid var(--color-border, var(--border));
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border);
         overflow: hidden;
     }
 
     .chat-header {
-        padding: 1rem;
-        border-bottom: 1px solid var(--color-border, var(--border));
+        padding: var(--space-md);
+        border-bottom: 1px solid var(--border);
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: var(--color-gray-50, var(--bg-2));
+        background: var(--bg-2);
     }
 
     .chat-title {
-        font-size: 1.125rem;
+        font-size: var(--text-lg);
         font-weight: 600;
         margin: 0;
-        color: var(--color-text, var(--ink-primary));
+        color: var(--ink-primary);
     }
 
     .message-count {
-        font-size: 0.875rem;
-        color: var(--color-gray-600, var(--ink-tertiary));
+        font-size: var(--text-sm);
+        color: var(--ink-tertiary);
     }
 
     .messages-container {
         flex: 1;
         overflow-y: auto;
-        padding: 1rem;
+        padding: var(--space-md);
         scroll-behavior: smooth;
     }
 
@@ -256,20 +319,27 @@
         align-items: center;
         justify-content: center;
         height: 100%;
-        padding: 2rem;
+        padding: var(--space-2xl);
         text-align: center;
     }
 
     .empty-message {
-        font-size: 1.125rem;
-        color: var(--color-gray-600, var(--ink-tertiary));
-        margin: 0 0 0.5rem 0;
+        font-size: var(--text-lg);
+        color: var(--ink-tertiary);
+        margin: 0 0 var(--space-sm) 0;
     }
 
     .empty-hint {
-        font-size: 0.875rem;
-        color: var(--color-gray-500, var(--muted));
+        font-size: var(--text-sm);
+        color: var(--muted);
         margin: 0;
+    }
+
+    .confirm-actions {
+        display: flex;
+        gap: var(--space-md);
+        justify-content: flex-end;
+        margin-top: var(--space-lg);
     }
 
     .typing-indicator {

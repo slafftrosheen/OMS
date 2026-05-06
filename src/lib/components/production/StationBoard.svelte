@@ -23,14 +23,14 @@
     } = $props();
 
     function getStatusColor(status: string): string {
-        const colors: Record<string, string> = {
-            'NOT_STARTED': '#6b7280',
-            'IN_PROGRESS': '#3b82f6',
-            'COMPLETED': '#10b981',
-            'BLOCKED': '#ef4444',
-            'SKIPPED': '#f59e0b'
+        const map: Record<string, string> = {
+            'NOT_STARTED': 'var(--ink-3)',
+            'IN_PROGRESS': 'var(--brand)',
+            'COMPLETED':   'var(--ok)',
+            'BLOCKED':     'var(--error)',
+            'SKIPPED':     'var(--warn)'
         };
-        return colors[status] || '#6b7280';
+        return map[status] || 'var(--ink-3)';
     }
 
     function getPriorityVariant(priority?: string): 'danger' | 'warning' | 'info' {
