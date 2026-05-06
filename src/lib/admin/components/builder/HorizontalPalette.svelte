@@ -7,32 +7,45 @@
 
   let activeTab: 'sections' | 'fields' = $state('sections');
 
-  const sectionTypes = [
-    { type: 'section', label: 'CNC FREZER', icon: '⚙️', color: '#1a1a1a', desc: 'CNC milling operations' },
-    { type: 'section', label: 'BENDER', icon: '🔧', color: '#4A5568', desc: 'Aluminum bending' },
-    { type: 'section', label: 'FRONT', icon: '📱', color: '#F7FAFC', desc: 'Front face operations' },
-    { type: 'section', label: 'PAINTING', icon: '🎨', color: '#E53E3E', desc: 'Painting and colors' },
-    { type: 'section', label: 'ASSEMBLING', icon: '🔩', color: '#2D3748', desc: 'LED and assembly' },
-    { type: 'section', label: 'DELIVERY', icon: '🚚', color: '#1a1a1a', desc: 'Delivery info' },
-    { type: 'section', label: 'CUSTOM', icon: '✨', color: '#9333EA', desc: 'Custom section' }
+  type SectionDef = {
+    type: 'section';
+    label: string;
+    icon: import('$lib/ui/icons').IconName;
+    desc: string;
+  };
+  type FieldDef = {
+    fieldType: string;
+    label: string;
+    icon: import('$lib/ui/icons').IconName;
+    category: string;
+  };
+
+  const sectionTypes: SectionDef[] = [
+    { type: 'section', label: 'CNC FREZER',  icon: 'cog',         desc: 'CNC milling operations' },
+    { type: 'section', label: 'BENDER',      icon: 'wrench',      desc: 'Aluminum bending' },
+    { type: 'section', label: 'FRONT',       icon: 'smartphone',  desc: 'Front face operations' },
+    { type: 'section', label: 'PAINTING',    icon: 'palette',     desc: 'Painting and colors' },
+    { type: 'section', label: 'ASSEMBLING',  icon: 'hammer',      desc: 'LED and assembly' },
+    { type: 'section', label: 'DELIVERY',    icon: 'truck',       desc: 'Delivery info' },
+    { type: 'section', label: 'CUSTOM',      icon: 'sparkles',    desc: 'Custom section' }
   ];
 
-  const fieldTypes = [
-    { fieldType: 'material_field', label: 'Material', icon: '🔲', category: 'Materials' },
-    { fieldType: 'color_ral', label: 'RAL Color', icon: '🎨', category: 'Colors' },
-    { fieldType: 'color_pantone', label: 'PANTONE', icon: '🌈', category: 'Colors' },
-    { fieldType: 'oracal_selector', label: 'ORACAL', icon: '📋', category: 'Colors' },
-    { fieldType: 'signtrim_selector', label: 'SignTrim', icon: '✨', category: 'Colors' },
-    { fieldType: 'dropdown', label: 'Dropdown', icon: '▼', category: 'Basic' },
-    { fieldType: 'button_group', label: 'Buttons', icon: '🔘', category: 'Basic' },
-    { fieldType: 'toggle', label: 'Toggle', icon: '⚡', category: 'Basic' },
-    { fieldType: 'number', label: 'Number', icon: '🔢', category: 'Basic' },
-    { fieldType: 'text', label: 'Text', icon: '📝', category: 'Basic' },
-    { fieldType: 'textarea', label: 'Text Area', icon: '📄', category: 'Basic' },
-    { fieldType: 'date', label: 'Date', icon: '📅', category: 'Basic' },
-    { fieldType: 'multi_select_chips', label: 'Multi-Select', icon: '🏷️', category: 'Advanced' },
-    { fieldType: 'info_box', label: 'Info Box', icon: 'ℹ️', category: 'Advanced' },
-    { fieldType: 'computed_field', label: 'Computed', icon: '⚙️', category: 'Advanced' }
+  const fieldTypes: FieldDef[] = [
+    { fieldType: 'material_field',     label: 'Material',     icon: 'box',           category: 'Materials' },
+    { fieldType: 'color_ral',          label: 'RAL Color',    icon: 'palette',       category: 'Colors' },
+    { fieldType: 'color_pantone',      label: 'PANTONE',      icon: 'paintbrush',    category: 'Colors' },
+    { fieldType: 'oracal_selector',    label: 'ORACAL',       icon: 'clipboard-list',category: 'Colors' },
+    { fieldType: 'signtrim_selector',  label: 'SignTrim',     icon: 'wand-sparkles', category: 'Colors' },
+    { fieldType: 'dropdown',           label: 'Dropdown',     icon: 'chevron-down',  category: 'Basic' },
+    { fieldType: 'button_group',       label: 'Buttons',      icon: 'square',        category: 'Basic' },
+    { fieldType: 'toggle',             label: 'Toggle',       icon: 'zap',           category: 'Basic' },
+    { fieldType: 'number',             label: 'Number',       icon: 'hash',          category: 'Basic' },
+    { fieldType: 'text',               label: 'Text',         icon: 'type',          category: 'Basic' },
+    { fieldType: 'textarea',           label: 'Text Area',    icon: 'file-text',     category: 'Basic' },
+    { fieldType: 'date',               label: 'Date',         icon: 'calendar',      category: 'Basic' },
+    { fieldType: 'multi_select_chips', label: 'Multi-Select', icon: 'tag',           category: 'Advanced' },
+    { fieldType: 'info_box',           label: 'Info Box',     icon: 'info',          category: 'Advanced' },
+    { fieldType: 'computed_field',     label: 'Computed',     icon: 'cog',           category: 'Advanced' }
   ];
 
   function startDrag(event: DragEvent, component: any) {
@@ -52,19 +65,19 @@
 <div class="horizontal-palette">
   <!-- Tabs -->
   <div class="palette-tabs">
-    <button 
+    <button
       class="tab"
       class:active={activeTab === 'sections'}
       onclick={() => activeTab = 'sections'}
     >
-      📐 Sections
+      <Icon name="layout-grid" size="sm" /> Sections
     </button>
-    <button 
+    <button
       class="tab"
       class:active={activeTab === 'fields'}
       onclick={() => activeTab = 'fields'}
     >
-      🧩 Fields
+      <Icon name="grid" size="sm" /> Fields
     </button>
   </div>
 
@@ -77,13 +90,12 @@
             class="component-card section-card"
             draggable="true"
             ondragstart={(e) => startDrag(e, section)}
-            style="border-top: 4px solid {section.color};"
             title={section.desc}
             role="button"
             tabindex="0"
           >
             <GripVertical size={14} class="drag-handle" />
-            <span class="card-icon">{section.icon}</span>
+            <span class="card-icon"><Icon name={section.icon} size="md" /></span>
             <span class="card-label">{section.label}</span>
           </div>
         {/each}
@@ -104,7 +116,7 @@
                 tabindex="0"
               >
                 <GripVertical size={12} class="drag-handle" />
-                <span class="card-icon">{field.icon}</span>
+                <span class="card-icon"><Icon name={field.icon} size="sm" /></span>
                 <span class="card-label">{field.label}</span>
               </div>
             {/each}

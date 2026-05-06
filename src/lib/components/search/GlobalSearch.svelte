@@ -2,8 +2,9 @@
 <script lang="ts">
 
     import { onMount } from 'svelte';
-    import Input from '$lib/components/ui/Input.svelte';
     import Badge from '$lib/components/ui/Badge.svelte';
+    import Icon from '$lib/ui/Icon.svelte';
+    import type { IconName } from '$lib/ui/icons';
 
     let { 
         open = $bindable(false),
@@ -102,14 +103,14 @@
         search();
     }
 
-    function getTypeIcon(type: string): string {
-        const icons: Record<string, string> = {
-            order: '📋',
-            file: '📁',
-            message: '💬',
-            material: '📦'
+    function getTypeIcon(type: string): IconName {
+        const map: Record<string, IconName> = {
+            order:    'clipboard-list',
+            file:     'folder-open',
+            message:  'message-square',
+            material: 'package'
         };
-        return icons[type] || '📄';
+        return map[type] ?? 'file';
     }
 
     function getTypeBadge(type: string): 'primary' | 'success' | 'warning' | 'info' {
@@ -154,7 +155,7 @@
     <div class="search-overlay" onclick={close} role="button" tabindex="-1">
         <div class="search-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
             <div class="search-input-wrapper">
-                <span class="search-icon">🔍</span>
+                <span class="search-icon" aria-hidden="true"><Icon name="search" size="md" /></span>
                 <input
                     bind:this={searchInput}
                     type="text"
@@ -197,7 +198,9 @@
                                 onclick={() => navigateToResult(result)}
                                 onmouseenter={() => selectedIndex = index}
                             >
-                                <span class="result-icon">{getTypeIcon(result.type)}</span>
+                                <span class="result-icon" aria-hidden="true">
+                                    <Icon name={getTypeIcon(result.type)} size="md" />
+                                </span>
                                 <div class="result-content">
                                     <div class="result-header">
                                         <h4 class="result-title">{result.title}</h4>

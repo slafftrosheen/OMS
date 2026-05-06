@@ -13,6 +13,8 @@
   import { t } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/authState.svelte';
   import Icon from '$lib/ui/Icon.svelte';
+  import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
+  import { emptyConfirm, type ConfirmState } from '$lib/components/ui/confirm-types';
 
   import type { Role, StationId } from '$lib/auth/types';
   import { ROLE_LABELS, STATION_LABELS, STATION_IDS } from '$lib/auth/types';
@@ -281,22 +283,33 @@
     setTimeout(() => successMessage = '', 3000);
   }
 
-  async function deactivateUser(user: AdminUser) {
-    if (!confirm($t('admin.users.messages.confirm_deactivate', { name: user.displayName }))) return;
+  let confirmState = $state<ConfirmState>(emptyConfirm());
 
-    try {
-      const res = await fetch(`${base}/api/users/${user.id}`, { method: 'DELETE' });
-      if (res.ok) {
-        successMessage = $t('admin.users.messages.deactivated');
-        await loadUsers();
-      } else {
-        error = $t('admin.users.messages.save_error');
+  function deactivateUser(user: AdminUser) {
+    confirmState = {
+      open: true,
+      title: $t('admin.users.confirm_deactivate_title', { default: 'Deactivate user' }),
+      body: $t('admin.users.messages.confirm_deactivate', {
+        values: { name: user.displayName },
+        default: 'Deactivate {name}? They will lose access to OMS until reactivated.'
+      }),
+      tone: 'danger',
+      confirmLabel: $t('actions.deactivate', { default: 'Deactivate' }),
+      action: async () => {
+        try {
+          const res = await fetch(`${base}/api/users/${user.id}`, { method: 'DELETE' });
+          if (res.ok) {
+            successMessage = $t('admin.users.messages.deactivated');
+            await loadUsers();
+          } else {
+            error = $t('admin.users.messages.save_error');
+          }
+        } catch (e) {
+          error = 'Failed to connect to server';
+        }
+        setTimeout(() => successMessage = '', 3000);
       }
-    } catch (e) {
-      error = 'Failed to connect to server';
-    }
-
-    setTimeout(() => successMessage = '', 3000);
+    };
   }
 
   async function reactivateUser(user: AdminUser) {
@@ -618,6 +631,8 @@
     </div>
   </div>
 {/if}
+
+<ConfirmModal bind:state={confirmState} />
 
 <style>
   .users-page {

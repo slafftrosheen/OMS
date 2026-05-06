@@ -1,5 +1,7 @@
 <!-- src/lib/components/chat/ChatMessage.svelte -->
 <script lang="ts">
+    import Icon from '$lib/ui/Icon.svelte';
+
     interface MessageType {
         id: string;
         userId: string;
@@ -127,7 +129,7 @@
                     <div class="attachments">
                         {#each message.attachments as attachment}
                             <a href={attachment} class="attachment-link" target="_blank" rel="noopener noreferrer">
-                                📎 {attachment.split('/').pop()}
+                                <Icon name="paperclip" size="xs" /> {attachment.split('/').pop()}
                             </a>
                         {/each}
                     </div>
@@ -147,15 +149,15 @@
 
         {#if showActions && !isEditing}
             <div class="message-actions">
-                <button class="action-btn" onclick={handleReply} title="Reply">
-                    💬
+                <button class="action-btn" onclick={handleReply} aria-label="Reply" title="Reply">
+                    <Icon name="reply" size="sm" />
                 </button>
                 {#if isOwn}
-                    <button class="action-btn" onclick={handleEdit} title="Edit">
-                        ✏️
+                    <button class="action-btn" onclick={handleEdit} aria-label="Edit" title="Edit">
+                        <Icon name="edit" size="sm" />
                     </button>
-                    <button class="action-btn danger" onclick={handleDelete} title="Delete">
-                        🗑️
+                    <button class="action-btn danger" onclick={handleDelete} aria-label="Delete" title="Delete">
+                        <Icon name="trash-2" size="sm" />
                     </button>
                 {/if}
             </div>

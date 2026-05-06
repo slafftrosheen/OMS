@@ -491,14 +491,38 @@
 .rf-topbar__nav a.active::after {
   content: '';
   position: absolute;
-  inset: auto 35% -6px 35%;
+  inset: auto 30% -6px 30%;
   height: 2px;
-  background: var(--brand);
+  background: linear-gradient(90deg,
+    transparent,
+    var(--brand) 30%,
+    var(--brand) 70%,
+    transparent);
   border-radius: var(--radius-full);
-  box-shadow: 0 0 8px color-mix(in oklab, var(--brand) 60%, transparent);
-  opacity: 0.95;
+  box-shadow: 0 0 12px color-mix(in oklab, var(--brand) 70%, transparent);
+  opacity: 1;
   animation: rf-fade-in var(--motion-md) var(--ease-standard) both;
 }
+/* Subtle sheen on hover — pure CSS, respects reduced motion */
+.rf-topbar__nav a {
+  isolation: isolate;
+  overflow: hidden;
+}
+.rf-topbar__nav a::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(120deg,
+    transparent 30%,
+    color-mix(in oklab, white 14%, transparent) 50%,
+    transparent 70%);
+  transform: translateX(-110%) skewX(-18deg);
+  transition: transform var(--motion-lg) var(--ease-emphasized);
+  border-radius: inherit;
+  z-index: -1;
+}
+.rf-topbar__nav a:hover::before { transform: translateX(160%) skewX(-18deg); }
 .rf-topbar__nav a.active:hover {
   background: color-mix(in oklab, var(--brand-soft) 80%, var(--bg-2));
   transform: translateY(-1px);

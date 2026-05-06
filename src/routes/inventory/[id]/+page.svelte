@@ -15,6 +15,8 @@
   import MapPin from 'lucide-svelte/icons/map-pin';
   import Tag from 'lucide-svelte/icons/tag';
   import Clock from 'lucide-svelte/icons/clock';
+  import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
+  import { emptyConfirm, type ConfirmState } from '$lib/components/ui/confirm-types';
 
   // Get id from URL params via page store
   let materialId = $derived(page.params.id);
@@ -57,12 +59,24 @@
     editMode = false;
   }
 
-  async function deleteMaterial() {
+  let confirmState = $state<ConfirmState>(emptyConfirm());
+
+  function deleteMaterial() {
     if (!material) return;
-    if (confirm(`Delete "${material.name_en || material.code}"? This cannot be undone.`)) {
-      await removeMaterial(material.id);
-      goto(`${base}/inventory`);
-    }
+    const m = material;
+    confirmState = {
+      open: true,
+      title: $t('inventoryDetail.delete_title', { default: 'Delete material' }),
+      body: $t('inventoryDetail.delete_confirm', {
+        default: 'Permanently delete "{name}"? This cannot be undone.',
+        values: { name: m.name_en || m.code }
+      }),
+      tone: 'danger',
+      action: async () => {
+        await removeMaterial(m.id);
+        goto(`${base}/inventory`);
+      }
+    };
   }
 </script>
 
@@ -244,6 +258,8 @@
     </div>
   {/if}
 </div>
+
+<ConfirmModal bind:state={confirmState} />
 
 <style>
 .material-page {

@@ -1,6 +1,10 @@
 <!-- src/lib/admin/components/builder/CanvasField.svelte -->
 <script lang="ts">
-  import { GripVertical, Copy, Trash2 } from "lucide-svelte";
+  import GripVertical from "lucide-svelte/icons/grip-vertical";
+  import Copy from "lucide-svelte/icons/copy";
+  import Trash2 from "lucide-svelte/icons/trash-2";
+  import Icon from "$lib/ui/Icon.svelte";
+  import type { IconName } from "$lib/ui/icons";
 
   let {
     field,
@@ -16,25 +20,25 @@
     ondelete?: () => void;
   } = $props();
 
-  const fieldTypeIcons: Record<string, string> = {
-    material_selector: "🔲",
-    material_field: "🔲",
-    thickness_selector: "📏",
-    color_ral: "🎨",
-    color_pantone: "🌈",
-    color_oracal: "📋",
-    dropdown: "▼",
-    button_group: "🔘",
-    toggle: "⚡",
-    numeric_input: "🔢",
-    number: "🔢",
-    text_input: "📝",
-    text: "📝",
-    textarea: "📄",
-    date_input: "📅",
-    date: "📅",
-    multi_select_chips: "🏷️",
-    info_box: "ℹ️",
+  const fieldTypeIcons: Record<string, IconName> = {
+    material_selector:  "box",
+    material_field:     "box",
+    thickness_selector: "ruler",
+    color_ral:          "palette",
+    color_pantone:      "paintbrush",
+    color_oracal:       "clipboard-list",
+    dropdown:           "chevron-down",
+    button_group:       "square",
+    toggle:             "zap",
+    numeric_input:      "hash",
+    number:             "hash",
+    text_input:         "type",
+    text:               "type",
+    textarea:           "file-text",
+    date_input:         "calendar",
+    date:               "calendar",
+    multi_select_chips: "tag",
+    info_box:           "info",
   };
 
   function handleClick(event: MouseEvent) {
@@ -57,8 +61,8 @@
 >
   <GripVertical size={12} class="drag-handle" />
 
-  <span class="field-icon">
-    {fieldTypeIcons[fieldType] || "❓"}
+  <span class="field-icon" aria-hidden="true">
+    <Icon name={fieldTypeIcons[fieldType] ?? "help-circle"} size="sm" />
   </span>
 
   <div class="field-info">

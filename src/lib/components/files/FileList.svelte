@@ -1,7 +1,8 @@
 <!-- src/lib/components/files/FileList.svelte -->
 <script lang="ts">
     import Badge from '$lib/components/ui/Badge.svelte';
-    import Button from '$lib/components/ui/Button.svelte';
+    import Icon from '$lib/ui/Icon.svelte';
+    import type { IconName } from '$lib/ui/icons';
 
     type FileItem = {
         id: string;
@@ -14,7 +15,7 @@
         url: string;
     };
 
-    let { 
+    let {
         files = [],
         ondownload,
         ondelete,
@@ -34,14 +35,14 @@
         return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
     }
 
-    function getFileIcon(mimeType: string): string {
-        if (mimeType.startsWith('image/')) return '🖼️';
-        if (mimeType === 'application/pdf') return '📄';
-        if (mimeType.includes('word')) return '📝';
-        if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return '📊';
-        if (mimeType.includes('zip')) return '📦';
-        if (mimeType.includes('dxf')) return '📐';
-        return '📁';
+    function getFileIcon(mimeType: string): IconName {
+        if (mimeType.startsWith('image/'))                                  return 'image';
+        if (mimeType === 'application/pdf')                                 return 'file-text';
+        if (mimeType.includes('word'))                                      return 'file-text';
+        if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'bar-chart';
+        if (mimeType.includes('zip'))                                       return 'package';
+        if (mimeType.includes('dxf') || mimeType.includes('dwg'))           return 'ruler';
+        return 'file';
     }
 
     function getFileTypeBadge(fileType: string): 'info' | 'success' | 'warning' {
@@ -80,8 +81,8 @@
         <div class="files-grid">
             {#each files as file (file.id)}
                 <div class="file-item">
-                    <div class="file-icon">
-                        {getFileIcon(file.mime_type)}
+                    <div class="file-icon" aria-hidden="true">
+                        <Icon name={getFileIcon(file.mime_type)} size="lg" />
                     </div>
 
                     <div class="file-info">
@@ -114,26 +115,29 @@
                             <button
                                 class="action-btn"
                                 onclick={() => handlePreview(file)}
+                                aria-label="Preview"
                                 title="Preview"
                             >
-                                👁️
+                                <Icon name="eye" size="sm" />
                             </button>
                         {/if}
-                        
+
                         <button
                             class="action-btn"
                             onclick={() => handleDownload(file)}
+                            aria-label="Download"
                             title="Download"
                         >
-                            ⬇️
+                            <Icon name="download" size="sm" />
                         </button>
-                        
+
                         <button
                             class="action-btn danger"
                             onclick={() => handleDelete(file)}
+                            aria-label="Delete"
                             title="Delete"
                         >
-                            🗑️
+                            <Icon name="trash-2" size="sm" />
                         </button>
                     </div>
                 </div>
@@ -148,41 +152,53 @@
     }
 
     .empty-state {
-        padding: 3rem 2rem;
+        padding: var(--space-3xl) var(--space-xl);
         text-align: center;
     }
 
     .empty-message {
-        font-size: 1rem;
-        color: var(--color-gray-600, var(--ink-tertiary));
+        font-size: var(--text-md);
+        color: var(--ink-tertiary);
         margin: 0;
     }
 
     .files-grid {
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
+        gap: var(--space-sm);
     }
 
     .file-item {
         display: flex;
         align-items: center;
-        gap: 1rem;
-        padding: 1rem;
-        background: var(--bg-1);
-        border: 1px solid var(--color-border, var(--border));
-        border-radius: 0.5rem;
-        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
+        gap: var(--space-md);
+        padding: var(--space-md);
+        background: var(--glass-bg);
+        backdrop-filter: var(--glass-material-thin);
+        -webkit-backdrop-filter: var(--glass-material-thin);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-md);
+        transition: transform var(--motion-sm) var(--ease-spring-soft),
+                    box-shadow var(--motion-sm) var(--ease-standard),
+                    border-color var(--motion-sm) var(--ease-standard);
     }
 
     .file-item:hover {
-        box-shadow: 0 2px 4px color-mix(in oklab, var(--bg-0) 5%, transparent);
-        border-color: var(--color-gray-300, var(--border));
+        transform: translateY(-1px);
+        box-shadow: var(--elevation-2);
+        border-color: color-mix(in oklab, var(--brand) 25%, var(--glass-border));
     }
 
     .file-icon {
-        font-size: 2rem;
         flex-shrink: 0;
+        color: var(--brand);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: var(--radius-sm);
+        background: color-mix(in oklab, var(--brand) 10%, transparent);
     }
 
     .file-info {
@@ -193,61 +209,68 @@
     .file-header {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 0.375rem;
+        gap: var(--space-sm);
+        margin-bottom: var(--space-xs);
     }
 
     .file-name {
-        font-size: 1rem;
+        font-size: var(--text-md);
         font-weight: 600;
         margin: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        color: var(--color-text, var(--ink-primary));
+        color: var(--ink-primary);
     }
 
     .file-meta {
         display: flex;
         align-items: center;
-        gap: 0.375rem;
-        font-size: 0.875rem;
-        color: var(--color-gray-600, var(--ink-tertiary));
+        gap: var(--space-xs);
+        font-size: var(--text-sm);
+        color: var(--ink-tertiary);
     }
 
     .meta-separator {
-        color: var(--color-gray-400, var(--muted));
+        color: var(--ink-quaternary);
     }
 
     .file-actions {
         display: flex;
-        gap: 0.5rem;
+        gap: var(--space-xs);
         flex-shrink: 0;
     }
 
     .action-btn {
-        background: none;
-        border: 1px solid var(--color-border, var(--border));
-        padding: 0.5rem;
-        border-radius: 0.375rem;
+        background: transparent;
+        border: 1px solid var(--border);
+        padding: 0;
+        border-radius: var(--radius-sm);
         cursor: pointer;
-        font-size: 1.125rem;
-        transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
-        width: 2.5rem;
-        height: 2.5rem;
-        display: flex;
+        color: var(--ink-secondary);
+        transition: background var(--motion-sm) var(--ease-standard),
+                    border-color var(--motion-sm) var(--ease-standard),
+                    color var(--motion-sm) var(--ease-standard),
+                    transform var(--motion-xs) var(--ease-spring-soft);
+        width: var(--control-sm);
+        height: var(--control-sm);
+        display: inline-flex;
         align-items: center;
         justify-content: center;
+        box-shadow: none;
     }
 
     .action-btn:hover {
-        background-color: var(--color-gray-5, var(--bg-2));
-        border-color: var(--color-gray-300, var(--border));
+        background: var(--bg-2);
+        color: var(--ink-primary);
+        transform: translateY(-1px);
     }
+    .action-btn:active { transform: scale(0.95); }
 
     .action-btn.danger:hover {
-        background-color: var(--error-soft);
-        border-color: color-mix(in oklab, var(--error) 30%, transparent);
+        background: var(--error-soft);
+        border-color: color-mix(in oklab, var(--error) 35%, transparent);
+        color: var(--error);
     }
 
     @media (max-width: 640px) {

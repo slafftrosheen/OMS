@@ -17,6 +17,22 @@
   import Download from 'lucide-svelte/icons/download';
   import PackagePlus from 'lucide-svelte/icons/package-plus';
   import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
+  import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
+  import { emptyConfirm, type ConfirmState } from '$lib/components/ui/confirm-types';
+
+  let confirmState = $state<ConfirmState>(emptyConfirm());
+  function askDelete(it: Material) {
+    confirmState = {
+      open: true,
+      title: $t('inventory.delete_title', { default: 'Delete material' }),
+      body: $t('inventory.delete_confirm', {
+        default: 'Permanently delete "{name}"?',
+        values: { name: it.name_en || it.code }
+      }),
+      tone: 'danger',
+      action: async () => { await removeMaterial(it.id); }
+    };
+  }
 
   let q = $state('');
   let list: Material[] = $state([]);
@@ -209,7 +225,7 @@
                       <td data-label={$t('inventory.headers.location')}>{it.location || '—'}</td>
                       <td class="actions-cell">
                         <a href={`${base}/inventory/${it.id}`} class="icon-btn" aria-label={`Edit ${it.name_en || it.code}`}><Edit size={16} aria-hidden="true"/></a>
-                        <button class="icon-btn warn" aria-label={`Delete ${it.name_en || it.code}`} onclick={() => { if (confirm(`Delete ${it.name_en || it.code}?`)) removeMaterial(it.id); }}><Trash size={16} aria-hidden="true"/></button>
+                        <button class="icon-btn warn" aria-label={`Delete ${it.name_en || it.code}`} onclick={() => askDelete(it)}><Trash size={16} aria-hidden="true"/></button>
                       </td>
                     </tr>
                   {/each}
@@ -227,6 +243,8 @@
 {#if editing}
   <ItemModal bind:item={editing} onClose={() => editing = null} />
 {/if}
+
+<ConfirmModal bind:state={confirmState} />
 
 <style>
 .table-wrap{overflow:auto}
