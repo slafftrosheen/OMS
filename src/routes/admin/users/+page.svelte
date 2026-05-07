@@ -667,7 +667,7 @@
     gap: 8px;
     padding: 10px 16px;
     background: var(--accent, var(--brand));
-    color: var(--bg-0);
+    color: white;
     border: none;
     border-radius: 6px;
     font-size: 14px;

@@ -42,7 +42,7 @@
 
   function addShape(type: ShapeMenuItem['type']) {
     if (!editorRef) return;
-    const center = editorRef.getViewportPageCenter();
+    const center = editorRef.getViewportPageBounds().center;
 
     let props: Record<string, unknown> = {};
     if (type === 'document') {

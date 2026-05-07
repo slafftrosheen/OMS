@@ -384,7 +384,7 @@
 
 .btn-primary {
   background: var(--accent-1, var(--brand));
-  color: var(--bg-0);
+  color: white;
   border: none;
 }
 

@@ -184,7 +184,7 @@
   /* Danger */
   .rf-btn[data-variant="danger"] {
     background: var(--error);
-    color: var(--bg-0);
+    color: white;
     box-shadow: var(--elevation-1);
   }
   .rf-btn[data-variant="danger"]:hover:not(:disabled) {
@@ -200,7 +200,7 @@
   /* Success */
   .rf-btn[data-variant="success"] {
     background: var(--ok);
-    color: var(--bg-0);
+    color: white;
     box-shadow: var(--elevation-1);
   }
   .rf-btn[data-variant="success"]:hover:not(:disabled) {

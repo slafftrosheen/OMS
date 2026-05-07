@@ -1489,7 +1489,7 @@
   /* NO BADGE */
   .no-badge {
     background: var(--error);
-    color: var(--bg-0);
+    color: white;
     padding: 6px 10px;
     border-radius: 4px;
     font-size: 11px;
@@ -1649,7 +1649,7 @@
     justify-content: center;
     gap: var(--space-xs, 4px);
     background: var(--error);
-    color: var(--bg-0);
+    color: white;
     padding: var(--space-md, 12px) var(--space-lg, 16px);
     border-radius: var(--radius-md, 6px);
     font-size: 14px;

@@ -185,7 +185,7 @@
     height: 16px;
     border-radius: var(--radius-full);
     background: var(--error);
-    color: var(--bg-0);
+    color: white;
     font-size: 10px;
     font-weight: 700;
     display: grid;

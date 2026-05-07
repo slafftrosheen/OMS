@@ -150,7 +150,7 @@
     min-width: 16px; height: 16px;
     border-radius: var(--radius-full);
     background: var(--error);
-    color: var(--bg-0);
+    color: white;
     font-size: 9px;
     font-weight: 700;
     display: grid;

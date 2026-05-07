@@ -543,7 +543,7 @@
     .use-btn {
         padding: 4px 12px;
         background: var(--brand);
-        color: var(--bg-0);
+        color: white;
         border: none;
         border-radius: 4px;
         font-size: 0.75rem;

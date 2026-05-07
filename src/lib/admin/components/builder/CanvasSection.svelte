@@ -175,7 +175,7 @@
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
-    color: var(--bg-0);
+    color: white;
     font-weight: 700;
     font-size: 13px;
     cursor: move;

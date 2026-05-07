@@ -167,7 +167,7 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
 
 :root {
   --z-base:     0;
-  --z-docked:   10;
+  --z-docked:   400;
   --z-sticky:   100;
   --z-overlay:  500;
   --z-modal:    1000;
@@ -273,10 +273,10 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   --separator-opaque: color-mix(in oklab, var(--ink-0) 7%, var(--bg-1));
   --focus:          oklch(0.56 0.16 258);
 
-  /* Brand — calm slate-indigo. Less chroma than v1 — a 2026 read.
+  /* Brand — deeper blue for better contrast with white text.
      White text on brand bg passes WCAG AA at body sizes. */
-  --brand:    oklch(0.44 0.13 258);
-  --brand-2:  oklch(0.58 0.10 193);
+  --brand:    oklch(0.40 0.17 260);
+  --brand-2:  oklch(0.55 0.12 193);
   --accent-1: var(--brand);
   --accent-2: var(--brand-2);
 
@@ -285,7 +285,7 @@ html { font-size: calc(16px * var(--text-zoom) * var(--font-scale, 1)); }
   --warn:   oklch(0.62 0.14 70);
   --error:  oklch(0.50 0.16 22);
   --danger: var(--error);
-  --link:   oklch(0.46 0.13 258);
+  --link:   oklch(0.40 0.17 260);
 
   /* Tints */
   --brand-soft:   color-mix(in oklab, var(--brand) 10%, var(--bg-1));

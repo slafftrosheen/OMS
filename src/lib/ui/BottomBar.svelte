@@ -165,7 +165,7 @@
     top: -2px;
     right: -2px;
     background: var(--error);
-    color: var(--bg-0);
+    color: white;
     font-size: 10px;
     font-weight: 700;
     min-width: 16px;

@@ -141,7 +141,7 @@
 .action-btn {
   padding: 12px 16px;
   background: var(--accent, var(--brand));
-  color: var(--bg-0);
+  color: white;
   border-radius: 6px;
   text-decoration: none;
   text-align: center;

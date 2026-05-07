@@ -123,12 +123,12 @@
 
     .status-badge[data-status="approved"] {
         background: var(--ok, var(--ok));
-        color: var(--bg-0);
+        color: white;
     }
 
     .status-badge[data-status="rejected"] {
         background: var(--error);
-        color: var(--bg-0);
+        color: white;
     }
 
     .changes {

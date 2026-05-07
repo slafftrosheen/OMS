@@ -207,7 +207,7 @@
     align-items: center;
     justify-content: center;
     background: var(--error);
-    color: var(--bg-0);
+    color: white;
     border-radius: 50%;
     font-size: 12px;
     font-weight: 700;

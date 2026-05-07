@@ -91,8 +91,19 @@
     z-index: var(--z-popover);
     animation: rf-dd-in var(--motion-sm) var(--ease-standard) both;
   }
+
+  :global(.rf-bottombar) .rf-density__dropdown {
+    top: auto;
+    bottom: calc(100% + var(--space-sm));
+    animation: rf-dd-up var(--motion-sm) var(--ease-standard) both;
+  }
+
   @keyframes rf-dd-in {
     from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)   scale(1); }
+  }
+  @keyframes rf-dd-up {
+    from { opacity: 0; transform: translateY(6px) scale(0.97); }
     to   { opacity: 1; transform: translateY(0)   scale(1); }
   }
 
@@ -117,7 +128,7 @@
   .rf-density__item:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
   .rf-density__item.active {
     background: var(--brand);
-    color: var(--bg-0);
+    color: white;
     font-weight: 600;
   }
   .rf-density__item.active:hover { background: color-mix(in oklab, var(--brand) 85%, black); }

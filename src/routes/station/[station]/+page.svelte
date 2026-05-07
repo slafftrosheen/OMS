@@ -744,12 +744,11 @@
     text-transform: uppercase;
   }
 
-  .status-queued { background: var(--link, var(--brand)); color: var(--bg-0); }
-  .status-in_progress { background: var(--brand); color: var(--bg-0); }
-  .status-blocked { background: var(--error); color: var(--bg-0); }
+  .status-queued { background: var(--link, var(--brand)); color: white; }
+  .status-in_progress { background: var(--brand); color: white; }
+  .status-blocked { background: var(--error); color: white; }
   .status-rework { background: var(--warn); color: black; }
-  .status-completed { background: var(--ok); color: var(--bg-0); }
-
+  .status-completed { background: var(--ok); color: white; }
   .blocked-notice,
   .stage-notes {
     padding: 0.75rem;

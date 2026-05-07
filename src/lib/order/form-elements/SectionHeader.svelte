@@ -12,8 +12,8 @@
 
 <style>
   .section-header {
-    background: var(--ink-primary)000;
-    color: var(--bg-0);
+    background: var(--ink-primary);
+    color: white;
     padding: 8px 12px;
     font-size: 11px;
     font-weight: bold;

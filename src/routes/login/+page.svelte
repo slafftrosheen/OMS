@@ -442,7 +442,7 @@
 
 .dropdown button.active {
   background: var(--accent, var(--brand));
-  color: var(--bg-0);
+  color: white;
   font-weight: 600;
 }
 

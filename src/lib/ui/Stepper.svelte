@@ -94,10 +94,10 @@
       color         var(--motion-sm) var(--ease-standard),
       box-shadow    var(--motion-sm) var(--ease-standard);
   }
-  .rf-stepper__step[data-done] .rf-stepper__dot {
+  .rf-stepper__step[data-completed] .rf-stepper__dot {
     background: var(--brand);
     border-color: var(--brand);
-    color: var(--bg-0);
+    color: white;
     box-shadow: 0 0 0 3px var(--brand-soft);
   }
   .rf-stepper__step[data-active] .rf-stepper__dot {
@@ -109,7 +109,7 @@
   .rf-stepper__step[data-error] .rf-stepper__dot {
     background: var(--error);
     border-color: var(--error);
-    color: var(--bg-0);
+    color: white;
     box-shadow: 0 0 0 3px var(--error-soft);
   }
 

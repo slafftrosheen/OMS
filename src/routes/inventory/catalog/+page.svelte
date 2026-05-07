@@ -364,7 +364,7 @@
   
   .btn.primary {
     background: var(--accent, var(--brand));
-    color: var(--bg-0);
+    color: white;
     border: none;
   }
   

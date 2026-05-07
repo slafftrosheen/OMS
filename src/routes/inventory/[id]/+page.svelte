@@ -594,7 +594,7 @@
 
 .btn-primary {
   background: var(--accent-1, var(--brand));
-  color: var(--bg-0);
+  color: white;
 }
 
 .btn-secondary {
@@ -605,7 +605,7 @@
 
 .btn-success {
   background: var(--ok);
-  color: var(--bg-0);
+  color: white;
 }
 
 .btn-warning {

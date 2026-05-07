@@ -102,7 +102,7 @@ let statusLabel = $derived($connectionState === 'connected' ? 'Connected' :
     font-size: 0.75rem;
     padding: 0.125rem 0.5rem;
     background: var(--accent-1);
-    color: var(--bg-0);
+    color: white;
     border: none;
     border-radius: 3px;
     cursor: pointer;

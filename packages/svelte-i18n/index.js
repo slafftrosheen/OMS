@@ -75,7 +75,7 @@ export const t = derived([locale, dictionaries], ([$locale, $dicts]) => {
   return (path, vars = {}) => {
     const primary = resolvePath($dicts[$locale], path);
     const fallback = $locale === fallbackLocale ? undefined : resolvePath($dicts[fallbackLocale], path);
-    const message = primary ?? fallback ?? path;
+    const message = primary ?? fallback ?? vars.default ?? path;
     return format(message, vars);
   };
 });

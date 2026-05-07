@@ -47,18 +47,18 @@
   }
 
   .section-btn.black {
-    background: var(--ink-primary)000;
-    color: var(--bg-0);
-    border: 1px solid var(--ink-primary)000;
+    background: var(--ink-primary);
+    color: white;
+    border: 1px solid var(--ink-primary);
   }
 
   .section-btn.black:hover {
-    background: var(--ink-primary)333;
+    background: color-mix(in oklab, var(--ink-primary) 85%, black);
   }
 
   .section-btn.red {
     background: var(--error);
-    color: var(--bg-0);
+    color: white;
     border: 1px solid var(--error);
   }
 

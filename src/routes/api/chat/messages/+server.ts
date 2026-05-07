@@ -168,6 +168,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 .insert({
                     room_id: roomId,
                     user_id: locals.user?.id || null,
+                    text: text.trim(),
                     content: text.trim(),
                     attachments: []
                 })

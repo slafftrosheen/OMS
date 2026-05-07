@@ -58,6 +58,7 @@ export class ChatService {
             .insert({
                 order_id: orderId,
                 user_id: userId,
+                text: message.trim(),
                 message: message.trim(),
                 attachments,
                 reply_to: replyTo,

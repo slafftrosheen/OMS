@@ -1137,7 +1137,7 @@
 
   .error-close:hover {
     background: var(--danger);
-    color: var(--bg-0);
+    color: white;
   }
 
   .loading-container {

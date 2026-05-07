@@ -389,7 +389,7 @@
 
   function addShapeToCanvas(type: string) {
     if (!editorRef) return;
-    const center = editorRef.getViewportPageCenter();
+    const center = editorRef.getViewportPageBounds().center;
     editorRef.createShape({ type, x: center.x - 150, y: center.y - 150 });
   }
 

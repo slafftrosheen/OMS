@@ -284,10 +284,10 @@
     color: var(--text);
   }
 
-  .badge-draft { background: var(--ink-tertiary); color: var(--bg-0); }
-  .badge-active { background: var(--ok); color: var(--bg-0); }
-  .badge-completed { background: var(--brand); color: var(--bg-0); }
-  .badge-cancelled { background: var(--error); color: var(--bg-0); }
+  .badge-draft { background: var(--ink-tertiary); color: white; }
+  .badge-active { background: var(--ok); color: white; }
+  .badge-completed { background: var(--brand); color: white; }
+  .badge-cancelled { background: var(--error); color: white; }
   .badge-on_hold { background: var(--warn); color: black; }
 
   .card-body {

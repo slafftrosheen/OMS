@@ -436,7 +436,7 @@
 	.btn-danger:hover {
 		background: var(--error);
 		border-color: var(--error);
-		color: var(--bg-0);
+		color: white;
 	}
 
 	.empty-state {
