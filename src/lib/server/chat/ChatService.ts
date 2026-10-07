@@ -166,11 +166,11 @@ export class ChatService {
 
         const { data: profile } = await this.supabase
             .from('profiles')
-            .select('roles')
+            .select('role')
             .eq('id', userId)
             .single();
 
-        const isAdmin = profile?.roles?.Admin;
+        const isAdmin = ['RD', 'Boss', 'HeadOfProduction'].includes(profile?.role);
         const isOwner = message.user_id === userId;
 
         if (!isAdmin && !isOwner) {

@@ -207,7 +207,7 @@ export class InventoryService {
             const { data: admins } = await this.supabase
                 .from('profiles')
                 .select('id')
-                .contains('roles', { Admin: 'SuperAdmin' });
+                .in('role', ['RD', 'Boss', 'HeadOfProduction']);
 
             if (admins) {
                 await this.supabase.from('notifications').insert(

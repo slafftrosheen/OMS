@@ -12,6 +12,7 @@
 
 import { error, redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
+import { isAdminRole } from '$lib/server/auth/session';
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
     const user = locals.user;
@@ -24,13 +25,15 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     const role = user.role ?? '';
     
     // Check both JSONB roles.Admin and singular role column, case-insensitively
+    const roleStr = String(role ?? '').toLowerCase();
     const adminRoleValue = roles.Admin || roles.admin;
+    const adminRoleStr = String(adminRoleValue ?? '').toLowerCase();
     const isAdmin = 
-        adminRoleValue === 'Admin' || 
-        adminRoleValue === 'SuperAdmin' || 
-        adminRoleValue === 'admin' ||
-        adminRoleValue === true ||
-        role.toLowerCase() === 'admin';
+        isAdminRole(role) || 
+        adminRoleStr === 'admin' || 
+        adminRoleStr === 'superadmin' || 
+        adminRoleStr === 'true' || 
+        roleStr === 'admin';
 
     if (!isAdmin) {
         throw error(403, 'Admin role required to access this section.');

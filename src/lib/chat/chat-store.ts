@@ -4,6 +4,7 @@ import { currentUser } from '$lib/auth/authState.svelte';
 import { users } from '$lib/users/user-store';
 import { base } from '$app/paths';
 import { notify } from '$lib/notifications/store';
+import { toasts } from '$lib/stores/toast';
 import { env } from '$env/dynamic/public';
 import { supabase } from '$lib/supabase-client';
 
@@ -108,6 +109,12 @@ Received URL: ${supabaseUrl || 'undefined'}, Key: ${supabaseKey ? '***' : 'undef
             
             notify('New chat message', {
               urgency: 'normal'
+            });
+
+            toasts.push({
+              title: 'New Message',
+              message: newMessage.content || newMessage.text || 'You have a new message',
+              kind: 'info'
             });
           }
         }

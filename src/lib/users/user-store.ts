@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { base } from '$app/paths';
 
-export type Role = 'SuperAdmin' | 'Admin' | 'StationLead' | 'Operator' | 'Viewer';
+export type Role = 'RD' | 'Boss' | 'HeadOfProduction' | 'StationHead' | 'Operator';
 export type Section = 'Admin' | 'Production' | 'Logistics';
 export type StationTag =
   | 'CAD'
@@ -21,9 +21,9 @@ export type User = {
   displayName?: string;
   primarySection?: Section;
   sections?: Section[];
-  roles?: Record<Section, Role>;
-  role?: Role;  // Legacy compatibility
-  stations?: StationTag[];
+  roles?: Partial<Record<Section, Role>>;
+  role?: Role;
+  stations?: Array<{ stationId: string; isHead: boolean }>;
 };
 
 const isBrowser = typeof window !== 'undefined';

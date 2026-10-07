@@ -168,7 +168,7 @@
   let isFilament = $derived(filamentCategories.includes(formData.category));
   let isHardware = $derived(hardwareCategories.includes(formData.category));
 
-  let canManage = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
+  let canManage = $derived(['RD', 'Boss', 'HeadOfProduction'].includes($currentUser?.role ?? ''));
 
   let filteredMaterials = $derived(materials.filter(m => {
     const matchesSearch = searchQuery === '' ||

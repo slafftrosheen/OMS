@@ -18,6 +18,8 @@
   let selectedDate: string | null = $state(null);
   let orders: Order[] = $state([]);
   let loadingDays: any[] = $state([]);
+  let loadingDaysLoading = $state(false);
+  let loadingDaysError = $state<string | null>(null);
   let filterStatus: 'all' | 'scheduled' | 'unscheduled' = $state('all');
 
   // Modal state
@@ -59,13 +61,30 @@
   }
   
   async function refreshLoadingDays() {
+    loadingDaysLoading = true;
+    loadingDaysError = null;
+    const controller = new AbortController();
+    // Hard timeout: if the server is slow/unreachable, bail out so the UI
+    // never hangs on an indefinite spinner.
+    const timeout = setTimeout(() => controller.abort(), 10000);
     try {
-      const response = await fetch('/api/loading-days?active=true');
+      const response = await fetch('/api/loading-days?active=true', { signal: controller.signal });
       if (response.ok) {
         loadingDays = await response.json();
+      } else {
+        loadingDaysError = `Failed to load loading days (HTTP ${response.status})`;
+        console.error(loadingDaysError);
       }
     } catch (err) {
+      if (controller.signal.aborted) {
+        loadingDaysError = 'Loading days request timed out';
+      } else {
+        loadingDaysError = 'Failed to load loading days';
+      }
       console.error('Failed to fetch loading days:', err);
+    } finally {
+      clearTimeout(timeout);
+      loadingDaysLoading = false;
     }
   }
   
@@ -287,6 +306,14 @@
         </button>
       </div>
       
+      {#if loadingDaysLoading}
+        <div class="loading-days-status loading">{$t('calendar_widget.loading_days_loading') || 'Loading loading days…'}</div>
+      {:else if loadingDaysError}
+        <div class="loading-days-status error">{loadingDaysError}</div>
+      {:else if loadingDays.length === 0}
+        <div class="loading-days-status empty">{$t('calendar_widget.no_loading_days') || 'No loading days configured.'}</div>
+      {/if}
+      
       <div class="calendar-body">
         <div class="weekdays">
           <div class="weekday">{$t('calendar_widget.weekdays_short.sun')}</div>
@@ -317,9 +344,10 @@
                 <span class="order-count">{dayOrders.length}</span>
               {/if}
               {#if isLoading}
-                <div class="loading-indicator">
-                  <Icon name="truck" size="sm" />
-                </div>
+                <span class="loading-indicator" title={$t('calendar_widget.loading_day')}>
+                  <Icon name="truck" size={10} />
+                  <span class="loading-text">LD</span>
+                </span>
               {/if}
             </button>
           {/each}
@@ -733,9 +761,38 @@
   
   .loading-indicator {
     position: absolute;
-    bottom: 4px;
-    right: 4px;
+    bottom: 2px;
+    right: 2px;
+    background: color-mix(in oklab, var(--accent-1) 15%, var(--bg-1));
     color: var(--accent-1);
+    font-size: 0.625rem;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    z-index: 1;
+  }
+
+  .loading-days-status {
+    margin: 8px 0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .loading-days-status.loading {
+    background: color-mix(in oklab, var(--accent-1) 12%, transparent);
+    color: var(--accent-1);
+  }
+  .loading-days-status.error {
+    background: var(--error-soft, color-mix(in oklab, var(--error) 12%, transparent));
+    color: var(--error);
+    border: 1px solid color-mix(in oklab, var(--error) 30%, transparent);
+  }
+  .loading-days-status.empty {
+    background: var(--bg-2, #1f2430);
+    color: var(--text-muted, #9aa4b2);
   }
   
   /* Schedule Section */

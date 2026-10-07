@@ -6,6 +6,7 @@
 // alphabetized for merge-friendliness.
 
 import Activity from 'lucide-svelte/icons/activity';
+import GitPullRequest from 'lucide-svelte/icons/git-pull-request';
 import AlertCircle from 'lucide-svelte/icons/alert-circle';
 import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
 import ArrowLeft from 'lucide-svelte/icons/arrow-left';
@@ -14,6 +15,7 @@ import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
 import ArrowUpRight from 'lucide-svelte/icons/arrow-up-right';
 import BadgeCheck from 'lucide-svelte/icons/badge-check';
 import BarChart3 from 'lucide-svelte/icons/bar-chart-3';
+import BarChart2 from 'lucide-svelte/icons/bar-chart-2';
 import Beaker from 'lucide-svelte/icons/beaker';
 import Bell from 'lucide-svelte/icons/bell';
 import BellOff from 'lucide-svelte/icons/bell-off';
@@ -26,9 +28,12 @@ import Box from 'lucide-svelte/icons/box';
 import Boxes from 'lucide-svelte/icons/boxes';
 import Building from 'lucide-svelte/icons/building-2';
 import Calendar from 'lucide-svelte/icons/calendar';
+import CalendarDays from 'lucide-svelte/icons/calendar-days';
+import CalendarCheck from 'lucide-svelte/icons/calendar-check';
 import Camera from 'lucide-svelte/icons/camera';
 import CameraOff from 'lucide-svelte/icons/camera-off';
 import Check from 'lucide-svelte/icons/check';
+import CheckSquare from 'lucide-svelte/icons/check-square';
 import CheckCheck from 'lucide-svelte/icons/check-check';
 import CheckCircle from 'lucide-svelte/icons/check-circle-2';
 import ChevronDown from 'lucide-svelte/icons/chevron-down';
@@ -91,6 +96,7 @@ import Moon from 'lucide-svelte/icons/moon';
 import MoreHorizontal from 'lucide-svelte/icons/more-horizontal';
 import MoreVertical from 'lucide-svelte/icons/more-vertical';
 import Package from 'lucide-svelte/icons/package';
+import PackageCheck from 'lucide-svelte/icons/package-check';
 import PackagePlus from 'lucide-svelte/icons/package-plus';
 import PackageSearch from 'lucide-svelte/icons/package-search';
 import Paintbrush from 'lucide-svelte/icons/paintbrush';
@@ -196,6 +202,7 @@ export const icons = {
   'badge-check': BadgeCheck,
   'bar-chart': BarChart3,
   'bar-chart-3': BarChart3,
+  'bar-chart-2': BarChart2,
   'beaker': Beaker,
   'bell': Bell,
   'bell-off': BellOff,
@@ -209,9 +216,12 @@ export const icons = {
   'building': Building,
   'building-2': Building,
   'calendar': Calendar,
+  'calendar-days': CalendarDays,
+  'calendar-check': CalendarCheck,
   'camera': Camera,
   'camera-off': CameraOff,
   'check': Check,
+  'check-square': CheckSquare,
   'check-check': CheckCheck,
   'check-circle': CheckCircle,
   'chevron-down': ChevronDown,
@@ -240,6 +250,7 @@ export const icons = {
   'filter': Filter,
   'folder-open': FolderOpen,
   'globe': Globe,
+  'git-pull-request': GitPullRequest,
   'grid': Grid,
   'grip-vertical': GripVertical,
   'hash': Hash,
@@ -272,6 +283,7 @@ export const icons = {
   'more-horizontal': MoreHorizontal,
   'more-vertical': MoreVertical,
   'package': Package,
+  'package-check': PackageCheck,
   'package-plus': PackagePlus,
   'package-search': PackageSearch,
   'cpu': Cpu,

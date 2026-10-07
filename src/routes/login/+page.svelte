@@ -114,6 +114,7 @@
       username: data.user.username,
       displayName: data.user.displayName,
       email: data.user.email,
+      role: data.user.role || 'Operator',
       primarySection: data.user.primarySection,
       sections: data.user.sections,
       roles: data.user.roles,

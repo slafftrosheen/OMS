@@ -25,7 +25,7 @@
   const initials = (n: string | undefined) =>
     n?.split(' ').filter(Boolean).map(x => x[0]).slice(0, 2).join('').toUpperCase() || '?';
 
-  let roleLabel = $derived(me?.roles?.[me?.primarySection || 'Admin'] || 'User');
+  let roleLabel = $derived(me?.role || 'User');
 </script>
 
 <svelte:window onclick={handleClickOutside} />
@@ -56,7 +56,7 @@
         <span class="rf-user__avatar rf-user__avatar--lg" aria-hidden="true">{initials(me?.displayName || me?.username)}</span>
         <div class="rf-user__header-info">
           <strong class="rf-user__header-name">{me?.displayName || me?.username}</strong>
-          <span class="rf-user__header-section">{me?.primarySection || 'Main'} · {roleLabel}</span>
+          <span class="rf-user__header-section">{roleLabel}</span>
         </div>
       </div>
 
@@ -169,8 +169,19 @@
     animation: rf-dd-in var(--motion-sm) var(--ease-standard) both;
   }
 
+  :global(.rf-bottombar) .rf-user__dropdown {
+    top: auto;
+    bottom: calc(100% + var(--space-sm));
+    animation: rf-dd-up var(--motion-sm) var(--ease-standard) both;
+  }
+
   @keyframes rf-dd-in {
     from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)   scale(1); }
+  }
+
+  @keyframes rf-dd-up {
+    from { opacity: 0; transform: translateY(6px) scale(0.97); }
     to   { opacity: 1; transform: translateY(0)   scale(1); }
   }
 

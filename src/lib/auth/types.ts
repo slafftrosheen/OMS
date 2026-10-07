@@ -57,6 +57,9 @@ export const STATION_LABELS: Record<StationId, string> = {
 
 export const STATION_IDS = Object.keys(STATION_LABELS) as StationId[];
 
+// Section type for legacy compatibility
+export type Section = string;
+
 export interface UserStation {
   stationId: StationId;
   isHead: boolean;

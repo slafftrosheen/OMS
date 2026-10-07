@@ -6,6 +6,7 @@ import { createServerClient } from '@supabase/ssr';
 import { env as publicEnv } from '$env/dynamic/public';
 import { enforceEnvironmentSecurity } from '$lib/server/env-validator';
 import { logger } from '$lib/server/logging/logger';
+import { startSwarmHealthLoop } from '$lib/server/ai/swarm';
 import type { SessionUser } from '$lib/server/auth/session';
 import * as Sentry from '@sentry/node';
 
@@ -21,6 +22,9 @@ if (sentryDsn && !dev) {
 
 // Run validation on startup
 enforceEnvironmentSecurity();
+
+// Start AI swarm health monitoring
+startSwarmHealthLoop();
 
 // Get the Supabase URL and Key
 // Prioritize environment variables, fallback to defaults

@@ -7,11 +7,14 @@
   import { createId } from '$lib/utils/id';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { base } from '$app/paths';
+  import { validateOrderForm } from '$lib/validation/orderSchema';
 
 
   // SVELTE 5: Convert all reactive state to $state()
   let saving = $state(false);
   let error = $state('');
+  // Field-level validation errors keyed by input name (the "ali points").
+  let fieldErrors = $state<Record<string, string>>({});
   let successMessage = $state('');
   
   // Order Details
@@ -24,23 +27,31 @@
   
   // Delivery Address
   interface DeliveryPreset {
-    id: number;
+    id: string | number;  // UUID from backend returns as string, but allow number for compatibility
+    name?: string;
     clientName: string;
     presetName: string;
-    addressLine1: string;
+    addressLine1?: string;
     addressLine2?: string;
-    city: string;
+    city?: string;
     postalCode?: string;
-    country: string;
+    country?: string;
     contactPerson?: string;
     contactPhone?: string;
     contactEmail?: string;
     deliveryNotes?: string;
-    isDefault: boolean;
+    isDefault?: boolean;
+    // Alternative field names from API
+    address?: string;
+    contact?: string;
+    phone?: string;
+    status?: string;
+    visibility?: string;
+    tags?: string[];
   }
   
   let deliveryPresets = $state<DeliveryPreset[]>([]);
-  let selectedPresetId = $state<number | null>(null);
+  let selectedPresetId = $state<string | number | null>(null);
   let deliveryAddress = $state('');
   let deliveryContact = $state('');
   let deliveryPhone = $state('');
@@ -95,10 +106,27 @@
   let pdfRendering = $state(false);
   let pdfRenderTask = $state<any>(null);
   let pdfPageCache = $state(new Map<string, any>());
+  let pdfjsLib: any = null;
+  
+  // Initialize pdfjs on client-side
+  onMount(() => {
+    if (typeof window !== 'undefined') {
+      import('pdfjs-dist').then((module) => {
+        pdfjsLib = module;
+        if (module.GlobalWorkerOptions) {
+          module.GlobalWorkerOptions.workerSrc = new URL(
+            'pdfjs-dist/build/pdf.worker.min.js',
+            import.meta.url
+          ).href;
+        }
+      }).catch((err) => {
+        console.error('Failed to load pdfjs-dist:', err);
+      });
+    }
+  });
   
   async function renderPdfPage(dataUrl: string, pageNum: number) {
-    const win = window as any;
-    if (typeof window === 'undefined' || !win.pdfjsLib) return;
+    if (!pdfjsLib) return;
     if (pdfRendering) return;
     
     pdfRendering = true;
@@ -113,10 +141,8 @@
       
       const cacheKey = dataUrl.substring(0, 100);
       if (!pdfDoc || !pdfPageCache.has(cacheKey)) {
-        pdfDoc = await win.pdfjsLib.getDocument({
+        pdfDoc = await pdfjsLib.getDocument({
           data: atob(dataUrl.split(',')[1]),
-          cMapUrl: 'https://unpkg.com/pdfjs-dist@3.11.174/cmaps/',
-          cMapPacked: true,
         }).promise;
         pdfTotalPages = pdfDoc.numPages;
         pdfPageCache.set(cacheKey, pdfDoc);
@@ -247,7 +273,7 @@
     }
   }
 
-  function loadPreset(presetId: number) {
+  function loadPreset(presetId: number | string) {
     const preset = profilePresets.find(p => p.id === presetId);
     if (!preset) return;
 
@@ -263,7 +289,7 @@
     setTimeout(() => successMessage = '', 3000);
   }
 
-  async function deletePreset(presetId: number) {
+  async function deletePreset(presetId: number | string) {
     if (!confirm('Are you sure you want to delete this preset?')) return;
 
     try {
@@ -297,6 +323,7 @@
     quantity: number;
     configuration: any;
     collapsed: boolean;
+    profileTemplateId?: string | null;
   };
 
   const defaultConfiguration = {
@@ -331,18 +358,19 @@
     { id: createId(), quantity: 1, configuration: JSON.parse(JSON.stringify(defaultConfiguration)), collapsed: false }
   ]);
 
-  // Check if user is SuperAdmin
-  let isSuperAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
-  let isAdmin = $derived($currentUser?.primarySection === 'Admin' || isSuperAdmin);
+  let isAdmin = $derived(
+    $currentUser?.role === 'RD' || 
+    $currentUser?.role === 'Boss' || 
+    $currentUser?.role === 'HeadOfProduction'
+  );
+  let isSuperAdmin = $derived($currentUser?.role === 'RD' || $currentUser?.role === 'Boss');
 
-  // SVELTE 5: Use onMount for one-time initialization
   onMount(() => {
     Promise.all([
       loadDeliveryPresets(),
       loadProfilePresets()
     ]);
 
-    // Set default deadline to 2 weeks from now
     const date = new Date();
     date.setDate(date.getDate() + 14);
     deadline = date.toISOString().split('T')[0];
@@ -361,15 +389,21 @@
 
   function selectPreset(preset: DeliveryPreset) {
     selectedPresetId = preset.id;
-    clientName = preset.clientName;
-    deliveryAddress = [
-      preset.addressLine1,
-      preset.addressLine2,
-      `${preset.city}${preset.postalCode ? ', ' + preset.postalCode : ''}`,
-      preset.country
-    ].filter(Boolean).join('\n');
-    deliveryContact = preset.contactPerson || '';
-    deliveryPhone = preset.contactPhone || '';
+    clientName = preset.clientName || preset.name || '';
+    
+    if (preset.address) {
+      deliveryAddress = preset.address;
+    } else {
+      deliveryAddress = [
+        preset.addressLine1,
+        preset.addressLine2,
+        preset.city ? `${preset.city}${preset.postalCode ? ', ' + preset.postalCode : ''}` : '',
+        preset.country
+      ].filter(Boolean).join('\n');
+    }
+    
+    deliveryContact = preset.contactPerson || preset.contact || '';
+    deliveryPhone = preset.contactPhone || preset.phone || '';
     useManualAddress = false;
     showPresetDropdown = false;
   }
@@ -379,12 +413,12 @@
     useManualAddress = true;
   }
 
-  // Group presets by client
   let groupedPresets = $derived(deliveryPresets.reduce((acc, preset) => {
-    if (!acc[preset.clientName]) {
-      acc[preset.clientName] = [];
+    const ClientName = preset.clientName || preset.name || 'Unknown';
+    if (!acc[ClientName]) {
+      acc[ClientName] = [];
     }
-    acc[preset.clientName].push(preset);
+    acc[ClientName].push(preset);
     return acc;
   }, {} as Record<string, DeliveryPreset[]>));
 
@@ -393,7 +427,8 @@
       id: createId(),
       quantity: 1,
       configuration: JSON.parse(JSON.stringify(defaultConfiguration)),
-      collapsed: false
+      collapsed: false,
+      profileTemplateId: null
     };
     profiles = [...profiles, newProfile];
   }
@@ -417,14 +452,14 @@
         id: createId(),
         quantity: sourceProfile.quantity,
         configuration: JSON.parse(JSON.stringify(sourceProfile.configuration)),
-        collapsed: false
+        collapsed: false,
+        profileTemplateId: sourceProfile.profileTemplateId ?? null
       };
       newProfile.configuration.profileName = `${sourceProfile.configuration.profileName} (Copy)`;
       profiles = [...profiles, newProfile];
     }
   }
 
-  // File handling with preview
   function getFileType(file: File): 'pdf' | 'cdr' | 'image' | 'other' {
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (ext === 'pdf') return 'pdf';
@@ -509,27 +544,47 @@
   }
 
   async function saveOrder() {
-    if (!clientName.trim()) {
-      error = $t('orders.new.messages.validation.client');
-      return;
-    }
+    error = '';
+    fieldErrors = {};
+
+    // Validate files requirement first (not part of the zod schema).
     if (uploadedFiles.length === 0) {
-      error = $t('orders.new.messages.validation.files');
-      return;
+      fieldErrors = { ...fieldErrors, files: $t('orders.new.messages.validation.files') };
     }
-    if (!deliveryAddress.trim() && !selectedPresetId) {
-      error = $t('orders.new.messages.validation.address');
+
+    // Validate the rest of the form with the shared schema ("ali points").
+    const { ok, errors } = validateOrderForm({
+      clientName,
+      deadline,
+      loadingDate,
+      priority,
+      deliveryAddress,
+      deliveryContact,
+      deliveryPhone,
+      notes,
+      hasFiles: uploadedFiles.length > 0,
+      selectedPresetId,
+      profiles: profiles.map((p) => ({
+        profileTemplateId: p.profileTemplateId ?? null,
+        quantity: p.quantity,
+        configuration: p.configuration
+      }))
+    });
+
+    if (!ok) {
+      fieldErrors = { ...fieldErrors, ...errors };
+    }
+
+    // If any validation failed, surface the first message as the banner error.
+    if (Object.keys(fieldErrors).length > 0) {
+      error = $t('orders.new.messages.validation.summary') || 'Please fix the highlighted fields.';
       return;
     }
 
     saving = true;
-    error = '';
     successMessage = '';
 
     try {
-      // PO is no longer assigned at draft creation. Boss inputs a
-      // pre-generated PO at the confirmation step. Drafts route through
-      // PENDING_REVIEW so HoP sees them in the review queue.
       const orderData = {
         clientName,
         deadline,
@@ -542,7 +597,7 @@
         deliveryContact,
         deliveryPhone,
         profiles: profiles.map(p => ({
-          profileCode: 'P7st',
+          profileTemplateId: p.profileTemplateId ?? null,
           quantity: p.quantity,
           configuration: p.configuration
         }))
@@ -562,14 +617,18 @@
       }
 
       const orderResult = await orderResponse.json();
-      const newOrderId = orderResult.order.id;
+      const newOrderId = orderResult.order?.id || orderResult.id;
+      if (!newOrderId) {
+        error = 'Failed to get order ID from response';
+        saving = false;
+        return;
+      }
 
-      // 2. Upload the Files linked to the new Order ID
-      const fileIds: number[] = [];
+      const fileIds: string[] = [];
       for (const fileItem of uploadedFiles) {
         const formData = new FormData();
         formData.append('file', fileItem.file);
-        formData.append('order_id', newOrderId); // Ensure backend recognizes the file's parent object
+        formData.append('order_id', String(newOrderId));
         formData.append('file_type', 'sketch');
         
         const uploadResponse = await fetch('/api/files/upload', {
@@ -580,7 +639,7 @@
         if (uploadResponse.ok) {
           const uploadResult = await uploadResponse.json();
           if (uploadResult.file?.id) {
-            fileIds.push(uploadResult.file.id);
+            fileIds.push(String(uploadResult.file.id));
           }
         } else {
           console.warn('Failed to upload file:', fileItem.file.name);
@@ -605,7 +664,10 @@
 </script>
 
 <svelte:head>
-  <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <!-- PDF.js loaded locally via runes import to avoid external CDN dependency -->
+  <script lang="ts">
+    // This script block will be replaced with dynamic import on client
+  </script>
 </svelte:head>
 
 <div class="page-container">
@@ -886,7 +948,8 @@
       </div>
       <div class="form-group">
         <label for="clientName">{$t('orders.new.details.client')} <span class="required">*</span></label>
-        <input type="text" id="clientName" bind:value={clientName} placeholder={$t('orders.new.details.client_placeholder')} />
+        <input type="text" id="clientName" bind:value={clientName} placeholder={$t('orders.new.details.client_placeholder')} class:invalid={fieldErrors.clientName} />
+        {#if fieldErrors.clientName}<p class="field-error">{fieldErrors.clientName}</p>{/if}
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -894,7 +957,8 @@
             <Icon name="calendar" size="xs" />
             {$t('orders.new.details.deadline')}
           </label>
-          <input type="date" id="deadline" bind:value={deadline} />
+          <input type="date" id="deadline" bind:value={deadline} class:invalid={fieldErrors.deadline} />
+          {#if fieldErrors.deadline}<p class="field-error">{fieldErrors.deadline}</p>{/if}
         </div>
         <div class="form-group">
           <label for="loadingDate">
@@ -975,6 +1039,7 @@
             placeholder={$t('orders.new.delivery.address_placeholder')}
             disabled={!useManualAddress && selectedPresetId !== null}
           ></textarea>
+          {#if fieldErrors.deliveryAddress}<p class="field-error">{fieldErrors.deliveryAddress}</p>{/if}
         </div>
 
         <div class="form-row">
@@ -990,6 +1055,7 @@
               placeholder={$t('orders.new.delivery.contact')}
               disabled={!useManualAddress && selectedPresetId !== null}
             />
+            {#if fieldErrors.deliveryContact}<p class="field-error">{fieldErrors.deliveryContact}</p>{/if}
           </div>
           <div class="form-group">
             <label for="deliveryPhone">
@@ -1001,8 +1067,10 @@
               id="deliveryPhone" 
               bind:value={deliveryPhone} 
               placeholder="+371..."
+              class:invalid={fieldErrors.deliveryPhone}
               disabled={!useManualAddress && selectedPresetId !== null}
             />
+            {#if fieldErrors.deliveryPhone}<p class="field-error">{fieldErrors.deliveryPhone}</p>{/if}
           </div>
         </div>
       </section>
@@ -1404,6 +1472,18 @@
 
   .required {
     color: var(--error);
+  }
+
+  .field-error {
+    color: var(--error);
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  input.invalid,
+  textarea.invalid {
+    border-color: var(--error);
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--error) 25%, transparent);
   }
 
   .help-text {

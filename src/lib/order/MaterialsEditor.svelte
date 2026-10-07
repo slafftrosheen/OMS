@@ -64,7 +64,7 @@
     rows = items.map((item) => ({ ...item }));
   }
 
-  let isAdmin = $derived($role === 'Admin');
+  let isAdmin = $derived(['RD', 'Boss', 'HeadOfProduction'].includes($role));
 </script>
 
 <div class="card">

@@ -137,8 +137,12 @@
   let totalPages = $derived(Math.max(1, Math.ceil((visible?.length || 0) / itemsPerPage)));
   let paginatedRows = $derived((visible || []).slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage));
 
-  let isSuperAdmin = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
-  let isAdmin = $derived($currentUser?.primarySection === 'Admin' || isSuperAdmin);
+  let isAdmin = $derived(
+    $currentUser?.role === 'RD' || 
+    $currentUser?.role === 'Boss' || 
+    $currentUser?.role === 'HeadOfProduction'
+  );
+  let isSuperAdmin = $derived($currentUser?.role === 'RD' || $currentUser?.role === 'Boss');
   
   let totalOrders = $derived(rows?.length || 0);
   let draftOrders = $derived((rows || []).filter(r => r?.isDraft).length);

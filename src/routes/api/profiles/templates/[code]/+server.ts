@@ -1,5 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { requireAdmin } from '$lib/server/api/helpers';
 
 /**
  * GET /api/profiles/templates/[code]
@@ -40,11 +41,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 export const PUT: RequestHandler = async ({ params, request, locals }) => {
   const { code } = params;
   const data = await request.json();
-  const user = locals.user;
-
-  if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
-    throw error(403, 'Admin access required');
-  }
+  const user = requireAdmin(locals);
 
   // Check if exists
   const { data: template } = await locals.supabase.from('profile_templates').select('id').eq('code', code).single();
@@ -106,11 +103,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
  */
 export const DELETE: RequestHandler = async ({ params, locals }) => {
   const { code } = params;
-  const user = locals.user;
-  
-  if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
-    throw error(403, 'Admin access required');
-  }
+  requireAdmin(locals);
 
   const { error: err } = await locals.supabase.from('profile_templates').delete().eq('code', code);
   if (err) throw error(500, 'Failed to delete template');

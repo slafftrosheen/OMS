@@ -11,6 +11,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { z } from 'zod';
+import { isAdminRole } from '$lib/server/auth/session';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -40,10 +41,9 @@ export function requireAdmin(locals: AuthLocals) {
     const user = requireAuth(locals);
     const roles = user.roles ?? {};
     const role = user.role ?? '';
-    
-    // Check both JSONB roles.Admin and singular role column, case-insensitively
     const adminRoleValue = roles.Admin || roles.admin;
     const isAdmin = 
+        isAdminRole(role) ||
         adminRoleValue === 'Admin' || 
         adminRoleValue === 'SuperAdmin' || 
         adminRoleValue === 'admin' ||

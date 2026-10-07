@@ -68,6 +68,9 @@ const aliasPlugin = {
     build.onResolve({ filter: /^\$env\/dynamic\/private$/ }, () => ({
       path: join(root, 'tests/mocks/env.js'),
     }));
+    build.onResolve({ filter: /^\$env\/dynamic\/public$/ }, () => ({
+      path: join(root, 'tests/mocks/env-dynamic-public.ts'),
+    }));
     build.onResolve({ filter: /^\.\/?\$app\// }, async (args) => ({
       path: await resolveWithExtensions(join(root, 'src/app', args.path.replace(/^\.\/?\$app\//, ''))),
       namespace: 'file'
@@ -98,6 +101,14 @@ async function loadTests(files) {
       platform: 'node',
       target: 'es2022',
       sourcemap: 'inline',
+      // The lightweight runner uses esbuild rather than the Svelte compiler.
+      // Provide enough rune semantics for .svelte.ts stores imported by unit
+      // tests; component tests still belong in the browser test suite.
+      banner: {
+        js: `globalThis.$state ??= (value) => value;
+globalThis.$derived ??= Object.assign((value) => value, { by: (fn) => fn() });
+globalThis.$effect ??= (fn) => fn();`
+      },
       plugins: [aliasPlugin]
     });
     const output = result.outputFiles?.[0]?.text ?? '';

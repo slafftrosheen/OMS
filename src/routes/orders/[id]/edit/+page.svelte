@@ -13,6 +13,9 @@
   import { currentUser } from '$lib/auth/authState.svelte';
   import { notifySuccess, notifyError } from '$lib/notify/toast';
   import ChangeRequestList from '$lib/order/ChangeRequestList.svelte';
+import { notifications } from '$lib/notify/store';
+import { can, normaliseStatus, ORDER_STATUS_LABELS } from '$lib/auth/permission-utils';
+import type { OrderStatus } from '$lib/auth/permission-utils';
 
   let { data } = $props();
 
@@ -25,7 +28,7 @@
   let loadingDate = $state('');
   let notes = $state('');
   let priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' = $state('NORMAL');
-  let status = $state('draft');
+  let status = $state<OrderStatus>('draft');
   let deliveryAddress = $state('');
   let deliveryContact = $state('');
   let deliveryPhone = $state('');

@@ -17,7 +17,7 @@
       <h1>{$t('admin_dash.title')}</h1>
       <p class="subtitle">
         {user.displayName}
-        <span class="role-badge">{user.roles.Admin}</span>
+        <span class="role-badge">{user.role}</span>
       </p>
     </header>
 
@@ -25,13 +25,13 @@
       <div class="card">
         <h2>{$t('admin_dash.quick_actions')}</h2>
         <div class="actions">
-          {#if can(user, 'Admin', 'createOrder')}
+          {#if can(user, 'createDraftOrder')}
             <a href="{base}/orders" class="action-btn">{$t('admin_dash.create_order')}</a>
           {/if}
-          {#if can(user, 'Admin', 'editInventory')}
+          {#if can(user, 'manageKnowledge')}
             <a href="{base}/inventory" class="action-btn">{$t('admin_dash.manage_inventory')}</a>
           {/if}
-          {#if can(user, 'Admin', 'approveChange')}
+          {#if can(user, 'reviewQueue')}
             <a href="{base}/orders" class="action-btn">{$t('admin_dash.approve_changes')}</a>
           {/if}
         </div>
@@ -51,7 +51,7 @@
       <div class="card">
         <h2>{$t('admin_dash.your_sections')}</h2>
         <div class="section-list">
-          {#each user.sections as section}
+          {#each user.sections ?? [] as section}
             <a href="{base}/{section.toLowerCase()}/dashboard" class="section-link">
               {section}
             </a>

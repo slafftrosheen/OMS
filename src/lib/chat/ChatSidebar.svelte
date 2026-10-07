@@ -138,7 +138,7 @@
   function authorStation(id: string): StationTag | null {
     if (id === 'system') return null;
     const user = $users.find(u => String(u.id) === String(id));
-    return user?.stations?.[0] ?? null;
+    return (user?.stations?.[0]?.stationId as StationTag | undefined) ?? null;
   }
 
   function shouldShowDateSeparator(index: number): boolean {

@@ -69,7 +69,9 @@
   }));
 
   let canManageUsers = $derived(
-    $currentUser?.role === 'RD' || $currentUser?.role === 'Boss'
+    $currentUser?.role === 'RD' || 
+    $currentUser?.role === 'Boss' || 
+    $currentUser?.role === 'HeadOfProduction'
   );
 
   onMount(async () => {
@@ -91,9 +93,10 @@
           avatarUrl: u.avatarUrl ?? u.avatar_url,
           role: u.role ?? 'Operator',
           stations: Array.isArray(u.stations)
-            ? u.stations.map((s: any) =>
-                typeof s === 'string' ? { stationId: s as StationId, isHead: false } : s
-              )
+            ? u.stations.map((s: any) => ({
+                stationId: s.stationId as StationId,
+                isHead: !!s.isHead
+              }))
             : [],
           isActive: u.isActive ?? u.is_active ?? true,
           lastLoginAt: u.lastLoginAt ?? u.last_login_at,
@@ -430,7 +433,7 @@
                   <div class="stations-list">
                     {#each user.stations.slice(0, 2) as s}
                       <span class="station-tag" class:head={s.isHead}>
-                        {STATION_LABELS[s.stationId] ?? s.stationId}{s.isHead ? ' ★' : ''}
+                        {STATION_LABELS[s.stationId] ?? s.stationId.toUpperCase()}{s.isHead ? ' ★' : ''}
                       </span>
                     {/each}
                     {#if user.stations.length > 2}
@@ -568,7 +571,7 @@
           </div>
 
           <div class="form-group">
-            <label for="user-role">{$t('adminUsers.role')}</label>
+            <label for="user-role">{$t('roles.label')}</label>
             <select id="user-role" bind:value={formData.role}>
               {#each ALL_ROLES as r}
                 <option value={r}>{ROLE_LABELS[r]}</option>
@@ -590,7 +593,7 @@
                       checked={assigned}
                       onchange={() => toggleStation(sid)}
                     />
-                    {STATION_LABELS[sid]}
+                    {STATION_LABELS[sid] || sid.toUpperCase()}
                   </label>
                   {#if assigned && formData.role === 'StationHead'}
                     <label class="checkbox-item head-toggle" title={$t('adminUsers.station_head_title')}>
@@ -599,7 +602,8 @@
                         checked={isHead}
                         onchange={() => toggleStationHead(sid)}
                       />
-                      ★ {$t('adminUsers.head_short', { default: 'Head' })}</label>
+                      ★
+                    </label>
                   {/if}
                 </div>
               {/each}

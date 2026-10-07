@@ -195,7 +195,7 @@
     refreshInterval = setInterval(loadStationOrders, 30000);
 
     // Ensure this station's chat room exists and load its messages
-    await ensureRoom({ id: stationRoomId, name: station, kind: 'station', station: page.params.station.toLowerCase() });
+    await ensureRoom({ id: stationRoomId, name: station });
     await loadMessages(stationRoomId);
   });
 

@@ -1,17 +1,14 @@
 // src/routes/api/profiles/templates/import/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { requireAdmin } from '$lib/server/api/helpers';
 
 /**
  * POST /api/profiles/templates/import
  * Import template from JSON
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
-  const user = locals.user;
-  
-  if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
-    throw error(403, 'Admin access required');
-  }
+  const user = requireAdmin(locals);
 
   try {
     const { template: importData, overwrite } = await request.json();

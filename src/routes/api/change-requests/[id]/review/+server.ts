@@ -6,22 +6,11 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabase } from '$lib/server/supabase';
+import { requireAdmin } from '$lib/server/api/helpers';
 
 // POST /api/change-requests/[id]/review - Approve/Reject CR
 export const POST: RequestHandler = async ({ params, request, locals }) => {
-  const user = locals.user;
-  if (!user) throw error(401, 'Unauthorized');
-
-  // Check if user is admin
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('role')
-    .eq('user_id', user.id)
-    .single();
-
-  if (profile?.role !== 'admin') {
-    throw error(403, 'Only admins can review change requests');
-  }
+  requireAdmin(locals);
 
   const body = await request.json();
   const { status, comment } = body;

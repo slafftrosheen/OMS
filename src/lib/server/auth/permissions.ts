@@ -68,8 +68,8 @@ export async function requireRole(
 
   if (isAdmin(currentUser)) return true;
 
-  // Check if any section has the required role
-  const hasRole = Object.values(currentUser.roles).includes(requiredRole);
+  const hasRole = currentUser.role === requiredRole ||
+    Object.values(currentUser.roles ?? {}).includes(requiredRole);
 
   if (!hasRole) {
     throw error(403, `Access denied: Role '${requiredRole}' required`);
@@ -95,7 +95,8 @@ export async function requireAnyRole(
 
   if (isAdmin(currentUser)) return true;
 
-  const hasAnyRole = Object.values(currentUser.roles).some(role => allowedRoles.includes(role));
+  const hasAnyRole = allowedRoles.includes(currentUser.role) ||
+    Object.values(currentUser.roles ?? {}).some(role => allowedRoles.includes(role));
 
   if (!hasAnyRole) {
     throw error(403, `Access denied: One of [${allowedRoles.join(', ')}] role required`);

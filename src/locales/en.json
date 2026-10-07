@@ -158,7 +158,8 @@
           "client": "Client name is required",
           "po": "PO number is required",
           "files": "Upload at least one file (CDR or PDF)",
-          "address": "Select or enter a delivery address"
+          "address": "Select or enter a delivery address",
+          "summary": "Please fix the highlighted fields before saving."
         }
       }
     }
@@ -1511,7 +1512,9 @@
       "sat": "Sat"
     },
     "remove_from_schedule": "Remove from schedule",
-    "any_special": "Any special instructions…"
+    "any_special": "Any special instructions…",
+    "loading_days_loading": "Loading loading days…",
+    "no_loading_days": "No loading days configured."
   },
   "adminUsers": {
     "role": "Role",

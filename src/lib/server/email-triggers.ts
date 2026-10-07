@@ -117,19 +117,21 @@ export class EmailTriggers {
       };
 
       // Send to all managers/admins
+      // NOTE: the real table is `profiles` (PK = auth user id), with a `role`
+      // text column. `user_profiles` does not exist.
       const { data: managers } = await supabase
-        .from('user_profiles')
-        .select('user_id, user:auth.users(email)')
+        .from('profiles')
+        .select('id, email')
         .in('role', ['admin', 'manager']);
 
       if (managers) {
-        type ManagerRow = { user_id?: string; user?: { email?: string | null } | Array<{ email?: string | null }> };
+        type ManagerRow = { id?: string; email?: string | null };
         for (const m of managers as unknown as ManagerRow[]) {
-          const email = Array.isArray(m.user) ? m.user[0]?.email : m.user?.email;
+          const email = m.email;
           if (!email) continue;
           await supabase.rpc('queue_email', {
             p_recipient_email: email,
-            p_recipient_user_id: m.user_id,
+            p_recipient_user_id: m.id,
             p_template_key: 'loading_day_full',
             p_variables: variables,
             p_priority: 'high'

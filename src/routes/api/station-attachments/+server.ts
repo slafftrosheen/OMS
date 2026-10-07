@@ -6,7 +6,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { supabase } from '$lib/server/supabase';
-import sharp from 'sharp'; // For image processing
 import { v4 as uuidv4 } from 'uuid';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -130,6 +129,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     // Process images
     if (file.type.startsWith('image/')) {
+      // Lazy-load sharp at runtime (dynamic import) so the native module is
+      // resolved by Node, not bundled by adapter-node — avoids the
+      // "Could not dynamically require sharp-linux-arm64.node" build error.
+      const sharp = (await import('sharp')).default;
       const image = sharp(fileBuffer);
       const metadata = await image.metadata();
       width = metadata.width || null;

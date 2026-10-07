@@ -3,15 +3,18 @@
   import PasswordChange from '$lib/auth/PasswordChange.svelte';
   import { t, locale } from 'svelte-i18n';
   import { setLocale, locales } from '$lib/i18n';
+  import { getContext } from 'svelte';
+  import { logout, type AuthState } from '$lib/auth/authState.svelte';
+  import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
+  import Icon from '$lib/ui/Icon.svelte';
   import Sun from 'lucide-svelte/icons/sun';
   import Moon from 'lucide-svelte/icons/moon';
   import Contrast from 'lucide-svelte/icons/contrast';
   import Type from 'lucide-svelte/icons/type';
-  import Rows3 from 'lucide-svelte/icons/rows-3';
   import Languages from 'lucide-svelte/icons/languages';
   import Palette from 'lucide-svelte/icons/palette';
   import Shield from 'lucide-svelte/icons/shield';
-  import Bell from 'lucide-svelte/icons/bell';
   import Plug from 'lucide-svelte/icons/plug';
 
   type Theme = 'LightVim' | 'DarkVim' | 'HighContrastVim';
@@ -46,6 +49,13 @@
     { value: 1.1, label: 'L' },
     { value: 1.2, label: 'XL' }
   ];
+
+  const authState = getContext<AuthState>('authState');
+
+  async function handleLogout() {
+    if (authState) await logout(authState);
+    goto(`${base}/login`);
+  }
 
   function setTheme(theme: Theme) {
     ui.update(p => ({ ...p, theme }));
@@ -206,10 +216,33 @@
         </div>
       </div>
     </section>
+
+    <!-- Session Section -->
+    <section class="settings-section danger-zone">
+      <div class="section-header">
+        <Icon name="log-out" size={20} />
+        <h2>Session</h2>
+      </div>
+      <p class="muted">Exit the application and clear your session.</p>
+      <button class="rf-btn btn-danger" onclick={handleLogout}>
+        Sign Out
+      </button>
+    </section>
   </div>
 </div>
 
 <style>
+  .danger-zone {
+    border-color: color-mix(in oklab, var(--error) 30%, var(--border));
+  }
+  .btn-danger {
+    background: var(--error);
+    box-shadow: 0 4px 14px color-mix(in oklab, var(--error) 30%, transparent);
+  }
+  .btn-danger:hover {
+    box-shadow: 0 6px 20px color-mix(in oklab, var(--error) 42%, transparent);
+  }
+
 .settings-page {
   max-width: 900px;
   margin: 0 auto;

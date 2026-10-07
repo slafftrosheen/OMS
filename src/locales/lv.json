@@ -158,7 +158,8 @@
           "client": "Klienta vārds ir obligāts",
           "po": "PO numurs ir obligāts",
           "files": "Augšupielādējiet vismaz vienu failu (CDR vai PDF)",
-          "address": "Izvēlieties vai ievadiet piegādes adresi"
+          "address": "Izvēlieties vai ievadiet piegādes adresi",
+          "summary": "Labdiena izcelto lauku pirms saglabāšanas."
         }
       }
     }
@@ -1511,7 +1512,9 @@
       "sat": "Se"
     },
     "remove_from_schedule": "Izņemt no grafika",
-    "any_special": "Īpašas norādes…"
+    "any_special": "Īpašas norādes…",
+    "loading_days_loading": "Ielādē ielādes dienas…",
+    "no_loading_days": "Ielādes dienas nav konfigurētas."
   },
   "adminUsers": {
     "role": "Loma",

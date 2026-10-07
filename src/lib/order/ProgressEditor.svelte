@@ -66,7 +66,7 @@ import { t } from 'svelte-i18n';
 
   const sliderId = (station: string) => `progress-${station.toLowerCase()}`;
 
-  let isAdmin = $derived($role === 'Admin');
+  let isAdmin = $derived(['RD', 'Boss', 'HeadOfProduction'].includes($role));
 </script>
 
 <div class="card">

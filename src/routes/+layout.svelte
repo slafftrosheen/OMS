@@ -24,7 +24,7 @@
   import { ui } from '$lib/state/appState.svelte';
   import { setLocale } from '$lib/i18n';
   import Icon from '$lib/ui/Icon.svelte';
-  import { AuthState, currentUser, loadCurrentUser } from '$lib/auth/authState.svelte';
+  import { AuthState, currentUser, loadCurrentUser, logout } from '$lib/auth/authState.svelte';
   import { initChatRealtime } from '$lib/chat/chat-store';
   import { websocket } from '$lib/stores/websocket';
   import { OrderState } from '$lib/order/orderState.svelte';
@@ -51,7 +51,11 @@
   const INSTALL_PROMPT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
   let isPublicRoute = $derived(publicRoutes.some(r => page.url.pathname === `${base}${r}` || page.url.pathname === r));
-  let isAdmin       = $derived($currentUser?.roles?.Admin === 'SuperAdmin');
+  let isAdmin = $derived(
+    $currentUser?.role === 'RD' || 
+    $currentUser?.role === 'Boss' || 
+    $currentUser?.role === 'HeadOfProduction'
+  );
   let currentPath   = $derived(page.url.pathname);
 
   const themeColors: Record<string, string> = {
@@ -186,7 +190,7 @@
       if (target?.isContentEditable) return;
       const tag = target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      const adm = $role === 'Admin';
+      const adm = ['RD', 'Boss', 'HeadOfProduction'].includes($role);
       const key = e.key?.toLowerCase();
       if (!key) return;
       if (key === '?') { e.preventDefault(); showKb = !showKb; return; }
@@ -339,6 +343,16 @@
             <span>{$t('nav.materials', { default: 'Materials' })}</span>
           </a>
         {/if}
+
+        <hr class="rf-mobile-menu__divider" />
+        <a href="{base}/settings" class:active={currentPath.includes('/settings')} onclick={navTo}>
+          <Icon name="settings" size="md" />
+          <span>{$t('nav.settings', { default: 'Settings' })}</span>
+        </a>
+        <button class="rf-mobile-menu__btn rf-mobile-menu__btn--danger" onclick={async () => { navTo(); await logout(authStateInstance); goto(`${base}/login`); }}>
+          <Icon name="log-out" size="md" />
+          <span>Sign out</span>
+        </button>
       </nav>
     {/if}
   {/if}
@@ -606,7 +620,8 @@
   overflow-y: auto;
 }
 
-.rf-mobile-menu a {
+.rf-mobile-menu a,
+.rf-mobile-menu__btn {
   display: flex;
   align-items: center;
   gap: var(--space-md);
@@ -616,11 +631,17 @@
   color: var(--ink-secondary);
   font-size: var(--text-md);
   font-weight: 500;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
   transition:
     color      var(--motion-sm) var(--ease-standard),
     background var(--motion-sm) var(--ease-standard);
 }
-.rf-mobile-menu a:hover {
+.rf-mobile-menu a:hover,
+.rf-mobile-menu__btn:hover {
   color: var(--ink-primary);
   background: color-mix(in oklab, var(--bg-2) 70%, transparent);
 }
@@ -628,6 +649,14 @@
   color: var(--brand);
   background: var(--brand-soft);
   font-weight: 600;
+}
+
+.rf-mobile-menu__btn--danger {
+  color: var(--error);
+}
+.rf-mobile-menu__btn--danger:hover {
+  background: var(--error-soft);
+  color: var(--error);
 }
 
 .rf-mobile-menu__divider {

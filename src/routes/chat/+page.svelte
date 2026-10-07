@@ -2,7 +2,15 @@
   import { onMount, onDestroy } from 'svelte';
   import { t } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/authState.svelte';
-  import { rooms, messages, sendMessage, loadRooms, loadMessages, ensureRoom } from '$lib/chat/chat-store';
+  import { 
+    rooms, 
+    messages, 
+    sendMessage, 
+    loadRooms, 
+    loadMessages, 
+    ensureRoom,
+    initChatRealtime 
+  } from '$lib/chat/chat-store';
   import { users, loadUsers } from '$lib/users/user-store';
   import Icon from '$lib/ui/Icon.svelte';
   import MentionInput from '$lib/chat/MentionInput.svelte';
@@ -18,7 +26,7 @@
   let newRoomName = $state('');
   let searchQuery = $state('');
   let showMembers = $state(false);
-  let pollingInterval: ReturnType<typeof setInterval> | undefined = $state(undefined);
+  let cleanupRealtime: (() => void) | undefined = $state(undefined);
 
   let activeRoom = $derived($rooms.find((r: Room) => r.id === activeRoomId) || $rooms[0]);
   let roomMessages = $derived($messages.filter((m: any) => m.roomId === activeRoomId));
@@ -94,7 +102,7 @@
   function authorStation(id: string): StationTag | null {
     if (id === 'system') return null;
     const user = $users.find((u: any) => String((u as any).id) === String(id));
-    return (user as any)?.stations?.[0] ?? null;
+    return (user as any)?.stations?.[0]?.stationId ?? null;
   }
 
   function shouldShowDateSeparator(index: number): boolean {
@@ -113,13 +121,11 @@
     await loadMessages(activeRoomId);
     scrollToBottom();
 
-    pollingInterval = setInterval(() => {
-      loadMessages(activeRoomId);
-    }, 5000);
+    cleanupRealtime = initChatRealtime();
   });
 
   onDestroy(() => {
-    if (pollingInterval) clearInterval(pollingInterval);
+    if (cleanupRealtime) cleanupRealtime();
   });
 </script>
 

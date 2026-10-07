@@ -1,6 +1,8 @@
 // src/routes/api/profiles/templates/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { isAdminRole } from '$lib/server/auth/session';
+import { requireAdmin } from '$lib/server/api/helpers';
 
 /**
  * GET /api/profiles/templates
@@ -28,9 +30,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       .select('*, created_by_name:created_by(username), updated_by_name:updated_by(username)', { count: 'exact' });
 
     if (activeOnly) {
-        // If user is not admin, only show active.
-        // Need to check roles. Using existing logic (Admin/SuperAdmin can see inactive)
-        const isAdmin = user && (user.roles?.Admin === 'Admin' || user.roles?.Admin === 'SuperAdmin');
+        const isAdmin = isAdminRole(user?.role);
         if (!isAdmin) {
              query = query.eq('is_active', true);
         }
@@ -130,11 +130,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
  * Create new profile template with sections and fields
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
-  const user = locals.user;
-  
-  if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
-    throw error(403, 'Admin access required');
-  }
+  const user = requireAdmin(locals);
 
   try {
     const template = await request.json();

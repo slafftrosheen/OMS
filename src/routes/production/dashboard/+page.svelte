@@ -96,13 +96,13 @@
     <div class="card">
       <h2>{$t('production_dash.quick_actions', { default: 'Quick Actions' })}</h2>
       <div class="actions">
-        {#if !user || can(user, 'Production', 'viewOrders')}
+        {#if !user || can(user, 'Production')}
           <a href="{base}/orders" class="action-btn">
             <Icon name="clipboard-list" size="sm" />
             {$t('production_dash.view_orders', { default: 'View Orders' })}
           </a>
         {/if}
-        {#if !user || can(user, 'Production', 'updateOrder')}
+        {#if !user || can(user, 'Production')}
           <a href="{base}/kanban" class="action-btn">
             <Icon name="kanban" size="sm" />
             {$t('production_dash.production_board', { default: 'Production Board' })}

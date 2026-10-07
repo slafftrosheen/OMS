@@ -1,17 +1,14 @@
 // src/routes/api/profiles/templates/[code]/export/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { requireAdmin } from '$lib/server/api/helpers';
 
 /**
  * GET /api/profiles/templates/:code/export
  * Export template as JSON
  */
 export const GET: RequestHandler = async ({ params, url, locals }) => {
-  const user = locals.user;
-  
-  if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
-    throw error(403, 'Admin access required');
-  }
+  requireAdmin(locals);
 
   const { code } = params;
   const includeVersions = url.searchParams.get('versions') === 'true';
@@ -58,7 +55,7 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
       metadata: template.metadata,
       sections: template.sections,
       exported_at: new Date().toISOString(),
-      exported_by: user.username
+      exported_by: locals.user?.username ?? 'system'
     };
 
     if (includeVersions) {

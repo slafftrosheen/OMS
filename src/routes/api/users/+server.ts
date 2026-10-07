@@ -51,15 +51,11 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
   let query = locals.supabase
     .from('profiles')
-    .select('*')
+    .select('*, user_stations(*)')
     .order('display_name', { ascending: true });
 
   if (activeOnly) {
     query = query.eq('is_active', true);
-  }
-
-  if (section) {
-    query = query.contains('sections', [section]);
   }
 
   const { data, error } = await query;
@@ -74,10 +70,11 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     username: row.username,
     name: row.display_name,
     displayName: row.display_name,
-    primarySection: row.primary_section,
-    sections: row.sections,
-    roles: row.roles,
-    stations: row.stations || [],
+    role: row.role,
+    stations: row.user_stations?.map((us: any) => ({
+        stationId: us.station_id,
+        isHead: us.is_head
+    })) || [],
     isActive: row.is_active,
     lastLoginAt: row.last_login_at
   }));
@@ -87,26 +84,6 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 /**
  * @description POST /api/users - Creates a new user. This can be called by admins or for self-registration.
- *
- * @param {Request} request - The SvelteKit `Request` object.
- * @param {object} locals - The SvelteKit `locals` object, containing user session data.
- *
- * @body {string} username - The new user's username.
- * @body {string} displayName - The new user's display name.
- * @body {string} password - The new user's password (must be at least 8 characters).
- * @body {string} [email] - The new user's email. If not provided, a placeholder will be generated.
- * @body {string} [primarySection='Production'] - The user's primary section (admin-only).
- * @body {string[]} [sections=['Production']] - A list of sections the user belongs to (admin-only).
- * @body {object} [roles] - The user's roles for each section (admin-only).
- * @body {string[]} [stations=[]] - A list of stations the user is assigned to (admin-only).
- *
- * @returns {Response} - A JSON response containing the newly created user object.
- *
- * @errors
- * - 400 Bad Request: If `username`, `displayName`, or `password` are missing or invalid.
- * - 403 Forbidden: If a non-admin user tries to assign roles, sections, or stations.
- * - 409 Conflict: If the username or email already exists.
- * - 500 Internal Server Error: If there is a failure during user creation.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
   const data = await request.json();
@@ -116,8 +93,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   const isAdminUser = currentUser && isAdmin(currentUser);
 
   // For non-admin users trying to set roles/sections/stations, reject the request
-  if (!isAdminUser && (data.roles || data.sections || data.stations || data.primarySection)) {
-    return json({ error: 'Non-admin users cannot assign roles, sections, or stations' }, { status: 403 });
+  if (!isAdminUser && (data.role || data.stations)) {
+    return json({ error: 'Non-admin users cannot assign roles or stations' }, { status: 403 });
   }
 
   const isSelfRegistration = !isAdminUser;
@@ -130,7 +107,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     return json({ error: 'Password required' }, { status: 400 });
   }
 
-  // Validate password strength: at least 8 chars with uppercase, lowercase, number, and special char
+  // Validate password strength
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
   if (!passwordRegex.test(data.password)) {
     return json({
@@ -143,7 +120,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   }
 
   try {
-    // Use Admin Client to create a user without affecting the current session.
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: data.email,
         password: data.password,
@@ -151,66 +127,48 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             username: data.username,
             full_name: data.displayName
         },
-        email_confirm: true // Auto-confirm the email address.
+        email_confirm: true
     });
 
-    if (authError) {
-        throw authError;
-    }
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('Failed to create user');
 
-    if (!authData.user) {
-        throw new Error('Failed to create user');
-    }
+    const profileData = {
+      id: authData.user.id,
+      username: data.username,
+      display_name: data.displayName,
+      role: isSelfRegistration ? 'Operator' : (data.role || 'Operator'),
+      is_active: true
+    };
 
-    // Determine roles and other attributes based on whether it's self-registration or admin creation
-    const profileData = isSelfRegistration
-      ? {  // Default values for self-registered users
-          id: authData.user.id,
-          username: data.username,
-          display_name: data.displayName,
-          primary_section: 'Production',  // Default for self-registered users
-          sections: ['Production'],       // Default for self-registered users
-          roles: { Production: 'Operator' }, // Limited default role for self-registered users
-          stations: [],
-          is_active: true
-        }
-      : {  // Values for admin-created users (can include elevated privileges)
-          id: authData.user.id,
-          username: data.username,
-          display_name: data.displayName,
-          primary_section: data.primarySection || 'Production',
-          sections: data.sections || ['Production'],
-          roles: data.roles || { Admin: 'Viewer', Production: 'Operator', Logistics: 'Viewer' },
-          stations: data.stations || [],
-          is_active: true
-        };
-
-    // Create the user profile
-    // Use supabaseAdmin to bypass RLS policies when creating profiles for new users
-    // Use upsert to handle potential duplicate attempts
     const { data: profile, error: profileError } = await supabaseAdmin
         .from('profiles')
-        .upsert(profileData, { onConflict: 'id' })  // Upsert on ID conflict
+        .upsert(profileData)
         .select()
         .single();
 
-    if (profileError) {
-        throw profileError;
+    if (profileError) throw profileError;
+
+    // Handle station assignments
+    if (data.stations && Array.isArray(data.stations)) {
+        const stationRecords = data.stations.map((s: any) => ({
+            user_id: profile.id,
+            station_id: s.stationId,
+            is_head: s.isHead
+        }));
+        if (stationRecords.length > 0) {
+            await supabaseAdmin.from('user_stations').insert(stationRecords);
+        }
     }
 
-    // Create a default set of preferences for the new user.
-    // Use supabaseAdmin to bypass RLS policies when creating preferences for new users
-    // Use upsert to handle potential duplicate attempts
-    await supabaseAdmin.from('user_preferences').upsert({ user_id: authData.user.id }, { onConflict: 'user_id' });
+    await supabaseAdmin.from('user_preferences').upsert({ user_id: authData.user.id });
 
     return json({
       id: profile.id,
       username: profile.username,
       displayName: profile.display_name,
-      primarySection: profile.primary_section,
-      sections: profile.sections,
-      roles: profile.roles,
-      stations: profile.stations || []
+      role: profile.role,
+      stations: data.stations || []
     }, { status: 201 });
 
   } catch (err: any) {

@@ -192,7 +192,7 @@ export class AuditService {
       const supabase = createSupabaseClient(event);
 
       let query = supabase
-        .from('audit_logs')
+        .from('audit_log')
         .select('*', { count: 'exact' })
         .order('created_at', { ascending: false });
 
@@ -424,13 +424,13 @@ export class AuditService {
           .eq('resolved', false),
 
         supabase
-          .from('audit_logs')
+          .from('audit_log')
           .select(`
             action,
             resource_type,
             status,
             created_at,
-            user:user_profiles!inner(email)
+            user:profiles!inner(email)
           `)
           .gte('created_at', thirtyDaysAgo.toISOString())
           .order('created_at', { ascending: false })

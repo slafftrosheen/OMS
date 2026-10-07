@@ -1,14 +1,11 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { requireAdmin } from '$lib/server/api/helpers';
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
   const { code } = params;
   const { version } = await request.json();
-  const user = locals.user;
-
-  if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
-    throw error(403, 'Admin access required');
-  }
+  const user = requireAdmin(locals);
 
   // Get template ID
   const { data: template } = await locals.supabase.from('profile_templates').select('id').eq('code', code).single();

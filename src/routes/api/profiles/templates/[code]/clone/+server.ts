@@ -1,14 +1,11 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { requireAdmin } from '$lib/server/api/helpers';
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
   const { code } = params;
   const { newCode, newName } = await request.json();
-  const user = locals.user;
-
-  if (!user || (user.roles?.Admin !== 'Admin' && user.roles?.Admin !== 'SuperAdmin')) {
-    throw error(403, 'Admin access required');
-  }
+  const user = requireAdmin(locals);
 
   // Fetch original
   const { data: original, error: fetchErr } = await locals.supabase

@@ -31,7 +31,7 @@
     onComplete = async (
       _items: Array<{ item_id: string; quantity: number }>,
       _opts: { skipped: boolean; skipReason: string | null },
-    ) => ({ ok: false }) as Promise<{ ok: boolean; consumed?: number; lowStock?: any[]; error?: string }>,
+    ) => Promise.resolve({ ok: false }) as Promise<{ ok: boolean; consumed?: number; lowStock?: any[]; error?: string }>,
   }: {
     open: boolean;
     orderRef: string;

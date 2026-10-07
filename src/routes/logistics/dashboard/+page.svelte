@@ -97,13 +97,13 @@
     <div class="card">
       <h2>{$t('logistics_dash.quick_actions', { default: 'Quick Actions' })}</h2>
       <div class="actions">
-        {#if !user || can(user, 'Logistics', 'viewCalendar')}
+        {#if !user || can(user, 'Logistics')}
           <a href="{base}/calendar" class="action-btn">
             <Icon name="calendar" size="sm" />
             {$t('logistics_dash.view_calendar', { default: 'Delivery Calendar' })}
           </a>
         {/if}
-        {#if !user || can(user, 'Logistics', 'exportManifest')}
+        {#if !user || can(user, 'Logistics')}
           <a href="{base}/inventory" class="action-btn">
             <Icon name="package" size="sm" />
             {$t('logistics_dash.export_manifest', { default: 'Inventory & Manifests' })}

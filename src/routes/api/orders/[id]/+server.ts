@@ -1,5 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { requireAdmin } from '$lib/server/api/helpers';
 
 // GET: Fetch single order with all relations
 export const GET: RequestHandler = async ({ params, locals }) => {
@@ -166,29 +167,17 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
 // DELETE: Delete order (soft delete by setting status to cancelled)
 export const DELETE: RequestHandler = async ({ params, locals }) => {
-  const session = await locals.getSession();
-  if (!session) throw error(401, 'Unauthorized');
+  const user = requireAdmin(locals);
 
   const { supabase } = locals;
 
   try {
-    // Check if user is admin
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-
-    if (profile?.role !== 'admin') {
-      throw error(403, 'Only admins can delete orders');
-    }
-
     // Soft delete: set status to cancelled
     const { error: deleteError } = await supabase
       .from('orders')
       .update({
         status: 'cancelled',
-        updated_by: session.user.id
+        updated_by: user.id
       })
       .eq('id', params.id);
 

@@ -81,17 +81,13 @@
     display: none;
     align-items: center;
     justify-content: space-between;
-    padding:
-      0
-      max(var(--space-lg), env(safe-area-inset-right, 0px))
-      0
-      max(var(--space-lg), env(safe-area-inset-left, 0px));
+    padding: 0 max(var(--space-lg), env(safe-area-inset-right, 0px));
     background: var(--glass-bg-strong);
     backdrop-filter: var(--glass-material-regular);
     -webkit-backdrop-filter: var(--glass-material-regular);
     border-top: 1px solid var(--separator-opaque, var(--divider));
     box-shadow: var(--glass-border-highlight), 0 -4px 24px rgb(var(--shadow-rgb) / 0.06);
-    z-index: var(--z-docked);
+    z-index: 1100;
     animation: rf-fade-in var(--motion-md) var(--ease-standard) both;
   }
 

@@ -26,8 +26,8 @@
     class: extraClass = ''
   }: Props = $props();
 
-  type State = 'idle' | 'recording' | 'transcribing' | 'error';
-  let state = $state<State>('idle');
+  type VoiceState = 'idle' | 'recording' | 'transcribing' | 'error';
+  let state = $state<VoiceState>('idle');
   let level = $state(0);      // 0–1 normalized RMS for the level ring
   let errorMsg = $state('');
 

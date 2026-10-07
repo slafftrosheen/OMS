@@ -12,9 +12,11 @@ function buildUserPayload(profile: any, authUser: any) {
     else role = 'Operator';
   }
 
-  // Normalise stations: DB still has TEXT[] on profiles; new table is user_stations
-  const rawStations: any[] = profile?.stations ?? [];
-  const stations = rawStations.map((s: any) =>
+  // Use user_stations join if present, fallback to deprecated profile.stations
+  const stations = profile?.user_stations?.map((us: any) => ({
+    stationId: us.station_id,
+    isHead: us.is_head
+  })) || (profile?.stations || []).map((s: any) => 
     typeof s === 'string' ? { stationId: s, isHead: false } : s
   );
 
@@ -54,7 +56,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   const { data: profile } = await locals.supabase
     .from('profiles')
-    .select('*')
+    .select('*, user_stations(*)')
     .eq('id', data.user.id)
     .single();
 
@@ -70,12 +72,12 @@ export const DELETE: RequestHandler = async ({ locals }) => {
 
 /** GET /api/auth — get current session */
 export const GET: RequestHandler = async ({ locals }) => {
-  const session = await locals.getSession();
+  const { data: { session } } = await locals.supabase.auth.getSession();
   if (!session) return json({ user: null });
 
   const { data: profile } = await locals.supabase
     .from('profiles')
-    .select('*')
+    .select('*, user_stations(*)')
     .eq('id', session.user.id)
     .single();
 

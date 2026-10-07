@@ -46,7 +46,7 @@
     }
   });
 
-  let isAdmin = $derived($role === 'Admin');
+  let isAdmin = $derived(['RD', 'Boss', 'HeadOfProduction'].includes($role));
 
   function optionsFor(station: StationTag): StageState[] {
     const current = value?.[station] ?? DEFAULT_STATE;

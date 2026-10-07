@@ -31,7 +31,7 @@
 
   function authorStation(id: string): StationTag | null {
     if (id === 'system') return null;
-    return $users.find((user) => String(user.id) === String(id))?.stations?.[0] ?? null;
+    return ($users.find((user) => String(user.id) === String(id))?.stations?.[0]?.stationId as StationTag | undefined) ?? null;
   }
 
   function reworkReasonLabel(reason: ReworkReason) {
@@ -78,9 +78,10 @@
     }
   });
 
-  function getUserStation(stations: string[] | undefined): StationTag | null {
+  function getUserStation(stations: Array<string | { stationId: string }> | undefined): StationTag | null {
     if (!stations || stations.length === 0) return null;
-    return stations[0] as StationTag;
+    const station = stations[0];
+    return (typeof station === 'string' ? station : station.stationId) as StationTag;
   }
 </script>
 
