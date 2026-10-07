@@ -27,7 +27,9 @@ npm run build
 
 ## Production service (this host)
 
-The OMS runs as `reclame-oms.service` from `/opt/reclame-oms`, with `WorkingDirectory=/opt/reclame-oms`, `EnvironmentFile=/opt/reclame-oms/.env`, and `ExecStart=/usr/bin/node build/index.js`. Systemd binds the app on port 3000; it is intended for the internal tailnet. The database stack is Docker Compose-managed separately (containers named `supabase-*`). Do not restart or modify the database stack as part of a frontend/API release unless a DB change explicitly requires it.
+The OMS app runs as `reclame-oms.service` from `/opt/reclame-oms`, with `WorkingDirectory=/opt/reclame-oms`, `EnvironmentFile=/opt/reclame-oms/.env`, and `ExecStart=/usr/bin/node build/index.js`. Systemd binds the app on port 3000; it is intended for the internal tailnet. The database stack is Docker Compose-managed separately (containers named `supabase-*`). Do not restart or modify the database stack as part of a frontend/API release unless a DB change explicitly requires it.
+
+The AI node addresses are configuration-dependent; don't assume an old deployment IP is current. If health-check logs report unavailable AI services, verify configured node addresses and Tailscale peer reachability before changing code.
 
 After building, restart only the OMS app service and verify its health:
 
