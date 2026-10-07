@@ -65,7 +65,7 @@
   async function loadFiles() {
     loading = true;
     try {
-      const res = await fetch(`${base}/api/files?orderId=${orderId}`);
+      const res = await fetch(`${base}/api/files?orderId=${encodeURIComponent(orderId)}`);
       if (res.ok) {
         files = await res.json();
       }
@@ -81,7 +81,7 @@
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('orderId', orderId);
+      formData.append('order_id', orderId);
 
       const res = await fetch(`${base}/api/files`, {
         method: 'POST',
@@ -89,7 +89,8 @@
       });
 
       if (res.ok) {
-        const uploaded = await res.json();
+        const payload = await res.json();
+        const uploaded = payload.file ?? payload;
         files = [uploaded, ...files];
       } else {
         console.error('Upload failed:', await res.text());

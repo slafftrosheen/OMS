@@ -27,7 +27,7 @@
   }: Props = $props();
 
   type VoiceState = 'idle' | 'recording' | 'transcribing' | 'error';
-  let state = $state<VoiceState>('idle');
+  let voiceState = $state<VoiceState>('idle');
   let level = $state(0);      // 0–1 normalized RMS for the level ring
   let errorMsg = $state('');
 
@@ -93,10 +93,10 @@
       mediaRecorder.onstop = () => void sendToAsr();
       mediaRecorder.start(100); // 100 ms slices give VAD responsiveness
 
-      state = 'recording';
+      voiceState = 'recording';
     } catch (err) {
       errorMsg = (err as Error).message;
-      state = 'error';
+      voiceState = 'error';
     }
   }
 
@@ -107,12 +107,12 @@
     audioCtx = null;
     mediaRecorder?.stream.getTracks().forEach((t) => t.stop());
     mediaRecorder?.stop();
-    state = 'transcribing';
+    voiceState = 'transcribing';
     level = 0;
   }
 
   async function sendToAsr() {
-    if (chunks.length === 0) { state = 'idle'; return; }
+    if (chunks.length === 0) { voiceState = 'idle'; return; }
     try {
       const blob = new Blob(chunks, { type: mime || 'audio/webm' });
       const form = new FormData();
@@ -125,41 +125,41 @@
       if (j.error) throw new Error(j.error);
       const text = (j.text ?? '').trim();
       if (text) onTranscription(text);
-      state = 'idle';
+      voiceState = 'idle';
     } catch (err) {
       errorMsg = (err as Error).message;
-      state = 'error';
+      voiceState = 'error';
     }
   }
 
   function toggle() {
-    if (state === 'idle' || state === 'error') void startRecording();
-    else if (state === 'recording') stopRecording();
+    if (voiceState === 'idle' || voiceState === 'error') void startRecording();
+    else if (voiceState === 'recording') stopRecording();
   }
 
   const label = $derived(
-    state === 'recording'    ? 'Stop recording'   :
-    state === 'transcribing' ? 'Transcribing…'    :
-    state === 'error'        ? errorMsg || 'Error' :
+    voiceState === 'recording'    ? 'Stop recording'   :
+    voiceState === 'transcribing' ? 'Transcribing…'    :
+    voiceState === 'error'        ? errorMsg || 'Error' :
                                'Start voice input'
   );
 </script>
 
 <button
   type="button"
-  class="voice-btn {size} {state} {extraClass}"
+  class="voice-btn {size} {voiceState} {extraClass}"
   onclick={toggle}
-  disabled={state === 'transcribing'}
+  disabled={voiceState === 'transcribing'}
   aria-label={label}
   title={label}
 >
   <!-- Animated level ring when recording -->
-  {#if state === 'recording'}
+  {#if voiceState === 'recording'}
     <span class="ring" style="--lv: {level}"></span>
   {/if}
 
   <!-- Icon -->
-  {#if state === 'transcribing'}
+  {#if voiceState === 'transcribing'}
     <span class="icon-wrap spinning">
       <!-- loader spinner via CSS -->
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -202,7 +202,7 @@
   .voice-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .voice-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-  /* Active / recording state */
+  /* Active / recording voiceState */
   .voice-btn.recording {
     background: color-mix(in oklab, var(--brand) 16%, transparent);
     border-color: var(--brand);

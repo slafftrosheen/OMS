@@ -58,13 +58,14 @@
 			formData.append('order_id', orderId);
 
 			try {
-				const response = await fetch('/api/files', {
+				const response = await fetch('/api/files/upload', {
 					method: 'POST',
 					body: formData
 				});
 
 				if (response.ok) {
-					const newFile = await response.json();
+					const payload = await response.json();
+					const newFile = payload.file ?? payload;
 					files = [...files, newFile];
 					focusManager.announce(`${file.name} uploaded successfully`, 'polite');
 				} else {
@@ -144,7 +145,7 @@
 	}
 
 	function downloadFile(file: any) {
-		window.open(`/api/files/${file.id}`, '_blank');
+		window.open(`/api/files/${file.id}?download=true`, '_blank');
 		focusManager.announce(`Downloading ${file.name}`, 'polite');
 	}
 

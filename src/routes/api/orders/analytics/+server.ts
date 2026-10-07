@@ -1,89 +1,54 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { dateRangeForTimeframe, mapAnalyticsWorkload, STATION_WORKFLOW } from '$lib/server/api-contracts';
 
 export const GET: RequestHandler = async ({ locals, url }) => {
-  const session = await locals.getSession();
-  if (!session) throw error(401, 'Unauthorized');
+  if (!(await locals.getSession())) throw error(401, 'Unauthorized');
+  const supabase = locals.supabase;
+  const requested = url.searchParams.get('timeframe') || '30d';
+  const timeframe = ['7d', '30d', '90d', '1y'].includes(requested) ? requested : '30d';
+  const { from: fromDate, to: toDate } = dateRangeForTimeframe(timeframe);
 
-  const { supabase } = locals;
+  const [statsResult, atRiskResult, workloadResult, reworkResult, statusResult, completionResult] = await Promise.all([
+    supabase.rpc('get_order_statistics', { p_from: fromDate, p_to: toDate }),
+    supabase.from('orders_at_risk').select('*'),
+    supabase.rpc('get_station_workload'),
+    supabase.from('rework_cycles').select('station, created_at, cost_impact, time_impact').gte('created_at', `${fromDate}T00:00:00.000Z`).lt('created_at', `${toDate}T23:59:59.999Z`),
+    supabase.from('draft_orders').select('status').gte('created_at', `${fromDate}T00:00:00.000Z`).lte('created_at', `${toDate}T23:59:59.999Z`),
+    supabase.from('draft_orders').select('status, completed_at').gte('completed_at', `${fromDate}T00:00:00.000Z`).lte('completed_at', `${toDate}T23:59:59.999Z`)
+  ]);
 
-  const timeframe = url.searchParams.get('timeframe') || '30d'; // 7d, 30d, 90d, 1y
-
-  try {
-    // Calculate date range
-    let dateFrom = new Date();
-    switch (timeframe) {
-      case '7d':
-        dateFrom.setDate(dateFrom.getDate() - 7);
-        break;
-      case '30d':
-        dateFrom.setDate(dateFrom.getDate() - 30);
-        break;
-      case '90d':
-        dateFrom.setDate(dateFrom.getDate() - 90);
-        break;
-      case '1y':
-        dateFrom.setFullYear(dateFrom.getFullYear() - 1);
-        break;
-    }
-
-    // Overall statistics
-    const { data: stats } = await supabase
-      .rpc('get_order_statistics', {
-        p_date_from: dateFrom.toISOString().split('T')[0]
-      });
-
-    // Orders at risk
-    const { data: atRisk } = await supabase
-      .from('orders_at_risk')
-      .select('*');
-
-    // Station workload
-    const stations = ['CAD', 'CNC', 'SANDING', 'BENDING', 'WELDING', 'PAINT', 'ASSEMBLY', 'QC', 'LOGISTICS'];
-    const workloadPromises = stations.map(station =>
-      supabase.rpc('get_station_workload', { p_station: station })
-    );
-    const workloadResults = await Promise.all(workloadPromises);
-    const stationWorkload = stations.reduce((acc, station, idx) => {
-      acc[station] = workloadResults[idx].data || [];
-      return acc;
-    }, {} as Record<string, any[]>);
-
-    // Top rework stations
-    const { data: topRework } = await supabase
-      .from('rework_cycles')
-      .select('station, count')
-      .gte('created_at', dateFrom.toISOString())
-      .order('count', { ascending: false })
-      .limit(5);
-
-    // Orders by status
-    const { data: byStatus } = await supabase
-      .from('orders')
-      .select('status, count')
-      .gte('created_at', dateFrom.toISOString());
-
-    // Completion trend (orders completed per day)
-    const { data: completionTrend } = await supabase
-      .from('orders')
-      .select('updated_at::date as date, count')
-      .eq('status', 'completed')
-      .gte('updated_at', dateFrom.toISOString())
-      .order('date', { ascending: true });
-
-    return json({
-      timeframe,
-      date_from: dateFrom.toISOString().split('T')[0],
-      date_to: new Date().toISOString().split('T')[0],
-      statistics: stats?.[0] || {},
-      orders_at_risk: atRisk || [],
-      station_workload: stationWorkload,
-      top_rework_stations: topRework || [],
-      orders_by_status: byStatus || [],
-      completion_trend: completionTrend || []
-    });
-  } catch (err: any) {
-    console.error('Analytics error:', err);
-    throw error(500, 'Internal server error');
+  const failures = [statsResult.error, atRiskResult.error, workloadResult.error, reworkResult.error, statusResult.error, completionResult.error].filter(Boolean);
+  if (failures.length) {
+    console.error('Analytics queries failed:', failures);
+    throw error(500, 'Failed to load analytics');
   }
+
+  const statusCounts: Record<string, number> = {};
+  for (const row of statusResult.data ?? []) statusCounts[row.status] = (statusCounts[row.status] ?? 0) + 1;
+
+  const completionCounts: Record<string, number> = {};
+  for (const row of completionResult.data ?? []) {
+    if (!['COMPLETED', 'completed'].includes(row.status)) continue;
+    const day = String(row.completed_at).slice(0, 10);
+    completionCounts[day] = (completionCounts[day] ?? 0) + 1;
+  }
+  const completionTrend = Object.entries(completionCounts).sort(([a], [b]) => a.localeCompare(b)).map(([date, count]) => ({ date, count }));
+
+  const reworkByStation = new Map<string, number>();
+  for (const row of reworkResult.data ?? []) reworkByStation.set(row.station, (reworkByStation.get(row.station) ?? 0) + 1);
+  const topRework = [...reworkByStation.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([station, count]) => ({ station, count }));
+
+  const stats = statsResult.data;
+  return json({
+    timeframe,
+    date_from: fromDate,
+    date_to: toDate,
+    statistics: stats && typeof stats === 'object' ? stats : {},
+    orders_at_risk: atRiskResult.data ?? [],
+    station_workload: mapAnalyticsWorkload(workloadResult.data ?? [], STATION_WORKFLOW),
+    top_rework_stations: topRework,
+    orders_by_status: Object.entries(statusCounts).map(([status, count]) => ({ status, count })),
+    completion_trend: completionTrend
+  });
 };

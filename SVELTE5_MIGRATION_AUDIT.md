@@ -1,4 +1,7 @@
-# Svelte 5 Migration Audit Report
+# Svelte 5 Migration Audit Report (Historical)
+
+> Static audit snapshot retained for background; its completion percentages, file findings, and severity labels are stale unless rechecked against the current tree. Do not use as a current status report. For current developer workflows and verification gates, see `CLAUDE.md` and `docs/maintenance.md`.
+
 
 ## Executive Summary
 

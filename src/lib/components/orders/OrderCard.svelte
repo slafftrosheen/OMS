@@ -53,7 +53,7 @@
   }
 </script>
 
-<article
+<div
   class="order-card {urgencyClass}"
   class:compact
   onclick={handleClick}
@@ -204,7 +204,7 @@
       </button>
     </footer>
   {/if}
-</article>
+</div>
 
 <style>
   .order-card {

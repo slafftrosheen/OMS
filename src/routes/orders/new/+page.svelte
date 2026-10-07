@@ -16,6 +16,9 @@
   // Field-level validation errors keyed by input name (the "ali points").
   let fieldErrors = $state<Record<string, string>>({});
   let successMessage = $state('');
+  // Keep a newly created order available for safe attachment retry after partial failure.
+  let savedOrderId: string | null = $state(null);
+  let uploadedFileKeys = $state<Set<string>>(new Set());
   
   // Order Details
   let clientName = $state('');
@@ -547,8 +550,9 @@
     error = '';
     fieldErrors = {};
 
-    // Validate files requirement first (not part of the zod schema).
-    if (uploadedFiles.length === 0) {
+    // Validate files only before creating a new order; when retrying uploads,
+    // the order already exists and must not be inserted a second time.
+    if (!savedOrderId && uploadedFiles.length === 0) {
       fieldErrors = { ...fieldErrors, files: $t('orders.new.messages.validation.files') };
     }
 
@@ -585,67 +589,71 @@
     successMessage = '';
 
     try {
-      const orderData = {
-        clientName,
-        deadline,
-        loadingDate: loadingDate || null,
-        notes,
-        priority,
-        status: 'PENDING_REVIEW',
-        deliveryPresetId: selectedPresetId,
-        deliveryAddress,
-        deliveryContact,
-        deliveryPhone,
-        profiles: profiles.map(p => ({
-          profileTemplateId: p.profileTemplateId ?? null,
-          quantity: p.quantity,
-          configuration: p.configuration
-        }))
-      };
+      let orderId = savedOrderId;
+      if (!orderId) {
+        const orderData = {
+          clientName,
+          deadline,
+          loadingDate: loadingDate || null,
+          notes,
+          priority,
+          status: 'PENDING_REVIEW',
+          deliveryPresetId: selectedPresetId,
+          deliveryAddress,
+          deliveryContact,
+          deliveryPhone,
+          profiles: profiles.map(p => ({
+            profileTemplateId: p.profileTemplateId ?? null,
+            quantity: p.quantity,
+            configuration: p.configuration
+          }))
+        };
 
-      const orderResponse = await fetch('/api/draft-orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderData)
-      });
+        const orderResponse = await fetch('/api/draft-orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderData)
+        });
 
-      if (!orderResponse.ok) {
-        const res = await orderResponse.json();
-        error = res.error || res.message || $t('admin.users.messages.save_error');
-        saving = false;
-        return;
+        if (!orderResponse.ok) {
+          const res = await orderResponse.json().catch(() => ({}));
+          error = res.error || res.message || $t('admin.users.messages.save_error');
+          return;
+        }
+
+        const orderResult = await orderResponse.json();
+        orderId = orderResult.order?.id || orderResult.id;
+        if (!orderId) {
+          error = 'Order was created but the server did not return its ID. Contact support before retrying.';
+          return;
+        }
+        savedOrderId = String(orderId);
       }
 
-      const orderResult = await orderResponse.json();
-      const newOrderId = orderResult.order?.id || orderResult.id;
-      if (!newOrderId) {
-        error = 'Failed to get order ID from response';
-        saving = false;
-        return;
-      }
-
-      const fileIds: string[] = [];
+      const failedUploads: string[] = [];
       for (const fileItem of uploadedFiles) {
+        const fileKey = `${fileItem.file.name}:${fileItem.file.size}:${fileItem.file.lastModified}`;
+        if (uploadedFileKeys.has(fileKey)) continue;
         const formData = new FormData();
         formData.append('file', fileItem.file);
-        formData.append('order_id', String(newOrderId));
+        formData.append('order_id', String(orderId));
         formData.append('file_type', 'sketch');
-        
-        const uploadResponse = await fetch('/api/files/upload', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (uploadResponse.ok) {
-          const uploadResult = await uploadResponse.json();
-          if (uploadResult.file?.id) {
-            fileIds.push(String(uploadResult.file.id));
-          }
+
+        const uploadResponse = await fetch('/api/files/upload', { method: 'POST', body: formData });
+        if (!uploadResponse.ok) {
+          const payload = await uploadResponse.json().catch(() => ({}));
+          failedUploads.push(`${fileItem.file.name}${payload.error ? `: ${payload.error}` : ''}`);
         } else {
-          console.warn('Failed to upload file:', fileItem.file.name);
+          uploadedFileKeys = new Set(uploadedFileKeys).add(fileKey);
         }
       }
 
+      if (failedUploads.length > 0) {
+        error = `Order saved, but ${failedUploads.length} attachment(s) failed. Retry save to upload them: ${failedUploads.join(', ')}`;
+        return;
+      }
+
+      savedOrderId = null;
       successMessage = $t('orders.new.messages.success');
       setTimeout(() => goto(`/orders`), 1500);
     } catch (err) {

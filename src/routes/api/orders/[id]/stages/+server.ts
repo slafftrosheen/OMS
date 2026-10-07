@@ -2,7 +2,9 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { postStationMessage } from '$lib/server/chat/stationMessenger';
 
-const VALID_STATES = ['NOT_STARTED', 'QUEUED', 'IN_PROGRESS', 'BLOCKED', 'REWORK', 'COMPLETED'] as const;
+import { ORDER_STAGE_STATES } from '$lib/order/stage-contract';
+
+const VALID_STATES = ORDER_STAGE_STATES;
 const WORKFLOW_ORDER = ['CAD', 'CNC', 'EDGE', 'ASSEMBLY', 'PAINT', 'PACKAGING', 'DELIVERY'] as const;
 
 /**

@@ -1,48 +1,31 @@
-/**
- * Change Request Review API
- * Handles approval/rejection of change requests
- */
-
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { supabase } from '$lib/server/supabase';
 import { requireAdmin } from '$lib/server/api/helpers';
+import { CHANGE_REQUEST_SELECT_WITH_ORDER, normalizeChangeRequestRow, buildReviewChangeRequestArgs } from '$lib/server/change-requests/contract';
 
-// POST /api/change-requests/[id]/review - Approve/Reject CR
 export const POST: RequestHandler = async ({ params, request, locals }) => {
   requireAdmin(locals);
-
-  const body = await request.json();
-  const { status, comment } = body;
-
-  if (!['approved', 'rejected'].includes(status)) {
+  const body = await request.json().catch(() => null);
+  const status = body?.status;
+  if (status !== 'approved' && status !== 'rejected') {
     throw error(400, 'Status must be "approved" or "rejected"');
   }
 
-  // Review CR using database function
-  const { error: dbError } = await supabase
-    .rpc('review_change_request', {
-      p_cr_id: params.id,
-      p_status: status,
-      p_comment: comment || null
-    });
-
+  const { error: dbError } = await locals.supabase.rpc(
+    'review_change_request',
+    buildReviewChangeRequestArgs(params.id, status, typeof body.comment === 'string' ? body.comment : null)
+  );
   if (dbError) {
     console.error('[CR Review API] Error:', dbError);
     throw error(500, 'Failed to review change request');
   }
 
-  // Fetch updated CR
-  const { data: updatedCR } = await supabase
+  const { data: updatedCR, error: fetchError } = await locals.supabase
     .from('change_requests')
-    .select(`
-      *,
-      proposed_by_user:auth.users!change_requests_proposed_by_fkey(email, id),
-      reviewed_by_user:auth.users!change_requests_reviewed_by_fkey(email, id),
-      order:draft_orders(id, title, po_number)
-    `)
+    .select(CHANGE_REQUEST_SELECT_WITH_ORDER)
     .eq('id', params.id)
     .single();
+  if (fetchError || !updatedCR) throw error(500, 'Failed to load reviewed change request');
 
-  return json({ data: updatedCR });
+  return json({ data: normalizeChangeRequestRow(updatedCR) });
 };

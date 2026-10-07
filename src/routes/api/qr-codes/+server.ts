@@ -1,103 +1,51 @@
-/**
- * QR Codes API
- * Handles QR code generation, scanning, and management
- */
-
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { supabase } from '$lib/server/supabase';
 import QRCode from 'qrcode';
+import { isValidOrderId, qrLabelFromOrder } from '$lib/server/api-contracts';
 
-// GET /api/qr-codes - List QR codes
 export const GET: RequestHandler = async ({ url, locals }) => {
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
-
   const orderId = url.searchParams.get('orderId');
-  const active = url.searchParams.get('active') === 'true';
-
-  let query = supabase
-    .from('order_qr_codes')
-    .select(`
-      *,
-      order:draft_orders(id, po_number, title),
-      scan_stats:qr_scan_statistics(*)
-    `)
-    .order('generated_at', { ascending: false });
-
-  if (orderId) query = query.eq('order_id', orderId);
-  if (active) query = query.eq('is_active', true);
-
-  const { data, error: dbError } = await query;
-
-  if (dbError) {
-    console.error('[QR API] List error:', dbError);
-    throw error(500, 'Failed to fetch QR codes');
+  let query = locals.supabase.from('order_qr_codes').select('*, order:draft_orders(id, po_number, title)').order('created_at', { ascending: false });
+  if (orderId) {
+    if (!isValidOrderId(orderId)) throw error(400, 'Invalid orderId');
+    query = query.eq('order_id', orderId);
   }
 
-  return json({ data });
+  const { data, error: queryError } = await query;
+  if (queryError) {
+    console.error('[QR API] List error:', queryError);
+    throw error(500, 'Failed to fetch QR codes');
+  }
+  return json({ data: data ?? [] });
 };
 
-// POST /api/qr-codes - Generate QR code
 export const POST: RequestHandler = async ({ request, locals }) => {
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw error(400, 'Invalid request body');
+  const orderId = body.orderId;
+  const size = typeof body.size === 'number' && Number.isInteger(body.size) && body.size >= 128 && body.size <= 1024 ? body.size : 300;
+  if (!isValidOrderId(orderId)) throw error(400, 'Invalid orderId');
 
-  const body = await request.json();
-  const { orderId, size = 300 } = body;
+  const { data: order, error: orderError } = await locals.supabase.from('draft_orders').select('id, po_number').eq('id', orderId).single();
+  if (orderError || !order) throw error(404, 'Order not found or inaccessible');
 
-  if (!orderId) {
-    throw error(400, 'Missing required field: orderId');
+  const { data: qrCode, error: rpcError } = await locals.supabase.rpc('generate_order_qr_code', {
+    p_order_id: order.id,
+    p_label: qrLabelFromOrder(order.po_number)
+  });
+  if (rpcError || !qrCode) {
+    console.error('[QR API] Generation error:', rpcError);
+    throw error(500, 'Failed to generate QR code');
   }
 
-  try {
-    // Generate QR code using database function
-    const { data: qrCodeId, error: dbError } = await supabase
-      .rpc('generate_order_qr_code', {
-        p_order_id: orderId,
-        p_format: 'QR'
-      });
-
-    if (dbError) {
-      console.error('[QR API] Generation error:', dbError);
-      throw error(500, dbError.message || 'Failed to generate QR code');
-    }
-
-    // Fetch the created QR code
-    const { data: qrCode, error: fetchError } = await supabase
-      .from('order_qr_codes')
-      .select('*')
-      .eq('id', qrCodeId)
-      .single();
-
-    if (fetchError || !qrCode) {
-      throw error(500, 'Failed to fetch generated QR code');
-    }
-
-    // Generate QR code image (browser-compatible)
-    // Use SVG to avoid canvas dependency
-    const svgString = await QRCode.toString(qrCode.qr_code, {
-      type: 'svg',
-      width: size,
-      margin: 2,
-      errorCorrectionLevel: 'M',
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF'
-      }
-    });
-
-    const imageDataUrl = `data:image/svg+xml;base64,${Buffer.from(svgString).toString('base64')}`;
-
-    return json({
-      data: {
-        ...qrCode,
-        imageUrl: imageDataUrl
-      }
-    }, { status: 201 });
-
-  } catch (err) {
-    console.error('[QR API] Error:', err);
-    throw error(500, err instanceof Error ? err.message : 'Failed to generate QR code');
-  }
+  const svgString = await QRCode.toString(qrCode.code, {
+    type: 'svg', width: size, margin: 2, errorCorrectionLevel: 'M',
+    color: { dark: '#000000', light: '#FFFFFF' }
+  });
+  const imageUrl = `data:image/svg+xml;base64,${Buffer.from(svgString).toString('base64')}`;
+  return json({ data: { ...qrCode, imageUrl } }, { status: 201 });
 };

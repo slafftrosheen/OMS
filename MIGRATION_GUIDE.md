@@ -1,4 +1,7 @@
-# Materials & Inventory Consolidation Migration Guide
+# Materials & Inventory Consolidation Migration Guide (Historical)
+
+> Historical migration notes retained for background. Do not treat this document as the deployed schema contract: verify current columns, views, and API behavior against the live database before using these steps. For current repository architecture, see `README.md` and `docs/maintenance.md`.
+
 
 ## Overview
 

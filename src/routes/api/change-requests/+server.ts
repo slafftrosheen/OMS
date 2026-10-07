@@ -1,101 +1,72 @@
-/**
- * Change Requests API
- * Handles CRUD operations for PR-style change requests
- */
-
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { supabase } from '$lib/server/supabase';
+import {
+  buildCreateChangeRequestArgs,
+  CHANGE_REQUEST_SELECT_WITH_ORDER,
+  normalizeChangeRequestRow
+} from '$lib/server/change-requests/contract';
 
-// GET /api/change-requests - List all CRs with filters
 export const GET: RequestHandler = async ({ url, locals }) => {
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
   const orderId = url.searchParams.get('orderId');
   const status = url.searchParams.get('status');
-  const station = url.searchParams.get('station');
-  const page = parseInt(url.searchParams.get('page') || '1');
-  const limit = parseInt(url.searchParams.get('limit') || '20');
-  const offset = (page - 1) * limit;
-
-  let query = supabase
+  const page = Math.max(1, Number.parseInt(url.searchParams.get('page') || '1', 10) || 1);
+  const limit = Math.min(100, Math.max(1, Number.parseInt(url.searchParams.get('limit') || '20', 10) || 20));
+  let query = locals.supabase
     .from('change_requests')
-    .select(`
-      *,
-      proposed_by_user:auth.users!change_requests_proposed_by_fkey(email, id),
-      reviewed_by_user:auth.users!change_requests_reviewed_by_fkey(email, id),
-      order:draft_orders(id, title, po_number),
-      comments:cr_comments(count)
-    `, { count: 'exact' })
+    .select(CHANGE_REQUEST_SELECT_WITH_ORDER, { count: 'exact' })
     .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+    .range((page - 1) * limit, page * limit - 1);
 
   if (orderId) query = query.eq('order_id', orderId);
   if (status) query = query.eq('status', status);
-  if (station) query = query.eq('station', station);
 
   const { data, error: dbError, count } = await query;
-
   if (dbError) {
     console.error('[CR API] List error:', dbError);
     throw error(500, 'Failed to fetch change requests');
   }
 
+  const normalized = (data ?? []).map(normalizeChangeRequestRow);
   return json({
-    data,
-    pagination: {
-      page,
-      limit,
-      total: count || 0,
-      pages: Math.ceil((count || 0) / limit)
-    }
+    data: normalized,
+    pagination: { page, limit, total: count || 0, pages: Math.ceil((count || 0) / limit) }
   });
 };
 
-// POST /api/change-requests - Create new CR
 export const POST: RequestHandler = async ({ request, locals }) => {
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
-  const body = await request.json();
-  const { orderId, title, description, changes, station, priority } = body;
-
-  // Validate required fields
-  if (!orderId || !title || !changes) {
-    throw error(400, 'Missing required fields: orderId, title, changes');
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body) || typeof body.orderId !== 'string') {
+    throw error(400, 'orderId is required');
   }
 
-  // Create CR using database function
-  const { data, error: dbError } = await supabase
-    .rpc('create_change_request', {
-      p_order_id: orderId,
-      p_title: title,
-      p_description: description || '',
-      p_changes: changes,
-      p_station: station || 'UNKNOWN',
-      p_priority: priority || 'normal'
-    });
+  let rpcArgs: ReturnType<typeof buildCreateChangeRequestArgs>;
+  try {
+    rpcArgs = buildCreateChangeRequestArgs(body.orderId, body);
+  } catch (err) {
+    throw error(400, err instanceof Error ? err.message : 'Invalid change request');
+  }
 
-  if (dbError) {
-    console.error('[CR API] Create error:', dbError);
+  const { data: id, error: rpcError } = await locals.supabase.rpc('create_change_request', rpcArgs);
+  if (rpcError || !id) {
+    console.error('[CR API] Create error:', rpcError);
     throw error(500, 'Failed to create change request');
   }
 
-  // Fetch created CR with relations
-  const { data: createdCR, error: fetchError } = await supabase
+  const { data: created, error: fetchError } = await locals.supabase
     .from('change_requests')
-    .select(`
-      *,
-      proposed_by_user:auth.users!change_requests_proposed_by_fkey(email, id),
-      order:draft_orders(id, title, po_number)
-    `)
-    .eq('id', data)
+    .select(CHANGE_REQUEST_SELECT_WITH_ORDER)
+    .eq('id', id)
     .single();
-
-  if (fetchError) {
+  if (fetchError || !created) {
     console.error('[CR API] Fetch created CR error:', fetchError);
+    throw error(500, 'Change request was created but could not be loaded');
   }
 
-  return json({ data: createdCR || { id: data } }, { status: 201 });
+  return json({ data: normalizeChangeRequestRow(created) }, { status: 201 });
 };

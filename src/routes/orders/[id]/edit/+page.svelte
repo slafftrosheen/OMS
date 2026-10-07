@@ -28,7 +28,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let loadingDate = $state('');
   let notes = $state('');
   let priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' = $state('NORMAL');
-  let status = $state<OrderStatus>('draft');
+  let status = $state<OrderStatus>('DRAFT');
   let deliveryAddress = $state('');
   let deliveryContact = $state('');
   let deliveryPhone = $state('');
@@ -89,8 +89,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     ($currentUser as any)?.roles?.Admin === 'SuperAdmin' ||
     ($currentUser as any)?.primarySection === 'Admin'
   );
-  let canEdit = $derived(isAdmin || status === 'draft');
-  let canApprove = $derived(isAdmin && status === 'draft');
+  let canEdit = $derived(isAdmin || status === 'DRAFT');
+  let canApprove = $derived(isAdmin && status === 'DRAFT');
 
   // ── Canvas seed (reactive, passed into TldrawWrapper) ────────────────────────
   let orderSeed = $derived(orderId
@@ -351,7 +351,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       await saveDraft();
       const res = await fetch(`/api/draft-orders/${orderId}/approve`, { method: 'POST' });
       if (!res.ok) throw new Error((await res.json()).message || 'Approval failed');
-      status = 'approved';
+      status = 'CONFIRMED';
       confirmOrderModal = false;
       notifySuccess('Order approved and sent to production');
       goto(`${base}/orders/${data.id}`);
@@ -372,7 +372,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         body: JSON.stringify({ reason: reworkReason.trim() }),
       });
       if (!res.ok) throw new Error((await res.json()).message || 'Rework request failed');
-      status = 'rejected';
+      status = 'CANCELLED';
       reworkModal = false;
       reworkReason = '';
       notifySuccess('Rework requested');
@@ -727,7 +727,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             onclick={() => selectTool(tool.id)}
             title={tool.label}
           >
-            <Icon name={tool.icon} size="sm" />
+            <Icon name={tool.icon as any} size="sm" />
           </button>
         {/each}
       </div>
@@ -742,7 +742,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             onclick={() => addShapeToCanvas(node.id)}
             title={node.label}
           >
-            <Icon name={node.icon} size="sm" />
+            <Icon name={node.icon as any} size="sm" />
           </button>
         {/each}
       </div>

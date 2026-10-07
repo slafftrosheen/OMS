@@ -1,80 +1,50 @@
 # Gemini CLI Guidelines — Réclame Fabriek OMS
 
-## Development Workflows
+## Runtime and environment
 
-### Environment Variables
-- **Source of Truth:** Always use `/opt/reclame-oms/.env`.
-- **Validation:** Changes to required variables must be updated in `src/lib/server/env-validator.ts`.
-- **Supabase Keys:** If Supabase keys are reset in `/opt/supabase/docker`, they MUST be manually mirrored to `/opt/reclame-oms/.env`.
+- Use the repository root `.env` only for local runtime configuration. It is ignored by Git and contains private configuration; never print, stage, commit, or publish its values.
+- The deployed SvelteKit app runs as `reclame-oms.service` from `/opt/reclame-oms` with `/usr/bin/node build/index.js` on port 3000. Supabase is a separate Docker Compose stack.
+- Shared server modules may also be imported by standalone workers. Avoid direct `$app/*` or `$env/*` imports in libraries used outside SvelteKit; use compatible configuration accessors.
 
-### Standalone Worker Compatibility
-- Core libraries in `src/lib/server/` (specifically `logger.ts`, `config.ts`, `env-validator.ts`) are used by both the SvelteKit app and standalone workers (e.g., ingestor).
-- **CRITICAL:** Do NOT import SvelteKit-specific modules (`$app/*`, `$env/*`) directly in these files. Use `process.env` fallbacks to ensure compatibility with `tsx` execution.
-- If you must use SvelteKit modules, use dynamic imports or conditional logic based on the environment.
+## Current database contracts
 
-### Service Management
-- The application runs as systemd services:
-  - `reclame-oms.service` (SvelteKit app)
-  - `reclame-ingestor.service` (Knowledge ingestor)
-- After significant backend changes or `.env` updates, restart services:
-  ```bash
-  sudo systemctl restart reclame-oms.service reclame-ingestor.service
-  ```
+- `draft_orders` is canonical; `orders` is an updatable view. `ordersummary` and `order_summary` are read views.
+- Order child tables link through `draft_order_id`; `order_files` is only the file association table (`draft_order_id`, `file_id`, `file_type`, `display_name`). Metadata/storage properties belong to `files`.
+- Before changing a database-facing path, inspect the current live schema and `pg_proc` signatures; migration files and stale notes are not definitive evidence.
+- Role checks need to match the current profile role contract and RLS policies. A logged-in session alone does not authorize shared-data mutations.
 
-### Supabase & Migrations
-- Use `npm run supabase:migrate:push` to apply migrations.
-- Database is self-hosted in `/opt/supabase/docker`.
+## Development workflow
 
-## Architectural Patterns
-- **Svelte 5 Runes:** Use `$state`, `$derived`, `$props` for new components.
-- **AI Swarm:** Distributed Ollama instances and Python sidecars on Windows nodes (ai1, ai2). Logic resides in `src/lib/server/ai`. Nodes are discovered via environment variables (`NODE1_HOST`, etc.).
-- **Vector Search:** Uses `pgvector` for RAG. Core tables are `framework_docs`, `company_knowledge`, and `autonomous_memory`.
-- **Maker System:** Domain logic for CNC/sketch management resides in `src/routes/ai-lab/maker`.
-- **Tailscale:** Hardcoded IPs should be avoided; use constants from `src/lib/server/config.ts`.
+```sh
+npm run test
+npm run check
+npm run build
+npm run lint
+```
 
-## Deprecated Features
-- **FAQ:** The FAQ page, associated API routes, and `public.faqs` table have been removed. Do not re-implement; use the AI Lab / Knowledge Base for similar functionality.
+The local Vitest runner is vendored in `packages/vitest`. Require all tests to pass and Svelte check to have zero errors; existing warnings may need separate prioritization. Re-run the gates after the final code or documentation edit if code changed.
 
----
+## Service operations
 
-# Active Task: Spatial OS & Security Overhaul
+For application-only changes, rebuild then restart only the OMS service; do not bounce database containers unnecessarily:
 
-## Initial Blueprint
-**Context:** Major architectural refactor for SvelteKit (Svelte 5), Supabase, tldraw, makerjs, and Python sidecar.
-**Rules:**
-1. Execute sequentially.
-2. Svelte 5 syntax ($state, $derived, $effect).
-3. React Isolation for tldraw shapes.
+```sh
+npm run build
+sudo systemctl restart reclame-oms.service
+systemctl is-active reclame-oms.service
+curl --fail --silent --show-error http://localhost:3000/ -o /dev/null
+journalctl -u reclame-oms.service -n 80 --no-pager
+```
 
-## Full Plan
-### Phase 1: Critical Security & RLS Hardening
-- Audit and harden Supabase RLS (Prevent cross-user data leakage).
-- Audit `src/routes/api/` (chat, conversations, AI sessions) for explicit user filtering.
-- Verify frontend state clearing on logout.
+Build/restart does not apply migrations. Before running `npm run supabase:migrate:push`, confirm the target database, inspect migration SQL, take an appropriate backup, and verify role/RLS semantics.
 
-### Phase 2: UI Restructure & Route Consolidation
-- Consolidate `ai-lab` to: `overview`, `chat`, `knowledge`, `canvas`.
-- Move `runs` and `swarm` UI into `overview`.
-- Delete: `forge/`, `maker/`, `runs/`, `swarm/`, `tools/`, `voice/`.
+## Code conventions
 
-### Phase 3: Fixing Forge & Sidecar Registration
-- Fix Python sidecar advertisement/heartbeat.
-- Fix SvelteKit node registry and health checks.
-- Route Forge requests correctly via proxy.
+- Use Svelte 5 runes and the existing token-based design system.
+- Validate at the API boundary; report structured and safe errors.
+- Maintain the caller's API response contract when changing routes.
+- Do not make undocumented changes to service configuration or secrets.
 
-## Current Progress (Phase 4)
-- [x] **Phase 4: The Spatial Canvas**:
-  - Built `TldrawWrapper.svelte` bridge to render `tldraw` safely inside SvelteKit.
-  - Developed custom React Shapes (`MakerShape.tsx`, `ChatShape.tsx`, `ForgeShape.tsx`) with advanced interactivity (dynamic sliders, proximity-aware prompts, generative image execution).
-  - Implemented the Spatial Query API (`/api/ai/canvas/spatial-query/+server.ts`) to process AI requests based on spatial bounding box context.
+## Documentation policy
 
-## Current Progress (Phase 2 & 3)
-- [x] **Phase 2: UI Restructure**:
-  - Consolidate AI Lab Overview, replacing `runs` and `swarm` standalone views.
-  - Delete obsolete directories (`forge`, `maker`, `runs`, `swarm`, `tools`, `voice`).
-  - Update `TopNav.svelte` and `paths.js` to expose only the 4 remaining main routes.
-- [x] **Phase 3: Forge & Sidecar Fixes**:
-  - Sidecar python server (`server.py`) now exposes detailed features in `/health`.
-  - Swarm registry (`swarm.ts`) updated to independently track sidecar up/down status and explicitly log when nodes are missing/degraded.
-  - SvelteKit health endpoint (`/api/ai/health`) aggregates status for all swarm nodes.
-  - Added explicit fallback error logging in `forge/index.ts` to log *why* a node is missing.
+`README.md` is the current project overview. `MIGRATION_GUIDE.md` and `SVELTE5_MIGRATION_AUDIT.md` are historical references and must be checked against code before use. Avoid root-level temporary reports, obsolete plans, generated logs, and session notes; update maintained docs when contracts or operations change.

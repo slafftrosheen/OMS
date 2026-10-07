@@ -1,124 +1,49 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-
-interface SearchResult {
-    entity_type: string;
-    entity_id: string;
-    title: string;
-    subtitle: string;
-    description: string;
-    url: string;
-    metadata: any;
-    relevance: number;
-}
+import { canonicalSearchEntityTypes, globalSearchResponse, globalSearchArgs, advancedSearchArgs, normalizeAdvancedFilters, searchRange, safeSearchQuery } from '$lib/server/api-contracts';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
-    const supabase = locals.supabase;
-    const { data: { session } } = await supabase.auth.getSession();
+  const session = await locals.getSession();
+  if (!session) throw error(401, 'Unauthorized');
 
-    if (!session) {
-        throw error(401, 'Unauthorized');
-    }
+  const query = safeSearchQuery(url.searchParams.get('q'));
+  if (!query) return json({ results: [], query: '', count: 0 });
+  const types = canonicalSearchEntityTypes(url.searchParams.get('types'));
+  const { limit } = searchRange(Number.parseInt(url.searchParams.get('limit') ?? '50', 10), 0);
 
-    const query = url.searchParams.get('q') || '';
-    const entityTypes = url.searchParams.get('types')?.split(',') || ['orders', 'materials', 'inventory', 'users'];
-    const limit = parseInt(url.searchParams.get('limit') || '50');
+  const { data, error: searchError } = await locals.supabase.rpc('global_search', globalSearchArgs(query, limit));
+  if (searchError) {
+    console.error('Global search error:', searchError);
+    throw error(500, 'Search failed');
+  }
 
-    if (!query.trim()) {
-        return json({ results: [], query: '', count: 0 });
-    }
-
-    try {
-        // Call global search function
-        const { data, error: searchError } = await supabase
-            .rpc('global_search', {
-                p_query: query,
-                p_entity_types: entityTypes,
-                p_limit: limit
-            });
-
-        if (searchError) {
-            console.error('Global search error:', searchError);
-            throw error(500, 'Search failed');
-        }
-
-        // Log search for analytics
-        await supabase
-            .from('search_history')
-            .insert({
-                user_id: session.user.id,
-                query,
-                entity_type: entityTypes.join(','),
-                results_count: data?.length || 0
-            })
-            .select()
-            .single();
-
-        return json({
-            results: data || [],
-            query,
-            count: data?.length || 0
-        });
-
-    } catch (err: any) {
-        console.error('Search API error:', err);
-        throw error(500, err.message || 'Search failed');
-    }
+  const rows = (data ?? []).filter((row: any) => {
+    const kind = row.kind === 'order' ? 'orders' : row.kind === 'profile' ? 'users' : row.kind === 'material' ? 'materials' : row.kind;
+    return types.includes(kind);
+  });
+  try {
+    await locals.supabase.from('search_history').insert({ user_id: session.user.id, query, results_count: rows.length, filters: { entityTypes: types } });
+  } catch (err) { console.warn('Failed to log global search history:', err); }
+  return json(globalSearchResponse(rows, query));
 };
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-    const supabase = locals.supabase;
-    const { data: { session } } = await supabase.auth.getSession();
+  const session = await locals.getSession();
+  if (!session) throw error(401, 'Unauthorized');
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw error(400, 'Invalid request body');
+  const query = safeSearchQuery(body.query);
+  const { limit, offset } = searchRange(body.limit, body.offset);
+  const filters = normalizeAdvancedFilters(body.filters && typeof body.filters === 'object' && !Array.isArray(body.filters) ? body.filters : {});
+  if (!query) return json({ data: [], count: 0, limit, offset, query: '' });
 
-    if (!session) {
-        throw error(401, 'Unauthorized');
-    }
-
-    try {
-        const body = await request.json();
-        const { query, filters = {}, sortBy = 'relevance', sortOrder = 'desc', limit = 50, offset = 0 } = body;
-
-        if (!query?.trim()) {
-            return json({ data: [], count: 0, limit, offset });
-        }
-
-        // Advanced order search with filters
-        const { data, error: searchError } = await supabase
-            .rpc('search_orders_advanced', {
-                p_query: query,
-                p_filters: filters,
-                p_sort_by: sortBy,
-                p_sort_order: sortOrder,
-                p_limit: limit,
-                p_offset: offset
-            });
-
-        if (searchError) {
-            console.error('Advanced search error:', searchError);
-            throw error(500, 'Search failed');
-        }
-
-        // Log search
-        await supabase
-            .from('search_history')
-            .insert({
-                user_id: session.user.id,
-                query,
-                entity_type: 'orders',
-                filters,
-                results_count: data?.length || 0
-            });
-
-        return json({
-            data: data || [],
-            count: data?.length || 0,
-            limit,
-            offset,
-            query
-        });
-
-    } catch (err: any) {
-        console.error('Advanced search API error:', err);
-        throw error(500, err.message || 'Search failed');
-    }
+  const { data, error: searchError } = await locals.supabase.rpc('search_orders_advanced', advancedSearchArgs(query, filters, limit, offset));
+  if (searchError) {
+    console.error('Advanced search error:', searchError);
+    throw error(500, 'Search failed');
+  }
+  try {
+    await locals.supabase.from('search_history').insert({ user_id: session.user.id, query, filters, results_count: data?.length ?? 0 });
+  } catch (err) { console.warn('Failed to log advanced search history:', err); }
+  return json({ data: data ?? [], count: data?.length ?? 0, limit, offset, query });
 };

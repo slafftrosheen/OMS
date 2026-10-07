@@ -17,6 +17,7 @@
     import { currentUser } from "$lib/auth/authState.svelte";
     import { can, normaliseStatus, ORDER_STATUS_LABELS } from "$lib/auth/permission-utils";
     import { notifications } from "$lib/notify/store";
+    import { buildStagePatch, updateStageRows } from '$lib/order/stage-contract';
 
     let orderId = $derived(page.params.id);
 
@@ -172,7 +173,7 @@
         try {
             const [orderRes, filesRes] = await Promise.all([
                 fetch(`/api/orders/${orderId}`),
-                fetch(`/api/files?order_id=${orderId}`),
+                fetch(`/api/files?orderId=${encodeURIComponent(orderId)}`),
             ]);
 
             if (orderRes.ok) {
@@ -196,19 +197,24 @@
     }
 
     async function updateStageStatus(stage: string, status: string) {
+        const patch = buildStagePatch(stage, status);
         try {
-            const response = await fetch(`/api/orders/${orderId}/stages`, {
+            const response = await fetch(`/api/orders/${orderId}/stages${patch.url}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ stage, status }),
+                body: JSON.stringify(patch.body),
             });
 
-            if (response.ok) {
-                order.stages[stage] = status;
-                order = order; // Trigger reactivity
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({}));
+                notifications.error(payload?.message || payload?.error || `Failed to update ${stage} stage`);
+                return;
             }
+
+            order = { ...order, stages: updateStageRows(order.stages || [], stage, status) };
         } catch (error) {
             console.error("Failed to update stage:", error);
+            notifications.error(`Failed to update ${stage} stage`);
         }
     }
 

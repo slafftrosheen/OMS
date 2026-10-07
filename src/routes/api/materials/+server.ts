@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { canManageSharedInventory, validateMaterialInput } from '$lib/server/authz/shared-data';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
   const controller = new AbortController();
@@ -41,25 +42,29 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 };
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-  const data = await request.json();
-  
-  const { data: material, error } = await locals.supabase
-    .from('materials')
-    .insert({
-      category: data.category,
-      code: data.code,
-      name_en: data.nameEn || data.name,
-      name_ru: data.nameRu,
-      name_lv: data.nameLv,
-      thickness_options: data.thicknessOptions || [],
-      metadata: data.metadata || {}
-    })
-    .select()
-    .single();
+  if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
+  if (!canManageSharedInventory(locals.user.role)) return json({ error: 'Shared material management requires RD, Boss, or HeadOfProduction' }, { status: 403 });
 
-  if (error) {
-    return json({ error: error.message }, { status: 500 });
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ error: 'Invalid request body' }, { status: 400 });
+  let data: Record<string, unknown>;
+  try {
+    data = validateMaterialInput({
+      ...body,
+      name_en: (body as any).nameEn || (body as any).name_en || (body as any).name,
+      name_ru: (body as any).nameRu || (body as any).name_ru,
+      name_lv: (body as any).nameLv || (body as any).name_lv,
+      thickness_options: (body as any).thicknessOptions || (body as any).thickness_options || [],
+      metadata: (body as any).metadata || {}
+    });
+  } catch (err) {
+    return json({ error: err instanceof Error ? err.message : 'Invalid material' }, { status: 400 });
   }
 
+  const { data: material, error: dbError } = await locals.supabase.from('materials').insert(data).select().single();
+  if (dbError) {
+    console.error('Material create failed:', dbError);
+    return json({ error: dbError.code === '23505' ? 'Material code already exists' : 'Failed to create material' }, { status: dbError.code === '23505' ? 409 : 500 });
+  }
   return json(material, { status: 201 });
 };

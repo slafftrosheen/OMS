@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { resolve, join, extname } from 'node:path';
+import { resolve, join, extname, sep } from 'node:path';
 import { readdir, stat, access, mkdir, writeFile } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import esbuild from 'esbuild';
@@ -15,11 +15,20 @@ const targets = argv.length ? argv : ['src'];
 const TEST_PATTERN = /\.(test|spec)\.(js|mjs|cjs|ts|tsx)$/;
 
 async function collectTests(dir, out) {
+  if (dir.split(sep).includes('node_modules')) return;
+  const rootInfo = await stat(dir);
+  if (rootInfo.isFile()) {
+    if (TEST_PATTERN.test(dir)) out.push(dir);
+    return;
+  }
   const entries = await readdir(dir);
   for (const entry of entries) {
+    if (entry === 'node_modules') continue;
     const fullPath = join(dir, entry);
     const info = await stat(fullPath);
-    if (info.isDirectory()) {
+    if (info.isFile()) {
+      if (TEST_PATTERN.test(fullPath)) out.push(fullPath);
+    } else if (info.isDirectory()) {
       await collectTests(fullPath, out);
       continue;
     }
