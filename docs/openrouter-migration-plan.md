@@ -14,10 +14,10 @@ Image input and vision chat are not part of the current supported UI. The OpenRo
 
 ## Setup and validation
 
-1. Apply `supabase/migrations/20261007000001_openrouter_vault_settings.sql` through the project migration workflow. The current live database was inspected and the migration is not applied yet. Check the actual Vault owner/signatures/permissions and verify the three public RPCs are executable by `service_role` only after application.
-2. Sign in with an `RD` profile, open Settings → AI provider, and save an OpenRouter key. The UI does not show the key again. Alternatively, the host can provide `OPENROUTER_API_KEY` as a server-only fallback.
+1. `supabase/migrations/20261007000001_openrouter_vault_settings.sql` was applied to the live database (Oct 8) via `psql` as `supabase_admin`. Verified: `anon` execution denied, `service_role` set→get→delete round-trip passes. The three public RPCs are `service_role`-only; Vault is not exposed through PostgREST.
+2. Sign in with an `RD` profile, open Settings → AI provider, and save an OpenRouter key. The UI does not show the key again. Alternatively, the host can provide `OPENROUTER_API_KEY` as a server-only fallback. Until then `/api/health` reports `openrouter: error — key not configured`; this is expected, not a fault.
 3. Exercise a real free-router text request, streaming response, and tool-call cycle. The environment had no OpenRouter key during implementation, so authenticated provider requests remain unverified.
-4. Run `npm run test`, `npm run check`, `npm run build`, and `git diff --check` after the last code edit. Then restart only `reclame-oms.service`, check local health and logs. Never claim provider or deployment success without live command output.
+4. `npm run test`, `npm run check`, `npm run build`, and `git diff --check` all pass on the committed cutover (`b035b43`). `reclame-oms.service` runs this build; pages, `/api/health` database/auth checks, and `/api/ai/swarm` (auth-gated) verified over HTTP. The `reclame-ingestor.service` unit was stopped, disabled, and its unit file removed.
 
 ## Credential boundary
 
