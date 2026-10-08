@@ -22,8 +22,8 @@ export class QRCodeService {
     async generateOrderQR(orderId: string, userId: string): Promise<QRCodeData> {
         // Get order details
         const { data: order, error } = await this.supabase
-            .from('orders')
-            .select('id, title, client')
+            .from('draft_orders')
+            .select('id, po_number, client, title')  // live: orders is view; title/client via draft_orders
             .eq('id', orderId)
             .single();
 
@@ -56,7 +56,7 @@ export class QRCodeService {
 
         // Save to database
         const { data: qrRecord, error: insertError } = await this.supabase
-            .from('qr_codes')
+            .from('order_qr_codes')
             .insert({
                 order_id: orderId,
                 type: 'order',
@@ -105,7 +105,7 @@ export class QRCodeService {
         const qrImage = `data:image/svg+xml;base64,${Buffer.from(svgString).toString('base64')}`;
 
         const { data: qrRecord, error } = await this.supabase
-            .from('qr_codes')
+            .from('order_qr_codes')
             .insert({
                 order_id: orderId,
                 station,
@@ -173,7 +173,7 @@ export class QRCodeService {
 
             // Check if order exists
             const { data: order, error } = await this.supabase
-                .from('orders')
+                .from('draft_orders')
                 .select('id')
                 .eq('id', data.orderId)
                 .single();
@@ -202,7 +202,7 @@ export class QRCodeService {
      * Log QR code scan event
      */
     private async logScan(qrData: any, userId: string): Promise<void> {
-        await this.supabase.from('qr_scan_logs').insert({
+        await this.supabase.from('qr_scan_logs').insert({  // MISSING table; see DEEP_REVIEW notes
             order_id: qrData.orderId,
             station: qrData.station,
             scanned_by: userId,
@@ -220,7 +220,7 @@ export class QRCodeService {
         scansByStation: Record<string, number>;
         recentScans: Array<{ timestamp: string; station: string; user: string }>;
     }> {
-        let query = this.supabase.from('qr_scan_logs').select('*');
+        let query = this.supabase.from('qr_scan_logs').select('*');  // MISSING table; requires migration
         
         if (orderId) {
             query = query.eq('order_id', orderId);
@@ -261,3 +261,6 @@ export class QRCodeService {
         };
     }
 }
+
+// NOTE (Oct 8 fix): live DB has order_qr_codes (not qr_codes) and no qr_scan_logs yet.
+// A migration must create qr_scan_logs and potentially fix the orders-view lookup.

@@ -42,7 +42,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   // Upload to Supabase Storage bucket "chat-attachments"
   const { error: uploadError } = await locals.supabase.storage
-    .from('chat-attachments')
+    .from('chat-attachments')  // Storage bucket: must exist; create via supabase storage create chat-attachments or CLI
     .upload(storagePath, file, { contentType: file.type, upsert: false });
 
   if (uploadError) {
@@ -73,7 +73,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   // Build a signed URL (1 hour) for immediate display
   const { data: signedData } = await locals.supabase.storage
-    .from('chat-attachments')
+    .from('chat-attachments')  // Storage bucket: must exist; create via supabase storage create chat-attachments or CLI
     .createSignedUrl(storagePath, 3600);
 
   return json({
@@ -121,7 +121,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const attachments = await Promise.all(
     (data ?? []).map(async (row: any) => {
       const { data: sd } = await locals.supabase.storage
-        .from('chat-attachments')
+        .from('chat-attachments')  // Storage bucket: must exist; create via supabase storage create chat-attachments or CLI
         .createSignedUrl(row.storage_path, 3600);
       return {
         id: row.id,
