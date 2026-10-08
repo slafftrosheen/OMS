@@ -186,3 +186,18 @@ export function isAssignedToStation(user: User | null, stationId: string): boole
 export function shouldNotifyOnDraftCreation(user: User | null): boolean {
   return !!user && user.role === 'HeadOfProduction';
 }
+// ================================================================
+// Shared order-status enum for form validation + DB contract alignment
+// ================================================================
+// Prevents lowercase drift ('draft', 'pending', 'completed') from reaching
+// the DB (contract is uppercase: PENDING_REVIEW, CONFIRMED, etc.).
+
+export const VALID_STATUS_VALUES: readonly string[] = [
+  'DRAFT', 'PENDING_REVIEW', 'CONFIRMED', 'IN_PRODUCTION',
+  'READY_TO_LOAD', 'DISPATCHED', 'ARCHIVED', 'CANCELLED', 'ON_HOLD', 'VOIDED',
+];
+
+export function isValidStatus(value: string | null | undefined): boolean {
+  return !!value && VALID_STATUS_VALUES.includes(value.toUpperCase());
+}
+

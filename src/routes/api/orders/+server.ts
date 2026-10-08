@@ -123,8 +123,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     const client = body.clientName || body.client;
     const due_date = body.deadline || body.due_date;
     const loading_date = body.loadingDate || body.loading_date;
-    const priority = body.priority || 'normal';
-    const status = body.status || 'draft';
+    const statusRaw = (body.status ?? 'PENDING_REVIEW').toString();
+    const status = statusRaw.toUpperCase();
+    const priorityRaw = (body.priority ?? 'NORMAL').toString();
+    const priority = priorityRaw.toUpperCase();
 
     if (!client || !due_date) {
       throw error(400, 'Missing required fields: client, due_date');

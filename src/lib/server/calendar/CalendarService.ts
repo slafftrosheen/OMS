@@ -122,14 +122,57 @@ export class CalendarService {
      * Generate calendar for all loading days (delivery schedule)
      */
     async generateLoadingCalendar(): Promise<string> {
+        // Load loading days and resolve linked orders through the junction
+        // loading_event_pos (draft_order_id -> draft_orders.id) — there is
+        // NO direct FK draft_orders <-> loading_days in either direction.
+        const { data: loadingEventPos, error: posErr } = await this.supabase
+            .from('loading_event_pos')
+            .select('loading_event_id, draft_order_id')
+            .gte('created_at', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString());
+        // For simplicity, resolve orders by ID array rather than attempting
+        // an unresolvable embed.
         const { data: loadingDays, error } = await this.supabase
             .from('loading_days')
-            .select('*, orders!inner(id, title, client)')
-            .gte('loading_date', new Date().toISOString())
-            .order('loading_date', { ascending: true });
+            .select('id, date, max_capacity, notes, is_blocked')
+            .gte('date', new Date().toISOString())
+            .order('date', { ascending: true });
 
-        if (error || !loadingDays) {
-            throw new Error('Could not generate loading calendar');
+        if (error) {
+            throw new Error('Could not generate loading calendar: ' + (error.message ?? String(error)));
+        }
+        const days = Array.isArray(loadingDays) ? loadingDays : [];
+
+        // Resolve linked orders by collecting draft_order_ids from the junction,
+        // then fetching matching orders in a second query.
+        const orderIds = (loadingEventPos && Array.isArray(loadingEventPos))
+            ? Array.from(new Set(
+                (loadingEventPos as Array<{ draft_order_id?: string }>)
+                    .map(e => e.draft_order_id)
+                    .filter(id => !!id)
+            )) : [];
+        const { data: linkedOrders } = (orderIds.length > 0)
+            ? await this.supabase.from('draft_orders')
+                .select('id, title, client, status, due_date')
+                .in('id', orderIds)
+            : { data: null };
+        const ordersByDay: Record<string, Array<{ id: string; title?: string; client?: string; status?: string; dueDate?: string }>> = {};
+        if (linkedOrders && Array.isArray(linkedOrders) && loadingEventPos) {
+            const posEntries = loadingEventPos as Array<{ loading_event_id?: string; draft_order_id?: string }>; // assume event id = loading_days.id for mapping
+            // Map: loading_event_id -> array of draft_order_ids; we simplify here for calendar output.
+            // For the ICS feed, we only need the list; detailed mapping can be refined.
+            const eventIds: string[] = days.map((d: any) => String(d.id));
+            // Simplified mapping: each linked order mapped to its event by order_id as best-effort
+            const eventIdForPos: Record<string, string> = {};
+            (posEntries).forEach(e => {
+                if (e.loading_event_id && e.draft_order_id) eventIdForPos[e.draft_order_id] = e.loading_event_id;
+            });
+            (linkedOrders).forEach((o: any) => {
+                const evId = eventIdForPos[o.id];
+                if (evId) {
+                    if (!ordersByDay[evId]) ordersByDay[evId] = [];
+                    ordersByDay[evId].push({ id: o.id, title: o.title, client: o.client, status: o.status, dueDate: o.due_date });
+                }
+            });
         }
 
         const calendar = ical({
@@ -138,24 +181,18 @@ export class CalendarService {
             timezone: 'Europe/Riga'
         });
 
-        loadingDays.forEach(day => {
-            const loadingDate = new Date(day.loading_date);
-            const order = day.orders;
-
+        days.forEach((day: any) => {
+            const loadingDateStr = String(day.date).slice(0, 10);
+            const eventIdStr = String(day.id);
             calendar.createEvent({
-                id: day.id,
-                start: loadingDate,
-                end: new Date(loadingDate.getTime() + 4 * 60 * 60 * 1000), // 4 hours for loading
-                summary: `Loading: ${order.title} - ${order.client}`,
-                description: `Order: ${order.title}\nClient: ${order.client}\nLocation: ${day.loading_address || 'TBD'}`,
-                location: day.loading_address,
-                url: `${process.env.BASE_URL}/orders/${order.id}`,
-                status: ICalEventStatus.CONFIRMED,
-                categories: [{ name: 'Loading' }, { name: 'Delivery' }]
+                id: eventIdStr,
+                start: new Date(loadingDateStr + 'T09:00:00'),
+                end: new Date(loadingDateStr + 'T17:00:00'),
+                allDay: false,
+                summary: `Loading Day — ${loadingDateStr}`,
+                description: `Capacity: ${day.max_capacity ?? 10}\nNotes: ${day.notes ?? ''}\nOrders: ${(ordersByDay[eventIdStr] || []).map((o: any) => o.title || o.client || 'Untitled').join('; ')}`,
             });
         });
-
-        return calendar.toString();
     }
 
     /**

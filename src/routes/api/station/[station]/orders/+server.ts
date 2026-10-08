@@ -36,7 +36,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
         )
       `)
       .eq('station', station)
-      .in('order.status', ['active', 'draft'])
+      .in('order.status', ['PENDING_REVIEW', 'CONFIRMED', 'IN_PRODUCTION', 'READY_TO_LOAD', 'ON_HOLD'])
       .neq('state', 'COMPLETED')
       .order('order.priority', { ascending: false })
       .order('order.due_date', { ascending: true });

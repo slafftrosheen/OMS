@@ -1,7 +1,8 @@
 import type { Order, Badge, Station } from './types';
 import { blankStages, STATIONS } from './stages';
 import { handleApiError, retryWithBackoff } from '$lib/utils/error-handler';
-import { notifySuccess, notifyError } from '$lib/notify/toast';
+import { notifySuccess, notifyError }
+import { normaliseStatus } from '$lib/auth/permission-utils'; from '$lib/notify/toast';
 import { writable } from 'svelte/store';
 import { authState } from '$lib/auth/authState.svelte';
 
@@ -181,7 +182,7 @@ export async function updateOrder(id: string, updates: Partial<Order>): Promise<
         title: updates.title,
         due: updates.due,
         loadingDate: updates.loadingDate,
-        status: updates.isDraft ? 'draft' : 'pending',
+        status: normaliseStatus(updates.isDraft ? 'draft' : 'pending'),
         notes: updates.rdNotes,
         profiles: updates.profiles
       })
