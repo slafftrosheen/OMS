@@ -148,7 +148,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // 2. Insert Profiles (if any)
     if (body.profiles && Array.isArray(body.profiles) && body.profiles.length > 0) {
       const profilesToInsert = body.profiles.map((p: any) => ({
-        order_id: order.id,
+        draft_order_id: order.id,
         profile_template_id: p.profileTemplateId || null,
         quantity1: p.quantity || 1,
         configuration: p.configuration || {},

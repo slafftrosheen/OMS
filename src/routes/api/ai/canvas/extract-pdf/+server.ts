@@ -88,24 +88,45 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         return json({ error: 'fileId required' }, { status: 400 });
     }
 
-    // Look up storage_key for the uploaded file
-    const { data: file, error: fileError } = await locals.supabase
+    // File reference: the FE passes file IDs via fileId (files.id), not the junction row id.
+    // Look up the actual file metadata (storage_key, mimetype, filename) through the files table,
+    // using the junction (order_files) only to verify linkage and resolve display details.
+    const { data: link, error: linkError } = await locals.supabase
         .from('order_files')
-        .select('storage_key, mime_type, file_name')
-        .eq('id', body.fileId)
+        .select('draft_order_id, file_type, display_name, file_id')
+        .eq('file_id', body.fileId)
+        .eq('draft_order_id', body.orderId || null)
         .single();
-
-    if (fileError || !file) {
-        return json({ error: 'File not found' }, { status: 404 });
+    if (linkError || !link) {
+        return json({ error: 'File link not found for fileId=' + body.fileId }, { status: 404 });
     }
 
-    if (file.mime_type !== 'application/pdf') {
-        return json({ error: `Unsupported MIME type: ${file.mime_type}` }, { status: 415 });
+    const { data: fileRow, error: fileErr } = await locals.supabase
+        .from('files')
+        .select('id, filename, original_name, filepath, mimetype, storage_key, metadata, created_at')
+        .eq('id', link.file_id)
+        .single();
+    if (fileErr || !fileRow) {
+        return json({ error: 'File metadata not found for file_id=' + link.file_id }, { status: 404 });
+    }
+
+    // The file's display info is from the files table; junction display_name is a fallback.
+    const displayFileName = link.display_name || fileRow.filename || fileRow.original_name || 'unnamed';
+
+    // Storage key for download: prefer files.filepath; fall back to files.metadata.storage_key.
+    const fileStorageKey = fileRow.filepath || (fileRow.metadata && typeof fileRow.metadata === 'object' ? fileRow.metadata.storage_key : null);
+
+    // Use the storage_key directly (not mimetype from junction) to fetch PDF text.
+    if (fileRow.mimetype !== 'application/pdf') {
+        return json({ error: `Unsupported MIME type: ${fileRow.mimetype}` }, { status: 415 });
     }
 
     let pdfText: string;
     try {
-        pdfText = await fetchPdfText(locals.supabase, file.storage_key);
+        if (!fileStorageKey) {
+            return json({ error: 'File has no storage path; file may not have been fully uploaded' }, { status: 422 });
+        }
+        pdfText = await fetchPdfText(locals.supabase, fileStorageKey);
     } catch (err: any) {
         console.error('[extract-pdf] PDF fetch error:', err);
         return json({ error: err.message ?? 'Failed to read PDF' }, { status: 500 });
@@ -117,7 +138,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `Order PO file: ${file.file_name}\n\nExtracted text:\n${pdfText.slice(0, 12000)}` },
+        { role: 'user', content: `Order PO file: ${displayFileName}\n\nExtracted text:\n${pdfText.slice(0, 12000)}` },
     ];
 
     try {

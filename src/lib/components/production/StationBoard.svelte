@@ -80,10 +80,11 @@
                             style="border-color: {getStatusColor(order.status)}"
                         >
                             <option value="NOT_STARTED">Not Started</option>
+                            <option value="QUEUED">Queued</option>
                             <option value="IN_PROGRESS">In Progress</option>
                             <option value="COMPLETED">Completed</option>
                             <option value="BLOCKED">Blocked</option>
-                            <option value="SKIPPED">Skipped</option>
+                            <option value="REWORK">Rework</option>
                         </select>
                     </div>
                 </div>

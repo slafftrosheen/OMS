@@ -20,12 +20,12 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     const { error: stageError } = await locals.supabase
         .from('order_stages')
         .upsert({
-            order_id: id,
+            draft_order_id: id,
             station,
             state: 'REWORK',
             notes: notes ? `Rework: ${reason}. ${notes}` : `Rework: ${reason}`,
             updated_at: new Date().toISOString()
-        }, { onConflict: 'order_id,station' });
+        }, { onConflict: 'draft_order_id,station' });
 
     if (stageError) throw stageError;
 

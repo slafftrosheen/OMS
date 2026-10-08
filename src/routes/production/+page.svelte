@@ -6,6 +6,8 @@
     import StationBoard from "$lib/components/production/StationBoard.svelte";
     import QRScanner from "$lib/components/qr/QRScanner.svelte";
     import Button from "$lib/components/ui/Button.svelte";
+    import { buildStagePatch } from "$lib/order/stage-contract";
+    import { notifyError } from "$lib/notify/toast";
 
     const STATIONS = [
         "CAD",
@@ -18,6 +20,7 @@
     ];
 
     let stationOrders: Record<string, any[]> = $state({});
+    let boardError = $state<string | null>(null);
     let loading = $state(true);
     let showScanner = $state(false);
 
@@ -26,6 +29,9 @@
 
         try {
             const response = await fetch("/api/production/board");
+            if (!response.ok) {
+                throw new Error(`Board fetch failed: HTTP ${response.status}`);
+            }
             const data = await response.json();
 
             if (data.success) {
@@ -33,6 +39,7 @@
             }
         } catch (error) {
             console.error("Failed to load production data:", error);
+            boardError = error instanceof Error ? error.message : "Failed to load production board";
         } finally {
             loading = false;
         }
@@ -46,16 +53,25 @@
         const { orderId, station, status } = data;
 
         try {
-            await fetch(`/api/orders/${orderId}/stages`, {
+            // Handler contract: PATCH ?station=<station> with body {state}.
+            const patch = buildStagePatch(station, status);
+            const res = await fetch(`/api/orders/${orderId}/stages${patch.url}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ stage: station, status }),
+                body: JSON.stringify(patch.body),
             });
+
+            if (!res.ok) {
+                const payload = await res.json().catch(() => ({}));
+                notifyError(payload?.error || payload?.message || `Failed to update ${station} stage`);
+                return;
+            }
 
             // Reload data
             await loadProductionData();
         } catch (error) {
             console.error("Failed to update status:", error);
+            notifyError(`Failed to update ${station} stage`);
         }
     }
 
@@ -112,6 +128,13 @@
         <div class="loading-state">
             <div class="rf-spinner"></div>
             <p>{$t('production.loading', { default: 'Loading production board…' })}</p>
+        </div>
+    {:else if boardError}
+        <div class="error-state" role="alert">
+            <p>{boardError}</p>
+            <Button variant="secondary" onclick={loadProductionData}>
+                {$t('common.retry', { default: 'Retry' })}
+            </Button>
         </div>
     {:else}
         <div class="stations-grid">
@@ -172,6 +195,16 @@
         justify-content: center;
         flex: 1;
         gap: 1rem;
+    }
+
+    .error-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        gap: 1rem;
+        color: var(--danger, #b3261e);
     }
 
     .stations-grid {

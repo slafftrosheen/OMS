@@ -28,21 +28,21 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     const { data: stages } = await supabase
       .from('order_stages')
       .select('*')
-      .eq('order_id', params.id)
+      .eq('draft_order_id', params.id)
       .order('station');
 
     // Get materials
     const { data: materials } = await supabase
       .from('order_materials')
       .select('*')
-      .eq('order_id', params.id)
+      .eq('draft_order_id', params.id)
       .order('display_order');
 
     // Get custom fields
     const { data: fields } = await supabase
       .from('order_fields')
       .select('*')
-      .eq('order_id', params.id)
+      .eq('draft_order_id', params.id)
       .order('display_order');
 
     // Get assignees with user details
@@ -56,7 +56,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
           profiles (full_name, avatar_url, station)
         )
       `)
-      .eq('order_id', params.id);
+      .eq('draft_order_id', params.id);
 
     // Get rework cycles
     const { data: reworkCycles } = await supabase
@@ -74,7 +74,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
           profiles (full_name)
         )
       `)
-      .eq('order_id', params.id)
+      .eq('draft_order_id', params.id)
       .order('created_at', { ascending: false });
 
     // Get revisions

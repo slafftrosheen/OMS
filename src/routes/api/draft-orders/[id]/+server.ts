@@ -43,7 +43,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
             id, file_type, display_name,
             files(id, filename, original_name, created_at)
         `)
-        .eq('order_id', order.id);
+        .eq('draft_order_id', order.id);
 
     if (orderFiles) {
         files = orderFiles.map((of: any) => ({
@@ -123,33 +123,42 @@ export const PUT: RequestHandler = async (event) => {
 
     // Update profiles
     if (data.profiles && Array.isArray(data.profiles)) {
-        const profilesToInsert = data.profiles.map((p: any) => ({
-            order_id: order.id,
-            profile_template_id: p.profileTemplateId || null,
-            quantity1: p.quantity || 1,
-            configuration: p.configuration || {},
-            notes: p.notes || ''
-        }));
+        // Live RPC contract: replace_order_profiles(p_order_id uuid, p_profiles jsonb)
+        // where each item carries profile_template_id, quantity1..4, configuration,
+        // notes, order_index. The UI sends camelCase with a single quantity.
+        const profileItems = data.profiles.map((p: any, idx: number) => {
+            const cfg = (p.configuration && typeof p.configuration === 'object') ? p.configuration : {};
+            const q = (typeof p.quantity === 'number' && p.quantity > 0) ? Math.floor(p.quantity) : 1;
+            return {
+                profile_template_id: p.profileTemplateId ?? p.profile_template_id ?? null,
+                quantity1: q,
+                quantity2: p.quantity2 ?? 0,
+                quantity3: p.quantity3 ?? 0,
+                quantity4: p.quantity4 ?? 0,
+                configuration: cfg,
+                notes: p.notes ?? '',
+                order_index: idx
+            };
+        });
 
-        // Try to use RPC, fallback to manual if it fails
+        // RPC path: server-side delete+insert is atomic and RLS-safe (SECURITY DEFINER).
         const { error: profilesError } = await event.locals.supabase.rpc('replace_order_profiles', {
-            target_order_id: order.id,
-            new_profiles: profilesToInsert
+            p_order_id: order.id,
+            p_profiles: profileItems
         });
 
         if (profilesError) {
-            console.warn('RPC replace_order_profiles failed, falling back to manual delete/insert', profilesError);
-            // Manual fallback: delete and insert
-            await event.locals.supabase.from('order_profiles').delete().eq('order_id', order.id);
-            const { error: insertError } = await event.locals.supabase.from('order_profiles').insert(profilesToInsert);
-            if (insertError) throw insertError;
+            // No manual fallback: the old fallback inserted a nonexistent `order_id`
+            // column into order_profiles (live column is draft_order_id) and always failed.
+            console.error('replace_order_profiles failed:', profilesError);
+            throw error(500, 'Failed to update order profiles');
         }
     }
 
     // Link new files
     if (data.newFileIds && Array.isArray(data.newFileIds) && data.newFileIds.length > 0) {
         const filesToInsert = data.newFileIds.map((fid: string) => ({
-            order_id: order.id,
+            draft_order_id: order.id,
             file_id: fid,
             file_type: 'sketch',
             display_name: null

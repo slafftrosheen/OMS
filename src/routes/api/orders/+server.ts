@@ -167,7 +167,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // Add materials if provided
     if (body.materials && Array.isArray(body.materials)) {
       const materials = body.materials.map((m: any, idx: number) => ({
-        order_id: order.id,
+        draft_order_id: order.id,
         material_type: m.materialType || m.material_type,
         material_category: m.materialCategory || m.material_category,
         thickness: m.thickness,
@@ -196,7 +196,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // Add profiles if provided
     if (body.profiles && Array.isArray(body.profiles)) {
       const profiles = body.profiles.map((p: any, idx: number) => ({
-        order_id: order.id,
+        draft_order_id: order.id,
         profile_template_id: p.profileTemplateId || p.profile_template_id || null,
         quantity1: p.quantity || p.quantity1 || 1,
         configuration: p.configuration || {},
@@ -215,7 +215,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // Add custom fields if provided
     if (body.fields && Array.isArray(body.fields)) {
       const fields = body.fields.map((f: any, idx: number) => ({
-        order_id: order.id,
+        draft_order_id: order.id,
         key: f.key,
         label: f.label,
         value: f.value,
@@ -236,7 +236,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // Add files if provided (file IDs)
     if (body.fileIds && Array.isArray(body.fileIds)) {
       const files = body.fileIds.map((fileId: string, idx: number) => ({
-        order_id: order.id,
+        draft_order_id: order.id,
         file_id: fileId,
         file_type: 'attachment',
         display_name: `File ${idx + 1}`
