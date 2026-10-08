@@ -3,7 +3,6 @@ import { Tldraw, type Editor } from '@tldraw/tldraw';
 import '@tldraw/tldraw/tldraw.css';
 import { MakerShapeUtil } from './shapes/MakerShape';
 import { ChatShapeUtil } from './shapes/ChatShape';
-import { ForgeShapeUtil } from './shapes/ForgeShape';
 import { DocumentShapeUtil } from './shapes/DocumentShape';
 import { SwarmShapeUtil } from './shapes/SwarmShape';
 import { OrderDetailsShapeUtil } from './shapes/form-shapes/OrderDetailsShape';
@@ -24,7 +23,6 @@ import { wireAssetDropHandler } from './asset-uploader';
 const customShapeUtils = [
     MakerShapeUtil,
     ChatShapeUtil,
-    ForgeShapeUtil,
     DocumentShapeUtil,
     SwarmShapeUtil,
     OrderDetailsShapeUtil,

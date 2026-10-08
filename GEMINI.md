@@ -4,6 +4,7 @@
 
 - Use the repository root `.env` only for local runtime configuration. It is ignored by Git and contains private configuration; never print, stage, commit, or publish its values.
 - The deployed SvelteKit app runs as `reclame-oms.service` from `/opt/reclame-oms` with `/usr/bin/node build/index.js` on port 3000. Supabase is a separate Docker Compose stack.
+- AI chat/text generation uses OpenRouter (`openrouter/free` by default); no local Ollama/sidecar inference is intended. R&D members (role `RD`) manage the shared credential in Settings, stored server-side through Supabase Vault RPCs. Forge media, voice/audio, vector RAG and knowledge ingestion are removed. Live provider inference remains unverified until a key is configured and a real request succeeds.
 - Shared server modules may also be imported by standalone workers. Avoid direct `$app/*` or `$env/*` imports in libraries used outside SvelteKit; use compatible configuration accessors.
 
 ## Current database contracts

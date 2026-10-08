@@ -8,5 +8,5 @@ export const GET: RequestHandler = async ({ url }) => {
     if (url.searchParams.get('refresh') === '1') {
         await refreshSwarmHealth();
     }
-    return json({ nodes: listNodeStates(), now: Date.now() });
+    return json({ nodes: await listNodeStates(), now: Date.now() });
 };

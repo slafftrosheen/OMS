@@ -7,10 +7,10 @@ export const GET: RequestHandler = async () => {
     try {
         // Trigger a fresh health check of all nodes
         await refreshSwarmHealth();
-        const nodes = listNodeStates();
+        const nodes = await listNodeStates();
 
         const allUp = nodes.every(n => n.lastStatus === 'up');
-        const anyUp = nodes.some(n => n.lastStatus === 'up' || n.lastStatus === 'degraded');
+        const anyUp = nodes.some(n => n.lastStatus === 'up');
 
         return json({
             status: allUp ? 'ok' : (anyUp ? 'degraded' : 'error'),

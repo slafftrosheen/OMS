@@ -29,7 +29,7 @@ npm run build
 
 The OMS app runs as `reclame-oms.service` from `/opt/reclame-oms`, with `WorkingDirectory=/opt/reclame-oms`, `EnvironmentFile=/opt/reclame-oms/.env`, and `ExecStart=/usr/bin/node build/index.js`. Systemd binds the app on port 3000; it is intended for the internal tailnet. The database stack is Docker Compose-managed separately (containers named `supabase-*`). Do not restart or modify the database stack as part of a frontend/API release unless a DB change explicitly requires it.
 
-The AI node addresses are configuration-dependent; don't assume an old deployment IP is current. If health-check logs report unavailable AI services, verify configured node addresses and Tailscale peer reachability before changing code.
+AI chat and text-generation requests use the OpenRouter API, with `openrouter/free` as the development default. R&D users (role `RD`) manage the shared server-side key in Settings; it is stored through Supabase Vault RPCs and is not returned to the browser. Forge media, voice/audio, embeddings, vector retrieval, and knowledge ingestion were removed rather than routed back to local Ollama/sidecars. See `docs/openrouter-migration-plan.md` for feature scope, Vault migration, and remaining provider validation. A real OpenRouter key/request must be configured and tested before claiming live inference is operational.
 
 After building, restart only the OMS app service and verify its health:
 

@@ -12,16 +12,14 @@
  * }
  *
  * The PDF text is fetched from the existing /api/files/[fileId]/download
- * endpoint (which honours RLS), then sent to Ollama with a strict JSON-only
+ * endpoint (which honours RLS), then sent to OpenRouter with a strict JSON-only
  * system prompt.  Caller is responsible for applying the patch to the Svelte
  * orderState.
  */
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { ollamaComplete } from '$lib/server/ai/ollama-client';
-import { swarmChat } from '$lib/server/ai/swarm';
-import { MODEL } from '$lib/server/config';
+import { openRouterComplete } from '$lib/server/ai/openrouter';
 
 const SYSTEM_PROMPT = `You extract structured order data from a purchase-order PDF's text.
 
@@ -123,23 +121,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     ];
 
     try {
-        let raw: string;
-        try {
-            const result = await swarmChat({
-                model: MODEL.chat,
-                messages,
-                stream: false,
-                cap: 'reasoning',
-            });
-            if (result.response.ok) {
-                const data = await result.response.json();
-                raw = data?.message?.content ?? '';
-            } else {
-                throw new Error(`Swarm response ${result.response.status}`);
-            }
-        } catch {
-            raw = await ollamaComplete(messages as any);
-        }
+        const raw = await openRouterComplete(messages as any, { jsonMode: true, maxTokens: 1600 });
 
         const parsed = tryParseJson(raw);
         if (!parsed || typeof parsed !== 'object') {

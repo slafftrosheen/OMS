@@ -1200,38 +1200,10 @@
       "send_to_start": "Отправьте сообщение, чтобы начать.",
       "placeholder": "Спросите Reclame AI…"
     },
-    "knowledge": {
-      "status": {
-        "all": "Все статусы",
-        "ready": "Готово",
-        "queued": "В очереди",
-        "extracting": "Извлечение",
-        "embedding": "Вложение",
-        "failed": "Ошибка"
-      },
-      "cols": {
-        "title": "Заголовок",
-        "kind": "Тип",
-        "status": "Статус",
-        "size": "Размер",
-        "pages": "Страницы",
-        "added": "Добавлено"
-      },
-      "search_placeholder": "Поиск источников знаний…",
-      "upload": "Загрузить",
-      "uploading": "Загрузка…",
-      "loading": "Загрузка источников знаний…",
-      "no_sources": "Источники знаний не найдены. Загрузите PDF или документы для построения RAG-индекса.",
-      "stats_total": "источников всего",
-      "stats_ready": "готово",
-      "stats_processing": "обрабатывается",
-      "stats_failed": "ошибка"
-    },
     "internal_toolset": "внутренний инструментарий",
     "sections": {
       "overview": "Обзор",
       "chat": "Чат",
-      "knowledge": "База знаний",
       "canvas": "Доска"
     },
     "swarm_no_nodes": "Узлы не подключены к рою.",

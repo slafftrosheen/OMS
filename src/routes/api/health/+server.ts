@@ -1,7 +1,7 @@
 // src/routes/api/health/+server.ts
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { dev } from '$app/environment';
-import { OLLAMA_URL, OLLAMA_PROBE_TIMEOUT as PROBE_TIMEOUT_MS } from '$lib/server/config';
+import { isOpenRouterConfigured } from '$lib/server/ai/openrouter';
 
 async function probe(fn: () => Promise<void>) {
     const start = Date.now();
@@ -29,15 +29,8 @@ export const GET: RequestHandler = async ({ locals }) => {
             const { error } = await locals.supabase.auth.getSession();
             if (error) throw error;
         }),
-        ollama: await probe(async () => {
-            const ctrl = new AbortController();
-            const t = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
-            try {
-                const r = await fetch(`${OLLAMA_URL}/api/version`, { signal: ctrl.signal });
-                if (!r.ok) throw new Error(`Ollama returned ${r.status}`);
-            } finally {
-                clearTimeout(t);
-            }
+        openrouter: await probe(async () => {
+            if (!(await isOpenRouterConfigured())) throw new Error('OpenRouter API key is not configured');
         })
     };
 

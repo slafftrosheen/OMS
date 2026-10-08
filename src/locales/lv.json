@@ -1200,38 +1200,10 @@
       "send_to_start": "Nosūtiet ziņojumu, lai sāktu.",
       "placeholder": "Jautājiet Reclame AI…"
     },
-    "knowledge": {
-      "status": {
-        "all": "Visi statusi",
-        "ready": "Gatavs",
-        "queued": "Rindā",
-        "extracting": "Izvelk",
-        "embedding": "Veido ieguldījumu",
-        "failed": "Neizdevās"
-      },
-      "cols": {
-        "title": "Nosaukums",
-        "kind": "Veids",
-        "status": "Statuss",
-        "size": "Izmērs",
-        "pages": "Lapas",
-        "added": "Pievienots"
-      },
-      "search_placeholder": "Meklēt zināšanu avotus…",
-      "upload": "Augšupielādēt",
-      "uploading": "Augšupielādē…",
-      "loading": "Ielādē zināšanu avotus…",
-      "no_sources": "Zināšanu avoti nav atrasti. Augšupielādējiet PDF vai dokumentus, lai veidotu RAG indeksu.",
-      "stats_total": "avoti kopā",
-      "stats_ready": "gatavi",
-      "stats_processing": "apstrādā",
-      "stats_failed": "kļūda"
-    },
     "internal_toolset": "iekšējais rīku komplekts",
     "sections": {
       "overview": "Pārskats",
       "chat": "Čats",
-      "knowledge": "Zināšanas",
       "canvas": "Kanva"
     },
     "swarm_no_nodes": "Nav pievienotu mezglu.",

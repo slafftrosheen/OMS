@@ -22,7 +22,6 @@ export type NodeKind =
     | 'boxletter'
     | 'maker'
     | 'chat'
-    | 'forge'
     | 'document';
 
 export interface NodeRunContext {

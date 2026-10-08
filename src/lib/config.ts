@@ -13,7 +13,7 @@ function read(key: string, fallback: string): string {
     return v && v !== '' ? v : fallback;
 }
 
-export const PUBLIC_OLLAMA_WEBUI_URL = read('PUBLIC_OLLAMA_WEBUI_URL', 'http://100.93.147.108:3000');
+
 export const PUBLIC_BASE_URL         = read('PUBLIC_BASE_URL',         'http://reclame-orch.local');
 export const PUBLIC_APP_URL          = read('PUBLIC_APP_URL',          PUBLIC_BASE_URL);
 export const PUBLIC_SUPABASE_URL     = read('PUBLIC_SUPABASE_URL',     'http://100.98.202.69:8000');

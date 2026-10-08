@@ -1,17 +1,11 @@
 <script lang="ts">
-  // AI Lab overview — status dashboard + quick access.
-  // Consolidates swarm nodes and recent runs history.
+  // AI Lab overview — OpenRouter status and recent runs.
   import { onMount } from 'svelte';
   import Icon from '$lib/ui/Icon.svelte';
   import type { IconName } from '$lib/ui/icons';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
 
-  type NodeState = {
-    label: string; host: string; port: number; sidecarUrl: string;
-    caps: string[]; inflight: number; lastSeen: number; lastStatus: string;
-    warmModels: string[]; weight: number; vramGb: number;
-  };
 
   type Run = {
     id: string; kind: string; status: string;
@@ -20,30 +14,17 @@
     error: string | null; created_at: string;
   };
 
-  let nodes = $state<NodeState[]>([]);
   let runs = $state<Run[]>([]);
-  let knowledgeCounts = $state({ total: 0, ready: 0, queued: 0, failed: 0 });
   let runsTodayCount = $state(0);
-  let now = $state(Date.now());
+  let providerStatus = $state('Checking OpenRouter…');
 
   async function refresh() {
-    const [n, k, r] = await Promise.all([
-      fetch('/api/ai/swarm?refresh=1').then((r) => r.json()).catch(() => ({ nodes: [] })),
-      fetch('/api/ai/knowledge?limit=200').then((r) => r.json()).catch(() => ({ items: [], total: 0 })),
+    const [health, r] = await Promise.all([
+      fetch('/api/ai/health').then((r) => r.json()).catch(() => ({ status: 'error' })),
       fetch('/api/ai/runs?limit=20').then((r) => r.json()).catch(() => ({ items: [] }))
     ]);
-    
-    nodes = n.nodes ?? [];
-    now = n.now ?? Date.now();
+    providerStatus = health.status === 'ok' ? 'OpenRouter configured' : 'OpenRouter not configured';
     runs = r.items ?? [];
-    
-    const items = (k.items ?? []) as Array<{ status: string }>;
-    knowledgeCounts = {
-      total: k.total ?? items.length,
-      ready: items.filter((i) => i.status === 'ready').length,
-      queued: items.filter((i) => i.status === 'queued' || i.status === 'extracting' || i.status === 'embedding').length,
-      failed: items.filter((i) => i.status === 'failed').length
-    };
     
     const today = new Date(); today.setHours(0, 0, 0, 0);
     runsTodayCount = runs.filter(
@@ -57,13 +38,6 @@
     return () => clearInterval(t);
   });
 
-  function ago(ms: number): string {
-    if (!ms) return '—';
-    const s = Math.max(0, Math.floor((now - ms) / 1000));
-    if (s < 60) return `${s}s ago`;
-    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-    return `${Math.floor(s / 3600)}h ago`;
-  }
 
   const tiles: Array<{ href: string; icon: IconName; labelKey: string; descKey: string }> = [
     { href: '/ai-lab/canvas', icon: 'layout-grid',    labelKey: 'ailab.sections.canvas', descKey: 'ailab.tiles.canvas_desc' },
@@ -76,19 +50,8 @@
   <!-- Headline Stats -->
   <section class="status-grid">
     <div class="card stat-card">
-      <div class="card-head"><Icon name="network" size="sm" /><span>{$t('ailab.active_swarm')}</span></div>
-      <div class="nums">
-        <div><strong>{nodes.filter(n => n.lastStatus === 'up').length}</strong><span>{$t('ailab.knowledge.status.ready')}</span></div>
-        <div><strong>{nodes.filter(n => n.lastStatus === 'down').length}</strong><span>{$t('ailab.knowledge.status.failed')}</span></div>
-      </div>
-    </div>
-
-    <div class="card stat-card">
-      <div class="card-head"><Icon name="library" size="sm" /><span>{$t('ailab.sections.knowledge')}</span></div>
-      <div class="nums">
-        <div><strong>{knowledgeCounts.ready}</strong><span>{$t('ailab.knowledge.stats_ready')}</span></div>
-        <div><strong>{knowledgeCounts.queued}</strong><span>{$t('ailab.knowledge.stats_processing')}</span></div>
-      </div>
+      <div class="card-head"><Icon name="network" size="sm" /><span>AI Provider</span></div>
+      <div class="nums"><div><strong>{providerStatus}</strong></div></div>
     </div>
 
     <div class="card stat-card">
@@ -113,37 +76,13 @@
   </section>
 
   <div class="detailed-grid">
-    <!-- Swarm Details -->
+    <!-- OpenRouter routing status -->
     <section class="swarm-details">
       <header class="section-head">
-        <h3>{$t('ailab.active_swarm')}</h3>
-        <button class="btn-refresh" onclick={refresh}><Icon name="refresh-ccw" size="sm" /></button>
+        <h3>OpenRouter provider</h3>
+        <button class="btn-refresh" onclick={refresh} aria-label={$t('common.refresh')}><Icon name="refresh-ccw" size="sm" /></button>
       </header>
-      <div class="nodes-list">
-        {#each nodes as n (n.label)}
-          <article class="node-item" data-status={n.lastStatus}>
-            <div class="node-main">
-              <span class="dot"></span>
-              <div class="node-info">
-                <strong>{n.label}</strong>
-                <span class="muted small">{n.host}:{n.port}</span>
-              </div>
-              <div class="node-stats">
-                <span class="pill">VRAM {n.vramGb}GB</span>
-                <span class="pill">{ago(n.lastSeen)}</span>
-              </div>
-            </div>
-            <div class="caps">
-              {#each n.caps as c}<span class="cap">{c}</span>{/each}
-            </div>
-            <div class="node-footer muted small">
-              inflight: {n.inflight} · warm: {n.warmModels.length}
-            </div>
-          </article>
-        {:else}
-          <div class="card empty">{$t('ailab.swarm_no_nodes')}</div>
-        {/each}
-      </div>
+      <div class="card empty">{providerStatus}. Manage the system credential in Settings (R&D only).</div>
     </section>
 
     <!-- Recent Runs -->

@@ -1,7 +1,5 @@
 <script lang="ts">
-  // Reclame AI Lab — section shell. Mounted under /ai-lab and renders a
-  // sub-nav with every Lab surface (Chat, Knowledge, Forge, Canvas, Tools,
-  // Runs, Swarm). Hidden surfaces (PUBLIC_AILAB_*=false) are filtered out.
+  // Reclame AI Lab — OpenRouter-backed chat and canvas surfaces.
   import { page } from '$app/state';
   import { base } from '$app/paths';
   import Icon from '$lib/ui/Icon.svelte';
@@ -14,7 +12,6 @@
   const sections: Array<{ href: string; labelKey: string; icon: IconName; flag: string }> = [
     { href: '/ai-lab',           labelKey: 'ailab.sections.overview',  icon: 'sparkles',       flag: 'PUBLIC_AILAB_ENABLED' },
     { href: '/ai-lab/chat',      labelKey: 'ailab.sections.chat',      icon: 'message-square', flag: 'PUBLIC_AILAB_CHAT_ENABLED' },
-    { href: '/ai-lab/knowledge', labelKey: 'ailab.sections.knowledge', icon: 'library',        flag: 'PUBLIC_AILAB_KNOWLEDGE_ENABLED' },
     { href: '/ai-lab/canvas',    labelKey: 'ailab.sections.canvas',    icon: 'layout-grid',    flag: 'PUBLIC_AILAB_CANVAS_ENABLED' }
   ];
 

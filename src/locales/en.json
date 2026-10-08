@@ -1200,38 +1200,10 @@
       "send_to_start": "Send a message to get started.",
       "placeholder": "Ask Reclame AI…"
     },
-    "knowledge": {
-      "status": {
-        "all": "All statuses",
-        "ready": "Ready",
-        "queued": "Queued",
-        "extracting": "Extracting",
-        "embedding": "Embedding",
-        "failed": "Failed"
-      },
-      "cols": {
-        "title": "Title",
-        "kind": "Kind",
-        "status": "Status",
-        "size": "Size",
-        "pages": "Pages",
-        "added": "Added"
-      },
-      "search_placeholder": "Search knowledge sources…",
-      "upload": "Upload",
-      "uploading": "Uploading…",
-      "loading": "Loading knowledge sources…",
-      "no_sources": "No knowledge sources found. Upload PDFs or documents to build the RAG index.",
-      "stats_total": "sources total",
-      "stats_ready": "ready",
-      "stats_processing": "processing",
-      "stats_failed": "failed"
-    },
     "internal_toolset": "internal toolset",
     "sections": {
       "overview": "Overview",
       "chat": "Chat",
-      "knowledge": "Knowledge",
       "canvas": "Canvas"
     },
     "swarm_no_nodes": "No nodes connected to swarm.",

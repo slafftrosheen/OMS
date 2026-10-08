@@ -112,7 +112,7 @@ export function noContent() {
 }
 
 // ─── AI rate limiter (per identifier) ────────────────────────────────────────
-// Ollama calls can be expensive (deepseek-r1 takes 30s+).  We layer an extra
+// Hosted model calls can be expensive. We layer an extra
 // throttle on top of the global rate limit in hooks.server.ts.  In-memory only
 // per Q11b — single-replica deployment, no Redis.
 

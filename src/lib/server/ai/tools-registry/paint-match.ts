@@ -2,12 +2,11 @@
 //
 // Inputs: target colour (RAL/Pantone/HEX/descriptive) + substrate + finish.
 // Output: top historical recipes from `paint_matches`, plus an LLM-synthesised
-// recommendation that respects ingested paint datasheets.
+// recommendation that respects historical paint recipes.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MODEL } from '$lib/server/config';
-import { swarmChat } from '$lib/server/ai/swarm';
-import { searchKnowledge } from './knowledge-search';
+import { openRouterComplete } from '$lib/server/ai/openrouter';
 
 let _admin: SupabaseClient | null = null;
 function admin(): SupabaseClient {
@@ -36,7 +35,6 @@ export interface PaintMatchResult {
         verified: boolean;
         notes: string | null;
     }>;
-    knowledge_citations: Array<{ source_id: string; title: string; page: number | null }>;
     recommendation: {
         recipe: Array<{ base: string; ratio_pct: number }>;
         dry_time_min: number;
@@ -75,12 +73,6 @@ export async function matchPaint(args: PaintMatchArgs): Promise<PaintMatchResult
         notes:        (r.notes        as string | null) ?? null
     }));
 
-    const kb = await searchKnowledge({
-        query: `paint mix recipe ${args.target} on ${args.substrate} ${args.finish ?? ''}`.trim(),
-        tags: ['paint', 'finishing', 'datasheet'],
-        top_k: 4
-    }).catch(() => ({ hits: [] as Awaited<ReturnType<typeof searchKnowledge>>['hits'] }));
-
     let recommendation: PaintMatchResult['recommendation'] = null;
     try {
         const sys = `You are a paint shop foreman. Output ONLY a JSON object with:
@@ -89,21 +81,17 @@ bake_schedule (string, e.g. "30min @ 80°C"), finish, confidence (0..1),
 rationale. Use historical entries and datasheets to ground the recipe.`;
         const usr = JSON.stringify({
             request: args,
-            historical: historical.slice(0, 5),
-            datasheets: kb.hits.map((h) => h.content.slice(0, 1500))
+            historical: historical.slice(0, 5)
         });
-        const res = await swarmChat({
-            cap: 'reasoning',
-            model: MODEL.chat,
-            stream: false,
+        const txt = await openRouterComplete([
+            { role: 'system', content: sys },
+            { role: 'user', content: usr }
+        ], {
+            model: MODEL.chat.primary,
             temperature: 0.3,
-            messages: [
-                { role: 'system', content: sys },
-                { role: 'user', content: usr }
-            ]
+            jsonMode: true,
+            maxTokens: 1200
         });
-        const j = (await res.response.json()) as { message?: { content?: string } };
-        const txt = j.message?.content ?? '';
         const start = txt.indexOf('{');
         const end = txt.lastIndexOf('}');
         if (start >= 0 && end > start) {
@@ -115,11 +103,6 @@ rationale. Use historical entries and datasheets to ground the recipe.`;
 
     return {
         historical,
-        knowledge_citations: kb.hits.map((h) => ({
-            source_id: h.source_id,
-            title: h.title,
-            page: h.page
-        })),
         recommendation
     };
 }

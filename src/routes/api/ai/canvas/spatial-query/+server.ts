@@ -1,7 +1,6 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { json, error as svelteError } from '@sveltejs/kit';
-import { swarmChat } from '$lib/server/ai/swarm';
-import { MODEL } from '$lib/server/config';
+import { openRouterComplete } from '$lib/server/ai/openrouter';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
     if (!locals.supabase || !locals.user) {
@@ -77,20 +76,15 @@ points where it helps the floor staff.
 ${spatialContext}`;
 
     try {
-        const result = await swarmChat({
-            model: MODEL.chat,
-            cap: 'coder', // Assuming coding capabilities might be needed often here
-            messages: [
+        const reply = await openRouterComplete(
+            [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: prompt }
             ],
-            stream: false,
-            temperature: 0.3
-        });
-
-        const data = await result.response.json();
+            { temperature: 0.3, maxTokens: 1800 }
+        );
         
-        return json({ reply: data.message?.content || "No response" });
+        return json({ reply: reply || "No response" });
     } catch (err: any) {
         return json({ error: err.message }, { status: 500 });
     }

@@ -1,17 +1,9 @@
 <script lang="ts">
-  /**
-   * AI Lab › Chat — full-featured AI chat using the sessions API.
-   * Creates/resumes chat sessions backed by ai_chat_sessions + ai_chat_messages.
-   *
-   * Adds station-friendly voice + visual assistants:
-   *   - Mic captures audio → /api/ai/forge/asr → fills the input.
-   *   - Camera captures a JPEG → vision-capable model can "see" it.
-   *   - Auto-TTS reads assistant replies for hands-busy users on the floor.
-   */
+  /** AI Lab chat backed by the OpenRouter API. */
   import { onMount } from 'svelte';
   import Icon from '$lib/ui/Icon.svelte';
   import { t } from 'svelte-i18n';
-  import VoiceVisual from '$lib/chat/VoiceVisual.svelte';
+
 
   type Session = {
     id: string;
@@ -44,10 +36,7 @@
   let error = $state('');
   let scroller: HTMLDivElement | null = $state(null);
 
-  // Voice / visual assistant state.
-  let attachedImage = $state<string | null>(null);
-  let autoSpeak = $state(false);
-  let voicePanel = $state<{ speak: (t: string) => Promise<void> } | null>(null);
+
 
   async function loadSessions() {
     sessionsLoading = true;
@@ -106,7 +95,7 @@
 
   async function send() {
     const textBody = input.trim();
-    if ((!textBody && !attachedImage) || !activeSession) return;
+    if (!textBody || !activeSession) return;
 
     input = '';
     sendLoading = true;
@@ -115,7 +104,7 @@
     const optimistic: Message = {
       id: `tmp-${Date.now()}`,
       role: 'user',
-      content: textBody || (attachedImage ? '(image)' : ''),
+      content: textBody,
       model: null,
       node_label: null,
       latency_ms: null,
@@ -125,14 +114,8 @@
     scrollToBottom();
 
     const payload: Record<string, unknown> = {
-      content: textBody || 'Describe what you see in the attached image.'
+      content: textBody
     };
-    if (attachedImage) {
-      payload.images = [attachedImage];
-      payload.cap = 'vision';
-    }
-    // Consume the image so it's not re-sent on the next turn.
-    attachedImage = null;
 
     try {
       const res = await fetch(`/api/ai/sessions/${activeSession.id}/messages`, {
@@ -162,9 +145,7 @@
             created_at: new Date().toISOString(),
           },
         ];
-        if (autoSpeak && voicePanel?.speak) {
-          void voicePanel.speak(reply);
-        }
+
         // Update session's last_message_at locally so the sidebar reflects activity
         if (activeSession) {
           activeSession = { ...activeSession, last_message_at: new Date().toISOString() };
@@ -284,15 +265,7 @@
         {/if}
       </div>
 
-      <div class="vv-row">
-        <VoiceVisual
-          bind:this={voicePanel}
-          bind:text={input}
-          bind:image={attachedImage}
-          bind:autoSpeakReply={autoSpeak}
-          disabled={sendLoading}
-        />
-      </div>
+
       <div class="input-area">
         <textarea
           bind:value={input}
@@ -301,7 +274,7 @@
           disabled={sendLoading}
           onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
         ></textarea>
-        <button class="send-btn" onclick={send} disabled={sendLoading || (!input.trim() && !attachedImage)}>
+        <button class="send-btn" onclick={send} disabled={sendLoading || !input.trim()}>
           {#if sendLoading}
             <div class="spin"></div>
           {:else}

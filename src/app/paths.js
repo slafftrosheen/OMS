@@ -18,6 +18,6 @@ export const APP_ROUTES = [
 export const AI_LAB_ROUTES = [
   { path: '/ai-lab',           label: 'Overview',  icon: 'sparkles' },
   { path: '/ai-lab/chat',      label: 'Chat',      icon: 'message-square' },
-  { path: '/ai-lab/knowledge', label: 'Knowledge', icon: 'library' },
+
   { path: '/ai-lab/canvas',    label: 'Canvas',    icon: 'layout-grid' }
 ];

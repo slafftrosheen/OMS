@@ -1,5 +1,4 @@
-// Tool: web search + single-page crawl, both routed through the AI queue so
-// they can't hammer outbound bandwidth. The deployment is air-gapped to a
+// Tool: web search + single-page crawl. The deployment is air-gapped to a
 // Tailnet, so by default we hit a self-hosted SearxNG (configurable). If the
 // backend isn't reachable we still return a structured payload telling the
 // LLM why — never leak engine errors as raw HTML.
@@ -13,7 +12,6 @@ import {
     CRAWL_MAX_BYTES,
     CRAWL_TIMEOUT_MS
 } from '$lib/server/config';
-import { withSlot } from '$lib/server/ai/queue';
 import { logger } from '$lib/server/logging/logger';
 
 export interface SearchHit {
@@ -79,7 +77,7 @@ export async function webSearch(args: SearchArgs): Promise<SearchResult> {
         url.searchParams.set('categories', args.categories.join(','));
     }
 
-    return withSlot('local', 'web-search', async () => {
+    {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), CRAWL_TIMEOUT_MS);
         try {
@@ -134,7 +132,7 @@ export async function webSearch(args: SearchArgs): Promise<SearchResult> {
         } finally {
             clearTimeout(timer);
         }
-    });
+    }
 }
 
 // ─── Crawl ──────────────────────────────────────────────────────────────────
@@ -166,7 +164,7 @@ export async function crawlUrl(args: CrawlArgs): Promise<CrawlResult> {
         throw new Error('crawlUrl: url must start with http:// or https://');
     }
 
-    return withSlot('local', 'crawl', async () => {
+    {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), CRAWL_TIMEOUT_MS);
         try {
@@ -206,7 +204,7 @@ export async function crawlUrl(args: CrawlArgs): Promise<CrawlResult> {
                     links: [],
                     bytes: buf.byteLength,
                     mime,
-                    note: 'Non-HTML response — use the knowledge ingest pipeline for binary files.'
+                    note: 'Non-HTML response — only HTML/XML pages are cleaned here.'
                 };
             }
 
@@ -277,7 +275,7 @@ export async function crawlUrl(args: CrawlArgs): Promise<CrawlResult> {
         } finally {
             clearTimeout(timer);
         }
-    });
+    }
 }
 
 async function readBoundedBytes(res: Response, max: number): Promise<Uint8Array> {

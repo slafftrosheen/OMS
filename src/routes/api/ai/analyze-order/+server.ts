@@ -3,7 +3,7 @@ import { error as svelteError, type RequestHandler } from '@sveltejs/kit';
 import { z } from 'zod';
 import { aiRateLimit, okOne, rateLimitIdentifier, requireAuth, validate } from '$lib/server/api/helpers';
 import { logger } from '$lib/server/logging/logger';
-import { ollamaComplete } from '$lib/server/ai/ollama-client';
+import { openRouterComplete } from '$lib/server/ai/openrouter';
 
 const AnalyzeOrderSchema = z.object({
     title: z.string().min(1),
@@ -35,7 +35,7 @@ export const POST: RequestHandler = async (event) => {
     ];
 
     try {
-        const raw = await ollamaComplete(messages, { temperature: 0.2 });
+        const raw = await openRouterComplete(messages, { temperature: 0.2, jsonMode: true, maxTokens: 1200 });
         let parsed: unknown;
         try {
             parsed = JSON.parse(raw);

@@ -1,32 +1,20 @@
 // POST /api/ai/sessions/[id]/messages — append a user message and run the
 // assistant reply pipeline:
-//   1. Embed user message (bge-m3).
-//   2. Dual RAG: text search (bge-m3) + vision search (ColQwen2) merged.
-//   3. Load persona template → filter available tools + inject prompt addon.
-//   4. Tool-call loop (up to 3 hops).
-//   5. Embed + persist assistant reply, update ai_runs.
+//   1. Load persona template → filter available tools + inject prompt addon.
+//   2. Tool-call loop (up to 3 hops) via OpenRouter.
+//   3. Persist assistant reply, update ai_runs.
 
 import type { RequestHandler } from '@sveltejs/kit';
 import { error as kitError } from '@sveltejs/kit';
-import {
-    MODEL,
-    AILAB
-} from '$lib/server/config';
-import { swarmChat, swarmEmbed } from '$lib/server/ai/swarm';
+import { AILAB, OPENROUTER_MODEL, OPENROUTER_VISION_MODEL } from '$lib/server/config';
+import { openRouterChat, openRouterError, type OpenRouterMessage } from '$lib/server/ai/openrouter';
 import {
     loadToolDefinitions,
     findToolBySchemaName,
     executeTool
 } from '$lib/server/ai/tools-registry';
-import { searchKnowledge, searchKnowledgeImage } from '$lib/server/ai/tools-registry/knowledge-search';
 import { logger } from '$lib/server/logging/logger';
 
-interface OllamaMessage {
-    role: 'system' | 'user' | 'assistant' | 'tool';
-    content: string;
-    images?: string[];
-    tool_calls?: Array<{ function: { name: string; arguments: Record<string, unknown> } }>;
-}
 
 interface PersonaTemplate {
     id: string;
@@ -44,7 +32,7 @@ addressable LED strips, Hub75 LED matrix displays) and traditional CNC-cut
 acrylic / aluminium / dibond signage.
 
 You can call tools to:
-  • search the company knowledge base + past project archive   (rag.search_knowledge, engineering.brainstorm)
+  • Knowledge base search and past-project RAG are unavailable in this deployment.
   • compute LumiGrid PWM channel plans, LED strip / matrix /
     box-letter electrical and luminance budgets                 (signage.lumigrid, signage.led_strip,
                                                                   signage.led_matrix, signage.boxletter)
@@ -52,8 +40,7 @@ You can call tools to:
   • match Pantone / RAL colours to in-stock paint               (paint.match)
   • search the Tailnet web + crawl single URLs for vendor specs (web.search, web.crawl)
   • read live OMS data (orders, inventory)                      (data.pending_orders, data.low_stock)
-  • generate / edit images, 3-D meshes, voice clips             (forge.image, forge.mesh, forge.matting,
-                                                                  forge.tts, forge.asr)
+
 
 Operating principles:
   • For any electrical / illumination question, call the matching
@@ -61,7 +48,7 @@ Operating principles:
     drop, refresh feasibility or luminance numbers.
   • For vendor data not in the KB, call web.search → pick the
     most relevant hit → web.crawl that URL before quoting it.
-  • Cite knowledge-base hits as [title, p.<page>]. Cite web hits
+  • Cite web hits
     as [domain](url).
   • Default to SI units. Quote currents in A, lumens in lm,
     luminance in cd/m², lengths in mm.
@@ -83,10 +70,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
     const body = (await request.json().catch(() => null)) as {
         content?: string;
-        images?: string[];
         persona?: string;
         persona_template_id?: string;
-        cap?: 'reasoning' | 'vision' | 'coder';
     } | null;
     if (!body?.content) throw kitError(400, 'content required');
 
@@ -130,56 +115,18 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
         .eq('session_id', sid)
         .order('created_at', { ascending: false })
         .limit(30);
-    const recent = ((history ?? []) as OllamaMessage[]).reverse();
+    const recent = ((history ?? []) as OpenRouterMessage[]).reverse();
 
-    // Embed + persist user message.
-    const userEmbed = await swarmEmbed(body.content, MODEL.embed).catch(() => null);
+    // Persist message text only. Vector search/RAG is disabled in the OpenRouter-only mode.
     await db.from('ai_chat_messages').insert({
         session_id: sid,
         role: 'user',
-        content: body.content,
-        embedding: userEmbed?.vector
+        content: body.content
     });
 
-    // ── Dual RAG: text + vision (ColQwen2) ─────────────────────────────────
-    let citations: Array<{ source_id: string; title: string; page: number | null; score: number }> = [];
-    let ragBlock = '';
-    try {
-        // Run both retrievers in parallel; image search fails gracefully.
-        const [textResult, imageHits] = await Promise.all([
-            searchKnowledge({ query: body.content, top_k: AILAB.knowledge_topk }),
-            searchKnowledgeImage(body.content, Math.ceil(AILAB.knowledge_topk / 2))
-        ]);
-
-        // Merge + deduplicate by source_id:page. Text hits lead; vision fills gaps.
-        const seen = new Set<string>();
-        const allHits = [...textResult.hits, ...imageHits].filter((h) => {
-            const key = `${h.source_id}:${h.page ?? 0}`;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        }).sort((a, b) => b.score - a.score).slice(0, AILAB.knowledge_topk);
-
-        citations = allHits.map((h) => ({
-            source_id: h.source_id,
-            title: h.title,
-            page: h.page,
-            score: h.score
-        }));
-
-        if (allHits.length > 0) {
-            ragBlock = '\n\n[Relevant knowledge]\n' + allHits
-                .slice(0, AILAB.knowledge_rerankTopN)
-                .map((h, i) => {
-                    const origin = imageHits.some((ih) => ih.chunk_id === h.chunk_id)
-                        ? ' [visual]' : '';
-                    return `(${i + 1}) ${h.title}${h.page ? ` p.${h.page}` : ''}${origin}\n${h.content.slice(0, 1200)}`;
-                })
-                .join('\n\n');
-        }
-    } catch (err) {
-        logger.warn('RAG prefetch failed', err as Error);
-    }
+    // Knowledge/RAG and ColQwen2 visual retrieval were local-sidecar features
+    // and are intentionally disabled. Do not imply citations are available.
+    const citations: Array<{ source_id: string; title: string; page: number | null; score: number }> = [];
 
     // ── Build system prompt ─────────────────────────────────────────────────
     const legacyPersona = body.persona ?? (sessionRow as { persona?: string }).persona ?? '';
@@ -189,16 +136,16 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     } else if (legacyPersona) {
         sysPrompt += `\n\nPersona: ${legacyPersona}`;
     }
-    sysPrompt += ragBlock;
+    sysPrompt += '\n\nKnowledge-base retrieval is disabled. Do not claim company documents were searched or cite unverified sources.';
 
-    const messages: OllamaMessage[] = [
+    const messages: OpenRouterMessage[] = [
         { role: 'system', content: sysPrompt },
         ...recent,
-        { role: 'user', content: body.content, images: body.images }
+        { role: 'user', content: body.content }
     ];
 
     // ── Tool definitions — optionally filtered by persona template ──────────
-    let allTools = await loadToolDefinitions().catch(() => []);
+    let allTools = await loadToolDefinitions({ role: locals.user.role }).catch(() => []);
     if (personaTemplate && personaTemplate.tool_slugs.length > 0) {
         // Template specifies an explicit allow-list.
         const allowed = new Set(personaTemplate.tool_slugs);
@@ -206,7 +153,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
         // cross-reference by slug. Quick workaround: filter by schema.name via
         // the DB-backed list.
         const { listTools } = await import('$lib/server/ai/tools-registry');
-        const rows = await listTools();
+        const rows = await listTools({ role: locals.user.role });
         const allowedSchemaNames = new Set(
             rows.filter((r) => allowed.has(r.slug)).map((r) => r.schema.name)
         );
@@ -214,15 +161,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     }
 
     // ── Model selection ─────────────────────────────────────────────────────
-    const cap = body.cap ?? (body.images && body.images.length > 0 ? 'vision' : 'reasoning');
-    const modelTag =
-        body.images && body.images.length > 0
-            ? MODEL.vision
-            : personaTemplate?.model_override
-                ? { primary: personaTemplate.model_override, fallback: MODEL.chat.fallback }
-                : (sessionRow as { model?: string }).model
-                    ? { primary: (sessionRow as { model: string }).model, fallback: MODEL.chat.fallback }
-                    : MODEL.chat;
+    // Ignore client model selection; routing stays server-side (OpenRouter).
+    const providerModel = OPENROUTER_MODEL;
 
     const startedAt = new Date();
     const runIns = await db
@@ -232,8 +172,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
             status: 'running',
             user_id: userId,
             session_id: sid,
-            model: modelTag.primary,
-            input: { content: body.content, images: body.images?.length ?? 0 },
+            model: providerModel,
+            input: { content: body.content },
             started_at: startedAt.toISOString()
         })
         .select('id')
@@ -241,32 +181,33 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     const runId = (runIns.data as { id: string } | null)?.id ?? null;
 
     // ── Tool-call loop (up to 3 hops) ───────────────────────────────────────
-    const toolMessages: OllamaMessage[] = [];
+    const toolMessages: OpenRouterMessage[] = [];
     let finalText = '';
-    let nodeLabel: string | null = null;
-    let usedModel = modelTag.primary;
+    let nodeLabel: string | null = 'openrouter';
+    let usedModel = providerModel;
 
     for (let hop = 0; hop < 3; hop++) {
-        const r = await swarmChat({
-            cap,
-            model: modelTag,
+        const r = await openRouterChat({
+            model: providerModel,
             stream: false,
             messages: [...messages, ...toolMessages],
             tools: allTools,
             temperature: 0.5
         });
-        nodeLabel = r.node.label;
         usedModel = r.model;
-        const j = (await r.response.json()) as {
-            message?: {
-                role: string;
-                content?: string;
-                tool_calls?: Array<{
-                    function: { name: string; arguments: Record<string, unknown> };
-                }>;
-            };
-        };
-        const m = j.message;
+        if (!r.response.ok) throw openRouterError(r.response, await r.response.text().catch(() => ''));
+        const j = await r.response.json();
+        const choice = j?.choices?.[0];
+        const rawMessage = choice?.message;
+        const m = rawMessage ? {
+            role: 'assistant',
+            content: typeof rawMessage.content === 'string' ? rawMessage.content : '',
+            tool_calls: Array.isArray(rawMessage.tool_calls) ? rawMessage.tool_calls.map((call: any, index: number) => ({
+                id: typeof call.id === 'string' ? call.id : `call_${index}`,
+                type: 'function' as const,
+                function: { name: String(call.function?.name ?? ''), arguments: call.function?.arguments ?? '{}' }
+            })) : []
+        } : null;
         if (!m) break;
 
         if (m.tool_calls && m.tool_calls.length > 0) {
@@ -278,23 +219,22 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
                 model: usedModel,
                 node_label: nodeLabel
             });
-            toolMessages.push({
-                role: 'assistant',
-                content: m.content ?? '',
-                tool_calls: m.tool_calls
-            });
+            toolMessages.push({ role: 'assistant', content: m.content ?? '', tool_calls: m.tool_calls });
             for (const call of m.tool_calls) {
                 const tool = await findToolBySchemaName(call.function.name);
+                const callId = call.id;
                 if (!tool) {
                     toolMessages.push({
                         role: 'tool',
+                        tool_call_id: callId,
                         content: JSON.stringify({ error: `unknown tool ${call.function.name}` })
                     });
                     continue;
                 }
                 let result: unknown;
                 try {
-                    result = await executeTool(tool.slug, call.function.arguments, { userId: userId ?? undefined });
+                    const toolArgs = typeof call.function.arguments === 'string' ? JSON.parse(call.function.arguments || '{}') : call.function.arguments;
+                    result = await executeTool(tool.slug, toolArgs, { userId: userId ?? undefined, role: locals.user.role });
                 } catch (err) {
                     result = { error: (err as Error).message };
                 }
@@ -304,7 +244,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
                     tool_name: tool.slug,
                     content: JSON.stringify(result).slice(0, 64_000)
                 });
-                toolMessages.push({ role: 'tool', content: JSON.stringify(result) });
+                toolMessages.push({ role: 'tool', tool_call_id: callId, name: tool.slug, content: JSON.stringify(result).slice(0, 64_000) });
             }
             continue;
         }
@@ -315,15 +255,13 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
     if (!finalText) finalText = '(no response)';
 
-    const finalEmbed = await swarmEmbed(finalText, MODEL.embed).catch(() => null);
     await db.from('ai_chat_messages').insert({
         session_id: sid,
         role: 'assistant',
         content: finalText,
         model: usedModel,
         node_label: nodeLabel,
-        citations,
-        embedding: finalEmbed?.vector,
+        citations: [],
         latency_ms: Date.now() - startedAt.getTime()
     });
     await db.from('ai_chat_sessions').update({ last_message_at: new Date().toISOString() }).eq('id', sid);

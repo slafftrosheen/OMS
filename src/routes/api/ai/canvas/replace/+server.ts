@@ -13,9 +13,7 @@
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { ollamaComplete } from '$lib/server/ai/ollama-client';
-import { swarmChat } from '$lib/server/ai/swarm';
-import { MODEL } from '$lib/server/config';
+import { openRouterComplete } from '$lib/server/ai/openrouter';
 
 const SYSTEM_PROMPT = `You are a CAD assistant. Convert the user's description and any provided
 geometry hints into a single Maker.js parametric model.
@@ -70,23 +68,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     ];
 
     try {
-        let raw: string;
-        try {
-            const result = await swarmChat({
-                model: MODEL.chat,
-                messages,
-                stream: false,
-                cap: 'reasoning',
-            });
-            if (result.response.ok) {
-                const data = await result.response.json();
-                raw = data?.message?.content ?? '';
-            } else {
-                throw new Error(`Swarm response ${result.response.status}`);
-            }
-        } catch {
-            raw = await ollamaComplete(messages as any);
-        }
+        const raw = await openRouterComplete(messages as any, { jsonMode: true, maxTokens: 1600 });
 
         const parsed = tryParseJson(raw);
         if (!parsed) {

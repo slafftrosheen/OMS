@@ -16,7 +16,7 @@
   }
 
   type ShapeMenuItem = {
-    type: NodeKind | 'maker' | 'chat' | 'forge' | 'document' | 'swarm';
+    type: NodeKind | 'maker' | 'chat' | 'document' | 'swarm';
     label: string;
     group: 'AI' | 'Web' | 'Signage' | 'Engineering';
     icon: string;
@@ -25,7 +25,6 @@
   const menu: ShapeMenuItem[] = [
     // AI
     { type: 'chat',        label: 'Chat',        group: 'AI',        icon: 'message-square' },
-    { type: 'forge',       label: 'Image (Forge)', group: 'AI',      icon: 'image' },
     { type: 'document',    label: 'Document',    group: 'AI',        icon: 'file-text' },
     { type: 'swarm',       label: 'Swarm node',  group: 'AI',        icon: 'network' },
     // Web

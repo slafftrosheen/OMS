@@ -16,28 +16,17 @@ const TEST_PATTERN = /\.(test|spec)\.(js|mjs|cjs|ts|tsx)$/;
 
 async function collectTests(dir, out) {
   if (dir.split(sep).includes('node_modules')) return;
-  const rootInfo = await stat(dir);
-  if (rootInfo.isFile()) {
+  const info = await stat(dir);
+  if (info.isFile()) {
     if (TEST_PATTERN.test(dir)) out.push(dir);
     return;
   }
-  const entries = await readdir(dir);
-  for (const entry of entries) {
+  for (const entry of await readdir(dir)) {
     if (entry === 'node_modules') continue;
     const fullPath = join(dir, entry);
-    const info = await stat(fullPath);
-    if (info.isFile()) {
-      if (TEST_PATTERN.test(fullPath)) out.push(fullPath);
-    } else if (info.isDirectory()) {
-      await collectTests(fullPath, out);
-      continue;
-    }
-    const ext = extname(fullPath);
-    if (['.js', '.mjs', '.cjs', '.ts', '.tsx'].includes(ext)) {
-      if (TEST_PATTERN.test(fullPath)) {
-        out.push(fullPath);
-      }
-    }
+    const entryInfo = await stat(fullPath);
+    if (entryInfo.isDirectory()) await collectTests(fullPath, out);
+    else if (entryInfo.isFile() && TEST_PATTERN.test(fullPath)) out.push(fullPath);
   }
 }
 

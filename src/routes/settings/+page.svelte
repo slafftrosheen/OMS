@@ -3,7 +3,7 @@
   import PasswordChange from '$lib/auth/PasswordChange.svelte';
   import { t, locale } from 'svelte-i18n';
   import { setLocale, locales } from '$lib/i18n';
-  import { getContext } from 'svelte';
+  import { getContext, onMount } from 'svelte';
   import { logout, type AuthState } from '$lib/auth/authState.svelte';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
@@ -16,6 +16,73 @@
   import Palette from 'lucide-svelte/icons/palette';
   import Shield from 'lucide-svelte/icons/shield';
   import Plug from 'lucide-svelte/icons/plug';
+  let aiSettings = $state<{ configured: boolean; masked: string; source?: string } | null>(null);
+  let openRouterKey = $state('');
+  let aiSettingsLoading = $state(false);
+  let aiSettingsSaving = $state(false);
+  let aiSettingsError = $state('');
+  let aiSettingsMessage = $state('');
+  const authState = getContext<AuthState>('authState');
+  const logoutAuthState = authState;
+  let showOpenRouterSettings = $derived(authState?.user?.role === 'RD');
+
+  async function loadOpenRouterSettings() {
+    if (!showOpenRouterSettings) return;
+    aiSettingsLoading = true;
+    aiSettingsError = '';
+    try {
+      const response = await fetch(`${base}/api/settings/openrouter`, { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Settings request failed (${response.status})`);
+      aiSettings = payload;
+    } catch (err) {
+      aiSettingsError = err instanceof Error ? err.message : 'Could not load provider settings.';
+    } finally {
+      aiSettingsLoading = false;
+    }
+  }
+
+  async function saveOpenRouterKey() {
+    aiSettingsSaving = true;
+    aiSettingsError = '';
+    aiSettingsMessage = '';
+    try {
+      const response = await fetch(`${base}/api/settings/openrouter`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: openRouterKey })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Credential save failed (${response.status})`);
+      openRouterKey = '';
+      aiSettingsMessage = 'System OpenRouter credential updated.';
+      await loadOpenRouterSettings();
+    } catch (err) {
+      aiSettingsError = err instanceof Error ? err.message : 'Could not save provider credential.';
+    } finally {
+      aiSettingsSaving = false;
+    }
+  }
+
+  async function removeOpenRouterKey() {
+    if (!confirm('Remove the system OpenRouter key? AI requests will use the server environment key if configured.')) return;
+    aiSettingsSaving = true;
+    aiSettingsError = '';
+    aiSettingsMessage = '';
+    try {
+      const response = await fetch(`${base}/api/settings/openrouter`, { method: 'DELETE' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Credential removal failed (${response.status})`);
+      aiSettingsMessage = 'Stored OpenRouter credential removed.';
+      await loadOpenRouterSettings();
+    } catch (err) {
+      aiSettingsError = err instanceof Error ? err.message : 'Could not remove provider credential.';
+    } finally {
+      aiSettingsSaving = false;
+    }
+  }
+
+  onMount(() => { void loadOpenRouterSettings(); });
 
   type Theme = 'LightVim' | 'DarkVim' | 'HighContrastVim';
   type Density = 'compact' | 'cozy' | 'comfortable';
@@ -50,10 +117,8 @@
     { value: 1.2, label: 'XL' }
   ];
 
-  const authState = getContext<AuthState>('authState');
-
   async function handleLogout() {
-    if (authState) await logout(authState);
+    if (logoutAuthState) await logout(logoutAuthState);
     goto(`${base}/login`);
   }
 
@@ -193,6 +258,50 @@
       <PasswordChange />
     </section>
 
+    {#if showOpenRouterSettings}
+      <section class="settings-section" aria-labelledby="openrouter-settings-heading">
+        <div class="section-header">
+          <Plug size={20} />
+          <div>
+            <h2 id="openrouter-settings-heading">AI provider — OpenRouter</h2>
+            <p class="muted">System-wide credential for all members. Chat prompts and attached images are sent to OpenRouter. Free routes are rate-limited and may vary.</p>
+          </div>
+        </div>
+        <div class="setting-group">
+          {#if aiSettingsLoading}
+            <p class="muted">Loading provider settings…</p>
+          {:else}
+            <p>Key status: <strong>{aiSettings?.configured ? 'Configured' : 'Not configured'}</strong>{#if aiSettings?.masked} <code>{aiSettings.masked}</code>{/if}</p>
+            <p class="muted">Text model: <code>openrouter/free</code>. The key value is never shown again after saving.</p>
+          {/if}
+          <form class="openrouter-key-form" onsubmit={(event) => { event.preventDefault(); void saveOpenRouterKey(); }}>
+            <label for="openrouter-api-key">Replace OpenRouter API key</label>
+            <input
+              id="openrouter-api-key"
+              type="password"
+              name="openrouter-api-key"
+              autocomplete="new-password"
+              spellcheck="false"
+              bind:value={openRouterKey}
+              placeholder="Paste an OpenRouter API key"
+              maxlength="512"
+              required
+              disabled={aiSettingsSaving}
+            />
+            <button class="rf-btn" type="submit" disabled={aiSettingsSaving || !openRouterKey.trim()}>
+              {aiSettingsSaving ? 'Saving…' : 'Save system key'}
+            </button>
+            {#if aiSettings?.source === 'vault' && aiSettings.configured}
+              <button class="rf-btn remove-key" type="button" onclick={() => void removeOpenRouterKey()} disabled={aiSettingsSaving}>Remove stored key</button>
+            {/if}
+          </form>
+          {#if aiSettingsError}<p class="settings-error" role="alert">{aiSettingsError}</p>{/if}
+          {#if aiSettingsMessage}<p class="settings-success" role="status">{aiSettingsMessage}</p>{/if}
+          <p class="muted security-hint">Only R&D members can manage this shared key. It is stored encrypted in Supabase Vault; it is not saved in browser storage or returned by the API.</p>
+        </div>
+      </section>
+    {/if}
+
     <!-- Integrations Section -->
     <section class="settings-section">
       <div class="section-header">
@@ -232,6 +341,14 @@
 </div>
 
 <style>
+  .openrouter-key-form { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-sm); }
+  .openrouter-key-form label { flex-basis: 100%; font-weight: 600; }
+  .openrouter-key-form input { flex: 1 1 280px; min-width: 220px; }
+  .remove-key { background: var(--error); }
+  .settings-error { color: var(--error); }
+  .settings-success { color: var(--success, #2b8a3e); }
+  .security-hint { margin-top: var(--space-md); }
+
   .danger-zone {
     border-color: color-mix(in oklab, var(--error) 30%, var(--border));
   }

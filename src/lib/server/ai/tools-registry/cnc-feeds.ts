@@ -3,16 +3,15 @@
 // Strategy:
 //   1. Look up matching rows in `cnc_feeds_speeds` (verified entries first).
 //   2. If no exact match, surface the 5 closest-fit historical entries.
-//   3. Ask the engineering model to weigh them + ingested vendor PDFs and
-//      output a recommendation with a brief "why" trace.
+//   3. Ask the engineering model (OpenRouter) to weigh them and output a
+//      recommendation with a brief "why" trace.
 //
-// The LLM call is OPTIONAL — if Ollama is unreachable we still return the
-// raw historical hits so the operator has something to work with.
+// The LLM call is OPTIONAL — if the provider is unconfigured we still return
+// the raw historical hits so the operator has something to work with.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MODEL } from '$lib/server/config';
-import { swarmChat } from '$lib/server/ai/swarm';
-import { searchKnowledge } from './knowledge-search';
+import { openRouterComplete } from '$lib/server/ai/openrouter';
 import { logger } from '$lib/server/logging/logger';
 
 let _admin: SupabaseClient | null = null;
@@ -50,7 +49,6 @@ export interface FeedsSpeedsHit {
 
 export interface FeedsSpeedsResult {
     historical: FeedsSpeedsHit[];
-    knowledge_citations: Array<{ source_id: string; title: string; page: number | null }>;
     recommendation: {
         spindle_rpm: number | null;
         feed_mm_min: number | null;
@@ -88,19 +86,6 @@ export async function suggestFeedsSpeeds(args: FeedsSpeedsArgs): Promise<FeedsSp
         verified:      Boolean(r.verified)
     }));
 
-    // RAG hits from ingested vendor PDFs / cutter manuals.
-    const kb = await searchKnowledge({
-        query: `${args.operation} ${args.material} ${args.tool_diameter_mm}mm tool feeds speeds`,
-        tags: ['cnc', 'feeds', 'speeds', 'cutter', 'datasheet'],
-        top_k: 4
-    }).catch(() => ({ hits: [] as Awaited<ReturnType<typeof searchKnowledge>>['hits'] }));
-
-    const citations = kb.hits.map((h) => ({
-        source_id: h.source_id,
-        title: h.title,
-        page: h.page
-    }));
-
     let recommendation: FeedsSpeedsResult['recommendation'] = null;
     try {
         const sys = `You are a CNC operations engineer. Given an operation request,
@@ -110,21 +95,17 @@ confidence (0..1), rationale. Use SI units. Be conservative on materials you
 have no data for. Output ONLY the JSON, no prose.`;
         const usr = JSON.stringify({
             request: args,
-            historical: historical.slice(0, 5),
-            datasheets: kb.hits.map((h) => h.content.slice(0, 1500))
+            historical: historical.slice(0, 5)
         });
-        const res = await swarmChat({
-            cap: 'reasoning',
-            model: MODEL.engineer,
-            stream: false,
+        const txt = await openRouterComplete([
+            { role: 'system', content: sys },
+            { role: 'user', content: usr }
+        ], {
+            model: MODEL.engineer.primary,
             temperature: 0.2,
-            messages: [
-                { role: 'system', content: sys },
-                { role: 'user', content: usr }
-            ]
+            jsonMode: true,
+            maxTokens: 1200
         });
-        const j = (await res.response.json()) as { message?: { content?: string } };
-        const txt = j.message?.content ?? '';
         const start = txt.indexOf('{');
         const end = txt.lastIndexOf('}');
         if (start >= 0 && end > start) {
@@ -134,5 +115,5 @@ have no data for. Output ONLY the JSON, no prose.`;
         logger.warn('feeds/speeds LLM call failed; returning historical only', { error: (err as Error).message });
     }
 
-    return { historical, knowledge_citations: citations, recommendation };
+    return { historical, recommendation };
 }
