@@ -63,6 +63,9 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
   if (newState === 'COMPLETED') {
     throw error(409, 'Complete a stage through the material-consumption endpoint');
   }
+  if (newState === 'REWORK') {
+    throw error(409, 'Open a rework cycle through the dedicated rework endpoint');
+  }
   if (newState !== undefined && !ORDER_STAGE_STATES.includes(newState)) throw error(400, 'Invalid stage state');
   const { data: order, error: orderErr } = await supabase.from('draft_orders')
     .select('status,po_number').eq('id', params.id).maybeSingle();
@@ -74,6 +77,9 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
     .select('id,state,blocked_reason').eq('draft_order_id', params.id).eq('station', station).maybeSingle();
   if (stageErr) throw error(500, 'Could not load stage');
   if (!stage) throw error(404, 'Stage does not exist for order');
+  if (stage.state === 'REWORK' && newState !== undefined) {
+    throw error(409, 'Resolve the open rework cycle before changing stage state');
+  }
   if (newState !== undefined && !validStageTransition(stage.state, newState)) {
     throw error(409, `Stage transition ${stage.state} → ${newState} is not allowed`);
   }

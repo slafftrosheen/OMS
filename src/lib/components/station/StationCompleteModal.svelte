@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
   import Button from '$lib/ui/Button.svelte';
@@ -21,6 +21,7 @@
     name: string;
     unit: string;
     quantity: number;
+    stock: number;
   };
 
   let {
@@ -46,6 +47,7 @@
   let search = $state('');
   let results = $state<CatalogItem[]>([]);
   let searching = $state(false);
+  let searchError = $state('');
   let rows = $state<ConsumeRow[]>([]);
   let submitting = $state(false);
   let errorMsg = $state('');
@@ -53,6 +55,7 @@
   let skipReason = $state('');
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
   let searchInput: HTMLInputElement | undefined = $state();
+  onDestroy(() => { if (searchTimer) clearTimeout(searchTimer); });
 
   $effect(() => {
     if (open) {
@@ -66,12 +69,14 @@
     results = [];
     rows = [];
     errorMsg = '';
+    searchError = '';
     skipMode = false;
     skipReason = '';
   }
 
   function close() {
     if (submitting) return;
+    if (searchTimer) clearTimeout(searchTimer);
     open = false;
   }
 
@@ -84,15 +89,18 @@
         return;
       }
       searching = true;
+      searchError = '';
       try {
         const res = await fetch(`/api/inventory/items?search=${encodeURIComponent(q)}&limit=20`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const payload = await res.json();
         const list = (payload.data ?? payload) as CatalogItem[];
+        if (!Array.isArray(list)) throw new Error('Invalid inventory response');
         results = list.slice(0, 20);
       } catch (err) {
         console.error('Inventory search failed:', err);
         results = [];
+        searchError = 'Inventory search unavailable. Retry or contact Head of Production.';
       } finally {
         searching = false;
       }
@@ -112,6 +120,7 @@
         name: item.name,
         unit: item.unit,
         quantity: 1,
+        stock: item.stock,
       },
     ];
     search = '';
@@ -135,10 +144,10 @@
         });
         return;
       }
-      const bad = rows.find((r) => !Number.isFinite(r.quantity) || r.quantity <= 0);
+      const bad = rows.find((r) => !Number.isSafeInteger(r.quantity) || r.quantity <= 0 || r.quantity > r.stock);
       if (bad) {
         errorMsg = $t('station.complete.bad_qty', {
-          default: 'All quantities must be positive numbers.',
+          default: 'Quantities must be whole numbers within available stock.',
         });
         return;
       }
@@ -149,7 +158,7 @@
       const result = await onComplete(
         skipMode
           ? []
-          : rows.map((r) => ({ item_id: r.item_id, quantity: Math.floor(r.quantity) })),
+          : rows.map((r) => ({ item_id: r.item_id, quantity: r.quantity })),
         { skipped: skipMode, skipReason: skipMode ? skipReason.trim() || null : null },
       );
 
@@ -240,7 +249,7 @@
             <ul class="results">
               {#each results as item (item.id)}
                 <li>
-                  <button class="result-row" onclick={() => addRow(item)}>
+                  <button class="result-row" onclick={() => addRow(item)} disabled={submitting || item.stock < 1}>
                     <span class="sku">{item.sku}</span>
                     <span class="name">{item.name}</span>
                     <span class="stock" class:low={item.stock <= item.min}>
@@ -250,6 +259,8 @@
                 </li>
               {/each}
             </ul>
+          {:else if searchError}
+            <p class="hint warn" role="alert">{searchError}</p>
           {:else if search.trim()}
             <p class="hint">{$t('station.complete.no_results', { default: 'No matches.' })}</p>
           {/if}
@@ -269,9 +280,11 @@
                     step="1"
                     bind:value={row.quantity}
                     aria-label="Quantity for {row.sku}"
+                    max={row.stock}
+                    disabled={submitting}
                   />
                   <span class="row-unit">{row.unit}</span>
-                  <button class="icon-btn" onclick={() => removeRow(row.item_id)} aria-label="Remove">
+                  <button class="icon-btn" onclick={() => removeRow(row.item_id)} disabled={submitting} aria-label="Remove material {row.sku}">
                     <Icon name="trash-2" size="sm" />
                   </button>
                 </div>
@@ -281,13 +294,15 @@
         {:else}
           <label for="skip-reason">
             {$t('station.complete.skip_reason', {
-              default: 'Reason for skipping (optional)',
+              default: 'Reason for skipping (required)',
             })}
           </label>
           <textarea
             id="skip-reason"
             bind:value={skipReason}
             rows="3"
+            required
+            aria-required="true"
             placeholder={$t('station.complete.skip_placeholder', {
               default: 'e.g. used material from another order, will be reconciled by HoP',
             })}
@@ -300,7 +315,7 @@
         {/if}
 
         {#if errorMsg}
-          <div class="banner error">
+          <div class="banner error" role="alert">
             <Icon name="alert-circle" size="sm" />
             <span>{errorMsg}</span>
           </div>
@@ -311,7 +326,9 @@
         <Button variant="secondary" onclick={close} disabled={submitting}>
           {$t('actions.cancel', { default: 'Cancel' })}
         </Button>
-        <Button variant="primary" onclick={submit} disabled={submitting}>
+        <Button variant="primary" onclick={submit}
+          disabled={submitting || (skipMode ? !skipReason.trim() : rows.length === 0)}
+          loading={submitting}>
           {#if submitting}
             <Icon name="loader" size="sm" />
             {$t('actions.completing', { default: 'Completing…' })}

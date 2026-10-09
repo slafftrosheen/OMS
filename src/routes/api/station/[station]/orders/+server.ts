@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { ACTIVE_ORDER_STATUSES } from '$lib/server/contracts/oms-r01';
 import { isKnownStation } from '$lib/order/workflow';
+import { compareStationOrders } from '$lib/order/operator-ui';
 
 // Two explicit queries avoid PostgREST trying to infer an FK to the orders VIEW.
 export const GET: RequestHandler = async ({ params, locals }) => {
@@ -42,7 +43,6 @@ export const GET: RequestHandler = async ({ params, locals }) => {
       }
     }];
   });
-  result.sort((a, b) => String(b.priority ?? '').localeCompare(String(a.priority ?? ''))
-    || String(a.due_date ?? '').localeCompare(String(b.due_date ?? '')));
+  result.sort(compareStationOrders);
   return json(result);
 };

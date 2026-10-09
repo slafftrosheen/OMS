@@ -20,6 +20,20 @@ export const GET: RequestHandler = async ({ locals }) => {
             throw error(500, 'Failed to fetch production data');
         }
 
+        // Fetch the actual station-stage state; ordersummary.status is an
+        // order lifecycle state, never a selectable station-stage state.
+        const orderIds = (orders ?? []).map(o => o.id);
+        const { data: stageRows, error: stagesError } = orderIds.length
+            ? await locals.supabase.from('order_stages')
+                .select('draft_order_id,station,state')
+                .in('draft_order_id', orderIds)
+            : { data: [], error: null };
+        if (stagesError) {
+            console.error('[Production Board] Stage lookup failed', stagesError);
+            throw error(500, 'Failed to load station states');
+        }
+        const stageStateByKey = new Map((stageRows ?? []).map(s => [s.draft_order_id + ':' + s.station, s.state]));
+
         const STATIONS = ALL_STATIONS;
 
         // Group orders by station
@@ -38,6 +52,7 @@ export const GET: RequestHandler = async ({ locals }) => {
                         dueDate: order.due_date,
                         priority: (order.priority || 'normal').toLowerCase(),
                         status: order.status,
+                        stageState: stageStateByKey.get(order.id + ':' + station) ?? 'NOT_STARTED',
                         progress: order.progress_percentage
                     });
                 }

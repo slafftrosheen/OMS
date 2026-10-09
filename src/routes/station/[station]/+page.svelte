@@ -1,5 +1,9 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { goto } from '$app/navigation';
+  import { currentUser } from '$lib/auth/authState.svelte';
+  import { canOperateStation } from '$lib/order/lifecycle-guards';
+  import { priorityLabel, dueDateLabel, stageStateLabel, isOrderOverdue } from '$lib/order/operator-ui';
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
   import { t } from 'svelte-i18n';
@@ -20,7 +24,7 @@
     title: string;
     client: string;
     stage: any;
-    priority: number;
+    priority: string | number;
     due_date: string;
   }
 
@@ -28,6 +32,20 @@
   const loading = writable(true);
   const filter = writable<'ALL' | 'QUEUED' | 'IN_PROGRESS' | 'BLOCKED' | 'REWORK'>('ALL');
   const showScanner = writable(false);
+  let loadError = $state<string | null>(null);
+  let hasLoaded = $state(false);
+  let refreshing = $state(false);
+  let lastUpdated = $state<string | null>(null);
+  let searchQuery = $state('');
+  let workingOnOrderId = $state<string | null>(null);
+  let operationMessage = $state<string | null>(null);
+  let resolveModalOpen = $state(false);
+  let resolveOrderId = $state('');
+  let resolveReworkId = $state('');
+  let resolutionNotes = $state('');
+  let resolutionBusy = $state(false);
+  let operatorCanAct = $derived(canOperateStation($currentUser, station));
+  let todayLocal = new Date().toLocaleDateString('sv-SE');
 
   let completeModalOpen = $state(false);
   let completeTarget = $state<StationOrder | null>(null);
@@ -43,49 +61,69 @@
   let reworkTargetId = $state('');
   let reworkReason = $state('RECUT');
   let reworkDescription = $state('');
-  const REWORK_REASONS = ['RECUT', 'REPAINT', 'REWELD', 'REPRINT', 'QUALITY', 'OTHER'];
+  const REWORK_REASONS = ['RECUT', 'RESAND', 'REBEND', 'REWELD', 'REPAINT', 'RECOAT', 'REGLUE', 'REASSEMBLE', 'RECHECK', 'CUSTOM'];
 
   let unsubscribe: (() => void) | null = null;
   let refreshInterval: ReturnType<typeof setInterval>;
 
-  async function loadStationOrders() {
-    $loading = true;
+  async function loadStationOrders(quiet = false) {
+    if (refreshing) return;
+    refreshing = true;
+    if (!hasLoaded) $loading = true;
     try {
-      const response = await fetch(`/api/station/${station}/orders`);
-      if (!response.ok) throw new Error('Failed to load orders');
-      $orders = await response.json();
+      const response = await fetch(`/api/station/${encodeURIComponent(station)}/orders`, { cache: 'no-store' });
+      if (!response.ok) throw new Error(response.status === 401 ? 'Session expired — sign in again.'
+        : response.status === 403 ? 'You cannot view this station.' :
+          `Station refresh failed (HTTP ${response.status})`);
+      const data = await response.json();
+      if (!Array.isArray(data)) throw new Error('Invalid station queue response');
+      $orders = data;
+      loadError = null;
+      hasLoaded = true;
+      lastUpdated = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      todayLocal = new Date().toLocaleDateString('sv-SE');
     } catch (err) {
-      console.error('Failed to load station orders:', err);
-      notifications.error($t('stationView.load_error', { default: 'Failed to load station orders' }));
+      loadError = err instanceof Error ? err.message : 'Failed to load station';
+      if (!quiet) notifications.error(loadError);
     } finally {
+      refreshing = false;
       $loading = false;
     }
   }
 
-  async function updateStageState(orderId: string, newState: string) {
+  async function updateStageState(orderId: string, state: string,
+      extras: Record<string, unknown> = {}): Promise<boolean> {
+    if (workingOnOrderId) return false;
+    if (!operatorCanAct) { notifications.error('Station assignment required'); return false; }
+    workingOnOrderId = orderId;
+    operationMessage = null;
     try {
-      const response = await fetch(`/api/orders/${orderId}/stages?station=${station}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: newState })
+      const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}/stages?station=${encodeURIComponent(station)}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state, ...extras })
       });
-      if (!response.ok) throw new Error('Failed to update stage');
-      await loadStationOrders();
-    } catch (err: any) {
-      notifications.error(err.message ?? $t('stationView.update_error', { default: 'Failed to update stage' }));
-    }
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.message ?? body?.error ?? `Stage change rejected (HTTP ${response.status})`);
+      operationMessage = `${station}: ${stageStateLabel(state)} saved`;
+      await loadStationOrders(true);
+      return true;
+    } catch (err) {
+      notifications.error(err instanceof Error ? err.message : 'Stage update failed');
+      return false;
+    } finally { workingOnOrderId = null; }
   }
 
-  async function handleQRScan(qrData: string) {
-    if (qrData.startsWith('ORDER:')) {
-      const orderId = qrData.replace('ORDER:', '');
-      await updateStageState(orderId, 'IN_PROGRESS');
-      $showScanner = false;
-    }
+  async function handleQRScan(data: string) {
+    if (!data.startsWith('ORDER:')) { notifications.error('Unrecognized OMS QR code'); return; }
+    const id = data.slice('ORDER:'.length).trim();
+    if (!id) return;
+    // Scan identifies an order. Starting production remains an explicit action.
+    $showScanner = false;
+    await goto(`/orders/${encodeURIComponent(id)}`);
   }
 
-  async function startOrder(orderId: string) {
-    await updateStageState(orderId, 'IN_PROGRESS');
+  async function startOrder(id: string) {
+    await updateStageState(id, 'IN_PROGRESS');
   }
 
   function completeOrder(orderId: string) {
@@ -136,18 +174,8 @@
 
   async function submitBlock() {
     if (!blockReason.trim()) return;
-    blockModalOpen = false;
-    try {
-      const res = await fetch(`/api/orders/${blockTargetId}/stages?station=${station}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: 'BLOCKED', blocked_reason: blockReason })
-      });
-      if (!res.ok) throw new Error('Failed to block order');
-      notifications.info($t('stationView.order_blocked', { default: 'Order blocked' }));
-      await loadStationOrders();
-    } catch (err) {
-      notifications.error($t('stationView.block_error', { default: 'Failed to block order' }));
+    if (await updateStageState(blockTargetId, 'BLOCKED', { blocked_reason: blockReason.trim() })) {
+      blockModalOpen = false;
     }
   }
 
@@ -159,25 +187,65 @@
   }
 
   async function submitRework() {
-    if (!reworkDescription.trim()) return;
-    reworkModalOpen = false;
+    if (!reworkDescription.trim() || workingOnOrderId) return;
+    workingOnOrderId = reworkTargetId;
     try {
-      const res = await fetch(`/api/orders/${reworkTargetId}/rework`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ station, reason: reworkReason, description: reworkDescription })
+      const res = await fetch(`/api/orders/${encodeURIComponent(reworkTargetId)}/rework`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ station, reason: reworkReason, description: reworkDescription.trim() })
       });
-      if (!res.ok) throw new Error('Failed to create rework request');
-      notifications.info($t('stationView.rework_created', { default: 'Rework request created' }));
-      await loadStationOrders();
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.error ?? `Rework rejected (HTTP ${res.status})`);
+      reworkModalOpen = false;
+      operationMessage = 'Rework opened; resolution is required before completion.';
+      await loadStationOrders(true);
     } catch (err) {
-      notifications.error($t('stationView.rework_error', { default: 'Failed to create rework request' }));
-    }
+      notifications.error(err instanceof Error ? err.message : 'Failed to create rework');
+    } finally { workingOnOrderId = null; }
+  }
+
+  async function openResolveRework(orderId: string) {
+    if (workingOnOrderId) return;
+    workingOnOrderId = orderId;
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/rework?station=${encodeURIComponent(station)}`);
+      const cycles = await res.json().catch(() => null);
+      if (!res.ok || !Array.isArray(cycles)) throw new Error('Could not load rework cycles');
+      const open = cycles.find((item: { resolved_at?: string | null }) => !item.resolved_at);
+      if (!open) throw new Error('No open rework cycle. Refresh the queue.');
+      resolveOrderId = orderId;
+      resolveReworkId = open.id;
+      resolutionNotes = '';
+      resolveModalOpen = true;
+    } catch (err) {
+      notifications.error(err instanceof Error ? err.message : 'Rework lookup failed');
+    } finally { workingOnOrderId = null; }
+  }
+
+  async function submitResolution() {
+    if (!resolutionNotes.trim() || resolutionBusy) return;
+    resolutionBusy = true;
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(resolveOrderId)}/rework?rework_id=${encodeURIComponent(resolveReworkId)}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resolution_notes: resolutionNotes.trim() })
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.error ?? `Resolution rejected (HTTP ${res.status})`);
+      resolveModalOpen = false;
+      operationMessage = 'Rework resolved. Stage returned to In Progress.';
+      await loadStationOrders(true);
+    } catch (err) {
+      notifications.error(err instanceof Error ? err.message : 'Failed to resolve rework');
+    } finally { resolutionBusy = false; }
   }
 
   let filteredOrders = $derived($orders.filter(order => {
-    if ($filter === 'ALL') return true;
-    return order.stage?.state === $filter;
+    if ($filter !== 'ALL' && order.stage?.state !== $filter) return false;
+    const q = searchQuery.trim().toLocaleLowerCase();
+    if (!q) return true;
+    return [order.po_number, order.client, order.title, order.id]
+      .some(value => String(value ?? '').toLocaleLowerCase().includes(q));
   }));
 
   let queuedCount     = $derived($orders.filter(o => o.stage?.state === 'QUEUED').length);
@@ -189,10 +257,13 @@
     await loadStationOrders();
 
     unsubscribe = realtimeStore.subscribeToStation(station, () => {
-      loadStationOrders();
+      void loadStationOrders(true);
     });
 
-    refreshInterval = setInterval(loadStationOrders, 30000);
+    refreshInterval = setInterval(() => {
+      if (!document.hidden && !completeModalOpen && !blockModalOpen &&
+          !reworkModalOpen && !resolveModalOpen) void loadStationOrders(true);
+    }, 30000);
 
     // Ensure this station's chat room exists and load its messages
     await ensureRoom({ id: stationRoomId, name: station });
@@ -242,17 +313,29 @@
         <Icon name="message-square" size="sm" />
         {$t('stationView.station_chat', { default: 'Station Chat' })}
       </button>
-      <button class="btn btn-outline" onclick={loadStationOrders}>
+      <button class="btn btn-outline" onclick={() => loadStationOrders()} disabled={refreshing} aria-label="Refresh station orders">
         <Icon name="refresh-cw" size="sm" />
-        {$t('common.refresh', { default: 'Refresh' })}
+        {refreshing ? 'Refreshing…' : $t('common.refresh', { default: 'Refresh' })}
       </button>
     </div>
   </header>
 
-  <div class="filters">
+  <div class="station-search">
+    <label for="station-search-input">Find order by PO, client or title</label>
+    <div class="search-controls">
+      <input id="station-search-input" type="search" bind:value={searchQuery}
+        placeholder="Search this workstation…" autocomplete="off" />
+      {#if searchQuery}
+        <button class="btn btn-outline" onclick={() => (searchQuery = '')} aria-label="Clear order search">Clear</button>
+      {/if}
+    </div>
+  </div>
+
+  <div class="filters" role="group" aria-label="Station queue filters">
     <button
       class="filter-btn"
       class:active={$filter === 'ALL'}
+      aria-pressed={$filter === 'ALL'}
       onclick={() => $filter = 'ALL'}
     >
       All ({$orders.length})
@@ -260,6 +343,7 @@
     <button
       class="filter-btn"
       class:active={$filter === 'QUEUED'}
+      aria-pressed={$filter === 'QUEUED'}
       onclick={() => $filter = 'QUEUED'}
     >
       Queued ({queuedCount})
@@ -267,6 +351,7 @@
     <button
       class="filter-btn"
       class:active={$filter === 'IN_PROGRESS'}
+      aria-pressed={$filter === 'IN_PROGRESS'}
       onclick={() => $filter = 'IN_PROGRESS'}
     >
       In Progress ({inProgressCount})
@@ -274,6 +359,7 @@
     <button
       class="filter-btn"
       class:active={$filter === 'BLOCKED'}
+      aria-pressed={$filter === 'BLOCKED'}
       onclick={() => $filter = 'BLOCKED'}
     >
       Blocked ({blockedCount})
@@ -281,16 +367,36 @@
     <button
       class="filter-btn"
       class:active={$filter === 'REWORK'}
+      aria-pressed={$filter === 'REWORK'}
       onclick={() => $filter = 'REWORK'}
     >
       Rework ({reworkCount})
     </button>
   </div>
 
+  <div class="station-feedback" role="status" aria-live="polite">
+    <span>{refreshing ? 'Refreshing station…' : lastUpdated ? `Updated ${lastUpdated}` : ''}</span>
+    {#if operationMessage}<span>{operationMessage}</span>{/if}
+  </div>
+  {#if !operatorCanAct}
+    <p class="read-only-notice" role="note">View only. You are not assigned to operate {station}.</p>
+  {/if}
+  {#if loadError}
+    <div class="load-error" role="alert">
+      <span>{loadError}{hasLoaded ? ' — showing the last successful list.' : ''}</span>
+      <button class="btn btn-outline" onclick={() => loadStationOrders()} disabled={refreshing}>Retry</button>
+    </div>
+  {/if}
   {#if $loading}
     <div class="loading-state">
         <div class="spinner"></div>
-      <p>Loading orders...</p>
+      <p>Loading station orders…</p>
+    </div>
+  {:else if !hasLoaded}
+    <div class="empty-state">
+      <h3>Station data unavailable</h3>
+      <p>Check the connection and retry.</p>
+      <button class="btn btn-primary" onclick={() => loadStationOrders()} disabled={refreshing}>Retry</button>
     </div>
   {:else if filteredOrders.length === 0}
     <div class="empty-state">
@@ -298,8 +404,9 @@
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
         <circle cx="12" cy="7" r="4"/>
       </svg>
-      <h3>No orders in this state</h3>
-      <p>Orders will appear here when they reach this station.</p>
+      <h3>{searchQuery ? 'No orders match your search' : 'No orders in this queue'}</h3>
+      <p>{searchQuery ? 'Try another PO, client or title.' : 'Orders will appear here when they reach this station.'}</p>
+      {#if searchQuery}<button class="btn btn-outline" onclick={() => (searchQuery = '')}>Clear search</button>{/if}
     </div>
   {:else}
     <div class="orders-grid">
@@ -307,11 +414,11 @@
         <article class="station-order-card">
           <div class="order-header">
             <div>
-              <h3>{order.title}</h3>
+              <h3>{order.title || 'Untitled order'}</h3>
               <span class="po-number">{order.po_number}</span>
             </div>
-            <span class="priority-badge priority-{order.priority}">
-              P{order.priority}
+            <span class="priority-badge" class:urgent={['HIGH','URGENT','CRITICAL'].includes(String(order.priority ?? '').toUpperCase())}>
+              {priorityLabel(order.priority)}
             </span>
           </div>
 
@@ -322,12 +429,12 @@
             </div>
             <div class="info-item">
               <span class="label">Due:</span>
-              <span class="value">{new Date(order.due_date).toLocaleDateString()}</span>
+              <span class="value" class:overdue={isOrderOverdue(order.due_date, todayLocal)}>{dueDateLabel(order.due_date)}</span>
             </div>
             <div class="info-item">
               <span class="label">Status:</span>
               <span class="status-badge status-{order.stage?.state?.toLowerCase()}">
-                {order.stage?.state?.replace('_', ' ')}
+                {stageStateLabel(order.stage?.state)}
               </span>
             </div>
           </div>
@@ -346,42 +453,42 @@
 
           <div class="order-actions">
             {#if order.stage?.state === 'QUEUED'}
-              <button class="btn btn-sm btn-success" onclick={() => startOrder(order.id)}>
+              <button class="btn btn-sm btn-success" onclick={() => startOrder(order.id)} disabled={!operatorCanAct || workingOnOrderId !== null}>
                 <Icon name="play" size="sm" />
                 {$t('stationView.start', { default: 'Start' })}
               </button>
             {/if}
 
             {#if order.stage?.state === 'IN_PROGRESS'}
-              <button class="btn btn-sm btn-success" onclick={() => completeOrder(order.id)}>
+              <button class="btn btn-sm btn-success" onclick={() => completeOrder(order.id)} disabled={!operatorCanAct || workingOnOrderId !== null}>
                 <Icon name="check" size="sm" />
                 {$t('stationView.complete', { default: 'Complete' })}
               </button>
-              <button class="btn btn-sm btn-warning" onclick={() => openReworkModal(order.id)}>
+              <button class="btn btn-sm btn-warning" onclick={() => openReworkModal(order.id)} disabled={!operatorCanAct || workingOnOrderId !== null}>
                 <Icon name="rotate-ccw" size="sm" />
                 {$t('stationView.rework', { default: 'Rework' })}
               </button>
-              <button class="btn btn-sm btn-danger" onclick={() => openBlockModal(order.id)}>
+              <button class="btn btn-sm btn-danger" onclick={() => openBlockModal(order.id)} disabled={!operatorCanAct || workingOnOrderId !== null}>
                 <Icon name="ban" size="sm" />
                 {$t('stationView.block', { default: 'Block' })}
               </button>
             {/if}
 
             {#if order.stage?.state === 'BLOCKED'}
-              <button class="btn btn-sm btn-primary" onclick={() => updateStageState(order.id, 'IN_PROGRESS')}>
+              <button class="btn btn-sm btn-primary" onclick={() => updateStageState(order.id, 'IN_PROGRESS')} disabled={!operatorCanAct || workingOnOrderId !== null}>
                 <Icon name="play" size="sm" />
                 {$t('stationView.resume', { default: 'Resume' })}
               </button>
             {/if}
 
             {#if order.stage?.state === 'REWORK'}
-              <button class="btn btn-sm btn-primary" onclick={() => updateStageState(order.id, 'IN_PROGRESS')}>
-                <Icon name="wrench" size="sm" />
-                {$t('stationView.start_rework', { default: 'Start Rework' })}
+              <button class="btn btn-sm btn-warning" onclick={() => openResolveRework(order.id)} disabled={!operatorCanAct || workingOnOrderId !== null}>
+                <Icon name="check-circle" size="sm" />
+                Resolve rework
               </button>
             {/if}
 
-            <a href="/orders/{order.id}" class="btn btn-sm btn-outline">
+            <a href={`/orders/${encodeURIComponent(order.id)}`} class="btn btn-sm btn-outline">
               <Icon name="eye" size="sm" />
               {$t('common.details', { default: 'Details' })}
             </a>
@@ -486,7 +593,7 @@
         <button class="btn btn-outline" onclick={() => blockModalOpen = false}>
           {$t('actions.cancel', { default: 'Cancel' })}
         </button>
-        <button class="btn btn-danger" onclick={submitBlock} disabled={!blockReason.trim()}>
+        <button class="btn btn-danger" onclick={submitBlock} disabled={!blockReason.trim() || workingOnOrderId !== null}>
           <Icon name="ban" size="sm" />
           {$t('stationView.confirm_block', { default: 'Block Order' })}
         </button>
@@ -543,9 +650,38 @@
         <button class="btn btn-outline" onclick={() => reworkModalOpen = false}>
           {$t('actions.cancel', { default: 'Cancel' })}
         </button>
-        <button class="btn btn-warning" onclick={submitRework} disabled={!reworkDescription.trim()}>
+        <button class="btn btn-warning" onclick={submitRework} disabled={!reworkDescription.trim() || workingOnOrderId !== null}>
           <Icon name="rotate-ccw" size="sm" />
           {$t('stationView.confirm_rework', { default: 'Submit Rework' })}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Resolving rework changes the cycle and stage together via the R02 RPC. -->
+{#if resolveModalOpen}
+  <div class="modal-overlay" role="presentation">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="resolve-rework-title"
+      onkeydown={(event) => { if (event.key === 'Escape' && !resolutionBusy) resolveModalOpen = false; }}
+      tabindex="-1">
+      <div class="modal-header">
+        <h2 id="resolve-rework-title">Resolve rework</h2>
+        <button class="close-btn" onclick={() => resolveModalOpen = false}
+          disabled={resolutionBusy} aria-label="Close resolution dialog">×</button>
+      </div>
+      <div class="modal-body">
+        <p>Describe what was fixed. This returns {station} to In Progress; it does not mark the stage complete.</p>
+        <label class="modal-label">
+          Resolution notes (required)
+          <textarea class="modal-textarea" bind:value={resolutionNotes} rows="4" required
+            placeholder="Describe the repair, inspection and acceptance…"></textarea>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick={() => resolveModalOpen = false} disabled={resolutionBusy}>Cancel</button>
+        <button class="btn btn-success" onclick={submitResolution} disabled={!resolutionNotes.trim() || resolutionBusy}>
+          {resolutionBusy ? 'Saving…' : 'Confirm resolution'}
         </button>
       </div>
     </div>
@@ -1053,4 +1189,48 @@
       grid-template-columns: 1fr;
     }
   }
+
+  .station-feedback {
+    display: flex; flex-wrap: wrap; justify-content: space-between;
+    gap: .5rem; color: var(--muted); font-size: .8rem; min-height: 1.25rem;
+  }
+  .read-only-notice, .load-error {
+    padding: .85rem 1rem; margin: 0; border: 1px solid var(--border);
+    border-radius: .7rem; background: var(--bg-1); color: var(--text); font-size: .9rem;
+  }
+  .load-error { border-color: var(--error); display: flex; justify-content: space-between; gap: .75rem; align-items: center; flex-wrap: wrap; }
+  .info-item .overdue { color: var(--error); font-weight: 750; }
+  .priority-badge.urgent { background: var(--error); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .filter-btn:focus-visible, .btn:focus-visible, .close-btn:focus-visible, .order-actions a:focus-visible {
+    outline: 3px solid var(--brand); outline-offset: 3px;
+  }
+  .order-actions .btn, .header-actions .btn { min-height: 44px; justify-content: center; }
+  @media (max-width: 540px) {
+    .station-board-page { padding: .75rem; gap: 1rem; }
+    .station-header, .station-order-card { padding: 1rem; border-radius: .75rem; }
+    .header-content h1 { font-size: 1.5rem; }
+    .header-stats { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .5rem; }
+    .stat { min-width: 0; padding: .65rem; }
+    .header-actions { flex-wrap: wrap; width: 100%; }
+    .header-actions .btn { flex: 1 1 130px; }
+    .filters { flex-wrap: nowrap; overflow-x: auto; padding-bottom: .4rem; scroll-snap-type: x proximity; }
+    .filter-btn { min-height: 44px; flex: 0 0 auto; scroll-snap-align: start; }
+    .order-actions .btn { flex: 1 1 140px; }
+    .orders-grid { grid-template-columns: minmax(0,1fr); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner, .station-chat-panel { animation: none; }
+    .btn, .station-order-card { transition: none; }
+  }
+
+  .station-search { display: flex; flex-direction: column; gap: .35rem; max-width: 550px; }
+  .station-search label { font-size: .78rem; font-weight: 650; color: var(--muted); }
+  .search-controls { display: flex; gap: .45rem; }
+  .station-search input {
+    width: 100%; min-height: 44px; padding: .65rem .8rem;
+    border-radius: .6rem; color: var(--text); background: var(--bg-1);
+    border: 1px solid var(--border); font: inherit;
+  }
+  .station-search input:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
 </style>

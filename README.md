@@ -13,6 +13,10 @@ SvelteKit order-management and production workflow application with a self-hoste
 
 Check live DB schema/functions before relying on old migration-era assumptions.
 
+## Operator workstation UI (OMS-R03)
+
+The [OMS-R03 operator usability checklist](docs/operations/OMS-R03-operator-workspaces.md) covers mobile/tablet station UX, read-only production overview, real stage status, QR navigation, controlled rework resolution, error recovery, and manual accessibility checks. The R03 app still **requires all R01/R02 database migrations before deployment**.
+
 ## Manufacturing lifecycle (OMS-R02)
 
 See [R02 deployment and end-to-end acceptance checklist](docs/operations/OMS-R02-manufacturing-lifecycle.md). **Four new atomic PostgreSQL RPC migrations must be reviewed/applied before deploying the R02 application.** R01's pending lock permission migration must also be accounted for. Do not deploy app-only first.
