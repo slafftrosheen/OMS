@@ -1,73 +1,48 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-// import { createClient } from '@supabase/supabase-js';
-// import { SUPABASE_URL, SUPABASE_ANON_KEY } from '$env/static/private';
+import { ACTIVE_ORDER_STATUSES } from '$lib/server/contracts/oms-r01';
+import { isKnownStation } from '$lib/order/workflow';
 
-// const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
+// Two explicit queries avoid PostgREST trying to infer an FK to the orders VIEW.
 export const GET: RequestHandler = async ({ params, locals }) => {
-  const session = await locals.getSession();
-  if (!session) throw error(401, 'Unauthorized');
-
-  const { supabase } = locals;
+  if (!locals.user) throw error(401, 'Unauthorized');
   const station = params.station.toUpperCase();
-
-  // Validate station
-  const validStations = ['CAD', 'CNC', 'SANDING', 'BENDING', 'WELDING', 'PAINT', 'ASSEMBLY', 'QC', 'LOGISTICS'];
-  if (!validStations.includes(station)) {
-    throw error(400, 'Invalid station');
+  if (!isKnownStation(station)) throw error(400, 'Unknown station');
+  const db = locals.supabase;
+  const { data: stages, error: stageError } = await db
+    .from('order_stages')
+    .select('id, draft_order_id, station, state, started_at, blocked_reason, estimated_hours, actual_hours, notes')
+    .eq('station', station)
+    .neq('state', 'COMPLETED');
+  if (stageError) {
+    console.error('[Station Orders] Stage query failed:', stageError);
+    throw error(500, 'Failed to load station stages');
   }
-
-  try {
-    // Get orders for this station
-    const { data: stages, error: stagesError } = await supabase
-      .from('order_stages')
-      .select(`
-        *,
-        order:orders (
-          id,
-          po_number,
-          title,
-          client,
-          due_date,
-          priority,
-          status,
-          badges
-        )
-      `)
-      .eq('station', station)
-      .in('order.status', ['PENDING_REVIEW', 'CONFIRMED', 'IN_PRODUCTION', 'READY_TO_LOAD', 'ON_HOLD'])
-      .neq('state', 'COMPLETED')
-      .order('order.priority', { ascending: false })
-      .order('order.due_date', { ascending: true });
-
-    if (stagesError) throw error(500, stagesError.message);
-
-    // Transform the data
-    const orders = stages?.map(stage => ({
-      id: stage.order.id,
-      po_number: stage.order.po_number,
-      title: stage.order.title,
-      client: stage.order.client,
-      due_date: stage.order.due_date,
-      priority: stage.order.priority,
-      status: stage.order.status,
-      badges: stage.order.badges,
+  const orderIds = [...new Set((stages ?? []).map(s => s.draft_order_id).filter(Boolean))];
+  if (!orderIds.length) return json([]);
+  const { data: orderRows, error: orderError } = await db.from('draft_orders')
+    .select('id, po_number, title, client, due_date, priority, status, badges')
+    .in('id', orderIds)
+    .in('status', [...ACTIVE_ORDER_STATUSES]);
+  if (orderError) {
+    console.error('[Station Orders] Order query failed:', orderError);
+    throw error(500, 'Failed to load station orders');
+  }
+  const ordersById = new Map((orderRows ?? []).map(o => [o.id, o]));
+  const result = (stages ?? []).flatMap(stage => {
+    const order = ordersById.get(stage.draft_order_id);
+    if (!order) return [];
+    return [{
+      ...order,
+      badges: order.badges ?? [],
       stage: {
-        id: stage.id,
-        state: stage.state,
-        started_at: stage.started_at,
-        blocked_reason: stage.blocked_reason,
-        estimated_hours: stage.estimated_hours,
-        actual_hours: stage.actual_hours,
-        notes: stage.notes
+        id: stage.id, state: stage.state, started_at: stage.started_at,
+        blocked_reason: stage.blocked_reason, estimated_hours: stage.estimated_hours,
+        actual_hours: stage.actual_hours, notes: stage.notes
       }
-    })) || [];
-
-    return json(orders);
-  } catch (err: any) {
-    if (err.status) throw err;
-    console.error('Station orders fetch error:', err);
-    throw error(500, 'Internal server error');
-  }
+    }];
+  });
+  result.sort((a, b) => String(b.priority ?? '').localeCompare(String(a.priority ?? ''))
+    || String(a.due_date ?? '').localeCompare(String(b.due_date ?? '')));
+  return json(result);
 };

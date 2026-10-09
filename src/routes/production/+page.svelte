@@ -1,5 +1,6 @@
 <!-- src/routes/production/+page.svelte -->
 <script lang="ts">
+    import { ALL_STATIONS } from '$lib/order/workflow';
     import { onMount } from "svelte";
     import { goto } from "$app/navigation";
     import { t } from "svelte-i18n";
@@ -9,15 +10,7 @@
     import { buildStagePatch } from "$lib/order/stage-contract";
     import { notifyError } from "$lib/notify/toast";
 
-    const STATIONS = [
-        "CAD",
-        "CNC",
-        "EDGE",
-        "ASSEMBLY",
-        "PAINT",
-        "PACKAGING",
-        "DELIVERY",
-    ];
+    const STATIONS = ALL_STATIONS;
 
     let stationOrders: Record<string, any[]> = $state({});
     let boardError = $state<string | null>(null);

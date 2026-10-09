@@ -1,14 +1,16 @@
-// RED-loop regression test: CalendarService embed relies on a FK
-// draft_orders -> loading_days (does NOT exist live; only link is loading_event_pos).
-// This test asserts the broken contract. Once fixed, the fix should either
-// (a) resolve the embed through a junction/table that exists, or
-// (b) change this assertion to match the resolved contract.
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 
-describe('calendar embed contract', () => {
-  it('asserts missing FK (RED loop)', () => {
-    // Before fix: no FK draft_orders -> loading_days, no FK loading_days -> draft_orders.
-    // After fix: must verify the new embedding mechanism.
-    expect(true).toBe(true); // loop is runnable; contract verification requires live DB.
+// Contract enforced without requiring production database credentials.
+describe('calendar loading association contract', () => {
+  it('uses calendar events as the bridge from loading days to order links', () => {
+    const code = readFileSync('src/lib/server/calendar/CalendarService.ts', 'utf8');
+    const method = code.split('async generateLoadingCalendar()')[1]?.split('Create calendar subscription token')[0];
+    expect(method).toBeDefined();
+    expect(method).toContain(".from('calendar_events')");
+    expect(method).toContain(".from('loading_event_pos')");
+    expect(method).toContain("loading_event_id");
+    expect(method).toContain('return calendar.toString()');
+    expect(method).not.toContain("assume event id = loading_days.id");
   });
 });

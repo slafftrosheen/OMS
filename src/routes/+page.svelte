@@ -32,16 +32,16 @@
       recentOrders = (ordersData ?? []).slice(0, 5);
 
       try {
-        const analyticsResponse = await fetch('/api/analytics/dashboard?preset=month');
+        const analyticsResponse = await fetch('/api/analytics?type=trends&period=30');
         if (analyticsResponse.ok) {
           const analyticsData = await analyticsResponse.json();
-          if (analyticsData?.success && analyticsData?.data?.revenue?.revenueByMonth) {
-            const revenue = analyticsData.data.revenue;
+          const trends = analyticsData?.data;
+          if (Array.isArray(trends?.dates) && Array.isArray(trends?.total)) {
             chartData = {
-              labels: revenue.revenueByMonth.map((d: any) => d.month),
+              labels: trends.dates,
               datasets: [{
-                label: 'Revenue',
-                data: revenue.revenueByMonth.map((d: any) => d.revenue),
+                label: 'Orders',
+                data: trends.total,
                 borderColor:     tokenColor('--brand', '#7e9bff'),
                 backgroundColor: tokenColor('--brand', '#7e9bff', 0.16)
               }]
@@ -153,7 +153,7 @@
     <section class="dash-chart">
       <div class="rf-section-head">
         <div>
-          <span class="rf-section-eyebrow">{$t('dashboard.revenue_label', { default: 'Revenue' })}</span>
+          <span class="rf-section-eyebrow">{$t('dashboard.orders_label', { default: 'Order volume' })}</span>
           <h2>{$t('dashboard.chart_overview', { default: 'Orders Overview' })}</h2>
         </div>
         <a href="{base}/analytics" class="dash-link">

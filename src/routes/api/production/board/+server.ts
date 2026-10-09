@@ -1,5 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { ALL_STATIONS } from '$lib/order/workflow';
+import { ACTIVE_ORDER_STATUSES } from '$lib/server/contracts/oms-r01';
 
 export const GET: RequestHandler = async ({ locals }) => {
     const session = await locals.getSession();
@@ -9,7 +11,7 @@ export const GET: RequestHandler = async ({ locals }) => {
         const { data: orders, error: fetchError } = await locals.supabase
             .from('ordersummary')
             .select('*')
-            .not('status', 'eq', 'completed')
+            .in('status', [...ACTIVE_ORDER_STATUSES])
             .order('priority', { ascending: false })
             .order('due_date', { ascending: true });
 
@@ -18,16 +20,7 @@ export const GET: RequestHandler = async ({ locals }) => {
             throw error(500, 'Failed to fetch production data');
         }
 
-        // Define expected stations
-        const STATIONS = [
-            "CAD",
-            "CNC",
-            "EDGE",
-            "ASSEMBLY",
-            "PAINT",
-            "PACKAGING",
-            "DELIVERY",
-        ];
+        const STATIONS = ALL_STATIONS;
 
         // Group orders by station
         const stations: Record<string, any[]> = {};

@@ -3,9 +3,10 @@ import type { RequestHandler } from './$types';
 import { postStationMessage } from '$lib/server/chat/stationMessenger';
 
 import { ORDER_STAGE_STATES } from '$lib/order/stage-contract';
+import { WORKFLOW_STATIONS, isKnownStation } from '$lib/order/workflow';
 
 const VALID_STATES = ORDER_STAGE_STATES;
-const WORKFLOW_ORDER = ['CAD', 'CNC', 'EDGE', 'ASSEMBLY', 'PAINT', 'PACKAGING', 'DELIVERY'] as const;
+const WORKFLOW_ORDER = WORKFLOW_STATIONS;
 
 /**
  * GET /api/orders/[id]/stages — list every workflow-stage row for an order.
@@ -54,7 +55,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
     const { supabase } = locals;
 
     const station = url.searchParams.get('station');
-    if (!station) throw error(400, 'Station parameter required');
+    if (!station || !isKnownStation(station)) throw error(400, 'Valid station parameter required');
 
     let body: any;
     try {

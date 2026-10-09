@@ -9,8 +9,7 @@ import type { RequestHandler } from './$types';
 // Query using the request-scoped, RLS-aware Supabase client.
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
-import { createObjectCsvWriter } from 'csv-writer';
-import { v4 as uuidv4 } from 'uuid';
+import { exportCsv, mergeOrderExportRows } from '$lib/server/contracts/oms-r01';
 
 // POST /api/export - Generate export
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -32,7 +31,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   }
 
   const startTime = Date.now();
-  const exportId = uuidv4();
+  const exportId = crypto.randomUUID();
 
   try {
     // Create export history record
@@ -152,17 +151,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   }
 };
 
-// Helper function to fetch orders
+// All joins below are explicit. draft_orders has no direct FK to loading_days
+// and order_assignees uses draft_order_id + assignee_id, not assignees(email).
 async function fetchOrders(filters: any, supabase: SupabaseClient): Promise<any[]> {
-  let query = supabase
-    .from('draft_orders')
-    .select(`
-      *,
-      loading_day:loading_days(date, notes),
-      assignees_data:assignees(email)
-    `)
-    .order('created_at', { ascending: false });
-
+  let query = supabase.from('draft_orders').select('*').order('created_at', { ascending: false });
   if (filters.status) query = query.eq('status', filters.status);
   if (filters.client) query = query.ilike('client', `%${filters.client}%`);
   if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);
@@ -170,44 +162,72 @@ async function fetchOrders(filters: any, supabase: SupabaseClient): Promise<any[
 
   const { data, error: dbError } = await query;
   if (dbError) throw dbError;
+  const orders = data ?? [];
+  if (!orders.length) return [];
 
-  return data || [];
+  const dates = [...new Set(orders.map(row => row.loading_date).filter((v): v is string => typeof v === 'string' && !!v))];
+  const orderIds = orders.map(row => row.id);
+  const daysQuery = dates.length
+    ? await supabase.from('loading_days').select('date,notes,max_capacity,is_blocked').in('date', dates)
+    : { data: [], error: null };
+  if (daysQuery.error) throw daysQuery.error;
+  const assigneesQuery = await supabase.from('order_assignees')
+    .select('draft_order_id,assignee_id').in('draft_order_id', orderIds);
+  if (assigneesQuery.error) throw assigneesQuery.error;
+
+  return mergeOrderExportRows(orders, daysQuery.data ?? [], assigneesQuery.data ?? []);
 }
 
-// Helper function to fetch station logs
 async function fetchStationLogs(filters: any, supabase: SupabaseClient): Promise<any[]> {
-  let query = supabase
-    .from('station_timeline')
-    .select('*')
-    .order('created_at', { ascending: false });
-
+  // station_timeline exposes station, action, details, created_at and operator name.
+  let query = supabase.from('station_timeline')
+    .select('*').order('created_at', { ascending: false });
   if (filters.station) query = query.eq('station', filters.station);
   if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);
   if (filters.dateTo) query = query.lte('created_at', filters.dateTo);
-
   const { data, error: dbError } = await query;
   if (dbError) throw dbError;
-
-  return data || [];
+  return data ?? [];
 }
 
-// Helper function to fetch loading schedule
 async function fetchLoadingSchedule(filters: any, supabase: SupabaseClient): Promise<any[]> {
-  let query = supabase
-    .from('loading_days')
-    .select(`
-      *,
-      orders:draft_orders(*)
-    `)
-    .order('date', { ascending: true });
-
+  let query = supabase.from('loading_days').select('*').order('date', { ascending: true });
   if (filters.dateFrom) query = query.gte('date', filters.dateFrom);
   if (filters.dateTo) query = query.lte('date', filters.dateTo);
+  const { data, error: daysError } = await query;
+  if (daysError) throw daysError;
+  const days = data ?? [];
+  if (!days.length) return [];
 
-  const { data, error: dbError } = await query;
-  if (dbError) throw dbError;
+  const dates = days.map(d => d.date);
+  // loading_event_pos links to loading_events / calendar_events, NOT loading_days.
+  const { data: events, error: eventsError } = await supabase.from('calendar_events')
+    .select('id,date').eq('kind', 'loading').in('date', dates);
+  if (eventsError) throw eventsError;
+  const eventIds = (events ?? []).map(e => e.id);
+  if (!eventIds.length) return days.map(day => ({ ...day, orders: [] }));
 
-  return data || [];
+  const { data: links, error: linksError } = await supabase.from('loading_event_pos')
+    .select('loading_event_id,draft_order_id').in('loading_event_id', eventIds);
+  if (linksError) throw linksError;
+  const orderIds = [...new Set((links ?? []).map(link => link.draft_order_id).filter(Boolean))];
+  if (!orderIds.length) return days.map(day => ({ ...day, orders: [] }));
+  const { data: orders, error: ordersError } = await supabase.from('draft_orders')
+    .select('id,po_number,title,client,status').in('id', orderIds);
+  if (ordersError) throw ordersError;
+
+  const dateByEvent = new Map((events ?? []).map(event => [event.id, event.date]));
+  const orderById = new Map((orders ?? []).map(order => [order.id, order]));
+  const byDate = new Map<string, any[]>();
+  for (const link of links ?? []) {
+    const date = dateByEvent.get(link.loading_event_id);
+    const order = orderById.get(link.draft_order_id);
+    if (!date || !order) continue;
+    const list = byDate.get(date) ?? [];
+    if (!list.some(entry => entry.id === order.id)) list.push(order);
+    byDate.set(date, list);
+  }
+  return days.map(day => ({ ...day, orders: byDate.get(day.date) ?? [] }));
 }
 
 // Generate Excel file
@@ -272,10 +292,12 @@ async function generateExcel(
   });
 
   // Add filters
-  worksheet.autoFilter = {
-    from: { row: 1, column: 1 },
-    to: { row: 1, column: columns.length }
-  };
+  if (columns.length > 0) {
+    worksheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: columns.length }
+    };
+  }
 
   // Freeze header row
   worksheet.views = [
@@ -317,7 +339,7 @@ async function generatePDF(
 
     // Table header
     const tableTop = doc.y;
-    const columnWidth = (doc.page.width - 100) / columns.length;
+    const columnWidth = (doc.page.width - 100) / Math.max(1, columns.length);
 
     doc.fontSize(10).fillColor('#4472C4');
     columns.forEach((col, i) => {
@@ -384,54 +406,10 @@ async function generatePDF(
   });
 }
 
-// Generate CSV file
+// Pure in-memory CSV: no temp.csv races, ESM require(), or workbook formula injection.
 async function generateCSV(data: any[], columns: string[]): Promise<Buffer> {
-  if (data.length === 0) {
-    return Buffer.from('');
-  }
-
-  // Set default columns
-  if (columns.length === 0) {
-    columns = Object.keys(data[0]);
-  }
-
-  const csvWriter = createObjectCsvWriter({
-    path: 'temp.csv', // This will be ignored since we're using writeBuffer
-    header: columns.map(col => ({ id: col, title: col.replace(/_/g, ' ').toUpperCase() }))
-  });
-
-  const records = data.map(row => {
-    const record: any = {};
-    columns.forEach(col => {
-      let value = row[col];
-
-      // Flatten objects/arrays
-      if (typeof value === 'object' && value !== null) {
-        value = JSON.stringify(value);
-      }
-
-      record[col] = value;
-    });
-    return record;
-  });
-
-  // Convert to string and then to buffer
-  const csvString = await new Promise<string>((resolve, reject) => {
-    const writer = createObjectCsvWriter({
-      path: 'temp.csv',
-      header: columns.map(col => ({ id: col, title: col.replace(/_/g, ' ').toUpperCase() }))
-    });
-
-    writer.writeRecords(records)
-      .then(() => {
-        const csvContent = require('fs').readFileSync('temp.csv', 'utf8');
-        require('fs').unlinkSync('temp.csv'); // Clean up temp file
-        resolve(csvContent);
-      })
-      .catch(reject);
-  });
-
-  return Buffer.from(csvString);
+  const selectedColumns = columns.length ? columns : data.length ? Object.keys(data[0]) : [];
+  return Buffer.from(exportCsv(data, selectedColumns), 'utf8');
 }
 
 // Get content type for format

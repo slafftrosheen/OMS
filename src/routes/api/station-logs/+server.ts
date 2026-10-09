@@ -1,112 +1,60 @@
-/**
- * Station Logs API
- * Comprehensive logging for station activities
- */
-
+/** Station activity API using the deployed 3-argument RPC contract. */
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-// Query using the request-scoped, RLS-aware Supabase client.
+import { stationLogRpcArgs, type StationLogInput } from '$lib/server/contracts/oms-r01';
 
-// GET /api/station-logs - Get station logs with filters
 export const GET: RequestHandler = async ({ url, locals }) => {
-  const supabase = locals.supabase;
-  const user = locals.user;
-  if (!user) throw error(401, 'Unauthorized');
-
+  if (!locals.user) throw error(401, 'Unauthorized');
   const orderId = url.searchParams.get('orderId');
   const station = url.searchParams.get('station');
-  const logType = url.searchParams.get('type');
+  const type = url.searchParams.get('type');
   const issuesOnly = url.searchParams.get('issuesOnly') === 'true';
-  const page = parseInt(url.searchParams.get('page') || '1');
-  const limit = parseInt(url.searchParams.get('limit') || '50');
+  const page = Math.max(1, Number.parseInt(url.searchParams.get('page') ?? '1', 10) || 1);
+  const limit = Math.min(100, Math.max(1, Number.parseInt(url.searchParams.get('limit') ?? '50', 10) || 50));
   const offset = (page - 1) * limit;
 
-  let query = supabase
-    .from('station_timeline')
+  // Deployed station_timeline view: station, action, details, created_at,
+  // user_name, username. No id/order_id/log_type/is_issue columns.
+  let query = locals.supabase.from('station_timeline')
     .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
-
-  if (orderId) query = query.eq('order_id', orderId);
-  if (station) query = query.eq('station', station);
-  if (logType) query = query.eq('log_type', logType);
-  if (issuesOnly) query = query.eq('is_issue', true);
+  if (station) query = query.eq('station', station.toUpperCase());
+  if (type) query = query.eq('action', type);
+  if (orderId) query = query.eq('details->>order_id', orderId);
+  if (issuesOnly) query = query.eq('details->>is_issue', 'true');
 
   const { data, error: dbError, count } = await query;
-
   if (dbError) {
-    console.error('[Station Logs API] Error:', dbError);
-    throw error(500, 'Failed to fetch station logs');
+    console.error('[Station Logs] Query failed:', dbError);
+    throw error(500, 'Failed to load station logs');
   }
-
   return json({
-    data,
+    data: data ?? [],
     pagination: {
-      page,
-      limit,
-      total: count || 0,
-      pages: Math.ceil((count || 0) / limit)
+      page, limit, total: count ?? 0, pages: Math.ceil((count ?? 0) / limit)
     }
   });
 };
 
-// POST /api/station-logs - Create station log
 export const POST: RequestHandler = async ({ request, locals }) => {
-  const supabase = locals.supabase;
-  const user = locals.user;
-  if (!user) throw error(401, 'Unauthorized');
-
-  const body = await request.json();
-  const {
-    orderId,
-    station,
-    logType,
-    message,
-    newStage = null,
-    details = null,
-    qualityScore = null,
-    isIssue = false,
-    tags = []
-  } = body;
-
-  if (!orderId || !station || !logType || !message) {
-    throw error(400, 'Missing required fields: orderId, station, logType, message');
-  }
-
+  if (!locals.user) throw error(401, 'Unauthorized');
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw error(400, 'Invalid request body');
+  let args: ReturnType<typeof stationLogRpcArgs>;
   try {
-    const { data: logId, error: dbError } = await supabase
-      .rpc('create_station_log', {
-        p_order_id: orderId,
-        p_station: station,
-        p_log_type: logType,
-        p_message: message,
-        p_new_stage: newStage,
-        p_details: details,
-        p_quality_score: qualityScore,
-        p_is_issue: isIssue,
-        p_tags: tags
-      });
-
-    if (dbError) {
-      console.error('[Station Logs API] Create error:', dbError);
-      throw error(500, 'Failed to create station log');
-    }
-
-    // Fetch created log
-    const { data: log, error: fetchError } = await supabase
-      .from('station_timeline')
-      .select('*')
-      .eq('id', logId)
-      .single();
-
-    if (fetchError) {
-      console.error('[Station Logs API] Fetch error:', fetchError);
-    }
-
-    return json({ data: log }, { status: 201 });
-
+    const input = body as StationLogInput;
+    args = stationLogRpcArgs(input);
   } catch (err) {
-    console.error('[Station Logs API] Error:', err);
+    throw error(400, err instanceof Error ? err.message : 'Invalid station log');
+  }
+  const { data: logId, error: rpcError } = await locals.supabase.rpc('create_station_log', args);
+  if (rpcError) {
+    console.error('[Station Logs] create_station_log failed:', rpcError);
     throw error(500, 'Failed to create station log');
   }
+  // The RPC returns a UUID; station_timeline has no id to look up.
+  return json({
+    data: { id: logId, station: args.p_station, action: args.p_action, details: args.p_details }
+  }, { status: 201 });
 };
