@@ -1,30 +1,53 @@
+// AI diagnostics are independent of core /api/health readiness.
+// GET never sends a paid inference request; RD may explicitly POST to probe.
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { refreshSwarmHealth, listNodeStates } from '$lib/server/ai/swarm';
+import { OPENROUTER_MODEL } from '$lib/server/config';
+import { isOpenRouterConfigured, openRouterChat } from '$lib/server/ai/openrouter';
 
-export const GET: RequestHandler = async () => {
+const noStore = { 'Cache-Control': 'private, no-store' };
+
+export const GET: RequestHandler = async ({ locals }) => {
+    if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401, headers: noStore });
+    const configured = await isOpenRouterConfigured().catch(() => false);
+    return json({
+        service: 'openrouter',
+        configured,
+        model: OPENROUTER_MODEL,
+        connectivity: 'not_tested',
+        note: 'Configured only: availability requires an explicit administrator probe.'
+    }, { headers: noStore });
+};
+
+export const POST: RequestHandler = async ({ locals }) => {
+    if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401, headers: noStore });
+    if (locals.user.role !== 'RD') return json({ error: 'Only R&D can run provider probes' },
+        { status: 403, headers: noStore });
     const start = Date.now();
-
     try {
-        // Trigger a fresh health check of all nodes
-        await refreshSwarmHealth();
-        const nodes = await listNodeStates();
-
-        const allUp = nodes.every(n => n.lastStatus === 'up');
-        const anyUp = nodes.some(n => n.lastStatus === 'up');
-
-        return json({
-            status: allUp ? 'ok' : (anyUp ? 'degraded' : 'error'),
-            service: 'swarm',
-            nodes,
-            latency: Date.now() - start,
-            timestamp: new Date().toISOString()
-        }, { status: anyUp ? 200 : 503 });
+        const { response, model } = await openRouterChat({
+            messages: [{ role: 'user', content: 'Reply only OK.' }],
+            stream: false,
+            temperature: 0,
+            maxTokens: 16,
+            timeoutMs: 15_000
+        });
+        if (!response.ok) {
+            return json({
+                service: 'openrouter', connectivity: 'failed',
+                providerStatus: response.status, latencyMs: Date.now() - start
+            }, { status: response.status === 429 ? 429 : 502, headers: noStore });
+        }
+        const payload = await response.json().catch(() => null);
+        const text = payload?.choices?.[0]?.message?.content;
+        if (typeof text !== 'string') {
+            return json({ service: 'openrouter', connectivity: 'unexpected_response', latencyMs: Date.now() - start },
+                { status: 502, headers: noStore });
+        }
+        return json({ service: 'openrouter', connectivity: 'ok', model,
+            latencyMs: Date.now() - start, responseReceived: true }, { headers: noStore });
     } catch (err) {
-        return json({
-            status: 'error',
-            service: 'swarm',
-            error: err instanceof Error ? err.message : String(err),
-            latency: Date.now() - start
-        }, { status: 503 });
+        console.error('[AI health] Provider probe failed', err instanceof Error ? err.name : 'unknown');
+        return json({ service: 'openrouter', connectivity: 'failed', latencyMs: Date.now() - start },
+            { status: 503, headers: noStore });
     }
 };

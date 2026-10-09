@@ -6,7 +6,7 @@ import { logger } from '$lib/server/logging/logger';
 import { suggestFeedsSpeeds } from './cnc-feeds';
 import { matchPaint } from './paint-match';
 import { getPendingOrders, getLowStock } from './data-tools';
-import { listSketches, readSketch, saveSketch } from './maker-tools';
+import { listSketches, readSketch } from './maker-tools';
 import { webSearch, crawlUrl } from './web-search';
 import { planLumiGrid, planLedStrip, planLedMatrix, planBoxLetter } from './signage';
 
@@ -33,14 +33,21 @@ export interface ToolRow {
   enabled: boolean;
 }
 
-export const TOOL_EXECUTORS: Record<string, (args: Record<string, unknown>, ctx: { userId?: string; role?: string }) => Promise<unknown>> = {
-  'cnc.feeds_speeds': (args) => suggestFeedsSpeeds(args as unknown as Parameters<typeof suggestFeedsSpeeds>[0]),
-  'paint.match': (args) => matchPaint(args as unknown as Parameters<typeof matchPaint>[0]),
-  'data.pending_orders': () => getPendingOrders(),
-  'data.low_stock': () => getLowStock(),
-  'maker.list_sketches': () => listSketches(),
-  'maker.read_sketch': (args) => readSketch((args as { id: string }).id),
-  'maker.save_sketch': (args) => saveSketch((args as any).id, (args as any).title, (args as any).code, (args as any).description),
+export interface ToolContext {
+  userId: string;
+  role: string;
+  stations?: string[];
+  supabase: SupabaseClient;
+}
+
+export const TOOL_EXECUTORS: Record<string, (args: Record<string, unknown>, ctx: ToolContext) => Promise<unknown>> = {
+  'cnc.feeds_speeds': (args, ctx) => suggestFeedsSpeeds(args as unknown as Parameters<typeof suggestFeedsSpeeds>[0], ctx.supabase),
+  'paint.match': (args, ctx) => matchPaint(args as unknown as Parameters<typeof matchPaint>[0], ctx.supabase),
+  'data.pending_orders': (_args, ctx) => getPendingOrders(ctx.supabase),
+  'data.low_stock': (_args, ctx) => getLowStock(ctx.supabase),
+  'maker.list_sketches': (_args, ctx) => listSketches(ctx.supabase),
+  'maker.read_sketch': (args, ctx) => readSketch(ctx.supabase, String(args.id ?? '')),
+  // Deliberately no maker.save_sketch: model-generated tool calls must be read-only.
   'web.search': (args) => webSearch(args as any),
   'web.crawl': (args) => crawlUrl(args as any),
   'signage.lumigrid': (args) => Promise.resolve(planLumiGrid(args as any)),
@@ -61,8 +68,18 @@ export const BUILTIN_TOOLS: ToolRow[] = [
     roles: [], stations: [], endpoint: '/api/ai/crawl', enabled: true
   },
   {
-    slug: 'signage.lumigrid', label: 'LumiGrid PWM plan', description: 'Calculate channel PWM, peak current, and PSU sizing.', icon: 'sliders', category: 'signage',
-    schema: { name: 'signage_lumigrid', description: 'Plan a LumiGrid PWM controller channel.', parameters: { type: 'object', properties: { channels: { type: 'number' }, channel_ma: { type: 'number' }, volts: { type: 'number', enum: [12, 24] }, pwm_hz: { type: 'number' }, pwm_bits: { type: 'number' }, gamma: { type: 'number' }, camera_safe: { type: 'boolean' } }, required: ['channels', 'channel_ma'] } },
+    slug: 'signage.lumigrid', label: 'LumiGrid hybrid output plan', description: 'Calculate separate loads for 8 PWM outputs and 8 addressable RMT lanes.', icon: 'sliders', category: 'signage',
+    schema: { name: 'signage_lumigrid', description: 'Plan an 8 PWM + 8 addressable-lane LumiGrid controller. Treat electrical/current/timing limits as unverified.', parameters: { type: 'object', properties: {
+      channels: { type: 'integer', minimum: 0, maximum: 8, description: 'Used PWM outputs' },
+      channel_ma: { type: 'number', minimum: 0, description: 'Full-on load per PWM output in mA' },
+      volts: { type: 'integer', enum: [12, 24] },
+      addressable_lanes: { type: 'integer', minimum: 0, maximum: 8 },
+      pixels_per_lane: { type: 'integer', minimum: 0, maximum: 256 },
+      pixel_ma: { type: 'number', minimum: 0, description: 'Worst-case pixel current from LED datasheet' },
+      pixel_volts: { type: 'integer', enum: [5, 12, 24] },
+      pwm_hz: { type: 'number' }, pwm_bits: { type: 'integer' },
+      gamma: { type: 'number' }, camera_safe: { type: 'boolean' }
+    }, required: ['channels', 'channel_ma'] } },
     roles: [], stations: [], endpoint: '/api/ai/signage/lumigrid', enabled: true
   },
   {
@@ -84,41 +101,99 @@ export const BUILTIN_TOOLS: ToolRow[] = [
 
 const RETIRED_LOCAL_AI_TOOL_SLUGS = new Set(['rag.search_knowledge', 'engineering.brainstorm', 'forge.image', 'forge.mesh', 'forge.matting', 'forge.tts', 'forge.asr']);
 
+
+const RESTRICTED_DATA_TOOLS = new Set(['data.pending_orders', 'data.low_stock']);
+
+// Models may choose from registered, implemented and authorized tools only.
+// Database descriptors can disable a built-in but cannot publish an executable
+// arbitrary URL, bypass role checks or turn on an autonomous write.
+export function mayUseTool(tool: ToolRow, filter: { role?: string; station?: string } = {}): boolean {
+  if (!tool.enabled || RETIRED_LOCAL_AI_TOOL_SLUGS.has(tool.slug)) return false;
+  if (!tool.schema || typeof tool.schema.name !== 'string' || !tool.schema.name.trim()) return false;
+  if (!(tool.slug in TOOL_EXECUTORS)) return false;
+  if (tool.slug === 'maker.save_sketch') return false;
+  if (RESTRICTED_DATA_TOOLS.has(tool.slug) &&
+      !['RD', 'Boss', 'HeadOfProduction'].includes(filter.role ?? '')) return false;
+  if (tool.roles?.length && (!filter.role || !tool.roles.includes(filter.role))) return false;
+  if (tool.stations?.length && (!filter.station || !tool.stations.includes(filter.station))) return false;
+  return true;
+}
+
 export async function listTools(filter?: { role?: string; station?: string; category?: string }): Promise<ToolRow[]> {
-  const db = admin();
-  let query = db.from('ai_tools').select('*').eq('enabled', true);
-  if (filter?.category) query = query.eq('category', filter.category);
-  const { data, error } = await query;
-  let rows = error ? [] as ToolRow[] : (data ?? []) as ToolRow[];
-  if (error) logger.error('listTools failed; using built-ins only', new Error(error.message));
-  const slugs = new Set(rows.map((row) => row.slug));
-  for (const builtIn of BUILTIN_TOOLS) {
-    if (filter?.category && builtIn.category !== filter.category) continue;
-    if (!slugs.has(builtIn.slug)) rows.push(builtIn);
+  let rows: ToolRow[] = [];
+  // Keep deterministic built-in calculators functional if the optional AI
+  // metadata table or service-role client is temporarily unavailable.
+  if (SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const db = admin();
+      let query = db.from('ai_tools').select('*');
+      if (filter?.category) query = query.eq('category', filter.category);
+      const { data, error } = await query;
+      if (error) throw error;
+      rows = (data ?? []) as ToolRow[];
+    } catch (err) {
+      logger.warn('AI tool metadata unavailable: built-in definitions only', {
+        reason: err && typeof err === 'object' ? 'database_unavailable' : 'unknown'
+      });
+    }
   }
-  return rows.filter((row) => {
-    if (RETIRED_LOCAL_AI_TOOL_SLUGS.has(row.slug)) return false;
-    if (filter?.role && row.roles.length && !row.roles.includes(filter.role)) return false;
-    if (filter?.station && row.stations.length && !row.stations.includes(filter.station)) return false;
-    return true;
+  // Code owns the executable schema, but DB may DISABLE built-ins and narrow
+  // their allowed roles/stations. Never widen their static permissions.
+  const canonical = new Map(BUILTIN_TOOLS.map(row => [row.slug, row]));
+  rows = rows.map(row => {
+    const builtin = canonical.get(row.slug);
+    if (!builtin) return row;
+    const limitedRoles = builtin.roles.length
+      ? builtin.roles.filter(role => !row.roles?.length || row.roles.includes(role))
+      : (Array.isArray(row.roles) ? row.roles : []);
+    const limitedStations = builtin.stations.length
+      ? builtin.stations.filter(station => !row.stations?.length || row.stations.includes(station))
+      : (Array.isArray(row.stations) ? row.stations : []);
+    return {
+      ...builtin,
+      enabled: builtin.enabled && row.enabled === true &&
+        (!builtin.roles.length || !row.roles?.length || limitedRoles.length > 0) &&
+        (!builtin.stations.length || !row.stations?.length || limitedStations.length > 0),
+      roles: limitedRoles,
+      stations: limitedStations
+    };
+  });
+  const slugs = new Set(rows.map(row => row.slug));
+  for (const tool of BUILTIN_TOOLS) {
+    if (filter?.category && tool.category !== filter.category) continue;
+    if (!slugs.has(tool.slug)) rows.push(tool);
+  }
+  return rows.filter(tool => {
+    if (filter?.category && tool.category !== filter.category) return false;
+    return mayUseTool(tool, filter);
   });
 }
 
 export async function loadToolDefinitions(filter?: { role?: string; station?: string }): Promise<ToolDef[]> {
   const tools = await listTools(filter);
-  return tools.map((tool) => ({ type: 'function', function: { name: tool.schema.name, description: tool.schema.description ?? tool.description ?? tool.label, parameters: tool.schema.parameters } }));
+  return tools.map(tool => ({
+    type: 'function',
+    function: {
+      name: tool.schema.name,
+      description: tool.schema.description ?? tool.description ?? tool.label,
+      parameters: tool.schema.parameters
+    }
+  }));
 }
 
-export async function findToolBySchemaName(name: string): Promise<ToolRow | null> {
-  const tools = await listTools();
-  return tools.find((tool) => tool.schema.name === name) ?? null;
+export async function findToolBySchemaName(name: string, filter: { role?: string; station?: string } = {}): Promise<ToolRow | null> {
+  const tools = await listTools(filter);
+  return tools.find(tool => tool.schema.name === name) ?? null;
 }
 
-export async function executeTool(slug: string, args: Record<string, unknown>, ctx: { userId?: string; role?: string } = {}): Promise<unknown> {
-  if (RETIRED_LOCAL_AI_TOOL_SLUGS.has(slug)) throw new Error(`Tool '${slug}' is disabled in OpenRouter-only mode.`);
-  if (slug === 'data.pending_orders' && !['RD', 'Boss', 'HeadOfProduction'].includes(ctx.role ?? '')) throw new Error('Not authorized to view pending orders');
-  if (slug === 'data.low_stock' && !['RD', 'Boss', 'HeadOfProduction'].includes(ctx.role ?? '')) throw new Error('Not authorized to view stock levels');
+export async function executeTool(slug: string, args: Record<string, unknown>, ctx: ToolContext): Promise<unknown> {
+  if (!ctx?.userId || !ctx?.role || !ctx?.supabase) throw new Error('Authenticated tool context is required');
+  if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Tool arguments must be an object');
+  if (slug === 'maker.save_sketch') throw new Error('Autonomous writes require a separate user approval workflow');
+  if (RETIRED_LOCAL_AI_TOOL_SLUGS.has(slug)) throw new Error('Tool disabled in OpenRouter-only mode');
+  const available = await listTools({ role: ctx.role });
+  if (!available.some(tool => tool.slug === slug)) throw new Error('Tool unavailable or not authorized');
   const executor = TOOL_EXECUTORS[slug];
-  if (!executor) throw new Error(`No executor for tool slug "${slug}"`);
+  if (!executor) throw new Error('Tool executor is not installed');
   return executor(args, ctx);
 }

@@ -5,6 +5,7 @@
   import type { IconName } from '$lib/ui/icons';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
+  import { currentUser } from '$lib/auth/authState.svelte';
 
 
   type Run = {
@@ -17,13 +18,32 @@
   let runs = $state<Run[]>([]);
   let runsTodayCount = $state(0);
   let providerStatus = $state('Checking OpenRouter…');
+  let providerProbeResult = $state('');
+  let probeBusy = $state(false);
+
+  async function probeOpenRouter() {
+    if (probeBusy || $currentUser?.role !== 'RD') return;
+    probeBusy = true;
+    providerProbeResult = 'Testing provider connectivity…';
+    try {
+      const res = await fetch('/api/ai/health', { method: 'POST' });
+      const payload = await res.json().catch(() => ({}));
+      providerProbeResult = res.ok && payload?.connectivity === 'ok'
+        ? `OpenRouter responded in ${payload.latencyMs} ms (${payload.model})`
+        : `Provider test failed (HTTP ${payload.providerStatus ?? res.status}). Check OpenRouter settings.`;
+    } catch {
+      providerProbeResult = 'Provider test could not complete. Check the network.';
+    } finally {
+      probeBusy = false;
+    }
+  }
 
   async function refresh() {
     const [health, r] = await Promise.all([
-      fetch('/api/ai/health').then((r) => r.json()).catch(() => ({ status: 'error' })),
+      fetch('/api/ai/health').then((r) => r.json()).catch(() => ({ configured: false })),
       fetch('/api/ai/runs?limit=20').then((r) => r.json()).catch(() => ({ items: [] }))
     ]);
-    providerStatus = health.status === 'ok' ? 'OpenRouter configured' : 'OpenRouter not configured';
+    providerStatus = health.configured === true ? 'OpenRouter configured · not yet tested' : 'OpenRouter not configured';
     runs = r.items ?? [];
     
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -82,7 +102,18 @@
         <h3>OpenRouter provider</h3>
         <button class="btn-refresh" onclick={refresh} aria-label={$t('common.refresh')}><Icon name="refresh-ccw" size="sm" /></button>
       </header>
-      <div class="card empty">{providerStatus}. Manage the system credential in Settings (R&D only).</div>
+      <div class="card empty">
+        <p>{providerStatus}. Manage the system credential in Settings (R&D only).</p>
+        {#if $currentUser?.role === 'RD'}
+          <button class="btn-refresh" onclick={probeOpenRouter} disabled={probeBusy}
+            aria-label="Test OpenRouter connection with one inference request">
+            {probeBusy ? 'Testing…' : 'Test provider connection'}
+          </button>
+        {/if}
+        {#if providerProbeResult}
+          <p role="status" aria-live="polite">{providerProbeResult}</p>
+        {/if}
+      </div>
     </section>
 
     <!-- Recent Runs -->

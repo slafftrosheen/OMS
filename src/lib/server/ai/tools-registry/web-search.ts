@@ -4,6 +4,8 @@
 // LLM why — never leak engine errors as raw HTML.
 
 import * as cheerio from 'cheerio';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import {
     SEARCH_BACKEND,
     SEARCH_BACKEND_URL,
@@ -45,6 +47,7 @@ export interface SearchArgs {
 
 export async function webSearch(args: SearchArgs): Promise<SearchResult> {
     const query = (args.query ?? '').trim();
+    if (query.length > 500) throw new Error('Web search query exceeds 500 characters');
     if (!query) {
         return { backend: SEARCH_BACKEND, query, hits: [], suggestions: [], note: 'empty query' };
     }
@@ -135,6 +138,50 @@ export async function webSearch(args: SearchArgs): Promise<SearchResult> {
     }
 }
 
+// SSRF boundary: the AI is untrusted input. Never crawl private/Tailnet,
+// metadata, loopback or alternate-port services, even if the URL came from search.
+export function isBlockedCrawlAddress(ip: string): boolean {
+    if (ip.includes(':') && ip.includes('.')) {
+        return isBlockedCrawlAddress(ip.slice(ip.lastIndexOf(':') + 1));
+    }
+    if (isIP(ip) === 4) {
+        const [a, b, c] = ip.split('.').map(Number);
+        return a === 0 || a === 10 || a === 127 || a >= 224 ||
+            (a === 100 && b >= 64 && b <= 127) ||
+            (a === 169 && b === 254) ||
+            (a === 172 && b >= 16 && b <= 31) ||
+            (a === 192 && (b === 0 || b === 168)) ||
+            (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) ||
+            (a === 203 && b === 0 && c === 113);
+    }
+    if (isIP(ip) === 6) {
+        const first = parseInt(ip.split(':')[0] || '0', 16);
+        return !(first >= 0x2000 && first < 0x4000) ||
+            ip.toLowerCase().startsWith('2001:db8');
+    }
+    return true;
+}
+
+export async function validatePublicCrawlUrl(input: string): Promise<URL> {
+    if (typeof input !== 'string' || input.length > 2048) throw new Error('Invalid crawl URL');
+    let target: URL;
+    try { target = new URL(input); } catch { throw new Error('Crawl URL must be absolute'); }
+    if (!['https:', 'http:'].includes(target.protocol) || target.username || target.password ||
+        (target.port && !['443', '80'].includes(target.port))) {
+        throw new Error('Only public HTTP(S) URLs on standard ports are permitted');
+    }
+    const host = target.hostname.toLowerCase().replace(/\.$/, '');
+    if (!host || host === 'localhost' || !host.includes('.') ||
+        /\.(localhost|local|lan|internal|ts\.net|home|test)$/.test(host)) {
+        throw new Error('Private hostnames are not permitted');
+    }
+    const addresses = isIP(host) ? [{ address: host }] : await lookup(host, { all: true });
+    if (!addresses.length || addresses.some(v => isBlockedCrawlAddress(v.address))) {
+        throw new Error('Public DNS resolution is required for URL crawling');
+    }
+    return target;
+}
+
 // ─── Crawl ──────────────────────────────────────────────────────────────────
 
 export interface CrawlArgs {
@@ -160,22 +207,24 @@ export interface CrawlResult {
 
 export async function crawlUrl(args: CrawlArgs): Promise<CrawlResult> {
     const target = (args.url ?? '').trim();
-    if (!/^https?:\/\//i.test(target)) {
-        throw new Error('crawlUrl: url must start with http:// or https://');
-    }
+    const publicUrl = await validatePublicCrawlUrl(target);
 
     {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), CRAWL_TIMEOUT_MS);
         try {
-            const res = await fetch(target, {
+            const res = await fetch(publicUrl, {
                 headers: {
                     'User-Agent': CRAWL_USER_AGENT,
                     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
                 },
-                redirect: 'follow',
+                // Never auto-follow redirects into a private IP or metadata host.
+                redirect: 'manual',
                 signal: ctrl.signal
             });
+            if (res.status >= 300 && res.status < 400) {
+                throw new Error('Crawl redirects are disabled; supply the final public URL');
+            }
             const mime = (res.headers.get('content-type') ?? 'text/html').split(';')[0].trim();
             const finalUrl = res.url || target;
             if (!res.ok) {

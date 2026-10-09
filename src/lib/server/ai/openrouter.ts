@@ -91,24 +91,23 @@ export async function openRouterChat(
   if (!resolvedConfig.apiKey.trim()) throw new Error('OpenRouter is not configured: add the system key in Settings or set OPENROUTER_API_KEY');
   if (!/^https:\/\//i.test(resolvedConfig.baseUrl)) throw new Error('OPENROUTER_BASE_URL must use HTTPS');
   const body = openRouterRequestBody(options, resolvedConfig);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? resolvedConfig.timeoutMs);
-  try {
-    const response = await fetcher(`${resolvedConfig.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${resolvedConfig.apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://reclamefabriek.eu',
-        'X-Title': 'Reclame Fabriek OMS'
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-    return { model: String(body.model), response };
-  } finally {
-    clearTimeout(timeout);
-  }
+  // A stream remains abortable *after headers arrive*. Clearing a timer in
+  // fetch().finally() left SSE streams unbounded indefinitely.
+  const requestedTimeout = options.timeoutMs ?? resolvedConfig.timeoutMs;
+  const timeoutMs = Number.isFinite(requestedTimeout)
+    ? Math.max(5_000, Math.min(requestedTimeout, 180_000)) : 120_000;
+  const response = await fetcher(`${resolvedConfig.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${resolvedConfig.apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://reclamefabriek.eu',
+      'X-Title': 'Reclame Fabriek OMS'
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  return { model: String(body.model), response };
 }
 
 export function openRouterError(response: Response, text: string, credential = ''): Error {
@@ -126,8 +125,9 @@ export async function openRouterComplete(
 ): Promise<string> {
   const { response } = await openRouterChat({ ...options, messages, stream: false }, config, fetcher);
   if (!response.ok) {
-    const { resolveOpenRouterApiKey } = await import('$lib/server/ai/provider-key');
-    throw openRouterError(response, await response.text().catch(() => ''), await resolveOpenRouterApiKey());
+    // Do not reflect provider error bodies (which may contain prompt text
+    // or echoed credentials) into order descriptions or outward-facing routes.
+    throw new Error(`OpenRouter completion failed (HTTP ${response.status})`);
   }
   const data = await response.json();
   return String(data?.choices?.[0]?.message?.content ?? '').trim();

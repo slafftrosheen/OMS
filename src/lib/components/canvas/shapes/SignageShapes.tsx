@@ -165,21 +165,27 @@ function PlanCard<T extends BasePlanProps>(props: {
 export type LumiGridShape = TLBaseShape<'lumigrid', BasePlanProps>;
 
 const LUMIGRID_FIELDS: FieldDef[] = [
-    { key: 'channels', label: 'Channels', type: 'number', placeholder: '4' },
-    { key: 'channel_ma', label: 'mA / channel', type: 'number', placeholder: '350' },
-    { key: 'volts', label: 'Volts', type: 'select', options: [12, 24] },
-    { key: 'pwm_hz', label: 'PWM Hz', type: 'number', placeholder: '24000' },
-    { key: 'pwm_bits', label: 'PWM bits', type: 'number', placeholder: '16' },
+    { key: 'channels', label: 'PWM outputs used (0–8)', type: 'number', placeholder: '4' },
+    { key: 'channel_ma', label: 'mA per PWM load', type: 'number', placeholder: '350' },
+    { key: 'volts', label: 'PWM supply (V)', type: 'select', options: [12, 24] },
+    { key: 'addressable_lanes', label: 'RMT lanes used (0–8)', type: 'number', placeholder: '0' },
+    { key: 'pixels_per_lane', label: 'Pixels per RMT lane (≤256)', type: 'number', placeholder: '0' },
+    { key: 'pixel_ma', label: 'mA per pixel at full brightness', type: 'number', placeholder: '0' },
+    { key: 'pixel_volts', label: 'Pixel supply (V)', type: 'select', options: [5, 12, 24] },
+    { key: 'pwm_hz', label: 'Requested PWM Hz (verify firmware)', type: 'number', placeholder: '24000' },
+    { key: 'pwm_bits', label: 'Configured PWM bits (verify)', type: 'number', placeholder: '16' },
     { key: 'gamma', label: 'Gamma', type: 'number', placeholder: '2.2' },
-    { key: 'camera_safe', label: 'Camera-safe', type: 'checkbox' }
+    { key: 'camera_safe', label: 'Camera flicker warning', type: 'checkbox' }
 ];
 
 export class LumiGridShapeUtil extends BaseBoxShapeUtil<LumiGridShape> {
     static override type = 'lumigrid' as const;
     override getDefaultProps(): LumiGridShape['props'] {
         return {
-            w: 360, h: 460,
-            inputs: { channels: 4, channel_ma: 350, volts: 24, pwm_hz: 24_000, pwm_bits: 16, gamma: 2.2, camera_safe: false },
+            w: 410, h: 530,
+            inputs: { channels: 4, channel_ma: 350, volts: 24,
+                addressable_lanes: 0, pixels_per_lane: 0, pixel_ma: 0,
+                pwm_hz: 24_000, pwm_bits: 16, gamma: 2.2, camera_safe: false },
             status: 'idle', error: null, output: null
         };
     }
@@ -187,7 +193,7 @@ export class LumiGridShapeUtil extends BaseBoxShapeUtil<LumiGridShape> {
         return (
             <PlanCard
                 accent="#e63329"
-                title="LumiGrid PWM"
+                title="LumiGrid · 8 PWM + 8 RMT"
                 icon="🎚️"
                 fields={LUMIGRID_FIELDS}
                 shape={shape}
@@ -195,8 +201,10 @@ export class LumiGridShapeUtil extends BaseBoxShapeUtil<LumiGridShape> {
                 endpoint="/api/ai/signage/lumigrid"
                 renderSummary={(o: any) => (
                     <div style={summaryStyle}>
-                        <strong>{o.peak_amps} A peak</strong>
-                        <span> · PSU {o.psu_amps} A / {o.psu_watts} W</span>
+                        <strong>{o.channels}/8 PWM · {o.addressable_lanes}/8 RMT</strong>
+                        <span> PWM: {o.psu_amps} A / {o.psu_watts} W</span>
+                        {o.addressable_lanes > 0 && <span> · Pixels: {o.addressable_psu_amps} A / {o.addressable_psu_watts} W</span>}
+                        <span> · PSU budget: {o.total_psu_watts} W (separate rails if voltages differ)</span>
                         <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>
                             LUT: {o.gamma_lut_preview?.join(', ')}
                         </div>

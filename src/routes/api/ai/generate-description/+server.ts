@@ -34,6 +34,7 @@ export const POST: RequestHandler = async (event) => {
         const description = await openRouterComplete(messages, { temperature: 0.5, maxTokens: 400 });
         return okOne({ description });
     } catch (err) {
-        throw svelteError(503, `AI description generation failed: ${(err as Error).message}`);
+        console.error('[AI description] Provider failure', err instanceof Error ? err.name : 'unknown');
+        throw svelteError(503, 'AI description generation is unavailable');
     }
 };

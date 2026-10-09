@@ -9,20 +9,10 @@
 // The LLM call is OPTIONAL — if the provider is unconfigured we still return
 // the raw historical hits so the operator has something to work with.
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MODEL } from '$lib/server/config';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { MODEL } from '$lib/server/config';
 import { openRouterComplete } from '$lib/server/ai/openrouter';
 import { logger } from '$lib/server/logging/logger';
-
-let _admin: SupabaseClient | null = null;
-function admin(): SupabaseClient {
-    if (!_admin) {
-        _admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-            auth: { persistSession: false, autoRefreshToken: false }
-        });
-    }
-    return _admin;
-}
 
 export interface FeedsSpeedsArgs {
     material: string;
@@ -61,9 +51,13 @@ export interface FeedsSpeedsResult {
     } | null;
 }
 
-export async function suggestFeedsSpeeds(args: FeedsSpeedsArgs): Promise<FeedsSpeedsResult> {
-    const db = admin();
-    const { data: hist } = await db
+export async function suggestFeedsSpeeds(args: FeedsSpeedsArgs, db: SupabaseClient): Promise<FeedsSpeedsResult> {
+    if (!args || typeof args.material !== 'string' || args.material.trim().length > 120 ||
+        !['profile','pocket','engrave','drill'].includes(args.operation) ||
+        !Number.isFinite(args.tool_diameter_mm) || args.tool_diameter_mm <= 0) {
+        throw new Error('Invalid CNC material, operation or cutter diameter');
+    }
+    const { data: hist, error: lookupError } = await db
         .from('cnc_feeds_speeds')
         .select('*')
         .ilike('material', `%${args.material}%`)
@@ -72,6 +66,7 @@ export async function suggestFeedsSpeeds(args: FeedsSpeedsArgs): Promise<FeedsSp
         .order('confidence', { ascending: false })
         .limit(8);
 
+    if (lookupError) throw new Error('CNC records unavailable or access denied');
     const historical = ((hist ?? []) as Array<Record<string, unknown>>).map((r) => ({
         spindle_rpm:   (r.spindle_rpm   as number | null) ?? null,
         feed_mm_min:   (r.feed_mm_min   as number | null) ?? null,
@@ -112,7 +107,7 @@ have no data for. Output ONLY the JSON, no prose.`;
             recommendation = JSON.parse(txt.slice(start, end + 1));
         }
     } catch (err) {
-        logger.warn('feeds/speeds LLM call failed; returning historical only', { error: (err as Error).message });
+        logger.warn('feeds/speeds LLM unavailable; returning historical only', { reason: 'provider_unavailable' });
     }
 
     return { historical, recommendation };

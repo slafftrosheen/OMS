@@ -4,7 +4,7 @@
  */
 import { json, error as kitError } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { openRouterChat, openRouterError, type OpenRouterMessage } from '$lib/server/ai/openrouter';
+import { openRouterChat, type OpenRouterMessage } from '$lib/server/ai/openrouter';
 import { OPENROUTER_MODEL } from '$lib/server/config';
 
 function sseHeaders() {
@@ -34,12 +34,15 @@ export const POST: RequestHandler = async ({ request, url, locals }) => {
   try {
     result = await openRouterChat({ model, messages, stream: wantStream, temperature: typeof body.temperature === 'number' ? body.temperature : 0.5, maxTokens: 2048 });
   } catch (err) {
-    console.error('[api/ai/chat] OpenRouter request failed:', err instanceof Error ? err.message : 'unknown error');
-    return json({ error: err instanceof Error ? err.message : 'OpenRouter unavailable' }, { status: 503 });
+    console.error('[api/ai/chat] OpenRouter request unavailable:', err instanceof Error ? err.name : 'unknown');
+    return json({ error: 'AI provider unavailable or not configured' }, { status: 503 });
   }
   if (!result.response.ok) {
-    const err = openRouterError(result.response, await result.response.text().catch(() => ''));
-    return json({ error: err.message }, { status: result.response.status === 429 ? 429 : 502 });
+    // Raw provider bodies can contain request content. Never echo them.
+    return json({
+      error: result.response.status === 429 ? 'AI rate limit reached. Please retry later.' : 'AI provider returned an error',
+      providerStatus: result.response.status
+    }, { status: result.response.status === 429 ? 429 : 502 });
   }
 
   if (!wantStream) {
@@ -91,7 +94,7 @@ export const POST: RequestHandler = async ({ request, url, locals }) => {
         send({ done: true, content: assembled, model: result.model });
         controller.close();
       } catch (err) {
-        send({ error: err instanceof Error ? err.message : 'OpenRouter stream failed' });
+        send({ error: 'AI stream interrupted; retry the request.' });
         controller.close();
       }
     }

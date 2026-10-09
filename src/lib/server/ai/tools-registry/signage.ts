@@ -3,8 +3,8 @@
 // they're safe to call from arrow-driven graph executions.
 //
 // Réclame Fabriek context:
-//   • LumiGrid is the in-house PWM controller (16-bit, configurable PWM clock,
-//     gamma-corrected dimming on each channel).
+//   • LumiGrid is a hybrid 8 PWM + 8 addressable RMT controller; revision-specific
+//     PWM bit depth, current limits and addressable protocol require verification.
 //   • Addressable strips are 24 V WS2814-based at 60 LED/m, white-balanced.
 //   • LED matrix displays use Hub75 or driver-IC panels (P2.5 → P10).
 //   • Box letters use 12 V or 24 V CC modules; depth governs viewing-angle.
@@ -14,95 +14,138 @@
 
 import { SIGNAGE } from '$lib/server/config';
 
-// ─── LumiGrid PWM controller plan ───────────────────────────────────────────
+// ─── LumiGrid hybrid controller — 8 PWM + 8 addressable outputs ────────
+//
+// This is a LOAD estimate, not a board current/thermal, RMT or EMI certificate.
+// Electrical limits, firmware PWM resolution and addressable protocols must be
+// checked against the exact LumiGrid PCB revision and installed LED product.
+export const LUMIGRID_CAPACITY = Object.freeze({
+    pwm_outputs: 8,
+    addressable_lanes: 8,
+    max_pixels_per_lane_reference: 256
+} as const);
 
 export interface LumiGridArgs {
-    /** Number of independently-dimmed channels (1..32 on a single LumiGrid). */
+    /** Number of connected dumb PWM outputs, 0..8 (legacy channels alias). */
     channels: number;
-    /** Per-channel current draw at full duty, in mA. */
+    /** mA at full output on EACH connected dumb PWM channel. */
     channel_ma: number;
-    /** Channel voltage (12 or 24 V on current revs). */
+    /** PWM load supply. Addressable supply is calculated independently. */
     volts?: 12 | 24;
-    /** Desired PWM frequency in Hz. */
     pwm_hz?: number;
-    /** Bit depth for the duty cycle. */
     pwm_bits?: number;
-    /** Perceptual gamma. 2.2 for standard signage, 2.6 for cinema. */
     gamma?: number;
-    /** Whether the install is rated for camera capture (avoid flicker). */
     camera_safe?: boolean;
+    /** Number of occupied addressable RMT outputs (0..8). */
+    addressable_lanes?: number;
+    /** Addressable pixel count PER connected lane (reference max 256). */
+    pixels_per_lane?: number;
+    /** Measured/datasheet max mA per addressable pixel, including white. */
+    pixel_ma?: number;
+    /** Independent addressable supply voltage, if addressable lanes are used. */
+    pixel_volts?: 5 | 12 | 24;
 }
 
 export interface LumiGridResult {
     channels: number;
+    pwm_outputs_available: number;
+    addressable_lanes: number;
+    addressable_lanes_available: number;
+    pixels_per_lane: number;
+    pixels_total: number;
     volts: number;
     pwm_hz: number;
     pwm_bits: number;
     gamma: number;
-    /** Peak current with all channels on, in A. */
     peak_amps: number;
-    /** Recommended PSU (min) with 25% headroom. */
     psu_amps: number;
     psu_watts: number;
-    /** True if PWM × resolution leaves enough timer cycles. */
-    timer_ok: boolean;
-    /** Lookup table preview (first 8 of 32 anchor points). */
+    addressable_peak_amps: number;
+    addressable_psu_amps: number;
+    addressable_psu_watts: number;
+    total_load_watts: number;
+    total_psu_watts: number;
+    /** Null until a verified revision-specific PWM timer capability is supplied. */
+    timer_ok: null;
     gamma_lut_preview: number[];
     notes: string[];
     warnings: string[];
 }
 
-export function planLumiGrid(args: LumiGridArgs): LumiGridResult {
-    const channels = clamp(Math.round(args.channels), 1, 64);
-    const volts = args.volts ?? 24;
-    const pwm_hz = clamp(args.pwm_hz ?? SIGNAGE.pwmHz, 200, 200_000);
-    const pwm_bits = clamp(args.pwm_bits ?? SIGNAGE.pwmBits, 8, 16);
-    const gamma = clamp(args.gamma ?? SIGNAGE.gamma, 1.0, 3.0);
+function finiteRange(label: string, value: unknown, min: number, max: number, integer = false): number {
+    if (typeof value !== 'number' || !Number.isFinite(value) ||
+        value < min || value > max || (integer && !Number.isInteger(value))) {
+        throw new Error(`${label} must be a finite ${integer ? 'integer ' : ''}value from ${min} to ${max}`);
+    }
+    return value;
+}
 
-    const peak_a = (channels * args.channel_ma) / 1000;
+export function planLumiGrid(args: LumiGridArgs): LumiGridResult {
+    if (!args || typeof args !== 'object') throw new Error('LumiGrid configuration is required');
+    const channels = finiteRange('channels (PWM outputs)', args.channels, 0, 8, true);
+    const lanes = finiteRange('addressable_lanes', args.addressable_lanes ?? 0, 0, 8, true);
+    const channelMa = finiteRange('channel_ma', args.channel_ma, 0, 100_000);
+    if (channels && channelMa <= 0) throw new Error('channel_ma is required for used PWM outputs');
+    const volts = args.volts ?? 24;
+    if (volts !== 12 && volts !== 24) throw new Error('PWM supply must be 12 or 24 V');
+    const pwm_hz = finiteRange('pwm_hz', args.pwm_hz ?? SIGNAGE.pwmHz, 1, 200_000);
+    const pwm_bits = finiteRange('pwm_bits', args.pwm_bits ?? SIGNAGE.pwmBits, 1, 16, true);
+    const gamma = finiteRange('gamma', args.gamma ?? SIGNAGE.gamma, 1, 3);
+
+    const pixelsPerLane = finiteRange('pixels_per_lane', args.pixels_per_lane ?? 0, 0, LUMIGRID_CAPACITY.max_pixels_per_lane_reference, true);
+    const pixelMa = finiteRange('pixel_ma', args.pixel_ma ?? 0, 0, 1000);
+    const pixelVolts = args.pixel_volts;
+    if (lanes > 0 && (pixelsPerLane === 0 || pixelMa === 0 || ![5, 12, 24].includes(pixelVolts as number))) {
+        throw new Error('Addressable lanes require pixels_per_lane, pixel_ma and pixel_volts (5, 12 or 24)');
+    }
+    if (lanes === 0 && (pixelsPerLane || pixelMa || pixelVolts !== undefined)) {
+        throw new Error('Set addressable_lanes before supplying addressable load data');
+    }
+    const pixelsTotal = lanes * pixelsPerLane;
+    const peak_a = channels * channelMa / 1000;
     const psu_a = peak_a * 1.25;
     const psu_w = psu_a * volts;
-
-    // Hardware timer math: a 96 MHz clock has to produce pwm_hz with
-    // 2^pwm_bits levels; required clock = pwm_hz × 2^bits.
-    const required_clk = pwm_hz * Math.pow(2, pwm_bits);
-    const timer_ok = required_clk <= 100_000_000;
+    const pixelPeakA = pixelsTotal * pixelMa / 1000;
+    const pixelPsuA = pixelPeakA * 1.25;
+    const pixelPsuW = pixelPsuA * (pixelVolts ?? 0);
 
     const lut: number[] = [];
     for (let i = 0; i < 8; i++) {
         const x = i / 7;
         lut.push(Math.round(Math.pow(x, gamma) * (Math.pow(2, pwm_bits) - 1)));
     }
-
-    const notes: string[] = [];
-    const warnings: string[] = [];
-    notes.push(`Driving ${channels} channels at ${volts} V.`);
-    notes.push(`PWM ${pwm_hz} Hz × ${pwm_bits}-bit gamma ${gamma.toFixed(2)}.`);
-    notes.push(`Peak draw ${peak_a.toFixed(2)} A → PSU ≥ ${psu_a.toFixed(2)} A (${psu_w.toFixed(0)} W).`);
-
-    if (args.camera_safe && pwm_hz < 2_000) {
-        warnings.push(`Camera-safe install but PWM is ${pwm_hz} Hz — recommend ≥ 2000 Hz to avoid banding.`);
-    }
-    if (!timer_ok) {
-        warnings.push(`Timer can't produce ${pwm_bits}-bit @ ${pwm_hz} Hz; reduce bits or PWM frequency.`);
-    }
-    if (peak_a > 60) {
-        warnings.push(`Peak ${peak_a.toFixed(1)} A exceeds single-rail safe limit — split across multiple rails.`);
-    }
-
+    const notes = [
+        `LumiGrid: ${channels}/8 PWM outputs, ${lanes}/8 independent addressable lanes.`,
+        `PWM loads: ${peak_a.toFixed(2)} A @ ${volts} V; recommended PSU budget with 25% headroom ${psu_w.toFixed(1)} W.`,
+        `Addressable loads: ${pixelsTotal} pixels, ${pixelPeakA.toFixed(2)} A @ ${pixelVolts ?? 'n/a'} V; PSU budget ${pixelPsuW.toFixed(1)} W.`,
+        'Addressable LED currents are supplied by the chosen LED datasheet, not the controller.',
+        'PSU current ratings are separate for different voltages; add watts, never amps across voltage rails.'
+    ];
+    const warnings = [
+        'PCB channel current ratings, total board current, thermal limits and firmware PWM/RMT timing have not been verified; do not treat this as hardware approval.',
+        'Do not infer PWM resolution from an assumed 96/100 MHz clock. Confirm PWM frequency/resolution on installed firmware.'
+    ];
+    if (args.camera_safe) warnings.push('Camera flicker requires a real rolling-shutter/LED-driver test; nominal PWM frequency alone is not a guarantee.');
+    if (lanes > 0) warnings.push('256 pixels/lane is a reference firmware configuration, not a certified throughput or protocol guarantee.');
+    if (channels === 0 && lanes === 0) warnings.push('No loads connected; PSU calculation is zero.');
     return {
         channels,
-        volts,
-        pwm_hz,
-        pwm_bits,
-        gamma,
+        pwm_outputs_available: 8,
+        addressable_lanes: lanes,
+        addressable_lanes_available: 8,
+        pixels_per_lane: pixelsPerLane,
+        pixels_total: pixelsTotal,
+        volts, pwm_hz, pwm_bits, gamma,
         peak_amps: round(peak_a, 2),
         psu_amps: round(psu_a, 2),
-        psu_watts: round(psu_w, 0),
-        timer_ok,
-        gamma_lut_preview: lut,
-        notes,
-        warnings
+        psu_watts: round(psu_w, 1),
+        addressable_peak_amps: round(pixelPeakA, 2),
+        addressable_psu_amps: round(pixelPsuA, 2),
+        addressable_psu_watts: round(pixelPsuW, 1),
+        total_load_watts: round(peak_a * volts + pixelPeakA * (pixelVolts ?? 0), 1),
+        total_psu_watts: round(psu_w + pixelPsuW, 1),
+        timer_ok: null,
+        gamma_lut_preview: lut, notes, warnings
     };
 }
 

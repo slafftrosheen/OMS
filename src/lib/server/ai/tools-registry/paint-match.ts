@@ -4,19 +4,9 @@
 // Output: top historical recipes from `paint_matches`, plus an LLM-synthesised
 // recommendation that respects historical paint recipes.
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MODEL } from '$lib/server/config';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { MODEL } from '$lib/server/config';
 import { openRouterComplete } from '$lib/server/ai/openrouter';
-
-let _admin: SupabaseClient | null = null;
-function admin(): SupabaseClient {
-    if (!_admin) {
-        _admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-            auth: { persistSession: false, autoRefreshToken: false }
-        });
-    }
-    return _admin;
-}
 
 export interface PaintMatchArgs {
     target: string;                 // 'RAL 3020' | '#FF0000' | 'Reclame red'
@@ -45,8 +35,12 @@ export interface PaintMatchResult {
     } | null;
 }
 
-export async function matchPaint(args: PaintMatchArgs): Promise<PaintMatchResult> {
-    const db = admin();
+export async function matchPaint(args: PaintMatchArgs, db: SupabaseClient): Promise<PaintMatchResult> {
+    if (!args || typeof args.target !== 'string' || typeof args.substrate !== 'string' ||
+        !args.target.trim() || !args.substrate.trim() ||
+        args.target.length > 120 || args.substrate.length > 120) {
+        throw new Error('Valid target color and substrate required');
+    }
     const isHex = /^#?[0-9a-f]{6}$/i.test(args.target.trim());
     const norm = isHex ? args.target.replace('#', '').toUpperCase() : args.target;
 
@@ -60,7 +54,8 @@ export async function matchPaint(args: PaintMatchArgs): Promise<PaintMatchResult
     if (isHex) q = q.ilike('target_hex', `%${norm}%`);
     else q = q.ilike('target_label', `%${args.target}%`);
 
-    const { data } = await q;
+    const { data, error: lookupError } = await q;
+    if (lookupError) throw new Error('Paint records unavailable or access denied');
 
     const historical = ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
         target_label: (r.target_label as string | null) ?? null,

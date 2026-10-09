@@ -6,11 +6,11 @@
 
 import type { RequestHandler } from '@sveltejs/kit';
 import { error as kitError } from '@sveltejs/kit';
+import { aiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
 import { AILAB, OPENROUTER_MODEL, OPENROUTER_VISION_MODEL } from '$lib/server/config';
-import { openRouterChat, openRouterError, type OpenRouterMessage } from '$lib/server/ai/openrouter';
+import { openRouterChat, parseToolArguments, type OpenRouterMessage } from '$lib/server/ai/openrouter';
 import {
-    loadToolDefinitions,
-    findToolBySchemaName,
+    listTools,
     executeTool
 } from '$lib/server/ai/tools-registry';
 import { logger } from '$lib/server/logging/logger';
@@ -59,11 +59,13 @@ Operating principles:
   • If multiple tools could apply, run them in parallel by
     emitting multiple tool calls in one assistant turn.`;
 
-export const POST: RequestHandler = async ({ params, request, locals }) => {
+export const POST: RequestHandler = async (event) => {
+    const { params, request, locals } = event;
     if (!locals.supabase || !locals.user) {
         throw kitError(401, 'Unauthorized');
     }
 
+    aiRateLimit(rateLimitIdentifier(event));
     const sid = params.id;
     if (!sid) throw kitError(400, 'id required');
     if (!AILAB.chat) throw kitError(404, 'chat disabled');
@@ -73,7 +75,12 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
         persona?: string;
         persona_template_id?: string;
     } | null;
-    if (!body?.content) throw kitError(400, 'content required');
+    if (typeof body?.content !== 'string' || !body.content.trim() || body.content.length > 12_000) {
+        throw kitError(400, 'Message must be 1–12,000 characters');
+    }
+    if (body.persona !== undefined && (typeof body.persona !== 'string' || body.persona.length > 300)) {
+        throw kitError(400, 'Invalid persona');
+    }
 
     const db = locals.supabase;
     const userId = locals.user.id;
@@ -144,21 +151,24 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
         { role: 'user', content: body.content }
     ];
 
-    // ── Tool definitions — optionally filtered by persona template ──────────
-    let allTools = await loadToolDefinitions({ role: locals.user.role }).catch(() => []);
-    if (personaTemplate && personaTemplate.tool_slugs.length > 0) {
-        // Template specifies an explicit allow-list.
-        const allowed = new Set(personaTemplate.tool_slugs);
-        // loadToolDefinitions returns ToolDef[]; we need to re-fetch rows to
-        // cross-reference by slug. Quick workaround: filter by schema.name via
-        // the DB-backed list.
-        const { listTools } = await import('$lib/server/ai/tools-registry');
-        const rows = await listTools({ role: locals.user.role });
-        const allowedSchemaNames = new Set(
-            rows.filter((r) => allowed.has(r.slug)).map((r) => r.schema.name)
-        );
-        allTools = allTools.filter((t) => allowedSchemaNames.has(t.function.name));
-    }
+    // ── Tool definitions — allow-list is reused for execution ───────────────
+    // This is a security boundary, not just a model hint. The model cannot
+    // request a hidden management tool using an invented function name.
+    const rows = await listTools({ role: locals.user.role }).catch(() => []);
+    const personaAllowed = personaTemplate?.tool_slugs?.length
+        ? new Set(personaTemplate.tool_slugs)
+        : null;
+    const allowedRows = rows.filter(tool => !personaAllowed || personaAllowed.has(tool.slug));
+    const allowedTools = new Map(allowedRows.map(tool => [tool.schema.name, tool]));
+    const allTools = allowedRows.map(tool => ({
+        type: 'function' as const,
+        function: {
+            name: tool.schema.name,
+            description: tool.schema.description ?? tool.description ?? tool.label,
+            parameters: tool.schema.parameters
+        }
+    }));
+    const stations = (locals.user.stations ?? []).map(s => s.stationId);
 
     // ── Model selection ─────────────────────────────────────────────────────
     // Ignore client model selection; routing stays server-side (OpenRouter).
@@ -186,6 +196,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     let nodeLabel: string | null = 'openrouter';
     let usedModel = providerModel;
 
+    let toolCallsUsed = 0;
+    try {
     for (let hop = 0; hop < 3; hop++) {
         const r = await openRouterChat({
             model: providerModel,
@@ -195,7 +207,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
             temperature: 0.5
         });
         usedModel = r.model;
-        if (!r.response.ok) throw openRouterError(r.response, await r.response.text().catch(() => ''));
+        if (!r.response.ok) {
+            // Never return raw upstream provider text (which may echo prompts).
+            throw new Error(`OpenRouter HTTP ${r.response.status}`);
+        }
         const j = await r.response.json();
         const choice = j?.choices?.[0];
         const rawMessage = choice?.message;
@@ -221,20 +236,25 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
             });
             toolMessages.push({ role: 'assistant', content: m.content ?? '', tool_calls: m.tool_calls });
             for (const call of m.tool_calls) {
-                const tool = await findToolBySchemaName(call.function.name);
+                toolCallsUsed++;
+                const tool = allowedTools.get(call.function.name);
                 const callId = call.id;
-                if (!tool) {
+                if (!tool || toolCallsUsed > 8) {
                     toolMessages.push({
                         role: 'tool',
                         tool_call_id: callId,
-                        content: JSON.stringify({ error: `unknown tool ${call.function.name}` })
+                        content: JSON.stringify({ error: 'Tool not available for this user or request' })
                     });
                     continue;
                 }
                 let result: unknown;
                 try {
-                    const toolArgs = typeof call.function.arguments === 'string' ? JSON.parse(call.function.arguments || '{}') : call.function.arguments;
-                    result = await executeTool(tool.slug, toolArgs, { userId: userId ?? undefined, role: locals.user.role });
+                    const serialized = typeof call.function.arguments === 'string' ? call.function.arguments : JSON.stringify(call.function.arguments ?? {});
+                    if (serialized.length > 8_000) throw new Error('Tool arguments exceed the size limit');
+                    const toolArgs = parseToolArguments(serialized);
+                    result = await executeTool(tool.slug, toolArgs, {
+                        userId, role: locals.user.role, stations, supabase: db
+                    });
                 } catch (err) {
                     result = { error: (err as Error).message };
                 }
@@ -242,15 +262,26 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
                     session_id: sid,
                     role: 'tool',
                     tool_name: tool.slug,
-                    content: JSON.stringify(result).slice(0, 64_000)
+                    content: JSON.stringify(result).slice(0, 12_000)
                 });
-                toolMessages.push({ role: 'tool', tool_call_id: callId, name: tool.slug, content: JSON.stringify(result).slice(0, 64_000) });
+                toolMessages.push({ role: 'tool', tool_call_id: callId, name: tool.slug, content: JSON.stringify(result).slice(0, 12_000) });
             }
             continue;
         }
 
         finalText = m.content ?? '';
         break;
+    }
+
+    } catch (err) {
+        if (runId) {
+            await db.from('ai_runs').update({
+                status: 'error', error: 'Provider or tool execution failed',
+                finished_at: new Date().toISOString()
+            }).eq('id', runId);
+        }
+        logger.error('[AI chat] inference run failed', { sessionId: sid, userId, kind: 'provider_or_tool' });
+        throw kitError(502, 'AI provider or tool execution failed');
     }
 
     if (!finalText) finalText = '(no response)';
