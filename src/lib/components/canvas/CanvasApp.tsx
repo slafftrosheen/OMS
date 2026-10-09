@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Tldraw, type Editor } from '@tldraw/tldraw';
 import '@tldraw/tldraw/tldraw.css';
 import { MakerShapeUtil } from './shapes/MakerShape';
+import { IdeaShapeUtil } from './shapes/IdeaShape';
 import { ChatShapeUtil } from './shapes/ChatShape';
 import { DocumentShapeUtil } from './shapes/DocumentShape';
 import { SwarmShapeUtil } from './shapes/SwarmShape';
@@ -21,6 +22,7 @@ import { setOrderBridge, clearOrderBridge } from './state-bridge';
 import { wireAssetDropHandler } from './asset-uploader';
 
 const customShapeUtils = [
+    IdeaShapeUtil,
     MakerShapeUtil,
     ChatShapeUtil,
     DocumentShapeUtil,
@@ -67,6 +69,7 @@ export function CanvasApp({
     const seedRef = useRef<OrderSeed | null>(orderSeed ?? null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const dropCleanupRef = useRef<(() => void) | null>(null);
+    const cleanupStoreRef = useRef<(() => void) | null>(null);
 
     // Keep seedRef current so the drop handler can read the latest orderId
     useEffect(() => {
@@ -99,12 +102,12 @@ export function CanvasApp({
         if (onEditorReady) onEditorReady(editor);
 
         // Auto-save on every document change
-        editor.store.listen(
-            () => {
-                if (onSave) onSave(editor.store.getSnapshot());
-            },
+        const unlisten = editor.store.listen(
+            () => onSave?.(editor.store.getSnapshot()),
             { scope: 'document' }
         );
+        cleanupStoreRef.current?.();
+        cleanupStoreRef.current = unlisten;
 
         // Wire native drag-drop on the canvas container to auto-upload files
         if (containerRef.current) {
@@ -128,6 +131,7 @@ export function CanvasApp({
 
     useEffect(() => () => {
         dropCleanupRef.current?.();
+        cleanupStoreRef.current?.();
     }, []);
 
     return (

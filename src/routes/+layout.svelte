@@ -274,9 +274,9 @@
           <Icon name="package"     size="sm" />
           <span>{$t('nav.inventory', { default: 'Inventory' })}</span>
         </a>
-        <a href="{base}/ai-lab"    class:active={currentPath.includes('/ai-lab')}    onclick={navTo}>
+        <a href="{base}/toolkit"    class:active={currentPath.includes('/toolkit')}    onclick={navTo}>
           <Icon name="sparkles"    size="sm" />
-          <span>{$t('nav.ailab',    { default: 'AI Lab' })}</span>
+          <span>Toolkit</span>
         </a>
         {#if isAdmin}
           <span class="rf-topbar__divider" aria-hidden="true"></span>
@@ -328,9 +328,9 @@
           <Icon name="package"          size="md" />
           <span>{$t('nav.inventory', { default: 'Inventory' })}</span>
         </a>
-        <a href="{base}/ai-lab"    class:active={currentPath.includes('/ai-lab')}    onclick={navTo}>
+        <a href="{base}/toolkit"    class:active={currentPath.includes('/toolkit')}    onclick={navTo}>
           <Icon name="sparkles"         size="md" />
-          <span>{$t('nav.ailab',    { default: 'AI Lab' })}</span>
+          <span>Toolkit</span>
         </a>
         {#if isAdmin}
           <hr class="rf-mobile-menu__divider" />

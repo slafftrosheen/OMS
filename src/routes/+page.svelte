@@ -70,7 +70,7 @@
     { href: '/admin/materials', icon: 'boxes',       key: 'materials',  fallbackTitle: 'Materials',       fallbackDesc: 'Manage inventory' },
     { href: '/analytics',       icon: 'bar-chart-3', key: 'analytics',  fallbackTitle: 'Analytics',       fallbackDesc: 'View reports' },
     { href: '/calendar',        icon: 'calendar',    key: 'calendar',   fallbackTitle: 'Calendar',        fallbackDesc: 'Plan loading days' },
-    { href: '/ai-lab',          icon: 'sparkles',    key: 'ai_lab',     fallbackTitle: 'AI Lab',          fallbackDesc: 'Run reasoning and search' }
+    { href: '/toolkit',         icon: 'layout-grid', key: 'ai_lab',     fallbackTitle: 'Toolkit',         fallbackDesc: 'Explore ideas and plan projects' }
   ] as const;
 
   const greeting = $derived.by(() => {

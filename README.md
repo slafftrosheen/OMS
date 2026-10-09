@@ -13,6 +13,10 @@ SvelteKit order-management and production workflow application with a self-hoste
 
 Check live DB schema/functions before relying on old migration-era assumptions.
 
+## Toolkit — idea and project canvas
+
+Toolkit is the new visual thinking workspace at `/toolkit/canvas`. It features editable idea/research/decision/task/note cards, saved projects and starter layouts, connections, a contextual Brainstorm assistant that proposes cards for **explicit approval**, and secondary engineering tools. Old `/ai-lab` bookmarks redirect. See [Toolkit rollout and acceptance checklist](docs/operations/OMS-R05-toolkit-canvas.md).
+
 ## OpenRouter tools and LumiGrid planning (OMS-R04)
 
 Review the [R04 tool security and live-provider acceptance checklist](docs/operations/OMS-R04-ai-tool-hardening.md) before deploying. AI tool calls now honor signed-in user permissions, the crawler blocks private destinations and redirects, and LumiGrid estimates model **8 PWM outputs plus 8 addressable RMT lanes**. `GET /api/ai/health` does not probe OpenRouter; only RD can deliberately POST a single live inference diagnostic. **R01/R02 unapplied SQL migrations remain mandatory before this app release.**

@@ -44,7 +44,7 @@
     "kanban": "Ražošana",
     "help": "Palīdzība",
     "chat": "Čats",
-    "ailab": "MI Laboratorija",
+    "ailab": "Rīki",
     "users": "Lietotāji",
     "materials": "Materiāli"
   },
@@ -1177,9 +1177,9 @@
     "cached_calendar": "Skatīt iekraušanas kalendāru (kešots)"
   },
   "ailab": {
-    "title": "Reclame MI Laboratorija",
+    "title": "Toolkit",
     "active_swarm": "Aktīvais rūķis",
-    "recent_runs": "Nesenās MI darbības",
+    "recent_runs": "Jaunākās darbības",
     "no_runs": "Nav nesenās darbības.",
     "cols": {
       "time": "Laiks",
@@ -1189,7 +1189,7 @@
       "secs": "Sekundes"
     },
     "chat": {
-      "title": "Reclame MI Čats",
+      "title": "Sarunas",
       "start_desc": "Sāciet sarunu vai izvēlieties to no kreisās puses.",
       "conversations": "Sarunas",
       "new_convo": "Jauna saruna",
@@ -1209,7 +1209,7 @@
     "swarm_no_nodes": "Nav pievienotu mezglu.",
     "swarm_view_all": "Skatīt visus",
     "tiles": {
-      "canvas_desc": "Savienojiet AI mezglus uz bezgalīgas tāfeles.",
+      "canvas_desc": "Attīstiet idejas un projektus vizuālā tāfelē.",
       "orders_desc": "Pārvaldiet un pārskatiet ražošanas pasūtījumus.",
       "calendar_desc": "Pārbaudiet piegādes un sanāksmju grafiku."
     }

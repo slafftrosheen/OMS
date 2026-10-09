@@ -9,15 +9,15 @@ export const APP_ROUTES = [
   { path: '/orders',    label: 'Orders',    icon: 'clipboard-list' },
   { path: '/calendar',  label: 'Calendar',  icon: 'calendar' },
   { path: '/inventory', label: 'Inventory', icon: 'package' },
-  { path: '/ai-lab',    label: 'AI Lab',    icon: 'sparkles' }
+  { path: '/toolkit',    label: 'Toolkit',    icon: 'sparkles' }
 ];
 
 /**
- * AI Lab sub-pages
+ * Toolkit sub-pages
  */
-export const AI_LAB_ROUTES = [
-  { path: '/ai-lab',           label: 'Overview',  icon: 'sparkles' },
-  { path: '/ai-lab/chat',      label: 'Chat',      icon: 'message-square' },
+export const TOOLKIT_ROUTES = [
+  { path: '/toolkit',           label: 'Overview',  icon: 'sparkles' },
+  { path: '/toolkit/chat',      label: 'Chat',      icon: 'message-square' },
 
-  { path: '/ai-lab/canvas',    label: 'Canvas',    icon: 'layout-grid' }
+  { path: '/toolkit/canvas',    label: 'Canvas',    icon: 'layout-grid' }
 ];

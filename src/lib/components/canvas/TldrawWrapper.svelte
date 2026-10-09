@@ -6,6 +6,7 @@
     snapshot?: unknown;
     onSave?: (snapshot: unknown) => void;
     onReady?: (editor: any) => void;
+    onError?: (message: string) => void;
     /** Seed data → triggers DraftOrderTemplate auto-spawn */
     orderSeed?: OrderSeed | null;
     /** Called when any order-details or order-address field changes on canvas */
@@ -22,6 +23,7 @@
     snapshot = undefined,
     onSave = () => {},
     onReady = () => {},
+    onError = () => {},
     orderSeed = null,
     onOrderChange = undefined,
     onProfileChange = undefined,
@@ -34,6 +36,7 @@
   let editorRef: any = null;
 
   onMount(() => {
+    let disposed = false;
     (async () => {
       try {
         const [React, { createRoot }, { CanvasApp }] = await Promise.all([
@@ -42,6 +45,7 @@
           import('./CanvasApp'),
         ]);
 
+        if (disposed) return;
         const root = createRoot(containerEl);
         reactRoot = root;
 
@@ -50,6 +54,7 @@
             initialSnapshot: snapshot,
             onSave,
             onEditorReady: (editor: any) => {
+              if (disposed) return;
               editorRef = editor;
               onReady(editor);
             },
@@ -62,11 +67,15 @@
         );
       } catch (err) {
         console.error('Failed to load tldraw CanvasApp', err);
+        if (!disposed) onError('Canvas failed to load. Refresh the page or report this error.');
       }
     })();
 
     return () => {
+      disposed = true;
+      editorRef = null;
       reactRoot?.unmount();
+      reactRoot = null;
     };
   });
 

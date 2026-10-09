@@ -44,7 +44,7 @@
     "kanban": "Production Board",
     "help": "Help",
     "chat": "Chat",
-    "ailab": "AI Lab",
+    "ailab": "Toolkit",
     "users": "Users",
     "materials": "Materials"
   },
@@ -1177,9 +1177,9 @@
     "cached_calendar": "View loading calendar (cached)"
   },
   "ailab": {
-    "title": "Reclame AI Lab",
+    "title": "Toolkit",
     "active_swarm": "Active Swarm",
-    "recent_runs": "Recent AI Runs",
+    "recent_runs": "Recent operations",
     "no_runs": "No recent runs.",
     "cols": {
       "time": "Time",
@@ -1189,7 +1189,7 @@
       "secs": "Secs"
     },
     "chat": {
-      "title": "Reclame AI Chat",
+      "title": "Conversations",
       "start_desc": "Start a conversation or select one from the left.",
       "conversations": "Conversations",
       "new_convo": "New conversation",
@@ -1209,7 +1209,7 @@
     "swarm_no_nodes": "No nodes connected to swarm.",
     "swarm_view_all": "View all",
     "tiles": {
-      "canvas_desc": "Wire AI nodes together on an infinite board.",
+      "canvas_desc": "Develop ideas and projects on a visual board.",
       "orders_desc": "Manage and review production orders.",
       "calendar_desc": "Check upcoming delivery and meeting schedules."
     }

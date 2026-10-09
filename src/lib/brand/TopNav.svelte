@@ -13,7 +13,7 @@
     { path: '/orders', label: 'Orders', icon: 'clipboard-list' },
     { path: '/calendar', label: 'Calendar', icon: 'calendar' },
     { path: '/inventory', label: 'Inventory', icon: 'package' },
-    { path: '/ai-lab', label: 'AI Lab', icon: 'sparkles' }
+    { path: '/toolkit', label: 'Toolkit', icon: 'layout-grid' }
   ] }: { items?: NavItem[] } = $props();
 
   const full = (p: string) => `${base}${p}`;
