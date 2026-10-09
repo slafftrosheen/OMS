@@ -345,7 +345,7 @@
           {/if}
 
           <div class="order-actions">
-            {#if order.stage?.state === 'QUEUED' || order.stage?.state === 'NOT_STARTED'}
+            {#if order.stage?.state === 'QUEUED'}
               <button class="btn btn-sm btn-success" onclick={() => startOrder(order.id)}>
                 <Icon name="play" size="sm" />
                 {$t('stationView.start', { default: 'Start' })}

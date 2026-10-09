@@ -36,18 +36,20 @@ export const POST: RequestHandler = async ({ params, locals }) => {
     );
   }
 
-  const { error } = await locals.supabase
+  const { data: changed, error } = await locals.supabase
     .from('draft_orders')
     .update({
       status: 'ARCHIVED',
       archived_at: new Date().toISOString(),
       updated_by: actor.id,
     })
-    .eq('id', order.id);
+    .eq('id', order.id).eq('status', 'DISPATCHED')
+    .select('id,status').maybeSingle();
   if (error) {
     console.error('archive update failed:', error);
     return json({ error: 'Failed to archive' }, { status: 500 });
   }
 
+  if (!changed) return json({ error: 'Order changed during archive; reload' }, { status: 409 });
   return json({ ok: true, status: 'ARCHIVED' });
 };

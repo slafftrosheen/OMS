@@ -119,12 +119,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     const body = await request.json();
 
     // Map camelCase to snake_case
-    const po_number = body.poNumber || body.po_number || null;
+    if (body.poNumber || body.po_number) throw error(409, 'Assign the PO during confirmation');
+    const po_number = null;
     const client = body.clientName || body.client;
     const due_date = body.deadline || body.due_date;
     const loading_date = body.loadingDate || body.loading_date;
     const statusRaw = (body.status ?? 'PENDING_REVIEW').toString();
     const status = statusRaw.toUpperCase();
+    if (!['DRAFT', 'PENDING_REVIEW'].includes(status)) {
+      throw error(400, 'New orders must be DRAFT or PENDING_REVIEW');
+    }
     const priorityRaw = (body.priority ?? 'NORMAL').toString();
     const priority = priorityRaw.toUpperCase();
 

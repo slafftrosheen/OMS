@@ -6,7 +6,7 @@ export const WORKFLOW_STATIONS = [
 // Older production configurations still use these stages. Keep visible and
 // addressable, but do not automatically advance them in the standard sequence.
 export const EXTRA_STATIONS = [
-  'SANDING', 'BENDING', 'WELDING', 'QC', 'LOGISTICS'
+  'SANDING', 'BENDING', 'WELDING', 'FILM_COATING', 'GLUEING', 'QC', 'LOGISTICS'
 ] as const;
 export const ALL_STATIONS: readonly string[] = [...WORKFLOW_STATIONS, ...EXTRA_STATIONS];
 export function isKnownStation(code: string): boolean {

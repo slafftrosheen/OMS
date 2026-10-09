@@ -14,12 +14,11 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { notifyOrderConfirmed } from '$lib/server/notifications/orderNotifier';
 import { postStationMessage } from '$lib/server/chat/stationMessenger';
+import { WORKFLOW_STATIONS } from '$lib/order/workflow';
+import { mayConfirm } from '$lib/order/lifecycle-guards';
 
 const PO_PATTERN = /^[A-Za-z0-9_\-./]{1,16}$/;
-const FIRST_STAGE = 'CAD';
-const WORKFLOW_STAGES = [
-  'CAD', 'CNC', 'EDGE', 'ASSEMBLY', 'PAINT', 'PACKAGING', 'DELIVERY',
-] as const;
+const FIRST_STAGE = WORKFLOW_STATIONS[0];
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
   const session = await locals.getSession();
@@ -37,7 +36,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
   }
 
   const body = await request.json().catch(() => ({}));
-  const incomingPo: string | null = (body.poNumber ?? body.po_number ?? null)?.trim() || null;
+  const rawPo = body?.poNumber ?? body?.po_number ?? null;
+  if (rawPo !== null && typeof rawPo !== 'string') {
+    return json({ error: 'poNumber must be text' }, { status: 400 });
+  }
+  const incomingPo: string | null = rawPo?.trim() || null;
 
   // Fetch order
   const { data: order, error: fetchError } = await locals.supabase
@@ -50,6 +53,11 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     return json({ error: 'Order not found' }, { status: 404 });
   }
 
+  // Only manufacturing managers may confirm; idempotency is not an authorization bypass.
+  if (!['RD', 'Boss', 'HeadOfProduction'].includes(actor.role)) {
+    return json({ error: 'Confirmation requires manufacturing management' }, { status: 403 });
+  }
+
   // Already confirmed → idempotent success
   if (
     order.status === 'CONFIRMED' ||
@@ -58,6 +66,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     order.status === 'DISPATCHED' ||
     order.status === 'approved'
   ) {
+    if (incomingPo && incomingPo !== order.po_number) {
+      return json({ error: 'PO cannot change after confirmation' }, { status: 409 });
+    }
     return json({
       ok: true,
       idempotent: true,
@@ -66,11 +77,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     });
   }
 
-  if (
-    order.status !== 'PENDING_REVIEW' &&
-    order.status !== 'DRAFT' &&
-    order.status !== 'draft'
-  ) {
+  if (!mayConfirm(order.status)) {
     return json(
       { error: `Cannot confirm an order in status ${order.status}` },
       { status: 409 },
@@ -107,40 +114,25 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     );
   }
 
-  // Apply status transition + PO assignment in one update. Surface
-  // unique-violation as a clean 409 so the form can prompt for a new PO.
-  const nowIso = new Date().toISOString();
-  const { error: updateError } = await locals.supabase
-    .from('draft_orders')
-    .update({
-      po_number: finalPo,
-      status: 'CONFIRMED',
-      confirmed_at: nowIso,
-      confirmed_by: actor.id,
-      updated_by: actor.id,
-    })
-    .eq('id', order.id);
-
-  if (updateError) {
-    if (updateError.code === '23505' && /po_number/.test(updateError.message)) {
+  // DB transaction performs both stage initialization and status publish,
+  // with row locking, manager/PO authorization and idempotency checks.
+  const { data: confirmation, error: confirmError } = await locals.supabase.rpc(
+    'confirm_order_with_stages', {
+      p_order_id: order.id,
+      p_po_number: incomingPo
+    }
+  );
+  if (confirmError) {
+    console.error('[Confirm] Atomic confirmation failed', confirmError);
+    if (confirmError.code === 'PGRST202') {
+      return json({ error: 'Confirmation database migration is not installed' }, { status: 503 });
+    }
+    if (confirmError.code === '23505') {
       return json({ error: 'PO number already in use' }, { status: 409 });
     }
-    console.error('Order confirm update failed:', updateError);
-    return json({ error: 'Failed to confirm order' }, { status: 500 });
+    return json({ error: 'Order confirmation rejected; check PO, role and current state' }, { status: 409 });
   }
-
-  // Initialise the production pipeline — first stage QUEUED, rest NOT_STARTED.
-  const stageRows = WORKFLOW_STAGES.map((station, idx) => ({
-    draft_order_id: order.id,
-    station,
-    state: idx === 0 ? 'QUEUED' : 'NOT_STARTED',
-  }));
-  const { error: stagesError } = await locals.supabase
-    .from('order_stages')
-    .upsert(stageRows, { onConflict: 'draft_order_id,station' });
-  if (stagesError) {
-    console.error('order_stages init failed:', stagesError);
-  }
+  if (!confirmation?.ok) return json({ error: 'Order confirmation returned no result' }, { status: 500 });
 
   // Activity log + audit (best-effort)
   await locals.supabase.from('order_activity_log').insert({

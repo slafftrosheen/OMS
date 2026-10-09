@@ -13,6 +13,10 @@ SvelteKit order-management and production workflow application with a self-hoste
 
 Check live DB schema/functions before relying on old migration-era assumptions.
 
+## Manufacturing lifecycle (OMS-R02)
+
+See [R02 deployment and end-to-end acceptance checklist](docs/operations/OMS-R02-manufacturing-lifecycle.md). **Four new atomic PostgreSQL RPC migrations must be reviewed/applied before deploying the R02 application.** R01's pending lock permission migration must also be accounted for. Do not deploy app-only first.
+
 ## Database/API contracts (OMS-R01)
 
 The [OMS-R01 contract reconciliation notes](docs/operations/OMS-R01-contract-reconciliation.md) describe export, station log, loading-capacity, calendar and stage fixes, plus required live PostgREST/RLS smoke checks. One **unapplied privilege-hardening migration** is included; the private `exports` storage bucket remains an unverified prerequisite.

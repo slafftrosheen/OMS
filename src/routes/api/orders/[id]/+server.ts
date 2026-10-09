@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { requireAdmin } from '$lib/server/api/helpers';
+import { canManageSharedInventory } from '$lib/server/authz/shared-data';
 
 // GET: Fetch single order with all relations
 export const GET: RequestHandler = async ({ params, locals }) => {
@@ -117,79 +117,37 @@ export const GET: RequestHandler = async ({ params, locals }) => {
   }
 };
 
-// PATCH: Update order
+// PATCH: edit order metadata only — never the lifecycle, PO or loading assignment.
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
-  const session = await locals.getSession();
-  if (!session) throw error(401, 'Unauthorized');
-
-  const { supabase } = locals;
-
-  try {
-    const body = await request.json();
-
-    // Prepare update data
-    const updateData: any = {
-      updated_by: session.user.id
-    };
-
-    // Only include provided fields
-    const allowedFields = [
-      'po_number', 'title', 'client', 'due_date', 'loading_date',
-      'is_rd', 'rd_notes', 'status', 'priority', 'notes', 'badges'
-    ];
-
-    allowedFields.forEach(field => {
-      if (body[field] !== undefined) {
-        updateData[field] = body[field];
-      }
-    });
-
-    // Update order
-    const { data: order, error: updateError } = await supabase
-      .from('orders')
-      .update(updateData)
-      .eq('id', params.id)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('Order update error:', updateError);
-      throw error(500, updateError.message);
-    }
-
-    return json(order);
-  } catch (err: any) {
-    if (err.status) throw err;
-    console.error('Order PATCH error:', err);
-    throw error(500, 'Internal server error');
+  if (!locals.user) throw error(401, 'Unauthorized');
+  if (!canManageSharedInventory(locals.user.role)) throw error(403, 'Manager role required');
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw error(400, 'Invalid request');
+  if (['status', 'po_number', 'loading_date'].some(k => body[k] !== undefined)) {
+    throw error(409, 'Use confirmation, loading assignment, dispatch or archive endpoints');
   }
+  const allowed = ['title','client','due_date','is_rd','rd_notes','priority','notes','badges'] as const;
+  const updateData: Record<string, unknown> = { updated_by: locals.user.id };
+  for (const field of allowed) if (body[field] !== undefined) updateData[field] = body[field];
+  if (Object.keys(updateData).length === 1) throw error(400, 'No editable fields supplied');
+  const { data, error: updateErr } = await locals.supabase.from('draft_orders')
+    .update(updateData).eq('id', params.id).select().maybeSingle();
+  if (updateErr) throw error(500, 'Failed to update order');
+  if (!data) throw error(404, 'Order not found');
+  return json(data);
 };
 
-// DELETE: Delete order (soft delete by setting status to cancelled)
+// DELETE: cancel a draft before confirmation. Production orders are never
+// silently deleted; use managed void/reissue and explicit archive paths.
 export const DELETE: RequestHandler = async ({ params, locals }) => {
-  const user = requireAdmin(locals);
-
-  const { supabase } = locals;
-
-  try {
-    // Soft delete: set status to cancelled
-    const { error: deleteError } = await supabase
-      .from('orders')
-      .update({
-        status: 'cancelled',
-        updated_by: user.id
-      })
-      .eq('id', params.id);
-
-    if (deleteError) {
-      console.error('Order delete error:', deleteError);
-      throw error(500, deleteError.message);
-    }
-
-    return json({ success: true, message: 'Order cancelled successfully' });
-  } catch (err: any) {
-    if (err.status) throw err;
-    console.error('Order DELETE error:', err);
-    throw error(500, 'Internal server error');
-  }
+  if (!locals.user) throw error(401, 'Unauthorized');
+  if (!canManageSharedInventory(locals.user.role)) throw error(403, 'Manager role required');
+  const { data: updated, error: updateErr } = await locals.supabase
+    .from('draft_orders')
+    .update({ status: 'CANCELLED', updated_by: locals.user.id })
+    .eq('id', params.id).in('status', ['DRAFT', 'draft', 'PENDING_REVIEW'])
+    .select('id,status').maybeSingle();
+  if (updateErr) throw error(500, 'Failed to cancel order');
+  if (!updated) throw error(409, 'Only draft or review orders can be cancelled');
+  return json({ success: true, status: 'CANCELLED' });
 };

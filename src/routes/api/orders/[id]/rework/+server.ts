@@ -1,142 +1,59 @@
-import { json, error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { isKnownStation } from '$lib/order/workflow';
+import { canOperateStation } from '$lib/order/lifecycle-guards';
 
-// GET: Get rework cycles for an order
 export const GET: RequestHandler = async ({ params, locals, url }) => {
-  const session = await locals.getSession();
-  if (!session) throw error(401, 'Unauthorized');
-
-  const { supabase } = locals;
-
+  if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
   const station = url.searchParams.get('station');
-
-  try {
-    let query = supabase
-      .from('rework_cycles')
-      .select(`
-        *,
-        creator:created_by (
-          id,
-          email,
-          profiles (full_name, avatar_url)
-        ),
-        resolver:resolved_by (
-          id,
-          email,
-          profiles (full_name, avatar_url)
-        )
-      `)
-      .eq('order_id', params.id);
-
-    if (station) {
-      query = query.eq('station', station);
-    }
-
-    const { data, error: queryError } = await query
-      .order('created_at', { ascending: false });
-
-    if (queryError) throw error(500, queryError.message);
-
-    return json(data || []);
-  } catch (err: any) {
-    if (err.status) throw err;
-    throw error(500, 'Internal server error');
-  }
+  let q = locals.supabase.from('rework_cycles')
+    .select('*').eq('order_id', params.id).order('created_at', { ascending: false });
+  if (station) q = q.eq('station', station.toUpperCase());
+  const { data, error } = await q;
+  if (error) return json({ error: 'Failed to load rework cycles' }, { status: 500 });
+  return json(data ?? []);
 };
 
-// POST: Create rework cycle
 export const POST: RequestHandler = async ({ params, request, locals }) => {
-  const session = await locals.getSession();
-  if (!session) throw error(401, 'Unauthorized');
-
-  const { supabase } = locals;
-
-  try {
-    const body = await request.json();
-
-    if (!body.station || !body.reason) {
-      throw error(400, 'Station and reason are required');
-    }
-
-    // Validate station and reason enums
-    const validStations = ['CAD', 'CNC', 'SANDING', 'BENDING', 'WELDING', 'PAINT', 'ASSEMBLY', 'QC', 'LOGISTICS'];
-    const validReasons = ['RECUT', 'RESAND', 'REBEND', 'REWELD', 'REPAINT', 'REASSEMBLE', 'RECHECK', 'CUSTOM'];
-
-    if (!validStations.includes(body.station)) {
-      throw error(400, 'Invalid station');
-    }
-    if (!validReasons.includes(body.reason)) {
-      throw error(400, 'Invalid reason');
-    }
-
-    const { data, error: insertError } = await supabase
-      .from('rework_cycles')
-      .insert({
-        order_id: params.id,
-        station: body.station,
-        reason: body.reason,
-        description: body.description,
-        defect_category: body.defect_category,
-        root_cause: body.root_cause,
-        corrective_action: body.corrective_action,
-        created_by: session.user.id
-      })
-      .select(`
-        *,
-        creator:created_by (
-          id,
-          email,
-          profiles (full_name, avatar_url)
-        )
-      `)
-      .single();
-
-    if (insertError) {
-      console.error('Rework creation error:', insertError);
-      throw error(500, insertError.message);
-    }
-
-    return json(data, { status: 201 });
-  } catch (err: any) {
-    if (err.status) throw err;
-    console.error('Rework POST error:', err);
-    throw error(500, 'Internal server error');
+  const user = locals.user;
+  if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body.station !== 'string' || typeof body.reason !== 'string' ||
+      typeof body.description !== 'string' || !body.description.trim()) {
+    return json({ error: 'Station, reason and description are required' }, { status: 400 });
   }
+  const station = body.station.toUpperCase();
+  if (!isKnownStation(station)) return json({ error: 'Unknown station' }, { status: 400 });
+  if (!canOperateStation(user, station)) return json({ error: 'Station assignment required' }, { status: 403 });
+  const { data, error } = await locals.supabase.rpc('open_order_rework', {
+    p_order_id: params.id, p_station: station,
+    p_reason: body.reason, p_description: body.description
+  });
+  if (error) {
+    console.error('[Rework] Open failed', error);
+    const missing = error.code === 'PGRST202';
+    return json({ error: missing ? 'Rework migration not installed' : 'Rework request rejected' },
+      { status: missing ? 503 : 409 });
+  }
+  return json(data, { status: 201 });
 };
 
-// PATCH: Resolve rework cycle
 export const PATCH: RequestHandler = async ({ params, request, locals, url }) => {
-  const session = await locals.getSession();
-  if (!session) throw error(401, 'Unauthorized');
-
-  const { supabase } = locals;
-
+  if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
   const reworkId = url.searchParams.get('rework_id');
-  if (!reworkId) throw error(400, 'rework_id parameter required');
-
-  try {
-    const body = await request.json();
-
-    const { data, error: updateError } = await supabase
-      .from('rework_cycles')
-      .update({
-        resolved_at: new Date().toISOString(),
-        resolved_by: session.user.id,
-        resolution_notes: body.resolution_notes
-      })
-      .eq('id', reworkId)
-      .eq('order_id', params.id)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('Rework resolution error:', updateError);
-      throw error(500, updateError.message);
-    }
-
-    return json(data);
-  } catch (err: any) {
-    if (err.status) throw err;
-    throw error(500, 'Internal server error');
+  const body = await request.json().catch(() => null);
+  const resolution = body?.resolution_notes;
+  if (!reworkId || typeof resolution !== 'string' || !resolution.trim()) {
+    return json({ error: 'rework_id and resolution_notes required' }, { status: 400 });
   }
+  const { data, error } = await locals.supabase.rpc('resolve_order_rework', {
+    p_order_id: params.id, p_rework_id: reworkId, p_resolution: resolution.trim()
+  });
+  if (error) {
+    console.error('[Rework] Resolve failed', error);
+    const missing = error.code === 'PGRST202';
+    return json({ error: missing ? 'Rework migration not installed' : 'Rework resolution rejected' },
+      { status: missing ? 503 : 409 });
+  }
+  return json(data);
 };

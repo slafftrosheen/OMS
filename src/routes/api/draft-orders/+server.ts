@@ -99,7 +99,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // PO is no longer required at creation — Boss assigns it at confirmation.
     const client = body.clientName || body.client;
     const due_date = body.deadline || body.due_date;
-    const po_number = body.poNumber || body.po_number || null;
+    // A PO is assigned only by Boss during confirmation.
+    if (body.poNumber || body.po_number) return json({ error: 'Assign the PO during confirmation' }, { status: 409 });
+    const po_number = null;
 
     if (!client || !due_date) {
       return json({ error: 'Missing required fields: client, due_date' }, { status: 400 });
@@ -112,7 +114,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // Default lifecycle for new drafts is PENDING_REVIEW so HoP sees them
     // immediately in the review queue. Caller can override (e.g. for an
     // explicit save-as-draft action that stays private to the creator).
-    const status = body.status || 'PENDING_REVIEW';
+    const status = String(body.status ?? 'PENDING_REVIEW').toUpperCase();
+    if (!['DRAFT', 'PENDING_REVIEW'].includes(status)) {
+      return json({ error: 'New orders must be drafts or pending review' }, { status: 400 });
+    }
     const title = body.title || `${client} – ${po_number ?? 'pending'}`;
 
     // 1. Create the order
@@ -167,7 +172,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     // 3. Fire HoP/Boss notifications for drafts entering review.
     //    Don't fail the request on notification errors — they're best-effort.
-    if (status === 'PENDING_REVIEW' || status === 'draft') {
+    if (status === 'PENDING_REVIEW') {
       try {
         await notifyDraftCreated(locals.supabase, {
           orderId: order.id,

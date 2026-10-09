@@ -87,16 +87,20 @@ export const PUT: RequestHandler = async (event) => {
   const { params, request } = event;
   await requireOwnership(event, 'draft_orders', params.id, 'created_by');
   const data = await validateRequest(request, draftOrderUpdateSchema);
+  if (data.status !== undefined) throw error(409, 'Use the dedicated order lifecycle endpoints to change status');
 
   try {
     const { data: order, error: findError } = await event.locals.supabase
         .from('draft_orders')
-        .select('id')
+        .select('id,status')
         .or(`id.eq.${params.id},po_number.eq.${params.id}`)
         .single();
 
     if (findError || !order) throw error(404, 'Order not found');
 
+    if (data.loadingDate !== undefined && !['DRAFT','draft','PENDING_REVIEW'].includes(order.status)) {
+      throw error(409, 'Confirmed orders must use loading-day assignment');
+    }
     const updates: Record<string, unknown> = {
         updated_at: new Date().toISOString()
     };
@@ -105,7 +109,7 @@ export const PUT: RequestHandler = async (event) => {
     if (data.deadline || data.due) updates.due_date = data.deadline ?? data.due;
     // Allow clearing date if explicitly null
     if (data.loadingDate !== undefined) updates.loading_date = data.loadingDate;
-    if (data.status) updates.status = data.status;
+
     if (data.notes !== undefined) updates.notes = data.notes;
     if (data.priority) updates.priority = data.priority;
     if (data.deliveryAddress !== undefined) updates.delivery_address = data.deliveryAddress;
@@ -195,43 +199,28 @@ export const PATCH: RequestHandler = async (event) => {
   const { params, request } = event;
   await requireOwnership(event, 'draft_orders', params.id, 'created_by');
   const data = await validateRequest(request, draftOrderUpdateSchema);
+  if (data.status !== undefined) throw error(409, 'Use the dedicated order lifecycle endpoints to change status');
 
   try {
      const { data: order, error: findError } = await event.locals.supabase
         .from('draft_orders')
-        .select('id')
+        .select('id,status')
         .or(`id.eq.${params.id},po_number.eq.${params.id}`)
         .single();
 
     if (findError || !order) throw error(404, 'Order not found');
 
+    if (data.loadingDate !== undefined && !['DRAFT','draft','PENDING_REVIEW'].includes(order.status)) {
+      throw error(409, 'Confirmed orders must use loading-day assignment');
+    }
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (data.loadingDate !== undefined) updates.loading_date = data.loadingDate;
-    if (data.status !== undefined) updates.status = data.status;
+
     if (data.priority !== undefined) updates.priority = data.priority;
     if (data.notes !== undefined) updates.notes = data.notes;
 
     if (Object.keys(updates).length <= 1) {
        throw error(400, 'No fields to update');
-    }
-
-    // Lifecycle side effect: assigning a loading_date on a CONFIRMED /
-    // IN_PRODUCTION order moves it into READY_TO_LOAD. Clearing the
-    // date on a READY_TO_LOAD order rolls it back to IN_PRODUCTION.
-    // Skip if the caller already set status explicitly.
-    if (data.status === undefined && data.loadingDate !== undefined) {
-        const { data: current } = await event.locals.supabase
-            .from('draft_orders')
-            .select('status')
-            .eq('id', order.id)
-            .single();
-        if (current) {
-            if (data.loadingDate && (current.status === 'CONFIRMED' || current.status === 'IN_PRODUCTION' || current.status === 'approved')) {
-                updates.status = 'READY_TO_LOAD';
-            } else if (!data.loadingDate && current.status === 'READY_TO_LOAD') {
-                updates.status = 'IN_PRODUCTION';
-            }
-        }
     }
 
     const { data: updatedOrder, error: updateError } = await event.locals.supabase

@@ -124,6 +124,10 @@
 
   async function submit() {
     errorMsg = '';
+    if (skipMode && !skipReason.trim()) {
+      errorMsg = 'Please explain why material declaration is skipped.';
+      return;
+    }
     if (!skipMode) {
       if (rows.length === 0) {
         errorMsg = $t('station.complete.no_items', {
