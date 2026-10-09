@@ -81,10 +81,11 @@ const supabaseHandler: Handle = async ({ event, resolve }) => {
 
 	// Helper function to get session
 	event.locals.getSession = async () => {
-		const {
-			data: { session }
-		} = await event.locals.supabase.auth.getSession();
-		return session;
+		// Verify the identity with Auth before trusting cookie session metadata.
+		const { data: { user: verifiedUser }, error: verifyError } = await event.locals.supabase.auth.getUser();
+		if (verifyError || !verifiedUser) return null;
+		const { data: { session } } = await event.locals.supabase.auth.getSession();
+		return session?.user?.id === verifiedUser.id ? session : null;
 	};
 
 	// Get current session and populate user info from profile

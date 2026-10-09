@@ -5,10 +5,11 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { supabase } from '$lib/server/supabase';
+// Query using the request-scoped, RLS-aware Supabase client.
 
 // GET /api/loading-days/capacity - Get capacity overview
 export const GET: RequestHandler = async ({ url, locals }) => {
+  const supabase = locals.supabase;
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
@@ -37,6 +38,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 // POST /api/loading-days/capacity/lock - Lock/unlock loading day
 export const POST: RequestHandler = async ({ request, locals }) => {
+  const supabase = locals.supabase;
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 

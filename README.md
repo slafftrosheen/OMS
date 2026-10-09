@@ -13,6 +13,10 @@ SvelteKit order-management and production workflow application with a self-hoste
 
 Check live DB schema/functions before relying on old migration-era assumptions.
 
+## Security and recovery (OMS-R00)
+
+Before deploying R00, read [the production .env preservation and recovery checklist](docs/operations/OMS-R00-security-recovery.md). The public repository previously tracked a root `.env`; deleting it from HEAD does not purge Git history or rotate exposed credentials. Preserve the private runtime `.env` **before pulling**. Route handlers use request-scoped RLS-aware database clients; `/api/health` reports core readiness (AI optional), and `/api/healthz` is a minimal liveness probe.
+
 ## Local development and verification
 
 ```sh

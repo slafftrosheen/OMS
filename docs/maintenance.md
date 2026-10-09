@@ -45,3 +45,6 @@ Keep the Supabase containers untouched unless the release requires an explicitly
 ## Deployment facts
 
 Observed production unit: `reclame-oms.service`, working directory `/opt/reclame-oms`, env file `/opt/reclame-oms/.env`, command `/usr/bin/node build/index.js`, `PORT=3000`, `HOST=0.0.0.0`, configured `ORIGIN=http://100.93.111.19:3000`. The `.env` values are private and intentionally not documented here.
+## OMS-R00: first deployment after credential cleanup
+
+See [OMS-R00 security and recovery](operations/OMS-R00-security-recovery.md) before the first post-R00 pull: a formerly tracked `.env` must be copied to a protected location outside the Git tree **before** pulling. Rotate exposed credentials, and confirm backup/restore coverage independently. The app readiness endpoint does not prove complete Supabase/storage recoverability.

@@ -1,0 +1,14 @@
+# No secrets, local state, backups, or Git data in Docker builds.
+.git
+.env
+.env.*
+!.env.example
+backups/
+node_modules/
+.svelte-kit/
+build/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.log

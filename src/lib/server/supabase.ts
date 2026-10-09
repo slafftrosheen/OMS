@@ -22,7 +22,10 @@ const _tailscaleHost = getEnv('PUBLIC_SUPABASE_HOST', '100.98.202.69');
 if (_legacyHost && globalUrl.includes(_tailscaleHost)) {
     globalUrl = globalUrl.replace(_tailscaleHost, _legacyHost);
 }
-let globalKey = getEnv('SUPABASE_SERVICE_ROLE_KEY') || getEnv('PUBLIC_SUPABASE_ANON_KEY', 'anon-key').trim();
+// Legacy module-level client is deliberately anonymous and has NO user session.
+// Never use it for request-scoped data access. Use event.locals.supabase (RLS).
+// Service-role access is reserved for role-checked, privileged server operations.
+let globalKey = getEnv('PUBLIC_SUPABASE_ANON_KEY', 'anon-key').trim();
 
 // Fallback for build environment — use local placeholder
 if (building && (!globalUrl || !globalUrl.startsWith('http'))) {

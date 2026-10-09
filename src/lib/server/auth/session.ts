@@ -25,7 +25,8 @@ export function isAdminRole(role: string | null | undefined): boolean {
  * Get authenticated user from Supabase session
  */
 export async function getSessionUser(event: RequestEvent): Promise<SessionUser | null> {
-  const { data: { session } } = await event.locals.supabase.auth.getSession();
+  // The hook validates the JWT with auth.getUser() before returning the session.
+  const session = await event.locals.getSession();
   if (!session) {
     return null;
   }

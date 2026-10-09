@@ -5,7 +5,7 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { supabase } from '$lib/server/supabase';
+// Query using the request-scoped, RLS-aware Supabase client.
 import { v4 as uuidv4 } from 'uuid';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -14,6 +14,7 @@ const THUMBNAIL_WIDTH = 400;
 
 // GET /api/station-attachments - List attachments
 export const GET: RequestHandler = async ({ url, locals }) => {
+  const supabase = locals.supabase;
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
@@ -87,6 +88,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 // POST /api/station-attachments - Upload attachment
 export const POST: RequestHandler = async ({ request, locals }) => {
+  const supabase = locals.supabase;
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
@@ -229,6 +231,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 // DELETE /api/station-attachments/[id] - Delete attachment
 export const DELETE: RequestHandler = async ({ params, locals }) => {
+  const supabase = locals.supabase;
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 

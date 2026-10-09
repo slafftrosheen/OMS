@@ -1,9 +1,10 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { supabase } from '$lib/server/supabase';
+// Query using the request-scoped, RLS-aware Supabase client.
 
 // GET - List all presets for current user
 export const GET: RequestHandler = async ({ locals }) => {
+  const supabase = locals.supabase;
   const session = await locals.getSession();
   if (!session) {
     throw error(401, 'Unauthorized');
@@ -25,6 +26,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 
 // POST - Create new preset
 export const POST: RequestHandler = async ({ request, locals }) => {
+  const supabase = locals.supabase;
   const session = await locals.getSession();
   if (!session) {
     throw error(401, 'Unauthorized');

@@ -6,10 +6,11 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { supabase } from '$lib/server/supabase';
+// Query using the request-scoped, RLS-aware Supabase client.
 
 // PATCH /api/draft-orders/[id]/badges
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
+  const supabase = locals.supabase;
   const session = await locals.getSession();
   if (!session) throw error(401, 'Unauthorized');
 

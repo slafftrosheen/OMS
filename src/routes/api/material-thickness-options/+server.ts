@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { supabase } from '$lib/server/supabase';
+// Query using the request-scoped, RLS-aware Supabase client.
 
 // Helper function to normalize material type
 function normalizeMaterialType(materialType: string): string {
@@ -33,7 +33,8 @@ function normalizeMaterialType(materialType: string): string {
 }
 
 // GET - Fetch thickness options by material type
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
+  const supabase = locals.supabase;
   const materialTypeParam = url.searchParams.get('materialType');
 
   let query = supabase

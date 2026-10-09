@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 /**
  * Export API
  * Generate exports in multiple formats
@@ -5,7 +6,7 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { supabase } from '$lib/server/supabase';
+// Query using the request-scoped, RLS-aware Supabase client.
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { createObjectCsvWriter } from 'csv-writer';
@@ -13,6 +14,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 // POST /api/export - Generate export
 export const POST: RequestHandler = async ({ request, locals }) => {
+  const supabase = locals.supabase;
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
@@ -55,13 +57,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     switch (exportType) {
       case 'orders':
-        data = await fetchOrders(filters);
+        data = await fetchOrders(filters, supabase);
         break;
       case 'stations':
-        data = await fetchStationLogs(filters);
+        data = await fetchStationLogs(filters, supabase);
         break;
       case 'loading_schedule':
-        data = await fetchLoadingSchedule(filters);
+        data = await fetchLoadingSchedule(filters, supabase);
         break;
       default:
         throw new Error('Invalid export type');
@@ -151,7 +153,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 };
 
 // Helper function to fetch orders
-async function fetchOrders(filters: any): Promise<any[]> {
+async function fetchOrders(filters: any, supabase: SupabaseClient): Promise<any[]> {
   let query = supabase
     .from('draft_orders')
     .select(`
@@ -173,7 +175,7 @@ async function fetchOrders(filters: any): Promise<any[]> {
 }
 
 // Helper function to fetch station logs
-async function fetchStationLogs(filters: any): Promise<any[]> {
+async function fetchStationLogs(filters: any, supabase: SupabaseClient): Promise<any[]> {
   let query = supabase
     .from('station_timeline')
     .select('*')
@@ -190,7 +192,7 @@ async function fetchStationLogs(filters: any): Promise<any[]> {
 }
 
 // Helper function to fetch loading schedule
-async function fetchLoadingSchedule(filters: any): Promise<any[]> {
+async function fetchLoadingSchedule(filters: any, supabase: SupabaseClient): Promise<any[]> {
   let query = supabase
     .from('loading_days')
     .select(`

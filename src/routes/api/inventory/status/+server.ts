@@ -7,10 +7,11 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { supabase } from '$lib/server/supabase';
+// Query using the request-scoped, RLS-aware Supabase client.
 
 // GET /api/inventory/status
 export const GET: RequestHandler = async ({ url, locals }) => {
+  const supabase = locals.supabase;
   const session = await locals.getSession();
   if (!session) throw error(401, 'Unauthorized');
 

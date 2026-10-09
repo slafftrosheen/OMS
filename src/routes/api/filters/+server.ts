@@ -5,10 +5,11 @@
 
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { supabase } from '$lib/server/supabase';
+// Query using the request-scoped, RLS-aware Supabase client.
 
 // GET /api/filters - List saved filters
 export const GET: RequestHandler = async ({ url, locals }) => {
+  const supabase = locals.supabase;
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
@@ -42,6 +43,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 // POST /api/filters - Create saved filter
 export const POST: RequestHandler = async ({ request, locals }) => {
+  const supabase = locals.supabase;
   const user = locals.user;
   if (!user) throw error(401, 'Unauthorized');
 
