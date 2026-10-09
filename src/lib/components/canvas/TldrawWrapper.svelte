@@ -17,6 +17,8 @@
     onAssetUploaded?: (orderId: string, asset: { url: string; fileName: string; kind: string }) => void;
     /** Pass true to hide the default tldraw UI chrome */
     hideUI?: boolean;
+    toolkitBoardId?: string | null;
+    onToolkitFilesDrop?: (files: File[], position: { x: number; y: number }) => void;
   }
 
   let {
@@ -29,6 +31,8 @@
     onProfileChange = undefined,
     onAssetUploaded = undefined,
     hideUI = false,
+    toolkitBoardId = null,
+    onToolkitFilesDrop = undefined,
   }: Props = $props();
 
   let containerEl: HTMLDivElement;
@@ -63,6 +67,8 @@
             onProfileChange,
             onAssetUploaded,
             hideUI,
+            toolkitBoardId,
+            onToolkitFilesDrop,
           })
         );
       } catch (err) {

@@ -1,6 +1,6 @@
 # Réclame Fabriek OMS
 
-SvelteKit order-management and production workflow application with a self-hosted Supabase backend. The repository also contains Reclame AI Lab interfaces and services.
+SvelteKit order-management and production workflow application with a self-hosted Supabase backend. The repository also contains Toolkit visual workspaces and private conversation services.
 
 ## Runtime architecture
 
@@ -15,7 +15,7 @@ Check live DB schema/functions before relying on old migration-era assumptions.
 
 ## Toolkit — idea and project canvas
 
-Toolkit is the new visual thinking workspace at `/toolkit/canvas`. It features editable idea/research/decision/task/note cards, saved projects and starter layouts, connections, a contextual Brainstorm assistant that proposes cards for **explicit approval**, and secondary engineering tools. Old `/ai-lab` bookmarks redirect. See [Toolkit rollout and acceptance checklist](docs/operations/OMS-R05-toolkit-canvas.md).
+Toolkit is the shared visual thinking workspace at `/toolkit/canvas`. It features editable idea/research/decision/task/note cards, saved projects and starter layouts, connections, a contextual Brainstorm assistant that proposes cards for **explicit approval**, and secondary engineering tools. Old `/ai-lab` bookmarks redirect. Shared canvas edit rights belong to **RD, Boss and HeadOfProduction**; per-user brainstorming and conversations remain private. Toolkit now also supports authenticated team-shared PNG/JPEG/WebP/GIF/PDF imports, PDF page previews, drawing/annotation controls, and material surface-study cards; see [visual asset testing](docs/operations/OMS-R06-toolkit-visual-assets.md). Shared saves use revision checks, with a recovery-copy option on conflict. See [R06 sharing/stability runbook](docs/operations/OMS-R06-toolkit-sharing-stability.md) and [initial Toolkit design notes](docs/operations/OMS-R05-toolkit-canvas.md).
 
 ## OpenRouter tools and LumiGrid planning (OMS-R04)
 

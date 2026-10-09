@@ -1,73 +1,49 @@
-// src/routes/api/ai/canvas/+server.ts
-// Canvas documents: GET (list), POST (create), DELETE (?id=).
-
+// Team library: every RD, Boss and HeadOfProduction user sees the same projects.
+// Enforced both here and by PostgreSQL RLS; all new boards are shared by default.
 import type { RequestHandler } from '@sveltejs/kit';
-import { json, error as svelteError } from '@sveltejs/kit';
+import { json, error } from '@sveltejs/kit';
+import { requireToolkitManager, validateCanvasPayload, validateCanvasTitle } from '$lib/server/toolkit/access';
+import { TOOLKIT_ASSET_BUCKET } from '$lib/server/toolkit/assets';
 
+const headers = { 'Cache-Control': 'private, no-store' };
 export const GET: RequestHandler = async ({ locals }) => {
-    if (!locals.supabase || !locals.user) {
-        throw svelteError(401, 'Unauthorized');
-    }
-
-    const { data, error } = await locals.supabase
-        .from('canvas_documents')
-        .select('id,title,thumbnail_url,shared,created_at,updated_at')
-        .order('updated_at', { ascending: false })
-        .limit(100);
-
-    if (error) {
-        console.error('[/api/ai/canvas] GET error:', error);
-        return json({ error: error.message }, { status: 500 });
-    }
-
-    return json({ items: data ?? [] });
+  requireToolkitManager(locals.user);
+  const { data, error: dbError } = await locals.supabase.from('canvas_documents')
+    .select('id,title,thumbnail_url,shared,revision,created_at,updated_at')
+    .order('updated_at', { ascending: false }).limit(200);
+  if (dbError) { console.error('[Toolkit] list failed', dbError.code); throw error(503, 'Project library unavailable'); }
+  return json({ items: data ?? [] }, { headers });
 };
-
 export const POST: RequestHandler = async ({ request, locals }) => {
-    if (!locals.supabase || !locals.user) {
-        throw svelteError(401, 'Unauthorized');
-    }
-
-    const body = (await request.json().catch(() => ({}))) as { title?: string; payload?: unknown };
-
-    const { data, error } = await locals.supabase
-        .from('canvas_documents')
-        .insert({
-            title: body.title ?? 'Untitled canvas',
-            payload: body.payload ?? {},
-            user_id: locals.user.id
-        })
-        .select('*')
-        .single();
-
-    if (error) {
-        console.error('[/api/ai/canvas] POST error:', error);
-        return json({ error: error.message }, { status: 500 });
-    }
-
-    return json({ canvas: data });
+  const user = requireToolkitManager(locals.user);
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw error(400, 'Invalid project');
+  const title = validateCanvasTitle(body.title ?? 'Untitled project');
+  const payload = validateCanvasPayload(body.payload ?? { version: 1, snapshot: null });
+  const { data, error: dbError } = await locals.supabase.from('canvas_documents')
+    .insert({ title, payload, user_id: user.id, shared: true })
+    .select('id,title,thumbnail_url,shared,revision,created_at,updated_at').single();
+  if (dbError || !data) { console.error('[Toolkit] create failed', dbError?.code); throw error(503, 'Could not create project'); }
+  return json({ canvas: data }, { status: 201, headers });
 };
-
 export const DELETE: RequestHandler = async ({ url, locals }) => {
-    if (!locals.supabase || !locals.user) {
-        throw svelteError(401, 'Unauthorized');
-    }
-
-    const id = url.searchParams.get('id');
-    if (!id) {
-        return json({ error: 'id required' }, { status: 400 });
-    }
-
-    // RLS will ensure user only deletes their own canvas
-    const { error } = await locals.supabase
-        .from('canvas_documents')
-        .delete()
-        .eq('id', id);
-
-    if (error) {
-        console.error('[/api/ai/canvas] DELETE error:', error);
-        return json({ error: error.message }, { status: 500 });
-    }
-
-    return json({ ok: true });
+  requireToolkitManager(locals.user);
+  const id = url.searchParams.get('id');
+  if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    throw error(400, 'Valid project ID required');
+  const { data: files } = await locals.supabase.from('toolkit_assets')
+    .select('storage_path').eq('canvas_id', id);
+  const { data, error: dbError } = await locals.supabase.from('canvas_documents')
+    .delete().eq('id', id).select('id').maybeSingle();
+  if (dbError) { console.error('[Toolkit] delete failed', dbError.code); throw error(503, 'Could not delete project'); }
+  if (!data) throw error(404, 'Project not found');
+  // Metadata cascades with the project; delete storage objects best-effort.
+  // Failure doesn't resurrect deleted records, but is logged for housekeeping.
+  const paths = (files ?? []).map(row => row.storage_path).filter(Boolean);
+  for (let i = 0; i < paths.length; i += 100) {
+    const { error: storageError } = await locals.supabase.storage.from(TOOLKIT_ASSET_BUCKET)
+      .remove(paths.slice(i, i + 100));
+    if (storageError) console.error('[Toolkit] Asset cleanup pending', storageError.message);
+  }
+  return json({ ok: true }, { headers });
 };

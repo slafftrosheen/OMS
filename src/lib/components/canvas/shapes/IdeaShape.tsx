@@ -20,6 +20,7 @@ export class IdeaShapeUtil extends BaseBoxShapeUtil<IdeaShape> {
     const p = shape.props;
     const update = (patch: Partial<IdeaShape['props']>) =>
       this.editor.updateShape<IdeaShape>({ id: shape.id, type: 'idea-card', props: patch });
+    // Prevent canvas-wide shortcuts while editing typed content.
     const stop = (e: React.SyntheticEvent) => e.stopPropagation();
     return (
       <HTMLContainer id={shape.id} style={{
@@ -29,13 +30,14 @@ export class IdeaShapeUtil extends BaseBoxShapeUtil<IdeaShape> {
         boxShadow: '0 12px 30px rgba(0,0,0,.08)', pointerEvents: 'all'
       }}>
         <div style={{ height: 5, background: p.accent || accents[p.kind] }} />
-        <div style={{ padding: '12px 14px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div title="Drag here to move this card" style={{ padding: '12px 14px 0',
+          display: 'flex', alignItems: 'center', gap: 8, cursor: 'grab', minHeight: 30 }}>
           <span style={{ fontSize: 10, letterSpacing: '.12em', fontWeight: 800,
             color: p.accent || accents[p.kind] }}>{labels[p.kind] || 'IDEA'}</span>
           <span style={{ flex: 1 }} />
           {p.kind === 'task' || p.kind === 'decision' ? (
             <select aria-label="Progress" value={p.state} onPointerDown={stop}
-              onChange={e => update({ state: e.target.value as IdeaShape['props']['state'] })}
+              onChange={e => update({ state: e.target.value as IdeaShape['props']['state'] })} onKeyDown={stop}
               style={{ fontSize: 11, color: 'inherit', border: '1px solid var(--border)', borderRadius: 7,
                 background: 'var(--bg-1)', padding: 5 }}>
               <option value="open">Open</option>
@@ -45,7 +47,7 @@ export class IdeaShapeUtil extends BaseBoxShapeUtil<IdeaShape> {
           ) : null}
         </div>
         <input aria-label={`${labels[p.kind]} title`} value={p.title} maxLength={120}
-          onPointerDown={stop} onChange={e => update({ title: e.target.value })}
+          onPointerDown={stop} onKeyDown={stop} onChange={e => update({ title: e.target.value })}
           style={{ margin: '9px 12px 5px', border: 0, borderBottom: '1px solid var(--border)',
             outlineOffset: 3, background: 'transparent', color: 'inherit', fontWeight: 750,
             fontSize: 16, padding: '5px 2px', minWidth: 0 }} />
@@ -53,7 +55,7 @@ export class IdeaShapeUtil extends BaseBoxShapeUtil<IdeaShape> {
           placeholder={p.kind === 'decision' ? 'Options, tradeoffs and why…' :
             p.kind === 'task' ? 'Owner, outcome, next step…' :
             p.kind === 'research' ? 'What do we need to learn?' : 'Add your thinking…'}
-          onPointerDown={stop} onChange={e => update({ body: e.target.value })}
+          onPointerDown={stop} onKeyDown={stop} onChange={e => update({ body: e.target.value })}
           style={{ flex: 1, resize: 'none', border: 0, borderRadius: 8,
             margin: '0 12px 12px', padding: '6px 4px', font: '13px/1.5 inherit',
             fontFamily: 'inherit', background: 'transparent', color: 'inherit', minHeight: 0 }} />

@@ -1,4 +1,6 @@
-# Toolkit — Canvas and visual project workspace
+# Toolkit — Canvas and visual project workspace (R05 baseline, superseded by R06)
+
+**Superseded sharing/persistence details:** R06 introduces shared manager canvases and private discussions. See [OMS-R06](OMS-R06-toolkit-sharing-stability.md). The R05 statements about per-user canvases and saving chat inside board payload must not be used for deployment.
 
 **Scope:** Repository implementation, not a deployed or browser-tested release. This feature is the successor to the old experimental canvas. The product is branded **Toolkit**; the project UI contains no requirement to use an assistant to work.
 

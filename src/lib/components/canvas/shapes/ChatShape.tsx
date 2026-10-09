@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
+import { CanvasModeContext } from '../canvas-mode';
 
 export type ChatShape = TLBaseShape<'chat', {
     w: number;
@@ -20,6 +21,10 @@ export class ChatShapeUtil extends BaseBoxShapeUtil<ChatShape> {
 
     override component(shape: ChatShape) {
         const { w, h, messages } = shape.props;
+        // Historical ChatShape persists its messages inside shape props.
+        // That is not acceptable on a manager-shared Toolkit canvas. The
+        // personal archive is shown in the private Brainstorm sidebar instead.
+        const toolkitMode = React.useContext(CanvasModeContext) === 'toolkit';
         const [input, setInput] = useState('');
         const [loading, setLoading] = useState(false);
 
@@ -70,6 +75,20 @@ export class ChatShapeUtil extends BaseBoxShapeUtil<ChatShape> {
                 setLoading(false);
             }
         };
+
+        if (toolkitMode) {
+            return (
+                <HTMLContainer id={shape.id} style={{ width: w, height: h,
+                    display: 'grid', placeContent: 'center', padding: 18,
+                    borderRadius: 12, border: '1px solid var(--border)',
+                    background: 'var(--bg-1)', color: 'var(--text)',
+                    fontSize: 13, textAlign: 'center' }}>
+                    <strong>Private discussion</strong>
+                    <p>This legacy chat node is archived. Continue in the
+                    Toolkit Brainstorm panel; conversations are private to you.</p>
+                </HTMLContainer>
+            );
+        }
 
         return (
             <HTMLContainer

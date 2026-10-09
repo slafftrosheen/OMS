@@ -4,8 +4,9 @@
   import { ideaDefaults, type IdeaKind } from '$lib/components/canvas/idea-model';
   import { extractBoardCards, extractBoardLinks, normalizeProposals, type ProposedCard } from '$lib/components/canvas/toolkit-context';
   import { runShape } from '$lib/components/canvas/node-runner';
+  import { importToolkitFiles, type ToolkitPosition } from '$lib/components/canvas/toolkit-media-import';
 
-  type Board = { id: string; title: string; updated_at: string; created_at: string };
+  type Board = { id: string; title: string; revision: number; updated_at: string; created_at: string };
   type ChatMessage = { role: 'user' | 'assistant'; content: string };
   type Template = 'blank' | 'project' | 'options' | 'workshop';
   let boards = $state<Board[]>([]);
@@ -14,6 +15,7 @@
   let initialSnapshot = $state<unknown>(null);
   let messages = $state<ChatMessage[]>([]);
   let suggestions = $state<ProposedCard[]>([]);
+  let legacyThreads = $state<Record<string, Array<{role: string; content: string}>>>({});
   let prompt = $state('');
   let loading = $state(true);
   let saving = $state(false);
@@ -24,6 +26,10 @@
   let projectListOpen = $state(true);
   let assistantOpen = $state(true);
   let running = $state(false);
+  let importing = $state(false);
+  let importStatus = $state('');
+  let fileInput: HTMLInputElement;
+  let selectedTool = $state('select');
   let requesting = $state(false);
   let selectedLabel = $state('Whole board');
   let editor: any = null;
@@ -33,6 +39,18 @@
   let pendingTemplate: Template | null = null;
   let destroyed = false;
   let documentRevision = 0;
+  let boardRevision = 0;
+  let conflict = $state(false);
+  let remoteUpdated = $state(false);
+  let discussionDirty = $state(false);
+  let discussionSaving = $state(false);
+  let discussionError = $state('');
+  let discussionRevision = 0;
+  let chatTimer: ReturnType<typeof setTimeout> | undefined;
+  let saveInFlight: Promise<void> | null = null;
+  let chatInFlight: Promise<void> | null = null;
+  let refreshTimer: ReturnType<typeof setInterval> | undefined;
+  let activeLoadToken = 0;
 
   const kinds: { kind: IdeaKind; label: string; emoji: string }[] = [
     { kind: 'idea', label: 'Idea', emoji: '✦' },
@@ -49,47 +67,149 @@
   ];
 
   function markDirty() {
-    if (!boardId || !ready) return;
+    if (!boardId) return;
     dirty = true;
     documentRevision++;
     lastSaved = '';
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { void saveBoard(); }, 1200);
+    if (!conflict) saveTimer = setTimeout(() => { void saveBoard(); }, 1200);
   }
   function onCanvasChange(value: unknown) {
     lastSnapshot = value;
-    markDirty();
+    if (ready) markDirty();
   }
-  async function saveBoard() {
+  function markDiscussionDirty() {
+    if (!boardId) return;
+    discussionDirty = true;
+    discussionRevision++;
+    if (chatTimer) clearTimeout(chatTimer);
+    chatTimer = setTimeout(() => { void saveDiscussion(); }, 1400);
+  }
+  async function saveDiscussion(): Promise<void> {
+    if (chatInFlight) { await chatInFlight; if (!discussionDirty) return; }
+    if (chatTimer) clearTimeout(chatTimer);
+    chatTimer = undefined;
+    if (!boardId || !discussionDirty) return;
+    const id = boardId, rev = discussionRevision;
+    const messagesToSave = messages.slice(-60);
+    const proposalsToSave = suggestions.slice(0, 8);
+    discussionSaving = true;
+    chatInFlight = (async () => {
+      try {
+        const response = await fetch(`/api/toolkit/conversations/${encodeURIComponent(id)}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: messagesToSave, proposals: proposalsToSave })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.message || result.error || 'Private conversation save failed');
+        if (boardId === id) {
+          discussionDirty = rev !== discussionRevision;
+          discussionError = '';
+        }
+      } catch (e) {
+        if (boardId === id) discussionError = e instanceof Error ? e.message : 'Conversation save failed';
+      } finally {
+        discussionSaving = false;
+      }
+    })();
+    try { await chatInFlight; } finally { chatInFlight = null; }
+  }
+  async function saveBoard(): Promise<void> {
+    if (saveInFlight) { await saveInFlight; if (!dirty || conflict) return; }
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = undefined;
-    if (!boardId || !dirty || saving) return;
+    if (!boardId || !dirty || conflict) return;
     const id = boardId;
-    const revisionAtStart = documentRevision;
+    const rev = documentRevision;
+    const expectedRevision = boardRevision;
     const title = boardTitle.trim().slice(0, 120) || 'Untitled project';
-    const payload = { version: 1, snapshot: lastSnapshot, conversation: messages.slice(-24), proposals: suggestions.slice(0, 8) };
+    // Private conversations are NEVER written into the shared document.
+    const payload = { version: 1, snapshot: lastSnapshot };
     saving = true;
-    try {
-      const response = await fetch(`/api/ai/canvas/${encodeURIComponent(id)}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, payload })
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'Could not save project');
-      if (id === boardId) {
-        dirty = documentRevision !== revisionAtStart;
-        error = '';
-        lastSaved = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        boards = boards.map(b => b.id === id ? { ...b, title, updated_at: new Date().toISOString() } : b);
+    saveInFlight = (async () => {
+      try {
+        const response = await fetch(`/api/ai/canvas/${encodeURIComponent(id)}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, payload, revision: expectedRevision })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 409) {
+          conflict = true;
+          remoteUpdated = true;
+          throw new Error('A teammate saved a newer version. Your unsaved canvas is preserved. Save a copy or reload the latest version.');
+        }
+        if (!response.ok) throw new Error(data.error || 'Could not save project');
+        if (id === boardId) {
+          boardRevision = data.canvas.revision;
+          dirty = documentRevision !== rev;
+          error = '';
+          lastSaved = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          boards = boards.map(board => board.id === id
+            ? { ...board, title, revision: boardRevision, updated_at: data.canvas.updated_at } : board);
+        }
+      } catch (e) {
+        if (id === boardId) error = e instanceof Error ? e.message : 'Project save failed';
+      } finally {
+        saving = false;
       }
-    } catch (e) {
-      if (id === boardId) error = e instanceof Error ? e.message : 'Save failed';
-    } finally {
-      saving = false;
-      if (dirty && boardId === id && !saveTimer && !destroyed) {
-        saveTimer = setTimeout(() => { void saveBoard(); }, 3000);
-      }
+    })();
+    try { await saveInFlight; } finally { saveInFlight = null; }
+    if (dirty && boardId === id && !conflict && !destroyed && !saveTimer) {
+      saveTimer = setTimeout(() => { void saveBoard(); }, 3000);
     }
+  }
+  async function flushCurrentChanges() {
+    await saveBoard();
+    await saveDiscussion();
+    return !dirty && !discussionDirty;
+  }
+  async function checkBoardRevision() {
+    if (!boardId || loading || conflict || dirty || saving || document.hidden) return;
+    const id = boardId;
+    try {
+      const response = await fetch(`/api/ai/canvas/${encodeURIComponent(id)}?meta=1`, { cache: 'no-store' });
+      if (!response.ok || boardId !== id) return;
+      const data = await response.json();
+      if (data.canvas?.revision > boardRevision) remoteUpdated = true;
+    } catch { /* Connectivity failure must not discard the editing surface */ }
+  }
+  async function reloadLatest() {
+    await saveDiscussion();
+    if (discussionDirty) { discussionError = 'Save your private discussion before reloading.'; return; }
+    if (dirty && !confirm('Discard unsaved canvas edits and load the latest shared version?')) return;
+    // Reload must not try to re-save the known stale revision.
+    if (saveTimer) clearTimeout(saveTimer);
+    dirty = false; conflict = false; remoteUpdated = false;
+    const id = boardId;
+    if (id) { boardId = null; await openBoard(id); }
+  }
+  async function saveRecoveryCopy() {
+    if (!boardId) return;
+    if (chatTimer) clearTimeout(chatTimer);
+    await saveDiscussion();
+    if (discussionDirty) return;
+    try {
+      const title = `${boardTitle.trim() || 'Untitled'} — recovered copy`.slice(0, 120);
+      const response = await fetch('/api/ai/canvas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, payload: { version: 1, snapshot: lastSnapshot } })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.canvas?.id) throw new Error('Could not save recovery copy');
+      boards = [data.canvas, ...boards];
+      const privateCopy = await fetch(`/api/toolkit/conversations/${encodeURIComponent(data.canvas.id)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: messages.slice(-60), proposals: suggestions.slice(0, 8) })
+      });
+      if (!privateCopy.ok) {
+        discussionError = 'Recovery canvas was created, but its private discussion could not be copied.';
+      }
+      if (saveTimer) clearTimeout(saveTimer);
+      dirty = false; conflict = false; remoteUpdated = false;
+      boardId = null;
+      await openBoard(data.canvas.id);
+      notice = 'Your unsaved local changes were preserved in a new shared project.';
+    } catch (e) { error = e instanceof Error ? e.message : 'Recovery copy failed'; }
   }
   async function loadBoards() {
     loading = true;
@@ -104,43 +224,74 @@
     } finally { loading = false; }
   }
   async function openBoard(id: string) {
+    if (importing) { notice = 'Finish importing files before switching projects.'; return; }
     if (id === boardId && ready) return;
-    if (dirty) {
-      await saveBoard();
-      if (dirty) { error = 'Save your changes before switching projects.'; return; }
+    if ((dirty || discussionDirty) && !(await flushCurrentChanges())) {
+      error = 'Save or recover your changes before switching projects.';
+      return;
     }
+    const token = ++activeLoadToken;
     loading = true;
     ready = false;
     editor = null;
+    messages = [];
     suggestions = [];
+    legacyThreads = {};
+    prompt = '';
     selectedLabel = 'Whole board';
     try {
-      const response = await fetch(`/api/ai/canvas/${encodeURIComponent(id)}`, { cache: 'no-store' });
-      if (!response.ok) throw new Error('Unable to open project');
+      const [response, privateResponse] = await Promise.all([
+        fetch(`/api/ai/canvas/${encodeURIComponent(id)}`, { cache: 'no-store' }),
+        fetch(`/api/toolkit/conversations/${encodeURIComponent(id)}`, { cache: 'no-store' })
+      ]);
+      if (!response.ok) throw new Error('Unable to open shared project');
+      if (!privateResponse.ok) throw new Error('Unable to load your private project discussion');
       const data = await response.json();
+      const privateData = await privateResponse.json();
+      if (token !== activeLoadToken) return;
       const doc = data.canvas;
       if (!doc) throw new Error('Project was not found');
       boardTitle = doc.title || 'Untitled project';
       const payload = doc.payload && typeof doc.payload === 'object' ? doc.payload : {};
       initialSnapshot = payload.snapshot ?? (payload.store ? payload : null);
       lastSnapshot = initialSnapshot;
-      suggestions = normalizeProposals(payload.proposals);
-      messages = Array.isArray(payload.conversation)
-        ? payload.conversation.slice(-24).filter((m: any) => m && ['user','assistant'].includes(m.role) &&
+      boardRevision = Number.isSafeInteger(doc.revision) ? doc.revision : 0;
+      suggestions = normalizeProposals(privateData.proposals);
+      legacyThreads = privateData.legacyThreads && typeof privateData.legacyThreads === 'object' && !Array.isArray(privateData.legacyThreads)
+        ? Object.fromEntries(Object.entries(privateData.legacyThreads).slice(0, 30)
+          .filter(([,v]) => Array.isArray(v)).map(([k,v]) => [k, (v as any[])
+            .slice(-30).filter(m => m && ['user','assistant'].includes(m.role) && typeof m.content === 'string')
+            .map(m => ({ role: m.role, content: m.content.slice(0, 5000) }))])) : {};
+      messages = Array.isArray(privateData.messages)
+        ? privateData.messages.slice(-60).filter((m: any) => m && ['user','assistant'].includes(m.role) &&
             typeof m.content === 'string').map((m: any) => ({ role: m.role, content: m.content.slice(0, 5000) }))
         : [];
       boardId = id;
       dirty = false;
+      discussionDirty = false;
+      conflict = false;
+      remoteUpdated = false;
+      discussionError = '';
       lastSaved = '';
       error = '';
+      documentRevision = 0;
+      discussionRevision = 0;
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Failed to open project';
-    } finally { loading = false; }
+      if (token === activeLoadToken) {
+        boardId = null;
+        initialSnapshot = null;
+        lastSnapshot = null;
+        error = e instanceof Error ? e.message : 'Failed to open project';
+      }
+    } finally {
+      if (token === activeLoadToken) loading = false;
+    }
   }
   async function createBoard(template: Template = 'blank') {
-    if (dirty) {
-      await saveBoard();
-      if (dirty) return;
+    if (importing) { notice = 'Finish importing files before creating a new project.'; return; }
+    if ((dirty || discussionDirty) && !(await flushCurrentChanges())) {
+      error = 'Save or recover your changes before creating a project.';
+      return;
     }
     const labels: Record<Template, string> = {
       blank: 'Untitled project', project: 'Project concept', options: 'Explore alternatives', workshop: 'Workshop idea'
@@ -149,12 +300,11 @@
     try {
       const response = await fetch('/api/ai/canvas', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: labels[template], payload: { version: 1, snapshot: null, conversation: [] } })
+        body: JSON.stringify({ title: labels[template], payload: { version: 1, snapshot: null } })
       });
       const data = await response.json();
       if (!response.ok || !data.canvas?.id) throw new Error(data.error || 'Could not create project');
-      boards = [{ id: data.canvas.id, title: data.canvas.title,
-        updated_at: data.canvas.updated_at, created_at: data.canvas.created_at }, ...boards];
+      boards = [data.canvas, ...boards];
       pendingTemplate = template;
       await openBoard(data.canvas.id);
       projectListOpen = false;
@@ -201,6 +351,7 @@
   function onEditorReady(value: any) {
     editor = value;
     ready = true;
+    updateSelectionSummary();
     if (pendingTemplate) {
       const template = pendingTemplate;
       pendingTemplate = null;
@@ -212,6 +363,18 @@
     }
   }
   function setArrowTool() { editor?.setCurrentTool('arrow'); }
+  function undo() { editor?.undo(); }
+  function redo() { editor?.redo(); }
+  function zoomToContent() { editor?.zoomToFit?.(); }
+  function updateSelectionSummary() {
+    const selected = editor?.getSelectedShapeIds?.() ?? [];
+    selectedLabel = selected.length ? `${selected.length} selected` : 'Whole board';
+  }
+  function deleteSelection() {
+    const selected = editor?.getSelectedShapeIds?.() ?? [];
+    if (selected.length) editor?.deleteShapes?.(selected);
+    updateSelectionSummary();
+  }
   function getContext() {
     if (!editor) return { cards: [], focusId: '' };
     const all = editor.getCurrentPageShapes?.() ?? [];
@@ -227,20 +390,21 @@
     requesting = true;
     notice = '';
     const context = getContext();
-    messages = [...messages, { role: 'user', content: text }];
+    const history = messages.slice(-10);
+    messages = [...messages, { role: 'user', content: text }].slice(-60);
     prompt = '';
     suggestions = [];
-    markDirty();
+    markDiscussionDirty();
     try {
       const response = await fetch('/api/toolkit/brainstorm', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: text, ...context })
+        body: JSON.stringify({ prompt: text, ...context, history })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Could not get suggestions');
-      messages = [...messages, { role: 'assistant', content: String(data.reply ?? '').slice(0, 5000) }];
+      messages = [...messages, { role: 'assistant', content: String(data.reply ?? '').slice(0, 5000) }].slice(-60);
       suggestions = normalizeProposals(data.cards);
-      markDirty();
+      markDiscussionDirty();
     } catch (e) {
       notice = e instanceof Error ? e.message : 'Could not reach the brainstorming service';
       // Retain the prompt in the conversation so the user can retry or copy it.
@@ -251,6 +415,7 @@
     const c = editor.getViewportPageBounds().center;
     addCard(card.kind, card.title, card.body, c.x + (index % 2) * 320 - 300, c.y + Math.floor(index / 2) * 245 - 110);
     suggestions = suggestions.filter(s => s !== card);
+    markDiscussionDirty();
     notice = 'Added to the canvas. You can edit or connect it.';
   }
   function applyAll() {
@@ -275,16 +440,68 @@
     const center = editor.getViewportPageBounds().center;
     editor.createShape({ type, x: center.x - 180, y: center.y - 120 });
   }
+  function drawTool(tool: string) {
+    if (!editor) return;
+    editor.setCurrentTool(tool);
+    selectedTool = tool;
+  }
+  function addMaterial(preset: string = 'brushed-metal', textureUrl?: string) {
+    if (!editor) return;
+    const center = editor.getViewportPageBounds().center;
+    editor.createShape({ type: 'material-swatch', x: center.x - 145, y: center.y - 106,
+      props: { w: 290, h: 212, title: preset === 'photo' ? 'Imported surface reference'
+        : preset.replaceAll('-', ' '), preset, tint: '#ffffff', opacity: 100,
+        ...(textureUrl ? { textureUrl } : {}) } });
+  }
+  function createPhotoMaterial() {
+    if (!editor) return;
+    const selected = (editor.getSelectedShapes?.() ?? []) as Array<{type:string; props:any}>;
+    const image = selected.find(shape => shape.type === 'document' &&
+      shape.props?.kind === 'image' && typeof shape.props?.url === 'string');
+    if (!image) { notice = 'Select an imported image card to create a surface reference.'; return; }
+    addMaterial('photo', image.props.url);
+  }
+  async function importFiles(files: File[], point?: ToolkitPosition) {
+    if (!boardId || !editor || importing || !files.length) return;
+    importing = true;
+    const activeEditor = editor, id = boardId;
+    importStatus = 'Preparing files…';
+    try {
+      const result = await importToolkitFiles(activeEditor, id, files, point,
+        message => { importStatus = message; });
+      if (result.errors.length) {
+        notice = result.errors.slice(0, 3).join(' | ');
+        if (result.imported === 0) error = notice;
+      } else {
+        notice = `${result.imported} visual asset(s) imported. The files are available to the management team.`;
+      }
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Could not import files';
+    } finally {
+      importing = false;
+      importStatus = '';
+    }
+  }
+  function onFileSelected() {
+    const files = Array.from(fileInput?.files ?? []);
+    if (fileInput) fileInput.value = '';
+    void importFiles(files);
+  }
   async function removeBoard(id: string) {
-    if (!confirm('Delete this project and its saved canvas? This cannot be undone.')) return;
-    if (id === boardId && dirty) await saveBoard();
+    if (importing) { notice = 'Wait for file imports to finish.'; return; }
+    if (!confirm('Delete this SHARED project for the whole team? This cannot be undone.')) return;
+    if (id === boardId && (dirty || discussionDirty) && !(await flushCurrentChanges())) {
+      error = 'Preserve or resolve local changes before deleting the project.';
+      return;
+    }
     try {
       const response = await fetch(`/api/ai/canvas?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Could not delete project');
       boards = boards.filter(b => b.id !== id);
       if (id === boardId) {
         boardId = null; ready = false; editor = null; initialSnapshot = null;
-        lastSnapshot = null; messages = []; dirty = false;
+        lastSnapshot = null; messages = []; suggestions = []; dirty = false; discussionDirty = false;
+        conflict = false; remoteUpdated = false;
         if (boards.length) await openBoard(boards[0].id);
       }
     } catch (e) { error = e instanceof Error ? e.message : 'Deletion failed'; }
@@ -293,14 +510,19 @@
   onMount(() => {
     void loadBoards();
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (dirty) { e.preventDefault(); e.returnValue = ''; }
+      if (dirty || discussionDirty || importing) { e.preventDefault(); e.returnValue = ''; }
     };
+    const onFocus = () => { void checkBoardRevision(); };
     window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('focus', onFocus);
+    refreshTimer = setInterval(() => { void checkBoardRevision(); }, 45_000);
     return () => {
       destroyed = true;
       if (saveTimer) clearTimeout(saveTimer);
-      if (dirty && boardId && !saving) void saveBoard();
+      if (chatTimer) clearTimeout(chatTimer);
+      if (refreshTimer) clearInterval(refreshTimer);
       window.removeEventListener('beforeunload', onBeforeUnload);
+      window.removeEventListener('focus', onFocus);
     };
   });
 </script>
@@ -316,19 +538,34 @@
         <input class="board-title" aria-label="Project name" maxlength="120" bind:value={boardTitle} oninput={markDirty} />
       {:else}<h2>Ideas begin here</h2>{/if}
       <span class="save-indicator" role="status" aria-live="polite">
-        {#if saving}Saving…{:else if dirty}Unsaved changes{:else if lastSaved}Saved {lastSaved}{:else if boardId}Ready{/if}
+        {#if saving || discussionSaving}Saving…{:else if conflict}Save conflict{:else if dirty || discussionDirty}Unsaved changes{:else if lastSaved}Saved {lastSaved}{:else if boardId}Up to date{/if}
       </span>
     </div>
     <div class="command-actions">
+      <span class="team-label" title="RD, Boss and Head of Production share and edit every project">◉ Shared with management</span>
       <button onclick={() => createBoard('blank')}>+ Project</button>
-      <button onclick={() => void saveBoard()} disabled={!boardId || saving || !dirty}>Save</button>
+      <button onclick={() => void flushCurrentChanges()} disabled={!boardId || saving || ( !dirty && !discussionDirty ) || conflict}>Save</button>
       <button class="assistant-toggle" onclick={() => assistantOpen = !assistantOpen} aria-expanded={assistantOpen}>
         {assistantOpen ? 'Hide assistant' : 'Brainstorm'}
       </button>
     </div>
   </header>
 
-  {#if error}<div class="workspace-alert" role="alert">{error}<button onclick={() => { error = ''; void loadBoards(); }}>Retry</button></div>{/if}
+  {#if error}<div class="workspace-alert" role="alert"><span>{error}</span>
+    {#if conflict}<button onclick={saveRecoveryCopy}>Save a copy</button>
+      <button onclick={reloadLatest}>Reload latest</button>
+    {:else}<button onclick={() => { error = ''; if (boardId) void flushCurrentChanges(); else void loadBoards(); }}>Retry</button>{/if}
+  </div>{/if}
+  {#if remoteUpdated && !conflict && !dirty}
+    <div class="remote-banner" role="status"><span>A teammate saved a newer version of this canvas.</span>
+      <button onclick={reloadLatest}>View latest</button>
+    </div>
+  {/if}
+  {#if discussionError}
+    <div class="private-banner" role="alert"><span>Your private conversation has not been saved: {discussionError}</span>
+      <button onclick={() => void saveDiscussion()}>Retry private save</button>
+    </div>
+  {/if}
 
   <div class="panes">
     {#if projectListOpen}
@@ -354,20 +591,56 @@
             </div>
           {/each}
         </div>
-        <p class="library-tip">Projects save to your workspace. Drag cards, connect them with arrows, and revisit ideas whenever you need.</p>
+        <p class="library-tip">Shared by default across R&D, Boss and Head of Production. Everyone sees the same canvas; your conversations and suggestions are private to your account.</p>
       </aside>
     {/if}
 
     <main class="board-area" aria-label="Idea canvas">
       {#if boardId && !loading}
         <div class="node-toolbar">
-          <span class="small-heading">Add to canvas</span>
+          <span class="small-heading">Compose</span>
+          <input class="file-input" bind:this={fileInput} type="file" multiple
+            accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf"
+            aria-label="Choose images and PDFs" onchange={onFileSelected} />
+          <button class="import-button" onclick={() => fileInput?.click()} disabled={importing}>
+            {importing ? 'Importing…' : '↥ Images / PDFs'}
+          </button>
+          <span class="toolbar-separator" aria-hidden="true"></span>
+          {#each [
+            { tool: 'select', title: 'Select / move', label: 'Select' },
+            { tool: 'draw', title: 'Freehand drawing', label: 'Pen' },
+            { tool: 'highlight', title: 'Highlighter', label: 'Highlight' },
+            { tool: 'geo', title: 'Geometric shapes', label: 'Shapes' },
+            { tool: 'text', title: 'Canvas text', label: 'Text' },
+            { tool: 'eraser', title: 'Erase drawing elements', label: 'Eraser' }
+          ] as drawing}
+            <button title={drawing.title} class:chosen={selectedTool === drawing.tool}
+              aria-pressed={selectedTool === drawing.tool}
+              onclick={() => drawTool(drawing.tool)}>{drawing.label}</button>
+          {/each}
+          <span class="toolbar-separator" aria-hidden="true"></span>
+          <span class="small-heading">Ideas</span>
           {#each kinds as item (item.kind)}
             <button title={`Add ${item.label}`} onclick={() => addCard(item.kind)}>
               <span>{item.emoji}</span> {item.label}
             </button>
           {/each}
-          <button onclick={setArrowTool} title="Draw connections between cards">↗ Connect</button>
+          <button onclick={() => { setArrowTool(); selectedTool = 'arrow'; }}
+            title="Connect cards with arrows">↗ Connect</button>
+          <details class="advanced-tools">
+            <summary>Material studies</summary>
+            <div class="advanced-menu" role="group" aria-label="Material and surface references">
+              {#each ['brushed-metal','matte','frosted-acrylic','wood-grain','concrete','patina','mesh'] as material}
+                <button onclick={() => addMaterial(material)}>{material.replaceAll('-', ' ')}</button>
+              {/each}
+              <button onclick={createPhotoMaterial}>From selected image</button>
+            </div>
+          </details>
+          <span class="toolbar-separator" aria-hidden="true"></span>
+          <button onclick={undo} title="Undo" aria-label="Undo last canvas edit">↶</button>
+          <button onclick={redo} title="Redo" aria-label="Redo last canvas edit">↷</button>
+          <button onclick={zoomToContent} title="Fit canvas content">Fit</button>
+          <button onclick={deleteSelection} title="Delete selected elements">Delete selected</button>
           <details class="advanced-tools">
             <summary>Technical tools</summary>
             <div class="advanced-menu">
@@ -381,13 +654,15 @@
             </div>
           </details>
         </div>
+        {#if importStatus}<div class="import-progress" role="status">{importStatus}</div>{/if}
         <div class="drawing-surface">
           {#key boardId}
             <TldrawWrapper snapshot={initialSnapshot ?? undefined}
+              toolkitBoardId={boardId} onToolkitFilesDrop={(files, position) => { void importFiles(files, position); }}
               onSave={onCanvasChange} onReady={onEditorReady} onError={(message) => (error = message)} />
           {/key}
         </div>
-        <p class="canvas-hint">Double-click to edit cards · Drag to organize · Use Connect or the arrow tool to link ideas</p>
+        <p class="canvas-hint">Drop images/PDFs · Draw and annotate · Add illustrative material studies · Resize/move visual assets · Save to share</p>
       {:else if loading}
         <div class="empty-canvas"><p>Opening your workspace…</p></div>
       {:else}
@@ -405,7 +680,7 @@
 
     {#if assistantOpen}
       <aside class="assistant-pane">
-        <div class="pane-heading"><div><span class="small-heading">Creative partner</span><h3>Brainstorm</h3></div>
+        <div class="pane-heading"><div><span class="small-heading">Private to your account</span><h3>Brainstorm</h3></div>
           <button aria-label="Close assistant" class="close-pane" onclick={() => assistantOpen = false}>×</button>
         </div>
         <p class="assistant-intro">Explore alternatives, spot gaps and turn thoughts into new cards. Asking sends the selected board context to your configured reasoning provider. Nothing is added without your approval.</p>
@@ -414,6 +689,19 @@
             <button onclick={() => brainstorm(item.question)} disabled={!boardId || requesting}>{item.label}</button>
           {/each}
         </div>
+        {#if Object.keys(legacyThreads).length}
+          <details class="legacy-threads">
+            <summary>Archived personal canvas chats ({Object.keys(legacyThreads).length})</summary>
+            {#each Object.entries(legacyThreads) as [shapeId, thread] (shapeId)}
+              <section class="legacy-thread">
+                <strong>Previous canvas conversation</strong>
+                {#each thread as entry, i (i)}
+                  <p><b>{entry.role === 'user' ? 'You' : 'Assistant'}:</b> {entry.content}</p>
+                {/each}
+              </section>
+            {/each}
+          </details>
+        {/if}
         <div class="conversation" role="log" aria-label="Brainstorm conversation" aria-live="polite">
           {#if !messages.length}
             <div class="conversation-empty">Describe the idea, challenge or decision on your canvas. Select a card to focus the discussion.</div>
@@ -463,8 +751,12 @@
   button.primary,.new-project,.assistant-toggle{background:var(--brand);color:white;border-color:var(--brand)}
   .command-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg-1);border-bottom:1px solid var(--border);gap:12px;flex-wrap:wrap}
   .workspace-title,.command-actions{display:flex;align-items:center;gap:8px;min-width:0}.workspace-title{flex:1}.workspace-title h2{font-size:16px;margin:0}
-  .board-title{font:700 16px inherit;font-family:inherit;font-size:16px;font-weight:750;background:transparent;border:1px solid transparent;padding:6px;border-radius:7px;min-width:100px;max-width:340px;flex:1;color:var(--text)}
+  .board-title{font-family:inherit;font-size:16px;font-weight:750;background:transparent;border:1px solid transparent;padding:6px;border-radius:7px;min-width:100px;max-width:340px;flex:1;color:var(--text)}
   .board-title:hover,.board-title:focus{border-color:var(--border)}
+  .team-label{font-size:11px;font-weight:700;color:var(--ink-secondary);white-space:nowrap}
+  .remote-banner,.private-banner{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--bg-1);font-size:12px}
+  .remote-banner{border-color:var(--brand)}.private-banner{border-color:var(--error)}
+  .toolbar-separator{height:26px;width:1px;background:var(--border);margin:0 4px}
   .save-indicator,.muted{font-size:11px;color:var(--ink-tertiary)}
   .icon-toggle{font-size:16px;min-width:38px}.panes{display:flex;flex:1;min-height:0;position:relative}
   .library{display:flex;flex-direction:column;flex:0 0 230px;min-width:0;background:var(--bg-1);border-right:1px solid var(--border);padding:12px;gap:12px;overflow:auto}
@@ -500,4 +792,15 @@
   @media(max-width:1100px){.library{flex-basis:190px}.assistant-pane{flex-basis:255px}}
   @media(max-width:780px){.panes{flex-direction:column;overflow-y:auto}.library{flex:0 0 auto;max-height:190px;border-right:0;border-bottom:1px solid var(--border)}.board-area{min-height:480px;flex:1 0 490px}.assistant-pane{flex:0 0 auto;max-height:420px;border-left:0;border-top:1px solid var(--border)}.node-toolbar{overflow-x:auto;flex-wrap:nowrap}.command-bar{padding:8px}}
   @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+  .legacy-threads{border:1px solid var(--border);padding:10px;border-radius:10px;font-size:12px}
+  .legacy-threads summary{cursor:pointer;font-weight:750}
+  .legacy-thread{border-top:1px solid var(--border);padding:8px 0;max-height:180px;overflow-y:auto}
+  .legacy-thread p{font-size:11px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+
+  .file-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .node-toolbar .chosen{border-color:var(--brand);background:var(--brand-soft);color:var(--brand)}
+  .import-button{border-color:var(--brand)}
+  .import-progress{font-size:12px;font-weight:700;color:var(--brand);background:var(--bg-1);
+    padding:8px 13px;border-bottom:1px solid var(--border)}
+  @media(max-width:840px){.node-toolbar{overflow-x:auto;flex-wrap:nowrap}}
 </style>

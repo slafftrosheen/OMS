@@ -3,6 +3,7 @@ import { Tldraw, type Editor } from '@tldraw/tldraw';
 import '@tldraw/tldraw/tldraw.css';
 import { MakerShapeUtil } from './shapes/MakerShape';
 import { IdeaShapeUtil } from './shapes/IdeaShape';
+import { MaterialSwatchShapeUtil } from './shapes/MaterialSwatchShape';
 import { ChatShapeUtil } from './shapes/ChatShape';
 import { DocumentShapeUtil } from './shapes/DocumentShape';
 import { SwarmShapeUtil } from './shapes/SwarmShape';
@@ -20,9 +21,11 @@ import {
 import { spawnDraftOrderTemplate, syncOrderDataToCanvas, type OrderSeed, type SpawnedShapes } from './templates/DraftOrderTemplate';
 import { setOrderBridge, clearOrderBridge } from './state-bridge';
 import { wireAssetDropHandler } from './asset-uploader';
+import { CanvasModeContext } from './canvas-mode';
 
 const customShapeUtils = [
     IdeaShapeUtil,
+    MaterialSwatchShapeUtil,
     MakerShapeUtil,
     ChatShapeUtil,
     DocumentShapeUtil,
@@ -52,6 +55,9 @@ export interface CanvasAppProps {
     onAssetUploaded?: (orderId: string, asset: { url: string; fileName: string; kind: string }) => void;
     /** If true, hides the default tldraw UI chrome */
     hideUI?: boolean;
+    /** Toolkit shared board: register external drag/drop asset callback. */
+    toolkitBoardId?: string | null;
+    onToolkitFilesDrop?: (files: File[], position: { x: number; y: number }) => void;
 }
 
 export function CanvasApp({
@@ -63,6 +69,8 @@ export function CanvasApp({
     onProfileChange,
     onAssetUploaded,
     hideUI = false,
+    toolkitBoardId = null,
+    onToolkitFilesDrop,
 }: CanvasAppProps) {
     const spawnedRef = useRef<SpawnedShapes | null>(null);
     const editorRef = useRef<Editor | null>(null);
@@ -109,14 +117,35 @@ export function CanvasApp({
         cleanupStoreRef.current?.();
         cleanupStoreRef.current = unlisten;
 
-        // Wire native drag-drop on the canvas container to auto-upload files
+        // Separate order-document uploads from Toolkit shared-board imports.
         if (containerRef.current) {
             dropCleanupRef.current?.();
-            dropCleanupRef.current = wireAssetDropHandler(
-                containerRef.current,
-                editor,
-                () => seedRef.current?.orderId ?? null,
-            );
+            if (toolkitBoardId && onToolkitFilesDrop) {
+                const container = containerRef.current;
+                const onDragOver = (event: DragEvent) => {
+                    if (event.dataTransfer?.types?.includes('Files')) event.preventDefault();
+                };
+                const onDrop = (event: DragEvent) => {
+                    if (!event.dataTransfer?.files?.length) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const files = Array.from(event.dataTransfer.files);
+                    // DOM clientX/clientY are screen coordinates. tldraw
+                    // screenToPage handles the editor container offset.
+                    const position = editor.screenToPage({ x: event.clientX, y: event.clientY });
+                    onToolkitFilesDrop(files, position);
+                };
+                container.addEventListener('dragover', onDragOver, true);
+                container.addEventListener('drop', onDrop, true);
+                dropCleanupRef.current = () => {
+                    container.removeEventListener('dragover', onDragOver, true);
+                    container.removeEventListener('drop', onDrop, true);
+                };
+            } else {
+                dropCleanupRef.current = wireAssetDropHandler(
+                    containerRef.current, editor, () => seedRef.current?.orderId ?? null
+                );
+            }
         }
 
         // Spawn the draft order template if a seed is provided and we haven't already
@@ -136,12 +165,14 @@ export function CanvasApp({
 
     return (
         <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
-            <Tldraw
-                snapshot={initialSnapshot as any}
-                shapeUtils={customShapeUtils}
-                onMount={handleMount}
-                hideUi={hideUI}
-            />
+            <CanvasModeContext.Provider value={toolkitBoardId ? 'toolkit' : 'order'}>
+                <Tldraw
+                    snapshot={initialSnapshot as any}
+                    shapeUtils={customShapeUtils}
+                    onMount={handleMount}
+                    hideUi={hideUI}
+                />
+            </CanvasModeContext.Provider>
         </div>
     );
 }

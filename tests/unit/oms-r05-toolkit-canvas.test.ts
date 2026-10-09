@@ -83,11 +83,11 @@ describe('Toolkit route contracts', () => {
     expect(canvas).toContain("fetch('/api/ai/canvas'");
     expect(canvas).toContain("method: 'PATCH'");
     expect(canvas).toContain('snapshot: lastSnapshot');
-    expect(canvas).toContain('conversation: messages.slice(-24)');
+    expect(canvas).toContain('messages.slice(-60)');
     expect(canvas).toContain('proposals: suggestions.slice(0, 8)');
-    expect(canvas).toContain('documentRevision !== revisionAtStart');
+    expect(canvas).toContain('documentRevision !== rev');
     expect(canvas).toContain('{#key boardId}');
-    expect(canvas).toContain('Save your changes before switching projects');
+    expect(canvas).toContain('Save or recover your changes before switching projects');
   });
 
   it('never modifies the board before a user approves a proposed card', () => {
@@ -105,7 +105,7 @@ describe('Toolkit route contracts', () => {
     expect(api).toContain('normalizeLinks(body.links');
     expect(api).toContain('aiRateLimit(rateLimitIdentifier(event))');
     expect(api).toContain('normalizeProposals(parsed.cards)');
-    expect(api).toContain("if (!locals.user) throw error(401");
+    expect(api).toContain('requireToolkitManager(locals.user)');
     expect(api).not.toContain('SUPABASE_SERVICE_ROLE_KEY');
   });
 
