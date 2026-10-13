@@ -30,6 +30,24 @@ export function normalizeOrderFile(file: Pick<File,'name'|'type'|'size'>) {
   const safeName=file.name.replace(/[\\/\r\n\0<>]/g,'_').slice(0,180);
   return { mime:expected, fileName:safeName, extension:ext };
 }
+/** Verify common safe formats against magic bytes, not only browser headers.
+ * Native CDR/DXF/plain text lack one universally reliable signature and
+ * remain download-only content (not browser-executable inline HTML).
+ */
+export function matchesOrderFileSignature(extension: string, bytes: Uint8Array) {
+  const b=bytes;
+  const prefix=(t:string)=>t.split('').every((ch,i)=>b[i]===ch.charCodeAt(0));
+  switch(extension) {
+    case 'pdf': return prefix('%PDF-');
+    case 'png': return b.length>=8 && [137,80,78,71,13,10,26,10].every((v,i)=>b[i]===v);
+    case 'jpg': case 'jpeg': return b[0]===255 && b[1]===216 && b[2]===255;
+    case 'gif': return prefix('GIF87a') || prefix('GIF89a');
+    case 'webp': return prefix('RIFF') && b[8]===87 && b[9]===69 && b[10]===66 && b[11]===80;
+    case 'zip': case 'docx': case 'xlsx':
+      return b[0]===80 && b[1]===75 && [3,5,7].includes(b[2]) && [4,6,8].includes(b[3]);
+    default: return b.length>0;
+  }
+}
 export function isOrderUuid(input: string) { return UUID.test(input); }
 export function storedOrderFileKey(orderId:string,userId:string,fileId:string,filename:string) {
   if (![orderId,userId,fileId].every(isOrderUuid)) throw new Error('Invalid file identifier');
