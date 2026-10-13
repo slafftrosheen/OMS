@@ -1415,6 +1415,9 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "orderForm": {
+    "isRd": "R&D / internal development order",
+    "rdNotes": "R&D notes",
+    "deliveryEmail": "Delivery contact email",
     "priority": {
       "LOW": "Low",
       "NORMAL": "Normal",
