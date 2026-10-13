@@ -9,8 +9,11 @@
     import Badge from "$lib/components/ui/Badge.svelte";
     import Tabs from "$lib/components/ui/Tabs.svelte";
     import ChatContainer from "$lib/components/chat/ChatContainer.svelte";
-    import FileUpload from "$lib/components/files/FileUpload.svelte";
-    import FileList from "$lib/components/files/FileList.svelte";
+    import OrderFiles from "$lib/order/OrderFiles.svelte";
+    import {
+      workspaceUrl, suggestedWorkspaceSection, stageProgressPercent
+    } from "$lib/order/workspace-navigation";
+
     import QRCodeDisplay from "$lib/components/qr/QRCodeDisplay.svelte";
     import Modal from "$lib/components/ui/Modal.svelte";
     import OrderTimeline from "$lib/order/OrderTimeline.svelte";
@@ -218,12 +221,13 @@
         }
     }
 
-    function handleFileUploaded(file: { id: string } & Record<string, unknown>) {
-        files = [...files, file] as typeof files;
-    }
-
-    function handleDeleteFile(file: { id: string }) {
-        files = files.filter((f) => f.id !== file.id);
+    async function refreshFileList() {
+        const response=await fetch(`/api/files?orderId=${encodeURIComponent(orderId)}&limit=100`,
+          {cache:'no-store'});
+        if(response.ok){
+          const result=await response.json();
+          files=Array.isArray(result)?result:[];
+        }
     }
 
     function getStatusColor(status: string): string {
@@ -293,7 +297,7 @@
                 </Button>
                 <Button
                     variant="primary"
-                    onclick={() => goto(`/orders/${orderId}/edit`)}
+                    onclick={() => goto(workspaceUrl(orderId,'details'))}
                 >
                     {$t("common.edit")}
                 </Button>
@@ -343,17 +347,46 @@
                 <div class="info-card-content">
                     <span class="info-label">{$t("common.progress")}</span>
                     <span class="info-value">
-                        {Math.round(
-                            (Object.values(order.stages).filter(
-                                (s) => s === "COMPLETED",
-                            ).length /
-                                Object.keys(order.stages).length) *
-                                100,
-                        )}%
+                        {stageProgressPercent(order.stages)}%
                     </span>
                 </div>
             </Card>
         </div>
+
+        <!-- Shared entry points to the exact workspace sections. -->
+        <section class="workspace-entry" aria-label={$t('orderWorkspace.workflowLabel')}>
+          <div class="workspace-entry-intro">
+            <h2>{$t('orderWorkspace.title')}</h2>
+            <p>{$t('orderWorkspace.overviewHint')}</p>
+          </div>
+          <div class="workspace-entry-links">
+            <button onclick={() => goto(workspaceUrl(orderId,
+              suggestedWorkspaceSection(normaliseStatus(order.status),files.length>0,false)))}
+              class="entry-link featured">
+              {$t('orderWorkspace.continue')}
+            </button>
+            <button onclick={() => goto(workspaceUrl(orderId,'details'))} class="entry-link">
+              {$t('orderWorkspace.sections.details')}
+            </button>
+            <button onclick={() => goto(workspaceUrl(orderId,'files'))} class="entry-link">
+              {$t('orderWorkspace.sections.files')}
+              <span class="entry-count">{files.length}{files.length>=100?'+':''}</span>
+            </button>
+            {#if !!$currentUser && (can($currentUser,'editOrder') ||
+              (order.created_by === $currentUser.id && ['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status))))}
+              <button onclick={() => goto(workspaceUrl(orderId,'intake'))} class="entry-link"
+                disabled={!['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status))}>
+                {$t('orderWorkspace.sections.intake')}
+              </button>
+              <button onclick={() => goto(workspaceUrl(orderId,'readiness'))} class="entry-link">
+                {$t('orderWorkspace.sections.readiness')}
+              </button>
+              <button onclick={() => goto(workspaceUrl(orderId,'revisions'))} class="entry-link">
+                {$t('orderWorkspace.sections.revisions')}
+              </button>
+            {/if}
+          </div>
+        </section>
 
         <!-- Tabs Content -->
         <Tabs {tabs} bind:activeTab>
@@ -438,15 +471,14 @@
                 </div>
             {:else if activeTab === "files"}
                 <div class="tab-content">
-                    <Card title={$t("orderDetail.upload_files")} padding="lg">
-                        <FileUpload
-                            {orderId}
-                            onuploaded={handleFileUploaded}
-                        />
-                    </Card>
-
                     <Card title={$t("orderDetail.uploaded_files")} padding="lg">
-                        <FileList {files} ondelete={handleDeleteFile} />
+                        <OrderFiles {orderId} onChanged={() => { void refreshFileList(); }}
+                            canUpload={!!$currentUser && (
+                                (['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status)) &&
+                                  (can($currentUser,'editOrder') || order.created_by === $currentUser.id)) ||
+                                (['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(normaliseStatus(order.status)) &&
+                                  can($currentUser,'addProductionFiles'))
+                            )} />
                     </Card>
                 </div>
             {:else if activeTab === "consumption"}
@@ -546,6 +578,28 @@
 {/if}
 
 <style>
+    .workspace-entry{
+      display:grid;grid-template-columns:minmax(170px,260px) minmax(0,1fr);
+      gap:16px;align-items:center;padding:16px 20px;margin-bottom:18px;
+      border:1px solid var(--border);border-radius:14px;background:var(--bg-1)
+    }
+    .workspace-entry h2{font-size:15px;margin:0 0 5px}
+    .workspace-entry p{font-size:12px;color:var(--text-muted);margin:0}
+    .workspace-entry-links{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+    .entry-link{display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+      border:1px solid var(--border);border-radius:9px;padding:9px 12px;
+      color:var(--text);background:var(--bg-2);font-weight:600;font-size:12px}
+    .entry-link.featured{background:var(--brand);color:white;border-color:var(--brand)}
+    .entry-link:disabled{opacity:.5;cursor:not-allowed}
+    .entry-count{display:inline-flex;align-items:center;justify-content:center;
+      min-width:20px;padding:1px 5px;border-radius:10px;background:var(--bg-1);
+      color:var(--text-muted);font-size:10px}
+    @media(max-width:680px){
+      .workspace-entry{grid-template-columns:minmax(0,1fr);padding:14px}
+      .workspace-entry-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+      .entry-link{justify-content:center}
+    }
+
     .order-detail-container {
         padding: 2rem;
         max-width: 1400px;
