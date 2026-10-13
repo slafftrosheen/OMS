@@ -126,12 +126,22 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
   if (['status', 'po_number', 'loading_date'].some(k => body[k] !== undefined)) {
     throw error(409, 'Use confirmation, loading assignment, dispatch or archive endpoints');
   }
+  const { data: before, error: stateError } = await locals.supabase.from('draft_orders')
+    .select('id,status').eq('id',params.id).maybeSingle();
+  if (stateError) throw error(503,'Order lookup unavailable');
+  if (!before) throw error(404,'Order not found');
+  if (!['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(before.status)) {
+    throw error(409,'This order is not editable in its current lifecycle state');
+  }
   const allowed = ['title','client','due_date','is_rd','rd_notes','priority','notes','badges'] as const;
+  if (Object.keys(body).some(field => !allowed.includes(field as (typeof allowed)[number]))) {
+    throw error(400,'Unsupported order metadata field');
+  }
   const updateData: Record<string, unknown> = { updated_by: locals.user.id };
   for (const field of allowed) if (body[field] !== undefined) updateData[field] = body[field];
   if (Object.keys(updateData).length === 1) throw error(400, 'No editable fields supplied');
   const { data, error: updateErr } = await locals.supabase.from('draft_orders')
-    .update(updateData).eq('id', params.id).select().maybeSingle();
+    .update(updateData).eq('id', params.id).eq('status',before.status).select().maybeSingle();
   if (updateErr) throw error(500, 'Failed to update order');
   if (!data) throw error(404, 'Order not found');
   return json(data);
