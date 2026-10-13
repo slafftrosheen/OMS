@@ -889,6 +889,14 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                 <label>Quantity
                   <input type="number" min="1" max="1000" bind:value={profile.quantity} disabled={!canEdit} />
                 </label>
+                {#each [2,3,4] as qty}
+                  <label>Quantity {qty}
+                    <input type="number" min="0" max="1000"
+                      value={profile[`quantity${qty}`] ?? 0}
+                      onchange={(e) => profile[`quantity${qty}`] = Number(e.currentTarget.value)}
+                      disabled={!canEdit} />
+                  </label>
+                {/each}
                 <label>Notes
                   <textarea bind:value={profile.notes} rows="2" disabled={!canEdit}></textarea>
                 </label>
