@@ -15,6 +15,7 @@
   import ChangeRequestList from '$lib/order/ChangeRequestList.svelte';
   import OrderFiles from '$lib/order/OrderFiles.svelte';
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
+  import OrderReadinessAssistant from '$lib/order/OrderReadinessAssistant.svelte';
 import { notifications } from '$lib/notify/store';
 import { can, normaliseStatus, ORDER_STATUS_LABELS } from '$lib/auth/permission-utils';
 import type { OrderStatus } from '$lib/auth/permission-utils';
@@ -24,6 +25,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   // ── Order state ─────────────────────────────────────────────────────────────
   let orderId: string | null = $state(null);
   let createdBy = $state('');
+  let orderUpdatedAt: string | null = $state(null);
   let poNumber = $state('');
   let clientName = $state('');
   let title = $state('');
@@ -83,7 +85,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let saving = $state(false);
   let confirming = $state(false);
   let error = $state('');
-  let rightTab: 'layers' | 'changes' | 'chat' | 'files' | 'details' | 'intake' = $state('details');
+  let rightTab: 'layers' | 'changes' | 'chat' | 'files' | 'details' | 'intake' | 'readiness' = $state('details');
   let intakeFileId = $state('');
   let intakeCurrent = $derived({
     clientName,title,deadline,loadingDate,priority,notes,
@@ -166,6 +168,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
       orderId = String(order.id);
       createdBy = String(order.createdBy ?? '');
+      orderUpdatedAt = order.updatedAt ?? null;
       clientName = order.clientName || '';
       poNumber = order.poNumber || '';
       title = order.title || order.clientName || '';
@@ -850,6 +853,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         <button class="dtab" class:active={rightTab === 'intake'} onclick={() => rightTab = 'intake'}>
           <Icon name="sparkles" size="sm" /> {$t('orderIntake.tab')}
         </button>
+        <button class="dtab" class:active={rightTab === 'readiness'} onclick={() => rightTab = 'readiness'}>
+          <Icon name="clipboard-check" size="sm" /> {$t('productionReadiness.tab')}
+        </button>
         <button class="dtab" class:active={rightTab === 'chat'} onclick={() => rightTab = 'chat'}>
           <Icon name="message-square" size="sm" /> AI
         </button>
@@ -947,6 +953,13 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             {/if}
           </div>
 
+        {:else if rightTab === 'readiness'}
+          {#if orderId}
+            <OrderReadinessAssistant {orderId}
+              orderUpdatedAt={orderUpdatedAt}
+              canRun={!!$currentUser && can($currentUser, 'editOrder') ||
+                (canEdit && !!$currentUser && $currentUser.id === createdBy)} />
+          {/if}
         {:else if rightTab === 'intake'}
           {#if orderId}
             <OrderIntakeAssistant {orderId} editable={canEdit} current={intakeCurrent}
