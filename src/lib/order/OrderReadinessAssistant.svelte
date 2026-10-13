@@ -27,7 +27,7 @@
     try{
       const res=await fetch('/api/ai/order-readiness',{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({orderId:requestedId})
+        body:JSON.stringify({orderId:requestedId,consent:true})
       });
       const result=await res.json().catch(()=>({}));
       if(requestedId!==orderId)return;
