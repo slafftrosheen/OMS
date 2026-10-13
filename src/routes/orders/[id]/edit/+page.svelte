@@ -349,6 +349,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   // ── Save draft ────────────────────────────────────────────────────────────────
   async function saveDraft(): Promise<boolean> {
     if (!orderId || !canEdit) { notifyError('You cannot edit this draft'); return false; }
+    if (saving) return false;
     if (!clientName.trim() || !deadline) { notifyError('Client and deadline are required'); return false; }
     saving = true;
     try {
@@ -374,6 +375,11 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         const payload = await res.json().catch(() => ({}));
         throw new Error(payload.error || payload.message || 'Save failed');
       }
+      const persisted = await res.json();
+      // A readiness report about the previous draft revision is now stale,
+      // including when the separate Canvas save subsequently fails.
+      orderUpdatedAt = typeof persisted.updatedAt === 'string'
+        ? persisted.updatedAt : null;
 
       // Persist canvas state
       if (canvasSnapshot) {
