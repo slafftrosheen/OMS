@@ -1415,6 +1415,13 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "orderWorkspace": {
+    "approveReview": "Apstiprināt pārskatīšanu",
+    "rejectReview": "Noraidīt",
+    "reviewDecisionWarning": "Reģistrēt pārskatīšanas lēmumu? Pasūtījuma dati automātiski netiks mainīti.",
+    "reviewRecorded": "Lēmums reģistrēts. Pasūtījuma dati nemainījās.",
+    "changeListError": "Neizdevās ielādēt izmaiņu pieprasījumus.",
+    "changeReviewError": "Neizdevās saglabāt pārskatīšanas lēmumu.",
+    "unknownAuthor": "Nezināms autors",
     "title": "Pasūtījuma darba vide",
     "overviewHint": "Vienuviet — pasūtījuma sagatavošana, faili, ražošanas pārbaudes, versijas un saskaņojumi.",
     "openWorkspace": "Atvērt darba vidi",
