@@ -980,7 +980,7 @@
           </div>
         {/if}
         {#if searchNote}
-          <p class="research-note" role="status">{$t('toolkit.canvas.researchStatus')}: {searchNote}</p>
+          <p class="research-note" role="status">{$t('toolkit.canvas.researchStatus')}: {$t(`toolkit.canvas.searchNote${searchNote}`)}</p>
         {/if}
         {#if webSearchRequests !== null && skill === 'research' && webMode === 'openrouter'}
           <p class="research-note">{$t('toolkit.canvas.webSearchCalls', { count: webSearchRequests })}</p>
