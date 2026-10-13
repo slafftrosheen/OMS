@@ -1414,6 +1414,40 @@
     "edit_order": "Rediģēt pasūtījumu",
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
+  "orderWorkspace": {
+    "title": "Pasūtījuma darba vide",
+    "overviewHint": "Vienuviet — pasūtījuma sagatavošana, faili, ražošanas pārbaudes, versijas un saskaņojumi.",
+    "openWorkspace": "Atvērt darba vidi",
+    "continue": "Turpināt darbu",
+    "workflowLabel": "Pasūtījuma darbplūsma",
+    "sectionsLabel": "Darba vides sadaļas",
+    "groups": {
+      "prepare": "Sagatavošana",
+      "plan": "Ražošanas plāns",
+      "review": "Izmaiņu pārskatīšana",
+      "collaborate": "Saziņa"
+    },
+    "sections": {
+      "details": "Dati un profili",
+      "files": "Pielikumi",
+      "intake": "AI ievade",
+      "readiness": "Ražošanas gatavība",
+      "layers": "Audekls un zonas",
+      "revisions": "Failu versijas",
+      "changes": "Izmaiņu saskaņošana",
+      "chat": "AI saruna"
+    },
+    "unsaved": "Nesaglabātas izmaiņas",
+    "savedState": "Izmaiņas saglabātas",
+    "leaveWarning": "Pasūtījumā ir nesaglabātas izmaiņas. Pamest lapu un tās zaudēt?",
+    "showCanvas": "Rādīt audeklu",
+    "focusPanel": "Atvērt paneli",
+    "saveHelp": "Saglabāt melnrakstu un laukus. AI ieteikumi tiek saglabāti tikai pēc apstiprināšanas un saglabāšanas.",
+    "stationAction": "Mainīt ceha stāvokli",
+    "stageQueued": "Rindā",
+    "stageCompletionHint": "Ceha darbu pabeidz atsevišķā materiālu patēriņa darbplūsmā.",
+    "blockReasonPrompt": "Kāpēc cehs ir bloķēts? Iemesls ir obligāts."
+  },
   "revisionIntelligence": {
     "tab": "Versijas",
     "title": "Klienta failu versiju salīdzināšana",
