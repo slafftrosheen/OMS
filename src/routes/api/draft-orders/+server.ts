@@ -3,6 +3,7 @@ import { json, type RequestHandler } from '@sveltejs/kit';
 import { getPagination } from '$lib/server/pagination';
 import { apiError } from '$lib/server/errors';
 import { notifyDraftCreated } from '$lib/server/notifications/orderNotifier';
+import { orderFields, canonicalDraftFields, canonicalOrderProfiles } from '$lib/server/order/draft-contract';
 
 /**
  * GET /api/draft-orders - List all draft orders with pagination
@@ -87,108 +88,42 @@ export const GET: RequestHandler = async ({ url, locals }) => {
  * POST /api/draft-orders - Create a new draft order
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
-  const session = await locals.getSession();
-  if (!session) {
-    return json({ error: 'Unauthorized' }, { status: 401 });
+  const user = locals.user;
+  if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+  if (!['RD','Boss','HeadOfProduction'].includes(user.role)) {
+    return json({ error: 'Only manufacturing management can create orders' }, { status: 403 });
   }
-
-  try {
-    const body = await request.json();
-
-    // Map frontend fields (clientName, deadline, priority) to database schema (client, due_date, priority).
-    // PO is no longer required at creation — Boss assigns it at confirmation.
-    const client = body.clientName || body.client;
-    const due_date = body.deadline || body.due_date;
-    // A PO is assigned only by Boss during confirmation.
-    if (body.poNumber || body.po_number) return json({ error: 'Assign the PO during confirmation' }, { status: 409 });
-    const po_number = null;
-
-    if (!client || !due_date) {
-      return json({ error: 'Missing required fields: client, due_date' }, { status: 400 });
-    }
-
-    if (po_number && (typeof po_number !== 'string' || po_number.length > 16)) {
-      return json({ error: 'PO number must be 1-16 characters' }, { status: 400 });
-    }
-
-    // Default lifecycle for new drafts is PENDING_REVIEW so HoP sees them
-    // immediately in the review queue. Caller can override (e.g. for an
-    // explicit save-as-draft action that stays private to the creator).
-    const status = String(body.status ?? 'PENDING_REVIEW').toUpperCase();
-    if (!['DRAFT', 'PENDING_REVIEW'].includes(status)) {
-      return json({ error: 'New orders must be drafts or pending review' }, { status: 400 });
-    }
-    const title = body.title || `${client} – ${po_number ?? 'pending'}`;
-
-    // 1. Create the order
-    const { data: order, error: orderError } = await locals.supabase
-      .from('draft_orders')
-      .insert({
-        po_number,
-        title,
-        client,
-        due_date,
-        loading_date: body.loadingDate || null,
-        priority: body.priority || 'NORMAL',
-        status,
-        notes: body.notes || '',
-        delivery_preset_id: body.deliveryPresetId || null,
-        delivery_address: body.deliveryAddress || '',
-        delivery_contact: body.deliveryContact || '',
-        delivery_phone: body.deliveryPhone || '',
-        created_by: session.user.id
-      })
-      .select()
-      .single();
-
-    if (orderError) {
-      console.error('Database order creation error:', orderError);
-      // Surface the unique-violation on po_number with a friendly message
-      if (orderError.code === '23505' && /po_number/.test(orderError.message)) {
-        return json({ error: 'PO number already in use' }, { status: 409 });
-      }
-      return json({ error: `Failed to create order: ${orderError.message}` }, { status: 500 });
-    }
-
-    // 2. Insert Profiles (if any)
-    if (body.profiles && Array.isArray(body.profiles) && body.profiles.length > 0) {
-      const profilesToInsert = body.profiles.map((p: any) => ({
-        draft_order_id: order.id,
-        profile_template_id: p.profileTemplateId || null,
-        quantity1: p.quantity || 1,
-        configuration: p.configuration || {},
-        notes: p.notes || ''
-      }));
-
-      const { error: profileError } = await locals.supabase
-        .from('order_profiles')
-        .insert(profilesToInsert);
-
-      if (profileError) {
-        console.error('Database profile insertion error:', profileError);
-        // Continue but log error (don't fail the whole order creation)
-      }
-    }
-
-    // 3. Fire HoP/Boss notifications for drafts entering review.
-    //    Don't fail the request on notification errors — they're best-effort.
-    if (status === 'PENDING_REVIEW') {
-      try {
-        await notifyDraftCreated(locals.supabase, {
-          orderId: order.id,
-          internalRef: order.internal_ref ?? null,
-          client,
-          createdById: session.user.id,
-        });
-      } catch (notifyErr) {
-        console.error('notifyDraftCreated failed:', notifyErr);
-      }
-    }
-
-    return json({ success: true, order }, { status: 201 });
-  } catch (err: any) {
-    console.error('POST /api/draft-orders error:', err);
-    return json({ error: 'Internal server error processing order creation' }, { status: 500 });
+  const raw = await request.json().catch(() => null);
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      raw.poNumber !== undefined || raw.po_number !== undefined) {
+    return json({ error: 'Invalid order; PO is assigned during confirmation' }, { status: 400 });
   }
+  const parsed = orderFields.safeParse(raw);
+  if (!parsed.success) return json({ error: 'Invalid order fields', fields: parsed.error.flatten().fieldErrors }, { status: 400 });
+  const input = parsed.data;
+  let fields: Record<string, unknown>;
+  try { fields = canonicalDraftFields(input, true); }
+  catch (err) { return json({ error: (err as Error).message }, { status: 400 }); }
+  const { data: order, error: createError } = await locals.supabase.rpc('oms_create_draft_form', {
+    p_fields: fields,
+    p_profiles: canonicalOrderProfiles(input.profiles),
+    p_status: input.status ?? 'PENDING_REVIEW'
+  });
+  if (createError || !order) {
+    if (createError?.code === 'PGRST202') return json({
+      error: 'Atomic draft-form migration missing; deploy 20261013000001_atomic_draft_forms.sql'
+    }, { status: 503 });
+    console.error('[Orders] Transactional draft create failed', createError?.code);
+    return json({ error: 'Order was not created. Verify required fields, profiles and permissions.' },
+      { status: createError?.code === '23505' ? 409 : 400 });
+  }
+  if (order.status === 'PENDING_REVIEW') {
+    try {
+      await notifyDraftCreated(locals.supabase, {
+        orderId: order.id, internalRef: order.internal_ref ?? null,
+        client: order.client, createdById: user.id
+      });
+    } catch (err) { console.error('[Orders] Draft notification unavailable', err); }
+  }
+  return json({ success: true, order }, { status: 201, headers: { 'Cache-Control': 'private, no-store' } });
 };
-
