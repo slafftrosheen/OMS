@@ -1,6 +1,5 @@
 <script lang="ts">
   import { t } from 'svelte-i18n';
-  import { onMount } from 'svelte';
   import type { ModelReadiness, ReadinessIssue, ReadinessEvidence } from './production-readiness';
 
   type Report={
@@ -16,13 +15,13 @@
   let busy=$state(false);
   let error=$state('');
   let report=$state<Report|null>(null);
-  let approval=$state(false);
+  let consent=$state(false);
   let lastOrderId=$state(orderId);
   $effect(()=>{
-    if(lastOrderId!==orderId){lastOrderId=orderId;report=null;approval=false;error='';}
+    if(lastOrderId!==orderId){lastOrderId=orderId;report=null;consent=false;error='';}
   });
   async function analyze(){
-    if(!canRun||busy)return;
+    if(!canRun||busy||!consent)return;
     busy=true;error='';report=null;
     const requestedId=orderId;
     try{
@@ -50,7 +49,11 @@
 <section class="readiness" aria-label={$t('productionReadiness.title')}>
   <h3>{$t('productionReadiness.title')}</h3>
   <p class="description">{$t('productionReadiness.intro')}</p>
-  <button class="analyze" onclick={analyze} disabled={busy||!canRun}>
+  <label class="consent">
+    <input type="checkbox" bind:checked={consent} disabled={busy||!canRun}/>
+    {$t('productionReadiness.consent')}
+  </label>
+  <button class="analyze" onclick={analyze} disabled={busy||!canRun||!consent}>
     {busy?$t('productionReadiness.checking'):$t('productionReadiness.run')}
   </button>
   {#if error}<p class="issue" role="alert">{error}</p>{/if}
@@ -137,6 +140,8 @@
   .readiness{display:grid;gap:10px;padding:12px;max-height:100%;overflow-y:auto;font-size:12px}
   h3,h4{margin:0;font-size:14px} h4{margin-top:7px}
   .description,.evidence,small{font-size:11px;line-height:1.5;color:var(--ink-secondary);margin:0}
+  .consent{display:flex;align-items:flex-start;gap:8px;font-size:11px;line-height:1.5}
+  .consent input{flex-shrink:0}
   .analyze{padding:9px;border-radius:8px;border:1px solid var(--brand);background:var(--brand);color:white;cursor:pointer}
   .analyze:disabled{opacity:.45;cursor:not-allowed}
   .summary,.material{padding:9px;border:1px solid var(--border);border-radius:9px;display:grid;gap:4px}
