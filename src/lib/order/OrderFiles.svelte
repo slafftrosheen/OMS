@@ -73,7 +73,7 @@
       if (!res.ok) throw new Error('Could not load order files');
       files = await res.json();
     } catch (err) {
-      console.error('Failed to load files:', err);
+      fileError = err instanceof Error ? err.message : 'Could not load order files';
     } finally {
       loading = false;
     }
@@ -127,8 +127,13 @@
 
   async function uploadQueue(filesToUpload: globalThis.File[]) {
     if (uploading || !canUpload) return;
-    for (const file of filesToUpload) await uploadFile(file);
+    const failed: string[] = [];
+    for (const file of filesToUpload) {
+      await uploadFile(file);
+      if (fileError) failed.push(`${file.name}: ${fileError}`);
+    }
     await loadFiles();
+    if (failed.length) fileError = failed.join(' | ').slice(0, 800);
   }
 
   function handleDrop(event: DragEvent) {
