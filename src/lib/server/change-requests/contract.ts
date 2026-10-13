@@ -1,6 +1,6 @@
 export const APPLYABLE_CHANGE_FIELDS = new Set([
   'title', 'client', 'due_date', 'loading_date', 'priority',
-  'notes', 'is_rd', 'rd_notes', 'badges', 'status'
+  'notes', 'is_rd', 'rd_notes', 'badges'
 ]);
 
 export function buildCreateChangeRequestArgs(orderId: string, input: { description?: string; changes?: unknown; proposed_diff?: unknown }) {
