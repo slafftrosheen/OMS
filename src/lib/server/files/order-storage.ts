@@ -63,7 +63,7 @@ export function orderFileBucket(row: {metadata?:Record<string,unknown> | null}) 
  * Use request-scoped authenticated Storage for all new and legacy Supabase
  * objects, with the historic local fallback strictly for old objects.
  */
-export async function readOrderStoredFile(locals: App.Locals, row: Record<string, any>) {
+export async function readOrderStoredFile(locals: App.Locals, row: Record<string, any>, maxBytes?:number) {
   const bucket=orderFileBucket(row);
   const key=typeof row.metadata?.storage_key === 'string' && row.metadata.storage_key
     ? row.metadata.storage_key : row.filepath;
@@ -71,13 +71,20 @@ export async function readOrderStoredFile(locals: App.Locals, row: Record<string
   const candidates=bucket === ORDER_FILE_BUCKET ? [ORDER_FILE_BUCKET] : ['order-files','files'];
   for(const candidate of candidates){
     const { data, error }=await locals.supabase.storage.from(candidate).download(key);
-    if(!error && data) return Buffer.from(await data.arrayBuffer());
+    if(!error && data) {
+      if(maxBytes!==undefined && data.size>maxBytes)
+        throw new Error('Order file exceeds the analysis limit');
+      return Buffer.from(await data.arrayBuffer());
+    }
   }
   if(bucket !== ORDER_FILE_BUCKET) {
     // Previous releases could save local files when Supabase was disabled.
     // No new upload uses the fallback; only historical files may need it.
     const { storageService }=await import('$lib/server/storage/StorageService');
-    return (await storageService.download(key)).buffer;
+    const result=(await storageService.download(key)).buffer;
+    if(maxBytes!==undefined && result.length>maxBytes)
+      throw new Error('Legacy order file exceeds the analysis limit');
+    return result;
   }
   throw new Error('Stored file is unavailable');
 }
