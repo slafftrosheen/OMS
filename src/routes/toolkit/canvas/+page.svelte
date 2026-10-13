@@ -1019,7 +1019,7 @@
   button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
   button.primary,.new-project,.assistant-toggle{background:var(--brand);color:white;border-color:var(--brand)}
   .command-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg-1);border-bottom:1px solid var(--border);gap:12px;flex-wrap:wrap}
-  .workspace-title,.command-actions{display:flex;align-items:center;gap:8px;min-width:0}.workspace-title{flex:1}.workspace-title h2{font-size:16px;margin:0}
+  .workspace-title,.command-actions{display:flex;align-items:center;gap:8px;min-width:0}.workspace-title{flex:1}.workspace-title h2{font-size:16px;margin:0}.command-actions{flex-wrap:wrap;justify-content:flex-end;max-width:100%}
   .board-title{font-family:inherit;font-size:16px;font-weight:750;background:transparent;border:1px solid transparent;padding:6px;border-radius:7px;min-width:100px;max-width:340px;flex:1;color:var(--text)}
   .board-title:hover,.board-title:focus{border-color:var(--border)}
   .team-label{font-size:11px;font-weight:700;color:var(--ink-secondary);white-space:nowrap}
