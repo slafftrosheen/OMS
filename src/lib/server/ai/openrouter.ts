@@ -121,20 +121,57 @@ export function openRouterError(response: Response, text: string, credential = '
   return new Error(`OpenRouter returned ${response.status}${safeText ? `: ${safeText}` : ''}`);
 }
 
+export function openRouterTextContent(content: unknown): string {
+  if (typeof content === 'string') return content.trim();
+  if (Array.isArray(content)) {
+    return content.map(part => {
+      if (typeof part === 'string') return part;
+      if (!part || typeof part !== 'object') return '';
+      const value = part as Record<string, unknown>;
+      return typeof value.text === 'string' ? value.text
+        : typeof value.content === 'string' ? value.content : '';
+    }).filter(Boolean).join('\n').trim();
+  }
+  return '';
+}
+
+export interface OpenRouterCompletionMetadata {
+  text: string;
+  model: string;
+  annotations: unknown[];
+  /** Number of provider web-search calls when reported; null if absent. */
+  webSearchRequests: number | null;
+}
+
+export async function openRouterCompleteWithMetadata(
+  messages: OpenRouterMessage[],
+  options: Omit<OpenRouterChatOptions, 'messages'> = {},
+  config?: OpenRouterClientConfig,
+  fetcher: typeof fetch = fetch
+): Promise<OpenRouterCompletionMetadata> {
+  const { response, model } = await openRouterChat({ ...options, messages, stream: false }, config, fetcher);
+  if (!response.ok) {
+    // Never surface upstream error bodies that may echo prompts or credentials.
+    throw new Error(`OpenRouter completion failed (HTTP ${response.status})`);
+  }
+  const data = await response.json();
+  const choice = data?.choices?.[0];
+  const reported = data?.usage?.server_tool_use?.web_search_requests;
+  return {
+    text: openRouterTextContent(choice?.message?.content),
+    model: typeof data?.model === 'string' && data.model ? data.model : model,
+    annotations: Array.isArray(choice?.message?.annotations) ? choice.message.annotations : [],
+    webSearchRequests: Number.isSafeInteger(reported) && reported >= 0 ? reported : null
+  };
+}
+
 export async function openRouterComplete(
   messages: OpenRouterMessage[],
   options: Omit<OpenRouterChatOptions, 'messages'> = {},
   config?: OpenRouterClientConfig,
   fetcher: typeof fetch = fetch
 ): Promise<string> {
-  const { response } = await openRouterChat({ ...options, messages, stream: false }, config, fetcher);
-  if (!response.ok) {
-    // Do not reflect provider error bodies (which may contain prompt text
-    // or echoed credentials) into order descriptions or outward-facing routes.
-    throw new Error(`OpenRouter completion failed (HTTP ${response.status})`);
-  }
-  const data = await response.json();
-  return String(data?.choices?.[0]?.message?.content ?? '').trim();
+  return (await openRouterCompleteWithMetadata(messages, options, config, fetcher)).text;
 }
 
 export function extractAssistantMessage(payload: any): OpenRouterMessage {
