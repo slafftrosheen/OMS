@@ -1,4 +1,5 @@
 import React from 'react';
+import { useToolkitText } from '../use-toolkit-text';
 import { PdfPreview } from './PdfPreview';
 import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 
@@ -42,6 +43,7 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
     }
 
     override component(shape: DocumentShape) {
+        const tn = useToolkitText();
         const { w, h, title, content, status, url, kind, mime } = shape.props;
         const stop = (e: React.SyntheticEvent) => e.stopPropagation();
         const edit = (props: Partial<DocumentShape['props']>) =>
@@ -69,17 +71,17 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
                     <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 8 }}>
                         <div style={{ fontSize: 36 }}>📎</div>
                         <a href={url} target="_blank" rel="noopener noreferrer" style={linkStyle} onClick={stop}>
-                            Download {title} ↗
+                            {tn('download')} {title} ↗
                         </a>
                         <span style={{ fontSize: 11, color: 'var(--text-muted, #888)' }}>{mime || 'file'}</span>
                     </div>
                 );
             }
             return editable ? (
-                <textarea aria-label="Document notes" value={content || ''}
+                <textarea aria-label={tn('documentNotes')} value={content || ''}
                     onChange={e => edit({ content: e.target.value })}
                     onPointerDown={stop} onKeyDown={stop}
-                    placeholder="Write or paste research, sketches or project notes…"
+                    placeholder={tn('notesPlaceholder')}
                     style={{ width: '100%', height: '100%', boxSizing: 'border-box',
                         padding: 13, resize: 'none', border: 0, outlineOffset: -2,
                         background: 'transparent', color: 'var(--text)',
@@ -114,7 +116,7 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
                     gap: 6,
                     flexShrink: 0,
                 }}>
-                    {editable ? <input aria-label="Document title" value={title}
+                    {editable ? <input aria-label={tn('documentTitle')} value={title}
                         maxLength={120} onChange={e => edit({ title: e.target.value })}
                         onPointerDown={stop} onKeyDown={stop}
                         style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 12,
@@ -122,13 +124,13 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
                     /> : <strong style={{ fontSize: 12, textOverflow: 'ellipsis',
                         overflow: 'hidden', whiteSpace: 'nowrap', flex: 1 }}>{title}</strong>}
                     {kind === 'image' && url && <>
-                        <button type="button" title="Toggle crop / fit image" aria-label="Toggle image fit"
+                        <button type="button" title={tn('imageCrop')} aria-label={tn('imageFit')}
                             onPointerDown={stop} onKeyDown={stop}
                             onClick={() => edit({ fit: shape.props.fit === 'cover' ? 'contain' : 'cover' })}
-                            style={{ fontSize: 10, padding: '3px 6px' }}>{shape.props.fit === 'cover' ? 'Fit' : 'Crop'}</button>
-                        <label title="Image opacity" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
-                            <span>Opacity</span>
-                            <input type="range" aria-label="Image opacity" min="15" max="100"
+                            style={{ fontSize: 10, padding: '3px 6px' }}>{shape.props.fit === 'cover' ? tn('fit') : tn('crop')}</button>
+                        <label title={tn('imageOpacity')} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
+                            <span>{tn('opacity')}</span>
+                            <input type="range" aria-label={tn('imageOpacity')} min="15" max="100"
                                 value={shape.props.opacity ?? 100} onPointerDown={stop} onKeyDown={stop}
                                 onChange={e => edit({ opacity: Number(e.target.value) })}
                                 style={{ width: 50 }} />
