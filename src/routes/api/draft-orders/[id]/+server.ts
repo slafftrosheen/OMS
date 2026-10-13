@@ -156,13 +156,14 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
     return json(updated, { headers: { 'Cache-Control': 'private, no-store' } });
   }
   if (!canEditConfirmedMetadata(user.role)) throw error(403, 'Manager role required');
-  if (parsed.data.loadingDate !== undefined) throw error(409, 'Use the loading-day assignment endpoint');
+  if (!['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(order.status)) {
+    throw error(409,'Order metadata is locked in this lifecycle state');
+  }
   const allowed = canonicalDraftFields(parsed.data,false);
-  delete allowed.loading_date;
-  delete allowed.delivery_preset_id; // confirmed logistics are managed separately
-  delete allowed.delivery_address;
-  delete allowed.delivery_contact;
-  delete allowed.delivery_phone;
+  const permitted = new Set(['title','client','due_date','priority','notes','is_rd','rd_notes','badges']);
+  if (Object.keys(allowed).some(k => !permitted.has(k))) {
+    throw error(409,'Confirmed order logistics and delivery are edited through dedicated workflows');
+  }
   if (!Object.keys(allowed).length) throw error(400,'No permitted fields supplied');
   const { data: updated, error: failed } = await locals.supabase.from('draft_orders')
     .update({ ...allowed, updated_by: user.id })
