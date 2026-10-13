@@ -2,7 +2,9 @@
   /** Toolkit conversations, served by the existing private messages API. */
   import { onMount } from 'svelte';
   import Icon from '$lib/ui/Icon.svelte';
-  import { t } from 'svelte-i18n';
+  import { t, locale } from 'svelte-i18n';
+  import { get } from 'svelte/store';
+  const tr = (key: string) => get(t)(`toolkit.chat.${key}`);
 
 
   type Session = {
@@ -49,10 +51,10 @@
           await openSession(sessions[0]);
         }
       } else if (res.status === 401) {
-        error = 'Please log in to use Conversations.';
+        error = tr('login');
       }
     } catch {
-      error = 'Failed to load chat sessions.';
+      error = tr('loadSessions');
     } finally {
       sessionsLoading = false;
     }
@@ -70,7 +72,7 @@
         scrollToBottom();
       }
     } catch {
-      error = 'Failed to load messages.';
+      error = tr('loadMessages');
     } finally {
       loading = false;
     }
@@ -81,7 +83,7 @@
       const res = await fetch('/api/ai/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'New conversation' }),
+        body: JSON.stringify({ title: get(t)('ailab.chat.new_convo') }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -89,7 +91,7 @@
         await openSession(data.session);
       }
     } catch {
-      error = 'Failed to create session.';
+      error = tr('create');
     }
   }
 
@@ -114,7 +116,8 @@
     scrollToBottom();
 
     const payload: Record<string, unknown> = {
-      content: textBody
+      content: textBody,
+      language: $locale
     };
 
     try {
@@ -129,7 +132,7 @@
         // Use the API response directly instead of a full refetch.
         // Replace the temp id on the optimistic user message with a stable one
         // and append the assistant reply.
-        const reply = data.content ?? '(no response)';
+        const reply = data.content ?? tr('emptyReply');
         messages = [
           ...messages.map(m => m.id === optimistic.id
             ? { ...m, id: `${optimistic.id}-final` }
@@ -159,7 +162,7 @@
         messages = messages.filter(m => m.id !== optimistic.id);
       }
     } catch (e: any) {
-      error = 'Failed to send message.';
+      error = tr('sendError');
       messages = messages.filter(m => m.id !== optimistic.id);
     } finally {
       sendLoading = false;
@@ -171,7 +174,7 @@
   }
 
   function formatTime(iso: string) {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(iso).toLocaleTimeString(get(locale) === 'ru' ? 'ru-RU' : get(locale) === 'lv' ? 'lv-LV' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
   }
 
   onMount(loadSessions);
@@ -217,8 +220,8 @@
     {#if !activeSession}
       <div class="empty-chat">
         <Icon name="message-square" size="md" />
-        <h3>Conversations</h3>
-        <p>Start a discussion or open a project canvas to brainstorm visually.</p>
+        <h3>{$t('toolkit.chatTab')}</h3>
+        <p>{$t('toolkit.chat.startIntro')}</p>
         <button class="btn-create" onclick={createSession}>{$t('ailab.chat.new_convo')}</button>
       </div>
     {:else}
@@ -247,7 +250,7 @@
                 <div class="msg-meta">
                   <span class="msg-role">{msg.role}</span>
                   {#if msg.node_label}
-                    <span class="msg-node">via {msg.node_label}</span>
+                    <span class="msg-node">{$t('toolkit.chat.via')} {msg.node_label}</span>
                   {/if}
                   <span class="msg-time">{formatTime(msg.created_at)}</span>
                 </div>
