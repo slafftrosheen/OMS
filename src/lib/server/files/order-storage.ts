@@ -39,3 +39,41 @@ export function storedOrderFileKey(orderId:string,userId:string,fileId:string,fi
 export function orderFileBucket(row: {metadata?:Record<string,unknown> | null}) {
   return row.metadata?.storage_bucket === ORDER_FILE_BUCKET ? ORDER_FILE_BUCKET : 'legacy';
 }
+
+/** Existing metadata may refer to the retired legacy order-files bucket
+ * (or local StorageService fallback). Never rewrite old paths in place.
+ * Use request-scoped authenticated Storage for all new and legacy Supabase
+ * objects, with the historic local fallback strictly for old objects.
+ */
+export async function readOrderStoredFile(locals: App.Locals, row: Record<string, any>) {
+  const bucket=orderFileBucket(row);
+  const key=typeof row.metadata?.storage_key === 'string' && row.metadata.storage_key
+    ? row.metadata.storage_key : row.filepath;
+  if(typeof key !== 'string' || !key.startsWith('orders/')) throw new Error('Invalid file path');
+  const candidates=bucket === ORDER_FILE_BUCKET ? [ORDER_FILE_BUCKET] : ['order-files','files'];
+  for(const candidate of candidates){
+    const { data, error }=await locals.supabase.storage.from(candidate).download(key);
+    if(!error && data) return Buffer.from(await data.arrayBuffer());
+  }
+  if(bucket !== ORDER_FILE_BUCKET) {
+    // Previous releases could save local files when Supabase was disabled.
+    // No new upload uses the fallback; only historical files may need it.
+    const { storageService }=await import('$lib/server/storage/StorageService');
+    return (await storageService.download(key)).buffer;
+  }
+  throw new Error('Stored file is unavailable');
+}
+export async function removeOrderStoredFile(locals: App.Locals, row: Record<string, any>) {
+  const bucket=orderFileBucket(row);
+  const key=typeof row.metadata?.storage_key === 'string' && row.metadata.storage_key
+    ? row.metadata.storage_key : row.filepath;
+  if(typeof key !== 'string' || !key.startsWith('orders/')) throw new Error('Invalid file path');
+  if(bucket === ORDER_FILE_BUCKET) {
+    const { error }=await locals.supabase.storage.from(ORDER_FILE_BUCKET).remove([key]);
+    if(error) throw error;
+    return;
+  }
+  // Use historic storage service only for objects created by its legacy path.
+  const { storageService }=await import('$lib/server/storage/StorageService');
+  await storageService.delete(key);
+}
