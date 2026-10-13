@@ -579,6 +579,21 @@
     }
   }
 
+  function pinFileAnalysis() {
+    if (!editor || !boardId || conflict || remoteUpdated || !lastAnalyzedAsset) return;
+    const record = analyzedAssets[lastAnalyzedAsset];
+    if (!record) return;
+    // Deliberate publishing step: the source file stays private in Supabase;
+    // only an explicitly chosen bounded summary goes into the shared Canvas.
+    const summary = [
+      tr('canvas.modelInterpretationLabel'),
+      record.answer,
+      ...(record.evidence ? [tr('canvas.parsedEvidenceLabel'), record.evidence] : [])
+    ].join('\n\n').slice(0, 1200);
+    addCard('research', tr('canvas.fileAnalysisCardTitle', { name: record.filename }), summary);
+    notice = tr('canvas.savedToCanvas');
+  }
+
   function captureAnswer() {
     if (!editor || !boardId || conflict || remoteUpdated) return;
     const reply = [...messages].reverse().find(message => message.role === 'assistant')?.content;
@@ -1004,6 +1019,9 @@
           </button>
           {#if lastAnalyzedAsset && analyzedAssets[lastAnalyzedAsset]}
             <small>{$t('toolkit.canvas.analyzedFile')}: {analyzedAssets[lastAnalyzedAsset].filename}</small>
+            <button onclick={pinFileAnalysis} disabled={conflict || remoteUpdated}>
+              {$t('toolkit.canvas.pinFileAnalysis')}
+            </button>
           {/if}
         </section>
         <button class="board-audit" onclick={auditBoard} disabled={!boardId || !editor}
