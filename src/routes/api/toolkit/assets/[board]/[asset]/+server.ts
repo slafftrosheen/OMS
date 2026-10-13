@@ -14,12 +14,15 @@ export const GET: RequestHandler = async ({ params, locals }) => {
   const { data: blob, error: storageError } = await locals.supabase.storage
     .from(TOOLKIT_ASSET_BUCKET).download(row.storage_path);
   if (storageError || !blob) throw error(503, 'Project file could not be retrieved');
+  // Metadata/storage mismatches should never be served as truncated PDFs
+  // (nor produce incorrect Content-Length response framing).
+  if (blob.size !== row.bytes) throw error(503, 'Stored project file size mismatch');
   const filename = row.file_name.replace(/[\r\n"\\]/g, '_');
   return new Response(await blob.arrayBuffer(), { status: 200, headers: {
     'Content-Type': row.mime_type,
     'Content-Disposition': `inline; filename="${filename}"`,
     'Content-Length': String(row.bytes),
-    'Cache-Control': 'private, max-age=120',
+    'Cache-Control': 'private, no-store',
     'X-Content-Type-Options': 'nosniff',
     'Cross-Origin-Resource-Policy': 'same-origin',
     'X-Frame-Options': 'SAMEORIGIN'
