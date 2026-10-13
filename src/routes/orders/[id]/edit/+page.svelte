@@ -723,12 +723,17 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     { id: 'profile-7st', icon: 'layers', label: 'Profile 7st' },
   ];
 
-  const STATUS_COLOR: Record<string, string> = {
-    draft: 'var(--warn, #ff9500)',
-    approved: 'var(--ok, #34c759)',
-    rejected: 'var(--error, #ff453a)',
-    in_production: 'var(--brand, #e63329)',
-    completed: 'var(--ok, #34c759)',
+  const STATUS_COLOR: Record<string,string> = {
+    DRAFT:'var(--warn,#ff9500)',
+    PENDING_REVIEW:'var(--warn,#ff9500)',
+    CONFIRMED:'var(--ok,#34c759)',
+    IN_PRODUCTION:'var(--brand,#e63329)',
+    READY_TO_LOAD:'var(--ok,#34c759)',
+    DISPATCHED:'var(--ok,#34c759)',
+    ARCHIVED:'var(--ok,#34c759)',
+    ON_HOLD:'var(--warn,#ff9500)',
+    CANCELLED:'var(--error,#ff453a)',
+    VOIDED:'var(--error,#ff453a)'
   };
 </script>
 
@@ -738,6 +743,12 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
 <div class="canvas-editor">
   <!-- ── Top Bar ─────────────────────────────────────────────────────────── -->
+  <svelte:window onbeforeunload={(event) => {
+    if (unsavedWarningEnabled && hasUnsavedChanges) {
+      event.preventDefault();
+      event.returnValue='';
+    }
+  }} />
   <header class="top-bar">
     <div class="top-bar-left">
       <a href="{base}/orders/{data.id}" class="back-btn" title="Back to order">
@@ -747,8 +758,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         <span class="po-tag">{poNumber || '…'}</span>
         <span class="status-dot" style="background: {STATUS_COLOR[status] ?? '#888'}"></span>
         <span class="status-label">{status.toUpperCase().replace('_', ' ')}</span>
-        {#if canvasDirty}
-          <span class="unsaved-dot" title="Unsaved changes"></span>
+        {#if hasUnsavedChanges}
+          <span class="unsaved-dot" title={$t('orderWorkspace.unsaved')}></span>
         {/if}
       </div>
     </div>
@@ -821,7 +832,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
           <Icon name="rotate-ccw" size="sm" /> Rework
         </button>
       {/if}
-      <button class="action-btn primary" onclick={saveDraft} disabled={saving || !canEdit}>
+      <button class="action-btn primary" onclick={saveDraft} disabled={saving || !canEdit}
+        title={$t('orderWorkspace.saveHelp')}>
         <Icon name="save" size="sm" /> {saving ? 'Saving…' : 'Save Draft'}
       </button>
       {#if canApprove}
@@ -832,7 +844,31 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     </div>
   </header>
 
-  <div class="canvas-body">
+  <nav class="workspace-flow" aria-label={$t('orderWorkspace.workflowLabel')}>
+    {#each WORKSPACE_GROUPS as group (group.id)}
+      <button type="button" class:active={activeGroup===group.id}
+        aria-current={activeGroup===group.id?'step':undefined}
+        onclick={() => openWorkspaceSection(
+          (group.sections as readonly WorkspaceSection[]).includes(rightTab)
+            ? rightTab : group.sections[0])}>
+        <span class="workspace-phase-icon">
+          {#if group.id==='prepare'}<Icon name="clipboard-list" size="sm" />
+          {:else if group.id==='plan'}<Icon name="clipboard-check" size="sm" />
+          {:else if group.id==='review'}<Icon name="git-pull-request" size="sm" />
+          {:else}<Icon name="message-square" size="sm" />{/if}
+        </span>
+        {$t(group.label)}
+        {#if group.id==='review' && pendingReviewCount>0}
+          <span class="nav-count">{pendingReviewCount}</span>
+        {/if}
+      </button>
+    {/each}
+    <span class="workspace-inline-summary">
+      {#if hasUnsavedChanges}<span class="dirty-mark"></span> {$t('orderWorkspace.unsaved')}
+      {:else}{$t('orderWorkspace.savedState')}{/if}
+    </span>
+  </nav>
+  <div class="canvas-body" class:workspace-focused={focusPanel}>
     <!-- ── Left Toolbox ────────────────────────────────────────────────── -->
     <aside class="toolbox">
       <div class="tool-section">
@@ -924,33 +960,32 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
     <!-- ── Right Docker ────────────────────────────────────────────────── -->
     <aside class="right-docker">
-      <!-- Tab bar -->
-      <div class="docker-tabs">
-        <button class="dtab" class:active={rightTab === 'details'} onclick={() => rightTab = 'details'}>
-          <Icon name="clipboard-list" size="sm" /> Details
-        </button>
-        <button class="dtab" class:active={rightTab === 'layers'} onclick={() => rightTab = 'layers'}>
-          <Icon name="layers" size="sm" /> Zones
-        </button>
-        <button class="dtab" class:active={rightTab === 'revisions'} onclick={() => rightTab = 'revisions'}>
-          <Icon name="file-text" size="sm" /> {$t('revisionIntelligence.tab')}
-        </button>
-        <button class="dtab" class:active={rightTab === 'changes'} onclick={() => rightTab = 'changes'}>
-          <Icon name="git-pull-request" size="sm" /> Changes
-        </button>
-        <button class="dtab" class:active={rightTab === 'files'} onclick={() => rightTab = 'files'}>
-          <Icon name="paperclip" size="sm" /> Files
-        </button>
-        <button class="dtab" class:active={rightTab === 'intake'} onclick={() => rightTab = 'intake'}>
-          <Icon name="sparkles" size="sm" /> {$t('orderIntake.tab')}
-        </button>
-        <button class="dtab" class:active={rightTab === 'readiness'} onclick={() => rightTab = 'readiness'}>
-          <Icon name="clipboard-check" size="sm" /> {$t('productionReadiness.tab')}
-        </button>
-        <button class="dtab" class:active={rightTab === 'chat'} onclick={() => rightTab = 'chat'}>
-          <Icon name="message-square" size="sm" /> AI
+      <div class="workspace-panel-heading">
+        <div>
+          <span class="workspace-eyebrow">{$t(`orderWorkspace.groups.${activeGroup}`)}</span>
+          <h2>{$t(`orderWorkspace.sections.${rightTab}`)}</h2>
+        </div>
+        <button type="button" class="focus-toggle" onclick={() => focusPanel=!focusPanel}
+          aria-pressed={focusPanel}
+          title={focusPanel?$t('orderWorkspace.showCanvas'):$t('orderWorkspace.focusPanel')}>
+          <Icon name={focusPanel?'panels-top-left':'maximize'} size="sm" />
+          {focusPanel?$t('orderWorkspace.showCanvas'):$t('orderWorkspace.focusPanel')}
         </button>
       </div>
+      <nav class="docker-tabs" aria-label={$t('orderWorkspace.sectionsLabel')}>
+        {#each sectionsForGroup(activeGroup) as section (section)}
+          <button type="button" class="dtab" class:active={rightTab===section}
+            aria-current={rightTab===section?'page':undefined}
+            onclick={() => openWorkspaceSection(section)}>
+            {$t(`orderWorkspace.sections.${section}`)}
+            {#if section==='files' && attachedFilesCount!==null}
+              <span class="nav-count">{attachedFilesCount}</span>
+            {:else if section==='changes' && pendingReviewCount>0}
+              <span class="nav-count">{pendingReviewCount}</span>
+            {/if}
+          </button>
+        {/each}
+      </nav>
 
       <!-- Tab content -->
       <div class="docker-content">
@@ -1083,7 +1118,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
           {/if}
         {:else if rightTab === 'files'}
           {#if orderId}
-            <OrderFiles {orderId} compact={true} canUpload={canEdit ||
+            <OrderFiles {orderId} compact={true} onChanged={refreshFileCount} canUpload={canEdit ||
               (isAdmin && ['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status))} />
           {:else}<p class="zone-intro">Loading attachments…</p>{/if}
         {:else if rightTab === 'chat'}
