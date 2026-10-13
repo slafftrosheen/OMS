@@ -16,6 +16,7 @@
   import OrderFiles from '$lib/order/OrderFiles.svelte';
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
   import OrderReadinessAssistant from '$lib/order/OrderReadinessAssistant.svelte';
+  import RevisionIntelligence from '$lib/order/RevisionIntelligence.svelte';
 import { notifications } from '$lib/notify/store';
 import { can, normaliseStatus, ORDER_STATUS_LABELS } from '$lib/auth/permission-utils';
 import type { OrderStatus } from '$lib/auth/permission-utils';
@@ -101,7 +102,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let saving = $state(false);
   let confirming = $state(false);
   let error = $state('');
-  let rightTab: 'layers' | 'changes' | 'chat' | 'files' | 'details' | 'intake' | 'readiness' = $state('details');
+  let rightTab: 'layers' | 'changes' | 'chat' | 'files' | 'details' | 'intake' | 'readiness' | 'revisions' = $state('details');
   let intakeFileId = $state('');
   let intakeCurrent = $derived({
     clientName,title,deadline,loadingDate,priority,notes,
@@ -867,6 +868,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         <button class="dtab" class:active={rightTab === 'layers'} onclick={() => rightTab = 'layers'}>
           <Icon name="layers" size="sm" /> Zones
         </button>
+        <button class="dtab" class:active={rightTab === 'revisions'} onclick={() => rightTab = 'revisions'}>
+          <Icon name="file-diff" size="sm" /> {$t('revisionIntelligence.tab')}
+        </button>
         <button class="dtab" class:active={rightTab === 'changes'} onclick={() => rightTab = 'changes'}>
           <Icon name="git-pull-request" size="sm" /> Changes
         </button>
@@ -994,6 +998,13 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             {/if}
           </div>
 
+        {:else if rightTab === 'revisions'}
+          {#if orderId}
+            <RevisionIntelligence {orderId} canReview={isAdmin}
+              canCompare={canEdit ||
+                (isAdmin && ['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status))}
+              onRequestCreated={loadChangeRequests} />
+          {/if}
         {:else if rightTab === 'readiness'}
           {#if orderId}
             <OrderReadinessAssistant {orderId}
