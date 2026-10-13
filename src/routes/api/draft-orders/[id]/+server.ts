@@ -47,13 +47,17 @@ export const GET: RequestHandler = async ({ params, locals }) => {
         .eq('draft_order_id', order.id);
 
     if (orderFiles) {
-        files = orderFiles.map((of: any) => ({
-            id: of.files?.id,
-            filename: of.files?.filename,
-            originalName: of.files?.original_name,
-            fileType: of.file_type,
-            uploadedAt: of.files?.created_at
-        }));
+        files = orderFiles.map((linked: any) => {
+          const file = Array.isArray(linked.files) ? linked.files[0] : linked.files;
+          return {
+            id: file?.id,
+            filename: file?.filename,
+            originalName: file?.original_name,
+            fileType: linked.file_type,
+            displayName: linked.display_name,
+            uploadedAt: file?.created_at
+          };
+        }).filter((entry: any) => entry.id);
     }
 
     return json({
