@@ -1415,6 +1415,9 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "orderForm": {
+    "isRd": "P&A / iekšējās izstrādes pasūtījums",
+    "rdNotes": "P&A piezīmes",
+    "deliveryEmail": "Piegādes kontaktpersonas e-pasts",
     "priority": {
       "LOW": "Zems",
       "NORMAL": "Parasts",
