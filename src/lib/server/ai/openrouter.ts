@@ -22,6 +22,8 @@ export interface OpenRouterChatOptions {
   temperature?: number;
   timeoutMs?: number;
   maxTokens?: number;
+  /** OpenRouter server-tool budget; bounded to avoid accidental multi-search charges. */
+  maxToolCalls?: number;
   jsonMode?: boolean;
 }
 export interface OpenRouterChatResult { model: string; response: Response }
@@ -76,6 +78,8 @@ export function openRouterRequestBody(options: OpenRouterChatOptions, config = O
     ...(options.tools?.length ? { tools: options.tools, tool_choice: 'auto' } : {}),
     ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
     ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
+    ...(options.maxToolCalls !== undefined && options.tools?.length
+      ? { max_tool_calls: Math.max(1, Math.min(5, Math.floor(options.maxToolCalls))) } : {}),
     ...(options.jsonMode ? { response_format: { type: 'json_object' } } : {}),
     stream: options.stream ?? false
   };
