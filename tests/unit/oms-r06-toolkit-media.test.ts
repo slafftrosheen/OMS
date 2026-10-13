@@ -78,7 +78,7 @@ describe('OMS-R06 visual file import security', () => {
     expect(app).toContain('OrderDetailsShapeUtil');
     expect(app).toContain("CanvasModeContext.Provider value={toolkitBoardId ? 'toolkit' : 'order'}");
     expect(source('src/lib/components/canvas/shapes/ChatShape.tsx')).toContain('toolkitMode');
-    expect(source('src/lib/components/canvas/shapes/ChatShape.tsx')).toContain('This legacy chat node is archived');
+    expect(source('src/lib/components/canvas/shapes/ChatShape.tsx')).toContain("tn('archivedChat')");
     const canvas = source('src/routes/toolkit/canvas/+page.svelte');
     for (const action of ["'draw'","'highlight'","'geo'","'text'","'eraser'"]) {
       expect(canvas).toContain(action);
@@ -87,6 +87,6 @@ describe('OMS-R06 visual file import security', () => {
     expect(canvas).toContain('brushed-metal');
     expect(canvas).toContain('createPhotoMaterial');
     const swatch = source('src/lib/components/canvas/shapes/MaterialSwatchShape.tsx');
-    expect(swatch).toContain('Visual reference · not a certified finish');
+    expect(swatch).toContain("tn('materialNote')");
   });
 });
