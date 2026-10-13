@@ -38,3 +38,15 @@ export function suggestedWorkspaceSection(status:string,hasFiles:boolean,
     return 'readiness';
   return 'changes';
 }
+
+/** Canonical order_stages rows are arrays with station and state columns.
+ * Never divide by an empty count or interpret numeric array indexes as stages.
+ */
+export function stageProgressPercent(rows:unknown):number {
+  if(!Array.isArray(rows)||rows.length===0)return 0;
+  const valid=rows.filter(row=>row&&typeof row==='object'&&
+    typeof row.station==='string'&&typeof row.state==='string');
+  if(!valid.length)return 0;
+  const done=valid.filter(row=>row.state==='COMPLETED'||row.state==='SKIPPED').length;
+  return Math.round(done/valid.length*100);
+}
