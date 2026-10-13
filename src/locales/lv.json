@@ -1524,6 +1524,10 @@
     "canvasTab": "Audekls",
     "chatTab": "Sarunas",
     "canvas": {
+      "pinFileAnalysis": "Pievienot rezultātus kopīgajam audeklam",
+      "modelInterpretationLabel": "MODEĻA ANALĪZE — PĀRBAUDIET PIRMS RAŽOŠANAS",
+      "parsedEvidenceLabel": "PAKALPOJUMA IEGŪTAIS PDF TEKSTS",
+      "fileAnalysisCardTitle": "Faila analīze: {name}",
       "confirmPaidOcr": "Nosūtīt šo PDF OpenRouter maksas OCR apstrādei? Maksa tiek piemērota par lapām un modeļa izmantošanu.",
       "fileUnderstanding": "Attēlu un PDF izpratne",
       "fileUnderstandingHint": "Atlasiet attēlu vai PDF un, ja vēlaties, uzdodiet jautājumu. Fails tiks privāti nosūtīts OpenRouter apstrādei. Līdz 8 MiB attēliem un 12 MiB PDF. Rezultāts paliek privātajā sarunā līdz piezīmes saglabāšanai.",
