@@ -927,7 +927,7 @@
           <details class="saved-file-library">
             <summary>{$t('toolkit.canvas.savedFiles')} ({savedFiles.length})</summary>
             <p>{$t('toolkit.canvas.savedFilesHelp')}</p>
-            <button onclick={() => loadSavedFiles(boardId!)} disabled={savedFilesLoading || importing}>
+            <button onclick={() => { if (boardId) void loadSavedFiles(boardId); }} disabled={savedFilesLoading || importing}>
               {savedFilesLoading ? $t('toolkit.canvas.loadingProjects') : $t('toolkit.canvas.refreshSavedFiles')}
             </button>
             {#if savedFilesError}<p role="alert">{savedFilesError}</p>{/if}
