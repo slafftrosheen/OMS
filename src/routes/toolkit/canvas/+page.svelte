@@ -25,7 +25,8 @@
   let suggestions = $state<ProposedCard[]>([]);
   let actionProposals = $state<CanvasAction[]>([]);
   let skill = $state<ToolkitSkill>('explore');
-  let researchSources = $state<Array<{title:string;url:string;snippet?:string}>>([]);
+  let researchSources = $state<Array<{title:string;url:string;snippet?:string;provider?:'searxng'|'openrouter'}>>([]);
+  let webSearchRequests = $state<number | null>(null);
   let searchNote = $state('');
   let modelChoices = $state<Array<{id:string;label:string;isDefault:boolean}>>([]);
   let selectedModel = $state('');
@@ -280,6 +281,7 @@
     suggestions = [];
     actionProposals = [];
     researchSources = [];
+    webSearchRequests = null;
     searchNote = '';
     lastUsedModel = '';
     legacyThreads = {};
@@ -463,6 +465,7 @@
     suggestions = [];
     actionProposals = [];
     researchSources = [];
+    webSearchRequests = null;
     markDiscussionDirty();
     try {
       const response = await fetch('/api/toolkit/brainstorm', {
@@ -479,6 +482,7 @@
       // response into a different project's personal discussion.
       if (boardId !== activeBoardId || destroyed) return;
       lastUsedModel = typeof data.model === 'string' ? data.model : '';
+      webSearchRequests = Number.isSafeInteger(data.webSearchRequests) && data.webSearchRequests >= 0 ? data.webSearchRequests : null;
       searchNote = typeof data.searchNote === 'string' ? data.searchNote.slice(0, 500) : '';
       messages = [...messages, { role: 'assistant', content: String(data.reply ?? '').slice(0, 5000) }].slice(-60);
       suggestions = normalizeProposals(data.cards).slice(0, 5);
@@ -488,7 +492,8 @@
         ? data.sources.filter((v: any) => typeof v?.url === 'string' &&
           /^https?:\/\//.test(v.url)).slice(0, 5).map((v: any) => ({
             title: String(v.title ?? '').slice(0, 180), url: v.url,
-            snippet: String(v.snippet ?? '').slice(0, 320)
+            snippet: String(v.snippet ?? '').slice(0, 320),
+            provider: v.provider === 'openrouter' ? 'openrouter' : 'searxng'
           })) : [];
       markDiscussionDirty();
     } catch (e) {
@@ -977,12 +982,16 @@
         {#if searchNote}
           <p class="research-note" role="status">{$t('toolkit.canvas.researchStatus')}: {searchNote}</p>
         {/if}
+        {#if webSearchRequests !== null && skill === 'research' && webMode === 'openrouter'}
+          <p class="research-note">{$t('toolkit.canvas.webSearchCalls', { count: webSearchRequests })}</p>
+        {/if}
         {#if researchSources.length}
           <div class="research-sources">
             <strong>{$t('toolkit.canvas.references')}</strong>
             {#each researchSources as source (source.url)}
               <div class="source-row">
                 <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title || source.url} ↗</a>
+                {#if source.provider === 'openrouter'}<small>{$t('toolkit.canvas.reportedCitation')}</small>{/if}
                 {#if source.snippet}<small>{source.snippet}</small>{/if}
                 <button onclick={() => pinResearchSource(source)} disabled={!boardId || conflict || remoteUpdated}>
                   {$t('toolkit.canvas.pinSource')}
