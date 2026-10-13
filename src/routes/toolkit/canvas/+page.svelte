@@ -553,7 +553,7 @@
       });
       const result = await response.json().catch(() => ({}));
       if (boardId !== originalBoard || token !== activeLoadToken || destroyed) return;
-      if (!response.ok) throw new Error(result.error?.message || result.error || tr('canvas.fileAnalysisFailed'));
+      if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : (result.error?.message || result.message || tr('canvas.fileAnalysisFailed')));
       const reply = typeof result.reply === 'string' ? result.reply.slice(0, 5000) : '';
       if (!reply) throw new Error(tr('canvas.fileAnalysisFailed'));
       // This is a private user-session cache only. Sharing an insight onto
