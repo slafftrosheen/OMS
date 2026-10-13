@@ -8,7 +8,7 @@
   import { markdownProjectBrief, briefFileName } from '$lib/components/canvas/toolkit-brief';
   import { extractBoardCards, extractBoardLinks, normalizeProposals, type ProposedCard } from '$lib/components/canvas/toolkit-context';
   import { runShape } from '$lib/components/canvas/node-runner';
-  import { importToolkitFiles, type ToolkitPosition } from '$lib/components/canvas/toolkit-media-import';
+  import { importToolkitFiles, placeToolkitAsset, type ToolkitStoredAsset, type ToolkitPosition } from '$lib/components/canvas/toolkit-media-import';
   import { TOOLKIT_SKILLS, boardInsights, normalizeCanvasActions, type CanvasAction, type ToolkitSkill } from '$lib/components/canvas/toolkit-skills';
   import { applyToolkitAction } from '$lib/components/canvas/toolkit-action-executor';
 
@@ -55,6 +55,9 @@
   let running = $state(false);
   let importing = $state(false);
   let importStatus = $state('');
+  let savedFiles = $state<ToolkitStoredAsset[]>([]);
+  let savedFilesLoading = $state(false);
+  let savedFilesError = $state('');
   let fileInput: HTMLInputElement;
   let selectedTool = $state('select');
   let requesting = $state(false);
@@ -300,6 +303,8 @@
     lastAnalyzedAsset = null;
     analyzingFile = false;
     legacyThreads = {};
+    savedFiles = [];
+    savedFilesError = '';
     prompt = '';
     selectedLabel = '';
     selectedCount = 0;
@@ -332,6 +337,7 @@
             typeof m.content === 'string').map((m: any) => ({ role: m.role, content: m.content.slice(0, 5000) }))
         : [];
       boardId = id;
+      void loadSavedFiles(id);
       dirty = false;
       discussionDirty = false;
       conflict = false;
@@ -745,6 +751,43 @@
     if (!image) { notice = tr('canvas.selectedImageFirst'); return; }
     addMaterial('photo', image.props.url);
   }
+  async function loadSavedFiles(id: string) {
+    if (!id || !boardId || boardId !== id) return;
+    savedFilesLoading = true;
+    savedFilesError = '';
+    try {
+      const response = await fetch(`/api/toolkit/assets/${encodeURIComponent(id)}/library`,
+        { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(
+        typeof data.error === 'string' ? data.error : tr('canvas.savedFilesError'));
+      if (boardId !== id || destroyed) return;
+      savedFiles = Array.isArray(data.files)
+        ? data.files.filter((a: any) => a && typeof a.id === 'string' &&
+            typeof a.fileName === 'string' && typeof a.mime === 'string' &&
+            Number.isSafeInteger(a.bytes)).slice(0, 100)
+        : [];
+    } catch (e) {
+      if (boardId === id && !destroyed) {
+        savedFilesError = e instanceof Error ? e.message : tr('canvas.savedFilesError');
+      }
+    } finally {
+      if (boardId === id) savedFilesLoading = false;
+    }
+  }
+  function reattachSavedFile(file: ToolkitStoredAsset) {
+    if (!editor || !boardId || conflict || remoteUpdated || importing) return;
+    const exists = (editor.getCurrentPageShapes?.() ?? []).some((shape: any) =>
+      shape.type === 'document' && shape.props?.fileId === file.id);
+    if (exists) { notice = tr('canvas.fileAlreadyOnBoard'); return; }
+    try {
+      placeToolkitAsset(editor, boardId, file);
+      notice = tr('canvas.savedFileAttached');
+    } catch (e) {
+      notice = e instanceof Error ? e.message : tr('canvas.savedFilesError');
+    }
+  }
+
   async function importFiles(files: File[], point?: ToolkitPosition) {
     if (!boardId || !editor || importing || !files.length) return;
     importing = true;
@@ -752,7 +795,8 @@
     importStatus = 'Preparing files…';
     try {
       const result = await importToolkitFiles(activeEditor, id, files, point,
-        message => { importStatus = message; });
+        message => { if (boardId === id) importStatus = message; });
+      if (boardId === id) await loadSavedFiles(id);
       if (result.errors.length) {
         notice = result.errors.slice(0, 3).join(' | ');
         if (result.imported === 0) error = notice;
@@ -879,6 +923,28 @@
             </div>
           {/each}
         </div>
+        {#if boardId}
+          <details class="saved-file-library">
+            <summary>{$t('toolkit.canvas.savedFiles')} ({savedFiles.length})</summary>
+            <p>{$t('toolkit.canvas.savedFilesHelp')}</p>
+            <button onclick={() => loadSavedFiles(boardId!)} disabled={savedFilesLoading || importing}>
+              {savedFilesLoading ? $t('toolkit.canvas.loadingProjects') : $t('toolkit.canvas.refreshSavedFiles')}
+            </button>
+            {#if savedFilesError}<p role="alert">{savedFilesError}</p>{/if}
+            <div class="saved-file-list">
+              {#each savedFiles as asset (asset.id)}
+                <button title={asset.fileName} onclick={() => reattachSavedFile(asset)}
+                  disabled={!editor || conflict || remoteUpdated || importing}>
+                  <span aria-hidden="true">{asset.mime === 'application/pdf' ? '📄' : '🖼️'}</span>
+                  <span>{asset.fileName}</span>
+                </button>
+              {/each}
+              {#if !savedFiles.length && !savedFilesLoading}
+                <p>{$t('toolkit.canvas.noSavedFiles')}</p>
+              {/if}
+            </div>
+          </details>
+        {/if}
         <p class="library-tip">{$t('toolkit.canvas.sharingHelp')}</p>
       </aside>
     {/if}
@@ -1163,6 +1229,12 @@
   .project-open{flex:1;text-align:left;display:grid;gap:4px;border:0;background:transparent;min-width:0}.project-open strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.project-open span{font-size:10px;color:var(--ink-tertiary)}
   .delete{width:31px;min-height:34px;padding:2px;background:transparent;border:0;color:var(--ink-tertiary);font-size:18px}
   .library-tip{margin-top:auto;font-size:11px;color:var(--ink-tertiary);line-height:1.55}
+  .saved-file-library{border-top:1px solid var(--border);padding-top:10px;font-size:11px}
+  .saved-file-library summary{cursor:pointer;font-weight:750}
+  .saved-file-library p{font-size:11px;line-height:1.45;color:var(--ink-tertiary)}
+  .saved-file-list{display:grid;gap:4px;max-height:200px;overflow-y:auto;margin-top:6px}
+  .saved-file-list button{display:flex;gap:5px;align-items:center;min-width:0;text-align:left}
+  .saved-file-list button span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .board-area{flex:1;min-width:0;display:flex;flex-direction:column;position:relative;background:var(--bg-0)}
   .node-toolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;z-index:5;background:var(--bg-1);border-bottom:1px solid var(--border);padding:8px}
   .node-toolbar button{white-space:nowrap}.drawing-surface{flex:1;min-height:0;position:relative;isolation:isolate}
