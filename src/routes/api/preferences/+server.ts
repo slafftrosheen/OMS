@@ -11,7 +11,8 @@ export const GET: RequestHandler = async ({ locals }) => {
     // Return defaults for anonymous users
     return json({
       theme: 'DarkVim',
-      locale: 'en',
+      // Browser-selected login language is unknown to the anonymous endpoint.
+      // Do not overwrite localStorage with an invented server preference.
       scale: 'normal',
       density: 'cozy',
       pdfZoom: 1.0,
