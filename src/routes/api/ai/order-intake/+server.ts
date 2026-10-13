@@ -108,7 +108,12 @@ Do not merely repeat current order values without source evidence.`;
       {role:'user',content}
     ],{
       model,temperature:0.1,maxTokens:2400,timeoutMs:120_000,
-      jsonSchema:{name:'oms_order_intake_v1',schema:INTAKE_JSON_SCHEMA as unknown as Record<string,unknown>},
+      // Explicit operator downgrade for legacy models, never automatic.
+      // Zod validates every field regardless of the provider mode.
+      ...(process.env.OPENROUTER_ORDER_INTAKE_STRICT==='false'
+        ? {jsonMode:true}
+        : {jsonSchema:{name:'oms_order_intake_v1',
+          schema:INTAKE_JSON_SCHEMA as unknown as Record<string,unknown>}}),
       ...(parserEngine?{plugins:[{id:'file-parser',pdf:{engine:parserEngine}}]}:{})
     });
     let modelJson:unknown;
@@ -127,6 +132,6 @@ Do not merely repeat current order values without source evidence.`;
     },{headers});
   }catch(err){
     console.error('[Orders] AI intake unavailable',err instanceof Error?err.name:'unknown');
-    throw error(503,'AI intake failed. Verify the configured OpenRouter model supports JSON Schema and the selected file modality.');
+    throw error(503,'AI intake failed. Verify the configured OpenRouter model supports the requested output format and file modality.');
   }
 };
