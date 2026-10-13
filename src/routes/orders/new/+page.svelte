@@ -551,7 +551,7 @@
   }
 
   async function saveOrder() {
-    if (saving) return;
+    if (saving || successMessage) return;
     if (!can($currentUser, 'createDraftOrder')) { error = 'Manager role required to create orders'; return; }
     error = '';
     fieldErrors = {};
@@ -599,7 +599,7 @@
       let orderId = savedOrderId;
       const orderData = {
         clientName, deadline, loadingDate: loadingDate || null,
-        notes, priority, deliveryPresetId: selectedPresetId,
+        notes, priority, deliveryPresetId: typeof selectedPresetId === 'string' ? selectedPresetId : null,
         deliveryAddress, deliveryContact, deliveryPhone,
         deliveryEmail: deliveryEmail || null, isRd, rdNotes,
         profiles: profiles.map(p => ({
@@ -618,7 +618,7 @@
           // Do not expose an incomplete order in management review while
           // file uploads are still in progress.
           status: 'DRAFT',
-          deliveryPresetId: selectedPresetId,
+          deliveryPresetId: typeof selectedPresetId === 'string' ? selectedPresetId : null,
           deliveryAddress,
           deliveryContact,
           deliveryPhone,
@@ -737,7 +737,7 @@
       <button class="btn-secondary" onclick={() => goto('/orders')}>
         {$t('actions.cancel')}
       </button>
-      <button class="btn-primary" onclick={saveOrder} disabled={saving || !can($currentUser, 'createDraftOrder')}>
+      <button class="btn-primary" onclick={saveOrder} disabled={saving || !!successMessage || !can($currentUser, 'createDraftOrder')}>
         {#if saving}
           <span class="spinner"></span>
           {$t('actions.saving')}
