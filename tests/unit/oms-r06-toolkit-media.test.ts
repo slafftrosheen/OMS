@@ -42,7 +42,7 @@ describe('OMS-R06 visual file import security', () => {
     expect(upload).toContain("from('toolkit_assets').insert");
     expect(download).toContain('requireToolkitManager(locals.user)');
     expect(download).toContain(".eq('canvas_id', params.board)");
-    expect(download).toContain("'Cache-Control': 'private, max-age=120'");
+    expect(download).toContain("'Cache-Control': 'private, no-store'");
     expect(download).toContain("'X-Content-Type-Options': 'nosniff'");
     expect(upload).not.toContain('getPublicUrl(');
     expect(download).not.toContain('getPublicUrl(');
@@ -68,8 +68,8 @@ describe('OMS-R06 visual file import security', () => {
     const pdf = source('src/lib/components/canvas/shapes/PdfPreview.tsx');
     expect(pdf).toContain("await import('pdfjs-dist')");
     expect(pdf).toContain('workerSrc');
-    expect(pdf).toContain('Previous PDF page');
-    expect(pdf).toContain('Next PDF page');
+    expect(pdf).toContain("tn('pdfPrevious')");
+    expect(pdf).toContain("tn('pdfNext')");
     expect(pdf).toContain('renderTask?.cancel?.()');
   });
   it('exposes material surface studies and core drawing modes without altering order canvas', () => {
@@ -83,7 +83,7 @@ describe('OMS-R06 visual file import security', () => {
     for (const action of ["'draw'","'highlight'","'geo'","'text'","'eraser'"]) {
       expect(canvas).toContain(action);
     }
-    expect(canvas).toContain('Material studies');
+    expect(canvas).toContain("$t('toolkit.canvas.materials')");
     expect(canvas).toContain('brushed-metal');
     expect(canvas).toContain('createPhotoMaterial');
     const swatch = source('src/lib/components/canvas/shapes/MaterialSwatchShape.tsx');
