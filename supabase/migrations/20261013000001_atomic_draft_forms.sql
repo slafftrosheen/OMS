@@ -97,7 +97,7 @@ BEGIN
   badges=COALESCE(p_fields->'badges',badges),
   metadata=CASE WHEN p_fields ? 'delivery_email'
     THEN jsonb_set(COALESCE(metadata,'{}'::jsonb),'{delivery_email}',
-      to_jsonb(p_fields->>'delivery_email'),true)
+      COALESCE(to_jsonb(p_fields->>'delivery_email'),'null'::jsonb),true)
     ELSE metadata END,
   updated_by=v_actor, updated_at=now()
  WHERE id=p_order_id RETURNING * INTO v_order;
