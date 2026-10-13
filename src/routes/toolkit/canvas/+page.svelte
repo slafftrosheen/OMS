@@ -600,59 +600,59 @@
   });
 </script>
 
-<svelte:head><title>Canvas · Toolkit</title></svelte:head>
+<svelte:head><title>{$t('toolkit.canvasTab')} · {$t('toolkit.title')}</title></svelte:head>
 
 <div class="workspace">
   <header class="command-bar">
     <div class="workspace-title">
       <button class="icon-toggle" onclick={() => projectListOpen = !projectListOpen}
-        aria-label="Toggle project library" aria-expanded={projectListOpen}>☰</button>
+        aria-label={$t('toolkit.canvas.projects')} aria-expanded={projectListOpen}>☰</button>
       {#if boardId}
-        <input class="board-title" aria-label="Project name" maxlength="120" bind:value={boardTitle} oninput={markDirty} />
-      {:else}<h2>Ideas begin here</h2>{/if}
+        <input class="board-title" aria-label={$t('toolkit.canvas.projects')} maxlength="120" bind:value={boardTitle} oninput={markDirty} />
+      {:else}<h2>{$t('toolkit.canvas.noBoard')}</h2>{/if}
       <span class="save-indicator" role="status" aria-live="polite">
-        {#if saving || discussionSaving}Saving…{:else if conflict}Save conflict{:else if dirty || discussionDirty}Unsaved changes{:else if lastSaved}Saved {lastSaved}{:else if boardId}Up to date{/if}
+        {#if saving || discussionSaving}{$t('toolkit.canvas.saving')}{:else if conflict}{$t('toolkit.canvas.conflict')}{:else if dirty || discussionDirty}{$t('toolkit.canvas.unsaved')}{:else if lastSaved}{$t('toolkit.canvas.saved')} {lastSaved}{:else if boardId}{$t('toolkit.canvas.upToDate')}{/if}
       </span>
     </div>
     <div class="command-actions">
-      <span class="team-label" title="RD, Boss and Head of Production share and edit every project">◉ Shared with management</span>
-      <button onclick={() => createBoard('blank')}>+ Project</button>
-      <button onclick={() => void flushCurrentChanges()} disabled={!boardId || saving || ( !dirty && !discussionDirty ) || conflict}>Save</button>
+      <span class="team-label" title={$t('toolkit.canvas.sharedTitle')}>{$t('toolkit.canvas.shared')}</span>
+      <button onclick={() => createBoard('blank')}>{$t('toolkit.canvas.newProject')}</button>
+      <button onclick={() => void flushCurrentChanges()} disabled={!boardId || saving || ( !dirty && !discussionDirty ) || conflict}>{$t('toolkit.canvas.save')}</button>
       <button class="assistant-toggle" onclick={() => assistantOpen = !assistantOpen} aria-expanded={assistantOpen}>
-        {assistantOpen ? 'Hide assistant' : 'Brainstorm'}
+        {assistantOpen ? $t('toolkit.canvas.hideAssistant') : $t('toolkit.canvas.brainstorm')}
       </button>
     </div>
   </header>
 
   {#if error}<div class="workspace-alert" role="alert"><span>{error}</span>
-    {#if conflict}<button onclick={saveRecoveryCopy}>Save a copy</button>
-      <button onclick={reloadLatest}>Reload latest</button>
-    {:else}<button onclick={() => { error = ''; if (boardId) void flushCurrentChanges(); else void loadBoards(); }}>Retry</button>{/if}
+    {#if conflict}<button onclick={saveRecoveryCopy}>{$t('toolkit.canvas.saveCopy')}</button>
+      <button onclick={reloadLatest}>{$t('toolkit.canvas.reloadLatest')}</button>
+    {:else}<button onclick={() => { error = ''; if (boardId) void flushCurrentChanges(); else void loadBoards(); }}>{$t('toolkit.canvas.retry')}</button>{/if}
   </div>{/if}
   {#if remoteUpdated && !conflict && !dirty}
-    <div class="remote-banner" role="status"><span>A teammate saved a newer version of this canvas.</span>
-      <button onclick={reloadLatest}>View latest</button>
+    <div class="remote-banner" role="status"><span>{$t('toolkit.canvas.remote')}</span>
+      <button onclick={reloadLatest}>{$t('toolkit.canvas.viewLatest')}</button>
     </div>
   {/if}
   {#if discussionError}
-    <div class="private-banner" role="alert"><span>Your private conversation has not been saved: {discussionError}</span>
-      <button onclick={() => void saveDiscussion()}>Retry private save</button>
+    <div class="private-banner" role="alert"><span>{$t('toolkit.canvas.privateError')} {discussionError}</span>
+      <button onclick={() => void saveDiscussion()}>{$t('toolkit.canvas.retryPrivate')}</button>
     </div>
   {/if}
 
   <div class="panes">
     {#if projectListOpen}
       <aside class="library">
-        <div class="pane-heading"><h3>Projects</h3><span>{boards.length}</span></div>
-        <button class="new-project" onclick={() => createBoard('blank')}>+ Blank project</button>
+        <div class="pane-heading"><h3>{$t('toolkit.canvas.projects')}</h3><span>{boards.length}</span></div>
+        <button class="new-project" onclick={() => createBoard('blank')}>{$t('toolkit.canvas.blankProject')}</button>
         <div class="templates">
-          <span class="small-heading">Quick start</span>
-          <button onclick={() => createBoard('project')}>✦ Project concept</button>
-          <button onclick={() => createBoard('options')}>◇ Compare options</button>
-          <button onclick={() => createBoard('workshop')}>▣ Workshop concept</button>
+          <span class="small-heading">{$t('toolkit.canvas.quickStart')}</span>
+          <button onclick={() => createBoard('project')}>{$t('toolkit.canvas.projectConcept')}</button>
+          <button onclick={() => createBoard('options')}>{$t('toolkit.canvas.compareOptions')}</button>
+          <button onclick={() => createBoard('workshop')}>{$t('toolkit.canvas.workshopConcept')}</button>
         </div>
         <div class="project-list">
-          {#if loading && !boards.length}<p class="muted">Loading projects…</p>{/if}
+          {#if loading && !boards.length}<p class="muted">{$t('toolkit.canvas.loadingProjects')}</p>{/if}
           {#each boards as b (b.id)}
             <div class="project-entry" class:active={boardId === b.id}>
               <button class="project-open" onclick={() => openBoard(b.id)}
@@ -660,7 +660,7 @@
                 <strong>{b.title}</strong>
                 <span>{new Date(b.updated_at).toLocaleDateString()}</span>
               </button>
-              <button class="delete" title={`Delete ${b.title}`} aria-label={`Delete ${b.title}`} onclick={() => removeBoard(b.id)}>×</button>
+              <button class="delete" title={$t('toolkit.canvas.deleteProject', { title: b.title })} aria-label={$t('toolkit.canvas.deleteProject', { title: b.title })} onclick={() => removeBoard(b.id)}>×</button>
             </div>
           {/each}
         </div>
@@ -668,54 +668,54 @@
       </aside>
     {/if}
 
-    <main class="board-area" aria-label="Idea canvas">
+    <main class="board-area" aria-label={$t('toolkit.canvas.canvasLabel')}>
       {#if boardId && !loading}
         <div class="node-toolbar">
-          <span class="small-heading">Compose</span>
+          <span class="small-heading">{$t('toolkit.canvas.compose')}</span>
           <input class="file-input" bind:this={fileInput} type="file" multiple
             accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf"
-            aria-label="Choose images and PDFs" onchange={onFileSelected} />
+            aria-label={$t('toolkit.canvas.chooseFiles')} onchange={onFileSelected} />
           <button class="import-button" onclick={() => fileInput?.click()} disabled={importing}>
-            {importing ? 'Importing…' : '↥ Images / PDFs'}
+            {importing ? $t('toolkit.canvas.importing') : $t('toolkit.canvas.addFiles')}
           </button>
           <span class="toolbar-separator" aria-hidden="true"></span>
           {#each [
-            { tool: 'select', title: 'Select / move', label: 'Select' },
-            { tool: 'draw', title: 'Freehand drawing', label: 'Pen' },
-            { tool: 'highlight', title: 'Highlighter', label: 'Highlight' },
-            { tool: 'geo', title: 'Geometric shapes', label: 'Shapes' },
-            { tool: 'text', title: 'Canvas text', label: 'Text' },
-            { tool: 'eraser', title: 'Erase drawing elements', label: 'Eraser' }
+            { tool: 'select', title: $t('toolkit.draw.selectTitle'), label: $t('toolkit.draw.select') },
+            { tool: 'draw', title: $t('toolkit.draw.drawTitle'), label: $t('toolkit.draw.draw') },
+            { tool: 'highlight', title: $t('toolkit.draw.highlightTitle'), label: $t('toolkit.draw.highlight') },
+            { tool: 'geo', title: $t('toolkit.draw.geoTitle'), label: $t('toolkit.draw.geo') },
+            { tool: 'text', title: $t('toolkit.draw.textTitle'), label: $t('toolkit.draw.text') },
+            { tool: 'eraser', title: $t('toolkit.draw.eraserTitle'), label: $t('toolkit.draw.eraser') }
           ] as drawing}
             <button title={drawing.title} class:chosen={selectedTool === drawing.tool}
               aria-pressed={selectedTool === drawing.tool}
               onclick={() => drawTool(drawing.tool)}>{drawing.label}</button>
           {/each}
           <span class="toolbar-separator" aria-hidden="true"></span>
-          <span class="small-heading">Ideas</span>
+          <span class="small-heading">{$t('toolkit.canvas.ideas')}</span>
           {#each kinds as item (item.kind)}
-            <button title={`Add ${item.label}`} onclick={() => addCard(item.kind)}>
-              <span>{item.emoji}</span> {item.label}
+            <button title={$t('toolkit.canvas.addKind', { kind: $t(`toolkit.kind.${item.kind}`) })} onclick={() => addCard(item.kind)}>
+              <span>{item.emoji}</span> {$t(`toolkit.kind.${item.kind}`)}
             </button>
           {/each}
           <button onclick={() => { setArrowTool(); selectedTool = 'arrow'; }}
-            title="Connect cards with arrows">↗ Connect</button>
+            title={$t('toolkit.canvas.connectTitle')}>{$t('toolkit.canvas.connect')}</button>
           <details class="advanced-tools">
-            <summary>Material studies</summary>
-            <div class="advanced-menu" role="group" aria-label="Material and surface references">
+            <summary>{$t('toolkit.canvas.materials')}</summary>
+            <div class="advanced-menu" role="group" aria-label={$t('toolkit.canvas.materialRefs')}>
               {#each ['brushed-metal','matte','frosted-acrylic','wood-grain','concrete','patina','mesh'] as material}
                 <button onclick={() => addMaterial(material)}>{material.replaceAll('-', ' ')}</button>
               {/each}
-              <button onclick={createPhotoMaterial}>From selected image</button>
+              <button onclick={createPhotoMaterial}>{$t('toolkit.canvas.fromImage')}</button>
             </div>
           </details>
           <span class="toolbar-separator" aria-hidden="true"></span>
-          <button onclick={undo} title="Undo" aria-label="Undo last canvas edit">↶</button>
-          <button onclick={redo} title="Redo" aria-label="Redo last canvas edit">↷</button>
-          <button onclick={zoomToContent} title="Fit canvas content">Fit</button>
-          <button onclick={deleteSelection} title="Delete selected elements">Delete selected</button>
+          <button onclick={undo} title={$t('toolkit.canvas.undo')} aria-label={$t('toolkit.canvas.undoTitle')}>↶</button>
+          <button onclick={redo} title={$t('toolkit.canvas.redo')} aria-label={$t('toolkit.canvas.redoTitle')}>↷</button>
+          <button onclick={zoomToContent} title={$t('toolkit.canvas.fitTitle')}>{$t('toolkit.canvas.fit')}</button>
+          <button onclick={deleteSelection} title={$t('toolkit.canvas.deleteSelected')}>{$t('toolkit.canvas.deleteSelected')}</button>
           <details class="advanced-tools">
-            <summary>Technical tools</summary>
+            <summary>{$t('toolkit.canvas.technical')}</summary>
             <div class="advanced-menu">
               {#each [{ type: 'web-search', name: 'Web search' }, { type: 'crawl', name: 'Page reference' },
                 { type: 'lumigrid', name: 'LumiGrid' }, { type: 'led-strip', name: 'LED strip' },
@@ -723,7 +723,7 @@
                 { type: 'maker', name: 'Maker sketch' }, { type: 'document', name: 'Document' }] as tool}
                 <button onclick={() => addTechnical(tool.type)}>{tool.name}</button>
               {/each}
-              <button onclick={runSelectedTechnical} disabled={running}>{running ? 'Working…' : 'Run selected tool'}</button>
+              <button onclick={runSelectedTechnical} disabled={running}>{running ? $t('toolkit.canvas.working') : $t('toolkit.canvas.runTool')}</button>
             </div>
           </details>
         </div>
@@ -737,15 +737,15 @@
         </div>
         <p class="canvas-hint">Drop images/PDFs · Draw and annotate · Add illustrative material studies · Resize/move visual assets · Save to share</p>
       {:else if loading}
-        <div class="empty-canvas"><p>Opening your workspace…</p></div>
+        <div class="empty-canvas"><p>{$t('toolkit.canvas.opening')}</p></div>
       {:else}
         <div class="empty-canvas">
           <div class="empty-symbol">✧</div>
-          <h2>Give your next idea room to grow.</h2>
-          <p>Start with an empty canvas, a project outline or a comparison of alternatives.</p>
+          <h2>{$t('toolkit.canvas.emptyTitle')}</h2>
+          <p>{$t('toolkit.canvas.emptyDetail')}</p>
           <div class="empty-actions">
-            <button class="primary" onclick={() => createBoard('project')}>Start a project</button>
-            <button onclick={() => createBoard('blank')}>Blank canvas</button>
+            <button class="primary" onclick={() => createBoard('project')}>{$t('toolkit.canvas.startProject')}</button>
+            <button onclick={() => createBoard('blank')}>{$t('toolkit.canvas.blankCanvas')}</button>
           </div>
         </div>
       {/if}
@@ -753,46 +753,46 @@
 
     {#if assistantOpen}
       <aside class="assistant-pane">
-        <div class="pane-heading"><div><span class="small-heading">Private to your account</span><h3>Brainstorm</h3></div>
-          <button aria-label="Close assistant" class="close-pane" onclick={() => assistantOpen = false}>×</button>
+        <div class="pane-heading"><div><span class="small-heading">{$t('toolkit.canvas.private')}</span><h3>{$t('toolkit.canvas.brainstorm')}</h3></div>
+          <button aria-label={$t('toolkit.canvas.closeAssistant')} class="close-pane" onclick={() => assistantOpen = false}>×</button>
         </div>
         <p class="assistant-intro">Explore alternatives, spot gaps and turn thoughts into new cards. Asking sends the selected board context to your configured reasoning provider. Nothing is added without your approval.</p>
         <div class="skill-picker">
-          <label for="toolkit-skill">Assistant skill</label>
+          <label for="toolkit-skill">{$t('toolkit.canvas.skill')}</label>
           <select id="toolkit-skill" bind:value={skill} disabled={requesting}>
             {#each TOOLKIT_SKILLS as item (item.id)}
-              <option value={item.id}>{item.label}</option>
+              <option value={item.id}>{$t(`toolkit.skills.${item.id}`)}</option>
             {/each}
           </select>
-          <p>{TOOLKIT_SKILLS.find(item => item.id === skill)?.purpose}</p>
+          <p>{$t(`toolkit.skills.${skill}Purpose`)}</p>
         </div>
         <button class="board-audit" onclick={auditBoard} disabled={!boardId || !editor}
-          title="Analyse board structure without contacting an AI provider">◎ Audit this board (local)</button>
-        <div class="quick-prompts" aria-label="Brainstorm prompts">
-          {#each prompts as item (item.label)}
-            <button onclick={() => brainstorm(item.question)} disabled={!boardId || requesting}>{item.label}</button>
+          title={$t('toolkit.canvas.auditTitle')}>{$t('toolkit.canvas.audit')}</button>
+        <div class="quick-prompts" aria-label={$t('toolkit.canvas.promptList')}>
+          {#each prompts as item (item)}
+            <button onclick={() => brainstorm(tr(`prompts.${item}Question`))} disabled={!boardId || requesting}>{$t(`toolkit.prompts.${item}`)}</button>
           {/each}
         </div>
         {#if Object.keys(legacyThreads).length}
           <details class="legacy-threads">
-            <summary>Archived personal canvas chats ({Object.keys(legacyThreads).length})</summary>
+            <summary>{$t('toolkit.canvas.archived')} ({Object.keys(legacyThreads).length})</summary>
             {#each Object.entries(legacyThreads) as [shapeId, thread] (shapeId)}
               <section class="legacy-thread">
-                <strong>Previous canvas conversation</strong>
+                <strong>{$t('toolkit.canvas.previous')}</strong>
                 {#each thread as entry, i (i)}
-                  <p><b>{entry.role === 'user' ? 'You' : 'Assistant'}:</b> {entry.content}</p>
+                  <p><b>{entry.role === 'user' ? $t('toolkit.canvas.you') : $t('toolkit.canvas.assistant')}:</b> {entry.content}</p>
                 {/each}
               </section>
             {/each}
           </details>
         {/if}
-        <div class="conversation" role="log" aria-label="Brainstorm conversation" aria-live="polite">
+        <div class="conversation" role="log" aria-label={$t('toolkit.canvas.conversation')} aria-live="polite">
           {#if !messages.length}
             <div class="conversation-empty">Describe the idea, challenge or decision on your canvas. Select a card to focus the discussion.</div>
           {/if}
           {#each messages as m, i (i)}
             <div class="message" class:user={m.role === 'user'}>
-              <span class="message-role">{m.role === 'user' ? 'You' : 'Toolkit'}</span>
+              <span class="message-role">{m.role === 'user' ? $t('toolkit.canvas.you') : $t('toolkit.title')}</span>
               <p>{m.content}</p>
             </div>
           {/each}
@@ -800,35 +800,39 @@
         </div>
         {#if suggestions.length}
           <div class="suggestion-list">
-            <div class="proposal-header"><strong>Suggested cards · {suggestions.length}</strong>
-              <button onclick={applyAll}>Add all</button></div>
+            <div class="proposal-header"><strong>{$t('toolkit.canvas.suggested')} · {suggestions.length}</strong>
+              <button onclick={applyAll}>{$t('toolkit.canvas.addAll')}</button></div>
             {#each suggestions as proposal, i (`${proposal.kind}:${proposal.title}:${i}`)}
               <div class="proposal">
-                <span class="proposal-kind">{proposal.kind}</span>
+                <span class="proposal-kind">{$t(`toolkit.kind.${proposal.kind}`)}</span>
                 <strong>{proposal.title}</strong>
                 <p>{proposal.body}</p>
-                <button onclick={() => applySuggestion(proposal, i)}>+ Add to board</button>
+                <button onclick={() => applySuggestion(proposal, i)}>{$t('toolkit.canvas.addToBoard')}</button>
               </div>
             {/each}
           </div>
         {/if}
         {#if actionProposals.length}
-          <div class="suggestion-list" aria-label="Proposed canvas tools">
-            <div class="proposal-header"><strong>Suggested board actions · {actionProposals.length}</strong></div>
+          <div class="suggestion-list" aria-label={$t('toolkit.canvas.actionTools')}>
+            <div class="proposal-header"><strong>{$t('toolkit.canvas.actions')} · {actionProposals.length}</strong></div>
             {#each actionProposals as action, index (`${action.kind}:${index}`)}
               <div class="proposal">
                 <span class="proposal-kind">{action.kind}</span>
-                <strong>{actionSummary(action, actionTargetName)}</strong>
+                <strong>{action.kind === 'connect'
+    ? $t('toolkit.canvas.actionConnect', { from: actionTargetName(action.from), to: actionTargetName(action.to) })
+    : action.kind === 'revise'
+      ? $t('toolkit.canvas.actionRevise', { title: actionTargetName(action.target) })
+      : $t('toolkit.canvas.actionLayout', { layout: $t(`toolkit.canvas.layout${action.layout === 'grid' ? 'Grid' : 'Columns'}`) })}</strong>
                 {#if action.reason}<p>{action.reason}</p>{/if}
                 <button disabled={conflict || remoteUpdated}
-                  onclick={() => approveAction(action)}>Review & apply</button>
+                  onclick={() => approveAction(action)}>{$t('toolkit.canvas.reviewApply')}</button>
               </div>
             {/each}
           </div>
         {/if}
         {#if researchSources.length}
           <div class="research-sources">
-            <strong>Research references</strong>
+            <strong>{$t('toolkit.canvas.references')}</strong>
             {#each researchSources as source (source.url)}
               <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title || source.url} ↗</a>
             {/each}
@@ -840,12 +844,12 @@
         {/if}
         {#if notice}<p role="status" class="note">{notice}</p>{/if}
         <form class="composer" onsubmit={(e) => { e.preventDefault(); void brainstorm(); }}>
-          <label for="toolkit-prompt">Your question</label>
+          <label for="toolkit-prompt">{$t('toolkit.canvas.question')}</label>
           <textarea id="toolkit-prompt" bind:value={prompt} rows="3" maxlength="2500"
-            placeholder="What could we try? What am I missing?" disabled={!boardId || requesting}
+            placeholder={$t('toolkit.canvas.questionPlaceholder')} disabled={!boardId || requesting}
             onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void brainstorm(); } }}></textarea>
-          <div class="composer-footer"><span>{selectedLabel} · board context</span>
-            <button class="primary" type="submit" disabled={!boardId || requesting || !prompt.trim()}>Ask ↗</button>
+          <div class="composer-footer"><span>{selectedLabel || $t('toolkit.canvas.wholeBoard')} · {$t('toolkit.canvas.boardContext')}</span>
+            <button class="primary" type="submit" disabled={!boardId || requesting || !prompt.trim()}>{$t('toolkit.canvas.ask')}</button>
           </div>
         </form>
       </aside>
