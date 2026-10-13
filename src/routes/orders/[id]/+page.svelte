@@ -11,7 +11,7 @@
     import ChatContainer from "$lib/components/chat/ChatContainer.svelte";
     import OrderFiles from "$lib/order/OrderFiles.svelte";
     import {
-      workspaceUrl, suggestedWorkspaceSection, stageProgressPercent
+      workspaceUrl, suggestedWorkspaceSection, stageProgressPercent, mayControlStage
     } from "$lib/order/workspace-navigation";
 
     import QRCodeDisplay from "$lib/components/qr/QRCodeDisplay.svelte";
@@ -201,11 +201,15 @@
 
     async function updateStageStatus(stage: string, status: string) {
         const patch = buildStagePatch(stage, status);
+        const reason = status === 'BLOCKED' ? window.prompt(
+            $t('orderWorkspace.blockReasonPrompt')) : null;
+        if(status === 'BLOCKED' && !reason?.trim()) return;
+        const patchBody = reason ? {...patch.body,blocked_reason:reason.trim()} : patch.body;
         try {
             const response = await fetch(`/api/orders/${orderId}/stages${patch.url}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(patch.body),
+                body: JSON.stringify(patchBody),
             });
 
             if (!response.ok) {
@@ -431,39 +435,32 @@
                 <div class="tab-content">
                     <Card title={$t("orderDetail.tabs.stages")} padding="lg">
                         <div class="stages-grid">
-                            {#each Object.entries(order.stages) as [stage, status]}
-                                <div
-                                    class="stage-card"
-                                    style="border-left-color: {getStatusColor(
-                                        String(status),
-                                    )}"
-                                >
+                            {#each (Array.isArray(order.stages) ? order.stages : []) as stageRow (stageRow.id ?? stageRow.station)}
+                                <div class="stage-card"
+                                    style="border-left-color: {getStatusColor(String(stageRow.state))}">
                                     <div class="stage-header">
-                                        <h4 class="stage-name">{stage}</h4>
-                                        <Badge
-                                            variant={status === "COMPLETED"
-                                                ? "success"
-                                                : "info"}
-                                            size="sm"
-                                        >
-                                            {$t(`orderDetail.stage_status.${status}`, { default: String(status).replace("_", " ") })}
+                                        <h4 class="stage-name">{stageRow.station}</h4>
+                                        <Badge variant={stageRow.state === "COMPLETED" ? "success" : "info"} size="sm">
+                                            {$t(`orderDetail.stage_status.${stageRow.state}`,{
+                                                default:String(stageRow.state).replace("_"," ")
+                                            })}
                                         </Badge>
                                     </div>
-                                    <select
-                                        class="stage-status-select"
-                                        value={status}
-                                        onchange={(e) =>
-                                            updateStageStatus(
-                                                stage,
-                                                e.currentTarget.value,
-                                            )}
-                                    >
-                                        <option value="NOT_STARTED">{$t("orderDetail.stage_status.NOT_STARTED")}</option>
-                                        <option value="IN_PROGRESS">{$t("orderDetail.stage_status.IN_PROGRESS")}</option>
-                                        <option value="COMPLETED">{$t("orderDetail.stage_status.COMPLETED")}</option>
-                                        <option value="BLOCKED">{$t("orderDetail.stage_status.BLOCKED")}</option>
-                                        <option value="SKIPPED">{$t("orderDetail.stage_status.SKIPPED")}</option>
-                                    </select>
+                                    {#if mayControlStage($currentUser,stageRow.station) &&
+                                        ['CONFIRMED','IN_PRODUCTION','ON_HOLD'].includes(normaliseStatus(order.status)) &&
+                                        !['COMPLETED','SKIPPED','REWORK'].includes(stageRow.state)}
+                                        <label class="station-control">
+                                          {$t('orderWorkspace.stationAction')}
+                                          <select class="stage-status-select" value={stageRow.state}
+                                              onchange={e => updateStageStatus(stageRow.station,e.currentTarget.value)}>
+                                              <option value="NOT_STARTED">{$t("orderDetail.stage_status.NOT_STARTED")}</option>
+                                              <option value="QUEUED">{$t('orderWorkspace.stageQueued')}</option>
+                                              <option value="IN_PROGRESS">{$t("orderDetail.stage_status.IN_PROGRESS")}</option>
+                                              <option value="BLOCKED">{$t("orderDetail.stage_status.BLOCKED")}</option>
+                                          </select>
+                                        </label>
+                                        <p class="stage-hint">{$t('orderWorkspace.stageCompletionHint')}</p>
+                                    {/if}
                                 </div>
                             {/each}
                         </div>
@@ -578,6 +575,9 @@
 {/if}
 
 <style>
+    .station-control{display:grid;gap:6px;font-size:11px;margin-top:10px}
+    .stage-hint{font-size:11px;color:var(--text-muted);margin:8px 0 0}
+
     .workspace-entry{
       display:grid;grid-template-columns:minmax(170px,260px) minmax(0,1fr);
       gap:16px;align-items:center;padding:16px 20px;margin-bottom:18px;
