@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { toolkitModelChoices, resolveToolkitModel } from '../../src/lib/server/toolkit/ai-models';
-import { parseToolkitModelResponse, normalizeToolkitVisualAssets } from '../../src/lib/server/toolkit/ai-response';
+import { parseToolkitModelResponse, normalizeToolkitVisualAssets, normalizeProviderWebSources } from '../../src/lib/server/toolkit/ai-response';
 import { markdownProjectBrief, briefFileName } from '../../src/lib/components/canvas/toolkit-brief';
-import { openRouterRequestBody } from '../../src/lib/server/ai/openrouter';
+import { openRouterRequestBody, openRouterTextContent, openRouterCompleteWithMetadata } from '../../src/lib/server/ai/openrouter';
 
 const read = (path: string) => readFileSync(path, 'utf8');
 
@@ -78,6 +78,34 @@ describe('OMS-R09 Toolkit AI workflow', () => {
       type: 'openrouter:web_search',
       parameters: { max_uses: 2, max_total_results: 8 }
     });
+  });
+
+  it('retains provider-reported web citations and the actual routed model', async () => {
+    expect(openRouterTextContent([{ type: 'text', text: 'Real answer' }])).toBe('Real answer');
+    const fetcher = async () => new Response(JSON.stringify({
+      model: 'provider/specific-model',
+      choices: [{ message: {
+        content: [{ type: 'text', text: 'Grounded answer' }],
+        annotations: [
+          { type: 'url_citation', url_citation: { url: 'https://example.com/spec', title: 'Spec', content: 'Technical details' } },
+          { type: 'url_citation', url_citation: { url: 'javascript:alert(1)', title: 'Bad' } }
+        ]
+      } }],
+      usage: { server_tool_use: { web_search_requests: 1 } }
+    }), { status: 200 });
+    const reply = await openRouterCompleteWithMetadata(
+      [{ role: 'user', content: 'Find datasheets' }],
+      { model: 'openrouter/free' },
+      { apiKey: 'test-key', baseUrl: 'https://router.example/api/v1',
+        defaultModel: 'openrouter/free', visionModel: 'vision/model', timeoutMs: 10000 },
+      fetcher as typeof fetch
+    );
+    expect(reply.text).toBe('Grounded answer');
+    expect(reply.model).toBe('provider/specific-model');
+    expect(reply.webSearchRequests).toBe(1);
+    expect(normalizeProviderWebSources(reply.annotations)).toEqual([
+      { title: 'Spec', url: 'https://example.com/spec', snippet: 'Technical details', provider: 'openrouter' }
+    ]);
   });
 
   it('keeps web-provider pricing and model selection server-controlled', () => {
