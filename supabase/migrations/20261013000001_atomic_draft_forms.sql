@@ -126,7 +126,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.oms_submit_draft_for_review(p_order_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp
-AS $
+AS $$
 DECLARE
  v_actor UUID := auth.uid(); v_role TEXT; v_order public.draft_orders;
 BEGIN
@@ -153,7 +153,7 @@ BEGIN
  WHERE id=p_order_id;
  RETURN jsonb_build_object('ok',true,'idempotent',false,'id',p_order_id);
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.oms_create_draft_form(JSONB,JSONB,TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.oms_update_draft_form(UUID,JSONB,JSONB) FROM PUBLIC;
