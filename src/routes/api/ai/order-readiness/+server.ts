@@ -56,21 +56,25 @@ export const POST:RequestHandler=async event=>{
     await Promise.all([
       locals.supabase.from('order_profiles')
         .select('id,profile_template_id,quantity1,quantity2,quantity3,quantity4')
-        .eq('draft_order_id',orderId).order('order_index').limit(100),
+        .eq('draft_order_id',orderId).order('order_index').limit(101),
       locals.supabase.from('order_materials')
         .select('id,material_type,quantity,unit')
-        .eq('draft_order_id',orderId).order('display_order').limit(100),
+        .eq('draft_order_id',orderId).order('display_order').limit(101),
       locals.supabase.from('order_files').select('id',{count:'exact',head:true})
         .eq('draft_order_id',orderId),
       locals.supabase.from('order_stages').select('station')
         .eq('draft_order_id',orderId).limit(40),
       locals.supabase.from('materials')
         .select('id,sku,code,stock,min_stock,unit')
-        .order('updated_at',{ascending:false}).limit(1000)
+        .order('updated_at',{ascending:false}).limit(1001)
     ]);
   if(profilesResult.error||materialsResult.error||filesResult.error||
       stagesResult.error||inventoryResult.error)
     throw error(503,'Production catalog, inventory or order evidence unavailable');
+  // Never silently truncate linked profile/material rows and then report
+  // a false clean checklist.
+  if((profilesResult.data??[]).length>100||(materialsResult.data??[]).length>100)
+    throw error(409,'This order exceeds the supported readiness check size');
   const profiles=profilesResult.data??[];
   const templateIds=[...new Set(profiles.map(p=>p.profile_template_id).filter(
     (v):v is string=>typeof v==='string'))];
@@ -81,7 +85,7 @@ export const POST:RequestHandler=async event=>{
   if(templateError)throw error(503,'Profile template catalog unavailable');
   const templateMap=new Map((templates??[]).map(t=>[t.id,t]));
   const profileEvidence=profiles.map(p=>{
-    const template=templateMap.get(p.profile_template_id);
+    const template=templateMap.get(String(p.profile_template_id??''));
     return {
       id:p.id,templateId:p.profile_template_id??null,
       templateName:template?.is_active===true ? String(template.name??'').slice(0,180):null,
@@ -91,6 +95,7 @@ export const POST:RequestHandler=async event=>{
     };
   });
   const inventory=inventoryResult.data??[];
+  const inventoryComplete=inventory.length<=1000;
   const evidence:ReadinessEvidence=readinessEvidenceSchema.parse({
     orderId:order.id,status:order.status,updatedAt:order.updated_at??null,
     client:String(order.client??'').slice(0,200),
@@ -99,12 +104,12 @@ export const POST:RequestHandler=async event=>{
     priority:String(order.priority??'NORMAL').slice(0,20),
     notes:String(order.notes??'').slice(0,3500),
     profiles:profileEvidence,
-    materials:reconcileOrderMaterials(materialsResult.data??[],inventory),
+    materials:reconcileOrderMaterials(materialsResult.data??[],inventory.slice(0,1000)), 
     fileCount:filesResult.count??0,
     stageCodes:[...new Set((stagesResult.data??[]).map(s=>s.station)
       .filter((s):s is typeof PRODUCTION_STATIONS[number]=>
         PRODUCTION_STATIONS.includes(s as typeof PRODUCTION_STATIONS[number])))],
-    inventoryChecked:inventory.length<1000
+    inventoryChecked:inventoryComplete
   });
   const checks=deterministicReadiness(evidence);
   const summary={...evidence,notes:evidence.notes.slice(0,2000)};
