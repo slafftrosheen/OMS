@@ -487,7 +487,7 @@
   async function addFiles(newFiles: File[]) {
     for (const file of newFiles) {
       const type = getFileType(file);
-      const fileWithPreview: FileWithPreview = { file, type, uploadId: crypto.randomUUID() };
+      const fileWithPreview: FileWithPreview = { file, type, uploadId: createId('upload') };
       
       if (type === 'image') {
         fileWithPreview.preview = await createImagePreview(file);
