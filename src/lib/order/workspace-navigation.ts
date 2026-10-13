@@ -50,3 +50,13 @@ export function stageProgressPercent(rows:unknown):number {
   const done=valid.filter(row=>row.state==='COMPLETED'||row.state==='SKIPPED').length;
   return Math.round(done/valid.length*100);
 }
+
+export function mayControlStage(user:{
+  role?:string|null;stations?:Array<{stationId?:string|null}>|null
+}|null|undefined,station:string):boolean{
+  if(!user)return false;
+  if(['RD','Boss','HeadOfProduction'].includes(user.role??''))return true;
+  if(!['StationHead','Operator'].includes(user.role??''))return false;
+  return !!user.stations?.some(s=>
+    s.stationId?.toUpperCase()===station.toUpperCase());
+}
