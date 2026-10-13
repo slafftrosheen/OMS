@@ -1,9 +1,9 @@
 // src/routes/api/draft-orders/[id]/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { validateRequest } from '$lib/server/validation';
-import { draftOrderUpdateSchema } from '$lib/server/schemas/draftOrders';
-import { requireOwnership } from '$lib/server/auth/permissions';
+import { orderFields, canonicalDraftFields, canonicalOrderProfiles,
+  canEditDraft, canEditConfirmedMetadata, DRAFT_EDIT_STATUSES
+} from '$lib/server/order/draft-contract';
 
 /**
  * GET /api/draft-orders/[id] - Get single order with profiles
@@ -58,6 +58,8 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     return json({
       id: order.id,
       poNumber: order.po_number,
+      internalRef: order.internal_ref,
+      createdBy: order.created_by,
       clientName: order.client,
       title: order.title,
       deadline: order.due_date,
@@ -65,10 +67,14 @@ export const GET: RequestHandler = async ({ params, locals }) => {
       status: order.status,
       notes: order.notes,
       priority: order.priority || 'NORMAL',
+      deliveryPresetId: order.delivery_preset_id,
+      isRd: order.is_rd,
+      rdNotes: order.rd_notes,
+      badges: order.badges,
       deliveryAddress: order.delivery_address,
       deliveryContact: order.delivery_contact,
       deliveryPhone: order.delivery_phone,
-      profiles: order.profiles || [],
+      profiles: (order.profiles || []).map((p: any) => ({ ...p, dbId: p.id, profileTemplateId: p.profile_template_id })),
       files,
       createdAt: order.created_at,
       updatedAt: order.updated_at
@@ -83,193 +89,99 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 /**
  * PUT /api/draft-orders/[id] - Update order
  */
-export const PUT: RequestHandler = async (event) => {
-  const { params, request } = event;
-  await requireOwnership(event, 'draft_orders', params.id, 'created_by');
-  const data = await validateRequest(request, draftOrderUpdateSchema);
-  if (data.status !== undefined) throw error(409, 'Use the dedicated order lifecycle endpoints to change status');
-
-  try {
-    const { data: order, error: findError } = await event.locals.supabase
-        .from('draft_orders')
-        .select('id,status')
-        .or(`id.eq.${params.id},po_number.eq.${params.id}`)
-        .single();
-
-    if (findError || !order) throw error(404, 'Order not found');
-
-    if (data.loadingDate !== undefined && !['DRAFT','draft','PENDING_REVIEW'].includes(order.status)) {
-      throw error(409, 'Confirmed orders must use loading-day assignment');
-    }
-    const updates: Record<string, unknown> = {
-        updated_at: new Date().toISOString()
-    };
-    if (data.clientName || data.client) updates.client = data.clientName ?? data.client;
-    if (data.title) updates.title = data.title;
-    if (data.deadline || data.due) updates.due_date = data.deadline ?? data.due;
-    // Allow clearing date if explicitly null
-    if (data.loadingDate !== undefined) updates.loading_date = data.loadingDate;
-
-    if (data.notes !== undefined) updates.notes = data.notes;
-    if (data.priority) updates.priority = data.priority;
-    if (data.deliveryAddress !== undefined) updates.delivery_address = data.deliveryAddress;
-    if (data.deliveryContact !== undefined) updates.delivery_contact = data.deliveryContact;
-    if (data.deliveryPhone !== undefined) updates.delivery_phone = data.deliveryPhone;
-
-    const { data: updatedOrder, error: updateError } = await event.locals.supabase
-        .from('draft_orders')
-        .update(updates)
-        .eq('id', order.id)
-        .select()
-        .single();
-
-    if (updateError) throw updateError;
-
-    // Update profiles
-    if (data.profiles && Array.isArray(data.profiles)) {
-        // Live RPC contract: replace_order_profiles(p_order_id uuid, p_profiles jsonb)
-        // where each item carries profile_template_id, quantity1..4, configuration,
-        // notes, order_index. The UI sends camelCase with a single quantity.
-        const profileItems = data.profiles.map((p: any, idx: number) => {
-            const cfg = (p.configuration && typeof p.configuration === 'object') ? p.configuration : {};
-            const q = (typeof p.quantity === 'number' && p.quantity > 0) ? Math.floor(p.quantity) : 1;
-            return {
-                profile_template_id: p.profileTemplateId ?? p.profile_template_id ?? null,
-                quantity1: q,
-                quantity2: p.quantity2 ?? 0,
-                quantity3: p.quantity3 ?? 0,
-                quantity4: p.quantity4 ?? 0,
-                configuration: cfg,
-                notes: p.notes ?? '',
-                order_index: idx
-            };
-        });
-
-        // RPC path: server-side delete+insert is atomic and RLS-safe (SECURITY DEFINER).
-        const { error: profilesError } = await event.locals.supabase.rpc('replace_order_profiles', {
-            p_order_id: order.id,
-            p_profiles: profileItems
-        });
-
-        if (profilesError) {
-            // No manual fallback: the old fallback inserted a nonexistent `order_id`
-            // column into order_profiles (live column is draft_order_id) and always failed.
-            console.error('replace_order_profiles failed:', profilesError);
-            throw error(500, 'Failed to update order profiles');
-        }
-    }
-
-    // Link new files
-    if (data.newFileIds && Array.isArray(data.newFileIds) && data.newFileIds.length > 0) {
-        const filesToInsert = data.newFileIds.map((fid: string) => ({
-            draft_order_id: order.id,
-            file_id: fid,
-            file_type: 'sketch',
-            display_name: null
-        }));
-        await event.locals.supabase.from('order_files').insert(filesToInsert);
-    }
-
-    return json({
-      id: updatedOrder.id,
-      poNumber: updatedOrder.po_number,
-      client: updatedOrder.client,
-      title: updatedOrder.title,
-      due: updatedOrder.due_date,
-      loadingDate: updatedOrder.loading_date,
-      status: updatedOrder.status,
-      notes: updatedOrder.notes,
-      priority: updatedOrder.priority,
-      deliveryAddress: updatedOrder.delivery_address,
-      deliveryContact: updatedOrder.delivery_contact,
-      deliveryPhone: updatedOrder.delivery_phone
-    });
-
-  } catch (err: any) {
-    console.error('Failed to update order:', err);
-    if (err.status) throw err;
-    throw error(500, 'Failed to update order');
+/** Update an unconfirmed draft atomically with its profile instances.
+ * Confirmation/status/PO mutation is explicitly out of scope.
+ */
+export const PUT: RequestHandler = async ({ params, request, locals }) => {
+  const user = locals.user;
+  if (!user) throw error(401, 'Unauthorized');
+  const raw = await request.json().catch(() => null);
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      ['poNumber','po_number','status','newFileIds','created_by','createdBy'].some(k => k in raw)) {
+    throw error(400, 'Use the dedicated file and lifecycle endpoints');
   }
+  const parsed = orderFields.safeParse(raw);
+  if (!parsed.success) return json({ error: 'Invalid order form', fields: parsed.error.flatten().fieldErrors }, { status: 400 });
+  const { data: order, error: lookupError } = await locals.supabase.from('draft_orders')
+    .select('id,created_by,status').eq('id', params.id).maybeSingle();
+  if (lookupError) throw error(503, 'Order lookup unavailable');
+  if (!order) throw error(404, 'Draft not found');
+  if (!canEditDraft(user.role, order.created_by, user.id, order.status)) {
+    throw error(403, 'Only authorized draft editors may change this order');
+  }
+  const fields = canonicalDraftFields(parsed.data, false);
+  const { data: updated, error: updateError } = await locals.supabase.rpc('oms_update_draft_form', {
+    p_order_id: order.id, p_fields: fields,
+    p_profiles: parsed.data.profiles === undefined ? null : canonicalOrderProfiles(parsed.data.profiles)
+  });
+  if (updateError || !updated) {
+    if (updateError?.code === 'PGRST202') throw error(503, 'Atomic draft-form migration is not deployed');
+    console.error('[Orders] Atomic draft form update failed', updateError?.code);
+    throw error(409, 'Order was not saved. Refresh and verify current status and profiles.');
+  }
+  return json({
+    id: updated.id, poNumber: updated.po_number, client: updated.client,
+    clientName: updated.client, title: updated.title, due: updated.due_date,
+    deadline: updated.due_date, loadingDate: updated.loading_date,
+    priority: updated.priority, notes: updated.notes, status: updated.status,
+    deliveryAddress: updated.delivery_address, deliveryContact: updated.delivery_contact,
+    deliveryPhone: updated.delivery_phone, deliveryPresetId: updated.delivery_preset_id,
+    isRd: updated.is_rd, rdNotes: updated.rd_notes, badges: updated.badges
+  }, { headers: { 'Cache-Control': 'private, no-store' } });
 };
 
-/**
- * PATCH /api/draft-orders/[id] - Partial update
- */
-export const PATCH: RequestHandler = async (event) => {
-  const { params, request } = event;
-  await requireOwnership(event, 'draft_orders', params.id, 'created_by');
-  const data = await validateRequest(request, draftOrderUpdateSchema);
-  if (data.status !== undefined) throw error(409, 'Use the dedicated order lifecycle endpoints to change status');
-
-  try {
-     const { data: order, error: findError } = await event.locals.supabase
-        .from('draft_orders')
-        .select('id,status')
-        .or(`id.eq.${params.id},po_number.eq.${params.id}`)
-        .single();
-
-    if (findError || !order) throw error(404, 'Order not found');
-
-    if (data.loadingDate !== undefined && !['DRAFT','draft','PENDING_REVIEW'].includes(order.status)) {
-      throw error(409, 'Confirmed orders must use loading-day assignment');
-    }
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (data.loadingDate !== undefined) updates.loading_date = data.loadingDate;
-
-    if (data.priority !== undefined) updates.priority = data.priority;
-    if (data.notes !== undefined) updates.notes = data.notes;
-
-    if (Object.keys(updates).length <= 1) {
-       throw error(400, 'No fields to update');
-    }
-
-    const { data: updatedOrder, error: updateError } = await event.locals.supabase
-        .from('draft_orders')
-        .update(updates)
-        .eq('id', order.id)
-        .select()
-        .single();
-
-    if (updateError) throw updateError;
-
-    return json({
-      id: updatedOrder.id,
-      poNumber: updatedOrder.po_number,
-      loadingDate: updatedOrder.loading_date,
-      status: updatedOrder.status,
-      priority: updatedOrder.priority,
-      notes: updatedOrder.notes
-    });
-  } catch (err: any) {
-    if (err.status) throw err;
-    console.error('Failed to patch order:', err);
-    throw error(500, 'Failed to update order');
+export const PATCH: RequestHandler = async ({ params, request, locals }) => {
+  const user = locals.user;
+  if (!user) throw error(401, 'Unauthorized');
+  const raw = await request.json().catch(() => null);
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      ['poNumber','po_number','status','profiles','newFileIds','created_by','createdBy'].some(k => k in raw)) {
+    throw error(400, 'Use dedicated lifecycle and file endpoints');
   }
+  const parsed = orderFields.safeParse(raw);
+  if (!parsed.success) return json({ error: 'Invalid order form', fields: parsed.error.flatten().fieldErrors }, { status: 400 });
+  const { data: order, error: lookupError } = await locals.supabase.from('draft_orders')
+    .select('id,created_by,status').eq('id', params.id).maybeSingle();
+  if (lookupError) throw error(503, 'Order lookup unavailable');
+  if (!order) throw error(404, 'Order not found');
+  if (DRAFT_EDIT_STATUSES.has(order.status)) {
+    if (!canEditDraft(user.role,order.created_by,user.id,order.status)) throw error(403, 'Draft editor role required');
+    const { data: updated, error: failed } = await locals.supabase.rpc('oms_update_draft_form', {
+      p_order_id: order.id, p_fields: canonicalDraftFields(parsed.data,false), p_profiles: null
+    });
+    if (failed || !updated) throw error(failed?.code === 'PGRST202' ? 503 : 409, 'Draft update unavailable');
+    return json(updated, { headers: { 'Cache-Control': 'private, no-store' } });
+  }
+  if (!canEditConfirmedMetadata(user.role)) throw error(403, 'Manager role required');
+  if (parsed.data.loadingDate !== undefined) throw error(409, 'Use the loading-day assignment endpoint');
+  const allowed = canonicalDraftFields(parsed.data,false);
+  delete allowed.loading_date;
+  delete allowed.delivery_preset_id; // confirmed logistics are managed separately
+  delete allowed.delivery_address;
+  delete allowed.delivery_contact;
+  delete allowed.delivery_phone;
+  if (!Object.keys(allowed).length) throw error(400,'No permitted fields supplied');
+  const { data: updated, error: failed } = await locals.supabase.from('draft_orders')
+    .update({ ...allowed, updated_by: user.id })
+    .eq('id',order.id).eq('status',order.status).select().maybeSingle();
+  if (failed) throw error(503,'Order metadata update unavailable');
+  if (!updated) throw error(409,'Order status changed. Reload first.');
+  return json(updated, { headers: { 'Cache-Control': 'private, no-store' } });
 };
 
-/**
- * DELETE /api/draft-orders/[id] - Delete order
- */
-export const DELETE: RequestHandler = async (event) => {
-  const { params } = event;
-  await requireOwnership(event, 'draft_orders', params.id, 'created_by');
-  try {
-    const { data: deleted, error: deleteError } = await event.locals.supabase
-        .from('draft_orders')
-        .delete()
-        .or(`id.eq.${params.id},po_number.eq.${params.id}`)
-        .select('po_number')
-        .single();
-
-    if (deleteError || !deleted) {
-         // Try to verify existence first if delete returns 0 rows (PostgREST V10+ behavior depends on Prefer header)
-         throw error(404, 'Order not found');
-    }
-
-    return json({ success: true, id: deleted.po_number });
-  } catch (err: any) {
-    if (err.status) throw err;
-    console.error('Failed to delete order:', err);
-    throw error(500, 'Failed to delete order');
-  }
+/** Cancel, never physically delete, a draft with persisted attachments. */
+export const DELETE: RequestHandler = async ({ params, locals }) => {
+  const user = locals.user;
+  if (!user) throw error(401, 'Unauthorized');
+  const { data: order, error: lookupError } = await locals.supabase.from('draft_orders')
+    .select('id,created_by,status').eq('id',params.id).maybeSingle();
+  if (lookupError) throw error(503, 'Order lookup unavailable');
+  if (!order) throw error(404, 'Order not found');
+  if (!canEditDraft(user.role,order.created_by,user.id,order.status)) throw error(403,'Draft owner or manager required');
+  const { data: cancelled, error: cancelError } = await locals.supabase.from('draft_orders')
+    .update({ status: 'CANCELLED', updated_by: user.id })
+    .eq('id',order.id).eq('status',order.status).select('id,status').maybeSingle();
+  if (cancelError) throw error(503,'Draft cancellation unavailable');
+  if (!cancelled) throw error(409,'Order status changed. Reload first.');
+  return json({ success:true, id:cancelled.id, status:cancelled.status });
 };
