@@ -114,7 +114,7 @@ describe('OMS-R15 customer file revision intelligence',()=>{
     expect(api).toContain('revised.sha256!==input.revisedSha256');
     expect(api).toContain('selectedRevisionDiff(input.changes)');
     expect(api).toContain("rpc(");
-    expect(api).toContain("'create_change_request'");
+    expect(api).toContain("'oms_create_revision_change_request'");
     expect(api).not.toContain('.update(');
     expect(api).not.toContain("'apply_change_request'");
   });
@@ -145,8 +145,16 @@ describe('OMS-R15 customer file revision intelligence',()=>{
     expect(sql).not.toContain("v_key NOT IN ('title', 'client', 'due_date', 'loading_date', 'priority',\n                         'notes', 'is_rd', 'rd_notes', 'badges', 'status')");
     const shared=source('src/lib/server/change-requests/contract.ts');
     expect(shared).not.toContain("'badges', 'status'");
-    expect(sql.split('AS $$').length-1).toBe(3);
-    expect(sql.split('$$;').length-1).toBe(3);
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.order_revision_sources');
+    expect(sql).toContain('REFERENCES public.files(id) ON DELETE RESTRICT');
+    expect(sql).toContain('CREATE OR REPLACE FUNCTION public.oms_create_revision_change_request');
+    expect(sql).toContain('p_expected_updated_at');
+    expect(sql).toContain('CREATE POLICY order_revision_sources_select');
+    expect(sql.split('AS $').length-1).toBe(4);
+    expect(sql.split('$;').length-1).toBe(4);
+    const fileApi=source('src/routes/api/files/[id]/+server.ts');
+    expect(fileApi).toContain("from('order_revision_sources')");
+    expect(fileApi).toContain("if(revisionRefs?.length) throw error(409");
   });
   it('retains full EN/RU/LV translation key parity',()=>{
     const locales=['en','ru','lv'].map(lang=>JSON.parse(source(`src/locales/${lang}.json`)));
