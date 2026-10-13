@@ -1524,6 +1524,9 @@
     "canvasTab": "Audekls",
     "chatTab": "Sarunas",
     "canvas": {
+      "arrangeIdeas": "Sakārtot idejas",
+      "inspectSource": "Izpētīt tīmekļa lapu",
+      "inspectAdded": "Lapas atsauces mezgls pievienots. Palaidiet to, lai iegūtu publisko saturu.",
       "model": "Spriešanas modelis",
       "modelHint": "Izvēlieties konfigurētu modeli. Rīku un JSON atbalsts atšķiras; MI ieteikumi vienmēr jāapstiprina.",
       "defaultModel": "noklusējuma",
