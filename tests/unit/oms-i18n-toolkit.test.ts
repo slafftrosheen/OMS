@@ -64,7 +64,7 @@ describe('OMS language selection and AI output contract', () => {
 
   it('wires the active locale into both AI request paths and user preference validation', () => {
     expect(read('src/routes/toolkit/chat/+page.svelte')).toContain('language: $locale');
-    expect(read('src/routes/toolkit/canvas/+page.svelte')).toContain('skill, language: $locale');
+    expect(read('src/routes/toolkit/canvas/+page.svelte')).toContain('skill: requestedSkill, language: $locale');
     expect(read('src/routes/api/toolkit/brainstorm/+server.ts')).toContain('responseLanguageInstruction(responseLocale)');
     expect(read('src/routes/api/ai/sessions/[id]/messages/+server.ts')).toContain('responseLanguageInstruction(responseLocale)');
     expect(read('src/routes/api/preferences/+server.ts')).toContain("['en', 'ru', 'lv'].includes(data.locale)");
