@@ -1,7 +1,8 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { storageService } from '$lib/server/storage/StorageService';
-import { safeDownloadFilename, storageKeyFromFileRow, formatFileRecord, canDeleteGlobalFile } from '$lib/server/files/contract';
+import { readOrderStoredFile, removeOrderStoredFile } from '$lib/server/files/order-storage';
+import { canManageOrderFile } from '$lib/server/order/draft-contract';
+import { safeDownloadFilename, formatFileRecord, canDeleteGlobalFile } from '$lib/server/files/contract';
 
 async function getAccessibleFile(locals: App.Locals, fileId: string) {
   const { data: links, error: linkError } = await locals.supabase
@@ -22,11 +23,10 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 
   if (url.searchParams.get('download') === 'true') {
     try {
-      const key = storageKeyFromFileRow(file);
-      const { buffer, metadata } = await storageService.download(key);
+      const buffer = await readOrderStoredFile(locals,file);
       return new Response(new Uint8Array(buffer), {
         headers: {
-          'Content-Type': file.mimetype || metadata.contentType || 'application/octet-stream',
+          'Content-Type': file.mimetype || 'application/octet-stream',
           'Content-Length': String(buffer.length),
           'Content-Disposition': `attachment; filename="${safeDownloadFilename(file.original_name || file.filename)}"`,
           'Cache-Control': 'private, no-store'
@@ -46,7 +46,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 
   const { data: links, error: linksError } = await locals.supabase
     .from('order_files')
-    .select('id')
+    .select('id,draft_order_id')
     .eq('file_id', params.id);
   if (linksError) throw error(500, 'Failed to verify file links');
 
@@ -60,8 +60,18 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
     throw error(403, 'Cannot delete a file linked to an inaccessible order');
   }
 
+  const { data: parents, error: parentsError } = await locals.supabase.from('draft_orders')
+    .select('id,created_by,status').in('id',(links ?? []).map((link: any) => link.draft_order_id));
+  if(parentsError || !parents || parents.length !== (links ?? []).length) {
+    throw error(403,'Cannot validate permissions for every linked order');
+  }
+  if(!locals.user || parents.some(p => !canManageOrderFile(locals.user!.role,
+      p.created_by,locals.user!.id,p.status))) {
+    throw error(403,'Only authorized order editors can delete attached files');
+  }
+
   try {
-    await storageService.delete(storageKeyFromFileRow(file));
+    await removeOrderStoredFile(locals,file);
   } catch (err) {
     console.error('Storage deletion failed:', err);
     throw error(500, 'Failed to delete file content');
