@@ -1524,6 +1524,13 @@
     "canvasTab": "Audekls",
     "chatTab": "Sarunas",
     "canvas": {
+      "savedFiles": "Saglabātie faili",
+      "savedFilesHelp": "Augšupielādētie faili šeit paliek arī tad, ja izvietošana vai Canvas saglabāšana neizdodas. Atlasiet failu, lai to pievienotu audeklam.",
+      "refreshSavedFiles": "Atjaunināt failus",
+      "noSavedFiles": "Pagaidām nav augšupielādētu failu.",
+      "savedFilesError": "Neizdevās ielādēt projekta failus.",
+      "fileAlreadyOnBoard": "Šis fails jau ir pievienots pašreizējai audekla lapai.",
+      "savedFileAttached": "Saglabātais fails pievienots audeklam.",
       "pinFileAnalysis": "Pievienot rezultātus kopīgajam audeklam",
       "modelInterpretationLabel": "MODEĻA ANALĪZE — PĀRBAUDIET PIRMS RAŽOŠANAS",
       "parsedEvidenceLabel": "PAKALPOJUMA IEGŪTAIS PDF TEKSTS",
