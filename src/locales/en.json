@@ -1415,6 +1415,7 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "productionReadiness": {
+    "consent": "I agree to send this order's saved customer details, profile summary and relevant inventory information to OpenRouter for analysis. No stock will be reserved.",
     "tab": "Readiness",
     "title": "Production readiness",
     "intro": "Check persisted order profiles, linked files and actual inventory. OpenRouter provides suggestions, never production authorization or stock reservations.",
