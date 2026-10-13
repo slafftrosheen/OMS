@@ -86,15 +86,21 @@ export const revisionEvidenceSchema=z.object({
 }).strict();
 export function safeRevisionDescription(input:z.infer<typeof revisionEvidenceSchema>):string{
   const changed=input.changes.map(c=>c.field).join(', ');
+  const clean=(text:string,limit:number)=>text.replace(/[\r\n\t]+/g,' ')
+    .replace(/\s+/g,' ').trim().slice(0,limit);
+  const excerpts=input.changes.map(c=>
+    `${c.field}: original "${clean(c.oldEvidence,95)}"; revised "${clean(c.newEvidence,95)}"`);
   return [
     'AI-assisted customer file revision — staff selected fields',
-    `Summary: ${input.summary.slice(0,650).replace(/[\r\n]+/g,' ')}`,
+    `Summary: ${clean(input.summary,650)}`,
     `Fields: ${changed}`,
     `Baseline file ID: ${input.baselineFileId}`,
     `Baseline SHA-256: ${input.baselineSha256}`,
     `Revised file ID: ${input.revisedFileId}`,
     `Revised SHA-256: ${input.revisedSha256}`,
     `Order revision at comparison: ${input.orderUpdatedAt}`,
-    'Evidence excerpts and recommendations are AI-reported; human verification required.'
-  ].join('\n').slice(0,1800);
+    'Evidence excerpts reported by OpenRouter (not independently verified):',
+    ...excerpts,
+    'Human verification required before applying any approved change.'
+  ].join('\n').slice(0,3600);
 }
