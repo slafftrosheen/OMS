@@ -15,11 +15,13 @@
   let {
     orderId,
     compact = false,
-    canUpload = true
+    canUpload = true,
+    onChanged
   }: {
     orderId: string;
     compact?: boolean;
     canUpload?: boolean;
+    onChanged?: () => void;
   } = $props();
 
   type OrderFile = {
@@ -97,6 +99,7 @@
         const payload = await res.json();
         const uploaded = payload.file ?? payload;
         files = [uploaded, ...files];
+        onChanged?.();
       } else {
         const detail = await res.json().catch(() => ({}));
         fileError = String(detail.message || detail.error || `Upload failed (HTTP ${res.status})`);
@@ -116,6 +119,7 @@
       const res = await fetch(`${base}/api/files/${fileId}`, { method: 'DELETE' });
       if (res.ok) {
         files = files.filter(f => f.id !== fileId);
+        onChanged?.();
       } else {
         const payload = await res.json().catch(() => ({}));
         fileError = String(payload.error || 'Delete was rejected');
