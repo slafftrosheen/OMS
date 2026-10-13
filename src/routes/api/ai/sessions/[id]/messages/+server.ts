@@ -14,6 +14,7 @@ import {
     executeTool
 } from '$lib/server/ai/tools-registry';
 import { logger } from '$lib/server/logging/logger';
+import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/ai/response-language';
 
 
 interface PersonaTemplate {
@@ -55,7 +56,7 @@ Operating principles:
   • When the user is at a station and asks for a check, prefer
     a numbered, bulleted, action-oriented reply they can read
     while their hands are busy.
-  • Default to the user's last-used language unless asked.
+  • Respect the OMS language setting; do not infer it from chat history.
   • If multiple tools could apply, run them in parallel by
     emitting multiple tool calls in one assistant turn.`;
 
@@ -74,6 +75,7 @@ export const POST: RequestHandler = async (event) => {
         content?: string;
         persona?: string;
         persona_template_id?: string;
+        language?: string;
     } | null;
     if (typeof body?.content !== 'string' || !body.content.trim() || body.content.length > 12_000) {
         throw kitError(400, 'Message must be 1–12,000 characters');
@@ -144,6 +146,14 @@ export const POST: RequestHandler = async (event) => {
         sysPrompt += `\n\nPersona: ${legacyPersona}`;
     }
     sysPrompt += '\n\nKnowledge-base retrieval is disabled. Do not claim company documents were searched or cite unverified sources.';
+    // A validated client selection is immediate; saved preferences support any
+    // other API caller that doesn't send the language parameter.
+    const { data: savedPreference } = await db.from('user_preferences')
+        .select('locale').eq('user_id', userId).maybeSingle();
+    const responseLocale = resolveResponseLocale(
+        body.language, savedPreference?.locale, request.headers.get('accept-language')
+    );
+    sysPrompt += '\n\n' + responseLanguageInstruction(responseLocale);
 
     const messages: OpenRouterMessage[] = [
         { role: 'system', content: sysPrompt },
