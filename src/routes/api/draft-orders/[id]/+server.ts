@@ -133,7 +133,8 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
     deliveryAddress: updated.delivery_address, deliveryContact: updated.delivery_contact,
     deliveryPhone: updated.delivery_phone, deliveryEmail: updated.metadata?.delivery_email ?? '',
     deliveryPresetId: updated.delivery_preset_id,
-    isRd: updated.is_rd, rdNotes: updated.rd_notes, badges: updated.badges
+    isRd: updated.is_rd, rdNotes: updated.rd_notes, badges: updated.badges,
+    updatedAt: updated.updated_at
   }, { headers: { 'Cache-Control': 'private, no-store' } });
 };
 
