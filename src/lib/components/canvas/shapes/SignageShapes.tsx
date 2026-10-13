@@ -4,6 +4,7 @@
 // pick up the calculation summary.
 
 import React, { useState } from 'react';
+import { useToolkitText } from '../use-toolkit-text';
 import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 import { registerNodeRunner } from '../node-runner';
 import {
@@ -53,6 +54,7 @@ function PlanCard<T extends BasePlanProps>(props: {
     /** Renders a result summary block next to the notes/warnings list. */
     renderSummary?: (output: NonNullable<T['output']>) => React.ReactNode;
 }) {
+    const tn = useToolkitText();
     const { accent, title, icon, fields, shape, endpoint, editor, renderSummary } = props;
     const { w, h, inputs, status, error, output } = shape.props;
     const [draft, setDraft] = useState<Record<string, any>>({ ...inputs });
@@ -99,12 +101,12 @@ function PlanCard<T extends BasePlanProps>(props: {
         <HTMLContainer id={shape.id} style={containerStyle(w, h, accent, status === 'error')}>
             <div style={headerStyle(accent)}>
                 <span>{icon} {title}</span>
-                <span style={statusBadgeStyle(status)}>{status}</span>
+                <span style={statusBadgeStyle(status)}>{tn(`status${status[0].toUpperCase()}${status.slice(1)}`)}</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', padding: 8, gap: 4 }} onPointerDown={stop}>
                 {fields.map((f) => (
                     <div key={f.key} style={rowStyle}>
-                        <label style={labelStyle}>{f.label}</label>
+                        <label style={labelStyle}>{tn(`fields.${f.key}`)}</label>
                         {f.type === 'checkbox' ? (
                             <input
                                 type="checkbox"
@@ -139,7 +141,7 @@ function PlanCard<T extends BasePlanProps>(props: {
                     </div>
                 ))}
                 <button onClick={run} disabled={status === 'running'} style={{ ...runButtonStyle(accent), alignSelf: 'flex-end' }}>
-                    {status === 'running' ? 'Calculating…' : 'Compute'}
+                    {status === 'running' ? tn('calculating') : tn('compute')}
                 </button>
             </div>
             <div style={bodyStyle} onPointerDown={stop}>
