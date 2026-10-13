@@ -1415,6 +1415,13 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "orderWorkspace": {
+    "approveReview": "Approve review",
+    "rejectReview": "Reject review",
+    "reviewDecisionWarning": "Record this review decision? It will not automatically apply order changes.",
+    "reviewRecorded": "Review decision recorded; order data is unchanged.",
+    "changeListError": "Could not load change requests.",
+    "changeReviewError": "Could not record review decision.",
+    "unknownAuthor": "Unknown requester",
     "title": "Order workspace",
     "overviewHint": "One place for order preparation, files, production checks, revisions and team decisions.",
     "openWorkspace": "Open workspace",
