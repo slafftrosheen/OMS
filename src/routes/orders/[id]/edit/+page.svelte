@@ -968,7 +968,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         <button type="button" class="focus-toggle" onclick={() => focusPanel=!focusPanel}
           aria-pressed={focusPanel}
           title={focusPanel?$t('orderWorkspace.showCanvas'):$t('orderWorkspace.focusPanel')}>
-          <Icon name={focusPanel?'panels-top-left':'maximize'} size="sm" />
+          <Icon name={focusPanel?'eye':'maximize'} size="sm" />
           {focusPanel?$t('orderWorkspace.showCanvas'):$t('orderWorkspace.focusPanel')}
         </button>
       </div>
@@ -1433,11 +1433,72 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     flex-shrink: 0;
   }
 
+
+  /* ── R16: guided, responsive order workspace ───────────────────────────── */
+  .workspace-flow{
+    display:flex;align-items:center;gap:5px;padding:8px 12px;
+    border-bottom:1px solid var(--border);background:var(--bg-1);
+    flex-shrink:0;overflow-x:auto;scrollbar-width:thin
+  }
+  .workspace-flow>button{
+    display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+    border:1px solid transparent;background:transparent;color:var(--text-muted);
+    border-radius:9px;padding:8px 12px;min-height:36px;font-size:12px;
+    font-weight:600;cursor:pointer
+  }
+  .workspace-flow>button:hover{background:var(--bg-2);color:var(--text)}
+  .workspace-flow>button.active{background:color-mix(in oklab,var(--brand) 12%,transparent);
+    color:var(--brand);border-color:color-mix(in oklab,var(--brand) 27%,transparent)}
+  .workspace-phase-icon{display:inline-flex}
+  .workspace-inline-summary{display:inline-flex;align-items:center;gap:7px;
+    white-space:nowrap;margin-left:auto;color:var(--text-muted);font-size:11px;padding:0 8px}
+  .dirty-mark{width:7px;height:7px;border-radius:50%;background:var(--warn,#e89c2d)}
+  .workspace-panel-heading{display:flex;justify-content:space-between;align-items:center;
+    gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)}
+  .workspace-eyebrow{display:block;font-size:10px;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--text-muted)}
+  .workspace-panel-heading h2{font-size:18px;margin:4px 0 0;line-height:1.3}
+  .focus-toggle{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);
+    border-radius:8px;padding:7px 10px;color:var(--text);background:var(--bg-2);
+    cursor:pointer;white-space:nowrap;font-size:12px}
+  .nav-count{display:inline-flex;align-items:center;justify-content:center;
+    min-width:20px;height:19px;padding:0 5px;border-radius:10px;
+    background:var(--bg-2);font-size:10px;font-weight:700}
+  .canvas-body.workspace-focused{grid-template-columns:minmax(0,1fr)}
+  .workspace-focused .toolbox,.workspace-focused .canvas-area{display:none}
+  .workspace-focused .right-docker{grid-column:1/-1;border-left:0}
+  .workspace-focused .docker-content{width:100%;max-width:1080px;margin:0 auto;box-sizing:border-box}
+  .workspace-focused .order-field-panel{grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:16px;padding:18px}
+  .workspace-focused .order-field-panel>h4{grid-column:1/-1}
+  .workspace-focused .order-profile-edit{min-width:0}
+  @media(max-width:980px){
+    .top-bar{gap:8px;padding:0 9px}
+    .context-bar{display:none}
+    .canvas-body:not(.workspace-focused){grid-template-columns:46px minmax(175px,1fr) minmax(285px,42vw)}
+    .top-bar-actions .action-btn{padding:7px 9px}
+  }
+  @media(max-width:720px){
+    .top-bar{height:auto;min-height:52px;flex-wrap:wrap;padding:7px 10px;justify-content:space-between}
+    .top-bar-actions{flex-wrap:wrap;gap:5px}
+    .workspace-flow{padding:6px 8px}
+    .workspace-flow>button{padding:7px 9px}
+    .workspace-inline-summary{display:none}
+    .workspace-focused .order-field-panel{grid-template-columns:minmax(0,1fr)}
+    .canvas-body:not(.workspace-focused){grid-template-columns:40px minmax(0,1fr);position:relative}
+    .canvas-body:not(.workspace-focused) .right-docker{
+      position:absolute;right:0;bottom:0;width:min(90%,360px);
+      height:42%;box-shadow:0 -6px 24px rgba(0,0,0,.18)
+    }
+    .workspace-panel-heading h2{font-size:15px}
+    .focus-toggle{font-size:11px}
+  }
+
   /* ── Body: toolbox + canvas + docker ────────────────────────────────────── */
   .canvas-body {
     flex: 1;
     display: grid;
-    grid-template-columns: 52px 1fr 280px;
+    grid-template-columns: 52px minmax(220px,1fr) minmax(320px,36vw);
     overflow: hidden;
   }
 
@@ -1524,18 +1585,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   }
 
   .docker-tabs {
-    display: flex;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
+    display:flex;gap:4px;padding:6px 12px;
+    overflow-x:auto;scrollbar-width:thin;flex-shrink:0;
+    border-bottom:1px solid var(--border);
   }
 
   .dtab {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 10px 4px;
+    display:inline-flex;
+    align-items:center;justify-content:center;gap:6px;white-space:nowrap;
+    padding:9px 12px;border-radius:8px 8px 0 0;min-height:36px;
     font-size: 11px;
     font-weight: 600;
     border: none;
@@ -1550,8 +1608,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
   .docker-content {
     flex: 1;
-    overflow-y: auto;
-    padding: var(--space-md);
+    overflow-y:auto;
+    min-height:0;
+    padding:var(--space-md);
   }
 
   /* Zone list */
