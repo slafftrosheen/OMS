@@ -5,6 +5,7 @@
   import TldrawWrapper from '$lib/components/canvas/TldrawWrapper.svelte';
   import { ideaDefaults, type IdeaKind } from '$lib/components/canvas/idea-model';
   import { starterCards } from '$lib/components/canvas/toolkit-templates';
+  import { markdownProjectBrief, briefFileName } from '$lib/components/canvas/toolkit-brief';
   import { extractBoardCards, extractBoardLinks, normalizeProposals, type ProposedCard } from '$lib/components/canvas/toolkit-context';
   import { runShape } from '$lib/components/canvas/node-runner';
   import { importToolkitFiles, type ToolkitPosition } from '$lib/components/canvas/toolkit-media-import';
@@ -24,7 +25,13 @@
   let suggestions = $state<ProposedCard[]>([]);
   let actionProposals = $state<CanvasAction[]>([]);
   let skill = $state<ToolkitSkill>('explore');
-  let researchSources = $state<Array<{title:string;url:string}>>([]);
+  let researchSources = $state<Array<{title:string;url:string;snippet?:string}>>([]);
+  let searchNote = $state('');
+  let modelChoices = $state<Array<{id:string;label:string;isDefault:boolean}>>([]);
+  let selectedModel = $state('');
+  let webMode = $state<'searxng' | 'openrouter'>('searxng');
+  let paidWebAvailable = $state(false);
+  let lastUsedModel = $state('');
   let insecureClipboard = $state(false);
   let legacyThreads = $state<Record<string, Array<{role: string; content: string}>>>({});
   let prompt = $state('');
@@ -71,7 +78,24 @@
     { kind: 'task', label: 'Task', emoji: '✓' },
     { kind: 'note', label: 'Note', emoji: '▤' }
   ];
-  const prompts = ['expand', 'challenge', 'compare', 'plan'] as const;
+  const prompts: Array<{id: 'expand'|'challenge'|'compare'|'plan'|'research'|'brief'; skill: ToolkitSkill}> = [
+    { id: 'expand', skill: 'explore' }, { id: 'challenge', skill: 'critique' },
+    { id: 'compare', skill: 'compare' }, { id: 'plan', skill: 'plan' },
+    { id: 'research', skill: 'research' }, { id: 'brief', skill: 'summarize' }
+  ];
+  async function loadModelChoices() {
+    try {
+      const response = await fetch('/api/toolkit/models', { cache: 'no-store' });
+      if (!response.ok) return;
+      const data = await response.json();
+      modelChoices = Array.isArray(data.models) ? data.models.filter((v: any) =>
+        typeof v?.id === 'string' && typeof v?.label === 'string').slice(0, 9) : [];
+      selectedModel = modelChoices.some(m => m.id === selectedModel)
+        ? selectedModel : (modelChoices[0]?.id ?? '');
+      paidWebAvailable = data.web?.openrouter === true;
+      if (!paidWebAvailable) webMode = 'searxng';
+    } catch { /* Default model and SearXNG remain available on the server. */ }
+  }
 
   function markDirty() {
     if (!boardId) return;
@@ -256,6 +280,8 @@
     suggestions = [];
     actionProposals = [];
     researchSources = [];
+    searchNote = '';
+    lastUsedModel = '';
     legacyThreads = {};
     prompt = '';
     selectedLabel = '';
@@ -388,18 +414,47 @@
     const selected = editor.getSelectedShapeIds?.() ?? [];
     const cards = extractBoardCards(all);
     const links = extractBoardLinks(all, (arrowId) => editor.getBindingsFromShape?.(arrowId, 'arrow') ?? []);
-    const visualAssets = all.filter((shape: any) =>
-      shape.type === 'document' || shape.type === 'material-swatch').slice(0, 16)
-      .map((shape: any) => ({ title: shape.props?.title ?? '', kind: shape.props?.kind ?? shape.type }));
+    const relevantTypes = new Set([
+      'document', 'material-swatch', 'web-search', 'crawl',
+      'lumigrid', 'led-strip', 'led-matrix', 'boxletter', 'maker'
+    ]);
+    const visualAssets = all.filter((shape: any) => relevantTypes.has(shape.type))
+      .slice(0, 16).map((shape: any) => {
+        const props = shape.props ?? {};
+        let context = '';
+        if (shape.type === 'document') {
+          context = props.kind === 'note'
+            ? String(props.content ?? '').slice(0, 1400)
+            : props.kind === 'pdf' ? 'PDF preview only. Text has not been extracted.'
+            : props.kind === 'image' ? 'Image preview only. Image pixels were not sent to AI.' : '';
+        } else if (shape.type === 'web-search') {
+          context = (props.output?.hits ?? []).slice(0, 3)
+            .map((hit: any) => [hit.title, hit.url, hit.snippet].join(' — ')).join('\n').slice(0, 1400);
+        } else if (shape.type === 'crawl') {
+          context = [props.output?.final_url, props.output?.title, props.output?.text]
+            .filter(Boolean).join('\n').slice(0, 1400);
+        } else if (props.output) {
+          context = JSON.stringify(props.output).slice(0, 1400);
+        }
+        return {
+          id: String(shape.id).slice(0, 100),
+          title: String(props.title ?? shape.type).slice(0, 120),
+          kind: String(props.kind ?? shape.type).slice(0, 32),
+          context
+        };
+      });
     selectedCount = selected.length;
     selectedLabel = selected.length ? tr('canvas.selected', { count: selected.length }) : tr('canvas.wholeBoard');
     return { cards, links, visualAssets, focusId: String(selected[0] ?? '') };
   }
-  async function brainstorm(question = prompt) {
+  async function brainstorm(question = prompt, requestedSkill: ToolkitSkill = skill) {
     const text = question.trim();
     if (!text || requesting || !editor) return;
     requesting = true;
+    skill = requestedSkill;
     notice = '';
+    searchNote = '';
+    const activeBoardId = boardId;
     const context = getContext();
     const history = messages.slice(-10);
     messages = [...messages, { role: 'user', content: text }].slice(-60);
@@ -411,23 +466,69 @@
     try {
       const response = await fetch('/api/toolkit/brainstorm', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: text, ...context, history, skill, language: $locale })
+        body: JSON.stringify({
+           prompt: text, ...context, history, skill: requestedSkill, language: $locale,
+           model: selectedModel || undefined,
+           webMode: requestedSkill === 'research' ? webMode : 'searxng'
+         })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || tr('canvas.noSuggestions'));
+      // A switch or deletion while the provider was working must never write its
+      // response into a different project's personal discussion.
+      if (boardId !== activeBoardId || destroyed) return;
+      lastUsedModel = typeof data.model === 'string' ? data.model : '';
+      searchNote = typeof data.searchNote === 'string' ? data.searchNote.slice(0, 500) : '';
       messages = [...messages, { role: 'assistant', content: String(data.reply ?? '').slice(0, 5000) }].slice(-60);
       suggestions = normalizeProposals(data.cards).slice(0, 5);
       actionProposals = normalizeCanvasActions(data.actions,
         new Set(context.cards.map(c => c.id)));
       researchSources = Array.isArray(data.sources)
         ? data.sources.filter((v: any) => typeof v?.url === 'string' &&
-          /^https?:\/\//.test(v.url)).slice(0, 5) : [];
+          /^https?:\/\//.test(v.url)).slice(0, 5).map((v: any) => ({
+            title: String(v.title ?? '').slice(0, 180), url: v.url,
+            snippet: String(v.snippet ?? '').slice(0, 320)
+          })) : [];
       markDiscussionDirty();
     } catch (e) {
+      if (boardId !== activeBoardId || destroyed) return;
       notice = e instanceof Error ? e.message : tr('canvas.noBrainstorm');
       // Retain the prompt in the conversation so the user can retry or copy it.
     } finally { requesting = false; }
   }
+  function captureAnswer() {
+    if (!editor || !boardId || conflict || remoteUpdated) return;
+    const reply = [...messages].reverse().find(message => message.role === 'assistant')?.content;
+    if (!reply) return;
+    addCard('note', tr('canvas.answerCard'), reply.slice(0, 1200));
+    notice = tr('canvas.savedToCanvas');
+  }
+
+  function pinResearchSource(source: {title:string;url:string;snippet?:string}) {
+    if (!editor || !boardId || conflict || remoteUpdated) return;
+    let target: URL;
+    try {
+      target = new URL(source.url);
+      if (!['https:', 'http:'].includes(target.protocol) || target.username || target.password) return;
+    } catch { return; }
+    addCard('research', source.title.slice(0, 100) || target.hostname,
+      [source.url, source.snippet ?? ''].filter(Boolean).join('\n\n').slice(0, 1200));
+    notice = tr('canvas.savedToCanvas');
+  }
+
+  function exportBrief() {
+    if (!editor || !boardId) return;
+    const { cards, links } = getContext();
+    const markdown = markdownProjectBrief(boardTitle, cards, links, researchSources);
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url; anchor.download = briefFileName(boardTitle);
+    anchor.click();
+    // Delay revoke until after the browser starts the download.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   function auditBoard() {
     if (!editor || !boardId) return;
     const { cards, links } = getContext();
@@ -569,6 +670,7 @@
 
   onMount(() => {
     insecureClipboard = !window.isSecureContext || !navigator.clipboard?.writeText;
+    void loadModelChoices();
     void loadBoards();
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (dirty || discussionDirty || importing) { e.preventDefault(); e.returnValue = ''; }
