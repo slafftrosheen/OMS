@@ -1415,6 +1415,8 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "orderIntake": {
+    "sourceChanged": "Selected source changed after analysis. Analyze the new file before applying.",
+    "noSource": "Choose an attachment or save some order notes before analysis.",
     "locale": "en",
     "tab": "AI Intake",
     "title": "AI Order Intake",
