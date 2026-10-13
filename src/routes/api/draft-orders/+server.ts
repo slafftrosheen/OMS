@@ -2,7 +2,6 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { getPagination } from '$lib/server/pagination';
 import { apiError } from '$lib/server/errors';
-import { notifyDraftCreated } from '$lib/server/notifications/orderNotifier';
 import { orderFields, canonicalDraftFields, canonicalOrderProfiles } from '$lib/server/order/draft-contract';
 
 /**
@@ -101,13 +100,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   const parsed = orderFields.safeParse(raw);
   if (!parsed.success) return json({ error: 'Invalid order fields', fields: parsed.error.flatten().fieldErrors }, { status: 400 });
   const input = parsed.data;
+  if (input.status && input.status !== 'DRAFT') return json({
+    error:'Create as DRAFT, upload attachments, then use the submit endpoint for review'
+  },{status:409});
   let fields: Record<string, unknown>;
   try { fields = canonicalDraftFields(input, true); }
   catch (err) { return json({ error: (err as Error).message }, { status: 400 }); }
   const { data: order, error: createError } = await locals.supabase.rpc('oms_create_draft_form', {
     p_fields: fields,
     p_profiles: canonicalOrderProfiles(input.profiles),
-    p_status: input.status ?? 'PENDING_REVIEW'
+    p_status: 'DRAFT'
   });
   if (createError || !order) {
     if (createError?.code === 'PGRST202') return json({
@@ -116,14 +118,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     console.error('[Orders] Transactional draft create failed', createError?.code);
     return json({ error: 'Order was not created. Verify required fields, profiles and permissions.' },
       { status: createError?.code === '23505' ? 409 : 400 });
-  }
-  if (order.status === 'PENDING_REVIEW') {
-    try {
-      await notifyDraftCreated(locals.supabase, {
-        orderId: order.id, internalRef: order.internal_ref ?? null,
-        client: order.client, createdById: user.id
-      });
-    } catch (err) { console.error('[Orders] Draft notification unavailable', err); }
   }
   return json({ success: true, order }, { status: 201, headers: { 'Cache-Control': 'private, no-store' } });
 };
