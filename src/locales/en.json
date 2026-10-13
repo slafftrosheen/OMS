@@ -1414,6 +1414,40 @@
     "edit_order": "Edit Order",
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
+  "orderWorkspace": {
+    "title": "Order workspace",
+    "overviewHint": "One place for order preparation, files, production checks, revisions and team decisions.",
+    "openWorkspace": "Open workspace",
+    "continue": "Continue workflow",
+    "workflowLabel": "Order workflow",
+    "sectionsLabel": "Workspace sections",
+    "groups": {
+      "prepare": "Prepare",
+      "plan": "Plan production",
+      "review": "Review changes",
+      "collaborate": "Collaborate"
+    },
+    "sections": {
+      "details": "Details & profiles",
+      "files": "Attachments",
+      "intake": "AI intake",
+      "readiness": "Production readiness",
+      "layers": "Canvas & zones",
+      "revisions": "File revisions",
+      "changes": "Approvals",
+      "chat": "Assistant chat"
+    },
+    "unsaved": "Unsaved changes",
+    "savedState": "Changes saved",
+    "leaveWarning": "You have unsaved order changes. Leave and discard them?",
+    "showCanvas": "Show canvas",
+    "focusPanel": "Focus panel",
+    "saveHelp": "Save this draft and its forms. AI proposals are not saved until you approve and save them.",
+    "stationAction": "Change station state",
+    "stageQueued": "Queued",
+    "stageCompletionHint": "Station completion must use the dedicated material-consumption workflow.",
+    "blockReasonPrompt": "Why is this station blocked? A reason is required."
+  },
   "revisionIntelligence": {
     "tab": "Revisions",
     "title": "Customer file revision comparison",
