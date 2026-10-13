@@ -615,7 +615,9 @@
           loadingDate: loadingDate || null,
           notes,
           priority,
-          status: 'PENDING_REVIEW',
+          // Do not expose an incomplete order in management review while
+          // file uploads are still in progress.
+          status: 'DRAFT',
           deliveryPresetId: selectedPresetId,
           deliveryAddress,
           deliveryContact,
@@ -682,6 +684,16 @@
         return;
       }
 
+      // Review publication occurs only after all uploaded files are linked
+      // to this draft. On failure retain savedOrderId for safe retry.
+      const submitResponse = await fetch(`/api/draft-orders/${orderId}/submit`, {
+        method: 'POST'
+      });
+      if (!submitResponse.ok) {
+        const detail = await submitResponse.json().catch(() => ({}));
+        error = detail.message || detail.error || 'Draft saved but could not be submitted for review. Retry Save.';
+        return;
+      }
       savedOrderId = null;
       successMessage = $t('orders.new.messages.success');
       setTimeout(() => goto(`/orders`), 1500);
