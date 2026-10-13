@@ -92,7 +92,7 @@ describe('OMS-R07 Canvas skills and safe tool actions', () => {
     expect(api).not.toContain('SUPABASE_SERVICE_ROLE_KEY');
   });
   it('does not let model replies mutate an opened shared project', () => {
-    const responseStage = canvas.split('async function brainstorm')[1]?.split('function applySuggestion')[0];
+    const responseStage = canvas.split('async function brainstorm')[1]?.split('function captureAnswer')[0];
     expect(responseStage).not.toContain('applyToolkitAction(');
     expect(canvas).toContain('function approveAction(action: CanvasAction)');
     expect(canvas).toContain('onclick={() => approveAction(action)}');
