@@ -276,7 +276,7 @@
         </a>
         <a href="{base}/toolkit"    class:active={currentPath.includes('/toolkit')}    onclick={navTo}>
           <Icon name="sparkles"    size="sm" />
-          <span>Toolkit</span>
+          <span>{$t('toolkit.title')}</span>
         </a>
         {#if isAdmin}
           <span class="rf-topbar__divider" aria-hidden="true"></span>
@@ -330,7 +330,7 @@
         </a>
         <a href="{base}/toolkit"    class:active={currentPath.includes('/toolkit')}    onclick={navTo}>
           <Icon name="sparkles"         size="md" />
-          <span>Toolkit</span>
+          <span>{$t('toolkit.title')}</span>
         </a>
         {#if isAdmin}
           <hr class="rf-mobile-menu__divider" />
