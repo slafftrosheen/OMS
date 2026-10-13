@@ -29,9 +29,11 @@ database schema or permitting autonomous mutations.
   second research provider in the UI. This sends
   `{type:'openrouter:web_search'}` only when Research and this mode are selected.
   It may incur **extra paid searches** independently of model token cost.
-  OpenRouter server-tool output/citations are provided in the model response;
-  the inspectable source panel contains only the independently returned
-  SearXNG hits, never made-up citations.
+  OpenRouter server-tool output/citations are shown through provider-reported
+  annotation links when available, labeled as **not independently verified**.
+  The source panel also shows independent SearXNG hits; it never invents URLs.
+  OpenRouter paid web calls are capped at two server-tool invocations per request
+  and eight cumulative results.
 - **Productivity tools** — direct arrange-by-kind, manual source capture,
   save-last-AI-answer-as-note, and offline, deterministic Markdown export of
   cards, task states, links and current research references. No provider calls
