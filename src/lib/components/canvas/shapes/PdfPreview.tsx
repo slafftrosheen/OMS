@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { useToolkitText } from '../use-toolkit-text';
 
 interface Props { url: string; page: number; width: number; onPageChange: (page: number) => void; }
 export function PdfPreview({ url, page, width, onPageChange }: Props) {
+  const tn = useToolkitText();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [doc, setDoc] = useState<any>(null);
   const [pages, setPages] = useState(0);
@@ -67,19 +69,19 @@ export function PdfPreview({ url, page, width, onPageChange }: Props) {
   return <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
     <div style={{ flex: 1, overflow: 'auto', background: '#e4e5e9', display: 'grid',
       justifyContent: 'center', alignContent: 'start', padding: 7 }}>
-      <canvas ref={canvasRef} aria-label={`PDF page ${page}`} style={{ background: 'white', maxWidth: '100%',
+      <canvas ref={canvasRef} aria-label={tn('pdfPage', { page })} style={{ background: 'white', maxWidth: '100%',
         height: 'auto', boxShadow: '0 4px 12px #0002' }} />
-      {status && <span role="status" style={{ fontSize: 11, padding: 8 }}>{status}</span>}
+      {status && <span role="status" style={{ fontSize: 11, padding: 8 }}>{tn(status === 'Opening PDF…' ? 'pdfOpening' : status === 'Rendering page…' ? 'pdfRendering' : status.startsWith('Could not') ? 'pdfOpenFailed' : 'pdfRenderFailed')}</span>}
     </div>
     <div onPointerDown={stop} onKeyDown={stop} style={{ display: 'flex', alignItems: 'center',
       justifyContent: 'space-between', padding: '5px 9px', borderTop: '1px solid #0002', gap: 7 }}>
       <button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)}
-        aria-label="Previous PDF page">‹</button>
-      <span style={{ fontSize: 11 }}>Page {Math.min(page, pages || page)} of {pages || '…'}</span>
+        aria-label={tn('pdfPrevious')}>‹</button>
+      <span style={{ fontSize: 11 }}>{tn('pdfPageCount', { page: Math.min(page, pages || page), count: pages || '…' })}</span>
       <button type="button" disabled={!pages || page >= pages} onClick={() => onPageChange(page + 1)}
-        aria-label="Next PDF page">›</button>
+        aria-label={tn('pdfNext')}>›</button>
       <a href={url} target="_blank" rel="noopener noreferrer" onClick={stop}
-        style={{ color: 'var(--brand)', fontSize: 11 }}>Open file ↗</a>
+        style={{ color: 'var(--brand)', fontSize: 11 }}>{tn('pdfOpen')}</a>
     </div>
   </div>;
 }
