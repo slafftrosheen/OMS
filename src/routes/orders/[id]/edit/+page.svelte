@@ -5,7 +5,7 @@
    * top-right = primary action buttons (Save Draft / Confirm / Rework).
    * The tldraw canvas fills the centre.
    */
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { goto, pushState, beforeNavigate } from '$app/navigation';
   import { page } from '$app/state';
   import { base } from '$app/paths';
@@ -195,10 +195,13 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   // SvelteKit shallow-history entries. Switching sections does not discard forms.
   $effect(() => {
     const linked=sectionFromQuery(page.url.searchParams.get('section'));
-    if(rightTab!==linked){
-      rightTab=linked;
-      focusPanel=linked!=='layers';
-    }
+    // Depend only on the URL, not on the local selection being changed.
+    untrack(() => {
+      if(rightTab!==linked){
+        rightTab=linked;
+        focusPanel=linked!=='layers';
+      }
+    });
   });
   let intakeFileId = $state('');
   let intakeCurrent = $derived({
