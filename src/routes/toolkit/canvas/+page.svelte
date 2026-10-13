@@ -43,6 +43,7 @@
   let selectedTool = $state('select');
   let requesting = $state(false);
   let selectedLabel = $state('');
+  let selectedCount = $state(0);
   let editor: any = null;
   let lastSnapshot: unknown = null;
   let ready = false;
@@ -258,6 +259,7 @@
     legacyThreads = {};
     prompt = '';
     selectedLabel = '';
+    selectedCount = 0;
     try {
       const [response, privateResponse] = await Promise.all([
         fetch(`/api/ai/canvas/${encodeURIComponent(id)}`, { cache: 'no-store' }),
@@ -372,6 +374,7 @@
   function zoomToContent() { editor?.zoomToFit?.(); }
   function updateSelectionSummary() {
     const selected = editor?.getSelectedShapeIds?.() ?? [];
+    selectedCount = selected.length;
     selectedLabel = selected.length ? tr('canvas.selected', { count: selected.length }) : tr('canvas.wholeBoard');
   }
   function deleteSelection() {
@@ -388,6 +391,7 @@
     const visualAssets = all.filter((shape: any) =>
       shape.type === 'document' || shape.type === 'material-swatch').slice(0, 16)
       .map((shape: any) => ({ title: shape.props?.title ?? '', kind: shape.props?.kind ?? shape.type }));
+    selectedCount = selected.length;
     selectedLabel = selected.length ? tr('canvas.selected', { count: selected.length }) : tr('canvas.wholeBoard');
     return { cards, links, visualAssets, focusId: String(selected[0] ?? '') };
   }
@@ -642,7 +646,7 @@
               <button class="project-open" onclick={() => openBoard(b.id)}
                 aria-current={boardId === b.id ? 'true' : undefined}>
                 <strong>{b.title}</strong>
-                <span>{new Date(b.updated_at).toLocaleDateString()}</span>
+                <span>{new Date(b.updated_at).toLocaleDateString($locale === 'ru' ? 'ru-RU' : $locale === 'lv' ? 'lv-LV' : 'en-GB')}</span>
               </button>
               <button class="delete" title={$t('toolkit.canvas.deleteProject', { title: b.title })} aria-label={$t('toolkit.canvas.deleteProject', { title: b.title })} onclick={() => removeBoard(b.id)}>×</button>
             </div>
@@ -688,7 +692,7 @@
             <summary>{$t('toolkit.canvas.materials')}</summary>
             <div class="advanced-menu" role="group" aria-label={$t('toolkit.canvas.materialRefs')}>
               {#each ['brushed-metal','matte','frosted-acrylic','wood-grain','concrete','patina','mesh'] as material}
-                <button onclick={() => addMaterial(material)}>{material.replaceAll('-', ' ')}</button>
+                <button onclick={() => addMaterial(material)}>{$t(`toolkit.nodes.materialPresets.${material}`)}</button>
               {/each}
               <button onclick={createPhotoMaterial}>{$t('toolkit.canvas.fromImage')}</button>
             </div>
@@ -701,10 +705,10 @@
           <details class="advanced-tools">
             <summary>{$t('toolkit.canvas.technical')}</summary>
             <div class="advanced-menu">
-              {#each [{ type: 'web-search', name: 'Web search' }, { type: 'crawl', name: 'Page reference' },
-                { type: 'lumigrid', name: 'LumiGrid' }, { type: 'led-strip', name: 'LED strip' },
-                { type: 'led-matrix', name: 'LED matrix' }, { type: 'boxletter', name: 'Channel letter' },
-                { type: 'maker', name: 'Maker sketch' }, { type: 'document', name: 'Document' }] as tool}
+              {#each [{ type: 'web-search', name: $t('toolkit.nodes.techWeb') }, { type: 'crawl', name: $t('toolkit.nodes.techCrawl') },
+                { type: 'lumigrid', name: 'LumiGrid' }, { type: 'led-strip', name: $t('toolkit.nodes.techStrip') },
+                { type: 'led-matrix', name: $t('toolkit.nodes.techMatrix') }, { type: 'boxletter', name: $t('toolkit.nodes.techLetter') },
+                { type: 'maker', name: $t('toolkit.nodes.techSketch') }, { type: 'document', name: $t('toolkit.nodes.techDocument') }] as tool}
                 <button onclick={() => addTechnical(tool.type)}>{tool.name}</button>
               {/each}
               <button onclick={runSelectedTechnical} disabled={running}>{running ? $t('toolkit.canvas.working') : $t('toolkit.canvas.runTool')}</button>
@@ -832,7 +836,7 @@
           <textarea id="toolkit-prompt" bind:value={prompt} rows="3" maxlength="2500"
             placeholder={$t('toolkit.canvas.questionPlaceholder')} disabled={!boardId || requesting}
             onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void brainstorm(); } }}></textarea>
-          <div class="composer-footer"><span>{selectedLabel || $t('toolkit.canvas.wholeBoard')} · {$t('toolkit.canvas.boardContext')}</span>
+          <div class="composer-footer"><span>{selectedCount ? $t('toolkit.canvas.selected', { count: selectedCount }) : $t('toolkit.canvas.wholeBoard')} · {$t('toolkit.canvas.boardContext')}</span>
             <button class="primary" type="submit" disabled={!boardId || requesting || !prompt.trim()}>{$t('toolkit.canvas.ask')}</button>
           </div>
         </form>
