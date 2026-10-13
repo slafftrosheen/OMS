@@ -27,6 +27,8 @@ export interface OpenRouterChatOptions {
   /** OpenRouter server-tool budget; bounded to avoid accidental multi-search charges. */
   maxToolCalls?: number;
   jsonMode?: boolean;
+  /** Strict JSON Schema mode: route only through providers supporting response_format. */
+  jsonSchema?: {name:string;schema:Record<string,unknown>};
 }
 export interface OpenRouterChatResult { model: string; response: Response }
 export interface OpenRouterClientConfig {
@@ -83,7 +85,12 @@ export function openRouterRequestBody(options: OpenRouterChatOptions, config = O
     ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
     ...(options.maxToolCalls !== undefined && options.tools?.length
       ? { max_tool_calls: Math.max(1, Math.min(5, Math.floor(options.maxToolCalls))) } : {}),
-    ...(options.jsonMode ? { response_format: { type: 'json_object' } } : {}),
+    ...(options.jsonSchema ? {
+      response_format: { type: 'json_schema', json_schema: {
+        name: options.jsonSchema.name, strict: true, schema: options.jsonSchema.schema
+      }},
+      provider: { require_parameters: true }
+    } : options.jsonMode ? { response_format: { type: 'json_object' } } : {}),
     stream: options.stream ?? false
   };
 }
