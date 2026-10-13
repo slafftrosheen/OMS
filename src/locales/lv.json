@@ -1415,6 +1415,8 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "orderIntake": {
+    "sourceChanged": "Avota fails pēc analīzes ir mainīts. Pirms piemērošanas analizējiet jauno failu.",
+    "noSource": "Pirms analīzes izvēlieties pielikumu vai saglabājiet pasūtījuma piezīmes.",
     "locale": "lv",
     "tab": "AI ievade",
     "title": "AI pasūtījuma ievade",
