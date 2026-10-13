@@ -100,7 +100,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
   const raw = await request.json().catch(() => null);
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
       ['poNumber','po_number','status','newFileIds','created_by','createdBy'].some(k => k in raw)) {
-    throw error(400, 'Use the dedicated file and lifecycle endpoints');
+    throw error(400, 'Use the dedicated order lifecycle endpoints and file uploads');
   }
   const parsed = orderFields.safeParse(raw);
   if (!parsed.success) return json({ error: 'Invalid order form', fields: parsed.error.flatten().fieldErrors }, { status: 400 });
