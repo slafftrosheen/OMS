@@ -176,7 +176,7 @@
         try {
             const [orderRes, filesRes] = await Promise.all([
                 fetch(`/api/orders/${orderId}`),
-                fetch(`/api/files?orderId=${encodeURIComponent(orderId)}`),
+                fetch(`/api/files?orderId=${encodeURIComponent(orderId)}&limit=100`),
             ]);
 
             if (orderRes.ok) {
@@ -447,7 +447,7 @@
                                         </Badge>
                                     </div>
                                     {#if mayControlStage($currentUser,stageRow.station) &&
-                                        ['CONFIRMED','IN_PRODUCTION','ON_HOLD'].includes(normaliseStatus(order.status)) &&
+                                        ['CONFIRMED','IN_PRODUCTION'].includes(normaliseStatus(order.status)) &&
                                         !['COMPLETED','SKIPPED','REWORK'].includes(stageRow.state)}
                                         <label class="station-control">
                                           {$t('orderWorkspace.stationAction')}
