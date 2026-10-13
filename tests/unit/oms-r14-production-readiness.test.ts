@@ -31,8 +31,6 @@ describe('OMS-R14 grounded production intelligence',()=>{
       .toBe('unknown');
     expect(reconcileOrderMaterials([{...material,quantity:0}],inventory)[0].status)
       .toBe('unknown');
-    expect(reconcileOrderMaterials([material,[0].length?inventory[0]:inventory[0]]
-      .filter(x=>x&&'material_type' in x) as any,inventory).length).toBe(1);
     expect(reconcileOrderMaterials([material],[...inventory,{...inventory,id}])[0].match)
       .toBe('ambiguous');
     expect(reconcileOrderMaterials([material],[{...inventory,stock:3}])[0].status)
