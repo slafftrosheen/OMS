@@ -42,6 +42,9 @@
   }
   async function analyze(){
     if(!editable||!consent||analyzing)return;
+    if(!fileId && !String(current.notes??'').trim()){
+      problem=$t('orderIntake.noSource');return;
+    }
     problem='';analysis=null;approvals={};applied=false;
     const ocr=includePaidOcr && !!fileId &&
       files.find(f=>f.id===fileId)?.mimeType==='application/pdf';
@@ -69,6 +72,9 @@
   }
   async function apply(){
     if(!analysis||!editable||applying||applied)return;
+    if((analysis.fileId??'')!==fileId){
+      problem=$t('orderIntake.sourceChanged');return;
+    }
     const accepted=analysis.proposals.filter((_:IntakeProposal,i:number)=>approvals[i]);
     if(!accepted.length){problem=$t('orderIntake.selectOne');return;}
     if(JSON.stringify(current)!==baseState){
@@ -124,6 +130,7 @@
   {#if problem}<p role="alert" class="problem">{problem}</p>{/if}
   {#if analysis}
     <p class="hint">{$t('orderIntake.model')}: {analysis.model}</p>
+    <p class="hint">{$t('orderIntake.source')}: {analysis.fileName??$t('orderIntake.notesOnly')}</p>
     <p class="hint">{$t('orderIntake.provenance')}</p>
     {#if analysis.proposals.length}
       <h4>{$t('orderIntake.proposals')} ({analysis.proposals.length})</h4>
