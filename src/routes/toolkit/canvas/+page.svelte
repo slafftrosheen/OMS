@@ -517,6 +517,31 @@
     notice = tr('canvas.savedToCanvas');
   }
 
+  function inspectResearchSource(source: {title:string;url:string}) {
+    if (!editor || !boardId || conflict || remoteUpdated) return;
+    let url: URL;
+    try {
+      url = new URL(source.url);
+      if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return;
+    } catch { return; }
+    // This only places a URL into a node; the user must explicitly run
+    // the crawler. The server revalidates DNS/IP and blocks private targets.
+    const center = editor.getViewportPageBounds().center;
+    editor.createShape({
+      type: 'crawl', x: center.x - 170, y: center.y - 170,
+      props: { url: source.url, selector: '', includeLinks: false, maxChars: 12000 }
+    });
+    notice = tr('canvas.inspectAdded');
+  }
+
+  function arrangeIdeas() {
+    if (!editor || !boardId || conflict || remoteUpdated) return;
+    if (!confirm(tr('canvas.confirmArrange'))) return;
+    const result = applyToolkitAction(editor,
+      { kind: 'layout', layout: 'columns', reason: 'Explicit user command' });
+    notice = result.detail;
+  }
+
   function exportBrief() {
     if (!editor || !boardId) return;
     const { cards, links } = getContext();
@@ -709,6 +734,7 @@
       <span class="team-label" title={$t('toolkit.canvas.sharedTitle')}>{$t('toolkit.canvas.shared')}</span>
       <button onclick={() => createBoard('blank')}>{$t('toolkit.canvas.newProject')}</button>
       <button onclick={() => void flushCurrentChanges()} disabled={!boardId || saving || ( !dirty && !discussionDirty ) || conflict}>{$t('toolkit.canvas.save')}</button>
+      <button onclick={arrangeIdeas} disabled={!boardId || !editor || conflict || remoteUpdated}>{$t('toolkit.canvas.arrangeIdeas')}</button>
       <button onclick={exportBrief} disabled={!boardId || !editor}>{$t('toolkit.canvas.exportBrief')}</button>
       <button class="assistant-toggle" onclick={() => assistantOpen = !assistantOpen} aria-expanded={assistantOpen}>
         {assistantOpen ? $t('toolkit.canvas.hideAssistant') : $t('toolkit.canvas.brainstorm')}
@@ -960,6 +986,9 @@
                 {#if source.snippet}<small>{source.snippet}</small>{/if}
                 <button onclick={() => pinResearchSource(source)} disabled={!boardId || conflict || remoteUpdated}>
                   {$t('toolkit.canvas.pinSource')}
+                </button>
+                <button onclick={() => inspectResearchSource(source)} disabled={!boardId || conflict || remoteUpdated}>
+                  {$t('toolkit.canvas.inspectSource')}
                 </button>
               </div>
             {/each}
