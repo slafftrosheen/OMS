@@ -79,25 +79,52 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
   // ── Change-requests (loaded for the right docker) ────────────────────────────
   let changeRequests: any[] = $state([]);
+  let changeRequestError = $state('');
+  let reviewInProgress = $state(false);
+  async function reviewChangeRequest(requestId:string, decision:'approved'|'rejected') {
+    if(!isAdmin||reviewInProgress||!orderId)return;
+    if(!window.confirm($t('orderWorkspace.reviewDecisionWarning')))return;
+    reviewInProgress=true;
+    changeRequestError='';
+    try{
+      const response=await fetch(`/api/change-requests/${encodeURIComponent(requestId)}/review`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({status:decision})
+      });
+      if(!response.ok){
+        const responseBody=await response.json().catch(()=>({}));
+        throw new Error(responseBody.message||responseBody.error||
+          $t('orderWorkspace.changeReviewError'));
+      }
+      await loadChangeRequests();
+      notifySuccess($t('orderWorkspace.reviewRecorded'));
+    }catch(err){
+      changeRequestError=err instanceof Error?err.message:
+        $t('orderWorkspace.changeReviewError');
+    }finally{reviewInProgress=false;}
+  }
 
   async function loadChangeRequests() {
-    if (!orderId) return;
-    try {
-      const res = await fetch(`/api/draft-orders/${orderId}/change-requests`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          changeRequests = data.map((cr: any) => ({
-            id: cr.id,
-            title: cr.title || cr.station || 'Change request',
-            author: cr.proposed_by_user?.email || 'unknown',
-            status: cr.status,
-            message: cr.description || cr.reason || '',
-          }));
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load change requests:', err);
+    if(!orderId)return;
+    const id=orderId;
+    changeRequestError='';
+    try{
+      const res=await fetch(`/api/draft-orders/${encodeURIComponent(id)}/change-requests`,
+        {cache:'no-store'});
+      if(!res.ok)throw new Error($t('orderWorkspace.changeListError'));
+      const data=await res.json();
+      if(id!==orderId)return;
+      changeRequests=Array.isArray(data)?data.map((cr:any)=>({
+        id:cr.id,title:cr.title||cr.description||'Change request',
+        author:cr.proposed_by_user?.display_name ||
+          cr.proposed_by_user?.username || $t('orderWorkspace.unknownAuthor'),
+        status:cr.status,message:cr.description||'',
+        proposed:cr.proposed_diff??cr.changes??{},
+        reviewNotes:cr.review_notes??null
+      })):[];
+    }catch(err){
+      if(id===orderId)changeRequestError=err instanceof Error?err.message:
+        $t('orderWorkspace.changeListError');
     }
   }
 
@@ -1087,10 +1114,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
               <button class="cr-refresh-btn" onclick={loadChangeRequests} title="Refresh">
                 <Icon name="refresh-cw" size="sm" /> Refresh
               </button>
+              {#if changeRequestError}
+                <p role="alert" class="zone-intro">{changeRequestError}</p>
+              {/if}
               {#if changeRequests.length === 0}
                 <p class="zone-intro" style="margin-top: 8px;">No change requests yet.</p>
               {:else}
-                <ChangeRequestList items={changeRequests as any} isAdmin={isAdmin} />
+                <ChangeRequestList items={changeRequests} isAdmin={isAdmin && !reviewInProgress}
+                  onApprove={id=>void reviewChangeRequest(id,'approved')}
+                  onDecline={id=>void reviewChangeRequest(id,'rejected')} />
               {/if}
             {:else}
               <p class="zone-intro">Loading…</p>
