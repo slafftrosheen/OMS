@@ -14,10 +14,12 @@
 
   let {
     orderId,
-    compact = false
+    compact = false,
+    canUpload = true
   }: {
     orderId: string;
     compact?: boolean;
+    canUpload?: boolean;
   } = $props();
 
   type OrderFile = {
@@ -35,6 +37,7 @@
   let files = $state<OrderFile[]>([]);
   let loading = $state(false);
   let uploading = $state(false);
+  let fileError = $state('');
   let dragOver = $state(false);
   let fileInput: HTMLInputElement;
 
@@ -64,11 +67,11 @@
 
   async function loadFiles() {
     loading = true;
+    fileError = '';
     try {
       const res = await fetch(`${base}/api/files?orderId=${encodeURIComponent(orderId)}`);
-      if (res.ok) {
-        files = await res.json();
-      }
+      if (!res.ok) throw new Error('Could not load order files');
+      files = await res.json();
     } catch (err) {
       console.error('Failed to load files:', err);
     } finally {
@@ -77,7 +80,9 @@
   }
 
   async function uploadFile(file: globalThis.File) {
+    if (!canUpload) { fileError = 'You do not have permission to upload files for this order'; return; }
     uploading = true;
+    fileError = '';
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -93,26 +98,37 @@
         const uploaded = payload.file ?? payload;
         files = [uploaded, ...files];
       } else {
-        console.error('Upload failed:', await res.text());
+        const detail = await res.json().catch(() => ({}));
+        fileError = String(detail.message || detail.error || `Upload failed (HTTP ${res.status})`);
       }
     } catch (err) {
-      console.error('Failed to upload file:', err);
+      fileError = err instanceof Error ? err.message : 'File upload failed';
     } finally {
       uploading = false;
     }
   }
 
   async function deleteFile(fileId: string, fileName?: string) {
+    if (!canUpload) return;
     const name = fileName || files.find(f => f.id === fileId)?.originalName || 'file';
     if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
     try {
       const res = await fetch(`${base}/api/files/${fileId}`, { method: 'DELETE' });
       if (res.ok) {
         files = files.filter(f => f.id !== fileId);
+      } else {
+        const payload = await res.json().catch(() => ({}));
+        fileError = String(payload.error || 'Delete was rejected');
       }
     } catch (err) {
       console.error('Failed to delete file:', err);
     }
+  }
+
+  async function uploadQueue(filesToUpload: globalThis.File[]) {
+    if (uploading || !canUpload) return;
+    for (const file of filesToUpload) await uploadFile(file);
+    await loadFiles();
   }
 
   function handleDrop(event: DragEvent) {
@@ -120,7 +136,7 @@
     dragOver = false;
     const droppedFiles = event.dataTransfer?.files;
     if (droppedFiles && droppedFiles.length > 0) {
-      Array.from(droppedFiles).forEach(uploadFile);
+      void uploadQueue(Array.from(droppedFiles));
     }
   }
 
@@ -136,7 +152,7 @@
   function handleFileSelect(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      Array.from(input.files).forEach(uploadFile);
+      void uploadQueue(Array.from(input.files));
       input.value = '';
     }
   }
@@ -161,6 +177,8 @@
     </button>
   </header>
 
+  {#if fileError}<p class="file-error" role="alert">{fileError}</p>{/if}
+  {#if canUpload}
   <div 
     class="drop-zone" 
     class:drag-over={dragOver}
@@ -191,6 +209,7 @@
     {/if}
   </div>
 
+  {/if}
   <div class="files-list">
     {#if loading && files.length === 0}
       <div class="loading-state">
@@ -219,9 +238,9 @@
             <button class="btn-icon" onclick={() => downloadFile(file)} title="Download">
               <Download size={16} />
             </button>
-            <button class="btn-icon danger" onclick={() => deleteFile(file.id, file.originalName)} title="Delete">
+            {#if canUpload}<button class="btn-icon danger" onclick={() => deleteFile(file.id, file.originalName)} title="Delete">
               <Trash2 size={16} />
-            </button>
+            </button>{/if}
           </div>
         </div>
       {/each}
@@ -230,6 +249,7 @@
 </div>
 
 <style>
+  .file-error{color:var(--error,#dc2626);padding:9px 16px;font-size:12px;overflow-wrap:anywhere}
   .order-files {
     display: flex;
     flex-direction: column;
