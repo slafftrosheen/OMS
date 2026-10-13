@@ -83,7 +83,7 @@ describe('OMS-R07 Canvas skills and safe tool actions', () => {
     expect(route).toContain('user_id: user.id');
   });
   it('executes web research ONLY through selected research skill', () => {
-    expect(api).toContain("if (skill === 'research')");
+    expect(api).toContain("if (skill === 'research' && webMode === 'searxng')");
     expect(api).toContain('webSearch({ query:');
     expect(api).toContain('boardInsights(cards, links)');
     expect(api).toContain('normalizeCanvasActions(parsed.actions');
@@ -120,8 +120,8 @@ describe('OMS-R07 Canvas skills and safe tool actions', () => {
     expect(canvas).toContain('const payload = { version: 1, snapshot: lastSnapshot }');
     expect(canvas).toContain('actionProposals.slice(0, 3)');
     expect(canvas).toContain('!window.isSecureContext');
-    expect(canvas).toContain('Clipboard shortcuts may fail over HTTP');
+    expect(canvas).toContain("tr('canvas.clipboard')");
     expect(canvas).toContain('function auditBoard()');
-    expect(canvas).toContain('without sending content to the model');
+    expect(canvas).toContain("tr('canvas.auditDone')");
   });
 });
