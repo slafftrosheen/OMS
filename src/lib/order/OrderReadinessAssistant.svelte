@@ -73,7 +73,8 @@
       <ul class="checks">
         {#each report.issues as issue,i (i)}
           <li class:critical={issue.severity==='blocker'}>
-            <strong>{issue.severity}</strong> — {issue.message}
+            <strong>{$t(`productionReadiness.severity.${issue.severity}`)}</strong>
+              — {$t(`productionReadiness.issueCodes.${issue.code}`)}
           </li>
         {/each}
       </ul>
@@ -86,7 +87,8 @@
         {#each report.materials as material (material.orderMaterialId)}
           <div class="material">
             <strong>{material.materialType}</strong>
-            <small>{material.match} · {material.status}</small>
+            <small>{$t(`productionReadiness.materialMatch.${material.match}`)}
+              · {$t(`productionReadiness.materialStatus.${material.status}`)}</small>
             <div class="evidence">
               {$t('productionReadiness.required')}: {material.required??'—'} {material.unit}
                · {$t('productionReadiness.available')}: {material.available??'—'} {material.unit}
@@ -110,7 +112,7 @@
     {/each}
     <p class="description">{$t('productionReadiness.linkedFiles')}: {report.fileCount}</p>
     {#if report.aiWarning}
-      <p class="issue" role="alert">{report.aiWarning}</p>
+      <p class="issue" role="alert">{$t('productionReadiness.aiUnavailable')}</p>
     {/if}
     {#if report.ai}
       <h4>{$t('productionReadiness.advice')}</h4>
