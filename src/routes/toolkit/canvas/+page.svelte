@@ -529,6 +529,10 @@
       && ['image', 'pdf'].includes(shape.props?.kind) && typeof shape.props?.fileId === 'string');
     if (!document) { notice = tr('canvas.selectFileForAi'); return; }
     const fileId = String(document.props.fileId);
+    const paidOcr = document.props.kind === 'pdf' && usePaidPdfOcr;
+    if (paidOcr && !confirm(tr('canvas.confirmPaidOcr'))) return;
+    // One consent must never silently authorize a later paid OCR request.
+    usePaidPdfOcr = false;
     const originalBoard = boardId, token = activeLoadToken;
     const filename = String(document.props.title ?? '').slice(0, 120);
     const customQuestion = prompt.trim();
@@ -544,7 +548,7 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           boardId: originalBoard, assetId: fileId, question,
-          language: $locale, ocr: document.props.kind === 'pdf' && usePaidPdfOcr
+          language: $locale, ocr: paidOcr
         })
       });
       const result = await response.json().catch(() => ({}));
