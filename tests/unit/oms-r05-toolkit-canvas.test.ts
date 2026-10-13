@@ -84,7 +84,7 @@ describe('Toolkit route contracts', () => {
     expect(canvas).toContain("method: 'PATCH'");
     expect(canvas).toContain('snapshot: lastSnapshot');
     expect(canvas).toContain('messages.slice(-60)');
-    expect(canvas).toContain('proposals: suggestions.slice(0, 8)');
+    expect(canvas).toContain('actionProposals.slice(0, 3)');
     expect(canvas).toContain('documentRevision !== rev');
     expect(canvas).toContain('{#key boardId}');
     expect(canvas).toContain('Save or recover your changes before switching projects');

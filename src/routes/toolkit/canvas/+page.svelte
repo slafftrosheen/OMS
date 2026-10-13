@@ -5,6 +5,8 @@
   import { extractBoardCards, extractBoardLinks, normalizeProposals, type ProposedCard } from '$lib/components/canvas/toolkit-context';
   import { runShape } from '$lib/components/canvas/node-runner';
   import { importToolkitFiles, type ToolkitPosition } from '$lib/components/canvas/toolkit-media-import';
+  import { TOOLKIT_SKILLS, boardInsights, normalizeCanvasActions, type CanvasAction, type ToolkitSkill } from '$lib/components/canvas/toolkit-skills';
+  import { actionSummary, applyToolkitAction } from '$lib/components/canvas/toolkit-action-executor';
 
   type Board = { id: string; title: string; revision: number; updated_at: string; created_at: string };
   type ChatMessage = { role: 'user' | 'assistant'; content: string };
@@ -15,6 +17,10 @@
   let initialSnapshot = $state<unknown>(null);
   let messages = $state<ChatMessage[]>([]);
   let suggestions = $state<ProposedCard[]>([]);
+  let actionProposals = $state<CanvasAction[]>([]);
+  let skill = $state<ToolkitSkill>('explore');
+  let researchSources = $state<Array<{title:string;url:string}>>([]);
+  let insecureClipboard = $state(false);
   let legacyThreads = $state<Record<string, Array<{role: string; content: string}>>>({});
   let prompt = $state('');
   let loading = $state(true);
@@ -76,6 +82,8 @@
   }
   function onCanvasChange(value: unknown) {
     lastSnapshot = value;
+  }
+  function onDocumentChange() {
     if (ready) markDirty();
   }
   function markDiscussionDirty() {
@@ -92,7 +100,7 @@
     if (!boardId || !discussionDirty) return;
     const id = boardId, rev = discussionRevision;
     const messagesToSave = messages.slice(-60);
-    const proposalsToSave = suggestions.slice(0, 8);
+    const proposalsToSave = [...suggestions.slice(0, 5), ...actionProposals.slice(0, 3)].slice(0, 8);
     discussionSaving = true;
     chatInFlight = (async () => {
       try {
@@ -124,10 +132,18 @@
     const expectedRevision = boardRevision;
     const title = boardTitle.trim().slice(0, 120) || 'Untitled project';
     // Private conversations are NEVER written into the shared document.
-    const payload = { version: 1, snapshot: lastSnapshot };
+    // Acquire the in-flight lock BEFORE the asynchronous module import.
+    // Otherwise rapid Save clicks can send duplicate PATCH requests.
     saving = true;
     saveInFlight = (async () => {
       try {
+        // Always capture the latest document at the moment we save; session
+        // camera/selection never belongs in the shared team snapshot.
+        if (editor) {
+          const { getSnapshot } = await import('@tldraw/tldraw');
+          lastSnapshot = { document: getSnapshot(editor.store).document };
+        }
+        const payload = { version: 1, snapshot: lastSnapshot };
         const response = await fetch(`/api/ai/canvas/${encodeURIComponent(id)}`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, payload, revision: expectedRevision })
@@ -199,7 +215,8 @@
       boards = [data.canvas, ...boards];
       const privateCopy = await fetch(`/api/toolkit/conversations/${encodeURIComponent(data.canvas.id)}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: messages.slice(-60), proposals: suggestions.slice(0, 8) })
+        body: JSON.stringify({ messages: messages.slice(-60),
+          proposals: [...suggestions.slice(0, 5), ...actionProposals.slice(0, 3)] })
       });
       if (!privateCopy.ok) {
         discussionError = 'Recovery canvas was created, but its private discussion could not be copied.';
@@ -236,6 +253,8 @@
     editor = null;
     messages = [];
     suggestions = [];
+    actionProposals = [];
+    researchSources = [];
     legacyThreads = {};
     prompt = '';
     selectedLabel = 'Whole board';
@@ -257,6 +276,7 @@
       lastSnapshot = initialSnapshot;
       boardRevision = Number.isSafeInteger(doc.revision) ? doc.revision : 0;
       suggestions = normalizeProposals(privateData.proposals);
+      actionProposals = normalizeCanvasActions(privateData.proposals);
       legacyThreads = privateData.legacyThreads && typeof privateData.legacyThreads === 'object' && !Array.isArray(privateData.legacyThreads)
         ? Object.fromEntries(Object.entries(privateData.legacyThreads).slice(0, 30)
           .filter(([,v]) => Array.isArray(v)).map(([k,v]) => [k, (v as any[])
@@ -357,7 +377,8 @@
       pendingTemplate = null;
       if (template !== 'blank') {
         seed(template);
-        lastSnapshot = editor.store.getSnapshot();
+        // CanvasApp listens for document changes and captures a debounced,
+        // non-deprecated document snapshot. Do not serialize inside every edit.
         markDirty();
       }
     }
@@ -381,8 +402,11 @@
     const selected = editor.getSelectedShapeIds?.() ?? [];
     const cards = extractBoardCards(all);
     const links = extractBoardLinks(all, (arrowId) => editor.getBindingsFromShape?.(arrowId, 'arrow') ?? []);
+    const visualAssets = all.filter((shape: any) =>
+      shape.type === 'document' || shape.type === 'material-swatch').slice(0, 16)
+      .map((shape: any) => ({ title: shape.props?.title ?? '', kind: shape.props?.kind ?? shape.type }));
     selectedLabel = selected.length ? `${selected.length} selected` : 'Whole board';
-    return { cards, links, focusId: String(selected[0] ?? '') };
+    return { cards, links, visualAssets, focusId: String(selected[0] ?? '') };
   }
   async function brainstorm(question = prompt) {
     const text = question.trim();
@@ -394,21 +418,48 @@
     messages = [...messages, { role: 'user', content: text }].slice(-60);
     prompt = '';
     suggestions = [];
+    actionProposals = [];
+    researchSources = [];
     markDiscussionDirty();
     try {
       const response = await fetch('/api/toolkit/brainstorm', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: text, ...context, history })
+        body: JSON.stringify({ prompt: text, ...context, history, skill })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Could not get suggestions');
       messages = [...messages, { role: 'assistant', content: String(data.reply ?? '').slice(0, 5000) }].slice(-60);
-      suggestions = normalizeProposals(data.cards);
+      suggestions = normalizeProposals(data.cards).slice(0, 5);
+      actionProposals = normalizeCanvasActions(data.actions,
+        new Set(context.cards.map(c => c.id)));
+      researchSources = Array.isArray(data.sources)
+        ? data.sources.filter((v: any) => typeof v?.url === 'string' &&
+          /^https?:\/\//.test(v.url)).slice(0, 5) : [];
       markDiscussionDirty();
     } catch (e) {
       notice = e instanceof Error ? e.message : 'Could not reach the brainstorming service';
       // Retain the prompt in the conversation so the user can retry or copy it.
     } finally { requesting = false; }
+  }
+  function auditBoard() {
+    if (!editor || !boardId) return;
+    const { cards, links } = getContext();
+    const report = boardInsights(cards, links);
+    const text = [
+      `Board audit: ${report.totalCards} cards, ${report.connections} connections.`,
+      `Unfinished tasks: ${report.unfinishedTasks}.`,
+      report.hasDecision ? 'There is at least one decision card.' :
+        'Missing decision card: write down what needs choosing.',
+      report.disconnected.length
+        ? `Unconnected ideas: ${report.disconnected.map(card => card.title).join(', ')}.`
+        : 'All idea cards participate in a connection.',
+      report.cardsMissingDetails.length
+        ? `Cards needing detail: ${report.cardsMissingDetails.join(', ')}.`
+        : 'Every card has supporting details.'
+    ].join('\n');
+    messages = [...messages, { role: 'assistant', content: text.slice(0, 5000) }].slice(-60);
+    markDiscussionDirty();
+    notice = 'Board audit completed locally without sending content to the model.';
   }
   function applySuggestion(card: ProposedCard, index: number) {
     if (!editor) return;
@@ -422,6 +473,29 @@
     const batch = [...suggestions];
     batch.forEach((card, index) => applySuggestion(card, index));
     suggestions = [];
+  }
+  function actionTargetName(id: string) {
+    const shape = editor?.getShape?.(id);
+    return String(shape?.props?.title ?? id).slice(0, 70);
+  }
+  function approveAction(action: CanvasAction) {
+    if (!editor || !boardId) return;
+    if (conflict || remoteUpdated) {
+      notice = 'Reload the latest shared board before applying suggested changes.';
+      return;
+    }
+    if (action.kind === 'layout' &&
+        !confirm('Reposition your idea cards? Existing drawings and imported media will stay in place.')) return;
+    try {
+      const result = applyToolkitAction(editor, action);
+      notice = result.detail;
+      if (result.ok) {
+        actionProposals = actionProposals.filter(candidate => candidate !== action);
+        markDiscussionDirty();
+      }
+    } catch (e) {
+      notice = e instanceof Error ? e.message : 'Could not apply this suggestion';
+    }
   }
   async function runSelectedTechnical() {
     if (!editor || running) return;
@@ -508,6 +582,7 @@
   }
 
   onMount(() => {
+    insecureClipboard = !window.isSecureContext || !navigator.clipboard?.writeText;
     void loadBoards();
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (dirty || discussionDirty || importing) { e.preventDefault(); e.returnValue = ''; }
@@ -659,7 +734,7 @@
           {#key boardId}
             <TldrawWrapper snapshot={initialSnapshot ?? undefined}
               toolkitBoardId={boardId} onToolkitFilesDrop={(files, position) => { void importFiles(files, position); }}
-              onSave={onCanvasChange} onReady={onEditorReady} onError={(message) => (error = message)} />
+              onSave={onCanvasChange} onDocumentChange={onDocumentChange} onReady={onEditorReady} onError={(message) => (error = message)} />
           {/key}
         </div>
         <p class="canvas-hint">Drop images/PDFs · Draw and annotate · Add illustrative material studies · Resize/move visual assets · Save to share</p>
@@ -684,6 +759,17 @@
           <button aria-label="Close assistant" class="close-pane" onclick={() => assistantOpen = false}>×</button>
         </div>
         <p class="assistant-intro">Explore alternatives, spot gaps and turn thoughts into new cards. Asking sends the selected board context to your configured reasoning provider. Nothing is added without your approval.</p>
+        <div class="skill-picker">
+          <label for="toolkit-skill">Assistant skill</label>
+          <select id="toolkit-skill" bind:value={skill} disabled={requesting}>
+            {#each TOOLKIT_SKILLS as item (item.id)}
+              <option value={item.id}>{item.label}</option>
+            {/each}
+          </select>
+          <p>{TOOLKIT_SKILLS.find(item => item.id === skill)?.purpose}</p>
+        </div>
+        <button class="board-audit" onclick={auditBoard} disabled={!boardId || !editor}
+          title="Analyse board structure without contacting an AI provider">◎ Audit this board (local)</button>
         <div class="quick-prompts" aria-label="Brainstorm prompts">
           {#each prompts as item (item.label)}
             <button onclick={() => brainstorm(item.question)} disabled={!boardId || requesting}>{item.label}</button>
@@ -727,6 +813,32 @@
               </div>
             {/each}
           </div>
+        {/if}
+        {#if actionProposals.length}
+          <div class="suggestion-list" aria-label="Proposed canvas tools">
+            <div class="proposal-header"><strong>Suggested board actions · {actionProposals.length}</strong></div>
+            {#each actionProposals as action, index (`${action.kind}:${index}`)}
+              <div class="proposal">
+                <span class="proposal-kind">{action.kind}</span>
+                <strong>{actionSummary(action, actionTargetName)}</strong>
+                {#if action.reason}<p>{action.reason}</p>{/if}
+                <button disabled={conflict || remoteUpdated}
+                  onclick={() => approveAction(action)}>Review & apply</button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+        {#if researchSources.length}
+          <div class="research-sources">
+            <strong>Research references</strong>
+            {#each researchSources as source (source.url)}
+              <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title || source.url} ↗</a>
+            {/each}
+          </div>
+        {/if}
+        {#if insecureClipboard}
+          <p class="canvas-security-note" role="status">Clipboard shortcuts may fail over HTTP.
+            Use a trusted HTTPS origin for browser clipboard permission.</p>
         {/if}
         {#if notice}<p role="status" class="note">{notice}</p>{/if}
         <form class="composer" onsubmit={(e) => { e.preventDefault(); void brainstorm(); }}>
@@ -803,4 +915,11 @@
   .import-progress{font-size:12px;font-weight:700;color:var(--brand);background:var(--bg-1);
     padding:8px 13px;border-bottom:1px solid var(--border)}
   @media(max-width:840px){.node-toolbar{overflow-x:auto;flex-wrap:nowrap}}
+  .skill-picker{display:grid;gap:5px;padding:9px;border:1px solid var(--border);border-radius:10px}
+  .skill-picker label{font-size:11px;font-weight:750}
+  .skill-picker select{background:var(--bg-0);color:var(--text);border:1px solid var(--border);padding:7px;border-radius:7px;max-width:100%}
+  .skill-picker p{font-size:11px;color:var(--ink-tertiary);line-height:1.4;margin:0}
+  .research-sources{display:grid;gap:7px;font-size:11px;border-top:1px solid var(--border);padding-top:10px}
+  .research-sources a{color:var(--brand);text-decoration:underline;overflow-wrap:anywhere}
+  .canvas-security-note{font-size:11px;color:var(--ink-secondary)}
 </style>

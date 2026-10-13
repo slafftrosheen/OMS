@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Tldraw, type Editor } from '@tldraw/tldraw';
+import { Tldraw, getSnapshot, type Editor } from '@tldraw/tldraw';
 import '@tldraw/tldraw/tldraw.css';
 import { MakerShapeUtil } from './shapes/MakerShape';
 import { IdeaShapeUtil } from './shapes/IdeaShape';
@@ -44,6 +44,7 @@ const customShapeUtils = [
 export interface CanvasAppProps {
     initialSnapshot?: unknown;
     onSave?: (snapshot: unknown) => void;
+    onDocumentChange?: () => void;
     onEditorReady?: (editor: Editor) => void;
     /** When set, auto-spawns the DraftOrderTemplate on first mount */
     orderSeed?: OrderSeed | null;
@@ -63,6 +64,7 @@ export interface CanvasAppProps {
 export function CanvasApp({
     initialSnapshot,
     onSave,
+    onDocumentChange,
     onEditorReady,
     orderSeed,
     onOrderChange,
@@ -78,6 +80,9 @@ export function CanvasApp({
     const containerRef = useRef<HTMLDivElement | null>(null);
     const dropCleanupRef = useRef<(() => void) | null>(null);
     const cleanupStoreRef = useRef<(() => void) | null>(null);
+    const captureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const latestSaveRef = useRef(onSave);
+    latestSaveRef.current = onSave;
 
     // Keep seedRef current so the drop handler can read the latest orderId
     useEffect(() => {
@@ -107,15 +112,29 @@ export function CanvasApp({
         // Register the bridge immediately so any shape created during spawn can fire callbacks
         setOrderBridge(editor, { onOrderChange, onProfileChange, onAssetUploaded });
 
-        if (onEditorReady) onEditorReady(editor);
-
-        // Auto-save on every document change
+        // Save only document records on the team-shared board (never user
+        // camera/selection session). Coalesce rapid drag updates so large
+        // snapshots are not recomputed hundreds of times per second.
+        const capture = () => {
+            if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
+            captureTimerRef.current = null;
+            const snapshot = getSnapshot(editor.store);
+            latestSaveRef.current?.(toolkitBoardId
+                ? { document: snapshot.document }
+                : snapshot);
+        };
         const unlisten = editor.store.listen(
-            () => onSave?.(editor.store.getSnapshot()),
+            () => {
+                if (toolkitBoardId) onDocumentChange?.();
+                if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
+                captureTimerRef.current = setTimeout(capture, 250);
+            },
             { scope: 'document' }
         );
         cleanupStoreRef.current?.();
         cleanupStoreRef.current = unlisten;
+        // Register listener before templates / callbacks create new shapes.
+        if (onEditorReady) onEditorReady(editor);
 
         // Separate order-document uploads from Toolkit shared-board imports.
         if (containerRef.current) {
@@ -161,6 +180,8 @@ export function CanvasApp({
     useEffect(() => () => {
         dropCleanupRef.current?.();
         cleanupStoreRef.current?.();
+        if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
+        captureTimerRef.current = null;
     }, []);
 
     return (

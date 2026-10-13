@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { json, error } from '@sveltejs/kit';
 import { requireToolkitManager } from '$lib/server/toolkit/access';
 import { normalizeProposals } from '$lib/components/canvas/toolkit-context';
+import { normalizeCanvasActions } from '$lib/components/canvas/toolkit-skills';
 
 const headers = { 'Cache-Control': 'private, no-store' };
 const uuid = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
@@ -37,7 +38,11 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
   if (JSON.stringify(body).length > 320_000) throw error(413, 'Discussion exceeds size limit');
   const messages = cleanMessages(body.messages);
   if (!Array.isArray(body.proposals) || body.proposals.length > 8) throw error(400, 'Invalid proposals');
-  const proposals = normalizeProposals(body.proposals);
+  // Both card drafts and tool actions remain private to this user.
+  const proposals = [
+    ...normalizeProposals(body.proposals).slice(0, 5),
+    ...normalizeCanvasActions(body.proposals).slice(0, 3)
+  ].slice(0, 8);
   // Update only the discussion columns, never the archived legacy node_threads.
   // A generic upsert could reset unspecified columns to their defaults.
   const now = new Date().toISOString();

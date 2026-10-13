@@ -22,7 +22,7 @@ describe('OMS-R06 shared canvas role contract', () => {
     expect(discussion).toContain('requireToolkitManager(locals.user)');
   });
   it('makes historical and future canvas documents team-visible', () => {
-    expect(migration).toContain('UPDATE public.canvas_documents SET shared = TRUE');
+    expect(migration).toContain('SET payload = public.toolkit_strip_private_canvas_payload(payload), shared = TRUE');
     expect(migration).toContain('ALTER COLUMN shared SET DEFAULT TRUE');
     expect(migration).toContain('toolkit_canvas_managers_read');
     expect(migration).toContain('toolkit_canvas_managers_update');

@@ -23,7 +23,7 @@ export async function importToolkitFiles(
   const center = editor.getViewportPageBounds?.().center ?? { x: 0, y: 0 };
   const origin = point ?? { x: center.x - 200, y: center.y - 150 };
   for (const [index, original] of files.entries()) {
-    const file = new File([original], original.name, { type: resolvedMime(original) });
+    const file = original;
     if (!isSupportedToolkitAsset(file)) {
       errors.push(`${file.name}: unsupported file. Use PNG, JPEG, WebP, GIF or PDF.`);
       continue;
@@ -34,13 +34,24 @@ export async function importToolkitFiles(
     }
     try {
       onProgress?.(`Importing ${file.name} (${index + 1}/${files.length})…`);
+      // The Node adapter can reject multipart before the route runs. Check
+      // server startup configuration FIRST so the user sees a real diagnosis.
+      const health = await fetch(`/api/toolkit/assets/${encodeURIComponent(boardId)}`, {
+        cache: 'no-store'
+      });
+      const capacity = await health.json().catch(() => ({}));
+      if (!health.ok || capacity.ready !== true) {
+        throw new Error(capacity.error || 'Upload service unavailable. Verify server BODY_SIZE_LIMIT and storage migration.');
+      }
       const body = new FormData();
+      // Upload the existing File directly; cloning with new File([file])
+      // allocates another large in-memory copy.
       body.append('file', file);
       const response = await fetch(`/api/toolkit/assets/${encodeURIComponent(boardId)}`, {
         method: 'POST', body
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.url) throw new Error(result.message || result.error || 'Upload failed');
+      if (!response.ok || !result.url) throw new Error(result.message || result.error || `Upload failed (HTTP ${response.status})`);
       const pdf = result.mime === 'application/pdf';
       editor.createShape({
         type: 'document', x: origin.x + imported * 40, y: origin.y + imported * 36,
@@ -53,7 +64,10 @@ export async function importToolkitFiles(
       });
       imported++;
     } catch (err) {
-      errors.push(`${file.name}: ${err instanceof Error ? err.message : 'Could not upload'}`);
+      const message = err instanceof Error ? err.message : 'Could not upload';
+      errors.push(`${file.name}: ${message === 'Failed to fetch'
+        ? 'Connection dropped: verify BODY_SIZE_LIMIT=32M, proxy client_max_body_size 32m, and server logs'
+        : message}`);
     }
   }
   onProgress?.('');

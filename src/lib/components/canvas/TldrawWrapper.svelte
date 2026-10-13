@@ -5,6 +5,7 @@
   interface Props {
     snapshot?: unknown;
     onSave?: (snapshot: unknown) => void;
+    onDocumentChange?: () => void;
     onReady?: (editor: any) => void;
     onError?: (message: string) => void;
     /** Seed data → triggers DraftOrderTemplate auto-spawn */
@@ -24,6 +25,7 @@
   let {
     snapshot = undefined,
     onSave = () => {},
+    onDocumentChange = () => {},
     onReady = () => {},
     onError = () => {},
     orderSeed = null,
@@ -57,6 +59,7 @@
           React.createElement(CanvasApp, {
             initialSnapshot: snapshot,
             onSave,
+            onDocumentChange,
             onEditorReady: (editor: any) => {
               if (disposed) return;
               editorRef = editor;
