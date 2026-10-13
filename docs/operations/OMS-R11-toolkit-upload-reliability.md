@@ -92,7 +92,7 @@ sudo systemctl cat reclame-oms.service
 # Identify MainPID for this service; inspect only the upload setting, not
 # the rest of the process environment (which may include credentials).
 pid="$(systemctl show -p MainPID --value reclame-oms.service)"
-sudo tr '\\0' '\\n' < "/proc/$pid/environ" | grep '^BODY_SIZE_LIMIT='
+sudo cat "/proc/$pid/environ" | tr '\\0' '\\n' | grep '^BODY_SIZE_LIMIT='
 ```
 
 The output should show `BODY_SIZE_LIMIT=32M`. If not, set it in the active
