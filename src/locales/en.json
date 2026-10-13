@@ -1795,6 +1795,33 @@
         "module_ma": "mA/module",
         "module_lm": "lm/module"
       }
+    },
+    "errors": {
+      "privateSave": "Could not save private conversation",
+      "newerVersion": "A teammate saved a newer version. Your unsaved canvas is preserved. Save a copy or reload the latest version.",
+      "save": "Could not save project",
+      "saveFailed": "Project save failed",
+      "recoverySave": "Could not save recovery copy",
+      "recoveryDone": "Your unsaved changes were preserved in a new shared project.",
+      "recoveryFailed": "Recovery copy failed",
+      "load": "Could not load your projects",
+      "listUnavailable": "Project list unavailable",
+      "beforeSwitch": "Save or recover your changes before switching projects.",
+      "open": "Unable to open shared project",
+      "loadPrivate": "Unable to load your private project discussion",
+      "notFound": "Project was not found",
+      "openFailed": "Failed to open project",
+      "beforeCreate": "Save or recover your changes before creating a project.",
+      "create": "Could not create project",
+      "createFailed": "Project creation failed",
+      "reloadBeforeApply": "Reload the latest shared board before applying suggested changes.",
+      "applyFailed": "Could not apply this suggestion",
+      "toolFailed": "Tool execution failed",
+      "beforeDelete": "Preserve or resolve local changes before deleting the project.",
+      "delete": "Could not delete project",
+      "deleteFailed": "Deletion failed",
+      "privateBeforeReload": "Save your private discussion before reloading.",
+      "privateCopy": "Recovery canvas was created, but its private discussion could not be copied."
     }
   }
 }
