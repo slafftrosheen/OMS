@@ -109,6 +109,9 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
     const fn = ui.split('async function analyzeSelectedAsset()')[1]?.split('function captureAnswer()')[0] ?? '';
     expect(fn).not.toContain('addCard(');
     expect(fn).not.toContain('editor.updateShape');
+    expect(ui).toContain('function pinFileAnalysis()');
+    expect(ui).toContain("addCard('research', tr('canvas.fileAnalysisCardTitle'");
+    expect(ui).toContain('MODEL ANALYSIS');
     expect(ui).toContain('EXTRACTED PDF TEXT (provider-reported; untrusted source material)');
   });
 
@@ -118,7 +121,8 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
       'fileUnderstanding','fileUnderstandingHint','imageModel','pdfModel',
       'enableScannedOcr','ocrCostWarning','analyzingFile','askSelectedFile',
       'analyzedFile','selectFileForAi','defaultFileQuestion','fileAnalysisQuestion',
-      'fileAnalysisFailed','pdfTextReady','fileReasoningReady','confirmPaidOcr'
+      'fileAnalysisFailed','pdfTextReady','fileReasoningReady','confirmPaidOcr',
+      'pinFileAnalysis','modelInterpretationLabel','parsedEvidenceLabel','fileAnalysisCardTitle'
     ];
     for (const key of keys) {
       for (const locale of locales) expect(locale[key], key).toBeTypeOf('string');
