@@ -79,7 +79,9 @@ describe('OMS-R12 Order and Draft Order contract',()=>{
     expect(sql).toContain('DELETE FROM public.order_profiles WHERE draft_order_id=p_order_id');
     expect(sql).toContain("v_role NOT IN ('RD','Boss','HeadOfProduction')");
     expect(sql).toContain('p_order_id');
-    expect(sql).toContain('ROLLBACK')===false; // transaction is managed by PostgreSQL
+    expect(sql).toContain('FUNCTION public.oms_submit_draft_for_review');
+    expect(sql).toContain('NOT EXISTS(SELECT 1 FROM public.order_files WHERE draft_order_id=p_order_id)');
+    expect(sql).not.toContain('ROLLBACK'); // PostgreSQL aborts the function transaction on error
   });
   it('keeps draft creation/edit contracts strict and PO confirmation atomic',()=>{
     const create=read('src/routes/api/draft-orders/+server.ts');
@@ -87,12 +89,16 @@ describe('OMS-R12 Order and Draft Order contract',()=>{
     const confirm=read('src/routes/api/draft-orders/[id]/confirm/+server.ts');
     expect(create).toContain("rpc('oms_create_draft_form'");
     expect(create).toContain('canonicalOrderProfiles(input.profiles)');
+    expect(create).toContain("p_status: 'DRAFT'");
     expect(update).toContain("rpc('oms_update_draft_form'");
     expect(update).toContain('canEditDraft(user.role');
     expect(update).not.toContain("from('draft_orders')\n        .delete()");
     expect(confirm).toContain("rpc(");
     expect(confirm).toContain("'confirm_order_with_stages'");
     expect(confirm).not.toContain("from('orders').insert");
+    const submit=read('src/routes/api/draft-orders/[id]/submit/+server.ts');
+    expect(submit).toContain("'oms_submit_draft_for_review'");
+    expect(submit).toContain('if(!result.idempotent)');
   });
   it('persists attachments to the draft UUID and uses the same link after confirmation',()=>{
     const upload=read('src/lib/server/files/upload.ts');
@@ -124,6 +130,7 @@ describe('OMS-R12 Order and Draft Order contract',()=>{
     expect(create).toContain("can($currentUser, 'createDraftOrder')");
     expect(create).toContain('savedOrderId = String(orderId)');
     expect(create).toContain("method:'PUT'");
+    expect(create).toContain("/submit\\`");
     expect(files).toContain('fileError');
     expect(files).toContain('{#if canUpload}');
   });
