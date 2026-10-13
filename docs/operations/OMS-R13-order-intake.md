@@ -8,7 +8,7 @@
 - Reads files from the canonical `files` -> `order_files.draft_order_id` relationship through the private authenticated Storage reader; no signed/public URLs and no arbitrary paths supplied by browsers. File size limits: **8 MiB** images, **12 MiB** PDFs; ordinary order upload remains **25 MiB**. Existing legacy storage compatibility is retained.
 - Uses actual image bytes with an OpenRouter `image_url` content part; PDFs use `type:file` and explicitly the `file-parser` plugin's `cloudflare-ai` engine. Paid `mistral-ocr` requires administrator `OPENROUTER_TOOLKIT_PDF_OCR=true`, user checkbox **and per-use confirmation**, with no automatic fallback to OCR. Free text parser cannot guarantee reading scans or drawings.
 - Sends bounded persisted order notes as context. Uploaded documents and notes are **untrusted data**, not commands. No arbitrary web access is enabled for this pass.
-- Requests OpenRouter's `response_format: json_schema`, `strict:true` and `provider.require_parameters:true`. Compatible providers/models are required; this is deliberately fail-closed rather than silently falling back to free-form or guessed JSON.
+- By default requests OpenRouter's `response_format: json_schema`, `strict:true` and `provider.require_parameters:true`. Compatible providers/models are required. Operators can **explicitly** configure `OPENROUTER_ORDER_INTAKE_STRICT=false` for a legacy JSON-mode model; Zod validation **still rejects** malformed or unknown fields. There is no silent fallback.
 - Validates model output again using Zod (`src/lib/order/intake-contract.ts`); allowlisted field names: clientName, title, deadline, loadingDate, priority, notes, deliveryAddress, deliveryContact, deliveryPhone, deliveryEmail, isRd, rdNotes. Rejects unknown extra keys, wrong types, unsupported enums, impossible dates and out-of-range values. The response is never treated as an order database patch.
 - Includes possible profile items and missing/contradictory details, but profile template assignment and production decisions remain manual until OMS-R14.
 - Returns the provider-reported model, source file ID/name, model-reported evidence snippets, and per-field confidence. Marks an excerpt verified **only if** it literally appears in provider-reported PDF extracted-text annotations; a matched snippet does **not** independently verify the correctness of the proposed value.
@@ -23,6 +23,7 @@ In the active OMS service environment (not just `.env.example`), choose an OpenR
 OPENROUTER_MODEL=openrouter/free
 # An explicit strict-json-compatible text/PDF intake model is recommended
 OPENROUTER_ORDER_INTAKE_MODEL=your-provider/your-strict-json-model
+OPENROUTER_ORDER_INTAKE_STRICT=true
 # For image intake, set a model supporting BOTH image inputs and JSON Schema
 OPENROUTER_VISION_MODEL=your-provider/your-vision-and-json-model
 OPENROUTER_TOOLKIT_PDF_OCR=false
@@ -48,7 +49,7 @@ OpenRouter calls may incur provider token charges even when using a free PDF tex
 5. Apply after another staff member edits/saves/confirms the same order. Expect a stale-state warning; no proposed fields should be applied.
 6. Try a file belonging to a different order, an unrelated user, a confirmed order, unsupported file types, or an oversize PDF. Expect 4xx denial and no provider call or writes.
 7. For a scanned drawing, test default text parsing and its limitations; only with billing configured, check optional paid OCR and explicit confirmation.
-8. Test provider that does *not* support JSON Schema. Expect a controlled error, **not** unvalidated or guessed fields.
+8. Test provider that does *not* support JSON Schema. With strict mode enabled, expect a controlled error. Only if an administrator explicitly sets `OPENROUTER_ORDER_INTAKE_STRICT=false` should JSON mode be attempted; malformed or extra fields must still be rejected.
 9. Inspect network/dev tools: no public/signed Storage URL, no raw file bytes in the browser response, no automatic PUT/confirmation, and no unexpected externally fetched URL.
 10. Test EN/LV/RU UI and model response language. Source field units/names must remain faithful to actual documents.
 11. Run R12 draft/attachment lifecycle and persisted-order checksum tests as regression coverage.
