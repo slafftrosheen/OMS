@@ -1795,6 +1795,33 @@
         "module_ma": "mA/modulis",
         "module_lm": "lm/modulis"
       }
+    },
+    "errors": {
+      "privateSave": "Neizdevās saglabāt privāto sarunu",
+      "newerVersion": "Kolēģis saglabāja jaunāku versiju. Jūsu nesaglabātās izmaiņas ir saglabātas lokāli. Saglabājiet kopiju vai ielādējiet jaunāko versiju.",
+      "save": "Neizdevās saglabāt projektu",
+      "saveFailed": "Projekta saglabāšana neizdevās",
+      "recoverySave": "Neizdevās saglabāt atkopšanas kopiju",
+      "recoveryDone": "Nesaglabātās izmaiņas ir saglabātas jaunā kopīgotā projektā.",
+      "recoveryFailed": "Atkopšanas kopijas saglabāšana neizdevās",
+      "load": "Neizdevās ielādēt projektus",
+      "listUnavailable": "Projektu saraksts nav pieejams",
+      "beforeSwitch": "Pirms projektu maiņas saglabājiet vai atkopiet izmaiņas.",
+      "open": "Neizdevās atvērt kopīgoto projektu",
+      "loadPrivate": "Neizdevās ielādēt privāto projekta sarunu",
+      "notFound": "Projekts netika atrasts",
+      "openFailed": "Projekta atvēršana neizdevās",
+      "beforeCreate": "Pirms jauna projekta izveides saglabājiet vai atkopiet izmaiņas.",
+      "create": "Neizdevās izveidot projektu",
+      "createFailed": "Projekta izveide neizdevās",
+      "reloadBeforeApply": "Pirms ieteikto izmaiņu piemērošanas ielādējiet jaunāko kopīgā audekla versiju.",
+      "applyFailed": "Neizdevās piemērot ieteikumu",
+      "toolFailed": "Rīka izpilde neizdevās",
+      "beforeDelete": "Pirms projekta dzēšanas saglabājiet vai atrisiniet lokālās izmaiņas.",
+      "delete": "Neizdevās dzēst projektu",
+      "deleteFailed": "Dzēšana neizdevās",
+      "privateBeforeReload": "Pirms pārlādes saglabājiet privāto sarunu.",
+      "privateCopy": "Atkopšanas audekls ir izveidots, bet privāto sarunu neizdevās kopēt."
     }
   }
 }
