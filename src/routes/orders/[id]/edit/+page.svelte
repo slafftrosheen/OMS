@@ -869,7 +869,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
           <Icon name="layers" size="sm" /> Zones
         </button>
         <button class="dtab" class:active={rightTab === 'revisions'} onclick={() => rightTab = 'revisions'}>
-          <Icon name="file-diff" size="sm" /> {$t('revisionIntelligence.tab')}
+          <Icon name="file-text" size="sm" /> {$t('revisionIntelligence.tab')}
         </button>
         <button class="dtab" class:active={rightTab === 'changes'} onclick={() => rightTab = 'changes'}>
           <Icon name="git-pull-request" size="sm" /> Changes
