@@ -1415,6 +1415,9 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "productionReadiness": {
+    "profileSelect": "Ražošanas profila veidne",
+    "profileUnassigned": "Nav izvēlēta pārbaudīta veidne",
+    "profileCatalogTruncated": "Katalogā ir vairāk nekā 200 veidņu. Izvēlieties nepieciešamo pilnajā katalogā.",
     "consent": "Piekrītu nosūtīt OpenRouter saglabāto pasūtījuma un klienta informāciju, profilu kopsavilkumu un attiecīgos krājumu datus analīzei. Krājumi netiks rezervēti.",
     "tab": "Gatavība",
     "title": "Ražošanas gatavība",
