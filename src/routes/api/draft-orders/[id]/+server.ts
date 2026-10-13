@@ -18,6 +18,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
           id,
           profile_template_id,
           quantity:quantity1,
+          quantity2,quantity3,quantity4,order_index,
           configuration,
           notes
         )
@@ -74,6 +75,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
       deliveryAddress: order.delivery_address,
       deliveryContact: order.delivery_contact,
       deliveryPhone: order.delivery_phone,
+      deliveryEmail: order.metadata?.delivery_email ?? '',
       profiles: (order.profiles || []).map((p: any) => ({ ...p, dbId: p.id, profileTemplateId: p.profile_template_id })),
       files,
       createdAt: order.created_at,
@@ -125,7 +127,8 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
     deadline: updated.due_date, loadingDate: updated.loading_date,
     priority: updated.priority, notes: updated.notes, status: updated.status,
     deliveryAddress: updated.delivery_address, deliveryContact: updated.delivery_contact,
-    deliveryPhone: updated.delivery_phone, deliveryPresetId: updated.delivery_preset_id,
+    deliveryPhone: updated.delivery_phone, deliveryEmail: updated.metadata?.delivery_email ?? '',
+    deliveryPresetId: updated.delivery_preset_id,
     isRd: updated.is_rd, rdNotes: updated.rd_notes, badges: updated.badges
   }, { headers: { 'Cache-Control': 'private, no-store' } });
 };
