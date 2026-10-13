@@ -28,6 +28,8 @@
   let loadingDate = $state('');
   let notes = $state('');
   let priority = $state<'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'>('NORMAL');
+  let isRd = $state(false);
+  let rdNotes = $state('');
   
   // Delivery Address
   interface DeliveryPreset {
@@ -59,6 +61,7 @@
   let deliveryAddress = $state('');
   let deliveryContact = $state('');
   let deliveryPhone = $state('');
+  let deliveryEmail = $state('');
   let useManualAddress = $state(false);
   let showPresetDropdown = $state(false);
   
@@ -568,6 +571,7 @@
       deliveryAddress,
       deliveryContact,
       deliveryPhone,
+      deliveryEmail,
       notes,
       hasFiles: uploadedFiles.length > 0,
       selectedPresetId,
@@ -597,6 +601,7 @@
         clientName, deadline, loadingDate: loadingDate || null,
         notes, priority, deliveryPresetId: selectedPresetId,
         deliveryAddress, deliveryContact, deliveryPhone,
+        deliveryEmail: deliveryEmail || null, isRd, rdNotes,
         profiles: profiles.map(p => ({
           profileTemplateId: p.profileTemplateId ?? null,
           quantity: p.quantity, configuration: p.configuration ?? {},
@@ -615,6 +620,7 @@
           deliveryAddress,
           deliveryContact,
           deliveryPhone,
+          deliveryEmail: deliveryEmail || null, isRd, rdNotes,
           profiles: profiles.map(p => ({
             profileTemplateId: p.profileTemplateId ?? null,
             quantity: p.quantity,
@@ -1001,6 +1007,16 @@
         </div>
       </div>
       <div class="form-group">
+        <label for="order-is-rd">
+          <input type="checkbox" id="order-is-rd" bind:checked={isRd} />
+          {$t('orderForm.isRd')}
+        </label>
+        {#if isRd}
+          <label for="order-rd-notes">{$t('orderForm.rdNotes')}</label>
+          <textarea id="order-rd-notes" bind:value={rdNotes} rows="2" maxlength="8000"></textarea>
+        {/if}
+      </div>
+      <div class="form-group">
         <label for="notes">{$t('orders.new.details.notes')}</label>
         <textarea id="notes" bind:value={notes} rows="2" placeholder={$t('orders.new.details.notes_placeholder')}></textarea>
       </div>
@@ -1103,6 +1119,12 @@
             />
             {#if fieldErrors.deliveryPhone}<p class="field-error">{fieldErrors.deliveryPhone}</p>{/if}
           </div>
+        </div>
+        <div class="form-group">
+          <label for="order-delivery-email">{$t('orderForm.deliveryEmail')}</label>
+          <input id="order-delivery-email" type="email" bind:value={deliveryEmail}
+            maxlength="200" placeholder="contact@example.com" />
+          {#if fieldErrors.deliveryEmail}<p class="field-error">{fieldErrors.deliveryEmail}</p>{/if}
         </div>
       </section>
     </div>
