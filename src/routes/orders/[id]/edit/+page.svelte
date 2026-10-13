@@ -6,7 +6,8 @@
    * The tldraw canvas fills the centre.
    */
   import { onMount } from 'svelte';
-  import { goto, replaceState, beforeNavigate } from '$app/navigation';
+  import { goto, pushState, beforeNavigate } from '$app/navigation';
+  import { page } from '$app/state';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
@@ -163,8 +164,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     focusPanel=section!=='layers';
     if(typeof window!=='undefined'){
       const url=new URL(window.location.href);
-      url.searchParams.set('section',section);
-      replaceState(url.pathname+url.search,{});
+      if(url.searchParams.get('section')!==section){
+        url.searchParams.set('section',section);
+        pushState(url.pathname+url.search,{});
+      }
     }
   }
   async function refreshFileCount() {
@@ -188,6 +191,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       !window.confirm($t('orderWorkspace.leaveWarning'))) cancel();
   });
   let rightTab: WorkspaceSection = $state('details');
+  // Restore the workspace section when browser Back/Forward navigates through
+  // SvelteKit shallow-history entries. Switching sections does not discard forms.
+  $effect(() => {
+    const linked=sectionFromQuery(page.url.searchParams.get('section'));
+    if(rightTab!==linked){
+      rightTab=linked;
+      focusPanel=linked!=='layers';
+    }
+  });
   let intakeFileId = $state('');
   let intakeCurrent = $derived({
     clientName,title,deadline,loadingDate,priority,notes,
