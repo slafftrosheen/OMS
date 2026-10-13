@@ -1524,6 +1524,13 @@
     "canvasTab": "Canvas",
     "chatTab": "Conversations",
     "canvas": {
+      "savedFiles": "Saved files",
+      "savedFilesHelp": "Uploaded files are kept here even when Canvas placement or saving fails. Select a file to attach it to this board.",
+      "refreshSavedFiles": "Refresh files",
+      "noSavedFiles": "No uploaded files yet.",
+      "savedFilesError": "Could not load saved project files.",
+      "fileAlreadyOnBoard": "This file is already attached to the current Canvas page.",
+      "savedFileAttached": "Saved file attached to Canvas.",
       "pinFileAnalysis": "Add findings to shared Canvas",
       "modelInterpretationLabel": "MODEL ANALYSIS — CHECK BEFORE PRODUCTION",
       "parsedEvidenceLabel": "PROVIDER-EXTRACTED PDF TEXT",
