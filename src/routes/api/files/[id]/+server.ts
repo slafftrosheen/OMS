@@ -70,6 +70,16 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
     throw error(403,'Only authorized order editors can delete attached files');
   }
 
+  // Review evidence is immutable: deleting the underlying Storage object
+  // before checking FK-backed revision references would strand the audit.
+  const { data: revisionRefs, error: revisionError }=await locals.supabase
+    .from('order_revision_sources').select('change_request_id')
+    .or(`baseline_file_id.eq.${params.id},revised_file_id.eq.${params.id}`)
+    .limit(1);
+  if(revisionError) throw error(503,'Cannot verify whether this file is revision evidence');
+  if(revisionRefs?.length) throw error(409,
+    'File is evidence in a revision change request and must be retained');
+
   try {
     await removeOrderStoredFile(locals,file);
   } catch (err) {
