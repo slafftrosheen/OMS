@@ -13,6 +13,7 @@
   import { currentUser } from '$lib/auth/authState.svelte';
   import { notifySuccess, notifyError } from '$lib/notify/toast';
   import ChangeRequestList from '$lib/order/ChangeRequestList.svelte';
+  import OrderFiles from '$lib/order/OrderFiles.svelte';
 import { notifications } from '$lib/notify/store';
 import { can, normaliseStatus, ORDER_STATUS_LABELS } from '$lib/auth/permission-utils';
 import type { OrderStatus } from '$lib/auth/permission-utils';
@@ -78,7 +79,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let saving = $state(false);
   let confirming = $state(false);
   let error = $state('');
-  let rightTab: 'layers' | 'changes' | 'chat' = $state('layers');
+  let rightTab: 'layers' | 'changes' | 'chat' | 'files' = $state('layers');
   let activeTool = $state('select');
   let aiPrompt = $state('');
   let useSelectionCtx = $state(false);
@@ -836,6 +837,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         <button class="dtab" class:active={rightTab === 'changes'} onclick={() => rightTab = 'changes'}>
           <Icon name="git-pull-request" size="sm" /> Changes
         </button>
+        <button class="dtab" class:active={rightTab === 'files'} onclick={() => rightTab = 'files'}>
+          <Icon name="paperclip" size="sm" /> Files
+        </button>
         <button class="dtab" class:active={rightTab === 'chat'} onclick={() => rightTab = 'chat'}>
           <Icon name="message-square" size="sm" /> AI
         </button>
@@ -878,6 +882,11 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             {/if}
           </div>
 
+        {:else if rightTab === 'files'}
+          {#if orderId}
+            <OrderFiles {orderId} compact={true} canUpload={canEdit ||
+              (isAdmin && ['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status))} />
+          {:else}<p class="zone-intro">Loading attachments…</p>{/if}
         {:else if rightTab === 'chat'}
           <!-- Phase 8: AI Chat panel -->
           <div class="ai-panel">
