@@ -67,6 +67,7 @@
   
   // Files with preview
   interface FileWithPreview {
+    uploadId: string;
     file: File;
     preview?: string;
     pdfDataUrl?: string;
@@ -471,7 +472,7 @@
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (ext === 'pdf') return 'pdf';
     if (ext === 'cdr') return 'cdr';
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '')) return 'image';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return 'image';
     return 'other';
   }
 
@@ -486,7 +487,7 @@
   async function addFiles(newFiles: File[]) {
     for (const file of newFiles) {
       const type = getFileType(file);
-      const fileWithPreview: FileWithPreview = { file, type };
+      const fileWithPreview: FileWithPreview = { file, type, uploadId: crypto.randomUUID() };
       
       if (type === 'image') {
         fileWithPreview.preview = await createImagePreview(file);
@@ -609,31 +610,12 @@
         }))
       };
       if (!orderId) {
-        const orderData = {
-          clientName,
-          deadline,
-          loadingDate: loadingDate || null,
-          notes,
-          priority,
-          // Do not expose an incomplete order in management review while
-          // file uploads are still in progress.
-          status: 'DRAFT',
-          deliveryPresetId: typeof selectedPresetId === 'string' ? selectedPresetId : null,
-          deliveryAddress,
-          deliveryContact,
-          deliveryPhone,
-          deliveryEmail: deliveryEmail || null, isRd, rdNotes,
-          profiles: profiles.map(p => ({
-            profileTemplateId: p.profileTemplateId ?? null,
-            quantity: p.quantity,
-            configuration: p.configuration
-          }))
-        };
+        const createData = { ...orderData, status: 'DRAFT' as const };
 
         const orderResponse = await fetch('/api/draft-orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orderData)
+          body: JSON.stringify(createData)
         });
 
         if (!orderResponse.ok) {
@@ -663,7 +645,7 @@
 
       const failedUploads: string[] = [];
       for (const fileItem of uploadedFiles) {
-        const fileKey = `${uploadedFiles.indexOf(fileItem)}:${fileItem.file.name}:${fileItem.file.size}:${fileItem.file.lastModified}`;
+        const fileKey = fileItem.uploadId;
         if (uploadedFileKeys.has(fileKey)) continue;
         const formData = new FormData();
         formData.append('file', fileItem.file);
