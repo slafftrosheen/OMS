@@ -144,4 +144,72 @@ GRANT EXECUTE ON FUNCTION public.create_change_request(UUID,TEXT,JSONB) TO authe
 GRANT EXECUTE ON FUNCTION public.review_change_request(UUID,TEXT,TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.apply_change_request(UUID) TO authenticated;
 
+-- Immutable evidence relation. File FKs prevent metadata deletion while
+-- any revision review still references the source; application must also
+-- check before deleting binary data from Supabase Storage.
+CREATE TABLE IF NOT EXISTS public.order_revision_sources(
+ change_request_id UUID PRIMARY KEY REFERENCES public.change_requests(id) ON DELETE RESTRICT,
+ order_id UUID NOT NULL REFERENCES public.draft_orders(id) ON DELETE CASCADE,
+ baseline_file_id UUID NOT NULL REFERENCES public.files(id) ON DELETE RESTRICT,
+ revised_file_id UUID NOT NULL REFERENCES public.files(id) ON DELETE RESTRICT,
+ baseline_sha256 TEXT NOT NULL CHECK (baseline_sha256 ~ '^[a-f0-9]{64}$'),
+ revised_sha256 TEXT NOT NULL CHECK (revised_sha256 ~ '^[a-f0-9]{64}$'),
+ created_by UUID NOT NULL REFERENCES public.profiles(id),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ CHECK (baseline_file_id<>revised_file_id)
+);
+CREATE INDEX IF NOT EXISTS idx_order_revision_sources_order ON public.order_revision_sources(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_revision_sources_base ON public.order_revision_sources(baseline_file_id);
+CREATE INDEX IF NOT EXISTS idx_order_revision_sources_revised ON public.order_revision_sources(revised_file_id);
+ALTER TABLE public.order_revision_sources ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.order_revision_sources FROM PUBLIC,anon,authenticated;
+GRANT SELECT ON public.order_revision_sources TO authenticated;
+DROP POLICY IF EXISTS order_revision_sources_select ON public.order_revision_sources;
+CREATE POLICY order_revision_sources_select ON public.order_revision_sources FOR SELECT
+ TO authenticated USING (public.is_order_child_visible(order_id));
+
+-- One transaction for change request, attached evidence and activity log.
+-- Browser-supplied hashes are checked against stored file bytes by the
+-- SvelteKit API; this RPC ensures the referenced IDs/roles/revision are real.
+CREATE OR REPLACE FUNCTION public.oms_create_revision_change_request(
+ p_order_id UUID,p_baseline_file_id UUID,p_revised_file_id UUID,
+ p_baseline_sha256 TEXT,p_revised_sha256 TEXT,p_description TEXT,
+ p_proposed_diff JSONB,p_expected_updated_at TIMESTAMPTZ
+) RETURNS UUID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp
+AS $$
+DECLARE
+ v_actor UUID:=auth.uid();v_updated_at TIMESTAMPTZ;v_id UUID;
+BEGIN
+ IF v_actor IS NULL THEN RAISE EXCEPTION 'Authentication required' USING ERRCODE='42501'; END IF;
+ IF p_baseline_file_id=p_revised_file_id OR
+    p_baseline_sha256 !~ '^[a-f0-9]{64}$' OR
+    p_revised_sha256 !~ '^[a-f0-9]{64}$' THEN
+  RAISE EXCEPTION 'Invalid revision evidence identifiers or checksums';
+ END IF;
+ SELECT updated_at INTO v_updated_at FROM public.draft_orders
+ WHERE id=p_order_id FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Order not found' USING ERRCODE='P0002'; END IF;
+ IF v_updated_at IS DISTINCT FROM p_expected_updated_at THEN
+  RAISE EXCEPTION 'Order has changed; compare revisions again' USING ERRCODE='23505';
+ END IF;
+ IF (SELECT COUNT(DISTINCT file_id) FROM public.order_files WHERE
+   draft_order_id=p_order_id AND file_id IN (p_baseline_file_id,p_revised_file_id))<>2 THEN
+  RAISE EXCEPTION 'Both source files must belong to the order' USING ERRCODE='42501';
+ END IF;
+ -- The hardened generic RPC verifies active user role and the diff allowlist.
+ v_id:=public.create_change_request(p_order_id,p_description,p_proposed_diff);
+ INSERT INTO public.order_revision_sources(
+   change_request_id,order_id,baseline_file_id,revised_file_id,
+   baseline_sha256,revised_sha256,created_by
+ ) VALUES(v_id,p_order_id,p_baseline_file_id,p_revised_file_id,
+   p_baseline_sha256,p_revised_sha256,v_actor);
+ RETURN v_id;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.oms_create_revision_change_request(
+ UUID,UUID,UUID,TEXT,TEXT,TEXT,JSONB,TIMESTAMPTZ) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.oms_create_revision_change_request(
+ UUID,UUID,UUID,TEXT,TEXT,TEXT,JSONB,TIMESTAMPTZ) TO authenticated;
+
 COMMIT;
