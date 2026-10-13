@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 import { registerNodeRunner } from '../node-runner';
+import { useToolkitText } from '../use-toolkit-text';
 
 export type WebSearchShape = TLBaseShape<'web-search', {
     w: number;
@@ -37,6 +38,7 @@ export class WebSearchShapeUtil extends BaseBoxShapeUtil<WebSearchShape> {
     }
 
     override component(shape: WebSearchShape) {
+        const tn = useToolkitText();
         const { w, h, query, topK, language, site, status, error, output } = shape.props;
         const [draftQuery, setDraftQuery] = useState(query);
         const [draftSite, setDraftSite] = useState(site);
@@ -92,8 +94,8 @@ export class WebSearchShapeUtil extends BaseBoxShapeUtil<WebSearchShape> {
                 }}
             >
                 <div style={headerStyle('#0a84ff')}>
-                    <span>🔎 Web search</span>
-                    <span style={statusBadgeStyle(status)}>{status}</span>
+                    <span>🔎 {tn('webSearch')}</span>
+                    <span style={statusBadgeStyle(status)}>{tn(`status${status[0].toUpperCase()}${status.slice(1)}`)}</span>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 8 }} onPointerDown={stop}>
@@ -101,13 +103,13 @@ export class WebSearchShapeUtil extends BaseBoxShapeUtil<WebSearchShape> {
                         value={draftQuery}
                         onChange={(e) => setDraftQuery(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') run(); }}
-                        placeholder="What do you want to know?"
+                        placeholder={tn('webQuestion')}
                         style={inputStyle}
                     />
                     <input
                         value={draftSite}
                         onChange={(e) => setDraftSite(e.target.value)}
-                        placeholder="site filter (comma-separated, optional)"
+                        placeholder={tn('webSite')}
                         style={inputStyle}
                     />
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -121,7 +123,7 @@ export class WebSearchShapeUtil extends BaseBoxShapeUtil<WebSearchShape> {
                             style={{ ...inputStyle, width: 64 }}
                         />
                         <button onClick={run} disabled={status === 'running'} style={runButtonStyle('#0a84ff')}>
-                            {status === 'running' ? '…' : 'Run'}
+                            {status === 'running' ? '…' : tn('run')}
                         </button>
                     </div>
                 </div>
