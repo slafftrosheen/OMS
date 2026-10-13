@@ -106,7 +106,7 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
     expect(ui).toContain('markDiscussionDirty()');
     expect(ui).toContain('confirm(tr(\'canvas.confirmPaidOcr\'))');
     expect(ui).toContain('usePaidPdfOcr = false');
-    const fn = ui.split('async function analyzeSelectedAsset()')[1]?.split('function captureAnswer()')[0] ?? '';
+    const fn = ui.split('async function analyzeSelectedAsset()')[1]?.split('function pinFileAnalysis()')[0] ?? '';
     expect(fn).not.toContain('addCard(');
     expect(fn).not.toContain('editor.updateShape');
     expect(ui).toContain('function pinFileAnalysis()');
