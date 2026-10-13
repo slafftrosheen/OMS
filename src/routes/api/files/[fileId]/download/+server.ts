@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { storageService } from '$lib/server/storage/StorageService';
-import { safeDownloadFilename, storageKeyFromFileRow } from '$lib/server/files/contract';
+import { readOrderStoredFile } from '$lib/server/files/order-storage';
+import { safeDownloadFilename } from '$lib/server/files/contract';
 
 export const GET: RequestHandler = async ({ params, locals, url }) => {
   const user = locals.user;
@@ -20,17 +20,12 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
   if (!file) throw error(404, 'File not found');
 
   try {
-    const key = storageKeyFromFileRow(file);
-    if (url.searchParams.get('redirect') === 'true') {
-      const signed = await storageService.getSignedUrl(key, 3600);
-      return new Response(null, { status: 302, headers: { Location: signed, 'Cache-Control': 'private, no-store' } });
-    }
-
-    const { buffer, metadata } = await storageService.download(key);
+    // Authenticated binary proxy; never issue long-lived signed URLs.
+    const buffer = await readOrderStoredFile(locals,file);
     const disposition = inline ? 'inline' : 'attachment';
     return new Response(new Uint8Array(buffer), {
       headers: {
-        'Content-Type': file.mimetype || metadata.contentType || 'application/octet-stream',
+        'Content-Type': file.mimetype || 'application/octet-stream',
         'Content-Length': String(buffer.length),
         'Content-Disposition': `${disposition}; filename="${safeDownloadFilename(file.original_name || file.filename)}"`,
         'Cache-Control': 'private, no-store'
