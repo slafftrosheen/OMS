@@ -130,7 +130,7 @@ describe('OMS-R12 Order and Draft Order contract',()=>{
     expect(create).toContain("can($currentUser, 'createDraftOrder')");
     expect(create).toContain('savedOrderId = String(orderId)');
     expect(create).toContain("method:'PUT'");
-    expect(create).toContain("/submit\\`");
+    expect(create).toContain('/submit`');
     expect(files).toContain('fileError');
     expect(files).toContain('{#if canUpload}');
   });
