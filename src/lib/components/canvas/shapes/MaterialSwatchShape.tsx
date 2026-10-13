@@ -1,5 +1,6 @@
 import React from 'react';
 import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
+import { useToolkitText } from '../use-toolkit-text';
 
 export const MATERIAL_PRESETS = [
   'brushed-metal', 'matte', 'frosted-acrylic', 'wood-grain', 'concrete', 'patina', 'mesh', 'photo'
@@ -27,6 +28,7 @@ export class MaterialSwatchShapeUtil extends BaseBoxShapeUtil<MaterialSwatchShap
   static override type = 'material-swatch' as const;
   override getDefaultProps() { return swatchDefaults(); }
   override component(shape: MaterialSwatchShape) {
+    const tn = useToolkitText();
     const p = shape.props;
     const edit = (props: Partial<MaterialSwatchShape['props']>) =>
       this.editor.updateShape<MaterialSwatchShape>({ id: shape.id, type: 'material-swatch', props });
@@ -39,19 +41,19 @@ export class MaterialSwatchShapeUtil extends BaseBoxShapeUtil<MaterialSwatchShap
       borderRadius: 13, overflow: 'hidden', background: 'var(--bg-0)', color: 'var(--text)',
       border: '1px solid var(--border)', display: 'flex', flexDirection: 'column',
       boxShadow: '0 7px 22px #0002', pointerEvents: 'all' }}>
-      <header title="Drag this header to move" style={{ display: 'flex', alignItems: 'center',
+      <header title={tn('materialDrag')} style={{ display: 'flex', alignItems: 'center',
         padding: '7px 10px', gap: 6, background: 'var(--bg-1)', minHeight: 30, cursor: 'grab' }}>
-        <input aria-label="Material name" maxLength={80} value={p.title}
+        <input aria-label={tn('materialName')} maxLength={80} value={p.title}
           onChange={e => edit({ title: e.target.value })} onPointerDown={stop} onKeyDown={stop}
           style={{ minWidth: 0, flex: 1, background: 'transparent', color: 'inherit',
             border: 0, fontWeight: 750, fontSize: 12 }} />
-        <select aria-label="Material texture" value={p.preset} onPointerDown={stop} onKeyDown={stop}
+        <select aria-label={tn('materialTexture')} value={p.preset} onPointerDown={stop} onKeyDown={stop}
           onChange={e => edit({ preset: e.target.value as MaterialPreset })}
           style={{ maxWidth: 122, fontSize: 10 }}>
-          {MATERIAL_PRESETS.map(item => <option key={item} value={item}>{item.replaceAll('-', ' ')}</option>)}
+          {MATERIAL_PRESETS.map(item => <option key={item} value={item}>{tn(`materialPresets.${item}`)}</option>)}
         </select>
       </header>
-      <div role="img" aria-label={`Illustrative preview of ${p.preset}`}
+      <div role="img" aria-label={tn('materialVisual', { name: tn(`materialPresets.${p.preset}`) })}
         style={{ flex: 1, minHeight: 0, backgroundImage: background,
           backgroundSize: isPhoto ? 'cover' : 'auto', backgroundPosition: 'center',
           opacity: Math.min(1, Math.max(.1, (p.opacity ?? 100) / 100)), position: 'relative' }}>
@@ -59,13 +61,13 @@ export class MaterialSwatchShapeUtil extends BaseBoxShapeUtil<MaterialSwatchShap
       </div>
       <footer style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         background: 'var(--bg-1)', padding: '5px 10px', gap: 8, fontSize: 10 }}>
-        <span>Visual reference · not a certified finish</span>
-        <input type="color" aria-label="Surface tint" title="Change surface tint"
+        <span>{tn('materialNote')}</span>
+        <input type="color" aria-label={tn('surfaceTint')} title={tn('changeTint')}
           value={/^#[0-9a-fA-F]{6}$/.test(p.tint || '') ? p.tint : '#ffffff'}
           onPointerDown={stop} onKeyDown={stop}
           onChange={e => edit({ tint: e.target.value })}
           style={{ width: 27, height: 24, border: 0, background: 'transparent' }} />
-        <input title="Texture opacity" aria-label="Texture opacity" type="range" min="10" max="100"
+        <input title={tn('textureOpacity')} aria-label={tn('textureOpacity')} type="range" min="10" max="100"
           value={p.opacity ?? 100} onPointerDown={stop} onKeyDown={stop}
           onChange={e => edit({ opacity: Number(e.target.value) })} style={{ width: 65 }} />
       </footer>
