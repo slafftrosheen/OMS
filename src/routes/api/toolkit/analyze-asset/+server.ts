@@ -51,6 +51,10 @@ export const POST: RequestHandler = async (event) => {
   const { data: file, error: downloadError } = await locals.supabase.storage
     .from(TOOLKIT_ASSET_BUCKET).download(asset.storage_path);
   if (downloadError || !file) throw error(503, 'Could not retrieve the project file');
+  // Check the actual stored blob's size before allocating the request payload.
+  if (file.size !== asset.bytes || file.size > toolkitMediaLimit(kind)) {
+    throw error(422, 'Stored file size differs from verified metadata');
+  }
   const bytes = Buffer.from(await file.arrayBuffer());
   if (bytes.length !== asset.bytes || !signatureMatches(asset.mime_type, bytes.subarray(0, 16))) {
     throw error(422, 'Stored file does not match its verified metadata');
