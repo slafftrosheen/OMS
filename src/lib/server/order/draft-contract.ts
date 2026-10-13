@@ -28,6 +28,7 @@ export const orderFields = z.object({
   deliveryAddress: nullableText(2000),
   deliveryContact: nullableText(200),
   deliveryPhone: nullableText(40),
+  deliveryEmail: z.string().email().max(200).nullable().optional(),
   profiles: z.array(profile).max(100).optional(),
   isRd: z.boolean().optional(),
   rdNotes: nullableText(8000),
@@ -51,6 +52,7 @@ export function canonicalDraftFields(value: OrderForm, creating: boolean) {
   if (value.deliveryAddress !== undefined) fields.delivery_address = value.deliveryAddress;
   if (value.deliveryContact !== undefined) fields.delivery_contact = value.deliveryContact;
   if (value.deliveryPhone !== undefined) fields.delivery_phone = value.deliveryPhone;
+  if (value.deliveryEmail !== undefined) fields.delivery_email = value.deliveryEmail;
   if (value.isRd !== undefined) fields.is_rd = value.isRd;
   if (value.rdNotes !== undefined) fields.rd_notes = value.rdNotes;
   if (value.badges !== undefined) fields.badges = value.badges;
