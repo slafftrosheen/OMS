@@ -27,7 +27,11 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     error: 'The private Toolkit Storage bucket is unavailable. Check bucket creation and authenticated SELECT policy.' },
     { status: 503, headers: noStore });
   const capacity = toolkitUploadReadiness(process.env.BODY_SIZE_LIMIT);
-  return json({ ...capacity, formats: ['PNG','JPEG','WebP','GIF','PDF'],
+  return json({ ...capacity,
+    // Read/list checks do not prove writes. The R11 smoke test performs a
+    // real authenticated upload, verified download and library lookup.
+    storageWriteVerified: false,
+    formats: ['PNG','JPEG','WebP','GIF','PDF'],
     maximumFileBytes: MAX_TOOLKIT_ASSET_BYTES,
     ...(!capacity.ready ? { error: 'The OMS server upload limit is below 26 MB. Set BODY_SIZE_LIMIT=32M in the systemd service environment, restart OMS, and check the proxy client_max_body_size.' } : {})
   }, { status: capacity.ready ? 200 : 503, headers: noStore });
@@ -62,15 +66,29 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
   const { error: uploadError } = await locals.supabase.storage
     .from(TOOLKIT_ASSET_BUCKET).upload(path, buffer, { contentType: mime, upsert: false });
   if (uploadError) {
-    console.error('[Toolkit] Asset upload failure', uploadError.message);
-    throw error(503, 'Project file upload unavailable');
+    // Supabase Storage is an independent service with its own global/bucket
+    // limits and RLS. Make the common infrastructure failures actionable.
+    const code = String((uploadError as { statusCode?: string | number }).statusCode ?? '');
+    console.error('[Toolkit] Asset upload failure', { code, message: uploadError.message });
+    if (code === '413') throw error(413,
+      'Supabase Storage rejected the size. Check the global and toolkit-assets bucket limits.');
+    if (code === '401' || code === '403') throw error(503,
+      'Supabase Storage denied the upload. Check the Toolkit storage INSERT policy and session.');
+    if (code === '404') throw error(503,
+      'Toolkit Storage bucket is missing. Apply the R06 database migration.');
+    throw error(503, 'Project file upload unavailable. Check Supabase Storage logs.');
   }
   const { error: dbError } = await locals.supabase.from('toolkit_assets').insert({
     id, canvas_id: params.board, user_id: user.id,
     file_name: name, mime_type: mime, bytes: buffer.length, storage_path: path
   });
   if (dbError) {
-    await locals.supabase.storage.from(TOOLKIT_ASSET_BUCKET).remove([path]).catch(() => undefined);
+    try {
+      const { error: cleanupError } = await locals.supabase.storage.from(TOOLKIT_ASSET_BUCKET).remove([path]);
+      if (cleanupError) console.error('[Toolkit] Unregistered asset cleanup failed', cleanupError.message);
+    } catch {
+      console.error('[Toolkit] Unregistered asset cleanup unavailable');
+    }
     console.error('[Toolkit] Asset metadata failure', dbError.code);
     throw error(503, 'Could not register project file');
   }
