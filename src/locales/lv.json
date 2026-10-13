@@ -1415,6 +1415,9 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "productionReadiness": {
+    "aiUnavailable": "OpenRouter analīze nav pieejama. Redzamas tikai pārbaudes no datubāzes.",
+    "materialStatus": {"sufficient":"Reģistrētais daudzums pietiek (nav rezervēts)","insufficient":"Nepietiekams krājums","unknown":"Nav pārbaudīts"},
+    "materialMatch": {"exact-code":"Precīzs koda sakritums","exact-sku":"Precīzs SKU","unresolved":"Nav viennozīmīgas atbilstības","ambiguous":"Vairākas atbilstības"},
     "severity": {"blocker":"Kritiski","warning":"Jāpārbauda","information":"Informācija"},
     "issueCodes": {"missing-client":"Nav norādīts klients","missing-deadline":"Nav norādīts izpildes termiņš","missing-profiles":"Nav ražošanas profilu","unresolved-profile":"Profilam nav izvēlēta aktīva, pārbaudīta veidne","invalid-quantity":"Nepareizs profila pamatdaudzums","missing-files":"Nav pievienots avota fails","inventory-unavailable":"Neizdevās pilnībā pārbaudīt noliktavas krājumus","materials-unspecified":"Nav norādīti materiāli — krājumu gatavība nav zināma","stock-shortfall":"Norādītā materiāla noliktavā nepietiek","low-stock-after-use":"Pēc plānotā patēriņa krājums samazināsies līdz minimumam vai zemāk","unverified-material":"Materiālu nevar pārbaudīt pēc precīza SKU, koda, mērvienības un daudzuma"},
     "unitMismatch": "Mērvienības nesakrīt (pasūtījums / noliktava)",
