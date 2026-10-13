@@ -77,7 +77,7 @@ export function reconcileOrderMaterials(
     const minStock=candidate?safeStock(candidate.min_stock):null;
     const unit=String(row.unit??'').slice(0,40);
     const unitMatch=!!candidate&&norm(candidate.unit)===norm(unit);
-    const status=candidate&&required!==null&&available!==null&&unitMatch
+    const status=candidate&&required!==null&&required>0&&available!==null&&unitMatch
       ? available>=required?'sufficient':'insufficient':'unknown';
     return {
       orderMaterialId:row.id,materialType,unit,required,
@@ -111,6 +111,10 @@ export function deterministicReadiness(e:ReadinessEvidence):{
   for(const m of e.materials){
     if(m.status==='insufficient')add('stock-shortfall','blocker',
       `Insufficient stock for ${m.materialType} (required ${m.required} ${m.unit}, available ${m.available} ${m.unit})`);
+    else if(m.status==='sufficient' && m.minStock!==null &&
+      m.available!==null && m.required!==null &&
+      m.available-m.required<=m.minStock)add('low-stock-after-use','warning',
+        `Stock of ${m.materialType} will be at/below minimum threshold after proposed use (not reserved)`);
     else if(m.status==='unknown')add('unverified-material','warning',
       `Cannot verify ${m.materialType || 'unnamed material'} against inventory SKU, unit and quantity`);
   }
