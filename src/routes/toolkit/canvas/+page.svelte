@@ -32,6 +32,14 @@
   let selectedModel = $state('');
   let webMode = $state<'searxng' | 'openrouter'>('searxng');
   let paidWebAvailable = $state(false);
+  let paidPdfOcrAvailable = $state(false);
+  let usePaidPdfOcr = $state(false);
+  let mediaVisionModel = $state('');
+  let mediaPdfModel = $state('');
+  let analyzingFile = $state(false);
+  // Short-lived per-project reference notes; never part of shared snapshot.
+  let analyzedAssets = $state<Record<string, {kind:string; filename:string; evidence:string; answer:string}>>({});
+  let lastAnalyzedAsset = $state<string | null>(null);
   let lastUsedModel = $state('');
   let insecureClipboard = $state(false);
   let legacyThreads = $state<Record<string, Array<{role: string; content: string}>>>({});
@@ -95,6 +103,10 @@
         ? selectedModel : (modelChoices[0]?.id ?? '');
       paidWebAvailable = data.web?.openrouter === true;
       if (!paidWebAvailable) webMode = 'searxng';
+      paidPdfOcrAvailable = data.media?.paidOcr === true;
+      if (!paidPdfOcrAvailable) usePaidPdfOcr = false;
+      mediaVisionModel = typeof data.media?.visionModel === 'string' ? data.media.visionModel : '';
+      mediaPdfModel = typeof data.media?.pdfModel === 'string' ? data.media.pdfModel : '';
     } catch { /* Default model and SearXNG remain available on the server. */ }
   }
 
@@ -284,6 +296,9 @@
     webSearchRequests = null;
     searchNote = '';
     lastUsedModel = '';
+    analyzedAssets = {};
+    lastAnalyzedAsset = null;
+    analyzingFile = false;
     legacyThreads = {};
     prompt = '';
     selectedLabel = '';
@@ -426,10 +441,15 @@
         const props = shape.props ?? {};
         let context = '';
         if (shape.type === 'document') {
+          const analyzed = typeof props.fileId === 'string' ? analyzedAssets[props.fileId] : undefined;
           context = props.kind === 'note'
             ? String(props.content ?? '').slice(0, 1400)
-            : props.kind === 'pdf' ? 'PDF preview only. Text has not been extracted.'
-            : props.kind === 'image' ? 'Image preview only. Image pixels were not sent to AI.' : '';
+            : analyzed
+              ? (analyzed.evidence
+                ? 'EXTRACTED PDF TEXT (provider-reported; untrusted source material):\n' + analyzed.evidence
+                : 'MODEL IMAGE/DOCUMENT INTERPRETATION (not independently verified):\n' + analyzed.answer).slice(0, 1400)
+              : props.kind === 'pdf' ? 'PDF preview only. Text has not been extracted.'
+              : props.kind === 'image' ? 'Image preview only. Image pixels were not sent to AI.' : '';
         } else if (shape.type === 'web-search') {
           context = (props.output?.hits ?? []).slice(0, 3)
             .map((hit: any) => [hit.title, hit.url, hit.snippet].join(' — ')).join('\n').slice(0, 1400);
@@ -502,6 +522,59 @@
       // Retain the prompt in the conversation so the user can retry or copy it.
     } finally { requesting = false; }
   }
+  async function analyzeSelectedAsset() {
+    if (!editor || !boardId || analyzingFile || requesting) return;
+    const selection = editor.getSelectedShapes?.() ?? [];
+    const document = selection.find((shape: any) => shape?.type === 'document'
+      && ['image', 'pdf'].includes(shape.props?.kind) && typeof shape.props?.fileId === 'string');
+    if (!document) { notice = tr('canvas.selectFileForAi'); return; }
+    const fileId = String(document.props.fileId);
+    const originalBoard = boardId, token = activeLoadToken;
+    const filename = String(document.props.title ?? '').slice(0, 120);
+    const customQuestion = prompt.trim();
+    const question = customQuestion || tr('canvas.defaultFileQuestion');
+    analyzingFile = true;
+    notice = '';
+    const content = tr('canvas.fileAnalysisQuestion', { name: filename, question });
+    messages = [...messages, { role: 'user', content }].slice(-60);
+    prompt = '';
+    markDiscussionDirty();
+    try {
+      const response = await fetch('/api/toolkit/analyze-asset', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          boardId: originalBoard, assetId: fileId, question,
+          language: $locale, ocr: document.props.kind === 'pdf' && usePaidPdfOcr
+        })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (boardId !== originalBoard || token !== activeLoadToken || destroyed) return;
+      if (!response.ok) throw new Error(result.error?.message || result.error || tr('canvas.fileAnalysisFailed'));
+      const reply = typeof result.reply === 'string' ? result.reply.slice(0, 5000) : '';
+      if (!reply) throw new Error(tr('canvas.fileAnalysisFailed'));
+      // This is a private user-session cache only. Sharing an insight onto
+      // the team board requires the explicit "save answer" action.
+      analyzedAssets = {
+        ...analyzedAssets,
+        [fileId]: {
+          kind: result.kind === 'pdf' ? 'pdf' : 'image',
+          filename, evidence: String(result.evidence ?? '').slice(0, 6000),
+          answer: reply
+        }
+      };
+      lastAnalyzedAsset = fileId;
+      lastUsedModel = String(result.model ?? '').slice(0, 160);
+      messages = [...messages, { role: 'assistant', content: reply }].slice(-60);
+      markDiscussionDirty();
+      notice = tr(result.evidence ? 'canvas.pdfTextReady' : 'canvas.fileReasoningReady');
+    } catch (e) {
+      if (boardId !== originalBoard || token !== activeLoadToken || destroyed) return;
+      notice = e instanceof Error ? e.message : tr('canvas.fileAnalysisFailed');
+    } finally {
+      if (boardId === originalBoard && token === activeLoadToken) analyzingFile = false;
+    }
+  }
+
   function captureAnswer() {
     if (!editor || !boardId || conflict || remoteUpdated) return;
     const reply = [...messages].reverse().find(message => message.role === 'assistant')?.content;
@@ -908,6 +981,27 @@
             {/if}
           {/if}
         </div>
+        <section class="media-analysis" aria-label={$t('toolkit.canvas.fileUnderstanding')}>
+          <div class="media-heading"><strong>◫ {$t('toolkit.canvas.fileUnderstanding')}</strong></div>
+          <p>{$t('toolkit.canvas.fileUnderstandingHint')}</p>
+          {#if mediaVisionModel || mediaPdfModel}
+            <small>{$t('toolkit.canvas.imageModel')}: {mediaVisionModel || '—'} · {$t('toolkit.canvas.pdfModel')}: {mediaPdfModel || '—'}</small>
+          {/if}
+          {#if paidPdfOcrAvailable}
+            <label class="ocr-toggle">
+              <input type="checkbox" bind:checked={usePaidPdfOcr} disabled={analyzingFile || requesting} />
+              {$t('toolkit.canvas.enableScannedOcr')}
+            </label>
+            {#if usePaidPdfOcr}<small>{$t('toolkit.canvas.ocrCostWarning')}</small>{/if}
+          {/if}
+          <button class="analyze-button" onclick={analyzeSelectedAsset}
+            disabled={!boardId || !editor || analyzingFile || requesting}>
+            {analyzingFile ? $t('toolkit.canvas.analyzingFile') : $t('toolkit.canvas.askSelectedFile')}
+          </button>
+          {#if lastAnalyzedAsset && analyzedAssets[lastAnalyzedAsset]}
+            <small>{$t('toolkit.canvas.analyzedFile')}: {analyzedAssets[lastAnalyzedAsset].filename}</small>
+          {/if}
+        </section>
         <button class="board-audit" onclick={auditBoard} disabled={!boardId || !editor}
           title={$t('toolkit.canvas.auditTitle')}>{$t('toolkit.canvas.audit')}</button>
         <div class="quick-prompts" aria-label={$t('toolkit.canvas.promptList')}>
@@ -1086,6 +1180,11 @@
   .source-row a{overflow-wrap:anywhere}
   .capture-answer{width:100%;margin:6px 0}
   .research-note,.web-cost-note{font-size:11px;line-height:1.45;color:var(--ink-secondary);margin:0}
+  .media-analysis{display:grid;gap:8px;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--bg-0)}
+  .media-analysis .media-heading{font-size:12px}
+  .media-analysis p,.media-analysis small{font-size:11px;line-height:1.5;color:var(--ink-secondary);margin:0;overflow-wrap:anywhere}
+  .media-analysis .ocr-toggle{display:flex;gap:8px;align-items:center;font-size:11px}
+  .media-analysis .analyze-button{border-color:var(--brand);width:100%}
   .skill-picker{display:grid;gap:5px;padding:9px;border:1px solid var(--border);border-radius:10px}
   .skill-picker label{font-size:11px;font-weight:750}
   .skill-picker select{background:var(--bg-0);color:var(--text);border:1px solid var(--border);padding:7px;border-radius:7px;max-width:100%}
