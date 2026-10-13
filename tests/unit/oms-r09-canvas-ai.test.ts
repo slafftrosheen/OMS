@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { toolkitModelChoices, resolveToolkitModel } from '../../src/lib/server/toolkit/ai-models';
 import { parseToolkitModelResponse, normalizeToolkitVisualAssets } from '../../src/lib/server/toolkit/ai-response';
 import { markdownProjectBrief, briefFileName } from '../../src/lib/components/canvas/toolkit-brief';
+import { openRouterRequestBody } from '../../src/lib/server/ai/openrouter';
 
 const read = (path: string) => readFileSync(path, 'utf8');
 
@@ -63,6 +64,20 @@ describe('OMS-R09 Toolkit AI workflow', () => {
     expect(markdown).toContain('New controller → Bench test');
     expect(markdown).toContain('https://example.com/datasheet');
     expect(briefFileName('LumiGrid prototype')).toBe('lumigrid-prototype-brief.md');
+  });
+
+  it('uses the current nested OpenRouter beta web-tool schema and caps tool calls', () => {
+    const request = openRouterRequestBody({
+      model: 'openrouter/free',
+      messages: [{ role: 'user', content: 'Find independent specifications' }],
+      tools: [{ type: 'openrouter:web_search', parameters: { max_uses: 2, max_total_results: 8 } }],
+      maxToolCalls: 2
+    });
+    expect(request).toHaveProperty('max_tool_calls', 2);
+    expect(request.tools?.[0]).toMatchObject({
+      type: 'openrouter:web_search',
+      parameters: { max_uses: 2, max_total_results: 8 }
+    });
   });
 
   it('keeps web-provider pricing and model selection server-controlled', () => {
