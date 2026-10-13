@@ -6,6 +6,7 @@
   import Profile7stVisual from '$lib/profiles/components/Profile7stVisual.svelte';
   import { createId } from '$lib/utils/id';
   import { currentUser } from '$lib/auth/authState.svelte';
+  import { can } from '$lib/auth/permission-utils';
   import { base } from '$app/paths';
   import { validateOrderForm } from '$lib/validation/orderSchema';
 
@@ -547,6 +548,8 @@
   }
 
   async function saveOrder() {
+    if (saving) return;
+    if (!can($currentUser, 'createDraftOrder')) { error = 'Manager role required to create orders'; return; }
     error = '';
     fieldErrors = {};
 
@@ -590,6 +593,16 @@
 
     try {
       let orderId = savedOrderId;
+      const orderData = {
+        clientName, deadline, loadingDate: loadingDate || null,
+        notes, priority, deliveryPresetId: selectedPresetId,
+        deliveryAddress, deliveryContact, deliveryPhone,
+        profiles: profiles.map(p => ({
+          profileTemplateId: p.profileTemplateId ?? null,
+          quantity: p.quantity, configuration: p.configuration ?? {},
+          notes: p.notes ?? ''
+        }))
+      };
       if (!orderId) {
         const orderData = {
           clientName,
@@ -628,11 +641,21 @@
           return;
         }
         savedOrderId = String(orderId);
+      } else {
+        const updated = await fetch(`/api/draft-orders/${orderId}`, {
+          method:'PUT',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(orderData)
+        });
+        if (!updated.ok) {
+          const detail = await updated.json().catch(() => ({}));
+          error = detail.error || 'Draft changes were not saved before retrying file uploads';
+          return;
+        }
       }
 
       const failedUploads: string[] = [];
       for (const fileItem of uploadedFiles) {
-        const fileKey = `${fileItem.file.name}:${fileItem.file.size}:${fileItem.file.lastModified}`;
+        const fileKey = `${uploadedFiles.indexOf(fileItem)}:${fileItem.file.name}:${fileItem.file.size}:${fileItem.file.lastModified}`;
         if (uploadedFileKeys.has(fileKey)) continue;
         const formData = new FormData();
         formData.append('file', fileItem.file);
@@ -696,7 +719,7 @@
       <button class="btn-secondary" onclick={() => goto('/orders')}>
         {$t('actions.cancel')}
       </button>
-      <button class="btn-primary" onclick={saveOrder} disabled={saving}>
+      <button class="btn-primary" onclick={saveOrder} disabled={saving || !can($currentUser, 'createDraftOrder')}>
         {#if saving}
           <span class="spinner"></span>
           {$t('actions.saving')}
