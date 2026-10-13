@@ -24,7 +24,7 @@ BEGIN
  INSERT INTO public.draft_orders(
   client, title, due_date, loading_date, priority, status, notes,
   delivery_preset_id, delivery_address, delivery_contact, delivery_phone,
-  is_rd, rd_notes, badges, created_by, updated_by
+  is_rd, rd_notes, badges, metadata, created_by, updated_by
  ) VALUES (
   p_fields->>'client', COALESCE(nullif(p_fields->>'title',''),p_fields->>'client'),
   (p_fields->>'due_date')::date, (p_fields->>'loading_date')::date,
@@ -32,7 +32,8 @@ BEGIN
   (p_fields->>'delivery_preset_id')::uuid, p_fields->>'delivery_address',
   p_fields->>'delivery_contact', p_fields->>'delivery_phone',
   COALESCE((p_fields->>'is_rd')::boolean,FALSE), p_fields->>'rd_notes',
-  COALESCE(p_fields->'badges','{}'::jsonb), v_actor, v_actor
+  COALESCE(p_fields->'badges','{}'::jsonb),
+  jsonb_build_object('delivery_email',p_fields->>'delivery_email'),v_actor,v_actor
  ) RETURNING * INTO v_order;
  FOR v_profile IN SELECT value FROM jsonb_array_elements(p_profiles) LOOP
   INSERT INTO public.order_profiles(
@@ -93,6 +94,10 @@ BEGIN
   is_rd=COALESCE((p_fields->>'is_rd')::boolean,is_rd),
   rd_notes=CASE WHEN p_fields ? 'rd_notes' THEN p_fields->>'rd_notes' ELSE rd_notes END,
   badges=COALESCE(p_fields->'badges',badges),
+  metadata=CASE WHEN p_fields ? 'delivery_email'
+    THEN jsonb_set(COALESCE(metadata,'{}'::jsonb),'{delivery_email}',
+      to_jsonb(p_fields->>'delivery_email'),true)
+    ELSE metadata END,
   updated_by=v_actor, updated_at=now()
  WHERE id=p_order_id RETURNING * INTO v_order;
  IF p_profiles IS NOT NULL THEN
