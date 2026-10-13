@@ -40,3 +40,29 @@ export function normalizeToolkitVisualAssets(input: unknown) {
     context: typeof v.context === 'string' ? v.context.slice(0, 1400) : ''
   }));
 }
+
+/** Provider-reported citation metadata, not independent source verification. */
+export function normalizeProviderWebSources(annotations: unknown) {
+  if (!Array.isArray(annotations)) return [];
+  const seen = new Set<string>();
+  const sources: Array<{title:string;url:string;snippet:string;provider:'openrouter'}> = [];
+  for (const item of annotations.slice(0, 30)) {
+    if (!item || typeof item !== 'object') continue;
+    const citation = item.url_citation && typeof item.url_citation === 'object'
+      ? item.url_citation : item;
+    const url = typeof citation.url === 'string' ? citation.url : '';
+    let address: URL;
+    try { address = new URL(url); } catch { continue; }
+    if (!['http:', 'https:'].includes(address.protocol) ||
+        address.username || address.password || seen.has(address.href)) continue;
+    seen.add(address.href);
+    sources.push({
+      title: typeof citation.title === 'string' ? citation.title.slice(0, 180) : address.hostname,
+      url: address.href,
+      snippet: typeof citation.content === 'string' ? citation.content.slice(0, 320) : '',
+      provider: 'openrouter'
+    });
+    if (sources.length >= 5) break;
+  }
+  return sources;
+}
