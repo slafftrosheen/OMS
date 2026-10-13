@@ -19,6 +19,7 @@ export const profileEvidenceSchema=z.object({
 }).strict();
 export const stockEvidenceSchema=z.object({
   orderMaterialId:uuid, materialType:z.string().max(180), unit:z.string().max(40),
+  inventoryUnit:z.string().max(40).nullable(),
   required:z.number().nonnegative().nullable(), inventoryId:uuid.nullable(),
   sku:z.string().max(120).nullable(), available:z.number().nonnegative().nullable(),
   minStock:z.number().nonnegative().nullable(),
@@ -81,6 +82,7 @@ export function reconcileOrderMaterials(
       ? available>=required?'sufficient':'insufficient':'unknown';
     return {
       orderMaterialId:row.id,materialType,unit,required,
+      inventoryUnit:candidate?.unit??null,
       inventoryId:candidate?.id??null,sku:candidate?.sku??null,
       available,minStock,
       match:matched.length>1?'ambiguous':!candidate?'unresolved':
@@ -116,7 +118,9 @@ export function deterministicReadiness(e:ReadinessEvidence):{
       m.available-m.required<=m.minStock)add('low-stock-after-use','warning',
         `Stock of ${m.materialType} will be at/below minimum threshold after proposed use (not reserved)`);
     else if(m.status==='unknown')add('unverified-material','warning',
-      `Cannot verify ${m.materialType || 'unnamed material'} against inventory SKU, unit and quantity`);
+      `Cannot verify ${m.materialType || 'unnamed material'} against inventory SKU, unit and quantity`+
+      (m.inventoryUnit && m.inventoryUnit.toUpperCase()!==m.unit.toUpperCase()
+        ? ` (order: ${m.unit}, inventory: ${m.inventoryUnit})` : ''));
   }
   return {issues,state:issues.some(i=>i.severity==='blocker')?'blocked':
     issues.some(i=>i.severity==='warning')?'needs-review':'checklist-clear'};
