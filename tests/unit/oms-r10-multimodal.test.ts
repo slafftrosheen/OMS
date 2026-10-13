@@ -111,7 +111,7 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
     expect(fn).not.toContain('editor.updateShape');
     expect(ui).toContain('function pinFileAnalysis()');
     expect(ui).toContain("addCard('research', tr('canvas.fileAnalysisCardTitle'");
-    expect(ui).toContain('MODEL ANALYSIS');
+    expect(ui).toContain("tr('canvas.modelInterpretationLabel')");
     expect(ui).toContain('EXTRACTED PDF TEXT (provider-reported; untrusted source material)');
   });
 
