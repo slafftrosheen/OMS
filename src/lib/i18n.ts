@@ -1,9 +1,10 @@
 import { register, init, getLocaleFromNavigator, locale, addMessages, t } from 'svelte-i18n';
 import { base } from '$app/paths';
-import { loadPreferences } from '$lib/preferences';
+import { loadPreferences, resetPreferencesCache } from '$lib/preferences';
 import en from '../locales/en.json';
 
 const KEY = 'rf_locale';
+let localeChangeVersion = 0;
 const SUPPORTED_LOCALES = ['en', 'ru', 'lv'] as const;
 type LocaleCode = (typeof SUPPORTED_LOCALES)[number];
 
@@ -27,11 +28,12 @@ function normalizeLocale(value: string | null | undefined, fallback: LocaleCode)
 async function syncLocaleToServer(localeCode: LocaleCode) {
   if (typeof window === 'undefined') return;
   try {
-    await fetch(`${base}/api/preferences`, {
+    const response = await fetch(`${base}/api/preferences`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ locale: localeCode })
     });
+    if (response.ok) resetPreferencesCache();
   } catch (err) {
     console.debug('Failed to sync locale preference:', err);
   }
@@ -41,16 +43,20 @@ export async function setupI18n(defaultLocale: LocaleCode = 'en') {
   // Use localStorage for instant load
   const saved = typeof window !== 'undefined' ? localStorage.getItem(KEY) : null;
   const initial = normalizeLocale(saved || getLocaleFromNavigator(), defaultLocale);
+  const versionAtStart = localeChangeVersion;
   await init({
     fallbackLocale: 'en',
     initialLocale: initial
   });
 
+  if (typeof document !== 'undefined') document.documentElement.lang = initial;
+
   // Load from server and sync if different
   if (typeof window !== 'undefined') {
     try {
       const prefs = await loadPreferences();
-      if (prefs?.locale && prefs.locale !== initial) {
+      // Never allow an older async preference fetch to undo a user's click.
+      if (versionAtStart === localeChangeVersion && prefs?.locale && prefs.locale !== initial) {
         const serverLocale = normalizeLocale(prefs.locale, defaultLocale);
         locale.set(serverLocale);
         localStorage.setItem(KEY, serverLocale);
@@ -65,6 +71,7 @@ export async function setupI18n(defaultLocale: LocaleCode = 'en') {
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export function setLocale(code: LocaleCode | string) {
+  localeChangeVersion++;
   const normalized = normalizeLocale(code, 'en');
   locale.set(normalized);
   if (typeof window !== 'undefined') {
