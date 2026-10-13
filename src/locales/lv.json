@@ -1415,6 +1415,7 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "productionReadiness": {
+    "unitMismatch": "Mērvienības nesakrīt (pasūtījums / noliktava)",
     "profileSelect": "Ražošanas profila veidne",
     "profileUnassigned": "Nav izvēlēta pārbaudīta veidne",
     "profileCatalogTruncated": "Katalogā ir vairāk nekā 200 veidņu. Izvēlieties nepieciešamo pilnajā katalogā.",
