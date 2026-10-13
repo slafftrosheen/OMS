@@ -153,9 +153,9 @@
         if (response.status === 409) {
           conflict = true;
           remoteUpdated = true;
-          throw new Error('A teammate saved a newer version. Your unsaved canvas is preserved. Save a copy or reload the latest version.');
+          throw new Error(tr('errors.newerVersion'));
         }
-        if (!response.ok) throw new Error(data.error || 'Could not save project');
+        if (!response.ok) throw new Error(data.error || tr('errors.save'));
         if (id === boardId) {
           boardRevision = data.canvas.revision;
           dirty = documentRevision !== rev;
@@ -165,7 +165,7 @@
             ? { ...board, title, revision: boardRevision, updated_at: data.canvas.updated_at } : board);
         }
       } catch (e) {
-        if (id === boardId) error = e instanceof Error ? e.message : 'Project save failed';
+        if (id === boardId) error = e instanceof Error ? e.message : tr('errors.saveFailed');
       } finally {
         saving = false;
       }
@@ -192,7 +192,7 @@
   }
   async function reloadLatest() {
     await saveDiscussion();
-    if (discussionDirty) { discussionError = 'Save your private discussion before reloading.'; return; }
+    if (discussionDirty) { discussionError = tr('errors.privateBeforeReload'); return; }
     if (dirty && !confirm(tr('canvas.confirmDiscard'))) return;
     // Reload must not try to re-save the known stale revision.
     if (saveTimer) clearTimeout(saveTimer);
@@ -212,7 +212,7 @@
         body: JSON.stringify({ title, payload: { version: 1, snapshot: lastSnapshot } })
       });
       const data = await response.json();
-      if (!response.ok || !data.canvas?.id) throw new Error('Could not save recovery copy');
+      if (!response.ok || !data.canvas?.id) throw new Error(tr('errors.recoverySave'));
       boards = [data.canvas, ...boards];
       const privateCopy = await fetch(`/api/toolkit/conversations/${encodeURIComponent(data.canvas.id)}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -220,32 +220,32 @@
           proposals: [...suggestions.slice(0, 5), ...actionProposals.slice(0, 3)] })
       });
       if (!privateCopy.ok) {
-        discussionError = 'Recovery canvas was created, but its private discussion could not be copied.';
+        discussionError = tr('errors.privateCopy');
       }
       if (saveTimer) clearTimeout(saveTimer);
       dirty = false; conflict = false; remoteUpdated = false;
       boardId = null;
       await openBoard(data.canvas.id);
       notice = 'Your unsaved local changes were preserved in a new shared project.';
-    } catch (e) { error = e instanceof Error ? e.message : 'Recovery copy failed'; }
+    } catch (e) { error = e instanceof Error ? e.message : tr('errors.recoveryFailed'); }
   }
   async function loadBoards() {
     loading = true;
     try {
       const response = await fetch('/api/ai/canvas', { cache: 'no-store' });
-      if (!response.ok) throw new Error('Could not load your projects');
+      if (!response.ok) throw new Error(tr('errors.load'));
       const data = await response.json();
       boards = Array.isArray(data.items) ? data.items : [];
       if (boards.length) await openBoard(boards[0].id);
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Project list unavailable';
+      error = e instanceof Error ? e.message : tr('errors.listUnavailable');
     } finally { loading = false; }
   }
   async function openBoard(id: string) {
     if (importing) { notice = tr('canvas.loadingNotice'); return; }
     if (id === boardId && ready) return;
     if ((dirty || discussionDirty) && !(await flushCurrentChanges())) {
-      error = 'Save or recover your changes before switching projects.';
+      error = tr('errors.beforeSwitch');
       return;
     }
     const token = ++activeLoadToken;
@@ -265,13 +265,13 @@
         fetch(`/api/ai/canvas/${encodeURIComponent(id)}`, { cache: 'no-store' }),
         fetch(`/api/toolkit/conversations/${encodeURIComponent(id)}`, { cache: 'no-store' })
       ]);
-      if (!response.ok) throw new Error('Unable to open shared project');
-      if (!privateResponse.ok) throw new Error('Unable to load your private project discussion');
+      if (!response.ok) throw new Error(tr('errors.open'));
+      if (!privateResponse.ok) throw new Error(tr('errors.loadPrivate'));
       const data = await response.json();
       const privateData = await privateResponse.json();
       if (token !== activeLoadToken) return;
       const doc = data.canvas;
-      if (!doc) throw new Error('Project was not found');
+      if (!doc) throw new Error(tr('errors.notFound'));
       boardTitle = doc.title || 'Untitled project';
       const payload = doc.payload && typeof doc.payload === 'object' ? doc.payload : {};
       initialSnapshot = payload.snapshot ?? (payload.store ? payload : null);
@@ -303,7 +303,7 @@
         boardId = null;
         initialSnapshot = null;
         lastSnapshot = null;
-        error = e instanceof Error ? e.message : 'Failed to open project';
+        error = e instanceof Error ? e.message : tr('errors.openFailed');
       }
     } finally {
       if (token === activeLoadToken) loading = false;
@@ -312,7 +312,7 @@
   async function createBoard(template: Template = 'blank') {
     if (importing) { notice = tr('canvas.newProjectNotice'); return; }
     if ((dirty || discussionDirty) && !(await flushCurrentChanges())) {
-      error = 'Save or recover your changes before creating a project.';
+      error = tr('errors.beforeCreate');
       return;
     }
     const labels: Record<Template, string> = {
@@ -326,13 +326,13 @@
         body: JSON.stringify({ title: labels[template], payload: { version: 1, snapshot: null } })
       });
       const data = await response.json();
-      if (!response.ok || !data.canvas?.id) throw new Error(data.error || 'Could not create project');
+      if (!response.ok || !data.canvas?.id) throw new Error(data.error || tr('errors.create'));
       boards = [data.canvas, ...boards];
       pendingTemplate = template;
       await openBoard(data.canvas.id);
       projectListOpen = false;
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Project creation failed';
+      error = e instanceof Error ? e.message : tr('errors.createFailed');
     }
   }
   function addCard(kind: IdeaKind, title?: string, body?: string, x?: number, y?: number) {
@@ -467,7 +467,7 @@
   function approveAction(action: CanvasAction) {
     if (!editor || !boardId) return;
     if (conflict || remoteUpdated) {
-      notice = 'Reload the latest shared board before applying suggested changes.';
+      notice = tr('errors.reloadBeforeApply');
       return;
     }
     if (action.kind === 'layout' &&
@@ -480,7 +480,7 @@
         markDiscussionDirty();
       }
     } catch (e) {
-      notice = e instanceof Error ? e.message : 'Could not apply this suggestion';
+      notice = e instanceof Error ? e.message : tr('errors.applyFailed');
     }
   }
   async function runSelectedTechnical() {
@@ -492,7 +492,7 @@
       let done = 0;
       for (const id of selected) { await runShape(editor, id); done++; }
       notice = tr('canvas.technicalCount', { count: done });
-    } catch (e) { notice = e instanceof Error ? e.message : 'Tool execution failed'; }
+    } catch (e) { notice = e instanceof Error ? e.message : tr('errors.toolFailed'); }
     finally { running = false; }
   }
   function addTechnical(type: string) {
@@ -551,12 +551,12 @@
     if (importing) { notice = tr('canvas.deleteWait'); return; }
     if (!confirm(tr('canvas.confirmDelete'))) return;
     if (id === boardId && (dirty || discussionDirty) && !(await flushCurrentChanges())) {
-      error = 'Preserve or resolve local changes before deleting the project.';
+      error = tr('errors.beforeDelete');
       return;
     }
     try {
       const response = await fetch(`/api/ai/canvas?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Could not delete project');
+      if (!response.ok) throw new Error(tr('errors.delete'));
       boards = boards.filter(b => b.id !== id);
       if (id === boardId) {
         boardId = null; ready = false; editor = null; initialSnapshot = null;
@@ -564,7 +564,7 @@
         conflict = false; remoteUpdated = false;
         if (boards.length) await openBoard(boards[0].id);
       }
-    } catch (e) { error = e instanceof Error ? e.message : 'Deletion failed'; }
+    } catch (e) { error = e instanceof Error ? e.message : tr('errors.deleteFailed'); }
   }
 
   onMount(() => {
