@@ -2,9 +2,9 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { aiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
 import { requireToolkitManager } from '$lib/server/toolkit/access';
-import { openRouterComplete } from '$lib/server/ai/openrouter';
+import { openRouterCompleteWithMetadata } from '$lib/server/ai/openrouter';
 import { toolkitModelChoices, resolveToolkitModel, allowOpenRouterWebSearch } from '$lib/server/toolkit/ai-models';
-import { parseToolkitModelResponse, normalizeToolkitVisualAssets } from '$lib/server/toolkit/ai-response';
+import { parseToolkitModelResponse, normalizeToolkitVisualAssets, normalizeProviderWebSources } from '$lib/server/toolkit/ai-response';
 import { normalizeCards, normalizeLinks } from '$lib/components/canvas/toolkit-context';
 import { boardInsights, normalizeToolkitSkill, TOOLKIT_SKILLS } from '$lib/components/canvas/toolkit-skills';
 import { webSearch } from '$lib/server/ai/tools-registry/web-search';
@@ -95,7 +95,7 @@ into the selected language. The user's message language is NOT the response-lang
     // Model capabilities vary by endpoint. JSON schema/function-calling are NOT
     // required for ordinary brainstorming. Parsed proposals are validated after
     // generation and all Canvas mutations remain click-to-approve.
-    const result = await openRouterComplete(
+    const completion = await openRouterCompleteWithMetadata(
       [{ role: 'system', content: system }, { role: 'user', content: userInput }],
       {
         model, temperature: 0.55, maxTokens: 2300, timeoutMs: 90_000,
@@ -104,13 +104,23 @@ into the selected language. The user's message language is NOT the response-lang
           ? { tools: [{ type: 'openrouter:web_search', parameters: { max_uses: 2, max_results: 4, max_total_results: 8, search_context_size: 'low' } }] } : {})
       }
     );
-    const parsed = parseToolkitModelResponse(result, new Set(cards.map(c => c.id)),
+    const parsed = parseToolkitModelResponse(completion.text, new Set(cards.map(c => c.id)),
       responseLocale === 'ru' ? 'Нет содержательного ответа.' :
       responseLocale === 'lv' ? 'Netika saņemta jēgpilna atbilde.' : 'No substantive answer received.');
+    const reported = skill === 'research' && webMode === 'openrouter'
+      ? normalizeProviderWebSources(completion.annotations) : [];
+    const searchNote = skill === 'research' && webMode === 'searxng' && !sources.length
+      ? 'No independently retrieved web sources were available.'
+      : skill === 'research' && webMode === 'openrouter' && completion.webSearchRequests === null
+        ? 'OpenRouter search was requested; usage count was not reported.' : null;
     return json({
-      ...parsed, insights, sources, model, webMode: skill === 'research' ? webMode : 'off',
-      searchNote: references?.note ?? (skill === 'research' && webMode === 'openrouter'
-        ? 'OpenRouter web search was requested; check citations in the response.' : null)
+      ...parsed, insights,
+      // Citation badges are reported by the provider and need independent review.
+      sources: [...sources.map(source => ({ ...source, provider: 'searxng' })), ...reported].slice(0, 5),
+      model: completion.model, requestedModel: model,
+      webSearchRequests: completion.webSearchRequests,
+      webMode: skill === 'research' ? webMode : 'off',
+      searchNote
     }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (err) {
     console.error('[Toolkit] brainstorm provider unavailable', err instanceof Error ? err.name : 'unknown');
