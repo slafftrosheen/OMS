@@ -1524,8 +1524,9 @@
     "canvasTab": "Canvas",
     "chatTab": "Conversations",
     "canvas": {
+      "confirmPaidOcr": "Send this PDF to OpenRouter for paid OCR? OpenRouter charges per page in addition to model usage.",
       "fileUnderstanding": "Image & PDF understanding",
-      "fileUnderstandingHint": "Select an uploaded image or PDF on the board. Type a question (optional), then analyze its actual contents. Results stay in your private conversation until you choose to save a note.",
+      "fileUnderstandingHint": "Select an uploaded image or PDF, optionally type a question, then analyze its actual contents. The file is sent privately to OpenRouter for processing. Up to 8 MiB images / 12 MiB PDFs. Results remain in your private discussion unless you save a note.",
       "imageModel": "Vision model",
       "pdfModel": "PDF reasoning model",
       "enableScannedOcr": "Use scanned-PDF OCR (paid)",
