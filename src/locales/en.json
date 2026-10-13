@@ -1524,6 +1524,9 @@
     "canvasTab": "Canvas",
     "chatTab": "Conversations",
     "canvas": {
+      "arrangeIdeas": "Arrange ideas",
+      "inspectSource": "Inspect web page",
+      "inspectAdded": "Page reference node added. Run it to fetch public content.",
       "model": "Reasoning model",
       "modelHint": "Choose a configured model. Tool/JSON capabilities vary; AI suggestions always need approval.",
       "defaultModel": "default",
