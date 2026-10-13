@@ -88,6 +88,11 @@ describe('OMS-R14 grounded production intelligence',()=>{
     expect(api).toContain('canEditDraft(user.role');
     expect(api).toContain('canEditConfirmedMetadata(user.role)');
     expect(api).toContain('aiRateLimit(rateLimitIdentifier(event))');
+    expect(api).toContain('consent:z.literal(true)');
+    expect(api).toContain('profiles:evidence.profiles.slice(0,30)');
+    expect(api).toContain('materials:evidence.materials.slice(0,50)');
+    expect(api).toContain('limit(101)');
+    expect(api).toContain('limit(1001)');
     expect(api).toContain('deterministicReadiness(evidence)');
     expect(api).toContain('reconcileOrderMaterials');
     expect(api).toContain('parseReadinessModel(candidate)');
@@ -102,12 +107,21 @@ describe('OMS-R14 grounded production intelligence',()=>{
     const panel=read('src/lib/order/OrderReadinessAssistant.svelte');
     const editor=read('src/routes/orders/[id]/edit/+page.svelte');
     expect(panel).toContain("fetch('/api/ai/order-readiness'");
+    expect(panel).toContain('bind:checked={consent}');
+    expect(panel).toContain('consent:true');
     expect(panel).toContain("report.aiWarning");
     expect(panel).toContain("report.materials");
     expect(panel).toContain("report.ai.recommendations");
     expect(panel).toContain("!currentReport");
     expect(editor).toContain('<OrderReadinessAssistant {orderId}');
     expect(editor).toContain("rightTab === 'readiness'");
+    expect(editor).toContain("fetch('/api/order/profile-choices'");
+    expect(editor).toContain('profileTemplateId:e.currentTarget.value||null');
+    const catalog=read('src/routes/api/order/profile-choices/+server.ts');
+    expect(catalog).toContain("if(!locals.user)throw error(401");
+    expect(catalog).toContain("from('profile_templates')");
+    expect(catalog).toContain(".eq('is_active',true)");
+    expect(catalog).toContain("'Cache-Control':'private, no-store'");
   });
   it('maintains translation parity across EN/RU/LV',()=>{
     const en=JSON.parse(read('src/locales/en.json')).productionReadiness;
