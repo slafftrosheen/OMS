@@ -1,6 +1,10 @@
 <script lang="ts">
   import { t } from 'svelte-i18n';
-  import type { ChangeRequest } from './types.signage';
+  type ChangeRequest = {
+    id:string;title:string;author:string;status:string;
+    message?:string;proposed?:Record<string,unknown>;
+    reviewNotes?:string|null;
+  };
 
   let {
     items = [] as ChangeRequest[],
@@ -60,16 +64,17 @@
             >
               {$t('compare.heading')}
             </button>
-            {#if isAdmin && p.status==='open'}
-              <button class="tag" onclick={()=>onApprove(p.id)} aria-label={$t('terms.approve')}>
-                {$t('terms.approve')}
+            {#if isAdmin && p.status==='pending'}
+              <button class="tag" onclick={()=>onApprove(p.id)} aria-label={$t('orderWorkspace.approveReview')}>
+                {$t('orderWorkspace.approveReview')}
               </button>
-              <button class="tag" onclick={()=>onDecline(p.id)} aria-label={$t('terms.decline')}>
-                {$t('terms.decline')}
+              <button class="tag" onclick={()=>onDecline(p.id)} aria-label={$t('orderWorkspace.rejectReview')}>
+                {$t('orderWorkspace.rejectReview')}
               </button>
             {/if}
           </div>
         </div>
+        {#if p.reviewNotes}<p class="muted">{p.reviewNotes}</p>{/if}
         <details style="margin-top:6px">
           <summary>{$t('order.changeRequests.proposed')}</summary>
           <pre style="white-space:pre-wrap;margin:6px 0">{JSON.stringify(p.proposed, null, 2)}</pre>
