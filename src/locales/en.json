@@ -1534,7 +1534,7 @@
       "searxng": "Self-hosted SearXNG",
       "openrouterSearch": "OpenRouter web search",
       "paidNotice": "External web search may incur charges in addition to model tokens. Use only when needed.",
-      "updatedModel": "Model used",
+      "updatedModel": "Requested model route",
       "saveAnswer": "Save last AI response as note",
       "exportBrief": "Export brief (.md)",
       "pinSource": "+ Add source to Canvas",
