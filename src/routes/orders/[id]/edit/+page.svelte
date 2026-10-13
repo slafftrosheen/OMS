@@ -14,6 +14,7 @@
   import { notifySuccess, notifyError } from '$lib/notify/toast';
   import ChangeRequestList from '$lib/order/ChangeRequestList.svelte';
   import OrderFiles from '$lib/order/OrderFiles.svelte';
+  import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
 import { notifications } from '$lib/notify/store';
 import { can, normaliseStatus, ORDER_STATUS_LABELS } from '$lib/auth/permission-utils';
 import type { OrderStatus } from '$lib/auth/permission-utils';
@@ -82,7 +83,33 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let saving = $state(false);
   let confirming = $state(false);
   let error = $state('');
-  let rightTab: 'layers' | 'changes' | 'chat' | 'files' | 'details' = $state('details');
+  let rightTab: 'layers' | 'changes' | 'chat' | 'files' | 'details' | 'intake' = $state('details');
+  let intakeFileId = $state('');
+  let intakeCurrent = $derived({
+    clientName,title,deadline,loadingDate,priority,notes,
+    deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail,isRd,rdNotes
+  });
+  function applyIntakeFields(patch:Record<string,unknown>) {
+    if(!canEdit)return;
+    // Only the allowlisted draft fields can be changed by a human-approved
+    // proposal. No server write occurs here: normal Save Draft remains required.
+    if(typeof patch.clientName==='string') clientName=patch.clientName;
+    if(typeof patch.title==='string') title=patch.title;
+    if(typeof patch.deadline==='string') deadline=patch.deadline;
+    if(typeof patch.loadingDate==='string') loadingDate=patch.loadingDate;
+    if(['LOW','NORMAL','HIGH','URGENT'].includes(String(patch.priority)))
+      priority=patch.priority as typeof priority;
+    if(typeof patch.notes==='string') notes=patch.notes;
+    if(typeof patch.deliveryAddress==='string') deliveryAddress=patch.deliveryAddress;
+    if(typeof patch.deliveryContact==='string') deliveryContact=patch.deliveryContact;
+    if(typeof patch.deliveryPhone==='string') deliveryPhone=patch.deliveryPhone;
+    if(typeof patch.deliveryEmail==='string') deliveryEmail=patch.deliveryEmail;
+    if(typeof patch.isRd==='boolean') isRd=patch.isRd;
+    if(typeof patch.rdNotes==='string') rdNotes=patch.rdNotes;
+    canvasDirty=true;
+    notifySuccess('Approved fields applied locally. Review them and click Save Draft.');
+    rightTab='details';
+  }
   let activeTool = $state('select');
   let aiPrompt = $state('');
   let useSelectionCtx = $state(false);
@@ -581,45 +608,13 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     pdfMenu = null;
   }
 
-  async function extractPdfToForms() {
-    if (!pdfMenu || !orderId) return;
-    pdfMenuRunning = true;
-    try {
-      const res = await fetch('/api/ai/canvas/extract-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId: pdfMenu.fileId, orderId: String(orderId) }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Extraction failed');
-      }
-      const data = await res.json();
-      // Apply to local Svelte state — orderSeed is derived from these vars,
-      // which propagates back into the canvas form shapes via syncOrderDataToCanvas.
-      if (data.details) {
-        if (data.details.title !== undefined) title = data.details.title ?? title;
-        if (data.details.clientName !== undefined) clientName = data.details.clientName ?? clientName;
-        if (data.details.poNumber !== undefined) poNumber = data.details.poNumber ?? poNumber;
-        if (data.details.deadline !== undefined) deadline = data.details.deadline ?? deadline;
-        if (data.details.loadingDate !== undefined) loadingDate = data.details.loadingDate ?? loadingDate;
-        if (data.details.priority !== undefined) priority = data.details.priority ?? priority;
-        if (data.details.notes !== undefined) notes = data.details.notes ?? notes;
-      }
-      if (data.address) {
-        if (data.address.deliveryAddress !== undefined) deliveryAddress = data.address.deliveryAddress ?? deliveryAddress;
-        if (data.address.deliveryContact !== undefined) deliveryContact = data.address.deliveryContact ?? deliveryContact;
-        if (data.address.deliveryPhone !== undefined) deliveryPhone = data.address.deliveryPhone ?? deliveryPhone;
-        if (data.address.deliveryEmail !== undefined) deliveryEmail = data.address.deliveryEmail ?? deliveryEmail;
-      }
-      canvasDirty = true;
-      notifySuccess('Order forms updated from PDF');
-    } catch (err: any) {
-      notifyError(err.message || 'PDF extraction failed');
-    } finally {
-      pdfMenuRunning = false;
-      closePdfMenu();
-    }
+  function extractPdfToForms() {
+    if (!canEdit || !pdfMenu) return;
+    // Never auto-overwrite fields from a PDF model response. The staff member
+    // selects proposals in the dedicated review tab.
+    intakeFileId=pdfMenu.fileId;
+    rightTab='intake';
+    closePdfMenu();
   }
 
   // ── Tool definitions ──────────────────────────────────────────────────────────
@@ -830,7 +825,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             disabled={pdfMenuRunning}
           >
             <Icon name="sparkles" size="sm" />
-            {pdfMenuRunning ? 'Extracting…' : 'Extract to Order Forms'}
+            {$t('orderIntake.reviewFile')}
           </button>
         </div>
       {/if}
@@ -851,6 +846,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         </button>
         <button class="dtab" class:active={rightTab === 'files'} onclick={() => rightTab = 'files'}>
           <Icon name="paperclip" size="sm" /> Files
+        </button>
+        <button class="dtab" class:active={rightTab === 'intake'} onclick={() => rightTab = 'intake'}>
+          <Icon name="sparkles" size="sm" /> {$t('orderIntake.tab')}
         </button>
         <button class="dtab" class:active={rightTab === 'chat'} onclick={() => rightTab = 'chat'}>
           <Icon name="message-square" size="sm" /> AI
@@ -949,6 +947,11 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             {/if}
           </div>
 
+        {:else if rightTab === 'intake'}
+          {#if orderId}
+            <OrderIntakeAssistant {orderId} editable={canEdit} current={intakeCurrent}
+              selectedFileId={intakeFileId} onApply={applyIntakeFields} />
+          {/if}
         {:else if rightTab === 'files'}
           {#if orderId}
             <OrderFiles {orderId} compact={true} canUpload={canEdit ||
