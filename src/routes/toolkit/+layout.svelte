@@ -2,10 +2,11 @@
   import { page } from '$app/state';
   import { base } from '$app/paths';
   import Icon from '$lib/ui/Icon.svelte';
+  import { t } from 'svelte-i18n';
   let { children } = $props();
   const sections = [
-    { href: '/toolkit/canvas', label: 'Canvas', icon: 'layout-grid' },
-    { href: '/toolkit/chat', label: 'Conversations', icon: 'message-square' }
+    { href: '/toolkit/canvas', labelKey: 'toolkit.canvasTab', icon: 'layout-grid' },
+    { href: '/toolkit/chat', labelKey: 'toolkit.chatTab', icon: 'message-square' }
   ] as const;
 </script>
 
@@ -13,13 +14,13 @@
   <header class="toolkit-header">
     <div class="identity">
       <span class="identity-icon"><Icon name="layers" size="md" /></span>
-      <div><span class="eyebrow">Ideas · Projects · Concepts</span><h1>Toolkit</h1></div>
+      <div><span class="eyebrow">{$t('toolkit.subtitle')}</span><h1>{$t('toolkit.title')}</h1></div>
     </div>
-    <nav class="toolkit-tabs" aria-label="Toolkit sections">
+    <nav class="toolkit-tabs" aria-label={$t('toolkit.sections')}>
       {#each sections as s (s.href)}
         <a href="{base}{s.href}" class:active={page.url.pathname === `${base}${s.href}`}
           aria-current={page.url.pathname === `${base}${s.href}` ? 'page' : undefined}>
-          <Icon name={s.icon} size="sm" />{s.label}
+          <Icon name={s.icon} size="sm" />{$t(s.labelKey)}
         </a>
       {/each}
     </nav>
