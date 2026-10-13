@@ -25,6 +25,13 @@ assignments, order state, purchasing or shipping**.
    and ask follow-up questions. All output is validated again using Zod.
 6. Staff resolve the issues through ordinary authorized OMS form, inventory
    and stage workflows, then rerun the check. No automatic updates happen.
+   The order editor's **Details → Production profiles** area now offers a
+   dropdown of actual, active `profile_templates` UUIDs via the new
+   authenticated `GET /api/order/profile-choices` endpoint. Selecting a
+   real template changes the local draft form, which still requires the
+   normal **Save Draft** action and authorized R12 transactional RPC.
+   Inactive/missing templates stay explicitly unverified; the picker does not
+   invent, create or automatically attach templates.
 
 The report shows both its capture time and the draft revision timestamp.
 Saving draft fields invalidates older reports in the editor. Stock changes,
@@ -39,6 +46,8 @@ Matching is intentionally conservative:
   `materials.sku` or `materials.code` (case-insensitive, trimmed).
 - A single unique match, equal units, positive required quantity and a
   finite numeric `stock` value are necessary for an availability comparison.
+  Unit mismatches explicitly display the order and inventory units so staff
+  can correct them using real material/quantity contracts.
 - Unknown or ambiguous references, unit mismatch, malformed quantities,
   absent materials, and incomplete inventory snapshots are clearly marked
   **unverified**—never silently treated as sufficient.
