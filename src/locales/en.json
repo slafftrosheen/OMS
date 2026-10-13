@@ -1415,6 +1415,7 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "productionReadiness": {
+    "unitMismatch": "Units do not match (order / inventory)",
     "profileSelect": "Production profile template",
     "profileUnassigned": "No verified template selected",
     "profileCatalogTruncated": "The catalog contains more than 200 templates. Ask an administrator to select from the full catalog.",
