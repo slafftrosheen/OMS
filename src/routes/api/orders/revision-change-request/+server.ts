@@ -8,8 +8,8 @@ import {revisionEvidenceSchema,selectedRevisionDiff,safeRevisionDescription}
 import {loadRevisionFiles} from '$lib/server/order/revision-files';
 import {DRAFT_EDIT_STATUSES,canEditDraft,canEditConfirmedMetadata}
   from '$lib/server/order/draft-contract';
-import {buildCreateChangeRequestArgs,CHANGE_REQUEST_SELECT,
-  normalizeChangeRequestRow} from '$lib/server/change-requests/contract';
+import {CHANGE_REQUEST_SELECT,normalizeChangeRequestRow}
+  from '$lib/server/change-requests/contract';
 
 export const POST:RequestHandler=async({locals,request})=>{
   const user=locals.user;
@@ -45,13 +45,22 @@ export const POST:RequestHandler=async({locals,request})=>{
   if(!Object.keys(actual).length)
     throw error(409,'Selected fields already match the persisted order');
   const description=safeRevisionDescription(input);
-  const args=buildCreateChangeRequestArgs(order.id,{
-    description,proposed_diff:actual
-  });
   const {data:id,error:creationError}=await locals.supabase.rpc(
-    'create_change_request',args
+    'oms_create_revision_change_request',{
+      p_order_id:order.id,
+      p_baseline_file_id:input.baselineFileId,
+      p_revised_file_id:input.revisedFileId,
+      p_baseline_sha256:baseline.sha256,
+      p_revised_sha256:revised.sha256,
+      p_description:description,p_proposed_diff:actual,
+      p_expected_updated_at:input.orderUpdatedAt
+    }
   );
   if(creationError||!id){
+    if(creationError?.code==='PGRST202')throw error(503,
+      'Revision audit migration is missing; apply OMS-R15 SQL before using this workflow');
+    if(creationError?.code==='42501')throw error(403,'Revision request is not permitted');
+    if(creationError?.code==='23505')throw error(409,'Order changed; compare the revisions again');
     console.error('[Orders] Revision change request creation failed',creationError?.code);
     throw error(503,'Could not create a tracked change request');
   }
