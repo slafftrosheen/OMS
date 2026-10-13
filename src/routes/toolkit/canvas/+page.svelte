@@ -110,7 +110,7 @@
           body: JSON.stringify({ messages: messagesToSave, proposals: proposalsToSave })
         });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result.message || result.error || 'Private conversation save failed');
+        if (!response.ok) throw new Error(result.message || result.error || tr('errors.privateSave'));
         if (boardId === id) {
           discussionDirty = rev !== discussionRevision;
           discussionError = '';
@@ -226,7 +226,7 @@
       dirty = false; conflict = false; remoteUpdated = false;
       boardId = null;
       await openBoard(data.canvas.id);
-      notice = 'Your unsaved local changes were preserved in a new shared project.';
+      notice = tr('errors.recoveryDone');
     } catch (e) { error = e instanceof Error ? e.message : tr('errors.recoveryFailed'); }
   }
   async function loadBoards() {
@@ -652,7 +652,7 @@
             </div>
           {/each}
         </div>
-        <p class="library-tip">Shared by default across R&D, Boss and Head of Production. Everyone sees the same canvas; your conversations and suggestions are private to your account.</p>
+        <p class="library-tip">{$t('toolkit.canvas.sharingHelp')}</p>
       </aside>
     {/if}
 
@@ -723,7 +723,7 @@
               onSave={onCanvasChange} onDocumentChange={onDocumentChange} onReady={onEditorReady} onError={(message) => (error = message)} />
           {/key}
         </div>
-        <p class="canvas-hint">Drop images/PDFs · Draw and annotate · Add illustrative material studies · Resize/move visual assets · Save to share</p>
+        <p class="canvas-hint">{$t('toolkit.canvas.hint')}</p>
       {:else if loading}
         <div class="empty-canvas"><p>{$t('toolkit.canvas.opening')}</p></div>
       {:else}
@@ -744,7 +744,7 @@
         <div class="pane-heading"><div><span class="small-heading">{$t('toolkit.canvas.private')}</span><h3>{$t('toolkit.canvas.brainstorm')}</h3></div>
           <button aria-label={$t('toolkit.canvas.closeAssistant')} class="close-pane" onclick={() => assistantOpen = false}>×</button>
         </div>
-        <p class="assistant-intro">Explore alternatives, spot gaps and turn thoughts into new cards. Asking sends the selected board context to your configured reasoning provider. Nothing is added without your approval.</p>
+        <p class="assistant-intro">{$t('toolkit.canvas.intro')}</p>
         <div class="skill-picker">
           <label for="toolkit-skill">{$t('toolkit.canvas.skill')}</label>
           <select id="toolkit-skill" bind:value={skill} disabled={requesting}>
@@ -776,7 +776,7 @@
         {/if}
         <div class="conversation" role="log" aria-label={$t('toolkit.canvas.conversation')} aria-live="polite">
           {#if !messages.length}
-            <div class="conversation-empty">Describe the idea, challenge or decision on your canvas. Select a card to focus the discussion.</div>
+            <div class="conversation-empty">{$t('toolkit.canvas.conversationEmpty')}</div>
           {/if}
           {#each messages as m, i (i)}
             <div class="message" class:user={m.role === 'user'}>
@@ -784,7 +784,7 @@
               <p>{m.content}</p>
             </div>
           {/each}
-          {#if requesting}<p class="muted">Exploring the possibilities…</p>{/if}
+          {#if requesting}<p class="muted">{$t('toolkit.canvas.exploring')}</p>{/if}
         </div>
         {#if suggestions.length}
           <div class="suggestion-list">
@@ -827,8 +827,7 @@
           </div>
         {/if}
         {#if insecureClipboard}
-          <p class="canvas-security-note" role="status">Clipboard shortcuts may fail over HTTP.
-            Use a trusted HTTPS origin for browser clipboard permission.</p>
+          <p class="canvas-security-note" role="status">{$t('toolkit.canvas.clipboard')}</p>
         {/if}
         {#if notice}<p role="status" class="note">{notice}</p>{/if}
         <form class="composer" onsubmit={(e) => { e.preventDefault(); void brainstorm(); }}>
