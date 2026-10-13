@@ -768,14 +768,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   <title>Canvas — {poNumber || 'Order'} | OMS</title>
 </svelte:head>
 
+<svelte:window onbeforeunload={(event) => {
+  if (unsavedWarningEnabled && hasUnsavedChanges) {
+    event.preventDefault();
+    event.returnValue='';
+  }
+}} />
+
 <div class="canvas-editor">
   <!-- ── Top Bar ─────────────────────────────────────────────────────────── -->
-  <svelte:window onbeforeunload={(event) => {
-    if (unsavedWarningEnabled && hasUnsavedChanges) {
-      event.preventDefault();
-      event.returnValue='';
-    }
-  }} />
   <header class="top-bar">
     <div class="top-bar-left">
       <a href="{base}/orders/{data.id}" class="back-btn" title="Back to order">
