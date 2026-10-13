@@ -3,7 +3,7 @@
 BEGIN;
 
 CREATE OR REPLACE FUNCTION public.oms_create_draft_form(
- p_fields JSONB, p_profiles JSONB DEFAULT '[]'::jsonb, p_status TEXT DEFAULT 'PENDING_REVIEW'
+ p_fields JSONB, p_profiles JSONB DEFAULT '[]'::jsonb, p_status TEXT DEFAULT 'DRAFT'
 ) RETURNS public.draft_orders
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp
 AS $$
@@ -16,7 +16,7 @@ BEGIN
  IF v_role NOT IN ('RD','Boss','HeadOfProduction') OR v_role IS NULL THEN
   RAISE EXCEPTION 'Not permitted to create draft orders' USING ERRCODE='42501';
  END IF;
- IF p_status NOT IN ('DRAFT','PENDING_REVIEW') THEN RAISE EXCEPTION 'Invalid initial status'; END IF;
+ IF p_status <> 'DRAFT' THEN RAISE EXCEPTION 'Create draft first; submit only after files persist'; END IF;
  IF jsonb_typeof(p_fields) <> 'object' OR jsonb_typeof(p_profiles) <> 'array'
     OR jsonb_array_length(p_profiles) > 100 THEN RAISE EXCEPTION 'Invalid order form'; END IF;
  IF COALESCE(length(trim(p_fields->>'client')),0) NOT BETWEEN 1 AND 200 OR
@@ -70,6 +70,7 @@ BEGIN
  IF v_order.status NOT IN ('DRAFT','draft','PENDING_REVIEW') THEN
   RAISE EXCEPTION 'Use manager metadata endpoint for confirmed orders' USING ERRCODE='42501';
  END IF;
+ IF v_role IS NULL THEN RAISE EXCEPTION 'Inactive user' USING ERRCODE='42501'; END IF;
  IF v_actor IS DISTINCT FROM v_order.created_by AND
     v_role NOT IN ('RD','Boss','HeadOfProduction') THEN
   RAISE EXCEPTION 'Not allowed to edit draft order' USING ERRCODE='42501';
@@ -134,6 +135,7 @@ BEGIN
  SELECT role INTO v_role FROM public.profiles WHERE id=v_actor AND is_active=TRUE;
  SELECT * INTO v_order FROM public.draft_orders WHERE id=p_order_id FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Order not found' USING ERRCODE='P0002'; END IF;
+ IF v_role IS NULL THEN RAISE EXCEPTION 'Inactive user' USING ERRCODE='42501'; END IF;
  IF v_actor IS DISTINCT FROM v_order.created_by AND v_role NOT IN ('RD','Boss','HeadOfProduction') THEN
   RAISE EXCEPTION 'Permission denied' USING ERRCODE='42501';
  END IF;
