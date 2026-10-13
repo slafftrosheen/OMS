@@ -145,7 +145,7 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
                         textTransform: 'uppercase',
                         fontWeight: 700,
                         letterSpacing: '0.04em',
-                    }}>{status}</span>
+                    }} >{status === 'ready' ? tn('docReady') : status === 'failed' ? tn('docFailed') : tn('docProcessing')}</span>
                 </div>
                 <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                     {renderBody()}
