@@ -126,9 +126,18 @@ describe('OMS-R14 grounded production intelligence',()=>{
   it('maintains translation parity across EN/RU/LV',()=>{
     const en=JSON.parse(read('src/locales/en.json')).productionReadiness;
     expect(Object.keys(en).length).toBeGreaterThan(18);
+    function flat(value:Record<string,unknown>,prefix=''):string[] {
+      return Object.entries(value).flatMap(([k,v])=>v&&typeof v==='object'
+        && !Array.isArray(v)?flat(v as Record<string,unknown>,prefix+k+'.')
+        : [prefix+k]);
+    }
+    const required=flat(en);
     for(const language of ['ru','lv']){
       const translated=JSON.parse(read(`src/locales/${language}.json`)).productionReadiness;
-      for(const k of Object.keys(en))expect(translated[k],`${language}.${k}`).toBeTypeOf('string');
+      for(const path of required){
+        const found=path.split('.').reduce((v,k)=>v?.[k],translated as any);
+        expect(found,`${language}.${path}`).toBeTypeOf('string');
+      }
     }
   });
 });
