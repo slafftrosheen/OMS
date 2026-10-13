@@ -1534,7 +1534,7 @@
       "searxng": "Pašu uzturēts SearXNG",
       "openrouterSearch": "OpenRouter tīmekļa meklēšana",
       "paidNotice": "Ārējā tīmekļa meklēšana var radīt papildu izmaksas ārpus modeļa tokeniem. Lietojiet, kad nepieciešams.",
-      "updatedModel": "Izmantotais modelis",
+      "updatedModel": "Pieprasītais modeļa maršruts",
       "saveAnswer": "Saglabāt MI atbildi kā piezīmi",
       "exportBrief": "Eksportēt kopsavilkumu (.md)",
       "pinSource": "+ Pievienot avotu audeklam",
