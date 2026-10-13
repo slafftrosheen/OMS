@@ -94,6 +94,9 @@
             {#if material.sku}
               <small>{$t('productionReadiness.sku')}: {material.sku}</small>
             {/if}
+            {#if material.inventoryUnit && material.inventoryUnit.toUpperCase() !== material.unit.toUpperCase()}
+              <small class="issue">{$t('productionReadiness.unitMismatch')}: {material.unit} / {material.inventoryUnit}</small>
+            {/if}
           </div>
         {/each}
       </div>
