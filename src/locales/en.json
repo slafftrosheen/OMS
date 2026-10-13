@@ -1415,6 +1415,8 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "productionReadiness": {
+    "severity": {"blocker":"Blocker","warning":"Needs review","information":"Information"},
+    "issueCodes": {"missing-client":"Client is missing","missing-deadline":"Delivery deadline is missing","missing-profiles":"No production profiles are configured","unresolved-profile":"A production profile has no active, verified template","invalid-quantity":"A production profile has an invalid primary quantity","missing-files":"No source attachment is linked","inventory-unavailable":"Full inventory status could not be verified","materials-unspecified":"No materials have been specified, so stock readiness is unknown","stock-shortfall":"A specified material has insufficient stock","low-stock-after-use":"Stock would fall to or below its minimum level after planned use","unverified-material":"A material could not be verified against the exact SKU, code, unit and quantity"},
     "unitMismatch": "Units do not match (order / inventory)",
     "profileSelect": "Production profile template",
     "profileUnassigned": "No verified template selected",
