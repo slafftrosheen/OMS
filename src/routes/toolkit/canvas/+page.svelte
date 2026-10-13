@@ -419,6 +419,7 @@
       'lumigrid', 'led-strip', 'led-matrix', 'boxletter', 'maker'
     ]);
     const visualAssets = all.filter((shape: any) => relevantTypes.has(shape.type))
+      .sort((a: any, b: any) => Number(selected.includes(b.id)) - Number(selected.includes(a.id)))
       .slice(0, 16).map((shape: any) => {
         const props = shape.props ?? {};
         let context = '';
@@ -519,7 +520,7 @@
   function exportBrief() {
     if (!editor || !boardId) return;
     const { cards, links } = getContext();
-    const markdown = markdownProjectBrief(boardTitle, cards, links, researchSources);
+    const markdown = markdownProjectBrief(boardTitle, cards, links ?? [], researchSources);
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
