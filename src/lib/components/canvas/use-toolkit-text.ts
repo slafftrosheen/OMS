@@ -12,5 +12,5 @@ const snapshot = () => get(t);
 export function useToolkitText() {
   const translate = useSyncExternalStore(subscribe, snapshot, snapshot);
   return (key: string, vars: Record<string, string | number> = {}) =>
-    translate(`toolkit.nodes.${key}`, vars);
+    translate(key.startsWith('kind.') ? `toolkit.${key}` : `toolkit.nodes.${key}`, vars);
 }
