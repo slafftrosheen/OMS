@@ -12,7 +12,7 @@ ALTER TABLE public.canvas_documents
 -- conversation table. Preserve their history per creator, then remove the
 -- sensitive props from every canvas before enabling team-wide RLS.
 CREATE OR REPLACE FUNCTION public.toolkit_legacy_chat_threads(p_payload JSONB)
-RETURNS JSONB LANGUAGE plpgsql IMMUTABLE SET search_path=public,pg_temp AS $
+RETURNS JSONB LANGUAGE plpgsql IMMUTABLE SET search_path=public,pg_temp AS $$
 DECLARE
   p_path TEXT[];
   n INTEGER;
@@ -34,10 +34,10 @@ BEGIN
   END LOOP;
   RETURN threads;
 END;
-$;
+$$;
 
 CREATE OR REPLACE FUNCTION public.toolkit_strip_private_canvas_payload(p_payload JSONB)
-RETURNS JSONB LANGUAGE plpgsql IMMUTABLE SET search_path=public,pg_temp AS $
+RETURNS JSONB LANGUAGE plpgsql IMMUTABLE SET search_path=public,pg_temp AS $$
 DECLARE
   p_path TEXT[];
   n INTEGER;
@@ -65,7 +65,7 @@ BEGIN
   END LOOP;
   RETURN cleaned;
 END;
-$;
+$$;
 
 -- Recover historical R05 per-owner conversations BEFORE scrubbing the shared payload.
 -- Historic records without user_id cannot be attributed safely and are not copied.
@@ -126,13 +126,13 @@ BEGIN
 END;
 $$;
 CREATE OR REPLACE FUNCTION public.toolkit_canvas_before_insert()
-RETURNS trigger LANGUAGE plpgsql SET search_path=public,pg_temp AS $
+RETURNS trigger LANGUAGE plpgsql SET search_path=public,pg_temp AS $$
 BEGIN
   NEW.shared := TRUE;
   NEW.payload := public.toolkit_strip_private_canvas_payload(NEW.payload);
   RETURN NEW;
 END;
-$;
+$$;
 DROP TRIGGER IF EXISTS toolkit_canvas_sanitize_insert ON public.canvas_documents;
 CREATE TRIGGER toolkit_canvas_sanitize_insert BEFORE INSERT ON public.canvas_documents
 FOR EACH ROW EXECUTE FUNCTION public.toolkit_canvas_before_insert();
