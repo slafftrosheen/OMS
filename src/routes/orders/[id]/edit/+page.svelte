@@ -42,6 +42,22 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let rdNotes = $state('');
   let deliveryPresetId: string | null = $state(null);
   let profiles: any[] = $state([]);
+  let profileChoices: Array<{id:string;code:string;name:string}> = $state([]);
+  let profileChoicesError = $state('');
+  let profileChoicesTruncated = $state(false);
+  async function loadProfileChoices() {
+    profileChoicesError = '';
+    try {
+      const response = await fetch('/api/order/profile-choices', { cache: 'no-store' });
+      if (!response.ok) throw new Error('Profile catalog unavailable');
+      const payload = await response.json();
+      profileChoices = Array.isArray(payload.templates) ? payload.templates : [];
+      profileChoicesTruncated = payload.truncated === true;
+    } catch {
+      profileChoices = [];
+      profileChoicesError = 'Profile template catalog could not be loaded';
+    }
+  }
 
   // ── Canvas state ─────────────────────────────────────────────────────────────
   let canvasLoaded = $state(false);
@@ -154,6 +170,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   // ── Load order ────────────────────────────────────────────────────────────────
   onMount(async () => {
     await loadOrder();
+    void loadProfileChoices();
     canvasLoaded = true;
     await loadChangeRequests();
   });
@@ -893,9 +910,27 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
               <label>R&D notes <textarea bind:value={rdNotes} rows="3" disabled={!canEdit}></textarea></label>
             {/if}
             <h4>Production profiles ({profiles.length})</h4>
+            {#if profileChoicesError}
+              <p class="zone-intro" role="alert">{profileChoicesError}</p>
+            {/if}
+            {#if profileChoicesTruncated}
+              <p class="zone-intro">{$t('productionReadiness.profileCatalogTruncated')}</p>
+            {/if}
             {#each profiles as profile, idx (profile.dbId ?? idx)}
               <div class="order-profile-edit">
                 <strong>Profile {idx+1}</strong>
+                <label>{$t('productionReadiness.profileSelect')}
+                  <select disabled={!canEdit || !!profileChoicesError}
+                    value={profile.profileTemplateId ?? profile.profile_template_id ?? ''}
+                    onchange={(e) => profiles = profiles.map((p,i) => i===idx ? {
+                      ...p,profileTemplateId:e.currentTarget.value||null
+                    } : p)}>
+                    <option value="">{$t('productionReadiness.profileUnassigned')}</option>
+                    {#each profileChoices as option (option.id)}
+                      <option value={option.id}>{option.code} — {option.name}</option>
+                    {/each}
+                  </select>
+                </label>
                 <label>Quantity
                   <input type="number" min="1" max="1000" bind:value={profile.quantity} disabled={!canEdit} />
                 </label>
