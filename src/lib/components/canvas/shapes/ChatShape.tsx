@@ -135,7 +135,7 @@ export class ChatShapeUtil extends BaseBoxShapeUtil<ChatShape> {
                         style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
                     />
                     <button onClick={handleSend} disabled={loading} style={{ background: 'var(--brand)', color: 'white', border: 'none', borderRadius: '4px', padding: '0 8px', cursor: 'pointer' }}>
-                        Send
+                        {tn('send')}
                     </button>
                 </div>
             </HTMLContainer>
