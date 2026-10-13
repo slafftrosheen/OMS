@@ -102,7 +102,12 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
   try {
     const updates: any = {};
     if (data.theme !== undefined) updates.theme = data.theme;
-    if (data.locale !== undefined) updates.locale = data.locale;
+    if (data.locale !== undefined) {
+      if (typeof data.locale !== 'string' || !['en', 'ru', 'lv'].includes(data.locale)) {
+        return json({ error: 'Invalid locale' }, { status: 400 });
+      }
+      updates.locale = data.locale;
+    }
     if (data.scale !== undefined) updates.scale = data.scale;
     if (data.density !== undefined) updates.density = data.density;
     if (data.pdfZoom !== undefined) updates.pdf_zoom = data.pdfZoom;
@@ -125,7 +130,7 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
     // Try update first
     const { error: updateError, count } = await locals.supabase
         .from('user_preferences')
-        .update(updates)
+        .update(updates, { count: 'exact' })
         .eq('user_id', userId);
 
     if (updateError) {
