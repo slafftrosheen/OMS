@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 import { CanvasModeContext } from '../canvas-mode';
+import { useToolkitText } from '../use-toolkit-text';
 
 export type ChatShape = TLBaseShape<'chat', {
     w: number;
@@ -20,6 +21,7 @@ export class ChatShapeUtil extends BaseBoxShapeUtil<ChatShape> {
     }
 
     override component(shape: ChatShape) {
+        const tn = useToolkitText();
         const { w, h, messages } = shape.props;
         // Historical ChatShape persists its messages inside shape props.
         // That is not acceptable on a manager-shared Toolkit canvas. The
@@ -58,7 +60,7 @@ export class ChatShapeUtil extends BaseBoxShapeUtil<ChatShape> {
                     })
                 }).catch(() => null);
                 
-                let reply = "Could not connect to AI.";
+                let reply = tn('connectionFailed');
                 if (res && res.ok) {
                     const data = await res.json();
                     reply = data.reply;
@@ -83,9 +85,8 @@ export class ChatShapeUtil extends BaseBoxShapeUtil<ChatShape> {
                     borderRadius: 12, border: '1px solid var(--border)',
                     background: 'var(--bg-1)', color: 'var(--text)',
                     fontSize: 13, textAlign: 'center' }}>
-                    <strong>Private discussion</strong>
-                    <p>This legacy chat node is archived. Continue in the
-                    Toolkit Brainstorm panel; conversations are private to you.</p>
+                    <strong>{tn('privateDiscussion')}</strong>
+                    <p>{tn('archivedChat')}</p>
                 </HTMLContainer>
             );
         }
@@ -107,7 +108,7 @@ export class ChatShapeUtil extends BaseBoxShapeUtil<ChatShape> {
                 }}
             >
                 <div style={{ padding: '8px', background: 'var(--brand)', color: 'white', fontWeight: 'bold', fontSize: '14px' }}>
-                    Contextual AI
+                    {tn('contextAI')}
                 </div>
                 
                 <div style={{ flex: 1, overflowY: 'auto', padding: '8px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }} onPointerDown={e => e.stopPropagation()}>
@@ -122,7 +123,7 @@ export class ChatShapeUtil extends BaseBoxShapeUtil<ChatShape> {
                             {m.content}
                         </div>
                     ))}
-                    {loading && <div style={{ fontSize: '10px', color: 'gray' }}>Thinking...</div>}
+                    {loading && <div style={{ fontSize: '10px', color: 'gray' }}>{tn('thinking')}</div>}
                 </div>
 
                 <div style={{ padding: '8px', borderTop: '1px solid var(--glass-border)', display: 'flex', gap: '4px' }} onPointerDown={e => e.stopPropagation()}>
@@ -130,7 +131,7 @@ export class ChatShapeUtil extends BaseBoxShapeUtil<ChatShape> {
                         value={input} 
                         onChange={e => setInput(e.target.value)} 
                         onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
-                        placeholder="Type a message..."
+                        placeholder={tn('message')}
                         style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
                     />
                     <button onClick={handleSend} disabled={loading} style={{ background: 'var(--brand)', color: 'white', border: 'none', borderRadius: '4px', padding: '0 8px', cursor: 'pointer' }}>
