@@ -46,6 +46,8 @@ export const createOrderSchema = z.object({
     .optional()
     .nullable()
     .refine((v) => !v || phoneRegex.test(v), 'Invalid phone number'),
+  deliveryEmail: z.string().email('Invalid email address').optional().nullable()
+    .or(z.literal('')),
   notes: z.string().optional().nullable(),
   hasFiles: z.boolean(),
   selectedPresetId: z.union([z.string().uuid(), z.null()]).optional(),
