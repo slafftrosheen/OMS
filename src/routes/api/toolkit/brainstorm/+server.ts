@@ -6,6 +6,7 @@ import { openRouterComplete } from '$lib/server/ai/openrouter';
 import { normalizeCards, normalizeLinks, normalizeProposals } from '$lib/components/canvas/toolkit-context';
 import { boardInsights, normalizeCanvasActions, normalizeToolkitSkill, TOOLKIT_SKILLS } from '$lib/components/canvas/toolkit-skills';
 import { webSearch } from '$lib/server/ai/tools-registry/web-search';
+import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/ai/response-language';
 
 export const POST: RequestHandler = async (event) => {
   const { request, locals } = event;
@@ -22,6 +23,11 @@ export const POST: RequestHandler = async (event) => {
       (Array.isArray(body.links) && body.links.length > 100)) {
     return json({ error: 'Board context exceeds the request limit' }, { status: 413 });
   }
+  const { data: preference } = await locals.supabase.from('user_preferences')
+    .select('locale').eq('user_id', locals.user!.id).maybeSingle();
+  const responseLocale = resolveResponseLocale(
+    body.language, preference?.locale, request.headers.get('accept-language')
+  );
   const skill = normalizeToolkitSkill(body.skill);
   const cards = normalizeCards(body.cards);
   const links = normalizeLinks(body.links, new Set(cards.map(card => card.id)));
@@ -65,7 +71,11 @@ Do not claim to have edited anything; ALL changes require explicit user approval
 For organize, prefer a layout suggestion. For connect, identify concrete missing links.
 For critique, state risks and unknowns plainly. For research, cite exact URLs from supplied sources.
 No Markdown code fences. Mark estimates as estimates, unknowns as unknown.
-Do not invent connections, measurements, technical specifications or source evidence.`;
+Do not invent connections, measurements, technical specifications or source evidence.
+${responseLanguageInstruction(responseLocale)}
+Your JSON property names and enum values must stay exactly in English as specified by the schema.
+Translate all JSON user-visible string values (reply, card titles/bodies and action reasons)
+into the selected language. The user's message language is NOT the response-language setting.`;
   const userInput = JSON.stringify({ question: body.prompt.trim(), skill, cards, links, insights,
     visualAssets: Array.isArray(body.visualAssets) ? body.visualAssets.slice(0, 16)
       .map((v: any) => ({ title: String(v?.title ?? '').slice(0, 120),
