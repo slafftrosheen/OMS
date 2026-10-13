@@ -1524,6 +1524,10 @@
     "canvasTab": "Canvas",
     "chatTab": "Conversations",
     "canvas": {
+      "pinFileAnalysis": "Add findings to shared Canvas",
+      "modelInterpretationLabel": "MODEL ANALYSIS — CHECK BEFORE PRODUCTION",
+      "parsedEvidenceLabel": "PROVIDER-EXTRACTED PDF TEXT",
+      "fileAnalysisCardTitle": "File analysis: {name}",
       "confirmPaidOcr": "Send this PDF to OpenRouter for paid OCR? OpenRouter charges per page in addition to model usage.",
       "fileUnderstanding": "Image & PDF understanding",
       "fileUnderstandingHint": "Select an uploaded image or PDF, optionally type a question, then analyze its actual contents. The file is sent privately to OpenRouter for processing. Up to 8 MiB images / 12 MiB PDFs. Results remain in your private discussion unless you save a note.",
