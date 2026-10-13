@@ -708,6 +708,7 @@
       <span class="team-label" title={$t('toolkit.canvas.sharedTitle')}>{$t('toolkit.canvas.shared')}</span>
       <button onclick={() => createBoard('blank')}>{$t('toolkit.canvas.newProject')}</button>
       <button onclick={() => void flushCurrentChanges()} disabled={!boardId || saving || ( !dirty && !discussionDirty ) || conflict}>{$t('toolkit.canvas.save')}</button>
+      <button onclick={exportBrief} disabled={!boardId || !editor}>{$t('toolkit.canvas.exportBrief')}</button>
       <button class="assistant-toggle" onclick={() => assistantOpen = !assistantOpen} aria-expanded={assistantOpen}>
         {assistantOpen ? $t('toolkit.canvas.hideAssistant') : $t('toolkit.canvas.brainstorm')}
       </button>
@@ -855,12 +856,32 @@
             {/each}
           </select>
           <p>{$t(`toolkit.skills.${skill}Purpose`)}</p>
+          {#if modelChoices.length}
+            <label for="toolkit-model">{$t('toolkit.canvas.model')}</label>
+            <select id="toolkit-model" bind:value={selectedModel} disabled={requesting}>
+              {#each modelChoices as choice (choice.id)}
+                <option value={choice.id}>{choice.label}{choice.isDefault ? ' · ' + $t('toolkit.canvas.defaultModel') : ''}</option>
+              {/each}
+            </select>
+            <p>{$t('toolkit.canvas.modelHint')}</p>
+          {/if}
+          {#if skill === 'research'}
+            <label for="toolkit-web-mode">{$t('toolkit.canvas.webSource')}</label>
+            <select id="toolkit-web-mode" bind:value={webMode} disabled={requesting}>
+              <option value="searxng">{$t('toolkit.canvas.searxng')}</option>
+              {#if paidWebAvailable}<option value="openrouter">{$t('toolkit.canvas.openrouterSearch')}</option>{/if}
+            </select>
+            {#if webMode === 'openrouter'}
+              <p class="web-cost-note">{$t('toolkit.canvas.paidNotice')}</p>
+            {/if}
+          {/if}
         </div>
         <button class="board-audit" onclick={auditBoard} disabled={!boardId || !editor}
           title={$t('toolkit.canvas.auditTitle')}>{$t('toolkit.canvas.audit')}</button>
         <div class="quick-prompts" aria-label={$t('toolkit.canvas.promptList')}>
-          {#each prompts as item (item)}
-            <button onclick={() => brainstorm(tr(`prompts.${item}Question`))} disabled={!boardId || requesting}>{$t(`toolkit.prompts.${item}`)}</button>
+          {#each prompts as item (item.id)}
+            <button onclick={() => brainstorm(tr(`prompts.${item.id}Question`), item.skill)}
+              disabled={!boardId || requesting}>{$t(`toolkit.prompts.${item.id}`)}</button>
           {/each}
         </div>
         {#if Object.keys(legacyThreads).length}
@@ -887,7 +908,13 @@
             </div>
           {/each}
           {#if requesting}<p class="muted">{$t('toolkit.canvas.exploring')}</p>{/if}
+          {#if lastUsedModel}<p class="muted">{$t('toolkit.canvas.updatedModel')}: {lastUsedModel}</p>{/if}
         </div>
+        {#if messages.some(message => message.role === 'assistant')}
+          <button class="capture-answer" onclick={captureAnswer} disabled={!boardId || conflict || remoteUpdated}>
+            {$t('toolkit.canvas.saveAnswer')}
+          </button>
+        {/if}
         {#if suggestions.length}
           <div class="suggestion-list">
             <div class="proposal-header"><strong>{$t('toolkit.canvas.suggested')} · {suggestions.length}</strong>
@@ -920,11 +947,20 @@
             {/each}
           </div>
         {/if}
+        {#if searchNote}
+          <p class="research-note" role="status">{$t('toolkit.canvas.researchStatus')}: {searchNote}</p>
+        {/if}
         {#if researchSources.length}
           <div class="research-sources">
             <strong>{$t('toolkit.canvas.references')}</strong>
             {#each researchSources as source (source.url)}
-              <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title || source.url} ↗</a>
+              <div class="source-row">
+                <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title || source.url} ↗</a>
+                {#if source.snippet}<small>{source.snippet}</small>{/if}
+                <button onclick={() => pinResearchSource(source)} disabled={!boardId || conflict || remoteUpdated}>
+                  {$t('toolkit.canvas.pinSource')}
+                </button>
+              </div>
             {/each}
           </div>
         {/if}
@@ -1006,6 +1042,11 @@
   .import-progress{font-size:12px;font-weight:700;color:var(--brand);background:var(--bg-1);
     padding:8px 13px;border-bottom:1px solid var(--border)}
   @media(max-width:840px){.node-toolbar{overflow-x:auto;flex-wrap:nowrap}}
+  .source-row{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:8px 0;border-bottom:1px solid var(--border)}
+  .source-row small{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;font-size:11px;line-height:1.5;color:var(--ink-tertiary)}
+  .source-row a{overflow-wrap:anywhere}
+  .capture-answer{width:100%;margin:6px 0}
+  .research-note,.web-cost-note{font-size:11px;line-height:1.45;color:var(--ink-secondary);margin:0}
   .skill-picker{display:grid;gap:5px;padding:9px;border:1px solid var(--border);border-radius:10px}
   .skill-picker label{font-size:11px;font-weight:750}
   .skill-picker select{background:var(--bg-0);color:var(--text);border:1px solid var(--border);padding:7px;border-radius:7px;max-width:100%}
