@@ -86,7 +86,7 @@ describe('OMS-R07 Canvas skills and safe tool actions', () => {
     expect(api).toContain("if (skill === 'research' && webMode === 'searxng')");
     expect(api).toContain('webSearch({ query:');
     expect(api).toContain('boardInsights(cards, links)');
-    expect(api).toContain('normalizeCanvasActions(parsed.actions');
+    expect(api).toContain('parseToolkitModelResponse(result');
     expect(api).toContain('new Set(cards.map(c => c.id))');
     expect(api).toContain('requireToolkitManager(locals.user)');
     expect(api).not.toContain('SUPABASE_SERVICE_ROLE_KEY');
@@ -120,7 +120,7 @@ describe('OMS-R07 Canvas skills and safe tool actions', () => {
     expect(canvas).toContain('const payload = { version: 1, snapshot: lastSnapshot }');
     expect(canvas).toContain('actionProposals.slice(0, 3)');
     expect(canvas).toContain('!window.isSecureContext');
-    expect(canvas).toContain("tr('canvas.clipboard')");
+    expect(canvas).toContain("$t('toolkit.canvas.clipboard')");
     expect(canvas).toContain('function auditBoard()');
     expect(canvas).toContain("tr('canvas.auditDone')");
   });
