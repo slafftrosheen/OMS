@@ -18,6 +18,8 @@ export interface OpenRouterChatOptions {
   model?: string;
   messages: OpenRouterMessage[];
   tools?: unknown[];
+  /** OpenRouter request-scoped plugins, e.g. explicit PDF parser engine. */
+  plugins?: unknown[];
   stream?: boolean;
   temperature?: number;
   timeoutMs?: number;
@@ -76,6 +78,7 @@ export function openRouterRequestBody(options: OpenRouterChatOptions, config = O
     model: options.model || (vision ? config.visionModel : config.defaultModel),
     messages: openRouterMessages(options.messages),
     ...(options.tools?.length ? { tools: options.tools, tool_choice: 'auto' } : {}),
+    ...(options.plugins?.length ? { plugins: options.plugins } : {}),
     ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
     ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
     ...(options.maxToolCalls !== undefined && options.tools?.length
