@@ -13,7 +13,7 @@ import { PRODUCTION_STATIONS, READINESS_JSON_SCHEMA, readinessEvidenceSchema,
   parseReadinessModel, type ReadinessEvidence } from '$lib/order/production-readiness';
 
 const requestSchema=z.object({
-  orderId:z.string().uuid(),language:z.string().max(20).optional()
+  orderId:z.string().uuid(),consent:z.literal(true),language:z.string().max(20).optional()
 }).strict();
 const cache={'Cache-Control':'private, no-store'};
 const system=`You are a cautious signage production planning adviser for Réclame Fabriek OMS.
@@ -112,7 +112,14 @@ export const POST:RequestHandler=async event=>{
     inventoryChecked:inventoryComplete
   });
   const checks=deterministicReadiness(evidence);
-  const summary={...evidence,notes:evidence.notes.slice(0,2000)};
+  // The full deterministic report covers all recorded items; the paid
+  // model receives a bounded subset to control cost and context size.
+  const summary={...evidence,
+    profiles:evidence.profiles.slice(0,30),
+    materials:evidence.materials.slice(0,50),
+    notes:evidence.notes.slice(0,2000),
+    truncated:{profiles:evidence.profiles.length>30,materials:evidence.materials.length>50}
+  };
   const base={orderId,status:order.status,updatedAt:order.updated_at,
     capturedAt:new Date().toISOString(),state:checks.state,issues:checks.issues,
     profiles:evidence.profiles,materials:evidence.materials,
