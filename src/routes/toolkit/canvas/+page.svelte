@@ -1,12 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t, locale } from 'svelte-i18n';
+  import { get } from 'svelte/store';
   import TldrawWrapper from '$lib/components/canvas/TldrawWrapper.svelte';
   import { ideaDefaults, type IdeaKind } from '$lib/components/canvas/idea-model';
   import { extractBoardCards, extractBoardLinks, normalizeProposals, type ProposedCard } from '$lib/components/canvas/toolkit-context';
   import { runShape } from '$lib/components/canvas/node-runner';
   import { importToolkitFiles, type ToolkitPosition } from '$lib/components/canvas/toolkit-media-import';
   import { TOOLKIT_SKILLS, boardInsights, normalizeCanvasActions, type CanvasAction, type ToolkitSkill } from '$lib/components/canvas/toolkit-skills';
-  import { actionSummary, applyToolkitAction } from '$lib/components/canvas/toolkit-action-executor';
+  import { applyToolkitAction } from '$lib/components/canvas/toolkit-action-executor';
+
+  const tr = (key: string, vars: Record<string, string | number> = {}) => get(t)(`toolkit.${key}`, vars);
 
   type Board = { id: string; title: string; revision: number; updated_at: string; created_at: string };
   type ChatMessage = { role: 'user' | 'assistant'; content: string };
@@ -37,7 +41,7 @@
   let fileInput: HTMLInputElement;
   let selectedTool = $state('select');
   let requesting = $state(false);
-  let selectedLabel = $state('Whole board');
+  let selectedLabel = $state('');
   let editor: any = null;
   let lastSnapshot: unknown = null;
   let ready = false;
@@ -65,12 +69,7 @@
     { kind: 'task', label: 'Task', emoji: '✓' },
     { kind: 'note', label: 'Note', emoji: '▤' }
   ];
-  const prompts = [
-    { label: 'Expand this concept', question: 'Expand the most promising concept into practical directions, with useful cards.' },
-    { label: 'Challenge assumptions', question: 'What are the main risks, constraints and unanswered questions here?' },
-    { label: 'Compare approaches', question: 'Suggest distinct approaches and useful decision criteria.' },
-    { label: 'Plan next steps', question: 'Turn this project into a focused set of actionable next steps.' }
-  ];
+  const prompts = ['expand', 'challenge', 'compare', 'plan'] as const;
 
   function markDirty() {
     if (!boardId) return;
@@ -192,7 +191,7 @@
   async function reloadLatest() {
     await saveDiscussion();
     if (discussionDirty) { discussionError = 'Save your private discussion before reloading.'; return; }
-    if (dirty && !confirm('Discard unsaved canvas edits and load the latest shared version?')) return;
+    if (dirty && !confirm(tr('canvas.confirmDiscard'))) return;
     // Reload must not try to re-save the known stale revision.
     if (saveTimer) clearTimeout(saveTimer);
     dirty = false; conflict = false; remoteUpdated = false;
@@ -241,7 +240,7 @@
     } finally { loading = false; }
   }
   async function openBoard(id: string) {
-    if (importing) { notice = 'Finish importing files before switching projects.'; return; }
+    if (importing) { notice = tr('canvas.loadingNotice'); return; }
     if (id === boardId && ready) return;
     if ((dirty || discussionDirty) && !(await flushCurrentChanges())) {
       error = 'Save or recover your changes before switching projects.';
@@ -257,7 +256,7 @@
     researchSources = [];
     legacyThreads = {};
     prompt = '';
-    selectedLabel = 'Whole board';
+    selectedLabel = '';
     try {
       const [response, privateResponse] = await Promise.all([
         fetch(`/api/ai/canvas/${encodeURIComponent(id)}`, { cache: 'no-store' }),
@@ -308,7 +307,7 @@
     }
   }
   async function createBoard(template: Template = 'blank') {
-    if (importing) { notice = 'Finish importing files before creating a new project.'; return; }
+    if (importing) { notice = tr('canvas.newProjectNotice'); return; }
     if ((dirty || discussionDirty) && !(await flushCurrentChanges())) {
       error = 'Save or recover your changes before creating a project.';
       return;
@@ -389,7 +388,7 @@
   function zoomToContent() { editor?.zoomToFit?.(); }
   function updateSelectionSummary() {
     const selected = editor?.getSelectedShapeIds?.() ?? [];
-    selectedLabel = selected.length ? `${selected.length} selected` : 'Whole board';
+    selectedLabel = selected.length ? tr('canvas.selected', { count: selected.length }) : tr('canvas.wholeBoard');
   }
   function deleteSelection() {
     const selected = editor?.getSelectedShapeIds?.() ?? [];
@@ -405,7 +404,7 @@
     const visualAssets = all.filter((shape: any) =>
       shape.type === 'document' || shape.type === 'material-swatch').slice(0, 16)
       .map((shape: any) => ({ title: shape.props?.title ?? '', kind: shape.props?.kind ?? shape.type }));
-    selectedLabel = selected.length ? `${selected.length} selected` : 'Whole board';
+    selectedLabel = selected.length ? tr('canvas.selected', { count: selected.length }) : tr('canvas.wholeBoard');
     return { cards, links, visualAssets, focusId: String(selected[0] ?? '') };
   }
   async function brainstorm(question = prompt) {
@@ -424,10 +423,10 @@
     try {
       const response = await fetch('/api/toolkit/brainstorm', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: text, ...context, history, skill })
+        body: JSON.stringify({ prompt: text, ...context, history, skill, language: $locale })
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'Could not get suggestions');
+      if (!response.ok) throw new Error(data.error || tr('canvas.noSuggestions'));
       messages = [...messages, { role: 'assistant', content: String(data.reply ?? '').slice(0, 5000) }].slice(-60);
       suggestions = normalizeProposals(data.cards).slice(0, 5);
       actionProposals = normalizeCanvasActions(data.actions,
@@ -437,7 +436,7 @@
           /^https?:\/\//.test(v.url)).slice(0, 5) : [];
       markDiscussionDirty();
     } catch (e) {
-      notice = e instanceof Error ? e.message : 'Could not reach the brainstorming service';
+      notice = e instanceof Error ? e.message : tr('canvas.noBrainstorm');
       // Retain the prompt in the conversation so the user can retry or copy it.
     } finally { requesting = false; }
   }
@@ -446,20 +445,19 @@
     const { cards, links } = getContext();
     const report = boardInsights(cards, links);
     const text = [
-      `Board audit: ${report.totalCards} cards, ${report.connections} connections.`,
-      `Unfinished tasks: ${report.unfinishedTasks}.`,
-      report.hasDecision ? 'There is at least one decision card.' :
-        'Missing decision card: write down what needs choosing.',
+      tr('canvas.auditLine', { cards: report.totalCards, links: report.connections }),
+      tr('canvas.auditTasks', { count: report.unfinishedTasks }),
+      tr(report.hasDecision ? 'canvas.auditDecision' : 'canvas.auditMissingDecision'),
       report.disconnected.length
-        ? `Unconnected ideas: ${report.disconnected.map(card => card.title).join(', ')}.`
-        : 'All idea cards participate in a connection.',
+        ? tr('canvas.auditUnconnected', { names: report.disconnected.map(card => card.title).join(', ') })
+        : tr('canvas.auditAllConnected'),
       report.cardsMissingDetails.length
-        ? `Cards needing detail: ${report.cardsMissingDetails.join(', ')}.`
-        : 'Every card has supporting details.'
+        ? tr('canvas.auditMissingDetails', { names: report.cardsMissingDetails.join(', ') })
+        : tr('canvas.auditAllDetailed')
     ].join('\n');
     messages = [...messages, { role: 'assistant', content: text.slice(0, 5000) }].slice(-60);
     markDiscussionDirty();
-    notice = 'Board audit completed locally without sending content to the model.';
+    notice = tr('canvas.auditDone');
   }
   function applySuggestion(card: ProposedCard, index: number) {
     if (!editor) return;
@@ -467,7 +465,7 @@
     addCard(card.kind, card.title, card.body, c.x + (index % 2) * 320 - 300, c.y + Math.floor(index / 2) * 245 - 110);
     suggestions = suggestions.filter(s => s !== card);
     markDiscussionDirty();
-    notice = 'Added to the canvas. You can edit or connect it.';
+    notice = tr('canvas.savedToCanvas');
   }
   function applyAll() {
     const batch = [...suggestions];
@@ -485,7 +483,7 @@
       return;
     }
     if (action.kind === 'layout' &&
-        !confirm('Reposition your idea cards? Existing drawings and imported media will stay in place.')) return;
+        !confirm(tr('canvas.confirmArrange'))) return;
     try {
       const result = applyToolkitAction(editor, action);
       notice = result.detail;
@@ -500,12 +498,12 @@
   async function runSelectedTechnical() {
     if (!editor || running) return;
     const selected = editor.getSelectedShapeIds?.() ?? [];
-    if (!selected.length) { notice = 'Select a technical node first.'; return; }
+    if (!selected.length) { notice = tr('canvas.selectedToolFirst'); return; }
     running = true;
     try {
       let done = 0;
       for (const id of selected) { await runShape(editor, id); done++; }
-      notice = `${done} technical node(s) completed.`;
+      notice = tr('canvas.technicalCount', { count: done });
     } catch (e) { notice = e instanceof Error ? e.message : 'Tool execution failed'; }
     finally { running = false; }
   }
@@ -523,7 +521,7 @@
     if (!editor) return;
     const center = editor.getViewportPageBounds().center;
     editor.createShape({ type: 'material-swatch', x: center.x - 145, y: center.y - 106,
-      props: { w: 290, h: 212, title: preset === 'photo' ? 'Imported surface reference'
+      props: { w: 290, h: 212, title: preset === 'photo' ? tr('canvas.materialPhoto')
         : preset.replaceAll('-', ' '), preset, tint: '#ffffff', opacity: 100,
         ...(textureUrl ? { textureUrl } : {}) } });
   }
@@ -532,7 +530,7 @@
     const selected = (editor.getSelectedShapes?.() ?? []) as Array<{type:string; props:any}>;
     const image = selected.find(shape => shape.type === 'document' &&
       shape.props?.kind === 'image' && typeof shape.props?.url === 'string');
-    if (!image) { notice = 'Select an imported image card to create a surface reference.'; return; }
+    if (!image) { notice = tr('canvas.selectedImageFirst'); return; }
     addMaterial('photo', image.props.url);
   }
   async function importFiles(files: File[], point?: ToolkitPosition) {
@@ -547,10 +545,10 @@
         notice = result.errors.slice(0, 3).join(' | ');
         if (result.imported === 0) error = notice;
       } else {
-        notice = `${result.imported} visual asset(s) imported. The files are available to the management team.`;
+        notice = tr('canvas.addedCount', { count: result.imported });
       }
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not import files';
+      error = e instanceof Error ? e.message : tr('canvas.importError');
     } finally {
       importing = false;
       importStatus = '';
@@ -562,8 +560,8 @@
     void importFiles(files);
   }
   async function removeBoard(id: string) {
-    if (importing) { notice = 'Wait for file imports to finish.'; return; }
-    if (!confirm('Delete this SHARED project for the whole team? This cannot be undone.')) return;
+    if (importing) { notice = tr('canvas.deleteWait'); return; }
+    if (!confirm(tr('canvas.confirmDelete'))) return;
     if (id === boardId && (dirty || discussionDirty) && !(await flushCurrentChanges())) {
       error = 'Preserve or resolve local changes before deleting the project.';
       return;
