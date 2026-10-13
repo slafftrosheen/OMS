@@ -50,11 +50,13 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
       throw error(403, 'Only authorized editors can change an unconfirmed order Canvas');
     }
 
-    const { error: updateError } = await locals.supabase
+    const { data: saved, error: updateError } = await locals.supabase
         .from('draft_orders')
         .update({ canvas_state: snapshot, updated_at: new Date().toISOString() })
-        .eq('id', order.id).eq('status',order.status);
+        .eq('id', order.id).eq('status', order.status)
+        .select('id').maybeSingle();
 
+    if (!updateError && !saved) throw error(409,'Order changed while saving Canvas; reload before confirming');
     if (updateError) {
         console.error('Failed to persist canvas_state:', updateError);
         throw error(500, 'Failed to save canvas state');
