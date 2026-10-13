@@ -20,7 +20,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let { data } = $props();
 
   // ── Order state ─────────────────────────────────────────────────────────────
-  let orderId: number | null = $state(null);
+  let orderId: string | null = $state(null);
+  let createdBy = $state('');
   let poNumber = $state('');
   let clientName = $state('');
   let title = $state('');
@@ -85,12 +86,12 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let aiResponse = $state('');
 
   // ── Permissions ───────────────────────────────────────────────────────────────
-  let isAdmin = $derived(
-    ($currentUser as any)?.roles?.Admin === 'SuperAdmin' ||
-    ($currentUser as any)?.primarySection === 'Admin'
-  );
-  let canEdit = $derived(isAdmin || status === 'DRAFT');
-  let canApprove = $derived(isAdmin && status === 'DRAFT');
+  let isAdmin = $derived(can($currentUser, 'editOrder'));
+  let canEdit = $derived(['DRAFT','PENDING_REVIEW'].includes(status) &&
+    (isAdmin || !!$currentUser && $currentUser.id === createdBy));
+  let canApprove = $derived(can($currentUser, 'confirmOrder') &&
+    ['DRAFT','PENDING_REVIEW'].includes(status));
+  let canAssignPo = $derived(can($currentUser, 'assignPoNumber'));
 
   // ── Canvas seed (reactive, passed into TldrawWrapper) ────────────────────────
   let orderSeed = $derived(orderId
@@ -132,7 +133,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       if (!response.ok) throw new Error('Order not found');
       const order = await response.json();
 
-      orderId = order.id;
+      orderId = String(order.id);
+      createdBy = String(order.createdBy ?? '');
       clientName = order.clientName || '';
       poNumber = order.poNumber || '';
       title = order.title || order.clientName || '';
@@ -140,7 +142,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       loadingDate = order.loadingDate ? order.loadingDate.split('T')[0] : '';
       notes = order.notes || '';
       priority = order.priority || 'NORMAL';
-      status = order.status || 'draft';
+      status = normaliseStatus(order.status);
       deliveryAddress = order.deliveryAddress || '';
       deliveryContact = order.deliveryContact || '';
       deliveryPhone = order.deliveryPhone || '';
@@ -307,8 +309,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   }
 
   // ── Save draft ────────────────────────────────────────────────────────────────
-  async function saveDraft() {
-    if (!clientName.trim()) { notifyError('Client name is required'); return; }
+  async function saveDraft(): Promise<boolean> {
+    if (!orderId || !canEdit) { notifyError('You cannot edit this draft'); return false; }
+    if (!clientName.trim() || !deadline) { notifyError('Client and deadline are required'); return false; }
     saving = true;
     try {
       const res = await fetch(`/api/draft-orders/${orderId}`, {
@@ -316,28 +319,38 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientName, title, deadline, loadingDate: loadingDate || null,
-          notes, priority, status,
+          notes, priority,
           deliveryAddress, deliveryContact, deliveryPhone,
           profiles: profiles.map(p => ({
-            id: p.dbId, quantity: p.quantity || 1, configuration: p.configuration || {}
+            profileTemplateId: p.profileTemplateId ?? p.profile_template_id ?? null,
+            quantity: p.quantity ?? 1,
+            quantity2: p.quantity2 ?? 0, quantity3: p.quantity3 ?? 0,
+            quantity4: p.quantity4 ?? 0,
+            configuration: p.configuration ?? {}, notes: p.notes ?? ''
           })),
         }),
       });
-      if (!res.ok) throw new Error((await res.json()).message || 'Save failed');
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error || payload.message || 'Save failed');
+      }
 
       // Persist canvas state
       if (canvasSnapshot) {
-        await fetch(`/api/draft-orders/${data.id}/canvas-state`, {
+        const canvasResponse = await fetch(`/api/draft-orders/${data.id}/canvas-state`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ snapshot: canvasSnapshot }),
         });
+        if (!canvasResponse.ok) throw new Error('Order fields saved, but Canvas did not save. Retry before confirming.');
       }
 
       canvasDirty = false;
       notifySuccess('Draft saved');
+      return true;
     } catch (err: any) {
       notifyError(err.message || 'Failed to save');
+      return false;
     } finally {
       saving = false;
     }
@@ -348,9 +361,17 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     confirming = true;
     try {
       // Save first
-      await saveDraft();
-      const res = await fetch(`/api/draft-orders/${orderId}/approve`, { method: 'POST' });
-      if (!res.ok) throw new Error((await res.json()).message || 'Approval failed');
+      if (!canApprove || !orderId) throw new Error('You cannot confirm this order');
+      if (!(await saveDraft())) throw new Error('Save draft before confirming');
+      if (!poNumber.trim()) throw new Error('An externally issued PO number is required');
+      const res = await fetch(`/api/draft-orders/${orderId}/confirm`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ poNumber: poNumber.trim() })
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error || payload.message || 'Confirmation failed');
+      }
       status = 'CONFIRMED';
       confirmOrderModal = false;
       notifySuccess('Order approved and sent to production');
@@ -704,7 +725,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
           <Icon name="rotate-ccw" size="sm" /> Rework
         </button>
       {/if}
-      <button class="action-btn primary" onclick={saveDraft} disabled={saving}>
+      <button class="action-btn primary" onclick={saveDraft} disabled={saving || !canEdit}>
         <Icon name="save" size="sm" /> {saving ? 'Saving…' : 'Save Draft'}
       </button>
       {#if canApprove}
@@ -910,10 +931,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   <div class="edit-modal-backdrop" onclick={() => confirmOrderModal = false} role="dialog" aria-modal="true" tabindex="-1">
     <div class="edit-modal" onclick={(e) => e.stopPropagation()} role="document">
       <h3>Approve order?</h3>
-      <p>This will send the order to production. Make sure all details are correct.</p>
+      <p>This will send the order to production. Verify the client, profiles, files and deadline first.</p>
+      <label for="confirm-po">Externally issued PO number (required)</label>
+      <input id="confirm-po" bind:value={poNumber} maxlength="16"
+        readonly={!canAssignPo && !!poNumber} disabled={!canAssignPo}
+        placeholder={canAssignPo ? 'Enter PO from external system' : 'Boss must assign a PO'} />
+      {#if !canAssignPo && !poNumber}<p>Ask Boss to assign a PO before confirmation.</p>{/if}
       <div class="edit-modal-actions">
         <button class="action-btn ghost" onclick={() => confirmOrderModal = false}>Cancel</button>
-        <button class="action-btn success" onclick={confirmOrder} disabled={confirming}>
+        <button class="action-btn success" onclick={confirmOrder} disabled={confirming || !poNumber.trim()}>
           {confirming ? 'Confirming…' : 'Confirm Order'}
         </button>
       </div>
