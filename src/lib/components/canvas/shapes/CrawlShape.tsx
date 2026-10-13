@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
 import { registerNodeRunner } from '../node-runner';
+import { useToolkitText } from '../use-toolkit-text';
 import {
     bodyStyle,
     containerStyle,
@@ -53,6 +54,7 @@ export class CrawlShapeUtil extends BaseBoxShapeUtil<CrawlShape> {
     }
 
     override component(shape: CrawlShape) {
+        const tn = useToolkitText();
         const { w, h, url, selector, includeLinks, maxChars, status, error, output } = shape.props;
         const [draftUrl, setDraftUrl] = useState(url);
         const [draftSel, setDraftSel] = useState(selector);
@@ -93,8 +95,8 @@ export class CrawlShapeUtil extends BaseBoxShapeUtil<CrawlShape> {
         return (
             <HTMLContainer id={shape.id} style={containerStyle(w, h, ACCENT, status === 'error')}>
                 <div style={headerStyle(ACCENT)}>
-                    <span>🌐 Crawl</span>
-                    <span style={statusBadgeStyle(status)}>{status}</span>
+                    <span>🌐 {tn('crawl')}</span>
+                    <span style={statusBadgeStyle(status)}>{tn(`status${status[0].toUpperCase()}${status.slice(1)}`)}</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 8 }} onPointerDown={stop}>
                     <input
@@ -107,17 +109,17 @@ export class CrawlShapeUtil extends BaseBoxShapeUtil<CrawlShape> {
                     <input
                         value={draftSel}
                         onChange={(e) => setDraftSel(e.target.value)}
-                        placeholder="CSS selector (optional)"
+                        placeholder={tn('selector')}
                         style={inputStyle}
                     />
                     <div style={rowStyle}>
-                        <label style={labelStyle}>links</label>
+                        <label style={labelStyle}>{tn('links')}</label>
                         <input
                             type="checkbox"
                             checked={includeLinks}
                             onChange={(e) => update({ includeLinks: e.target.checked })}
                         />
-                        <label style={{ ...labelStyle, marginLeft: 12 }}>max_chars</label>
+                        <label style={{ ...labelStyle, marginLeft: 12 }}>{tn('maxChars')}</label>
                         <input
                             type="number"
                             value={maxChars}
@@ -125,7 +127,7 @@ export class CrawlShapeUtil extends BaseBoxShapeUtil<CrawlShape> {
                             style={{ ...inputStyle, width: 80 }}
                         />
                         <button onClick={run} disabled={status === 'running'} style={runButtonStyle(ACCENT)}>
-                            {status === 'running' ? '…' : 'Fetch'}
+                            {status === 'running' ? '…' : tn('fetch')}
                         </button>
                     </div>
                 </div>
@@ -135,7 +137,7 @@ export class CrawlShapeUtil extends BaseBoxShapeUtil<CrawlShape> {
                         <>
                             <div style={{ fontWeight: 700 }}>{output.title || output.final_url}</div>
                             <div style={{ fontSize: 10, color: 'var(--text-muted, #888)', marginBottom: 6 }}>
-                                {output.bytes} bytes · {output.mime}
+                                {output.bytes} {tn('bytes')} · {output.mime}
                             </div>
                             {output.note && <div style={{ color: '#b45309', fontSize: 11 }}>{output.note}</div>}
                             <pre style={{
@@ -147,7 +149,7 @@ export class CrawlShapeUtil extends BaseBoxShapeUtil<CrawlShape> {
                             }}>{output.text.slice(0, 1500)}</pre>
                             {output.links?.length > 0 && (
                                 <details style={{ marginTop: 8 }}>
-                                    <summary style={{ cursor: 'pointer' }}>Links ({output.links.length})</summary>
+                                    <summary style={{ cursor: 'pointer' }}>{tn('links')} ({output.links.length})</summary>
                                     <ul style={{ margin: '6px 0 0 12px', padding: 0, fontSize: 11 }}>
                                         {output.links.slice(0, 30).map((l) => (
                                             <li key={l}>
