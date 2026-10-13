@@ -99,8 +99,9 @@ into the selected language. The user's message language is NOT the response-lang
       [{ role: 'system', content: system }, { role: 'user', content: userInput }],
       {
         model, temperature: 0.55, maxTokens: 2300, timeoutMs: 90_000,
+        ...(skill === 'research' && webMode === 'openrouter' ? { maxToolCalls: 2 } : {}),
         ...(skill === 'research' && webMode === 'openrouter'
-          ? { tools: [{ type: 'openrouter:web_search', max_total_results: 5 }] } : {})
+          ? { tools: [{ type: 'openrouter:web_search', parameters: { max_uses: 2, max_results: 4, max_total_results: 8, search_context_size: 'low' } }] } : {})
       }
     );
     const parsed = parseToolkitModelResponse(result, new Set(cards.map(c => c.id)),
