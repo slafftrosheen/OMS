@@ -121,10 +121,47 @@ BEGIN
 END;
 $$;
 
+-- Attach files while DRAFT. Publish for management review only after all
+-- multipart uploads have been linked successfully to the same draft UUID.
+CREATE OR REPLACE FUNCTION public.oms_submit_draft_for_review(p_order_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp
+AS $
+DECLARE
+ v_actor UUID := auth.uid(); v_role TEXT; v_order public.draft_orders;
+BEGIN
+ IF v_actor IS NULL THEN RAISE EXCEPTION 'Authentication required' USING ERRCODE='42501'; END IF;
+ SELECT role INTO v_role FROM public.profiles WHERE id=v_actor AND is_active=TRUE;
+ SELECT * INTO v_order FROM public.draft_orders WHERE id=p_order_id FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Order not found' USING ERRCODE='P0002'; END IF;
+ IF v_actor IS DISTINCT FROM v_order.created_by AND v_role NOT IN ('RD','Boss','HeadOfProduction') THEN
+  RAISE EXCEPTION 'Permission denied' USING ERRCODE='42501';
+ END IF;
+ IF v_order.status = 'PENDING_REVIEW' THEN
+  RETURN jsonb_build_object('ok',true,'idempotent',true,'id',p_order_id);
+ END IF;
+ IF v_order.status NOT IN ('DRAFT','draft') THEN
+  RAISE EXCEPTION 'Only draft orders may be submitted';
+ END IF;
+ IF NULLIF(trim(v_order.client),'') IS NULL OR v_order.due_date IS NULL THEN
+  RAISE EXCEPTION 'Client and deadline required';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.order_files WHERE draft_order_id=p_order_id) THEN
+  RAISE EXCEPTION 'Upload at least one persistent attachment before review';
+ END IF;
+ UPDATE public.draft_orders SET status='PENDING_REVIEW',updated_by=v_actor,updated_at=now()
+ WHERE id=p_order_id;
+ RETURN jsonb_build_object('ok',true,'idempotent',false,'id',p_order_id);
+END;
+$;
+
 REVOKE ALL ON FUNCTION public.oms_create_draft_form(JSONB,JSONB,TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.oms_update_draft_form(UUID,JSONB,JSONB) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.oms_create_draft_form(JSONB,JSONB,TEXT) FROM anon;
 REVOKE ALL ON FUNCTION public.oms_update_draft_form(UUID,JSONB,JSONB) FROM anon;
 GRANT EXECUTE ON FUNCTION public.oms_create_draft_form(JSONB,JSONB,TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.oms_update_draft_form(UUID,JSONB,JSONB) TO authenticated;
+REVOKE ALL ON FUNCTION public.oms_submit_draft_for_review(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.oms_submit_draft_for_review(UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.oms_submit_draft_for_review(UUID) TO authenticated;
 COMMIT;
