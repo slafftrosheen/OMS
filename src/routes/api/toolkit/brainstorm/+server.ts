@@ -110,9 +110,9 @@ into the selected language. The user's message language is NOT the response-lang
     const reported = skill === 'research' && webMode === 'openrouter'
       ? normalizeProviderWebSources(completion.annotations) : [];
     const searchNote = skill === 'research' && webMode === 'searxng' && !sources.length
-      ? 'noSources'
+      ? 'NoSources'
       : skill === 'research' && webMode === 'openrouter' && completion.webSearchRequests === null
-        ? 'usageUnknown' : null;
+        ? 'UsageUnknown' : null;
     return json({
       ...parsed, insights,
       // Citation badges are reported by the provider and need independent review.
