@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { logger } from '$lib/server/logging/logger';
 import { buildOrderFileLink, formatFileRecord } from './contract';
 import { ORDER_FILE_BUCKET, normalizeOrderFile, storedOrderFileKey, isOrderUuid,
-  MAX_ORDER_FILE_BYTES } from './order-storage';
+  MAX_ORDER_FILE_BYTES, matchesOrderFileSignature } from './order-storage';
 import { canManageOrderFile } from '$lib/server/order/draft-contract';
 
 export async function uploadOrderFile(request: Request, locals: App.Locals) {
@@ -51,6 +51,9 @@ export async function uploadOrderFile(request: Request, locals: App.Locals) {
   const id=randomUUID();
   const storageKey=storedOrderFileKey(order.id,user.id,id,metadata.fileName);
   const buffer=Buffer.from(await candidate.arrayBuffer());
+  if (!matchesOrderFileSignature(metadata.extension,buffer.subarray(0,16))) {
+    throw kitError(415,'File contents do not match the declared image/PDF/archive format');
+  }
   const { error: storageError }=await locals.supabase.storage.from(ORDER_FILE_BUCKET)
     .upload(storageKey,buffer,{contentType:metadata.mime,upsert:false});
   if(storageError) {
