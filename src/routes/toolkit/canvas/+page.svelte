@@ -4,6 +4,7 @@
   import { get } from 'svelte/store';
   import TldrawWrapper from '$lib/components/canvas/TldrawWrapper.svelte';
   import { ideaDefaults, type IdeaKind } from '$lib/components/canvas/idea-model';
+  import { starterCards } from '$lib/components/canvas/toolkit-templates';
   import { extractBoardCards, extractBoardLinks, normalizeProposals, type ProposedCard } from '$lib/components/canvas/toolkit-context';
   import { runShape } from '$lib/components/canvas/node-runner';
   import { importToolkitFiles, type ToolkitPosition } from '$lib/components/canvas/toolkit-media-import';
@@ -313,7 +314,8 @@
       return;
     }
     const labels: Record<Template, string> = {
-      blank: 'Untitled project', project: 'Project concept', options: 'Explore alternatives', workshop: 'Workshop idea'
+      blank: tr('canvas.templateBlank'), project: tr('canvas.templateProject'),
+      options: tr('canvas.templateOptions'), workshop: tr('canvas.templateWorkshop')
     };
     error = '';
     try {
@@ -345,25 +347,7 @@
     if (!editor || template === 'blank') return;
     const c = editor.getViewportPageBounds().center;
     const x = c.x - 470, y = c.y - 240;
-    const items: Array<[IdeaKind, string, string, number, number]> = template === 'project' ? [
-      ['idea','Project vision','What are we building and for whom?',0,0],
-      ['research','Constraints','Budget, materials, deadlines and unknowns.',330,0],
-      ['decision','Direction','Which approach is the best fit? Why?',660,0],
-      ['task','First milestone','A small demonstrable result.',160,265],
-      ['note','References','Place sketches, images and source notes nearby.',500,265]
-    ] : template === 'options' ? [
-      ['idea','The challenge','Describe the problem clearly.',330,0],
-      ['idea','Option A','One credible path.',0,260],
-      ['idea','Option B','A different path.',330,260],
-      ['idea','Option C','An unconventional path.',660,260],
-      ['decision','Evaluation','Compare benefits, tradeoffs and risks.',330,520]
-    ] : [
-      ['idea','Customer need','What should this signage or object achieve?',0,0],
-      ['research','Site & measurements','Dimensions, conditions, constraints.',330,0],
-      ['idea','Materials & finish','Acrylic, metal, illumination, graphics.',660,0],
-      ['decision','Production method','Choose based on actual capacity.',160,265],
-      ['task','Prototype','Test key assumptions in the workshop.',500,265]
-    ];
+    const items = starterCards(template, $locale);
     for (const [kind, title, body, dx, dy] of items) addCard(kind, title, body, x + dx, y + dy);
     editor.zoomToFit?.();
   }
