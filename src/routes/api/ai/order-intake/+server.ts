@@ -74,7 +74,7 @@ export const POST:RequestHandler=async event=>{
       throw error(413,'File exceeds the AI analysis limit (8 MiB images, 12 MiB PDFs)');
     if(ocr && kind!=='pdf') throw error(400,'OCR requires a PDF');
     filename=String(file.original_name||file.filename||'Order file').slice(0,180);
-    const bytes=await readOrderStoredFile(locals,file);
+    const bytes=await readOrderStoredFile(locals,file,toolkitMediaLimit(kind));
     if(bytes.length!==file.size ||
       !matchesOrderFileSignature(kind==='pdf'?'pdf':
         file.mimetype==='image/png'?'png':file.mimetype==='image/webp'?'webp':'jpg',
