@@ -57,7 +57,8 @@ describe('OMS-R16 consolidated order workspace',()=>{
     expect(editor).toContain('sectionsForGroup(activeGroup)');
     expect(editor).toContain('sectionFromQuery(new URLSearchParams');
     expect(editor).toContain("url.searchParams.set('section',section)");
-    expect(editor).toContain('replaceState(url.pathname+url.search,{})');
+    expect(editor).toContain('pushState(url.pathname+url.search,{})');
+    expect(editor).toContain("sectionFromQuery(page.url.searchParams.get('section'))");
     expect(editor).toContain('class:workspace-focused={focusPanel}');
     expect(editor).toContain('workspace-panel-heading');
     expect(editor).toContain('workspace-flow');
