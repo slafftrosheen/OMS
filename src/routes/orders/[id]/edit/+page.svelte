@@ -35,6 +35,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let deliveryContact = $state('');
   let deliveryPhone = $state('');
   let deliveryEmail = $state('');
+  let isRd = $state(false);
+  let rdNotes = $state('');
+  let deliveryPresetId: string | null = $state(null);
   let profiles: any[] = $state([]);
 
   // ── Canvas state ─────────────────────────────────────────────────────────────
@@ -79,7 +82,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let saving = $state(false);
   let confirming = $state(false);
   let error = $state('');
-  let rightTab: 'layers' | 'changes' | 'chat' | 'files' = $state('layers');
+  let rightTab: 'layers' | 'changes' | 'chat' | 'files' | 'details' = $state('details');
   let activeTool = $state('select');
   let aiPrompt = $state('');
   let useSelectionCtx = $state(false);
@@ -147,6 +150,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       deliveryAddress = order.deliveryAddress || '';
       deliveryContact = order.deliveryContact || '';
       deliveryPhone = order.deliveryPhone || '';
+      deliveryEmail = order.deliveryEmail || '';
+      isRd = order.isRd === true;
+      rdNotes = order.rdNotes || '';
+      deliveryPresetId = order.deliveryPresetId ?? null;
       profiles = order.profiles || [];
 
       // Load canvas snapshot if exists
@@ -322,6 +329,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
           clientName, title, deadline, loadingDate: loadingDate || null,
           notes, priority,
           deliveryAddress, deliveryContact, deliveryPhone,
+          deliveryEmail: deliveryEmail || null, isRd, rdNotes,
+          deliveryPresetId,
           profiles: profiles.map(p => ({
             profileTemplateId: p.profileTemplateId ?? p.profile_template_id ?? null,
             quantity: p.quantity ?? 1,
@@ -831,6 +840,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     <aside class="right-docker">
       <!-- Tab bar -->
       <div class="docker-tabs">
+        <button class="dtab" class:active={rightTab === 'details'} onclick={() => rightTab = 'details'}>
+          <Icon name="clipboard-list" size="sm" /> Details
+        </button>
         <button class="dtab" class:active={rightTab === 'layers'} onclick={() => rightTab = 'layers'}>
           <Icon name="layers" size="sm" /> Zones
         </button>
@@ -847,7 +859,54 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
       <!-- Tab content -->
       <div class="docker-content">
-        {#if rightTab === 'layers'}
+        {#if rightTab === 'details'}
+          <div class="order-field-panel">
+            <label>Client <input bind:value={clientName} disabled={!canEdit} maxlength="200" required /></label>
+            <label>Title <input bind:value={title} disabled={!canEdit} maxlength="200" /></label>
+            <label>Deadline <input type="date" bind:value={deadline} disabled={!canEdit} required /></label>
+            <label>Loading date <input type="date" bind:value={loadingDate} disabled={!canEdit} /></label>
+            <label>Priority
+              <select bind:value={priority} disabled={!canEdit}>
+                <option value="LOW">Low</option><option value="NORMAL">Normal</option>
+                <option value="HIGH">High</option><option value="URGENT">Urgent</option>
+              </select>
+            </label>
+            <label>Order notes <textarea bind:value={notes} rows="3" disabled={!canEdit}></textarea></label>
+            <label>Delivery address <textarea bind:value={deliveryAddress} rows="3" disabled={!canEdit}></textarea></label>
+            <label>Delivery contact <input bind:value={deliveryContact} disabled={!canEdit} /></label>
+            <label>Delivery phone <input bind:value={deliveryPhone} disabled={!canEdit} /></label>
+            <label>Delivery email <input type="email" bind:value={deliveryEmail} disabled={!canEdit} /></label>
+            <label class="checkbox-field">
+              <input type="checkbox" bind:checked={isRd} disabled={!canEdit} /> R&D order
+            </label>
+            {#if isRd}
+              <label>R&D notes <textarea bind:value={rdNotes} rows="3" disabled={!canEdit}></textarea></label>
+            {/if}
+            <h4>Production profiles ({profiles.length})</h4>
+            {#each profiles as profile, idx (profile.dbId ?? idx)}
+              <div class="order-profile-edit">
+                <strong>Profile {idx+1}</strong>
+                <label>Quantity
+                  <input type="number" min="1" max="1000" bind:value={profile.quantity} disabled={!canEdit} />
+                </label>
+                <label>Notes
+                  <textarea bind:value={profile.notes} rows="2" disabled={!canEdit}></textarea>
+                </label>
+                {#if canEdit}
+                  <button type="button" onclick={() => profiles = profiles.filter((_,i)=>i!==idx)}>Remove profile</button>
+                {/if}
+              </div>
+            {/each}
+            {#if canEdit}
+              <button type="button" onclick={() => profiles = [...profiles, {
+                quantity:1,configuration:{},notes:'',profileTemplateId:null
+              }]}>Add profile</button>
+              <button class="action-btn primary" onclick={saveDraft} disabled={saving}>
+                {saving ? 'Saving…' : 'Save all changes'}
+              </button>
+            {/if}
+          </div>
+        {:else if rightTab === 'layers'}
           <div class="zone-list">
             <p class="zone-intro">Production zones auto-spawned with this order.</p>
             {#each ['Laser (DXF)', 'CNC Routing', 'Bender', 'Visuals (PDF/Rasters)'] as zone}
@@ -978,6 +1037,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 {/if}
 
 <style>
+  .order-field-panel{display:grid;gap:12px;padding:13px;overflow-y:auto}
+  .order-field-panel>label,.order-profile-edit label{display:grid;gap:5px;font-size:12px}
+  .order-field-panel input:not([type="checkbox"]),.order-field-panel textarea,
+  .order-field-panel select{width:100%;box-sizing:border-box;background:var(--bg-1);
+    color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px;min-width:0}
+  .order-field-panel .checkbox-field{display:flex;gap:8px;align-items:center}
+  .order-field-panel h4{margin:8px 0 0}
+  .order-profile-edit{display:grid;gap:9px;padding:10px;border:1px solid var(--border);border-radius:8px}
+
   /* ── Layout ──────────────────────────────────────────────────────────────── */
   .canvas-editor {
     position: fixed;
