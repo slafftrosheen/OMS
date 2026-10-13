@@ -97,7 +97,7 @@ export function buildCreateChangeRequestArgs(orderId: string, input: { descripti
   if (!description) throw new Error('description is required');
   const proposedDiff = input.proposed_diff ?? input.changes ?? {};
   if (!proposedDiff || typeof proposedDiff !== 'object' || Array.isArray(proposedDiff)) throw new Error('proposed_diff must be an object');
-  const supported = new Set(['title', 'client', 'due_date', 'loading_date', 'priority', 'notes', 'is_rd', 'rd_notes', 'badges', 'status']);
+  const supported = new Set(['title', 'client', 'due_date', 'loading_date', 'priority', 'notes', 'is_rd', 'rd_notes', 'badges']);
   const unsupported = Object.keys(proposedDiff).filter((key) => !supported.has(key));
   if (unsupported.length) throw new Error(`Unsupported change field(s): ${unsupported.join(', ')}`);
   return { p_order_id: orderId, p_description: description, p_proposed_diff: proposedDiff as Record<string, unknown> };
