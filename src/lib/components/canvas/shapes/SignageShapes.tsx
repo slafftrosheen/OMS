@@ -100,7 +100,7 @@ function PlanCard<T extends BasePlanProps>(props: {
     return (
         <HTMLContainer id={shape.id} style={containerStyle(w, h, accent, status === 'error')}>
             <div style={headerStyle(accent)}>
-                <span>{icon} {title}</span>
+                <span>{icon} {title === 'LED strip plan' ? tn('signageStrip') : title === 'LED matrix' ? tn('signageMatrix') : title === 'Box letter' ? tn('signageLetter') : title}</span>
                 <span style={statusBadgeStyle(status)}>{tn(`status${status[0].toUpperCase()}${status.slice(1)}`)}</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', padding: 8, gap: 4 }} onPointerDown={stop}>
