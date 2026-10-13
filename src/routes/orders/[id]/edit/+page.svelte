@@ -6,7 +6,7 @@
    * The tldraw canvas fills the centre.
    */
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { goto, replaceState, beforeNavigate } from '$app/navigation';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
@@ -17,6 +17,10 @@
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
   import OrderReadinessAssistant from '$lib/order/OrderReadinessAssistant.svelte';
   import RevisionIntelligence from '$lib/order/RevisionIntelligence.svelte';
+  import {
+    WORKSPACE_GROUPS,sectionFromQuery,workspaceGroup,sectionsForGroup,
+    type WorkspaceSection
+  } from '$lib/order/workspace-navigation';
 import { notifications } from '$lib/notify/store';
 import { can, normaliseStatus, ORDER_STATUS_LABELS } from '$lib/auth/permission-utils';
 import type { OrderStatus } from '$lib/auth/permission-utils';
@@ -102,7 +106,61 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let saving = $state(false);
   let confirming = $state(false);
   let error = $state('');
-  let rightTab: 'layers' | 'changes' | 'chat' | 'files' | 'details' | 'intake' | 'readiness' | 'revisions' = $state('details');
+  let savedFormFingerprint: string | null = $state(null);
+  let attachedFilesCount = $state<number | null>(null);
+  let filesCountError = $state(false);
+  let focusPanel = $state(true);
+  let unsavedWarningEnabled = $state(false);
+
+  function formFingerprint():string {
+    return JSON.stringify({
+      clientName,title,deadline,loadingDate,priority,notes,
+      deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail,
+      deliveryPresetId,isRd,rdNotes,
+      profiles:profiles.map(p=>({
+        profileTemplateId:p.profileTemplateId??p.profile_template_id??null,
+        quantity:p.quantity??1,quantity2:p.quantity2??0,
+        quantity3:p.quantity3??0,quantity4:p.quantity4??0,
+        configuration:p.configuration??{},notes:p.notes??''
+      }))
+    });
+  }
+  let formDirty = $derived(savedFormFingerprint !== null &&
+    formFingerprint() !== savedFormFingerprint);
+  let hasUnsavedChanges = $derived(formDirty || canvasDirty);
+  let activeGroup = $derived(workspaceGroup(rightTab));
+  let pendingReviewCount = $derived(changeRequests.filter(
+    cr=>cr.status==='pending'||cr.status==='open').length);
+  function openWorkspaceSection(section:WorkspaceSection) {
+    rightTab=section;
+    focusPanel=section!=='layers';
+    if(typeof window!=='undefined'){
+      const url=new URL(window.location.href);
+      url.searchParams.set('section',section);
+      replaceState(url.pathname+url.search,{});
+    }
+  }
+  async function refreshFileCount() {
+    if(!orderId)return;
+    const id=orderId;
+    try {
+      const response=await fetch(`/api/files?orderId=${encodeURIComponent(id)}&limit=100`,
+        {cache:'no-store'});
+      if(!response.ok)throw new Error('Order files unavailable');
+      const result=await response.json();
+      if(orderId===id){
+        attachedFilesCount=Array.isArray(result)?result.length:0;
+        filesCountError=false;
+      }
+    }catch{
+      if(orderId===id){attachedFilesCount=null;filesCountError=true;}
+    }
+  }
+  beforeNavigate(({cancel}) => {
+    if(unsavedWarningEnabled && hasUnsavedChanges &&
+      !window.confirm($t('orderWorkspace.leaveWarning'))) cancel();
+  });
+  let rightTab: WorkspaceSection = $state('details');
   let intakeFileId = $state('');
   let intakeCurrent = $derived({
     clientName,title,deadline,loadingDate,priority,notes,
@@ -127,7 +185,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     if(typeof patch.rdNotes==='string') rdNotes=patch.rdNotes;
     canvasDirty=true;
     notifySuccess('Approved fields applied locally. Review them and click Save Draft.');
-    rightTab='details';
+    openWorkspaceSection('details');
   }
   let activeTool = $state('select');
   let aiPrompt = $state('');
@@ -170,10 +228,14 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
   // ── Load order ────────────────────────────────────────────────────────────────
   onMount(async () => {
+    const initial=sectionFromQuery(new URLSearchParams(window.location.search).get('section'));
+    rightTab=initial;
+    focusPanel=initial!=='layers';
     await loadOrder();
     void loadProfileChoices();
-    canvasLoaded = true;
-    await loadChangeRequests();
+    canvasLoaded=true;
+    await Promise.all([loadChangeRequests(),refreshFileCount()]);
+    unsavedWarningEnabled=true;
   });
 
   async function loadOrder() {
@@ -203,6 +265,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       rdNotes = order.rdNotes || '';
       deliveryPresetId = order.deliveryPresetId ?? null;
       profiles = order.profiles || [];
+      savedFormFingerprint=formFingerprint();
 
       // Load canvas snapshot if exists
       const csRes = await fetch(`/api/draft-orders/${data.id}/canvas-state`);
@@ -410,6 +473,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       }
 
       canvasDirty = false;
+      savedFormFingerprint=formFingerprint();
       notifySuccess('Draft saved');
       return true;
     } catch (err: any) {
@@ -640,7 +704,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     // Never auto-overwrite fields from a PDF model response. The staff member
     // selects proposals in the dedicated review tab.
     intakeFileId=pdfMenu.fileId;
-    rightTab='intake';
+    openWorkspaceSection('intake');
     closePdfMenu();
   }
 
