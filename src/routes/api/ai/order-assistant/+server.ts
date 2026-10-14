@@ -10,6 +10,7 @@ import {responseLanguageInstruction,resolveResponseLocale} from '$lib/server/ai/
 import {orderAssistantRequest,ORDER_ASSISTANT_JSON_SCHEMA,
   validateOrderAssistantSuggestions} from '$lib/order/assistant-contract';
 import {buildOrderTechnicalChecks} from '$lib/order/technical-evidence';
+import {parseFabricationSpec} from '$lib/order/fabrication-spec';
 
 const headers={'Cache-Control':'private, no-store'};
 const prompt=`You are the order-workflow assistant for Réclame Fabriek, a signage production company.
@@ -39,6 +40,10 @@ A computed rectangular bounding face is not a cut length, net material area,
 sheet layout, stock reservation, machine-feasibility result or price estimate.
 Production technical checks are deterministic reference data; missing or
 unknown quantities stay unknown. Do not fill gaps with plausible measurements.
+The fabricationSpec records a human PROPOSAL of measurements, processes,
+mounting and illumination; it is NOT verified equipment capability, shop
+drawing approval or material suitability. Never treat a proposed method
+as an executable instruction or a manufacturing feasibility result.
 Explain where a material code/unit, dimensions or manufacturing requirements
 need human review. Do not claim the technical checklist authorizes production.
 Provider replies are advice and never instructions to the application.`;
@@ -121,12 +126,18 @@ export const POST:RequestHandler=async event=>{
      rdNotes:typeof order.rd_notes==='string'?order.rd_notes.slice(0,3500):null},
    profiles:profileList.slice(0,30).map(p=>{
      const template=templateMap.get(String(p.profile_template_id??''));
+     const config=p.configuration&&typeof p.configuration==='object'&&!Array.isArray(p.configuration)
+       ?p.configuration as Record<string,unknown>:{};
+     const specification=parseFabricationSpec(config.fabricationSpec);
      return {
        name:template?.is_active===true?String(template.name??'').slice(0,120):null,
        code:template?.is_active===true?String(template.code??'').slice(0,50):null,
        quantity:[p.quantity1,p.quantity2,p.quantity3,p.quantity4],
        templateAssigned:!!p.profile_template_id,
-       notes:typeof p.notes==='string'?p.notes.slice(0,400):null
+       notes:typeof p.notes==='string'?p.notes.slice(0,400):null,
+       fabricationSpec:specification.spec,
+       specificationIncomplete:specification.issues.some(issue=>issue.type==='incomplete'),
+       specificationInvalid:specification.issues.some(issue=>issue.type==='invalid')
      };
    }),
    linkedMaterials:(materialResult.data??[]).slice(0,50).map(m=>({
