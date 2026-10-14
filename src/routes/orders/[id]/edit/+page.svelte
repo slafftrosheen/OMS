@@ -17,6 +17,7 @@
   import ChangeRequestList from '$lib/order/ChangeRequestList.svelte';
   import OrderFiles from '$lib/order/OrderFiles.svelte';
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
+  import OrderFlowAssistant from '$lib/order/OrderFlowAssistant.svelte';
   import OrderReadinessAssistant from '$lib/order/OrderReadinessAssistant.svelte';
   import RevisionIntelligence from '$lib/order/RevisionIntelligence.svelte';
   import {
@@ -1167,48 +1168,12 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
               (isAdmin && ['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status))} />
           {:else}<p class="zone-intro">Loading attachments…</p>{/if}
         {:else if rightTab === 'chat'}
-          <!-- Phase 8: AI Chat panel -->
-          <div class="ai-panel">
-            <label class="ai-ctx-toggle">
-              <input type="checkbox" bind:checked={useSelectionCtx} />
-              <span>Use selected shapes as context</span>
-            </label>
-
-            <div class="ai-chat-history">
-              {#if aiResponse}
-                <div class="ai-message">
-                  <div class="ai-label">Assistant</div>
-                  <p>{aiResponse}</p>
-                </div>
-              {:else}
-                <div class="ai-empty">
-                  <Icon name="bot" size="sm" />
-                  <p>Ask about materials, dimensions, or let the AI clean up your sketches.</p>
-                </div>
-              {/if}
-            </div>
-
-            <div class="ai-input-row">
-              <textarea
-                bind:value={aiPrompt}
-                placeholder="Ask the AI assistant…"
-                rows={3}
-                onkeydown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    runAiPrompt();
-                  }
-                }}
-              ></textarea>
-              <button class="ai-send-btn" onclick={runAiPrompt} disabled={aiRunning || !aiPrompt.trim()}>
-                {#if aiRunning}
-                  <div class="spinner sm"></div>
-                {:else}
-                  <Icon name="send" size="sm" />
-                {/if}
-              </button>
-            </div>
-          </div>
+          {#if orderId}
+            <OrderFlowAssistant {orderId} {orderUpdatedAt} editable={canEdit}
+              canAsk={canEdit||(isAdmin&&['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status))}
+              current={intakeCurrent} dirty={hasUnsavedChanges}
+              onApply={applyIntakeFields}/>
+          {/if}
         {/if}
       </div>
     </aside>
