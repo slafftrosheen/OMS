@@ -13,17 +13,28 @@ export const GET:RequestHandler=async ({locals,url})=>{
  const cutoff=new Date(now.getTime()-days*86400000).toISOString();
  const db=locals.supabase;
  const orders=new Map<string,PerformanceOrder>();
+ let activeTotal:number|null=null;
  // Active work needs full current-stage coverage, not just the last 30 days.
  for(let offset=0;;offset+=PAGE){
-   const {data,error:dbError}=await db.from('draft_orders')
-     .select('id,po_number,title,client,due_date,status')
+   const {data,count,error:dbError}=await db.from('draft_orders')
+     .select('id,po_number,title,client,due_date,status',{count:'exact'})
      .in('status',STATUSES).order('id',{ascending:true})
      .range(offset,offset+PAGE-1);
-   if(dbError)throw error(503,'Active production order lookup failed');
-   for(const order of data??[])orders.set(order.id,order);
-   if(orders.size>MAX)throw error(503,'Production performance exceeds active order limit');
-   if((data??[]).length<PAGE)break;
+   if(dbError||count===null)throw error(503,'Active production order lookup failed');
+   if(count>MAX||(activeTotal!==null&&activeTotal!==count))
+     throw error(503,'Active production snapshot changed or exceeded limit');
+   activeTotal=count;
+   if(!(data?.length)&&orders.size<count)
+     throw error(503,'Active production order snapshot truncated');
+   for(const order of data??[]){
+     if(orders.has(order.id))throw error(503,'Repeated active order in performance snapshot');
+     orders.set(order.id,order);
+   }
+   if(orders.size>=count)break;
+   if((data??[]).length<PAGE)
+     throw error(503,'Active production order snapshot truncated');
  }
+ if(orders.size!==activeTotal)throw error(503,'Active order snapshot incomplete');
  const stages=new Map<string,PerformanceStage>();
  const activeIds=[...orders.keys()];
  for(let i=0;i<activeIds.length;i+=CHUNK){
@@ -43,21 +54,29 @@ export const GET:RequestHandler=async ({locals,url})=>{
  // subsequently dispatched or archived, as long as the signed-in viewer
  // can still read their draft_orders row.
  const completed=new Map<string,PerformanceStage>();
+ let completedTotal:number|null=null;
  for(let offset=0;;offset+=PAGE){
-   const {data,error:stageError}=await db.from('order_stages')
-     .select('draft_order_id,station,state,estimated_hours,actual_hours,started_at,completed_at,blocked_reason')
+   const {data,count,error:stageError}=await db.from('order_stages')
+     .select('draft_order_id,station,state,estimated_hours,actual_hours,started_at,completed_at,blocked_reason',{count:'exact'})
      .eq('state','COMPLETED').gte('completed_at',cutoff).lte('completed_at',asOf)
      .order('draft_order_id',{ascending:true}).order('station',{ascending:true})
      .range(offset,offset+PAGE-1);
-   if(stageError)throw error(503,'Recently completed stages unavailable');
+   if(stageError||count===null)throw error(503,'Recently completed stages unavailable');
+   if(count>MAX||(completedTotal!==null&&completedTotal!==count))
+     throw error(503,'Completed stage snapshot changed or exceeded limit');
+   completedTotal=count;
+   if(!(data?.length)&&completed.size<count)
+     throw error(503,'Completed stage snapshot truncated');
    for(const stage of data??[]){
      const key=`${stage.draft_order_id}:${stage.station}`;
      if(completed.has(key))throw error(503,'Repeated completed stage; retry snapshot');
      completed.set(key,stage);
    }
-   if(completed.size>MAX)throw error(503,'Completed stage history exceeds supported bound');
-   if((data??[]).length<PAGE)break;
+   if(completed.size>=count)break;
+   if((data??[]).length<PAGE)
+     throw error(503,'Recently completed stage snapshot truncated');
  }
+ if(completed.size!==completedTotal)throw error(503,'Completed stage snapshot incomplete');
  const historicalIds=[...new Set([...completed.values()].map(s=>s.draft_order_id))]
    .filter(id=>!orders.has(id));
  for(let i=0;i<historicalIds.length;i+=CHUNK){
