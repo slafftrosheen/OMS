@@ -1415,6 +1415,7 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "orderWorkspace": {
+    "staleSave": "This order changed in another session. Your edits were not saved. Copy any unsaved work, reload, review the current version and retry.",
     "approveReview": "Approve review",
     "rejectReview": "Reject review",
     "reviewDecisionWarning": "Record this review decision? It will not automatically apply order changes.",

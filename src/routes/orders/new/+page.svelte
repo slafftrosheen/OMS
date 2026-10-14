@@ -19,6 +19,7 @@
   let successMessage = $state('');
   // Keep a newly created order available for safe attachment retry after partial failure.
   let savedOrderId: string | null = $state(null);
+  let savedOrderUpdatedAt: string | null = $state(null);
   let uploadedFileKeys = $state<Set<string>>(new Set());
   
   // Order Details
@@ -631,16 +632,19 @@
           return;
         }
         savedOrderId = String(orderId);
+        savedOrderUpdatedAt = orderResult.order?.updated_at ?? orderResult.order?.updatedAt ?? null;
       } else {
         const updated = await fetch(`/api/draft-orders/${orderId}`, {
           method:'PUT',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify(orderData)
+          body:JSON.stringify({...orderData,expectedUpdatedAt:savedOrderUpdatedAt})
         });
         if (!updated.ok) {
           const detail = await updated.json().catch(() => ({}));
-          error = detail.error || 'Draft changes were not saved before retrying file uploads';
+          error = (updated.status === 409 || updated.status === 428) ? $t('orderWorkspace.staleSave') :
+            (detail.error || 'Draft changes were not saved before retrying file uploads');
           return;
         }
+        savedOrderUpdatedAt = (await updated.json()).updatedAt ?? null;
       }
 
       const failedUploads: string[] = [];
@@ -677,6 +681,7 @@
         return;
       }
       savedOrderId = null;
+      savedOrderUpdatedAt = null;
       successMessage = $t('orders.new.messages.success');
       setTimeout(() => goto(`/orders`), 1500);
     } catch (err) {

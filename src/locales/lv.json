@@ -1415,6 +1415,7 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "orderWorkspace": {
+    "staleSave": "Pasūtījums ir mainīts citā sesijā. Labojumi nav saglabāti. Nokopējiet nesaglabātos datus, pārlādējiet lapu, pārbaudiet pašreizējo versiju un mēģiniet vēlreiz.",
     "approveReview": "Apstiprināt pārskatīšanu",
     "rejectReview": "Noraidīt",
     "reviewDecisionWarning": "Reģistrēt pārskatīšanas lēmumu? Pasūtījuma dati automātiski netiks mainīti.",

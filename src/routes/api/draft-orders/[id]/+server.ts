@@ -1,6 +1,7 @@
 // src/routes/api/draft-orders/[id]/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { splitVersionedOrderPayload } from '$lib/server/order/edit-version';
 import { orderFields, canonicalDraftFields, canonicalOrderProfiles,
   canEditDraft, canEditConfirmedMetadata, DRAFT_EDIT_STATUSES
 } from '$lib/server/order/draft-contract';
@@ -106,7 +107,9 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
       ['poNumber','po_number','status','newFileIds','created_by','createdBy'].some(k => k in raw)) {
     throw error(400, 'Use the dedicated order lifecycle endpoints and file uploads');
   }
-  const parsed = orderFields.safeParse(raw);
+  const versioned = splitVersionedOrderPayload(raw);
+  if (!versioned) throw error(428, 'Reload this order before saving: revision required');
+  const parsed = orderFields.safeParse(versioned.form);
   if (!parsed.success) return json({ error: 'Invalid order form', fields: parsed.error.flatten().fieldErrors }, { status: 400 });
   const { data: order, error: lookupError } = await locals.supabase.from('draft_orders')
     .select('id,created_by,status').eq('id', params.id).maybeSingle();
@@ -118,12 +121,13 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
   const fields = canonicalDraftFields(parsed.data, false);
   const { data: updated, error: updateError } = await locals.supabase.rpc('oms_update_draft_form', {
     p_order_id: order.id, p_fields: fields,
-    p_profiles: parsed.data.profiles === undefined ? null : canonicalOrderProfiles(parsed.data.profiles)
+    p_profiles: parsed.data.profiles === undefined ? null : canonicalOrderProfiles(parsed.data.profiles),
+    p_expected_updated_at: versioned.expectedUpdatedAt
   });
   if (updateError || !updated) {
     if (updateError?.code === 'PGRST202') throw error(503, 'Atomic draft-form migration is not deployed');
     console.error('[Orders] Atomic draft form update failed', updateError?.code);
-    throw error(409, 'Order was not saved. Refresh and verify current status and profiles.');
+    throw error(409, 'Order was changed in another session. Reload before saving.');
   }
   return json({
     id: updated.id, poNumber: updated.po_number, client: updated.client,
@@ -146,7 +150,9 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
       ['poNumber','po_number','status','profiles','newFileIds','created_by','createdBy'].some(k => k in raw)) {
     throw error(400, 'Use dedicated lifecycle and file endpoints');
   }
-  const parsed = orderFields.safeParse(raw);
+  const versioned = splitVersionedOrderPayload(raw);
+  if (!versioned) throw error(428, 'Reload this order before saving: revision required');
+  const parsed = orderFields.safeParse(versioned.form);
   if (!parsed.success) return json({ error: 'Invalid order form', fields: parsed.error.flatten().fieldErrors }, { status: 400 });
   const { data: order, error: lookupError } = await locals.supabase.from('draft_orders')
     .select('id,created_by,status').eq('id', params.id).maybeSingle();
@@ -155,7 +161,8 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
   if (DRAFT_EDIT_STATUSES.has(order.status)) {
     if (!canEditDraft(user.role,order.created_by,user.id,order.status)) throw error(403, 'Draft editor role required');
     const { data: updated, error: failed } = await locals.supabase.rpc('oms_update_draft_form', {
-      p_order_id: order.id, p_fields: canonicalDraftFields(parsed.data,false), p_profiles: null
+      p_order_id: order.id, p_fields: canonicalDraftFields(parsed.data,false), p_profiles: null,
+      p_expected_updated_at: versioned.expectedUpdatedAt
     });
     if (failed || !updated) throw error(failed?.code === 'PGRST202' ? 503 : 409, 'Draft update unavailable');
     return json(updated, { headers: { 'Cache-Control': 'private, no-store' } });
@@ -171,10 +178,11 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
   }
   if (!Object.keys(allowed).length) throw error(400,'No permitted fields supplied');
   const { data: updated, error: failed } = await locals.supabase.from('draft_orders')
-    .update({ ...allowed, updated_by: user.id })
-    .eq('id',order.id).eq('status',order.status).select().maybeSingle();
+    .update({ ...allowed, updated_by: user.id, updated_at: new Date().toISOString() })
+    .eq('id',order.id).eq('status',order.status)
+    .eq('updated_at',versioned.expectedUpdatedAt).select().maybeSingle();
   if (failed) throw error(503,'Order metadata update unavailable');
-  if (!updated) throw error(409,'Order status changed. Reload first.');
+  if (!updated) throw error(409,'Order changed since it was opened. Reload first.');
   return json(updated, { headers: { 'Cache-Control': 'private, no-store' } });
 };
 

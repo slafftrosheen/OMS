@@ -481,6 +481,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientName, title, deadline, loadingDate: loadingDate || null,
+          expectedUpdatedAt: orderUpdatedAt,
           notes, priority,
           deliveryAddress, deliveryContact, deliveryPhone,
           deliveryEmail: deliveryEmail || null, isRd, rdNotes,
@@ -496,6 +497,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
+        if (res.status === 409 || res.status === 428) throw new Error($t('orderWorkspace.staleSave'));
         throw new Error(payload.error || payload.message || 'Save failed');
       }
       const persisted = await res.json();
