@@ -59,10 +59,13 @@ export const POST:RequestHandler=async event=>{
  if(input.expectedUpdatedAt&&order.updated_at!==input.expectedUpdatedAt)
    throw error(409,'Order changed since the assistant was opened. Reload the order.');
  // Only saved, authorized rows; no arbitrary client-provided profile/file IDs.
- const [profileResult,stageResult,fileResult,prefResult]=await Promise.all([
+ const [profileResult,materialResult,stageResult,fileResult,prefResult]=await Promise.all([
    locals.supabase.from('order_profiles')
      .select('profile_template_id,quantity1,quantity2,quantity3,quantity4,notes')
-     .eq('draft_order_id',order.id).limit(101),
+     .eq('draft_order_id',order.id).order('order_index').limit(101),
+   locals.supabase.from('order_materials')
+     .select('material_type,quantity,unit')
+     .eq('draft_order_id',order.id).order('display_order').limit(101),
    locals.supabase.from('order_stages')
      .select('station,state,estimated_hours,actual_hours,blocked_reason')
      .eq('draft_order_id',order.id).limit(25),
@@ -70,10 +73,21 @@ export const POST:RequestHandler=async event=>{
      .eq('draft_order_id',order.id),
    locals.supabase.from('user_preferences').select('locale').eq('user_id',user.id).maybeSingle()
  ]);
- if(profileResult.error||stageResult.error||fileResult.error||prefResult.error)
+ if(profileResult.error||materialResult.error||stageResult.error||
+    fileResult.error||prefResult.error)
    throw error(503,'Order assistant context could not be verified');
- if((profileResult.data??[]).length>100||(stageResult.data??[]).length>24||
-   fileResult.count===null)throw error(503,'Order context exceeds the verified limit');
+ if((profileResult.data??[]).length>100||(materialResult.data??[]).length>100||
+   (stageResult.data??[]).length>24||fileResult.count===null)
+   throw error(503,'Order context exceeds the verified limit');
+ const profileList=profileResult.data??[];
+ const templateIds=[...new Set(profileList.map(p=>p.profile_template_id)
+   .filter((id):id is string=>typeof id==='string'))];
+ const {data:templates,error:templateError}=templateIds.length
+   ?await locals.supabase.from('profile_templates')
+      .select('id,name,code,is_active').in('id',templateIds)
+   :{data:[],error:null};
+ if(templateError)throw error(503,'Order profile metadata is unavailable');
+ const templateMap=new Map((templates??[]).map(t=>[t.id,t]));
  const locale=resolveResponseLocale(input.language,prefResult.data?.locale,
    request.headers.get('accept-language'));
  const model=(process.env.OPENROUTER_ORDER_ASSISTANT_MODEL||process.env.OPENROUTER_ORDER_INTAKE_MODEL||OPENROUTER_MODEL).trim();
@@ -91,17 +105,28 @@ export const POST:RequestHandler=async event=>{
        ?order.metadata.delivery_email:null,
      isRd:order.is_rd??false,
      rdNotes:typeof order.rd_notes==='string'?order.rd_notes.slice(0,3500):null},
-   profiles:(profileResult.data??[]).map(p=>({
-     quantity:[p.quantity1,p.quantity2,p.quantity3,p.quantity4],
-     templateAssigned:!!p.profile_template_id,
-     notes:typeof p.notes==='string'?p.notes.slice(0,400):null
+   profiles:profileList.slice(0,30).map(p=>{
+     const template=templateMap.get(String(p.profile_template_id??''));
+     return {
+       name:template?.is_active===true?String(template.name??'').slice(0,120):null,
+       code:template?.is_active===true?String(template.code??'').slice(0,50):null,
+       quantity:[p.quantity1,p.quantity2,p.quantity3,p.quantity4],
+       templateAssigned:!!p.profile_template_id,
+       notes:typeof p.notes==='string'?p.notes.slice(0,400):null
+     };
+   }),
+   linkedMaterials:(materialResult.data??[]).slice(0,50).map(m=>({
+     type:typeof m.material_type==='string'?m.material_type.slice(0,120):null,
+     quantity:m.quantity,unit:m.unit
    })),
    stages:(stageResult.data??[]).map(s=>({
      station:s.station,state:s.state,estimatedHours:s.estimated_hours,
      actualHours:s.actual_hours,blockedReason:s.blocked_reason
    })),
    linkedFileCount:fileResult.count,
-   fileContentsProvided:false
+   truncated:{profiles:profileList.length>30,materials:(materialResult.data??[]).length>50},
+   fileContentsProvided:false,
+   inventoryAvailabilityVerified:false
  };
  const system=prompt+'\n'+responseLanguageInstruction(locale)+
    (input.mode==='propose'
