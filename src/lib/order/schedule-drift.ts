@@ -61,6 +61,10 @@ export function reconcileProductionSchedule(
   if(!stage)continue;
   if(stage.estimatedHours!==null && booked>stage.estimatedHours+0.001)
     append('estimateExceeded',stage.station,stage.id,null,booked-stage.estimatedHours,'critical');
+ }
+ // Actual working hours are observational. They are not deducted from
+ // forecast demand, but an overrun must still be visible without reservations.
+ for(const stage of byStage.values()){
   if(stage.actualHours!==null && stage.estimatedHours!==null &&
      stage.actualHours>stage.estimatedHours+0.001)
     append('actualOverEstimate',stage.station,stage.id,null,
