@@ -68,7 +68,7 @@
       due: order.due || '',
       loadingDate: order.loadingDate || '',
       badges: Array.isArray(order.badges) ? order.badges : [],
-      href: `${base}/orders/${encodeURIComponent(order.id || 'unknown')}`,
+      href: order.id ? `${base}/orders/${encodeURIComponent(order.id)}` : `${base}/orders/unknown`,
       isDraft: order.isDraft || false,
       expanded: false
     };
@@ -395,7 +395,7 @@
                   <a href={row.href} class="action-icon" title={$t('ordersList.view_order')}>
                     <Icon name="eye" size="sm" />
                   </a>
-                  {#if isAdmin}
+                  {#if isAdmin && row.id && row.id !== 'N/A'}
                     <a href="{base}/orders/{row.id}/edit" class="action-icon" title={$t('ordersList.edit_order')}>
                       <Icon name="edit" size="sm" />
                     </a>

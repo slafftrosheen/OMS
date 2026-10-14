@@ -18,105 +18,103 @@ export class CalendarService {
     constructor(private supabase: SupabaseClient) {}
 
     /**
-     * Generate iCal feed for user's orders
-     */
-    async generateOrderCalendar(userId: string, includeCompleted: boolean = false): Promise<string> {
-        // Fetch user's orders
-        const query = this.supabase
-            .from('orders')
-            .select('id, title, client, description, due_date, status, stages, created_at')
-            .or(`created_by.eq.${userId},assigned_to.cs.{${userId}}`);
+         * Generate iCal feed for user's orders
+         */
+        async generateOrderCalendar(userId: string, includeCompleted: boolean = false): Promise<string> {
+            // Fetch user's orders from ordersummary (has stages, computed_status, progress_percentage)
+            const query = this.supabase
+                .from('ordersummary')
+                .select('id, title, client, due_date, status, stages, created_at, computed_status, progress_percentage')
+                .or(`created_by.eq.${userId},assignees.cs.[{"assignee_id":"${userId}"}]`);
 
-        if (!includeCompleted) {
-            query.neq('status', 'COMPLETED');
-        }
-
-        const { data: orders, error } = await query;
-
-        if (error || !orders) {
-            logger.error('Failed to fetch orders for calendar', error);
-            throw new Error('Could not generate calendar');
-        }
-
-        const calendar = ical({
-            name: 'OMS Orders Calendar',
-            description: 'Order Management System - Order Due Dates',
-            timezone: 'UTC',
-            prodId: '//reclamefabriek.lv//OMS//EN'
-        });
-
-        orders.forEach(order => {
-            const dueDate = new Date(order.due_date);
-            const stages = order.stages as Record<string, string>;
-            const completedStages = Object.values(stages).filter(s => s === 'COMPLETED').length;
-            const totalStages = Object.keys(stages).length;
-            const progress = Math.round((completedStages / totalStages) * 100);
-
-            calendar.createEvent({
-                id: order.id,
-                start: dueDate,
-                end: new Date(dueDate.getTime() + 60 * 60 * 1000), // 1 hour duration
-                summary: `${order.title} - ${order.client}`,
-                description: `${order.description || 'No description'}\n\nProgress: ${progress}%\nStatus: ${order.status}`,
-                url: `${process.env.BASE_URL}/orders/${order.id}`,
-                status: this.mapOrderStatusToCalendar(order.status),
-                categories: [{ name: order.status }, { name: `Progress: ${progress}%` }]
-            });
-        });
-
-        return calendar.toString();
-    }
-
-    /**
-     * Generate iCal feed for station-specific deadlines
-     */
-    async generateStationCalendar(station: string): Promise<string> {
-        const { data: orders, error } = await this.supabase
-            .from('orders')
-            .select('id, title, client, due_date, stages, status')
-            .neq('status', 'COMPLETED')
-            .neq('status', 'CANCELLED');
-
-        if (error || !orders) {
-            throw new Error('Could not generate station calendar');
-        }
-
-        const calendar = ical({
-            name: `OMS ${station} Station Calendar`,
-            description: `Orders requiring ${station} processing`,
-            timezone: 'UTC'
-        });
-
-        orders.forEach(order => {
-            const stages = order.stages as Record<string, string>;
-            const stageStatus = stages[station];
-
-            // Only include if this station needs to process it
-            if (!stageStatus || stageStatus === 'COMPLETED' || stageStatus === 'SKIPPED') {
-                return;
+            if (!includeCompleted) {
+                query.neq('status', 'COMPLETED');
             }
 
-            const dueDate = new Date(order.due_date);
-            // Estimate station deadline (subtract 1 day per remaining stage)
-            const remainingStages = Object.values(stages).filter(s => 
-                s === 'NOT_STARTED' || s === 'IN_PROGRESS'
-            ).length;
-            const stationDeadline = new Date(dueDate.getTime() - remainingStages * 24 * 60 * 60 * 1000);
+            const { data: orders, error } = await query;
 
-            calendar.createEvent({
-                id: `${order.id}-${station}`,
-                start: stationDeadline,
-                end: new Date(stationDeadline.getTime() + 8 * 60 * 60 * 1000), // 8 hour work day
-                summary: `[${station}] ${order.title} - ${order.client}`,
-                description: `Process order at ${station} station\nStage Status: ${stageStatus}\nFinal Due Date: ${dueDate.toLocaleDateString()}`,
-                url: `${process.env.BASE_URL}/orders/${order.id}`,
-                status: stageStatus === 'IN_PROGRESS' ? ICalEventStatus.CONFIRMED : ICalEventStatus.TENTATIVE,
-                categories: [{ name: station }, { name: stageStatus }]
+            if (error || !orders) {
+                logger.error('Failed to fetch orders for calendar', error);
+                throw new Error('Could not generate calendar');
+            }
+
+            const calendar = ical({
+                name: 'OMS Orders Calendar',
+                description: 'Order Management System - Order Due Dates',
+                timezone: 'UTC',
+                prodId: '//reclamefabriek.lv//OMS//EN'
             });
-        });
 
-        return calendar.toString();
-    }
+            orders.forEach(order => {
+                const dueDate = new Date(order.due_date);
+                const progress = order.progress_percentage ?? 0;
+                const status = order.computed_status ?? order.status;
+
+                calendar.createEvent({
+                    id: order.id,
+                    start: dueDate,
+                    end: new Date(dueDate.getTime() + 60 * 60 * 1000), // 1 hour duration
+                    summary: `${order.title} - ${order.client}`,
+                    description: `Progress: ${progress}%\\nStatus: ${status}`,
+                    url: `${process.env.BASE_URL}/orders/${order.id}`,
+                    status: this.mapOrderStatusToCalendar(status),
+                    categories: [{ name: status }, { name: `Progress: ${progress}%` }]
+                });
+            });
+
+            return calendar.toString();
+        }
+
+    /**
+         * Generate iCal feed for station-specific deadlines
+         */
+        async generateStationCalendar(station: string): Promise<string> {
+            const { data: orders, error } = await this.supabase
+                .from('ordersummary')
+                .select('id, title, client, due_date, stages, status, computed_status')
+                .neq('status', 'COMPLETED')
+                .neq('status', 'CANCELLED');
+
+            if (error || !orders) {
+                throw new Error('Could not generate station calendar');
+            }
+
+            const calendar = ical({
+                name: `OMS ${station} Station Calendar`,
+                description: `Orders requiring ${station} processing`,
+                timezone: 'UTC'
+            });
+
+            orders.forEach(order => {
+                const stages = order.stages as Record<string, string>;
+                const stageStatus = stages[station];
+
+                // Only include if this station needs to process it
+                if (!stageStatus || stageStatus === 'COMPLETED' || stageStatus === 'SKIPPED') {
+                    return;
+                }
+
+                const dueDate = new Date(order.due_date);
+                // Estimate station deadline (subtract 1 day per remaining stage)
+                const remainingStages = Object.values(stages).filter(s => 
+                    s === 'NOT_STARTED' || s === 'IN_PROGRESS'
+                ).length;
+                const stationDeadline = new Date(dueDate.getTime() - remainingStages * 24 * 60 * 60 * 1000);
+
+                calendar.createEvent({
+                    id: `${order.id}-${station}`,
+                    start: stationDeadline,
+                    end: new Date(stationDeadline.getTime() + 8 * 60 * 60 * 1000), // 8 hour work day
+                    summary: `[${station}] ${order.title} - ${order.client}`,
+                    description: `Process order at ${station} station\\nStage Status: ${stageStatus}\\nFinal Due Date: ${dueDate.toLocaleDateString()}`,
+                    url: `${process.env.BASE_URL}/orders/${order.id}`,
+                    status: stageStatus === 'IN_PROGRESS' ? ICalEventStatus.CONFIRMED : ICalEventStatus.TENTATIVE,
+                    categories: [{ name: station }, { name: stageStatus }]
+                });
+            });
+
+            return calendar.toString();
+        }
 
     /**
      * Generate calendar for all loading days (delivery schedule)
