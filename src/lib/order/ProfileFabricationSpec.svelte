@@ -16,6 +16,7 @@
    method:FABRICATION_METHODS,illumination:ILLUMINATION,
    mounting:MOUNTING,exposure:EXPOSURE
  } as const;
+ const choiceFields:(keyof typeof options)[]=['method','illumination','mounting','exposure'];
  const descriptions=['material_note','finish_note','installation_note'] as const;
  function change(key:keyof FabricationSpec,next:string){
    localError='';
@@ -46,12 +47,12 @@
    </p>
  {/if}
  <div class="choices">
-   {#each Object.keys(options) as field}
+   {#each choiceFields as field}
      <label class="spec-field">
        <span>{$t(`fabricationSpec.field.${field}`)}</span>
-       <select value={String(spec[field as keyof typeof options]??'unspecified')}
-         onchange={event=>change(field as keyof FabricationSpec,event.currentTarget.value)}>
-         {#each options[field as keyof typeof options] as choice}
+       <select value={String(spec[field]??'unspecified')}
+         onchange={event=>change(field,event.currentTarget.value)}>
+         {#each options[field] as choice}
            <option value={choice}>{$t(`fabricationSpec.choice.${field}.${choice}`)}</option>
          {/each}
        </select>

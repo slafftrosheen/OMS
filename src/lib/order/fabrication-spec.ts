@@ -77,6 +77,8 @@ export function updateFabricationSpec(
  current:unknown,key:keyof FabricationSpec,value:string
 ):FabricationSpec{
  const parsed=parseFabricationSpec(current);
+ if(parsed.issues.some(i=>i.type==='invalid'))
+   throw new Error('Correct the invalid specification or clear it first');
  const old=parsed.spec??{version:1 as const};
  const next={...old} as Record<string,unknown>;
  if(key==='version')return old;

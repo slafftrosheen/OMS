@@ -75,6 +75,7 @@ describe('OMS-R30 versioned fabrication specifications',()=>{
    expect(()=>updateFabricationSpec(complete,'width_mm','-20')).toThrow();
    expect(()=>updateFabricationSpec(complete,'thickness_mm','0')).toThrow();
    expect(()=>updateFabricationSpec(complete,'method','unverified')).toThrow();
+   expect(()=>updateFabricationSpec({version:1,width_mm:-10},'height_mm','500')).toThrow();
    expect(updateFabricationSpec(complete,'method','laser').method).toBe('laser');
  });
  it('has the same form widget for new orders and existing drafts',()=>{
