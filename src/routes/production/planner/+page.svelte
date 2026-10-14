@@ -7,7 +7,8 @@
   import type {PlanningItem} from '$lib/order/production-planning';
   import type {ProductionCapacity} from '$lib/order/production-capacity';
   import {dailyStationHours,validateCapacityWrite} from '$lib/order/production-capacity';
-  import {buildCapacityForecast} from '$lib/order/capacity-forecast';
+  import {buildCapacityForecast,type ApprovedReservationHours} from '$lib/order/capacity-forecast';
+  import {reconcileProductionSchedule} from '$lib/order/schedule-drift';
   import ProductionReservationPanel from '$lib/components/production/ProductionReservationPanel.svelte';
 
   const WEEK=[1,2,3,4,5,6,7];
@@ -22,6 +23,9 @@
   let includeUpcoming=$state(false);
   let stages=$state<Record<string,PlanningItem[]>|null>(null);
   let capacity=$state<ProductionCapacity[]>([]);
+  let commitments=$state<ApprovedReservationHours[]>([]);
+  let commitmentsReady=$state(false);
+  let snapshotError=$state('');
   let loading=$state(false);
   let loaded=$state(false);
   let loadError=$state('');
@@ -38,8 +42,10 @@
   let edited=$state(false);
   // Presentation only: the API and RLS enforce the authoritative manager permission.
   let canConfigure=$derived(['RD','Boss','HeadOfProduction'].includes($currentUser?.role??''));
-  let projection=$derived.by(()=>stages
-    ? buildCapacityForecast(stages,capacity,startDate,horizon,includeUpcoming) : null);
+  let projection=$derived.by(()=>stages&&commitmentsReady
+    ? buildCapacityForecast(stages,capacity,startDate,horizon,includeUpcoming,commitments) : null);
+  let scheduleDrift=$derived.by(()=>stages&&commitmentsReady
+    ? reconcileProductionSchedule(stages,capacity,commitments,localDate()) : []);
   let visibleStations=$derived(ALL_STATIONS.filter(station=>
     (stages?.[station]?.length??0)>0||capacity.some(c=>c.station===station)));
 
@@ -58,13 +64,31 @@
     workdays=workdays.includes(day)?workdays.filter(x=>x!==day):[...workdays,day].sort();
     edited=true;
   }
+  async function loadCommitmentSnapshot():Promise<ApprovedReservationHours[]>{
+    const response=await fetch(`${base}/api/production/commitments`,{cache:'no-store'});
+    if(!response.ok)throw new Error($t('scheduleReconciliation.snapshotFailed'));
+    const data=await response.json();
+    if(!Array.isArray(data?.commitments)||data.total!==data.commitments.length||
+       !Number.isInteger(data.total))throw new Error($t('scheduleReconciliation.snapshotFailed'));
+    return data.commitments;
+  }
+  async function refreshCommitments(){
+    commitmentsReady=false;snapshotError='';
+    try{
+      commitments=await loadCommitmentSnapshot();
+      commitmentsReady=true;
+    }catch(err){
+      snapshotError=err instanceof Error?err.message:$t('scheduleReconciliation.snapshotFailed');
+    }
+  }
   async function reload(){
     if(loading)return;
-    loading=true;loadError='';
+    loading=true;loadError='';commitmentsReady=false;snapshotError='';
     try{
-      const [boardRes,settingsRes]=await Promise.all([
+      const [boardRes,settingsRes,approved]=await Promise.all([
         fetch(`${base}/api/production/board`,{cache:'no-store'}),
-        fetch(`${base}/api/production/capacity`,{cache:'no-store'})
+        fetch(`${base}/api/production/capacity`,{cache:'no-store'}),
+        loadCommitmentSnapshot()
       ]);
       if(!boardRes.ok||!settingsRes.ok)throw new Error($t('capacityPlanner.loadFailed'));
       const [board,config]=await Promise.all([boardRes.json(),settingsRes.json()]);
@@ -72,9 +96,14 @@
         throw new Error($t('capacityPlanner.loadFailed'));
       stages=board.stations;
       capacity=config.settings;
+      commitments=approved;
+      commitmentsReady=true;
       loaded=true;lastLoaded=new Date().toLocaleTimeString();
       if(!edited)openStation(selectedStation,true);
-    }catch(err){loadError=err instanceof Error?err.message:$t('capacityPlanner.loadFailed');}
+    }catch(err){
+      loadError=err instanceof Error?err.message:$t('capacityPlanner.loadFailed');
+      snapshotError=$t('scheduleReconciliation.snapshotFailed');
+    }
     finally{loading=false;}
   }
   async function save(){
@@ -125,6 +154,13 @@
       <button onclick={reload} disabled={loading}>{$t('capacityPlanner.retry')}</button>
     </div>
   {/if}
+  {#if snapshotError}
+    <p class="error" role="alert">{snapshotError}
+      <button type="button" onclick={refreshCommitments} disabled={loading}>
+        {$t('scheduleReconciliation.retry')}
+      </button>
+    </p>
+  {/if}
   {#if !loaded}
     <p role="status">{loading?$t('capacityPlanner.loading'):$t('capacityPlanner.noData')}</p>
   {:else}
@@ -145,6 +181,12 @@
 
     {#if projection}
       <div class="stats">
+        <div><strong>{projection.committedHours}</strong>
+          <span>{$t('scheduleReconciliation.approvedHours')}</span></div>
+        <div><strong>{projection.freeHours}</strong>
+          <span>{$t('scheduleReconciliation.remainingCapacity')}</span></div>
+        <div><strong>{projection.overbookedDays}</strong>
+          <span>{$t('scheduleReconciliation.overbookedDays')}</span></div>
         <div><strong>{projection.configuredStations}/{ALL_STATIONS.length}</strong>
           <span>{$t('capacityPlanner.configured')}</span></div>
         <div><strong>{projection.allocatedHours}</strong>
@@ -156,6 +198,30 @@
         <div><strong>{projection.late}</strong>
           <span>{$t('capacityPlanner.lateSlices')}</span></div>
       </div>
+      {#if scheduleDrift.length}
+        <section class="card drift" aria-label={$t('scheduleReconciliation.title')}>
+          <h2>{$t('scheduleReconciliation.title')} ({scheduleDrift.length})</h2>
+          <p class="hint">{$t('scheduleReconciliation.explanation')}</p>
+          <div class="drift-list">
+            {#each scheduleDrift.slice(0,30) as issue (issue.key)}
+              <div class="drift-row" data-severity={issue.severity}>
+                <strong>{issue.station}</strong>
+                {#if issue.orderId}
+                  <a href={`${base}/orders/${encodeURIComponent(issue.orderId)}`}>
+                    {issue.orderId.slice(0,8)}
+                  </a>
+                {/if}
+                {#if issue.date}<time datetime={issue.date}>{issue.date}</time>{/if}
+                <span>{$t(`scheduleReconciliation.reason.${issue.reason}`)}</span>
+                <small>{issue.hours} h</small>
+              </div>
+            {/each}
+          </div>
+          {#if scheduleDrift.length>30}
+            <p class="hint">{$t('scheduleReconciliation.more',{values:{count:scheduleDrift.length-30}})}</p>
+          {/if}
+        </section>
+      {/if}
       <div class="two-column">
         <section class="card settings">
           <h2>{$t('capacityPlanner.settings')}</h2>
@@ -228,14 +294,19 @@
                 {/if}
               </div>
               <div class="utilization">
-                <span>{result.totalAllocatedHours} / {result.totalAvailableHours} h</span>
+                <span>{$t('scheduleReconciliation.daySummary',{values:{
+                  booked:result.totalCommittedHours,
+                  proposed:result.totalAllocatedHours,
+                  capacity:result.totalAvailableHours}})}</span>
                 <progress max={Math.max(1,result.totalAvailableHours)}
-                  value={result.totalAllocatedHours}></progress>
+                  value={result.totalCommittedHours+result.totalAllocatedHours}></progress>
               </div>
               {#each result.days.filter(d=>d.tasks.length>0) as day (day.date)}
                 <div class="day">
                   <strong>{day.date}</strong>
-                  <span>{day.allocatedHours} / {day.capacityHours} h</span>
+                  <span>{$t('scheduleReconciliation.daySummary',{values:{
+                    booked:day.committedHours,proposed:day.allocatedHours,
+                    capacity:day.capacityHours}})}</span>
                   <div class="day-jobs">
                     {#each day.tasks as task,i (`${task.id}-${i}`)}
                       <a href={`${base}/orders/${encodeURIComponent(task.id)}`}>
@@ -269,7 +340,12 @@
         </section>
       </div>
       <ProductionReservationPanel forecast={projection} {startDate}
-        horizonDays={horizon} canEdit={canConfigure} />
+        horizonDays={horizon} canEdit={canConfigure&&commitmentsReady}
+        onChanged={refreshCommitments} />
+    {:else}
+      <p role="status">{$t('scheduleReconciliation.loading')}</p>
+      <ProductionReservationPanel forecast={null} {startDate}
+        horizonDays={horizon} canEdit={false} onChanged={refreshCommitments} />
     {/if}
   {/if}
 </main>
@@ -306,5 +382,11 @@
   .day-jobs small{margin-left:.4rem;color:var(--warn)}
   .unplanned{margin:0;padding-left:1.2rem;font-size:.8rem;display:grid;gap:.4rem}
   .unplanned a{color:var(--brand)}
+  .drift{display:grid;gap:.65rem}.drift-list{display:grid;gap:.35rem}
+  .drift-row{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;font-size:.82rem;
+    padding:.5rem;border:1px solid var(--border);border-radius:8px}
+  .drift-row[data-severity="critical"]{border-color:var(--error)}
+  .drift-row small{margin-left:auto;color:var(--muted)}
+  .drift-row a{color:var(--brand)}
   @media(max-width:800px){.two-column{grid-template-columns:1fr}.settings{position:static}}
 </style>
