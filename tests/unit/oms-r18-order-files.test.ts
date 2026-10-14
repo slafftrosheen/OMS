@@ -56,6 +56,12 @@ describe('OMS-R18 canonical attachment pagination',()=>{
     expect(panel).toContain('if (failed.length) fileError');
     expect(panel).toContain('if (version !== requestVersion || id !== orderId) return');
   });
+  it('preserves delete errors across a reconciliation refresh and rejects inconsistent next pages',()=>{
+    const panel=read('src/lib/order/OrderFiles.svelte');
+    expect(panel).toContain('if (deletionError) fileError = deletionError');
+    expect(panel).toContain('if (!reset && files.length < result.total && !result.files.length)');
+    expect(panel).toContain('if (!reset && result.files.some(f => files.some');
+  });
   it('localizes all newly exposed file operations',()=>{
     for(const lang of ['en','ru','lv']){
       const translations=JSON.parse(read(`src/locales/${lang}.json`)).orderFiles;

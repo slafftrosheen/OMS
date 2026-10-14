@@ -81,8 +81,13 @@
       const result = await fetchOrderFilePage<OrderFile>(id, reset ? 0 : files.length,
         ORDER_FILE_PAGE_SIZE);
       if (version !== requestVersion || id !== orderId) return;
-      files = reset ? result.files : [...files, ...result.files.filter(f => !files.some(existing => existing.id === f.id))];
+      if (!reset && files.length < result.total && !result.files.length)
+        throw new Error('The attachment list changed; refresh before loading more');
+      if (!reset && result.files.some(f => files.some(existing => existing.id === f.id)))
+        throw new Error('The attachment order changed; refresh before loading more');
+      files = reset ? result.files : [...files, ...result.files];
       totalCount = result.total;
+      fileError = '';
     } catch (err) {
       if (version === requestVersion && id === orderId)
         fileError = err instanceof Error ? err.message : $t('orderFiles.loadError');
@@ -133,6 +138,7 @@
     if (!confirm($t('orderFiles.deleteConfirm',{values:{name}}))) return;
     deletingId = fileId;
     fileError = '';
+    let deletionError = '';
     try {
       const res = await fetch(`${base}/api/files/${encodeURIComponent(fileId)}`,{method:'DELETE'});
       if (!res.ok) {
@@ -144,10 +150,13 @@
         onChanged?.();
       }
     } catch (err) {
-      if (id === orderId) fileError = err instanceof Error ? err.message : $t('orderFiles.deleteError');
+      deletionError = err instanceof Error ? err.message : $t('orderFiles.deleteError');
     } finally {
       deletingId = '';
-      if (id === orderId) await loadFiles();
+      if (id === orderId) {
+        await loadFiles();
+        if (deletionError) fileError = deletionError;
+      }
     }
   }
 
