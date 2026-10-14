@@ -59,6 +59,7 @@
     const generation=++version;
     loading=true;failure='';reviewFailure='';bookingWarning='';
     mutationError='';saved=false;reviewsReady=false;
+    performance=null;bookings=null;reviews=[];
     try{
       const [p,r,b]=await Promise.allSettled([
         fetch(`${base}/api/production/performance?days=90`,{cache:'no-store'}),
@@ -90,7 +91,7 @@
   }
   function edit(row:ReviewQueueItem,action:ReviewAction){
     editingKey=row.key;editorAction=action;mutationError='';saved=false;
-    followUpDate=row.review?.due_date??'';
+    followUpDate=row.review?.due_date??todayInRiga();
     followUpNote=action==='update'?row.review?.follow_up_note??'':'';
   }
   async function submit(row:ReviewQueueItem){

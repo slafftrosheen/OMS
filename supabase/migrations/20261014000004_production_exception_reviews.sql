@@ -91,7 +91,7 @@ BEGIN
  IF p_action NOT IN ('claim','take','update','resolve','reopen') THEN
    RAISE EXCEPTION 'Unsupported review action' USING ERRCODE='22023';
  END IF;
- IF p_note IS NOT NULL AND (length(p_note)>2000 OR position(chr(0) IN p_note)>0) THEN
+ IF p_note IS NOT NULL AND length(p_note)>2000 THEN
    RAISE EXCEPTION 'Review note too long or invalid' USING ERRCODE='22023';
  END IF;
  IF p_action IN ('claim','take','update') AND p_due_date IS NULL THEN
@@ -128,7 +128,7 @@ BEGIN
    WHERE id=CASE WHEN p_action='claim' THEN p_order_id ELSE v_review.draft_order_id END;
    SELECT * INTO v_stage FROM public.order_stages
    WHERE draft_order_id=CASE WHEN p_action='claim' THEN p_order_id ELSE v_review.draft_order_id END
-     AND station::text=v_station;
+     AND station::text=v_station FOR SHARE;
    IF NOT FOUND THEN RAISE EXCEPTION 'Stage no longer exists' USING ERRCODE='P0001'; END IF;
    v_issue_exists=CASE v_kind
      WHEN 'MISSING_ACTUAL' THEN
@@ -144,6 +144,7 @@ BEGIN
          ('CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD')
      WHEN 'MISSED_BOOKING' THEN
        v_stage.state::text IN ('NOT_STARTED','QUEUED','IN_PROGRESS','BLOCKED','REWORK')
+       AND v_order.status::text IN ('CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD')
        AND EXISTS (
          SELECT 1 FROM public.production_reservations r
          WHERE r.draft_order_id=v_stage.draft_order_id AND r.station=v_station

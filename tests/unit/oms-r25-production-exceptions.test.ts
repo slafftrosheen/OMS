@@ -67,6 +67,9 @@ describe('OMS-R25 exception detection and management contracts',()=>{
     dueDate:'2026-10-23',note:'Check timecard'};
   expect(parseReviewChange(claim)).toMatchObject({station:'CNC',kind:'MISSING_ACTUAL'});
   expect(()=>parseReviewChange({...claim,kind:'SOMETHING_ELSE'})).toThrow();
+  expect(()=>parseReviewChange({...claim,dueDate:null})).toThrow();
+  expect(()=>parseReviewChange({action:'take',reviewId:order,
+    expectedUpdatedAt:'2026-10-14T12:00:00Z'})).toThrow();
   expect(()=>parseReviewChange({action:'resolve',reviewId:order,
     expectedUpdatedAt:'2026-10-14T12:00:00Z',note:'  '})).toThrow();
   expect(parseReviewChange({action:'resolve',reviewId:order,
@@ -82,10 +85,18 @@ describe('OMS-R25 exception detection and management contracts',()=>{
   expect(sql).toContain("v_stage.state::text='BLOCKED'");
   expect(sql).toContain("r.work_date<v_today");
   expect(sql).toContain('production_exception_events');
+  expect(sql).toContain('FOR SHARE;');
+  expect(sql).not.toContain('chr(0)');
+  expect(sql).toContain('An accountable follow-up due date is required');
   expect(sql).toContain('v_review.updated_at IS DISTINCT FROM p_expected_updated_at');
   expect(sql).not.toContain('GRANT UPDATE ON public.production_exception_reviews');
   expect(api).toContain('canManageSharedInventory(locals.user.role)');
   expect(api).toContain('oms_manage_production_exception');
+ });
+ it('keeps a prior review in the ledger when its condition is no longer live',()=>{
+   const queue=mergeProductionReviews([], [review('CNC','MISSING_ACTUAL','RESOLVED')]);
+   expect(queue[0]).toMatchObject({sourceActive:false,
+     review:expect.objectContaining({status:'RESOLVED'})});
  });
  it('keeps issues separate from stage/inventory mutations and translates source badges',()=>{
   const q=read('src/lib/order/production-exception-queue.ts');
