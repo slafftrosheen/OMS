@@ -127,6 +127,10 @@
             {$t('production_dash.production_board', { default: 'Production Board' })}
           </a>
         {/if}
+        <a href="{base}/production/performance" class="action-btn">
+          <Icon name="chart-no-axes-combined" size="sm" />
+          {$t('productionPerformance.open')}
+        </a>
         <a href="{base}/production/planner" class="action-btn">
           <Icon name="calendar-days" size="sm" />
           {$t('capacityPlanner.open')}
