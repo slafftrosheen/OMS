@@ -34,6 +34,8 @@ describe('OMS-R22 production reservation approval boundaries',()=>{
   expect(sql).toContain("v_booked+v_row.hours >");
   expect(sql).toContain("v_stage_booked+v_row.hours>v_stage.estimated_hours");
   expect(sql).toContain("previous.state::text='COMPLETED'");
+  expect(sql).toContain('AS prerequisite(station)');
+  expect(sql).toContain('previous.station::text=prerequisite.station');
   expect(sql).toContain("'PROPOSED','APPROVED','CANCELLED'");
   expect(sql).toContain('ENABLE ROW LEVEL SECURITY');
   expect(sql).toContain('GRANT SELECT ON public.production_reservations TO authenticated');

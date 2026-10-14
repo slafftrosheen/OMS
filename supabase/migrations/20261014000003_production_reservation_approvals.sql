@@ -160,11 +160,11 @@ BEGIN
  END IF;
  v_position=array_position(v_chain,v_station);
  IF v_position IS NOT NULL AND v_position>1 AND EXISTS (
-  SELECT 1 FROM unnest(v_chain[1:v_position-1]) predecessor
+  SELECT 1 FROM unnest(v_chain[1:v_position-1]) AS prerequisite(station)
   WHERE NOT EXISTS (
    SELECT 1 FROM public.order_stages previous
    WHERE previous.draft_order_id=v_stage.draft_order_id
-     AND previous.station::text=predecessor
+     AND previous.station::text=prerequisite.station
      AND previous.state::text='COMPLETED'
   )
  ) THEN
