@@ -1992,14 +1992,45 @@
     "suggest": {
       "questions": "Kādas ziņas vēl trūkst?",
       "gaps": "Pārbaudi pasūtījuma pretrunas.",
-      "materials": "Kas jāpārbauda pirms ražošanas?"
+      "materials": "Kas jāpārbauda pirms ražošanas?",
+      "dimensions": "Balstoties tikai uz saglabātajā pasūtījumā skaidri norādītajiem izmēriem, paskaidro, ko var droši aprēķināt un kādu izmēru trūkst. Neuzmini vienības vai lokšņu patēriņu.",
+      "fabrication": "Pārskati saglabātos profilus un materiālus. Kas jāprecizē ražošanas stacijās? Neuzmini iekārtu pieejamību, pielaides vai tehnoloģisko piemērotību.",
+      "technical": "Izskaidro šī pasūtījuma deterministiskās tehniskās pārbaudes. Nošķir apstiprinātos izmērus un daudzumus no trūkstošajiem izmēriem, neskaidrām vienībām un ražošanas jautājumiem. Neapstiprini pasūtījuma gatavību."
     },
     "canvasTools": "Canvas AI rīki (papildu)",
     "hideCanvasTools": "Paslēpt Canvas AI rīkus",
     "selectionContext": "Iekļaut atlasītās Canvas figūras",
     "canvasToolWarning": "Tie ir atsevišķi Canvas rīki ar vispārīgo AI. Figūru aizstāšana maina Canvas, nevis pasūtījuma laukus, un prasa apstiprinājumu.",
     "confirmCanvasReplace": "Aizstāt atlasītās Canvas figūras? Tiks mainīts Canvas, nevis pasūtījuma lauki.",
-    "canvasPlaceholder": "Jautājums par atlasītajām figūrām vai Maker.js pārveidi…"
+    "canvasPlaceholder": "Jautājums par atlasītajām figūrām vai Maker.js pārveidi…",
+    "technicalTitle": "Tehnisko datu pārbaude",
+    "technicalInfo": "Saglabātie pasūtījuma dati, pārbaudīti lokāli. AI nav nepieciešams.",
+    "runTechnical": "Pārbaudīt datus",
+    "technicalLoading": "Pārbauda…",
+    "technicalUnavailable": "Tehniskā pārbaude nav pieejama. Secinājumus izdarīt nevar.",
+    "primaryUnits": "Galvenais pasūtītais daudzums",
+    "materialLines": "Materiālu ieraksti",
+    "boundingM2": "Ierobežojošo taisnstūru laukums (m²)",
+    "notVerified": "Nav zināms",
+    "boundingCaveat": "Tikai taisnstūru ārējais laukums no skaidri norādītiem izmēriem milimetros. Tas nav neto griešanas laukums, lokšņu patēriņš, atgriezumi, izkārtojums, cena vai iekārtu piemērotība.",
+    "profileNumber": "Profils {number}",
+    "materialNumber": "Materiāls {number}",
+    "technicalMore": "Rādīt vairāk pārbaužu",
+    "technicalLess": "Rādīt mazāk",
+    "technicalNoAuthority": "Pārbaude neapstiprina noliktavas atlikumus, ražošanas iespējas, failu saturu vai gatavību ražošanai.",
+    "explainTechnical": "Jautāt par pārbaudes rezultātiem",
+    "technicalIssue": {
+      "NO_PROFILES": "Nav pievienotu ražošanas profilu",
+      "PROFILE_QUANTITY": "Profila pamatdaudzums nav norādīts vai ir nederīgs",
+      "PROFILE_TEMPLATE": "Aktīva ražošanas veidne nav pārbaudīta",
+      "DIMENSIONS_UNVERIFIED": "Nav platuma un augstuma ar skaidri norādītām mm vienībām; laukums nav zināms",
+      "MATERIALS_UNSPECIFIED": "Nav norādīti pasūtījuma materiāli",
+      "MATERIAL_QUANTITY": "Materiāla daudzums nav norādīts vai ir nederīgs",
+      "MATERIAL_UNIT": "Nav norādīta materiāla mērvienība",
+      "MATERIAL_MIXED_UNITS": "Vienam materiālam norādītas dažādas mērvienības; nesummēt",
+      "STOCK_UNVERIFIED": "Noliktavas atlikumi un SKU atbilstība šeit nav pārbaudīti",
+      "FILES_UNVERIFIED": "Pievienoto failu saturs nav nolasīts un pārbaudīts"
+    }
   },
   "orderIntake": {
     "sourceChanged": "Avota fails pēc analīzes ir mainīts. Pirms piemērošanas analizējiet jauno failu.",

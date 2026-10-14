@@ -1992,14 +1992,45 @@
     "suggest": {
       "questions": "What information is missing?",
       "gaps": "Review this order for contradictions.",
-      "materials": "Which production details need checking?"
+      "materials": "Which production details need checking?",
+      "dimensions": "Using only dimensions explicitly recorded in the saved order, explain what can be calculated reliably and which measurements remain missing. Do not assume units or cutting yield.",
+      "fabrication": "Review the saved profiles and materials for fabrication questions by station, without assuming machine availability, tolerances or process suitability.",
+      "technical": "Explain the deterministic technical checks for this saved order. Separate verified geometry and quantities from missing dimensions, material unit uncertainties and unresolved production questions. Do not declare it feasible or ready."
     },
     "canvasTools": "Canvas AI tools (advanced)",
     "hideCanvasTools": "Hide Canvas AI tools",
     "selectionContext": "Include selected Canvas shapes",
     "canvasToolWarning": "Separate Canvas tools use the existing general AI endpoint. Selection replacement may modify the Canvas, not order fields, and requires confirmation.",
     "confirmCanvasReplace": "Replace the selected Canvas shapes? This changes the Canvas, not the order form.",
-    "canvasPlaceholder": "Ask about selected shapes or Maker.js conversion…"
+    "canvasPlaceholder": "Ask about selected shapes or Maker.js conversion…",
+    "technicalTitle": "Technical evidence",
+    "technicalInfo": "Saved order data, checked locally. No AI call is needed.",
+    "runTechnical": "Check saved facts",
+    "technicalLoading": "Checking…",
+    "technicalUnavailable": "Technical checks are unavailable. No conclusion can be drawn.",
+    "primaryUnits": "Primary ordered units",
+    "materialLines": "Material entries",
+    "boundingM2": "Bounding face area (m²)",
+    "notVerified": "Unknown",
+    "boundingCaveat": "Rectangular bounds only, from dimensions explicitly recorded in millimetres. Not net cutting area, sheet consumption, waste, nesting, pricing or machine feasibility.",
+    "profileNumber": "Profile {number}",
+    "materialNumber": "Material line {number}",
+    "technicalMore": "Show more checks",
+    "technicalLess": "Show fewer checks",
+    "technicalNoAuthority": "These checks do not verify stock, manufacturing capability, file contents, approvals or a production-ready order.",
+    "explainTechnical": "Ask about these findings",
+    "technicalIssue": {
+      "NO_PROFILES": "No production profiles recorded",
+      "PROFILE_QUANTITY": "Primary quantity missing or invalid",
+      "PROFILE_TEMPLATE": "Active production template is not verified",
+      "DIMENSIONS_UNVERIFIED": "No explicit width and height with millimetre units; area remains unknown",
+      "MATERIALS_UNSPECIFIED": "No order material lines recorded",
+      "MATERIAL_QUANTITY": "Material quantity missing or invalid",
+      "MATERIAL_UNIT": "Material unit missing",
+      "MATERIAL_MIXED_UNITS": "The same material description uses different units; do not sum",
+      "STOCK_UNVERIFIED": "Stock quantities and SKU matching have not been checked here",
+      "FILES_UNVERIFIED": "Linked files have not been read or visually verified"
+    }
   },
   "orderIntake": {
     "sourceChanged": "Selected source changed after analysis. Analyze the new file before applying.",
