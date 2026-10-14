@@ -83,8 +83,10 @@ BEGIN
   END IF;
   v_station=upper(p_station);v_date=p_work_date;v_hours=p_hours;
  ELSE
-  IF p_reservation_id IS NULL OR p_expected_updated_at IS NULL THEN
-   RAISE EXCEPTION 'Reservation ID and revision required' USING ERRCODE='22023';
+  IF p_reservation_id IS NULL OR p_expected_updated_at IS NULL
+    OR p_order_id IS NOT NULL OR p_station IS NOT NULL
+    OR p_work_date IS NOT NULL OR p_hours IS NOT NULL OR p_note IS NOT NULL THEN
+   RAISE EXCEPTION 'Reservation ID and revision required; proposal fields not allowed' USING ERRCODE='22023';
   END IF;
   SELECT * INTO v_row FROM public.production_reservations WHERE id=p_reservation_id;
   IF NOT FOUND THEN
@@ -125,7 +127,7 @@ BEGIN
   RAISE EXCEPTION 'Station is unavailable on this day' USING ERRCODE='P0001';
  END IF;
  SELECT * INTO v_stage FROM public.order_stages
- WHERE draft_order_id=COALESCE(p_order_id,v_row.draft_order_id)
+ WHERE draft_order_id=CASE WHEN p_action='propose' THEN p_order_id ELSE v_row.draft_order_id END
    AND station::text=v_station FOR UPDATE;
  IF NOT FOUND OR v_stage.state::text NOT IN ('NOT_STARTED','QUEUED','IN_PROGRESS') THEN
   RAISE EXCEPTION 'Stage is not available for production scheduling' USING ERRCODE='P0001';
@@ -205,7 +207,7 @@ BEGIN
    AND work_date >=(now() AT TIME ZONE 'Europe/Riga')::date
   GROUP BY work_date
  LOOP
-  IF NOT extract(isodow FROM v_daily.work_date)::integer=ANY(NEW.workdays)
+  IF NOT (extract(isodow FROM v_daily.work_date)::integer=ANY(NEW.workdays))
     OR v_daily.booked>v_max THEN
    RAISE EXCEPTION 'Approved production reservations exceed new capacity; cancel or reschedule first'
      USING ERRCODE='P0001';
