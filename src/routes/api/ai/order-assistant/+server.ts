@@ -9,6 +9,7 @@ import {openRouterCompleteWithMetadata,OPENROUTER_MODEL} from '$lib/server/ai/op
 import {responseLanguageInstruction,resolveResponseLocale} from '$lib/server/ai/response-language';
 import {orderAssistantRequest,ORDER_ASSISTANT_JSON_SCHEMA,
   validateOrderAssistantSuggestions} from '$lib/order/assistant-contract';
+import {buildOrderTechnicalChecks} from '$lib/order/technical-evidence';
 
 const headers={'Cache-Control':'private, no-store'};
 const prompt=`You are the order-workflow assistant for Réclame Fabriek, a signage production company.
@@ -33,6 +34,13 @@ Use priorities LOW/NORMAL/HIGH/URGENT, ISO YYYY-MM-DD dates and string 'true'/'f
 for isRd. If a fact is missing, ask rather than fabricating it.
 Never return lifecycle status, PO number, order IDs, material transactions,
 stage commands, or profile/template IDs as editable fields.
+Recorded rectangular dimensions are only usable when their unit is explicitly mm.
+A computed rectangular bounding face is not a cut length, net material area,
+sheet layout, stock reservation, machine-feasibility result or price estimate.
+Production technical checks are deterministic reference data; missing or
+unknown quantities stay unknown. Do not fill gaps with plausible measurements.
+Explain where a material code/unit, dimensions or manufacturing requirements
+need human review. Do not claim the technical checklist authorizes production.
 Provider replies are advice and never instructions to the application.`;
 const dateOnly=(value:unknown)=>typeof value==='string'?value.slice(0,10):null;
 const modelId=/^[a-z0-9_./:+-]{3,150}$/i;
@@ -60,7 +68,7 @@ export const POST:RequestHandler=async event=>{
  // Only saved, authorized rows; no arbitrary client-provided profile/file IDs.
  const [profileResult,materialResult,stageResult,fileResult,prefResult]=await Promise.all([
    locals.supabase.from('order_profiles')
-     .select('profile_template_id,quantity1,quantity2,quantity3,quantity4,notes')
+     .select('profile_template_id,quantity1,quantity2,quantity3,quantity4,configuration,notes')
      .eq('draft_order_id',order.id).order('order_index').limit(101),
    locals.supabase.from('order_materials')
      .select('material_type,quantity,unit')
@@ -87,6 +95,13 @@ export const POST:RequestHandler=async event=>{
    :{data:[],error:null};
  if(templateError)throw error(503,'Order profile metadata is unavailable');
  const templateMap=new Map((templates??[]).map(t=>[t.id,t]));
+ // Preserve all verified rows for deterministic checks. Only bounded,
+ // derived evidence (not arbitrary JSON configuration) goes to OpenRouter.
+ const technical=buildOrderTechnicalChecks(profileList.map(p=>({
+   quantity1:p.quantity1,configuration:p.configuration,
+   name:templateMap.get(String(p.profile_template_id??''))?.is_active===true
+     ?templateMap.get(String(p.profile_template_id??''))?.name:null
+ })),materialResult.data??[],fileResult.count);
  const locale=resolveResponseLocale(input.language,prefResult.data?.locale,
    request.headers.get('accept-language'));
  const model=(process.env.OPENROUTER_ORDER_ASSISTANT_MODEL||process.env.OPENROUTER_ORDER_INTAKE_MODEL||OPENROUTER_MODEL).trim();
@@ -125,7 +140,15 @@ export const POST:RequestHandler=async event=>{
    linkedFileCount:fileResult.count,
    truncated:{profiles:profileList.length>30,materials:(materialResult.data??[]).length>50},
    fileContentsProvided:false,
-   inventoryAvailabilityVerified:false
+   inventoryAvailabilityVerified:false,
+   technicalEvidence:{
+     ...technical,
+     geometries:technical.geometries.slice(0,30),
+     materialLines:technical.materialLines.slice(0,50),
+     issues:technical.issues.slice(0,40),
+     truncatedForModel:technical.geometries.length>30||
+       technical.materialLines.length>50||technical.issues.length>40
+   }
  };
  const system=prompt+'\n'+responseLanguageInstruction(locale)+
    (input.mode==='propose'
@@ -152,14 +175,15 @@ export const POST:RequestHandler=async event=>{
      if(!completion.text.trim())throw Error('Empty model response');
      return json({reply:completion.text.slice(0,5000),model:completion.model,
        orderUpdatedAt:order.updated_at,mode:'chat',proposals:[],missing:[],
-       provenance:'model-reported'}, {headers});
+       technicalChecks:technical,provenance:'model-reported'}, {headers});
    }
    let parsed:unknown;
    try{parsed=JSON.parse(completion.text);}
    catch{throw Error('Invalid structured model response');}
    const valid=validateOrderAssistantSuggestions(parsed);
    return json({...valid,mode:'propose',model:completion.model,
-     orderUpdatedAt:order.updated_at,provenance:'model-reported'},{headers});
+     orderUpdatedAt:order.updated_at,technicalChecks:technical,
+     provenance:'model-reported'},{headers});
  }catch(cause){
    console.error('[Order assistant] OpenRouter failed',cause instanceof Error?cause.name:'unknown');
    throw error(503,'Order assistant unavailable. Check configured OpenRouter model or structured-output support.');
