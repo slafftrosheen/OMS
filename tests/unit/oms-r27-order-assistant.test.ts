@@ -79,6 +79,7 @@ describe('OMS-R27 OpenRouter order-flow assistant',()=>{
  it('requires explicit per-field approval and verifies DB revision before LOCAL patch',()=>{
    const component=read('src/lib/order/OrderFlowAssistant.svelte');
    expect(component).toContain("consent:true");
+   expect(component).toContain("language:$locale||'en'");
    expect(component).toContain('approvals[i]===true');
    expect(component).toContain('approvals={};');
    expect(component).toContain("JSON.stringify(current)!==proposalsBase");

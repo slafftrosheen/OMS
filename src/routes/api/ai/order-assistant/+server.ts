@@ -9,7 +9,6 @@ import {openRouterCompleteWithMetadata,OPENROUTER_MODEL} from '$lib/server/ai/op
 import {responseLanguageInstruction,resolveResponseLocale} from '$lib/server/ai/response-language';
 import {orderAssistantRequest,ORDER_ASSISTANT_JSON_SCHEMA,
   validateOrderAssistantSuggestions} from '$lib/order/assistant-contract';
-import {z} from 'zod';
 
 const headers={'Cache-Control':'private, no-store'};
 const prompt=`You are the order-workflow assistant for Réclame Fabriek, a signage production company.

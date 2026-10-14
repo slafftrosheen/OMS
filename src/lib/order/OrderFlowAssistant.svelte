@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {t} from 'svelte-i18n';
+  import {t,locale} from 'svelte-i18n';
   import {base} from '$app/paths';
   import {proposalsToPatch,type IntakeProposal} from './intake-contract';
   import type {OrderAssistantTurn} from './assistant-contract';
@@ -44,7 +44,7 @@
       const response=await fetch(`${base}/api/ai/order-assistant`,{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({orderId:questionOrder,question:text,mode:requestedMode,
-          consent:true,history:prior,
+          consent:true,language:$locale||'en',history:prior,
           ...(capturedVersion?{expectedUpdatedAt:capturedVersion}:{})})
       });
       const body=await response.json().catch(()=>({}));
