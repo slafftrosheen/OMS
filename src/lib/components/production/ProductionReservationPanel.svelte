@@ -5,13 +5,15 @@
   import type {ForecastResult,ForecastSlice} from '$lib/order/capacity-forecast';
   import type {ProductionReservation} from '$lib/order/production-reservation';
 
-  let {forecast,startDate,horizonDays,canEdit}:{
+  let {forecast,startDate,horizonDays,canEdit,onChanged=async()=>{}}:{
     forecast:ForecastResult|null;startDate:string;
-    horizonDays:7|14|28;canEdit:boolean
+    horizonDays:7|14|28;canEdit:boolean;onChanged?:()=>Promise<void>
   }=$props();
   let bookings=$state<ProductionReservation[]>([]);
   let total=$state(0);
   let loading=$state(false);
+  let ledgerReady=$state(false);
+  let canSubmit=$derived(canEdit&&ledgerReady&&!loading);
   let busy=$state('');
   let listError=$state('');
   let mutationError=$state('');
@@ -26,7 +28,7 @@
   }
   async function loadReservations(from:string,to:string) {
     const version=++requestVersion;
-    loading=true;listError='';
+    loading=true;ledgerReady=false;listError='';
     try{
       const items:ProductionReservation[]=[];
       let offset=0,expectedTotal:number|null=null;
@@ -47,9 +49,12 @@
       if(version!==requestVersion)return;
       if(new Set(items.map(x=>x.id)).size!==items.length)
         throw new Error($t('productionReservations.changedDuringLoad'));
-      bookings=items;total=expectedTotal??0;
+      bookings=items;total=expectedTotal??0;ledgerReady=true;
     }catch(e){
-      if(version===requestVersion)listError=e instanceof Error?e.message:$t('productionReservations.loadFailed');
+      if(version===requestVersion){
+        ledgerReady=false;
+        listError=e instanceof Error?e.message:$t('productionReservations.loadFailed');
+      }
     }finally{if(version===requestVersion)loading=false;}
   }
   $effect(()=>{
@@ -77,7 +82,7 @@
     return map;
   });
   async function mutate(input:Record<string,unknown>,id:string){
-    if(!canEdit||busy)return;
+    if(!canSubmit||busy)return;
     mutationError='';success='';busy=id;
     try{
       const response=await fetch(`${base}/api/production/reservations`,{
@@ -91,7 +96,10 @@
       );
       if(!outcome?.reservation)throw new Error($t('productionReservations.saveFailed'));
       success=$t('productionReservations.saved');
-      await loadReservations(startDate,endDate(startDate,horizonDays));
+      await Promise.all([
+        loadReservations(startDate,endDate(startDate,horizonDays)),
+        onChanged()
+      ]);
     }catch(e){mutationError=e instanceof Error?e.message:$t('productionReservations.saveFailed');}
     finally{busy='';}
   }
@@ -122,6 +130,9 @@
   </div>
   <p class="warning" role="note">{$t('productionReservations.forecastWarning')}</p>
   {#if !canEdit}<p class="hint">{$t('productionReservations.viewOnly')}</p>{/if}
+  {#if canEdit&&!ledgerReady}
+    <p class="warning" role="status">{$t('scheduleReconciliation.ledgerLocked')}</p>
+  {/if}
   {#if loading}<p role="status">{$t('productionReservations.loading')}</p>{/if}
   {#if listError}<p role="alert" class="error">{listError}</p>{/if}
   {#if mutationError}<p role="alert" class="error">{mutationError}</p>{/if}
@@ -143,13 +154,13 @@
           <span class="state">{$t(`productionReservations.status.${record.status}`)}</span>
         </div>
         {#if record.note}<p>{record.note}</p>{/if}
-        {#if canEdit&&record.status==='PROPOSED'}
+        {#if canSubmit&&record.status==='PROPOSED'}
           <button type="button" disabled={!!busy||loading}
             onclick={()=>act(record,'approve')}>
             {$t('productionReservations.approve')}
           </button>
         {/if}
-        {#if canEdit&&record.status!=='CANCELLED'}
+        {#if canSubmit&&record.status!=='CANCELLED'}
           <button type="button" disabled={!!busy||loading}
             onclick={()=>act(record,'cancel')}>
             {$t('productionReservations.cancel')}
@@ -184,7 +195,7 @@
         {/if}
         {#if item.tentative}<span class="hint">{$t('productionReservations.tentative')}</span>{/if}
         {#if canEdit}
-          <button type="button" disabled={!!busy||loading||activeKeys.has(`${item.id}:${item.station}:${item.date}`)}
+          <button type="button" disabled={!canSubmit||!!busy||loading||activeKeys.has(`${item.id}:${item.station}:${item.date}`)}
             onclick={()=>propose(item)}>
             {activeKeys.has(`${item.id}:${item.station}:${item.date}`)
               ?$t('productionReservations.exists'):$t('productionReservations.propose')}

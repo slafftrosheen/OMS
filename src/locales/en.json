@@ -1414,6 +1414,29 @@
     "edit_order": "Edit Order",
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
+  "scheduleReconciliation": {
+    "snapshotFailed": "Approved commitments could not be fully verified. Forecast suggestions and booking changes are disabled.",
+    "retry": "Retry reconciliation",
+    "loading": "Checking approved commitments…",
+    "ledgerLocked": "Reservation changes are disabled until the complete ledger has loaded.",
+    "approvedHours": "approved hours in horizon",
+    "remainingCapacity": "remaining free hours",
+    "overbookedDays": "days exceeding capacity",
+    "title": "Schedule drift — needs review",
+    "explanation": "These records require a manager to review the stage, booking or actual hours. No reservations are changed automatically.",
+    "daySummary": "{booked} h booked + {proposed} h suggested / {capacity} h capacity",
+    "more": "{count} additional warnings not shown",
+    "reason": {
+        "pastCommitment": "Approved date has passed; stage remains active",
+        "blockedCommitment": "Approved booking on blocked/rework stage",
+        "pausedCommitment": "Approved booking on held order",
+        "stageUnavailable": "Future approved booking without a current schedulable stage",
+        "notQueued": "Approved booking on stage not queued or in progress",
+        "estimateExceeded": "Approved hours exceed revised stage estimate",
+        "capacityExceeded": "Approved hours exceed station-day capacity",
+        "actualOverEstimate": "Actual logged stage hours exceed estimate"
+    }
+},
   "productionReservations": {
     "title": "Production reservations",
     "intro": "Review proposed station-day work and explicitly approve commitments.",

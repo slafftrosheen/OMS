@@ -1414,6 +1414,29 @@
     "edit_order": "Rediģēt pasūtījumu",
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
+  "scheduleReconciliation": {
+    "snapshotFailed": "Neizdevās pilnībā pārbaudīt apstiprinātās rezervācijas. Prognoze un rezervāciju izmaiņas ir bloķētas.",
+    "retry": "Atkārtot salīdzināšanu",
+    "loading": "Pārbauda apstiprinātās rezervācijas…",
+    "ledgerLocked": "Rezervāciju izmaiņas nav iespējamas, kamēr pilnais žurnāls nav ielādēts.",
+    "approvedHours": "apstiprinātās stundas periodā",
+    "remainingCapacity": "atlikušās brīvās stundas",
+    "overbookedDays": "dienas ar pārsniegtu jaudu",
+    "title": "Grafika novirzes — jāpārskata",
+    "explanation": "Vadītājam jāpārskata posms, rezervācija vai faktiskās stundas. Rezervācijas netiek mainītas automātiski.",
+    "daySummary": "Rezervētas {booked} st. + ieteiktas {proposed} st. / jauda {capacity} st.",
+    "more": "Nav parādīti vēl {count} brīdinājumi",
+    "reason": {
+        "pastCommitment": "Apstiprinātais datums pagājis, posms joprojām aktīvs",
+        "blockedCommitment": "Rezervācija bloķētam vai pārstrādājamam posmam",
+        "pausedCommitment": "Apturēta pasūtījuma rezervācija",
+        "stageUnavailable": "Nākotnes rezervācija bez pieejama ražošanas posma",
+        "notQueued": "Rezervācija posmam, kas nav rindā vai procesā",
+        "estimateExceeded": "Apstiprinātās stundas pārsniedz posma aplēsi",
+        "capacityExceeded": "Apstiprinātās stundas pārsniedz stacijas dienas jaudu",
+        "actualOverEstimate": "Faktiskās posma stundas pārsniedz aplēsi"
+    }
+},
   "productionReservations": {
     "title": "Ražošanas laika rezervācijas",
     "intro": "Pārskatiet ierosinātos darbus un atsevišķi apstipriniet darba laikus.",

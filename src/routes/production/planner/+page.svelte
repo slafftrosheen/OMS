@@ -339,14 +339,12 @@
           {/if}
         </section>
       </div>
-      <ProductionReservationPanel forecast={projection} {startDate}
-        horizonDays={horizon} canEdit={canConfigure&&commitmentsReady}
-        onChanged={refreshCommitments} />
     {:else}
       <p role="status">{$t('scheduleReconciliation.loading')}</p>
-      <ProductionReservationPanel forecast={null} {startDate}
-        horizonDays={horizon} canEdit={false} onChanged={refreshCommitments} />
     {/if}
+    <ProductionReservationPanel forecast={projection} {startDate}
+      horizonDays={horizon} canEdit={canConfigure&&commitmentsReady}
+      onChanged={refreshCommitments} />
   {/if}
 </main>
 
