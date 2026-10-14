@@ -63,6 +63,15 @@ describe('OMS-R21 production capacity and forecast',()=>{
   expect(sql).toContain("'RD','Boss','HeadOfProduction'");
   expect(sql).not.toContain('GRANT DELETE');
  });
+ it('uses the client role only to hide edit controls, never imports server-only code',()=>{
+  const page=code('src/routes/production/planner/+page.svelte');
+  expect(page).not.toContain("from '$lib/server/");
+  expect(page).toContain("['RD','Boss','HeadOfProduction'].includes");
+  const home=code('src/routes/production/+page.svelte');
+  const dashboard=code('src/routes/production/dashboard/+page.svelte');
+  expect(home).toContain('/production/planner');
+  expect(dashboard).toContain('/production/planner');
+ });
  it('renders manager configuration and a non-mutating projection',()=>{
   const page=code('src/routes/production/planner/+page.svelte');
   expect(page).toContain('buildCapacityForecast');

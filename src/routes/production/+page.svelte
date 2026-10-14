@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
   import { ALL_STATIONS } from '$lib/order/workflow';
+  import {base} from '$app/paths';
   import type {PlanningItem,StationSummary,PlanningTotals} from '$lib/order/production-planning';
   import StationBoard from '$lib/components/production/StationBoard.svelte';
   import QRScanner from '$lib/components/qr/QRScanner.svelte';
@@ -88,6 +89,7 @@
       <p class="page-subtitle">{$t('productionPlanning.description')}</p>
     </div>
     <div class="header-actions">
+      <a class="planner-link" href={`${base}/production/planner`}>{$t('capacityPlanner.open')}</a>
       <Button variant="outline" onclick={() => (showScanner = true)}>
         {$t('stationView.scan_qr', { default: 'Scan QR' })}
       </Button>
@@ -207,6 +209,10 @@
   .page-title { font-size: clamp(1.6rem, 3vw, 2.1rem); margin: 0 0 .25rem; line-height: 1.2; }
   .page-subtitle { font-size: .95rem; color: var(--muted); margin: 0; max-width: 60ch; }
   .header-actions, .board-preferences, .board-kpis { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+  .planner-link{display:inline-flex;align-items:center;min-height:44px;padding:.5rem .8rem;
+    border:1px solid var(--border);border-radius:8px;color:var(--text);
+    background:var(--bg-2);font-size:.85rem;font-weight:700;text-decoration:none}
+  .planner-link:hover,.planner-link:focus-visible{border-color:var(--brand)}
   .board-toolbar {
     padding: .85rem 1.1rem;
     border: 1px solid var(--border);

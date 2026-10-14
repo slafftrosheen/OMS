@@ -3,7 +3,6 @@
   import {t} from 'svelte-i18n';
   import {base} from '$app/paths';
   import {currentUser} from '$lib/auth/authState.svelte';
-  import {canManageSharedInventory} from '$lib/server/authz/shared-data';
   import {ALL_STATIONS} from '$lib/order/workflow';
   import type {PlanningItem} from '$lib/order/production-planning';
   import type {ProductionCapacity} from '$lib/order/production-capacity';
@@ -36,7 +35,8 @@
   let workdays=$state<number[]>([1,2,3,4,5]);
   let expectedUpdatedAt=$state<string|null>(null);
   let edited=$state(false);
-  let canConfigure=$derived(canManageSharedInventory($currentUser?.role));
+  // Presentation only: the API and RLS enforce the authoritative manager permission.
+  let canConfigure=$derived(['RD','Boss','HeadOfProduction'].includes($currentUser?.role??''));
   let projection=$derived.by(()=>stages
     ? buildCapacityForecast(stages,capacity,startDate,horizon,includeUpcoming) : null);
   let visibleStations=$derived(ALL_STATIONS.filter(station=>
