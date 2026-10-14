@@ -42,6 +42,15 @@ describe('OMS-R23 reconciliation of approved capacity and stage work',()=>{
    expect(forecast.committedHours).toBe(0);
    expect(forecast.allocatedHours).toBe(4);
  });
+ it('does not mistake a missed historical booking for completed work',()=>{
+   const forecast=buildCapacityForecast({CNC:[task('A',7)]},[config],
+     '2026-10-14',7,false,[booked('old','A','2026-10-13',3)]);
+   expect(forecast.allocatedHours).toBe(7);
+   expect(forecast.committedHours).toBe(0);
+   expect(reconcileProductionSchedule({CNC:[task('A',7)]},[config],
+     [booked('old','A','2026-10-13',3)],'2026-10-14')
+       .map(x=>x.reason)).toContain('pastCommitment');
+ });
  it('flags an already overbooked station-day without adding more suggested work',()=>{
    const forecast=buildCapacityForecast({CNC:[task('A',20)]},[config],
      '2026-10-14',7,false,[booked('r1','A','2026-10-14',10)]);
@@ -92,6 +101,7 @@ describe('OMS-R23 reconciliation of approved capacity and stage work',()=>{
    expect(page).toContain('stages&&commitmentsReady');
    expect(page).toContain('loadCommitmentSnapshot');
    expect(page).toContain('onChanged={refreshCommitments}');
+   expect(page).toContain('d.tasks.length>0||d.committedHours>0');
    const panel=src('src/lib/components/production/ProductionReservationPanel.svelte');
    expect(panel).toContain('canEdit&&ledgerReady&&!loading');
    expect(panel).toContain('onChanged()');

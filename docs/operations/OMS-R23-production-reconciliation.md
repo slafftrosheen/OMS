@@ -20,9 +20,13 @@ The forecast uses approved data in two independent ways:
    configured capacity. Suggested work cannot occupy those hours. If historic
    or inconsistent approvals already exceed configured capacity, free hours
    are zero for that day and an overbooked-day warning is surfaced.
-2. Per order and station, **all** approved hours are deducted from that stage's
-   total estimate, even if the reservations occur outside the displayed horizon.
-   A stage with a fully committed estimate produces no duplicate suggestions.
+   Booked-only days remain visible even when no new task fits.
+2. Per order and station, **current and future** approved hours are deducted
+   from the stage estimate, including future reservations outside the displayed
+   horizon. A stage with a fully future-committed estimate produces no duplicate
+   suggestions. **Past dates are not considered proof of completed production**:
+   the remaining estimate is not reduced by past bookings for an open stage.
+   Those bookings instead produce a missed-date review warning.
    Proposed reservations do **not** consume committed capacity.
 
 R19 actual hours are an observation, **not a trustworthy remaining-work estimate**:
@@ -67,7 +71,9 @@ a versioned booking snapshot before scaling.
 
 1. Apply R21/R22 migrations first, check RLS, then deploy R23.
 2. Approve 3h of a 7h CNC stage on a date **outside** a 7-day forecast. The
-   stage must suggest only 4h, not 7h.
+   stage must suggest only 4h, not 7h. Repeat with yesterday as the approved
+   date and an active stage; show all 7h as planning demand and flag the stale
+   booking, rather than treating the past reservation as completed work.
 3. Approve 2h on Wednesday against 8h daily capacity. New Wednesday
    suggestions must occupy at most 6h. R22 must reject a concurrent approval
    that would exceed the station's capacity.

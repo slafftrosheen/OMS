@@ -301,7 +301,7 @@
                 <progress max={Math.max(1,result.totalAvailableHours)}
                   value={result.totalCommittedHours+result.totalAllocatedHours}></progress>
               </div>
-              {#each result.days.filter(d=>d.tasks.length>0) as day (day.date)}
+              {#each result.days.filter(d=>d.tasks.length>0||d.committedHours>0) as day (day.date)}
                 <div class="day">
                   <strong>{day.date}</strong>
                   <span>{$t('scheduleReconciliation.daySummary',{values:{

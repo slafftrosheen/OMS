@@ -52,7 +52,10 @@ export function buildCapacityForecast(
     const dayKey=`${item.station}:${item.work_date}`;
     const stageKey=`${item.draft_order_id}:${item.station}`;
     dayBooked.set(dayKey,Math.round(((dayBooked.get(dayKey)??0)+hours)*100)/100);
-    stageBooked.set(stageKey,Math.round(((stageBooked.get(stageKey)??0)+hours)*100)/100);
+    // Past reservations are not proof that production was carried out.
+    // A still-open stage needs explicit manager review, not hidden forecast work.
+    if(item.work_date>=startDate)
+      stageBooked.set(stageKey,Math.round(((stageBooked.get(stageKey)??0)+hours)*100)/100);
   }
   const stations={} as Record<string,ForecastStation>;
   let allocatedHours=0,availableHours=0,committedHours=0,freeHours=0,
@@ -84,8 +87,8 @@ export function buildCapacityForecast(
         failed.push({id:task.id,station,poNumber:task.poNumber,
           reason,remainingHours:estimate});continue;
       }
-      // Existing APPROVED stage hours, including outside this horizon,
-      // are not proposed a second time.
+      // Current/future APPROVED stage hours, including beyond this horizon,
+      // are not proposed a second time. Historical bookings are only audit data.
       let remaining=round(Math.max(0,(estimate as number)-alreadyApproved));
       let lastDate:string|null=null;
       for(const day of days){
