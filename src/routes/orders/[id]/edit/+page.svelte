@@ -54,6 +54,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let rdNotes = $state('');
   let deliveryPresetId: string | null = $state(null);
   let profiles: any[] = $state([]);
+  let invalidSpecInputs=$state<Record<string,boolean>>({});
   let profileChoices: Array<{id:string;code:string;name:string}> = $state([]);
   let profileChoicesError = $state('');
   let profileChoicesTruncated = $state(false);
@@ -501,7 +502,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   // ── Save draft ────────────────────────────────────────────────────────────────
   async function saveDraft(): Promise<boolean> {
     if (!orderId || !canEdit) { notifyError('You cannot edit this draft'); return false; }
-    if(profiles.some(p=>validateProfileFabrication(p.configuration??{}).some(i=>i.type==='invalid'))){
+    if(profiles.some((p,i)=>invalidSpecInputs[String(p.dbId??p.clientKey??i)]||
+      validateProfileFabrication(p.configuration??{}).some(x=>x.type==='invalid'))){
       notifyError($t('fabricationSpec.invalidSave'));
       return false;
     }
@@ -1136,7 +1138,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                   readonly={!canEdit}
                   onChange={next=>profiles=profiles.map((p,i)=>i===idx?{
                     ...p,configuration:{...p.configuration,fabricationSpec:next??undefined}
-                  }:p)} />
+                  }:p)}
+                  onValidityChange={invalid=>invalidSpecInputs={
+                    ...invalidSpecInputs,[String(profile.dbId??profile.clientKey??idx)]:invalid
+                  }} />
                 {#if canEdit}
                   <button type="button" onclick={() => profiles = profiles.filter((_,i)=>i!==idx)}>Remove profile</button>
                 {/if}
@@ -1144,6 +1149,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             {/each}
             {#if canEdit}
               <button type="button" onclick={() => profiles = [...profiles, {
+                clientKey:crypto.randomUUID(),
                 quantity:1,configuration:{},notes:'',profileTemplateId:null
               }]}>Add profile</button>
               <button class="action-btn primary" onclick={saveDraft} disabled={saving}>

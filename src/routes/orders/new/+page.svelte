@@ -388,6 +388,7 @@ import {validateProfileFabrication} from '$lib/order/fabrication-spec';
     }
   };
 
+  let invalidSpecInputs=$state<Record<string,boolean>>({});
   let profiles = $state<ProfileItem[]>([
     { id: createId(), quantity: 1, configuration: JSON.parse(JSON.stringify(defaultConfiguration)), collapsed: false }
   ]);
@@ -579,7 +580,8 @@ import {validateProfileFabrication} from '$lib/order/fabrication-spec';
 
   async function saveOrder() {
     if (saving || successMessage) return;
-    if(profiles.some(p=>validateProfileFabrication(p.configuration).some(i=>i.type==='invalid'))){
+    if(profiles.some(p=>invalidSpecInputs[p.id]||
+      validateProfileFabrication(p.configuration).some(i=>i.type==='invalid'))){
       error=$t('fabricationSpec.invalidSave');
       return;
     }
@@ -845,7 +847,10 @@ import {validateProfileFabrication} from '$lib/order/fabrication-spec';
             <ProfileFabricationSpec value={profile.configuration?.fabricationSpec}
               onChange={next=>profiles=profiles.map(p=>p.id===profile.id?{
                 ...p,configuration:{...p.configuration,fabricationSpec:next??undefined}
-              }:p)}/>
+              }:p)}
+              onValidityChange={invalid=>invalidSpecInputs={
+                ...invalidSpecInputs,[profile.id]:invalid
+              }}/>
           </div>
         {/if}
       </div>

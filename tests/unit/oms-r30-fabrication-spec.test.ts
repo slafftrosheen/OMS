@@ -89,6 +89,11 @@ describe('OMS-R30 versioned fabrication specifications',()=>{
    expect(saved).toContain('readonly={!canEdit}');
    expect(ui).toContain('updateFabricationSpec(value,key,next)');
    expect(ui).toContain("clearSpec()");
+   expect(ui).toContain("onValidityChange?.(true)");
+   expect(ui).toContain("onValidityChange?.(false)");
+   expect(newly).toContain('invalidSpecInputs[p.id]');
+   expect(saved).toContain('invalidSpecInputs[String(p.dbId??p.clientKey??i)]');
+   expect(saved).toContain('clientKey:crypto.randomUUID()');
  });
  it('preserves existing atomic, version-protected persistence paths',()=>{
    const server=read('src/lib/server/order/draft-contract.ts');

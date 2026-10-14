@@ -4,9 +4,10 @@
    FAB_SPEC_FIELD_LIMITS,parseFabricationSpec,updateFabricationSpec}
    from './fabrication-spec';
  import type {FabricationSpec} from './fabrication-spec';
- let {value,readonly=false,onChange}:{
+ let {value,readonly=false,onChange,onValidityChange}:{
    value?:unknown;readonly?:boolean;
-   onChange:(next:FabricationSpec|null)=>void
+   onChange:(next:FabricationSpec|null)=>void;
+   onValidityChange?:(invalid:boolean)=>void
  }=$props();
  let parsed=$derived(parseFabricationSpec(value));
  let spec:FabricationSpec=$derived(parsed.spec??{version:1 as const});
@@ -20,10 +21,17 @@
  const descriptions=['material_note','finish_note','installation_note'] as const;
  function change(key:keyof FabricationSpec,next:string){
    localError='';
-   try{onChange(updateFabricationSpec(value,key,next));}
-   catch(e){localError=e instanceof Error?e.message:'Invalid measurement';}
+   try{
+     onChange(updateFabricationSpec(value,key,next));
+     onValidityChange?.(false);
+   }catch(e){
+     localError=e instanceof Error?e.message:'Invalid measurement';
+     onValidityChange?.(true);
+   }
  }
- function clearSpec(){localError='';onChange(null);}
+ function clearSpec(){
+   localError='';onChange(null);onValidityChange?.(false);
+ }
 </script>
 <fieldset class="spec-panel" disabled={readonly}>
  <legend>{$t('fabricationSpec.title')}</legend>
