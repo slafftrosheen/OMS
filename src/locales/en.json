@@ -1415,6 +1415,11 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "productionPerformance": {
+    "bookingsUnavailable": "Approved schedule data is unavailable. Stage performance is still shown, but booking comparisons cannot be verified.",
+    "bookingsExplanation": "Approved bookings come from the R22 scheduling ledger, for all dates. They are commitments, not worked hours; a completed stage may have had future bookings automatically cancelled.",
+    "approvedFuture": "Approved hours today or later",
+    "nextBookedDay": "Next booked day",
+    "pastBooking": "{hours} h of past approved bookings need review; booking time does not prove work was performed.",
     "open": "Production performance",
     "eyebrow": "Production / Measured performance",
     "title": "Planned versus actual",

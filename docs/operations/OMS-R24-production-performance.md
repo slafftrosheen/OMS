@@ -31,6 +31,23 @@ The active-work sample is current, not restricted to that date window,
 and only includes `QUEUED`, `IN_PROGRESS`, `BLOCKED`, `REWORK`
 stages on active/held production orders.
 
+## Approved schedules (optional R22 integration)
+
+The performance page loads the existing `/api/production/commitments`
+R23 approved reservation snapshot independently of the core performance API.
+Approved hours booked today or later and the next approved work date are shown
+beside each **active** stage. Past approved hours are displayed as review
+signals, not as worked hours. The ledger is read-only and cannot imply that
+all historic bookings survived a stage completion: the R22 completion trigger
+cancels future reservations when the stage completes. Consequently R24 does
+not create a misleading post-completion "planned booking vs actual" metric.
+
+When the R22/R23 endpoint is unavailable (for example if those database
+migrations are not yet deployed), the performance report still works,
+but the approved schedule is explicitly marked **unavailable**. It is never
+silently replaced with zero committed hours. Client fetches also guard against
+stale responses after changing the 7/30/90-day window.
+
 ## Security, query limits and UX
 
 The API requires authentication and uses the caller's Supabase client.

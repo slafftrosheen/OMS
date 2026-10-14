@@ -1415,6 +1415,11 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "productionPerformance": {
+    "bookingsUnavailable": "Apstiprinātā grafika dati nav pieejami. Posmu rezultāti ir redzami, bet rezervācijas nevar pārbaudīt.",
+    "bookingsExplanation": "Apstiprinātie laiki nāk no R22 rezervāciju žurnāla par visiem datumiem. Tās ir saistības, nevis nostrādātās stundas; pēc posma pabeigšanas nākotnes rezervācijas var būt automātiski atceltas.",
+    "approvedFuture": "Apstiprinātās stundas šodien vai vēlāk",
+    "nextBookedDay": "Nākamā rezervētā diena",
+    "pastBooking": "Iepriekšējās rezervācijas ({hours} st.) jāpārskata: rezervācija nepierāda paveikto darbu.",
     "open": "Ražošanas rādītāji",
     "eyebrow": "Ražošana / Faktiskie rādītāji",
     "title": "Plāns pret faktu",

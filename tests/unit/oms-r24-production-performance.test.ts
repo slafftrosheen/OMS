@@ -1,5 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {readFileSync} from 'node:fs';
+import {summarizeApprovedSchedule} from '../../src/lib/order/production-performance';
 import {computeProductionPerformance,type PerformanceOrder,type PerformanceStage,
   type ProgressObservation} from '../../src/lib/order/production-performance';
 
@@ -65,6 +66,30 @@ describe('OMS-R24 actual-versus-planned production',()=>{
    expect(computeProductionPerformance(orders,onlyCompleted,[],asOf,30).totals.completed).toBe(1);
    expect(computeProductionPerformance(orders,onlyCompleted,[],asOf,30)
      .completed[0].actualHours).toBe(0);
+ });
+ it('keeps approved booking hours separate from worked hours, and identifies missed dates',()=>{
+   const booked=summarizeApprovedSchedule([
+     {id:'r1',draft_order_id:'active',station:'CNC',work_date:'2026-10-13',hours:2},
+     {id:'r2',draft_order_id:'active',station:'CNC',work_date:'2026-10-19',hours:3},
+     {id:'r3',draft_order_id:'active',station:'CNC',work_date:'2026-10-20',hours:1},
+     {id:'r4',draft_order_id:'active',station:'PAINT',work_date:'2026-10-19',hours:2}
+   ],'2026-10-14');
+   expect(booked.get('active:CNC')).toMatchObject({
+     hours:6,futureHours:4,pastHours:2,nextDate:'2026-10-19',reservations:3
+   });
+   expect(booked.get('active:PAINT')).toMatchObject({hours:2,pastHours:0});
+   expect(()=>summarizeApprovedSchedule([
+     {id:'invalid',draft_order_id:'active',station:'CNC',work_date:'2026-10-19',hours:-1}
+   ],'2026-10-14')).toThrow();
+ });
+ it('does not claim missing booking data means no approved hours',()=>{
+   const page=load('src/routes/production/performance/+page.svelte');
+   expect(page).toContain('bookingStatus=\'unavailable\'');
+   expect(page).toContain("productionPerformance.bookingsUnavailable");
+   expect(page).toContain('approvedFuture');
+   expect(page).toContain('nextBookedDay');
+   expect(page).toContain('pastBooking');
+   expect(page).toContain('/api/production/commitments');
  });
  it('uses a bounded, RLS-backed production query and reports incomplete progress as an error',()=>{
    const api=load('src/routes/api/production/performance/+server.ts');

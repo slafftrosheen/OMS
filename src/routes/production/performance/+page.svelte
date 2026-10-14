@@ -45,6 +45,7 @@
              !Number.isInteger(payload.total))
             throw new Error('Incomplete commitments');
           // The all-dates R23 snapshot is validated server-side and scoped by RLS.
+          if(version!==requestVersion)return;
           approved=payload.commitments;
           bookingStatus='ready';
         }catch{bookingStatus='unavailable';}
