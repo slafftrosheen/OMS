@@ -52,7 +52,7 @@ export function buildCapacityForecast(
       const estimate=task.estimatedHours;
       let reason:ForecastReason|null=task.paused?'paused':
         ['BLOCKED','REWORK'].includes(task.stageState)?'blocked':
-        estimate===null?'missingEstimate':
+        estimate===null||estimate<=0?'missingEstimate':
         !config?'unconfigured':
         hours===0||!config.workdays.length?'noAvailability':null;
       // R20 lists active work in dispatch order and upcoming after it.

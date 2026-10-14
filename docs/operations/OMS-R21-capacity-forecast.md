@@ -17,7 +17,7 @@ capacity profiles. It distributes explicit estimated hours into configurable
 seven-, fourteen-, or twenty-eight-calendar-day windows respecting chosen
 workdays and calculated effective station hours
 (`workers × hours_per_worker × efficiency_percent/100`). Forecasted jobs are
-sorted by R20 queue risk/priority. Blocked/rework, ON_HOLD, missing estimates,
+sorted by R20 queue risk/priority. Blocked/rework, ON_HOLD, missing or zero-hour estimates,
 unconfigured/zero capacity and work outside the horizon are surfaced as
 **unplanned** rather than silently assigned. Upcoming NOT_STARTED stages are
 excluded by default and can be toggled as **tentative** projections.

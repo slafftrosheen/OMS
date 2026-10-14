@@ -42,6 +42,12 @@ describe('OMS-R21 production capacity and forecast',()=>{
   expect(result.stations.CNC.unplanned.map(x=>x.reason))
     .toEqual(['missingEstimate','blocked','paused']);
  });
+ it('refuses a zero-hour estimate as an unverified scheduling input',()=>{
+  const result=buildCapacityForecast({CNC:[item('zero',0)]},[profile],'2026-10-14',7);
+  expect(result.allocatedHours).toBe(0);
+  expect(result.unplanned).toBe(1);
+  expect(result.stations.CNC.unplanned[0].reason).toBe('missingEstimate');
+ });
  it('does not synthesize capacity for unconfigured stations or treat future work as committed',()=>{
   const jobs={CNC:[item('now',4),item('later',2,{upcoming:true,stageState:'NOT_STARTED'})]};
   const noProfile=buildCapacityForecast(jobs,[],'2026-10-14',7);
