@@ -1441,24 +1441,24 @@
     "readOnly": "Only RD, Boss and Head of Production can change these reviews. You can inspect the queue.",
     "queue": "Production exception queue",
     "kind": {
-        "MISSING_ACTUAL": "Missing recorded actual hours",
-        "ACTUAL_OVERRUN": "Recorded hours exceed estimate",
-        "BLOCKED": "Blocked production stage",
-        "REWORK": "Stage in rework",
-        "MISSED_BOOKING": "Missed approved work date"
+      "MISSING_ACTUAL": "Missing recorded actual hours",
+      "ACTUAL_OVERRUN": "Recorded hours exceed estimate",
+      "BLOCKED": "Blocked production stage",
+      "REWORK": "Stage in rework",
+      "MISSED_BOOKING": "Missed approved work date"
     },
     "state": {
-        "UNCLAIMED": "Unclaimed",
-        "OPEN": "Open for reassignment",
-        "ACKNOWLEDGED": "Acknowledged",
-        "RESOLVED": "Resolved"
+      "UNCLAIMED": "Unclaimed",
+      "OPEN": "Open for reassignment",
+      "ACKNOWLEDGED": "Acknowledged",
+      "RESOLVED": "Resolved"
     },
     "detail": {
-        "completedWithoutRecordedHours": "Completed stage without actual labor hours recorded",
-        "measuredHoursOverEstimate": "Actual recorded hours exceed the stage estimate",
-        "activeProductionInterruption": "Open blocked/rework station assignment",
-        "approvedDatePassedWhileStageActive": "Approved booking in the past while this stage is still active",
-        "conditionNotCurrentlyReported": "Review record retained; this condition is not currently detected"
+      "completedWithoutRecordedHours": "Completed stage without actual labor hours recorded",
+      "measuredHoursOverEstimate": "Actual recorded hours exceed the stage estimate",
+      "activeProductionInterruption": "Open blocked/rework station assignment",
+      "approvedDatePassedWhileStageActive": "Approved booking in the past while this stage is still active",
+      "conditionNotCurrentlyReported": "Review record retained; this condition is not currently detected"
     },
     "notCurrent": "Not currently reported",
     "assignedToYou": "Assigned to you",
@@ -1472,11 +1472,11 @@
     "reopen": "Reopen",
     "history": "Action history",
     "action": {
-        "claim": "Claim and assign to myself",
-        "take": "Take ownership",
-        "update": "Update follow-up details",
-        "resolve": "Resolve with explanation",
-        "reopen": "Reopen active issue"
+      "claim": "Claim and assign to myself",
+      "take": "Take ownership",
+      "update": "Update follow-up details",
+      "resolve": "Resolve with explanation",
+      "reopen": "Reopen active issue"
     },
     "followUpDate": "Follow-up due date",
     "followUpNote": "Next steps / action note",
@@ -1492,7 +1492,7 @@
     "saveFailed": "Could not save the review.",
     "staleReview": "Review is stale; reload first.",
     "actor": "Action recorded by user"
-},
+  },
   "productionPerformance": {
     "bookingsUnavailable": "Approved schedule data is unavailable. Stage performance is still shown, but booking comparisons cannot be verified.",
     "bookingsExplanation": "Approved bookings come from the R22 scheduling ledger, for all dates. They are commitments, not worked hours; a completed stage may have had future bookings automatically cancelled.",
@@ -1538,7 +1538,7 @@
     "showMore": "Show more",
     "recentCompleted": "Recently completed stages",
     "completedExplanation": "Stage completions within the selected period, including accessible orders that have since been dispatched or archived."
-},
+  },
   "scheduleReconciliation": {
     "snapshotFailed": "Approved commitments could not be fully verified. Forecast suggestions and booking changes are disabled.",
     "retry": "Retry reconciliation",
@@ -1552,16 +1552,16 @@
     "daySummary": "{booked} h booked + {proposed} h suggested / {capacity} h capacity",
     "more": "{count} additional warnings not shown",
     "reason": {
-        "pastCommitment": "Approved date has passed; stage remains active",
-        "blockedCommitment": "Approved booking on blocked/rework stage",
-        "pausedCommitment": "Approved booking on held order",
-        "stageUnavailable": "Future approved booking without a current schedulable stage",
-        "notQueued": "Approved booking on stage not queued or in progress",
-        "estimateExceeded": "Approved hours exceed revised stage estimate",
-        "capacityExceeded": "Approved hours exceed station-day capacity",
-        "actualOverEstimate": "Actual logged stage hours exceed estimate"
+      "pastCommitment": "Approved date has passed; stage remains active",
+      "blockedCommitment": "Approved booking on blocked/rework stage",
+      "pausedCommitment": "Approved booking on held order",
+      "stageUnavailable": "Future approved booking without a current schedulable stage",
+      "notQueued": "Approved booking on stage not queued or in progress",
+      "estimateExceeded": "Approved hours exceed revised stage estimate",
+      "capacityExceeded": "Approved hours exceed station-day capacity",
+      "actualOverEstimate": "Actual logged stage hours exceed estimate"
     }
-},
+  },
   "productionReservations": {
     "title": "Production reservations",
     "intro": "Review proposed station-day work and explicitly approve commitments.",
@@ -1593,11 +1593,11 @@
     "noCandidates": "No suggested work in this forecast window.",
     "showMore": "Show more",
     "status": {
-        "PROPOSED": "Proposed",
-        "APPROVED": "Approved",
-        "CANCELLED": "Cancelled"
+      "PROPOSED": "Proposed",
+      "APPROVED": "Approved",
+      "CANCELLED": "Cancelled"
     }
-},
+  },
   "capacityPlanner": {
     "title": "Station capacity planner",
     "eyebrow": "Production / Capacity planning",
@@ -1634,13 +1634,13 @@
     "efficiency": "Effective availability (%)",
     "workdays": "Working days",
     "weekday": {
-        "1": "Mon",
-        "2": "Tue",
-        "3": "Wed",
-        "4": "Thu",
-        "5": "Fri",
-        "6": "Sat",
-        "7": "Sun"
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat",
+      "7": "Sun"
     },
     "viewOnly": "Only RD, Boss and Head of Production may change capacity profiles.",
     "notConfigured": "No confirmed capacity profile",
@@ -1652,21 +1652,25 @@
     "lateNotice": "{count} allocated slices occur after the due date",
     "noWork": "No active or configured stations.",
     "reason": {
-        "unconfigured": "Capacity is not configured",
-        "blocked": "Blocked or in rework",
-        "paused": "Order is on hold",
-        "missingEstimate": "Estimated hours are missing",
-        "noAvailability": "No staff hours available",
-        "outsideHorizon": "Insufficient hours in the forecast window"
+      "unconfigured": "Capacity is not configured",
+      "blocked": "Blocked or in rework",
+      "paused": "Order is on hold",
+      "missingEstimate": "Estimated hours are missing",
+      "noAvailability": "No staff hours available",
+      "outsideHorizon": "Insufficient hours in the forecast window"
     }
-},
+  },
   "productionPlanning": {
     "pendingPo": "Pending PO",
     "untitled": "Untitled order",
     "unknownClient": "Unknown client",
     "unavailable": "Production planning unavailable.",
     "stationMissing": "{count} active stages have no hour estimate.",
-    "pressure": {"blocked":"Blocked or rework requires attention","atRisk":"Overdue work needs review","backlog":"Five or more jobs waiting in the queue"},
+    "pressure": {
+      "blocked": "Blocked or rework requires attention",
+      "atRisk": "Overdue work needs review",
+      "backlog": "Five or more jobs waiting in the queue"
+    },
     "eyebrow": "Shop floor / Planning",
     "description": "Read-only workload and deadline signals from actual station stages. Open a workstation to record work.",
     "orders": "orders",
@@ -1694,13 +1698,13 @@
     "workstation": "Workstation",
     "stageEstimate": "Estimated {hours} h",
     "risk": {
-        "blocked": "Blocked",
-        "rework": "Rework required",
-        "overdue": "Past due",
-        "dueSoon": "Due within 3 days",
-        "onHold": "Order on hold"
+      "blocked": "Blocked",
+      "rework": "Rework required",
+      "overdue": "Past due",
+      "dueSoon": "Due within 3 days",
+      "onHold": "Order on hold"
     }
-},
+  },
   "productionFloor": {
     "staleStage": "This station was updated by someone else. The latest queue has been loaded; check its state before retrying.",
     "logProgress": "Log progress",
@@ -1723,7 +1727,7 @@
     "completionNotes": "Completion notes (optional)",
     "hoursError": "Hours must be between 0 and 999.99",
     "notesError": "Completion note is too long"
-},
+  },
   "orderFiles": {
     "count": "{count} files",
     "refresh": "Refresh files",
@@ -1736,7 +1740,7 @@
     "deleteConfirm": "Delete \"{name}\"?",
     "download": "Download",
     "delete": "Delete"
-},
+  },
   "orderWorkspace": {
     "staleSave": "This order changed in another session. Your edits were not saved. Copy any unsaved work, reload, review the current version and retry.",
     "approveReview": "Approve review",
@@ -1766,7 +1770,7 @@
       "layers": "Canvas & zones",
       "revisions": "File revisions",
       "changes": "Approvals",
-      "chat": "Assistant chat"
+      "chat": "Order assistant"
     },
     "unsaved": "Unsaved changes",
     "savedState": "Changes saved",
@@ -1823,10 +1827,35 @@
   },
   "productionReadiness": {
     "aiUnavailable": "OpenRouter planning is unavailable. Only database-backed checks are shown.",
-    "materialStatus": {"sufficient":"Recorded stock covers stated quantity (not reserved)","insufficient":"Insufficient stock","unknown":"Unverified"},
-    "materialMatch": {"exact-code":"Exact inventory code","exact-sku":"Exact SKU","unresolved":"No unique inventory match","ambiguous":"Multiple matches"},
-    "severity": {"blocker":"Blocker","warning":"Needs review","information":"Information"},
-    "issueCodes": {"missing-client":"Client is missing","missing-deadline":"Delivery deadline is missing","missing-profiles":"No production profiles are configured","unresolved-profile":"A production profile has no active, verified template","invalid-quantity":"A production profile has an invalid primary quantity","missing-files":"No source attachment is linked","inventory-unavailable":"Full inventory status could not be verified","materials-unspecified":"No materials have been specified, so stock readiness is unknown","stock-shortfall":"A specified material has insufficient stock","low-stock-after-use":"Stock would fall to or below its minimum level after planned use","unverified-material":"A material could not be verified against the exact SKU, code, unit and quantity"},
+    "materialStatus": {
+      "sufficient": "Recorded stock covers stated quantity (not reserved)",
+      "insufficient": "Insufficient stock",
+      "unknown": "Unverified"
+    },
+    "materialMatch": {
+      "exact-code": "Exact inventory code",
+      "exact-sku": "Exact SKU",
+      "unresolved": "No unique inventory match",
+      "ambiguous": "Multiple matches"
+    },
+    "severity": {
+      "blocker": "Blocker",
+      "warning": "Needs review",
+      "information": "Information"
+    },
+    "issueCodes": {
+      "missing-client": "Client is missing",
+      "missing-deadline": "Delivery deadline is missing",
+      "missing-profiles": "No production profiles are configured",
+      "unresolved-profile": "A production profile has no active, verified template",
+      "invalid-quantity": "A production profile has an invalid primary quantity",
+      "missing-files": "No source attachment is linked",
+      "inventory-unavailable": "Full inventory status could not be verified",
+      "materials-unspecified": "No materials have been specified, so stock readiness is unknown",
+      "stock-shortfall": "A specified material has insufficient stock",
+      "low-stock-after-use": "Stock would fall to or below its minimum level after planned use",
+      "unverified-material": "A material could not be verified against the exact SKU, code, unit and quantity"
+    },
     "unitMismatch": "Units do not match (order / inventory)",
     "profileSelect": "Production profile template",
     "profileUnassigned": "No verified template selected",
@@ -1896,11 +1925,17 @@
     "applying": "Applying locally…",
     "apply": "Apply selected to draft",
     "suggest": {
-        "questions": "What information is missing?",
-        "gaps": "Review this order for contradictions.",
-        "materials": "Which production details need checking?"
-    }
-},
+      "questions": "What information is missing?",
+      "gaps": "Review this order for contradictions.",
+      "materials": "Which production details need checking?"
+    },
+    "canvasTools": "Canvas AI tools (advanced)",
+    "hideCanvasTools": "Hide Canvas AI tools",
+    "selectionContext": "Include selected Canvas shapes",
+    "canvasToolWarning": "Separate Canvas tools use the existing general AI endpoint. Selection replacement may modify the Canvas, not order fields, and requires confirmation.",
+    "confirmCanvasReplace": "Replace the selected Canvas shapes? This changes the Canvas, not the order form.",
+    "canvasPlaceholder": "Ask about selected shapes or Maker.js conversion…"
+  },
   "orderIntake": {
     "sourceChanged": "Selected source changed after analysis. Analyze the new file before applying.",
     "noSource": "Choose an attachment or save some order notes before analysis.",
@@ -2045,8 +2080,8 @@
     "chat": "Chat",
     "notifications": "Notifications",
     "settings": "Settings"
-  }
-  ,"toolkit": {
+  },
+  "toolkit": {
     "title": "Toolkit",
     "subtitle": "Ideas · Projects · Concepts",
     "sections": "Toolkit sections",

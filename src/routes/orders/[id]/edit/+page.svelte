@@ -228,6 +228,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let activeTool = $state('select');
   let aiPrompt = $state('');
   let useSelectionCtx = $state(false);
+  let showCanvasAi = $state(false);
   let aiRunning = $state(false);
   let aiResponse = $state('');
 
@@ -646,6 +647,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     // If the user is asking the AI to clean up the selection, route to the
     // shape-replacement endpoint instead of plain chat.
     if (useSelectionCtx && isReplaceIntent(prompt)) {
+      if(!confirm($t('orderAssistant.confirmCanvasReplace')))return;
       await replaceSelectionWithMaker(prompt);
       return;
     }
@@ -1168,12 +1170,46 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
               (isAdmin && ['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status))} />
           {:else}<p class="zone-intro">Loading attachments…</p>{/if}
         {:else if rightTab === 'chat'}
-          {#if orderId}
-            <OrderFlowAssistant {orderId} {orderUpdatedAt} editable={canEdit}
-              canAsk={canEdit||(isAdmin&&['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status))}
-              current={intakeCurrent} dirty={hasUnsavedChanges}
-              onApply={applyIntakeFields}/>
-          {/if}
+          <p class="zone-intro">{$t('orderAssistant.description')}</p>
+        {/if}
+        <!-- Keep the order conversation mounted across workspace tab changes;
+             do not persist it to a shared user chat or database. -->
+        {#if orderId}
+          <div hidden={rightTab!=='chat'}>
+            {#key orderId}
+              <OrderFlowAssistant {orderId} {orderUpdatedAt} editable={canEdit}
+                canAsk={canEdit||(isAdmin&&['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status))}
+                current={intakeCurrent} dirty={hasUnsavedChanges}
+                onApply={applyIntakeFields}/>
+            {/key}
+            <div class="ai-panel">
+              <button type="button" class="action-btn" onclick={()=>showCanvasAi=!showCanvasAi}>
+                {showCanvasAi?$t('orderAssistant.hideCanvasTools'):$t('orderAssistant.canvasTools')}
+              </button>
+              {#if showCanvasAi}
+                <p class="zone-intro">{$t('orderAssistant.canvasToolWarning')}</p>
+                <label class="ai-ctx-toggle">
+                  <input type="checkbox" bind:checked={useSelectionCtx}/>
+                  {$t('orderAssistant.selectionContext')}
+                </label>
+                <div class="ai-chat-history">
+                  {#if aiResponse}<div class="ai-message">
+                    <div class="ai-label">{$t('orderAssistant.assistant')}</div>
+                    <p>{aiResponse}</p>
+                  </div>{/if}
+                </div>
+                <div class="ai-input-row">
+                  <textarea bind:value={aiPrompt} rows="3"
+                    placeholder={$t('orderAssistant.canvasPlaceholder')}
+                    disabled={aiRunning}></textarea>
+                  <button type="button" class="ai-send-btn"
+                    onclick={runAiPrompt} disabled={aiRunning||!aiPrompt.trim()}>
+                    <Icon name="send" size="sm"/>
+                  </button>
+                </div>
+              {/if}
+            </div>
+          </div>
         {/if}
       </div>
     </aside>

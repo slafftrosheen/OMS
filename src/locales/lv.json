@@ -1441,24 +1441,24 @@
     "readOnly": "Pārskatus var mainīt tikai RD, Boss un ražošanas vadītājs. Sarakstu var apskatīt.",
     "queue": "Ražošanas problēmu rinda",
     "kind": {
-        "MISSING_ACTUAL": "Nav norādītas faktiskās stundas",
-        "ACTUAL_OVERRUN": "Faktiskās stundas pārsniedz aplēsi",
-        "BLOCKED": "Bloķēts ražošanas posms",
-        "REWORK": "Posms jāpārstrādā",
-        "MISSED_BOOKING": "Nokavēta apstiprinātā darba diena"
+      "MISSING_ACTUAL": "Nav norādītas faktiskās stundas",
+      "ACTUAL_OVERRUN": "Faktiskās stundas pārsniedz aplēsi",
+      "BLOCKED": "Bloķēts ražošanas posms",
+      "REWORK": "Posms jāpārstrādā",
+      "MISSED_BOOKING": "Nokavēta apstiprinātā darba diena"
     },
     "state": {
-        "UNCLAIMED": "Nav atbildīgā",
-        "OPEN": "Atvērts piešķiršanai",
-        "ACKNOWLEDGED": "Pieņemts izpildei",
-        "RESOLVED": "Atrisināts"
+      "UNCLAIMED": "Nav atbildīgā",
+      "OPEN": "Atvērts piešķiršanai",
+      "ACKNOWLEDGED": "Pieņemts izpildei",
+      "RESOLVED": "Atrisināts"
     },
     "detail": {
-        "completedWithoutRecordedHours": "Pabeigts posms bez reģistrētām faktiskajām stundām",
-        "measuredHoursOverEstimate": "Reģistrētās stundas pārsniedz posma aplēsi",
-        "activeProductionInterruption": "Aktīvs bloķēts vai pārstrādājams posms",
-        "approvedDatePassedWhileStageActive": "Apstiprinātā darba diena pagājusi, bet posms vēl aktīvs",
-        "conditionNotCurrentlyReported": "Pārskata ieraksts saglabāts; pašlaik problēma nav konstatēta"
+      "completedWithoutRecordedHours": "Pabeigts posms bez reģistrētām faktiskajām stundām",
+      "measuredHoursOverEstimate": "Reģistrētās stundas pārsniedz posma aplēsi",
+      "activeProductionInterruption": "Aktīvs bloķēts vai pārstrādājams posms",
+      "approvedDatePassedWhileStageActive": "Apstiprinātā darba diena pagājusi, bet posms vēl aktīvs",
+      "conditionNotCurrentlyReported": "Pārskata ieraksts saglabāts; pašlaik problēma nav konstatēta"
     },
     "notCurrent": "Pašlaik nav konstatēts",
     "assignedToYou": "Piešķirts jums",
@@ -1472,11 +1472,11 @@
     "reopen": "Atvērt atkārtoti",
     "history": "Darbību vēsture",
     "action": {
-        "claim": "Piešķirt sev",
-        "take": "Pārņemt atbildību",
-        "update": "Atjaunināt nākamos soļus",
-        "resolve": "Atrisināt ar skaidrojumu",
-        "reopen": "Atvērt atkārtoti"
+      "claim": "Piešķirt sev",
+      "take": "Pārņemt atbildību",
+      "update": "Atjaunināt nākamos soļus",
+      "resolve": "Atrisināt ar skaidrojumu",
+      "reopen": "Atvērt atkārtoti"
     },
     "followUpDate": "Nākamās pārbaudes datums",
     "followUpNote": "Nākamie soļi / piezīme",
@@ -1492,7 +1492,7 @@
     "saveFailed": "Neizdevās saglabāt pārskatu.",
     "staleReview": "Pārskats ir novecojis; atjauniniet.",
     "actor": "Darbību reģistrējis lietotājs"
-},
+  },
   "productionPerformance": {
     "bookingsUnavailable": "Apstiprinātā grafika dati nav pieejami. Posmu rezultāti ir redzami, bet rezervācijas nevar pārbaudīt.",
     "bookingsExplanation": "Apstiprinātie laiki nāk no R22 rezervāciju žurnāla par visiem datumiem. Tās ir saistības, nevis nostrādātās stundas; pēc posma pabeigšanas nākotnes rezervācijas var būt automātiski atceltas.",
@@ -1538,7 +1538,7 @@
     "showMore": "Rādīt vairāk",
     "recentCompleted": "Nesen pabeigtie posmi",
     "completedExplanation": "Posmi, kas pabeigti izvēlētajā periodā, arī pieejamos izsūtītos vai arhivētos pasūtījumos."
-},
+  },
   "scheduleReconciliation": {
     "snapshotFailed": "Neizdevās pilnībā pārbaudīt apstiprinātās rezervācijas. Prognoze un rezervāciju izmaiņas ir bloķētas.",
     "retry": "Atkārtot salīdzināšanu",
@@ -1552,16 +1552,16 @@
     "daySummary": "Rezervētas {booked} st. + ieteiktas {proposed} st. / jauda {capacity} st.",
     "more": "Nav parādīti vēl {count} brīdinājumi",
     "reason": {
-        "pastCommitment": "Apstiprinātais datums pagājis, posms joprojām aktīvs",
-        "blockedCommitment": "Rezervācija bloķētam vai pārstrādājamam posmam",
-        "pausedCommitment": "Apturēta pasūtījuma rezervācija",
-        "stageUnavailable": "Nākotnes rezervācija bez pieejama ražošanas posma",
-        "notQueued": "Rezervācija posmam, kas nav rindā vai procesā",
-        "estimateExceeded": "Apstiprinātās stundas pārsniedz posma aplēsi",
-        "capacityExceeded": "Apstiprinātās stundas pārsniedz stacijas dienas jaudu",
-        "actualOverEstimate": "Faktiskās posma stundas pārsniedz aplēsi"
+      "pastCommitment": "Apstiprinātais datums pagājis, posms joprojām aktīvs",
+      "blockedCommitment": "Rezervācija bloķētam vai pārstrādājamam posmam",
+      "pausedCommitment": "Apturēta pasūtījuma rezervācija",
+      "stageUnavailable": "Nākotnes rezervācija bez pieejama ražošanas posma",
+      "notQueued": "Rezervācija posmam, kas nav rindā vai procesā",
+      "estimateExceeded": "Apstiprinātās stundas pārsniedz posma aplēsi",
+      "capacityExceeded": "Apstiprinātās stundas pārsniedz stacijas dienas jaudu",
+      "actualOverEstimate": "Faktiskās posma stundas pārsniedz aplēsi"
     }
-},
+  },
   "productionReservations": {
     "title": "Ražošanas laika rezervācijas",
     "intro": "Pārskatiet ierosinātos darbus un atsevišķi apstipriniet darba laikus.",
@@ -1593,11 +1593,11 @@
     "noCandidates": "Izvēlētajā periodā nav ieteikto darbu.",
     "showMore": "Rādīt vairāk",
     "status": {
-        "PROPOSED": "Ierosināts",
-        "APPROVED": "Apstiprināts",
-        "CANCELLED": "Atcelts"
+      "PROPOSED": "Ierosināts",
+      "APPROVED": "Apstiprināts",
+      "CANCELLED": "Atcelts"
     }
-},
+  },
   "capacityPlanner": {
     "title": "Staciju jaudas plānotājs",
     "eyebrow": "Ražošana / Jaudas",
@@ -1634,13 +1634,13 @@
     "efficiency": "Efektīvā pieejamība (%)",
     "workdays": "Darba dienas",
     "weekday": {
-        "1": "Pr",
-        "2": "Ot",
-        "3": "Tr",
-        "4": "Ce",
-        "5": "Pk",
-        "6": "Se",
-        "7": "Sv"
+      "1": "Pr",
+      "2": "Ot",
+      "3": "Tr",
+      "4": "Ce",
+      "5": "Pk",
+      "6": "Se",
+      "7": "Sv"
     },
     "viewOnly": "Jaudas var mainīt tikai RD, vadītājs un ražošanas vadītājs.",
     "notConfigured": "Jaudas profils nav konfigurēts",
@@ -1652,21 +1652,25 @@
     "lateNotice": "{count} darba daļas atrodas pēc termiņa",
     "noWork": "Nav aktīvu vai konfigurētu staciju.",
     "reason": {
-        "unconfigured": "Jauda nav konfigurēta",
-        "blocked": "Bloķēts vai pārstrādājams",
-        "paused": "Pasūtījums apturēts",
-        "missingEstimate": "Nav norādītas plānotās stundas",
-        "noAvailability": "Nav pieejamu personāla stundu",
-        "outsideHorizon": "Nepietiek stundu prognozes periodā"
+      "unconfigured": "Jauda nav konfigurēta",
+      "blocked": "Bloķēts vai pārstrādājams",
+      "paused": "Pasūtījums apturēts",
+      "missingEstimate": "Nav norādītas plānotās stundas",
+      "noAvailability": "Nav pieejamu personāla stundu",
+      "outsideHorizon": "Nepietiek stundu prognozes periodā"
     }
-},
+  },
   "productionPlanning": {
     "pendingPo": "Bez pasūtījuma numura",
     "untitled": "Pasūtījums bez nosaukuma",
     "unknownClient": "Nezināms klients",
     "unavailable": "Ražošanas plānošanas dati nav pieejami.",
     "stationMissing": "{count} aktīviem posmiem nav stundu aplēses.",
-    "pressure": {"blocked":"Jāpārskata bloķētie vai pārstrādājamie darbi","atRisk":"Jāpārskata kavētais darbs","backlog":"Rindā gaida vismaz pieci darbi"},
+    "pressure": {
+      "blocked": "Jāpārskata bloķētie vai pārstrādājamie darbi",
+      "atRisk": "Jāpārskata kavētais darbs",
+      "backlog": "Rindā gaida vismaz pieci darbi"
+    },
     "eyebrow": "Ražošana / Plānošana",
     "description": "Darba slodze un termiņi pēc faktiskajiem posmiem. Darbu reģistrējiet stacijā.",
     "orders": "pasūtījumi",
@@ -1694,13 +1698,13 @@
     "workstation": "Darba stacija",
     "stageEstimate": "Plānots: {hours} st.",
     "risk": {
-        "blocked": "Bloķēts",
-        "rework": "Nepieciešama pārstrāde",
-        "overdue": "Nokavēts termiņš",
-        "dueSoon": "Termiņš tuvāko 3 dienu laikā",
-        "onHold": "Pasūtījums apturēts"
+      "blocked": "Bloķēts",
+      "rework": "Nepieciešama pārstrāde",
+      "overdue": "Nokavēts termiņš",
+      "dueSoon": "Termiņš tuvāko 3 dienu laikā",
+      "onHold": "Pasūtījums apturēts"
     }
-},
+  },
   "productionFloor": {
     "staleStage": "Cits darbinieks mainīja posmu. Saraksts ir atjaunināts — pārbaudiet statusu pirms atkārtošanas.",
     "logProgress": "Reģistrēt progresu",
@@ -1723,7 +1727,7 @@
     "completionNotes": "Piezīmes par pabeigšanu (neobligāti)",
     "hoursError": "Stundām jābūt no 0 līdz 999,99",
     "notesError": "Pabeigšanas piezīme ir pārāk gara"
-},
+  },
   "orderFiles": {
     "count": "Faili: {count}",
     "refresh": "Atjaunināt failus",
@@ -1736,7 +1740,7 @@
     "deleteConfirm": "Dzēst “{name}”?",
     "download": "Lejupielādēt",
     "delete": "Dzēst"
-},
+  },
   "orderWorkspace": {
     "staleSave": "Pasūtījums ir mainīts citā sesijā. Labojumi nav saglabāti. Nokopējiet nesaglabātos datus, pārlādējiet lapu, pārbaudiet pašreizējo versiju un mēģiniet vēlreiz.",
     "approveReview": "Apstiprināt pārskatīšanu",
@@ -1766,7 +1770,7 @@
       "layers": "Audekls un zonas",
       "revisions": "Failu versijas",
       "changes": "Izmaiņu saskaņošana",
-      "chat": "AI saruna"
+      "chat": "Pasūtījuma asistents"
     },
     "unsaved": "Nesaglabātas izmaiņas",
     "savedState": "Izmaiņas saglabātas",
@@ -1823,10 +1827,35 @@
   },
   "productionReadiness": {
     "aiUnavailable": "OpenRouter analīze nav pieejama. Redzamas tikai pārbaudes no datubāzes.",
-    "materialStatus": {"sufficient":"Reģistrētais daudzums pietiek (nav rezervēts)","insufficient":"Nepietiekams krājums","unknown":"Nav pārbaudīts"},
-    "materialMatch": {"exact-code":"Precīzs koda sakritums","exact-sku":"Precīzs SKU","unresolved":"Nav viennozīmīgas atbilstības","ambiguous":"Vairākas atbilstības"},
-    "severity": {"blocker":"Kritiski","warning":"Jāpārbauda","information":"Informācija"},
-    "issueCodes": {"missing-client":"Nav norādīts klients","missing-deadline":"Nav norādīts izpildes termiņš","missing-profiles":"Nav ražošanas profilu","unresolved-profile":"Profilam nav izvēlēta aktīva, pārbaudīta veidne","invalid-quantity":"Nepareizs profila pamatdaudzums","missing-files":"Nav pievienots avota fails","inventory-unavailable":"Neizdevās pilnībā pārbaudīt noliktavas krājumus","materials-unspecified":"Nav norādīti materiāli — krājumu gatavība nav zināma","stock-shortfall":"Norādītā materiāla noliktavā nepietiek","low-stock-after-use":"Pēc plānotā patēriņa krājums samazināsies līdz minimumam vai zemāk","unverified-material":"Materiālu nevar pārbaudīt pēc precīza SKU, koda, mērvienības un daudzuma"},
+    "materialStatus": {
+      "sufficient": "Reģistrētais daudzums pietiek (nav rezervēts)",
+      "insufficient": "Nepietiekams krājums",
+      "unknown": "Nav pārbaudīts"
+    },
+    "materialMatch": {
+      "exact-code": "Precīzs koda sakritums",
+      "exact-sku": "Precīzs SKU",
+      "unresolved": "Nav viennozīmīgas atbilstības",
+      "ambiguous": "Vairākas atbilstības"
+    },
+    "severity": {
+      "blocker": "Kritiski",
+      "warning": "Jāpārbauda",
+      "information": "Informācija"
+    },
+    "issueCodes": {
+      "missing-client": "Nav norādīts klients",
+      "missing-deadline": "Nav norādīts izpildes termiņš",
+      "missing-profiles": "Nav ražošanas profilu",
+      "unresolved-profile": "Profilam nav izvēlēta aktīva, pārbaudīta veidne",
+      "invalid-quantity": "Nepareizs profila pamatdaudzums",
+      "missing-files": "Nav pievienots avota fails",
+      "inventory-unavailable": "Neizdevās pilnībā pārbaudīt noliktavas krājumus",
+      "materials-unspecified": "Nav norādīti materiāli — krājumu gatavība nav zināma",
+      "stock-shortfall": "Norādītā materiāla noliktavā nepietiek",
+      "low-stock-after-use": "Pēc plānotā patēriņa krājums samazināsies līdz minimumam vai zemāk",
+      "unverified-material": "Materiālu nevar pārbaudīt pēc precīza SKU, koda, mērvienības un daudzuma"
+    },
     "unitMismatch": "Mērvienības nesakrīt (pasūtījums / noliktava)",
     "profileSelect": "Ražošanas profila veidne",
     "profileUnassigned": "Nav izvēlēta pārbaudīta veidne",
@@ -1896,11 +1925,17 @@
     "applying": "Piemēro…",
     "apply": "Piemērot izvēlētos",
     "suggest": {
-        "questions": "Kādas ziņas vēl trūkst?",
-        "gaps": "Pārbaudi pasūtījuma pretrunas.",
-        "materials": "Kas jāpārbauda pirms ražošanas?"
-    }
-},
+      "questions": "Kādas ziņas vēl trūkst?",
+      "gaps": "Pārbaudi pasūtījuma pretrunas.",
+      "materials": "Kas jāpārbauda pirms ražošanas?"
+    },
+    "canvasTools": "Canvas AI rīki (papildu)",
+    "hideCanvasTools": "Paslēpt Canvas AI rīkus",
+    "selectionContext": "Iekļaut atlasītās Canvas figūras",
+    "canvasToolWarning": "Tie ir atsevišķi Canvas rīki ar vispārīgo AI. Figūru aizstāšana maina Canvas, nevis pasūtījuma laukus, un prasa apstiprinājumu.",
+    "confirmCanvasReplace": "Aizstāt atlasītās Canvas figūras? Tiks mainīts Canvas, nevis pasūtījuma lauki.",
+    "canvasPlaceholder": "Jautājums par atlasītajām figūrām vai Maker.js pārveidi…"
+  },
   "orderIntake": {
     "sourceChanged": "Avota fails pēc analīzes ir mainīts. Pirms piemērošanas analizējiet jauno failu.",
     "noSource": "Pirms analīzes izvēlieties pielikumu vai saglabājiet pasūtījuma piezīmes.",
@@ -2045,8 +2080,8 @@
     "chat": "Tērzēšana",
     "notifications": "Paziņojumi",
     "settings": "Iestatījumi"
-  }
-  ,"toolkit": {
+  },
+  "toolkit": {
     "title": "Rīkkopa",
     "subtitle": "Idejas · Projekti · Koncepcijas",
     "sections": "Rīkkopas sadaļas",
