@@ -2567,5 +2567,62 @@
       "privateBeforeReload": "Pirms pārlādes saglabājiet privāto sarunu.",
       "privateCopy": "Atkopšanas audekls ir izveidots, bet privāto sarunu neizdevās kopēt."
     }
+  },
+  "fabricationSpec": {
+    "title": "Izgatavošanas specifikācija",
+    "subtitle": "Norādiet pārbaudītus izmērus un ražošanas prasības šim profilam. Melnrakstā laukus drīkst atstāt tukšus.",
+    "optional": "Nav norādīts",
+    "rectangle": "Viena taisnstūrveida virsma",
+    "areaDisclaimer": "Tikai atsauces ģeometrija: nav ņemts vērā griezums, lokšņu izkārtojums, patēriņš, darbs vai iekārtu iespējas.",
+    "incomplete": "Laukuma aprēķinam jānorāda gan platums, gan augstums.",
+    "invalid": "Specifikācijā ir nederīga vērtība. Izlabojiet pirms saglabāšanas.",
+    "invalidSave": "Pirms pasūtījuma saglabāšanas izlabojiet nederīgos izmērus vai izgatavošanas parametrus.",
+    "notInstruction": "Tehniskās piezīmes ir informatīvas, nevis iekārtu komandas vai apstiprinājums ražošanai.",
+    "clear": "Notīrīt specifikāciju",
+    "field": {
+      "width_mm": "Platums",
+      "height_mm": "Augstums",
+      "depth_mm": "Dziļums",
+      "thickness_mm": "Biezums",
+      "method": "Iespējamā izgatavošanas metode",
+      "illumination": "Apgaismojums",
+      "mounting": "Stiprinājums",
+      "exposure": "Uzstādīšanas vide",
+      "material_note": "Materiāla / markas piezīmes",
+      "finish_note": "Virsmas / apdares piezīmes",
+      "installation_note": "Uzstādīšanas / stiprinājuma piezīmes"
+    },
+    "choice": {
+      "method": {
+        "unspecified": "Nav pārbaudīts",
+        "laser": "Lāzergriešana (ieteikums)",
+        "cnc-router": "CNC frēzēšana (ieteikums)",
+        "bending": "Liekšana (ieteikums)",
+        "hand": "Roku darbs (ieteikums)",
+        "other": "Cits / precizēt"
+      },
+      "illumination": {
+        "unspecified": "Nav pārbaudīts",
+        "none": "Bez apgaismojuma",
+        "front": "Priekšējais apgaismojums",
+        "halo": "Aizmugures kontūrapgaismojums",
+        "edge": "Malu apgaismojums",
+        "other": "Cits / precizēt"
+      },
+      "mounting": {
+        "unspecified": "Nav pārbaudīts",
+        "wall": "Pie sienas",
+        "frame": "Pie rāmja",
+        "suspended": "Piekārts",
+        "freestanding": "Brīvi stāvošs",
+        "other": "Cits / precizēt"
+      },
+      "exposure": {
+        "unspecified": "Nav pārbaudīts",
+        "interior": "Iekštelpās",
+        "exterior": "Ārā",
+        "sheltered": "Zem nojumes"
+      }
+    }
   }
 }

@@ -2567,5 +2567,62 @@
       "privateBeforeReload": "Save your private discussion before reloading.",
       "privateCopy": "Recovery canvas was created, but its private discussion could not be copied."
     }
+  },
+  "fabricationSpec": {
+    "title": "Fabrication specifications",
+    "subtitle": "Record verified measurements and production requirements for this profile. Optional while preparing a draft.",
+    "optional": "Not specified",
+    "rectangle": "One rectangular face",
+    "areaDisclaimer": "Reference geometry only: no kerf, nesting, material usage, labour or machine feasibility.",
+    "incomplete": "Width and height must both be recorded before area can be calculated.",
+    "invalid": "This specification contains an invalid value. Correct it before saving.",
+    "invalidSave": "Correct invalid fabrication measurements or choices before saving this order.",
+    "notInstruction": "Technical notes are references for staff, not machine instructions or proof of production readiness.",
+    "clear": "Clear specifications",
+    "field": {
+      "width_mm": "Width",
+      "height_mm": "Height",
+      "depth_mm": "Depth",
+      "thickness_mm": "Thickness",
+      "method": "Proposed fabrication method",
+      "illumination": "Illumination",
+      "mounting": "Mounting",
+      "exposure": "Installation environment",
+      "material_note": "Material / grade notes",
+      "finish_note": "Surface / finish notes",
+      "installation_note": "Installation / mounting notes"
+    },
+    "choice": {
+      "method": {
+        "unspecified": "Not verified",
+        "laser": "Laser cutting (proposed)",
+        "cnc-router": "CNC routing (proposed)",
+        "bending": "Bending (proposed)",
+        "hand": "Manual fabrication (proposed)",
+        "other": "Other / verify"
+      },
+      "illumination": {
+        "unspecified": "Not verified",
+        "none": "No illumination",
+        "front": "Front-lit",
+        "halo": "Halo / back-lit",
+        "edge": "Edge-lit",
+        "other": "Other / verify"
+      },
+      "mounting": {
+        "unspecified": "Not verified",
+        "wall": "Wall-mounted",
+        "frame": "On frame",
+        "suspended": "Suspended",
+        "freestanding": "Freestanding",
+        "other": "Other / verify"
+      },
+      "exposure": {
+        "unspecified": "Not verified",
+        "interior": "Interior",
+        "exterior": "Exterior",
+        "sheltered": "Sheltered exterior"
+      }
+    }
   }
 }
