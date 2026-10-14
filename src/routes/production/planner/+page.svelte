@@ -8,6 +8,7 @@
   import type {ProductionCapacity} from '$lib/order/production-capacity';
   import {dailyStationHours,validateCapacityWrite} from '$lib/order/production-capacity';
   import {buildCapacityForecast} from '$lib/order/capacity-forecast';
+  import ProductionReservationPanel from '$lib/components/production/ProductionReservationPanel.svelte';
 
   const WEEK=[1,2,3,4,5,6,7];
   function localDate():string{
@@ -267,6 +268,8 @@
           {/if}
         </section>
       </div>
+      <ProductionReservationPanel forecast={projection} {startDate}
+        horizonDays={horizon} canEdit={canConfigure} />
     {/if}
   {/if}
 </main>
