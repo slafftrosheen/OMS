@@ -5,6 +5,36 @@ export type PerformanceOrder={id:string;po_number?:string|null;title?:string|nul
 export type PerformanceStage={draft_order_id:string;station:string;state:string;
   estimated_hours?:number|string|null;actual_hours?:number|string|null;
   started_at?:string|null;completed_at?:string|null;blocked_reason?:string|null};
+import type {ApprovedReservationHours} from './capacity-forecast';
+export type ApprovedScheduleSignal={
+  hours:number;futureHours:number;pastHours:number;
+  nextDate:string|null;reservations:number;
+};
+/** Approved bookings are planning commitments, NOT evidence of hours worked.
+ * Past bookings are not assumed complete; keep their hours as missed-date signals.
+ */
+export function summarizeApprovedSchedule(
+  rows:ApprovedReservationHours[],today:string
+):Map<string,ApprovedScheduleSignal>{
+  const result=new Map<string,ApprovedScheduleSignal>();
+  for(const row of rows){
+    const hours=Number(row.hours);
+    if(!Number.isFinite(hours)||hours<=0)throw new Error('Invalid approved booking hours');
+    const key=`${row.draft_order_id}:${row.station}`;
+    const signal=result.get(key)??{hours:0,futureHours:0,pastHours:0,
+      nextDate:null,reservations:0};
+    signal.hours=rounded(signal.hours+hours);
+    signal.reservations++;
+    if(row.work_date<today)signal.pastHours=rounded(signal.pastHours+hours);
+    else {
+      signal.futureHours=rounded(signal.futureHours+hours);
+      if(signal.nextDate===null||row.work_date<signal.nextDate)
+        signal.nextDate=row.work_date;
+    }
+    result.set(key,signal);
+  }
+  return result;
+}
 export type ProgressObservation={station:string;orderId:string;createdAt:string;
   progressPercent:number|null;note:string};
 export type PerformanceLine={orderId:string;station:string;poNumber:string|null;title:string;
