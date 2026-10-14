@@ -98,7 +98,7 @@ describe('OMS-R29 deterministic technical evidence and assistant integration',()
    expect(api).toContain('bounding faces');
    expect(api).toContain('technicalEvidence');
    expect(api).toContain('technicalChecks:technical');
-   expect(api).toContain('materialYieldEstimated:false');
+   expect(read('src/lib/order/technical-evidence.ts')).toContain('materialYieldEstimated:false');
    expect(api).toContain('fileContentsProvided:false');
    expect(api).not.toContain("technicalChecks:input.");
    expect(api).not.toContain('.update(');
@@ -108,8 +108,9 @@ describe('OMS-R29 deterministic technical evidence and assistant integration',()
    expect(component).toContain("method:'GET'");
    expect(component).toContain('/technical-checks');
    expect(component).toContain('technicalVersion');
-   expect(component).toContain('materialYieldEstimated');
-   expect(component).toContain('onClick').toBeUndefined();
+   expect(component).toContain('technicalNoAuthority');
+   expect(component).toContain('onclick={prepareTechnicalQuestion}');
+   expect(component).not.toContain("method:'POST'");
  });
  it('translates all technical states and suggested questions across EN/RU/LV',()=>{
    const codes=['NO_PROFILES','PROFILE_QUANTITY','PROFILE_TEMPLATE',

@@ -208,6 +208,7 @@
               {#if issue.materialIndex!==undefined}
                 · {$t('orderAssistant.materialNumber',{values:{number:issue.materialIndex+1}})}
               {/if}
+              {#if issue.subject} · {issue.subject}{/if}
             </li>
           {/each}
         </ul>

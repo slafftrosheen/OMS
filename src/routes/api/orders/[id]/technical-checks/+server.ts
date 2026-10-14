@@ -41,11 +41,13 @@ export const GET:RequestHandler=async ({locals,params})=>{
    :{data:[],error:null};
  if(templateError)throw error(503,'Profile names unavailable');
  const byId=new Map((templates??[]).map(row=>[row.id,row]));
- const checks=buildOrderTechnicalChecks((profiles.data??[]).map(p=>({
-   quantity1:p.quantity1,configuration:p.configuration,
-   name:byId.get(p.profile_template_id)?.is_active===true
-     ?byId.get(p.profile_template_id)?.name:null
- })),materials.data??[],files.count);
+ const checks=buildOrderTechnicalChecks((profiles.data??[]).map(p=>{
+   const template=byId.get(String(p.profile_template_id??''));
+   return {
+     quantity1:p.quantity1,configuration:p.configuration,
+     name:template?.is_active===true?String(template.name??''):null
+   };
+ }),materials.data??[],files.count);
  return json({orderId:order.id,orderUpdatedAt:order.updated_at,checks},{
    headers:{'Cache-Control':'private, no-store'}
  });
