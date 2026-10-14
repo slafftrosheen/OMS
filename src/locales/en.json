@@ -1891,6 +1891,58 @@
     "manual": "Verify source drawings, material specifications, stock movements and actual station capacity before approving work.",
     "stale": "Order changed since this snapshot was collected. Run the check again."
   },
+  "orderGuide": {
+    "title": "Order guide",
+    "newIntro": "Prepare a complete draft before submitting it.",
+    "savedIntro": "Contextual help for this order and its next review step.",
+    "countHint": "Field-presence signals only, not verified production readiness.",
+    "signals": "signals",
+    "more": "Show all steps",
+    "less": "Fewer details",
+    "hide": "Minimize guide",
+    "show": "Show order guide",
+    "currentStep": "In this part of the workflow",
+    "stepsLabel": "Order preparation steps",
+    "next": "Next suggested step",
+    "askButton": "Ask about this step",
+    "unsaved": "These indicators reflect the current form. Unsaved changes are not yet part of the saved order.",
+    "saveBeforeAI": "Customer data remains local until you save. Order Assistant becomes available in the saved order workspace.",
+    "disclaimer": "These are reminders, not approvals. Attached file contents, production capacity and suitability require separate human or deterministic verification.",
+    "signal": {
+        "present": "Information present",
+        "missing": "Needs input",
+        "check": "Needs review",
+        "unknown": "Not verified"
+    },
+    "step": {
+        "brief": "Order brief",
+        "profiles": "Production profiles",
+        "files": "Customer files",
+        "review": "Review & handoff"
+    },
+    "help": {
+        "brief": "Check the customer and due date, then note the sign requirements, dimensions and delivery arrangements.",
+        "profiles": "Confirm that quantities and production profile settings match what was ordered; a template may need assigning.",
+        "files": "Check that drawings and supporting documents are linked and readable. A file count alone does not verify its contents.",
+        "review": "Run production readiness, resolve open questions and confirm roles and dates before any authorized status change."
+    },
+    "sectionTip": {
+        "details": "Tip: record measurements, materials and decisions in saved order notes rather than assuming them.",
+        "files": "Tip: upload source files first, then use AI Intake to extract proposed fields from a supported image or PDF.",
+        "intake": "Tip: AI Intake suggestions are unverified until reviewed, selected and saved by a person.",
+        "readiness": "Tip: readiness analysis is advisory; check actual inventory, equipment and schedules separately.",
+        "layers": "Tip: a Canvas drawing does not by itself prove that manufacturing specifications are complete.",
+        "revisions": "Tip: compare the original and updated customer files before accepting design changes.",
+        "changes": "Tip: review decisions do not automatically update the production order.",
+        "chat": "Tip: Assistant conversations use saved facts. Use explicit consent, and review suggestions before saving."
+    },
+    "ask": {
+        "brief": "Review the saved order brief. Which customer questions, delivery requirements or technical facts are missing? Do not invent dimensions or dates.",
+        "profiles": "Using only saved production profiles and quantities, which specifications require verification before manufacturing? Do not guess technical measurements.",
+        "files": "What should I check in this order's customer drawings and PDF documents? You only know the saved file count, not the actual file contents.",
+        "review": "Create a practical review checklist for this saved signage order: unresolved questions, profile requirements, delivery planning and production risks. Do not change order status."
+    }
+},
   "orderAssistant": {
     "title": "Order assistant",
     "clear": "Clear conversation",

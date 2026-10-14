@@ -1891,6 +1891,58 @@
     "manual": "Pirms darba uzsākšanas pārbaudiet rasējumus, materiālu specifikācijas, noliktavas kustības un cehu noslodzi.",
     "stale": "Pasūtījums ir mainījies kopš pārbaudes. Veiciet jaunu pārbaudi."
   },
+  "orderGuide": {
+    "title": "Pasūtījuma palīgs",
+    "newIntro": "Sagatavojiet melnrakstu pirms iesniegšanas pārskatīšanai.",
+    "savedIntro": "Padomi šim pasūtījumam un nākamajai pārbaudei.",
+    "countHint": "Tie ir tikai aizpildīšanas signāli, nevis apstiprināta gatavība ražošanai.",
+    "signals": "signāli",
+    "more": "Visi soļi",
+    "less": "Mazāk detaļu",
+    "hide": "Samazināt norādes",
+    "show": "Rādīt norādes",
+    "currentStep": "Pašreizējais darba solis",
+    "stepsLabel": "Pasūtījuma sagatavošanas soļi",
+    "next": "Nākamais solis",
+    "askButton": "Jautāt asistentam",
+    "unsaved": "Indikatori rāda pašreizējos veidlapas laukus. Nesaglabātās izmaiņas nav serverī saglabātajā pasūtījumā.",
+    "saveBeforeAI": "Klienta dati paliek vietējā veidlapā līdz saglabāšanai. Asistents pieejams pēc melnraksta saglabāšanas.",
+    "disclaimer": "Šie ir atgādinājumi, nevis apstiprinājumi. Failu saturs, ražošanas jauda un atbilstība jāpārbauda atsevišķi.",
+    "signal": {
+        "present": "Dati ievadīti",
+        "missing": "Jāaizpilda",
+        "check": "Jāpārbauda",
+        "unknown": "Nav pārbaudīts"
+    },
+    "step": {
+        "brief": "Pasūtījuma dati",
+        "profiles": "Ražošanas profili",
+        "files": "Klienta faili",
+        "review": "Pārbaude un nodošana"
+    },
+    "help": {
+        "brief": "Pārbaudiet klientu un termiņu, pierakstiet izkārtnes prasības, izmērus un piegādes kārtību.",
+        "profiles": "Pārliecinieties par daudzumiem un profilu parametriem; var būt nepieciešama veidne.",
+        "files": "Pārbaudiet, vai rasējumi un dokumenti ir piesaistīti un lasāmi. Failu skaits neapliecina to saturu.",
+        "review": "Pārbaudiet gatavību, neatbildētos jautājumus, atbildīgos un datumus pirms atļautas statusa maiņas."
+    },
+    "sectionTip": {
+        "details": "Padoms: fiksējiet izmērus, materiālus un lēmumus pasūtījumā; neizdomājiet trūkstošo.",
+        "files": "Padoms: vispirms augšupielādējiet failus, pēc tam AI ievadē pārbaudiet PDF vai attēlu ieteikumus.",
+        "intake": "Padoms: AI ieteikumus cilvēkam jāpārbauda, jāizvēlas un atsevišķi jāsaglabā.",
+        "readiness": "Padoms: gatavības AI vērtējums ir padoms; krājumi, iekārtas un grafiks jāpārbauda atsevišķi.",
+        "layers": "Padoms: Canvas skice pati par sevi neapstiprina pilnīgu ražošanas specifikāciju.",
+        "revisions": "Padoms: pirms izmaiņu pieņemšanas salīdziniet sākotnējos un jaunos klienta failus.",
+        "changes": "Padoms: izmaiņu pārskatīšana automātiski nemaina ražošanas pasūtījumu.",
+        "chat": "Padoms: asistents izmanto saglabātos faktus. Vajadzīga piekrišana un ieteikumu pārbaude."
+    },
+    "ask": {
+        "brief": "Pārskati saglabātos pasūtījuma datus. Kādi jautājumi klientam, piegādes prasības vai tehniski fakti vēl trūkst? Neizdomā izmērus vai datumus.",
+        "profiles": "Izmantojot tikai saglabātos profilus un daudzumus, kas jāpārbauda pirms ražošanas? Neizdomā izmērus.",
+        "files": "Kas jāpārbauda šī pasūtījuma rasējumos un PDF failos? Tev ir zināms tikai failu skaits, nevis to saturs.",
+        "review": "Izveido praktisku šī saglabātā izkārtnes pasūtījuma pārbaudes sarakstu: neatbildētie jautājumi, profili, piegāde un ražošanas riski. Nemaini pasūtījuma statusu."
+    }
+},
   "orderAssistant": {
     "title": "Pasūtījuma asistents",
     "clear": "Notīrīt sarunu",
