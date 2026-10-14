@@ -2,26 +2,53 @@
   import {onMount} from 'svelte';
   import {base} from '$app/paths';
   import {t} from 'svelte-i18n';
-  import type {PerformanceSummary,PerformanceLine} from '$lib/order/production-performance';
+  import type {PerformanceSummary} from '$lib/order/production-performance';
+  import {summarizeApprovedSchedule} from '$lib/order/production-performance';
+  import type {ApprovedReservationHours} from '$lib/order/capacity-forecast';
   const windows=[7,30,90] as const;
   let days=$state<7|30|90>(30);
   let result=$state<PerformanceSummary|null>(null);
   let loading=$state(false),failure=$state('');
+  let bookingStatus=$state<'loading'|'ready'|'unavailable'>('loading');
+  let approved=$state<ApprovedReservationHours[]>([]);
+  let bookedByStage=$derived.by(()=>{
+    const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Riga',
+      year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const part=(key:string)=>parts.find(item=>item.type===key)?.value??'';
+    return summarizeApprovedSchedule(approved,
+      `${part('year')}-${part('month')}-${part('day')}`);
+  });
   let selectedStation=$state('ALL'),showInactive=$state(false);
   let showCompleted=$state(30),showActive=$state(30);
   let requestVersion=0;
   async function load(){
     const version=++requestVersion;
-    loading=true;failure='';result=null;
+    loading=true;failure='';result=null;bookingStatus='loading';approved=[];
     try{
-      const response=await fetch(`${base}/api/production/performance?days=${days}`,{cache:'no-store'});
-      if(!response.ok)throw new Error($t('productionPerformance.loadFailed'));
-      const body=await response.json();
+      const [performanceResponse,bookingResponse]=await Promise.allSettled([
+        fetch(`${base}/api/production/performance?days=${days}`,{cache:'no-store'}),
+        fetch(`${base}/api/production/commitments`,{cache:'no-store'})
+      ]);
+      if(performanceResponse.status!=='fulfilled'||!performanceResponse.value.ok)
+        throw new Error($t('productionPerformance.loadFailed'));
+      const body=await performanceResponse.value.json();
       if(!body?.totals||!Array.isArray(body.stations)||
          !Array.isArray(body.completed)||!Array.isArray(body.active)||
          body.days!==days)throw new Error($t('productionPerformance.loadFailed'));
       if(version!==requestVersion)return;
       result=body;
+      if(bookingResponse.status==='fulfilled'&&bookingResponse.value.ok){
+        try{
+          const payload=await bookingResponse.value.json();
+          if(!Array.isArray(payload?.commitments)||
+             payload.total!==payload.commitments.length||
+             !Number.isInteger(payload.total))
+            throw new Error('Incomplete commitments');
+          // The all-dates R23 snapshot is validated server-side and scoped by RLS.
+          approved=payload.commitments;
+          bookingStatus='ready';
+        }catch{bookingStatus='unavailable';}
+      }else bookingStatus='unavailable';
     }catch(err){
       if(version===requestVersion)failure=err instanceof Error?err.message:$t('productionPerformance.loadFailed');
     }finally{if(version===requestVersion)loading=false;}
@@ -81,6 +108,13 @@
     </p>
   {/if}
   <p class="disclaimer" role="note">{$t('productionPerformance.disclaimer')}</p>
+  {#if result}
+    {#if bookingStatus==='unavailable'}
+      <p role="alert" class="error">{$t('productionPerformance.bookingsUnavailable')}</p>
+    {:else if bookingStatus==='ready'}
+      <p role="note" class="hint">{$t('productionPerformance.bookingsExplanation')}</p>
+    {/if}
+  {/if}
   {#if result}
     <div class="stats">
       <div><strong>{result.totals.completed}</strong>
@@ -152,6 +186,20 @@
                 <span class:over={row.varianceHours>0}>{$t('productionPerformance.variance')}: {fmt(row.varianceHours)} h</span>
               {/if}
             </div>
+            {#if bookingStatus==='ready'}
+              {@const reservation=bookedByStage.get(`${row.orderId}:${row.station}`)}
+              <p class="hint">
+                {$t('productionPerformance.approvedFuture')}: {fmt(reservation?.futureHours??0)} h
+                {#if reservation?.nextDate}
+                  · {$t('productionPerformance.nextBookedDay')}: {reservation.nextDate}
+                {/if}
+              </p>
+              {#if reservation && reservation.pastHours>0}
+                <p class="warning">
+                  {$t('productionPerformance.pastBooking',{values:{hours:reservation.pastHours}})}
+                </p>
+              {/if}
+            {/if}
             {#if row.progressAt}
               <p class="hint">
                 {$t('productionPerformance.reported')}:
