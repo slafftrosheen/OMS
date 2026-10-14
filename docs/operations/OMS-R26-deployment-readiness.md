@@ -49,8 +49,10 @@ The script probes the board, station capacity, all-dates approved snapshot,
 reservation ledger, 7-day performance and exception-review ledger with GET.
 It validates basic payload completeness and anonymous-denial behavior.
 It checks no changes and never logs session cookies or full order data.
-Host allowlisting prevents accidental use of a production domain without
-an explicit override. Clear the environment variable after the test.
+Host allowlisting requires an explicit staging-like hostname (or localhost).
+An arbitrary Tailscale address is **not** assumed to be staging. Override
+with `OMS_ALLOW_NONSTAGING=1` only after verifying the destination is a
+safe staging instance. Clear the environment variable after the test.
 
 **This is not a full authorization test.** Run a separate browser pass as an
 operator, StationHead, manager, and inactive user, confirming expected

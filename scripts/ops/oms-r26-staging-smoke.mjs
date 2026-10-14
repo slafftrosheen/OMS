@@ -29,7 +29,7 @@ if(base.protocol!=='https:'&&!isLocal){
   process.exit(2);
 }
 if(env.OMS_ALLOW_NONSTAGING!=='1'&&!isLocal&&
-   !/(stage|staging|test|dev|\.ts\.net$)/i.test(base.hostname)){
+   !/(stage|staging|test|dev)/i.test(base.hostname)){
   console.error('Unrecognized staging host. Set OMS_ALLOW_NONSTAGING=1 only after verifying it is safe.');
   process.exit(2);
 }
