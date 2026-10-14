@@ -10,6 +10,8 @@ export const GET:RequestHandler=async ({locals,url})=>{
  const from=url.searchParams.get('from'),to=url.searchParams.get('to');
  if(!validDate(from)||!validDate(to)||from>to)
   throw error(400,'Provide a valid reservation date range');
+ const difference=(Date.parse(to+'T00:00:00Z')-Date.parse(from+'T00:00:00Z'))/86400000;
+ if(difference>90)throw error(400,'Reservation range cannot exceed 91 calendar days');
  const offset=Number(url.searchParams.get('offset')??'0');
  if(!Number.isSafeInteger(offset)||offset<0||offset>10000)
   throw error(400,'Invalid reservation pagination');

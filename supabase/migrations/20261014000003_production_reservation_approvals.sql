@@ -132,9 +132,14 @@ BEGIN
  IF NOT FOUND OR v_stage.state::text NOT IN ('NOT_STARTED','QUEUED','IN_PROGRESS') THEN
   RAISE EXCEPTION 'Stage is not available for production scheduling' USING ERRCODE='P0001';
  END IF;
- SELECT * INTO v_order FROM public.draft_orders WHERE id=v_stage.draft_order_id;
- IF NOT FOUND OR v_order.status::text NOT IN ('CONFIRMED','IN_PRODUCTION') THEN
-  RAISE EXCEPTION 'Order must be confirmed and active' USING ERRCODE='P0001';
+ SELECT * INTO v_order FROM public.draft_orders
+ WHERE id=v_stage.draft_order_id FOR SHARE;
+ IF NOT FOUND OR NOT (
+   v_order.status::text IN ('CONFIRMED','IN_PRODUCTION')
+   OR (v_order.status::text='READY_TO_LOAD' AND
+       v_station IN ('DELIVERY','LOGISTICS'))
+ ) THEN
+  RAISE EXCEPTION 'Order must be active and eligible for this station' USING ERRCODE='P0001';
  END IF;
  IF v_stage.estimated_hours IS NULL OR v_stage.estimated_hours<=0 THEN
   RAISE EXCEPTION 'Estimated hours required before reserving' USING ERRCODE='P0001';

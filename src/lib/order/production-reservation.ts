@@ -37,7 +37,9 @@ export function parseReservationAction(raw:unknown):ReservationAction {
     workDate:d.workDate,hours:d.hours,note:typeof d.note==='string'?d.note.trim():null};
  }
  if(!uuid.test(String(d.reservationId??''))||
-    typeof d.expectedUpdatedAt!=='string'||!Number.isFinite(Date.parse(d.expectedUpdatedAt)))
+    typeof d.expectedUpdatedAt!=='string'||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(d.expectedUpdatedAt)||
+    !Number.isFinite(Date.parse(d.expectedUpdatedAt)))
   throw Error('Reservation and current revision required');
  return {...base,reservationId:d.reservationId as string,
    expectedUpdatedAt:d.expectedUpdatedAt};

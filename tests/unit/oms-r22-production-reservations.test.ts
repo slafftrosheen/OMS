@@ -19,6 +19,9 @@ describe('OMS-R22 production reservation approval boundaries',()=>{
    .toMatchObject({action:'approve',reservationId:id});
   for(const action of ['approve','cancel'])
     expect(()=>parseReservationAction({action,reservationId:id})).toThrow();
+  expect(()=>parseReservationAction({
+    action:'approve',reservationId:id,expectedUpdatedAt:'2026'
+  })).toThrow();
  });
  it('enforces manager role on every mutation even when UI is bypassed',()=>{
   const api=read('src/routes/api/production/reservations/+server.ts');
@@ -52,6 +55,9 @@ describe('OMS-R22 production reservation approval boundaries',()=>{
   const sql=read('supabase/migrations/20261014000003_production_reservation_approvals.sql');
   expect(sql).toContain("'CONFIRMED','IN_PRODUCTION'");
   expect(sql).toContain("v_stage.state::text NOT IN ('QUEUED','IN_PROGRESS')");
+  expect(sql).toContain("v_order.status::text='READY_TO_LOAD'");
+  expect(sql).toContain("v_station IN ('DELIVERY','LOGISTICS')");
+  expect(sql).toContain('FOR SHARE');
   expect(sql).toContain("p_action='cancel'");
  });
  it('keeps forecast suggestions separate from approved bookings',()=>{

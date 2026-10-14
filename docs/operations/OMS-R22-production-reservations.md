@@ -23,7 +23,8 @@ cannot each see an outdated free-hour total. The database checks:
 
 - Gregorian working date is not in the past (Europe/Riga), and the configured
   station has personnel and the requested date is an allowed working day.
-- The current order is CONFIRMED or IN_PRODUCTION, and the stage remains open.
+- The current order is CONFIRMED or IN_PRODUCTION (or READY_TO_LOAD
+  specifically for DELIVERY/LOGISTICS), and the stage remains open.
   NOT_STARTED can be proposed but cannot be approved.
 - On approval the stage is QUEUED or IN_PROGRESS, its approved total may not
   exceed its estimated hours, and upstream standard workflow stages must all
@@ -37,7 +38,8 @@ cannot each see an outdated free-hour total. The database checks:
 - Later capacity reductions cannot invalidate existing approved future
   reservations. Stage completion cancels future active reservations.
 
-A CANCELLED record stays in the audit ledger. There is no automatic
+Read requests must specify a valid date range no wider than 91 calendar
+days and paginate in stable 100-row pages. A CANCELLED record stays in the audit ledger. There is no automatic
 transition of an order stage and no inventory or loading-day mutation.
 
 ## Important limitations
