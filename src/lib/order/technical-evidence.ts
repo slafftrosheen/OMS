@@ -11,7 +11,7 @@ export type TechnicalMaterial={
 export type TechnicalIssueCode=
   'NO_PROFILES'|'PROFILE_QUANTITY'|'PROFILE_TEMPLATE'|'DIMENSIONS_UNVERIFIED'|
   'MATERIALS_UNSPECIFIED'|'MATERIAL_QUANTITY'|'MATERIAL_UNIT'|
-  'MATERIAL_MIXED_UNITS'|'STOCK_UNVERIFIED'|'FILES_UNVERIFIED';
+  'MATERIAL_MIXED_UNITS'|'STOCK_UNVERIFIED'|'FILES_MISSING'|'FILES_UNVERIFIED';
 export type TechnicalIssue={
   code:TechnicalIssueCode;severity:'review'|'info';
   profileIndex?:number;materialIndex?:number;subject?:string;
@@ -107,7 +107,8 @@ export function buildOrderTechnicalChecks(
    if(units.size>1)add('MATERIAL_MIXED_UNITS','review',{subject});
  }
  add('STOCK_UNVERIFIED','info');
- if(fileCount>0)add('FILES_UNVERIFIED','info');
+ if(fileCount===0)add('FILES_MISSING','review');
+ else add('FILES_UNVERIFIED','info');
  return {
    kind:'deterministic-technical-evidence',
    primaryUnits:allQuantities?primaryUnits:null,

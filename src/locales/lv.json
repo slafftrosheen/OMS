@@ -2030,8 +2030,12 @@
       "MATERIAL_UNIT": "Nav norādīta materiāla mērvienība",
       "MATERIAL_MIXED_UNITS": "Vienam materiālam norādītas dažādas mērvienības; nesummēt",
       "STOCK_UNVERIFIED": "Noliktavas atlikumi un SKU atbilstība šeit nav pārbaudīti",
-      "FILES_UNVERIFIED": "Pievienoto failu saturs nav nolasīts un pārbaudīts"
-    }
+      "FILES_UNVERIFIED": "Pievienoto failu saturs nav nolasīts un pārbaudīts",
+      "FILES_MISSING": "Pasūtījumam nav pievienoti klienta faili"
+    },
+    "measuredProfiles": "Profili ar skaidri norādītiem izmēriem: {measured} no {total}",
+    "recordedMaterials": "Pasūtījumā norādītie materiāli",
+    "unitMissing": "mērvienība nav zināma"
   },
   "orderIntake": {
     "sourceChanged": "Avota fails pēc analīzes ir mainīts. Pirms piemērošanas analizējiet jauno failu.",

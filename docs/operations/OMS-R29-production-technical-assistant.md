@@ -42,7 +42,8 @@ aligned to the R27 order-assistant endpoint.
   `order_materials` quantities and units are shown as recorded; zero/negative
   values, missing units and equal material names with differing units are
   highlighted. Quantities in unlike units are never added together.
-- Linked files are counted, **not read or visually verified**. Real PDF/image
+- Missing linked files are explicitly flagged. Linked files are counted,
+  **not read or visually verified**. Real PDF/image
   content remains a separate AI Intake capability.
 - The output always states `inventoryVerified=false`,
   `fileContentsVerified=false`, `feasibilityVerified=false` and

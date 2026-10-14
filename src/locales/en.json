@@ -2030,8 +2030,12 @@
       "MATERIAL_UNIT": "Material unit missing",
       "MATERIAL_MIXED_UNITS": "The same material description uses different units; do not sum",
       "STOCK_UNVERIFIED": "Stock quantities and SKU matching have not been checked here",
-      "FILES_UNVERIFIED": "Linked files have not been read or visually verified"
-    }
+      "FILES_UNVERIFIED": "Linked files have not been read or visually verified",
+      "FILES_MISSING": "No customer file is linked to the order"
+    },
+    "measuredProfiles": "Explicitly measured profiles: {measured} of {total}",
+    "recordedMaterials": "Recorded material requirements",
+    "unitMissing": "unit unknown"
   },
   "orderIntake": {
     "sourceChanged": "Selected source changed after analysis. Analyze the new file before applying.",

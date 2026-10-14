@@ -38,6 +38,7 @@ describe('OMS-R29 deterministic technical evidence and assistant integration',()
    expect(facts.geometries).toHaveLength(0);
    expect(facts.issues.filter(x=>x.code==='DIMENSIONS_UNVERIFIED')).toHaveLength(3);
    expect(facts.issues.some(x=>x.code==='MATERIALS_UNSPECIFIED')).toBe(true);
+   expect(facts.issues.some(x=>x.code==='FILES_MISSING')).toBe(true);
  });
  it('shows unknown primary total if any profile quantity is zero or invalid',()=>{
    const facts=buildOrderTechnicalChecks([
@@ -109,6 +110,8 @@ describe('OMS-R29 deterministic technical evidence and assistant integration',()
    expect(component).toContain('/technical-checks');
    expect(component).toContain('technicalVersion');
    expect(component).toContain('technicalNoAuthority');
+   expect(component).toContain('technical.materialLines.slice');
+   expect(component).toContain('technical.measuredProfiles');
    expect(component).toContain('onclick={prepareTechnicalQuestion}');
    const coach=read('src/lib/order/OrderWorkflowCoach.svelte');
    expect(coach).toContain("onNavigate('chat','profiles')");
@@ -122,7 +125,8 @@ describe('OMS-R29 deterministic technical evidence and assistant integration',()
  it('translates all technical states and suggested questions across EN/RU/LV',()=>{
    const codes=['NO_PROFILES','PROFILE_QUANTITY','PROFILE_TEMPLATE',
      'DIMENSIONS_UNVERIFIED','MATERIALS_UNSPECIFIED','MATERIAL_QUANTITY',
-     'MATERIAL_UNIT','MATERIAL_MIXED_UNITS','STOCK_UNVERIFIED','FILES_UNVERIFIED'];
+     'MATERIAL_UNIT','MATERIAL_MIXED_UNITS','STOCK_UNVERIFIED',
+     'FILES_MISSING','FILES_UNVERIFIED'];
    for(const lang of ['en','ru','lv']){
      const labels=JSON.parse(read(`src/locales/${lang}.json`)).orderAssistant;
      expect(labels.technicalTitle).toBeTruthy();

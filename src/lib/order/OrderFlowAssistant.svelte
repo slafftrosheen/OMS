@@ -187,6 +187,11 @@
         <div><strong>{displayMetric(technical.boundingFaceAreaM2)}</strong>
           <span>{$t('orderAssistant.boundingM2')}</span></div>
       </div>
+      <p class="hint">
+        {$t('orderAssistant.measuredProfiles',{values:{
+          measured:technical.measuredProfiles,total:technical.profileCount
+        }})}
+      </p>
       <p class="hint">{$t('orderAssistant.boundingCaveat')}</p>
       {#if technical.geometries.length>0}
         <div class="technical-lines">
@@ -194,6 +199,16 @@
             <p>{$t('orderAssistant.profileNumber',{values:{number:g.profileIndex+1}})}:
               {g.widthMm} × {g.heightMm} mm · {g.quantity} ×
               {displayMetric(g.boundingAreaM2)} m²</p>
+          {/each}
+        </div>
+      {/if}
+      {#if technical.materialLines.length>0}
+        <h4>{$t('orderAssistant.recordedMaterials')}</h4>
+        <div class="technical-lines">
+          {#each technical.materialLines.slice(0,showAllTechnical?100:4) as material (material.materialIndex)}
+            <p>{material.description||$t('orderAssistant.materialNumber',{values:{number:material.materialIndex+1}})}
+              · {displayMetric(material.quantity)} {material.unit??$t('orderAssistant.unitMissing')}
+            </p>
           {/each}
         </div>
       {/if}
@@ -213,7 +228,8 @@
           {/each}
         </ul>
       {/if}
-      {#if technical.issues.length>5||technical.geometries.length>4}
+      {#if technical.issues.length>5||technical.geometries.length>4||
+        technical.materialLines.length>4}
         <button class="secondary" type="button" onclick={()=>showAllTechnical=!showAllTechnical}>
           {showAllTechnical?$t('orderAssistant.technicalLess'):$t('orderAssistant.technicalMore')}
         </button>
