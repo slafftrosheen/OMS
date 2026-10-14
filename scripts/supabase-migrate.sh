@@ -109,7 +109,7 @@ list_migrations() {
     if [ "$_use_docker" = "1" ] || [ -n "$DATABASE_URL" ]; then
         echo ""
         local source
-        if [ "$_use_docker" = "1" ]; then source="docker:supabase-db"; else source="$DATABASE_URL"; fi
+        if [ "$_use_docker" = "1" ]; then source="docker:supabase-db"; else source="configured DATABASE_URL (redacted)"; fi
         echo "Applied migrations (from $source):"
         _psql_exec "SELECT version FROM supabase_migrations.schema_migrations ORDER BY version" -At \
             2>/dev/null || echo "  (tracking table not yet created — first push will create it)"
@@ -138,7 +138,7 @@ push_self_hosted() {
                 echo "" >&2
                 ;;
         esac
-        echo "Pushing migrations to self-hosted Supabase ($DATABASE_URL)..."
+        echo "Pushing migrations to self-hosted Supabase (configured DATABASE_URL; secrets redacted)..."
     fi
 
     # 1. Ensure the tracking table exists (idempotent)
@@ -180,6 +180,22 @@ SQL
     echo "Done. $applied applied, $skipped already up-to-date."
 }
 
+# --- read-only production preflight ---------------------------------------
+production_preflight() {
+    local file="scripts/ops/oms-r26-production-preflight.sql"
+    if [ ! -f "$file" ]; then
+        echo "Missing read-only OMS-R26 preflight SQL." >&2
+        exit 1
+    fi
+    if [ "$_use_docker" != "1" ] && [ -z "$DATABASE_URL" ]; then
+        echo "Use the self-hosted supabase-db container or set DATABASE_URL locally." >&2
+        exit 1
+    fi
+    echo "Running read-only OMS production preflight (no migrations applied)..."
+    _psql_file "$file"
+    echo "Production database prerequisite checks completed."
+}
+
 # --- push (cloud) -----------------------------------------------------------
 push_cloud() {
     echo "Pushing migrations to Supabase Cloud (project $SUPABASE_PROJECT_ID)..."
@@ -216,12 +232,14 @@ EOF
 case "${1:-}" in
     create) create_migration "$2" ;;
     list)   list_migrations ;;
+    preflight) production_preflight ;;
     push)   push_to_remote ;;
     *)
         cat <<EOF
-Usage: $0 {create|list|push}
+Usage: $0 {create|list|preflight|push}
   create <name>  Create a new timestamped migration file in supabase/migrations
   list           List local migrations and which have been applied
+  preflight      Read-only checks of OMS production tables, RPCs, RLS and grants
   push           Apply pending migrations to the configured database
 EOF
         exit 1
