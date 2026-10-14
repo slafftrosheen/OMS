@@ -9,7 +9,7 @@
    onChange:(next:FabricationSpec|null)=>void
  }=$props();
  let parsed=$derived(parseFabricationSpec(value));
- let spec=$derived(parsed.spec??{version:1 as const});
+ let spec:FabricationSpec=$derived(parsed.spec??{version:1 as const});
  let localError=$state('');
  const dimensions=['width_mm','height_mm','depth_mm','thickness_mm'] as const;
  const options={

@@ -18,7 +18,7 @@ export type TechnicalIssue={
 };
 export type TechnicalGeometry={
   profileIndex:number;quantity:number;widthMm:number;heightMm:number;
-  boundingAreaM2:number;source:'width_mm/height_mm'|'dimensions.mm';
+  boundingAreaM2:number;source:'width_mm/height_mm'|'dimensions.mm'|'fabricationSpec.mm';
 };
 export type TechnicalMaterialLine={
   materialIndex:number;description:string;quantity:number|null;unit:string|null;
@@ -33,6 +33,7 @@ export type OrderTechnicalChecks={
   sourceLimitReached:boolean;inventoryVerified:false;fileContentsVerified:false;
   feasibilityVerified:false;materialYieldEstimated:false;
 };
+import {parseFabricationSpec} from './fabrication-spec';
 const finitePositive=(v:unknown,maximum=1e6):number|null=>{
   if(typeof v!=='number'&&!(typeof v==='string'&&v.trim()&&/^\d+(?:\.\d+)?$/.test(v.trim())))return null;
   const n=Number(v);
@@ -45,6 +46,14 @@ function quantity(v:unknown):number|null{
 function geometry(value:unknown):Omit<TechnicalGeometry,'profileIndex'|'quantity'|'boundingAreaM2'>|null{
   if(!value||typeof value!=='object'||Array.isArray(value))return null;
   const cfg=value as Record<string,unknown>;
+  // New structured specifications take precedence. An incomplete specification
+  // must not silently inherit possibly contradictory legacy geometry.
+  if(Object.prototype.hasOwnProperty.call(cfg,'fabricationSpec')){
+    const parsed=parseFabricationSpec(cfg.fabricationSpec);
+    const width=parsed.spec?.width_mm, height=parsed.spec?.height_mm;
+    return width!==undefined&&height!==undefined
+      ?{widthMm:width,heightMm:height,source:'fabricationSpec.mm'}:null;
+  }
   let width=finitePositive(cfg.width_mm,100000),height=finitePositive(cfg.height_mm,100000);
   let source:'width_mm/height_mm'|'dimensions.mm'='width_mm/height_mm';
   if(width===null||height===null){
