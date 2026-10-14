@@ -1954,7 +1954,8 @@
       "CANCELLED": "Cancelled: no longer an active production workflow.",
       "VOIDED": "Voided: use the reissued order for new work.",
       "default": "Review the status and use dedicated workflow controls for changes."
-    }
+    },
+    "technicalChecks": "Technical checks"
   },
   "orderAssistant": {
     "title": "Order assistant",

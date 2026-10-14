@@ -58,6 +58,10 @@
          {$t('orderGuide.next')}: {$t(`orderGuide.step.${guide.suggested}`)} →
        </button>
        {#if onAsk}
+         <button class="go" type="button" disabled={!context.canEdit}
+           onclick={()=>onNavigate('chat','profiles')}>
+           {$t('orderGuide.technicalChecks')} →
+         </button>
          <button class="ask" type="button" disabled={!context.canEdit}
            onclick={()=>prompt(focus.id)}>
            ✦ {$t('orderGuide.askButton')}

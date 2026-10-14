@@ -1954,7 +1954,8 @@
       "CANCELLED": "Atcelts: pasūtījums vairs nav aktīvs.",
       "VOIDED": "Anulēts: izmantojiet atkārtoti izdoto pasūtījumu.",
       "default": "Pārbaudiet statusu un izmantojiet atbilstošās darbības."
-    }
+    },
+    "technicalChecks": "Tehnisko datu pārbaude"
   },
   "orderAssistant": {
     "title": "Pasūtījuma asistents",

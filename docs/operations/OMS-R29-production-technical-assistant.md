@@ -6,8 +6,9 @@ separate from model-generated advice. This batch needs **no new migration**.
 ## Staff workflow
 
 1. Open a saved order → Order Assistant in the workspace.
-2. Press **Check saved facts**. The app makes a read-only GET request to the
-   authenticated OMS server; **no data is transmitted to OpenRouter**.
+2. Use the saved-order guide's **Technical checks** shortcut if needed, then
+   press **Check saved facts** in Order Assistant. The app makes a read-only GET
+   request to the authenticated OMS server; **no data is transmitted to OpenRouter**.
 3. Review the technical panel: primary quantity (only if every profile count
    is explicitly valid), material requirements, the number of profiles with
    explicit rectangular dimensions, and any missing/unit-mismatch signals.

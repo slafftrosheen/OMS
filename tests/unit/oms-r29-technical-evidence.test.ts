@@ -95,7 +95,7 @@ describe('OMS-R29 deterministic technical evidence and assistant integration',()
    const api=read('src/routes/api/ai/order-assistant/+server.ts');
    expect(api).toContain('buildOrderTechnicalChecks');
    expect(api).toContain("configuration,notes");
-   expect(api).toContain('bounding faces');
+   expect(api).toContain('rectangular bounding face');
    expect(api).toContain('technicalEvidence');
    expect(api).toContain('technicalChecks:technical');
    expect(read('src/lib/order/technical-evidence.ts')).toContain('materialYieldEstimated:false');
@@ -110,7 +110,14 @@ describe('OMS-R29 deterministic technical evidence and assistant integration',()
    expect(component).toContain('technicalVersion');
    expect(component).toContain('technicalNoAuthority');
    expect(component).toContain('onclick={prepareTechnicalQuestion}');
-   expect(component).not.toContain("method:'POST'");
+   const coach=read('src/lib/order/OrderWorkflowCoach.svelte');
+   expect(coach).toContain("onNavigate('chat','profiles')");
+   for(const lang of ['en','ru','lv']){
+     expect(JSON.parse(read(`src/locales/${lang}.json`)).orderGuide.technicalChecks).toBeTruthy();
+   }
+   expect(component).toContain('if(!canAsk||technicalBusy)return');
+   // Ordinary chat still uses POST after the user grants consent and sends.
+   expect(component).toContain("consent:true");
  });
  it('translates all technical states and suggested questions across EN/RU/LV',()=>{
    const codes=['NO_PROFILES','PROFILE_QUANTITY','PROFILE_TEMPLATE',
