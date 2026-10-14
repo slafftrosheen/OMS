@@ -15,6 +15,7 @@
   let saved=$state(false);
   async function loadHistory(){
     loading=true;
+    errorMessage='';
     try{
       const res=await fetch(`/api/station/${encodeURIComponent(station)}/orders/${encodeURIComponent(orderId)}/progress`,{cache:'no-store'});
       if(!res.ok)throw new Error($t('productionFloor.historyFailed'));

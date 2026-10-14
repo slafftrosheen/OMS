@@ -4,7 +4,7 @@ Implementation on top of R18. **No SQL migration** in this batch. The R02 atomic
 
 ## Station edits
 
-`PATCH /api/orders/:id/stages?station=...` now requires `expectedUpdatedAt` (full timestamp from a fresh stage read) and performs a conditional update of both `state` and `updated_at`. Missing versions return 428; stale writes or invalid transitions return 409. All known callers (operator station board, order overview, order detail store) send the token. A resumed stage keeps its original start time. Completed stages cannot be modified with generic PATCH.
+`PATCH /api/orders/:id/stages?station=...` now requires `expectedUpdatedAt` (full timestamp from a fresh stage read) and performs a conditional update of both `state` and `updated_at`. Missing versions return 428; stale writes or invalid transitions return 409. All known callers (operator station board, order overview, order detail store) send the token. A resumed stage keeps its original start time. The timestamp validator accepts RFC3339 timestamps returned by Supabase, including fractional seconds and timezone offsets. Completed stages cannot be modified with generic PATCH.
 
 ## Operator updates
 

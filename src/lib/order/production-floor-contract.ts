@@ -25,7 +25,7 @@ export function parseStageCompletion(body:Record<string,unknown>):ProductionComp
   const rawHours=body.actualHours;
   const actualHours=rawHours==null?null:rawHours as number;
   if(actualHours!==null&&(!Number.isFinite(actualHours)||typeof actualHours!=='number'||
-      actualHours<0||actualHours>999.99||Math.round(actualHours*100)!==actualHours*100))
+      actualHours<0||actualHours>999.99||Math.abs(actualHours*100-Math.round(actualHours*100))>1e-7))
     throw new Error('Actual hours must be between 0 and 999.99 (two decimal places)');
   const rawNotes=body.notes;
   if(rawNotes!=null&&typeof rawNotes!=='string')throw new Error('Notes must be text');

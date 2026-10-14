@@ -61,7 +61,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw error(400, 'Invalid update payload');
   const expectedUpdatedAt = body.expectedUpdatedAt;
   if (typeof expectedUpdatedAt !== 'string' ||
-      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/.test(expectedUpdatedAt) ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(expectedUpdatedAt) ||
       !Number.isFinite(Date.parse(expectedUpdatedAt))) {
     throw error(428, 'A fresh stage version is required; reload and retry');
   }
