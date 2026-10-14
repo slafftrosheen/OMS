@@ -38,10 +38,30 @@ describe('OMS-R20 production-planning contracts',()=>{
    expect(view.alerts[0].risk).toBe('blocked');
    expect(view.stations.EDGE[0].risk).toBe('onHold');
  });
+ it('verifies pressure labels and dashboard links from object-based assignments',()=>{
+   const station=read('src/lib/components/production/StationBoard.svelte');
+   const board=read('src/routes/production/+page.svelte');
+   const dashboard=read('src/routes/production/dashboard/+page.svelte');
+   expect(station).toContain("summary.pressure!=='normal'");
+   expect(station).toContain('summary.missingEstimates>0');
+   expect(board).toContain('showUpcoming');
+   expect(board).toContain('attentionOnly');
+   expect(dashboard).toContain('data.totals.inProgress');
+   expect(dashboard).toContain("'stationId' in entry");
+   expect(dashboard).not.toContain('data.in_progress ?? 0');
+ });
  it('compares calendar dates rather than converting UTC timestamps',()=>{
    expect(dueInDays('2026-11-01','2026-10-31')).toBe(1);
    expect(dueInDays('2026-10-13','2026-10-14')).toBe(-1);
    expect(dueInDays('2026-02-30','2026-02-28')).toBeNull();
+ });
+ it('localizes planning alerts for all supported interface languages',()=>{
+   for(const language of ['en','ru','lv']){
+     const labels=JSON.parse(read(`src/locales/${language}.json`)).productionPlanning;
+     expect(labels.risk.overdue).toBeTruthy();
+     expect(labels.pressure.backlog).toBeTruthy();
+     expect(labels.stationMissing).toContain('{count}');
+   }
  });
  it('replaces current_station dependency and explicitly paginates the canonical data',()=>{
    const api=read('src/routes/api/production/board/+server.ts');

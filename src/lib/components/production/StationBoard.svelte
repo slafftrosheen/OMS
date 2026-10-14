@@ -31,16 +31,24 @@
       <span>{$t('productionPlanning.hours')}: <strong>{summary.knownHours}</strong></span>
     {/if}
   </div>
+  {#if summary && summary.pressure!=='normal'}
+    <p class="pressure-note" data-pressure={summary.pressure} role="note">
+      {$t(`productionPlanning.pressure.${summary.pressure}`)}
+    </p>
+  {/if}
+  {#if summary && summary.missingEstimates>0}
+    <p class="estimate-note">{$t('productionPlanning.stationMissing',{values:{count:summary.missingEstimates}})}</p>
+  {/if}
   <div class="orders-list">
     {#each orders as order (order.id)}
       <a class="order-card" href={`${base}/orders/${encodeURIComponent(order.id)}`}
         aria-label={`Open order ${order.poNumber ?? order.title} at ${station}`}>
         <div class="order-topline">
-          <span class="order-po">{order.poNumber ?? 'Pending PO'}</span>
+          <span class="order-po">{order.poNumber ?? $t('productionPlanning.pendingPo')}</span>
           <span class="order-priority">{priorityLabel(order.priority)}</span>
         </div>
-        <h3>{order.title || 'Untitled order'}</h3>
-        <p class="client">{order.client || 'Unknown client'}</p>
+        <h3>{order.title || $t('productionPlanning.untitled')}</h3>
+        <p class="client">{order.client || $t('productionPlanning.unknownClient')}</p>
         <div class="order-bottomline">
           <span class="stage-state" data-state={(order.stageState ?? 'NOT_STARTED').toLowerCase()}>
             {stageStateLabel(order.stageState)}
@@ -57,8 +65,8 @@
       </a>
     {:else}
       <div class="empty-station">
-        <p>Nothing queued at this station.</p>
-        <a href={stationHref}>Open workstation</a>
+        <p>{$t('productionPlanning.noResults')}</p>
+        <a href={stationHref}>{$t('productionPlanning.workstation')}</a>
       </div>
     {/each}
   </div>
@@ -70,6 +78,9 @@
   .station-metrics{padding:.6rem 1rem;display:flex;flex-wrap:wrap;gap:.5rem;
     color:var(--muted);font-size:.73rem;border-bottom:1px solid var(--border)}
   .station-metrics strong{color:var(--text);font-variant-numeric:tabular-nums}
+  .pressure-note,.estimate-note{padding:.45rem 1rem;font-size:.74rem;margin:0;color:var(--muted)}
+  .pressure-note[data-pressure="blocked"]{color:var(--error)}
+  .pressure-note[data-pressure="atRisk"]{color:var(--warn)}
   .risk-note{font-weight:700;font-size:.74rem;margin:.5rem 0;color:var(--muted)}
   .risk-note[data-risk="blocked"],.risk-note[data-risk="overdue"]{color:var(--error)}
   .block-reason{font-size:.77rem;overflow-wrap:anywhere}

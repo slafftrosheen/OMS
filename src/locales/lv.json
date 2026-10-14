@@ -1415,6 +1415,12 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "productionPlanning": {
+    "pendingPo": "Bez pasūtījuma numura",
+    "untitled": "Pasūtījums bez nosaukuma",
+    "unknownClient": "Nezināms klients",
+    "unavailable": "Ražošanas plānošanas dati nav pieejami.",
+    "stationMissing": "{count} aktīviem posmiem nav stundu aplēses.",
+    "pressure": {"blocked":"Jāpārskata bloķētie vai pārstrādājamie darbi","atRisk":"Jāpārskata kavētais darbs","backlog":"Rindā gaida vismaz pieci darbi"},
     "eyebrow": "Ražošana / Plānošana",
     "description": "Darba slodze un termiņi pēc faktiskajiem posmiem. Darbu reģistrējiet stacijā.",
     "orders": "pasūtījumi",

@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { can } from '$lib/auth/permission-utils';
+  import { ALL_STATIONS } from '$lib/order/workflow';
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
 
@@ -39,7 +40,20 @@
   onMount(loadStats);
 
   let userRole = $derived((user as any)?.roles?.Production ?? (user as any)?.role ?? '');
-  let userStations = $derived((user as any)?.stations ?? []);
+  let userStations = $derived.by(()=>{
+    const aliases:Record<string,string> = {
+      PAINTING:'PAINT', PACKING:'PACKAGING', FILM_COVERING:'FILM_COATING'
+    };
+    const ids:unknown[]=(user as any)?.stations??[];
+    const codes=ids.flatMap((entry:unknown)=>{
+      const key=typeof entry==='string'?entry:
+        entry&&typeof entry==='object'&&'stationId' in entry
+          ? String((entry as {stationId:unknown}).stationId) : '';
+      const station=aliases[key.toUpperCase()]??key.toUpperCase();
+      return ALL_STATIONS.includes(station)?[station]:[];
+    });
+    return [...new Set(codes)];
+  });
   let userName = $derived((user as any)?.displayName ?? (user as any)?.username ?? '');
 </script>
 

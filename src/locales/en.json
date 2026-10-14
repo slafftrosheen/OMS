@@ -1415,6 +1415,12 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "productionPlanning": {
+    "pendingPo": "Pending PO",
+    "untitled": "Untitled order",
+    "unknownClient": "Unknown client",
+    "unavailable": "Production planning unavailable.",
+    "stationMissing": "{count} active stages have no hour estimate.",
+    "pressure": {"blocked":"Blocked or rework requires attention","atRisk":"Overdue work needs review","backlog":"Five or more jobs waiting in the queue"},
     "eyebrow": "Shop floor / Planning",
     "description": "Read-only workload and deadline signals from actual station stages. Open a workstation to record work.",
     "orders": "orders",

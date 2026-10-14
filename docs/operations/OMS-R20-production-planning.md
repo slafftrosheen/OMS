@@ -8,6 +8,9 @@ The endpoint preserves `{success,stations}` and adds `workload`, `totals`,
 An **active assignment** is QUEUED, IN_PROGRESS, BLOCKED or REWORK.
 NOT_STARTED is **upcoming** and not booked capacity. COMPLETED is excluded.
 ON_HOLD orders are visible as paused. Distinct order and stage counts are separate.
+The full board exposes attention and upcoming filters, station-level pressure labels,
+and missing-estimate counts. Dashboard workstation links normalize the actual auth
+`UserStation` objects (including legacy painting/packing aliases).
 Known estimated hours are summed only from explicit values for active stages;
 missing estimates are counted separately. No staffing capacity or completion date
 is inferred. Dates are compared in Riga local calendar days. Alerts flag

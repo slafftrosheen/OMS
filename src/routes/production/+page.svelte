@@ -92,7 +92,7 @@
         {$t('stationView.scan_qr', { default: 'Scan QR' })}
       </Button>
       <Button variant="primary" onclick={loadProductionData} disabled={refreshing}>
-        {refreshing ? 'Refreshing…' : $t('common.refresh', { default: 'Refresh' })}
+        {refreshing ? $t('productionPlanning.loading') : $t('common.refresh', { default: 'Refresh' })}
       </Button>
     </div>
   </header>
@@ -129,7 +129,7 @@
   {#if boardError}
     <div class="error-banner" role="alert">
       <span>{boardError}. {loadedOnce ? $t('productionPlanning.lastGood') : $t('productionPlanning.retryHint')}</span>
-      <button onclick={loadProductionData} disabled={refreshing}>Retry</button>
+      <button onclick={loadProductionData} disabled={refreshing}>{$t('productionPlanning.retry')}</button>
     </div>
   {/if}
 
@@ -142,11 +142,11 @@
         </div>
       {/each}
     </div>
-    <p class="sr-only" role="status">Loading production stations</p>
+    <p class="sr-only" role="status">{$t('productionPlanning.loading')}</p>
   {:else if !loadedOnce}
     <div class="empty-overview">
-      <p>Production data is unavailable.</p>
-      <button onclick={loadProductionData} disabled={refreshing}>Try again</button>
+      <p>{$t('productionPlanning.unavailable')}</p>
+      <button onclick={loadProductionData} disabled={refreshing}>{$t('productionPlanning.retry')}</button>
     </div>
   {:else if visibleStations.length === 0}
     <div class="empty-overview">
