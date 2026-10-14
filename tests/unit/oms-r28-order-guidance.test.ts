@@ -67,6 +67,13 @@ describe('OMS-R28 contextual order guidance UX',()=>{
    expect(coach).toContain('onAsk?.($t(');
    expect(coach).not.toContain("fetch('/api/ai/order-assistant'");
  });
+ it('shows status-specific handoff tips without bypassing order roles',()=>{
+   const detail=read('src/routes/orders/[id]/+page.svelte');
+   expect(detail).toContain("mayAskOrderAssistant");
+   expect(detail).toContain("orderGuide.lifecycle.");
+   expect(detail).toContain("goto(workspaceUrl(orderId,'chat'))");
+   expect(detail).toContain("['RD','Boss','HeadOfProduction']");
+ });
  it('localizes all section tips, statuses and safe prepared questions in EN/RU/LV',()=>{
    const keys=['brief','profiles','files','review'];
    const sections=['details','files','intake','readiness','layers',
@@ -83,6 +90,9 @@ describe('OMS-R28 contextual order guidance UX',()=>{
      for(const section of sections)expect(t.sectionTip[section]).toBeTruthy();
      for(const status of ['present','missing','check','unknown'])
        expect(t.signal[status]).toBeTruthy();
+     for(const lifecycle of ['DRAFT','PENDING_REVIEW','CONFIRMED',
+       'IN_PRODUCTION','READY_TO_LOAD','ON_HOLD','DISPATCHED','ARCHIVED'])
+       expect(t.lifecycle[lifecycle]).toBeTruthy();
    }
  });
 });

@@ -1,7 +1,8 @@
 # OMS-R28 — Order workflow tips, helpers and contextual assistant UX
 
 A small, persistent **Order Guide** is now included in both the New Order
-and the saved-order editor. This is intentionally a **UX-only** batch:
+the saved-order editor and the order-detail overview. This is intentionally
+a **UX-only** batch:
 no migration, no additional provider request, and no order write outside
 the existing human-controlled Save Draft workflow.
 
@@ -47,6 +48,12 @@ Inline hints vary between Details, Files, Intake, Readiness, Canvas, Revisions,
 Approvals and Assistant sections, encouraging the next specific action rather
 than generic "AI can help" messaging.
 
+The order-detail overview additionally shows **lifecycle-specific tips**:
+draft, pending review, confirmed handoff, active production, loading, hold,
+dispatch and archive. Users authorized for this order's R27 assistant see
+a direct assistant link; all lifecycle writes still use existing dedicated
+workflow controls. Operators do not receive an unauthorized assistant shortcut.
+
 ## Language and accessibility
 
 Every guide heading, signal, explanation, action and suggested assistant
@@ -71,8 +78,12 @@ no reliance on color alone. On narrow screens step buttons stack.
    not see an enabled assistant action; the server remains authoritative.
 7. Test unsaved fields and stale order versions. Guide reflects local state,
    R27 assistant explicitly uses last saved order and refuses stale proposals.
-8. Test portrait mobile, keyboard-only navigation, and RU/LV/EN language
-   changes mid-workflow.
+8. From the order-detail overview, check lifecycle hints in DRAFT,
+   PENDING_REVIEW, CONFIRMED, IN_PRODUCTION, READY_TO_LOAD, ON_HOLD,
+   DISPATCHED and ARCHIVED. Operators must not receive a forbidden
+   assistant shortcut.
+9. Test portrait mobile, keyboard-only navigation, minimized/reopened coach,
+   and RU/LV/EN language changes mid-workflow.
 
 No deployed/browser verification or Vitest/build was run in this GitHub-only
 session. These remain required before production release.
