@@ -35,11 +35,14 @@ export function computeProductionPerformance(
 ):PerformanceSummary{
  const byOrder=new Map(orders.map(order=>[order.id,order]));
  const latest=new Map<string,ProgressObservation>();
- const dateCutoff=new Date(Date.parse(asOf)-days*86400000).toISOString();
+ const asOfMs=Date.parse(asOf);
+ if(!Number.isFinite(asOfMs))throw new Error('Invalid performance snapshot timestamp');
+ const dateCutoff=asOfMs-days*86400000;
  for(const observation of progress){
    const key=`${observation.orderId}:${observation.station}`;
    const prior=latest.get(key);
-   if(!prior||observation.createdAt>prior.createdAt) latest.set(key,observation);
+   const newer=Date.parse(observation.createdAt),older=prior?Date.parse(prior.createdAt):-Infinity;
+   if(Number.isFinite(newer)&&newer>older)latest.set(key,observation);
  }
  const totals:PerformanceTotals={completed:0,completedWithActual:0,
    completedMissingActual:0,completedComparable:0,
@@ -60,8 +63,9 @@ export function computeProductionPerformance(
    const key=`${order.id}:${stage.station}`;
    if(seen.has(key))throw new Error('Duplicate stage in performance snapshot');
    seen.add(key);
+   const completedAt=stage.completed_at?Date.parse(stage.completed_at):NaN;
    const completedInWindow=stage.state==='COMPLETED'&&
-     !!stage.completed_at&&stage.completed_at>=dateCutoff&&stage.completed_at<=asOf;
+     Number.isFinite(completedAt)&&completedAt>=dateCutoff&&completedAt<=asOfMs;
    const isActive=['QUEUED','IN_PROGRESS','BLOCKED','REWORK'].includes(stage.state)&&
      ['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(order.status);
    if(!completedInWindow&&!isActive)continue;
@@ -104,7 +108,7 @@ export function computeProductionPerformance(
    item.actualHours=rounded(item.actualHours);
    item.varianceHours=rounded(item.varianceHours);
  }
- completed.sort((a,b)=>(b.completedAt??'').localeCompare(a.completedAt??'')||
+ completed.sort((a,b)=>(Date.parse(b.completedAt??'')||0)-(Date.parse(a.completedAt??'')||0)||
    a.station.localeCompare(b.station)||a.orderId.localeCompare(b.orderId));
  active.sort((a,b)=>{
    const av=a.varianceHours,bv=b.varianceHours;

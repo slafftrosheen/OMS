@@ -128,7 +128,7 @@
           </a>
         {/if}
         <a href="{base}/production/performance" class="action-btn">
-          <Icon name="chart-no-axes-combined" size="sm" />
+          <Icon name="bar-chart-3" size="sm" />
           {$t('productionPerformance.open')}
         </a>
         <a href="{base}/production/planner" class="action-btn">
