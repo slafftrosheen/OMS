@@ -2,6 +2,9 @@
   import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
+  import OrderWorkflowCoach from '$lib/order/OrderWorkflowCoach.svelte';
+  import type {GuideStepId} from '$lib/order/order-flow-guidance';
+  import type {WorkspaceSection} from '$lib/order/workspace-navigation';
   import Icon from '$lib/ui/Icon.svelte';
   import Profile7stVisual from '$lib/profiles/components/Profile7stVisual.svelte';
   import { createId } from '$lib/utils/id';
@@ -75,6 +78,16 @@
     type: 'pdf' | 'cdr' | 'image' | 'other';
   }
   let uploadedFiles = $state<FileWithPreview[]>([]);
+  let newGuideStep=$state<GuideStepId>('brief');
+  let newGuideSection=$state<WorkspaceSection>('details');
+  function jumpToNewStep(_target:WorkspaceSection,step:GuideStepId){
+    newGuideStep=step;
+    newGuideSection=step==='files'?'files':step==='review'?'readiness':'details';
+    const anchor=step==='brief'?'new-order-details':
+      step==='profiles'?'new-order-profiles':
+      step==='files'?'new-order-files':'new-order-save';
+    document.getElementById(anchor)?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
   let dragActive = $state(false);
 
   // Profile Presets
@@ -116,6 +129,16 @@
   let pdfRenderTask = $state<any>(null);
   let pdfPageCache = $state(new Map<string, any>());
   let pdfjsLib: any = null;
+  
+  let newGuideContext=$derived({
+    phase:'new' as const,status:'DRAFT',
+    clientName,deadline,title:'',
+    profileCount:profiles.length,
+    unassignedProfiles:profiles.filter(p=>!p.profileTemplateId).length,
+    fileCount:uploadedFiles.length,
+    dirty:true,
+    canEdit:can($currentUser,'createDraftOrder')
+  });
   
   // Initialize pdfjs on client-side
   onMount(() => {
@@ -724,7 +747,7 @@
       <button class="btn-secondary" onclick={() => goto('/orders')}>
         {$t('actions.cancel')}
       </button>
-      <button class="btn-primary" onclick={saveOrder} disabled={saving || !!successMessage || !can($currentUser, 'createDraftOrder')}>
+      <button id="new-order-save" class="btn-primary" onclick={saveOrder} disabled={saving || !!successMessage || !can($currentUser, 'createDraftOrder')}>
         {#if saving}
           <span class="spinner"></span>
           {$t('actions.saving')}
@@ -753,8 +776,10 @@
     </div>
   {/if}
 
+  <OrderWorkflowCoach context={newGuideContext} section={newGuideSection}
+    focusStep={newGuideStep} onNavigate={jumpToNewStep}/>
   <!-- 1. PROFILES SECTION (TOP) -->
-  <section class="profiles-section full-width">
+  <section id="new-order-profiles" class="profiles-section full-width">
     <div class="profiles-header">
       <h2>
         <Icon name="file-text" size="md" />
@@ -818,7 +843,7 @@
   </section>
 
   <!-- 2. FILES SECTION (MIDDLE) -->
-  <section class="card files-card full-width">
+  <section id="new-order-files" class="card files-card full-width">
     <h2>
       <Icon name="upload" size="md" />
       {$t('orders.new.sections.files')} <span class="required">*</span>
@@ -959,7 +984,7 @@
   <!-- 3. CLIENT & DELIVERY SECTION (BOTTOM) -->
   <div class="client-delivery-row">
     <!-- Order Details Card -->
-    <section class="card details-card">
+    <section id="new-order-details" class="card details-card">
       <h2>
         <Icon name="file-text" size="md" />
         {$t('orders.new.sections.details')}

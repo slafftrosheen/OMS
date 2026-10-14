@@ -3,15 +3,15 @@
  import {deriveOrderGuide,ORDER_SECTION_HELP} from './order-flow-guidance';
  import type {OrderGuideInput,GuideStepId} from './order-flow-guidance';
  import type {WorkspaceSection} from './workspace-navigation';
- let {context,section='details',onNavigate,onAsk}:{
-   context:OrderGuideInput;section?:WorkspaceSection;
+ let {context,section='details',focusStep,onNavigate,onAsk}:{
+   context:OrderGuideInput;section?:WorkspaceSection;focusStep?:GuideStepId;
    onNavigate:(target:WorkspaceSection,step:GuideStepId)=>void;
    onAsk?:(question:string,step:GuideStepId)=>void;
  }=$props();
  let expanded=$state(false);
  let hidden=$state(false);
  let guide=$derived(deriveOrderGuide(context));
- let focus=$derived(guide.steps.find(s=>s.id===ORDER_SECTION_HELP[section])??guide.steps[0]);
+ let focus=$derived(guide.steps.find(s=>s.id===(focusStep??ORDER_SECTION_HELP[section]))??guide.steps[0]);
  let suggestion=$derived(guide.steps.find(s=>s.id===guide.suggested)??guide.steps[0]);
  function prompt(step:GuideStepId){
    // Prompts are localized UI text only; never automatically make model requests.
@@ -49,6 +49,7 @@
        <span class="eyebrow">{$t('orderGuide.currentStep')}</span>
        <strong>{$t(`orderGuide.step.${focus.id}`)}</strong>
        <p>{$t(focus.helpKey)}</p>
+       <p class="section-tip">{$t(`orderGuide.sectionTip.${section}`)}</p>
        {#if context.dirty}<p class="dirty">{$t('orderGuide.unsaved')}</p>{/if}
        {#if context.phase==='new'}<p class="small">{$t('orderGuide.saveBeforeAI')}</p>{/if}
      </div>
