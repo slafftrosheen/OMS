@@ -85,6 +85,7 @@ export const GET:RequestHandler=async ({locals,url})=>{
    for(const row of data??[]){
      const id=row.details?.order_id,percent=row.details?.progress_percent;
      if(typeof id!=='string'||!orders.has(id))continue;
+     if(typeof row.station!=='string'||!Number.isFinite(Date.parse(row.created_at)))continue;
      progress.push({station:row.station,orderId:id,createdAt:row.created_at,
        progressPercent:Number.isInteger(percent)&&percent>=0&&percent<=99?percent:null,
        note:typeof row.details?.message==='string'?row.details.message:''});

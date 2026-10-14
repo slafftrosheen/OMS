@@ -15,7 +15,7 @@ export type PerformanceLine={orderId:string;station:string;poNumber:string|null;
 export type PerformanceTotals={completed:number;completedWithActual:number;
   completedMissingActual:number;completedComparable:number;
   completedEstimatedHours:number;completedActualHours:number;
-  completedVarianceHours:number;overEstimate:number;
+  completedMatchedActualHours:number;completedVarianceHours:number;overEstimate:number;
   active:number;activeWithActual:number;activeReportedProgress:number;
   activeHoursOverEstimate:number};
 export type PerformanceStation={station:string;completed:number;missingActual:number;
@@ -43,7 +43,8 @@ export function computeProductionPerformance(
  }
  const totals:PerformanceTotals={completed:0,completedWithActual:0,
    completedMissingActual:0,completedComparable:0,
-   completedEstimatedHours:0,completedActualHours:0,completedVarianceHours:0,
+   completedEstimatedHours:0,completedActualHours:0,
+   completedMatchedActualHours:0,completedVarianceHours:0,
    overEstimate:0,active:0,activeWithActual:0,activeReportedProgress:0,
    activeHoursOverEstimate:0};
  const perStation=new Map(ALL_STATIONS.map(station=>[station,{
@@ -82,6 +83,7 @@ export function computeProductionPerformance(
      if(line.varianceHours!==null){
        totals.completedComparable++;metric.comparable++;
        totals.completedEstimatedHours+=estimate!;
+       totals.completedMatchedActualHours+=actual!;
        totals.completedVarianceHours+=line.varianceHours;
        metric.estimatedHours+=estimate!;metric.actualHours+=actual!;
        metric.varianceHours+=line.varianceHours;
@@ -94,7 +96,8 @@ export function computeProductionPerformance(
      if(line.varianceHours!==null&&line.varianceHours>0)totals.activeHoursOverEstimate++;
    }
  }
- for(const field of ['completedEstimatedHours','completedActualHours','completedVarianceHours'] as const)
+ for(const field of ['completedEstimatedHours','completedActualHours',
+   'completedMatchedActualHours','completedVarianceHours'] as const)
    totals[field]=rounded(totals[field]);
  for(const item of perStation.values()){
    item.estimatedHours=rounded(item.estimatedHours);
@@ -103,7 +106,12 @@ export function computeProductionPerformance(
  }
  completed.sort((a,b)=>(b.completedAt??'').localeCompare(a.completedAt??'')||
    a.station.localeCompare(b.station)||a.orderId.localeCompare(b.orderId));
- active.sort((a,b)=>((b.varianceHours??-Infinity)-(a.varianceHours??-Infinity))||
-   a.station.localeCompare(b.station)||a.orderId.localeCompare(b.orderId));
+ active.sort((a,b)=>{
+   const av=a.varianceHours,bv=b.varianceHours;
+   if(av===null&&bv!==null)return 1;
+   if(bv===null&&av!==null)return -1;
+   if(av!==null&&bv!==null&&av!==bv)return bv-av;
+   return a.station.localeCompare(b.station)||a.orderId.localeCompare(b.orderId);
+ });
  return {totals,stations:[...perStation.values()],completed,active,asOf,days};
 }
