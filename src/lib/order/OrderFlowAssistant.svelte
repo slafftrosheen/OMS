@@ -3,6 +3,7 @@
   import {base} from '$app/paths';
   import {proposalsToPatch,type IntakeProposal} from './intake-contract';
   import type {OrderAssistantTurn} from './assistant-contract';
+  import type {OrderTechnicalChecks,TechnicalIssue} from './technical-evidence';
 
   type AssistantReply={
     reply:string;model:string;orderUpdatedAt:string;
@@ -25,6 +26,10 @@
   let proposalVersion=$state(''),proposalsBase=$state('');
   let model=$state(''),lastMode=$state<'chat'|'propose'>('chat');
   let applied=$state(false);
+  let technical=$state<OrderTechnicalChecks|null>(null);
+  let technicalBusy=$state(false),technicalError=$state('');
+  let technicalVersion=$state<string|null>(null);
+  let showAllTechnical=$state(false),technicalSequence=0;
   let requestSerial=0;
   let lastPrefillRevision=0;
   // A workflow tip prepares a question but never sends it or grants consent.
@@ -35,7 +40,40 @@
       question=suggestedPrompt;
     }
   });
-  const samples=['questions','gaps','materials'] as const;
+  const samples=['questions','gaps','materials','dimensions','fabrication'] as const;
+  // Local deterministic checks: GET under the editor's session, NO OpenRouter.
+  async function checkTechnical(){
+    if(!canAsk||technicalBusy)return;
+    const checkedId=orderId,sequence=++technicalSequence;
+    technicalBusy=true;technicalError='';showAllTechnical=false;
+    try{
+      const response=await fetch(`${base}/api/orders/${encodeURIComponent(checkedId)}/technical-checks`,
+        {method:'GET',cache:'no-store'});
+      if(!response.ok)throw new Error($t('orderAssistant.technicalUnavailable'));
+      const result=await response.json();
+      if(checkedId!==orderId||sequence!==technicalSequence)return;
+      if(result?.orderId!==checkedId||
+         result.checks?.kind!=='deterministic-technical-evidence'||
+         typeof result.orderUpdatedAt!=='string')
+        throw new Error($t('orderAssistant.technicalUnavailable'));
+      technical=result.checks;technicalVersion=result.orderUpdatedAt;
+    }catch(err){
+      if(checkedId===orderId&&sequence===technicalSequence)
+        technicalError=err instanceof Error?err.message:$t('orderAssistant.technicalUnavailable');
+    }finally{if(checkedId===orderId&&sequence===technicalSequence)technicalBusy=false;}
+  }
+  $effect(()=>{
+    if(technicalVersion!==null&&orderUpdatedAt!==technicalVersion){
+      technical=null;technicalVersion=null;
+    }
+  });
+  function prepareTechnicalQuestion(){
+    mode='chat';
+    question=$t('orderAssistant.suggest.technical');
+  }
+  const techIssueLabel=(issue:TechnicalIssue)=>$t(`orderAssistant.technicalIssue.${issue.code}`);
+  const displayMetric=(n:number|null)=>n===null?$t('orderAssistant.notVerified'):
+    n.toLocaleString(undefined,{maximumFractionDigits:5});
   let hasAccepted=$derived(proposals.some((_,i)=>approvals[i]===true));
   function resetProposals(){
     proposals=[];missing=[];approvals={};applied=false;proposalVersion='';proposalsBase='';
@@ -68,6 +106,10 @@
       // Never allow a response against an older form to silently apply fields.
       turns=[...turns,{role:'user',content:text},{role:'assistant',content:body.reply}].slice(-16);
       model=body.model??'';lastMode=requestedMode;
+      if(body.technicalChecks?.kind==='deterministic-technical-evidence'){
+        technical=body.technicalChecks;
+        technicalVersion=body.orderUpdatedAt;
+      }
       if(requestedMode==='propose'){
         proposals=body.proposals;
         missing=body.missing;
@@ -124,6 +166,64 @@
   </label>
   {#if !canAsk}<p class="hint">{$t('orderAssistant.readOnly')}</p>{/if}
 
+  <section class="technical" aria-label={$t('orderAssistant.technicalTitle')}>
+    <div class="technical-title">
+      <div>
+        <h4>{$t('orderAssistant.technicalTitle')}</h4>
+        <p class="hint">{$t('orderAssistant.technicalInfo')}</p>
+      </div>
+      <button type="button" class="secondary" disabled={!canAsk||technicalBusy}
+        onclick={checkTechnical}>
+        {technicalBusy?$t('orderAssistant.technicalLoading'):$t('orderAssistant.runTechnical')}
+      </button>
+    </div>
+    {#if technicalError}<p role="alert" class="warning">{technicalError}</p>{/if}
+    {#if technical}
+      <div class="technical-metrics">
+        <div><strong>{displayMetric(technical.primaryUnits)}</strong>
+          <span>{$t('orderAssistant.primaryUnits')}</span></div>
+        <div><strong>{technical.materialCount}</strong>
+          <span>{$t('orderAssistant.materialLines')}</span></div>
+        <div><strong>{displayMetric(technical.boundingFaceAreaM2)}</strong>
+          <span>{$t('orderAssistant.boundingM2')}</span></div>
+      </div>
+      <p class="hint">{$t('orderAssistant.boundingCaveat')}</p>
+      {#if technical.geometries.length>0}
+        <div class="technical-lines">
+          {#each technical.geometries.slice(0,showAllTechnical?100:4) as g (g.profileIndex)}
+            <p>{$t('orderAssistant.profileNumber',{values:{number:g.profileIndex+1}})}:
+              {g.widthMm} × {g.heightMm} mm · {g.quantity} ×
+              {displayMetric(g.boundingAreaM2)} m²</p>
+          {/each}
+        </div>
+      {/if}
+      {#if technical.issues.length>0}
+        <ul class="technical-issues">
+          {#each technical.issues.slice(0,showAllTechnical?100:5) as issue,i (i)}
+            <li class:review={issue.severity==='review'}>
+              {techIssueLabel(issue)}
+              {#if issue.profileIndex!==undefined}
+                · {$t('orderAssistant.profileNumber',{values:{number:issue.profileIndex+1}})}
+              {/if}
+              {#if issue.materialIndex!==undefined}
+                · {$t('orderAssistant.materialNumber',{values:{number:issue.materialIndex+1}})}
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      {#if technical.issues.length>5||technical.geometries.length>4}
+        <button class="secondary" type="button" onclick={()=>showAllTechnical=!showAllTechnical}>
+          {showAllTechnical?$t('orderAssistant.technicalLess'):$t('orderAssistant.technicalMore')}
+        </button>
+      {/if}
+      <p class="hint">{$t('orderAssistant.technicalNoAuthority')}</p>
+      <button type="button" class="secondary" disabled={!canAsk||busy}
+        onclick={prepareTechnicalQuestion}>
+        {$t('orderAssistant.explainTechnical')}
+      </button>
+    {/if}
+  </section>
   <div class="conversation" aria-live="polite">
     {#if !turns.length}
       <p class="hint">{$t('orderAssistant.empty')}</p>
@@ -220,4 +320,20 @@
    display:grid;gap:.35rem}.proposal span{overflow-wrap:anywhere}
  .proposal-head{justify-content:flex-start}.proposal-head small{margin-left:auto;color:var(--muted)}
  .proposals ul{padding-left:1.3rem;font-size:.83rem;margin:.1rem}
+ .technical{display:grid;gap:.55rem;border:1px solid var(--border);background:var(--bg-1);
+   padding:.75rem;border-radius:10px}
+ .technical-title{display:flex;justify-content:space-between;align-items:center;
+   flex-wrap:wrap;gap:.55rem}
+ .technical-title h4{margin:0}.technical-title p{margin:.15rem 0}
+ .technical-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.45rem}
+ .technical-metrics>div{display:grid;gap:.2rem;padding:.55rem;border:1px solid var(--border);
+   border-radius:8px;min-width:0}
+ .technical-metrics strong{font-size:1.1rem;font-variant-numeric:tabular-nums}
+ .technical-metrics span{font-size:.7rem;color:var(--muted)}
+ .technical-issues{display:grid;gap:.35rem;padding-left:1rem;margin:0}
+ .technical-issues li{font-size:.79rem;color:var(--muted)}
+ .technical-issues li.review{color:var(--warn)}
+ .technical-lines p{margin:.1rem 0;font-size:.77rem}
+ @media(max-width:550px){.technical-metrics{grid-template-columns:1fr 1fr}
+   .technical-title button{width:100%}}
 </style>
