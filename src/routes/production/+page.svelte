@@ -91,6 +91,7 @@
     <div class="header-actions">
       <a class="planner-link" href={`${base}/production/planner`}>{$t('capacityPlanner.open')}</a>
       <a class="planner-link" href={`${base}/production/performance`}>{$t('productionPerformance.open')}</a>
+      <a class="planner-link" href={`${base}/production/exceptions`}>{$t('productionExceptions.open')}</a>
       <Button variant="outline" onclick={() => (showScanner = true)}>
         {$t('stationView.scan_qr', { default: 'Scan QR' })}
       </Button>

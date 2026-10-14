@@ -39,7 +39,9 @@
   }
   let issues=$derived(performance?detectProductionExceptions(
     performance,bookings,todayInRiga()):[]);
-  let rows=$derived(mergeProductionReviews(issues,reviews));
+  // The bookings feed being unavailable is not evidence that there were no missed dates.
+  let rows=$derived(mergeProductionReviews(issues,
+    bookings===null?reviews.filter(r=>r.kind!=='MISSED_BOOKING'):reviews));
   let visible=$derived(rows.filter(r=>
     (showResolved||r.review?.status!=='RESOLVED')&&
     (!mineOnly||r.review?.owner_id===$currentUser?.id)&&
@@ -302,6 +304,7 @@
                   <time datetime={event.occurred_at}>{new Date(event.occurred_at).toLocaleString()}</time>
                   <strong>{$t(`productionExceptions.action.${event.action}`)}</strong>
                   <span>{event.previous_status??'—'} → {event.new_status}</span>
+                  <span>{$t('productionExceptions.actor')}: {event.actor_id.slice(0,8)}</span>
                   {#if event.description}<p>{event.description}</p>{/if}
                 </div>
               {/each}

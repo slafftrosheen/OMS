@@ -127,6 +127,10 @@
             {$t('production_dash.production_board', { default: 'Production Board' })}
           </a>
         {/if}
+        <a href="{base}/production/exceptions" class="action-btn">
+          <Icon name="alert-triangle" size="sm" />
+          {$t('productionExceptions.open')}
+        </a>
         <a href="{base}/production/performance" class="action-btn">
           <Icon name="bar-chart-3" size="sm" />
           {$t('productionPerformance.open')}

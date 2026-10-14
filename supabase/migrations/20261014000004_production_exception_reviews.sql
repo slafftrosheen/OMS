@@ -94,6 +94,9 @@ BEGIN
  IF p_note IS NOT NULL AND (length(p_note)>2000 OR position(chr(0) IN p_note)>0) THEN
    RAISE EXCEPTION 'Review note too long or invalid' USING ERRCODE='22023';
  END IF;
+ IF p_action IN ('claim','take','update') AND p_due_date IS NULL THEN
+   RAISE EXCEPTION 'An accountable follow-up due date is required' USING ERRCODE='22023';
+ END IF;
  IF p_due_date IS NOT NULL AND
    (p_due_date<v_today OR p_due_date>v_today+365) THEN
    RAISE EXCEPTION 'Follow-up date must be within the next year' USING ERRCODE='22023';

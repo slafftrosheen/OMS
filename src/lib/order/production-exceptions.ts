@@ -47,6 +47,8 @@ export function parseReviewChange(raw:unknown):ReviewChange {
    !Number.isFinite(Date.parse(x.expectedUpdatedAt))||
    x.orderId!==undefined||x.station!==undefined||x.kind!==undefined)
    throw new Error('Existing review ID and exact revision required');
+ if(['claim','take','update'].includes(action)&&due===null)
+   throw new Error('A follow-up due date is required');
  if(action==='update'&&(note===null||note.length>1000))
    throw new Error('An update note up to 1000 characters is required');
  if(action==='resolve'&&(!note||!note.trim()))

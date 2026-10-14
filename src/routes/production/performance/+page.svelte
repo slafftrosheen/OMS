@@ -78,6 +78,7 @@
     <nav class="actions">
       <a href={`${base}/production`}>{$t('productionPerformance.board')}</a>
       <a href={`${base}/production/planner`}>{$t('productionPerformance.planner')}</a>
+      <a href={`${base}/production/exceptions`}>{$t('productionExceptions.open')}</a>
     </nav>
   </header>
   <section class="toolbar">
