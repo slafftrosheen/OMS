@@ -7,6 +7,8 @@
   import type {WorkspaceSection} from '$lib/order/workspace-navigation';
   import Icon from '$lib/ui/Icon.svelte';
   import Profile7stVisual from '$lib/profiles/components/Profile7stVisual.svelte';
+import ProfileFabricationSpec from '$lib/order/ProfileFabricationSpec.svelte';
+import {validateProfileFabrication} from '$lib/order/fabrication-spec';
   import { createId } from '$lib/utils/id';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { can } from '$lib/auth/permission-utils';
@@ -577,6 +579,10 @@
 
   async function saveOrder() {
     if (saving || successMessage) return;
+    if(profiles.some(p=>validateProfileFabrication(p.configuration).some(i=>i.type==='invalid'))){
+      error=$t('fabricationSpec.invalidSave');
+      return;
+    }
     if (!can($currentUser, 'createDraftOrder')) { error = 'Manager role required to create orders'; return; }
     error = '';
     fieldErrors = {};
@@ -833,9 +839,13 @@
         </div>
         {#if !profile.collapsed}
           <div class="visual-wrapper">
-            <Profile7stVisual 
+            <Profile7stVisual
               bind:configuration={profile.configuration}
             />
+            <ProfileFabricationSpec value={profile.configuration?.fabricationSpec}
+              onChange={next=>profiles=profiles.map(p=>p.id===profile.id?{
+                ...p,configuration:{...p.configuration,fabricationSpec:next??undefined}
+              }:p)}/>
           </div>
         {/if}
       </div>
