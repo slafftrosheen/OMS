@@ -26,6 +26,13 @@
     let orderId = $derived(page.params.id);
 
     let order: any = $state(null);
+    let mayAskOrderAssistant=$derived(!!$currentUser&&!!order&&(
+      (['RD','Boss','HeadOfProduction'].includes($currentUser.role??'')&&
+        ['DRAFT','PENDING_REVIEW','CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD']
+          .includes(normaliseStatus(order.status)))
+      ||(order.created_by===$currentUser.id&&
+          ['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status)))
+    ));
     let fileCount: number | null = $state(null);
     let loading = $state(true);
     let showQRModal = $state(false);
@@ -373,6 +380,11 @@
           <div class="workspace-entry-intro">
             <h2>{$t('orderWorkspace.title')}</h2>
             <p>{$t('orderWorkspace.overviewHint')}</p>
+            <p class="detail-guidance" role="note">
+              {$t(`orderGuide.lifecycle.${normaliseStatus(order.status)}`,{
+                default:$t('orderGuide.lifecycle.default')
+              })}
+            </p>
           </div>
           <div class="workspace-entry-links">
             <button onclick={() => goto(workspaceUrl(orderId,
@@ -380,6 +392,12 @@
               class="entry-link featured">
               {$t('orderWorkspace.continue')}
             </button>
+            {#if mayAskOrderAssistant}
+              <button onclick={() => goto(workspaceUrl(orderId,'chat'))}
+                class="entry-link" aria-label={$t('orderGuide.askButton')}>
+                ✦ {$t('orderGuide.askButton')}
+              </button>
+            {/if}
             <button onclick={() => goto(workspaceUrl(orderId,'details'))} class="entry-link">
               {$t('orderWorkspace.sections.details')}
             </button>
