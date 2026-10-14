@@ -12,13 +12,17 @@
  let hidden=$state(false);
  let guide=$derived(deriveOrderGuide(context));
  let focus=$derived(guide.steps.find(s=>s.id===(focusStep??ORDER_SECTION_HELP[section]))??guide.steps[0]);
- let suggestion=$derived(guide.steps.find(s=>s.id===guide.suggested)??guide.steps[0]);
  function prompt(step:GuideStepId){
    // Prompts are localized UI text only; never automatically make model requests.
    onAsk?.($t(`orderGuide.ask.${step}`),step);
  }
 </script>
 <section class="coach" aria-label={$t('orderGuide.title')}>
+ {#if hidden}
+   <button class="reopen" type="button" onclick={()=>hidden=false}>
+     ✦ {$t('orderGuide.show')}
+   </button>
+ {:else}
  <div class="top">
    <div class="heading">
      <span class="glyph" aria-hidden="true">✦</span>
@@ -36,14 +40,9 @@
        {expanded?$t('orderGuide.less'):$t('orderGuide.more')}
      </button>
      <button type="button" class="quiet close" aria-label={$t('orderGuide.hide')}
-       onclick={()=>hidden=!hidden}>{hidden?$t('orderGuide.show'):'×'}</button>
+       onclick={()=>hidden=true}>×</button>
    </div>
  </div>
- {#if hidden}
-   <button class="reopen" type="button" onclick={()=>hidden=false}>
-     ✦ {$t('orderGuide.show')}
-   </button>
- {:else}
    <div class="focus">
      <div class="focus-copy">
        <span class="eyebrow">{$t('orderGuide.currentStep')}</span>
