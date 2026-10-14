@@ -7,6 +7,7 @@ import { canOperateStation } from '$lib/order/lifecycle-guards';
 import { postStationMessage } from '$lib/server/chat/stationMessenger';
 import { notifyConsumptionSkipped, notifyLowStock } from '$lib/server/notifications/inventoryNotifier';
 
+import { parseStageCompletion } from '$lib/order/production-floor-contract';
 type Item = { item_id: string; quantity: number; notes?: string };
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
@@ -21,20 +22,13 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return json({ error: 'Invalid completion data' }, { status: 400 });
   }
-  const items: Item[] = Array.isArray(body.items) ? body.items : [];
-  const skipped = body.skipped === true;
-  const reason = typeof body.skipReason === 'string' ? body.skipReason.trim() : '';
-  if (skipped ? (items.length !== 0 || !reason) : items.length === 0) {
-    return json({ error: 'Declare materials or skip with a reason (not both)' }, { status: 400 });
+  let validated: ReturnType<typeof parseStageCompletion>;
+  try {
+    validated = parseStageCompletion(body);
+  } catch (err) {
+    return json({error: err instanceof Error ? err.message : 'Invalid completion data'}, {status:400});
   }
-  if (items.some(i => !i || typeof i.item_id !== 'string' || !i.item_id.trim() ||
-      !Number.isInteger(i.quantity) || i.quantity <= 0)) {
-    return json({ error: 'Each material must have a valid ID and positive integer quantity' }, { status: 400 });
-  }
-  if (body.actualHours !== undefined &&
-      (typeof body.actualHours !== 'number' || !Number.isFinite(body.actualHours) || body.actualHours < 0)) {
-    return json({ error: 'actualHours must be non-negative' }, { status: 400 });
-  }
+  const {items,skipped,reason,actualHours,notes} = validated;
 
   const { data: result, error: rpcError } = await locals.supabase.rpc(
     'complete_stage_with_consumption', {
@@ -43,8 +37,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
       p_items: items,
       p_skipped: skipped,
       p_skip_reason: skipped ? reason : null,
-      p_actual_hours: body.actualHours ?? null,
-      p_notes: typeof body.notes === 'string' ? body.notes : null
+      p_actual_hours: actualHours,
+      p_notes: notes
     }
   );
   if (rpcError) {

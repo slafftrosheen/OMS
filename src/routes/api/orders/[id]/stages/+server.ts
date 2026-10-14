@@ -59,6 +59,12 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
   if (!canOperateStation(user, station)) throw error(403, 'Station assignment required');
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw error(400, 'Invalid update payload');
+  const expectedUpdatedAt = body.expectedUpdatedAt;
+  if (typeof expectedUpdatedAt !== 'string' ||
+      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/.test(expectedUpdatedAt) ||
+      !Number.isFinite(Date.parse(expectedUpdatedAt))) {
+    throw error(428, 'A fresh stage version is required; reload and retry');
+  }
   const newState = body.state;
   if (newState === 'COMPLETED') {
     throw error(409, 'Complete a stage through the material-consumption endpoint');
@@ -74,9 +80,11 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
   if (!mayEditStage(order.status)) throw error(409, 'Order is not in production');
 
   const { data: stage, error: stageErr } = await supabase.from('order_stages')
-    .select('id,state,blocked_reason').eq('draft_order_id', params.id).eq('station', station).maybeSingle();
+    .select('id,state,blocked_reason,started_at,updated_at').eq('draft_order_id', params.id).eq('station', station).maybeSingle();
   if (stageErr) throw error(500, 'Could not load stage');
   if (!stage) throw error(404, 'Stage does not exist for order');
+  if (stage.updated_at !== expectedUpdatedAt) throw error(409, 'Stage changed since it was loaded; reload');
+  if (stage.state === 'COMPLETED') throw error(409, 'Completed stages cannot be edited here');
   if (stage.state === 'REWORK' && newState !== undefined) {
     throw error(409, 'Resolve the open rework cycle before changing stage state');
   }
@@ -105,14 +113,15 @@ export const PATCH: RequestHandler = async ({ params, request, locals, url }) =>
   }
   if (newState === 'IN_PROGRESS') {
     updates.blocked_reason = null;
-    updates.started_at = new Date().toISOString();
+    if (!stage.started_at) updates.started_at = new Date().toISOString();
   }
   if (!Object.keys(updates).length) throw error(400, 'No changes supplied');
 
   // Prevent a second request from silently overwriting this stage.
   const { data: updated, error: updateErr } = await supabase.from('order_stages')
-    .update(updates).eq('id', stage.id).eq('state', stage.state)
-    .select('id,draft_order_id,station,state').maybeSingle();
+    .update({ ...updates, updated_at: new Date().toISOString(), updated_by: user.id })
+    .eq('id', stage.id).eq('state', stage.state).eq('updated_at', expectedUpdatedAt)
+    .select('*').maybeSingle();
   if (updateErr) {
     console.error('[Stage PATCH] update failed', updateErr);
     throw error(500, 'Failed to update stage');

@@ -28,20 +28,20 @@
     open = $bindable(false),
     orderRef = '',
     station = '',
-    onSubmitted = (_payload: { consumed: number; skipped: boolean; lowStock: any[] }) => {},
+    onSubmitted = (_payload: { consumed: number; skipped: boolean; lowStock: any[]; nextStation?:string|null }) => {},
     onComplete = async (
       _items: Array<{ item_id: string; quantity: number }>,
-      _opts: { skipped: boolean; skipReason: string | null },
-    ) => Promise.resolve({ ok: false }) as Promise<{ ok: boolean; consumed?: number; lowStock?: any[]; error?: string }>,
+      _opts: { skipped: boolean; skipReason: string | null; actualHours?:number|null; notes?:string|null },
+    ) => Promise.resolve({ ok: false }) as Promise<{ ok: boolean; consumed?: number; lowStock?: any[]; nextStation?:string|null; error?: string }>,
   }: {
     open: boolean;
     orderRef: string;
     station: string;
-    onSubmitted?: (p: { consumed: number; skipped: boolean; lowStock: any[] }) => void;
+    onSubmitted?: (p: { consumed: number; skipped: boolean; lowStock: any[]; nextStation?:string|null }) => void;
     onComplete: (
       items: Array<{ item_id: string; quantity: number }>,
-      opts: { skipped: boolean; skipReason: string | null },
-    ) => Promise<{ ok: boolean; consumed?: number; lowStock?: any[]; error?: string }>;
+      opts: { skipped: boolean; skipReason: string | null; actualHours?:number|null; notes?:string|null },
+    ) => Promise<{ ok: boolean; consumed?: number; lowStock?: any[]; nextStation?:string|null; error?: string }>;
   } = $props();
 
   let search = $state('');
@@ -53,6 +53,8 @@
   let errorMsg = $state('');
   let skipMode = $state(false);
   let skipReason = $state('');
+  let actualHours = $state<number | undefined>(undefined);
+  let completionNotes = $state('');
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
   let searchInput: HTMLInputElement | undefined = $state();
   onDestroy(() => { if (searchTimer) clearTimeout(searchTimer); });
@@ -72,6 +74,8 @@
     searchError = '';
     skipMode = false;
     skipReason = '';
+    actualHours = undefined;
+    completionNotes = '';
   }
 
   function close() {
@@ -153,13 +157,21 @@
       }
     }
 
+    if (actualHours !== undefined && actualHours !== null &&
+        (!Number.isFinite(actualHours) || actualHours < 0 || actualHours > 999.99)) {
+      errorMsg = $t('productionFloor.hoursError'); return;
+    }
+    if (completionNotes.trim().length > 2000) {
+      errorMsg = $t('productionFloor.notesError'); return;
+    }
     submitting = true;
     try {
       const result = await onComplete(
         skipMode
           ? []
           : rows.map((r) => ({ item_id: r.item_id, quantity: r.quantity })),
-        { skipped: skipMode, skipReason: skipMode ? skipReason.trim() || null : null },
+        { skipped: skipMode, skipReason: skipMode ? skipReason.trim() || null : null,
+          actualHours: actualHours ?? null, notes: completionNotes.trim() || null },
       );
 
       if (!result.ok) {
@@ -170,6 +182,7 @@
         consumed: result.consumed ?? 0,
         skipped: skipMode,
         lowStock: result.lowStock ?? [],
+        nextStation: result.nextStation ?? null,
       });
       open = false;
     } catch (err: any) {
@@ -314,6 +327,12 @@
           </p>
         {/if}
 
+        <label for="complete-hours">{$t('productionFloor.actualHours')}</label>
+        <input id="complete-hours" type="number" min="0" max="999.99" step="0.01"
+          bind:value={actualHours} disabled={submitting} />
+        <label for="complete-notes">{$t('productionFloor.completionNotes')}</label>
+        <textarea id="complete-notes" bind:value={completionNotes} maxlength="2000"
+          rows="2" disabled={submitting}></textarea>
         {#if errorMsg}
           <div class="banner error" role="alert">
             <Icon name="alert-circle" size="sm" />

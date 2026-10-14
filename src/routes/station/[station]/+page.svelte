@@ -10,6 +10,7 @@
   import { realtimeStore } from '$lib/stores/realtime';
   import QRScanner from '$lib/components/qr/QRScanner.svelte';
   import StationCompleteModal from '$lib/components/station/StationCompleteModal.svelte';
+  import StationProgressPanel from '$lib/components/station/StationProgressPanel.svelte';
   import { notifications } from '$lib/notify/store';
   import { ensureRoom, loadMessages } from '$lib/chat/chat-store';
   import ChatPane from '$lib/ui/ChatPane.svelte';
@@ -49,6 +50,7 @@
 
   let completeModalOpen = $state(false);
   let completeTarget = $state<StationOrder | null>(null);
+  let progressTarget = $state<StationOrder | null>(null);
   let showChat = $state(false);
 
   // Block modal state
@@ -98,12 +100,23 @@
     workingOnOrderId = orderId;
     operationMessage = null;
     try {
+      const stageRow = $orders.find(o=>o.id===orderId)?.stage;
+      if (!stageRow?.updated_at) {
+        notifications.error($t('productionFloor.staleStage'));
+        await loadStationOrders(true);
+        return false;
+      }
       const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}/stages?station=${encodeURIComponent(station)}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state, ...extras })
+        body: JSON.stringify({ state, ...extras, expectedUpdatedAt:stageRow.updated_at })
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body?.message ?? body?.error ?? `Stage change rejected (HTTP ${response.status})`);
+      if (!response.ok) {
+        if (response.status===409 || response.status===428) await loadStationOrders(true);
+        throw new Error(response.status===409 || response.status===428
+          ? $t('productionFloor.staleStage')
+          : body?.message ?? body?.error ?? `Stage change rejected (HTTP ${response.status})`);
+      }
       operationMessage = `${station}: ${stageStateLabel(state)} saved`;
       await loadStationOrders(true);
       return true;
@@ -126,6 +139,11 @@
     await updateStageState(id, 'IN_PROGRESS');
   }
 
+  function openProgress(orderId:string) {
+    const target=$orders.find(o=>o.id===orderId);
+    if (target?.stage?.state==='IN_PROGRESS') progressTarget=target;
+  }
+
   function completeOrder(orderId: string) {
     const target = $orders.find((o) => o.id === orderId);
     if (!target) return;
@@ -135,7 +153,7 @@
 
   async function submitCompletion(
     items: Array<{ item_id: string; quantity: number }>,
-    opts: { skipped: boolean; skipReason: string | null },
+    opts: { skipped: boolean; skipReason: string | null; actualHours?:number|null; notes?:string|null },
   ) {
     if (!completeTarget) return { ok: false, error: 'No target' };
     try {
@@ -144,26 +162,31 @@
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items, skipped: opts.skipped, skipReason: opts.skipReason }),
+          body: JSON.stringify({ items, skipped: opts.skipped, skipReason: opts.skipReason,
+            actualHours:opts.actualHours, notes:opts.notes }),
         },
       );
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, error: payload?.error ?? `HTTP ${res.status}` };
-      return { ok: true, consumed: payload?.consumed ?? 0, lowStock: payload?.lowStock ?? [] };
+      return { ok: true, consumed: payload?.consumed ?? 0, lowStock: payload?.lowStock ?? [],
+        nextStation:payload?.nextStation ?? null };
     } catch (err: any) {
       return { ok: false, error: err?.message ?? 'Network error' };
     }
   }
 
-  function onCompletionSubmitted(p: { consumed: number; skipped: boolean; lowStock: any[] }) {
+  function onCompletionSubmitted(p: { consumed: number; skipped: boolean; lowStock: any[]; nextStation?:string|null }) {
     completeTarget = null;
+    operationMessage = p.nextStation
+      ? $t('productionFloor.handoff',{values:{station:p.nextStation}})
+      : $t('productionFloor.completed');
     if (p.lowStock.length > 0) {
       const skus = p.lowStock.map((h: any) => h.sku || h.name).join(', ');
       notifications.warning(
         $t('stationView.low_stock_warning', { default: `Low stock: ${skus}. HoP has been notified.`, values: { skus } })
       );
     }
-    loadStationOrders();
+    void loadStationOrders(true);
   }
 
   function openBlockModal(orderId: string) {
@@ -262,7 +285,7 @@
 
     refreshInterval = setInterval(() => {
       if (!document.hidden && !completeModalOpen && !blockModalOpen &&
-          !reworkModalOpen && !resolveModalOpen) void loadStationOrders(true);
+          !reworkModalOpen && !resolveModalOpen && !progressTarget) void loadStationOrders(true);
     }, 30000);
 
     // Ensure this station's chat room exists and load its messages
@@ -464,6 +487,11 @@
                 <Icon name="check" size="sm" />
                 {$t('stationView.complete', { default: 'Complete' })}
               </button>
+              <button class="btn btn-sm btn-outline" onclick={() => openProgress(order.id)}
+                disabled={!operatorCanAct || workingOnOrderId !== null}>
+                <Icon name="clipboard-list" size="sm" />
+                {$t('productionFloor.logProgress')}
+              </button>
               <button class="btn btn-sm btn-warning" onclick={() => openReworkModal(order.id)} disabled={!operatorCanAct || workingOnOrderId !== null}>
                 <Icon name="rotate-ccw" size="sm" />
                 {$t('stationView.rework', { default: 'Rework' })}
@@ -521,6 +549,19 @@
         <button class="close-btn" onclick={() => $showScanner = false} aria-label={$t('common.close')}>×</button>
       </div>
       <QRScanner onscan={(data) => handleQRScan(data)} />
+    </div>
+  </div>
+{/if}
+
+{#if progressTarget}
+  <div class="modal-overlay" role="presentation" onclick={() => (progressTarget=null)}
+    onkeydown={(e)=>{if(e.key==='Escape')progressTarget=null;}}>
+    <div class="modal-content" role="dialog" aria-modal="true" aria-label={$t('productionFloor.title')}
+      onclick={(e)=>e.stopPropagation()} onkeydown={(e)=>e.stopPropagation()}>
+      <StationProgressPanel orderId={progressTarget.id} {station}
+        expectedUpdatedAt={progressTarget.stage.updated_at}
+        onClose={() => (progressTarget=null)}
+        onSaved={() => {operationMessage=$t('productionFloor.saved');void loadStationOrders(true);}} />
     </div>
   </div>
 {/if}

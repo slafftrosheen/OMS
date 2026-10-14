@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 import type { Writable } from 'svelte/store';
 import type { OrderDetail } from './orders';
 
@@ -51,13 +51,21 @@ function createOrderDetailStore() {
     // Update stage
     async updateStage(orderId: string, station: string, updates: any) {
       try {
+        const previous = get(store).order?.stages?.find(s => s.station === station) as
+          | ({ updated_at?: string } & Record<string, unknown>) | undefined;
+        const expectedUpdatedAt = updates?.expectedUpdatedAt ?? previous?.updated_at;
+        if (typeof expectedUpdatedAt !== 'string')
+          throw new Error('Refresh order before changing a production stage');
         const response = await fetch(`/api/orders/${orderId}/stages?station=${station}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates)
+          body: JSON.stringify({...updates,expectedUpdatedAt})
         });
 
-        if (!response.ok) throw new Error('Failed to update stage');
+        if (!response.ok) {
+          const problem = await response.json().catch(() => ({}));
+          throw new Error(problem?.message ?? problem?.error ?? 'Failed to update stage');
+        }
 
         const updatedStage = await response.json();
 

@@ -21,7 +21,7 @@
     import { currentUser } from "$lib/auth/authState.svelte";
     import { can, normaliseStatus, ORDER_STATUS_LABELS } from "$lib/auth/permission-utils";
     import { notifications } from "$lib/notify/store";
-    import { buildStagePatch, updateStageRows } from '$lib/order/stage-contract';
+    import { buildStagePatch } from '$lib/order/stage-contract';
 
     let orderId = $derived(page.params.id);
 
@@ -202,7 +202,16 @@
         const reason = status === 'BLOCKED' ? window.prompt(
             $t('orderWorkspace.blockReasonPrompt')) : null;
         if(status === 'BLOCKED' && !reason?.trim()) return;
-        const patchBody = reason ? {...patch.body,blocked_reason:reason.trim()} : patch.body;
+        const stageRow = (order?.stages ?? []).find((s:any)=>s.station===stage);
+        if (!stageRow?.updated_at) {
+            notifications.error($t('productionFloor.staleStage'));
+            await loadOrderData();
+            return;
+        }
+        const patchBody = {
+            ...patch.body, expectedUpdatedAt: stageRow.updated_at,
+            ...(reason ? {blocked_reason: reason.trim()} : {})
+        };
         try {
             const response = await fetch(`/api/orders/${orderId}/stages${patch.url}`, {
                 method: "PATCH",
@@ -212,11 +221,14 @@
 
             if (!response.ok) {
                 const payload = await response.json().catch(() => ({}));
-                notifications.error(payload?.message || payload?.error || `Failed to update ${stage} stage`);
+                notifications.error(response.status === 409 || response.status === 428
+                    ? $t('productionFloor.staleStage')
+                    : payload?.message || payload?.error || `Failed to update ${stage} stage`);
+                await loadOrderData();
                 return;
             }
 
-            order = { ...order, stages: updateStageRows(order.stages || [], stage, status) };
+            await loadOrderData();
         } catch (error) {
             console.error("Failed to update stage:", error);
             notifications.error(`Failed to update ${stage} stage`);

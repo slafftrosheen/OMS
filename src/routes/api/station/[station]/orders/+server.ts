@@ -12,7 +12,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
   const db = locals.supabase;
   const { data: stages, error: stageError } = await db
     .from('order_stages')
-    .select('id, draft_order_id, station, state, started_at, blocked_reason, estimated_hours, actual_hours, notes')
+    .select('id, draft_order_id, station, state, started_at, blocked_reason, estimated_hours, actual_hours, notes, updated_at')
     .eq('station', station)
     .neq('state', 'COMPLETED');
   if (stageError) {
@@ -39,7 +39,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
       stage: {
         id: stage.id, state: stage.state, started_at: stage.started_at,
         blocked_reason: stage.blocked_reason, estimated_hours: stage.estimated_hours,
-        actual_hours: stage.actual_hours, notes: stage.notes
+        actual_hours: stage.actual_hours, notes: stage.notes, updated_at: stage.updated_at
       }
     }];
   });
