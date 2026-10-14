@@ -3,36 +3,34 @@
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
   import { ALL_STATIONS } from '$lib/order/workflow';
+  import type {PlanningItem,StationSummary,PlanningTotals} from '$lib/order/production-planning';
   import StationBoard from '$lib/components/production/StationBoard.svelte';
   import QRScanner from '$lib/components/qr/QRScanner.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Skeleton from '$lib/ui/Skeleton.svelte';
 
   const STATIONS = ALL_STATIONS;
-  type BoardOrder = {
-    id: string; poNumber?: string | null; title: string; client: string;
-    status: string; stageState?: string; dueDate?: string | null;
-    priority?: string | number | null;
-  };
-
-  let stationOrders = $state<Record<string, BoardOrder[]>>({});
+  let stationOrders = $state<Record<string, PlanningItem[]>>({});
+  let stationSummary = $state<Record<string,StationSummary>>({});
+  let totals = $state<PlanningTotals|null>(null);
+  let alerts = $state<PlanningItem[]>([]);
   let boardError = $state<string | null>(null);
   let loading = $state(true);
   let refreshing = $state(false);
   let loadedOnce = $state(false);
   let lastUpdated = $state<string | null>(null);
   let hideEmpty = $state(false);
+  let showUpcoming = $state(false);
+  let attentionOnly = $state(false);
   let showScanner = $state(false);
 
-  let visibleStations = $derived(
-    hideEmpty ? STATIONS.filter(station => (stationOrders[station]?.length ?? 0) > 0) : STATIONS
-  );
-  let totalOrders = $derived(
-    Object.values(stationOrders).reduce((sum, orders) => sum + orders.length, 0)
-  );
-  let activeStations = $derived(
-    STATIONS.filter(station => (stationOrders[station]?.length ?? 0) > 0).length
-  );
+  let displayOrders = $derived.by(()=>Object.fromEntries(STATIONS.map(station=>[
+    station,(stationOrders[station]??[]).filter(o=>
+      (showUpcoming||!o.upcoming)&&(!attentionOnly||o.risk!==null))
+  ])));
+  let visibleStations = $derived(hideEmpty
+    ? STATIONS.filter(s=>(displayOrders[s]?.length??0)>0):STATIONS);
+  let activeStations = $derived(STATIONS.filter(s=>(stationSummary[s]?.active??0)>0).length);
 
   async function loadProductionData() {
     if (refreshing) return;
@@ -42,8 +40,13 @@
       const response = await fetch('/api/production/board', { cache: 'no-store' });
       if (!response.ok) throw new Error(`Could not refresh production board (HTTP ${response.status})`);
       const payload = await response.json();
-      if (!payload?.success || !payload?.stations) throw new Error('Production board returned invalid data');
+      if (!payload?.success || !payload?.stations || !payload?.workload ||
+          !payload?.totals || !Array.isArray(payload.alerts))
+        throw new Error('Production planning response is incomplete');
       stationOrders = payload.stations;
+      stationSummary = payload.workload;
+      totals = payload.totals;
+      alerts = payload.alerts;
       boardError = null;
       lastUpdated = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       loadedOnce = true;
@@ -80,9 +83,9 @@
 <main class="production-container">
   <header class="production-header">
     <div>
-      <p class="eyebrow">Shop floor / Live production</p>
+      <p class="eyebrow">{$t('productionPlanning.eyebrow')}</p>
       <h1 class="page-title">{$t('production.title')}</h1>
-      <p class="page-subtitle">View workload by station. Open a workstation to change its production stage.</p>
+      <p class="page-subtitle">{$t('productionPlanning.description')}</p>
     </div>
     <div class="header-actions">
       <Button variant="outline" onclick={() => (showScanner = true)}>
@@ -96,23 +99,36 @@
 
   <div class="board-toolbar">
     <div class="board-kpis" aria-label="Production board totals">
-      <span><strong>{totalOrders}</strong> active station assignments</span>
-      <span><strong>{activeStations}</strong> stations with work</span>
+      <span><strong>{totals?.orders ?? '—'}</strong> {$t('productionPlanning.orders')}</span>
+      <span><strong>{totals?.activeAssignments ?? '—'}</strong> {$t('productionPlanning.assignments')}</span>
+      <span><strong>{activeStations}</strong> {$t('productionPlanning.activeStations')}</span>
+      <span><strong>{totals?.overdue ?? '—'}</strong> {$t('productionPlanning.overdue')}</span>
+      <span><strong>{totals?.knownHours ?? '—'}</strong> {$t('productionPlanning.hours')}</span>
     </div>
     <div class="board-preferences">
       <label class="visibility-toggle">
         <input type="checkbox" bind:checked={hideEmpty} />
-        Hide empty stations
+        {$t('productionPlanning.hideEmpty')}
+      </label>
+      <label class="visibility-toggle">
+        <input type="checkbox" bind:checked={showUpcoming} />
+        {$t('productionPlanning.showUpcoming')}
+      </label>
+      <label class="visibility-toggle">
+        <input type="checkbox" bind:checked={attentionOnly} />
+        {$t('productionPlanning.attentionOnly')}
       </label>
       <span class="updated" role="status" aria-live="polite">
-        {#if lastUpdated}Updated {lastUpdated}{:else if refreshing}Loading latest station data…{:else}Not updated yet{/if}
+        {#if lastUpdated}{$t('productionPlanning.updated',{values:{time:lastUpdated}})}
+         {:else if refreshing}{$t('productionPlanning.loading')}
+         {:else}{$t('productionPlanning.notUpdated')}{/if}
       </span>
     </div>
   </div>
 
   {#if boardError}
     <div class="error-banner" role="alert">
-      <span>{boardError}. {loadedOnce ? 'Showing the last successfully loaded data.' : 'Check connectivity and retry.'}</span>
+      <span>{boardError}. {loadedOnce ? $t('productionPlanning.lastGood') : $t('productionPlanning.retryHint')}</span>
       <button onclick={loadProductionData} disabled={refreshing}>Retry</button>
     </div>
   {/if}
@@ -134,14 +150,33 @@
     </div>
   {:else if visibleStations.length === 0}
     <div class="empty-overview">
-      <p>There are no station assignments to display with the current filter.</p>
-      <button onclick={() => (hideEmpty = false)}>Show all stations</button>
+      <p>{$t('productionPlanning.noResults')}</p>
+      <button onclick={() => {hideEmpty=false;showUpcoming=true;attentionOnly=false;}}>
+        {$t('productionPlanning.showAll')}
+      </button>
     </div>
   {:else}
+    {#if alerts.length}
+      <section class="board-toolbar attention" aria-label={$t('productionPlanning.attentionTitle')}>
+        <strong>{$t('productionPlanning.attentionTitle')}</strong>
+        <div class="attention-list">
+          {#each alerts.slice(0,8) as item (`${item.station}-${item.id}`)}
+            <a href={`/orders/${encodeURIComponent(item.id)}`} class="attention-item">
+              {item.poNumber ?? item.title} · {item.station} — {$t(`productionPlanning.risk.${item.risk}`)}
+            </a>
+          {/each}
+        </div>
+      </section>
+    {/if}
+    {#if totals && totals.missingEstimates>0}
+      <p class="estimate-note" role="note">
+        {$t('productionPlanning.missingEstimates',{values:{count:totals.missingEstimates}})}
+      </p>
+    {/if}
     <div class="stations-grid">
       {#each visibleStations as station (station)}
         <div id={`station-${station}`}>
-          <StationBoard {station} orders={stationOrders[station] ?? []} />
+          <StationBoard {station} orders={displayOrders[station] ?? []} summary={stationSummary[station]} />
         </div>
       {/each}
     </div>
@@ -189,6 +224,12 @@
     gap: 1rem;
     align-items: stretch;
   }
+  .attention{align-items:flex-start;flex-direction:column}
+  .attention-list{display:flex;flex-wrap:wrap;gap:.5rem}
+  .attention-item{padding:.5rem .7rem;background:var(--bg-2);border:1px solid var(--border);
+    border-radius:.5rem;color:var(--text);text-decoration:none;font-size:.82rem}
+  .attention-item:focus-visible,.attention-item:hover{border-color:var(--brand)}
+  .estimate-note{margin:0;font-size:.82rem;color:var(--muted)}
   .loading-board { padding: 1.1rem; border: 1px solid var(--border); border-radius: .8rem; background: var(--bg-1); display: grid; gap: 1rem; }
   .error-banner {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;

@@ -16,22 +16,21 @@
   }
   let stats = $state<BoardStats | null>(null);
   let statsLoading = $state(true);
+  let statsError = $state(false);
 
   async function loadStats() {
     statsLoading = true;
     try {
       const res = await fetch(`${base}/api/production/board`);
-      if (res.ok) {
-        const data = await res.json();
-        stats = {
-          queued:      data.queued      ?? 0,
-          in_progress: data.in_progress ?? 0,
-          blocked:     data.blocked     ?? 0,
-          rework:      data.rework      ?? 0,
-        };
-      }
+      if (!res.ok)throw new Error('Production board unavailable');
+      const data=await res.json();
+      if (!data?.success || !data?.totals)throw new Error('Production totals unavailable');
+      stats={queued:data.totals.queued,in_progress:data.totals.inProgress,
+        blocked:data.totals.blocked,rework:data.totals.rework};
+      statsError=false;
     } catch {
-      // Non-critical — dashboard still usable without stats
+      statsError=true;
+      // Retain last-good counts; do not invent zeros after an outage.
     } finally {
       statsLoading = false;
     }
@@ -65,6 +64,12 @@
     </a>
   </header>
 
+  {#if statsError}
+    <div class="stats-error" role="alert">
+      {$t('productionPlanning.lastGood')}
+      <button onclick={loadStats} disabled={statsLoading}>{$t('productionPlanning.retry')}</button>
+    </div>
+  {/if}
   <!-- Live stats row -->
   <div class="stats-row">
     {#if statsLoading}
@@ -212,6 +217,9 @@
 .btn-outline-sm:hover { background: var(--bg-2); border-color: var(--border-strong, var(--brand)); }
 
 /* Stats */
+.stats-error{padding:.7rem 1rem;border:1px solid var(--error);border-radius:8px;
+ display:flex;gap:1rem;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.stats-error button{padding:.5rem .8rem;cursor:pointer}
 .stats-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

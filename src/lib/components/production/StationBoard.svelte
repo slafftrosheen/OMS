@@ -1,33 +1,36 @@
 <script lang="ts">
   import { base } from '$app/paths';
   import { dueDateLabel, priorityLabel, stageStateLabel } from '$lib/order/operator-ui';
+  import {t} from 'svelte-i18n';
+  import type {PlanningItem,StationSummary} from '$lib/order/production-planning';
 
-  type BoardOrder = {
-    id: string;
-    poNumber?: string | null;
-    title: string;
-    client: string;
-    status: string;
-    stageState?: string;
-    dueDate?: string | null;
-    priority?: string | number | null;
-  };
-
-  let { station, orders = [] }: { station: string; orders?: BoardOrder[] } = $props();
-  let stationHref = $derived(`${base}/station/${station.toLowerCase()}`);
+  let {station,orders=[],summary}:{
+    station:string;orders?:PlanningItem[];summary?:StationSummary
+  }=$props();
+  let stationHref=$derived(`${base}/station/${station.toLowerCase()}`);
 </script>
 
-<section class="station-board" aria-label={`${station} production queue`}>
+<section class="station-board" aria-label={`${station} production queue`}
+  data-pressure={summary?.pressure ?? 'normal'}>
   <header class="station-header">
     <div class="station-heading">
       <h2>{station}</h2>
-      <span class="count" aria-label={`${orders.length} orders`}>{orders.length}</span>
+      <span class="count" aria-label={`${summary?.active ?? 0} active stages`}>{summary?.active ?? 0}</span>
     </div>
     <a class="station-link" href={stationHref} aria-label={`Open ${station} workstation`}>
-      Workstation <span aria-hidden="true">↗</span>
+      {$t('productionPlanning.workstation')} <span aria-hidden="true">↗</span>
     </a>
   </header>
 
+  <div class="station-metrics">
+    <span>{$t('productionPlanning.queued')}: <strong>{summary?.queued ?? 0}</strong></span>
+    <span>{$t('productionPlanning.inProgress')}: <strong>{summary?.inProgress ?? 0}</strong></span>
+    <span>{$t('productionPlanning.blocked')}: <strong>{(summary?.blocked??0)+(summary?.rework??0)}</strong></span>
+    <span>{$t('productionPlanning.upcoming')}: <strong>{summary?.upcoming ?? 0}</strong></span>
+    {#if summary && summary.knownHours>0}
+      <span>{$t('productionPlanning.hours')}: <strong>{summary.knownHours}</strong></span>
+    {/if}
+  </div>
   <div class="orders-list">
     {#each orders as order (order.id)}
       <a class="order-card" href={`${base}/orders/${encodeURIComponent(order.id)}`}
@@ -44,6 +47,13 @@
           </span>
           <span class="due-date">{dueDateLabel(order.dueDate)}</span>
         </div>
+        {#if order.risk}
+          <p class="risk-note" data-risk={order.risk}>{$t(`productionPlanning.risk.${order.risk}`)}</p>
+        {/if}
+        {#if order.blockedReason}<p class="block-reason">{order.blockedReason}</p>{/if}
+        {#if order.estimatedHours !== null}
+          <small>{$t('productionPlanning.stageEstimate',{values:{hours:order.estimatedHours}})}</small>
+        {/if}
       </a>
     {:else}
       <div class="empty-station">
@@ -55,6 +65,14 @@
 </section>
 
 <style>
+  .station-board[data-pressure="blocked"]{border-color:var(--error)}
+  .station-board[data-pressure="atRisk"]{border-color:var(--warn)}
+  .station-metrics{padding:.6rem 1rem;display:flex;flex-wrap:wrap;gap:.5rem;
+    color:var(--muted);font-size:.73rem;border-bottom:1px solid var(--border)}
+  .station-metrics strong{color:var(--text);font-variant-numeric:tabular-nums}
+  .risk-note{font-weight:700;font-size:.74rem;margin:.5rem 0;color:var(--muted)}
+  .risk-note[data-risk="blocked"],.risk-note[data-risk="overdue"]{color:var(--error)}
+  .block-reason{font-size:.77rem;overflow-wrap:anywhere}
   .station-board {
     background: var(--bg-1);
     border: 1px solid var(--border);
