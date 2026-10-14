@@ -9,9 +9,11 @@
     mode:'chat'|'propose';proposals:IntakeProposal[];missing:string[];
     provenance:'model-reported'
   };
-  let {orderId,orderUpdatedAt,editable,canAsk,current,dirty,onApply}:{
+  let {orderId,orderUpdatedAt,editable,canAsk,current,dirty,
+    suggestedPrompt='',promptRevision=0,onApply}:{
     orderId:string;orderUpdatedAt:string|null;editable:boolean;canAsk:boolean;
     current:Record<string,unknown>;dirty:boolean;
+    suggestedPrompt?:string;promptRevision?:number;
     onApply:(patch:Record<string,unknown>)=>void
   }=$props();
   let consent=$state(false),question=$state('');
@@ -24,6 +26,15 @@
   let model=$state(''),lastMode=$state<'chat'|'propose'>('chat');
   let applied=$state(false);
   let requestSerial=0;
+  let lastPrefillRevision=0;
+  // A workflow tip prepares a question but never sends it or grants consent.
+  $effect(()=>{
+    if(promptRevision>lastPrefillRevision&&!busy&&suggestedPrompt){
+      lastPrefillRevision=promptRevision;
+      mode='chat';
+      question=suggestedPrompt;
+    }
+  });
   const samples=['questions','gaps','materials'] as const;
   let hasAccepted=$derived(proposals.some((_,i)=>approvals[i]===true));
   function resetProposals(){

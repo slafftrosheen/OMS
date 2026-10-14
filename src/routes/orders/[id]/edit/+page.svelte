@@ -18,6 +18,8 @@
   import OrderFiles from '$lib/order/OrderFiles.svelte';
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
   import OrderFlowAssistant from '$lib/order/OrderFlowAssistant.svelte';
+  import OrderWorkflowCoach from '$lib/order/OrderWorkflowCoach.svelte';
+  import type {GuideStepId} from '$lib/order/order-flow-guidance';
   import OrderReadinessAssistant from '$lib/order/OrderReadinessAssistant.svelte';
   import RevisionIntelligence from '$lib/order/RevisionIntelligence.svelte';
   import {
@@ -199,6 +201,14 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       }
     });
   });
+  let assistantPrefill = $state('');
+  let assistantPrefillVersion = $state(0);
+  function askWorkflowHelp(question:string,_step:GuideStepId){
+    if(!canAskOrderAssistant)return;
+    assistantPrefill=question;
+    assistantPrefillVersion++;
+    openWorkspaceSection('chat');
+  }
   let intakeFileId = $state('');
   let intakeCurrent = $derived({
     clientName,title,deadline,loadingDate,priority,notes,
@@ -239,6 +249,17 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let canApprove = $derived(can($currentUser, 'confirmOrder') &&
     ['DRAFT','PENDING_REVIEW'].includes(status));
   let canAssignPo = $derived(can($currentUser, 'assignPoNumber'));
+  let canAskOrderAssistant = $derived(canEdit||
+    (isAdmin&&['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status)));
+  let orderGuideContext = $derived({
+    phase:'saved' as const,status,
+    clientName,deadline,title,
+    profileCount:profiles.length,
+    unassignedProfiles:profiles.filter(p=>!(p.profileTemplateId??p.profile_template_id)).length,
+    fileCount:filesCountError?null:attachedFilesCount,
+    dirty:hasUnsavedChanges,
+    canEdit:canAskOrderAssistant
+  });
 
   // ── Canvas seed (reactive, passed into TldrawWrapper) ────────────────────────
   let orderSeed = $derived(orderId
@@ -911,6 +932,11 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       {:else}{$t('orderWorkspace.savedState')}{/if}
     </span>
   </nav>
+  {#if orderId && !loading}
+    <OrderWorkflowCoach context={orderGuideContext} section={rightTab}
+      onNavigate={target=>openWorkspaceSection(target)}
+      onAsk={askWorkflowHelp} />
+  {/if}
   <div class="canvas-body" class:workspace-focused={focusPanel}>
     <!-- ── Left Toolbox ────────────────────────────────────────────────── -->
     <aside class="toolbox">
@@ -1178,8 +1204,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
           <div hidden={rightTab!=='chat'}>
             {#key orderId}
               <OrderFlowAssistant {orderId} {orderUpdatedAt} editable={canEdit}
-                canAsk={canEdit||(isAdmin&&['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status))}
+                canAsk={canAskOrderAssistant}
                 current={intakeCurrent} dirty={hasUnsavedChanges}
+                suggestedPrompt={assistantPrefill} promptRevision={assistantPrefillVersion}
                 onApply={applyIntakeFields}/>
             {/key}
             <div class="ai-panel">
