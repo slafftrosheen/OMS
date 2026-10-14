@@ -5,7 +5,7 @@
    * top-right = primary action buttons (Save Draft / Confirm / Rework).
    * The tldraw canvas fills the centre.
    */
-  import { onMount, untrack } from 'svelte';
+  import { onMount, untrack, tick } from 'svelte';
   import {fetchOrderFilesCount} from '$lib/order/order-files-client';
   import { goto, pushState, beforeNavigate } from '$app/navigation';
   import { page } from '$app/state';
@@ -203,6 +203,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   });
   let assistantPrefill = $state('');
   let assistantPrefillVersion = $state(0);
+  async function navigateWorkflowHelp(target:WorkspaceSection,step:GuideStepId){
+    openWorkspaceSection(target);
+    if(step==='profiles'){
+      await tick();
+      document.getElementById('order-edit-profiles')?.scrollIntoView({
+        behavior:'smooth',block:'nearest'
+      });
+    }
+  }
   function askWorkflowHelp(question:string,_step:GuideStepId){
     if(!canAskOrderAssistant)return;
     assistantPrefill=question;
@@ -934,7 +943,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   </nav>
   {#if orderId && !loading}
     <OrderWorkflowCoach context={orderGuideContext} section={rightTab}
-      onNavigate={target=>openWorkspaceSection(target)}
+      onNavigate={navigateWorkflowHelp}
       onAsk={askWorkflowHelp} />
   {/if}
   <div class="canvas-body" class:workspace-focused={focusPanel}>
@@ -1081,7 +1090,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             {#if isRd}
               <label>R&D notes <textarea bind:value={rdNotes} rows="3" disabled={!canEdit}></textarea></label>
             {/if}
-            <h4>Production profiles ({profiles.length})</h4>
+            <h4 id="order-edit-profiles">Production profiles ({profiles.length})</h4>
             {#if profileChoicesError}
               <p class="zone-intro" role="alert">{profileChoicesError}</p>
             {/if}
