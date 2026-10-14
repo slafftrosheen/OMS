@@ -10,6 +10,7 @@
     import Tabs from "$lib/components/ui/Tabs.svelte";
     import ChatContainer from "$lib/components/chat/ChatContainer.svelte";
     import OrderFiles from "$lib/order/OrderFiles.svelte";
+    import {fetchOrderFilesCount} from "$lib/order/order-files-client";
     import {
       workspaceUrl, suggestedWorkspaceSection, stageProgressPercent, mayControlStage
     } from "$lib/order/workspace-navigation";
@@ -25,7 +26,7 @@
     let orderId = $derived(page.params.id);
 
     let order: any = $state(null);
-    let files: any[] = $state([]);
+    let fileCount: number | null = $state(null);
     let loading = $state(true);
     let showQRModal = $state(false);
     let activeTab = $state("overview");
@@ -174,10 +175,11 @@
         loading = true;
 
         try {
-            const [orderRes, filesRes] = await Promise.all([
+            const [orderRes, count] = await Promise.all([
                 fetch(`/api/orders/${orderId}`),
-                fetch(`/api/files?orderId=${encodeURIComponent(orderId)}&limit=100`),
+                fetchOrderFilesCount(orderId).catch(() => null),
             ]);
+            fileCount = count;
 
             if (orderRes.ok) {
                 const orderData = await orderRes.json();
@@ -188,10 +190,6 @@
                 order = null;
             }
 
-            if (filesRes.ok) {
-                const filesData = await filesRes.json();
-                files = Array.isArray(filesData) ? filesData : (filesData.files ?? []);
-            }
         } catch (error) {
             console.error("Failed to load order:", error);
         } finally {
@@ -226,11 +224,12 @@
     }
 
     async function refreshFileList() {
-        const response=await fetch(`/api/files?orderId=${encodeURIComponent(orderId)}&limit=100`,
-          {cache:'no-store'});
-        if(response.ok){
-          const result=await response.json();
-          files=Array.isArray(result)?result:[];
+        const id=orderId;
+        try {
+            const count=await fetchOrderFilesCount(id);
+            if (orderId===id) fileCount=count;
+        } catch {
+            if (orderId===id) fileCount=null;
         }
     }
 
@@ -365,7 +364,7 @@
           </div>
           <div class="workspace-entry-links">
             <button onclick={() => goto(workspaceUrl(orderId,
-              suggestedWorkspaceSection(normaliseStatus(order.status),files.length>0,false)))}
+              suggestedWorkspaceSection(normaliseStatus(order.status),(fileCount??0)>0,false)))}
               class="entry-link featured">
               {$t('orderWorkspace.continue')}
             </button>
@@ -374,7 +373,7 @@
             </button>
             <button onclick={() => goto(workspaceUrl(orderId,'files'))} class="entry-link">
               {$t('orderWorkspace.sections.files')}
-              <span class="entry-count">{files.length}{files.length>=100?'+':''}</span>
+              <span class="entry-count">{fileCount ?? '—'}</span>
             </button>
             {#if !!$currentUser && (can($currentUser,'editOrder') ||
               (order.created_by === $currentUser.id && ['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status))))}

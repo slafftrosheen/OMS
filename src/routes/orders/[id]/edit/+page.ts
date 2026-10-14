@@ -21,13 +21,10 @@ export const load: PageLoad = async ({ params, fetch, locals }: any): Promise<Ed
             order = null;
         }
         
-        // Fetch files associated with this order
-        const filesRes = await fetch(`/api/files?orderId=${id}`);
-        let files: any[] = [];
-        if (filesRes.ok) {
-            files = await filesRes.json();
-        }
-        
+        // Attachment data is fetched on demand by OrderFiles and AI selectors.
+        // Avoid preloading only the first 50 links in page data.
+        const files: any[] = [];
+
         // Fetch profile presets for loading saved profiles
         const presetsRes = await fetch('/api/order-profile-presets');
         let profilePresets: any[] = [];

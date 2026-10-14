@@ -2,6 +2,7 @@
   import {onMount} from 'svelte';
   import {t} from 'svelte-i18n';
   import type {RevisionChange,RevisionModel} from './revision-contract';
+  import {fetchAllOrderFiles,watchOrderFilesChanged} from './order-files-client';
 
   type FileOption={id:string;originalName?:string;file_name?:string;
     mimeType?:string;mime_type?:string;uploadedAt?:string};
@@ -18,6 +19,7 @@
     onRequestCreated?:()=>void;
   }=$props();
   let files=$state<FileOption[]>([]);
+  let fileLoadVersion=0;
   let baselineId=$state('');
   let revisedId=$state('');
   let consent=$state(false);
@@ -39,28 +41,30 @@
       void loadFiles();void loadHistory();
     }
   });
-  onMount(()=>{void loadFiles();void loadHistory();});
+  onMount(()=>{
+    void loadFiles();void loadHistory();
+    return watchOrderFilesChanged(changedId=>{if(changedId===orderId)void loadFiles();});
+  });
 
   async function loadFiles(){
     if(!orderId)return;
+    const id=orderId, version=++fileLoadVersion;
     loading=true;errorMessage='';
-    const id=orderId;
     try{
-      const res=await fetch(`/api/files?orderId=${encodeURIComponent(id)}&limit=100`,
-        {cache:'no-store'});
-      if(!res.ok)throw new Error($t('revisionIntelligence.fileError'));
-      const items=await res.json();
-      if(id!==orderId)return;
-      files=Array.isArray(items)?items.filter((f:FileOption)=>
-        ['application/pdf','image/png','image/jpeg','image/webp']
-        .includes(f.mimeType??f.mime_type??'')):[];
-      if(files.length>1){
-        if(!files.some(f=>f.id===revisedId))revisedId=files[0].id;
-        if(!files.some(f=>f.id===baselineId)||baselineId===revisedId)
-          baselineId=files.find(f=>f.id!==revisedId)?.id??'';
+      const items=await fetchAllOrderFiles<FileOption>(id);
+      if(id!==orderId || version!==fileLoadVersion)return;
+      files=items.filter(f=>['application/pdf','image/png','image/jpeg','image/webp']
+        .includes(f.mimeType??f.mime_type??''));
+      const previousBaseline=baselineId,previousRevised=revisedId;
+      if(!files.some(f=>f.id===revisedId)) revisedId=files[0]?.id??'';
+      if(!files.some(f=>f.id===baselineId)||baselineId===revisedId)
+        baselineId=files.find(f=>f.id!==revisedId)?.id??'';
+      if(previousBaseline!==baselineId || previousRevised!==revisedId){
+        comparison=null;checked={};created=false;
       }
-    }catch(e){if(id===orderId)errorMessage=e instanceof Error?e.message:$t('revisionIntelligence.fileError');}
-    finally{if(id===orderId)loading=false;}
+    }catch(e){if(id===orderId && version===fileLoadVersion)
+      errorMessage=e instanceof Error?e.message:$t('revisionIntelligence.fileError');}
+    finally{if(id===orderId && version===fileLoadVersion)loading=false;}
   }
   async function loadHistory(){
     const id=orderId;

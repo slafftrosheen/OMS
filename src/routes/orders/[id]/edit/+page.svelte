@@ -6,6 +6,7 @@
    * The tldraw canvas fills the centre.
    */
   import { onMount, untrack } from 'svelte';
+  import {fetchOrderFilesCount} from '$lib/order/order-files-client';
   import { goto, pushState, beforeNavigate } from '$app/navigation';
   import { page } from '$app/state';
   import { base } from '$app/paths';
@@ -174,14 +175,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     if(!orderId)return;
     const id=orderId;
     try {
-      const response=await fetch(`/api/files?orderId=${encodeURIComponent(id)}&limit=100`,
-        {cache:'no-store'});
-      if(!response.ok)throw new Error('Order files unavailable');
-      const result=await response.json();
-      if(orderId===id){
-        attachedFilesCount=Array.isArray(result)?result.length:0;
-        filesCountError=false;
-      }
+      const count=await fetchOrderFilesCount(id);
+      if(orderId===id){attachedFilesCount=count;filesCountError=false;}
     }catch{
       if(orderId===id){attachedFilesCount=null;filesCountError=true;}
     }

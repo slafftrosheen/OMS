@@ -4,13 +4,17 @@ import { uploadOrderFile, rethrowUploadError, uploadSuccessStatus } from '$lib/s
 import { formatFileRecord } from '$lib/server/files/contract';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
+  if (!locals.user) throw error(401, 'Unauthorized');
   const orderRef = url.searchParams.get('orderId') ?? url.searchParams.get('order_id');
   if (!orderRef?.trim()) throw error(400, 'orderId is required');
 
-  const rawLimit = Number.parseInt(url.searchParams.get('limit') ?? '50', 10);
-  const rawOffset = Number.parseInt(url.searchParams.get('offset') ?? '0', 10);
-  const limit = Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, rawLimit)) : 50;
-  const offset = Number.isFinite(rawOffset) ? Math.max(0, rawOffset) : 0;
+  const rawLimit = url.searchParams.get('limit') ?? '50';
+  const rawOffset = url.searchParams.get('offset') ?? '0';
+  if (!/^[0-9]{1,3}$/.test(rawLimit) || Number(rawLimit) < 1 ||
+      !/^[0-9]{1,7}$/.test(rawOffset) || Number(rawOffset) > 1000000)
+    throw error(400, 'Invalid file pagination');
+  const limit = Math.min(100, Number(rawLimit));
+  const offset = Number(rawOffset);
 
   let orderQuery = locals.supabase.from('draft_orders').select('id').limit(1);
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderRef)) {
@@ -21,14 +25,15 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const { data: order, error: orderError } = await orderQuery.maybeSingle();
   if (orderError || !order) throw error(404, 'Order not found or inaccessible');
 
-  const { data: links, error: filesError } = await locals.supabase
+  const { data: links, count, error: filesError } = await locals.supabase
     .from('order_files')
-    .select('file_type, display_name, files!inner(id, filename, original_name, filepath, mimetype, size, uploaded_by, created_at, metadata)')
+    .select('id, file_type, display_name, files!inner(id, filename, original_name, filepath, mimetype, size, uploaded_by, created_at, metadata)', { count: 'exact' })
     .eq('draft_order_id', order.id)
     .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
     .range(offset, offset + limit - 1);
 
-  if (filesError) {
+  if (filesError || count === null) {
     console.error('Failed to list order files:', filesError);
     throw error(500, 'Failed to list order files');
   }
@@ -36,7 +41,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   return json((links ?? []).map((link: any) => {
     const file = Array.isArray(link.files) ? link.files[0] : link.files;
     return formatFileRecord({ ...file, file_type: link.file_type, display_name: link.display_name });
-  }).filter((row: any) => row.id));
+  }).filter((row: any) => row.id), { headers: {
+    'X-Total-Count': String(count),
+    'Cache-Control': 'private, no-store'
+  } });
 };
 
 export const POST: RequestHandler = async ({ request, locals }) => {

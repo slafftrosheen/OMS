@@ -11,6 +11,7 @@
   import { t } from 'svelte-i18n';
   import { base } from '$app/paths';
   import Icon from '$lib/ui/Icon.svelte';
+  import {fetchOrderFilePage,announceOrderFilesChanged,ORDER_FILE_PAGE_SIZE} from './order-files-client';
 
   let {
     orderId,
@@ -37,6 +38,10 @@
   };
 
   let files = $state<OrderFile[]>([]);
+  let totalCount = $state<number|null>(null);
+  let deletingId = $state('');
+  let requestVersion = 0;
+  let lastOrderId = $state(orderId);
   let loading = $state(false);
   let uploading = $state(false);
   let fileError = $state('');
@@ -67,77 +72,83 @@
     return FileIcon;
   };
 
-  async function loadFiles() {
+  async function loadFiles(reset = true) {
+    if (!reset && (loading || uploading || deletingId)) return;
+    const id = orderId, version = ++requestVersion;
     loading = true;
-    fileError = '';
+    if (reset) fileError = '';
     try {
-      const res = await fetch(`${base}/api/files?orderId=${encodeURIComponent(orderId)}`);
-      if (!res.ok) throw new Error('Could not load order files');
-      files = await res.json();
+      const result = await fetchOrderFilePage<OrderFile>(id, reset ? 0 : files.length,
+        ORDER_FILE_PAGE_SIZE);
+      if (version !== requestVersion || id !== orderId) return;
+      files = reset ? result.files : [...files, ...result.files.filter(f => !files.some(existing => existing.id === f.id))];
+      totalCount = result.total;
     } catch (err) {
-      fileError = err instanceof Error ? err.message : 'Could not load order files';
+      if (version === requestVersion && id === orderId)
+        fileError = err instanceof Error ? err.message : $t('orderFiles.loadError');
     } finally {
-      loading = false;
-    }
-  }
-
-  async function uploadFile(file: globalThis.File) {
-    if (!canUpload) { fileError = 'You do not have permission to upload files for this order'; return; }
-    uploading = true;
-    fileError = '';
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('order_id', orderId);
-
-      const res = await fetch(`${base}/api/files`, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (res.ok) {
-        const payload = await res.json();
-        const uploaded = payload.file ?? payload;
-        files = [uploaded, ...files];
-        onChanged?.();
-      } else {
-        const detail = await res.json().catch(() => ({}));
-        fileError = String(detail.message || detail.error || `Upload failed (HTTP ${res.status})`);
-      }
-    } catch (err) {
-      fileError = err instanceof Error ? err.message : 'File upload failed';
-    } finally {
-      uploading = false;
-    }
-  }
-
-  async function deleteFile(fileId: string, fileName?: string) {
-    if (!canUpload) return;
-    const name = fileName || files.find(f => f.id === fileId)?.originalName || 'file';
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
-    try {
-      const res = await fetch(`${base}/api/files/${fileId}`, { method: 'DELETE' });
-      if (res.ok) {
-        files = files.filter(f => f.id !== fileId);
-        onChanged?.();
-      } else {
-        const payload = await res.json().catch(() => ({}));
-        fileError = String(payload.error || 'Delete was rejected');
-      }
-    } catch (err) {
-      console.error('Failed to delete file:', err);
+      if (version === requestVersion) loading = false;
     }
   }
 
   async function uploadQueue(filesToUpload: globalThis.File[]) {
-    if (uploading || !canUpload) return;
-    const failed: string[] = [];
-    for (const file of filesToUpload) {
-      await uploadFile(file);
-      if (fileError) failed.push(`${file.name}: ${fileError}`);
+    if (uploading || deletingId || !canUpload) return;
+    const id = orderId, failed: string[] = [];
+    let completed = 0;
+    uploading = true;
+    fileError = '';
+    try {
+      for (const file of filesToUpload) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('order_id', id);
+          const res = await fetch(`${base}/api/files`, {method:'POST',body:formData});
+          if (!res.ok) {
+            const detail = await res.json().catch(() => ({}));
+            throw new Error(String(detail.message || detail.error || `HTTP ${res.status}`));
+          }
+          completed++;
+        } catch(err) {
+          failed.push(`${file.name}: ${err instanceof Error ? err.message : $t('orderFiles.uploadError')}`);
+        }
+      }
+    } finally {
+      uploading = false;
+      if (completed && id === orderId) {
+        announceOrderFilesChanged(id);
+        onChanged?.();
+      }
+      if (id === orderId) {
+        await loadFiles();
+        if (failed.length) fileError = failed.join(' | ').slice(0,1200);
+      }
     }
-    await loadFiles();
-    if (failed.length) fileError = failed.join(' | ').slice(0, 800);
+  }
+
+  async function deleteFile(fileId: string, fileName?: string) {
+    if (!canUpload || uploading || deletingId) return;
+    const id = orderId;
+    const name = fileName || files.find(f=>f.id===fileId)?.originalName || 'file';
+    if (!confirm($t('orderFiles.deleteConfirm',{values:{name}}))) return;
+    deletingId = fileId;
+    fileError = '';
+    try {
+      const res = await fetch(`${base}/api/files/${encodeURIComponent(fileId)}`,{method:'DELETE'});
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(String(detail.message || detail.error || $t('orderFiles.deleteError')));
+      }
+      if (id === orderId) {
+        announceOrderFilesChanged(id);
+        onChanged?.();
+      }
+    } catch (err) {
+      if (id === orderId) fileError = err instanceof Error ? err.message : $t('orderFiles.deleteError');
+    } finally {
+      deletingId = '';
+      if (id === orderId) await loadFiles();
+    }
   }
 
   function handleDrop(event: DragEvent) {
@@ -171,7 +182,19 @@
     window.open(`${base}/api/files/${file.id}?download=true`, '_blank');
   }
 
-  onMount(loadFiles);
+  onMount(() => {
+    void loadFiles();
+    return () => { requestVersion++; };
+  });
+  $effect(() => {
+    if (orderId !== lastOrderId) {
+      lastOrderId = orderId;
+      requestVersion++;
+      files = [];
+      totalCount = null;
+      void loadFiles();
+    }
+  });
 </script>
 
 <div class="order-files">
@@ -179,9 +202,9 @@
     <div class="header-left">
       <FolderOpen size={18} />
       <h3>{$t('files.order_files', { default: 'Order Files' })}</h3>
-      <span class="file-count">{files.length} files</span>
+      <span class="file-count">{$t('orderFiles.count',{values:{count:totalCount ?? files.length}})}</span>
     </div>
-    <button class="btn-icon" onclick={loadFiles} disabled={loading} title="Refresh">
+    <button class="btn-icon" onclick={() => loadFiles()} disabled={loading || uploading || !!deletingId} title={$t('orderFiles.refresh')}>
       <span class:spinning={loading}><RefreshCw size={16} /></span>
     </button>
   </header>
@@ -191,7 +214,7 @@
   <div 
     class="drop-zone" 
     class:drag-over={dragOver}
-    class:uploading
+    class:uploading={uploading || !!deletingId}
     ondrop={handleDrop}
     ondragover={handleDragOver}
     ondragleave={handleDragLeave}
@@ -210,7 +233,7 @@
     {#if uploading}
       <div class="upload-status">
         <span class="spinning"><RefreshCw size={24} /></span>
-        <span>Uploading...</span>
+        <span>{$t('orderFiles.uploading')}</span>
       </div>
     {:else}
       <Upload size={24} />
@@ -223,7 +246,7 @@
     {#if loading && files.length === 0}
       <div class="loading-state">
         <span class="spinning"><RefreshCw size={20} /></span>
-        <span>Loading files...</span>
+        <span>{$t('orderFiles.loading')}</span>
       </div>
     {:else if files.length === 0}
       <div class="empty-state">
@@ -244,10 +267,10 @@
             </span>
           </div>
           <div class="file-actions">
-            <button class="btn-icon" onclick={() => downloadFile(file)} title="Download">
+            <button class="btn-icon" onclick={() => downloadFile(file)} title={$t("orderFiles.download")}>
               <Download size={16} />
             </button>
-            {#if canUpload}<button class="btn-icon danger" onclick={() => deleteFile(file.id, file.originalName)} title="Delete">
+            {#if canUpload}<button class="btn-icon danger" disabled={uploading || !!deletingId} onclick={() => deleteFile(file.id, file.originalName)} title={$t("orderFiles.delete")}>
               <Trash2 size={16} />
             </button>{/if}
           </div>
@@ -255,9 +278,17 @@
       {/each}
     {/if}
   </div>
+  {#if totalCount !== null && files.length < totalCount}
+    <button class="load-more" type="button" disabled={loading || uploading || !!deletingId}
+      onclick={() => loadFiles(false)}>
+      {loading ? $t('orderFiles.loading') : $t('orderFiles.loadMore')}
+    </button>
+  {/if}
 </div>
 
 <style>
+  .load-more {margin: 0 16px 12px;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--text);cursor:pointer}
+  .load-more:disabled {opacity:.5;cursor:wait}
   .file-error{color:var(--error,#dc2626);padding:9px 16px;font-size:12px;overflow-wrap:anywhere}
   .order-files {
     display: flex;

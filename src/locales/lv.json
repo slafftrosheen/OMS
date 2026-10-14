@@ -1414,6 +1414,19 @@
     "edit_order": "Rediģēt pasūtījumu",
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
+  "orderFiles": {
+    "count": "Faili: {count}",
+    "refresh": "Atjaunināt failus",
+    "loading": "Notiek failu ielāde…",
+    "uploading": "Notiek failu augšupielāde…",
+    "loadMore": "Ielādēt vēl failus",
+    "loadError": "Neizdevās ielādēt pasūtījuma failus",
+    "uploadError": "Faila augšupielāde neizdevās",
+    "deleteError": "Neizdevās izdzēst failu",
+    "deleteConfirm": "Dzēst “{name}”?",
+    "download": "Lejupielādēt",
+    "delete": "Dzēst"
+},
   "orderWorkspace": {
     "staleSave": "Pasūtījums ir mainīts citā sesijā. Labojumi nav saglabāti. Nokopējiet nesaglabātos datus, pārlādējiet lapu, pārbaudiet pašreizējo versiju un mēģiniet vēlreiz.",
     "approveReview": "Apstiprināt pārskatīšanu",

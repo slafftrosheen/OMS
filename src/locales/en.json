@@ -1414,6 +1414,19 @@
     "edit_order": "Edit Order",
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
+  "orderFiles": {
+    "count": "{count} files",
+    "refresh": "Refresh files",
+    "loading": "Loading files…",
+    "uploading": "Uploading files…",
+    "loadMore": "Load more files",
+    "loadError": "Could not load order files",
+    "uploadError": "Upload failed",
+    "deleteError": "Could not delete file",
+    "deleteConfirm": "Delete \"{name}\"?",
+    "download": "Download",
+    "delete": "Delete"
+},
   "orderWorkspace": {
     "staleSave": "This order changed in another session. Your edits were not saved. Copy any unsaved work, reload, review the current version and retry.",
     "approveReview": "Approve review",

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import { proposalsToPatch, type IntakeProposal, type IntakeResponse } from './intake-contract';
+  import {fetchAllOrderFiles,watchOrderFilesChanged} from './order-files-client';
 
   type Analysis = IntakeResponse & { orderUpdatedAt:string; engine:string|null };
   type OrderFile = {id:string; originalName?:string; file_name?:string;
@@ -12,6 +13,7 @@
   }=$props();
 
   let files=$state<OrderFile[]>([]);
+  let filesLoadVersion=0;
   let fileId=$state('');
   let includePaidOcr=$state(false);
   let consent=$state(false);
@@ -24,21 +26,26 @@
   let baseState=$state('');
   let applied=$state(false);
   $effect(()=>{if(selectedFileId)fileId=selectedFileId;});
-  onMount(()=>{void loadFiles();});
+  onMount(()=>{
+    void loadFiles();
+    return watchOrderFilesChanged(changedId=>{if(changedId===orderId)void loadFiles();});
+  });
 
   async function loadFiles(){
+    const id=orderId,version=++filesLoadVersion;
     loading=true;problem='';
     try{
-      const response=await fetch(`/api/files?orderId=${encodeURIComponent(orderId)}`,
-        {cache:'no-store'});
-      if(!response.ok)throw new Error($t('orderIntake.filesError'));
-      const data=await response.json();
-      files=Array.isArray(data)?data.filter((f:OrderFile)=>
-        ['application/pdf','image/jpeg','image/png','image/webp'].includes(
-          f.mimeType??f.mime_type??'')): [];
-      if(!fileId && files.length)fileId=files[0].id;
-    }catch(err){problem=err instanceof Error?err.message:$t('orderIntake.filesError');}
-    finally{loading=false;}
+      const data=await fetchAllOrderFiles<OrderFile>(id);
+      if(id!==orderId||version!==filesLoadVersion)return;
+      files=data.filter(f=>['application/pdf','image/jpeg','image/png','image/webp']
+        .includes(f.mimeType??f.mime_type??''));
+      if(fileId && !files.some(f=>f.id===fileId)){
+        fileId=files[0]?.id??'';
+        analysis=null;approvals={};applied=false;
+      }else if(!fileId && files.length)fileId=files[0].id;
+    }catch(err){if(id===orderId && version===filesLoadVersion)
+      problem=err instanceof Error?err.message:$t('orderIntake.filesError');}
+    finally{if(id===orderId && version===filesLoadVersion)loading=false;}
   }
   async function analyze(){
     if(!editable||!consent||analyzing)return;
