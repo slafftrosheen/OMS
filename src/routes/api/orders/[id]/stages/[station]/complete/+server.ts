@@ -8,7 +8,6 @@ import { postStationMessage } from '$lib/server/chat/stationMessenger';
 import { notifyConsumptionSkipped, notifyLowStock } from '$lib/server/notifications/inventoryNotifier';
 
 import { parseStageCompletion } from '$lib/order/production-floor-contract';
-type Item = { item_id: string; quantity: number; notes?: string };
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
   const actor = locals.user;

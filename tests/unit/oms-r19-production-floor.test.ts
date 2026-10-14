@@ -40,6 +40,7 @@ describe('OMS-R19 production workstation safety',()=>{
    const api=source('src/routes/api/orders/[id]/stages/[station]/complete/+server.ts');
    expect(api).toContain("complete_stage_with_consumption");
    expect(api).toContain('parseStageCompletion(body)');
+   expect(api).not.toContain('type Item =');
    expect(api).not.toContain(".from('inventory_items').update");
  });
  it('wires R19 to workstation, overview and store and retains failed form data',()=>{
