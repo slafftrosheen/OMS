@@ -14,7 +14,7 @@ const good={version:1 as const,width_mm:1200,height_mm:500,depth_mm:80,
   installation_note:'Check structural fixings on site'};
 const envelope=(spec:unknown)=>({clientName:'RF',deadline:'2026-11-20',
   profiles:[{quantity:2,configuration:{profileName:'Letter L',fabricationSpec:spec}}]});
-describe('OMS-R30 versioned fabrication specifications',()=>{
+describe('OMS-R30 historical fabrication data compatibility (R31 restored standard forms)',()=>{
  it('accepts mm dimensions, bounded fabrication choices and human notes',()=>{
    const parsed=parseFabricationSpec(good);
    expect(parsed.issues).toEqual([]);
@@ -24,7 +24,7 @@ describe('OMS-R30 versioned fabrication specifications',()=>{
    expect(canonicalOrderProfiles(orderFields.parse(envelope(good)).profiles)[0].configuration)
      .toHaveProperty('fabricationSpec',good);
  });
- it('requires explicit positive numeric units and rejects invalid enums/unknown keys',()=>{
+ it('legacy parser identifies invalid optional specifications without blocking standard order forms',()=>{
    for(const bad of [
      {...good,width_mm:0},{...good,height_mm:-1},
      {...good,width_mm:'1200 mm'},{...good,width_mm:100001},
@@ -33,7 +33,7 @@ describe('OMS-R30 versioned fabrication specifications',()=>{
      {...good,mounting:'roof'}, {...good,version:2},
      {...good,extra:'hidden'}]){
      expect(parseFabricationSpec(bad).issues.some(x=>x.type==='invalid')).toBe(true);
-     expect(orderFields.safeParse(envelope(bad)).success).toBe(false);
+     expect(orderFields.safeParse(envelope(bad)).success).toBe(true);
    }
  });
  it('allows incomplete drafts but never computes an incomplete face area',()=>{
@@ -78,38 +78,36 @@ describe('OMS-R30 versioned fabrication specifications',()=>{
    expect(()=>updateFabricationSpec({version:1,width_mm:-10},'height_mm','500')).toThrow();
    expect(updateFabricationSpec(complete,'method','laser').method).toBe('laser');
  });
- it('has the same form widget for new orders and existing drafts',()=>{
+ it('does not render a second manufacturing form or block standard profile saves',()=>{
    const newly=read('src/routes/orders/new/+page.svelte');
    const saved=read('src/routes/orders/[id]/edit/+page.svelte');
-   const ui=read('src/lib/order/ProfileFabricationSpec.svelte');
-   expect(newly).toContain('<ProfileFabricationSpec');
-   expect(saved).toContain('<ProfileFabricationSpec');
-   expect(newly).toContain('validateProfileFabrication(p.configuration)');
-   expect(saved).toContain('validateProfileFabrication(p.configuration??{})');
-   expect(saved).toContain('readonly={!canEdit}');
-   expect(ui).toContain('updateFabricationSpec(value,key,next)');
-   expect(ui).toContain("clearSpec()");
-   expect(ui).toContain("onValidityChange?.(true)");
-   expect(ui).toContain("onValidityChange?.(false)");
-   expect(newly).toContain('invalidSpecInputs[p.id]');
-   expect(saved).toContain('invalidSpecInputs[String(p.dbId??p.clientKey??i)]');
-   expect(saved).toContain('clientKey:crypto.randomUUID()');
+   const original=read('src/lib/profiles/components/Profile7stVisual.svelte');
+   expect(newly).toContain('<Profile7stVisual');
+   expect(original).toContain('bind:value={configuration.BENDER.depth}');
+   expect(newly).not.toContain('<ProfileFabricationSpec');
+   expect(saved).not.toContain('<ProfileFabricationSpec');
+   expect(newly).not.toContain('invalidSpecInputs');
+   expect(saved).not.toContain('invalidSpecInputs');
+   expect(newly).not.toContain('validateProfileFabrication');
+   expect(saved).not.toContain('validateProfileFabrication');
  });
  it('preserves existing atomic, version-protected persistence paths',()=>{
    const server=read('src/lib/server/order/draft-contract.ts');
    const draftApi=read('src/routes/api/draft-orders/[id]/+server.ts');
-   expect(server).toContain('validateProfileFabrication(configuration)');
+   expect(server).toContain('configuration: z.record(z.unknown()).optional(),');
+   expect(server).not.toContain('validateProfileFabrication');
    expect(server).toContain("p.configuration ?? {}");
    expect(draftApi).toContain('canonicalOrderProfiles(parsed.data.profiles)');
    expect(draftApi).toContain('p_expected_updated_at: versioned.expectedUpdatedAt');
    const profileVisual=read('src/lib/profiles/components/Profile7stVisual.svelte');
    expect(profileVisual).toContain('...currentConfig');
  });
- it('lets OpenRouter discuss validated choices but never execute them',()=>{
+ it('uses the existing profile sections as assistant context without extra fields',()=>{
    const assistant=read('src/routes/api/ai/order-assistant/+server.ts');
-   expect(assistant).toContain('parseFabricationSpec');
-   expect(assistant).toContain('fabricationSpec:specification.spec');
-   expect(assistant).toContain('fabricationSpec records a human PROPOSAL');
+   expect(assistant).toContain('summarizeNativeProfileConfiguration');
+   expect(assistant).toContain('nativeProfile:');
+   expect(assistant).toContain('AI Intake');
+   expect(assistant).not.toContain('fabricationSpec:specification.spec');
    expect(assistant).not.toContain('executeFabSpec');
    expect(assistant).not.toContain("machine.start");
  });
