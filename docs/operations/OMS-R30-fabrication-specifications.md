@@ -1,3 +1,11 @@
+> **Superseded by OMS-R31 (2026-10-15).** The additional
+> manufacturing-specification form described below has been removed from
+> order creation/editing following operator feedback. Use the original
+> Profile7stVisual, the order's uploaded files, and the integrated OpenRouter
+> assistant/AI Intake instead. The historical configuration keys are retained
+> solely for existing-order compatibility; do not deploy this form as a new
+> required workflow. See `docs/operations/OMS-R31-native-order-assistant.md`.
+
 # OMS-R30 — Structured manufacturing specifications in order profiles
 
 R30 gives staff a **shared, unit-aware fabrication-specification editor**

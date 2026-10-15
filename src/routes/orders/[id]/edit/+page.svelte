@@ -1929,4 +1929,19 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     gap: 8px;
     margin-top: 4px;
   }
+
+  /* R31: small assistant entry points beside the original workflow, not extra form fields. */
+  .profile-assistant-entry,.file-assistant-entry {
+    display:flex;align-items:center;justify-content:space-between;gap:.65rem;
+    flex-wrap:wrap;
+  }
+  .profile-assistant-entry h4 { margin:0; }
+  .file-assistant-entry {
+    margin:0 0 .75rem;padding:.7rem .8rem;border:1px solid var(--border);
+    border-radius:9px;background:var(--bg-1);
+  }
+  .file-assistant-entry span { flex:1;min-width:190px;color:var(--muted);font-size:.78rem; }
+  .profile-assistant-entry .action-btn,.file-assistant-entry .action-btn {
+    min-height:36px;white-space:normal;text-align:center;
+  }
 </style>
