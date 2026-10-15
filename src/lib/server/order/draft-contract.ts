@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import {validateProfileFabrication} from '$lib/order/fabrication-spec';
 
 const optionalDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional();
 const nullableText = (max: number) => z.string().max(max).nullable().optional();
@@ -11,14 +10,7 @@ const profile = z.object({
   quantity2: z.number().int().min(0).max(1000).optional(),
   quantity3: z.number().int().min(0).max(1000).optional(),
   quantity4: z.number().int().min(0).max(1000).optional(),
-  configuration: z.record(z.unknown()).optional().superRefine((configuration,ctx)=>{
-    for(const issue of validateProfileFabrication(configuration)){
-      if(issue.type==='invalid')ctx.addIssue({
-        code:z.ZodIssueCode.custom,path:['fabricationSpec',issue.key],
-        message:issue.message
-      });
-    }
-  }),
+  configuration: z.record(z.unknown()).optional(),
   notes: z.string().max(4000).optional()
 }).strict().refine(p => (p.quantity ?? p.quantity1 ?? 1) >= 1, 'Primary profile quantity required');
 

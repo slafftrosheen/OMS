@@ -19,8 +19,6 @@
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
   import OrderFlowAssistant from '$lib/order/OrderFlowAssistant.svelte';
   import OrderWorkflowCoach from '$lib/order/OrderWorkflowCoach.svelte';
-  import ProfileFabricationSpec from '$lib/order/ProfileFabricationSpec.svelte';
-  import {validateProfileFabrication} from '$lib/order/fabrication-spec';
   import type {GuideStepId} from '$lib/order/order-flow-guidance';
   import OrderReadinessAssistant from '$lib/order/OrderReadinessAssistant.svelte';
   import RevisionIntelligence from '$lib/order/RevisionIntelligence.svelte';
@@ -54,7 +52,6 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let rdNotes = $state('');
   let deliveryPresetId: string | null = $state(null);
   let profiles: any[] = $state([]);
-  let invalidSpecInputs=$state<Record<string,boolean>>({});
   let profileChoices: Array<{id:string;code:string;name:string}> = $state([]);
   let profileChoicesError = $state('');
   let profileChoicesTruncated = $state(false);
@@ -502,11 +499,6 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   // ── Save draft ────────────────────────────────────────────────────────────────
   async function saveDraft(): Promise<boolean> {
     if (!orderId || !canEdit) { notifyError('You cannot edit this draft'); return false; }
-    if(profiles.some((p,i)=>invalidSpecInputs[String(p.dbId??p.clientKey??i)]||
-      validateProfileFabrication(p.configuration??{}).some(x=>x.type==='invalid'))){
-      notifyError($t('fabricationSpec.invalidSave'));
-      return false;
-    }
     if (saving) return false;
     if (!clientName.trim() || !deadline) { notifyError('Client and deadline are required'); return false; }
     saving = true;
@@ -1134,14 +1126,6 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                 <label>Notes
                   <textarea bind:value={profile.notes} rows="2" disabled={!canEdit}></textarea>
                 </label>
-                <ProfileFabricationSpec value={profile.configuration?.fabricationSpec}
-                  readonly={!canEdit}
-                  onChange={next=>profiles=profiles.map((p,i)=>i===idx?{
-                    ...p,configuration:{...p.configuration,fabricationSpec:next??undefined}
-                  }:p)}
-                  onValidityChange={invalid=>invalidSpecInputs={
-                    ...invalidSpecInputs,[String(profile.dbId??profile.clientKey??idx)]:invalid
-                  }} />
                 {#if canEdit}
                   <button type="button" onclick={() => profiles = profiles.filter((_,i)=>i!==idx)}>Remove profile</button>
                 {/if}
