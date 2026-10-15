@@ -575,7 +575,7 @@
     }
   }
 
-  async function saveOrder() {
+  async function saveOrder(destination:'review'|'assistant'='review') {
     if (saving || successMessage) return;
     if (!can($currentUser, 'createDraftOrder')) { error = 'Manager role required to create orders'; return; }
     error = '';
@@ -693,6 +693,14 @@
         return;
       }
 
+      // An explicit Save & ask AI keeps the native form and all attachments
+      // persisted as a DRAFT. It never silently submits for human review.
+      if(destination==='assistant'){
+        successMessage=$t('orderAssistant.draftSaved');
+        await goto(`${base}/orders/${encodeURIComponent(String(orderId))}/edit?section=chat&assist=profiles`);
+        return;
+      }
+
       // Review publication occurs only after all uploaded files are linked
       // to this draft. On failure retain savedOrderId for safe retry.
       const submitResponse = await fetch(`/api/draft-orders/${orderId}/submit`, {
@@ -747,7 +755,13 @@
       <button class="btn-secondary" onclick={() => goto('/orders')}>
         {$t('actions.cancel')}
       </button>
-      <button id="new-order-save" class="btn-primary" onclick={saveOrder} disabled={saving || !!successMessage || !can($currentUser, 'createDraftOrder')}>
+      <button class="btn-secondary" type="button"
+        title={$t('orderAssistant.saveAndAskHint')}
+        onclick={()=>void saveOrder('assistant')}
+        disabled={saving || !!successMessage || !can($currentUser, 'createDraftOrder')}>
+        ✦ {$t('orderAssistant.saveAndAsk')}
+      </button>
+      <button id="new-order-save" class="btn-primary" onclick={()=>void saveOrder('review')} disabled={saving || !!successMessage || !can($currentUser, 'createDraftOrder')}>
         {#if saving}
           <span class="spinner"></span>
           {$t('actions.saving')}
