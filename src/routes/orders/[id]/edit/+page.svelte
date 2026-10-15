@@ -1090,7 +1090,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             {#if isRd}
               <label>R&D notes <textarea bind:value={rdNotes} rows="3" disabled={!canEdit}></textarea></label>
             {/if}
-            <h4 id="order-edit-profiles">Production profiles ({profiles.length})</h4>
+            <div class="profile-assistant-entry">
+              <h4 id="order-edit-profiles">Production profiles ({profiles.length})</h4>
+              {#if canAskOrderAssistant}
+                <button type="button" class="action-btn"
+                  onclick={()=>askWorkflowHelp($t('orderAssistant.nativeProfileQuestion'),'profiles')}>
+                  {$t('orderAssistant.askAboutProfiles')}
+                </button>
+              {/if}
+            </div>
             {#if profileChoicesError}
               <p class="zone-intro" role="alert">{profileChoicesError}</p>
             {/if}
@@ -1202,6 +1210,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
           {/if}
         {:else if rightTab === 'files'}
           {#if orderId}
+            {#if canAskOrderAssistant}
+              <div class="file-assistant-entry">
+                <span>{$t('orderAssistant.fileIntakeHint')}</span>
+                <button type="button" class="action-btn"
+                  onclick={()=>openWorkspaceSection('intake')}>
+                  {$t('orderAssistant.openFileAnalysis')}
+                </button>
+              </div>
+            {/if}
             <OrderFiles {orderId} compact={true} onChanged={refreshFileCount} canUpload={canEdit ||
               (isAdmin && ['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status))} />
           {:else}<p class="zone-intro">Loading attachments…</p>{/if}
@@ -1217,6 +1234,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                 canAsk={canAskOrderAssistant}
                 current={intakeCurrent} dirty={hasUnsavedChanges}
                 suggestedPrompt={assistantPrefill} promptRevision={assistantPrefillVersion}
+                onOpenIntake={()=>openWorkspaceSection('intake')}
+                onOpenProfiles={()=>void navigateWorkflowHelp('details','profiles')}
                 onApply={applyIntakeFields}/>
             {/key}
             <div class="ai-panel">
