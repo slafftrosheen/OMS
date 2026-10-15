@@ -109,11 +109,45 @@ describe('OMS-R31 restore native forms and wire OpenRouter without duplication',
    expect(intake).toContain("matchesOrderFileSignature");
    expect(intake).toContain('normalizeIntakeProposals');
  });
+ it('opens the original full profile form safely from the narrow saved-order workspace',()=>{
+   const editor=read('src/routes/orders/[id]/edit/+page.svelte');
+   const wrapper=read('src/lib/order/OrderNativeProfileForm.svelte');
+   expect(editor).toContain('OrderNativeProfileForm');
+   expect(editor).toContain('openNativeProfile(idx)');
+   expect(editor).toContain('nativeProfileDialog.showModal()');
+   expect(editor).toContain('configuration=>updateNativeProfile(');
+   expect(wrapper).toContain('Profile7stVisual');
+   expect(wrapper).toContain('readonly={!editable}');
+   expect(wrapper).toContain('let localConfiguration=$state<any>');
+   expect(wrapper).toContain('if(!editable)return;');
+   expect(wrapper).not.toContain('onChange(localConfiguration)');
+   expect(editor).not.toContain('<ProfileFabricationSpec');
+ });
+ it('saves files and draft before entering the consent-gated OpenRouter assistant',()=>{
+   const newly=read('src/routes/orders/new/+page.svelte');
+   const editor=read('src/routes/orders/[id]/edit/+page.svelte');
+   const assistant=read('src/lib/order/OrderFlowAssistant.svelte');
+   const upload=newly.indexOf('if (failedUploads.length > 0)');
+   const draftHandoff=newly.indexOf("if(destination==='assistant')");
+   const review=newly.indexOf('const submitResponse = await fetch');
+   expect(upload).toBeGreaterThan(0);
+   expect(draftHandoff).toBeGreaterThan(upload);
+   expect(review).toBeGreaterThan(draftHandoff);
+   expect(newly.slice(draftHandoff,review)).toContain('return;');
+   expect(newly).toContain("onclick={()=>void saveOrder('review')}");
+   expect(newly).toContain("onclick={()=>void saveOrder('assistant')}");
+   expect(newly).toContain('section=chat&assist=profiles');
+   expect(editor).toContain("query.get('assist')==='profiles'");
+   expect(editor).toContain("askWorkflowHelp($t('orderAssistant.nativeProfileQuestion')");
+   expect(assistant).toContain('!consent||!question.trim()');
+ });
  it('translates contextual links in EN, RU and LV',()=>{
    for(const locale of ['en','ru','lv']){
      const copy=JSON.parse(read(`src/locales/${locale}.json`)).orderAssistant;
      for(const key of ['askAboutProfiles','nativeProfileQuestion','openProfiles',
-       'openFileAnalysis','fileIntakeHint']){
+       'openFileAnalysis','fileIntakeHint','saveAndAsk','saveAndAskHint',
+       'editNativeProfile','viewNativeProfile','nativeProfileTitle',
+       'nativeProfileSaveHint','closeNativeProfile','saveNativeProfile']){
        expect(typeof copy[key]).toBe('string');
        expect(copy[key].length).toBeGreaterThan(10);
      }
