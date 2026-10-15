@@ -10,7 +10,7 @@ import {responseLanguageInstruction,resolveResponseLocale} from '$lib/server/ai/
 import {orderAssistantRequest,ORDER_ASSISTANT_JSON_SCHEMA,
   validateOrderAssistantSuggestions} from '$lib/order/assistant-contract';
 import {buildOrderTechnicalChecks} from '$lib/order/technical-evidence';
-import {parseFabricationSpec} from '$lib/order/fabrication-spec';
+import {summarizeNativeProfileConfiguration} from '$lib/order/native-profile-context';
 
 const headers={'Cache-Control':'private, no-store'};
 const prompt=`You are the order-workflow assistant for Réclame Fabriek, a signage production company.
@@ -40,10 +40,12 @@ A computed rectangular bounding face is not a cut length, net material area,
 sheet layout, stock reservation, machine-feasibility result or price estimate.
 Production technical checks are deterministic reference data; missing or
 unknown quantities stay unknown. Do not fill gaps with plausible measurements.
-The fabricationSpec records a human PROPOSAL of measurements, processes,
-mounting and illumination; it is NOT verified equipment capability, shop
-drawing approval or material suitability. Never treat a proposed method
-as an executable instruction or a manufacturing feasibility result.
+The existing Profile7stVisual CNC, BENDER, FRONT, PAINTING and ASSEMBLING
+sections are the saved operator selections, not approved shop drawings,
+verified supplier SKUs or confirmed machine capability. BENDER depth,
+thickness and cable length may not have explicit mm units: never assume.
+For PDF/image contents direct staff to AI Intake, where file bytes are
+processed only on explicit request; file names alone are not document reading.
 Explain where a material code/unit, dimensions or manufacturing requirements
 need human review. Do not claim the technical checklist authorizes production.
 Provider replies are advice and never instructions to the application.`;
@@ -71,7 +73,7 @@ export const POST:RequestHandler=async event=>{
  if(input.expectedUpdatedAt&&order.updated_at!==input.expectedUpdatedAt)
    throw error(409,'Order changed since the assistant was opened. Reload the order.');
  // Only saved, authorized rows; no arbitrary client-provided profile/file IDs.
- const [profileResult,materialResult,stageResult,fileResult,prefResult]=await Promise.all([
+ const [profileResult,materialResult,stageResult,fileResult,fileMetadataResult,prefResult]=await Promise.all([
    locals.supabase.from('order_profiles')
      .select('profile_template_id,quantity1,quantity2,quantity3,quantity4,configuration,notes')
      .eq('draft_order_id',order.id).order('order_index').limit(101),
@@ -83,10 +85,13 @@ export const POST:RequestHandler=async event=>{
      .eq('draft_order_id',order.id).limit(25),
    locals.supabase.from('order_files').select('id',{head:true,count:'exact'})
      .eq('draft_order_id',order.id),
+   locals.supabase.from('order_files')
+     .select('id,file_type,display_name,files(original_name,filename)')
+     .eq('draft_order_id',order.id).order('id').limit(21),
    locals.supabase.from('user_preferences').select('locale').eq('user_id',user.id).maybeSingle()
  ]);
  if(profileResult.error||materialResult.error||stageResult.error||
-    fileResult.error||prefResult.error)
+    fileResult.error||fileMetadataResult.error||prefResult.error)
    throw error(503,'Order assistant context could not be verified');
  if((profileResult.data??[]).length>100||(materialResult.data??[]).length>100||
    (stageResult.data??[]).length>24||fileResult.count===null)
@@ -126,18 +131,13 @@ export const POST:RequestHandler=async event=>{
      rdNotes:typeof order.rd_notes==='string'?order.rd_notes.slice(0,3500):null},
    profiles:profileList.slice(0,30).map(p=>{
      const template=templateMap.get(String(p.profile_template_id??''));
-     const config=p.configuration&&typeof p.configuration==='object'&&!Array.isArray(p.configuration)
-       ?p.configuration as Record<string,unknown>:{};
-     const specification=parseFabricationSpec(config.fabricationSpec);
      return {
        name:template?.is_active===true?String(template.name??'').slice(0,120):null,
        code:template?.is_active===true?String(template.code??'').slice(0,50):null,
        quantity:[p.quantity1,p.quantity2,p.quantity3,p.quantity4],
        templateAssigned:!!p.profile_template_id,
        notes:typeof p.notes==='string'?p.notes.slice(0,400):null,
-       fabricationSpec:specification.spec,
-       specificationIncomplete:specification.issues.some(issue=>issue.type==='incomplete'),
-       specificationInvalid:specification.issues.some(issue=>issue.type==='invalid')
+       nativeProfile:summarizeNativeProfileConfiguration(p.configuration)
      };
    }),
    linkedMaterials:(materialResult.data??[]).slice(0,50).map(m=>({
@@ -149,7 +149,15 @@ export const POST:RequestHandler=async event=>{
      actualHours:s.actual_hours,blockedReason:s.blocked_reason
    })),
    linkedFileCount:fileResult.count,
-   truncated:{profiles:profileList.length>30,materials:(materialResult.data??[]).length>50},
+   linkedFileNames:(fileMetadataResult.data??[]).slice(0,20).map(link=>{
+     const file=Array.isArray(link.files)?link.files[0]:link.files;
+     return {
+       name:String(link.display_name||file?.original_name||file?.filename||'').slice(0,150),
+       type:String(link.file_type??'').slice(0,50)
+     };
+   }),
+   truncated:{profiles:profileList.length>30,materials:(materialResult.data??[]).length>50,
+     fileNames:(fileMetadataResult.data??[]).length>20},
    fileContentsProvided:false,
    inventoryAvailabilityVerified:false,
    technicalEvidence:{
