@@ -205,6 +205,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let assistantPrefill = $state('');
   let assistantPrefillVersion = $state(0);
   let activeNativeProfileIndex = $state<number|null>(null);
+  let activeNativeProfile = $derived(activeNativeProfileIndex===null ? null : profiles[activeNativeProfileIndex]??null);
   let nativeProfileDialog = $state<HTMLDialogElement|undefined>(undefined);
   async function openNativeProfile(index:number){
     activeNativeProfileIndex=index;
@@ -1173,7 +1174,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                 {saving ? 'Saving…' : 'Save all changes'}
               </button>
             {/if}
-            {#if activeNativeProfileIndex!==null && profiles[activeNativeProfileIndex]}
+            {#if activeNativeProfileIndex!==null && activeNativeProfile}
               <dialog class="native-profile-dialog" bind:this={nativeProfileDialog}
                 aria-labelledby="native-profile-dialog-title"
                 onclose={()=>activeNativeProfileIndex=null}>
@@ -1186,10 +1187,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                     {$t('orderAssistant.closeNativeProfile')}
                   </button>
                 </div>
-                {#key profiles[activeNativeProfileIndex].dbId ??
-                  profiles[activeNativeProfileIndex].clientKey ?? activeNativeProfileIndex}
+                {#key activeNativeProfileIndex}
                   <OrderNativeProfileForm
-                    configuration={profiles[activeNativeProfileIndex].configuration??{}}
+                    configuration={activeNativeProfile.configuration??{}}
                     editable={canEdit}
                     onChange={configuration=>updateNativeProfile(activeNativeProfileIndex!,configuration)}/>
                 {/key}
