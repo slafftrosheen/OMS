@@ -1,6 +1,6 @@
 // src/lib/server/env-validator.ts
+
 const dev = process.env.NODE_ENV !== 'production';
-const building = false;
 
 interface EnvValidationRule {
     key: string;
@@ -38,7 +38,7 @@ const insecurePatterns = [
     { pattern: /^(.)\1{7,}/, message: 'Contains repeated characters' }
 ];
 
-export function validateEnvironment(): { valid: boolean; errors: string[] } {
+export function validateEnvironment(building = false): { valid: boolean; errors: string[] } {
     if (building) return { valid: true, errors: [] };
 
     const errors: string[] = [];
@@ -80,8 +80,8 @@ export function validateEnvironment(): { valid: boolean; errors: string[] } {
     return { valid: errors.length === 0, errors };
 }
 
-export function enforceEnvironmentSecurity() {
-    const { valid, errors } = validateEnvironment();
+export function enforceEnvironmentSecurity(building = false) {
+    const { valid, errors } = validateEnvironment(building);
 
     if (!valid) {
         console.error('\n🚨 ENVIRONMENT VALIDATION FAILED:\n');

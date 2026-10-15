@@ -21,7 +21,7 @@ if (sentryDsn && !dev) {
 }
 
 // Run validation on startup
-enforceEnvironmentSecurity();
+enforceEnvironmentSecurity(building);
 
 // Start AI swarm health monitoring
 startSwarmHealthLoop();

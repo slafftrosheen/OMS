@@ -129,7 +129,7 @@ END;
 $$;
 
 -- 4. Grant execute to the authenticated role (app uses the anon/auth client).
-GRANT EXECUTE ON FUNCTION public.increment(UUID) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.increment(TEXT) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.max_retries() TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.process_sync_queue_batch(TEXT, JSONB) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.resolve_sync_conflict(TEXT, TEXT, JSONB) TO authenticated, anon;

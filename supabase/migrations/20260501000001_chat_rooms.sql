@@ -1,14 +1,45 @@
 -- Create chat_rooms table to persist rooms and seed station rooms.
+-- Note: chat_rooms may already exist from 20260204000008_communications.sql with different schema
 CREATE TABLE IF NOT EXISTS chat_rooms (
     id          text PRIMARY KEY,
     name        text NOT NULL,
-    kind        text NOT NULL DEFAULT 'channel',  -- 'channel' | 'station' | 'order'
+    room_type   text DEFAULT 'channel', -- 'channel', 'direct', 'group'
+    kind        text NOT NULL DEFAULT 'channel',  -- 'channel' | 'station' | 'order' (synced with room_type)
     station     text,                              -- optional: maps to WORKFLOW_STAGES
+    is_private  boolean DEFAULT false,
     order_id    uuid REFERENCES draft_orders(id) ON DELETE CASCADE,
     created_by  uuid REFERENCES profiles(id),
     created_at  timestamptz NOT NULL DEFAULT now(),
+    updated_at  timestamptz DEFAULT now(),
     archived_at timestamptz
 );
+
+-- Ensure all required columns exist and are synced
+DO $$
+BEGIN
+    -- Add kind column if missing
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'chat_rooms' AND column_name = 'kind') THEN
+        ALTER TABLE chat_rooms ADD COLUMN kind text NOT NULL DEFAULT 'channel';
+    END IF;
+    -- Add station column if missing
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'chat_rooms' AND column_name = 'station') THEN
+        ALTER TABLE chat_rooms ADD COLUMN station text;
+    END IF;
+    -- Add is_private column if missing
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'chat_rooms' AND column_name = 'is_private') THEN
+        ALTER TABLE chat_rooms ADD COLUMN is_private boolean DEFAULT false;
+    END IF;
+    -- Add updated_at column if missing
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'chat_rooms' AND column_name = 'updated_at') THEN
+        ALTER TABLE chat_rooms ADD COLUMN updated_at timestamptz DEFAULT now();
+    END IF;
+    -- Add archived_at column if missing
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'chat_rooms' AND column_name = 'archived_at') THEN
+        ALTER TABLE chat_rooms ADD COLUMN archived_at timestamptz;
+    END IF;
+    -- Sync kind with room_type for backward compatibility
+    UPDATE chat_rooms SET kind = room_type WHERE kind IS NULL OR kind = '';
+END $$;
 
 -- Seed default channels
 INSERT INTO chat_rooms (id, name, kind) VALUES
