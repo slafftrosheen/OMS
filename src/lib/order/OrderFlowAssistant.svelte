@@ -11,10 +11,11 @@
     provenance:'model-reported'
   };
   let {orderId,orderUpdatedAt,editable,canAsk,current,dirty,
-    suggestedPrompt='',promptRevision=0,onApply}:{
+    suggestedPrompt='',promptRevision=0,onOpenIntake,onOpenProfiles,onApply}:{
     orderId:string;orderUpdatedAt:string|null;editable:boolean;canAsk:boolean;
     current:Record<string,unknown>;dirty:boolean;
     suggestedPrompt?:string;promptRevision?:number;
+    onOpenIntake?:()=>void;onOpenProfiles?:()=>void;
     onApply:(patch:Record<string,unknown>)=>void
   }=$props();
   let consent=$state(false),question=$state('');
@@ -159,6 +160,19 @@
   </header>
   <p class="hint">{$t('orderAssistant.description')}</p>
   <p class="hint">{$t('orderAssistant.savedOnly')}</p>
+  <div class="source-actions">
+    {#if onOpenProfiles}
+      <button type="button" class="secondary" onclick={onOpenProfiles}>
+        {$t('orderAssistant.openProfiles')}
+      </button>
+    {/if}
+    {#if onOpenIntake}
+      <button type="button" class="secondary" onclick={onOpenIntake}>
+        {$t('orderAssistant.openFileAnalysis')}
+      </button>
+    {/if}
+  </div>
+  <p class="hint">{$t('orderAssistant.fileIntakeHint')}</p>
   {#if dirty}<p class="warning" role="status">{$t('orderAssistant.unsaved')}</p>{/if}
   <label class="consent">
     <input type="checkbox" bind:checked={consent} disabled={busy||!canAsk}/>
@@ -315,6 +329,7 @@
 <style>
  .assistant{display:grid;gap:.8rem;padding:.65rem;min-width:0;color:var(--text)}
  .intro,.proposal-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
+ .source-actions{display:flex;gap:.45rem;flex-wrap:wrap}
  h3,h4{margin:0;font-size:1rem}h4{margin-top:.5rem}
  .hint{font-size:.81rem;color:var(--muted);margin:0}
  .warning{color:var(--warn);font-size:.83rem}.success{color:var(--brand);font-size:.83rem}
