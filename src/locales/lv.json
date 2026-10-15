@@ -2035,7 +2035,12 @@
     },
     "measuredProfiles": "Profili ar skaidri norādītiem izmēriem: {measured} no {total}",
     "recordedMaterials": "Pasūtījumā norādītie materiāli",
-    "unitMissing": "mērvienība nav zināma"
+    "unitMissing": "mērvienība nav zināma",
+    "askAboutProfiles": "Jautāt AI par profiliem",
+    "openProfiles": "Atvērt standarta profila veidlapu",
+    "openFileAnalysis": "Analizēt PDF vai attēlu ar AI",
+    "fileIntakeHint": "Saruna redz saglabātos iestatījumus un failu nosaukumus, bet ne failu saturu. Lai analizētu PDF vai attēlu, izvēlieties pievienoto failu AI ievadē un pārskatiet ieteikumus.",
+    "nativeProfileQuestion": "Pārskati saglabātās CNC, BENDER, FRONT, PAINTING un ASSEMBLING profila izvēles. Nosauc trūkstošās prasības un pretrunas. Neizdomā izmērus, krājumus vai iekārtu iespējas."
   },
   "orderIntake": {
     "sourceChanged": "Avota fails pēc analīzes ir mainīts. Pirms piemērošanas analizējiet jauno failu.",

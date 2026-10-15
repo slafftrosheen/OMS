@@ -2035,7 +2035,12 @@
     },
     "measuredProfiles": "Explicitly measured profiles: {measured} of {total}",
     "recordedMaterials": "Recorded material requirements",
-    "unitMissing": "unit unknown"
+    "unitMissing": "unit unknown",
+    "askAboutProfiles": "Ask AI about saved profiles",
+    "openProfiles": "Open original profile form",
+    "openFileAnalysis": "Analyze PDF or image with AI",
+    "fileIntakeHint": "Chat sees saved form choices and file names, not the contents of uploads. Select a linked PDF/image in AI Intake to analyze it and review any suggestions.",
+    "nativeProfileQuestion": "Review the saved CNC, BENDER, FRONT, PAINTING and ASSEMBLING profile choices. List missing requirements and contradictions. Do not invent dimensions, stock or machine capabilities."
   },
   "orderIntake": {
     "sourceChanged": "Selected source changed after analysis. Analyze the new file before applying.",
