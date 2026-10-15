@@ -10,8 +10,8 @@
   }=$props();
   let localConfiguration=$state<any>(JSON.parse(JSON.stringify(configuration??{})));
 
-  function forwardExplicitEdit(value:Record<string,unknown>){
-    if(!editable)return;
+  function forwardExplicitEdit(value:unknown){
+    if(!editable||!value||typeof value!=='object'||Array.isArray(value))return;
     // Preserve existing native (and legacy) keys; only a real user action
     // promotes the editable copy into parent draft state.
     onChange(JSON.parse(JSON.stringify(value)));
