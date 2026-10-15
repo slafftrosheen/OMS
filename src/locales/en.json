@@ -1958,6 +1958,15 @@
     "technicalChecks": "Technical checks"
   },
   "orderAssistant": {
+    "saveAndAsk": "Save draft & ask AI",
+    "saveAndAskHint": "Save the existing profile selections and attachments as a draft, then open the assistant. Does not submit for review.",
+    "draftSaved": "Draft saved. Opening the assistant…",
+    "editNativeProfile": "Edit production form",
+    "viewNativeProfile": "View production form",
+    "nativeProfileTitle": "Original production profile",
+    "nativeProfileSaveHint": "CNC, Bender, Front, Painting and Assembly remain the original order controls. Save Draft to persist changes.",
+    "closeNativeProfile": "Close",
+    "saveNativeProfile": "Save draft",
     "title": "Order assistant",
     "clear": "Clear conversation",
     "description": "Ask about this order, find missing details or prepare fields for human review.",
