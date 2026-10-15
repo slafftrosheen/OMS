@@ -18,6 +18,7 @@
   import OrderFiles from '$lib/order/OrderFiles.svelte';
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
   import OrderFlowAssistant from '$lib/order/OrderFlowAssistant.svelte';
+  import OrderNativeProfileForm from '$lib/order/OrderNativeProfileForm.svelte';
   import OrderWorkflowCoach from '$lib/order/OrderWorkflowCoach.svelte';
   import type {GuideStepId} from '$lib/order/order-flow-guidance';
   import OrderReadinessAssistant from '$lib/order/OrderReadinessAssistant.svelte';
@@ -203,6 +204,22 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   });
   let assistantPrefill = $state('');
   let assistantPrefillVersion = $state(0);
+  let activeNativeProfileIndex = $state<number|null>(null);
+  let nativeProfileDialog = $state<HTMLDialogElement|undefined>(undefined);
+  async function openNativeProfile(index:number){
+    activeNativeProfileIndex=index;
+    await tick();
+    if(nativeProfileDialog && !nativeProfileDialog.open)nativeProfileDialog.showModal();
+  }
+  function closeNativeProfile(){
+    nativeProfileDialog?.close();
+    activeNativeProfileIndex=null;
+  }
+  function updateNativeProfile(index:number,configuration:Record<string,unknown>){
+    if(!canEdit)return;
+    profiles=profiles.map((profile,i)=>i===index
+      ?{...profile,configuration}:profile);
+  }
   async function navigateWorkflowHelp(target:WorkspaceSection,step:GuideStepId){
     openWorkspaceSection(target);
     if(step==='profiles'){
@@ -297,7 +314,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
   // ── Load order ────────────────────────────────────────────────────────────────
   onMount(async () => {
-    const initial=sectionFromQuery(new URLSearchParams(window.location.search).get('section'));
+    const query=new URLSearchParams(window.location.search);
+    const initial=sectionFromQuery(query.get('section'));
     rightTab=initial;
     focusPanel=initial!=='layers';
     await loadOrder();
@@ -305,6 +323,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     canvasLoaded=true;
     await Promise.all([loadChangeRequests(),refreshFileCount()]);
     unsavedWarningEnabled=true;
+    // Only a fixed, user-requested shortcut. No consent and no model call.
+    if(query.get('assist')==='profiles' && canAskOrderAssistant)
+      askWorkflowHelp($t('orderAssistant.nativeProfileQuestion'),'profiles');
   });
 
   async function loadOrder() {
@@ -1134,6 +1155,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                 <label>Notes
                   <textarea bind:value={profile.notes} rows="2" disabled={!canEdit}></textarea>
                 </label>
+                <button type="button" class="action-btn"
+                  onclick={()=>void openNativeProfile(idx)}>
+                  {$t(canEdit?'orderAssistant.editNativeProfile':'orderAssistant.viewNativeProfile')}
+                </button>
                 {#if canEdit}
                   <button type="button" onclick={() => profiles = profiles.filter((_,i)=>i!==idx)}>Remove profile</button>
                 {/if}
@@ -1147,6 +1172,36 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
               <button class="action-btn primary" onclick={saveDraft} disabled={saving}>
                 {saving ? 'Saving…' : 'Save all changes'}
               </button>
+            {/if}
+            {#if activeNativeProfileIndex!==null && profiles[activeNativeProfileIndex]}
+              <dialog class="native-profile-dialog" bind:this={nativeProfileDialog}
+                aria-labelledby="native-profile-dialog-title"
+                onclose={()=>activeNativeProfileIndex=null}>
+                <div class="native-profile-dialog-header">
+                  <div>
+                    <h3 id="native-profile-dialog-title">{$t('orderAssistant.nativeProfileTitle')}</h3>
+                    <p>{$t('orderAssistant.nativeProfileSaveHint')}</p>
+                  </div>
+                  <button type="button" class="action-btn" onclick={closeNativeProfile}>
+                    {$t('orderAssistant.closeNativeProfile')}
+                  </button>
+                </div>
+                {#key profiles[activeNativeProfileIndex].dbId ??
+                  profiles[activeNativeProfileIndex].clientKey ?? activeNativeProfileIndex}
+                  <OrderNativeProfileForm
+                    configuration={profiles[activeNativeProfileIndex].configuration??{}}
+                    editable={canEdit}
+                    onChange={configuration=>updateNativeProfile(activeNativeProfileIndex!,configuration)}/>
+                {/key}
+                {#if canEdit}
+                  <footer class="native-profile-dialog-footer">
+                    <button type="button" class="action-btn primary" disabled={saving}
+                      onclick={async()=>{if(await saveDraft())closeNativeProfile();}}>
+                      {saving?$t('actions.saving'):$t('orderAssistant.saveNativeProfile')}
+                    </button>
+                  </footer>
+                {/if}
+              </dialog>
             {/if}
           </div>
         {:else if rightTab === 'layers'}
@@ -1944,4 +1999,19 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   .profile-assistant-entry .action-btn,.file-assistant-entry .action-btn {
     min-height:36px;white-space:normal;text-align:center;
   }
+  .native-profile-dialog{
+    position:fixed;inset:0;margin:auto;max-width:min(96vw,1380px);
+    width:96vw;max-height:92vh;overflow:auto;padding:1rem;
+    color:var(--text);background:var(--bg-1);border:1px solid var(--border);
+    border-radius:12px;box-shadow:0 22px 75px rgba(0,0,0,.35);
+  }
+  .native-profile-dialog::backdrop{background:rgba(0,0,0,.75)}
+  .native-profile-dialog-header,.native-profile-dialog-footer{
+    display:flex;gap:1rem;align-items:center;justify-content:space-between;
+    padding:.35rem .2rem .8rem;flex-wrap:wrap;
+  }
+  .native-profile-dialog-header h3{margin:0;font-size:1.05rem}
+  .native-profile-dialog-header p{margin:.35rem 0 0;color:var(--muted);font-size:.8rem}
+  .native-profile-dialog-footer{position:sticky;bottom:0;margin-top:.8rem;
+    padding:.75rem;background:var(--bg-1);border-top:1px solid var(--border)}
 </style>
