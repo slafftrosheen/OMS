@@ -1742,6 +1742,8 @@
     "delete": "Delete"
   },
   "productionPacket": {
+    "progressSummary": "{completed} of {total} manufacturing stages completed (delivery tracked separately)",
+    "progressHeld": "Blocked: {blocked} · Rework: {rework}",
     "title": "Production packet",
     "open": "Production packet",
     "close": "Close",
