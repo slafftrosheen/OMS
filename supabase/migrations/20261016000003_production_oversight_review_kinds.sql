@@ -78,8 +78,11 @@ BEGIN
  END IF;
 
  IF p_action IN ('claim','reopen') THEN
+   -- Keep order status stable while validating stage-age/skip evidence.
+   -- Lock parent order before stage, matching the existing production RPC order.
    SELECT * INTO v_order FROM public.draft_orders
-   WHERE id=CASE WHEN p_action='claim' THEN p_order_id ELSE v_review.draft_order_id END;
+   WHERE id=CASE WHEN p_action='claim' THEN p_order_id ELSE v_review.draft_order_id END
+   FOR SHARE;
    SELECT * INTO v_stage FROM public.order_stages
    WHERE draft_order_id=CASE WHEN p_action='claim' THEN p_order_id ELSE v_review.draft_order_id END
      AND station::text=v_station FOR SHARE;
