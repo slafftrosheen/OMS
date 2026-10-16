@@ -1958,13 +1958,15 @@
     "technicalChecks": "Tehnisko datu pārbaude"
   },
   "orderAssistant": {
+    "applyNativeProfile": "Pielietot melnrakstam",
+    "nativeProfileApplyHint": "Aizverot logu, šeit veiktās izmaiņas tiek atmestas. Pielietošana atjaunina melnrakstu, bet nesaglabā serverī.",
     "saveAndAsk": "Saglabāt melnrakstu un jautāt MI",
-    "saveAndAskHint": "Saglabāt esošās profilu izvēles un pielikumus kā melnrakstu, pēc tam atvērt asistentu. Nenodod saskaņošanai.",
+    "saveAndAskHint": "Saglabāt pašreizējos profilu iestatījumus kā melnrakstu un atvērt asistentu. Failus var pievienot vēlāk; pasūtījums netiek nodots saskaņošanai.",
     "draftSaved": "Melnraksts saglabāts. Atveram asistentu…",
     "editNativeProfile": "Rediģēt ražošanas veidlapu",
     "viewNativeProfile": "Skatīt ražošanas veidlapu",
     "nativeProfileTitle": "Sākotnējā profila veidlapa",
-    "nativeProfileSaveHint": "CNC, Bender, Front, Painting un Assembling paliek sākotnējie pasūtījuma lauki. Lai saglabātu izmaiņas, saglabājiet melnrakstu.",
+    "nativeProfileSaveHint": "Rediģējiet sākotnējos CNC, Bender, Front, Painting un Assembling laukus. Pielietojiet izmaiņas melnrakstam, tad saglabājiet pasūtījumu.",
     "closeNativeProfile": "Aizvērt",
     "saveNativeProfile": "Saglabāt melnrakstu",
     "title": "Pasūtījuma asistents",
