@@ -1415,6 +1415,8 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "productionExceptions": {
+    "materialReconciliationGuidance": "Norādiet, vai materiāli nav izmantoti, patēriņš reģistrēts citur vai vajadzīga atsevišķi atļauta noliktavas korekcija. Pārskata slēgšana nemaina krājumus.",
+    "stageAgeGuidance": "Pirms lēmuma pārbaudiet darba vietas žurnālu vai sazinieties ar operatoru. Posma ieraksta datums viens pats nepierāda darba pārtraukumu.",
     "oversightUnavailable": "Ražošanas pārraudzības dati nav pieejami. Neatjauninātus posmus un izlaisto materiālu uzskaiti pašlaik nevar pārbaudīt; attiecīgie pārskati netiek rādīti, kamēr dati nav atjaunoti.",
     "oversightPreviewLimited": "Priekšskatījums ierobežots līdz {limit} ierakstiem kategorijā ({total} signāli kopā). Daļa pārskatu var nebūt redzami; pārbaudiet sākotnējo pasūtījumu.",
     "sourceOutsidePreview": "Ārpus priekšskatījuma — pašreizējais stāvoklis nav pārbaudīts",
