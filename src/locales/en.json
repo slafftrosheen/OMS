@@ -1415,6 +1415,8 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "productionExceptions": {
+    "materialReconciliationGuidance": "Record whether no material was used, consumption was booked elsewhere, or inventory needs a separately authorized correction. Closing this review does not change stock.",
+    "stageAgeGuidance": "Check the station timeline or contact the operator before deciding. A stage-record timestamp alone does not establish that work stopped.",
     "oversightUnavailable": "Production oversight source is unavailable. Stage-age and material-skip findings cannot be assessed right now; their reviews are hidden until a valid source is loaded.",
     "oversightPreviewLimited": "Oversight source is capped to {limit} rows per category ({total} total signals). Some existing reviews may be outside the preview; verify against the original order.",
     "sourceOutsidePreview": "Outside source preview — current condition not verified",
