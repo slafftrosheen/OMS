@@ -45,6 +45,13 @@ R35 fixes these issues with the **existing** versioned order contracts.
 7. Confirmation still calls `saveDraft()` first and refuses confirmation
    when the latest local changes were not saved.
 
+A related AI Intake safeguard re-fetches the order's **canonical linked
+file list** before locally applying accepted evidence from a PDF or image.
+This catches files deleted by another session even when attachment changes
+have not advanced `draft_orders.updated_at`. The check is intentionally
+non-mutating and is not a substitute for server-side transactional attachment
+locks; a new file analysis remains required when its source is missing.
+
 This sequence preserves the order form's original CNC / BENDER / FRONT /
 PAINTING / ASSEMBLING fields, profile templates, quantities and uploaded file
 links. The new Canvas body contract has exactly one known client caller,
