@@ -14,11 +14,24 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ error: 'Invalid request body' }, { status: 400 });
-  if(Object.prototype.hasOwnProperty.call(body,'stock'))
-    return json({error:'Stock must be changed through audited inventory movements'},{status:409});
+  if(Object.prototype.hasOwnProperty.call(body,'stock')){
+    // Older admin forms may post unchanged stock with ordinary metadata.
+    // Verify it is unchanged, then strip it from the actual UPDATE.
+    if(!Number.isInteger(body.stock)||body.stock<0)
+      return json({error:'Stock must be a non-negative whole number'},{status:400});
+    const {data:current,error:stockError}=await locals.supabase
+      .from('materials').select('stock').eq('id',params.id).maybeSingle();
+    if(stockError)return json({error:'Could not verify current stock'},{status:503});
+    if(!current)return json({error:'Material not found'},{status:404});
+    if(current.stock!==body.stock)
+      return json({error:'Stock changes require audited inventory movements'},{status:409});
+  }
   let patch: Record<string, unknown>;
   try { patch = validateMaterialInput(body, true); }
   catch (err) { return json({ error: err instanceof Error ? err.message : 'Invalid material' }, { status: 400 }); }
+  delete patch.stock;
+  if(Object.keys(patch).length===0)
+    return json({error:'No metadata changes supplied'},{status:400});
 
   const { data: updated, error: dbError } = await locals.supabase.from('materials').update(patch).eq('id', params.id).select().single();
   if (dbError || !updated) return json({ error: dbError?.code === '23505' ? 'Material code already exists' : 'Failed to update material' }, { status: dbError?.code === '23505' ? 409 : 500 });
