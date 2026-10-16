@@ -5,7 +5,8 @@ export type OrderRow={id:string;po_number?:string|null;client?:string|null;title
   due_date?:string|null;priority?:string|number|null;status:string};
 export type StageRow={draft_order_id:string;station:string;state:string;
   estimated_hours?:number|string|null;actual_hours?:number|string|null;
-  blocked_reason?:string|null};
+  blocked_reason?:string|null;updated_at?:string|null;completed_at?:string|null;
+  consumption_skipped?:boolean|null;consumption_skipped_reason?:string|null};
 export type Risk='blocked'|'rework'|'overdue'|'dueSoon'|'onHold'|null;
 export type PlanningItem={id:string;station:string;poNumber:string|null;client:string;title:string;
   dueDate:string|null;priority:string|number|null;status:string;stageState:string;
