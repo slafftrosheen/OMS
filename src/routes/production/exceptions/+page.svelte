@@ -3,6 +3,7 @@
   import {page} from '$app/state';
   import {base} from '$app/paths';
   import {t} from 'svelte-i18n';
+  import ProductionExceptionEvidence from '$lib/components/production/ProductionExceptionEvidence.svelte';
   import {currentUser} from '$lib/auth/authState.svelte';
   import type {PerformanceSummary} from '$lib/order/production-performance';
   import type {ApprovedReservationHours} from '$lib/order/capacity-forecast';
@@ -35,6 +36,9 @@
   let editorAction=$state<ReviewAction>('claim');
   let followUpNote=$state(''),followUpDate=$state('');
   let historyId=$state<string|null>(null),historyLoading=$state(false);
+  let evidenceReviewId=$state<string|null>(null);
+  let selectedEvidenceIds=$state<string[]>([]);
+  let evidenceSelectionError=$state('');
   let historyError=$state('');
   type HistoryRow={id:string;actor_id:string;action:string;description:string;
     previous_status:string|null;new_status:string;occurred_at:string};
@@ -132,9 +136,22 @@
     }finally{if(generation===version)loading=false;}
   }
   function edit(row:ReviewQueueItem,action:ReviewAction){
+    if(editingKey!==row.key)selectedEvidenceIds=[];
     editingKey=row.key;editorAction=action;mutationError='';saved=false;
+    evidenceSelectionError='';
     followUpDate=row.review?.due_date??todayInRiga();
     followUpNote=action==='update'?row.review?.follow_up_note??'':'';
+  }
+  function citeMovement(row:ReviewQueueItem,movementId:string){
+    if(editingKey!==row.key || !['update','resolve'].includes(editorAction))
+      edit(row,'update');
+    if(selectedEvidenceIds.includes(movementId))return;
+    if(selectedEvidenceIds.length>=10){
+      evidenceSelectionError=$t('productionEvidence.maxReferences');
+      return;
+    }
+    selectedEvidenceIds=[...selectedEvidenceIds,movementId];
+    evidenceSelectionError='';
   }
   async function submit(row:ReviewQueueItem){
     if(!canWrite||saving||row.key!==editingKey)return;
@@ -152,6 +169,8 @@
         request.dueDate=followUpDate||null;
       if(['claim','update','resolve'].includes(editorAction))
         request.note=followUpNote;
+      if(['update','resolve'].includes(editorAction)&&selectedEvidenceIds.length)
+        request.evidenceMovementIds=selectedEvidenceIds;
       const response=await fetch(`${base}/api/production/exception-reviews`,{
         method:'POST',headers:{'content-type':'application/json'},
         body:JSON.stringify(request)
@@ -162,7 +181,7 @@
       if(!result.review)throw Error($t('productionExceptions.saveFailed'));
       const updated=result.review as ExceptionReview;
       reviews=[...reviews.filter(r=>r.id!==updated.id),updated];
-      editingKey=null;saved=true;
+      editingKey=null;selectedEvidenceIds=[];saved=true;
       if(historyId===updated.id)await loadHistory(updated.id);
     }catch(e){mutationError=e instanceof Error?e.message:$t('productionExceptions.saveFailed');}
     finally{saving=false;}
@@ -324,12 +343,26 @@
               {/if}
             {/if}
             {#if row.review}
+              {#if canManage && ['MATERIAL_SKIPPED','STAGE_UNCHANGED'].includes(row.kind)}
+                <button type="button"
+                  onclick={()=>evidenceReviewId=evidenceReviewId===row.review?.id
+                    ?null:row.review!.id}>
+                  {$t('productionEvidence.viewEvidence')}
+                </button>
+              {/if}
               <button type="button" disabled={historyLoading&&historyId===row.review.id}
                 onclick={()=>historyId===row.review?.id?(historyId=null):(void loadHistory(row.review!.id))}>
                 {$t('productionExceptions.history')}
               </button>
             {/if}
           </div>
+          {#if row.review && evidenceReviewId===row.review.id && canManage}
+            <ProductionExceptionEvidence reviewId={row.review.id}
+              orderId={row.orderId} station={row.station} kind={row.kind}
+              selectedIds={selectedEvidenceIds}
+              onReference={movementId=>citeMovement(row,movementId)}
+              onClose={()=>evidenceReviewId=null}/>
+          {/if}
           {#if editingKey===row.key&&canWrite}
             <div class="editor">
               <h3>{$t(`productionExceptions.action.${editorAction}`)}</h3>
@@ -344,6 +377,18 @@
                   <textarea rows="3" maxlength={editorAction==='resolve'?2000:1000}
                     bind:value={followUpNote}></textarea>
                 </label>
+                {#if selectedEvidenceIds.length}
+                  <p class="hint" role="status">
+                    {$t('productionEvidence.referencesSelected',
+                      {values:{count:selectedEvidenceIds.length}})}
+                    <button type="button" onclick={()=>selectedEvidenceIds=[]}>
+                      {$t('productionEvidence.clearReferences')}
+                    </button>
+                  </p>
+                {/if}
+                {#if evidenceSelectionError}
+                  <p class="error" role="alert">{evidenceSelectionError}</p>
+                {/if}
                 {#if row.kind==='MATERIAL_SKIPPED'}
                   <p class="hint" role="note">
                     {$t('productionExceptions.materialReconciliationGuidance')}
@@ -356,7 +401,9 @@
               {/if}
               {#if mutationError}<p role="alert" class="error">{mutationError}</p>{/if}
               <div class="actions">
-                <button type="button" disabled={saving} onclick={()=>{editingKey=null;mutationError='';}}>
+                <button type="button" disabled={saving} onclick={()=>{
+                  editingKey=null;mutationError='';selectedEvidenceIds=[];
+                }}>
                   {$t('productionExceptions.cancel')}
                 </button>
                 <button type="button" disabled={saving} onclick={()=>submit(row)}>
