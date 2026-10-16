@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
-  import { proposalsToPatch, type IntakeProposal, type IntakeResponse } from './intake-contract';
+  import { proposalsToPatch, proposalMatchesCurrent, type IntakeProposal, type IntakeResponse } from './intake-contract';
   import {fetchAllOrderFiles,watchOrderFilesChanged} from './order-files-client';
 
   type Analysis = IntakeResponse & { orderUpdatedAt:string; engine:string|null;profileIndex?:number|null };
@@ -36,7 +36,7 @@
   });
   let profileIndex=$derived(profileChoice===''?null:Number(profileChoice));
   function isUnchanged(p:IntakeProposal){
-    return String(current[p.field]??'').trim()===p.value.trim();
+    return proposalMatchesCurrent(p,current);
   }
   let analysisStale=$derived(!!analysis && (
     dirty || !orderUpdatedAt || analysis.orderUpdatedAt!==orderUpdatedAt ||
