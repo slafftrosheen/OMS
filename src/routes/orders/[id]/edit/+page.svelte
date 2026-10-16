@@ -1178,6 +1178,13 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                   onclick={()=>void openNativeProfile(idx)}>
                   {$t(canEdit?'orderAssistant.editNativeProfile':'orderAssistant.viewNativeProfile')}
                 </button>
+                {#if canAskOrderAssistant}
+                  <button type="button" class="action-btn"
+                    onclick={()=>askWorkflowHelp(
+                      $t('orderAssistant.profileSpecificQuestion',{values:{number:idx+1}}),'profiles')}>
+                    ✦ {$t('orderAssistant.askAboutThisProfile')}
+                  </button>
+                {/if}
                 {#if canEdit}
                   <button type="button" onclick={() => profiles = profiles.filter((_,i)=>i!==idx)}>Remove profile</button>
                 {/if}
