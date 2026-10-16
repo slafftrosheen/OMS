@@ -182,14 +182,17 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       }
     }
   }
-  async function refreshFileCount() {
-    if(!orderId)return;
+  async function refreshFileCount():Promise<number|null> {
+    if(!orderId)return null;
     const id=orderId;
     try {
       const count=await fetchOrderFilesCount(id);
-      if(orderId===id){attachedFilesCount=count;filesCountError=false;}
+      if(orderId!==id)return null;
+      attachedFilesCount=count;filesCountError=false;
+      return count;
     }catch{
       if(orderId===id){attachedFilesCount=null;filesCountError=true;}
+      return null;
     }
   }
   beforeNavigate(({cancel}) => {
@@ -658,24 +661,34 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
   // ── Confirm order ─────────────────────────────────────────────────────────────
   async function confirmOrder() {
+    if(confirming)return;
     confirming = true;
     try {
-      // Save first
       if (!canApprove || !orderId) throw new Error('You cannot confirm this order');
-      if (!(await saveDraft())) throw new Error('Save draft before confirming');
+      const count=await refreshFileCount();
+      if(count===null)throw new Error($t('orderWorkspace.confirmFilesUnknown'));
+      if(count<1)throw new Error($t('orderWorkspace.confirmFilesMissing'));
+      // Only the operator's explicit save is allowed to publish staged AI
+      // proposals; confirmation never accepts an AI-written configuration.
+      if (!(await saveDraft())) throw new Error($t('orderWorkspace.confirmSaveFirst'));
       if (!poNumber.trim()) throw new Error('An externally issued PO number is required');
-      const res = await fetch(`/api/draft-orders/${orderId}/confirm`, {
+      if(!orderUpdatedAt)throw new Error($t('orderWorkspace.staleSave'));
+      const res = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/confirm`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ poNumber: poNumber.trim() })
+        body: JSON.stringify({
+          poNumber:poNumber.trim(),expectedUpdatedAt:orderUpdatedAt
+        })
       });
+      const payload=await res.json().catch(()=>({}));
       if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
+        if(res.status===409||res.status===428)
+          throw new Error($t('orderWorkspace.staleSave'));
         throw new Error(payload.error || payload.message || 'Confirmation failed');
       }
-      status = 'CONFIRMED';
+      status = normaliseStatus(payload.status??'CONFIRMED');
       confirmOrderModal = false;
       notifySuccess('Order approved and sent to production');
-      goto(`${base}/orders/${data.id}`);
+      await goto(`${base}/orders/${data.id}`);
     } catch (err: any) {
       notifyError(err.message || 'Failed to confirm order');
     } finally {
@@ -1011,7 +1024,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         <Icon name="save" size="sm" /> {saving ? 'Saving…' : 'Save Draft'}
       </button>
       {#if canApprove}
-        <button class="action-btn success" onclick={() => confirmOrderModal = true} disabled={confirming}>
+        <button class="action-btn success" onclick={async()=>{await refreshFileCount();confirmOrderModal=true;}} disabled={confirming}>
           <Icon name="check-circle" size="sm" /> {confirming ? 'Confirming…' : 'Confirm Order'}
         </button>
       {/if}
@@ -1424,7 +1437,17 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   <div class="edit-modal-backdrop" onclick={() => confirmOrderModal = false} role="dialog" aria-modal="true" tabindex="-1">
     <div class="edit-modal" onclick={(e) => e.stopPropagation()} role="document">
       <h3>Approve order?</h3>
-      <p>This will send the order to production. Verify the client, profiles, files and deadline first.</p>
+      <p>{$t('orderWorkspace.confirmProductionWarning')}</p>
+      {#if status==='DRAFT'}
+        <p class="zone-intro" role="status">{$t('orderWorkspace.confirmDirectDraft')}</p>
+      {/if}
+      {#if filesCountError || attachedFilesCount===null}
+        <p class="zone-intro" role="alert">{$t('orderWorkspace.confirmFilesUnknown')}</p>
+      {:else if attachedFilesCount===0}
+        <p class="zone-intro" role="alert">{$t('orderWorkspace.confirmFilesMissing')}</p>
+      {:else}
+        <p class="zone-intro">{$t('orderWorkspace.confirmLinkedFiles',{values:{count:attachedFilesCount}})}</p>
+      {/if}
       <label for="confirm-po">Externally issued PO number (required)</label>
       <input id="confirm-po" bind:value={poNumber} maxlength="16"
         readonly={!canAssignPo && !!poNumber} disabled={!canAssignPo}
@@ -1432,7 +1455,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       {#if !canAssignPo && !poNumber}<p>Ask Boss to assign a PO before confirmation.</p>{/if}
       <div class="edit-modal-actions">
         <button class="action-btn ghost" onclick={() => confirmOrderModal = false}>Cancel</button>
-        <button class="action-btn success" onclick={confirmOrder} disabled={confirming || !poNumber.trim()}>
+        <button class="action-btn success" onclick={confirmOrder} disabled={confirming || !poNumber.trim() ||
+            attachedFilesCount===null || attachedFilesCount<1 || filesCountError}>
           {confirming ? 'Confirming…' : 'Confirm Order'}
         </button>
       </div>
