@@ -1742,6 +1742,8 @@
     "delete": "Dzēst"
   },
   "productionPacket": {
+    "progressSummary": "Pabeigti {completed} no {total} ražošanas posmiem (piegāde atsevišķi)",
+    "progressHeld": "Bloķēti: {blocked} · Pārstrāde: {rework}",
     "title": "Ražošanas pasūtījuma karte",
     "open": "Pasūtījuma karte",
     "close": "Aizvērt",
