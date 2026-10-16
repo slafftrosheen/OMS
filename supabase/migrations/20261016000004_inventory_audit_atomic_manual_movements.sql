@@ -127,6 +127,17 @@ GRANT EXECUTE ON FUNCTION public.consume_materials_for_order(UUID,TEXT,JSONB,UUI
  TO service_role;
 DROP POLICY IF EXISTS "Authenticated users can record movements"
  ON public.inventory_movements;
+-- Legacy migration made movement history readable by anonymous users.
+-- Real stock audit records and operator identities belong to active staff.
+DROP POLICY IF EXISTS "Movements viewable by all" ON public.inventory_movements;
+DROP POLICY IF EXISTS "OMS R41 active staff movement read" ON public.inventory_movements;
+CREATE POLICY "OMS R41 active staff movement read"
+ ON public.inventory_movements FOR SELECT TO authenticated USING (
+   EXISTS(SELECT 1 FROM public.profiles p
+     WHERE p.id=auth.uid() AND p.is_active=TRUE)
+ );
+REVOKE SELECT ON public.inventory_movements FROM anon;
+GRANT SELECT ON public.inventory_movements TO authenticated;
 REVOKE INSERT,UPDATE,DELETE ON public.inventory_movements FROM authenticated,anon;
 REVOKE ALL ON FUNCTION public.oms_record_manual_inventory_movement(
  UUID,UUID,TEXT,INTEGER,TEXT) FROM PUBLIC,anon;
