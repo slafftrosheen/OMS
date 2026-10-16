@@ -148,7 +148,14 @@
 
   function completeOrder(orderId: string) {
     const target = $orders.find((o) => o.id === orderId);
-    if (!target) return;
+    // Only a current IN_PROGRESS stage can complete. A stale version or
+    // rework transition is rechecked atomically in the R38 RPC.
+    if(!operatorCanAct || !target || target.stage?.state!=='IN_PROGRESS' ||
+       typeof target.stage?.updated_at!=='string'){
+      notifications.error($t('productionFloor.staleStage'));
+      void loadStationOrders(true);
+      return;
+    }
     completeTarget = target;
     completeModalOpen = true;
   }
@@ -157,21 +164,33 @@
     items: Array<{ item_id: string; quantity: number }>,
     opts: { skipped: boolean; skipReason: string | null; actualHours?:number|null; notes?:string|null },
   ) {
-    if (!completeTarget) return { ok: false, error: 'No target' };
+    if (!completeTarget || !operatorCanAct || 
+        completeTarget.stage?.state!=='IN_PROGRESS' ||
+        typeof completeTarget.stage?.updated_at!=='string')
+      return {ok:false,error:$t('productionFloor.staleStage')};
     try {
       const res = await fetch(
-        `/api/orders/${completeTarget.id}/stages/${station}/complete`,
+        `/api/orders/${encodeURIComponent(completeTarget.id)}/stages/${encodeURIComponent(station)}/complete`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items, skipped: opts.skipped, skipReason: opts.skipReason,
-            actualHours:opts.actualHours, notes:opts.notes }),
+          body: JSON.stringify({
+            items, skipped: opts.skipped, skipReason: opts.skipReason,
+            actualHours:opts.actualHours, notes:opts.notes,
+            expectedUpdatedAt:completeTarget.stage.updated_at
+          }),
         },
       );
       const payload = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, error: payload?.error ?? `HTTP ${res.status}` };
+      if (!res.ok) {
+        if(res.status===409 || res.status===428){
+          void loadStationOrders(true);
+          return {ok:false,error:$t('productionFloor.staleStage')};
+        }
+        return {ok:false,error:payload?.error??`HTTP ${res.status}`};
+      }
       return { ok: true, consumed: payload?.consumed ?? 0, lowStock: payload?.lowStock ?? [],
-        nextStation:payload?.nextStation ?? null };
+        nextStation:payload?.handoffQueued===true?payload?.nextStation??null:null };
     } catch (err: any) {
       return { ok: false, error: err?.message ?? 'Network error' };
     }
@@ -182,6 +201,9 @@
     operationMessage = p.nextStation
       ? $t('productionFloor.handoff',{values:{station:p.nextStation}})
       : $t('productionFloor.completed');
+    const consumption=$t(p.skipped?'productionExecution.skipped':'productionExecution.declared',
+      {values:{count:p.consumed}});
+    notifications.success(consumption);
     if (p.lowStock.length > 0) {
       const skus = p.lowStock.map((h: any) => h.sku || h.name).join(', ');
       notifications.warning(
