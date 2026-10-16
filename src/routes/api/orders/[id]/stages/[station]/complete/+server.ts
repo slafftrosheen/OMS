@@ -56,9 +56,12 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     }, { status: missing ? 503 : 409 });
   }
   if (!result?.ok) return json({ error: 'Stage completion returned no result' }, { status: 500 });
-  if(typeof result.handoff_queued!=='boolean')
-    return json({error:'Completion committed, but handoff status is unavailable; refresh before repeating'},
-      {status:503});
+  // A successful stock/stage transaction must never be presented as a
+  // retryable failure. If a legacy response lacks the new handoff flag, avoid
+  // a false station announcement and ask the operator to refresh instead.
+  const handoffKnown=typeof result.handoff_queued==='boolean';
+  if(!handoffKnown)
+    console.error('[Stage completion] Missing handoff_queued; committed result requires refresh');
 
   // Notification failures cannot roll back the committed transaction.
   const { data: order } = await locals.supabase.from('draft_orders')
@@ -91,6 +94,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     nextStation: result.handoff_queued===true ? result.next_station ?? null : null,
     handoffQueued:result.handoff_queued===true,
     consumed: result.consumed ?? 0, skipped,
-    lowStock: result.low_stock ?? []
+    lowStock: result.low_stock ?? [],
+    handoffStatusKnown:handoffKnown
   },{headers:{'Cache-Control':'private, no-store'}});
 };
