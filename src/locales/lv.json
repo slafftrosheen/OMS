@@ -1415,6 +1415,10 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "productionEvidence": {
+    "started": "Posma sākums",
+    "estimatedHours": "Paredzētās darba stundas",
+    "actualHours": "Reģistrētās faktiskās stundas",
+    "performedBy": "Darbības veicējs (lietotāja ID)",
     "title": "Sākotnējie ražošanas pierādījumi",
     "original": "Tikai skatīšanai: saglabātais posms un pasūtījuma krājumu kustību vēsture. Pārskata lēmumi nemaina krājumus vai posmus.",
     "close": "Aizvērt",
