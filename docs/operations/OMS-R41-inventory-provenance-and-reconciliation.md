@@ -83,11 +83,12 @@ strict kind filters and explicit separate material lookups, avoiding
 ambiguous historical foreign key names. Unauthorized users cannot fetch it.
 
 Legacy material/item metadata CRUD now requires manager permissions where
-missing, rejects direct PATCH/PUT stock changes, and creates materials with
-zero opening stock. Any opening inventory must be recorded separately via
-the authenticated movement flow. **The stock textbox in legacy editing
-surfaces must be updated through that movement workflow**; this API
-intentionally refuses silently unaudited stock patches.
+missing and creates materials with zero opening stock. Metadata forms that
+submit a `stock` value matching the **current** saved stock can still save
+their ordinary fields, but the endpoint strips stock from the update.
+A changed stock value is rejected rather than silently written without
+an audit record. Opening inventory and later stock adjustments must be
+recorded separately via the authenticated movement flow.
 
 ## 3. Original evidence in the existing review
 
