@@ -12,7 +12,7 @@
     import OrderFiles from "$lib/order/OrderFiles.svelte";
     import {fetchOrderFilesCount} from "$lib/order/order-files-client";
     import {
-      workspaceUrl, suggestedWorkspaceSection, stageProgressPercent, mayControlStage
+      workspaceUrl, suggestedWorkspaceSection, stageProgressPercent, stageProgressSummary, mayControlStage
     } from "$lib/order/workspace-navigation";
 
     import QRCodeDisplay from "$lib/components/qr/QRCodeDisplay.svelte";
@@ -26,6 +26,7 @@
     let orderId = $derived(page.params.id);
 
     let order: any = $state(null);
+    let stageSummary=$derived(stageProgressSummary(order?.stages));
     let mayAskOrderAssistant=$derived(!!$currentUser&&!!order&&(
       (['RD','Boss','HeadOfProduction'].includes($currentUser.role??'')&&
         ['DRAFT','PENDING_REVIEW','CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD']
@@ -371,6 +372,18 @@
                     <span class="info-value">
                         {stageProgressPercent(order.stages)}%
                     </span>
+                    <span class="stage-progress-context">
+                      {$t('productionPacket.progressSummary',{
+                        values:{completed:stageSummary.completed,total:stageSummary.total}
+                      })}
+                    </span>
+                    {#if stageSummary.blocked>0 || stageSummary.rework>0}
+                      <span class="stage-progress-alert" role="status">
+                        {$t('productionPacket.progressHeld',{
+                          values:{blocked:stageSummary.blocked,rework:stageSummary.rework}
+                        })}
+                      </span>
+                    {/if}
                 </div>
             </Card>
         </div>
@@ -475,6 +488,12 @@
                                             })}
                                         </Badge>
                                     </div>
+                                    {#if (stageRow.state==='BLOCKED'||stageRow.state==='REWORK')}
+                                      <p class="stage-hint stage-progress-alert" role="status">
+                                        {$t('productionPacket.held')}
+                                        {#if stageRow.blocked_reason} — {stageRow.blocked_reason}{/if}
+                                      </p>
+                                    {/if}
                                     {#if mayControlStage($currentUser,stageRow.station) &&
                                         ['CONFIRMED','IN_PRODUCTION'].includes(normaliseStatus(order.status)) &&
                                         !['COMPLETED','SKIPPED','REWORK'].includes(stageRow.state)}
@@ -606,6 +625,8 @@
 <style>
     .station-control{display:grid;gap:6px;font-size:11px;margin-top:10px}
     .stage-hint{font-size:11px;color:var(--text-muted);margin:8px 0 0}
+    .stage-progress-context{font-size:11px;color:var(--text-muted)}
+    .stage-progress-alert{color:var(--error);font-size:12px;overflow-wrap:anywhere}
 
     .workspace-entry{
       display:grid;grid-template-columns:minmax(170px,260px) minmax(0,1fr);
