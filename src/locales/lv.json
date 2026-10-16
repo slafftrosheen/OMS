@@ -1415,6 +1415,8 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "inventoryConsistency": {
+    "operatorMismatch": "Krājumu atlikumi atšķiras vai materiāls nepareizi sasaistīts ar veco katalogu. Neatkārtojiet posma pabeigšanu. Lūdziet vadībai atvērt Noliktava → Krājumu saskaņotība, fiziski saskaitīt materiālu un reģistrēt auditētu korekciju.",
+    "operatorShortage": "Kanoniskajā noliktavas uzskaitē nav pietiekama materiāla atlikuma. Pirms posma pabeigšanas jāpārbauda vai jāpapildina krājumi.",
     "open": "Krājumu saskaņotība",
     "title": "Vienotā inventāra saskaņotība",
     "subtitle": "Pirms ražošanas patēriņa salīdziniet materiālu kanoniskos atlikumus ar vecajiem noliktavas ierakstiem.",
