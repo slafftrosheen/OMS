@@ -14,6 +14,8 @@
     notes?:string|null;
   };
   type FileRow={id:string;originalName?:string;mimeType?:string;size?:number};
+  type ConsumptionRow={station:string;sku?:string|null;name?:string|null;
+    total_quantity:number|string;last_logged_at?:string|null};
   let {orderId,station,onClose}:{
     orderId:string;station:string;onClose:()=>void;
   }=$props();
@@ -27,7 +29,10 @@
   }|null>(null);
   let files=$state<FileRow[]>([]);
   let fileTotal=$state<number|null>(null);
-  let currentStage=$state<{state:string;blocked_reason?:string|null;notes?:string|null}|null>(null);
+  let currentStage=$state<{state:string;blocked_reason?:string|null;notes?:string|null;
+    consumption_skipped?:boolean;consumption_skipped_reason?:string|null}|null>(null);
+  let consumed=$state<ConsumptionRow[]>([]);
+  let consumptionUnavailable=$state(false);
   let expandedProfile=$state<number|null>(null);
   let requestVersion=0;
   async function refresh(){
@@ -36,10 +41,11 @@
     try{
       // These are existing authenticated RLS-backed endpoints, never
       // model-created specifications or caller-supplied profile JSON.
-      const [orderResponse,filePage,stagesResponse]=await Promise.all([
+      const [orderResponse,filePage,stagesResponse,consumptionResponse]=await Promise.all([
         fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}`,{cache:'no-store'}),
         fetchOrderFilePage<FileRow>(orderId,0,50),
-        fetch(`${base}/api/orders/${encodeURIComponent(orderId)}/stages`,{cache:'no-store'})
+        fetch(`${base}/api/orders/${encodeURIComponent(orderId)}/stages`,{cache:'no-store'}),
+        fetch(`${base}/api/orders/${encodeURIComponent(orderId)}/consumption`,{cache:'no-store'})
       ]);
       if(!orderResponse.ok)throw Error($t('productionPacket.loadFailed'));
       const snapshot=await orderResponse.json();
@@ -56,8 +62,22 @@
           typeof row.state==='string'
       ):null;
       if(!found)throw Error($t('productionPacket.loadFailed'));
+      let ledger:ConsumptionRow[]=[];
+      let ledgerError=!consumptionResponse.ok;
+      if(!ledgerError){
+        const rows=await consumptionResponse.json().catch(()=>null);
+        if(!Array.isArray(rows))ledgerError=true;
+        else ledger=rows.filter((row:unknown)=>row!==null&&typeof row==='object'&&
+          typeof (row as ConsumptionRow).station==='string'&&
+          (typeof (row as ConsumptionRow).total_quantity==='number'||
+            typeof (row as ConsumptionRow).total_quantity==='string'))
+          .slice(0,100);
+      }
       if(version!==requestVersion)return;
-      currentStage={state:found.state,blocked_reason:found.blocked_reason,notes:found.notes};
+      currentStage={state:found.state,blocked_reason:found.blocked_reason,notes:found.notes,
+        consumption_skipped:found.consumption_skipped,
+        consumption_skipped_reason:found.consumption_skipped_reason};
+      consumed=ledger;consumptionUnavailable=ledgerError;
       order=snapshot;
       files=filePage.files;
       fileTotal=filePage.total;
@@ -66,6 +86,7 @@
       if(version===requestVersion){
         // Never present an old production profile as current after a failed refresh.
         order=null;files=[];fileTotal=null;currentStage=null;
+        consumed=[];consumptionUnavailable=false;
         issue=$t('productionPacket.loadFailed');
       }
     }finally{if(version===requestVersion)busy=false;}
@@ -97,6 +118,10 @@
       {/if}
       {#if currentStage.notes}
         <p class="reason">{$t('productionPacket.stationNotes')}: {currentStage.notes}</p>
+      {/if}
+      {#if currentStage.consumption_skipped===true}
+        <p role="status">{$t('productionExecution.materialSkipRecorded')}
+          {currentStage.consumption_skipped_reason??''}</p>
       {/if}
     </div>
   {/if}
@@ -174,6 +199,24 @@
       </ul>
       {#if fileTotal!==null && fileTotal>files.length}
         <p class="muted">{$t('productionPacket.moreFiles',{values:{shown:files.length,total:fileTotal}})}</p>
+      {/if}
+    {/if}
+    <h3>{$t('productionExecution.ledger')}</h3>
+    {#if consumptionUnavailable}
+      <p class="alert" role="status">{$t('productionExecution.ledgerUnavailable')}</p>
+    {:else if consumed.length===0}
+      <p class="muted">{$t('productionExecution.noDeclaredMaterials')}</p>
+    {:else}
+      <ul class="files">
+        {#each consumed as item,i (i)}
+          <li>
+            <span>{item.station} · {item.sku??item.name??'—'}</span>
+            <strong>{item.total_quantity}</strong>
+          </li>
+        {/each}
+      </ul>
+      {#if consumed.length>=100}
+        <p class="muted">{$t('productionExecution.ledgerPartial')}</p>
       {/if}
     {/if}
     <a class="order-link" href={`${base}/orders/${encodeURIComponent(orderId)}`}>
