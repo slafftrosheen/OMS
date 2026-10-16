@@ -1,6 +1,7 @@
 // src/routes/api/inventory/items/[id]/+server.ts
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import {canManageSharedInventory} from '$lib/server/authz/shared-data';
 
 /**
  * GET /api/inventory/items/[id] - Get single item
@@ -44,7 +45,14 @@ export const GET: RequestHandler = async ({ params, locals }) => {
  * Now updates unified materials table
  */
 export const PUT: RequestHandler = async ({ params, request, locals }) => {
-  const data = await request.json();
+  if(!locals.user)throw error(401,'Unauthorized');
+  if(!canManageSharedInventory(locals.user.role))
+    throw error(403,'Inventory management role required');
+  const data = await request.json().catch(()=>null);
+  if(!data||typeof data!=='object'||Array.isArray(data))
+    throw error(400,'Invalid inventory item update');
+  if(data.stock!==undefined)
+    throw error(409,'Change stock through the audited inventory movement workflow');
 
   const updates: any = { updated_at: new Date().toISOString() };
   if (data.sku !== undefined) updates.sku = data.sku;
@@ -54,7 +62,6 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
   if (data.group !== undefined) updates.item_group = data.group;
   if (data.subgroup !== undefined) updates.subgroup = data.subgroup;
   if (data.unit !== undefined) updates.unit = data.unit;
-  if (data.stock !== undefined) updates.stock = data.stock;
   if (data.min !== undefined) updates.min_stock = data.min;
   if (data.max_stock !== undefined) updates.max_stock = data.max_stock;
   if (data.thicknessMM !== undefined) updates.thickness_mm = data.thicknessMM;
@@ -115,6 +122,9 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
  * Now deletes from unified materials table
  */
 export const DELETE: RequestHandler = async ({ params, locals }) => {
+  if(!locals.user)throw error(401,'Unauthorized');
+  if(!canManageSharedInventory(locals.user.role))
+    throw error(403,'Inventory management role required');
   const { error: deleteError } = await locals.supabase
     .from('materials')
     .delete()
