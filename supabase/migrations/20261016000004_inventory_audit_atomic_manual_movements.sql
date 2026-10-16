@@ -112,6 +112,13 @@ $$;
 -- Authenticated users must not bypass this atomic manager-only manual write
 -- via direct inventory movement INSERT. SECURITY DEFINER station completion
 -- remains a separate, canonical inventory path for production operators.
+-- The older consume_materials_for_order RPC has a caller-supplied actor UUID
+-- and can deduct stock without a stage transition. Keep it private to DB
+-- owners/service role; the R02/R38 SECURITY DEFINER completion uses it.
+REVOKE ALL ON FUNCTION public.consume_materials_for_order(UUID,TEXT,JSONB,UUID)
+ FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.consume_materials_for_order(UUID,TEXT,JSONB,UUID)
+ TO service_role;
 DROP POLICY IF EXISTS "Authenticated users can record movements"
  ON public.inventory_movements;
 REVOKE INSERT,UPDATE,DELETE ON public.inventory_movements FROM authenticated,anon;
