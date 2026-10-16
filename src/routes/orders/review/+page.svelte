@@ -35,6 +35,10 @@
   let poInput = $state('');
   let confirming = $state(false);
   let confirmError = $state('');
+  let confirmRevision = $state<string|null>(null);
+  let confirmFiles = $state<number|null>(null);
+  let confirmLoading = $state(false);
+  let confirmLoadSequence = 0;
 
   let rejectTarget = $state<PendingOrder | null>(null);
   let rejectReason = $state('');
@@ -67,34 +71,83 @@
     }
   }
 
-  function openConfirm(order: PendingOrder) {
-    confirmTarget = order;
-    poInput = order.po_number ?? '';
-    confirmError = '';
+  async function openConfirm(order: PendingOrder) {
+    const sequence=++confirmLoadSequence;
+    confirmTarget=order;
+    poInput=order.po_number??'';
+    confirmError='';
+    confirmRevision=null;confirmFiles=null;confirmLoading=true;
+    try{
+      // The queue is a summary; obtain a current, versioned snapshot before
+      // allowing this manager to release the order to production.
+      const response=await fetch(
+        `${base}/api/draft-orders/${encodeURIComponent(order.id)}`,
+        {cache:'no-store'}
+      );
+      if(!response.ok)throw new Error($t('orderWorkspace.confirmReloadRequired'));
+      const latest=await response.json();
+      if(sequence!==confirmLoadSequence||confirmTarget?.id!==order.id)return;
+      if(!['DRAFT','draft','PENDING_REVIEW'].includes(latest.status) ||
+         typeof latest.updatedAt!=='string')
+        throw new Error($t('orderWorkspace.confirmReloadRequired'));
+      if(!Array.isArray(latest.files))
+        throw new Error($t('orderWorkspace.confirmFilesUnknown'));
+      confirmRevision=latest.updatedAt;
+      confirmFiles=latest.files.length;
+      confirmTarget={...order,status:latest.status,
+        client:String(latest.clientName??order.client),
+        title:latest.title??order.title,
+        due_date:latest.deadline??order.due_date,
+        file_count:latest.files.length,
+        profile_count:Array.isArray(latest.profiles)?latest.profiles.length:order.profile_count};
+      if(confirmFiles===0)confirmError=$t('orderWorkspace.confirmFilesMissing');
+    }catch(err){
+      if(sequence===confirmLoadSequence)
+        confirmError=err instanceof Error?err.message:$t('orderWorkspace.confirmReloadRequired');
+    }finally{
+      if(sequence===confirmLoadSequence)confirmLoading=false;
+    }
   }
 
   function closeConfirm() {
-    confirmTarget = null;
-    poInput = '';
-    confirmError = '';
+    if(confirming)return;
+    ++confirmLoadSequence;
+    confirmTarget=null;
+    poInput='';
+    confirmError='';
+    confirmRevision=null;confirmFiles=null;confirmLoading=false;
   }
 
   async function submitConfirm() {
-    if (!confirmTarget) return;
+    if (!confirmTarget||confirming||confirmLoading)return;
+    if(!confirmRevision || !confirmFiles){
+      confirmError=$t(confirmFiles===0
+        ?'orderWorkspace.confirmFilesMissing':'orderWorkspace.confirmReloadRequired');
+      return;
+    }
     confirming = true;
     confirmError = '';
     try {
-      const res = await fetch(`${base}/api/draft-orders/${confirmTarget.id}/confirm`, {
+      const res = await fetch(`${base}/api/draft-orders/${encodeURIComponent(confirmTarget.id)}/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ poNumber: poInput.trim() }),
+        body: JSON.stringify({
+          poNumber:poInput.trim(),expectedUpdatedAt:confirmRevision
+        }),
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        confirmError = payload?.error ?? `HTTP ${res.status}`;
+        confirmError = res.status===409||res.status===428
+          ?$t('orderWorkspace.confirmReloadRequired')
+          :payload?.error ?? `HTTP ${res.status}`;
         return;
       }
-      closeConfirm();
+      // The reply reflects an authorized, atomic release (or an idempotent
+      // retry). Clear the dialog only after the server accepts it.
+      ++confirmLoadSequence;
+      confirmTarget=null;
+      poInput='';
+      confirmRevision=null;confirmFiles=null;
       await load();
     } catch (err: any) {
       confirmError = err?.message ?? 'Failed to confirm';
@@ -202,7 +255,7 @@
               <Button variant="secondary" onclick={() => goto(`${base}/orders/${order.id}`)}>
                 {$t('actions.open', { default: 'Open' })}
               </Button>
-              <Button variant="primary" onclick={() => openConfirm(order)} disabled={!canAssignPo && !order.po_number}>
+              <Button variant="primary" onclick={() => void openConfirm(order)} disabled={!canAssignPo && !order.po_number}>
                 <Icon name="check" size="sm" />
                 {$t('orders.review.confirm', { default: 'Confirm & assign PO' })}
               </Button>
@@ -276,6 +329,16 @@
         <p class="muted">
           {confirmTarget.internal_ref} · {confirmTarget.client}
         </p>
+        {#if confirmLoading}
+          <p class="muted" role="status">{$t('orderWorkspace.confirmChecking')}</p>
+        {:else if confirmFiles!==null}
+          <p class="muted">
+            {$t('orderWorkspace.confirmLinkedFiles',{values:{count:confirmFiles}})}
+          </p>
+        {/if}
+        {#if confirmTarget.status==='DRAFT' || confirmTarget.status==='draft'}
+          <p class="muted" role="status">{$t('orderWorkspace.confirmDirectDraft')}</p>
+        {/if}
         <label for="po-input">
           {$t('orders.review.po_label', { default: 'PO number (provided by Boss)' })}
         </label>
@@ -311,7 +374,9 @@
         <Button variant="secondary" onclick={closeConfirm}>
           {$t('actions.cancel', { default: 'Cancel' })}
         </Button>
-        <Button variant="primary" onclick={submitConfirm} disabled={confirming || !poInput.trim()}>
+        <Button variant="primary" onclick={submitConfirm} disabled={
+          confirming || confirmLoading || !confirmRevision || !confirmFiles || !poInput.trim()
+        }>
           {#if confirming}
             <Icon name="loader" size="sm" />
             {$t('actions.confirming', { default: 'Confirming…' })}
