@@ -36,8 +36,11 @@ It additionally creates an explicitly revision-checked overload,
 calls the established two-argument function. An old direct caller can continue
 using the two-argument RPC (but it still receives the attachment requirement).
 The application confirmation endpoint now uses only the three-argument RPC,
-which must be installed **before deploying R36 app code**. No new tables,
-columns, order-form fields or automatically issued PO values are added.
+which must be installed **before deploying R36 app code**. The migration sends
+a `NOTIFY pgrst, 'reload schema'` signal so self-hosted PostgREST can discover
+the overload; confirm the schema cache refreshed on the actual deployment.
+No new tables, columns, order-form fields or automatically issued PO values
+are added.
 
 ## Server confirmation
 
@@ -97,8 +100,10 @@ EN/RU/LV user-facing confirmation preflight messages are included.
    a new snapshot. Verify the modal displays the correct linked filenames and
    profile count.
 6. Simultaneously send two valid confirmation requests from authorized users.
-   Exactly one should transition the order and notify staff; the other should
-   be stale or idempotent, never duplicate production/station notifications.
+   Exactly one should transition the order; the other should be stale or
+   idempotent, never duplicate production/station notifications. Delivery of
+   external notifications is still **best effort**, not guaranteed exactly once
+   across crashes or transport failures.
 7. Confirm that HoP cannot invent/assign the PO, and Boss can supply the
    externally issued PO. Preserve all existing role and visibility checks.
 8. Repeat DRAFT and PENDING_REVIEW paths in EN/RU/LV and verify the DRAFT
