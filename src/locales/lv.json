@@ -1958,6 +1958,11 @@
     "technicalChecks": "Tehnisko datu pārbaude"
   },
   "orderAssistant": {
+    "saveBeforePropose": "Pirms MI lauku ieteikumu pieprasīšanas saglabājiet pasūtījuma izmaiņas.",
+    "reviewStale": "Ieteikumi attiecas uz vecāku pasūtījuma versiju vai mainītiem laukiem. Saglabājiet vai pārlādējiet un pieprasiet ieteikumus vēlreiz.",
+    "noDifference": "Vērtība jau sakrīt ar pašreizējo.",
+    "confidence": {"high":"Augsta pārliecība","medium":"Vidēja pārliecība","low":"Zema pārliecība"},
+    "fieldNames": {"clientName":"Klients","title":"Pasūtījuma nosaukums","deadline":"Termiņš","loadingDate":"Iekraušanas datums","priority":"Prioritāte","notes":"Pasūtījuma piezīmes","deliveryAddress":"Piegādes adrese","deliveryContact":"Kontaktpersona","deliveryPhone":"Tālrunis","deliveryEmail":"E-pasts","isRd":"R&D pasūtījums","rdNotes":"R&D piezīmes"},
     "askAboutThisProfile": "Jautāt MI par šo profilu",
     "profileSpecificQuestion": "Pārskati tikai šī pasūtījuma saglabāto ražošanas profilu Nr. {number}. Pārbaudi aktīvās CNC, BENDER, FRONT, PAINTING un ASSEMBLING izvēles, norādi trūkstošās prasības un pretrunas. Neuzskati izslēgtās opcijas par aktīvām un neizdomā rasējumu datus vai iekārtu iespējas.",
     "applyNativeProfile": "Pielietot melnrakstam",
@@ -2056,6 +2061,12 @@
     "nativeProfileQuestion": "Pārskati saglabātās CNC, BENDER, FRONT, PAINTING un ASSEMBLING profila izvēles. Nosauc trūkstošās prasības un pretrunas. Neizdomā izmērus, krājumus vai iekārtu iespējas."
   },
   "orderIntake": {
+    "profileFocus": "Ražošanas profils salīdzināšanai",
+    "wholeOrder": "Viss pasūtījums / bez konkrēta profila",
+    "profileFocusHint": "Neobligāti. Salīdzina izvēlēto PDF vai attēlu ar saglabātu profilu, nemainot ražošanas izvēles.",
+    "openForProfile": "Analizēt rasējumu šim profilam",
+    "saveFirst": "Pirms MI analīzes vai ieteikumu pielietošanas saglabājiet izmaiņas. Nosūtīti tiek tikai saglabāti profili un piezīmes.",
+    "selectionChanged": "Izvēlēts cits fails vai profils. Pirms ieteikumu izmantošanas veiciet analīzi vēlreiz.",
     "sourceChanged": "Avota fails pēc analīzes ir mainīts. Pirms piemērošanas analizējiet jauno failu.",
     "noSource": "Pirms analīzes izvēlieties pielikumu vai saglabājiet pasūtījuma piezīmes.",
     "locale": "lv",
