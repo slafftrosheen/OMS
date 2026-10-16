@@ -49,8 +49,15 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     console.error('[Stage completion] atomic RPC rejected', rpcError);
     const missing = rpcError.code === 'PGRST202' || /Could not find the function/.test(rpcError.message || '');
     const stale = rpcError.code === 'P0001';
+    const message=rpcError.message??'';
+    const inventoryMismatch=stale&&/legacy.*(stock|mapping|balance)|inventory balances|unmapped/i.test(message);
+    const shortage=stale&&!inventoryMismatch&&/insufficient canonical stock|canonical stock insufficient|insufficient stock/i.test(message);
     return json({
+      reason:inventoryMismatch?'INVENTORY_PARITY':shortage?'INSUFFICIENT_STOCK':
+        missing?'MIGRATION_MISSING':'STAGE_CHANGED',
       error: missing ? 'Stage-completion database migration is not installed' :
+        inventoryMismatch?'Inventory balances differ or legacy mapping is invalid; management reconciliation required':
+        shortage?'Not enough canonical material stock for this production declaration':
         stale?'Stage changed or has unresolved block/rework. Refresh the workstation and production packet.':
         'Stage completion rejected: check stage state, materials and permissions'
     }, { status: missing ? 503 : 409 });
