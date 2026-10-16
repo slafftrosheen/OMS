@@ -1305,7 +1305,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
           {#if orderId}
             <OrderIntakeAssistant {orderId} editable={canEdit} current={intakeCurrent}
               selectedFileId={intakeFileId} selectedProfileIndex={intakeProfileIndex}
-              profileNames={intakeProfileNames} dirty={hasUnsavedChanges}
+              profileNames={intakeProfileNames} dirty={formDirty}
               {orderUpdatedAt} onApply={applyIntakeFields} />
           {/if}
         {:else if rightTab === 'files'}
