@@ -25,7 +25,6 @@ const properties={
    'frameDimensions','frameCustom','frameWaterholes','frameMountingHoles','shablon','notes']
 } as const;
 type ProductionSection=keyof typeof properties;
-type ProductionSection=keyof typeof properties;
 
 // Form controls may retain an old selection when its parent checkbox becomes
 // inactive. Such hidden values are preserved in order JSON but are NOT current
