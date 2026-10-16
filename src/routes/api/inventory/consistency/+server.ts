@@ -52,3 +52,45 @@ export const GET:RequestHandler=async ({locals,url})=>{
    rows
  },{headers});
 };
+
+/** Manager-recorded physical count with atomic stale-snapshot check.
+ * This NEVER chooses canonical or legacy values as the true physical stock.
+ */
+export const POST:RequestHandler=async ({locals,request})=>{
+ if(!locals.user)throw error(401,'Unauthorized');
+ if(!canManageSharedInventory(locals.user.role))
+   throw error(403,'Only inventory managers can reconcile stock');
+ const body=await request.json().catch(()=>null);
+ const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+ if(!body||typeof body!=='object'||Array.isArray(body)||
+   typeof body.materialId!=='string'||!uuid.test(body.materialId)||
+   typeof body.requestId!=='string'||!uuid.test(body.requestId)||
+   !Number.isSafeInteger(body.physicalCount)||body.physicalCount<0||
+   body.physicalCount>100000000||
+   !Number.isSafeInteger(body.expectedCanonicalStock)||
+   !Number.isSafeInteger(body.expectedLegacyStock)||
+   typeof body.reason!=='string'||body.reason.trim().length<10||
+   body.reason.length>1000)
+   throw error(400,'Physical count, saved balances, request ID and reconciliation explanation required');
+ const {data,error:dbError}=await locals.supabase.rpc(
+   'oms_reconcile_inventory_stock',{
+     p_request_id:body.requestId,
+     p_material_id:body.materialId,
+     p_new_stock:body.physicalCount,
+     p_expected_canonical_stock:body.expectedCanonicalStock,
+     p_expected_legacy_stock:body.expectedLegacyStock,
+     p_reason:body.reason.trim()
+   }
+ );
+ if(dbError){
+   if(dbError.code==='42501')throw error(403,'Inventory management permission denied');
+   if(dbError.code==='22023')throw error(400,'Invalid reconciliation count or reason');
+   if(dbError.code==='P0002')throw error(404,'Material no longer exists');
+   if(dbError.code==='P0001')throw error(409,
+     'Stock changed or legacy mapping is ambiguous; refresh and recount before another decision');
+   console.error('[Inventory consistency] reconciliation failed',dbError);
+   throw error(503,'Inventory reconciliation result uncertain; retry the same request ID, not a new one');
+ }
+ if(!data?.id)throw error(503,'Audit receipt unavailable; inspect stock and movements before retry');
+ return json({ok:true,receipt:data},{status:200,headers});
+};
