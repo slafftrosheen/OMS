@@ -217,6 +217,7 @@
       </header>
 
       <div class="modal-body">
+        <p class="hint" role="note">{$t('productionExecution.reviewReminder')}</p>
         <div class="mode-toggle" role="tablist">
           <button
             class="mode-btn"
