@@ -1742,6 +1742,7 @@
     "delete": "Dzēst"
   },
   "orderWorkspace": {
+    "confirmProfilesCount": "Pasūtījumā saglabātie profili: {count}",
     "confirmProductionWarning": "Pasūtījums tiks nodots ražošanai. Vispirms pārbaudiet klientu, termiņu, sākotnējās profilu izvēles, rasējumus un ārēji piešķirto PO numuru.",
     "confirmDirectDraft": "Pasūtījums joprojām ir MELNRAKSTS. Apstiprinot tagad, tiek izlaista saskaņošanas rinda. Turpiniet tikai tad, ja vadība apzināti veic tiešu apstiprināšanu.",
     "confirmFilesUnknown": "Neizdevās pārbaudīt pievienotos failus. Pirms apstiprināšanas atsvaidziniet pasūtījumu.",
