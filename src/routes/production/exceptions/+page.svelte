@@ -1,13 +1,16 @@
 <script lang="ts">
   import {onMount} from 'svelte';
+  import {page} from '$app/state';
   import {base} from '$app/paths';
   import {t} from 'svelte-i18n';
   import {currentUser} from '$lib/auth/authState.svelte';
   import type {PerformanceSummary} from '$lib/order/production-performance';
   import type {ApprovedReservationHours} from '$lib/order/capacity-forecast';
   import type {ExceptionReview,ReviewAction,ReviewKind} from '$lib/order/production-exceptions';
-  import {detectProductionExceptions,mergeProductionReviews}
+  import {detectProductionExceptions,mergeProductionReviews,oversightProductionFindings}
     from '$lib/order/production-exception-queue';
+  import type {ProductionOversight} from '$lib/order/production-oversight';
+  import {REVIEW_KINDS} from '$lib/order/production-exceptions';
   import type {ReviewQueueItem} from '$lib/order/production-exception-queue';
 
   let performance=$state<PerformanceSummary|null>(null);
@@ -16,9 +19,17 @@
   let reviewsReady=$state(false);
   let loading=$state(false),saving=$state(false);
   let failure=$state(''),reviewFailure=$state(''),bookingWarning=$state('');
+  let oversightWarning=$state('');
+  let oversight=$state<ProductionOversight|null>(null);
+  let oversightReady=$state(false);
   let mutationError=$state(''),saved=$state(false);
-  let showResolved=$state(false),mineOnly=$state(false),station=$state('ALL');
-  let kind=$state<'ALL'|ReviewKind>('ALL');
+  let showResolved=$state(false),mineOnly=$state(false);
+  let station=$state(page.url.searchParams.get('station')??'ALL');
+  let focusOrder=$state(page.url.searchParams.get('orderId')??'');
+  const initialKind=page.url.searchParams.get('kind');
+  let kind=$state<'ALL'|ReviewKind>(
+    initialKind&&REVIEW_KINDS.includes(initialKind as ReviewKind)
+      ?initialKind as ReviewKind:'ALL');
   let displayCount=$state(40);
   let editingKey=$state<string|null>(null);
   let editorAction=$state<ReviewAction>('claim');
@@ -37,16 +48,30 @@
     const get=(name:string)=>parts.find(p=>p.type===name)?.value??'';
     return `${get('year')}-${get('month')}-${get('day')}`;
   }
-  let issues=$derived(performance?detectProductionExceptions(
-    performance,bookings,todayInRiga()):[]);
-  // The bookings feed being unavailable is not evidence that there were no missed dates.
+  let issues=$derived(performance?[
+    ...detectProductionExceptions(performance,bookings,todayInRiga()),
+    ...(canManage&&oversightReady&&oversight
+      ?oversightProductionFindings(oversight):[])
+  ]:[]);
+  // Missing R39 evidence is not evidence the issue was resolved, and a
+  // bounded preview must not call out-of-preview reviews "no longer current".
+  // Similarly preserve the R25 missed-booking coverage distinction.
   let rows=$derived(mergeProductionReviews(issues,
-    bookings===null?reviews.filter(r=>r.kind!=='MISSED_BOOKING'):reviews));
+    reviews.filter(r=>(bookings!==null||r.kind!=='MISSED_BOOKING')&&
+      (canManage&&oversightReady||
+        !['STAGE_UNCHANGED','MATERIAL_SKIPPED'].includes(r.kind))))
+    .map(r=>({
+      ...r,
+      sourceCoverageUnknown:!r.sourceActive&&
+        ['STAGE_UNCHANGED','MATERIAL_SKIPPED'].includes(r.kind)&&
+        oversight?.truncated===true
+    })));
   let visible=$derived(rows.filter(r=>
     (showResolved||r.review?.status!=='RESOLVED')&&
     (!mineOnly||r.review?.owner_id===$currentUser?.id)&&
     (station==='ALL'||r.station===station)&&
-    (kind==='ALL'||r.kind===kind)));
+    (kind==='ALL'||r.kind===kind)&&
+    (!focusOrder||r.orderId===focusOrder)));
   let outstanding=$derived(rows.filter(r=>r.sourceActive&&r.review?.status!=='RESOLVED').length);
   let unclaimed=$derived(rows.filter(r=>r.sourceActive&&r.review===null).length);
   let awaiting=$derived(rows.filter(r=>r.review?.status==='ACKNOWLEDGED').length);
@@ -58,13 +83,18 @@
     if(loading)return;
     const generation=++version;
     loading=true;failure='';reviewFailure='';bookingWarning='';
+    oversightWarning='';oversight=null;oversightReady=false;
     mutationError='';saved=false;reviewsReady=false;
     performance=null;bookings=null;reviews=[];
     try{
-      const [p,r,b]=await Promise.allSettled([
+      const managerSnapshot=canManage;
+      const [p,r,b,o]=await Promise.allSettled([
         fetch(`${base}/api/production/performance?days=90`,{cache:'no-store'}),
         fetch(`${base}/api/production/exception-reviews`,{cache:'no-store'}),
-        fetch(`${base}/api/production/commitments`,{cache:'no-store'})
+        fetch(`${base}/api/production/commitments`,{cache:'no-store'}),
+        managerSnapshot
+          ?fetch(`${base}/api/production/board`,{cache:'no-store'})
+          :Promise.resolve(null)
       ]);
       if(p.status!=='fulfilled'||!p.value.ok)throw Error($t('productionExceptions.loadFailed'));
       const report=await p.value.json();
@@ -84,6 +114,18 @@
           bookings=approved.commitments;
         else bookingWarning=$t('productionExceptions.bookingsUnavailable');
       }else bookingWarning=$t('productionExceptions.bookingsUnavailable');
+      if(managerSnapshot){
+        if(o.status==='fulfilled'&&o.value?.ok){
+          const board=await o.value.json();
+          if(generation!==version)return;
+          if(board?.success && board.oversight &&
+            Array.isArray(board.oversight.signals) &&
+            typeof board.oversight.truncated==='boolean'){
+            oversight=board.oversight;
+            oversightReady=true;
+          }else oversightWarning=$t('productionExceptions.oversightUnavailable');
+        }else oversightWarning=$t('productionExceptions.oversightUnavailable');
+      }
     }catch(e){
       if(generation===version){performance=null;failure=e instanceof Error?e.message:
         $t('productionExceptions.loadFailed');}
@@ -161,6 +203,12 @@
   {#if failure}<p role="alert" class="error">{failure}</p>{/if}
   {#if reviewFailure}<p role="alert" class="error">{reviewFailure}</p>{/if}
   {#if bookingWarning}<p role="alert" class="warning">{bookingWarning}</p>{/if}
+  {#if oversightWarning}<p role="alert" class="warning">{oversightWarning}</p>{/if}
+  {#if oversight?.truncated&&canManage}
+    <p class="warning" role="note">{$t('productionExceptions.oversightPreviewLimited',{
+      values:{limit:oversight.previewLimit,total:oversight.total}
+    })}</p>
+  {/if}
   {#if saved}<p role="status" class="success">{$t('productionExceptions.saved')}</p>{/if}
   {#if performance}
     <div class="metrics">
@@ -186,6 +234,8 @@
           <option value="BLOCKED">{$t('productionExceptions.kind.BLOCKED')}</option>
           <option value="REWORK">{$t('productionExceptions.kind.REWORK')}</option>
           <option value="MISSED_BOOKING">{$t('productionExceptions.kind.MISSED_BOOKING')}</option>
+          <option value="STAGE_UNCHANGED">{$t('productionExceptions.kind.STAGE_UNCHANGED')}</option>
+          <option value="MATERIAL_SKIPPED">{$t('productionExceptions.kind.MATERIAL_SKIPPED')}</option>
         </select>
       </label>
       <label class="check"><input type="checkbox" bind:checked={showResolved}/>
@@ -193,6 +243,12 @@
       <label class="check"><input type="checkbox" bind:checked={mineOnly}/>
         {$t('productionExceptions.mine')}</label>
     </section>
+    {#if focusOrder}
+      <p class="hint" role="status">
+        {$t('productionExceptions.filteredOrder')}
+        <button type="button" onclick={()=>focusOrder=''}>{$t('productionExceptions.clearOrderFilter')}</button>
+      </p>
+    {/if}
     {#if !canManage}<p class="hint">{$t('productionExceptions.readOnly')}</p>{/if}
     <section class="findings" aria-label={$t('productionExceptions.queue')}>
       {#each visible.slice(0,displayCount) as row (row.key)}
@@ -205,7 +261,11 @@
                 {$t(`productionExceptions.state.${row.review?.status??'UNCLAIMED'}`)}
               </span>
               {#if !row.sourceActive}
-                <span class="pill">{$t('productionExceptions.notCurrent')}</span>
+                <span class="pill">
+                  {$t(row.sourceCoverageUnknown
+                    ?'productionExceptions.sourceOutsidePreview'
+                    :'productionExceptions.notCurrent')}
+                </span>
               {/if}
             </div>
             <a href={`${base}/orders/${encodeURIComponent(row.orderId)}`}>
@@ -217,6 +277,7 @@
             {$t(`productionExceptions.detail.${row.details}`)}
             {#if row.hours!==null} · {row.hours} h{/if}
             {#if row.referenceDate} · {row.referenceDate}{/if}
+            {#if row.sourceNote}<span class="source-note"> · {row.sourceNote}</span>{/if}
           </p>
           {#if row.review}
             <div class="review-info">
