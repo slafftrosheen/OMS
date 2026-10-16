@@ -572,9 +572,6 @@
       onclick={e=>e.stopPropagation()} onkeydown={e=>e.stopPropagation()}>
       {#key packetTarget.id}
         <StationProductionPacket orderId={packetTarget.id} {station}
-          stageState={packetTarget.stage.state}
-          blockedReason={packetTarget.stage.blocked_reason}
-          stageNotes={packetTarget.stage.notes}
           onClose={()=>packetTarget=null}/>
       {/key}
     </div>
