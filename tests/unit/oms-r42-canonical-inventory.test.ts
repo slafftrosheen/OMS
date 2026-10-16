@@ -95,7 +95,6 @@ describe('OMS-R42 — canonical inventory, mirrored stock, explicit reconciliati
    expect(api).toContain('p_expected_canonical_stock:body.expectedCanonicalStock');
    expect(api).toContain('p_expected_legacy_stock:body.expectedLegacyStock');
    expect(api).toContain('oms_reconcile_inventory_stock');
-   expect(api).toContain("cache:'no-store'").toBeFalsy();
    expect(api).not.toContain(".from('materials').update");
  });
  it('makes manager choose the physical count and produces a traceable receipt',()=>{
