@@ -1415,6 +1415,8 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "inventoryConsistency": {
+    "operatorMismatch": "Stock records disagree or the material is not mapped correctly. Do not retry completion repeatedly. Ask management to check Inventory → Stock consistency, physically count the material and record an audited reconciliation.",
+    "operatorShortage": "Insufficient canonical material stock. Ask inventory management to verify availability or replenish stock before completing this stage.",
     "open": "Stock consistency",
     "title": "Canonical inventory consistency",
     "subtitle": "Compare materials (source of truth) with legacy inventory-item mirrors before production consumption.",
