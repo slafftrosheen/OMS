@@ -30,6 +30,7 @@ DECLARE
  v_note TEXT;
  v_low JSONB:='[]'::jsonb;
  v_consumed INTEGER:=0;
+ v_seen_materials UUID[]:='{}';
 BEGIN
  IF p_items IS NULL OR jsonb_typeof(p_items)<>'array' THEN
    RAISE EXCEPTION 'Material lines must be an array' USING ERRCODE='22023';
@@ -48,6 +49,11 @@ BEGIN
    IF v_material_id IS NULL THEN
      RAISE EXCEPTION 'Unmapped stock item' USING ERRCODE='P0001';
    END IF;
+   IF v_material_id=ANY(v_seen_materials) THEN
+     RAISE EXCEPTION 'Duplicate canonical material through different aliases'
+       USING ERRCODE='P0001';
+   END IF;
+   v_seen_materials:=array_append(v_seen_materials,v_material_id);
    SELECT stock,coalesce(min_stock,0),sku,name_en
      INTO v_stock,v_min,v_sku,v_name
      FROM public.materials WHERE id=v_material_id FOR UPDATE;
@@ -121,6 +127,7 @@ DECLARE
     v_material_id UUID;
     v_legacy_stock INTEGER;
     v_legacy_count INTEGER;
+    v_seen_materials UUID[]:='{}';
     v_item JSONB;
     v_item_id UUID;
     v_quantity INTEGER;
@@ -197,6 +204,11 @@ BEGIN
           RAISE EXCEPTION 'Material is unmapped; check inventory consistency'
             USING ERRCODE='P0001';
         END IF;
+        IF v_material_id=ANY(v_seen_materials) THEN
+          RAISE EXCEPTION 'Same canonical material declared more than once'
+            USING ERRCODE='P0001';
+        END IF;
+        v_seen_materials:=array_append(v_seen_materials,v_material_id);
         SELECT stock INTO v_stock FROM public.materials
           WHERE id=v_material_id FOR UPDATE;
         IF NOT FOUND OR v_stock IS NULL OR v_stock<v_quantity THEN
