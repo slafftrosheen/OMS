@@ -228,9 +228,14 @@
                     <p class="oversight-reason">{signal.reason}</p>
                   {/if}
                 </div>
-                <a href={`${base}/orders/${encodeURIComponent(signal.orderId)}`}>
-                  {$t('productionOversight.inspectOrder')}
-                </a>
+                <div class="oversight-actions">
+                  <a href={`${base}/orders/${encodeURIComponent(signal.orderId)}`}>
+                    {$t('productionOversight.inspectOrder')}
+                  </a>
+                  <a href={`${base}/production/exceptions?kind=${encodeURIComponent(signal.kind)}&orderId=${encodeURIComponent(signal.orderId)}&station=${encodeURIComponent(signal.station)}`}>
+                    {$t('productionOversight.reviewQueue')}
+                  </a>
+                </div>
               </article>
             {/each}
           </div>
@@ -334,6 +339,7 @@
   .oversight-row .oversight-reason{color:var(--text)}
   .oversight-row a{display:inline-flex;align-items:center;min-height:38px;
     padding:.35rem .6rem;color:var(--brand);font-size:.8rem}
+  .oversight-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem}
   .oversight-expand{justify-self:start;cursor:pointer}
   .estimate-note{margin:0;font-size:.82rem;color:var(--muted)}
   .loading-board { padding: 1.1rem; border: 1px solid var(--border); border-radius: .8rem; background: var(--bg-1); display: grid; gap: 1rem; }
