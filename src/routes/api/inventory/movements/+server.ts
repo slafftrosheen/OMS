@@ -1,138 +1,83 @@
-// src/routes/api/inventory/movements/+server.ts
-import { json, error } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
+import {json,error} from '@sveltejs/kit';
+import type {RequestHandler} from './$types';
+import {canManageSharedInventory} from '$lib/server/authz/shared-data';
 
-/**
- * GET /api/inventory/movements - List movements
- * Now queries from unified materials table
+const headers={'Cache-Control':'private, no-store'};
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const kinds=new Set(['in','out','adjustment']);
+/** R41: canonical manual stock history; order consumption remains the separate
+ * atomic production-stage RPC. Never forge an order reference or actor.
  */
-export const GET: RequestHandler = async ({ url, locals }) => {
-  const materialId = url.searchParams.get('materialId');
-  const kind = url.searchParams.get('kind');
-  const limit = parseInt(url.searchParams.get('limit') || '50');
-
-  // Query movements with material info
-  let query = locals.supabase
-    .from('inventory_movements')
-    .select(`
-        *,
-        materials(sku, name_en, code)
-    `)
-    .order('created_at', { ascending: false });
-
-  if (materialId) query = query.eq('material_id', materialId);
-  if (kind) query = query.eq('movement_type', kind);
-
-  query = query.limit(limit);
-
-  const { data, error: fetchError } = await query;
-
-  if (fetchError) {
-    console.error('Failed to fetch movements:', fetchError);
-    return json([], { status: 500 });
+export const GET:RequestHandler=async ({locals,url})=>{
+  if(!locals.user)throw error(401,'Unauthorized');
+  const requested=Number(url.searchParams.get('limit')??50);
+  if(!Number.isInteger(requested)||requested<1||requested>200)
+    throw error(400,'Movement limit must be 1–200');
+  const filter=url.searchParams.get('kind');
+  if(filter!==null && !kinds.has(filter) && filter!=='order')
+    throw error(400,'Unsupported inventory movement filter');
+  let query=locals.supabase.from('inventory_movements')
+    .select('id,material_id,movement_type,quantity,reference_id,reference_type,performed_by,notes,created_at,materials(sku,name_en,code,unit)')
+    .order('created_at',{ascending:false}).order('id',{ascending:false});
+  if(filter==='order')query=query.eq('reference_type','order');
+  else if(filter)query=query.eq('movement_type',filter);
+  const materialId=url.searchParams.get('materialId');
+  if(materialId){
+    if(!uuid.test(materialId))throw error(400,'Invalid material ID');
+    query=query.eq('material_id',materialId);
   }
-
-  const movements = data.map(row => ({
-    id: row.id,
-    materialId: row.material_id,
-    sku: row.materials?.sku || row.materials?.code,
-    name: row.materials?.name_en || row.materials?.code,
-    kind: row.movement_type,
-    qty: row.quantity,
-    unit: row.unit_of_measure || 'PCS',
-    by: row.performed_by,
-    refPO: row.reference_type === 'order' ? row.reference_id?.toString() : undefined,
-    note: row.notes,
-    at: row.created_at
-  }));
-
-  return json(movements);
+  const {data,error:dbError}=await query.limit(requested);
+  if(dbError){console.error('[Inventory audit] movement history',dbError);
+    throw error(503,'Inventory movement history unavailable');}
+  return json((data??[]).map(row=>{
+    const material=Array.isArray(row.materials)?row.materials[0]:row.materials;
+    return {
+      id:row.id,materialId:row.material_id,
+      sku:material?.sku??material?.code??null,
+      name:material?.name_en??material?.code??null,
+      kind:row.movement_type,qty:row.quantity,unit:material?.unit??'PCS',
+      by:row.performed_by,
+      refPO:row.reference_type==='order'?row.reference_id:null,
+      note:row.notes,at:row.created_at
+    };
+  }),{headers});
 };
 
-/**
- * POST /api/inventory/movements - Record movement and update stock
- * Now updates unified materials table
- */
-export const POST: RequestHandler = async ({ request, locals }) => {
-  const data = await request.json();
-
-  if (!data.materialId || !data.kind || data.qty === undefined) {
-    return json({ error: 'materialId, kind, and qty are required' }, { status: 400 });
+export const POST:RequestHandler=async ({locals,request})=>{
+  if(!locals.user)throw error(401,'Unauthorized');
+  if(!canManageSharedInventory(locals.user.role))
+    throw error(403,'Only inventory managers can change stock');
+  const body=await request.json().catch(()=>null);
+  if(!body||typeof body!=='object'||Array.isArray(body))
+    throw error(400,'Invalid movement request');
+  if(typeof body.materialId!=='string'||!uuid.test(body.materialId)||
+     typeof body.requestId!=='string'||!uuid.test(body.requestId)||
+     !['IN','OUT','ADJUST'].includes(body.kind)||
+     !Number.isInteger(body.qty)||body.qty<0||body.qty>100000000||
+     (body.kind!=='ADJUST'&&body.qty===0)||
+     (body.note!==undefined&&
+        (typeof body.note!=='string'||body.note.length>1000))||
+     (body.kind==='ADJUST'&&!String(body.note??'').trim()))
+    throw error(400,'Material, movement type, quantity, request ID and reason are required');
+  // Only the stage-completion RPC can write references to an order.
+  if(body.refPO)throw error(409,
+    'Order material consumption must be recorded through stage completion');
+  const {data, error:rpcError}=await locals.supabase.rpc(
+    'oms_record_manual_inventory_movement',{
+      p_request_id:body.requestId,p_material_id:body.materialId,
+      p_kind:body.kind,p_quantity:body.qty,p_note:body.note??null
+    }
+  );
+  if(rpcError){
+    if(rpcError.code==='42501')throw error(403,'Inventory management access denied');
+    if(rpcError.code==='P0001')throw error(409,
+      'Stock changed, insufficient stock or request already used; review current inventory');
+    if(rpcError.code==='22023')throw error(400,'Invalid inventory movement or adjustment reason');
+    if(rpcError.code==='P0002')throw error(404,'Material not found');
+    console.error('[Inventory audit] atomic movement failed',rpcError);
+    throw error(503,'Atomic inventory movement unavailable; do not retry with another request ID');
   }
-
-  try {
-    // Get current material stock
-    const { data: material, error: materialError } = await locals.supabase
-      .from('materials')
-      .select('stock, unit')
-      .eq('id', data.materialId)
-      .single();
-
-    if (materialError || !material) {
-      throw new Error('Material not found');
-    }
-
-    // Calculate new stock
-    let newStock = material.stock;
-    if (data.kind === 'IN') {
-      newStock += data.qty;
-    } else if (data.kind === 'OUT') {
-      newStock -= data.qty;
-    }
-    // ADJUST doesn't change stock automatically - qty is the new stock
-
-    if (data.kind === 'ADJUST') {
-      newStock = data.qty;
-    }
-
-    // Update material stock
-    const { error: updateError } = await locals.supabase
-      .from('materials')
-      .update({ 
-        stock: newStock,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', data.materialId);
-
-    if (updateError) {
-      throw updateError;
-    }
-
-    // Record movement
-    const { data: movement, error: movementError } = await locals.supabase
-      .from('inventory_movements')
-      .insert({
-        material_id: data.materialId,
-        movement_type: data.kind,
-        quantity: data.qty,
-        unit_of_measure: data.unit || material.unit,
-        performed_by: data.by || 'system',
-        reference_type: data.refPO ? 'order' : null,
-        reference_id: data.refPO ? data.refPO : null,
-        notes: data.note || null
-      })
-      .select()
-      .single();
-
-    if (movementError) {
-      throw movementError;
-    }
-
-    return json({
-      id: movement.id,
-      materialId: movement.material_id,
-      kind: movement.movement_type,
-      qty: movement.quantity,
-      unit: movement.unit_of_measure,
-      by: movement.performed_by,
-      refPO: movement.reference_id,
-      note: movement.notes,
-      newStock,
-      at: movement.created_at
-    }, { status: 201 });
-
-  } catch (err: any) {
-    console.error('Failed to record movement:', err);
-    return json({ error: err.message || 'Failed to record movement' }, { status: 500 });
-  }
+  if(!data?.id||typeof data.newStock!=='number')
+    throw error(503,'Inventory receipt unavailable; refresh history before repeating');
+  return json(data,{status:data.idempotent===true?200:201,headers});
 };
