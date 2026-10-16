@@ -28,20 +28,20 @@
     open = $bindable(false),
     orderRef = '',
     station = '',
-    onSubmitted = (_payload: { consumed: number; skipped: boolean; lowStock: any[]; nextStation?:string|null }) => {},
+    onSubmitted = (_payload: { consumed: number; skipped: boolean; lowStock: any[]; nextStation?:string|null;handoffStatusKnown?:boolean }) => {},
     onComplete = async (
       _items: Array<{ item_id: string; quantity: number }>,
       _opts: { skipped: boolean; skipReason: string | null; actualHours?:number|null; notes?:string|null },
-    ) => Promise.resolve({ ok: false }) as Promise<{ ok: boolean; consumed?: number; lowStock?: any[]; nextStation?:string|null; error?: string }>,
+    ) => Promise.resolve({ ok: false }) as Promise<{ ok: boolean; consumed?: number; lowStock?: any[]; nextStation?:string|null;handoffStatusKnown?:boolean;error?: string }>,
   }: {
     open: boolean;
     orderRef: string;
     station: string;
-    onSubmitted?: (p: { consumed: number; skipped: boolean; lowStock: any[]; nextStation?:string|null }) => void;
+    onSubmitted?: (p: { consumed: number; skipped: boolean; lowStock: any[]; nextStation?:string|null;handoffStatusKnown?:boolean }) => void;
     onComplete: (
       items: Array<{ item_id: string; quantity: number }>,
       opts: { skipped: boolean; skipReason: string | null; actualHours?:number|null; notes?:string|null },
-    ) => Promise<{ ok: boolean; consumed?: number; lowStock?: any[]; nextStation?:string|null; error?: string }>;
+    ) => Promise<{ ok: boolean; consumed?: number; lowStock?: any[]; nextStation?:string|null;handoffStatusKnown?:boolean;error?: string }>;
   } = $props();
 
   let search = $state('');
@@ -183,6 +183,7 @@
         skipped: skipMode,
         lowStock: result.lowStock ?? [],
         nextStation: result.nextStation ?? null,
+        handoffStatusKnown:result.handoffStatusKnown,
       });
       open = false;
     } catch (err: any) {
