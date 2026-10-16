@@ -10,7 +10,8 @@ export type ExceptionReview={
 };
 export type ReviewChange={
  action:ReviewAction;orderId:string|null;station:string|null;kind:ReviewKind|null;
- reviewId:string|null;expectedUpdatedAt:string|null;dueDate:string|null;note:string|null
+ reviewId:string|null;expectedUpdatedAt:string|null;dueDate:string|null;
+ note:string|null;evidenceMovementIds:string[]
 };
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const version=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -28,11 +29,18 @@ export function parseReviewChange(raw:unknown):ReviewChange {
  const note=x.note===undefined||x.note===null?null:x.note;
  if(note!==null&&(typeof note!=='string'||note.length>2000))
    throw new Error('Review note must be at most 2000 characters');
+ const ids=x.evidenceMovementIds??[];
+ if(!Array.isArray(ids)||ids.length>10||
+    ids.some(id=>typeof id!=='string'||!uuid.test(id))||
+    new Set(ids).size!==ids.length)
+   throw new Error('Evidence movement IDs must be unique, at most ten UUIDs');
+ if(ids.length && !['update','resolve'].includes(String(action)))
+   throw new Error('Movement evidence is only supported for a review update or resolution');
  const due=x.dueDate===undefined||x.dueDate===null?null:x.dueDate;
  if(due!==null&&!date(due))throw new Error('Invalid follow-up due date');
  const base:ReviewChange={action:action as ReviewAction,orderId:null,station:null,
    kind:null,reviewId:null,expectedUpdatedAt:null,dueDate:due as string|null,
-   note:note as string|null};
+   note:note as string|null,evidenceMovementIds:ids as string[]};
  if(action==='claim'){
    if(typeof x.orderId!=='string'||!uuid.test(x.orderId)||
       typeof x.station!=='string'||!ALL_STATIONS.includes(x.station.toUpperCase())||
