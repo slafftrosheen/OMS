@@ -387,6 +387,75 @@ BEGIN
 END;
 $$;
 
+-- For an explicit manager physical count on an out-of-sync material, require
+-- both balances observed in the diagnostic page. Lock in the same order as
+-- the canonical manual movement: materials, then the linked legacy row.
+CREATE OR REPLACE FUNCTION public.oms_reconcile_inventory_stock(
+ p_request_id UUID,p_material_id UUID,p_new_stock INTEGER,
+ p_expected_canonical_stock INTEGER,p_expected_legacy_stock INTEGER,
+ p_reason TEXT
+) RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp
+AS $
+DECLARE
+ v_actor UUID:=auth.uid();
+ v_role TEXT;
+ v_canonical INTEGER;
+ v_legacy INTEGER;
+ v_count INTEGER;
+ v_existing public.inventory_movements%ROWTYPE;
+ v_receipt JSONB;
+BEGIN
+ SELECT role INTO v_role FROM public.profiles
+   WHERE id=v_actor AND is_active=TRUE;
+ IF v_actor IS NULL OR v_role IS NULL OR
+   v_role NOT IN ('RD','Boss','HeadOfProduction') THEN
+   RAISE EXCEPTION 'Inventory management permission required' USING ERRCODE='42501';
+ END IF;
+ IF p_request_id IS NULL OR p_material_id IS NULL OR
+   p_new_stock IS NULL OR p_new_stock<0 OR p_new_stock>100000000 OR
+   p_expected_canonical_stock IS NULL OR p_expected_legacy_stock IS NULL OR
+   nullif(btrim(coalesce(p_reason,'')),'') IS NULL THEN
+   RAISE EXCEPTION 'Valid physical count and reason required' USING ERRCODE='22023';
+ END IF;
+ -- If the network lost a completed receipt, replay exactly the same
+ -- idempotency UUID via the original audited RPC, never re-adjust the stock.
+ SELECT * INTO v_existing FROM public.inventory_movements
+   WHERE request_id=p_request_id;
+ IF FOUND THEN
+   RETURN public.oms_record_manual_inventory_movement(
+     p_request_id,p_material_id,'ADJUST',p_new_stock,p_reason
+   );
+ END IF;
+ SELECT stock INTO v_canonical FROM public.materials
+   WHERE id=p_material_id FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Material missing' USING ERRCODE='P0002'; END IF;
+ SELECT count(*) INTO v_count FROM public.inventory_items
+   WHERE material_id=p_material_id;
+ IF v_count<>1 THEN
+   RAISE EXCEPTION 'A unique legacy alias is required to reconcile'
+     USING ERRCODE='P0001';
+ END IF;
+ SELECT stock INTO v_legacy FROM public.inventory_items
+   WHERE material_id=p_material_id FOR UPDATE;
+ IF v_canonical IS DISTINCT FROM p_expected_canonical_stock OR
+    v_legacy IS DISTINCT FROM p_expected_legacy_stock THEN
+   RAISE EXCEPTION 'Stock changed since review; refresh physical-count decision'
+     USING ERRCODE='P0001';
+ END IF;
+ SELECT public.oms_record_manual_inventory_movement(
+   p_request_id,p_material_id,'ADJUST',p_new_stock,p_reason
+ ) INTO v_receipt;
+ RETURN v_receipt;
+END;
+$;
+REVOKE ALL ON FUNCTION public.oms_reconcile_inventory_stock(
+ UUID,UUID,INTEGER,INTEGER,INTEGER,TEXT
+) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.oms_reconcile_inventory_stock(
+ UUID,UUID,INTEGER,INTEGER,INTEGER,TEXT
+) TO authenticated;
+
 -- Earlier station summary split_part(notes,'=',2) incorrectly treated
 -- custom order notes as workstation codes. Only a strict station prefix
 -- on new movement notes qualifies; historical ambiguous notes stay UNKNOWN.
