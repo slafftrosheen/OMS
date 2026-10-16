@@ -1660,6 +1660,22 @@
       "outsideHorizon": "Insufficient hours in the forecast window"
     }
   },
+  "productionOversight": {
+    "title": "Production oversight",
+    "explanation": "Manager-only review signals from saved station records. No stage update for 72 hours is a prompt to check progress, not proof work stopped; progress notes may be logged separately. Material skips may already be reconciled. No automatic actions or notifications.",
+    "reviewQueue": "Open managed exceptions",
+    "unchangedCount": "stage records unchanged ≥72h",
+    "skippedCount": "completed stages with material declaration skipped",
+    "filter": "Show",
+    "all": "All signals",
+    "stageUnchanged": "Stage record unchanged ≥72h",
+    "materialSkipped": "Material declaration skipped",
+    "ago": "Recorded {hours} hours ago",
+    "inspectOrder": "Inspect order",
+    "noFindings": "No signals match these filters.",
+    "truncated": "Showing the first {limit} of {total} signals. Use narrower filters or review records in the order.",
+    "showMore": "Show more signals"
+  },
   "productionPlanning": {
     "pendingPo": "Pending PO",
     "untitled": "Untitled order",
