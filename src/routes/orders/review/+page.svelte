@@ -631,6 +631,12 @@
     flex-direction: column;
     gap: 8px;
   }
+  .confirm-drawings {
+    display:grid;gap:4px;margin:2px 0 8px;padding:8px 10px 8px 26px;
+    max-height:120px;overflow:auto;border:1px solid var(--glass-border);
+    border-radius:var(--radius-sm,8px);font-size:12px;
+    color:var(--ink-secondary);overflow-wrap:anywhere;
+  }
   .modal-body label {
     font-size: 13px;
     color: var(--ink-secondary);
