@@ -37,6 +37,7 @@
   let confirmError = $state('');
   let confirmRevision = $state<string|null>(null);
   let confirmFiles = $state<number|null>(null);
+  let confirmDocumentNames=$state<string[]>([]);
   let confirmLoading = $state(false);
   let confirmLoadSequence = 0;
 
@@ -76,7 +77,7 @@
     confirmTarget=order;
     poInput=order.po_number??'';
     confirmError='';
-    confirmRevision=null;confirmFiles=null;confirmLoading=true;
+    confirmRevision=null;confirmFiles=null;confirmDocumentNames=[];confirmLoading=true;
     try{
       // The queue is a summary; obtain a current, versioned snapshot before
       // allowing this manager to release the order to production.
@@ -94,6 +95,8 @@
         throw new Error($t('orderWorkspace.confirmFilesUnknown'));
       confirmRevision=latest.updatedAt;
       confirmFiles=latest.files.length;
+      confirmDocumentNames=latest.files.slice(0,8).map((file:{originalName?:string;displayName?:string;filename?:string})=>
+        String(file.originalName??file.displayName??file.filename??'').slice(0,180));
       confirmTarget={...order,status:latest.status,
         client:String(latest.clientName??order.client),
         title:latest.title??order.title,
@@ -115,7 +118,7 @@
     confirmTarget=null;
     poInput='';
     confirmError='';
-    confirmRevision=null;confirmFiles=null;confirmLoading=false;
+    confirmRevision=null;confirmFiles=null;confirmDocumentNames=[];confirmLoading=false;
   }
 
   async function submitConfirm() {
@@ -147,7 +150,7 @@
       ++confirmLoadSequence;
       confirmTarget=null;
       poInput='';
-      confirmRevision=null;confirmFiles=null;
+      confirmRevision=null;confirmFiles=null;confirmDocumentNames=[];
       await load();
     } catch (err: any) {
       confirmError = err?.message ?? 'Failed to confirm';
@@ -338,6 +341,19 @@
         {/if}
         {#if confirmTarget.status==='DRAFT' || confirmTarget.status==='draft'}
           <p class="muted" role="status">{$t('orderWorkspace.confirmDirectDraft')}</p>
+        {/if}
+        {#if confirmFiles!==null}
+          <p class="muted">
+            {$t('orders.review.due')}: {formatDate(confirmTarget.due_date)}
+            · {$t('orderWorkspace.confirmProfilesCount',{values:{count:confirmTarget.profile_count}})}
+          </p>
+          {#if confirmDocumentNames.length}
+            <ul class="confirm-drawings">
+              {#each confirmDocumentNames as filename,i (i)}
+                <li>{filename || '—'}</li>
+              {/each}
+            </ul>
+          {/if}
         {/if}
         <label for="po-input">
           {$t('orders.review.po_label', { default: 'PO number (provided by Boss)' })}
