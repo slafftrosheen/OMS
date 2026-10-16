@@ -116,4 +116,7 @@ REVOKE ALL ON FUNCTION public.confirm_order_with_stages(UUID,TEXT,TIMESTAMPTZ)
 GRANT EXECUTE ON FUNCTION public.confirm_order_with_stages(UUID,TEXT,TIMESTAMPTZ)
   TO authenticated;
 
+-- Make the newly overloaded RPC discoverable by self-hosted PostgREST.
+NOTIFY pgrst, 'reload schema';
+
 COMMIT;
