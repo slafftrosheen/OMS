@@ -206,20 +206,38 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let assistantPrefillVersion = $state(0);
   let activeNativeProfileIndex = $state<number|null>(null);
   let activeNativeProfile = $derived(activeNativeProfileIndex===null ? null : profiles[activeNativeProfileIndex]??null);
+  let stagedNativeConfiguration = $state<Record<string,unknown>|null>(null);
   let nativeProfileDialog = $state<HTMLDialogElement|undefined>(undefined);
   async function openNativeProfile(index:number){
+    const profile=profiles[index];
+    if(!profile)return;
+    // Keep staged edits away from the order until Apply is explicitly clicked.
+    // The native form merges defaults while mounting; that must not dirty a draft.
+    stagedNativeConfiguration=JSON.parse(JSON.stringify(profile.configuration??{}));
     activeNativeProfileIndex=index;
     await tick();
     if(nativeProfileDialog && !nativeProfileDialog.open)nativeProfileDialog.showModal();
   }
+  function clearNativeProfileDialog(){
+    activeNativeProfileIndex=null;
+    stagedNativeConfiguration=null;
+  }
   function closeNativeProfile(){
     nativeProfileDialog?.close();
-    activeNativeProfileIndex=null;
+    clearNativeProfileDialog();
   }
-  function updateNativeProfile(index:number,configuration:Record<string,unknown>){
-    if(!canEdit)return;
+  function stageNativeProfile(configuration:Record<string,unknown>){
+    if(!canEdit||activeNativeProfileIndex===null)return;
+    stagedNativeConfiguration=configuration;
+  }
+  function applyNativeProfile(){
+    if(!canEdit||activeNativeProfileIndex===null||!stagedNativeConfiguration)return;
+    const index=activeNativeProfileIndex;
+    const approved=JSON.parse(JSON.stringify(stagedNativeConfiguration));
     profiles=profiles.map((profile,i)=>i===index
-      ?{...profile,configuration}:profile);
+      ?{...profile,configuration:approved}:profile);
+    // Normal version-checked Save Draft remains the ONLY persistence action.
+    closeNativeProfile();
   }
   async function navigateWorkflowHelp(target:WorkspaceSection,step:GuideStepId){
     openWorkspaceSection(target);
@@ -1177,7 +1195,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             {#if activeNativeProfileIndex!==null && activeNativeProfile}
               <dialog class="native-profile-dialog" bind:this={nativeProfileDialog}
                 aria-labelledby="native-profile-dialog-title"
-                onclose={()=>activeNativeProfileIndex=null}>
+                onclose={clearNativeProfileDialog}>
                 <div class="native-profile-dialog-header">
                   <div>
                     <h3 id="native-profile-dialog-title">{$t('orderAssistant.nativeProfileTitle')}</h3>
@@ -1189,15 +1207,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                 </div>
                 {#key activeNativeProfileIndex}
                   <OrderNativeProfileForm
-                    configuration={activeNativeProfile.configuration??{}}
+                    configuration={stagedNativeConfiguration??{}}
                     editable={canEdit}
-                    onChange={configuration=>updateNativeProfile(activeNativeProfileIndex!,configuration)}/>
+                    onChange={stageNativeProfile}/>
                 {/key}
                 {#if canEdit}
                   <footer class="native-profile-dialog-footer">
-                    <button type="button" class="action-btn primary" disabled={saving}
-                      onclick={async()=>{if(await saveDraft())closeNativeProfile();}}>
-                      {saving?$t('actions.saving'):$t('orderAssistant.saveNativeProfile')}
+                    <p>{$t('orderAssistant.nativeProfileApplyHint')}</p>
+                    <button type="button" class="action-btn primary" onclick={applyNativeProfile}>
+                      {$t('orderAssistant.applyNativeProfile')}
                     </button>
                   </footer>
                 {/if}
