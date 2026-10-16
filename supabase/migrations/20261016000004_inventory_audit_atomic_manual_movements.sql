@@ -74,7 +74,8 @@ BEGIN
    END IF;
    RETURN jsonb_build_object('id',v_movement.id,'materialId',p_material_id,
      'kind',v_movement.movement_type,'qty',v_movement.quantity,
-     'unit',v_unit,'by',v_actor,'newStock',v_movement.stock_after,
+     'unit',v_unit,'by',v_actor,'newStock',v_stock_before,
+     'recordedStockAfter',v_movement.stock_after,
      'at',v_movement.created_at,'idempotent',TRUE);
  END IF;
  v_stock_after:=CASE v_kind
