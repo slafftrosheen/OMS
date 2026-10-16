@@ -74,8 +74,14 @@
       <div><dt>{$t('productionEvidence.stage')}</dt><dd>{station} · {evidence.stage.state}</dd></div>
       <div><dt>{$t('productionEvidence.stageUpdated')}</dt>
         <dd>{formatted(evidence.stage.updated_at)}</dd></div>
+      <div><dt>{$t('productionEvidence.started')}</dt>
+        <dd>{formatted(evidence.stage.started_at)}</dd></div>
       <div><dt>{$t('productionEvidence.completed')}</dt>
         <dd>{formatted(evidence.stage.completed_at)}</dd></div>
+      <div><dt>{$t('productionEvidence.estimatedHours')}</dt>
+        <dd>{evidence.stage.estimated_hours??'—'}</dd></div>
+      <div><dt>{$t('productionEvidence.actualHours')}</dt>
+        <dd>{evidence.stage.actual_hours??'—'}</dd></div>
       <div><dt>{$t('productionEvidence.materialSkipped')}</dt>
         <dd>{evidence.stage.consumption_skipped===true
           ?$t('productionEvidence.yes'):$t('productionEvidence.no')}</dd></div>
@@ -108,6 +114,9 @@
             </p>
             <p class="muted">
               {$t('productionEvidence.materialId')}: {row.materialId??row.itemId??'—'}
+            </p>
+            <p class="muted">
+              {$t('productionEvidence.performedBy')}: {row.performedBy??'—'}
             </p>
             {#if row.note}<p class="muted">{$t('productionEvidence.notes')}: {row.note}</p>{/if}
             {#if row.stockBefore!==null&&row.stockAfter!==null}
