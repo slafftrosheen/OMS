@@ -14,6 +14,8 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ error: 'Invalid request body' }, { status: 400 });
+  if(Object.prototype.hasOwnProperty.call(body,'stock'))
+    return json({error:'Stock must be changed through audited inventory movements'},{status:409});
   let patch: Record<string, unknown>;
   try { patch = validateMaterialInput(body, true); }
   catch (err) { return json({ error: err instanceof Error ? err.message : 'Invalid material' }, { status: 400 }); }
