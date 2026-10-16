@@ -1741,6 +1741,7 @@
     "download": "Download",
     "delete": "Delete"
   },
+  "productionExecution": {"declared":"Stage completed. {count} material units recorded.","skipped":"Stage completed with material declaration skipped. Review the recorded reason.","materialSkipRecorded":"Material declaration skipped: ","ledger":"Recorded material consumption","ledgerUnavailable":"Material records could not be verified. Open the order consumption tab and refresh.","noDeclaredMaterials":"No material-consumption records have been logged yet.","ledgerPartial":"Showing at most 100 entries. Open the order consumption tab for the complete record.","reviewReminder":"Check the current production packet and drawing revisions before completing this stage. Concurrent changes will require a refresh."},
   "productionPacket": {
     "progressSummary": "{completed} of {total} manufacturing stages completed (delivery tracked separately)",
     "progressHeld": "Blocked: {blocked} · Rework: {rework}",
