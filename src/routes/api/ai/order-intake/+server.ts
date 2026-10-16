@@ -16,6 +16,7 @@ const inputSchema=z.object({
   fileId:z.string().uuid().nullable().optional(),
   ocr:z.boolean().optional(),
   profileIndex:z.number().int().min(0).max(99).nullable().optional(),
+  expectedUpdatedAt:z.string().datetime({offset:true}).optional(),
   language:z.string().max(20).optional()
 }).strict();
 const headers={'Cache-Control':'private, no-store'};
@@ -53,6 +54,8 @@ export const POST:RequestHandler=async event=>{
     .eq('id',orderId).maybeSingle();
   if(orderError) throw error(503,'Order lookup unavailable');
   if(!order) throw error(404,'Order not found');
+  if(parsed.data.expectedUpdatedAt && order.updated_at!==parsed.data.expectedUpdatedAt)
+    throw error(409,'Order changed since opening AI intake. Reload before analysis.');
   if(!canEditDraft(user.role,order.created_by,user.id,order.status))
     throw error(403,'Only authorized draft editors may request AI intake');
   if(ocr && !fileId) throw error(400,'OCR requires a PDF');
