@@ -1741,7 +1741,7 @@
     "download": "Lejupielādēt",
     "delete": "Dzēst"
   },
-  "productionExecution": {"declared":"Posms pabeigts. Reģistrētas {count} materiālu vienības.","skipped":"Posms pabeigts bez materiālu uzskaites. Pārbaudiet norādīto iemeslu.","materialSkipRecorded":"Materiālu uzskaite izlaista: ","ledger":"Reģistrētais materiālu patēriņš","ledgerUnavailable":"Neizdevās pārbaudīt materiālu uzskaiti. Atveriet pasūtījuma patēriņa sadaļu un atsvaidziniet.","noDeclaredMaterials":"Materiālu patēriņš vēl nav reģistrēts.","ledgerPartial":"Parādīti ne vairāk kā 100 ieraksti. Pilno pārskatu skatiet pasūtījuma patēriņa sadaļā.","reviewReminder":"Pirms posma pabeigšanas pārbaudiet aktuālo ražošanas karti un rasējumu versijas. Vienlaicīgu izmaiņu gadījumā būs jāatsvaidzina."},
+  "productionExecution": {"declared":"Posms pabeigts. Reģistrētas {count} materiālu rindas.","skipped":"Posms pabeigts bez materiālu uzskaites. Pārbaudiet norādīto iemeslu.","materialSkipRecorded":"Materiālu uzskaite izlaista: ","ledger":"Reģistrētais materiālu patēriņš","ledgerUnavailable":"Neizdevās pārbaudīt materiālu uzskaiti. Atveriet pasūtījuma patēriņa sadaļu un atsvaidziniet.","noDeclaredMaterials":"Materiālu patēriņš vēl nav reģistrēts.","ledgerPartial":"Parādīti ne vairāk kā 100 ieraksti. Pilno pārskatu skatiet pasūtījuma patēriņa sadaļā.","reviewReminder":"Pirms posma pabeigšanas pārbaudiet aktuālo ražošanas karti un rasējumu versijas. Vienlaicīgu izmaiņu gadījumā būs jāatsvaidzina."},
   "productionPacket": {
     "progressSummary": "Pabeigti {completed} no {total} ražošanas posmiem (piegāde atsevišķi)",
     "progressHeld": "Bloķēti: {blocked} · Pārstrāde: {rework}",
