@@ -1673,7 +1673,7 @@
     "ago": "Ieraksts pirms {hours} stundām",
     "inspectOrder": "Skatīt pasūtījumu",
     "noFindings": "Šiem filtriem nav atbilstošu signālu.",
-    "truncated": "Redzami pirmie {limit} no {total} signāliem. Sašauriniet filtru vai pārbaudiet pasūtījumu.",
+    "truncated": "Priekšskatījumā ir līdz {limit} ierakstiem no katra signālu veida (kopā {total}). Pārējie nav parādīti; pilno vēsturi skatiet attiecīgajos pasūtījumos.",
     "showMore": "Rādīt vairāk signālu"
   },
   "productionPlanning": {
