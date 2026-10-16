@@ -75,6 +75,23 @@ describe('OMS-R41: real inventory evidence, atomic stock writes and audited refe
    expect(sql).toContain('REVOKE INSERT,UPDATE,DELETE ON public.inventory_movements FROM authenticated,anon');
    expect(sql).toContain('REVOKE ALL ON FUNCTION public.consume_materials_for_order(UUID,TEXT,JSONB,UUID)');
    expect(sql).toContain("NOTIFY pgrst, 'reload schema'");
+   expect(sql).toContain('CREATE OR REPLACE FUNCTION public.oms_require_atomic_stock_write()');
+   expect(sql).toContain("current_user IN ('authenticated','anon')");
+   expect(sql).toContain('CREATE TRIGGER oms_material_stock_write_guard');
+   expect(sql).toContain('CREATE TRIGGER oms_item_stock_write_guard');
+ });
+ it('blocks unaudited stock fields in legacy item/material update and create routes',()=>{
+   const item=read('src/routes/api/inventory/items/[id]/+server.ts');
+   const items=read('src/routes/api/inventory/items/+server.ts');
+   const material=read('src/routes/api/materials/[id]/+server.ts');
+   const materials=read('src/routes/api/materials/+server.ts');
+   expect(item).toContain('canManageSharedInventory(locals.user.role)');
+   expect(item).toContain("if(data.stock!==undefined)");
+   expect(item).not.toContain('updates.stock = data.stock');
+   expect(items).toContain("stock: 0");
+   expect(items).toContain('canManageSharedInventory(locals.user.role)');
+   expect(material).toContain("hasOwnProperty.call(body,'stock')");
+   expect(materials).toContain('data.stock=0');
  });
  it('keeps order stock deduction solely in canonical stage completion',()=>{
    const store=read('src/lib/inventory/store.ts');
