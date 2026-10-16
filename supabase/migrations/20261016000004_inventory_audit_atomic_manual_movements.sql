@@ -127,5 +127,35 @@ REVOKE ALL ON FUNCTION public.oms_record_manual_inventory_movement(
 GRANT EXECUTE ON FUNCTION public.oms_record_manual_inventory_movement(
  UUID,UUID,TEXT,INTEGER,TEXT) TO authenticated;
 
+-- Legacy RLS allows authenticated direct material/item updates. Lock the
+-- stock columns at DB level as well, so the browser cannot bypass the audited
+-- SECURITY DEFINER movement/production RPCs through raw PostgREST updates.
+-- SECURITY INVOKER uses the actual current role: in the vetted SECURITY
+-- DEFINER functions the current role is their owner, not authenticated.
+CREATE OR REPLACE FUNCTION public.oms_require_atomic_stock_write()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY INVOKER SET search_path=public,pg_temp
+AS $
+BEGIN
+ IF current_user IN ('authenticated','anon') AND
+   (CASE WHEN TG_OP='INSERT'
+      THEN COALESCE(NEW.stock,0)<>0
+      ELSE NEW.stock IS DISTINCT FROM OLD.stock END) THEN
+   RAISE EXCEPTION 'Use atomic audited inventory movement or stage completion'
+     USING ERRCODE='42501';
+ END IF;
+ RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS oms_material_stock_write_guard ON public.materials;
+CREATE TRIGGER oms_material_stock_write_guard
+BEFORE INSERT OR UPDATE OF stock ON public.materials
+FOR EACH ROW EXECUTE FUNCTION public.oms_require_atomic_stock_write();
+
+DROP TRIGGER IF EXISTS oms_item_stock_write_guard ON public.inventory_items;
+CREATE TRIGGER oms_item_stock_write_guard
+BEFORE INSERT OR UPDATE OF stock ON public.inventory_items
+FOR EACH ROW EXECUTE FUNCTION public.oms_require_atomic_stock_write();
+
 NOTIFY pgrst, 'reload schema';
 COMMIT;
