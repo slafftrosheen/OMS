@@ -1,5 +1,5 @@
 import {ALL_STATIONS} from './workflow';
-export const REVIEW_KINDS=['MISSING_ACTUAL','ACTUAL_OVERRUN','BLOCKED','REWORK','MISSED_BOOKING'] as const;
+export const REVIEW_KINDS=['MISSING_ACTUAL','ACTUAL_OVERRUN','BLOCKED','REWORK','MISSED_BOOKING','STAGE_UNCHANGED','MATERIAL_SKIPPED'] as const;
 export type ReviewKind=(typeof REVIEW_KINDS)[number];
 export type ReviewAction='claim'|'take'|'update'|'resolve'|'reopen';
 export type ExceptionReview={
