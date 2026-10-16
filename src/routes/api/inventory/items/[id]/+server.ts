@@ -51,8 +51,18 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
   const data = await request.json().catch(()=>null);
   if(!data||typeof data!=='object'||Array.isArray(data))
     throw error(400,'Invalid inventory item update');
-  if(data.stock!==undefined)
-    throw error(409,'Change stock through the audited inventory movement workflow');
+  if(data.stock!==undefined){
+    // Old edit forms can send their unchanged stock field alongside metadata.
+    // Accept the metadata, but never write stock through this endpoint.
+    if(!Number.isInteger(data.stock)||data.stock<0)
+      throw error(400,'Stock must be a non-negative whole number');
+    const {data:current,error:stockError}=await locals.supabase
+      .from('materials').select('stock').eq('id',params.id).maybeSingle();
+    if(stockError)throw error(503,'Could not verify current stock');
+    if(!current)throw error(404,'Item not found');
+    if(data.stock!==current.stock)
+      throw error(409,'Stock changed; use the audited inventory movement workflow');
+  }
 
   const updates: any = { updated_at: new Date().toISOString() };
   if (data.sku !== undefined) updates.sku = data.sku;
