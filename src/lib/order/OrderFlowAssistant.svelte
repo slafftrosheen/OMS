@@ -1,7 +1,7 @@
 <script lang="ts">
   import {t,locale} from 'svelte-i18n';
   import {base} from '$app/paths';
-  import {proposalsToPatch,type IntakeProposal} from './intake-contract';
+  import {proposalsToPatch,proposalMatchesCurrent,type IntakeProposal} from './intake-contract';
   import type {OrderAssistantTurn} from './assistant-contract';
   import type {OrderTechnicalChecks,TechnicalIssue} from './technical-evidence';
 
@@ -81,7 +81,7 @@
   let hasAccepted=$derived(!proposalsStale && proposals.some((p,i)=>
     approvals[i]===true && !isUnchanged(p)));
   function isUnchanged(p:IntakeProposal){
-    return String(current[p.field]??'').trim()===p.value.trim();
+    return proposalMatchesCurrent(p,current);
   }
   function fieldName(field:string){
     return $t('orderAssistant.fieldNames.'+field);
