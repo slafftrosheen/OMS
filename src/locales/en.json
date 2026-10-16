@@ -1673,7 +1673,7 @@
     "ago": "Recorded {hours} hours ago",
     "inspectOrder": "Inspect order",
     "noFindings": "No signals match these filters.",
-    "truncated": "Showing the first {limit} of {total} signals. Use narrower filters or review records in the order.",
+    "truncated": "Preview includes up to {limit} per signal type, out of {total} total. Additional records are not shown; inspect the affected orders for complete history.",
     "showMore": "Show more signals"
   },
   "productionPlanning": {
