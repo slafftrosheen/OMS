@@ -2061,6 +2061,7 @@
     "nativeProfileQuestion": "Pārskati saglabātās CNC, BENDER, FRONT, PAINTING un ASSEMBLING profila izvēles. Nosauc trūkstošās prasības un pretrunas. Neizdomā izmērus, krājumus vai iekārtu iespējas."
   },
   "orderIntake": {
+    "analysisStale": "Kopš analīzes saglabātais pasūtījums vai lokālā veidlapa ir mainīta. Saglabājiet vai pārlādējiet un analizējiet vēlreiz; iepriekšējos ieteikumus nevar pielietot.",
     "profileFocus": "Ražošanas profils salīdzināšanai",
     "wholeOrder": "Viss pasūtījums / bez konkrēta profila",
     "profileFocusHint": "Neobligāti. Salīdzina izvēlēto PDF vai attēlu ar saglabātu profilu, nemainot ražošanas izvēles.",
