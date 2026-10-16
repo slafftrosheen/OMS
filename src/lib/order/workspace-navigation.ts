@@ -39,16 +39,28 @@ export function suggestedWorkspaceSection(status:string,hasFiles:boolean,
   return 'changes';
 }
 
-/** Canonical order_stages rows are arrays with station and state columns.
- * Never divide by an empty count or interpret numeric array indexes as stages.
+/** Progress means recorded production work, not dispatch. DELIVERY is
+ * handled after loading and must not hold manufacturing at 86% indefinitely.
+ * Optional/legacy configured station rows (such as QC) remain counted.
+ * No stage rows means unknown/unstarted: 0%, never an invented 100%.
  */
+export function stageProgressSummary(rows:unknown):{
+  percent:number; completed:number; total:number; blocked:number; rework:number;
+} {
+  if(!Array.isArray(rows))return {percent:0,completed:0,total:0,blocked:0,rework:0};
+  const stages=rows.filter((row):row is {station:string;state:string} =>
+    !!row && typeof row==='object' &&
+    typeof row.station==='string' && typeof row.state==='string' &&
+    row.station.trim().toUpperCase()!=='DELIVERY');
+  const total=stages.length;
+  const completed=stages.filter(row=>['COMPLETED','SKIPPED'].includes(row.state)).length;
+  const blocked=stages.filter(row=>row.state==='BLOCKED').length;
+  const rework=stages.filter(row=>row.state==='REWORK').length;
+  return {percent:total?Math.round(completed/total*100):0,
+    completed,total,blocked,rework};
+}
 export function stageProgressPercent(rows:unknown):number {
-  if(!Array.isArray(rows)||rows.length===0)return 0;
-  const valid=rows.filter(row=>row&&typeof row==='object'&&
-    typeof row.station==='string'&&typeof row.state==='string');
-  if(!valid.length)return 0;
-  const done=valid.filter(row=>row.state==='COMPLETED'||row.state==='SKIPPED').length;
-  return Math.round(done/valid.length*100);
+  return stageProgressSummary(rows).percent;
 }
 
 export function mayControlStage(user:{
