@@ -465,9 +465,12 @@
             </div>
           </div>
 
-          {#if order.stage?.blocked_reason}
-            <div class="blocked-notice">
-              <strong>🔴 Blocked:</strong> {order.stage.blocked_reason}
+          {#if order.stage?.state==='BLOCKED'||order.stage?.state==='REWORK'}
+            <div class="blocked-notice" role="status">
+              <strong>{$t('productionPacket.held')}</strong>
+              {#if order.stage?.blocked_reason}
+                <p>{order.stage.blocked_reason}</p>
+              {/if}
             </div>
           {/if}
 
