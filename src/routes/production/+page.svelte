@@ -179,7 +179,7 @@
         <strong>{$t('productionPlanning.attentionTitle')}</strong>
         <div class="attention-list">
           {#each alerts.slice(0,8) as item (`${item.station}-${item.id}`)}
-            <a href={`/orders/${encodeURIComponent(item.id)}`} class="attention-item">
+            <a href={`${base}/orders/${encodeURIComponent(item.id)}`} class="attention-item">
               {item.poNumber ?? item.title} · {item.station} — {$t(`productionPlanning.risk.${item.risk}`)}
             </a>
           {/each}
@@ -219,7 +219,7 @@
             {#each visibleOversight as signal (signal.key)}
               <article class="oversight-row">
                 <div>
-                  <strong>{signal.poNumber??signal.title??signal.orderId} · {signal.station}</strong>
+                  <strong>{signal.poNumber || signal.title || signal.orderId} · {signal.station}</strong>
                   <p>{$t('productionOversight.'+(
                     signal.kind==='STAGE_UNCHANGED'?'stageUnchanged':'materialSkipped'))}
                     · {$t('productionOversight.ago',{values:{hours:signal.elapsedHours}})}
