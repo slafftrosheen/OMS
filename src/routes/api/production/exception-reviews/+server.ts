@@ -58,7 +58,7 @@ export const POST:RequestHandler=async ({locals,request})=>{
    if(linkedError)throw error(503,'Linked inventory audit could not be verified');
    if((linked??[]).length!==input.evidenceMovementIds.length)
      throw error(409,'Selected movement no longer belongs to this order');
-   const reference='\\nOrder movement evidence: '+input.evidenceMovementIds.join(', ');
+   const reference='\nOrder movement evidence: '+input.evidenceMovementIds.join(', ');
    const max=input.action==='update'?1000:2000;
    if((auditedNote??'').length+reference.length>max)
      throw error(400,'Review note and movement references exceed the allowed length');
