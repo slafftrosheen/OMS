@@ -75,7 +75,17 @@
   const techIssueLabel=(issue:TechnicalIssue)=>$t(`orderAssistant.technicalIssue.${issue.code}`);
   const displayMetric=(n:number|null)=>n===null?$t('orderAssistant.notVerified'):
     n.toLocaleString(undefined,{maximumFractionDigits:5});
-  let hasAccepted=$derived(proposals.some((_,i)=>approvals[i]===true));
+  let proposalsStale=$derived(!!proposals.length &&
+    (dirty||!proposalVersion||orderUpdatedAt!==proposalVersion||
+      JSON.stringify(current)!==proposalsBase));
+  let hasAccepted=$derived(!proposalsStale && proposals.some((p,i)=>
+    approvals[i]===true && !isUnchanged(p)));
+  function isUnchanged(p:IntakeProposal){
+    return String(current[p.field]??'').trim()===p.value.trim();
+  }
+  function fieldName(field:string){
+    return $t('orderAssistant.fieldNames.'+field);
+  }
   function resetProposals(){
     proposals=[];missing=[];approvals={};applied=false;proposalVersion='';proposalsBase='';
   }
@@ -83,6 +93,7 @@
     if(busy||!canAsk||!consent||!question.trim()||!orderId)return;
     const text=question.trim();
     if(text.length>2500){problem=$t('orderAssistant.tooLong');return;}
+    if(mode==='propose' && dirty){problem=$t('orderAssistant.saveBeforePropose');return;}
     const requestedMode=mode;
     const questionOrder=orderId;
     const prior=turns.slice(-8).map(x=>({role:x.role,content:x.content.slice(0,1600)}));
@@ -104,6 +115,10 @@
       if(typeof body.reply!=='string'||!body.reply.trim()||
          typeof body.orderUpdatedAt!=='string'||!Array.isArray(body.proposals)||
          !Array.isArray(body.missing))throw Error($t('orderAssistant.failed'));
+      if(capturedVersion && body.orderUpdatedAt!==capturedVersion)
+        throw Error($t('orderAssistant.stale'));
+      if(requestedMode==='propose' && (dirty || JSON.stringify(current)!==capturedCurrent))
+        throw Error($t('orderAssistant.localChanged'));
       // Never allow a response against an older form to silently apply fields.
       turns=[...turns,{role:'user',content:text},{role:'assistant',content:body.reply}].slice(-16);
       model=body.model??'';lastMode=requestedMode;
@@ -127,7 +142,7 @@
   async function apply(){
     if(!editable||applying||busy||applied||!hasAccepted)return;
     problem='';
-    if(!proposalVersion||JSON.stringify(current)!==proposalsBase){
+    if(proposalsStale || !proposalVersion){
       problem=$t('orderAssistant.localChanged');return;
     }
     applying=true;
@@ -139,6 +154,7 @@
       if(latest.updatedAt!==proposalVersion||!
         ['DRAFT','draft','PENDING_REVIEW'].includes(latest.status))
         throw Error($t('orderAssistant.stale'));
+      if(proposalsStale)throw Error($t('orderAssistant.localChanged'));
       // Proposal normalizer validates types/field names again; only explicitly
       // selected (unchecked-by-default) fields are copied to LOCAL form state.
       onApply(proposalsToPatch(proposals.filter((_,i)=>approvals[i]===true)));
@@ -297,15 +313,22 @@
     <section class="proposals">
       <h4>{$t('orderAssistant.review')}</h4>
       <p class="hint">{$t('orderAssistant.unverified')}</p>
+      {#if proposalsStale}
+        <p class="warning" role="status">{$t('orderAssistant.reviewStale')}</p>
+      {/if}
       {#each proposals as proposal,i (`${proposal.field}-${i}`)}
         <label class="proposal">
           <span class="proposal-head">
             <input type="checkbox" checked={approvals[i]===true}
               onchange={e=>approvals={...approvals,[i]:e.currentTarget.checked}}
-              disabled={!editable||applying||applied}/>
-            <strong>{proposal.field}</strong><small>{proposal.confidence}</small>
+              disabled={!editable||applying||applied||proposalsStale||isUnchanged(proposal)}/>
+            <strong>{fieldName(proposal.field)}</strong>
+            <small>{$t('orderAssistant.confidence.'+proposal.confidence)}</small>
           </span>
           <span>{$t('orderAssistant.current')}: {String(current[proposal.field]??'—')}</span>
+          {#if isUnchanged(proposal)}
+            <span class="hint">{$t('orderAssistant.noDifference')}</span>
+          {/if}
           <span>{$t('orderAssistant.suggested')}: {proposal.value}</span>
           <span class="hint">{$t('orderAssistant.evidence')}: {proposal.evidence}</span>
         </label>
@@ -318,7 +341,7 @@
         <p class="success" role="status">{$t('orderAssistant.applied')}</p>
       {:else if proposals.length}
         <button type="button" class="primary" onclick={apply}
-          disabled={!editable||!hasAccepted||applying||busy}>
+          disabled={!editable||!hasAccepted||applying||busy||proposalsStale}>
           {applying?$t('orderAssistant.applying'):$t('orderAssistant.apply')}
         </button>
       {/if}
