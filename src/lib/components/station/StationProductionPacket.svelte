@@ -14,10 +14,8 @@
     notes?:string|null;
   };
   type FileRow={id:string;originalName?:string;mimeType?:string;size?:number};
-  let {orderId,station,stageState,blockedReason=null,stageNotes=null,onClose}:{
-    orderId:string;station:string;stageState:string;
-    blockedReason?:string|null;stageNotes?:string|null;
-    onClose:()=>void;
+  let {orderId,station,onClose}:{
+    orderId:string;station:string;onClose:()=>void;
   }=$props();
 
   let busy=$state(true);
