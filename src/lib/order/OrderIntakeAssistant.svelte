@@ -133,6 +133,13 @@
       if(fresh.updatedAt!==analysis.orderUpdatedAt ||
          !['DRAFT','draft','PENDING_REVIEW'].includes(fresh.status))
         throw new Error($t('orderIntake.changedOnServer'));
+      // File links can be removed without bumping draft_orders.updated_at.
+      // Recheck the canonical linked-file list before approving old evidence.
+      if(analysis.fileId){
+        const linkedNow=await fetchAllOrderFiles<OrderFile>(orderId);
+        if(!linkedNow.some(file=>file.id===analysis?.fileId))
+          throw new Error($t('orderIntake.sourceChanged'));
+      }
       if(!sourceMatches || analysisStale)throw new Error($t('orderIntake.changedLocally'));
       onApply(proposalsToPatch(accepted));
       applied=true;
