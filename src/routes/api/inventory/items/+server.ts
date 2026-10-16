@@ -1,5 +1,6 @@
 // src/routes/api/inventory/items/+server.ts
-import { json } from '@sveltejs/kit';
+import { json,error } from '@sveltejs/kit';
+import {canManageSharedInventory} from '$lib/server/authz/shared-data';
 import type { RequestHandler } from './$types';
 import { parsePaginationFromUrl, formatPaginatedResponse, calculatePagination } from '$lib/server/pagination';
 
@@ -97,7 +98,14 @@ export const GET: RequestHandler = async ({ url, locals }) => {
  * Now inserts into unified materials table
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
-  const data = await request.json();
+  if(!locals.user)throw error(401,'Unauthorized');
+  if(!canManageSharedInventory(locals.user.role))
+    throw error(403,'Inventory management role required');
+  const data = await request.json().catch(()=>null);
+  if(!data || typeof data!=='object' || Array.isArray(data))
+    throw error(400,'Invalid inventory item');
+  if(data.stock!==undefined && data.stock!==null && Number(data.stock)!==0)
+    throw error(409,'Create items with zero stock; post opening quantities via audited movements');
 
   const { data: item, error } = await locals.supabase
     .from('materials')
@@ -111,7 +119,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       item_group: data.group || 'General',
       subgroup: data.subgroup || 'General',
       unit: data.unit || 'PCS',
-      stock: data.stock || 0,
+      stock: 0,
       min_stock: data.min || 0,
       max_stock: data.max_stock || null,
       thickness_mm: data.thicknessMM || null,
