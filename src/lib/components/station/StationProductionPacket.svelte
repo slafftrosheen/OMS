@@ -29,6 +29,7 @@
   }|null>(null);
   let files=$state<FileRow[]>([]);
   let fileTotal=$state<number|null>(null);
+  let currentStage=$state<{state:string;blocked_reason?:string|null;notes?:string|null}|null>(null);
   let expandedProfile=$state<number|null>(null);
   let requestVersion=0;
   async function refresh(){
@@ -37,9 +38,10 @@
     try{
       // These are existing authenticated RLS-backed endpoints, never
       // model-created specifications or caller-supplied profile JSON.
-      const [orderResponse,filePage]=await Promise.all([
+      const [orderResponse,filePage,stagesResponse]=await Promise.all([
         fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}`,{cache:'no-store'}),
-        fetchOrderFilePage<FileRow>(orderId,0,50)
+        fetchOrderFilePage<FileRow>(orderId,0,50),
+        fetch(`${base}/api/orders/${encodeURIComponent(orderId)}/stages`,{cache:'no-store'})
       ]);
       if(!orderResponse.ok)throw Error($t('productionPacket.loadFailed'));
       const snapshot=await orderResponse.json();
@@ -48,7 +50,16 @@
          !Array.isArray(snapshot.profiles) ||
          typeof snapshot.updatedAt!=='string')
         throw Error($t('productionPacket.loadFailed'));
+      if(!stagesResponse.ok)throw Error($t('productionPacket.loadFailed'));
+      const stages=await stagesResponse.json();
+      const found=Array.isArray(stages)?stages.find(
+        (row:{station?:string;draft_order_id?:string;state?:string})=>
+          row.station===station && row.draft_order_id===orderId &&
+          typeof row.state==='string'
+      ):null;
+      if(!found)throw Error($t('productionPacket.loadFailed'));
       if(version!==requestVersion)return;
+      currentStage={state:found.state,blocked_reason:found.blocked_reason,notes:found.notes};
       order=snapshot;
       files=filePage.files;
       fileTotal=filePage.total;
@@ -56,7 +67,7 @@
     }catch{
       if(version===requestVersion){
         // Never present an old production profile as current after a failed refresh.
-        order=null;files=[];fileTotal=null;
+        order=null;files=[];fileTotal=null;currentStage=null;
         issue=$t('productionPacket.loadFailed');
       }
     }finally{if(version===requestVersion)busy=false;}
@@ -76,16 +87,21 @@
       ×
     </button>
   </header>
-  <div class="packet-status">
-    <strong>{stageStateLabel(stageState)}</strong>
-    {#if stageState==='BLOCKED' || stageState==='REWORK'}
-      <p role="alert">{$t('productionPacket.held')}</p>
-    {/if}
-    {#if blockedReason && (stageState==='BLOCKED' || stageState==='REWORK')}
-      <p class="reason">{$t('productionPacket.blockReason')}: {blockedReason}</p>
-    {/if}
-    {#if stageNotes}<p class="reason">{$t('productionPacket.stationNotes')}: {stageNotes}</p>{/if}
-  </div>
+  {#if currentStage && !busy && !issue}
+    <div class="packet-status">
+      <strong>{stageStateLabel(currentStage.state)}</strong>
+      {#if currentStage.state==='BLOCKED' || currentStage.state==='REWORK'}
+        <p role="alert">{$t('productionPacket.held')}</p>
+      {/if}
+      {#if currentStage.blocked_reason &&
+        (currentStage.state==='BLOCKED' || currentStage.state==='REWORK')}
+        <p class="reason">{$t('productionPacket.blockReason')}: {currentStage.blocked_reason}</p>
+      {/if}
+      {#if currentStage.notes}
+        <p class="reason">{$t('productionPacket.stationNotes')}: {currentStage.notes}</p>
+      {/if}
+    </div>
+  {/if}
   <button class="refresh" type="button" disabled={busy} onclick={refresh}>
     {$t('productionPacket.refresh')}
   </button>
