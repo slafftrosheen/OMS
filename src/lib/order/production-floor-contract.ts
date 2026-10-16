@@ -33,6 +33,17 @@ export function parseStageCompletion(body:Record<string,unknown>):ProductionComp
   if((notes?.length??0)>2000)throw new Error('Completion note is too long');
   return {items,skipped,reason,actualHours,notes:notes||null};
 }
+/** Required optimistic-lock token for actual stage completion.
+ * JSON timestamps are compared to PostgreSQL updated_at under a row lock.
+ */
+export function parseStageCompletionRevision(value:unknown):string {
+  if(typeof value!=='string' ||
+     !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/.test(value) ||
+     !Number.isFinite(Date.parse(value)))
+    throw new Error('A fresh stage revision is required; reload this workstation');
+  return value;
+}
+
 export interface ProgressInput { note:string; progressPercent:number|null; expectedUpdatedAt:string; }
 export function parseProgressInput(value:unknown):ProgressInput {
   if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Invalid progress report');
