@@ -25,6 +25,43 @@ const properties={
    'frameDimensions','frameCustom','frameWaterholes','frameMountingHoles','shablon','notes']
 } as const;
 type ProductionSection=keyof typeof properties;
+type ProductionSection=keyof typeof properties;
+
+// Form controls may retain an old selection when its parent checkbox becomes
+// inactive. Such hidden values are preserved in order JSON but are NOT current
+// manufacturing instructions to send to OpenRouter.
+function inactiveChoice(section:ProductionSection,key:string,values:RecordValue):boolean{
+ if(section==='CNC_FREZER'){
+   if(key==='faceThickness')return !text(values.face);
+   if(key==='backThickness')return !text(values.back);
+ }
+ if(section==='BENDER'&&['sidesThickness','depth'].includes(key))
+   return !text(values.sides);
+ if(section==='FRONT'){
+   for(const part of ['face','back','sides']){
+     if((key===part+'Film'||key===part+'Custom')&&values[part]!==true)
+       return true;
+   }
+ }
+ if(section==='PAINTING'){
+   for(const part of ['face','sides','back','frame']){
+     if(key===part+'Custom'&&values[part]!==true)return true;
+   }
+ }
+ if(section==='ASSEMBLING'){
+   const dependents:Record<string,readonly string[]>={
+     led:['ledModule','ledCustom'],
+     psu:['psuModel','psuType','psuMounting'],
+     cables:['cableType','cablesLength','cablesWago'],
+     frame:['frameMaterial','frameDimensions','frameCustom',
+       'frameWaterholes','frameMountingHoles']
+   };
+   for(const [toggle,fields] of Object.entries(dependents)){
+     if(fields.includes(key)&&values[toggle]!==true)return true;
+   }
+ }
+ return false;
+}
 export type NativeProfileSummary={
  profileName:string|null;
  signType:string|null;
@@ -38,12 +75,14 @@ export function summarizeNativeProfileConfiguration(raw:unknown):NativeProfileSu
    const rawSection=record(source[section]);
    const values:Record<string,string|number|boolean>={};
    for(const key of keys){
+     if(inactiveChoice(section,key,rawSection))continue;
      const value=scalar(rawSection[key]);
      if(value!==undefined)values[key]=value;
    }
    // Color choices are structured objects, not free text for hallucinated RALs.
    if(section==='PAINTING'){
      for(const part of ['face','sides','back','frame']){
+       if(rawSection[part]!==true)continue;
        const color=record(rawSection[part+'Color']);
        for(const colorKey of ['system','code']){
          const value=text(color[colorKey],60);
