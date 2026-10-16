@@ -52,6 +52,11 @@ describe('OMS-R37 — native production packet and manufacturing status',()=>{
    expect(packet).toContain('summarizeNativeProfileConfiguration(profile.configuration)');
    expect(packet).toContain('/api/files/');
    expect(packet).toContain('?download=true');
+   expect(packet).toContain('/stages');
+   expect(packet).toContain('row.draft_order_id===orderId');
+   expect(packet).toContain('currentStage={state:found.state');
+   expect(packet).toContain('currentStage=null');
+   expect(packet).not.toContain('blockedReason={packetTarget.stage.blocked_reason}');
    expect(packet).toContain('fileTotal=null');
    expect(packet).not.toContain('openrouter');
    expect(packet).not.toContain('method:\'POST\'');
