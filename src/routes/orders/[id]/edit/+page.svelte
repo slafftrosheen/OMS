@@ -255,6 +255,20 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     openWorkspaceSection('chat');
   }
   let intakeFileId = $state('');
+  let intakeProfileIndex = $state<number|null>(null);
+  function openAttachmentIntake(fileId:string){
+    if(!canEdit)return;
+    intakeFileId=fileId;
+    openWorkspaceSection('intake');
+  }
+  function openProfileIntake(index:number){
+    if(!canEdit)return;
+    intakeProfileIndex=index;
+    openWorkspaceSection('intake');
+  }
+  let intakeProfileNames=$derived(profiles.map(p=>
+    typeof p.configuration?.profileName==='string'
+      ? p.configuration.profileName.slice(0,100):''));
   let intakeCurrent = $derived({
     clientName,title,deadline,loadingDate,priority,notes,
     deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail,isRd,rdNotes
@@ -276,7 +290,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     if(typeof patch.deliveryEmail==='string') deliveryEmail=patch.deliveryEmail;
     if(typeof patch.isRd==='boolean') isRd=patch.isRd;
     if(typeof patch.rdNotes==='string') rdNotes=patch.rdNotes;
-    canvasDirty=true;
+    // These are order-form fields, not Canvas edits. formFingerprint tracks them.
     notifySuccess('Approved fields applied locally. Review them and click Save Draft.');
     openWorkspaceSection('details');
   }
@@ -1186,6 +1200,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                   </button>
                 {/if}
                 {#if canEdit}
+                  <button type="button" class="action-btn"
+                    onclick={()=>openProfileIntake(idx)}>
+                    ✦ {$t('orderIntake.openForProfile')}
+                  </button>
                   <button type="button" onclick={() => profiles = profiles.filter((_,i)=>i!==idx)}>Remove profile</button>
                 {/if}
               </div>
@@ -1286,7 +1304,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         {:else if rightTab === 'intake'}
           {#if orderId}
             <OrderIntakeAssistant {orderId} editable={canEdit} current={intakeCurrent}
-              selectedFileId={intakeFileId} onApply={applyIntakeFields} />
+              selectedFileId={intakeFileId} selectedProfileIndex={intakeProfileIndex}
+              profileNames={intakeProfileNames} dirty={hasUnsavedChanges}
+              {orderUpdatedAt} onApply={applyIntakeFields} />
           {/if}
         {:else if rightTab === 'files'}
           {#if orderId}
@@ -1299,7 +1319,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                 </button>
               </div>
             {/if}
-            <OrderFiles {orderId} compact={true} onChanged={refreshFileCount} canUpload={canEdit ||
+            <OrderFiles {orderId} compact={true} onChanged={refreshFileCount}
+              onAnalyze={canEdit ? openAttachmentIntake : undefined} canUpload={canEdit ||
               (isAdmin && ['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status))} />
           {:else}<p class="zone-intro">Loading attachments…</p>{/if}
         {:else if rightTab === 'chat'}
