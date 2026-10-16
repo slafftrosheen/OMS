@@ -1742,6 +1742,7 @@
     "delete": "Delete"
   },
   "orderWorkspace": {
+    "confirmProfilesCount": "Profiles in saved order: {count}",
     "confirmProductionWarning": "This releases the order to production. Verify the client, deadline, native profiles, drawings and externally issued PO number before proceeding.",
     "confirmDirectDraft": "This order is still a DRAFT. Confirming it now skips the Pending Review queue; only proceed if direct management approval is intended.",
     "confirmFilesUnknown": "Cannot verify attached files. Refresh the order before confirmation.",
