@@ -4,17 +4,21 @@
   import { proposalsToPatch, type IntakeProposal, type IntakeResponse } from './intake-contract';
   import {fetchAllOrderFiles,watchOrderFilesChanged} from './order-files-client';
 
-  type Analysis = IntakeResponse & { orderUpdatedAt:string; engine:string|null };
+  type Analysis = IntakeResponse & { orderUpdatedAt:string; engine:string|null;profileIndex?:number|null };
   type OrderFile = {id:string; originalName?:string; file_name?:string;
     mimeType?:string; mime_type?:string; size?:number};
-  let {orderId,editable,current,selectedFileId='',onApply}:{
+  let {orderId,editable,current,selectedFileId='',selectedProfileIndex=null,
+    profileNames=[],dirty=false,orderUpdatedAt=null,onApply}:{
     orderId:string; editable:boolean; current:Record<string,unknown>;
-    selectedFileId?:string; onApply:(patch:Record<string,unknown>)=>void;
+    selectedFileId?:string; selectedProfileIndex?:number|null;
+    profileNames?:string[]; dirty?:boolean; orderUpdatedAt?:string|null;
+    onApply:(patch:Record<string,unknown>)=>void;
   }=$props();
 
   let files=$state<OrderFile[]>([]);
   let filesLoadVersion=0;
   let fileId=$state('');
+  let profileChoice=$state('');
   let includePaidOcr=$state(false);
   let consent=$state(false);
   let loading=$state(false);
@@ -26,6 +30,15 @@
   let baseState=$state('');
   let applied=$state(false);
   $effect(()=>{if(selectedFileId)fileId=selectedFileId;});
+  $effect(()=>{
+    if(selectedProfileIndex!==null && selectedProfileIndex>=0)
+      profileChoice=String(selectedProfileIndex);
+  });
+  let profileIndex=$derived(profileChoice===''?null:Number(profileChoice));
+  let sourceMatches=$derived(!analysis || (
+    (analysis.fileId??'')===fileId &&
+    (analysis.profileIndex??null)===profileIndex
+  ));
   onMount(()=>{
     void loadFiles();
     return watchOrderFilesChanged(changedId=>{if(changedId===orderId)void loadFiles();});
@@ -49,6 +62,7 @@
   }
   async function analyze(){
     if(!editable||!consent||analyzing)return;
+    if(dirty||!orderUpdatedAt){problem=$t('orderIntake.saveFirst');return;}
     if(!fileId && !String(current.notes??'').trim()){
       problem=$t('orderIntake.noSource');return;
     }
@@ -58,17 +72,22 @@
     if(ocr && !confirm($t('orderIntake.confirmPaidOcr')))return;
     analyzing=true;
     const capturedOrderId=orderId;
+    const capturedProfileIndex=profileIndex;
+    const capturedFileId=fileId;
+    const capturedVersion=orderUpdatedAt;
     baseState=JSON.stringify(current);
     includePaidOcr=false;
     try{
       const res=await fetch('/api/ai/order-intake',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({orderId:capturedOrderId,
-          fileId:fileId||null,ocr:!!ocr,language:$t('orderIntake.locale')})
+          fileId:capturedFileId||null,profileIndex:capturedProfileIndex,
+          expectedUpdatedAt:capturedVersion,ocr:!!ocr,language:$t('orderIntake.locale')})
       });
       const body=await res.json().catch(()=>({}));
       if(orderId!==capturedOrderId)return;
       if(!res.ok)throw new Error(body.message||body.error||$t('orderIntake.analyzeError'));
+      // A changed selection never silently binds provider output to a new file/profile.
       analysis=body as Analysis;
       // No checkboxes are accepted by default. Every field is a deliberate
       // staff decision, including low-confidence suggestions.
@@ -79,8 +98,11 @@
   }
   async function apply(){
     if(!analysis||!editable||applying||applied)return;
-    if((analysis.fileId??'')!==fileId){
+    if(!sourceMatches){
       problem=$t('orderIntake.sourceChanged');return;
+    }
+    if(dirty || !orderUpdatedAt || analysis.orderUpdatedAt!==orderUpdatedAt){
+      problem=$t('orderIntake.saveFirst');return;
     }
     const accepted=analysis.proposals.filter((_:IntakeProposal,i:number)=>approvals[i]);
     if(!accepted.length){problem=$t('orderIntake.selectOne');return;}
@@ -108,6 +130,9 @@
 <section class="intake">
   <h3>{$t('orderIntake.title')}</h3>
   <p class="hint">{$t('orderIntake.description')}</p>
+  {#if dirty}
+    <p class="problem" role="status">{$t('orderIntake.saveFirst')}</p>
+  {/if}
   <label>{$t('orderIntake.source')}
     <select bind:value={fileId} disabled={!editable||analyzing}>
       <option value="">{$t('orderIntake.notesOnly')}</option>
@@ -116,6 +141,17 @@
       {/each}
     </select>
   </label>
+  <label>{$t('orderIntake.profileFocus')}
+    <select bind:value={profileChoice} disabled={!editable||analyzing}>
+      <option value="">{$t('orderIntake.wholeOrder')}</option>
+      {#each profileNames as name,i (i)}
+        <option value={String(i)}>
+          {$t('orderAssistant.profileNumber',{values:{number:i+1}})}{name?' — '+name:''}
+        </option>
+      {/each}
+    </select>
+  </label>
+  <p class="hint">{$t('orderIntake.profileFocusHint')}</p>
   <button class="minor" onclick={loadFiles} disabled={loading||analyzing}>
     {loading?$t('orderIntake.loading'):$t('orderIntake.refresh')}
   </button>
@@ -131,11 +167,14 @@
     {$t('orderIntake.consent')}
   </label>
   <button class="primary" onclick={analyze}
-    disabled={!editable||!consent||analyzing}>
+    disabled={!editable||!consent||analyzing||dirty||!orderUpdatedAt}>
     {analyzing?$t('orderIntake.analyzing'):$t('orderIntake.analyze')}
   </button>
   {#if problem}<p role="alert" class="problem">{problem}</p>{/if}
-  {#if analysis}
+  {#if analysis && !sourceMatches}
+    <p class="problem" role="status">{$t('orderIntake.selectionChanged')}</p>
+  {/if}
+  {#if analysis && sourceMatches}
     <p class="hint">{$t('orderIntake.model')}: {analysis.model}</p>
     <p class="hint">{$t('orderIntake.source')}: {analysis.fileName??$t('orderIntake.notesOnly')}</p>
     <p class="hint">{$t('orderIntake.provenance')}</p>
@@ -163,7 +202,7 @@
         <p role="status" class="success">{$t('orderIntake.applied')}</p>
       {:else}
         <button class="primary" onclick={apply}
-          disabled={!editable||applying||!Object.values(approvals).some(Boolean)}>
+          disabled={!editable||dirty||applying||!Object.values(approvals).some(Boolean)}>
           {applying?$t('orderIntake.checking'):$t('orderIntake.applySelected')}
         </button>
       {/if}
