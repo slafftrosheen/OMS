@@ -427,7 +427,7 @@ BEGIN
  IF p_request_id IS NULL OR p_material_id IS NULL OR
    p_new_stock IS NULL OR p_new_stock<0 OR p_new_stock>100000000 OR
    p_expected_canonical_stock IS NULL OR p_expected_legacy_stock IS NULL OR
-   nullif(btrim(coalesce(p_reason,'')),'') IS NULL THEN
+   length(btrim(coalesce(p_reason,'')))<10 OR length(p_reason)>1000 THEN
    RAISE EXCEPTION 'Valid physical count and reason required' USING ERRCODE='22023';
  END IF;
  -- If the network lost a completed receipt, replay exactly the same
