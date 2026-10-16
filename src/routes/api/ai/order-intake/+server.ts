@@ -122,7 +122,7 @@ Customer/order notes:
 ${note || '(none)'}
 Selected file: ${filename??'(none)'}.
 ${selectedProfile
-  ?'SELECTED SAVED PROFILE (untrusted operator selections, not drawing verification):\\n'+
+  ?'SELECTED SAVED PROFILE (untrusted operator selections, not drawing verification):\n'+
    JSON.stringify(selectedProfile)
   :'No specific saved profile selected.'}
 Only propose values supported by the selected attachment or actual notes.
