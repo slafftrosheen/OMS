@@ -39,11 +39,36 @@ export const POST:RequestHandler=async ({locals,request})=>{
  let input:ReturnType<typeof parseReviewChange>;
  try{input=parseReviewChange(raw);}
  catch(e){throw error(400,e instanceof Error?e.message:'Invalid review');}
+ let auditedNote=input.note;
+ if(input.evidenceMovementIds.length){
+   // Cite only real movements linked to the original review's order.
+   // This is a read-only validation; all final audit writes remain in
+   // the versioned R25/R40 management RPC below.
+   const {data:source,error:sourceError}=await locals.supabase
+     .from('production_exception_reviews')
+     .select('id,draft_order_id,kind')
+     .eq('id',input.reviewId!).maybeSingle();
+   if(sourceError)throw error(503,'Could not verify review evidence');
+   if(!source || !['MATERIAL_SKIPPED','STAGE_UNCHANGED'].includes(source.kind))
+     throw error(409,'Movement references require a current oversight review');
+   const {data:linked,error:linkedError}=await locals.supabase
+     .from('inventory_movements').select('id')
+     .in('id',input.evidenceMovementIds)
+     .eq('reference_type','order').eq('reference_id',source.draft_order_id);
+   if(linkedError)throw error(503,'Linked inventory audit could not be verified');
+   if((linked??[]).length!==input.evidenceMovementIds.length)
+     throw error(409,'Selected movement no longer belongs to this order');
+   const reference='\\nOrder movement evidence: '+input.evidenceMovementIds.join(', ');
+   const max=input.action==='update'?1000:2000;
+   if((auditedNote??'').length+reference.length>max)
+     throw error(400,'Review note and movement references exceed the allowed length');
+   auditedNote=(auditedNote??'')+reference;
+ }
  const {data,error:rpcError}=await locals.supabase.rpc('oms_manage_production_exception',{
    p_action:input.action,p_order_id:input.orderId,p_station:input.station,
    p_kind:input.kind,p_review_id:input.reviewId,
    p_expected_updated_at:input.expectedUpdatedAt,
-   p_due_date:input.dueDate,p_note:input.note
+   p_due_date:input.dueDate,p_note:auditedNote
  });
  if(rpcError){
    if(rpcError.code==='23505'||rpcError.code==='P0001')
