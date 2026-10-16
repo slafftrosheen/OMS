@@ -74,6 +74,13 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let canvasLoaded = $state(false);
   let canvasSnapshot: any = $state(null);
   let canvasDirty = $state(false);
+  // Monotonic local change serial: completing an old save must not erase
+  // edits made while the network request is in flight.
+  let canvasChangeSerial = 0;
+  function markCanvasDirty(){
+    canvasChangeSerial++;
+    canvasDirty = true;
+  }
   let editorRef: any = $state(null);
   let selectedShape: { id: string; type: string; x: number; y: number; w: number | null; h: number | null; thickness: number | null; rotation: number } | null = $state(null);
   let multiSelectCount = $state(0);
@@ -407,7 +414,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   function handleEditorReady(editor: any) {
     editorRef = editor;
     editor.store.listen(() => {
-      canvasDirty = true;
+      markCanvasDirty();
     }, { scope: 'document' });
     // Selection listener: update Svelte state whenever the user selects shapes
     editor.store.listen(() => {
@@ -523,7 +530,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
   function handleCanvasSave(snapshot: any) {
     canvasSnapshot = snapshot;
-    canvasDirty = true;
+    markCanvasDirty();
   }
 
   /** Called when a form shape field changes on the canvas — syncs back to Svelte state */
@@ -537,16 +544,16 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     if (patch.deliveryAddress !== undefined) deliveryAddress = patch.deliveryAddress;
     if (patch.deliveryContact !== undefined) deliveryContact = patch.deliveryContact;
     if (patch.deliveryPhone !== undefined) deliveryPhone = patch.deliveryPhone;
-    canvasDirty = true;
+    markCanvasDirty();
   }
 
   function handleProfileChange(oid: string, profileIndex: number, profileData: any) {
     profiles = profiles.map((p, i) => i === profileIndex ? { ...p, configuration: profileData } : p);
-    canvasDirty = true;
+    markCanvasDirty();
   }
 
   function handleAssetUploaded(oid: string, asset: { url: string; fileName: string; kind: string }) {
-    canvasDirty = true;
+    markCanvasDirty();
     notifySuccess(`Uploaded ${asset.fileName}`);
   }
 
@@ -554,51 +561,91 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   async function saveDraft(): Promise<boolean> {
     if (!orderId || !canEdit) { notifyError('You cannot edit this draft'); return false; }
     if (saving) return false;
+    if (!orderUpdatedAt || savedFormFingerprint === null) {
+      notifyError($t('orderWorkspace.staleSave')); return false;
+    }
     if (!clientName.trim() || !deadline) { notifyError('Client and deadline are required'); return false; }
     saving = true;
     try {
-      const res = await fetch(`/api/draft-orders/${orderId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientName, title, deadline, loadingDate: loadingDate || null,
-          expectedUpdatedAt: orderUpdatedAt,
-          notes, priority,
-          deliveryAddress, deliveryContact, deliveryPhone,
-          deliveryEmail: deliveryEmail || null, isRd, rdNotes,
-          deliveryPresetId,
-          profiles: profiles.map(p => ({
-            profileTemplateId: p.profileTemplateId ?? p.profile_template_id ?? null,
-            quantity: p.quantity ?? 1,
-            quantity2: p.quantity2 ?? 0, quantity3: p.quantity3 ?? 0,
-            quantity4: p.quantity4 ?? 0,
-            configuration: p.configuration ?? {}, notes: p.notes ?? ''
-          })),
-        }),
-      });
-      if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        if (res.status === 409 || res.status === 428) throw new Error($t('orderWorkspace.staleSave'));
-        throw new Error(payload.error || payload.message || 'Save failed');
-      }
-      const persisted = await res.json();
-      // A readiness report about the previous draft revision is now stale,
-      // including when the separate Canvas save subsequently fails.
-      orderUpdatedAt = typeof persisted.updatedAt === 'string'
-        ? persisted.updatedAt : null;
-
-      // Persist canvas state
-      if (canvasSnapshot) {
-        const canvasResponse = await fetch(`/api/draft-orders/${data.id}/canvas-state`, {
+      if (formDirty) {
+        // Capture the precise form revision being submitted. New edits during
+        // the request remain dirty instead of being reported as saved.
+        const sentFingerprint = formFingerprint();
+        const res = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ snapshot: canvasSnapshot }),
+          body: JSON.stringify({
+            clientName, title, deadline, loadingDate: loadingDate || null,
+            expectedUpdatedAt: orderUpdatedAt,
+            notes, priority,
+            deliveryAddress, deliveryContact, deliveryPhone,
+            deliveryEmail: deliveryEmail || null, isRd, rdNotes,
+            deliveryPresetId,
+            profiles: profiles.map(p => ({
+              profileTemplateId: p.profileTemplateId ?? p.profile_template_id ?? null,
+              quantity: p.quantity ?? 1,
+              quantity2: p.quantity2 ?? 0, quantity3: p.quantity3 ?? 0,
+              quantity4: p.quantity4 ?? 0,
+              configuration: p.configuration ?? {}, notes: p.notes ?? ''
+            })),
+          }),
         });
-        if (!canvasResponse.ok) throw new Error('Order fields saved, but Canvas did not save. Retry before confirming.');
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          if (res.status === 409 || res.status === 428)
+            throw new Error($t('orderWorkspace.staleSave'));
+          throw new Error(payload.error || payload.message || 'Save failed');
+        }
+        const persisted = await res.json();
+        if (typeof persisted.updatedAt !== 'string' || !persisted.updatedAt)
+          throw new Error('Order saved, but its new revision was not returned. Reload before continuing.');
+        orderUpdatedAt = persisted.updatedAt;
+        // Committed form data is saved even if the separate Canvas update
+        // fails. A retry should not rewrite all profile rows unnecessarily.
+        savedFormFingerprint = sentFingerprint;
       }
 
-      canvasDirty = false;
-      savedFormFingerprint=formFingerprint();
+      if (canvasDirty) {
+        // CanvasApp coalesces snapshot callbacks by 250 ms. Capture the
+        // current tldraw document at save time rather than submitting an
+        // out-of-date snapshot during rapid edits.
+        let snapshot = canvasSnapshot;
+        if (editorRef?.store) {
+          const { getSnapshot } = await import('@tldraw/tldraw');
+          snapshot = getSnapshot(editorRef.store);
+        }
+        if (!snapshot || typeof snapshot !== 'object') {
+          throw new Error('Canvas is not ready to save. Wait for the editor and retry.');
+        }
+        const serialAtSave = canvasChangeSerial;
+        const canvasResponse = await fetch(
+          `/api/draft-orders/${encodeURIComponent(orderId)}/canvas-state`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              snapshot,
+              expectedUpdatedAt: orderUpdatedAt
+            })
+          }
+        );
+        if (!canvasResponse.ok) {
+          const detail = await canvasResponse.json().catch(() => ({}));
+          if (canvasResponse.status === 409 || canvasResponse.status === 428)
+            throw new Error($t('orderWorkspace.staleSave'));
+          throw new Error(detail.error || detail.message ||
+            'Order form was saved, but Canvas failed. Retry before confirming.');
+        }
+        const savedCanvas = await canvasResponse.json();
+        if (typeof savedCanvas.updatedAt !== 'string' || !savedCanvas.updatedAt)
+          throw new Error('Canvas saved, but its order revision was not returned. Reload before continuing.');
+        orderUpdatedAt = savedCanvas.updatedAt;
+        if (serialAtSave === canvasChangeSerial) canvasDirty = false;
+      }
+
+      if (formDirty || canvasDirty) {
+        notifyError('New edits were made during Save. Save again before confirming.');
+        return false;
+      }
       notifySuccess('Draft saved');
       return true;
     } catch (err: any) {
