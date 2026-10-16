@@ -11,6 +11,7 @@
   import QRScanner from '$lib/components/qr/QRScanner.svelte';
   import StationCompleteModal from '$lib/components/station/StationCompleteModal.svelte';
   import StationProgressPanel from '$lib/components/station/StationProgressPanel.svelte';
+  import StationProductionPacket from '$lib/components/station/StationProductionPacket.svelte';
   import { notifications } from '$lib/notify/store';
   import { ensureRoom, loadMessages } from '$lib/chat/chat-store';
   import ChatPane from '$lib/ui/ChatPane.svelte';
@@ -51,6 +52,7 @@
   let completeModalOpen = $state(false);
   let completeTarget = $state<StationOrder | null>(null);
   let progressTarget = $state<StationOrder | null>(null);
+  let packetTarget = $state<StationOrder | null>(null);
   let showChat = $state(false);
 
   // Block modal state
@@ -285,7 +287,8 @@
 
     refreshInterval = setInterval(() => {
       if (!document.hidden && !completeModalOpen && !blockModalOpen &&
-          !reworkModalOpen && !resolveModalOpen && !progressTarget) void loadStationOrders(true);
+          !reworkModalOpen && !resolveModalOpen && !progressTarget && !packetTarget)
+        void loadStationOrders(true);
     }, 30000);
 
     // Ensure this station's chat room exists and load its messages
@@ -516,6 +519,11 @@
               </button>
             {/if}
 
+            <button type="button" class="btn btn-sm btn-outline"
+              onclick={()=>packetTarget=order}>
+              <Icon name="files" size="sm" />
+              {$t('productionPacket.open')}
+            </button>
             <a href={`/orders/${encodeURIComponent(order.id)}`} class="btn btn-sm btn-outline">
               <Icon name="eye" size="sm" />
               {$t('common.details', { default: 'Details' })}
@@ -549,6 +557,23 @@
         <button class="close-btn" onclick={() => $showScanner = false} aria-label={$t('common.close')}>×</button>
       </div>
       <QRScanner onscan={(data) => handleQRScan(data)} />
+    </div>
+  </div>
+{/if}
+
+{#if packetTarget}
+  <div class="modal-overlay" role="presentation" onclick={()=>packetTarget=null}
+    onkeydown={e=>{if(e.key==='Escape')packetTarget=null;}}>
+    <div class="modal-content production-packet-modal" role="dialog" aria-modal="true"
+      aria-label={$t('productionPacket.title')}
+      onclick={e=>e.stopPropagation()} onkeydown={e=>e.stopPropagation()}>
+      {#key packetTarget.id}
+        <StationProductionPacket orderId={packetTarget.id} {station}
+          stageState={packetTarget.stage.state}
+          blockedReason={packetTarget.stage.blocked_reason}
+          stageNotes={packetTarget.stage.notes}
+          onClose={()=>packetTarget=null}/>
+      {/key}
     </div>
   </div>
 {/if}
@@ -1265,6 +1290,7 @@
     .btn, .station-order-card { transition: none; }
   }
 
+  .production-packet-modal{width:min(1100px,95vw);max-height:94vh;overflow:auto}
   .station-search { display: flex; flex-direction: column; gap: .35rem; max-width: 550px; }
   .station-search label { font-size: .78rem; font-weight: 650; color: var(--muted); }
   .search-controls { display: flex; gap: .45rem; }
