@@ -79,10 +79,16 @@ CREATE OR REPLACE FUNCTION public.confirm_order_with_stages(
 ) RETURNS JSONB
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp
 AS $
-DECLARE v_current public.draft_orders; v_result JSONB;
+DECLARE v_current public.draft_orders; v_result JSONB; v_role TEXT;
 BEGIN
  IF auth.uid() IS NULL THEN
    RAISE EXCEPTION 'Authentication required' USING ERRCODE='42501';
+ END IF;
+ SELECT role INTO v_role FROM public.profiles
+   WHERE id=auth.uid() AND is_active=TRUE;
+ IF v_role IS NULL OR v_role NOT IN ('RD','Boss','HeadOfProduction') THEN
+   RAISE EXCEPTION 'Management confirmation permission required'
+     USING ERRCODE='42501';
  END IF;
  IF p_expected_updated_at IS NULL THEN
    RAISE EXCEPTION 'Order revision required' USING ERRCODE='22023';
