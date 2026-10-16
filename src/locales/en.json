@@ -1958,6 +1958,8 @@
     "technicalChecks": "Technical checks"
   },
   "orderAssistant": {
+    "askAboutThisProfile": "Ask AI about this profile",
+    "profileSpecificQuestion": "Review only saved production profile #{number} in this order. Check its active CNC, BENDER, FRONT, PAINTING and ASSEMBLING choices for missing requirements and contradictions. Treat disabled options as inactive, do not invent drawings or machine capabilities.",
     "applyNativeProfile": "Apply to draft",
     "nativeProfileApplyHint": "Closing this window discards edits made here. Apply keeps them in the draft, not on the server.",
     "saveAndAsk": "Save draft & ask AI",
