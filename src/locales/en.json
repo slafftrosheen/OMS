@@ -1415,10 +1415,15 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "productionExceptions": {
+    "oversightUnavailable": "Production oversight source is unavailable. Stage-age and material-skip findings cannot be assessed right now; their reviews are hidden until a valid source is loaded.",
+    "oversightPreviewLimited": "Oversight source is capped to {limit} rows per category ({total} total signals). Some existing reviews may be outside the preview; verify against the original order.",
+    "sourceOutsidePreview": "Outside source preview — current condition not verified",
+    "filteredOrder": "Filtered to the selected order",
+    "clearOrderFilter": "Clear order filter",
     "open": "Exception reviews",
     "title": "Production exception reviews",
     "eyebrow": "Production / Management follow-ups",
-    "intro": "Find unrecorded hours, stage overruns, blocked or rework jobs and missed approved work dates. Claim and resolve each review with accountable notes.",
+    "intro": "Review actual production exceptions, including overdue stage records and skipped material declarations. Assign follow-ups, retain evidence and record resolutions without changing production data.",
     "performance": "Performance",
     "planner": "Capacity planner",
     "refresh": "Refresh",
@@ -1445,7 +1450,9 @@
       "ACTUAL_OVERRUN": "Recorded hours exceed estimate",
       "BLOCKED": "Blocked production stage",
       "REWORK": "Stage in rework",
-      "MISSED_BOOKING": "Missed approved work date"
+      "MISSED_BOOKING": "Missed approved work date",
+    "STAGE_UNCHANGED": "Stage record unchanged ≥72 hours",
+    "MATERIAL_SKIPPED": "Material declaration skipped"
     },
     "state": {
       "UNCLAIMED": "Unclaimed",
@@ -1458,7 +1465,9 @@
       "measuredHoursOverEstimate": "Actual recorded hours exceed the stage estimate",
       "activeProductionInterruption": "Open blocked/rework station assignment",
       "approvedDatePassedWhileStageActive": "Approved booking in the past while this stage is still active",
-      "conditionNotCurrentlyReported": "Review record retained; this condition is not currently detected"
+      "conditionNotCurrentlyReported": "Review record retained; this condition is not currently detected",
+    "stageRecordUnchanged": "No stage-record update in at least 72 hours; progress notes may exist separately",
+    "materialSkipForReview": "Completed stage marked Skip materials; verify reconciliation and record a decision"
     },
     "notCurrent": "Not currently reported",
     "assignedToYou": "Assigned to you",
