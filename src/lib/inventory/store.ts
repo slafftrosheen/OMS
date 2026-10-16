@@ -216,7 +216,13 @@ export async function recordMovement(
       console.error('Use stage completion for order-linked material consumption');
       return null;
     }
-    const requestId=crypto.randomUUID();
+    // randomUUID() requires a secure context in some browsers. Tailscale
+    // deployments may use HTTP, where getRandomValues remains available.
+    const requestId=typeof crypto.randomUUID==='function'
+      ?crypto.randomUUID()
+      :'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,ch=>
+        (Number(ch)^crypto.getRandomValues(new Uint8Array(1))[0] &
+          (15>>Number(ch)/4)).toString(16));
     const response = await fetch('/api/inventory/movements', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
