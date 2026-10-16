@@ -1,6 +1,8 @@
 import {json,error} from '@sveltejs/kit';
 import type {RequestHandler} from './$types';
 import {deriveProductionPlanning,type OrderRow,type StageRow} from '$lib/order/production-planning';
+import {deriveProductionOversight} from '$lib/order/production-oversight';
+import {canManageSharedInventory} from '$lib/server/authz/shared-data';
 
 const PAGE_SIZE=200;
 const STAGE_ID_CHUNK=50;
@@ -44,8 +46,8 @@ export const GET:RequestHandler=async ({locals})=>{
  for(let offset=0;offset<orders.length;offset+=STAGE_ID_CHUNK){
    const ids=orders.slice(offset,offset+STAGE_ID_CHUNK).map(x=>x.id);
    const {data,error:dbError}=await db.from('order_stages')
-     .select('draft_order_id,station,state,estimated_hours,actual_hours,blocked_reason')
-     .in('draft_order_id',ids).neq('state','COMPLETED')
+     .select('draft_order_id,station,state,estimated_hours,actual_hours,blocked_reason,updated_at,completed_at,consumption_skipped,consumption_skipped_reason')
+     .in('draft_order_id',ids)
      .order('draft_order_id',{ascending:true}).order('station',{ascending:true})
      .range(0,STAGE_ID_CHUNK*14);
    if(dbError){console.error('[Production planning] Stages',dbError);
@@ -59,7 +61,11 @@ export const GET:RequestHandler=async ({locals})=>{
      seenStages.add(key);stages.push(row);
    }
  }
- return json({success:true,asOf:new Date().toISOString(),
-   ...deriveProductionPlanning(orders,stages,rigaDate())},
+ const asOf=new Date().toISOString();
+ const oversight=canManageSharedInventory(locals.user.role)
+   ?deriveProductionOversight(orders,stages,asOf):null;
+ return json({success:true,asOf,
+   ...deriveProductionPlanning(orders,stages,rigaDate()),
+   oversight},
    {headers:{'Cache-Control':'private, no-store'}});
 };
