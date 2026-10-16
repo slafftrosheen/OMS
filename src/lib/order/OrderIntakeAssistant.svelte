@@ -35,6 +35,15 @@
       profileChoice=String(selectedProfileIndex);
   });
   let profileIndex=$derived(profileChoice===''?null:Number(profileChoice));
+  function isUnchanged(p:IntakeProposal){
+    return String(current[p.field]??'').trim()===p.value.trim();
+  }
+  let analysisStale=$derived(!!analysis && (
+    dirty || !orderUpdatedAt || analysis.orderUpdatedAt!==orderUpdatedAt ||
+    JSON.stringify(current)!==baseState
+  ));
+  let acceptedCount=$derived(analysis?.proposals.filter((p,i)=>
+    approvals[i]===true && !isUnchanged(p)).length??0);
   let sourceMatches=$derived(!analysis || (
     (analysis.fileId??'')===fileId &&
     (analysis.profileIndex??null)===profileIndex
@@ -88,6 +97,10 @@
       if(orderId!==capturedOrderId)return;
       if(!res.ok)throw new Error(body.message||body.error||$t('orderIntake.analyzeError'));
       // A changed selection never silently binds provider output to a new file/profile.
+      if(body.fileId!==(capturedFileId||null)||
+         (body.profileIndex??null)!==capturedProfileIndex||
+         body.orderUpdatedAt!==capturedVersion)
+        throw new Error($t('orderIntake.changedOnServer'));
       analysis=body as Analysis;
       // No checkboxes are accepted by default. Every field is a deliberate
       // staff decision, including low-confidence suggestions.
@@ -101,10 +114,10 @@
     if(!sourceMatches){
       problem=$t('orderIntake.sourceChanged');return;
     }
-    if(dirty || !orderUpdatedAt || analysis.orderUpdatedAt!==orderUpdatedAt){
+    if(analysisStale){
       problem=$t('orderIntake.saveFirst');return;
     }
-    const accepted=analysis.proposals.filter((_:IntakeProposal,i:number)=>approvals[i]);
+    const accepted=analysis.proposals.filter((p:IntakeProposal,i:number)=>approvals[i]&&!isUnchanged(p));
     if(!accepted.length){problem=$t('orderIntake.selectOne');return;}
     if(JSON.stringify(current)!==baseState){
       problem=$t('orderIntake.changedLocally');return;
@@ -120,6 +133,7 @@
       if(fresh.updatedAt!==analysis.orderUpdatedAt ||
          !['DRAFT','draft','PENDING_REVIEW'].includes(fresh.status))
         throw new Error($t('orderIntake.changedOnServer'));
+      if(!sourceMatches || analysisStale)throw new Error($t('orderIntake.changedLocally'));
       onApply(proposalsToPatch(accepted));
       applied=true;
     }catch(err){problem=err instanceof Error?err.message:$t('orderIntake.applyError');}
@@ -175,7 +189,13 @@
     <p class="problem" role="status">{$t('orderIntake.selectionChanged')}</p>
   {/if}
   {#if analysis && sourceMatches}
+    {#if analysisStale}
+      <p class="problem" role="status">{$t('orderIntake.analysisStale')}</p>
+    {/if}
     <p class="hint">{$t('orderIntake.model')}: {analysis.model}</p>
+    {#if analysis.profileIndex!==null && analysis.profileIndex!==undefined}
+      <p class="hint">{$t('orderIntake.profileFocus')}: {$t('orderAssistant.profileNumber',{values:{number:analysis.profileIndex+1}})}</p>
+    {/if}
     <p class="hint">{$t('orderIntake.source')}: {analysis.fileName??$t('orderIntake.notesOnly')}</p>
     <p class="hint">{$t('orderIntake.provenance')}</p>
     {#if analysis.proposals.length}
@@ -185,11 +205,14 @@
           <label class="proposal">
             <span class="choice"><input type="checkbox" checked={approvals[i]===true}
               onchange={e=>approvals={...approvals,[i]:e.currentTarget.checked}}
-              disabled={applied||!editable}/>
-              <strong>{p.field}</strong>
-              <small>{p.confidence}</small>
+              disabled={applied||!editable||analysisStale||isUnchanged(p)}/>
+              <strong>{$t('orderAssistant.fieldNames.'+p.field)}</strong>
+              <small>{$t('orderAssistant.confidence.'+p.confidence)}</small>
             </span>
             <span class="previous">{$t('orderIntake.current')}: {String(current[p.field]??'—')}</span>
+            {#if isUnchanged(p)}
+              <span class="hint">{$t('orderAssistant.noDifference')}</span>
+            {/if}
             <span class="proposed">{$t('orderIntake.proposed')}: {p.value}</span>
             <span class="evidence">{$t('orderIntake.evidence')}: {p.evidence}</span>
             {#if analysis.evidenceVerified[i]}
@@ -202,7 +225,7 @@
         <p role="status" class="success">{$t('orderIntake.applied')}</p>
       {:else}
         <button class="primary" onclick={apply}
-          disabled={!editable||dirty||applying||!Object.values(approvals).some(Boolean)}>
+          disabled={!editable||analysisStale||applying||acceptedCount===0}>
           {applying?$t('orderIntake.checking'):$t('orderIntake.applySelected')}
         </button>
       {/if}
