@@ -1958,6 +1958,11 @@
     "technicalChecks": "Technical checks"
   },
   "orderAssistant": {
+    "saveBeforePropose": "Save the current order changes before asking AI to suggest field edits.",
+    "reviewStale": "These suggestions refer to an older saved version or different local fields. Save/reload and ask again before applying.",
+    "noDifference": "Already matches the current value.",
+    "confidence": {"high":"High confidence","medium":"Medium confidence","low":"Low confidence"},
+    "fieldNames": {"clientName":"Client","title":"Order title","deadline":"Deadline","loadingDate":"Loading date","priority":"Priority","notes":"Order notes","deliveryAddress":"Delivery address","deliveryContact":"Delivery contact","deliveryPhone":"Delivery phone","deliveryEmail":"Delivery email","isRd":"R&D order","rdNotes":"R&D notes"},
     "askAboutThisProfile": "Ask AI about this profile",
     "profileSpecificQuestion": "Review only saved production profile #{number} in this order. Check its active CNC, BENDER, FRONT, PAINTING and ASSEMBLING choices for missing requirements and contradictions. Treat disabled options as inactive, do not invent drawings or machine capabilities.",
     "applyNativeProfile": "Apply to draft",
@@ -2056,6 +2061,12 @@
     "nativeProfileQuestion": "Review the saved CNC, BENDER, FRONT, PAINTING and ASSEMBLING profile choices. List missing requirements and contradictions. Do not invent dimensions, stock or machine capabilities."
   },
   "orderIntake": {
+    "profileFocus": "Production profile to compare",
+    "wholeOrder": "Whole order / no specific profile",
+    "profileFocusHint": "Optional. Compares the chosen PDF or image against a saved profile; it does not change manufacturing selections.",
+    "openForProfile": "Analyze a drawing for this profile",
+    "saveFirst": "Save current order changes before analyzing or applying AI suggestions. Only saved profiles and notes are sent.",
+    "selectionChanged": "Selected file or profile changed. Analyze this selection again before reviewing suggestions.",
     "sourceChanged": "Selected source changed after analysis. Analyze the new file before applying.",
     "noSource": "Choose an attachment or save some order notes before analysis.",
     "locale": "en",
