@@ -1660,6 +1660,22 @@
       "outsideHorizon": "Nepietiek stundu prognozes periodā"
     }
   },
+  "productionOversight": {
+    "title": "Ražošanas pārraudzība",
+    "explanation": "Vadībai paredzēti signāli no saglabātajiem darba vietu ierakstiem. Posms nav atjaunināts 72 stundas — tas ir aicinājums pārbaudīt progresu, nevis pierādījums darba pārtraukumam; progresa piezīmes var būt atsevišķi. Izlaistā materiālu uzskaite jau var būt saskaņota. Nekādu automātisku darbību vai paziņojumu.",
+    "reviewQueue": "Atvērt pārvaldītos izņēmumus",
+    "unchangedCount": "posmi bez atjauninājuma ≥72 st.",
+    "skippedCount": "pabeigti posmi ar izlaistu materiālu uzskaiti",
+    "filter": "Rādīt",
+    "all": "Visi signāli",
+    "stageUnchanged": "Posms bez atjauninājuma ≥72 st.",
+    "materialSkipped": "Materiālu uzskaite izlaista",
+    "ago": "Ieraksts pirms {hours} stundām",
+    "inspectOrder": "Skatīt pasūtījumu",
+    "noFindings": "Šiem filtriem nav atbilstošu signālu.",
+    "truncated": "Redzami pirmie {limit} no {total} signāliem. Sašauriniet filtru vai pārbaudiet pasūtījumu.",
+    "showMore": "Rādīt vairāk signālu"
+  },
   "productionPlanning": {
     "pendingPo": "Bez pasūtījuma numura",
     "untitled": "Pasūtījums bez nosaukuma",
