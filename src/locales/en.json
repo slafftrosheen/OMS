@@ -2061,6 +2061,7 @@
     "nativeProfileQuestion": "Review the saved CNC, BENDER, FRONT, PAINTING and ASSEMBLING profile choices. List missing requirements and contradictions. Do not invent dimensions, stock or machine capabilities."
   },
   "orderIntake": {
+    "analysisStale": "The saved order or local form has changed since this analysis. Save or reload and analyze again; old suggestions cannot be applied.",
     "profileFocus": "Production profile to compare",
     "wholeOrder": "Whole order / no specific profile",
     "profileFocusHint": "Optional. Compares the chosen PDF or image against a saved profile; it does not change manufacturing selections.",
