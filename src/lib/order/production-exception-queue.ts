@@ -2,14 +2,16 @@
 import type {PerformanceSummary,PerformanceLine} from './production-performance';
 import type {ApprovedReservationHours} from './capacity-forecast';
 import type {ReviewKind,ExceptionReview} from './production-exceptions';
+import type {ProductionOversight} from './production-oversight';
 export type ProductionFinding={
   key:string;orderId:string;station:string;kind:ReviewKind;
   poNumber:string|null;title:string;
   hours:number|null;referenceDate:string|null;
-  severity:'critical'|'warning';details:string;
+  severity:'critical'|'warning';details:string;sourceNote?:string|null;
 };
 export type ReviewQueueItem=ProductionFinding&{
-  review:ExceptionReview|null;sourceActive:boolean
+  review:ExceptionReview|null;sourceActive:boolean;
+  sourceCoverageUnknown?:boolean;
 };
 export const issueKey=(orderId:string,station:string,kind:ReviewKind)=>
   `${orderId}:${station}:${kind}`;
@@ -70,6 +72,25 @@ export function detectProductionExceptions(
     (a.severity===b.severity?0:a.severity==='critical'?-1:1)||
     (a.referenceDate??'9999').localeCompare(b.referenceDate??'9999')||
     a.station.localeCompare(b.station)||a.key.localeCompare(b.key));
+}
+/** Convert the R39 bounded, management-only read model into R25 review
+ * findings. No claim is persisted here: the R40 SQL RPC independently checks
+ * canonical stage state on claim and reopen.
+ */
+export function oversightProductionFindings(
+  source:ProductionOversight
+):ProductionFinding[]{
+  return source.signals.map(signal=>({
+    key:issueKey(signal.orderId,signal.station,signal.kind),
+    orderId:signal.orderId,station:signal.station,
+    kind:signal.kind,poNumber:signal.poNumber,title:signal.title,
+    hours:signal.kind==='STAGE_UNCHANGED'?signal.elapsedHours:null,
+    referenceDate:signal.recordedAt.slice(0,10),
+    severity:'warning' as const,
+    details:signal.kind==='STAGE_UNCHANGED'
+      ?'stageRecordUnchanged':'materialSkipForReview',
+    sourceNote:signal.kind==='MATERIAL_SKIPPED'?signal.reason:null
+  }));
 }
 export function mergeProductionReviews(
   findings:ProductionFinding[],reviews:ExceptionReview[]
