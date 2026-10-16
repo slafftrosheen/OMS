@@ -150,6 +150,9 @@
         <ArrowRightLeft size={14} aria-hidden="true" />
         {$t('inventory.movements')}
       </a>
+      <a class="tag" href={`${base}/inventory/consistency`}>
+        {$t('inventoryConsistency.open')}
+      </a>
     </div>
   </div>
 </section>
