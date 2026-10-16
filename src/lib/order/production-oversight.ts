@@ -68,9 +68,15 @@ export function deriveProductionOversight(
       (a.poNumber??a.orderId).localeCompare(b.poNumber??b.orderId)||
       a.station.localeCompare(b.station);
   });
-  const skippedCount=rows.filter(x=>x.kind==='MATERIAL_SKIPPED').length;
-  const unchangedCount=rows.length-skippedCount;
-  return {asOf,unchangedCount,skippedCount,total:rows.length,
-    previewLimit:OVERSIGHT_PREVIEW_LIMIT,truncated:rows.length>OVERSIGHT_PREVIEW_LIMIT,
-    signals:rows.slice(0,OVERSIGHT_PREVIEW_LIMIT)};
+  const skipped=rows.filter(x=>x.kind==='MATERIAL_SKIPPED');
+  const unchanged=rows.filter(x=>x.kind==='STAGE_UNCHANGED');
+  // Bound each category separately: a long run of material-skip records
+  // must not entirely conceal stage-age observations in the manager preview.
+  const signals=[
+    ...skipped.slice(0,OVERSIGHT_PREVIEW_LIMIT/2),
+    ...unchanged.slice(0,OVERSIGHT_PREVIEW_LIMIT/2)
+  ];
+  return {asOf,unchangedCount:unchanged.length,skippedCount:skipped.length,
+    total:rows.length,previewLimit:OVERSIGHT_PREVIEW_LIMIT/2,
+    truncated:rows.length>signals.length,signals};
 }
