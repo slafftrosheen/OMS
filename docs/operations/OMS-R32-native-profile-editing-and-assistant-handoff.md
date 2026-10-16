@@ -1,5 +1,11 @@
 # OMS-R32 — Native profile editing and explicit OpenRouter handoff
 
+> **Updated by OMS-R33.** The modal now stages edits and uses **Apply to draft**;
+> closing without Apply discards dialog changes. The normal editor Save Draft
+> action persists approved local edits. Save draft & ask AI no longer requires
+> an uploaded file, but review submission still does. See
+> [OMS-R33](OMS-R33-order-profile-assistant-hardening.md) for the current workflow.
+
 This pass follows R31 (removal of the redundant "Технические характеристики"
 fieldset). It is a source-only change to the existing order UI and uses no new
 database columns, migrations, external order schemas, or GitHub Actions.
