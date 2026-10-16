@@ -17,7 +17,7 @@ export const GET:RequestHandler=async ({locals,url})=>{
   if(filter!==null && !kinds.has(filter) && filter!=='order')
     throw error(400,'Unsupported inventory movement filter');
   let query=locals.supabase.from('inventory_movements')
-    .select('id,material_id,movement_type,quantity,reference_id,reference_type,performed_by,notes,created_at,materials(sku,name_en,code,unit)')
+    .select('id,material_id,movement_type,quantity,reference_id,reference_type,performed_by,notes,created_at')
     .order('created_at',{ascending:false}).order('id',{ascending:false});
   if(filter==='order')query=query.eq('reference_type','order');
   else if(filter)query=query.eq('movement_type',filter);
@@ -29,8 +29,21 @@ export const GET:RequestHandler=async ({locals,url})=>{
   const {data,error:dbError}=await query.limit(requested);
   if(dbError){console.error('[Inventory audit] movement history',dbError);
     throw error(503,'Inventory movement history unavailable');}
+  // Some legacy deployments have two material FKs on inventory_movements;
+  // use explicit IDs rather than PostgREST's ambiguous implicit join.
+  const ids=[...new Set((data??[]).map(row=>row.material_id)
+    .filter((id):id is string=>typeof id==='string'))];
+  const materialById=new Map<string,{
+    sku:string|null;code:string|null;name_en:string|null;unit:string|null
+  }>();
+  if(ids.length){
+    const {data:materialRows,error:materialError}=await locals.supabase
+      .from('materials').select('id,sku,name_en,code,unit').in('id',ids);
+    if(materialError)throw error(503,'Movement material details unavailable');
+    for(const row of materialRows??[])materialById.set(row.id,row);
+  }
   return json((data??[]).map(row=>{
-    const material=Array.isArray(row.materials)?row.materials[0]:row.materials;
+    const material=row.material_id?materialById.get(row.material_id):null;
     return {
       id:row.id,materialId:row.material_id,
       sku:material?.sku??material?.code??null,
