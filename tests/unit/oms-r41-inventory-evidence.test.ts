@@ -79,6 +79,9 @@ describe('OMS-R41: real inventory evidence, atomic stock writes and audited refe
    expect(sql).toContain("current_user IN ('authenticated','anon')");
    expect(sql).toContain('CREATE TRIGGER oms_material_stock_write_guard');
    expect(sql).toContain('CREATE TRIGGER oms_item_stock_write_guard');
+   expect(sql).toContain('CREATE POLICY "OMS R41 active staff movement read"');
+   expect(sql).toContain('p.id=auth.uid() AND p.is_active=TRUE');
+   expect(sql).toContain('REVOKE SELECT ON public.inventory_movements FROM anon');
  });
  it('blocks unaudited stock fields in legacy item/material update and create routes',()=>{
    const item=read('src/routes/api/inventory/items/[id]/+server.ts');
