@@ -581,9 +581,11 @@
     error = '';
     fieldErrors = {};
 
-    // Validate files only before creating a new order; when retrying uploads,
-    // the order already exists and must not be inserted a second time.
-    if (!savedOrderId && uploadedFiles.length === 0) {
+    // Missing attachments block submission for review, not saving a working
+    // draft to discuss with the OpenRouter assistant. The backend still
+    // validates attachments at the explicit review submission endpoint.
+    // Uploaded entries remain linked to the draft during safe upload retries.
+    if (destination === 'review' && uploadedFiles.length === 0 && uploadedFileKeys.size === 0) {
       fieldErrors = { ...fieldErrors, files: $t('orders.new.messages.validation.files') };
     }
 
