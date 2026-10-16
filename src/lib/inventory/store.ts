@@ -210,17 +210,19 @@ export async function recordMovement(
   if (!target) return null;
 
   try {
+    // Manual adjustments are idempotent, but customer-order deductions
+    // must use the canonical atomic stage-completion flow instead.
+    if(options.refPO){
+      console.error('Use stage completion for order-linked material consumption');
+      return null;
+    }
+    const requestId=crypto.randomUUID();
     const response = await fetch('/api/inventory/movements', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        materialId,
-        kind,
-        qty,
-        unit: options.unit ?? target.unit,
-        by: options.by ?? 'admin',
-        note: options.note,
-        refPO: options.refPO
+        requestId,materialId,kind,qty,
+        note:options.note
       })
     });
 
@@ -242,8 +244,8 @@ export async function recordMovement(
         kind,
         qty,
         unit: result.unit,
-        by: options.by ?? 'admin',
-        at: new Date().toISOString(),
+        by: result.by ?? null,
+        at: result.at ?? new Date().toISOString(),
         note: options.note,
         refPO: options.refPO
       };
