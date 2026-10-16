@@ -98,7 +98,7 @@
       }
       if(!result.receipt?.id)throw Error($t('inventoryConsistency.uncertain'));
       receipt=String(result.receipt.id);
-      dismiss();
+      target=null;requestId=null;attemptPayload='';
       await reload();
     }catch(e){
       saveError=e instanceof Error?e.message:$t('inventoryConsistency.failed');
