@@ -38,7 +38,7 @@ export function parseStageCompletion(body:Record<string,unknown>):ProductionComp
  */
 export function parseStageCompletionRevision(value:unknown):string {
   if(typeof value!=='string' ||
-     !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/.test(value) ||
+     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) ||
      !Number.isFinite(Date.parse(value)))
     throw new Error('A fresh stage revision is required; reload this workstation');
   return value;
