@@ -55,7 +55,7 @@ describe('OMS-R31 restore native forms and wire OpenRouter without duplication',
    });
    expect(summary.sections.CNC_FREZER).not.toHaveProperty('faceThickness');
    expect(summary.sections.CNC_FREZER?.backThickness).toBe('3');
-   expect(summary.sections.BENDER).toEqual({});
+   expect(summary.sections.BENDER).toBeUndefined();
    expect(summary.sections.FRONT?.face).toBe(false);
    expect(summary.sections.FRONT).not.toHaveProperty('faceFilm');
    expect(summary.sections.FRONT?.backFilm).toBe('8500_064');
