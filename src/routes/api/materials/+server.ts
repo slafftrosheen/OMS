@@ -61,6 +61,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     return json({ error: err instanceof Error ? err.message : 'Invalid material' }, { status: 400 });
   }
 
+  if(data.stock!==undefined && Number(data.stock)!==0)
+    return json({error:'Create materials with zero stock, then use audited inventory movements'},
+      {status:409});
+  data.stock=0;
   const { data: material, error: dbError } = await locals.supabase.from('materials').insert(data).select().single();
   if (dbError) {
     console.error('Material create failed:', dbError);
