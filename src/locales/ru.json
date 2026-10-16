@@ -1742,6 +1742,8 @@
     "delete": "Удалить"
   },
   "productionPacket": {
+    "progressSummary": "Завершено производственных этапов: {completed} из {total} (доставка отдельно)",
+    "progressHeld": "Блокировки: {blocked} · Переделка: {rework}",
     "title": "Производственная карта заказа",
     "open": "Карта заказа",
     "close": "Закрыть",
