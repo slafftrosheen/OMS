@@ -65,6 +65,14 @@ export function normalizeIntakeProposals(raw:unknown):IntakeModel {
   }
   return {...parsed,proposals};
 }
+/** A model suggestion that would not change an existing order field is not actionable.
+ * Keep provider proposals read-only; callers use this only for human review UI.
+ */
+export function proposalMatchesCurrent(p:IntakeProposal,current:Record<string,unknown>):boolean {
+  const existing=current[p.field];
+  if(existing===null||existing===undefined)return false;
+  return String(existing).trim()===p.value.trim();
+}
 export function proposalValue(p:IntakeProposal):string|boolean {
   return p.field==='isRd' ? p.value==='true' : p.value;
 }
