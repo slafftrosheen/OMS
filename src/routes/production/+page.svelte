@@ -165,14 +165,15 @@
       <p>{$t('productionPlanning.unavailable')}</p>
       <button onclick={loadProductionData} disabled={refreshing}>{$t('productionPlanning.retry')}</button>
     </div>
-  {:else if visibleStations.length === 0}
-    <div class="empty-overview">
-      <p>{$t('productionPlanning.noResults')}</p>
-      <button onclick={() => {hideEmpty=false;showUpcoming=true;attentionOnly=false;}}>
-        {$t('productionPlanning.showAll')}
-      </button>
-    </div>
   {:else}
+    {#if visibleStations.length === 0}
+      <div class="empty-overview">
+        <p>{$t('productionPlanning.noResults')}</p>
+        <button onclick={() => {hideEmpty=false;showUpcoming=true;attentionOnly=false;}}>
+          {$t('productionPlanning.showAll')}
+        </button>
+      </div>
+    {/if}
     {#if alerts.length}
       <section class="board-toolbar attention" aria-label={$t('productionPlanning.attentionTitle')}>
         <strong>{$t('productionPlanning.attentionTitle')}</strong>
