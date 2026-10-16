@@ -55,6 +55,15 @@ describe('OMS-R35: form/Canvas revision chain', () => {
     expect(save).not.toContain('if (canvasSnapshot)');
   });
 
+  it('revalidates linked drawing evidence before applying file-based proposals', () => {
+    const intake = read('src/lib/order/OrderIntakeAssistant.svelte');
+    expect(intake).toContain('if(analysis.fileId){');
+    expect(intake).toContain('fetchAllOrderFiles<OrderFile>(orderId)');
+    expect(intake).toContain('linkedNow.some(file=>file.id===analysis?.fileId)');
+    expect(intake).toContain("throw new Error($t('orderIntake.sourceChanged'))");
+    // Notes-only analysis has no linked file to re-check.
+  });
+
   it('does not discard concurrent local edits or forget committed native fields', () => {
     expect(editor).toContain('let canvasChangeSerial = 0;');
     expect(editor).toContain('function markCanvasDirty()');
