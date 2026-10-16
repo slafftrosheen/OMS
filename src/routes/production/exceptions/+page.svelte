@@ -344,6 +344,15 @@
                   <textarea rows="3" maxlength={editorAction==='resolve'?2000:1000}
                     bind:value={followUpNote}></textarea>
                 </label>
+                {#if row.kind==='MATERIAL_SKIPPED'}
+                  <p class="hint" role="note">
+                    {$t('productionExceptions.materialReconciliationGuidance')}
+                  </p>
+                {:else if row.kind==='STAGE_UNCHANGED'}
+                  <p class="hint" role="note">
+                    {$t('productionExceptions.stageAgeGuidance')}
+                  </p>
+                {/if}
               {/if}
               {#if mutationError}<p role="alert" class="error">{mutationError}</p>{/if}
               <div class="actions">
