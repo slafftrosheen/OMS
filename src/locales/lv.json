@@ -1415,10 +1415,15 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "productionExceptions": {
+    "oversightUnavailable": "Ražošanas pārraudzības dati nav pieejami. Neatjauninātus posmus un izlaisto materiālu uzskaiti pašlaik nevar pārbaudīt; attiecīgie pārskati netiek rādīti, kamēr dati nav atjaunoti.",
+    "oversightPreviewLimited": "Priekšskatījums ierobežots līdz {limit} ierakstiem kategorijā ({total} signāli kopā). Daļa pārskatu var nebūt redzami; pārbaudiet sākotnējo pasūtījumu.",
+    "sourceOutsidePreview": "Ārpus priekšskatījuma — pašreizējais stāvoklis nav pārbaudīts",
+    "filteredOrder": "Atlasīts konkrētais pasūtījums",
+    "clearOrderFilter": "Noņemt pasūtījuma filtru",
     "open": "Ražošanas problēmas",
     "title": "Ražošanas izņēmumu pārskatīšana",
     "eyebrow": "Ražošana / Vadības uzdevumi",
-    "intro": "Trūkstošas faktiskās stundas, pārtēriņš, bloķēti un pārstrādājami posmi, nokavētas apstiprinātās darba dienas. Piešķiriet atbildīgo un fiksējiet risinājumu.",
+    "intro": "Ražošanas izņēmumu pārbaude, tostarp ilgstoši neatjaunināti posmi un izlaista materiālu uzskaite. Piešķiriet atbildīgos un dokumentējiet lēmumus, nemainot ražošanas datus.",
     "performance": "Rādītāji",
     "planner": "Jaudas plānotājs",
     "refresh": "Atjaunināt",
@@ -1445,7 +1450,9 @@
       "ACTUAL_OVERRUN": "Faktiskās stundas pārsniedz aplēsi",
       "BLOCKED": "Bloķēts ražošanas posms",
       "REWORK": "Posms jāpārstrādā",
-      "MISSED_BOOKING": "Nokavēta apstiprinātā darba diena"
+      "MISSED_BOOKING": "Nokavēta apstiprinātā darba diena",
+    "STAGE_UNCHANGED": "Posma ieraksts nemainīts ≥72 stundas",
+    "MATERIAL_SKIPPED": "Izlaista materiālu uzskaite"
     },
     "state": {
       "UNCLAIMED": "Nav atbildīgā",
@@ -1458,7 +1465,9 @@
       "measuredHoursOverEstimate": "Reģistrētās stundas pārsniedz posma aplēsi",
       "activeProductionInterruption": "Aktīvs bloķēts vai pārstrādājams posms",
       "approvedDatePassedWhileStageActive": "Apstiprinātā darba diena pagājusi, bet posms vēl aktīvs",
-      "conditionNotCurrentlyReported": "Pārskata ieraksts saglabāts; pašlaik problēma nav konstatēta"
+      "conditionNotCurrentlyReported": "Pārskata ieraksts saglabāts; pašlaik problēma nav konstatēta",
+    "stageRecordUnchanged": "Posma ieraksts nav atjaunināts vismaz 72 stundas; darba progresa piezīmes var glabāties atsevišķi",
+    "materialSkipForReview": "Posms pabeigts ar izlaistu materiālu uzskaiti; pārbaudiet saskaņošanu un dokumentējiet lēmumu"
     },
     "notCurrent": "Pašlaik nav konstatēts",
     "assignedToYou": "Piešķirts jums",
