@@ -17,12 +17,14 @@
     orderId,
     compact = false,
     canUpload = true,
-    onChanged
+    onChanged,
+    onAnalyze
   }: {
     orderId: string;
     compact?: boolean;
     canUpload?: boolean;
     onChanged?: () => void;
+    onAnalyze?: (fileId:string)=>void;
   } = $props();
 
   type OrderFile = {
@@ -276,6 +278,12 @@
             </span>
           </div>
           <div class="file-actions">
+            {#if onAnalyze && ['application/pdf','image/jpeg','image/png','image/webp'].includes(file.mimeType)}
+              <button type="button" class="btn-icon"
+                onclick={()=>onAnalyze?.(file.id)}
+                title={$t('orderAssistant.openFileAnalysis')}
+                aria-label={$t('orderAssistant.openFileAnalysis')}>✦</button>
+            {/if}
             <button class="btn-icon" onclick={() => downloadFile(file)} title={$t("orderFiles.download")}>
               <Download size={16} />
             </button>
