@@ -7,7 +7,7 @@ import { canOperateStation } from '$lib/order/lifecycle-guards';
 import { postStationMessage } from '$lib/server/chat/stationMessenger';
 import { notifyConsumptionSkipped, notifyLowStock } from '$lib/server/notifications/inventoryNotifier';
 
-import { parseStageCompletion } from '$lib/order/production-floor-contract';
+import { parseStageCompletion, parseStageCompletionRevision } from '$lib/order/production-floor-contract';
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
   const actor = locals.user;
@@ -28,6 +28,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     return json({error: err instanceof Error ? err.message : 'Invalid completion data'}, {status:400});
   }
   const {items,skipped,reason,actualHours,notes} = validated;
+  let expectedUpdatedAt:string;
+  try{expectedUpdatedAt=parseStageCompletionRevision(body.expectedUpdatedAt);}
+  catch(err){return json({error:err instanceof Error?err.message:'Stage revision required'},
+    {status:428});}
 
   const { data: result, error: rpcError } = await locals.supabase.rpc(
     'complete_stage_with_consumption', {
@@ -37,18 +41,24 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
       p_skipped: skipped,
       p_skip_reason: skipped ? reason : null,
       p_actual_hours: actualHours,
-      p_notes: notes
+      p_notes: notes,
+      p_expected_updated_at:expectedUpdatedAt
     }
   );
   if (rpcError) {
     console.error('[Stage completion] atomic RPC rejected', rpcError);
     const missing = rpcError.code === 'PGRST202' || /Could not find the function/.test(rpcError.message || '');
+    const stale = rpcError.code === 'P0001';
     return json({
       error: missing ? 'Stage-completion database migration is not installed' :
+        stale?'Stage changed or has unresolved block/rework. Refresh the workstation and production packet.':
         'Stage completion rejected: check stage state, materials and permissions'
     }, { status: missing ? 503 : 409 });
   }
   if (!result?.ok) return json({ error: 'Stage completion returned no result' }, { status: 500 });
+  if(typeof result.handoff_queued!=='boolean')
+    return json({error:'Completion committed, but handoff status is unavailable; refresh before repeating'},
+      {status:503});
 
   // Notification failures cannot roll back the committed transaction.
   const { data: order } = await locals.supabase.from('draft_orders')
@@ -59,7 +69,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
       station, poNumber: order?.po_number, state: 'COMPLETED',
       actorName: actor.displayName ?? actor.username ?? 'system'
     });
-    if (result.next_station) {
+    if (result.handoff_queued===true && result.next_station) {
       await postStationMessage(locals.supabase, {
         station: result.next_station, poNumber: order?.po_number,
         state: 'QUEUED', actorName: actor.displayName ?? actor.username ?? 'system'
@@ -77,8 +87,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     }
   } catch (err) { console.error('[Stage completion] Inventory notification failed', err); }
   return json({
-    ok: true, orderId, station, nextStation: result.next_station ?? null,
+    ok: true, orderId, station,
+    nextStation: result.handoff_queued===true ? result.next_station ?? null : null,
+    handoffQueued:result.handoff_queued===true,
     consumed: result.consumed ?? 0, skipped,
     lowStock: result.low_stock ?? []
-  });
+  },{headers:{'Cache-Control':'private, no-store'}});
 };
