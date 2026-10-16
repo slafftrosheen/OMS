@@ -185,7 +185,11 @@
       if (!res.ok) {
         if(res.status===409 || res.status===428){
           void loadStationOrders(true);
-          return {ok:false,error:$t('productionFloor.staleStage')};
+          return {ok:false,error:payload?.reason==='INVENTORY_PARITY'
+            ?$t('inventoryConsistency.operatorMismatch')
+            :payload?.reason==='INSUFFICIENT_STOCK'
+              ?$t('inventoryConsistency.operatorShortage')
+              :$t('productionFloor.staleStage')};
         }
         return {ok:false,error:payload?.error??`HTTP ${res.status}`};
       }
