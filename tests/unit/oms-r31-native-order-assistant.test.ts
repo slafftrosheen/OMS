@@ -39,6 +39,41 @@ describe('OMS-R31 restore native forms and wire OpenRouter without duplication',
    });
    expect(unpopulated.sections).toEqual({});
  });
+ it('omits inactive native form values from the OpenRouter snapshot',()=>{
+   const summary=summarizeNativeProfileConfiguration({
+     CNC_FREZER:{face:'',faceThickness:'12',back:'ALU_SHEET',backThickness:'3'},
+     BENDER:{sides:'',depth:100,sidesThickness:'1.5'},
+     FRONT:{face:false,faceFilm:'OLD VINYL',back:true,backFilm:'8500_064',
+       sides:false,sidesFilm:'OLD SIDE FILM'},
+     PAINTING:{face:false,faceColor:{system:'RAL',code:'9005'},
+       sides:true,sidesColor:{system:'RAL',code:'9010'},
+       back:false,backCustom:'OLD BACK COATING'},
+     ASSEMBLING:{led:false,ledModule:'OLD LED',
+       psu:false,psuModel:'OLD PSU',psuType:'dimmable',
+       cables:true,cablesLength:'3m',
+       frame:false,frameMaterial:'OLD FRAME',frameMountingHoles:true}
+   });
+   expect(summary.sections.CNC_FREZER).not.toHaveProperty('faceThickness');
+   expect(summary.sections.CNC_FREZER?.backThickness).toBe('3');
+   expect(summary.sections.BENDER).toEqual({});
+   expect(summary.sections.FRONT?.face).toBe(false);
+   expect(summary.sections.FRONT).not.toHaveProperty('faceFilm');
+   expect(summary.sections.FRONT?.backFilm).toBe('8500_064');
+   expect(summary.sections.PAINTING).not.toHaveProperty('faceColorcode');
+   expect(summary.sections.PAINTING?.sidesColorcode).toBe('9010');
+   expect(summary.sections.ASSEMBLING?.led).toBe(false);
+   expect(summary.sections.ASSEMBLING).not.toHaveProperty('ledModule');
+   expect(summary.sections.ASSEMBLING).not.toHaveProperty('psuModel');
+   expect(summary.sections.ASSEMBLING).not.toHaveProperty('frameMaterial');
+   expect(summary.sections.ASSEMBLING?.cablesLength).toBe('3m');
+ });
+ it('returns profiles in their persisted production order',()=>{
+   const api=read('src/routes/api/draft-orders/[id]/+server.ts');
+   const sort=api.indexOf(".sort((a: any, b: any) => (a.order_index ?? 0)");
+   const map=api.indexOf(".map((p: any) => ({ ...p, dbId:",sort);
+   expect(sort).toBeGreaterThan(0);
+   expect(map).toBeGreaterThan(sort);
+ });
  it('bounds user-entered notes and profile names in the assistant context',()=>{
    const summary=summarizeNativeProfileConfiguration({
      profileName:'A'.repeat(2000),ASSEMBLING:{notes:'n'.repeat(2000)},
@@ -115,12 +150,21 @@ describe('OMS-R31 restore native forms and wire OpenRouter without duplication',
    expect(editor).toContain('OrderNativeProfileForm');
    expect(editor).toContain('openNativeProfile(idx)');
    expect(editor).toContain('nativeProfileDialog.showModal()');
-   expect(editor).toContain('configuration=>updateNativeProfile(');
+   expect(editor).toContain('onChange={stageNativeProfile}');
+   expect(editor).toContain('onclick={applyNativeProfile}');
+   expect(editor).toContain('stagedNativeConfiguration=configuration;');
+   expect(editor).toContain('clearNativeProfileDialog();');
+   expect(editor).toContain('configuration={stagedNativeConfiguration??{}}');
    expect(wrapper).toContain('Profile7stVisual');
    expect(wrapper).toContain('readonly={!editable}');
    expect(wrapper).toContain('let localConfiguration=$state<any>');
-   expect(wrapper).toContain('if(!editable)return;');
+   expect(wrapper).toContain('if(!editable||!value');
    expect(wrapper).not.toContain('onChange(localConfiguration)');
+   // Closing the modal discards the isolated staged copy; only Apply modifies
+   // the parent draft. Saving still goes through the existing versioned PUT.
+   expect(editor.indexOf('profiles=profiles.map(',editor.indexOf('function applyNativeProfile')))
+     .toBeGreaterThan(editor.indexOf('function applyNativeProfile'));
+   expect(editor).toContain('expectedUpdatedAt: orderUpdatedAt');
    expect(editor).not.toContain('<ProfileFabricationSpec');
  });
  it('saves files and draft before entering the consent-gated OpenRouter assistant',()=>{
@@ -137,6 +181,9 @@ describe('OMS-R31 restore native forms and wire OpenRouter without duplication',
    expect(newly).toContain("onclick={()=>void saveOrder('review')}");
    expect(newly).toContain("onclick={()=>void saveOrder('assistant')}");
    expect(newly).toContain('section=chat&assist=profiles');
+   expect(newly).toContain("destination === 'review' && uploadedFiles.length === 0");
+   expect(newly).not.toContain('if (!savedOrderId && uploadedFiles.length === 0)');
+   expect(editor).toContain('orderAssistant.profileSpecificQuestion');
    expect(editor).toContain("query.get('assist')==='profiles'");
    expect(editor).toContain("askWorkflowHelp($t('orderAssistant.nativeProfileQuestion')");
    expect(assistant).toContain('!consent||!question.trim()');
@@ -147,7 +194,9 @@ describe('OMS-R31 restore native forms and wire OpenRouter without duplication',
      for(const key of ['askAboutProfiles','nativeProfileQuestion','openProfiles',
        'openFileAnalysis','fileIntakeHint','saveAndAsk','saveAndAskHint',
        'editNativeProfile','viewNativeProfile','nativeProfileTitle',
-       'nativeProfileSaveHint','closeNativeProfile','saveNativeProfile']){
+       'nativeProfileSaveHint','closeNativeProfile','saveNativeProfile',
+       'nativeProfileApplyHint','applyNativeProfile','askAboutThisProfile',
+       'profileSpecificQuestion']){
        expect(typeof copy[key]).toBe('string');
        expect(copy[key].length).toBeGreaterThan(10);
      }
