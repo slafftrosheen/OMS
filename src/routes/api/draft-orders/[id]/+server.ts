@@ -81,7 +81,12 @@ export const GET: RequestHandler = async ({ params, locals }) => {
       deliveryContact: order.delivery_contact,
       deliveryPhone: order.delivery_phone,
       deliveryEmail: order.metadata?.delivery_email ?? '',
-      profiles: (order.profiles || []).map((p: any) => ({ ...p, dbId: p.id, profileTemplateId: p.profile_template_id })),
+      // PostgREST embedded relations do not guarantee row ordering.
+      // Keep native profile numbering and persisted order_index stable across
+      // editor reloads, assistant references and subsequent atomic PUT saves.
+      profiles: (order.profiles || []).slice()
+        .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
+        .map((p: any) => ({ ...p, dbId: p.id, profileTemplateId: p.profile_template_id })),
       files,
       createdAt: order.created_at,
       updatedAt: order.updated_at
