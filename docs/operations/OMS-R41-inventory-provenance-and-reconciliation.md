@@ -45,7 +45,9 @@ consumption and R40. This migration:
   operation**: users must check history if a network reply was lost before
   independently submitting a second adjustment.
 - Denies direct authenticated INSERT/UPDATE/DELETE of
-  `inventory_movements`. The legacy
+  `inventory_movements`. Its old anonymous-readable SELECT policy is also
+  replaced with active-staff-only read access; the operator's session
+  and the original RLS check remain required. The legacy
   `consume_materials_for_order(UUID,TEXT,JSONB,UUID)`, which accepts a
   caller-supplied actor, is revoked from direct authenticated use; only its
   owner/service role or the established SECURITY DEFINER production RPC can
