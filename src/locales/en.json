@@ -1415,6 +1415,10 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "productionEvidence": {
+    "started": "Stage started",
+    "estimatedHours": "Estimated labor hours",
+    "actualHours": "Recorded actual hours",
+    "performedBy": "Performed by (user ID)",
     "title": "Original production evidence",
     "original": "Read-only saved stage and order-linked inventory history. Review decisions never change stock or stage state.",
     "close": "Close evidence",
