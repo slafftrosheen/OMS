@@ -16,6 +16,7 @@ import { notifyOrderConfirmed } from '$lib/server/notifications/orderNotifier';
 import { postStationMessage } from '$lib/server/chat/stationMessenger';
 import { WORKFLOW_STATIONS } from '$lib/order/workflow';
 import { mayConfirm } from '$lib/order/lifecycle-guards';
+import { z } from 'zod';
 
 const PO_PATTERN = /^[A-Za-z0-9_\-./]{1,16}$/;
 const FIRST_STAGE = WORKFLOW_STATIONS[0];
@@ -35,8 +36,17 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     return json({ error: 'Profile not found' }, { status: 403 });
   }
 
-  const body = await request.json().catch(() => ({}));
-  const rawPo = body?.poNumber ?? body?.po_number ?? null;
+  const body = await request.json().catch(() => null);
+  if(!body || typeof body!=='object' || Array.isArray(body)){
+    return json({error:'Invalid confirmation request'},{status:400});
+  }
+  const expectedUpdatedAt=z.string().max(64).datetime({offset:true}).safeParse(
+    body.expectedUpdatedAt
+  );
+  if(!expectedUpdatedAt.success){
+    return json({error:'Reload this order before confirming: revision required'},{status:428});
+  }
+  const rawPo = body.poNumber ?? body.po_number ?? null;
   if (rawPo !== null && typeof rawPo !== 'string') {
     return json({ error: 'poNumber must be text' }, { status: 400 });
   }
@@ -119,7 +129,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
   const { data: confirmation, error: confirmError } = await locals.supabase.rpc(
     'confirm_order_with_stages', {
       p_order_id: order.id,
-      p_po_number: incomingPo
+      p_po_number: incomingPo,
+      p_expected_updated_at:expectedUpdatedAt.data
     }
   );
   if (confirmError) {
@@ -127,12 +138,28 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     if (confirmError.code === 'PGRST202') {
       return json({ error: 'Confirmation database migration is not installed' }, { status: 503 });
     }
+    if (confirmError.code === 'P0001') {
+      return json({
+        error:'Order changed or required attachment missing. Reload and review before confirmation'
+      },{status:409});
+    }
     if (confirmError.code === '23505') {
       return json({ error: 'PO number already in use' }, { status: 409 });
     }
     return json({ error: 'Order confirmation rejected; check PO, role and current state' }, { status: 409 });
   }
   if (!confirmation?.ok) return json({ error: 'Order confirmation returned no result' }, { status: 500 });
+  // A second operator may have confirmed the order between our read and the
+  // locked RPC. An idempotent database response must not emit duplicate
+  // activity, station chat messages or notifications.
+  if(confirmation.idempotent===true){
+    return json({
+      ok:true,idempotent:true,
+      poNumber:confirmation.poNumber??order.po_number,
+      status:confirmation.status??'CONFIRMED',
+      firstStage:FIRST_STAGE
+    },{headers:{'Cache-Control':'private, no-store'}});
+  }
 
   // Activity log + audit (best-effort)
   await locals.supabase.from('order_activity_log').insert({
@@ -170,9 +197,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
   }
 
   return json({
-    ok: true,
-    poNumber: finalPo,
-    status: 'CONFIRMED',
-    firstStage: FIRST_STAGE,
-  });
+    ok: true,idempotent:false,
+    poNumber: confirmation.poNumber??finalPo,
+    status: confirmation.status??'CONFIRMED',
+    firstStage: confirmation.firstStage??FIRST_STAGE,
+  },{headers:{'Cache-Control':'private, no-store'}});
 };
