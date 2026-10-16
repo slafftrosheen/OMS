@@ -1958,6 +1958,8 @@
     "technicalChecks": "Tehnisko datu pārbaude"
   },
   "orderAssistant": {
+    "askAboutThisProfile": "Jautāt MI par šo profilu",
+    "profileSpecificQuestion": "Pārskati tikai šī pasūtījuma saglabāto ražošanas profilu Nr. {number}. Pārbaudi aktīvās CNC, BENDER, FRONT, PAINTING un ASSEMBLING izvēles, norādi trūkstošās prasības un pretrunas. Neuzskati izslēgtās opcijas par aktīvām un neizdomā rasējumu datus vai iekārtu iespējas.",
     "applyNativeProfile": "Pielietot melnrakstam",
     "nativeProfileApplyHint": "Aizverot logu, šeit veiktās izmaiņas tiek atmestas. Pielietošana atjaunina melnrakstu, bet nesaglabā serverī.",
     "saveAndAsk": "Saglabāt melnrakstu un jautāt MI",
