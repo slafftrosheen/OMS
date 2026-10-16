@@ -4,6 +4,8 @@
   import { t } from 'svelte-i18n';
   import { ALL_STATIONS } from '$lib/order/workflow';
   import {base} from '$app/paths';
+  import {currentUser} from '$lib/auth/authState.svelte';
+  import type {ProductionOversight,OversightKind} from '$lib/order/production-oversight';
   import type {PlanningItem,StationSummary,PlanningTotals} from '$lib/order/production-planning';
   import StationBoard from '$lib/components/production/StationBoard.svelte';
   import QRScanner from '$lib/components/qr/QRScanner.svelte';
@@ -15,6 +17,13 @@
   let stationSummary = $state<Record<string,StationSummary>>({});
   let totals = $state<PlanningTotals|null>(null);
   let alerts = $state<PlanningItem[]>([]);
+  let oversight = $state<ProductionOversight|null>(null);
+  let oversightKind = $state<'ALL'|OversightKind>('ALL');
+  let expandedOversight = $state(false);
+  let isManager = $derived(['RD','Boss','HeadOfProduction'].includes($currentUser?.role??''));
+  let visibleOversight = $derived((oversight?.signals??[])
+    .filter(s=>oversightKind==='ALL'||s.kind===oversightKind)
+    .slice(0,expandedOversight?100:10));
   let boardError = $state<string | null>(null);
   let loading = $state(true);
   let refreshing = $state(false);
@@ -42,12 +51,16 @@
       if (!response.ok) throw new Error(`Could not refresh production board (HTTP ${response.status})`);
       const payload = await response.json();
       if (!payload?.success || !payload?.stations || !payload?.workload ||
-          !payload?.totals || !Array.isArray(payload.alerts))
+          !payload?.totals || !Array.isArray(payload.alerts) ||
+          (isManager && (!payload.oversight ||
+            !Array.isArray(payload.oversight.signals) ||
+            typeof payload.oversight.total!=='number')))
         throw new Error('Production planning response is incomplete');
       stationOrders = payload.stations;
       stationSummary = payload.workload;
       totals = payload.totals;
       alerts = payload.alerts;
+      oversight = isManager?payload.oversight:null;
       boardError = null;
       lastUpdated = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       loadedOnce = true;
@@ -172,6 +185,67 @@
         </div>
       </section>
     {/if}
+    {#if isManager && oversight}
+      <section class="oversight" aria-label={$t('productionOversight.title')}>
+        <div class="oversight-head">
+          <div>
+            <h2>{$t('productionOversight.title')}</h2>
+            <p>{$t('productionOversight.explanation')}</p>
+          </div>
+          <a class="planner-link" href={`${base}/production/exceptions`}>
+            {$t('productionOversight.reviewQueue')}
+          </a>
+        </div>
+        <div class="oversight-summary">
+          <span><strong>{oversight.unchangedCount}</strong>
+            {$t('productionOversight.unchangedCount')}</span>
+          <span><strong>{oversight.skippedCount}</strong>
+            {$t('productionOversight.skippedCount')}</span>
+        </div>
+        <div class="oversight-controls">
+          <label for="oversight-kind">{$t('productionOversight.filter')}
+            <select id="oversight-kind" bind:value={oversightKind}>
+              <option value="ALL">{$t('productionOversight.all')}</option>
+              <option value="STAGE_UNCHANGED">{$t('productionOversight.stageUnchanged')}</option>
+              <option value="MATERIAL_SKIPPED">{$t('productionOversight.materialSkipped')}</option>
+            </select>
+          </label>
+        </div>
+        {#if visibleOversight.length===0}
+          <p class="oversight-empty">{$t('productionOversight.noFindings')}</p>
+        {:else}
+          <div class="oversight-list">
+            {#each visibleOversight as signal (signal.key)}
+              <article class="oversight-row">
+                <div>
+                  <strong>{signal.poNumber??signal.title??signal.orderId} · {signal.station}</strong>
+                  <p>{$t('productionOversight.'+(
+                    signal.kind==='STAGE_UNCHANGED'?'stageUnchanged':'materialSkipped'))}
+                    · {$t('productionOversight.ago',{values:{hours:signal.elapsedHours}})}
+                  </p>
+                  {#if signal.reason}
+                    <p class="oversight-reason">{signal.reason}</p>
+                  {/if}
+                </div>
+                <a href={`${base}/orders/${encodeURIComponent(signal.orderId)}`}>
+                  {$t('productionOversight.inspectOrder')}
+                </a>
+              </article>
+            {/each}
+          </div>
+          {#if oversight.truncated}
+            <p class="oversight-note">{$t('productionOversight.truncated',{
+              values:{limit:oversight.previewLimit,total:oversight.total}
+            })}</p>
+          {/if}
+          {#if !expandedOversight && oversight.signals.length>10}
+            <button type="button" class="oversight-expand" onclick={()=>expandedOversight=true}>
+              {$t('productionOversight.showMore')}
+            </button>
+          {/if}
+        {/if}
+      </section>
+    {/if}
     {#if totals && totals.missingEstimates>0}
       <p class="estimate-note" role="note">
         {$t('productionPlanning.missingEstimates',{values:{count:totals.missingEstimates}})}
@@ -237,6 +311,29 @@
   .attention-item{padding:.5rem .7rem;background:var(--bg-2);border:1px solid var(--border);
     border-radius:.5rem;color:var(--text);text-decoration:none;font-size:.82rem}
   .attention-item:focus-visible,.attention-item:hover{border-color:var(--brand)}
+  .oversight{border:1px solid var(--border);border-radius:var(--radius-lg,12px);
+    background:var(--bg-1);padding:1rem;display:grid;gap:.8rem}
+  .oversight-head,.oversight-row{display:flex;align-items:flex-start;
+    justify-content:space-between;gap:.7rem;flex-wrap:wrap}
+  .oversight-head h2{font-size:1.1rem;margin:0}
+  .oversight-head p,.oversight-note,.oversight-empty{color:var(--muted);
+    font-size:.79rem;margin:.3rem 0}
+  .oversight-summary{display:flex;gap:1.2rem;flex-wrap:wrap;
+    font-size:.83rem;color:var(--muted)}
+  .oversight-summary strong{color:var(--text);font-size:1.1rem}
+  .oversight-controls label{display:flex;gap:.6rem;align-items:center;
+    font-size:.8rem;font-weight:650}
+  .oversight-controls select,.oversight-expand{min-height:38px;border:1px solid var(--border);
+    border-radius:8px;padding:.35rem .65rem;background:var(--bg-2);color:var(--text)}
+  .oversight-list{display:grid;gap:.5rem}
+  .oversight-row{border:1px solid var(--border);padding:.6rem .75rem;
+    border-radius:.6rem;overflow-wrap:anywhere}
+  .oversight-row strong{font-size:.85rem}
+  .oversight-row p{margin:.25rem 0;color:var(--muted);font-size:.78rem}
+  .oversight-row .oversight-reason{color:var(--text)}
+  .oversight-row a{display:inline-flex;align-items:center;min-height:38px;
+    padding:.35rem .6rem;color:var(--brand);font-size:.8rem}
+  .oversight-expand{justify-self:start;cursor:pointer}
   .estimate-note{margin:0;font-size:.82rem;color:var(--muted)}
   .loading-board { padding: 1.1rem; border: 1px solid var(--border); border-radius: .8rem; background: var(--bg-1); display: grid; gap: 1rem; }
   .error-banner {
