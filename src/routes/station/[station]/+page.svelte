@@ -190,13 +190,14 @@
         return {ok:false,error:payload?.error??`HTTP ${res.status}`};
       }
       return { ok: true, consumed: payload?.consumed ?? 0, lowStock: payload?.lowStock ?? [],
-        nextStation:payload?.handoffQueued===true?payload?.nextStation??null:null };
+        nextStation:payload?.handoffQueued===true?payload?.nextStation??null:null,
+        handoffStatusKnown:payload?.handoffStatusKnown===true };
     } catch (err: any) {
       return { ok: false, error: err?.message ?? 'Network error' };
     }
   }
 
-  function onCompletionSubmitted(p: { consumed: number; skipped: boolean; lowStock: any[]; nextStation?:string|null }) {
+  function onCompletionSubmitted(p: { consumed: number; skipped: boolean; lowStock: any[]; nextStation?:string|null;handoffStatusKnown?:boolean }) {
     completeTarget = null;
     operationMessage = p.nextStation
       ? $t('productionFloor.handoff',{values:{station:p.nextStation}})
@@ -204,6 +205,8 @@
     const consumption=$t(p.skipped?'productionExecution.skipped':'productionExecution.declared',
       {values:{count:p.consumed}});
     notifications.success(consumption);
+    if(p.handoffStatusKnown===false)
+      notifications.warning($t('productionExecution.handoffUnknown'));
     if (p.lowStock.length > 0) {
       const skus = p.lowStock.map((h: any) => h.sku || h.name).join(', ');
       notifications.warning(
