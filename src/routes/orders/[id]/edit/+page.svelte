@@ -1025,7 +1025,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       </button>
       {#if canApprove}
         <button class="action-btn success" onclick={async()=>{await refreshFileCount();confirmOrderModal=true;}} disabled={confirming}>
-          <Icon name="check-circle" size="sm" /> {confirming ? 'Confirming…' : 'Confirm Order'}
+          <Icon name="check-circle" size="sm" /> {$t(confirming?'orderWorkspace.confirmingAction':'orderWorkspace.confirmAction')}
         </button>
       {/if}
     </div>
@@ -1436,7 +1436,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 {#if confirmOrderModal}
   <div class="edit-modal-backdrop" onclick={() => confirmOrderModal = false} role="dialog" aria-modal="true" tabindex="-1">
     <div class="edit-modal" onclick={(e) => e.stopPropagation()} role="document">
-      <h3>Approve order?</h3>
+      <h3>{$t('orderWorkspace.confirmTitle')}</h3>
       <p>{$t('orderWorkspace.confirmProductionWarning')}</p>
       {#if status==='DRAFT'}
         <p class="zone-intro" role="status">{$t('orderWorkspace.confirmDirectDraft')}</p>
@@ -1448,16 +1448,16 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       {:else}
         <p class="zone-intro">{$t('orderWorkspace.confirmLinkedFiles',{values:{count:attachedFilesCount}})}</p>
       {/if}
-      <label for="confirm-po">Externally issued PO number (required)</label>
+      <label for="confirm-po">{$t('orderWorkspace.confirmPoLabel')}</label>
       <input id="confirm-po" bind:value={poNumber} maxlength="16"
         readonly={!canAssignPo && !!poNumber} disabled={!canAssignPo}
-        placeholder={canAssignPo ? 'Enter PO from external system' : 'Boss must assign a PO'} />
-      {#if !canAssignPo && !poNumber}<p>Ask Boss to assign a PO before confirmation.</p>{/if}
+        placeholder={$t(canAssignPo ? 'orderWorkspace.confirmPoPlaceholder':'orderWorkspace.confirmBossRequired')} />
+      {#if !canAssignPo && !poNumber}<p>{$t('orderWorkspace.confirmBossRequired')}</p>{/if}
       <div class="edit-modal-actions">
-        <button class="action-btn ghost" onclick={() => confirmOrderModal = false}>Cancel</button>
+        <button class="action-btn ghost" onclick={() => confirmOrderModal = false}>{$t('orderWorkspace.confirmCancel')}</button>
         <button class="action-btn success" onclick={confirmOrder} disabled={confirming || !poNumber.trim() ||
             attachedFilesCount===null || attachedFilesCount<1 || filesCountError}>
-          {confirming ? 'Confirming…' : 'Confirm Order'}
+          {$t(confirming?'orderWorkspace.confirmingAction':'orderWorkspace.confirmAction')}
         </button>
       </div>
     </div>
