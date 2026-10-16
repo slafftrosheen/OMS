@@ -63,7 +63,12 @@ BEGIN
       v_movement.movement_type IS DISTINCT FROM
         CASE v_kind WHEN 'ADJUST' THEN 'adjustment' ELSE lower(v_kind) END OR
       (v_kind<>'ADJUST' AND v_movement.quantity IS DISTINCT FROM p_quantity) OR
-      (v_kind='ADJUST' AND v_movement.stock_after IS DISTINCT FROM p_quantity) THEN
+      (v_kind='ADJUST' AND v_movement.stock_after IS DISTINCT FROM p_quantity) OR
+      (v_movement.notes IS DISTINCT FROM
+         CASE v_kind WHEN 'ADJUST' THEN
+           'Adjustment '||v_movement.stock_before||' -> '||v_movement.stock_after||
+             ': '||btrim(coalesce(p_note,''))
+         ELSE nullif(btrim(coalesce(p_note,'')),'') END) THEN
      RAISE EXCEPTION 'Inventory movement request ID already used for different input'
        USING ERRCODE='P0001';
    END IF;
