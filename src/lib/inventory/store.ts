@@ -1,4 +1,5 @@
 import { get, writable } from 'svelte/store';
+import {base} from '$app/paths';
 import type { Category, Material, Movement, MovementKind, Section, Unit } from './types';
 import {materialFromItemDto,materialToItemDto} from './api-contract';
 
@@ -89,7 +90,7 @@ export async function loadMaterials(): Promise<Material[]> {
     const all:Material[]=[];
     let page=1,hasNext=true;
     while(hasNext && page<=100){
-      const response=await fetch(`/api/inventory/items?page=${page}&limit=100`,{
+      const response=await fetch(`${base}/api/inventory/items?page=${page}&limit=100`,{
         cache:'no-store'
       });
       if(!response.ok)throw new Error('Material catalog unavailable');
@@ -116,7 +117,7 @@ export async function loadMaterials(): Promise<Material[]> {
  */
 export async function loadMaterialById(id:string):Promise<Material|null> {
   try{
-    const response=await fetch(`/api/inventory/items/${encodeURIComponent(id)}`,
+    const response=await fetch(`${base}/api/inventory/items/${encodeURIComponent(id)}`,
       {cache:'no-store'});
     if(!response.ok)return null;
     const item=materialFromItemDto(await response.json(),getMaterial(id)??{});
@@ -134,7 +135,7 @@ export async function loadMovements(limit = 50): Promise<Movement[]> {
   if (typeof window === 'undefined') return [];
 
   try {
-    const response = await fetch(`/api/inventory/movements?limit=${limit}`);
+    const response = await fetch(`${base}/api/inventory/movements?limit=${limit}`);
     if (response.ok) {
       const data = await response.json();
       movements.set(data);
@@ -158,7 +159,7 @@ export function findMaterialBySku(sku: string) {
 
 export async function addMaterial(input: NewMaterialInput): Promise<Material | null> {
   try {
-    const response = await fetch('/api/inventory/items', {
+    const response = await fetch(`${base}/api/inventory/items`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(materialToItemDto(input,{create:true}))
@@ -194,7 +195,7 @@ export async function createMaterial(partial: Partial<Material> = {}): Promise<M
 
 export async function updateMaterial(materialId: string, patch: MaterialUpdate): Promise<Material | null> {
   try {
-    const response = await fetch(`/api/inventory/items/${materialId}`, {
+    const response = await fetch(`${base}/api/inventory/items/${encodeURIComponent(materialId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(materialToItemDto(patch))
@@ -217,7 +218,7 @@ export async function updateMaterial(materialId: string, patch: MaterialUpdate):
 
 export async function removeMaterial(materialId: string): Promise<boolean> {
   try {
-    const response = await fetch(`/api/inventory/items/${materialId}`, {
+    const response = await fetch(`${base}/api/inventory/items/${encodeURIComponent(materialId)}`, {
       method: 'DELETE'
     });
 
@@ -255,7 +256,7 @@ export async function recordMovement(
       :'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,ch=>
         (Number(ch)^crypto.getRandomValues(new Uint8Array(1))[0] &
           (15>>Number(ch)/4)).toString(16));
-    const response = await fetch('/api/inventory/movements', {
+    const response = await fetch(`${base}/api/inventory/movements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
