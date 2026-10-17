@@ -57,7 +57,7 @@ export function materialToItemDto(
     price:'price',note:'note',leftover_data:'leftover',metadata:'metadata'
   };
   for(const [source,target] of Object.entries(fields)){
-    const value=(input as Record<string,unknown>)[source];
+    const value=(input as unknown as Record<string,unknown>)[source];
     if(value!==undefined)result[target]=value;
   }
   if(create)result.stock=0;
