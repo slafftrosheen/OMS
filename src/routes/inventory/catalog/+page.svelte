@@ -4,7 +4,9 @@
   import Plus from 'lucide-svelte/icons/plus';
   import Search from 'lucide-svelte/icons/search';
   import { onMount } from 'svelte';
-  import { materials, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
+  import { materials, catalogError, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
+  import {base} from '$app/paths';
+  import {currentUser} from '$lib/auth/authState.svelte';
   import Icon from '$lib/ui/Icon.svelte';
   import { t } from 'svelte-i18n';
   import type { Category } from '$lib/inventory/types';
@@ -14,18 +16,18 @@
   let showLowStockOnly = $state(false);
   let materialList = $state<any[]>([]);
   let lowStockList = $state<any[]>([]);
+  let catalogFailure=$state<string|null>(null);
+  let canManage=$derived(['RD','Boss','HeadOfProduction'].includes($currentUser?.role??''));
 
   // Load materials and subscribe to store updates
   onMount(() => {
-    let unsub: (() => void) | null = null;
-    void loadMaterials().then(() => {
-      unsub = materials.subscribe((value) => {
-        materialList = value;
-        lowStockList = getLowStockMaterials();
-      });
-      lowStockList = getLowStockMaterials();
+    const unsub=materials.subscribe(value=>{
+      materialList=value;
+      lowStockList=getLowStockMaterials();
     });
-    return () => { if (unsub) unsub(); };
+    const unsubError=catalogError.subscribe(value=>catalogFailure=value);
+    void loadMaterials();
+    return()=>{unsub();unsubError();};
   });
 
   let filteredMaterials = $derived(materialList.filter(mat => {
@@ -48,13 +50,24 @@
       <Package size={24} />
       <h1>{$t('inventory.catalog') || 'Material Catalog'}</h1>
     </div>
-    <button class="btn primary" onclick={() => {/* Open add material modal */}}>
-      <Plus size={16} />
-      {$t('inventory.add_material') || 'Add Material'}
-    </button>
+    {#if canManage}
+      <a class="btn primary" href={`${base}/inventory/new`}>
+        <Plus size={16} />
+        {$t('inventory.add_material') || 'Add Material'}
+      </a>
+    {/if}
   </div>
   
-  {#if lowStockList.length > 0}
+  {#if catalogFailure}
+    <div class="alert-banner" role="alert">
+      <AlertCircle size={20} />
+      <span>{$t('inventoryConsolidation.catalogUnavailable')}</span>
+      <button class="btn sm" onclick={()=>void loadMaterials()}>
+        {$t('common.refresh',{default:'Refresh'})}
+      </button>
+    </div>
+  {/if}
+  {#if !catalogFailure && lowStockList.length > 0}
     <div class="alert-banner">
       <AlertCircle size={20} />
       <span>{lowStockList.length} {$t('inventory.low_stock_items') || 'materials low in stock'}</span>
