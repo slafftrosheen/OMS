@@ -108,7 +108,7 @@ describe('OMS-R43 — single inventory UI contract and audit-only stock mutation
    expect(page).toContain('if(!response.ok)throw Error');
    expect(page).toContain("cache:'no-store'");
    expect(page).toContain('if(version===sequence)');
-   expect(page).toContain("'/orders/'").toBe(false);
+   expect(page).toContain('encodeURIComponent(m.refPO)');
  });
  it('maintains EN/RU/LV inventory action translations',()=>{
    const keys=['auditedStockOnly','newMaterialZero','barcodeLookupOnly',
