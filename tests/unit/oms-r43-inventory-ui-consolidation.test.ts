@@ -69,6 +69,12 @@ describe('OMS-R43 — single inventory UI contract and audit-only stock mutation
    expect(store).toContain('if(hasNext)throw new Error');
    expect(store).toContain('loadMaterialById');
    expect(store).toContain("cache:'no-store'");
+   expect(store).toContain('catalogError.set(');
+   expect(store).toContain('pendingManualMovements.get(materialId)');
+   expect(store).toContain('pending?.requestId');
+   expect(store).toContain('pendingManualMovements.delete(materialId)');
+   expect(store).toContain("material.barcode?.trim().toLowerCase()===needle");
+   expect(store).toContain('found.length===1?found[0]:null');
    expect(store).toContain('body: JSON.stringify(materialToItemDto(patch))');
    expect(store).toContain('body: JSON.stringify(materialToItemDto(input,{create:true}))');
  });
@@ -101,6 +107,11 @@ describe('OMS-R43 — single inventory UI contract and audit-only stock mutation
    expect(upload).not.toContain('createItem(');
    expect(index).toContain('{#if canManage}');
    expect(index).toContain('const unsub=materials.subscribe(');
+   expect(index).toContain('catalogError.subscribe(');
+   const catalog=read('src/routes/inventory/catalog/+page.svelte');
+   expect(catalog).toContain('/inventory/new');
+   expect(catalog).toContain('catalogFailure');
+   expect(catalog).not.toContain('/* Open add material modal */');
  });
  it('preserves movement audit visibility and presents failure as unknown, never empty',()=>{
    const page=read('src/routes/inventory/movements/+page.svelte');
@@ -114,7 +125,7 @@ describe('OMS-R43 — single inventory UI contract and audit-only stock mutation
    const keys=['auditedStockOnly','newMaterialZero','barcodeLookupOnly',
      'csvWarning','csvCheck','csvCreate','csvImported','csvSaveFailed',
      'metadataFailed','movementUnconfirmed','historyUnavailable',
-     'detailLoading','detailUnavailable'];
+     'detailLoading','detailUnavailable','catalogUnavailable','barcodeDetected'];
    for(const lang of ['en','ru','lv']){
      const catalog=JSON.parse(read(`src/locales/${lang}.json`)).inventoryConsolidation;
      for(const key of keys)expect(typeof catalog[key]).toBe('string');
