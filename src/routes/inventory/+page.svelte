@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { materials, createMaterial, updateMaterial, removeMaterial, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
+  import { materials, catalogError, createMaterial, updateMaterial, removeMaterial, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
   import type { Material, Section } from '$lib/inventory/types';
   import { base } from '$app/paths';
   import {currentUser} from '$lib/auth/authState.svelte';
@@ -36,6 +36,7 @@
     };
   }
 
+  let inventoryError=$state<string|null>(null);
   let q = $state('');
   let list: Material[] = $state([]);
   let low: Material[] = $state([]);
@@ -46,8 +47,9 @@
       list=value;
       low=getLowStockMaterials();
     });
+    const unsubError=catalogError.subscribe(value=>inventoryError=value);
     void loadMaterials();
-    return()=>unsub();
+    return()=>{unsub();unsubError();};
   });
 
   const tabs = [
@@ -162,7 +164,15 @@
   </div>
 </section>
 
-{#if showImport && canManage}<ImportCSV/>{/if}
+{#if inventoryError}
+  <section class="card" role="alert">
+    <p>{$t('inventoryConsolidation.catalogUnavailable')}</p>
+    <button class="tag" onclick={()=>void loadMaterials()}>
+      {$t('common.refresh', {default:'Refresh'})}
+    </button>
+  </section>
+{/if}
+{#if showImport && canManage && !inventoryError}<ImportCSV/>{/if}
 {#if showScan}<ScanBarcode/>{/if}
 
 {#if low.length}
@@ -187,7 +197,9 @@
   <Tabs tabs={tabs} active={currentTab} onChange={handleTabChange} />
   
   <div style="margin-top:16px">
-    {#if grouped.length === 0}
+    {#if inventoryError}
+      <p role="alert">{$t('inventoryConsolidation.catalogUnavailable')}</p>
+    {:else if grouped.length === 0}
       <div class="muted">{$t('inventory.empty_filter')}</div>
     {/if}
     {#each grouped as g (g.id)}
