@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import {base} from '$app/paths';
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
 
@@ -19,28 +19,29 @@
 
   let movements = $state<Movement[]>([]);
   let loading = $state(true);
+  let loadError=$state('');
   let filter = $state<'all' | 'in' | 'out' | 'order' | 'adjustment'>('all');
-
-  async function load() {
-    loading = true;
+  let sequence=0;
+  async function load(nextFilter=filter) {
+    const version=++sequence;
+    loading=true;loadError='';movements=[];
     try {
-      const params = new URLSearchParams({ limit: '200' });
-      if (filter !== 'all') params.set('kind', filter);
-      const res = await fetch(`/api/inventory/movements?${params.toString()}`);
-      if (res.ok) movements = await res.json();
-    } catch (err) {
-      console.error('Failed to load movements:', err);
-    } finally {
-      loading = false;
-    }
+      const params=new URLSearchParams({limit:'200'});
+      if(nextFilter!=='all')params.set('kind',nextFilter);
+      const response=await fetch(`${base}/api/inventory/movements?${params.toString()}`,
+        {cache:'no-store'});
+      if(!response.ok)throw Error($t('inventoryConsolidation.historyUnavailable'));
+      const body=await response.json();
+      if(!Array.isArray(body))throw Error($t('inventoryConsolidation.historyUnavailable'));
+      if(version===sequence)movements=body;
+    }catch(e){
+      if(version===sequence){
+        movements=[];
+        loadError=e instanceof Error?e.message:$t('inventoryConsolidation.historyUnavailable');
+      }
+    }finally{if(version===sequence)loading=false;}
   }
-
-  $effect(() => {
-    void filter;
-    load();
-  });
-
-  onMount(load);
+  $effect(()=>{void load(filter);});
 
   function kindLabel(k: string) {
     return $t(`inventory.kinds.${k}`, { default: k });
@@ -81,6 +82,8 @@
 
   {#if loading}
     <p class="muted">{$t('actions.loading', { default: 'Loading…' })}</p>
+  {:else if loadError}
+    <p role="alert" class="muted">{loadError}</p>
   {:else if movements.length === 0}
     <p class="muted">
       {$t('inventory.movements_page.empty', { default: 'No movements recorded.' })}
@@ -111,7 +114,7 @@
               <td class="num">{m.qty} {m.unit}</td>
               <td class="mono">
                 {#if m.refPO}
-                  <a href="/orders/{m.refPO}">{m.refPO.slice(0, 8)}…</a>
+                  <a href={`${base}/orders/${encodeURIComponent(m.refPO)}`}>{m.refPO.slice(0, 8)}…</a>
                 {:else}—{/if}
               </td>
               <td>{m.note ?? ''}</td>
