@@ -50,8 +50,9 @@
 
     saving = true;
     try {
-      await createMaterial(material as Omit<Material, 'id'>);
-      goto(`${base}/inventory`);
+      const created=await createMaterial({...material,stock:0});
+      if(!created)throw new Error('Material could not be saved');
+      await goto(`${base}/inventory/${encodeURIComponent(created.id)}`);
     } catch (err) {
       console.error('Failed to save material:', err);
       notifications.error('Failed to save material');
@@ -134,7 +135,8 @@
           </div>
           <div class="form-field">
             <label for="stock">{$t('inventory.headers.stock', { default: 'Current Stock' })}</label>
-            <input id="stock" type="number" min="0" step="0.01" bind:value={material.stock} />
+            <input id="stock" type="number" value="0" disabled readonly />
+            <p class="stock-note">{$t('inventoryConsolidation.newMaterialZero')}</p>
           </div>
           <div class="form-field">
             <label for="min_stock">{$t('inventory.headers.minimum', { default: 'Minimum Stock' })}</label>
