@@ -162,9 +162,14 @@ export function getMaterial(materialId: string) {
 }
 
 export function findMaterialBySku(sku: string) {
-  const needle = sku.trim().toLowerCase();
-  if (!needle) return null;
-  return get(materials).find((material) => material.sku?.toLowerCase() === needle) ?? null;
+  const needle=sku.trim().toLowerCase();
+  if(!needle)return null;
+  // A barcode scanner may return EAN/UPC rather than the shop's internal
+  // SKU. Refuse ambiguous matches; never select an arbitrary stock record.
+  const found=get(materials).filter(material=>
+    material.sku?.trim().toLowerCase()===needle ||
+    material.barcode?.trim().toLowerCase()===needle);
+  return found.length===1?found[0]:null;
 }
 
 export async function addMaterial(input: NewMaterialInput): Promise<Material | null> {
