@@ -30,19 +30,24 @@
     }
   });
 
-  function save() {
+  let saving=$state(false);
+  let saveError=$state('');
+  async function save() {
+    if(saving)return;
+    saving=true;saveError='';
     const payload = { ...data } as Partial<Material> & { id?: string };
     const section = (payload.section as Section) ?? 'materials';
     payload.section = section;
 
-    if (isNew) {
-      const { id: _id, ...rest } = payload;
-      createMaterial(rest);
-    } else if (data.id) {
-      const { id: _id, ...rest } = payload as Material;
-      updateMaterial(data.id, rest);
-    }
-    onClose();
+    try{
+      const {id: _id,stock:_stock,...metadata}=payload;
+      const result=isNew?await createMaterial({...metadata,stock:0}):
+        data.id?await updateMaterial(data.id,metadata):null;
+      if(!result)throw Error($t('inventoryConsolidation.metadataFailed'));
+      onClose();
+    }catch(e){
+      saveError=e instanceof Error?e.message:$t('inventoryConsolidation.metadataFailed');
+    }finally{saving=false;}
   }
 </script>
 
@@ -52,7 +57,7 @@
       <strong>{isNew ? $t('inventory.newItem') : $t('inventory.editItem')}</strong>
       <div class="row">
         <button class="tag ghost" type="button" onclick={onClose}>{$t('actions.cancel')}</button>
-        <button class="tag" type="submit">{$t('inventory.save')}</button>
+        <button class="tag" type="submit" disabled={saving}>{$t('inventory.save')}</button>
       </div>
     </header>
 
@@ -85,10 +90,12 @@
         {$t('inventory.headers.unit')}
         <input bind:value={data.unit} placeholder={$t('inventory.modal.unit_placeholder')} />
       </label>
-      <label>
-        {$t('inventory.headers.stock')}
-        <input type="number" min="0" bind:value={data.stock} />
-      </label>
+      <div class="stock-read-only">
+        <strong>{$t('inventory.headers.stock')}</strong>
+        <span>{isNew?0:data.stock??0}</span>
+        <p>{$t(isNew?'inventoryConsolidation.newMaterialZero':
+          'inventoryConsolidation.auditedStockOnly')}</p>
+      </div>
       <label>
         {$t('inventory.headers.minimum')}
         <input type="number" min="0" bind:value={data.min_stock} />
@@ -121,6 +128,7 @@
         <input bind:value={data.barcode} placeholder={$t('inventory.modal.barcode_placeholder')} />
       </label>
     </div>
+    {#if saveError}<p role="alert" class="warning">{saveError}</p>{/if}
   </form>
 </div>
 
