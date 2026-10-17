@@ -1415,6 +1415,9 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "inventoryConsolidation": {
+    "detailLoading": "Ielādē saglabāto materiāla kartīti…",
+    "detailUnavailable": "Materiālu neizdevās pārbaudīt vai tas vairs nav pieejams. Atgriezieties noliktavā un atsvaidziniet.",
+    "historyUnavailable": "Neizdevās ielādēt krājumu kustību vēsturi. Tas nenozīmē, ka kustību nav bijis.",
     "auditedStockOnly": "Krājumu atlikumu maina tikai ar auditētām noliktavas kustībām, nevis materiāla datu rediģēšanu.",
     "newMaterialZero": "Jauniem materiāliem sākotnējais atlikums ir 0. Pēc saglabāšanas ievadiet faktisko daudzumu ar auditētu saņemšanas kustību.",
     "invalidQuantity": "Ievadiet pozitīvu veselu daudzumu.",
