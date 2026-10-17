@@ -1,5 +1,6 @@
 import { get, writable } from 'svelte/store';
 import type { Category, Material, Movement, MovementKind, Section, Unit } from './types';
+import {materialFromItemDto,materialToItemDto} from './api-contract';
 
 // Re-export types for convenience
 export type { Category, Material, Movement, MovementKind, Section, Unit } from './types';
@@ -83,14 +84,25 @@ export async function loadMaterials(): Promise<Material[]> {
 
   isLoading.set(true);
   try {
-    const response = await fetch('/api/inventory/items');
-    if (response.ok) {
-      const result = await response.json();
-      // Handle both paginated response and direct array
-      const data = result.data || result;
-      materials.set(data);
-      return data;
+    // The old helper read only the first 50 rows. Barcode and catalog
+    // selection must see the full canonical inventory, or explicitly fail.
+    const all:Material[]=[];
+    let page=1,hasNext=true;
+    while(hasNext && page<=100){
+      const response=await fetch(`/api/inventory/items?page=${page}&limit=100`,{
+        cache:'no-store'
+      });
+      if(!response.ok)throw new Error('Material catalog unavailable');
+      const payload=await response.json();
+      if(!Array.isArray(payload.data)||typeof payload.pagination?.hasNext!=='boolean')
+        throw new Error('Incomplete material catalog');
+      all.push(...payload.data.map((row:Record<string,unknown>)=>materialFromItemDto(row)));
+      hasNext=payload.pagination.hasNext;
+      page++;
     }
+    if(hasNext)throw new Error('Material catalog exceeds safe page limit');
+    materials.set(all);
+    return all;
   } catch (err) {
     console.error('Failed to load materials:', err);
   } finally {
@@ -131,11 +143,11 @@ export async function addMaterial(input: NewMaterialInput): Promise<Material | n
     const response = await fetch('/api/inventory/items', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input)
+      body: JSON.stringify(materialToItemDto(input,{create:true}))
     });
 
     if (response.ok) {
-      const newMaterial = await response.json();
+      const newMaterial=materialFromItemDto(await response.json());
       materials.update((list) => [newMaterial, ...list]);
       return newMaterial;
     }
@@ -167,13 +179,15 @@ export async function updateMaterial(materialId: string, patch: MaterialUpdate):
     const response = await fetch(`/api/inventory/items/${materialId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch)
+      body: JSON.stringify(materialToItemDto(patch))
     });
 
     if (response.ok) {
-      const updated = await response.json();
-      materials.update((list) =>
-        list.map((material) => (material.id === materialId ? { ...material, ...updated } : material))
+      const updated=materialFromItemDto(await response.json());
+      materials.update(list=>
+        list.map(material=>material.id===materialId?
+          {...material,...updated,...patch,stock:updated.stock,
+            updated_at:updated.updated_at}:material)
       );
       return updated;
     }
