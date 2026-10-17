@@ -1414,6 +1414,28 @@
     "edit_order": "Edit Order",
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
+  "inventoryConsolidation": {
+    "auditedStockOnly": "Stock is changed only through audited inventory movements, separately from material metadata.",
+    "newMaterialZero": "New materials start at zero stock. Record the opening quantity through the audited IN movement after saving.",
+    "invalidQuantity": "Enter a positive whole quantity.",
+    "movementUnconfirmed": "The movement was not confirmed. Check the movement history and current stock before trying again.",
+    "movementSaved": "Audited inventory movement saved.",
+    "metadataFailed": "Material changes were not confirmed. Review the fields and retry.",
+    "metadataSaved": "Material information saved; inventory stock was not edited.",
+    "scanTitle": "Scan material barcode",
+    "barcodeLookupOnly": "Scanning only finds a material. No stock is added or removed automatically.",
+    "barcodeFound": "Material found: {sku}",
+    "barcodeNotFound": "No matching material found in the loaded catalog.",
+    "lookup": "Find material",
+    "openMaterial": "Open material and inventory actions",
+    "csvWarning": "CSV imports material records only, initially with stock 0. Any nonzero opening balance will be rejected; record actual stock separately with an audited movement. Format: section, group, subgroup, SKU, name, unit, stock, minimum, location.",
+    "csvNoRows": "No valid materials to import.",
+    "csvSaveFailed": "Material could not be saved (check duplicates and permissions).",
+    "csvImported": "Created {saved} of {total} materials. Review any row failures before retrying.",
+    "csvPreview": "Ready to create {count} materials at zero stock.",
+    "csvCheck": "Validate CSV",
+    "csvCreate": "Create materials"
+  },
   "inventoryConsistency": {
     "operatorMismatch": "Stock records disagree or the material is not mapped correctly. Do not retry completion repeatedly. Ask management to check Inventory → Stock consistency, physically count the material and record an audited reconciliation.",
     "operatorShortage": "Insufficient canonical material stock. Ask inventory management to verify availability or replenish stock before completing this stage.",
