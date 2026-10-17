@@ -147,7 +147,7 @@ export async function addMaterial(input: NewMaterialInput): Promise<Material | n
     });
 
     if (response.ok) {
-      const newMaterial=materialFromItemDto(await response.json());
+      const newMaterial=materialFromItemDto(await response.json(),input);
       materials.update((list) => [newMaterial, ...list]);
       return newMaterial;
     }
@@ -183,7 +183,7 @@ export async function updateMaterial(materialId: string, patch: MaterialUpdate):
     });
 
     if (response.ok) {
-      const updated=materialFromItemDto(await response.json());
+      const updated=materialFromItemDto(await response.json(),{...getMaterial(materialId),...patch});
       materials.update(list=>
         list.map(material=>material.id===materialId?
           {...material,...updated,...patch,stock:updated.stock,
@@ -264,7 +264,7 @@ export async function recordMovement(
         kind,
         qty,
         unit: result.unit,
-        by: result.by ?? null,
+        by: result.by ?? 'unknown',
         at: result.at ?? new Date().toISOString(),
         note: options.note,
         refPO: options.refPO
