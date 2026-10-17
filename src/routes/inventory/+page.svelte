@@ -2,6 +2,7 @@
   import { materials, createMaterial, updateMaterial, removeMaterial, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
   import type { Material, Section } from '$lib/inventory/types';
   import { base } from '$app/paths';
+  import {currentUser} from '$lib/auth/authState.svelte';
   import { t } from 'svelte-i18n';
   import { onMount } from 'svelte';
   import { toCSV, downloadCSV } from '$lib/inventory/export';
@@ -20,6 +21,7 @@
   import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
   import { emptyConfirm, type ConfirmState } from '$lib/components/ui/confirm-types';
 
+  let canManage=$derived(['RD','Boss','HeadOfProduction'].includes($currentUser?.role??''));
   let confirmState = $state<ConfirmState>(emptyConfirm());
   function askDelete(it: Material) {
     confirmState = {
@@ -40,15 +42,12 @@
 
   // Load materials and subscribe to store updates
   onMount(() => {
-    let unsub: (() => void) | null = null;
-    void loadMaterials().then(() => {
-      unsub = materials.subscribe((value) => {
-        list = value;
-        low = getLowStockMaterials();
-      });
-      low = getLowStockMaterials();
+    const unsub=materials.subscribe(value=>{
+      list=value;
+      low=getLowStockMaterials();
     });
-    return () => { if (unsub) unsub(); };
+    void loadMaterials();
+    return()=>unsub();
   });
 
   const tabs = [
@@ -130,10 +129,12 @@
       />
     </div>
     <div class="row">
-      <button class="tag" onclick={()=>showImport=!showImport}>
-        <Upload size={14} aria-hidden="true" />
-        {$t('inv.import') || 'Bulk import'}
-      </button>
+      {#if canManage}
+        <button class="tag" onclick={()=>showImport=!showImport}>
+          <Upload size={14} aria-hidden="true" />
+          {$t('inv.import') || 'Bulk import'}
+        </button>
+      {/if}
       <button class="tag" onclick={()=>showScan=!showScan}>
         <ScanBarcodeIcon size={14} aria-hidden="true" />
         {$t('inv.scan') || 'Scan barcode'}
@@ -142,22 +143,26 @@
         <Download size={14} aria-hidden="true" />
         Export CSV
       </button>
-      <a class="tag" href={`${base}/inventory/new`}>
-        <PackagePlus size={14} aria-hidden="true" />
-        {$t('inventory.add_item')}
-      </a>
+      {#if canManage}
+        <a class="tag" href={`${base}/inventory/new`}>
+          <PackagePlus size={14} aria-hidden="true" />
+          {$t('inventory.add_item')}
+        </a>
+      {/if}
       <a class="tag" href={`${base}/inventory/movements`}>
         <ArrowRightLeft size={14} aria-hidden="true" />
         {$t('inventory.movements')}
       </a>
-      <a class="tag" href={`${base}/inventory/consistency`}>
-        {$t('inventoryConsistency.open')}
-      </a>
+      {#if canManage}
+        <a class="tag" href={`${base}/inventory/consistency`}>
+          {$t('inventoryConsistency.open')}
+        </a>
+      {/if}
     </div>
   </div>
 </section>
 
-{#if showImport}<ImportCSV/>{/if}
+{#if showImport && canManage}<ImportCSV/>{/if}
 {#if showScan}<ScanBarcode/>{/if}
 
 {#if low.length}
@@ -189,13 +194,17 @@
       <details class="group-section" open>
         <summary class="group-summary">
           <span>{g.title}</span>
-          <button class="tag" onclick={() => handleCreateItem(currentTab, g.title)}><Plus size={14} aria-hidden="true"/> {$t('inventory.add')}</button>
+          {#if canManage}
+            <button class="tag" onclick={() => handleCreateItem(currentTab, g.title)}><Plus size={14} aria-hidden="true"/> {$t('inventory.add')}</button>
+          {/if}
         </summary>
         {#each g.subgroups as sub (sub.id)}
           <details class="sub-section" open>
             <summary class="sub-summary">
               <span>{sub.title}</span>
-              <button class="tag" onclick={() => handleCreateItem(currentTab, g.title, sub.title)}><Plus size={14} aria-hidden="true"/> {$t('inventory.add')}</button>
+              {#if canManage}
+                <button class="tag" onclick={() => handleCreateItem(currentTab, g.title, sub.title)}><Plus size={14} aria-hidden="true"/> {$t('inventory.add')}</button>
+              {/if}
             </summary>
             <div class="table-wrap">
               <table class="rf-table">
@@ -228,7 +237,9 @@
                       <td data-label={$t('inventory.headers.location')}>{it.location || '—'}</td>
                       <td class="actions-cell">
                         <a href={`${base}/inventory/${it.id}`} class="icon-btn" aria-label={`Edit ${it.name_en || it.code}`}><Edit size={16} aria-hidden="true"/></a>
-                        <button class="icon-btn warn" aria-label={`Delete ${it.name_en || it.code}`} onclick={() => askDelete(it)}><Trash size={16} aria-hidden="true"/></button>
+                        {#if canManage}
+                          <button class="icon-btn warn" aria-label={`Delete ${it.name_en || it.code}`} onclick={() => askDelete(it)}><Trash size={16} aria-hidden="true"/></button>
+                        {/if}
                       </td>
                     </tr>
                   {/each}
@@ -243,7 +254,7 @@
 
 </section>
 
-{#if editing}
+{#if editing && canManage}
   <ItemModal bind:item={editing} onClose={() => editing = null} />
 {/if}
 
