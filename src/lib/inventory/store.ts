@@ -79,6 +79,12 @@ export const materials = writable<Material[]>([]);
 export const movements = writable<Movement[]>([]);
 export const isLoading = writable<boolean>(false);
 
+/** Persist the same client-generated idempotency key across an uncertain
+ * network reply. A different movement on the same material must wait until
+ * the operator checks the audit history or reloads the page.
+ */
+const pendingManualMovements=new Map<string,{requestId:string;signature:string}>();
+
 // Load materials from API
 export async function loadMaterials(): Promise<Material[]> {
   if (typeof window === 'undefined') return [];
@@ -251,11 +257,18 @@ export async function recordMovement(
     }
     // randomUUID() requires a secure context in some browsers. Tailscale
     // deployments may use HTTP, where getRandomValues remains available.
-    const requestId=typeof crypto.randomUUID==='function'
+    const signature=JSON.stringify({materialId,kind,qty,note:options.note??null});
+    const pending=pendingManualMovements.get(materialId);
+    if(pending && pending.signature!==signature){
+      console.warn('Previous inventory movement receipt remains uncertain. Check audit history.');
+      return null;
+    }
+    const requestId=pending?.requestId??(typeof crypto.randomUUID==='function'
       ?crypto.randomUUID()
       :'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,ch=>
         (Number(ch)^crypto.getRandomValues(new Uint8Array(1))[0] &
-          (15>>Number(ch)/4)).toString(16));
+          (15>>Number(ch)/4)).toString(16)));
+    if(!pending)pendingManualMovements.set(materialId,{requestId,signature});
     const response = await fetch(`${base}/api/inventory/movements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -266,7 +279,10 @@ export async function recordMovement(
     });
 
     if (response.ok) {
-      const result = await response.json();
+      const result=await response.json();
+      if(!result?.id || typeof result.newStock!=='number')
+        throw new Error('Committed movement receipt cannot be verified');
+      pendingManualMovements.delete(materialId);
 
       // Update local store with new stock
       materials.update((list) =>
@@ -292,6 +308,10 @@ export async function recordMovement(
 
       return movement;
     }
+    // Explicit 4xx rejections confirm the transaction did not commit. Keep
+    // 5xx/network uncertainty pinned to the SAME request ID for safe retry.
+    if([400,401,403,404,409,422].includes(response.status))
+      pendingManualMovements.delete(materialId);
   } catch (err) {
     console.error('Failed to record movement:', err);
   }
