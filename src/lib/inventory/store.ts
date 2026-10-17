@@ -78,6 +78,7 @@ export const SECTIONS: SectionId[] = ['materials', 'leftovers', 'paints', 'tools
 export const materials = writable<Material[]>([]);
 export const movements = writable<Movement[]>([]);
 export const isLoading = writable<boolean>(false);
+export const catalogError=writable<string|null>(null);
 
 /** Persist the same client-generated idempotency key across an uncertain
  * network reply. A different movement on the same material must wait until
@@ -90,6 +91,8 @@ export async function loadMaterials(): Promise<Material[]> {
   if (typeof window === 'undefined') return [];
 
   isLoading.set(true);
+  catalogError.set(null);
+  materials.set([]);
   try {
     // The old helper read only the first 50 rows. Barcode and catalog
     // selection must see the full canonical inventory, or explicitly fail.
@@ -112,6 +115,7 @@ export async function loadMaterials(): Promise<Material[]> {
     return all;
   } catch (err) {
     console.error('Failed to load materials:', err);
+    catalogError.set('Material catalog unavailable or incomplete. Refresh to verify stock.');
   } finally {
     isLoading.set(false);
   }
