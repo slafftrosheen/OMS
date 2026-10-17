@@ -1415,6 +1415,7 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "inventoryConsolidation": {
+    "catalogUnavailable": "The material catalog could not be loaded completely. Stock totals and low-stock alerts are unavailable until a successful refresh.",
     "scannerStarting": "Starting camera…",
     "scannerActive": "Scanner active. Point at a barcode.",
     "scannerUnavailable": "Camera unavailable or permission denied.",
