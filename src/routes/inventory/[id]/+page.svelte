@@ -111,7 +111,7 @@
       <ArrowLeft size={20} />
       <span>{$t('inventory.actions.back', { default: 'Back to Inventory' })}</span>
     </a>
-    {#if material}
+    {#if material && !detailLoading && !detailUnavailable}
       <div class="header-actions">
         {#if editMode}
           <button class="btn-secondary" onclick={() => editMode = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
