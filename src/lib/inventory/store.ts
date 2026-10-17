@@ -111,6 +111,24 @@ export async function loadMaterials(): Promise<Material[]> {
   return [];
 }
 
+/** Direct material links must fetch their own authoritative record.
+ * They cannot assume the paged inventory index has already initialized.
+ */
+export async function loadMaterialById(id:string):Promise<Material|null> {
+  try{
+    const response=await fetch(`/api/inventory/items/${encodeURIComponent(id)}`,
+      {cache:'no-store'});
+    if(!response.ok)return null;
+    const item=materialFromItemDto(await response.json(),getMaterial(id)??{});
+    materials.update(list=>{
+      const found=list.some(row=>row.id===item.id);
+      return found?list.map(row=>row.id===item.id?{...row,...item}:row):
+        [...list,item];
+    });
+    return item;
+  }catch(e){console.error('Failed to load material detail',e);return null;}
+}
+
 // Load movements from API
 export async function loadMovements(limit = 50): Promise<Movement[]> {
   if (typeof window === 'undefined') return [];
