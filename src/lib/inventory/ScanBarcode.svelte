@@ -1,13 +1,17 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { updateMaterial, findMaterialBySku } from './store';
+  import { findMaterialBySku } from './store';
+  import {base} from '$app/paths';
+  import {t} from 'svelte-i18n';
+  import type {Material} from './types';
   import Quagga from '@ericblade/quagga2';
 
   let scannerContainer: HTMLDivElement = $state();
   let code = $state('');
   let scanning = $state(false);
   let lastScanned = '';
-  let status = $state('Ready to scan');
+  let status = $state('');
+  let match=$state<Material|null>(null);
 
   async function startScanner() {
     if (scanning) return;
@@ -69,24 +73,18 @@
     code = detected;
     status = `Detected: ${detected}`;
 
-    // Auto-apply if item found
-    const material = findMaterialBySku(detected);
-    if (material) {
-      applyCode();
-    }
+    // Detection is LOOKUP ONLY: scanners must never mutate stock.
+    // An operator must explicitly open the material and confirm an audited
+    // manual movement; repeated camera detections cannot add units.
+    match=findMaterialBySku(detected);
   }
 
-  async function applyCode() {
-    if (!code.trim()) return;
-
-    const material = findMaterialBySku(code);
-    if (material) {
-      await updateMaterial(material.id, { stock: material.stock + 1 });
-      status = `✓ Added +1 to ${material.name_en || material.code} (${material.sku}) - Stock: ${material.stock + 1}`;
-    } else {
-      status = `✗ Material not found: ${code}`;
-    }
-    code = '';
+  function applyCode() {
+    if(!code.trim())return;
+    match=findMaterialBySku(code);
+    status=match
+      ?$t('inventoryConsolidation.barcodeFound',{values:{sku:match.sku}})
+      :$t('inventoryConsolidation.barcodeNotFound');
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -99,7 +97,8 @@
 </script>
 
 <section class="card">
-  <h3>Scan barcode</h3>
+  <h3>{$t('inventoryConsolidation.scanTitle')}</h3>
+  <p class="status">{$t('inventoryConsolidation.barcodeLookupOnly')}</p>
   
   <div class="scanner-container" bind:this={scannerContainer}></div>
   
@@ -118,8 +117,17 @@
       bind:value={code} 
       onkeydown={handleKeydown}
     >
-    <button class="tag" onclick={applyCode}>Apply</button>
+    <button class="tag" onclick={applyCode}>{$t('inventoryConsolidation.lookup')}</button>
   </div>
+  {#if match}
+    <p class="status">
+      <strong>{match.sku}</strong> · {match.name_en??match.code}
+      · {match.stock} {match.unit}
+    </p>
+    <a class="tag" href={`${base}/inventory/${encodeURIComponent(match.id)}`}>
+      {$t('inventoryConsolidation.openMaterial')}
+    </a>
+  {/if}
 </section>
 
 <style>
