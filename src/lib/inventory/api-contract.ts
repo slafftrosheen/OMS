@@ -7,34 +7,38 @@ import type {Material} from './types';
 type InventoryItemDto=Record<string,unknown>;
 const str=(x:unknown,fallback='')=>typeof x==='string'?x:fallback;
 const integer=(x:unknown,fallback=0)=>typeof x==='number'&&Number.isFinite(x)?x:fallback;
-export function materialFromItemDto(dto:InventoryItemDto):Material {
+export function materialFromItemDto(
+  dto:InventoryItemDto,fallback:Partial<Material>={}
+):Material {
   return {
     ...dto,
     id:str(dto.id),
     sku:str(dto.sku),
-    code:str(dto.code,str(dto.sku)),
+    code:str(dto.code,str(fallback.code,str(dto.sku))),
     category:str(dto.category,'HARDWARE') as Material['category'],
-    name_en:str(dto.name_en,str(dto.name)),
+    name_en:str(dto.name_en,str(dto.name,str(fallback.name_en))),
     section:str(dto.section,'materials') as Material['section'],
-    item_group:str(dto.item_group,str(dto.group)),
-    subgroup:str(dto.subgroup),
+    item_group:str(dto.item_group,str(dto.group,str(fallback.item_group))),
+    subgroup:str(dto.subgroup,str(fallback.subgroup)),
     unit:str(dto.unit,'PCS') as Material['unit'],
     stock:integer(dto.stock),
     min_stock:integer(dto.min_stock,integer(dto.min)),
-    max_stock:integer(dto.max_stock,integer(dto.max)),
-    thickness_mm:integer(dto.thickness_mm,integer(dto.thicknessMM)),
-    location:str(dto.location),
-    vendor:str(dto.vendor),
-    supplier:str(dto.supplier),
-    color_code:str(dto.color_code,str(dto.colorCode)),
-    hex_color:str(dto.hex_color,str(dto.hexColor)),
-    barcode:str(dto.barcode),
-    note:str(dto.note),
-    price:integer(dto.price),
-    leftover_data:(dto.leftover_data??dto.leftover??null) as Material['leftover_data'],
-    metadata:(dto.metadata??{}) as Material['metadata'],
-    created_at:str(dto.created_at,str(dto.updatedAt)),
-    updated_at:str(dto.updated_at,str(dto.updatedAt))
+    max_stock:typeof dto.max_stock==='number'?dto.max_stock:
+      typeof dto.max==='number'?dto.max:fallback.max_stock,
+    thickness_mm:typeof dto.thickness_mm==='number'?dto.thickness_mm:
+      typeof dto.thicknessMM==='number'?dto.thicknessMM:fallback.thickness_mm,
+    location:str(dto.location,str(fallback.location)),
+    vendor:str(dto.vendor,str(fallback.vendor)),
+    supplier:str(dto.supplier,str(fallback.supplier)),
+    color_code:str(dto.color_code,str(dto.colorCode,str(fallback.color_code))),
+    hex_color:str(dto.hex_color,str(dto.hexColor,str(fallback.hex_color))),
+    barcode:str(dto.barcode,str(fallback.barcode)),
+    note:str(dto.note,str(fallback.note)),
+    price:integer(dto.price,integer(fallback.price)),
+    leftover_data:(dto.leftover_data??dto.leftover??fallback.leftover_data) as Material['leftover_data'],
+    metadata:(dto.metadata??fallback.metadata??{}) as Material['metadata'],
+    created_at:str(dto.created_at,str(fallback.created_at,str(dto.updatedAt))),
+    updated_at:str(dto.updated_at,str(dto.updatedAt,str(fallback.updated_at)))
   } as Material;
 }
 /** Only editable metadata is accepted. Stock changes belong to the audited
