@@ -1415,6 +1415,14 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "inventoryConsolidation": {
+    "scannerStarting": "Starting camera…",
+    "scannerActive": "Scanner active. Point at a barcode.",
+    "scannerUnavailable": "Camera unavailable or permission denied.",
+    "scannerStopped": "Scanner stopped.",
+    "barcodeDetected": "Scanned: {sku}",
+    "startScanner": "Start scanner",
+    "stopScanner": "Stop scanner",
+    "skuPlaceholder": "Type SKU or barcode…",
     "detailLoading": "Loading the saved material record…",
     "detailUnavailable": "Material could not be verified or is no longer available. Return to inventory and refresh.",
     "historyUnavailable": "Inventory movement history could not be loaded. This does not mean there are no movements.",
