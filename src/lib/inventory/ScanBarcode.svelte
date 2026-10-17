@@ -17,7 +17,7 @@
     if (scanning) return;
 
     try {
-      status = 'Initializing camera...';
+      status = $t('inventoryConsolidation.scannerStarting');
 
       await Quagga.init({
         inputStream: {
@@ -45,12 +45,12 @@
 
       Quagga.start();
       scanning = true;
-      status = 'Scanning... Point at barcode';
+      status = $t('inventoryConsolidation.scannerActive');
 
       Quagga.onDetected(handleDetected);
     } catch (err) {
       console.error('Scanner init failed:', err);
-      status = 'Camera access denied or not available';
+      status = $t('inventoryConsolidation.scannerUnavailable');
     }
   }
 
@@ -59,11 +59,12 @@
     Quagga.stop();
     Quagga.offDetected(handleDetected);
     scanning = false;
-    status = 'Scanner stopped';
+    status = $t('inventoryConsolidation.scannerStopped');
   }
 
   function handleDetected(result: any) {
-    const detected = result.codeResult.code;
+    const detected=result?.codeResult?.code;
+    if(typeof detected!=='string'||!detected.trim())return;
 
     // Debounce: ignore same code within 2 seconds
     if (detected === lastScanned) return;
@@ -71,7 +72,7 @@
     setTimeout(() => { lastScanned = ''; }, 2000);
 
     code = detected;
-    status = `Detected: ${detected}`;
+    status=$t('inventoryConsolidation.barcodeDetected',{values:{sku:detected}});
 
     // Detection is LOOKUP ONLY: scanners must never mutate stock.
     // An operator must explicitly open the material and confirm an audited
@@ -108,12 +109,12 @@
   
   <div class="row" style="gap:6px;margin-top:8px">
     {#if !scanning}
-      <button class="tag" onclick={startScanner}>Start scanner</button>
+      <button class="tag" onclick={startScanner}>{$t('inventoryConsolidation.startScanner')}</button>
     {:else}
-      <button class="tag" onclick={stopScanner}>Stop scanner</button>
+      <button class="tag" onclick={stopScanner}>{$t('inventoryConsolidation.stopScanner')}</button>
     {/if}
     <input 
-      placeholder="Type SKU…" 
+      placeholder={$t('inventoryConsolidation.skuPlaceholder')} 
       bind:value={code} 
       onkeydown={handleKeydown}
     >
