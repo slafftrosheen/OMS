@@ -33,8 +33,9 @@ New material creation sends `stock:0`.
 
 The store loads all pages of the canonical item API (100 rows/page, bounded
 at 100 pages) rather than treating only the first default page of 50 rows
-as the full catalog. A fetch failure or incomplete/oversized catalog is
-an error, not grounds to claim that the inventory is complete. Direct
+as the full catalog. A fetch failure or incomplete/oversized catalog clears
+unverified catalog data and surfaces a warning instead of showing a false
+empty inventory or stale stock in the inventory index and catalog pages. Direct
 material URLs independently fetch `/api/inventory/items/{id}`, avoiding
 the old half-second redirect race when the index had not loaded yet.
 Inventory requests use the configured SvelteKit base path.
@@ -61,9 +62,10 @@ stock updates remain exclusively in R41/R42's audited movement RPC.
   location and supplier metadata. Failed saves remain visible, instead of
   closing the modal or navigating as though success occurred.
 - **Barcode:** camera detection is lookup only. No automatic stock writes.
-  An operator verifies the result and opens the saved material record to
-  perform an explicitly authorized inventory movement. Detection and
-  scanner control text is localized.
+  The matcher accepts the recorded EAN/UPC `barcode` as well as internal
+  `sku` but rejects ambiguous matches. An operator verifies the result
+  and opens the saved material record to perform an explicitly authorized
+  inventory movement. Detection and scanner control text is localized.
 - **Bulk CSV:** supports the existing nine-column format
   `section,group,subgroup,sku,name,unit,stock,min,location`.
   Validates quoting, duplicate SKUs, integer minimums, empty mandatory
@@ -75,7 +77,12 @@ stock updates remain exclusively in R41/R42's audited movement RPC.
 - **Movements:** removes duplicate initial fetches and ignores stale
   responses after filter changes. An API/network error is visibly
   `unavailable`, not misrepresented as zero movements. Order links respect
-  the SvelteKit base path.
+  the SvelteKit base path. The shared store retains the SAME idempotency
+  UUID on a network/5xx response with uncertain outcome, so retrying the
+  unchanged movement cannot silently deduct stock twice. Confirmed
+  non-committing 4xx rejections release that key. A different operation
+  for the same material is blocked while an uncertain request exists;
+  check history/reload before initiating a new movement.
 
 The station material selector still loads canonical materials from the same
 existing `/api/inventory/items` API and records consumption only through the
@@ -121,6 +128,10 @@ physical count, documented reason and an audit movement.
 7. Switch the movement-history filter quickly during loading; only the
    last selected filter should be shown. Simulate a failed history
    request and confirm the UI does not display a false empty audit.
+   Repeat a manual stock request after a simulated response loss and
+   confirm it reuses the original idempotency UUID, not a second stock write.
+   Try changing the quantity while the outcome is still uncertain: the
+   browser must reject the new request until a history check/reload.
 8. Check read-only Operator, StationHead, RD/Boss/HoP account behavior,
    especially hiding inventory write controls while retaining readable
    catalog and scanner functionality. Verify server authorization by
