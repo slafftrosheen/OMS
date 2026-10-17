@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { materials, move, updateMaterial, removeMaterial, type Material } from '$lib/inventory/store';
+  import { materials, move, updateMaterial, removeMaterial, loadMaterialById, type Material } from '$lib/inventory/store';
   import { currentUser } from '$lib/auth/authState.svelte';
-  import { onDestroy } from 'svelte';
+  import { onMount,onDestroy } from 'svelte';
   import { base } from '$app/paths';
-  import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { t } from 'svelte-i18n';
@@ -35,13 +34,16 @@
 
   onDestroy(() => unsubscribe?.());
 
-  $effect(() => {
-    if (!material && browser && materialId) {
-      // Material not found after store loaded
-      setTimeout(() => {
-        if (!material) goto(`${base}/inventory`);
-      }, 500);
-    }
+  let detailLoading=$state(true);
+  let detailUnavailable=$state(false);
+  onMount(()=>{
+    let active=true;
+    void loadMaterialById(materialId).then(item=>{
+      if(!active)return;
+      detailLoading=false;
+      detailUnavailable=!item;
+    });
+    return()=>{active=false;};
   });
 
   let adjustAmount = $state(1);
@@ -53,7 +55,7 @@
   let canManage=$derived(['RD','Boss','HeadOfProduction'].includes($currentUser?.role??''));
 
   async function adjust(kind: 'IN' | 'OUT') {
-    if(!material||adjusting||!canManage)return;
+    if(!material||adjusting||!canManage||detailLoading||detailUnavailable)return;
     if(!Number.isSafeInteger(adjustAmount)||adjustAmount<=0){
       inventoryFailure=$t('inventoryConsolidation.invalidQuantity');return;
     }
@@ -69,7 +71,7 @@
   }
 
   async function saveChanges() {
-    if(!material||savingMetadata||!canManage)return;
+    if(!material||savingMetadata||!canManage||detailLoading||detailUnavailable)return;
     savingMetadata=true;inventoryFailure='';inventoryMessage='';
     try{
       const {stock:_stock,...metadata}=editedMaterial;
@@ -128,7 +130,11 @@
     {/if}
   </header>
 
-  {#if material}
+  {#if detailLoading}
+    <p role="status">{$t('inventoryConsolidation.detailLoading')}</p>
+  {:else if detailUnavailable}
+    <p role="alert">{$t('inventoryConsolidation.detailUnavailable')}</p>
+  {:else if material}
     <div class="material-container">
       <!-- Main Info Card -->
       <div class="info-card main-info">
