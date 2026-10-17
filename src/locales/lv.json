@@ -1414,6 +1414,28 @@
     "edit_order": "Rediģēt pasūtījumu",
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
+  "inventoryConsolidation": {
+    "auditedStockOnly": "Krājumu atlikumu maina tikai ar auditētām noliktavas kustībām, nevis materiāla datu rediģēšanu.",
+    "newMaterialZero": "Jauniem materiāliem sākotnējais atlikums ir 0. Pēc saglabāšanas ievadiet faktisko daudzumu ar auditētu saņemšanas kustību.",
+    "invalidQuantity": "Ievadiet pozitīvu veselu daudzumu.",
+    "movementUnconfirmed": "Kustība nav apstiprināta. Pirms atkārtošanas pārbaudiet kustību vēsturi un atlikumu.",
+    "movementSaved": "Auditētā noliktavas kustība saglabāta.",
+    "metadataFailed": "Materiāla izmaiņas nav apstiprinātas. Pārbaudiet laukus un mēģiniet vēlreiz.",
+    "metadataSaved": "Materiāla dati saglabāti; krājumu atlikums nav mainīts.",
+    "scanTitle": "Skenēt materiāla svītrkodu",
+    "barcodeLookupOnly": "Skenēšana tikai meklē materiālu. Krājumi netiek automātiski pievienoti vai norakstīti.",
+    "barcodeFound": "Materiāls atrasts: {sku}",
+    "barcodeNotFound": "Ielādētajā katalogā nav atbilstoša materiāla.",
+    "lookup": "Meklēt",
+    "openMaterial": "Atvērt materiālu un noliktavas darbības",
+    "csvWarning": "CSV imports veido tikai materiālu kartītes ar sākotnējo atlikumu 0. Failā norādīts nenulles atlikums tiks noraidīts; faktisko atlikumu reģistrējiet atsevišķi ar auditētu kustību. Formāts: sadaļa, grupa, apakšgrupa, SKU, nosaukums, mērvienība, atlikums, minimums, atrašanās vieta.",
+    "csvNoRows": "Nav derīgu materiālu importēšanai.",
+    "csvSaveFailed": "Materiālu neizdevās saglabāt (pārbaudiet SKU dublikātus un tiesības).",
+    "csvImported": "Izveidoti {saved} no {total} materiāliem. Pirms atkārtošanas pārskatiet kļūdas.",
+    "csvPreview": "Gatavi {count} materiāli ar nulles sākuma atlikumu.",
+    "csvCheck": "Pārbaudīt CSV",
+    "csvCreate": "Izveidot materiālus"
+  },
   "inventoryConsistency": {
     "operatorMismatch": "Krājumu atlikumi atšķiras vai materiāls nepareizi sasaistīts ar veco katalogu. Neatkārtojiet posma pabeigšanu. Lūdziet vadībai atvērt Noliktava → Krājumu saskaņotība, fiziski saskaitīt materiālu un reģistrēt auditētu korekciju.",
     "operatorShortage": "Kanoniskajā noliktavas uzskaitē nav pietiekama materiāla atlikuma. Pirms posma pabeigšanas jāpārbauda vai jāpapildina krājumi.",
