@@ -1,5 +1,6 @@
 <script lang="ts">
   import { materials, move, updateMaterial, removeMaterial, type Material } from '$lib/inventory/store';
+  import { currentUser } from '$lib/auth/authState.svelte';
   import { onDestroy } from 'svelte';
   import { base } from '$app/paths';
   import { browser } from '$app/environment';
@@ -27,7 +28,7 @@
 
   const unsubscribe = materials.subscribe((list) => {
     material = list.find((x) => x.id === materialId);
-    if (material) {
+    if (material && !editMode) {
       editedMaterial = { ...material };
     }
   });
@@ -45,18 +46,40 @@
 
   let adjustAmount = $state(1);
   let adjustNote = $state('');
+  let adjusting=$state(false);
+  let savingMetadata=$state(false);
+  let inventoryMessage=$state('');
+  let inventoryFailure=$state('');
+  let canManage=$derived(['RD','Boss','HeadOfProduction'].includes($currentUser?.role??''));
 
-  function adjust(kind: 'IN' | 'OUT') {
-    if (!material || adjustAmount <= 0) return;
-    move(material.id, kind, adjustAmount, 'user', adjustNote || undefined);
-    adjustAmount = 1;
-    adjustNote = '';
+  async function adjust(kind: 'IN' | 'OUT') {
+    if(!material||adjusting||!canManage)return;
+    if(!Number.isSafeInteger(adjustAmount)||adjustAmount<=0){
+      inventoryFailure=$t('inventoryConsolidation.invalidQuantity');return;
+    }
+    adjusting=true;inventoryFailure='';inventoryMessage='';
+    try{
+      const receipt=await move(material.id,kind,adjustAmount,'',adjustNote||undefined);
+      if(!receipt)throw Error($t('inventoryConsolidation.movementUnconfirmed'));
+      inventoryMessage=$t('inventoryConsolidation.movementSaved');
+      adjustAmount=1;adjustNote='';
+    }catch(e){
+      inventoryFailure=e instanceof Error?e.message:$t('inventoryConsolidation.movementUnconfirmed');
+    }finally{adjusting=false;}
   }
 
   async function saveChanges() {
-    if (!material || !editedMaterial) return;
-    await updateMaterial(material.id, editedMaterial);
-    editMode = false;
+    if(!material||savingMetadata||!canManage)return;
+    savingMetadata=true;inventoryFailure='';inventoryMessage='';
+    try{
+      const {stock:_stock,...metadata}=editedMaterial;
+      const updated=await updateMaterial(material.id,metadata);
+      if(!updated)throw Error($t('inventoryConsolidation.metadataFailed'));
+      editMode=false;
+      inventoryMessage=$t('inventoryConsolidation.metadataSaved');
+    }catch(e){
+      inventoryFailure=e instanceof Error?e.message:$t('inventoryConsolidation.metadataFailed');
+    }finally{savingMetadata=false;}
   }
 
   let confirmState = $state<ConfirmState>(emptyConfirm());
@@ -90,13 +113,13 @@
       <div class="header-actions">
         {#if editMode}
           <button class="btn-secondary" onclick={() => editMode = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
-          <button class="btn-primary" onclick={saveChanges}>
+          <button class="btn-primary" disabled={savingMetadata||!canManage} onclick={saveChanges}>
             <Save size={16} />
             Save Changes
           </button>
         {:else}
-          <button class="btn-secondary" onclick={() => editMode = true}>{$t('inventory.editItem', { default: 'Edit' })}</button>
-          <button class="btn-danger" onclick={deleteMaterial}>
+          <button class="btn-secondary" disabled={!canManage} onclick={() => editMode = true}>{$t('inventory.editItem', { default: 'Edit' })}</button>
+          <button class="btn-danger" disabled={!canManage} onclick={deleteMaterial}>
             <Trash size={16} />
             Delete
           </button>
@@ -187,6 +210,10 @@
           </div>
         </div>
 
+        <p class="stock-guidance">{$t('inventoryConsolidation.auditedStockOnly')}</p>
+        {#if inventoryFailure}<p role="alert" class="stock-guidance">{inventoryFailure}</p>{/if}
+        {#if inventoryMessage}<p role="status" class="stock-guidance">{inventoryMessage}</p>{/if}
+        {#if canManage}
         <div class="stock-actions">
           <div class="adjust-controls">
             <div class="adjust-amount">
@@ -206,16 +233,17 @@
             />
           </div>
           <div class="adjust-buttons">
-            <button class="btn-success" onclick={() => adjust('IN')}>
+            <button class="btn-success" disabled={adjusting} onclick={() => adjust('IN')}>
               <Plus size={16} />
               Add Stock
             </button>
-            <button class="btn-warning" onclick={() => adjust('OUT')}>
+            <button class="btn-warning" disabled={adjusting} onclick={() => adjust('OUT')}>
               <Minus size={16} />
               Remove Stock
             </button>
           </div>
         </div>
+        {/if}
       </div>
 
       <!-- Details Card -->
