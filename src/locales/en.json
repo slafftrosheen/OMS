@@ -1415,6 +1415,9 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "inventoryConsolidation": {
+    "detailLoading": "Loading the saved material record…",
+    "detailUnavailable": "Material could not be verified or is no longer available. Return to inventory and refresh.",
+    "historyUnavailable": "Inventory movement history could not be loaded. This does not mean there are no movements.",
     "auditedStockOnly": "Stock is changed only through audited inventory movements, separately from material metadata.",
     "newMaterialZero": "New materials start at zero stock. Record the opening quantity through the audited IN movement after saving.",
     "invalidQuantity": "Enter a positive whole quantity.",
