@@ -1415,6 +1415,14 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "inventoryConsolidation": {
+    "scannerStarting": "Ieslēdz kameru…",
+    "scannerActive": "Skeneris darbojas. Pavērsiet pret svītrkodu.",
+    "scannerUnavailable": "Kamera nav pieejama vai nav atļaujas.",
+    "scannerStopped": "Skeneris apturēts.",
+    "barcodeDetected": "Nolasīts: {sku}",
+    "startScanner": "Sākt skenēšanu",
+    "stopScanner": "Apturēt skenēšanu",
+    "skuPlaceholder": "Ievadiet SKU vai svītrkodu…",
     "detailLoading": "Ielādē saglabāto materiāla kartīti…",
     "detailUnavailable": "Materiālu neizdevās pārbaudīt vai tas vairs nav pieejams. Atgriezieties noliktavā un atsvaidziniet.",
     "historyUnavailable": "Neizdevās ielādēt krājumu kustību vēsturi. Tas nenozīmē, ka kustību nav bijis.",
