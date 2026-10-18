@@ -41,11 +41,17 @@ export const GET:RequestHandler=async ({locals})=>{
      'id,material_id,quantity,unit,supplier_label,supplier_reference,note,status,stock_at_request,minimum_at_request,created_by,updated_by,created_at,updated_at,ordered_at,closed_at')
  ]);
  const normalized=requests as unknown as ReplenishmentRequest[];
+ const materialRecords=materials as unknown as ReplenishmentMaterial[];
+ const invalidBalanceCount=materialRecords.filter(item=>
+   typeof item.stock!=='number'||!Number.isSafeInteger(item.stock)||item.stock<0||
+   typeof item.min_stock!=='number'||!Number.isSafeInteger(item.min_stock)||
+   item.min_stock<0).length;
+ const noThresholdCount=materialRecords.filter(item=>
+   typeof item.min_stock==='number'&&item.min_stock===0).length;
  let candidates;
- try{candidates=deriveReplenishmentCandidates(materials as unknown as ReplenishmentMaterial[],normalized);}
+ try{candidates=deriveReplenishmentCandidates(materialRecords,normalized);}
  catch{throw error(503,'Active replenishment records conflict; manager inspection required');}
- const byId=new Map((materials as unknown as ReplenishmentMaterial[])
-   .map(item=>[item.id,item]));
+ const byId=new Map(materialRecords.map(item=>[item.id,item]));
  const requestMaterials=[...new Set(normalized.map(row=>row.material_id))].map(id=>{
    const item=byId.get(id);
    return {id,sku:item?.sku??id,name:item?.name_en??item?.sku??id,
@@ -53,6 +59,7 @@ export const GET:RequestHandler=async ({locals})=>{
  });
  return json({
    asOf:new Date().toISOString(),candidateCount:candidates.length,
+   totalMaterials:materialRecords.length,invalidBalanceCount,noThresholdCount,
    candidates,requests:normalized,requestMaterials,
    stockIsCanonical:true,physicalCountVerified:false,
    supplierOrderingAutomated:false,receiptsAffectStock:false
