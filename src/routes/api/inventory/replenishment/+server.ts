@@ -44,9 +44,16 @@ export const GET:RequestHandler=async ({locals})=>{
  let candidates;
  try{candidates=deriveReplenishmentCandidates(materials as unknown as ReplenishmentMaterial[],normalized);}
  catch{throw error(503,'Active replenishment records conflict; manager inspection required');}
+ const byId=new Map((materials as unknown as ReplenishmentMaterial[])
+   .map(item=>[item.id,item]));
+ const requestMaterials=[...new Set(normalized.map(row=>row.material_id))].map(id=>{
+   const item=byId.get(id);
+   return {id,sku:item?.sku??id,name:item?.name_en??item?.sku??id,
+     unit:item?.unit??null,stock:item?.stock??null};
+ });
  return json({
    asOf:new Date().toISOString(),candidateCount:candidates.length,
-   candidates,requests:normalized,
+   candidates,requests:normalized,requestMaterials,
    stockIsCanonical:true,physicalCountVerified:false,
    supplierOrderingAutomated:false,receiptsAffectStock:false
  },{headers});
