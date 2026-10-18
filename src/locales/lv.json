@@ -1415,6 +1415,8 @@
     "sort_hint": "Klikšķiniet uz kolonnu virsrakstiem, lai kārtotu. Bultiņa atver pasūtījuma detaļas."
   },
   "inventoryReplenishment": {
+    "invalidBalances": "{count} materiāliem nav derīga atlikuma vai minimuma vērtības. Tie nav iekļauti sarakstā līdz labošanai; papildināšanas plāns nav pilnīgs.",
+    "unsetThresholds": "{count} materiāliem nav pozitīva minimuma sliekšņa, un tos papildināšanai nevērtē. Vajadzības gadījumā iestatiet slieksni materiāla datos.",
     "supplierBeforeOrder": "Pirms ārējā pasūtījuma reģistrēšanas saglabājiet un pārbaudiet piegādātāju atvērtajā uzdevumā.",
     "title": "Krājumu papildināšanas plāns",
     "subtitle": "Pārskatiet zemus krājumu atlikumus un cilvēka vadītus piegādātāja pasūtījumu uzdevumus.",
