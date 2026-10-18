@@ -71,7 +71,17 @@
      $t('inventoryReplenishment.loadFailed');}
    finally{if(turn===loadSequence)loading=false;}
  }
- onMount(()=>{void reload();return()=>{loadSequence++;historySequence++;};});
+ onMount(()=>{
+   // The auth store may still be resolving when this page mounts.
+   // Start private procurement reads only after manager role is known.
+   let started=false;
+   const stop=currentUser.subscribe(user=>{
+     if(!started && user && ['RD','Boss','HeadOfProduction'].includes(user.role)){
+       started=true;void reload();
+     }
+   });
+   return()=>{stop();loadSequence++;historySequence++;};
+ });
  function closeEditor(){if(saving)return;editorOpen=false;createId=null;}
  function prepareCreate(candidate:ReplenishmentCandidate){
    if(!canManage||candidate.activeRequest)return;
@@ -133,7 +143,7 @@
    finally{saving=false;}
  }
  async function showHistory(id:string){
-   if(selectedHistoryId===id){selectedHistoryId=null;return;}
+   if(selectedHistoryId===id){historySequence++;selectedHistoryId=null;return;}
    selectedHistoryId=id;history=[];historyFailure='';historyLoading=true;
    const turn=++historySequence;
    try{
