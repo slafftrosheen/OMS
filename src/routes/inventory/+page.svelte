@@ -159,6 +159,9 @@
         <a class="tag" href={`${base}/inventory/consistency`}>
           {$t('inventoryConsistency.open')}
         </a>
+        <a class="tag" href={`${base}/inventory/replenishment`}>
+          {$t('inventoryReplenishment.title')}
+        </a>
       {/if}
     </div>
   </div>
