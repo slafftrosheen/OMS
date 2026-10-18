@@ -1415,6 +1415,7 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "inventoryReplenishment": {
+    "eventCount": "Audit events recorded: {count}",
     "invalidBalances": "{count} catalog materials have missing or invalid stock/minimum values. They are excluded from the candidate list until corrected; the list is not a complete purchasing decision.",
     "unsetThresholds": "{count} materials have no positive minimum threshold and are not evaluated for replenishment. Set thresholds explicitly in inventory metadata if needed.",
     "supplierBeforeOrder": "Save and verify a supplier on the open request before marking an external order as placed.",
