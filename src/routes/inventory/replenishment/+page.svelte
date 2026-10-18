@@ -6,7 +6,9 @@
  import type {ReplenishmentCandidate,ReplenishmentRequest} from '$lib/inventory/replenishment';
 
  type Snapshot={
-   asOf:string;candidateCount:number;candidates:ReplenishmentCandidate[];
+   asOf:string;candidateCount:number;totalMaterials:number;
+   invalidBalanceCount:number;noThresholdCount:number;
+   candidates:ReplenishmentCandidate[];
    requests:ReplenishmentRequest[];
    requestMaterials:{id:string;sku:string;name:string;unit:string|null;stock:number|null}[];
    stockIsCanonical:boolean;
@@ -58,6 +60,8 @@
      const value=await response.json();
      if(!Array.isArray(value.candidates)||!Array.isArray(value.requests)||
        !Array.isArray(value.requestMaterials)||
+       !Number.isInteger(value.invalidBalanceCount)||
+       !Number.isInteger(value.noThresholdCount)||
        value.stockIsCanonical!==true||value.physicalCountVerified!==false||
        value.supplierOrderingAutomated!==false||value.receiptsAffectStock!==false)
        throw Error($t('inventoryReplenishment.loadFailed'));
@@ -177,6 +181,18 @@
        <div><strong>{active.filter(x=>x.status==='ORDERED').length}</strong>
          <span>{$t('inventoryReplenishment.orderedCount')}</span></div>
      </div>
+     {#if snapshot.invalidBalanceCount>0}
+       <p class="caution" role="alert">
+         {$t('inventoryReplenishment.invalidBalances',
+           {values:{count:snapshot.invalidBalanceCount}})}
+       </p>
+     {/if}
+     {#if snapshot.noThresholdCount>0}
+       <p class="small" role="note">
+         {$t('inventoryReplenishment.unsetThresholds',
+           {values:{count:snapshot.noThresholdCount}})}
+       </p>
+     {/if}
      <h2>{$t('inventoryReplenishment.reviewCandidates')}</h2>
      <p class="small">{$t('inventoryReplenishment.minimumRule')}</p>
      <div class="toolbar">
