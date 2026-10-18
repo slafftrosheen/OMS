@@ -288,6 +288,7 @@
                  {#if historyLoading}<p>{$t('inventoryReplenishment.loading')}</p>
                  {:else if historyFailure}<p role="alert">{historyFailure}</p>
                  {:else}
+                   <p class="small">{$t('inventoryReplenishment.eventCount',{values:{count:historyTotal}})}</p>
                    {#if historyTruncated}<p class="caution">{$t('inventoryReplenishment.historyPartial')}</p>{/if}
                    <ul class="events">
                      {#each history as ev (ev.id)}
@@ -321,6 +322,7 @@
                    {#if historyLoading}<span>{$t('inventoryReplenishment.loading')}</span>
                    {:else if historyFailure}<span role="alert">{historyFailure}</span>
                    {:else}
+                     <p class="small">{$t('inventoryReplenishment.eventCount',{values:{count:historyTotal}})}</p>
                      {#if historyTruncated}<p class="caution">{$t('inventoryReplenishment.historyPartial')}</p>{/if}
                      <ul class="events">{#each history as ev (ev.id)}
                        <li>{formatDate(ev.occurred_at)} · {ev.action}
