@@ -7,7 +7,9 @@
 
  type Snapshot={
    asOf:string;candidateCount:number;candidates:ReplenishmentCandidate[];
-   requests:ReplenishmentRequest[];stockIsCanonical:boolean;
+   requests:ReplenishmentRequest[];
+   requestMaterials:{id:string;sku:string;name:string;unit:string|null;stock:number|null}[];
+   stockIsCanonical:boolean;
    physicalCountVerified:boolean;supplierOrderingAutomated:boolean;
    receiptsAffectStock:boolean
  };
@@ -26,6 +28,8 @@
  let active=$derived((snapshot?.requests??[])
    .filter(x=>x.status==='OPEN'||x.status==='ORDERED')
    .sort((a,b)=>b.updated_at.localeCompare(a.updated_at)));
+ let requestMaterials=$derived(new Map((snapshot?.requestMaterials??[])
+   .map(item=>[item.id,item])));
  let finished=$derived((snapshot?.requests??[])
    .filter(x=>x.status==='CLOSED'||x.status==='CANCELLED')
    .sort((a,b)=>b.updated_at.localeCompare(a.updated_at)));
@@ -53,6 +57,7 @@
      if(!response.ok)throw Error($t('inventoryReplenishment.loadFailed'));
      const value=await response.json();
      if(!Array.isArray(value.candidates)||!Array.isArray(value.requests)||
+       !Array.isArray(value.requestMaterials)||
        value.stockIsCanonical!==true||value.physicalCountVerified!==false||
        value.supplierOrderingAutomated!==false||value.receiptsAffectStock!==false)
        throw Error($t('inventoryReplenishment.loadFailed'));
@@ -228,7 +233,9 @@
          <tbody>
            {#each active as req (req.id)}
              <tr>
-               <td>{snapshot.candidates.find(x=>x.materialId===req.material_id)?.sku??req.material_id}
+               <td><a href={`${base}/inventory/${encodeURIComponent(req.material_id)}`}>
+                 {requestMaterials.get(req.material_id)?.sku??req.material_id}</a>
+                 <small>{requestMaterials.get(req.material_id)?.name??''}</small>
                  <small>{$t('inventoryReplenishment.createdStock')}: {req.stock_at_request}
                    · {$t('inventoryReplenishment.minimum')}: {req.minimum_at_request}
                  </small></td>
@@ -240,7 +247,11 @@
                <td><div class="row-actions">
                  {#if req.status==='OPEN'}
                    <button onclick={()=>prepareExisting(req,'update')}>{$t('inventoryReplenishment.edit')}</button>
-                   <button onclick={()=>prepareExisting(req,'order')}>{$t('inventoryReplenishment.markOrdered')}</button>
+                   {#if req.supplier_label}
+                     <button onclick={()=>prepareExisting(req,'order')}>{$t('inventoryReplenishment.markOrdered')}</button>
+                   {:else}
+                     <small>{$t('inventoryReplenishment.supplierBeforeOrder')}</small>
+                   {/if}
                  {:else}
                    <button onclick={()=>prepareExisting(req,'close')}>{$t('inventoryReplenishment.close')}</button>
                  {/if}
@@ -274,7 +285,8 @@
        {:else}
          <div class="table-wrap"><table><tbody>
            {#each finished as req (req.id)}
-             <tr><td>{req.material_id}</td><td>{req.quantity} {req.unit}</td>
+             <tr><td>{requestMaterials.get(req.material_id)?.sku??req.material_id}</td>
+               <td>{req.quantity} {req.unit}</td>
                <td>{$t(`inventoryReplenishment.status.${req.status}`)}</td>
                <td>{formatDate(req.closed_at)}</td>
                <td><button onclick={()=>void showHistory(req.id)}>
