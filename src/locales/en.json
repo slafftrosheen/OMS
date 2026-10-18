@@ -1415,6 +1415,7 @@
     "sort_hint": "Click column headers to sort. Click the arrow button to expand order details."
   },
   "inventoryReplenishment": {
+    "supplierBeforeOrder": "Save and verify a supplier on the open request before marking an external order as placed.",
     "title": "Replenishment planning",
     "subtitle": "Review low stock and track human-led supplier purchase follow-ups.",
     "back": "Back to inventory",
