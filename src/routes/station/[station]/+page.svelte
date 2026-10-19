@@ -332,13 +332,13 @@
 </script>
 
 <svelte:head>
-  <title>{station} Station Board - OMS</title>
+  <title>{station} — {$t('stationView.workstation')}</title>
 </svelte:head>
 
 <div class="station-board-page">
   <header class="station-header">
     <div class="header-content">
-      <h1>{station} Station</h1>
+      <h1>{station} <span class="station-title-suffix">{$t('stationView.workstation')}</span></h1>
       <div class="header-stats">
         <div class="stat" class:active={inProgressCount > 0}>
           <span class="stat-value">{inProgressCount}</span>
@@ -368,32 +368,32 @@
         <Icon name="message-square" size="sm" />
         {$t('stationView.station_chat', { default: 'Station Chat' })}
       </button>
-      <button class="btn btn-outline" onclick={() => loadStationOrders()} disabled={refreshing} aria-label="Refresh station orders">
+      <button class="btn btn-outline" onclick={() => loadStationOrders()} disabled={refreshing} aria-label={$t('stationView.refreshAria')}>
         <Icon name="refresh-cw" size="sm" />
-        {refreshing ? 'Refreshing…' : $t('common.refresh', { default: 'Refresh' })}
+        {refreshing ? $t('stationView.refreshing') : $t('common.refresh', { default: 'Refresh' })}
       </button>
     </div>
   </header>
 
   <div class="station-search">
-    <label for="station-search-input">Find order by PO, client or title</label>
+    <label for="station-search-input">{$t('stationView.searchLabel')}</label>
     <div class="search-controls">
       <input id="station-search-input" type="search" bind:value={searchQuery}
-        placeholder="Search this workstation…" autocomplete="off" />
+        placeholder={$t('stationView.searchPlaceholder')} autocomplete="off" />
       {#if searchQuery}
-        <button class="btn btn-outline" onclick={() => (searchQuery = '')} aria-label="Clear order search">Clear</button>
+        <button class="btn btn-outline" onclick={() => (searchQuery = '')} aria-label={$t('stationView.clearSearch')}>{$t('stationView.clear')}</button>
       {/if}
     </div>
   </div>
 
-  <div class="filters" role="group" aria-label="Station queue filters">
+  <div class="filters" role="group" aria-label={$t('stationView.queueFilters')}>
     <button
       class="filter-btn"
       class:active={$filter === 'ALL'}
       aria-pressed={$filter === 'ALL'}
       onclick={() => $filter = 'ALL'}
     >
-      All ({$orders.length})
+      {$t('stationView.all')} ({$orders.length})
     </button>
     <button
       class="filter-btn"
@@ -401,7 +401,7 @@
       aria-pressed={$filter === 'QUEUED'}
       onclick={() => $filter = 'QUEUED'}
     >
-      Queued ({queuedCount})
+      {$t('stationView.queued')} ({queuedCount})
     </button>
     <button
       class="filter-btn"
@@ -409,7 +409,7 @@
       aria-pressed={$filter === 'IN_PROGRESS'}
       onclick={() => $filter = 'IN_PROGRESS'}
     >
-      In Progress ({inProgressCount})
+      {$t('stationView.in_progress')} ({inProgressCount})
     </button>
     <button
       class="filter-btn"
@@ -417,7 +417,7 @@
       aria-pressed={$filter === 'BLOCKED'}
       onclick={() => $filter = 'BLOCKED'}
     >
-      Blocked ({blockedCount})
+      {$t('stationView.blocked')} ({blockedCount})
     </button>
     <button
       class="filter-btn"
@@ -425,32 +425,32 @@
       aria-pressed={$filter === 'REWORK'}
       onclick={() => $filter = 'REWORK'}
     >
-      Rework ({reworkCount})
+      {$t('stationView.rework')} ({reworkCount})
     </button>
   </div>
 
   <div class="station-feedback" role="status" aria-live="polite">
-    <span>{refreshing ? 'Refreshing station…' : lastUpdated ? `Updated ${lastUpdated}` : ''}</span>
+    <span>{refreshing ? $t('stationView.refreshing') : lastUpdated ? $t('stationView.updated', { values: { time: lastUpdated } }) : ''}</span>
     {#if operationMessage}<span>{operationMessage}</span>{/if}
   </div>
   {#if !operatorCanAct}
-    <p class="read-only-notice" role="note">View only. You are not assigned to operate {station}.</p>
+    <p class="read-only-notice" role="note">{$t('stationView.readOnly', { values: { station } })}</p>
   {/if}
   {#if loadError}
     <div class="load-error" role="alert">
-      <span>{loadError}{hasLoaded ? ' — showing the last successful list.' : ''}</span>
-      <button class="btn btn-outline" onclick={() => loadStationOrders()} disabled={refreshing}>Retry</button>
+      <span>{loadError}{hasLoaded ? ` — ${$t('stationView.lastGood')}` : ''}</span>
+      <button class="btn btn-outline" onclick={() => loadStationOrders()} disabled={refreshing}>{$t('common.retry')}</button>
     </div>
   {/if}
   {#if $loading}
     <div class="loading-state">
         <div class="spinner"></div>
-      <p>Loading station orders…</p>
+      <p>{$t('stationView.loading')}</p>
     </div>
   {:else if !hasLoaded}
     <div class="empty-state">
-      <h3>Station data unavailable</h3>
-      <p>Check the connection and retry.</p>
+      <h3>{$t('stationView.unavailable')}</h3>
+      <p>{$t('stationView.retryHint')}</p>
       <button class="btn btn-primary" onclick={() => loadStationOrders()} disabled={refreshing}>Retry</button>
     </div>
   {:else if filteredOrders.length === 0}
@@ -459,9 +459,9 @@
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
         <circle cx="12" cy="7" r="4"/>
       </svg>
-      <h3>{searchQuery ? 'No orders match your search' : 'No orders in this queue'}</h3>
-      <p>{searchQuery ? 'Try another PO, client or title.' : 'Orders will appear here when they reach this station.'}</p>
-      {#if searchQuery}<button class="btn btn-outline" onclick={() => (searchQuery = '')}>Clear search</button>{/if}
+      <h3>{searchQuery ? $t('stationView.noSearchResults') : $t('stationView.emptyQueue')}</h3>
+      <p>{searchQuery ? $t('stationView.searchHint') : $t('stationView.emptyHint')}</p>
+      {#if searchQuery}<button class="btn btn-outline" onclick={() => (searchQuery = '')}>{$t('stationView.clearSearch')}</button>{/if}
     </div>
   {:else}
     <div class="orders-grid">
@@ -469,7 +469,7 @@
         <article class="station-order-card">
           <div class="order-header">
             <div>
-              <h3>{order.title || 'Untitled order'}</h3>
+              <h3>{order.title || $t('productionPlanning.untitled')}</h3>
               <span class="po-number">{order.po_number}</span>
             </div>
             <span class="priority-badge" class:urgent={['HIGH','URGENT','CRITICAL'].includes(String(order.priority ?? '').toUpperCase())}>
@@ -479,15 +479,15 @@
 
           <div class="order-info">
             <div class="info-item">
-              <span class="label">Client:</span>
+              <span class="label">{$t('orderLists.headers.client')}:</span>
               <span class="value">{order.client}</span>
             </div>
             <div class="info-item">
-              <span class="label">Due:</span>
+              <span class="label">{$t('orderLists.headers.due')}:</span>
               <span class="value" class:overdue={isOrderOverdue(order.due_date, todayLocal)}>{dueDateLabel(order.due_date)}</span>
             </div>
             <div class="info-item">
-              <span class="label">Status:</span>
+              <span class="label">{$t('admin.users.table.status')}:</span>
               <span class="status-badge status-{order.stage?.state?.toLowerCase()}">
                 {stageStateLabel(order.stage?.state)}
               </span>
@@ -505,7 +505,7 @@
 
           {#if order.stage?.notes}
             <div class="stage-notes">
-              <strong>Notes:</strong> {order.stage.notes}
+              <strong>{$t('stationView.notes')}:</strong> {order.stage.notes}
             </div>
           {/if}
 
@@ -761,22 +761,22 @@
       onkeydown={(event) => { if (event.key === 'Escape' && !resolutionBusy) resolveModalOpen = false; }}
       tabindex="-1">
       <div class="modal-header">
-        <h2 id="resolve-rework-title">Resolve rework</h2>
+        <h2 id="resolve-rework-title">{$t('stationView.resolveTitle')}</h2>
         <button class="close-btn" onclick={() => resolveModalOpen = false}
-          disabled={resolutionBusy} aria-label="Close resolution dialog">×</button>
+          disabled={resolutionBusy} aria-label={$t('common.close')}>×</button>
       </div>
       <div class="modal-body">
-        <p>Describe what was fixed. This returns {station} to In Progress; it does not mark the stage complete.</p>
+        <p>{$t('stationView.resolveHelp', { values: { station } })}</p>
         <label class="modal-label">
-          Resolution notes (required)
+          {$t('stationView.resolveNotes')}
           <textarea class="modal-textarea" bind:value={resolutionNotes} rows="4" required
-            placeholder="Describe the repair, inspection and acceptance…"></textarea>
+            placeholder={$t('stationView.resolvePlaceholder')}></textarea>
         </label>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-outline" onclick={() => resolveModalOpen = false} disabled={resolutionBusy}>Cancel</button>
+        <button class="btn btn-outline" onclick={() => resolveModalOpen = false} disabled={resolutionBusy}>{$t('common.cancel')}</button>
         <button class="btn btn-success" onclick={submitResolution} disabled={!resolutionNotes.trim() || resolutionBusy}>
-          {resolutionBusy ? 'Saving…' : 'Confirm resolution'}
+          {resolutionBusy ? $t('stationView.saving') : $t('stationView.confirmResolution')}
         </button>
       </div>
     </div>
@@ -1329,4 +1329,85 @@
     border: 1px solid var(--border); font: inherit;
   }
   .station-search input:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+
+  /* OMS LUMIGRID — workshop screens prioritize legibility and action safety. */
+  .station-board-page {padding:var(--space-lg) 0 var(--space-2xl);gap:var(--space-lg);width:100%;}
+  .station-header {position:relative;background:var(--glass-bg-strong);border:1px solid var(--glass-border);
+    border-radius:var(--radius-lg);padding:var(--space-xl);gap:var(--space-lg);}
+  .station-header::before {content:'';position:absolute;left:0;top:0;width:92px;height:2px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
+  .header-content {min-width:0;flex:1;}
+  .header-content h1 {font-size:clamp(1.6rem,2.7vw,2.2rem);letter-spacing:var(--tracking-tight);
+    line-height:1.2;margin:0 0 var(--space-lg);}
+  .station-title-suffix {font-weight:500;color:var(--ink-secondary);}
+  .header-stats {display:grid;grid-template-columns:repeat(4,minmax(105px,1fr));
+    gap:var(--space-sm);max-width:670px;}
+  .stat {align-items:flex-start;background:var(--bg-1);border:1px solid var(--border);
+    border-radius:var(--radius-md);padding:var(--space-md);gap:var(--space-xs);min-width:0;}
+  .stat.active {border-color:color-mix(in oklab,var(--brand) 30%,var(--border));background:var(--bg-1);}
+  .stat.warning {border-color:color-mix(in oklab,var(--warn) 38%,var(--border));background:var(--bg-1);}
+  .stat.danger {border-color:color-mix(in oklab,var(--error) 48%,var(--border));background:var(--bg-1);}
+  .stat-value {font-size:clamp(1.35rem,2vw,1.75rem);line-height:1;font-variant-numeric:tabular-nums;}
+  .stat.danger .stat-value {color:var(--error);}
+  .stat.warning .stat-value {color:var(--warn);}
+  .stat-label {font-size:var(--text-xs);letter-spacing:.04em;text-transform:none;}
+  .header-actions {flex-wrap:wrap;gap:var(--space-sm);}
+  .btn {min-height:42px;border-radius:var(--radius-sm);box-shadow:none;justify-content:center;}
+  .btn-primary {color:var(--on-brand);}
+  .btn-primary:hover:not(:disabled) {background:var(--brand-2);}
+  .btn-outline {color:var(--ink-primary);background:var(--bg-1);}
+  .btn-success {color:#061609;}
+  .btn-warning {color:#1a1103;}
+  .btn-danger {color:#1a0707;}
+  .filters {flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin;
+    padding:var(--space-xs);border:1px solid var(--border);border-radius:var(--radius-md);
+    background:var(--bg-1);gap:var(--space-xs);}
+  .filter-btn {flex:0 0 auto;border-radius:var(--radius-sm);min-height:42px;padding:9px 14px;
+    color:var(--ink-secondary);}
+  .filter-btn.active {color:var(--brand);background:var(--brand-soft);
+    border-color:color-mix(in oklab,var(--brand) 38%,var(--border));}
+  .station-search {max-width:720px;}
+  .station-search input {background:var(--bg-1);border-radius:var(--radius-sm);}
+  .orders-grid {grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:var(--space-md);}
+  .station-order-card {background:var(--glass-bg-strong);border:1px solid var(--glass-border);
+    border-radius:var(--radius-lg);padding:var(--space-lg);gap:var(--space-md);
+    box-shadow:var(--glass-shadow-sm);}
+  .station-order-card:hover {border-color:color-mix(in oklab,var(--brand) 35%,var(--border));
+    box-shadow:var(--elevation-1);}
+  .order-header h3 {font-size:var(--text-lg);overflow-wrap:anywhere;}
+  .po-number {font-family:var(--font-mono,monospace);font-variant-numeric:tabular-nums;}
+  .priority-badge {border-radius:var(--radius-sm);color:var(--ink-primary);
+    background:var(--warn-soft);border:1px solid color-mix(in oklab,var(--warn) 45%,var(--border));}
+  .priority-badge.urgent {color:var(--error);background:var(--error-soft);
+    border-color:color-mix(in oklab,var(--error) 40%,var(--border));}
+  .order-info {gap:var(--space-sm);}
+  .info-item {gap:var(--space-md);}
+  .info-item .value {text-align:right;overflow-wrap:anywhere;max-width:65%;}
+  .status-badge {color:var(--ink-secondary);background:var(--bg-2);
+    border:1px solid var(--border);border-radius:var(--radius-sm);}
+  .status-queued {color:var(--ink-secondary);background:var(--bg-2);}
+  .status-in_progress {color:var(--brand);background:var(--brand-soft);}
+  .status-blocked {color:var(--error);background:var(--error-soft);}
+  .status-rework {color:var(--warn);background:var(--warn-soft);}
+  .status-completed {color:var(--ok);background:var(--ok-soft);}
+  .blocked-notice {color:var(--ink-primary);background:var(--error-soft);border-color:var(--error);}
+  .stage-notes {color:var(--ink-primary);background:var(--bg-2);border-color:var(--brand);}
+  .order-actions {gap:var(--space-sm);}
+  .order-actions .btn {flex:1 1 140px;min-width:0;}
+  .modal-content {border:1px solid var(--border);border-radius:var(--radius-lg);}
+  .modal-footer {flex-wrap:wrap;}
+  .modal-textarea:focus-visible,.modal-select:focus-visible {outline:2px solid var(--focus);outline-offset:2px;}
+  .read-only-notice {border-color:var(--border-strong);background:var(--bg-2);}
+  @media(max-width:850px) {.station-header {align-items:stretch;}.header-stats {max-width:none;}}
+  @media(max-width:560px) {
+    .station-board-page {padding:var(--space-sm) 0 var(--space-xl);}
+    .station-header {padding:var(--space-lg);}
+    .header-stats {grid-template-columns:repeat(2,minmax(0,1fr));}
+    .orders-grid {grid-template-columns:minmax(0,1fr);}
+    .filters {scroll-snap-type:x proximity;}
+    .filter-btn {scroll-snap-align:start;}
+  }
+  @media(prefers-reduced-transparency:reduce) {
+    .station-header,.station-order-card {background:var(--bg-1);}
+  }
 </style>
