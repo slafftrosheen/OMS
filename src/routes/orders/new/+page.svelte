@@ -884,7 +884,7 @@
             multiple 
             accept=".pdf,.cdr,.ai,.eps,.jpg,.jpeg,.png"
             onchange={handleFileSelect}
-            style="display: none;"
+            class="visually-hidden-file"
           />
           <label for="file-upload" class="upload-label">
             <Icon name="upload" size="lg" />
@@ -1025,7 +1025,7 @@
       </div>
       <div class="form-group">
         <label for="clientName">{$t('orders.new.details.client')} <span class="required">*</span></label>
-        <input type="text" id="clientName" bind:value={clientName} placeholder={$t('orders.new.details.client_placeholder')} class:invalid={fieldErrors.clientName} />
+        <input type="text" id="clientName" bind:value={clientName} placeholder={$t('orders.new.details.client_placeholder')} class:invalid={fieldErrors.clientName} aria-invalid={!!fieldErrors.clientName} />
         {#if fieldErrors.clientName}<p class="field-error">{fieldErrors.clientName}</p>{/if}
       </div>
       <div class="form-row">
@@ -1034,7 +1034,7 @@
             <Icon name="calendar" size="xs" />
             {$t('orders.new.details.deadline')}
           </label>
-          <input type="date" id="deadline" bind:value={deadline} class:invalid={fieldErrors.deadline} />
+          <input type="date" id="deadline" bind:value={deadline} class:invalid={fieldErrors.deadline} aria-invalid={!!fieldErrors.deadline} />
           {#if fieldErrors.deadline}<p class="field-error">{fieldErrors.deadline}</p>{/if}
         </div>
         <div class="form-group">
@@ -1308,7 +1308,7 @@
 </div>
 
 <style>
-  /* [All existing styles remain exactly the same - only script section changed] */
+  /* Native order form contracts remain unchanged; visual/keyboard refinements below. */
   .po-pending {
     display: inline-flex;
     align-items: center;
@@ -1428,7 +1428,7 @@
     align-items: center;
     gap: 6px;
     padding: 10px 16px;
-    background: white;
+    background: var(--bg-1);
     border: 1px solid var(--border, var(--border));
     border-radius: 8px;
     font-weight: 600;
@@ -2302,5 +2302,75 @@
   .checkbox-label input[type="checkbox"] {
     width: auto;
     cursor: pointer;
+  }
+
+  /* LUMIGRID surface polish, keeping predefined order/profile form controls. */
+  .page-container { padding:0 0 var(--space-xl); max-width:100%; }
+  .page-header { position:relative;align-items:flex-start;padding:var(--space-lg) 0;
+    border-bottom:1px solid var(--divider);margin-bottom:var(--space-xl); }
+  .page-header::before { content:'';position:absolute;top:0;left:0;width:80px;height:2px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent); }
+  h1 { font-size:clamp(1.5rem,2.6vw,2rem);letter-spacing:var(--tracking-tight); }
+  .header-actions { flex-wrap:wrap;align-items:center;gap:var(--space-sm); }
+  .btn-primary,.btn-secondary { min-height:42px;border-radius:var(--radius-md);
+    font:inherit;font-weight:650;padding:10px 16px; }
+  .btn-primary,.role-badge.superadmin,.role-badge.admin { color:var(--on-brand); }
+  .btn-primary { background:var(--brand);box-shadow:var(--elevation-1); }
+  .btn-primary:hover:not(:disabled) { background:var(--brand-2);box-shadow:var(--elevation-2); }
+  .btn-secondary { background:var(--bg-1);color:var(--ink-secondary);
+    border-color:var(--border); }
+  .btn-secondary:hover { background:var(--bg-2);color:var(--ink-primary); }
+  .profile-card,.files-card,.details-card,.delivery-card {
+    background:var(--glass-bg-strong);
+    border:1px solid var(--glass-border);
+    box-shadow:var(--glass-shadow-sm);
+    border-radius:var(--radius-lg);
+  }
+  .profile-card { margin-top:var(--space-sm); }
+  .profiles-header { padding:var(--space-sm) 0; }
+  .profile-card-header { min-width:0; }
+  .profile-title { min-width:0; }
+  .profile-title h3 { min-width:0;overflow-wrap:anywhere; }
+  .profile-actions { flex-wrap:wrap;justify-content:flex-end; }
+  .profile-number { background:var(--brand-soft);color:var(--brand); }
+  .btn-icon,.btn-icon-sm,.collapse-toggle { min-width:36px;min-height:36px;
+    border-radius:var(--radius-sm); }
+  .file-upload-area { position:relative; }
+  .visually-hidden-file { position:absolute;width:1px;height:1px;padding:0;margin:0;
+    overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0; }
+  .file-upload-area:focus-within .upload-label { outline:2px solid var(--focus);outline-offset:3px; }
+  .upload-label { background:var(--bg-2);min-height:170px;border:1px dashed var(--border-strong);
+    border-radius:var(--radius-md);justify-content:center; }
+  .upload-label:hover,.file-upload-area.drag-active .upload-label {
+    border-color:var(--brand);background:var(--brand-soft);color:var(--ink-primary);
+  }
+  .files-layout { grid-template-columns:minmax(220px, 340px) minmax(0,1fr);min-height:380px; }
+  .upload-section,.preview-section { min-width:0; }
+  .file-list-item { background:var(--bg-1);border-radius:var(--radius-md); }
+  .file-list-item:focus-visible { outline:2px solid var(--focus);outline-offset:2px; }
+  /* Delete/preview cannot be hover-only on touch or keyboard. */
+  .file-list-actions { opacity:1; }
+  .file-list-item:focus-within .file-list-actions { opacity:1; }
+  .preview-section { background:var(--bg-2);border-radius:var(--radius-md); }
+  .preview-container { padding:var(--space-lg);min-height:260px; }
+  .form-row,.client-delivery-row { min-width:0; }
+  .form-group input,.form-group select,.form-group textarea { color:var(--ink-primary);background:var(--bg-1);
+    border:1px solid var(--border);min-height:42px;max-width:100%;border-radius:var(--radius-sm); }
+  .form-group input:focus-visible,.form-group select:focus-visible,.form-group textarea:focus-visible {
+    outline:2px solid var(--focus);outline-offset:1px;border-color:var(--focus); }
+  .modal { background:var(--bg-1);border:1px solid var(--border);border-radius:var(--radius-lg); }
+  @media(max-width:1200px) {
+    .files-layout { grid-template-columns:1fr; }
+    .preview-section { min-height:280px; }
+  }
+  @media(max-width:640px) {
+    .page-header { align-items:stretch; }
+    .header-actions { width:100%; }
+    .header-actions > button { flex:1 1 auto; }
+    .profile-actions { gap:var(--space-xs); }
+    .profile-card-header { flex-wrap:wrap; }
+    .profile-title { flex:1 1 150px; }
+    .profile-actions { width:100%; }
+    .preview-controls { flex-wrap:wrap; }
   }
 </style>
