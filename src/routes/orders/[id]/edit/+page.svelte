@@ -2190,4 +2190,62 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     .workspace-focused .order-field-panel {padding:var(--space-md);}
   }
   @media(prefers-reduced-transparency:reduce) {.top-bar {backdrop-filter:none;background:var(--bg-1);}}
+
+  /* R04 mobile editor: dock follows the drawing area, never obscures it.
+     Existing Focus/Show canvas toggle remains the only source of state. */
+  .canvas-body {min-height:0;}
+  .right-docker,.docker-content,.canvas-area,.toolbox {min-height:0;min-width:0;}
+  .docker-content {overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;}
+  .top-bar-actions {scrollbar-width:thin;}
+  .tool-btn:focus-visible,.dtab:focus-visible,.focus-toggle:focus-visible {
+    outline:2px solid var(--focus);outline-offset:2px;
+  }
+  .native-profile-dialog {max-height:calc(100dvh - 20px);overscroll-behavior:contain;}
+  @media(max-width:720px) {
+    .canvas-editor {height:100dvh;min-height:0;}
+    .top-bar {flex:0 0 auto;padding:var(--space-xs) var(--space-sm);align-content:start;}
+    .top-bar-left {flex:1 1 100%;justify-content:space-between;}
+    .order-identity {min-width:0;overflow-wrap:anywhere;}
+    .top-bar-actions {width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;
+      display:flex;flex-wrap:nowrap;padding-bottom:3px;gap:var(--space-xs);}
+    .top-bar-actions .action-btn {min-height:42px;flex:0 0 auto;white-space:nowrap;}
+    .workspace-flow {flex:0 0 auto;min-height:46px;overflow-x:auto;scroll-snap-type:x proximity;}
+    .workspace-flow>button {flex:0 0 auto;scroll-snap-align:start;}
+    .canvas-body:not(.workspace-focused) {
+      display:grid;
+      grid-template-columns:44px minmax(0,1fr);
+      grid-template-rows:minmax(150px,1fr) minmax(190px,42dvh);
+      min-height:0;
+      overflow:hidden;
+    }
+    .canvas-body:not(.workspace-focused) .toolbox {
+      grid-column:1;grid-row:1;position:relative;height:auto;min-height:0;
+      overflow-y:auto;
+    }
+    .canvas-body:not(.workspace-focused) .canvas-area {
+      grid-column:2;grid-row:1;position:relative;min-height:0;min-width:0;
+    }
+    .canvas-body:not(.workspace-focused) .right-docker {
+      position:relative;left:auto;right:auto;top:auto;bottom:auto;
+      width:auto;height:auto;max-height:none;min-height:0;
+      grid-column:1/-1;grid-row:2;box-shadow:none;
+      border-left:0;border-top:1px solid var(--glass-border);
+    }
+    .canvas-body.workspace-focused {display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);}
+    .canvas-body.workspace-focused .right-docker {grid-column:1;grid-row:1;min-height:0;}
+    .workspace-panel-heading {padding:var(--space-sm);min-height:52px;gap:var(--space-xs);}
+    .workspace-panel-heading h2 {font-size:var(--text-md);}
+    .focus-toggle {min-height:42px;flex:0 0 auto;}
+    .docker-tabs {padding:var(--space-xs);scroll-snap-type:x proximity;}
+    .docker-tabs .dtab {scroll-snap-align:start;flex:0 0 auto;}
+    .docker-content {overflow-y:auto;max-width:100%;padding-bottom:env(safe-area-inset-bottom,0px);}
+    .workspace-focused .order-field-panel {padding:var(--space-md);grid-template-columns:minmax(0,1fr);}
+  }
+  @media(max-width:420px) {
+    .order-identity {font-size:var(--text-xs);}
+    .workspace-flow>button {padding:8px 10px;}
+    .canvas-body:not(.workspace-focused) {grid-template-rows:minmax(130px,1fr) minmax(185px,46dvh);}
+    .workspace-panel-heading {flex-wrap:wrap;}
+  }
+  @media(prefers-reduced-motion:reduce) {.canvas-editor button{transition:none;}}
 </style>
