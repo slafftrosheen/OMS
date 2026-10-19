@@ -23,27 +23,28 @@
 		status: 'pass' | 'warn' | 'fail';
 	}> = $state([]);
 
+	// Static palette mirrors the LUMIGRID-aligned tokens in static/brand.css.
 	const themeColors: Record<string, Record<string, string>> = {
 		light: {
-			'--text': '#1e2327',
-			'--bg-0': '#ffffff',
-			'--muted': '#6b7280',
-			'--border': '#e5e7eb',
-			'--accent-1': '#6366f1'
+			'--text': '#1d1d1f',
+			'--bg-0': '#f7f7f8',
+			'--muted': '#606067',
+			'--border': '#dedee1',
+			'--accent-1': '#bd1942'
 		},
 		dark: {
-			'--text': '#f9fafb',
-			'--bg-0': '#1e2327',
-			'--muted': '#9ca3af',
-			'--border': '#374151',
-			'--accent-1': '#818cf8'
+			'--text': '#f5f5f7',
+			'--bg-0': '#050505',
+			'--muted': '#a1a1a6',
+			'--border': '#343438',
+			'--accent-1': '#ff2d55'
 		},
 		'high-contrast': {
-			'--text': '#000000',
-			'--bg-0': '#ffffff',
-			'--muted': '#333333',
-			'--border': '#000000',
-			'--accent-1': '#0000ff'
+			'--text': '#f5f5f5',
+			'--bg-0': '#000000',
+			'--muted': '#dcdcdc',
+			'--border': '#f5f5f5',
+			'--accent-1': '#ff85a0'
 		}
 	};
 
