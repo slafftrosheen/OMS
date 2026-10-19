@@ -1,6 +1,7 @@
 <!-- src/routes/orders/[id]/+page.svelte -->
 <script lang="ts">
     import { page } from "$app/state";
+    import { base } from "$app/paths";
     import { goto } from "$app/navigation";
     import { onMount } from "svelte";
     import { t } from "svelte-i18n";
@@ -167,7 +168,7 @@
             notifications.success(
                 $t('orderDetail.voided', { default: `Voided. New draft: ${payload.reissuedInternalRef}`, values: { ref: payload.reissuedInternalRef } })
             );
-            goto(`/orders/${payload.reissuedId}`);
+            goto(`${base}/orders/${encodeURIComponent(payload.reissuedId)}`);
         } finally {
             lifecycleBusy = false;
             voidReason = '';
@@ -282,7 +283,7 @@
     {:else if !order}
         <div class="error-state">
             <p class="error-message">{$t("orderDetail.not_found")}</p>
-            <Button variant="primary" onclick={() => goto("/orders")}>
+            <Button variant="primary" onclick={() => goto(`${base}/orders`)}>
                 {$t("orderDetail.back_to_orders")}
             </Button>
         </div>
@@ -295,14 +296,14 @@
                       default: 'This draft is awaiting Head of Production review and PO assignment.',
                     })}
                 </span>
-                <Button variant="primary" onclick={() => goto('/orders/review')}>
+                <Button variant="primary" onclick={() => goto(`${base}/orders/review`)}>
                     {$t('orderDetail.go_to_review', { default: 'Go to review queue' })}
                 </Button>
             </div>
         {/if}
         <header class="order-header">
             <div class="header-left">
-                <Button variant="ghost" onclick={() => goto("/orders")}>
+                <Button variant="ghost" onclick={() => goto(`${base}/orders`)}>
                     ← {$t("common.back")}
                 </Button>
                 <div class="header-info">
@@ -320,7 +321,7 @@
                 </Button>
                 <Button
                     variant="primary"
-                    onclick={() => goto(workspaceUrl(orderId,'details'))}
+                    onclick={() => goto(base + workspaceUrl(orderId,'details'))}
                 >
                     {$t("common.edit")}
                 </Button>
@@ -354,7 +355,7 @@
                 <div class="info-card-content">
                     <span class="info-label">{$t("common.due_date")}</span>
                     <span class="info-value"
-                        >{new Date(order.due_date).toLocaleDateString()}</span
+                        >{order.due_date && !Number.isNaN(new Date(order.due_date).getTime()) ? new Date(order.due_date).toLocaleDateString() : '—'}</span
                     >
                 </div>
             </Card>
@@ -362,7 +363,7 @@
                 <div class="info-card-content">
                     <span class="info-label">{$t("common.price")}</span>
                     <span class="info-value"
-                        >€{order.price?.toLocaleString() || "—"}</span
+                        >{order.price == null ? '—' : `€${order.price.toLocaleString()}`}</span
                     >
                 </div>
             </Card>
@@ -370,7 +371,7 @@
                 <div class="info-card-content">
                     <span class="info-label">{$t("common.progress")}</span>
                     <span class="info-value">
-                        {stageProgressPercent(order.stages)}%
+                        {stageSummary.total > 0 ? `${stageProgressPercent(order.stages)}%` : '—'}
                     </span>
                     <span class="stage-progress-context">
                       {$t('productionPacket.progressSummary',{
@@ -400,34 +401,34 @@
             </p>
           </div>
           <div class="workspace-entry-links">
-            <button onclick={() => goto(workspaceUrl(orderId,
+            <button onclick={() => goto(base + workspaceUrl(orderId,
               suggestedWorkspaceSection(normaliseStatus(order.status),(fileCount??0)>0,false)))}
               class="entry-link featured">
               {$t('orderWorkspace.continue')}
             </button>
             {#if mayAskOrderAssistant}
-              <button onclick={() => goto(workspaceUrl(orderId,'chat'))}
+              <button onclick={() => goto(base + workspaceUrl(orderId,'chat'))}
                 class="entry-link" aria-label={$t('orderGuide.askButton')}>
                 ✦ {$t('orderGuide.askButton')}
               </button>
             {/if}
-            <button onclick={() => goto(workspaceUrl(orderId,'details'))} class="entry-link">
+            <button onclick={() => goto(base + workspaceUrl(orderId,'details'))} class="entry-link">
               {$t('orderWorkspace.sections.details')}
             </button>
-            <button onclick={() => goto(workspaceUrl(orderId,'files'))} class="entry-link">
+            <button onclick={() => goto(base + workspaceUrl(orderId,'files'))} class="entry-link">
               {$t('orderWorkspace.sections.files')}
               <span class="entry-count">{fileCount ?? '—'}</span>
             </button>
             {#if !!$currentUser && (can($currentUser,'editOrder') ||
               (order.created_by === $currentUser.id && ['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status))))}
-              <button onclick={() => goto(workspaceUrl(orderId,'intake'))} class="entry-link"
+              <button onclick={() => goto(base + workspaceUrl(orderId,'intake'))} class="entry-link"
                 disabled={!['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status))}>
                 {$t('orderWorkspace.sections.intake')}
               </button>
-              <button onclick={() => goto(workspaceUrl(orderId,'readiness'))} class="entry-link">
+              <button onclick={() => goto(base + workspaceUrl(orderId,'readiness'))} class="entry-link">
                 {$t('orderWorkspace.sections.readiness')}
               </button>
-              <button onclick={() => goto(workspaceUrl(orderId,'revisions'))} class="entry-link">
+              <button onclick={() => goto(base + workspaceUrl(orderId,'revisions'))} class="entry-link">
                 {$t('orderWorkspace.sections.revisions')}
               </button>
             {/if}
