@@ -209,7 +209,7 @@
 </script>
 
 <svelte:head>
-  <title>Review queue · OMS</title>
+  <title>{$t('orders.review.title')} · OMS</title>
 </svelte:head>
 
 <div class="review-page">
@@ -229,7 +229,7 @@
   </header>
 
   {#if error}
-    <div class="banner error">
+    <div class="banner error" role="alert">
       <Icon name="alert-circle" size="sm" />
       <span>{error}</span>
     </div>
@@ -239,6 +239,12 @@
     <div class="empty">
       <Icon name="loader" size="lg" />
       <p>{$t('actions.loading', { default: 'Loading…' })}</p>
+    </div>
+  {:else if error && orders.length === 0}
+    <div class="empty" role="alert">
+      <Icon name="alert-circle" size="lg" />
+      <p>{$t('orders.review.loadFailed')}</p>
+      <Button variant="secondary" onclick={load}>{$t('common.retry')}</Button>
     </div>
   {:else if orders.length === 0}
     <div class="empty">
@@ -323,7 +329,7 @@
     <div class="modal" onclick={(e) => e.stopPropagation()} role="document">
       <header class="modal-header">
         <h2 id="confirm-title">{$t('orders.review.confirm_title', { default: 'Confirm order' })}</h2>
-        <button class="icon-btn" onclick={closeConfirm} aria-label="Close">
+        <button class="icon-btn" onclick={closeConfirm} aria-label={$t('common.close')}>
           <Icon name="x" size="sm" />
         </button>
       </header>
@@ -379,7 +385,7 @@
           </p>
         {/if}
         {#if confirmError}
-          <div class="banner error inline">
+          <div class="banner error inline" role="alert">
             <Icon name="alert-circle" size="sm" />
             <span>{confirmError}</span>
           </div>
@@ -419,7 +425,7 @@
     <div class="modal" onclick={(e) => e.stopPropagation()} role="document">
       <header class="modal-header">
         <h2 id="reject-title">{$t('orders.review.reject_title', { default: 'Reject order' })}</h2>
-        <button class="icon-btn" onclick={closeReject} aria-label="Close">
+        <button class="icon-btn" onclick={closeReject} aria-label={$t('common.close')}>
           <Icon name="x" size="sm" />
         </button>
       </header>
@@ -695,4 +701,50 @@
     outline: none;
     box-shadow: var(--focus-ring);
   }
+
+  /* LUMIGRID review queue: actionable, readable, no heavy glass on data. */
+  .review-page {max-width:1440px;padding:var(--space-lg) 0 var(--space-2xl);gap:var(--space-md);}
+  .review-header {position:relative;padding:var(--space-lg) 0;
+    border-bottom:1px solid var(--divider);align-items:center;}
+  .review-header::before {content:'';position:absolute;top:0;left:0;
+    width:90px;height:2px;background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
+  .review-header h1 {font-size:clamp(1.5rem,2.7vw,2rem);letter-spacing:var(--tracking-tight);}
+  .subtitle {color:var(--ink-secondary);max-width:70ch;}
+  .banner.error {background:var(--error-soft);border-color:var(--error);color:var(--error);}
+  .review-list {gap:var(--space-md);}
+  .review-card {background:var(--glass-bg-strong);border:1px solid var(--glass-border);
+    border-radius:var(--radius-lg);box-shadow:var(--glass-shadow-sm);
+    padding:var(--space-lg);gap:var(--space-md);backdrop-filter:none;}
+  .card-row.top {gap:var(--space-md);border-bottom:1px solid var(--divider);
+    padding-bottom:var(--space-sm);}
+  .ref {gap:var(--space-sm);flex-wrap:wrap;min-width:0;}
+  .internal-ref {font-variant-numeric:tabular-nums;color:var(--ink-primary);}
+  .priority {border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-2);}
+  .priority.pri-urgent {color:var(--error);background:var(--error-soft);
+    border-color:color-mix(in oklab,var(--error) 30%,var(--border));}
+  .priority.pri-high {color:var(--warn);background:var(--warn-soft);
+    border-color:color-mix(in oklab,var(--warn) 30%,var(--border));}
+  .actions {align-items:center;gap:var(--space-xs);flex-wrap:wrap;}
+  .actions :global(button) {border-radius:var(--radius-sm);min-height:42px;}
+  .card-row.body {grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-md);}
+  .field {min-width:0;gap:var(--space-xs);}
+  .label {font-size:var(--text-xs);letter-spacing:.03em;color:var(--ink-tertiary);}
+  .value {color:var(--ink-primary);overflow-wrap:anywhere;font-size:var(--text-sm);}
+  .notes {background:var(--bg-2);border-left:2px solid var(--brand);border-radius:var(--radius-sm);}
+  .modal-backdrop {padding:var(--space-md);}
+  .modal {background:var(--bg-1);border:1px solid var(--border);
+    border-radius:var(--radius-lg);max-height:calc(100dvh - 30px);overflow:auto;}
+  .modal-body input,.modal-body textarea {background:var(--bg-2);border-color:var(--border);
+    color:var(--ink-primary);min-height:44px;}
+  .modal-body input:focus-visible,.modal-body textarea:focus-visible,.icon-btn:focus-visible {
+    outline:2px solid var(--focus);outline-offset:2px;box-shadow:none;}
+  .icon-btn {width:40px;min-height:40px;display:inline-grid;place-items:center;}
+  .hint.warn {color:var(--warn);}
+  @media(max-width:850px){.card-row.body{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  @media(max-width:600px){.review-page{padding:var(--space-sm) 0 var(--space-xl);}
+    .review-header{align-items:stretch;}.card-row.body{grid-template-columns:1fr 1fr;}
+    .review-card{padding:var(--space-md);}.actions {width:100%;}
+    .actions :global(button) {flex:1 1 120px;}
+    .modal-footer{flex-wrap:wrap;}.modal-footer :global(button){flex:1 1 130px;}}
+  @media(prefers-reduced-transparency:reduce){.review-card{background:var(--bg-1);}}
 </style>
