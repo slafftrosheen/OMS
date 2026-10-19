@@ -270,7 +270,7 @@
 </script>
 
 <svelte:head>
-  <title>Calendar - Reclame OMS</title>
+  <title>{$t('calendar.schedule_title')} — OMS</title>
 </svelte:head>
 
 <div class="calendar-page">
@@ -297,11 +297,11 @@
     <!-- Left: Calendar -->
     <div class="calendar-section">
       <div class="calendar-header">
-        <button class="nav-btn" onclick={prev}>
+        <button class="nav-btn" type="button" onclick={prev} aria-label={$t('calendar.prevMonth')}>
           <Icon name="chevron-left" size="sm" />
         </button>
         <h2 class="month-title">{monthName} {y}</h2>
-        <button class="nav-btn" onclick={next}>
+        <button class="nav-btn" type="button" onclick={next} aria-label={$t('calendar.nextMonth')}>
           <Icon name="chevron-right" size="sm" />
         </button>
       </div>
@@ -337,6 +337,8 @@
               class:selected={selectedDate === dateStr}
               class:has-loading={isLoading}
               class:has-orders={dayOrders.length > 0}
+              aria-pressed={selectedDate === dateStr}
+              aria-label={dateStr}
               onclick={() => selectDate(day)}
             >
               <span class="day-number">{day.getDate()}</span>
@@ -428,6 +430,7 @@
         <button
           class="filter-btn"
           class:active={filterStatus === 'all'}
+          aria-pressed={filterStatus === 'all'}
           onclick={() => filterStatus = 'all'}
         >
           {$t('calendar.all')} ({orders.length})
@@ -435,6 +438,7 @@
         <button
           class="filter-btn"
           class:active={filterStatus === 'scheduled'}
+          aria-pressed={filterStatus === 'scheduled'}
           onclick={() => filterStatus = 'scheduled'}
         >
           {$t('calendar.scheduled')} ({orders.filter(o => o.loadingDate).length})
@@ -442,6 +446,7 @@
         <button
           class="filter-btn"
           class:active={filterStatus === 'unscheduled'}
+          aria-pressed={filterStatus === 'unscheduled'}
           onclick={() => filterStatus = 'unscheduled'}
         >
           {$t('calendar.unscheduled')} ({orders.filter(o => !o.loadingDate).length})
@@ -1215,5 +1220,76 @@
   .form-group textarea:focus {
     outline: none;
     border-color: var(--accent-1);
+  }
+
+  /* LUMIGRID calendar: neutral schedule grid, semantic loading/day markers. */
+  .calendar-page {max-width:1660px;margin:0 auto;padding:var(--space-lg) 0 var(--space-2xl);
+    min-height:0;background:transparent;gap:var(--space-lg);}
+  .calendar-topbar {position:relative;background:var(--glass-bg-strong);
+    border-color:var(--glass-border);padding:var(--space-lg);
+    border-radius:var(--radius-lg);gap:var(--space-md);}
+  .calendar-topbar::before {content:'';position:absolute;left:0;top:0;height:2px;width:90px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
+  .topbar-left h1 {font-size:clamp(1.5rem,2.6vw,2rem);letter-spacing:var(--tracking-tight);}
+  .topbar-left :global(svg) {color:var(--brand);}
+  .topbar-right {gap:var(--space-sm);flex-wrap:wrap;}
+  .btn-secondary,.btn-ghost {min-height:44px;border-radius:var(--radius-md);font-weight:650;}
+  .btn-secondary {background:var(--brand);color:var(--on-brand);border-color:var(--brand);}
+  .btn-secondary:hover:not(:disabled) {background:var(--brand-2);border-color:var(--brand-2);}
+  .btn-secondary:disabled {opacity:.5;cursor:not-allowed;}
+  .calendar-grid {grid-template-columns:minmax(0,1.7fr) minmax(290px,1fr);gap:var(--space-lg);}
+  .calendar-section,.schedule-section,.all-orders-section {min-width:0;background:var(--glass-bg-strong);
+    border:1px solid var(--glass-border);border-radius:var(--radius-lg);box-shadow:var(--glass-shadow-sm);}
+  .calendar-header {gap:var(--space-md);}
+  .nav-btn {width:44px;height:44px;min-height:44px;display:inline-grid;place-items:center;
+    border-radius:var(--radius-sm);background:var(--bg-2);border:1px solid var(--border);}
+  .nav-btn:hover {background:var(--bg-3);}
+  .month-title {font-size:var(--text-lg);font-variant-numeric:tabular-nums;}
+  .calendar-body {overflow-x:auto;scrollbar-width:thin;}
+  .weekdays,.days-grid {min-width:320px;gap:var(--space-xs);}
+  .day-cell {min-width:0;min-height:44px;position:relative;background:var(--bg-1);
+    border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--ink-primary);
+    padding:var(--space-xs);font-variant-numeric:tabular-nums;}
+  .day-cell:hover {border-color:var(--border-strong);background:var(--bg-2);}
+  .day-cell.today {border-color:color-mix(in oklab,var(--brand) 70%,var(--border));}
+  .day-cell.selected {background:var(--brand-soft);border:2px solid var(--brand);
+    color:var(--ink-primary);}
+  .day-cell.has-loading:not(.selected) {background:color-mix(in oklab,var(--led-amber) 6%,var(--bg-1));}
+  .day-cell:focus-visible,.filter-btn:focus-visible,.nav-btn:focus-visible,
+  .btn-secondary:focus-visible,.btn-ghost:focus-visible {outline:2px solid var(--focus);outline-offset:2px;}
+  .order-count {font-variant-numeric:tabular-nums;}
+  .loading-day-info {background:var(--brand-soft);color:var(--ink-primary);
+    border-color:color-mix(in oklab,var(--brand) 28%,var(--border));}
+  .carrier-badge {background:var(--bg-2);color:var(--ink-primary);
+    border:1px solid var(--border);}
+  .schedule-section {min-width:0;}
+  .schedule-body {min-width:0;}
+  .order-card {background:var(--bg-1);border:1px solid var(--border);
+    border-radius:var(--radius-md);}
+  .order-card:hover {border-color:var(--border-strong);}
+  .btn-icon-sm {width:40px;height:40px;}
+  .btn-icon-sm:hover {color:var(--error);background:var(--error-soft);}
+  .all-orders-section {padding:var(--space-lg);}
+  .filter-group {gap:var(--space-xs);overflow-x:auto;max-width:100%;}
+  .filter-btn {border-radius:var(--radius-sm);min-height:40px;white-space:nowrap;}
+  .filter-btn.active {color:var(--brand);background:var(--brand-soft);border-color:var(--brand);}
+  .table-row {border-bottom:1px solid var(--divider);gap:var(--space-sm);}
+  .modal {background:var(--bg-1);max-height:min(85dvh,760px);border-radius:var(--radius-lg);}
+  .available-order :global(.add-icon) {opacity:1;}
+  @media(max-width:1280px) {.calendar-grid {grid-template-columns:minmax(0,1fr);}
+    .schedule-section {order:0;}}
+  @media(max-width:768px) {
+    .calendar-page {padding:var(--space-sm) 0 var(--space-xl);}
+    .calendar-topbar {align-items:stretch;padding:var(--space-md);}
+    .topbar-right {width:100%;justify-content:flex-start;}
+    .topbar-right > button {flex:1 1 auto;}
+    .calendar-section,.schedule-section,.all-orders-section {padding:var(--space-md);}
+    .weekday {padding:var(--space-xs) 0;}
+    .days-grid,.weekdays {min-width:328px;}
+    .table-row {grid-template-columns:repeat(2,minmax(0,1fr));}
+    .col-title {grid-column:1 / -1;}
+  }
+  @media(prefers-reduced-transparency:reduce) {
+    .calendar-topbar,.calendar-section,.schedule-section,.all-orders-section {background:var(--bg-1);}
   }
 </style>
