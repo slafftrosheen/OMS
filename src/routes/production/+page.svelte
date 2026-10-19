@@ -75,9 +75,12 @@
 
   function handleQRScan(data: { orderId?: string; station?: string }) {
     showScanner = false;
-    if (data.orderId) goto(`/orders/${encodeURIComponent(data.orderId)}`);
+    if (data.orderId) goto(`${base}/orders/${encodeURIComponent(data.orderId)}`);
     else if (data.station) {
-      document.getElementById(`station-${data.station.toUpperCase()}`)?.scrollIntoView({ behavior: 'smooth' });
+      document.getElementById(`station-${data.station.toUpperCase()}`)?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'start'
+      });
     }
   }
 
@@ -94,7 +97,7 @@
   <title>{$t('production.title')} — OMS</title>
 </svelte:head>
 
-<main class="production-container">
+<section class="production-container">
   <header class="production-header">
     <div>
       <p class="eyebrow">{$t('productionPlanning.eyebrow')}</p>
@@ -115,12 +118,12 @@
   </header>
 
   <div class="board-toolbar">
-    <div class="board-kpis" aria-label="Production board totals">
-      <span><strong>{totals?.orders ?? '—'}</strong> {$t('productionPlanning.orders')}</span>
-      <span><strong>{totals?.activeAssignments ?? '—'}</strong> {$t('productionPlanning.assignments')}</span>
-      <span><strong>{activeStations}</strong> {$t('productionPlanning.activeStations')}</span>
-      <span><strong>{totals?.overdue ?? '—'}</strong> {$t('productionPlanning.overdue')}</span>
-      <span><strong>{totals?.knownHours ?? '—'}</strong> {$t('productionPlanning.hours')}</span>
+    <div class="board-kpis" aria-label={$t('productionPlanning.totalsLabel', { default: 'Production board totals' })}>
+      <span class="board-kpi"><strong>{totals?.orders ?? '—'}</strong><small>{$t('productionPlanning.orders')}</small></span>
+      <span class="board-kpi"><strong>{totals?.activeAssignments ?? '—'}</strong><small>{$t('productionPlanning.assignments')}</small></span>
+      <span class="board-kpi"><strong>{loadedOnce ? activeStations : '—'}</strong><small>{$t('productionPlanning.activeStations')}</small></span>
+      <span class="board-kpi board-kpi--urgent"><strong>{totals?.overdue ?? '—'}</strong><small>{$t('productionPlanning.overdue')}</small></span>
+      <span class="board-kpi"><strong>{totals?.knownHours ?? '—'}</strong><small>{$t('productionPlanning.hours')}</small></span>
     </div>
     <div class="board-preferences">
       <label class="visibility-toggle">
@@ -265,7 +268,7 @@
       {/each}
     </div>
   {/if}
-</main>
+</section>
 
 <QRScanner bind:open={showScanner} onscan={handleQRScan} />
 
@@ -363,5 +366,46 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .station-board { scroll-behavior: auto; }
+  }
+
+  /* LUMIGRID operator surface: measured density, vivid risk only where needed. */
+  .production-container { gap:var(--space-lg); padding:var(--space-md) 0 var(--space-2xl); }
+  .production-header { position:relative; padding:var(--space-lg) 0; border-bottom:1px solid var(--divider); }
+  .production-header::before { content:''; position:absolute; inset:0 auto auto 0;
+    height:2px; width:92px; background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent); }
+  .eyebrow { color:var(--brand); letter-spacing:.11em; }
+  .page-title { font-size:clamp(1.6rem,2.6vw,2.25rem); letter-spacing:var(--tracking-tight); }
+  .header-actions { gap:var(--space-sm); }
+  .planner-link { border-radius:var(--radius-md); font-weight:600; background:var(--bg-1); color:var(--ink-secondary); }
+  .planner-link:hover { background:var(--bg-2); color:var(--ink-primary); }
+  .board-toolbar { border-color:var(--glass-border); background:var(--glass-bg-strong); border-radius:var(--radius-lg); padding:var(--space-lg); }
+  .board-kpis { display:grid; grid-template-columns:repeat(5,minmax(90px,1fr)); flex:1 1 100%; gap:var(--space-xs); }
+  .board-kpi { display:grid; justify-items:start; align-content:center; min-width:0; gap:3px;
+    padding:var(--space-md); border-radius:var(--radius-md); border:1px solid var(--border);
+    background:var(--bg-1); }
+  .board-kpis .board-kpi strong { font-size:clamp(1.1rem,2vw,1.65rem); font-weight:750; margin:0;
+    line-height:1.1; color:var(--ink-primary); }
+  .board-kpi small { color:var(--ink-tertiary); font-size:var(--text-xs); line-height:1.3; }
+  .board-kpi--urgent { border-color:color-mix(in oklab,var(--error) 35%,var(--border)); }
+  .board-kpis .board-kpi--urgent strong { color:var(--error); }
+  .board-preferences { display:flex; align-items:center; gap:var(--space-xs); flex:1; }
+  .visibility-toggle { border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 11px;
+    background:var(--bg-1); min-height:40px; color:var(--ink-secondary); }
+  .visibility-toggle:has(input:checked) { color:var(--ink-primary); border-color:var(--brand);
+    background:var(--brand-soft); }
+  .visibility-toggle:focus-within { outline:2px solid var(--focus); outline-offset:2px; }
+  .updated { margin-inline-start:auto; font-variant-numeric:tabular-nums; }
+  .attention { border-color:color-mix(in oklab,var(--warn) 55%,var(--border)); }
+  .attention > strong { color:var(--warn); }
+  .attention-item { border-color:color-mix(in oklab,var(--warn) 30%,var(--border)); }
+  .oversight { background:var(--glass-bg-strong); border-color:var(--glass-border); }
+  .stations-grid > div { min-width:0; scroll-margin-top:calc(var(--topbar-h) + var(--space-lg)); }
+  @media(max-width:920px) { .board-kpis { grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); } }
+  @media(max-width:680px) {
+    .production-container { padding-top:var(--space-sm); }
+    .board-toolbar { padding:var(--space-md); }
+    .board-preferences { align-items:stretch; }
+    .visibility-toggle { flex:1 1 auto; }
+    .updated { flex:1 1 100%; margin:0; text-align:right; }
   }
 </style>
