@@ -5,7 +5,6 @@
   import { base } from '$app/paths';
   import { currentUser } from '$lib/auth/authState.svelte';
   import StatCard from '$lib/components/analytics/StatCard.svelte';
-  import OrderCard from '$lib/components/orders/OrderCard.svelte';
   import LineChart from '$lib/components/analytics/LineChart.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Icon from '$lib/ui/Icon.svelte';
@@ -37,8 +36,7 @@
       else if (Array.isArray(result.orders)) ordersData = result.orders;
       else if (Array.isArray(result)) ordersData = result;
 
-      // Adapter for the orders API's camelCase response and OrderCard's
-      // legacy snake_case display contract. Does not mutate order forms.
+      // Normalize order fields for display without mutating order forms.
       recentOrders = ordersData.slice(0, 5).map((o: any) => ({
         ...o,
         po_number: o.po_number ?? o.poNumber ?? '',
@@ -95,8 +93,12 @@
     }
   }
 
-  function handleOrderClick(order: any) {
-    goto(`${base}/orders/${order.id}`);
+  function formatDue(value: string | null | undefined): string {
+    if (!value) return '—';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat(undefined, {
+      day: 'numeric', month: 'short', year: 'numeric'
+    }).format(date);
   }
 
   // Quick actions — Lucide icons replace the prior emojis
@@ -216,11 +218,19 @@
         </button>
       </div>
     {:else}
-      <div class="dash-orders rf-bento rf-bento--lg rf-stagger">
-        {#each recentOrders as order, i (order.id)}
-          <div style="--i: {i}">
-            <OrderCard {order} onclick={handleOrderClick} showActions={false} />
-          </div>
+      <div class="dash-orders" aria-label={$t('dashboard.orders_snapshot', { default: 'Orders snapshot' })}>
+        {#each recentOrders as order (order.id)}
+          <a class="dash-order" href={`${base}/orders/${order.id}`}>
+            <span class="dash-order__identity">
+              <strong>{order.title || order.po_number || '—'}</strong>
+              <small>{order.po_number || '—'} · {order.client || '—'}</small>
+            </span>
+            <span class="dash-order__meta">
+              <span class="dash-order__status">{String(order.status || '—').replaceAll('_', ' ')}</span>
+              <small>{$t('orders.due_date', { default: 'Due' })}: {formatDue(order.due_date)}</small>
+            </span>
+            <Icon name="arrow-right" size="sm" />
+          </a>
         {/each}
       </div>
     {/if}
@@ -527,4 +537,29 @@
   .dash-action__chev { opacity: .65; transform: none; }
   .dash-action__icon { border: 1px solid color-mix(in oklab, var(--brand) 22%, transparent); }
   @media (max-width: 768px) { .dash-hero__cta { justify-content: stretch; } }
+
+  /* Operator-facing order list: real data, no invented progress stages. */
+  .dash-orders { display:grid; gap:var(--space-xxs); padding:var(--space-sm);
+    border:1px solid var(--glass-border); border-radius:var(--radius-lg);
+    background:var(--glass-bg); box-shadow:var(--glass-shadow-sm); }
+  .dash-order { display:grid; grid-template-columns:minmax(0,1fr) minmax(150px,auto) auto;
+    gap:var(--space-xl); align-items:center; padding:var(--space-md) var(--space-lg);
+    border-radius:var(--radius-md); text-decoration:none; color:var(--ink-primary);
+    min-width:0; transition:background var(--motion-sm) var(--ease-standard); }
+  .dash-order + .dash-order { border-top:1px solid var(--divider); }
+  .dash-order:hover { background:var(--brand-soft); }
+  .dash-order__identity,.dash-order__meta { display:grid; min-width:0; gap:var(--space-xxs); }
+  .dash-order__identity strong { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dash-order small { color:var(--ink-tertiary); font-size:var(--text-xs); }
+  .dash-order__meta { justify-items:end; text-align:right; }
+  .dash-order__status { max-width:100%; font-size:var(--text-xs); text-transform:capitalize;
+    color:var(--ink-secondary); background:var(--bg-2); border:1px solid var(--border);
+    border-radius:var(--radius-full); padding:2px var(--space-sm); }
+  .dash-order :global(svg) { color:var(--ink-tertiary); }
+  .dash-order:hover :global(svg) { color:var(--brand); }
+  @media (max-width:640px) {
+    .dash-order { grid-template-columns:minmax(0,1fr) auto; gap:var(--space-xs); }
+    .dash-order__meta { grid-column:1; grid-row:2; justify-items:start; text-align:left; }
+    .dash-order :global(svg) { grid-column:2; grid-row:1 / span 2; }
+  }
 </style>
