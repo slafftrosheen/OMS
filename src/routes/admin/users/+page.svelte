@@ -352,7 +352,7 @@
 </script>
 
 <svelte:head>
-  <title>User Management - Admin</title>
+  <title>{$t('admin.users.title')} — OMS</title>
 </svelte:head>
 
 <div class="users-page">
@@ -370,14 +370,14 @@
   </header>
 
   {#if successMessage}
-    <div class="alert alert-success">
+    <div class="alert alert-success" role="status">
       <Check size={18} />
       {successMessage}
     </div>
   {/if}
 
   {#if error}
-    <div class="alert alert-error">
+    <div class="alert alert-error" role="alert">
       <AlertCircle size={18} />
       {error}
     </div>
@@ -386,7 +386,7 @@
   <div class="controls">
     <div class="search-box">
       <Search size={18} />
-      <input type="text" placeholder={$t('a11y.search')} bind:value={searchQuery} />
+      <input type="search" placeholder={$t('a11y.search')} aria-label={$t('a11y.search')} bind:value={searchQuery} />
     </div>
     <label class="checkbox-label">
       <input type="checkbox" bind:checked={showInactive} />
@@ -397,13 +397,13 @@
   {#if loading}
     <div class="loading">{$t('admin.users.loading')}</div>
   {:else}
-    <div class="users-table-wrapper">
+    <div class="users-table-wrapper" role="region" tabindex="0" aria-label={$t('admin.users.title')}>
       <table class="users-table">
         <thead>
           <tr>
             <th>{$t('admin.users.table.user')}</th>
-            <th>Role</th>
-            <th>Stations</th>
+            <th>{$t('admin.users.table.roles')}</th>
+            <th>{$t('admin.users.table.stations')}</th>
             <th>{$t('admin.users.table.status')}</th>
             <th>{$t('admin.users.table.last_login')}</th>
             {#if canManageUsers}
@@ -452,18 +452,18 @@
               <td class="date-cell">{formatDate(user.lastLoginAt)}</td>
               {#if canManageUsers}
                 <td class="actions-cell">
-                  <button class="btn-icon" title={$t('admin.users.edit')} onclick={() => openEditModal(user)}>
+                  <button class="btn-icon" title={$t('admin.users.edit')} aria-label={$t('admin.users.edit')} onclick={() => openEditModal(user)}>
                     <Edit2 size={16} />
                   </button>
-                  <button class="btn-icon" title={$t('admin.users.reset_password')} onclick={() => openPasswordModal(user)}>
+                  <button class="btn-icon" title={$t('admin.users.reset_password')} aria-label={$t('admin.users.reset_password')} onclick={() => openPasswordModal(user)}>
                     <Key size={16} />
                   </button>
                   {#if user.isActive}
-                    <button class="btn-icon btn-danger" title={$t('admin.users.status.inactive')} onclick={() => deactivateUser(user)}>
+                    <button class="btn-icon btn-danger" title={$t('admin.users.status.inactive')} aria-label={$t('admin.users.status.inactive')} onclick={() => deactivateUser(user)}>
                       <Trash2 size={16} />
                     </button>
                   {:else}
-                    <button class="btn-icon btn-success" title={$t('admin.users.status.active')} onclick={() => reactivateUser(user)}>
+                    <button class="btn-icon btn-success" title={$t('admin.users.status.active')} aria-label={$t('admin.users.status.active')} onclick={() => reactivateUser(user)}>
                       <Check size={16} />
                     </button>
                   {/if}
@@ -492,16 +492,17 @@
       onclick={(e) => e.stopPropagation()} 
       role="dialog" 
       aria-modal="true"
+      aria-labelledby="user-dialog-title"
       tabindex="-1"
     >
       <div class="modal-header">
-        <h2>
+        <h2 id="user-dialog-title">
           {#if modalMode === 'create'}{$t('admin.users.add')}
           {:else if modalMode === 'edit'}{$t('admin.users.edit')}
           {:else}{$t('admin.users.reset_password')}
           {/if}
         </h2>
-        <button class="btn-close" onclick={closeModal}>
+        <button class="btn-close" onclick={closeModal} aria-label={$t('common.close')}>
           <X size={20} />
         </button>
       </div>
@@ -1160,4 +1161,64 @@
       overflow-x: auto;
     }
   }
+
+  /* Admin User Management — quiet neutral UI, semantic role/status only. */
+  .users-page {padding:var(--space-lg) 0 var(--space-2xl);max-width:1400px;}
+  .page-header {position:relative;align-items:center;gap:var(--space-lg);flex-wrap:wrap;
+    border-bottom:1px solid var(--divider);padding:var(--space-lg) 0;margin-bottom:var(--space-lg);}
+  .page-header::before {content:'';position:absolute;top:0;left:0;width:90px;height:2px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
+  h1 {font-size:clamp(1.5rem,2.5vw,2rem);letter-spacing:var(--tracking-tight);}
+  .subtitle {color:var(--ink-secondary);}
+  .btn-primary {min-height:44px;background:var(--brand);color:var(--on-brand);
+    border-radius:var(--radius-md);font-weight:650;}
+  .btn-primary:hover:not(:disabled) {background:var(--brand-2);}
+  .btn-secondary {min-height:44px;border-radius:var(--radius-md);}
+  .controls {flex-wrap:wrap;gap:var(--space-md);margin-bottom:var(--space-lg);}
+  .search-box {max-width:440px;min-height:44px;border-radius:var(--radius-md);
+    background:var(--bg-1);}
+  .search-box:focus-within {outline:2px solid var(--focus);outline-offset:1px;}
+  .search-box input {min-width:0;outline:none;}
+  .checkbox-label {color:var(--ink-secondary);min-height:44px;}
+  .checkbox-label input,.checkbox-item input {accent-color:var(--brand);}
+  .users-table-wrapper {background:var(--glass-bg-strong);border-color:var(--glass-border);
+    border-radius:var(--radius-lg);overflow:auto;scrollbar-width:thin;max-width:100%;}
+  .users-table {min-width:780px;width:100%;}
+  .users-table th {position:sticky;top:0;z-index:1;background:var(--bg-1);
+    font-size:var(--text-xs);color:var(--ink-tertiary);white-space:nowrap;}
+  .users-table td {color:var(--ink-primary);border-bottom:1px solid var(--divider);}
+  .users-table tbody tr:hover {background:var(--bg-2);}
+  .user-username,.date-cell,.no-stations {color:var(--ink-tertiary);}
+  .user-avatar {background:var(--brand-soft);color:var(--brand);}
+  .role-badge {border:1px solid var(--border);border-radius:var(--radius-sm);}
+  .status-badge.active {color:var(--ok);background:var(--ok-soft);}
+  .status-badge.inactive {color:var(--ink-tertiary);background:var(--bg-2);}
+  .stations-list {flex-wrap:wrap;}
+  .station-tag {border-radius:var(--radius-sm);}
+  .actions-cell {white-space:nowrap;}
+  .btn-icon {min-width:40px;min-height:40px;border-radius:var(--radius-sm);
+    display:inline-flex;align-items:center;justify-content:center;}
+  .btn-icon:hover {background:var(--bg-2);}
+  .alert-success {color:var(--ok);}
+  .alert-error {color:var(--error);}
+  .modal {background:var(--bg-1);border:1px solid var(--border);border-radius:var(--radius-lg);
+    max-height:calc(100dvh - 32px);}
+  .modal-body {overscroll-behavior:contain;}
+  .form-group input,.form-group select {min-height:42px;color:var(--ink-primary);background:var(--bg-1);}
+  .form-group input:focus-visible,.form-group select:focus-visible {
+    outline:2px solid var(--focus);outline-offset:1px;}
+  .modal-footer {flex-wrap:wrap;}
+  .btn-close {min-width:40px;min-height:40px;}
+  .btn-close:focus-visible,.btn-icon:focus-visible,.btn-primary:focus-visible,
+  .btn-secondary:focus-visible {outline:2px solid var(--focus);outline-offset:2px;}
+  @media(max-width:700px) {
+    .users-page {padding:var(--space-sm) 0 var(--space-xl);}
+    .page-header {align-items:stretch;}
+    .controls {align-items:stretch;flex-direction:column;}
+    .search-box {max-width:100%;width:100%;}
+    .modal-body {padding:var(--space-md);}
+    .modal-header,.modal-footer {padding:var(--space-md);}
+    .form-row {grid-template-columns:1fr;}
+  }
+  @media(prefers-reduced-transparency:reduce) {.users-table-wrapper {background:var(--bg-1);}}
 </style>
