@@ -17,10 +17,10 @@ const VAR_PATTERN = /^var\((--[^)]+)\)$/;
 export const seriesPalette = [
   'var(--accent-1)',
   'var(--accent-2)',
-  '#00a7d1',
-  '#ff7a59',
-  '#7bc96f',
-  '#c3a6ff'
+  'var(--led-cyan)',
+  'var(--led-amber)',
+  'var(--ok)',
+  'var(--muted)'
 ];
 
 function resolveToken(token: string) {
