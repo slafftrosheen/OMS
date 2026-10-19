@@ -3,6 +3,19 @@ import type { RequestHandler } from './$types';
 import { isAdmin } from '$lib/server/auth/session';
 import { supabaseAdmin } from '$lib/server/supabase-admin';
 
+/**
+ * Validates password strength requirements (same policy as POST /api/users)
+ */
+function isValidPassword(password: string): boolean {
+  const minLength = password.length >= 8;
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+
+  return minLength && hasUpper && hasLower && hasNumber && hasSpecial;
+}
+
 export const GET: RequestHandler = async ({ params, locals }) => {
   const { id } = params;
   const { data: user, error: err } = await locals.supabase
@@ -72,6 +85,42 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
               console.error('Failed to update user stations:', stationErr);
           }
       }
+  }
+
+  return json({ success: true });
+};
+
+/**
+ * PATCH /api/users/:id — admin actions that are not profile edits.
+ * Currently only `reset_password`, which the Admin → Users modal calls.
+ */
+export const PATCH: RequestHandler = async ({ params, request, locals }) => {
+  const { id } = params;
+  const currentUser = locals.user;
+
+  if (!currentUser || !isAdmin(currentUser)) {
+    throw error(403, 'Admin access required');
+  }
+
+  const data = await request.json();
+
+  if (data.action !== 'reset_password') {
+    throw error(400, 'Unsupported action');
+  }
+
+  if (!data.newPassword || !isValidPassword(data.newPassword)) {
+    return json({
+      error: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character'
+    }, { status: 400 });
+  }
+
+  const { error: resetErr } = await supabaseAdmin.auth.admin.updateUserById(id, {
+    password: data.newPassword
+  });
+
+  if (resetErr) {
+    console.error('Failed to reset user password:', resetErr);
+    return json({ error: 'Failed to reset password: ' + resetErr.message }, { status: 500 });
   }
 
   return json({ success: true });

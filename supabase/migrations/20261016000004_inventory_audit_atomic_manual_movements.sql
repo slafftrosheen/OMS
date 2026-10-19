@@ -61,7 +61,7 @@ BEGIN
    IF v_movement.material_id IS DISTINCT FROM p_material_id OR
       v_movement.performed_by IS DISTINCT FROM v_actor OR
       v_movement.movement_type IS DISTINCT FROM
-        CASE v_kind WHEN 'ADJUST' THEN 'adjustment' ELSE lower(v_kind) END OR
+        (CASE v_kind WHEN 'ADJUST' THEN 'adjustment' ELSE lower(v_kind) END) OR
       (v_kind<>'ADJUST' AND v_movement.quantity IS DISTINCT FROM p_quantity) OR
       (v_kind='ADJUST' AND v_movement.stock_after IS DISTINCT FROM p_quantity) OR
       (v_movement.notes IS DISTINCT FROM
@@ -151,7 +151,7 @@ GRANT EXECUTE ON FUNCTION public.oms_record_manual_inventory_movement(
 -- DEFINER functions the current role is their owner, not authenticated.
 CREATE OR REPLACE FUNCTION public.oms_require_atomic_stock_write()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY INVOKER SET search_path=public,pg_temp
-AS $
+AS $$
 BEGIN
  IF current_user IN ('authenticated','anon') AND
    (CASE WHEN TG_OP='INSERT'
@@ -162,7 +162,7 @@ BEGIN
  END IF;
  RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS oms_material_stock_write_guard ON public.materials;
 CREATE TRIGGER oms_material_stock_write_guard

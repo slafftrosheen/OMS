@@ -334,7 +334,7 @@ BEGIN
    IF v_movement.material_id IS DISTINCT FROM p_material_id OR
       v_movement.performed_by IS DISTINCT FROM v_actor OR
       v_movement.movement_type IS DISTINCT FROM
-        CASE v_kind WHEN 'ADJUST' THEN 'adjustment' ELSE lower(v_kind) END OR
+        (CASE v_kind WHEN 'ADJUST' THEN 'adjustment' ELSE lower(v_kind) END) OR
       (v_kind<>'ADJUST' AND v_movement.quantity IS DISTINCT FROM p_quantity) OR
       (v_kind='ADJUST' AND v_movement.stock_after IS DISTINCT FROM p_quantity) OR
       (v_movement.notes IS DISTINCT FROM
@@ -408,7 +408,7 @@ CREATE OR REPLACE FUNCTION public.oms_reconcile_inventory_stock(
  p_reason TEXT
 ) RETURNS JSONB
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp
-AS $
+AS $$
 DECLARE
  v_actor UUID:=auth.uid();
  v_role TEXT;
@@ -460,7 +460,7 @@ BEGIN
  ) INTO v_receipt;
  RETURN v_receipt;
 END;
-$;
+$$;
 REVOKE ALL ON FUNCTION public.oms_reconcile_inventory_stock(
  UUID,UUID,INTEGER,INTEGER,INTEGER,TEXT
 ) FROM PUBLIC,anon;

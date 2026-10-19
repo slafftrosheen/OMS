@@ -108,8 +108,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   }
 
   // Validate password strength
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-  if (!passwordRegex.test(data.password)) {
+  if (!isValidPassword(data.password)) {
     return json({
       error: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character'
     }, { status: 400 });

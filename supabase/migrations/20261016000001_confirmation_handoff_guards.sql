@@ -78,7 +78,7 @@ CREATE OR REPLACE FUNCTION public.confirm_order_with_stages(
  p_order_id UUID, p_po_number TEXT, p_expected_updated_at TIMESTAMPTZ
 ) RETURNS JSONB
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp
-AS $
+AS $$
 DECLARE v_current public.draft_orders; v_result JSONB; v_role TEXT;
 BEGIN
  IF auth.uid() IS NULL THEN
@@ -105,7 +105,7 @@ BEGIN
    INTO v_result;
  RETURN v_result;
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.confirm_order_with_stages(UUID,TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.confirm_order_with_stages(UUID,TEXT) FROM anon;
