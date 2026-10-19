@@ -299,7 +299,13 @@
                   proposed:result.totalAllocatedHours,
                   capacity:result.totalAvailableHours}})}</span>
                 <progress max={Math.max(1,result.totalAvailableHours)}
-                  value={result.totalCommittedHours+result.totalAllocatedHours}></progress>
+                  value={result.totalCommittedHours+result.totalAllocatedHours}
+                  class:overbooked={result.totalCommittedHours+result.totalAllocatedHours>result.totalAvailableHours}
+                  aria-label={`${station}: ${$t('capacityPlanner.forecast')}`}
+                  aria-valuetext={$t('scheduleReconciliation.daySummary',{values:{
+                    booked:result.totalCommittedHours,
+                    proposed:result.totalAllocatedHours,
+                    capacity:result.totalAvailableHours}})}></progress>
               </div>
               {#each result.days.filter(d=>d.tasks.length>0||d.committedHours>0) as day (day.date)}
                 <div class="day">
@@ -387,4 +393,67 @@
   .drift-row small{margin-left:auto;color:var(--muted)}
   .drift-row a{color:var(--brand)}
   @media(max-width:800px){.two-column{grid-template-columns:1fr}.settings{position:static}}
+
+  /* R04: calm production capacity controls, preserve physical work-hours. */
+  .planner{max-width:1640px;padding:var(--space-lg) 0 var(--space-2xl);gap:var(--space-lg);min-width:0}
+  .header{position:relative;padding:var(--space-lg) 0;border-bottom:1px solid var(--divider);gap:var(--space-md)}
+  .header::before{content:'';position:absolute;top:0;left:0;height:2px;width:86px;background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent)}
+  .eyebrow{color:var(--brand);letter-spacing:.09em}
+  h1{font-size:clamp(1.6rem,2.7vw,2.15rem);letter-spacing:var(--tracking-tight)}
+  h2{color:var(--ink-primary);font-size:var(--text-lg)}
+  .description,.hint,.updated{color:var(--ink-secondary);line-height:1.55}
+  .header-actions{gap:var(--space-xs)}
+  .link,button{min-height:44px;background:var(--bg-1);color:var(--ink-primary);border-radius:var(--radius-sm);border:1px solid var(--border);font-weight:650}
+  .link:hover,button:hover:not(:disabled){background:var(--bg-2);border-color:var(--border-strong)}
+  .link:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{
+    outline:2px solid var(--focus);outline-offset:2px}
+  .disclaimer{background:var(--bg-1);border:1px solid var(--border);
+    border-left:3px solid var(--warn);border-radius:var(--radius-sm);color:var(--ink-secondary);line-height:1.5}
+  .success{color:var(--ok)}.warn{color:var(--warn)}
+  .controls{background:var(--glass-bg-strong);border:1px solid var(--glass-border);border-radius:var(--radius-lg);gap:var(--space-md);padding:var(--space-lg)}
+  .controls label:not(.check){display:flex;align-items:center;gap:var(--space-xs)}
+  .controls select{width:auto;min-width:130px}
+  .controls .updated{margin-inline-start:auto;font-variant-numeric:tabular-nums}
+  .check{min-height:38px;gap:var(--space-xs);color:var(--ink-secondary)}
+  .check input{accent-color:var(--brand)}
+  .stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-sm)}
+  .stats>div{min-width:0;background:var(--bg-1);border-color:var(--glass-border);
+    border-radius:var(--radius-md);padding:var(--space-lg);gap:var(--space-xs)}
+  .stats strong{font-size:clamp(1.25rem,2vw,1.7rem);color:var(--ink-primary);line-height:1.15}
+  .stats span{color:var(--ink-tertiary);line-height:1.4}
+  .two-column{grid-template-columns:minmax(260px,350px) minmax(0,1fr);gap:var(--space-md)}
+  .card{background:var(--glass-bg-strong);border-color:var(--glass-border);
+    border-radius:var(--radius-lg);padding:var(--space-xl);min-width:0}
+  .settings{top:var(--space-lg);gap:var(--space-md)}
+  select,input[type=number]{min-height:44px;border-radius:var(--radius-sm);background:var(--bg-1);color:var(--ink-primary)}
+  fieldset{border-radius:var(--radius-sm);border-color:var(--border)}
+  .weekdays{grid-template-columns:repeat(auto-fit,minmax(72px,1fr))}
+  .save-controls{justify-content:flex-end;gap:var(--space-xs)}
+  .save-controls button:last-child{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
+  .save-controls button:last-child:hover:not(:disabled){background:var(--brand-2)}
+  .station{background:var(--bg-1);border-color:var(--border);border-radius:var(--radius-md);padding:var(--space-lg)}
+  .station-head{align-items:flex-start;gap:var(--space-xs)}
+  .station-head h3{font-size:var(--text-md);color:var(--ink-primary)}
+  .utilization{gap:var(--space-sm);font-variant-numeric:tabular-nums;line-height:1.4}
+  progress{height:10px;width:100%;accent-color:var(--brand);border-radius:var(--radius-sm)}
+  progress.overbooked{accent-color:var(--error)}
+  progress::-webkit-progress-bar{background:var(--bg-3);border-radius:var(--radius-sm)}
+  progress::-webkit-progress-value{background:var(--brand);border-radius:var(--radius-sm)}
+  progress.overbooked::-webkit-progress-value{background:var(--error)}
+  progress::-moz-progress-bar{background:var(--brand);border-radius:var(--radius-sm)}
+  progress.overbooked::-moz-progress-bar{background:var(--error)}
+  .day{border:1px solid var(--border);border-radius:var(--radius-sm);gap:var(--space-sm)}
+  .day-jobs a{background:var(--bg-1);border:1px solid var(--border);
+    border-radius:var(--radius-sm);color:var(--ink-primary);min-height:36px;display:inline-flex;align-items:center}
+  .day-jobs a:hover{border-color:var(--brand)}
+  .drift-row{background:var(--bg-1);border-radius:var(--radius-sm)}
+  .drift-row[data-severity=critical]{background:var(--error-soft)}
+  .drift-row small{font-variant-numeric:tabular-nums}
+  @media(max-width:1170px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:850px){.two-column{grid-template-columns:minmax(0,1fr)}.settings{position:static}}
+  @media(max-width:650px){.planner{padding:var(--space-sm) 0 var(--space-xl)}
+    .header{align-items:stretch}.controls{padding:var(--space-md)}
+    .controls .updated{margin:0;flex:1 1 100%}.card{padding:var(--space-md)}
+    .stats>div{padding:var(--space-md)}}
+  @media(prefers-reduced-transparency:reduce){.controls,.card{background:var(--bg-1)}}
 </style>
