@@ -2131,4 +2131,63 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   .native-profile-dialog-header p{margin:.35rem 0 0;color:var(--muted);font-size:.8rem}
   .native-profile-dialog-footer{position:sticky;bottom:0;margin-top:.8rem;
     padding:.75rem;background:var(--bg-1);border-top:1px solid var(--border)}
+
+  /* R03: The drawing canvas stays neutral; magenta marks actionable controls. */
+  .canvas-editor {background:var(--bg-0);}
+  .top-bar {background:var(--glass-bg-strong);border-bottom-color:var(--glass-border);
+    min-height:56px;height:auto;padding:7px var(--space-md);gap:var(--space-sm);}
+  .top-bar-left {min-width:0;}
+  .back-btn {width:40px;height:40px;min-width:40px;border-radius:var(--radius-sm);
+    background:var(--bg-2);color:var(--ink-secondary);}
+  .order-identity {min-width:0;gap:var(--space-xs);flex-wrap:wrap;}
+  .po-tag {font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+  .status-label {color:var(--ink-secondary);}
+  .context-bar {min-width:0;justify-content:center;flex-wrap:wrap;gap:var(--space-xs);}
+  .ctx-field {color:var(--ink-secondary);}
+  .ctx-field input,.ctx-field select {min-height:36px;border-radius:var(--radius-sm);
+    background:var(--bg-2);color:var(--ink-primary);}
+  .ctx-btn {min-height:36px;border-radius:var(--radius-sm);background:var(--bg-2);}
+  .top-bar-actions {gap:var(--space-xs);min-width:0;}
+  .top-bar-actions .action-btn {min-height:40px;border-radius:var(--radius-sm);}
+  .action-btn.primary {background:var(--brand);color:var(--on-brand);border-color:var(--brand);}
+  .action-btn.primary:hover:not(:disabled) {background:var(--brand-2);color:var(--on-brand);}
+  .workspace-flow {background:var(--bg-1);border-color:var(--divider);gap:var(--space-xs);
+    overscroll-behavior-x:contain;}
+  .workspace-flow > button {min-height:42px;padding:9px 12px;
+    border-radius:var(--radius-sm);color:var(--ink-secondary);}
+  .workspace-flow > button.active {background:var(--brand-soft);border-color:var(--brand);
+    color:var(--brand);}
+  .workspace-panel-heading {background:var(--bg-1);border-color:var(--divider);}
+  .workspace-panel-heading h2 {color:var(--ink-primary);font-weight:750;}
+  .focus-toggle {min-height:42px;border-radius:var(--radius-sm);}
+  .right-docker,.toolbox {background:var(--bg-1);border-color:var(--divider);}
+  .docker-tabs {border-color:var(--divider);overscroll-behavior-x:contain;}
+  .dtab {min-height:42px;border-radius:var(--radius-sm) var(--radius-sm) 0 0;}
+  .dtab.active {color:var(--brand);}
+  .tool-btn {width:42px;height:42px;border-radius:var(--radius-sm);}
+  .tool-btn.active {background:var(--brand-soft);color:var(--brand);}
+  .order-field-panel input:not([type="checkbox"]),.order-field-panel textarea,
+  .order-field-panel select {min-height:42px;border-radius:var(--radius-sm);}
+  .order-profile-edit {background:var(--bg-1);border-color:var(--border);border-radius:var(--radius-md);}
+  .native-profile-dialog {background:var(--bg-1);border-color:var(--border);
+    border-radius:var(--radius-lg);max-height:92dvh;}
+  .native-profile-dialog-footer {background:var(--bg-1);}
+  .top-bar button:focus-visible,.back-btn:focus-visible,.workspace-flow button:focus-visible,
+  .tool-btn:focus-visible,.dtab:focus-visible,.ctx-field input:focus-visible,
+  .ctx-field select:focus-visible,.order-field-panel input:focus-visible,
+  .order-field-panel textarea:focus-visible {outline:2px solid var(--focus);outline-offset:2px;}
+  @media(max-width:980px) {
+    .top-bar {justify-content:space-between;}
+    .top-bar-actions {flex-wrap:wrap;}
+    .workspace-flow {scrollbar-width:thin;}
+  }
+  @media(max-width:720px) {
+    .top-bar {max-height:none;min-height:56px;}
+    .top-bar-actions {max-width:100%;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:thin;}
+    .top-bar-actions .action-btn {flex:0 0 auto;}
+    .canvas-body:not(.workspace-focused) .right-docker {
+      width:min(100%,390px);height:min(58dvh,56%);box-shadow:var(--glass-shadow-lg);}
+    .workspace-focused .order-field-panel {padding:var(--space-md);}
+  }
+  @media(prefers-reduced-transparency:reduce) {.top-bar {backdrop-filter:none;background:var(--bg-1);}}
 </style>
