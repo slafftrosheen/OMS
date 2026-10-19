@@ -73,6 +73,7 @@
      <div class="steps" aria-label={$t('orderGuide.stepsLabel')}>
        {#each guide.steps as step (step.id)}
          <button type="button" class="step" class:current={step.id===focus.id}
+           aria-current={step.id===focus.id?'step':undefined}
            onclick={()=>onNavigate(step.section,step.id)}>
            <span class:complete={step.signal==='present'} class="mark" aria-hidden="true">
              {step.signal==='present'?'✓':step.signal==='unknown'?'?':step.id==='review'?'·':'!'}
@@ -124,4 +125,49 @@
    .step{flex-wrap:wrap}.step-status{white-space:normal}}
  @media(max-width:540px){.steps{grid-template-columns:1fr}.focus-actions{width:100%}
    .go,.ask{flex:1}}
+
+  /* R04: workflow coach guides without obstructing native order form. */
+  .coach{background:var(--glass-bg-strong);border:1px solid var(--glass-border);
+    border-radius:var(--radius-lg);padding:var(--space-md) var(--space-lg);
+    color:var(--ink-primary);gap:var(--space-sm);min-width:0}
+  .top{gap:var(--space-sm);align-items:flex-start}
+  .heading{gap:var(--space-sm);min-width:0}
+  .heading strong{font-size:var(--text-sm);font-weight:750;color:var(--ink-primary)}
+  .heading p,.focus-copy p{color:var(--ink-secondary);line-height:1.5}
+  .glyph{color:var(--brand)}
+  .signal-count{border:1px solid var(--border);border-radius:var(--radius-sm);
+    background:var(--bg-2);padding:6px 9px;color:var(--ink-secondary);
+    font-variant-numeric:tabular-nums}
+  .top-actions{gap:var(--space-xs);flex-wrap:wrap}
+  .quiet,.reopen{color:var(--ink-secondary);border-radius:var(--radius-sm);
+    min-width:40px;min-height:40px}
+  .quiet:hover,.reopen:hover{background:var(--bg-2);color:var(--ink-primary)}
+  .focus{gap:var(--space-md);padding:var(--space-sm) 0}
+  .focus-copy{min-width:0;gap:var(--space-xs)}
+  .focus-copy strong{font-size:var(--text-md);line-height:1.3}
+  .eyebrow{color:var(--brand);letter-spacing:.09em}
+  .focus-actions{gap:var(--space-xs)}
+  .go,.ask{border-radius:var(--radius-sm);min-height:44px;padding:10px 13px;
+    transition:background var(--motion-sm) var(--ease-standard)}
+  .go{background:var(--bg-1);color:var(--ink-primary);border-color:var(--border)}
+  .go:hover:not(:disabled){background:var(--bg-2)}
+  .ask{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+  .ask:hover:not(:disabled){background:var(--brand-2)}
+  .steps{gap:var(--space-xs)}
+  .step{background:var(--bg-1);border-color:var(--border);
+    border-radius:var(--radius-sm);min-height:52px;gap:var(--space-xs)}
+  .step.current{border-color:var(--brand);background:var(--brand-soft)}
+  .step-name{color:var(--ink-primary);line-height:1.35}
+  .step-status{color:var(--ink-secondary)}
+  .mark{border-radius:var(--radius-sm);color:var(--ink-tertiary)}
+  .mark.complete{color:var(--ok);border-color:color-mix(in oklab,var(--ok) 35%,var(--border));
+    background:var(--ok-soft)}
+  .quiet:focus-visible,.reopen:focus-visible,.go:focus-visible,
+  .ask:focus-visible,.step:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  .disclaimer{color:var(--ink-tertiary);line-height:1.5}
+  @media(max-width:680px){.coach{padding:var(--space-sm)}
+    .focus{align-items:stretch}.focus-actions{width:100%}
+    .go,.ask{flex:1 1 100%}}
+  @media(prefers-reduced-motion:reduce){.go,.ask{transition:none}}
+  @media(prefers-reduced-transparency:reduce){.coach{background:var(--bg-1)}}
 </style>
