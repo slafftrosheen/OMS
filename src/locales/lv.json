@@ -948,6 +948,33 @@
     "top_rework": "Galvenās pārstrādes stacijas"
   },
   "settings": {
+    "themeSelection": "Motīva izvēle",
+    "textSizeSelection": "Teksta lieluma izvēle",
+    "densitySelection": "Atstarpju blīvuma izvēle",
+    "provider": {
+      "title": "AI pakalpojums — OpenRouter",
+      "description": "Kopīga AI piekļuves atslēga komandai. Uzvednes un pievienotie attēli var tikt nosūtīti OpenRouter; bezmaksas maršrutiem var būt pieprasījumu ierobežojumi.",
+      "loading": "Ielādē pakalpojuma iestatījumus…",
+      "keyStatus": "Atslēgas statuss",
+      "configured": "Konfigurēta",
+      "notConfigured": "Nav konfigurēta",
+      "textModel": "Teksta modelis",
+      "keyHidden": "Pēc saglabāšanas atslēga vairs netiek rādīta.",
+      "replaceKey": "Aizstāt OpenRouter API atslēgu",
+      "keyPlaceholder": "Ielīmējiet OpenRouter API atslēgu",
+      "saving": "Saglabā…",
+      "saveKey": "Saglabāt sistēmas atslēgu",
+      "removeKey": "Dzēst saglabāto atslēgu",
+      "securityHint": "Tikai R&D dalībnieki var pārvaldīt šo kopīgo atslēgu. Tā tiek glabāta Supabase Vault, nevis pārlūka krātuvē vai API atbildē.",
+      "removeConfirm": "Dzēst sistēmas OpenRouter atslēgu? AI var izmantot servera vides atslēgu, ja tā ir konfigurēta.",
+      "keyUpdated": "Sistēmas OpenRouter atslēga atjaunināta.",
+      "keyRemoved": "Saglabātā OpenRouter atslēga izdzēsta."
+    },
+    "session": {
+      "title": "Sesija",
+      "description": "Izrakstīties no šīs ierīces.",
+      "signOut": "Izrakstīties"
+    },
     "title": "Iestatījumi",
     "sections": {
       "branding": "Zīmols",
