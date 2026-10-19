@@ -408,14 +408,14 @@
   </header>
 
   {#if successMessage}
-    <div class="alert alert-success">
+    <div class="alert alert-success" role="status">
       <Check size={18} />
       {successMessage}
     </div>
   {/if}
 
   {#if error}
-    <div class="alert alert-error">
+    <div class="alert alert-error" role="alert">
       <AlertCircle size={18} />
       {error}
     </div>
@@ -424,9 +424,9 @@
   <div class="controls">
     <div class="search-box">
       <Search size={18} />
-      <input type="text" placeholder={$t('admin_materials.search_placeholder')} bind:value={searchQuery} />
+      <input type="search" placeholder={$t('admin_materials.search_placeholder')} aria-label={$t('admin_materials.search_placeholder')} bind:value={searchQuery} />
     </div>
-    <select bind:value={categoryFilter}>
+    <select bind:value={categoryFilter} aria-label={$t('admin_materials.all_categories')}>
       <option value="">{$t('admin_materials.all_categories')}</option>
       {#each categories as cat}
         <option value={cat.value}>{cat.label}</option>
@@ -475,10 +475,10 @@
               </div>
               {#if canManage}
                 <div class="material-actions">
-                  <button class="btn-icon" title="Edit" onclick={() => openEditModal(material)}>
+                  <button class="btn-icon" title={$t('admin_materials.edit_material')} aria-label={$t('admin_materials.edit_material')} onclick={() => openEditModal(material)}>
                     <Edit2 size={16} />
                   </button>
-                  <button class="btn-icon btn-danger" title="Delete" onclick={() => deleteMaterial(material)}>
+                  <button class="btn-icon btn-danger" title={$t('common.delete')} aria-label={$t('common.delete')} onclick={() => deleteMaterial(material)}>
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -500,11 +500,12 @@
       onclick={(e) => e.stopPropagation()}
       role="dialog" 
       aria-modal="true"
+      aria-labelledby="material-dialog-title"
       tabindex="-1"
     >
       <div class="modal-header">
-        <h2>{modalMode === 'create' ? $t('admin_materials.add_material') : $t('admin_materials.edit_material')}</h2>
-        <button class="btn-close" onclick={closeModal}><X size={20} /></button>
+        <h2 id="material-dialog-title">{modalMode === 'create' ? $t('admin_materials.add_material') : $t('admin_materials.edit_material')}</h2>
+        <button class="btn-close" onclick={closeModal} aria-label={$t('common.close')}><X size={20} /></button>
       </div>
 
       {#if modalError}
@@ -565,7 +566,7 @@
           <div class="form-group">
             <label for="hex">{$t('admin_materials.form.hex_color')}</label>
             <div class="color-input">
-              <input type="color" bind:value={formData.hex} />
+              <input type="color" bind:value={formData.hex} aria-label={$t('admin_materials.form.hex_color')} />
               <input type="text" id="hex" bind:value={formData.hex} placeholder="#FFFFFF" />
             </div>
           </div>
@@ -1063,4 +1064,67 @@
     .controls { flex-direction: column; }
     .search-box { max-width: none; }
   }
+
+  /* Materials: material swatches are product data and must never be recolored. */
+  .materials-page {max-width:1450px;padding:var(--space-lg) 0 var(--space-2xl);}
+  .page-header {position:relative;align-items:center;gap:var(--space-lg);flex-wrap:wrap;
+    border-bottom:1px solid var(--divider);padding:var(--space-lg) 0;margin-bottom:var(--space-lg);}
+  .page-header::before {content:'';position:absolute;left:0;top:0;width:90px;height:2px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
+  h1 {font-size:clamp(1.5rem,2.5vw,2rem);letter-spacing:var(--tracking-tight);}
+  .subtitle {color:var(--ink-secondary);}
+  .btn-primary {min-height:44px;background:var(--brand);color:var(--on-brand);
+    border-radius:var(--radius-md);font-weight:650;}
+  .btn-primary:hover:not(:disabled) {background:var(--brand-2);}
+  .btn-secondary {min-height:44px;border-radius:var(--radius-md);}
+  .controls {flex-wrap:wrap;align-items:center;gap:var(--space-sm);margin-bottom:var(--space-xl);}
+  .search-box {min-height:44px;max-width:480px;border-radius:var(--radius-md);background:var(--bg-1);}
+  .search-box:focus-within {outline:2px solid var(--focus);outline-offset:1px;}
+  .search-box input {min-width:0;}
+  .controls select {min-height:44px;border-radius:var(--radius-md);background:var(--bg-1);}
+  .category-section {margin-bottom:var(--space-xl);}
+  .category-header {margin-bottom:var(--space-md);padding-bottom:var(--space-sm);
+    border-bottom:1px solid var(--divider);font-size:var(--text-lg);letter-spacing:var(--tracking-tight);}
+  .category-header .count {font-size:var(--text-xs);color:var(--ink-secondary);
+    border:1px solid var(--border);border-radius:var(--radius-sm);}
+  .materials-grid {grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));
+    gap:var(--space-md);}
+  .material-card {background:var(--glass-bg-strong);border-color:var(--glass-border);
+    border-radius:var(--radius-md);min-width:0;box-shadow:var(--glass-shadow-sm);}
+  .material-card:hover {border-color:color-mix(in oklab,var(--brand) 35%,var(--border));}
+  .material-color {width:9px;}
+  .material-info {padding:var(--space-md);min-width:0;}
+  .material-info h3 {font-size:var(--text-sm);letter-spacing:0;color:var(--ink-primary);}
+  .material-code {color:var(--ink-tertiary);font-variant-numeric:tabular-nums;}
+  .material-brand,.transmittance {color:var(--ink-secondary);}
+  .thickness-tag {border:1px solid var(--border);background:var(--bg-2);
+    border-radius:var(--radius-sm);color:var(--ink-secondary);}
+  .thickness-tag.more {background:var(--brand-soft);color:var(--brand);border-color:var(--brand);}
+  .material-actions {gap:var(--space-xs);padding:var(--space-sm);
+    background:var(--bg-1);align-items:center;}
+  .btn-icon {width:40px;height:40px;min-height:40px;border-radius:var(--radius-sm);
+    display:inline-flex;align-items:center;justify-content:center;color:var(--ink-secondary);}
+  .btn-icon:hover {color:var(--ink-primary);}
+  .alert-success {color:var(--ok);}
+  .alert-error {color:var(--error);}
+  .modal {background:var(--bg-1);border:1px solid var(--border);
+    border-radius:var(--radius-lg);max-height:calc(100dvh - 32px);}
+  .modal-body {overscroll-behavior:contain;}
+  .modal-header,.modal-footer {gap:var(--space-md);}
+  .modal-footer {flex-wrap:wrap;}
+  .btn-close {width:40px;min-height:40px;display:inline-flex;justify-content:center;
+    align-items:center;border-radius:var(--radius-sm);}
+  .form-group input,.form-group select {min-height:44px;background:var(--bg-1);
+    border-radius:var(--radius-sm);color:var(--ink-primary);}
+  .form-group input:focus-visible,.form-group select:focus-visible,.controls select:focus-visible,
+  .btn-icon:focus-visible,.btn-close:focus-visible,.btn-primary:focus-visible {
+    outline:2px solid var(--focus);outline-offset:2px;}
+  @media(max-width:700px) {
+    .materials-page {padding:var(--space-sm) 0 var(--space-xl);}
+    .controls {flex-direction:column;align-items:stretch;}
+    .search-box {max-width:none;}
+    .modal-header,.modal-body,.modal-footer {padding:var(--space-md);}
+    .form-row {grid-template-columns:1fr;}
+  }
+  @media(prefers-reduced-transparency:reduce) {.material-card {background:var(--bg-1);}}
 </style>
