@@ -185,7 +185,7 @@
   <aside class="sessions-panel">
     <div class="sessions-header">
       <span class="sessions-title">{$t('ailab.chat.conversations')}</span>
-      <button class="icon-btn" onclick={createSession} title={$t('ailab.chat.new_convo')}>
+      <button type="button" class="icon-btn" onclick={createSession} title={$t('ailab.chat.new_convo')} aria-label={$t('ailab.chat.new_convo')}>
         <Icon name="plus" size="sm" />
       </button>
     </div>
@@ -201,8 +201,10 @@
       <div class="session-list">
         {#each sessions as s (s.id)}
           <button
+            type="button"
             class="session-item"
             class:active={activeSession?.id === s.id}
+            aria-pressed={activeSession?.id === s.id}
             onclick={() => openSession(s)}
           >
             <span class="session-title">{s.title}</span>
@@ -216,7 +218,7 @@
   </aside>
 
   <!-- Main chat -->
-  <main class="chat-main">
+  <section class="chat-main">
     {#if !activeSession}
       <div class="empty-chat">
         <Icon name="message-square" size="md" />
@@ -238,7 +240,7 @@
         </div>
       {/if}
 
-      <div class="messages" bind:this={scroller}>
+      <div class="messages" bind:this={scroller} role="log" aria-live="polite" aria-relevant="additions" aria-label={$t('ailab.chat.conversations')}>
         {#if loading}
           <div class="empty-state">{$t('ailab.chat.loading_msgs')}</div>
         {:else if messages.length === 0}
@@ -272,12 +274,13 @@
       <div class="input-area">
         <textarea
           bind:value={input}
+          aria-label={$t('ailab.chat.placeholder')}
           placeholder={$t('ailab.chat.placeholder')}
           rows={3}
           disabled={sendLoading}
           onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
         ></textarea>
-        <button class="send-btn" onclick={send} disabled={sendLoading || !input.trim()}>
+        <button type="button" class="send-btn" onclick={send} disabled={sendLoading || !input.trim()} aria-label={$t('ailab.chat.send', { default: 'Send message' })}>
           {#if sendLoading}
             <div class="spin"></div>
           {:else}
@@ -286,15 +289,16 @@
         </button>
       </div>
     {/if}
-  </main>
+  </section>
 </div>
 
 <style>
   .chat-toolkit {
     display: grid;
     grid-template-columns: 240px 1fr;
-    height: calc(100vh - var(--topbar-h, 56px) - 160px);
-    min-height: 400px;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-lg);
     overflow: hidden;
@@ -517,4 +521,39 @@
     animation: spin 0.7s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Graphite chat surfaces, with conversation list reachable on small screens. */
+  .chat-toolkit { grid-template-columns:minmax(210px,240px) minmax(0,1fr);
+    border-color:var(--glass-border); background:var(--bg-0); backdrop-filter:none; }
+  .sessions-panel { min-width:0; background:var(--bg-1); }
+  .sessions-header { min-height:56px; }
+  .session-item { min-height:44px; gap:var(--space-xs); border:1px solid transparent; }
+  .session-item.active { color:var(--ink-primary); background:var(--brand-soft);
+    border-color:color-mix(in oklab,var(--brand) 28%,var(--border)); }
+  .chat-main { min-width:0; }
+  .chat-header { min-height:56px; }
+  .msg-bubble { max-width:min(78%,680px); border:1px solid var(--border);
+    background:var(--bg-1); border-radius:var(--radius-md); }
+  .msg.user .msg-bubble { border-color:color-mix(in oklab,var(--brand) 25%,var(--border)); }
+  .msg-role { color:var(--ink-secondary); }
+  .msg.user .msg-role { color:var(--brand); }
+  .messages { overscroll-behavior:contain; }
+  .input-area textarea { min-width:0; max-height:160px; border-radius:var(--radius-md); }
+  .input-area textarea:focus-visible { outline:2px solid var(--focus);outline-offset:1px; }
+  .send-btn { min-width:44px;min-height:44px; background:var(--brand);color:var(--on-brand);
+    border-radius:var(--radius-md); }
+  .send-btn:hover:not(:disabled) { background:var(--brand-2); }
+  .icon-btn { width:40px;height:40px;min-height:40px; }
+  @media(max-width:780px) {
+    .chat-toolkit { grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); }
+    .sessions-panel { max-height:146px;border-right:0;border-bottom:1px solid var(--border); }
+    .sessions-header { min-height:44px;padding:6px 12px; }
+    .session-list { flex-direction:row;overflow-x:auto;overflow-y:hidden;gap:var(--space-xs); }
+    .session-item { flex:0 0 180px;max-width:220px; }
+    .empty-state { padding:var(--space-md); }
+    .msg-bubble { max-width:95%; }
+    .messages { padding:var(--space-md); }
+    .input-area { padding:var(--space-sm); }
+  }
+  @media(prefers-reduced-motion:reduce) { .typing span { animation:none; } }
 </style>
