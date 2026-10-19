@@ -89,6 +89,7 @@
               type="button"
               class="section-option"
               class:active={material.section === section.id}
+              aria-pressed={material.section === section.id}
               onclick={() => material.section = section.id}
             >
               <span class="section-icon">{section.icon}</span>
@@ -162,7 +163,7 @@
               <label for="hex_color">{$t('inventory.hex_color', { default: 'Color Preview' })}</label>
               <div class="color-input-wrapper">
                 <input id="hex_color" type="color" bind:value={material.hex_color} />
-                <input type="text" bind:value={material.hex_color} placeholder="#000000" class="color-text" />
+                <input type="text" bind:value={material.hex_color} aria-label={$t('inventory.hex_color')} placeholder="#000000" class="color-text" />
               </div>
             </div>
           </div>
@@ -437,4 +438,48 @@
     justify-content: center;
   }
 }
+
+  /* Native material creation retains all original field names and save payload. */
+  .new-material-page {max-width:1050px;padding:var(--space-lg) 0 var(--space-2xl);}
+  .page-header {padding:var(--space-md) 0;border-bottom:1px solid var(--divider);}
+  .back-link {min-height:44px;background:var(--bg-1);border:1px solid var(--border);
+    color:var(--ink-secondary);border-radius:var(--radius-sm);}
+  .back-link:hover {color:var(--ink-primary);background:var(--bg-2);}
+  .form-container {position:relative;min-width:0;background:var(--glass-bg-strong);
+    border:1px solid var(--glass-border);border-radius:var(--radius-lg);
+    padding:var(--space-xl);box-shadow:var(--glass-shadow-sm);}
+  .form-container::before {content:'';position:absolute;top:0;left:0;height:2px;width:90px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
+  .form-header {gap:var(--space-md);border-color:var(--divider);}
+  .form-header :global(svg) {color:var(--brand);}
+  .form-header h1 {font-size:clamp(1.5rem,2.6vw,2rem);letter-spacing:var(--tracking-tight);}
+  .form-section {border-bottom:1px solid var(--divider);padding-bottom:var(--space-lg);
+    margin-bottom:var(--space-lg);}
+  .section-title {font-size:var(--text-lg);font-weight:750;color:var(--ink-primary);}
+  .section-grid {grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));}
+  .section-option {min-height:96px;background:var(--bg-1);border:1px solid var(--border);
+    color:var(--ink-primary);border-radius:var(--radius-md);}
+  .section-option.active {border-color:var(--brand);background:var(--brand-soft);
+    box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--brand) 15%,transparent);}
+  .section-option:hover {border-color:var(--brand);}
+  .form-grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-md);}
+  .form-field {min-width:0;}
+  .form-field label {color:var(--ink-secondary);font-weight:650;}
+  .form-field input,.form-field select {min-height:44px;background:var(--bg-1);
+    color:var(--ink-primary);border:1px solid var(--border);border-radius:var(--radius-sm);}
+  .form-field input:focus-visible,.form-field select:focus-visible,
+  .section-option:focus-visible,.back-link:focus-visible,.form-actions a:focus-visible,
+  .form-actions button:focus-visible {outline:2px solid var(--focus);outline-offset:2px;}
+  .stock-note {line-height:1.55;color:var(--ink-secondary);}
+  .form-actions {gap:var(--space-sm);flex-wrap:wrap;}
+  .form-actions .btn-primary,.form-actions .btn-secondary {min-height:44px;border-radius:var(--radius-md);}
+  .form-actions .btn-primary {background:var(--brand);color:var(--on-brand);box-shadow:none;}
+  .form-actions .btn-primary:hover:not(:disabled) {background:var(--brand-2);transform:none;}
+  .form-actions .btn-secondary {background:var(--bg-1);color:var(--ink-primary);}
+  @media(max-width:720px) {.new-material-page {padding:var(--space-sm) 0 var(--space-xl);}
+    .form-container {padding:var(--space-md);}
+    .form-grid {grid-template-columns:minmax(0,1fr);}
+    .section-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+    .form-actions {flex-direction:column-reverse;}}
+  @media(prefers-reduced-transparency:reduce) {.form-container{background:var(--bg-1);}}
 </style>
