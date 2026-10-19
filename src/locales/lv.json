@@ -484,6 +484,8 @@
     "log": "Reģistrēt"
   },
   "calendar": {
+    "prevMonth": "Iepriekšējais mēnesis",
+    "nextMonth": "Nākamais mēnesis",
     "title": "Kalendārs",
     "upcoming": "Tuvākie",
     "all": "Visi",
