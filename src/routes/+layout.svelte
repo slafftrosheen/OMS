@@ -58,12 +58,13 @@
   );
   let currentPath   = $derived(page.url.pathname);
 
+  // Browser chrome follows the surface, not the previous blue accent.
   const themeColors: Record<string, string> = {
-    LightVim:        'oklch(0.40 0.18 258)',
-    DarkVim:         'oklch(0.74 0.14 258)',
-    HighContrastVim: '#6699ff'
+    LightVim:        '#f7f7f8',
+    DarkVim:         '#050505',
+    HighContrastVim: '#000000'
   };
-  let themeColor = $derived(themeColors[($ui).theme] ?? 'oklch(0.74 0.14 258)');
+  let themeColor = $derived(themeColors[($ui).theme] ?? '#050505');
 
   // Close mobile menu on nav
   function navTo() { mobileMenuOpen = false; }
@@ -237,8 +238,8 @@
   <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32x32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16x16.png" />
-  <link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#5c6bc0" />
-  <meta name="msapplication-TileColor" content="#5c6bc0" />
+  <link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#ff2d55" />
+  <meta name="msapplication-TileColor" content="#ff2d55" />
   <meta name="msapplication-config" content="/browserconfig.xml" />
 </svelte:head>
 
@@ -262,6 +263,11 @@
 
       <!-- Desktop nav (≥1025px) -->
       <nav class="rf-topbar__nav" aria-label={$t('a11y.nav', { default: 'Primary navigation' })}>
+        <a href="{base}/" class:active={currentPath === `${base}/` || currentPath === base} onclick={navTo}
+           aria-current={currentPath === `${base}/` || currentPath === base ? 'page' : undefined}>
+          <Icon name="layout-dashboard" size="sm" />
+          <span>{$t('nav.dashboard', { default: 'Dashboard' })}</span>
+        </a>
         <a href="{base}/orders"    class:active={currentPath.includes('/orders')}    onclick={navTo}>
           <Icon name="clipboard-list" size="sm" />
           <span>{$t('nav.orders',    { default: 'Orders' })}</span>
