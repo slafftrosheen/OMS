@@ -274,6 +274,9 @@
     }
   },
   "orderLists": {
+    "status_filter": "Filter by status",
+    "scroll_hint": "Swipe sideways to see more order details.",
+    "table_region": "Scrollable orders table",
     "title": "Orders",
     "new": "New Order",
     "headers": {
@@ -1195,6 +1198,7 @@
       "secs": "Secs"
     },
     "chat": {
+      "send": "Send message",
       "title": "Conversations",
       "start_desc": "Start a conversation or select one from the left.",
       "conversations": "Conversations",
@@ -1881,6 +1885,7 @@
     "showMore": "Show more signals"
   },
   "productionPlanning": {
+    "totalsLabel": "Production board totals",
     "pendingPo": "Pending PO",
     "untitled": "Untitled order",
     "unknownClient": "Unknown client",
@@ -2483,6 +2488,7 @@
     "canvasTab": "Canvas",
     "chatTab": "Conversations",
     "canvas": {
+      "boardTitle": "Project title",
       "savedFiles": "Saved files",
       "savedFilesHelp": "Uploaded files are kept here even when Canvas placement or saving fails. Select a file to attach it to this board.",
       "refreshSavedFiles": "Refresh files",
