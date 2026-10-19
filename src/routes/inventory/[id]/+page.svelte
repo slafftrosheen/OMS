@@ -241,11 +241,11 @@
           <div class="adjust-buttons">
             <button class="btn-success" disabled={adjusting} onclick={() => adjust('IN')}>
               <Plus size={16} />
-              {$t('inventory.actions.add')}
+              {$t('inventoryDetail.addStock')}
             </button>
             <button class="btn-warning" disabled={adjusting} onclick={() => adjust('OUT')}>
               <Minus size={16} />
-              {$t('inventory.actions.consume')}
+              {$t('inventoryDetail.removeStock')}
             </button>
           </div>
         </div>
