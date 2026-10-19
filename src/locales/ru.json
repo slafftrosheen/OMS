@@ -2544,6 +2544,10 @@
     "scan_qr": "Сканировать QR-код заказа"
   },
   "inventoryDetail": {
+    "notes": "Примечания",
+    "decreaseQuantity": "Уменьшить количество",
+    "increaseQuantity": "Увеличить количество",
+    "adjustQuantity": "Количество для корректировки",
     "material_name": "Название материала",
     "supplier": "Поставщик",
     "price": "Цена",
