@@ -850,7 +850,7 @@ body::before {
    ============================================================ */
 
 .rf-btn,
-button:not(.tag):not(.icon-btn):not([data-variant]) {
+button:not([class]):not([data-variant]) {
   background: var(--brand);
   color: var(--on-brand);
   border: none;
@@ -872,18 +872,18 @@ button:not(.tag):not(.icon-btn):not([data-variant]) {
   box-shadow: 0 4px 14px color-mix(in oklab, var(--brand) 30%, transparent);
 }
 .rf-btn:hover,
-button:not(.tag):not(.icon-btn):not([data-variant]):hover {
+button:not([class]):not([data-variant]):hover {
   transform: translateY(-1px);
   filter: brightness(1.07);
   box-shadow: 0 6px 20px color-mix(in oklab, var(--brand) 42%, transparent);
 }
 .rf-btn:active,
-button:not(.tag):not(.icon-btn):not([data-variant]):active {
+button:not([class]):not([data-variant]):active {
   transform: translateY(0) scale(0.97);
   filter: brightness(0.97);
 }
 .rf-btn:disabled,
-button:not(.tag):not(.icon-btn):not([data-variant]):disabled {
+button:not([class]):not([data-variant]):disabled {
   opacity: 0.45; cursor: not-allowed; transform: none; filter: none; box-shadow: none;
 }
 
