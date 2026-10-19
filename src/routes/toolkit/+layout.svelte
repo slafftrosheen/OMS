@@ -28,16 +28,50 @@
   <section class="toolkit-body">{@render children()}</section>
 </div>
 <style>
-  .toolkit{width:100%;height:calc(100vh - var(--topbar-h,56px));min-height:600px;display:flex;flex-direction:column;gap:10px;padding:12px;max-width:100%;margin:auto}
-  .toolkit-header{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:11px 16px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:16px}
-  .identity{display:flex;gap:11px;align-items:center}
-  .identity-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:14px;background:var(--brand-soft);color:var(--brand)}
-  .eyebrow{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-tertiary)}
-  h1{font-size:21px;line-height:1.15;letter-spacing:-.03em;margin:3px 0 0}
-  .toolkit-tabs{display:flex;gap:6px;flex-wrap:wrap}
-  .toolkit-tabs a{display:flex;align-items:center;gap:8px;min-height:40px;border-radius:10px;padding:8px 12px;text-decoration:none;color:var(--ink-secondary);font-size:13px}
-  .toolkit-tabs a:hover,.toolkit-tabs a.active{color:var(--brand);background:var(--brand-soft)}
-  .toolkit-tabs a:focus-visible{outline:2px solid var(--brand)}
-  .toolkit-body{position:relative;min-height:0;display:flex;flex:1;overflow:hidden}
-  @media(max-width:680px){.toolkit{padding:6px;min-height:500px}.toolkit-header{padding:8px 12px}.toolkit-tabs a{padding:6px 9px}.eyebrow{display:none}}
+  /* The Toolkit is an operator workspace, not a second landing page. */
+  .toolkit {
+    width:100%; max-width:100%; min-width:0; margin:0 auto; padding:0;
+    display:flex; flex-direction:column; gap:var(--space-sm);
+    height:calc(100dvh - var(--topbar-h) - var(--bottombar-h) - 2 * var(--space-xl));
+    min-height:580px;
+  }
+  .toolkit-header {
+    display:flex; align-items:center; justify-content:space-between;
+    gap:var(--space-md); flex-wrap:wrap; padding:var(--space-md) var(--space-lg);
+    background:var(--glass-bg-strong); border:1px solid var(--glass-border);
+    border-radius:var(--radius-lg); position:relative;
+  }
+  .toolkit-header::before {
+    content:'';position:absolute;left:0;top:0;width:84px;height:2px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);
+  }
+  .identity { display:flex; gap:var(--space-md); align-items:center; min-width:0; }
+  .identity-icon { width:38px;height:38px;display:grid;place-items:center;
+    border:1px solid color-mix(in oklab,var(--brand) 28%,var(--border));
+    border-radius:var(--radius-md);background:var(--brand-soft);color:var(--brand); }
+  .eyebrow { font-size:var(--text-xs);letter-spacing:.10em;text-transform:uppercase;
+    color:var(--ink-tertiary); }
+  h1 { font-size:var(--text-xl);line-height:1.15;letter-spacing:var(--tracking-tight);margin:2px 0 0; }
+  .toolkit-tabs { display:flex;gap:var(--space-xs);min-width:0;flex-wrap:wrap; }
+  .toolkit-tabs a { display:inline-flex;align-items:center;gap:var(--space-sm);
+    min-height:42px;border-radius:var(--radius-sm);padding:8px 14px;
+    text-decoration:none;color:var(--ink-secondary);font-size:var(--text-sm);
+    border:1px solid transparent;font-weight:600; }
+  .toolkit-tabs a:hover { color:var(--ink-primary);background:var(--bg-2); }
+  .toolkit-tabs a.active { color:var(--brand);background:var(--brand-soft);
+    border-color:color-mix(in oklab,var(--brand) 30%,var(--border)); }
+  .toolkit-tabs a:focus-visible { outline:2px solid var(--focus);outline-offset:2px; }
+  .toolkit-body { position:relative;min-height:0;min-width:0;display:flex;flex:1;overflow:hidden; }
+  @media(max-width:800px) {
+    .toolkit {
+      height:calc(100dvh - var(--topbar-h) - var(--mobile-nav-h) - 2 * var(--space-md));
+      min-height:520px;
+    }
+    .toolkit-header { padding:var(--space-sm) var(--space-md); gap:var(--space-xs); }
+    .identity-icon { width:32px;height:32px; }
+    .toolkit-tabs { width:100%; }
+    .toolkit-tabs a { flex:1;justify-content:center; }
+    .eyebrow { display:none; }
+  }
+  @media(prefers-reduced-transparency:reduce) { .toolkit-header { background:var(--bg-1); } }
 </style>
