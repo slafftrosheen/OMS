@@ -214,7 +214,7 @@
      {#if candidates.length===0}
        <p>{$t('inventoryReplenishment.noCandidates')}</p>
      {:else}
-       <div class="table-wrap"><table>
+       <div class="table-wrap" role="region" tabindex="0" aria-label={$t('inventoryReplenishment.reviewCandidates')}><table>
          <thead><tr>
            <th>{$t('inventoryReplenishment.material')}</th>
            <th>{$t('inventoryReplenishment.stock')}</th>
@@ -248,7 +248,7 @@
      <h2>{$t('inventoryReplenishment.activeRequests')}</h2>
      {#if active.length===0}<p>{$t('inventoryReplenishment.noActive')}</p>
      {:else}
-       <div class="table-wrap"><table>
+       <div class="table-wrap" role="region" tabindex="0" aria-label={$t('inventoryReplenishment.activeRequests')}><table>
          <thead><tr>
            <th>{$t('inventoryReplenishment.material')}</th>
            <th>{$t('inventoryReplenishment.quantity')}</th>
@@ -310,7 +310,7 @@
        <h2>{$t('inventoryReplenishment.closedRequests')}</h2>
        {#if finished.length===0}<p>{$t('inventoryReplenishment.noClosed')}</p>
        {:else}
-         <div class="table-wrap"><table><tbody>
+         <div class="table-wrap" role="region" tabindex="0" aria-label={$t('inventoryReplenishment.history')}><table><tbody>
            {#each finished as req (req.id)}
              <tr><td>{requestMaterials.get(req.material_id)?.sku??req.material_id}</td>
                <td>{req.quantity} {req.unit}</td>
@@ -338,8 +338,8 @@
    {/if}
    {#if editorOpen}
      <div class="scrim">
-       <form class="editor" onsubmit={e=>{e.preventDefault();void submit();}}>
-         <h2>{$t(`inventoryReplenishment.actionsByKind.${action}`)}</h2>
+       <form class="editor" role="dialog" aria-modal="true" aria-labelledby="replenishment-dialog-title" onsubmit={e=>{e.preventDefault();void submit();}}>
+         <h2 id="replenishment-dialog-title">{$t(`inventoryReplenishment.actionsByKind.${action}`)}</h2>
          <p class="small">{$t('inventoryReplenishment.editingWarning')}</p>
          {#if selectedCandidate}
            <p><strong>{selectedCandidate.sku}</strong> · {selectedCandidate.name}
@@ -400,4 +400,51 @@
    padding:1rem;background:var(--bg-1);color:var(--text);border-radius:12px}
  .editor label{display:grid;gap:.3rem;font-size:.84rem}
  .events{padding-left:1rem;font-size:.75rem;max-height:220px;overflow:auto}
+
+  /* Purchasing preparation: clear commitments, no invented procurement status. */
+  .replenishment {max-width:1440px;gap:var(--space-lg);padding:var(--space-lg) 0 var(--space-2xl);}
+  .heading {position:relative;padding:var(--space-lg) 0;border-bottom:1px solid var(--divider);}
+  .heading::before {content:'';position:absolute;left:0;top:0;height:2px;width:90px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
+  .replenishment h1 {font-size:clamp(1.5rem,2.5vw,2rem);letter-spacing:var(--tracking-tight);}
+  .replenishment h2 {font-size:var(--text-lg);font-weight:700;}
+  .replenishment p {line-height:1.55;}
+  .replenishment .caution {color:var(--warn);}
+  .summary {grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-sm);}
+  .summary > div {background:var(--bg-1);border:1px solid var(--border);
+    border-radius:var(--radius-md);padding:var(--space-lg);}
+  .summary strong {font-size:clamp(1.4rem,2.2vw,1.85rem);font-variant-numeric:tabular-nums;}
+  .summary span {color:var(--ink-tertiary);font-size:var(--text-xs);}
+  .toolbar {gap:var(--space-sm);min-width:0;}
+  .toolbar label {display:inline-flex;align-items:center;gap:var(--space-xs);}
+  .toolbar input[type='checkbox'] {accent-color:var(--brand);}
+  .toolbar input[type='search'] {max-width:420px;min-width:min(240px,100%);min-height:44px;}
+  .replenishment button,.toolbar a,.heading a {min-height:42px;display:inline-flex;
+    align-items:center;justify-content:center;color:var(--ink-primary);
+    background:var(--bg-1);border:1px solid var(--border);
+    border-radius:var(--radius-sm);padding:8px 12px;font-weight:650;text-decoration:none;}
+  .replenishment button:hover:not(:disabled),.toolbar a:hover,.heading a:hover {
+    background:var(--bg-2);border-color:var(--border-strong);}
+  .table-wrap {background:var(--glass-bg-strong);border:1px solid var(--glass-border);
+    border-radius:var(--radius-lg);max-width:100%;overflow:auto;scrollbar-width:thin;}
+  .table-wrap table {min-width:780px;width:100%;font-variant-numeric:tabular-nums;}
+  .table-wrap th {position:sticky;top:0;background:var(--bg-1);color:var(--ink-tertiary);
+    z-index:1;font-size:var(--text-xs);}
+  .table-wrap th,.table-wrap td {border-bottom:1px solid var(--divider);padding:11px 13px;}
+  .table-wrap tbody tr:hover {background:var(--bg-2);}
+  .editor {width:min(580px,100%);padding:var(--space-xl);max-height:calc(100dvh - 32px);
+    border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--glass-shadow-lg);}
+  .editor input,.editor textarea {min-height:44px;background:var(--bg-2);
+    color:var(--ink-primary);border-radius:var(--radius-sm);}
+  .editor button[type='submit'] {background:var(--brand);color:var(--on-brand);border-color:var(--brand);}
+  .editor button[type='submit']:hover:not(:disabled) {background:var(--brand-2);}
+  .table-wrap:focus-visible,.replenishment button:focus-visible,.toolbar a:focus-visible,
+  .heading a:focus-visible,.editor input:focus-visible,.editor textarea:focus-visible {
+    outline:2px solid var(--focus);outline-offset:2px;}
+  @media(max-width:760px) {.replenishment {padding:var(--space-sm) 0 var(--space-xl);}
+    .summary {grid-template-columns:repeat(2,minmax(0,1fr));}
+    .heading {align-items:stretch;}.editor {padding:var(--space-md);}}
+  @media(max-width:430px) {.summary {grid-template-columns:minmax(0,1fr);}
+    .toolbar input[type='search'] {width:100%;max-width:100%;}}
+  @media(prefers-reduced-transparency:reduce) {.table-wrap {background:var(--bg-1);}}
 </style>
