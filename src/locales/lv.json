@@ -2544,6 +2544,10 @@
     "scan_qr": "Skenēt pasūtījuma QR kodu"
   },
   "inventoryDetail": {
+    "notes": "Piezīmes",
+    "decreaseQuantity": "Samazināt daudzumu",
+    "increaseQuantity": "Palielināt daudzumu",
+    "adjustQuantity": "Koriģējamais daudzums",
     "material_name": "Materiāla nosaukums",
     "supplier": "Piegādātājs",
     "price": "Cena",
