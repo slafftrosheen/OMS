@@ -86,6 +86,8 @@
   },
   "orders": {
     "review": {
+      "rejected": "Pasūtījums noraidīts",
+      "rejectFailed": "Neizdevās noraidīt pasūtījumu. Mēģiniet vēlreiz.",
       "title": "Apstiprināšanas rinda",
       "subtitle": "Pasūtījumi, kas gaida ražošanas pārbaudi un PO numura piešķiršanu",
       "loadFailed": "Neizdevās ielādēt apstiprināšanas rindu. Mēģiniet vēlreiz.",
