@@ -2544,6 +2544,8 @@
     "scan_qr": "Skenēt pasūtījuma QR kodu"
   },
   "inventoryDetail": {
+    "addStock": "Papildināt krājumus",
+    "removeStock": "Izņemt no krājumiem",
     "notes": "Piezīmes",
     "decreaseQuantity": "Samazināt daudzumu",
     "increaseQuantity": "Palielināt daudzumu",
