@@ -89,7 +89,7 @@
       {$t('inventory.movements_page.empty', { default: 'No movements recorded.' })}
     </p>
   {:else}
-    <div class="table-wrap">
+    <div class="table-wrap" role="region" tabindex="0" aria-label={$t('inventory.movements_page.title')}>
       <table class="rf-table">
         <thead>
           <tr>
@@ -155,8 +155,8 @@
     border-radius: var(--radius-full, 999px);
     background: color-mix(in oklab, var(--ink-primary) 6%, transparent);
   }
-  .kind-out, .kind-order { color: var(--brand); background: color-mix(in oklab, var(--brand) 14%, transparent); }
-  .kind-in { color: #34c759; background: color-mix(in oklab, #34c759 14%, transparent); }
+  .kind-out, .kind-order { color: var(--error); background: var(--error-soft); }
+  .kind-in { color: var(--ok); background: var(--ok-soft); }
   .visually-hidden {
     position: absolute;
     width: 1px;
@@ -168,4 +168,33 @@
     white-space: nowrap;
     border: 0;
   }
+
+  /* Movement audit trail: real stock changes, status-specific colours. */
+  .card {min-width:0;background:var(--glass-bg-strong);border-color:var(--glass-border);
+    border-radius:var(--radius-lg);}
+  .row {position:relative;padding:var(--space-md) 0 var(--space-lg);
+    border-bottom:1px solid var(--divider);}
+  .row::before {content:'';position:absolute;top:0;left:0;height:2px;width:80px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
+  h1 {font-size:clamp(1.5rem,2.5vw,2rem);letter-spacing:var(--tracking-tight);}
+  .muted {color:var(--ink-secondary);line-height:1.5;}
+  .filters {flex-wrap:wrap;gap:var(--space-sm);}
+  .filters select,.filters button {min-height:44px;border-radius:var(--radius-sm);}
+  .filters button {background:var(--bg-1);color:var(--ink-primary);
+    border:1px solid var(--border);display:inline-flex;align-items:center;gap:var(--space-xs);}
+  .table-wrap {margin-top:var(--space-lg);max-width:100%;overflow:auto;scrollbar-width:thin;
+    border:1px solid var(--border);border-radius:var(--radius-md);}
+  .table-wrap:focus-visible,.filters button:focus-visible,.filters select:focus-visible {
+    outline:2px solid var(--focus);outline-offset:2px;}
+  .rf-table {min-width:830px;width:100%;font-variant-numeric:tabular-nums;}
+  .rf-table th {position:sticky;top:0;background:var(--bg-1);font-size:var(--text-xs);
+    color:var(--ink-tertiary);z-index:1;}
+  .rf-table th,.rf-table td {border-bottom:1px solid var(--divider);padding:10px 12px;}
+  .rf-table tbody tr:hover {background:var(--bg-2);}
+  .kind {border-radius:var(--radius-sm);border:1px solid var(--border);}
+  .kind-out,.kind-order {border-color:color-mix(in oklab,var(--error) 28%,var(--border));}
+  .kind-in {border-color:color-mix(in oklab,var(--ok) 28%,var(--border));}
+  .mono {font-variant-numeric:tabular-nums;}
+  @media(max-width:650px) {.row{align-items:stretch}.filters{width:100%}.filters select{flex:1;}}
+  @media(prefers-reduced-transparency:reduce) {.card{background:var(--bg-1);}}
 </style>
