@@ -195,11 +195,14 @@
     void tick().then(() => document.getElementById('reject-reason')?.focus());
   }
 
-  function closeReject(force = false) {
-    if (rejecting && !force) return;
+  function clearReject(): void {
     rejectTarget = null;
     rejectReason = '';
     restoreFocus();
+  }
+  function closeReject(): void {
+    if (rejecting) return;
+    clearReject();
   }
 
   async function submitReject() {
@@ -217,7 +220,7 @@
         return;
       }
       notifications.success($t('orders.review.rejected'));
-      closeReject(true);
+      clearReject();
       await load();
     } catch (err) {
       console.error(err);
