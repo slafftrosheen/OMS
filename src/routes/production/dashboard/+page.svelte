@@ -115,14 +115,14 @@
     <div class="card">
       <h2>{$t('production_dash.quick_actions', { default: 'Quick Actions' })}</h2>
       <div class="actions">
-        {#if !user || can(user, 'Production')}
+        {#if user && can(user, 'viewOrders')}
           <a href="{base}/orders" class="action-btn">
             <Icon name="clipboard-list" size="sm" />
             {$t('production_dash.view_orders', { default: 'View Orders' })}
           </a>
         {/if}
-        {#if !user || can(user, 'Production')}
-          <a href="{base}/kanban" class="action-btn">
+        {#if user && can(user, 'viewOrders')}
+          <a href="{base}/production" class="action-btn">
             <Icon name="kanban" size="sm" />
             {$t('production_dash.production_board', { default: 'Production Board' })}
           </a>
@@ -369,4 +369,28 @@
   .stats-row { grid-template-columns: repeat(2, 1fr); }
   .dashboard-header { flex-direction: column; }
 }
+
+  /* R04: graphite work overview, semantic production pressure, visible focus. */
+  .dashboard-container{max-width:1320px;padding:var(--space-lg) 0 var(--space-2xl);gap:var(--space-lg)}
+  .dashboard-header{position:relative;padding:var(--space-lg) 0;border-bottom:1px solid var(--divider)}
+  .dashboard-header::before{content:'';position:absolute;top:0;left:0;width:85px;height:2px;background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent)}
+  .dashboard-header h1{font-size:clamp(1.55rem,2.7vw,2.15rem);color:var(--ink-primary)}
+  .role-badge{border-radius:var(--radius-sm);border:1px solid color-mix(in oklab,var(--brand) 30%,var(--border))}
+  .btn-outline-sm{min-height:44px;border-radius:var(--radius-sm);color:var(--ink-primary)}
+  .stats-row{grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-sm)}
+  .stat-card{min-width:0;align-items:flex-start;text-align:start;border:1px solid var(--glass-border);background:var(--bg-1);border-radius:var(--radius-md);padding:var(--space-lg);gap:var(--space-sm);min-height:106px}
+  .stat-value{font-size:clamp(1.35rem,2.3vw,1.9rem);font-variant-numeric:tabular-nums;color:var(--ink-primary)}
+  .stat-label{text-transform:none;letter-spacing:.02em;text-align:start;line-height:1.35;color:var(--ink-secondary)}
+  .stat-card--warn{border-color:color-mix(in oklab,var(--warn) 40%,var(--border))}
+  .stat-card--danger{border-color:color-mix(in oklab,var(--error) 45%,var(--border))}
+  .stat-card--danger .stat-value{color:var(--error)}
+  .dashboard-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:var(--space-md)}
+  .card{min-width:0;background:var(--glass-bg-strong);border:1px solid var(--glass-border);border-radius:var(--radius-lg);padding:var(--space-xl)}
+  .card h2{color:var(--ink-primary);font-size:var(--text-lg)}
+  .action-btn,.station-badge{min-height:44px;background:var(--bg-1);border:1px solid var(--border);color:var(--ink-secondary);border-radius:var(--radius-sm);font-weight:650}
+  .action-btn:hover,.station-badge:hover{background:var(--bg-2);color:var(--ink-primary);border-color:var(--border-strong)}
+  .action-btn:focus-visible,.station-badge:focus-visible,.btn-outline-sm:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  @media(max-width:760px){.dashboard-container{padding:var(--space-sm) 0 var(--space-xl)}.stats-row{grid-template-columns:repeat(2,minmax(0,1fr))}.card{padding:var(--space-lg)}}
+  @media(prefers-reduced-motion:reduce){.stat-card--loading{animation:none}}
+  @media(prefers-reduced-transparency:reduce){.card{background:var(--bg-1)}}
 </style>
