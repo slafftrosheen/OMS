@@ -32,19 +32,19 @@ export class SwarmShapeUtil extends BaseBoxShapeUtil<SwarmShape> {
                     display: 'flex',
                     flexDirection: 'column',
                     backgroundColor: 'var(--bg-0)',
-                    border: '2px solid #3b82f6',
+                    border: '2px solid var(--brand)',
                     borderRadius: '12px',
                     boxShadow: 'var(--glass-shadow)',
                     overflow: 'hidden',
                     pointerEvents: 'all'
                 }}
             >
-                <div style={{ padding: '8px', background: '#3b82f6', color: 'white', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '14px' }}>
+                <div style={{ padding: '8px', background: 'var(--brand)', color: 'white', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '14px' }}>
                     🤖 {agentName}
                 </div>
                 <div style={{ padding: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignContent: 'flex-start', flex: 1 }}>
                     {caps.map((c, i) => (
-                        <span key={i} style={{ fontSize: '10px', background: '#dbeafe', color: '#1e40af', padding: '2px 6px', borderRadius: '4px' }}>
+                        <span key={i} style={{ fontSize: '10px', background: 'var(--bg-2)', color: 'var(--ink-secondary)', padding: '2px 6px', borderRadius: '4px' }}>
                             {c}
                         </span>
                     ))}
