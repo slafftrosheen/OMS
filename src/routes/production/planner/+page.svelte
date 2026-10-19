@@ -272,7 +272,7 @@
             <button type="button" onclick={()=>openStation(selectedStation,true)}
               disabled={saving}>{$t('capacityPlanner.discard')}</button>
             {#if canConfigure}
-              <button type="button" onclick={save} disabled={saving||!edited}>
+              <button type="button" class="save-capacity" onclick={save} disabled={saving||!edited}>
                 {saving?$t('capacityPlanner.saving'):$t('capacityPlanner.save')}
               </button>
             {/if}
@@ -429,8 +429,8 @@
   fieldset{border-radius:var(--radius-sm);border-color:var(--border)}
   .weekdays{grid-template-columns:repeat(auto-fit,minmax(72px,1fr))}
   .save-controls{justify-content:flex-end;gap:var(--space-xs)}
-  .save-controls button:last-child{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
-  .save-controls button:last-child:hover:not(:disabled){background:var(--brand-2)}
+  .save-controls button.save-capacity{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
+  .save-controls button.save-capacity:hover:not(:disabled){background:var(--brand-2)}
   .station{background:var(--bg-1);border-color:var(--border);border-radius:var(--radius-md);padding:var(--space-lg)}
   .station-head{align-items:flex-start;gap:var(--space-xs)}
   .station-head h3{font-size:var(--text-md);color:var(--ink-primary)}
