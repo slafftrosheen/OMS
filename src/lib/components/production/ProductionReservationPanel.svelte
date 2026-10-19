@@ -230,4 +230,41 @@
  button:disabled{opacity:.55;cursor:not-allowed}
  .error{color:var(--error)}.success{color:var(--brand)}.more{justify-self:start}
  @media(max-width:650px){.booking,.candidate{align-items:flex-start;justify-content:flex-start}}
+
+  /* R04: reservation commitments are semantic production states, not brand flair. */
+  .reservations{background:var(--glass-bg-strong);border-color:var(--glass-border);
+    border-radius:var(--radius-lg);padding:var(--space-xl);gap:var(--space-lg);min-width:0}
+  .head{gap:var(--space-md);padding-bottom:var(--space-sm);border-bottom:1px solid var(--divider)}
+  .head h2{font-size:var(--text-lg);font-weight:750;color:var(--ink-primary)}
+  .subhead{gap:var(--space-sm);padding-bottom:var(--space-xs);border-bottom:1px solid var(--divider)}
+  .subhead h3{font-size:var(--text-md);color:var(--ink-primary)}
+  .hint{color:var(--ink-secondary);line-height:1.5}
+  .warning{border:1px solid color-mix(in oklab,var(--warn) 35%,var(--border));
+    border-left:3px solid var(--warn);border-radius:var(--radius-sm);
+    background:var(--bg-1);line-height:1.5}
+  .success{color:var(--ok)}.error{color:var(--error)}
+  .records,.candidates{gap:var(--space-sm)}
+  .booking,.candidate{min-width:0;gap:var(--space-md);padding:var(--space-md);
+    background:var(--bg-1);border:1px solid var(--border);border-radius:var(--radius-md)}
+  .booking[data-status=APPROVED]{border-color:color-mix(in oklab,var(--ok) 40%,var(--border))}
+  .booking[data-status=PROPOSED]{border-color:color-mix(in oklab,var(--warn) 32%,var(--border))}
+  .booking[data-status=CANCELLED]{opacity:.72}
+  .booking-details{gap:var(--space-sm);font-variant-numeric:tabular-nums;min-width:0}
+  .state{border-radius:var(--radius-sm);background:var(--bg-2);
+    border:1px solid var(--border);padding:3px 8px;color:var(--ink-secondary)}
+  .booking[data-status=APPROVED] .state{background:var(--ok-soft);color:var(--ok)}
+  .booking[data-status=PROPOSED] .state{background:var(--warn-soft);color:var(--warn)}
+  .booking p{color:var(--ink-secondary);line-height:1.4;overflow-wrap:anywhere}
+  a{color:var(--ink-primary);font-weight:650;overflow-wrap:anywhere}
+  a:hover{color:var(--brand)}
+  button{min-height:44px;border-radius:var(--radius-sm);background:var(--bg-2);
+    color:var(--ink-primary);border:1px solid var(--border);padding:9px 12px}
+  button:hover:not(:disabled){border-color:var(--border-strong);background:var(--bg-3)}
+  button:focus-visible,a:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  .candidate strong{font-variant-numeric:tabular-nums}
+  @media(max-width:760px){.reservations{padding:var(--space-md)}
+    .head{align-items:flex-start;flex-wrap:wrap}.head button{flex:1 1 100%}
+    .booking,.candidate{flex-direction:column;align-items:stretch}
+    .booking-details{flex-wrap:wrap}.booking button,.candidate button{width:100%}}
+  @media(prefers-reduced-transparency:reduce){.reservations{background:var(--bg-1)}}
 </style>
