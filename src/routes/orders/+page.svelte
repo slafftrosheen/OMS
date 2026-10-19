@@ -284,15 +284,15 @@
         <Icon name="search" size="sm" />
         <Input bind:value={q} placeholder={$t('orderLists.filter_placeholder')} ariaLabel={$t('orderLists.filter_label')} />
       </div>
-      <div class="status-filters">
-        <button class="filter-btn" class:active={statusFilter === 'all'} onclick={() => { statusFilter = 'all'; currentPage = 1; }}>
+      <div class="status-filters" role="group" aria-label={$t('orderLists.status_filter', { default: 'Filter by status' })}>
+        <button type="button" class="filter-btn" class:active={statusFilter === 'all'} aria-pressed={statusFilter === 'all'} onclick={() => { statusFilter = 'all'; currentPage = 1; }}>
           {$t('orderLists.filters.all', { default: 'All' })} ({rows.length})
         </button>
-        <button class="filter-btn" class:active={statusFilter === 'active'} onclick={() => { statusFilter = 'active'; currentPage = 1; }}>
+        <button type="button" class="filter-btn" class:active={statusFilter === 'active'} aria-pressed={statusFilter === 'active'} onclick={() => { statusFilter = 'active'; currentPage = 1; }}>
           {$t('orderLists.filters.active', { default: 'Active' })} ({activeOrders})
         </button>
         {#if isAdmin}
-          <button class="filter-btn" class:active={statusFilter === 'draft'} onclick={() => { statusFilter = 'draft'; currentPage = 1; }}>
+          <button type="button" class="filter-btn" class:active={statusFilter === 'draft'} aria-pressed={statusFilter === 'draft'} onclick={() => { statusFilter = 'draft'; currentPage = 1; }}>
             {$t('orderLists.filters.drafts', { default: 'Drafts' })} ({draftOrders})
           </button>
         {/if}
@@ -304,33 +304,34 @@
   </div>
 
   <div class="table-wrapper">
-    <div class="rf-scroll" style="max-height:60vh">
+    <p class="mobile-table-hint">{$t('orderLists.scroll_hint', { default: 'Swipe sideways to see more order details.' })}</p>
+    <div class="rf-scroll" style="max-height:65vh" role="region" tabindex="0" aria-label={$t('orderLists.table_region', { default: 'Scrollable orders table' })}>
       <table class="rf-table orders-table">
         <thead>
           <tr>
             <th style="width:40px"></th>
             <th style="width:120px">
-              <button class="tag ghost" data-sort={sortKey === 'id' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('id')}>
+              <button type="button" class="sort-trigger" data-sort={sortKey === 'id' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('id')}>
                 {$t('orderLists.headers.po')}
               </button>
             </th>
             <th style="width:140px">
-              <button class="tag ghost" data-sort={sortKey === 'client' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('client')}>
+              <button type="button" class="sort-trigger" data-sort={sortKey === 'client' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('client')}>
                 {$t('orderLists.headers.client')}
               </button>
             </th>
             <th>
-              <button class="tag ghost" data-sort={sortKey === 'title' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('title')}>
+              <button type="button" class="sort-trigger" data-sort={sortKey === 'title' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('title')}>
                 {$t('orderLists.headers.title')}
               </button>
             </th>
             <th style="width:110px">
-              <button class="tag ghost" data-sort={sortKey === 'loadingDate' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('loadingDate')}>
+              <button type="button" class="sort-trigger" data-sort={sortKey === 'loadingDate' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('loadingDate')}>
                 {$t('orderLists.headers.loading')}
               </button>
             </th>
             <th style="width:100px">
-              <button class="tag ghost" data-sort={sortKey === 'due' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('due')}>
+              <button type="button" class="sort-trigger" data-sort={sortKey === 'due' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('due')}>
                 {$t('orderLists.headers.due')}
               </button>
             </th>
@@ -361,7 +362,6 @@
                       dragging.set({ type: 'po', po: row.id });
                     }}
                     ondragend={() => dragging.set(null)}
-                    aria-grabbed="true"
                     aria-label={$t('orderLists.drag_aria', { default: 'Drag {id} to a loading day', values: { id: row.id } })}>
                     {row.id}
                   </a>
@@ -1024,61 +1024,21 @@
   }
 
   @media (max-width: 768px) {
-    .filter-bar {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    
-    .filter-left {
-      flex-direction: column;
-    }
-    
-    .search-box {
-      width: 100%;
-      min-width: auto;
-    }
-    
-    .status-filters {
-      width: 100%;
-      justify-content: center;
-    }
-    
-    .pagination {
-      flex-direction: column;
-      gap: var(--space-sm);
-    }
-    
-    .pagination-info, .items-per-page {
-      width: 100%;
-      text-align: center;
-      justify-content: center;
-    }
-    
-    .orders-table th:nth-child(4),
-    .orders-table td:nth-child(4),
-    .orders-table th:nth-child(5),
-    .orders-table td:nth-child(5),
-    .orders-table th:nth-child(8),
-    .orders-table td:nth-child(8) {
-      display: none;
-    }
+    .page-header { gap: var(--space-lg); }
+    .header-actions { justify-content: flex-start; }
+    .filter-bar { flex-direction: column; align-items: stretch; }
+    .filter-left { flex-direction: column; align-items: stretch; }
+    .search-box { width: 100%; min-width: 0; }
+    .status-filters { max-width: 100%; overflow-x: auto; justify-content: flex-start; }
+    .pagination { flex-direction: column; align-items: stretch; }
+    .pagination-controls { justify-content: center; }
+    .pagination-info, .items-per-page { text-align: center; justify-content: center; }
+    .mobile-table-hint { display: block; }
   }
-
   @media (max-width: 480px) {
-    .orders-table th:nth-child(3),
-    .orders-table td:nth-child(3),
-    .orders-table th:nth-child(7),
-    .orders-table td:nth-child(7) {
-      display: none;
-    }
-    
-    .header-actions .btn span {
-      display: none;
-    }
-    
-    .header-actions .btn {
-      padding: 10px;
-    }
+    .header-actions .btn { min-height: 40px; }
+    .header-actions .btn span { display: inline; }
+    .kpi-section { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 
   .error-banner {
@@ -1188,4 +1148,49 @@
     font-size: var(--font-size-base);
     margin-bottom: var(--space-lg);
   }
+
+  /* LUMIGRID-inspired operator density: deliberate hierarchy, no floating pills. */
+  .page-header {
+    position: relative; padding: var(--space-lg) 0 var(--space-lg);
+    border-bottom: 1px solid var(--divider);
+    margin-bottom: var(--space-xl);
+  }
+  .page-header::before {
+    content: ''; position:absolute; top:0; left:0; width:72px; height:2px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);
+  }
+  .page-title { font-size:clamp(1.5rem,2.4vw,2.1rem); letter-spacing:var(--tracking-tight); }
+  .page-subtitle { font-size:var(--text-sm); max-width:65ch; }
+  .btn { min-height:40px; border-radius:var(--radius-md); line-height:1.2; }
+  .btn-primary { background:var(--brand); color:var(--on-brand); box-shadow:var(--elevation-1); }
+  .btn-primary:hover:not(:disabled) { background:var(--brand-2); box-shadow:var(--elevation-2); }
+  .kpi-section { gap:var(--space-sm); }
+  .orders-card { background:var(--glass-bg-strong); border-color:var(--glass-border); }
+  .filter-bar { background:var(--glass-bg-strong); padding:var(--space-lg); }
+  .search-box { border-radius:var(--radius-md); min-height:42px; }
+  .search-box:focus-within { border-color:var(--focus); box-shadow:var(--focus-ring-soft); }
+  .search-box :global(.rf-field) { flex:1; min-width:0; }
+  .status-filters { border-radius:var(--radius-md); gap:var(--space-xxs); }
+  .filter-btn { border-radius:var(--radius-sm); min-height:36px; white-space:nowrap; color:var(--ink-secondary); }
+  .filter-btn.active { background:var(--brand-soft); color:var(--brand); box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--brand) 32%,transparent); }
+  .filter-btn:focus-visible,.sort-trigger:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+  .rf-scroll { overflow:auto; scrollbar-width:thin; }
+  .orders-table { min-width:880px; }
+  .orders-table th { background:var(--bg-1); z-index:1; font-weight:650; }
+  .orders-table th,.orders-table td { padding:10px 12px; border-bottom:1px solid var(--divider); }
+  .orders-table .sort-trigger { min-height:34px; padding:6px 9px; display:inline-flex; align-items:center;
+    background:transparent; border:1px solid transparent; color:var(--ink-secondary);
+    border-radius:var(--radius-sm); cursor:pointer; font:inherit; letter-spacing:inherit; }
+  .sort-trigger:hover,.sort-trigger[data-sort="asc"],.sort-trigger[data-sort="desc"] {
+    border-color:var(--border); color:var(--ink-primary); background:var(--bg-2);
+  }
+  .sort-trigger[data-sort="asc"]::after { content:"↑"; color:var(--brand); }
+  .sort-trigger[data-sort="desc"]::after { content:"↓"; color:var(--brand); }
+  .order-row:hover { background:color-mix(in oklab,var(--brand) 5%,var(--bg-1)); }
+  .order-row:focus-within { background:var(--bg-2); }
+  .order-link { font-weight:700; font-variant-numeric:tabular-nums; }
+  .mobile-table-hint { display:none; padding:8px var(--space-lg); margin:0; font-size:var(--text-xs);
+    color:var(--ink-tertiary); border-bottom:1px solid var(--divider); }
+  .pagination-btn { min-height:40px; min-width:40px; border-radius:var(--radius-sm); }
+  @media (prefers-reduced-motion:reduce) { .order-row,.btn { transition:none; } }
 </style>
