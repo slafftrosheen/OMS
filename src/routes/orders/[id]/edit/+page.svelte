@@ -924,7 +924,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 </script>
 
 <svelte:head>
-  <title>Canvas — {poNumber || 'Order'} | OMS</title>
+  <title>{$t('orderWorkspace.editor.canvasTitle')} — {poNumber || 'Order'} | OMS</title>
 </svelte:head>
 
 <svelte:window onbeforeunload={(event) => {
@@ -938,7 +938,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   <!-- ── Top Bar ─────────────────────────────────────────────────────────── -->
   <header class="top-bar">
     <div class="top-bar-left">
-      <a href="{base}/orders/{data.id}" class="back-btn" title="Back to order">
+      <a href="{base}/orders/{data.id}" class="back-btn" title={$t('orderWorkspace.editor.backToOrder')} aria-label={$t('orderWorkspace.editor.backToOrder')}>
         <Icon name="arrow-left" size="sm" />
       </a>
       <div class="order-identity">
@@ -954,9 +954,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     <!-- Context bar: shows selection-aware controls -->
     <div class="context-bar">
       {#if !selectedShape && multiSelectCount === 0}
-        <span class="ctx-hint">Select a shape to see properties</span>
+        <span class="ctx-hint">{$t('orderWorkspace.editor.selectShape')}</span>
       {:else if multiSelectCount > 1}
-        <span class="ctx-hint">{multiSelectCount} shapes selected</span>
+        <span class="ctx-hint">{$t('orderWorkspace.editor.shapesSelected',{values:{count:multiSelectCount}})}</span>
         <div class="ctx-divider"></div>
         <button class="ctx-btn" onclick={() => applyBooleanOp('union')} title="Union (Maker.js)">∪ Union</button>
         <button class="ctx-btn" onclick={() => applyBooleanOp('subtract')} title="Subtract (Maker.js)">− Subtract</button>
@@ -1012,16 +1012,16 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     <!-- Primary actions — always visible -->
     <div class="top-bar-actions">
       <button class="action-btn ghost" onclick={() => goto(`${base}/orders/${data.id}`)}>
-        <Icon name="eye" size="sm" /> View
+        <Icon name="eye" size="sm" /> {$t('orderWorkspace.editor.view')}
       </button>
       {#if isAdmin}
         <button class="action-btn warn" onclick={() => { reworkModal = true; reworkReason = ''; }}>
-          <Icon name="rotate-ccw" size="sm" /> Rework
+          <Icon name="rotate-ccw" size="sm" /> {$t('orderWorkspace.editor.rework')}
         </button>
       {/if}
       <button class="action-btn primary" onclick={saveDraft} disabled={saving || !canEdit}
         title={$t('orderWorkspace.saveHelp')}>
-        <Icon name="save" size="sm" /> {saving ? 'Saving…' : 'Save Draft'}
+        <Icon name="save" size="sm" /> {saving ? $t('orderWorkspace.editor.saving') : $t('orderWorkspace.editor.saveDraft')}
       </button>
       {#if canApprove}
         <button class="action-btn success" onclick={async()=>{await refreshFileCount();confirmOrderModal=true;}} disabled={confirming}>
@@ -1064,7 +1064,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     <!-- ── Left Toolbox ────────────────────────────────────────────────── -->
     <aside class="toolbox">
       <div class="tool-section">
-        <span class="tool-section-label">Tools</span>
+        <span class="tool-section-label">{$t('orderWorkspace.editor.tools')}</span>
         {#each tools as tool}
           <button
             class="tool-btn"
@@ -1080,7 +1080,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       <div class="tool-divider"></div>
 
       <div class="tool-section">
-        <span class="tool-section-label">Nodes</span>
+        <span class="tool-section-label">{$t('orderWorkspace.editor.nodes')}</span>
         {#each nodeSpawners as node}
           <button
             class="tool-btn"
@@ -1095,7 +1095,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       <div class="tool-divider"></div>
 
       <div class="tool-section">
-        <span class="tool-section-label">Boolean</span>
+        <span class="tool-section-label">{$t('orderWorkspace.editor.boolean')}</span>
         <button class="tool-btn" title="Union selected Maker.js shapes" onclick={() => applyBooleanOp('union')}>∪</button>
         <button class="tool-btn" title="Subtract selected Maker.js shapes" onclick={() => applyBooleanOp('subtract')}>−</button>
         <button class="tool-btn" title="Intersect selected Maker.js shapes" onclick={() => applyBooleanOp('intersect')}>∩</button>
@@ -1107,13 +1107,13 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       {#if loading}
         <div class="canvas-loading">
           <div class="spinner"></div>
-          <p>Loading order canvas…</p>
+          <p>{$t('orderWorkspace.editor.loadingCanvas')}</p>
         </div>
       {:else if error}
         <div class="canvas-error">
           <Icon name="alert-circle" size="md" />
           <p>{error}</p>
-          <a href="{base}/orders" class="action-btn primary">Back to Orders</a>
+          <a href="{base}/orders" class="action-btn primary">{$t('orderWorkspace.editor.backToOrders')}</a>
         </div>
       {:else if canvasLoaded}
         {#await import('$lib/components/canvas/TldrawWrapper.svelte') then { default: TldrawWrapper }}
@@ -1183,29 +1183,29 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       <div class="docker-content">
         {#if rightTab === 'details'}
           <div class="order-field-panel">
-            <label>Client <input bind:value={clientName} disabled={!canEdit} maxlength="200" required /></label>
-            <label>Title <input bind:value={title} disabled={!canEdit} maxlength="200" /></label>
-            <label>Deadline <input type="date" bind:value={deadline} disabled={!canEdit} required /></label>
-            <label>Loading date <input type="date" bind:value={loadingDate} disabled={!canEdit} /></label>
-            <label>Priority
+            <label>{$t('orderWorkspace.editor.client')} <input bind:value={clientName} disabled={!canEdit} maxlength="200" required /></label>
+            <label>{$t('orderWorkspace.editor.title')} <input bind:value={title} disabled={!canEdit} maxlength="200" /></label>
+            <label>{$t('orderWorkspace.editor.deadline')} <input type="date" bind:value={deadline} disabled={!canEdit} required /></label>
+            <label>{$t('orderWorkspace.editor.loadingDate')} <input type="date" bind:value={loadingDate} disabled={!canEdit} /></label>
+            <label>{$t('orderWorkspace.editor.priority')}
               <select bind:value={priority} disabled={!canEdit}>
-                <option value="LOW">Low</option><option value="NORMAL">Normal</option>
-                <option value="HIGH">High</option><option value="URGENT">Urgent</option>
+                <option value="LOW">{$t('orderWorkspace.editor.priorityLow')}</option><option value="NORMAL">{$t('orderWorkspace.editor.priorityNormal')}</option>
+                <option value="HIGH">{$t('orderWorkspace.editor.priorityHigh')}</option><option value="URGENT">{$t('orderWorkspace.editor.priorityUrgent')}</option>
               </select>
             </label>
-            <label>Order notes <textarea bind:value={notes} rows="3" disabled={!canEdit}></textarea></label>
-            <label>Delivery address <textarea bind:value={deliveryAddress} rows="3" disabled={!canEdit}></textarea></label>
-            <label>Delivery contact <input bind:value={deliveryContact} disabled={!canEdit} /></label>
-            <label>Delivery phone <input bind:value={deliveryPhone} disabled={!canEdit} /></label>
-            <label>Delivery email <input type="email" bind:value={deliveryEmail} disabled={!canEdit} /></label>
+            <label>{$t('orderWorkspace.editor.notes')} <textarea bind:value={notes} rows="3" disabled={!canEdit}></textarea></label>
+            <label>{$t('orderWorkspace.editor.deliveryAddress')} <textarea bind:value={deliveryAddress} rows="3" disabled={!canEdit}></textarea></label>
+            <label>{$t('orderWorkspace.editor.deliveryContact')} <input bind:value={deliveryContact} disabled={!canEdit} /></label>
+            <label>{$t('orderWorkspace.editor.deliveryPhone')} <input bind:value={deliveryPhone} disabled={!canEdit} /></label>
+            <label>{$t('orderWorkspace.editor.deliveryEmail')} <input type="email" bind:value={deliveryEmail} disabled={!canEdit} /></label>
             <label class="checkbox-field">
-              <input type="checkbox" bind:checked={isRd} disabled={!canEdit} /> R&D order
+              <input type="checkbox" bind:checked={isRd} disabled={!canEdit} /> {$t('orderWorkspace.editor.rdOrder')}
             </label>
             {#if isRd}
-              <label>R&D notes <textarea bind:value={rdNotes} rows="3" disabled={!canEdit}></textarea></label>
+              <label>{$t('orderWorkspace.editor.rdNotes')} <textarea bind:value={rdNotes} rows="3" disabled={!canEdit}></textarea></label>
             {/if}
             <div class="profile-assistant-entry">
-              <h4 id="order-edit-profiles">Production profiles ({profiles.length})</h4>
+              <h4 id="order-edit-profiles">{$t('orderWorkspace.editor.profiles',{values:{count:profiles.length}})}</h4>
               {#if canAskOrderAssistant}
                 <button type="button" class="action-btn"
                   onclick={()=>askWorkflowHelp($t('orderAssistant.nativeProfileQuestion'),'profiles')}>
@@ -1274,7 +1274,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                 quantity:1,configuration:{},notes:'',profileTemplateId:null
               }]}>Add profile</button>
               <button class="action-btn primary" onclick={saveDraft} disabled={saving}>
-                {saving ? 'Saving…' : 'Save all changes'}
+                {saving ? $t('orderWorkspace.editor.saving') : $t('orderWorkspace.editor.saveAll')}
               </button>
             {/if}
             {#if activeNativeProfileIndex!==null && activeNativeProfile}
@@ -1467,18 +1467,18 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 {#if reworkModal}
   <div class="edit-modal-backdrop" onclick={() => reworkModal = false} role="dialog" aria-modal="true" tabindex="-1">
     <div class="edit-modal" onclick={(e) => e.stopPropagation()} role="document">
-      <h3>Request rework</h3>
-      <label for="rework-reason-input">Reason for rework request</label>
+      <h3>{$t('orderWorkspace.editor.requestRework')}</h3>
+      <label for="rework-reason-input">{$t('orderWorkspace.editor.reworkReason')}</label>
       <textarea
         id="rework-reason-input"
         bind:value={reworkReason}
         rows="4"
-        placeholder="Describe what needs to be changed…"
+        placeholder={$t('orderWorkspace.editor.reworkPlaceholder')}
       ></textarea>
       <div class="edit-modal-actions">
-        <button class="action-btn ghost" onclick={() => reworkModal = false}>Cancel</button>
+        <button class="action-btn ghost" onclick={() => reworkModal = false}>{$t('common.cancel')}</button>
         <button class="action-btn warn" onclick={submitRework} disabled={!reworkReason.trim()}>
-          Request Rework
+          {$t('orderWorkspace.editor.requestRework')}
         </button>
       </div>
     </div>
