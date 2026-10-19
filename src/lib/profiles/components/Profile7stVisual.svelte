@@ -931,8 +931,8 @@
               {#if configuration.ASSEMBLING.psuModel}
                 <span
                   class="material-badge-lg"
-                  style:background="#6366f1"
-                  style:color="#fff"
+                  style:background="var(--brand-soft)"
+                  style:color="var(--brand)"
                 >
                   <Power size={16} />
                   {configuration.ASSEMBLING.psuModelShort ||
