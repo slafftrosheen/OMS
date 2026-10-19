@@ -141,7 +141,7 @@
     <section class="panel">
       <h2>{$t('productionPerformance.stationComparison')}</h2>
       <p class="hint">{$t('productionPerformance.stationExplanation')}</p>
-      <div class="table-scroll">
+      <div class="table-scroll" role="region" tabindex="0" aria-label={$t('productionPerformance.stationComparison')}>
         <table>
           <thead><tr>
             <th>{$t('productionPerformance.station')}</th>
@@ -287,4 +287,60 @@
  .more{justify-self:start}
  @media(max-width:650px){.toolbar{justify-content:start}.panel{padding:.65rem}
    .mainline{align-items:flex-start}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+  /* R04: compare recorded hours without confusing estimates and actuals. */
+  .performance{max-width:1580px;padding:var(--space-lg) 0 var(--space-2xl);
+    gap:var(--space-lg);color:var(--ink-primary);min-width:0}
+  .heading{position:relative;padding:var(--space-lg) 0;border-bottom:1px solid var(--divider)}
+  .heading::before{content:'';position:absolute;top:0;left:0;width:88px;height:2px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent)}
+  .heading h1{font-size:clamp(1.6rem,2.7vw,2.15rem);letter-spacing:var(--tracking-tight)}
+  .eyebrow{color:var(--brand)}
+  .hint{color:var(--ink-secondary);line-height:1.55}
+  .actions{gap:var(--space-xs)}
+  .actions a,.toolbar button,.more,.error button{min-height:44px;
+    background:var(--bg-1);color:var(--ink-primary);border-radius:var(--radius-sm)}
+  .actions a:hover,.toolbar button:hover:not(:disabled),.more:hover{
+    background:var(--bg-2);border-color:var(--border-strong)}
+  .actions a:focus-visible,.toolbar button:focus-visible,.more:focus-visible,
+  .table-scroll:focus-visible,select:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  .toolbar{gap:var(--space-md);border:1px solid var(--glass-border);
+    background:var(--glass-bg-strong);border-radius:var(--radius-lg);padding:var(--space-lg)}
+  .toolbar label{min-height:44px;gap:var(--space-xs);color:var(--ink-secondary)}
+  .toolbar input[type=checkbox]{accent-color:var(--brand)}
+  select{min-height:44px;border-radius:var(--radius-sm);background:var(--bg-1);color:var(--ink-primary)}
+  .disclaimer{border:1px solid var(--border);border-left:3px solid var(--warn);
+    border-radius:var(--radius-sm);color:var(--ink-secondary);line-height:1.55}
+  .stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-sm)}
+  .stats>div{min-width:0;background:var(--bg-1);border-color:var(--glass-border);
+    border-radius:var(--radius-md);padding:var(--space-lg);gap:var(--space-xs)}
+  .stats strong{color:var(--ink-primary);font-size:clamp(1.3rem,2vw,1.75rem);line-height:1.1}
+  .stats>div.over strong{color:var(--error)}
+  .stats span{line-height:1.45;color:var(--ink-tertiary)}
+  .panel{min-width:0;background:var(--glass-bg-strong);border:1px solid var(--glass-border);
+    border-radius:var(--radius-lg);padding:var(--space-xl)}
+  .panel h2{font-size:var(--text-lg);font-weight:750;color:var(--ink-primary)}
+  .table-scroll{max-width:100%;overflow:auto;overscroll-behavior-x:contain;
+    border:1px solid var(--border);border-radius:var(--radius-md);scrollbar-width:thin}
+  .table-scroll table{min-width:950px;margin:0;font-variant-numeric:tabular-nums}
+  .table-scroll thead th{position:sticky;top:0;background:var(--bg-1);z-index:1;color:var(--ink-tertiary)}
+  .table-scroll th,.table-scroll td{border-bottom:1px solid var(--divider);padding:11px 13px}
+  .table-scroll tbody tr:hover{background:var(--bg-2)}
+  .record{border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-1);
+    padding:var(--space-lg)}
+  .record a{color:var(--ink-primary)}
+  .record a:hover{color:var(--brand)}
+  .record .state{border-radius:var(--radius-sm);background:var(--bg-2);
+    border:1px solid var(--border);padding:3px 8px}
+  .mainline{gap:var(--space-sm);font-variant-numeric:tabular-nums;line-height:1.45}
+  .warning{color:var(--warn)}
+  .error{color:var(--error)}
+  @media(max-width:1170px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:700px){.performance{padding:var(--space-sm) 0 var(--space-xl)}
+    .heading{align-items:stretch}.actions{width:100%}.actions a{flex:1 1 auto}
+    .toolbar{justify-content:stretch;padding:var(--space-md)}
+    .toolbar label{flex-wrap:wrap;flex:1 1 150px}.toolbar select{min-width:0;max-width:100%}
+    .panel{padding:var(--space-md)}.record{padding:var(--space-md)}
+    .mainline{align-items:flex-start}}
+  @media(prefers-reduced-transparency:reduce){.toolbar,.panel{background:var(--bg-1)}}
 </style>
