@@ -39,7 +39,7 @@ export class SwarmShapeUtil extends BaseBoxShapeUtil<SwarmShape> {
                     pointerEvents: 'all'
                 }}
             >
-                <div style={{ padding: '8px', background: 'var(--brand)', color: 'white', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '14px' }}>
+                <div style={{ padding: '8px', background: 'var(--brand-soft)', color: 'var(--ink-primary)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '14px' }}>
                     🤖 {agentName}
                 </div>
                 <div style={{ padding: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignContent: 'flex-start', flex: 1 }}>
