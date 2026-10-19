@@ -394,11 +394,11 @@
   },
   "dashboard": {
     "title": "Panelis",
-    "welcome": "Laipni lūdzam atpakaļ, {name}!",
+    "welcome": "Ražošanas situācija vienā skatā.",
     "loading": "Ielādē paneli...",
-    "new_order": "+ Jauns pasūtījums",
+    "new_order": "Jauns pasūtījums",
     "view_all": "Skatīt visus",
-    "no_orders": "Nav aktīvo pasūtījumu",
+    "no_orders": "Pasūtījumi nav pieejami",
     "create_first": "Izveidot pirmo pasūtījumu",
     "quick_actions": "Ātrās darbības",
     "chart_overview": "Pasūtījumu pārskats",
@@ -407,6 +407,12 @@
     "stat_active": "Aktīvie pasūtījumi",
     "stat_completed": "Pabeigti",
     "stat_overdue": "Nokavēti",
+    "order_load_error": "Pašlaik nevar ielādēt pasūtījumus.",
+    "metrics_unavailable": "Aktuālie KPI nav pieejami; redzams tikai pārbaudītais kopējais pasūtījumu skaits.",
+    "orders_snapshot": "Pasūtījumu pārskats",
+    "orders_kicker": "Prioritārie pasūtījumi",
+    "stat_completed_today": "Pabeigti šodien",
+    "stat_today": "Pasūtījumi šodien",
     "actions": {
       "new_order": {
         "title": "Jauns pasūtījums",
