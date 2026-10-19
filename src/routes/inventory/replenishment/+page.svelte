@@ -310,7 +310,7 @@
        <h2>{$t('inventoryReplenishment.closedRequests')}</h2>
        {#if finished.length===0}<p>{$t('inventoryReplenishment.noClosed')}</p>
        {:else}
-         <div class="table-wrap" role="region" tabindex="0" aria-label={$t('inventoryReplenishment.history')}><table><tbody>
+         <div class="table-wrap" role="region" tabindex="0" aria-label={$t('inventoryReplenishment.closedRequests')}><table><tbody>
            {#each finished as req (req.id)}
              <tr><td>{requestMaterials.get(req.material_id)?.sku??req.material_id}</td>
                <td>{req.quantity} {req.unit}</td>
