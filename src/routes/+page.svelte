@@ -4,7 +4,6 @@
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
   import { currentUser } from '$lib/auth/authState.svelte';
-  import { ordersStore as orders, orderStats } from '$lib/stores/orders';
   import StatCard from '$lib/components/analytics/StatCard.svelte';
   import OrderCard from '$lib/components/orders/OrderCard.svelte';
   import LineChart from '$lib/components/analytics/LineChart.svelte';
@@ -14,22 +13,59 @@
   import { t } from 'svelte-i18n';
 
   let recentOrders: any[] = $state([]);
+  let verifiedTotal: number | null = $state(null);
+  let liveKpis: { total: number; active: number; today: number; completedToday: number } | null = $state(null);
+  let ordersError = $state(false);
   let chartData = $state<{ labels: string[]; datasets: any[] }>({ labels: [], datasets: [] });
   let loading = $state(true);
 
   async function loadDashboardData() {
     loading = true;
+    ordersError = false;
+    liveKpis = null;
+    verifiedTotal = null;
+    recentOrders = [];
+    chartData = { labels: [], datasets: [] };
     try {
-      const response = await fetch('/api/orders?limit=5&sort=created_at&direction=desc');
+      const response = await fetch('/api/orders?limit=5');
+      if (!response.ok) throw new Error('Orders request failed');
       const result = await response.json();
+      if (typeof result?.count === 'number') verifiedTotal = result.count;
 
       let ordersData: any[] = [];
       if (Array.isArray(result.data)) ordersData = result.data;
       else if (Array.isArray(result.orders)) ordersData = result.orders;
       else if (Array.isArray(result)) ordersData = result;
 
-      orders.setOrders(ordersData ?? []);
-      recentOrders = (ordersData ?? []).slice(0, 5);
+      // Adapter for the orders API's camelCase response and OrderCard's
+      // legacy snake_case display contract. Does not mutate order forms.
+      recentOrders = ordersData.slice(0, 5).map((o: any) => ({
+        ...o,
+        po_number: o.po_number ?? o.poNumber ?? '',
+        client: o.client ?? o.clientName ?? '',
+        due_date: o.due_date ?? o.deadline ?? '',
+        loading_date: o.loading_date ?? o.loadingDate ?? null,
+        badges: o.badges ?? [],
+        status: String(o.status ?? '').toLowerCase(),
+        priority: typeof o.priority === 'number' ? o.priority : 0,
+        progress_percentage: o.progress_percentage ?? 0
+      }));
+
+      // Aggregate KPIs are not the five records above. Absent DB views
+      // yield a visible unavailable state instead of fabricated numbers.
+      try {
+        const kpiRes = await fetch('/api/analytics?type=kpis');
+        if (kpiRes.ok) {
+          const kpi = (await kpiRes.json())?.data?.orders;
+          if (kpi && [kpi.total, kpi.active, kpi.today, kpi.completedToday]
+            .every((x: unknown) => typeof x === 'number' && Number.isFinite(x))) {
+            liveKpis = { total: kpi.total, active: kpi.active,
+                         today: kpi.today, completedToday: kpi.completedToday };
+          }
+        }
+      } catch (err) {
+        console.debug('Live KPI view not available', err);
+      }
 
       try {
         const analyticsResponse = await fetch('/api/analytics?type=trends&period=30');
@@ -42,8 +78,8 @@
               datasets: [{
                 label: 'Orders',
                 data: trends.total,
-                borderColor:     tokenColor('--brand', '#7e9bff'),
-                backgroundColor: tokenColor('--brand', '#7e9bff', 0.16)
+                borderColor:     tokenColor('--brand', '#ff2d55'),
+                backgroundColor: tokenColor('--brand', '#ff2d55', 0.16)
               }]
             };
           }
@@ -53,7 +89,7 @@
       }
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
-      orders.setError('Failed to load orders');
+      ordersError = true;
     } finally {
       loading = false;
     }
@@ -91,9 +127,9 @@
 <!-- Hero / greeting -->
 <header class="dash-hero rf-aurora">
   <div class="dash-hero__copy">
-    <span class="rf-section-eyebrow">{greeting}</span>
+    <span class="dash-kicker"><span class="dash-kicker__led" aria-hidden="true"></span>{greeting}</span>
     <h1 class="dash-hero__title">
-      <span class="rf-text-gradient">{$currentUser?.username || 'Operator'}</span>
+      {$currentUser?.username || 'Operator'}
     </h1>
     <p class="dash-hero__sub">
       {$t('dashboard.welcome', { default: "Here's what's moving through the floor today." })}
@@ -118,35 +154,20 @@
     <p>{$t('dashboard.loading', { default: 'Loading dashboard…' })}</p>
   </div>
 {:else}
-  <!-- Stat cards (bento grid) -->
+  <!-- Numbers below are backed by the aggregate view, never the first five orders. -->
   <section class="dash-stats rf-bento" aria-label={$t('dashboard.kpi_label', { default: 'Key indicators' })}>
-    <StatCard
-      title={$t('dashboard.stat_total', { default: 'Total Orders' })}
-      value={$orderStats.total}
-      icon="clipboard-list"
-      variant="default"
-    />
-    <StatCard
-      title={$t('dashboard.stat_active', { default: 'Active' })}
-      value={$orderStats.active}
-      icon="zap"
-      variant="primary"
-      trend={{ value: 12, direction: 'up' }}
-    />
-    <StatCard
-      title={$t('dashboard.stat_completed', { default: 'Completed' })}
-      value={$orderStats.completed}
-      icon="check-circle"
-      variant="success"
-    />
-    <StatCard
-      title={$t('dashboard.stat_overdue', { default: 'Overdue' })}
-      value={$orderStats.overdue}
-      icon="alert-triangle"
-      variant="danger"
-      trend={{ value: 5, direction: 'down' }}
-    />
+    <StatCard title={$t('dashboard.stat_total', { default: 'Total orders' })}
+      value={liveKpis?.total ?? verifiedTotal ?? '—'} icon="clipboard-list" variant="default" />
+    <StatCard title={$t('dashboard.stat_active', { default: 'Active orders' })}
+      value={liveKpis?.active ?? '—'} icon="zap" variant="primary" />
+    <StatCard title={$t('dashboard.stat_today', { default: 'Orders today' })}
+      value={liveKpis?.today ?? '—'} icon="calendar" variant="warning" />
+    <StatCard title={$t('dashboard.stat_completed_today', { default: 'Completed today' })}
+      value={liveKpis?.completedToday ?? '—'} icon="check-circle" variant="success" />
   </section>
+  {#if !liveKpis && !ordersError}
+    <p class="dash-metrics-note">{$t('dashboard.metrics_unavailable', { default: 'Live KPI breakdown unavailable; only the verified order total is shown.' })}</p>
+  {/if}
 
   <!-- Trend chart -->
   {#if chartData.datasets.length > 0}
@@ -171,8 +192,8 @@
   <section class="dash-recent">
     <div class="rf-section-head">
       <div>
-        <span class="rf-section-eyebrow">{$t('dashboard.recent_label', { default: 'In progress' })}</span>
-        <h2>{$t('dashboard.kpi.active', { default: 'Active Orders' })}</h2>
+        <span class="rf-section-eyebrow">{$t('dashboard.orders_kicker', { default: 'Priority first' })}</span>
+        <h2>{$t('dashboard.orders_snapshot', { default: 'Orders snapshot' })}</h2>
       </div>
       <a href="{base}/orders" class="dash-link">
         <span>{$t('dashboard.view_all', { default: 'View all' })}</span>
@@ -180,10 +201,16 @@
       </a>
     </div>
 
-    {#if recentOrders.length === 0}
+    {#if ordersError}
+      <div class="dash-empty card" role="alert">
+        <Icon name="alert-triangle" size="xl" />
+        <p>{$t('dashboard.order_load_error', { default: 'Unable to load orders right now.' })}</p>
+        <button class="rf-btn" onclick={loadDashboardData}>{$t('common.retry', { default: 'Retry' })}</button>
+      </div>
+    {:else if recentOrders.length === 0}
       <div class="dash-empty card">
         <Icon name="inbox" size="xl" />
-        <p>{$t('dashboard.no_orders', { default: 'No active orders right now' })}</p>
+        <p>{$t('dashboard.no_orders', { default: 'No orders available' })}</p>
         <button class="rf-btn" onclick={() => goto(`${base}/orders/new`)}>
           {$t('dashboard.create_first', { default: 'Create the first order' })}
         </button>
@@ -210,6 +237,7 @@
 
     <div class="dash-actions-grid rf-stagger">
       {#each quickActions as action, i (action.href)}
+        {#if action.key !== 'materials' || ['RD', 'Boss', 'HeadOfProduction'].includes($currentUser?.role ?? '')}
         <button
           class="dash-action card"
           onclick={() => goto(`${base}${action.href}`)}
@@ -228,6 +256,7 @@
             <Icon name="arrow-right" size="sm" />
           </span>
         </button>
+        {/if}
       {/each}
     </div>
   </section>
@@ -465,4 +494,37 @@
     .dash-hero__cta { justify-content: stretch; }
     .rf-btn--lg { flex: 1; justify-content: center; }
   }
+
+  /* LUMIGRID Lander: graphite operator hero, compact hierarchy, one vivid action. */
+  .dash-hero {
+    background:
+      radial-gradient(ellipse 70% 100% at 0% 0%, color-mix(in oklab, var(--brand) 11%, transparent), transparent 65%),
+      var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow-sm), var(--glass-border-highlight);
+    padding: clamp(var(--space-xl), 3vw, var(--space-2xl));
+  }
+  .dash-hero::after {
+    content: '';
+    position: absolute;
+    width: min(260px, 60%); height: 2px;
+    left: 0; top: 0;
+    background: linear-gradient(90deg, var(--brand), var(--brand-2), var(--led-amber), transparent);
+    pointer-events: none;
+  }
+  .dash-kicker { display: inline-flex; align-items: center; gap: var(--space-sm);
+    font-size: var(--text-sm); color: var(--ink-secondary); font-weight: 600; }
+  .dash-kicker__led { width: 7px; height: 7px; border-radius: 50%;
+    background: var(--brand); box-shadow: 0 0 12px color-mix(in oklab, var(--brand) 45%, transparent); }
+  .dash-hero__title { font-size: clamp(1.8rem, 3vw, 2.8rem); color: var(--ink-primary); }
+  .dash-hero__sub { color: var(--ink-secondary); }
+  .dash-hero__cta { justify-content: flex-end; }
+  .rf-btn--lg { border-radius: var(--radius-md); }
+  .dash-metrics-note { color: var(--ink-tertiary); font-size: var(--text-xs);
+    margin: calc(-1 * var(--space-xl)) 0 var(--space-xl); }
+  .dash-action { background: var(--glass-bg-strong); box-shadow: var(--glass-shadow-sm); }
+  .dash-action:hover { transform: translateY(-2px); }
+  .dash-action__chev { opacity: .65; transform: none; }
+  .dash-action__icon { border: 1px solid color-mix(in oklab, var(--brand) 22%, transparent); }
+  @media (max-width: 768px) { .dash-hero__cta { justify-content: stretch; } }
 </style>
