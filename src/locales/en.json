@@ -948,6 +948,33 @@
     "top_rework": "Top Rework Stations"
   },
   "settings": {
+    "themeSelection": "Theme selection",
+    "textSizeSelection": "Text size selection",
+    "densitySelection": "Spacing density selection",
+    "provider": {
+      "title": "AI provider — OpenRouter",
+      "description": "Shared AI credential for the team. Prompts and attached images may be sent to OpenRouter; free routes can be rate-limited.",
+      "loading": "Loading provider settings…",
+      "keyStatus": "Key status",
+      "configured": "Configured",
+      "notConfigured": "Not configured",
+      "textModel": "Text model",
+      "keyHidden": "The key is not displayed again after saving.",
+      "replaceKey": "Replace OpenRouter API key",
+      "keyPlaceholder": "Paste an OpenRouter API key",
+      "saving": "Saving…",
+      "saveKey": "Save system key",
+      "removeKey": "Remove stored key",
+      "securityHint": "Only R&D members can manage this shared credential. It is stored in Supabase Vault, not in browser storage or the API response.",
+      "removeConfirm": "Remove the system OpenRouter key? AI may fall back to the server environment key if configured.",
+      "keyUpdated": "System OpenRouter credential updated.",
+      "keyRemoved": "Stored OpenRouter credential removed."
+    },
+    "session": {
+      "title": "Session",
+      "description": "Sign out of this device.",
+      "signOut": "Sign out"
+    },
     "title": "Settings",
     "sections": {
       "branding": "Branding",
