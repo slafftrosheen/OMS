@@ -55,7 +55,7 @@
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || `Credential save failed (${response.status})`);
       openRouterKey = '';
-      aiSettingsMessage = 'System OpenRouter credential updated.';
+      aiSettingsMessage = $t('settings.provider.keyUpdated');
       await loadOpenRouterSettings();
     } catch (err) {
       aiSettingsError = err instanceof Error ? err.message : 'Could not save provider credential.';
@@ -65,7 +65,7 @@
   }
 
   async function removeOpenRouterKey() {
-    if (!confirm('Remove the system OpenRouter key? AI requests will use the server environment key if configured.')) return;
+    if (!confirm($t('settings.provider.removeConfirm'))) return;
     aiSettingsSaving = true;
     aiSettingsError = '';
     aiSettingsMessage = '';
@@ -73,7 +73,7 @@
       const response = await fetch(`${base}/api/settings/openrouter`, { method: 'DELETE' });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || `Credential removal failed (${response.status})`);
-      aiSettingsMessage = 'Stored OpenRouter credential removed.';
+      aiSettingsMessage = $t('settings.provider.keyRemoved');
       await loadOpenRouterSettings();
     } catch (err) {
       aiSettingsError = err instanceof Error ? err.message : 'Could not remove provider credential.';
@@ -159,12 +159,13 @@
           <span class="label-text">{$t('theme.title', { default: 'Theme' })}</span>
           <span class="label-hint">{$t('theme.hint', { default: 'Choose your preferred color scheme' })}</span>
         </div>
-        <div class="theme-options" role="radiogroup" aria-label="Theme selection">
+        <div class="theme-options" role="radiogroup" aria-label={$t('settings.themeSelection')}>
           {#each themes as theme}
             <button
               class="theme-option"
               class:active={currentTheme === theme.id}
               role="radio"
+              type="button"
               aria-checked={currentTheme === theme.id}
               onclick={() => setTheme(theme.id)}
             >
@@ -190,12 +191,13 @@
           <span class="label-text">{$t('settings.textSize', { default: 'Text Size' })}</span>
           <span class="label-hint">{$t('settings.textSizeHint', { default: 'Adjust text size for readability' })}</span>
         </div>
-        <div class="scale-options" role="radiogroup" aria-label="Text size selection">
+        <div class="scale-options" role="radiogroup" aria-label={$t('settings.textSizeSelection')}>
           {#each fontScales as scale}
             <button
               class="scale-option"
               class:active={Math.abs(currentFontScale - scale.value) < 0.01}
               role="radio"
+              type="button"
               aria-checked={Math.abs(currentFontScale - scale.value) < 0.01}
               onclick={() => setFontScale(scale.value)}
             >
@@ -213,12 +215,13 @@
           <span class="label-text">{$t('settings.density', { default: 'Density' })}</span>
           <span class="label-hint">{$t('settings.densityHint', { default: 'Control spacing between elements' })}</span>
         </div>
-        <div class="density-options" role="radiogroup" aria-label="Density selection">
+        <div class="density-options" role="radiogroup" aria-label={$t('settings.densitySelection')}>
           {#each densities as density}
             <button
               class="density-option"
               class:active={currentDensity === density.id}
               role="radio"
+              type="button"
               aria-checked={currentDensity === density.id}
               onclick={() => setDensity(density.id)}
             >
@@ -263,19 +266,19 @@
         <div class="section-header">
           <Plug size={20} />
           <div>
-            <h2 id="openrouter-settings-heading">AI provider — OpenRouter</h2>
-            <p class="muted">System-wide credential for all members. Chat prompts and attached images are sent to OpenRouter. Free routes are rate-limited and may vary.</p>
+            <h2 id="openrouter-settings-heading">{$t('settings.provider.title')}</h2>
+            <p class="muted">{$t('settings.provider.description')}</p>
           </div>
         </div>
         <div class="setting-group">
           {#if aiSettingsLoading}
-            <p class="muted">Loading provider settings…</p>
+            <p class="muted">{$t('settings.provider.loading')}</p>
           {:else}
-            <p>Key status: <strong>{aiSettings?.configured ? 'Configured' : 'Not configured'}</strong>{#if aiSettings?.masked} <code>{aiSettings.masked}</code>{/if}</p>
-            <p class="muted">Text model: <code>openrouter/free</code>. The key value is never shown again after saving.</p>
+            <p>{$t('settings.provider.keyStatus')}: <strong>{aiSettings?.configured ? $t('settings.provider.configured') : $t('settings.provider.notConfigured')}</strong>{#if aiSettings?.masked} <code>{aiSettings.masked}</code>{/if}</p>
+            <p class="muted">{$t('settings.provider.textModel')}: <code>openrouter/free</code>. {$t('settings.provider.keyHidden')}</p>
           {/if}
           <form class="openrouter-key-form" onsubmit={(event) => { event.preventDefault(); void saveOpenRouterKey(); }}>
-            <label for="openrouter-api-key">Replace OpenRouter API key</label>
+            <label for="openrouter-api-key">{$t('settings.provider.replaceKey')}</label>
             <input
               id="openrouter-api-key"
               type="password"
@@ -283,21 +286,21 @@
               autocomplete="new-password"
               spellcheck="false"
               bind:value={openRouterKey}
-              placeholder="Paste an OpenRouter API key"
+              placeholder={$t('settings.provider.keyPlaceholder')}
               maxlength="512"
               required
               disabled={aiSettingsSaving}
             />
             <button class="rf-btn" type="submit" disabled={aiSettingsSaving || !openRouterKey.trim()}>
-              {aiSettingsSaving ? 'Saving…' : 'Save system key'}
+              {aiSettingsSaving ? $t('settings.provider.saving') : $t('settings.provider.saveKey')}
             </button>
             {#if aiSettings?.source === 'vault' && aiSettings.configured}
-              <button class="rf-btn remove-key" type="button" onclick={() => void removeOpenRouterKey()} disabled={aiSettingsSaving}>Remove stored key</button>
+              <button class="rf-btn remove-key" type="button" onclick={() => void removeOpenRouterKey()} disabled={aiSettingsSaving}>{$t('settings.provider.removeKey')}</button>
             {/if}
           </form>
           {#if aiSettingsError}<p class="settings-error" role="alert">{aiSettingsError}</p>{/if}
           {#if aiSettingsMessage}<p class="settings-success" role="status">{aiSettingsMessage}</p>{/if}
-          <p class="muted security-hint">Only R&D members can manage this shared key. It is stored encrypted in Supabase Vault; it is not saved in browser storage or returned by the API.</p>
+          <p class="muted security-hint">{$t('settings.provider.securityHint')}</p>
         </div>
       </section>
     {/if}
@@ -330,11 +333,11 @@
     <section class="settings-section danger-zone">
       <div class="section-header">
         <Icon name="log-out" size={20} />
-        <h2>Session</h2>
+        <h2>{$t('settings.session.title')}</h2>
       </div>
-      <p class="muted">Exit the application and clear your session.</p>
+      <p class="muted">{$t('settings.session.description')}</p>
       <button class="rf-btn btn-danger" onclick={handleLogout}>
-        Sign Out
+        {$t('settings.session.signOut')}
       </button>
     </section>
   </div>
@@ -613,4 +616,60 @@
     flex-wrap: wrap;
   }
 }
+
+  /* LUMIGRID Settings — restrained graphite and clear control states. */
+  .settings-page {max-width:1120px;padding:var(--space-md) 0 var(--space-2xl);}
+  .settings-header {position:relative;padding:var(--space-xl) 0 var(--space-lg);
+    margin-bottom:var(--space-lg);border-bottom:1px solid var(--divider);}
+  .settings-header::before {content:'';position:absolute;left:0;top:0;height:2px;width:90px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
+  .settings-header h1 {font-size:clamp(1.5rem,2.8vw,2.1rem);letter-spacing:var(--tracking-tight);}
+  .settings-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-md);}
+  .settings-section {min-width:0;background:var(--glass-bg-strong);border:1px solid var(--glass-border);
+    border-radius:var(--radius-lg);padding:var(--space-xl);box-shadow:var(--glass-shadow-sm);}
+  .settings-section:has(.openrouter-key-form),.settings-section:has(.theme-options),
+  .settings-section:has(.density-options) {grid-column:1/-1;}
+  .section-header {gap:var(--space-md);border-color:var(--divider);}
+  .section-header :global(svg) {color:var(--brand);flex-shrink:0;}
+  .section-header h2 {font-size:var(--text-lg);color:var(--ink-primary);}
+  .theme-options {grid-template-columns:repeat(3,minmax(0,1fr));}
+  .theme-option,.scale-option,.density-option {background:var(--bg-1);border:1px solid var(--border);
+    border-radius:var(--radius-md);color:var(--ink-primary);}
+  .theme-option {min-height:100px;justify-content:center;}
+  .theme-option.active,.scale-option.active,.density-option.active {
+    border-color:var(--brand);background:var(--brand-soft);color:var(--ink-primary);
+    box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--brand) 18%,transparent);
+  }
+  .theme-option.active .theme-icon {background:var(--brand-soft);color:var(--brand);}
+  .theme-icon {background:var(--bg-2);border-radius:var(--radius-md);}
+  .theme-option:focus-visible,.scale-option:focus-visible,.density-option:focus-visible,
+  .rf-select:focus-visible,.openrouter-key-form input:focus-visible {
+    outline:2px solid var(--focus);outline-offset:2px;}
+  .density-options {grid-template-columns:repeat(3,minmax(0,1fr));}
+  .scale-options {flex-wrap:wrap;}
+  .scale-option {min-width:48px;min-height:44px;}
+  .rf-select {min-height:44px;background:var(--bg-1);}
+  .preview-text,.integration-item {background:var(--bg-2);border:1px solid var(--border);}
+  .status-badge {border:1px solid var(--border);border-radius:var(--radius-sm);}
+  .openrouter-key-form {align-items:stretch;gap:var(--space-sm);}
+  .openrouter-key-form input {background:var(--bg-1);color:var(--ink-primary);border:1px solid var(--border);
+    border-radius:var(--radius-sm);min-height:44px;padding:10px 12px;}
+  .openrouter-key-form .rf-btn {min-height:44px;}
+  .remove-key {background:var(--error-soft);color:var(--error);border:1px solid var(--error);}
+  .remove-key:hover {background:color-mix(in oklab,var(--error) 20%,var(--bg-1));}
+  .danger-zone {border-color:color-mix(in oklab,var(--error) 30%,var(--border));}
+  .btn-danger {background:var(--error);color:#fff;border-color:var(--error);}
+  .security-hint {line-height:1.55;max-width:80ch;}
+  @media(max-width:850px) {.settings-grid {grid-template-columns:1fr;}
+    .settings-section:has(.openrouter-key-form),.settings-section:has(.theme-options),
+    .settings-section:has(.density-options) {grid-column:auto;}}
+  @media(max-width:600px) {
+    .settings-page {padding:var(--space-sm) 0 var(--space-xl);}
+    .settings-section {padding:var(--space-lg);}
+    .theme-options {grid-template-columns:repeat(3,minmax(0,1fr));}
+    .theme-option {padding:var(--space-sm);font-size:var(--text-xs);min-height:88px;}
+    .density-options {grid-template-columns:1fr;}
+    .openrouter-key-form input {min-width:0;flex-basis:100%;}
+  }
+  @media(prefers-reduced-transparency:reduce) {.settings-section {background:var(--bg-1);}}
 </style>
