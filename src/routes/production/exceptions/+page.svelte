@@ -345,12 +345,14 @@
             {#if row.review}
               {#if canManage && ['MATERIAL_SKIPPED','STAGE_UNCHANGED'].includes(row.kind)}
                 <button type="button"
+                  aria-expanded={evidenceReviewId===row.review?.id}
                   onclick={()=>evidenceReviewId=evidenceReviewId===row.review?.id
                     ?null:row.review!.id}>
                   {$t('productionEvidence.viewEvidence')}
                 </button>
               {/if}
               <button type="button" disabled={historyLoading&&historyId===row.review.id}
+                aria-expanded={historyId===row.review?.id}
                 onclick={()=>historyId===row.review?.id?(historyId=null):(void loadHistory(row.review!.id))}>
                 {$t('productionExceptions.history')}
               </button>
@@ -479,4 +481,65 @@
   .history>div{border-top:1px solid var(--border);padding-top:.45rem;font-size:.76rem}
   .history time{margin-right:.5rem}.history p{white-space:pre-wrap}
   @media(max-width:650px){.issue-head{align-items:flex-start}.filters{align-items:flex-start}}
+
+  /* R04: exception decisions use severity, not decorative brand colour. */
+  .exceptions{max-width:1560px;padding:var(--space-lg) 0 var(--space-2xl);gap:var(--space-lg);min-width:0}
+  .header{position:relative;padding:var(--space-lg) 0;border-bottom:1px solid var(--divider)}
+  .header::before{content:'';position:absolute;left:0;top:0;width:92px;height:2px;background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent)}
+  .header h1{font-size:clamp(1.6rem,2.7vw,2.2rem);letter-spacing:var(--tracking-tight)}
+  .eyebrow{color:var(--brand)}
+  .hint,.description{color:var(--ink-secondary);line-height:1.5}
+  .notice{border:1px solid var(--border);border-left:3px solid var(--warn);
+    border-radius:var(--radius-sm);color:var(--ink-secondary);line-height:1.5}
+  .success{color:var(--ok)}
+  .nav{gap:var(--space-xs)}
+  button,.nav a{min-height:44px;border-radius:var(--radius-sm);background:var(--bg-1);
+    border:1px solid var(--border);color:var(--ink-primary);padding:9px 13px}
+  button:hover:not(:disabled),.nav a:hover{background:var(--bg-2);border-color:var(--border-strong)}
+  button:focus-visible,.nav a:focus-visible,.issue-head a:focus-visible,
+  select:focus-visible,input:focus-visible,textarea:focus-visible{
+    outline:2px solid var(--focus);outline-offset:2px}
+  .metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-sm)}
+  .metrics>div{background:var(--bg-1);border-color:var(--glass-border);
+    border-radius:var(--radius-md);padding:var(--space-lg);gap:var(--space-xs);min-width:0}
+  .metrics strong{font-size:clamp(1.3rem,2vw,1.85rem);line-height:1.15}
+  .metrics span{line-height:1.4;color:var(--ink-tertiary)}
+  .filters{border:1px solid var(--glass-border);background:var(--glass-bg-strong);
+    border-radius:var(--radius-lg);padding:var(--space-lg);gap:var(--space-md)}
+  .filters label{min-height:42px;flex-wrap:wrap;gap:var(--space-xs);color:var(--ink-secondary)}
+  .filters label.check{flex-wrap:nowrap}
+  .filters input[type=checkbox]{accent-color:var(--brand)}
+  select,input[type=date],textarea{min-height:44px;border-radius:var(--radius-sm);
+    color:var(--ink-primary);border-color:var(--border);background:var(--bg-1)}
+  .findings{gap:var(--space-md)}
+  .issue{border:1px solid var(--glass-border);border-left:3px solid var(--warn);
+    border-radius:var(--radius-lg);background:var(--bg-1);padding:var(--space-lg);
+    gap:var(--space-md);min-width:0}
+  .issue[data-severity=critical]{border-left-color:var(--error)}
+  .issue-head{gap:var(--space-md);align-items:flex-start}
+  .issue-title{gap:var(--space-xs);min-width:0;overflow-wrap:anywhere}
+  .issue-head a{color:var(--ink-primary);font-weight:700;overflow-wrap:anywhere}
+  .pill{border-radius:var(--radius-sm);color:var(--ink-secondary);background:var(--bg-2)}
+  .pill[data-state=RESOLVED]{color:var(--ok);background:var(--ok-soft);
+    border-color:color-mix(in oklab,var(--ok) 35%,var(--border))}
+  .pill[data-state=OPEN],.pill[data-state=IN_PROGRESS]{
+    color:var(--warn);background:var(--warn-soft)}
+  .review-info{gap:var(--space-sm);color:var(--ink-secondary);line-height:1.4}
+  .actions{gap:var(--space-xs)}
+  .actions button{min-height:42px}
+  .actions button[aria-expanded=true]{border-color:var(--brand);background:var(--brand-soft)}
+  .editor,.history{border:1px solid var(--border);border-radius:var(--radius-md);
+    padding:var(--space-lg);background:var(--bg-2);gap:var(--space-sm)}
+  .editor h3,.history h3{font-size:var(--text-md);font-weight:750}
+  .editor label{gap:var(--space-xs);color:var(--ink-secondary)}
+  .editor textarea{min-height:100px}
+  .history>div{line-height:1.5;overflow-wrap:anywhere;border-color:var(--divider)}
+  @media(max-width:1050px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:700px){.exceptions{padding:var(--space-sm) 0 var(--space-xl)}
+    .header{align-items:stretch}.nav{width:100%}.nav a,.nav button{flex:1 1 auto}
+    .filters{padding:var(--space-md);align-items:stretch;flex-direction:column}
+    .filters label{align-items:stretch}.filters select{width:100%}
+    .issue{padding:var(--space-md)}.issue-head{flex-direction:column}
+    .actions button{flex:1 1 auto}.editor,.history{padding:var(--space-md)}}
+  @media(prefers-reduced-transparency:reduce){.filters{background:var(--bg-1)}}
 </style>
