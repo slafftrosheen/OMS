@@ -156,9 +156,15 @@
   let activeOrders = $derived(totalOrders - draftOrders);
 
   async function refresh() {
+    if (refreshing) return;
     refreshing = true;
-    await orderState.load();
-    refreshing = false;
+    try {
+      await orderState.load();
+      // Keep the last successful table visible during subsequent refreshes.
+      if (!orderState.lastError) hasLoadedOnce = true;
+    } finally {
+      refreshing = false;
+    }
   }
 
   function createNewOrder() {
@@ -310,27 +316,27 @@
         <thead>
           <tr>
             <th style="width:40px"></th>
-            <th style="width:120px">
+            <th style="width:120px" aria-sort={sortKey === 'id' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
               <button type="button" class="sort-trigger" data-sort={sortKey === 'id' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('id')}>
                 {$t('orderLists.headers.po')}
               </button>
             </th>
-            <th style="width:140px">
+            <th style="width:140px" aria-sort={sortKey === 'client' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
               <button type="button" class="sort-trigger" data-sort={sortKey === 'client' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('client')}>
                 {$t('orderLists.headers.client')}
               </button>
             </th>
-            <th>
+            <th aria-sort={sortKey === 'title' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
               <button type="button" class="sort-trigger" data-sort={sortKey === 'title' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('title')}>
                 {$t('orderLists.headers.title')}
               </button>
             </th>
-            <th style="width:110px">
+            <th style="width:110px" aria-sort={sortKey === 'loadingDate' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
               <button type="button" class="sort-trigger" data-sort={sortKey === 'loadingDate' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('loadingDate')}>
                 {$t('orderLists.headers.loading')}
               </button>
             </th>
-            <th style="width:100px">
+            <th style="width:100px" aria-sort={sortKey === 'due' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
               <button type="button" class="sort-trigger" data-sort={sortKey === 'due' ? (sortAsc ? 'asc' : 'desc') : ''} onclick={() => toggleSort('due')}>
                 {$t('orderLists.headers.due')}
               </button>
