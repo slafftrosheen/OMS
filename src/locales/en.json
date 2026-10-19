@@ -2544,6 +2544,8 @@
     "scan_qr": "Scan Order QR Code"
   },
   "inventoryDetail": {
+    "addStock": "Add stock",
+    "removeStock": "Remove stock",
     "notes": "Notes",
     "decreaseQuantity": "Decrease quantity",
     "increaseQuantity": "Increase quantity",
