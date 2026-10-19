@@ -117,13 +117,13 @@
           <button class="btn-secondary" onclick={() => editMode = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
           <button class="btn-primary" disabled={savingMetadata||!canManage} onclick={saveChanges}>
             <Save size={16} />
-            Save Changes
+            {$t('common.save')}
           </button>
         {:else}
           <button class="btn-secondary" disabled={!canManage} onclick={() => editMode = true}>{$t('inventory.editItem', { default: 'Edit' })}</button>
           <button class="btn-danger" disabled={!canManage} onclick={deleteMaterial}>
             <Trash size={16} />
-            Delete
+            {$t('common.delete')}
           </button>
         {/if}
       </div>
@@ -196,7 +196,7 @@
 
         {#if material.note}
           <div class="material-note">
-            <strong>Notes:</strong>
+            <strong>{$t('inventoryDetail.notes')}:</strong>
             <p>{material.note}</p>
           </div>
         {/if}
@@ -212,7 +212,7 @@
             <span class="stock-unit">{material.unit}</span>
           </div>
           <div class="stock-min_stock">
-            Min: {material.min_stock} {material.unit}
+            {$t('inventory.labels.min')}: {material.min_stock} {material.unit}
           </div>
         </div>
 
@@ -223,11 +223,11 @@
         <div class="stock-actions">
           <div class="adjust-controls">
             <div class="adjust-amount">
-              <button class="amount-btn" onclick={() => adjustAmount = Math.max(1, adjustAmount - 1)}>
+              <button class="amount-btn" aria-label={$t('inventoryDetail.decreaseQuantity')} onclick={() => adjustAmount = Math.max(1, adjustAmount - 1)}>
                 <Minus size={16} />
               </button>
-              <input type="number" min="1" bind:value={adjustAmount} class="amount-input" />
-              <button class="amount-btn" onclick={() => adjustAmount += 1}>
+              <input type="number" min="1" aria-label={$t('inventoryDetail.adjustQuantity')} bind:value={adjustAmount} class="amount-input" />
+              <button class="amount-btn" aria-label={$t('inventoryDetail.increaseQuantity')} onclick={() => adjustAmount += 1}>
                 <Plus size={16} />
               </button>
             </div>
@@ -241,11 +241,11 @@
           <div class="adjust-buttons">
             <button class="btn-success" disabled={adjusting} onclick={() => adjust('IN')}>
               <Plus size={16} />
-              Add Stock
+              {$t('inventory.actions.add')}
             </button>
             <button class="btn-warning" disabled={adjusting} onclick={() => adjust('OUT')}>
               <Minus size={16} />
-              Remove Stock
+              {$t('inventory.actions.consume')}
             </button>
           </div>
         </div>
@@ -569,7 +569,7 @@
 
 .note-input {
   flex: 1;
-  min_stock-width: 150px;
+  min-width: 150px;
   padding: var(--space-sm) var(--space-md);
   background: var(--bg-0);
   border: 1px solid var(--border);
@@ -718,4 +718,54 @@
     justify-content: center;
   }
 }
+
+  /* Graphite material record; colour sample is user data, never brand-tinted. */
+  .material-page {max-width:1180px;padding:var(--space-lg) 0 var(--space-2xl);}
+  .page-header {position:relative;border-bottom:1px solid var(--divider);padding:var(--space-md) 0;
+    gap:var(--space-md);}
+  .page-header::before {content:'';position:absolute;top:0;left:0;height:2px;width:80px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
+  .back-link {min-height:44px;color:var(--ink-secondary);border-radius:var(--radius-sm);}
+  .back-link:hover {color:var(--ink-primary);}
+  .header-actions {flex-wrap:wrap;gap:var(--space-xs);}
+  .header-actions button {min-height:42px;border-radius:var(--radius-sm);}
+  .material-container {grid-template-columns:minmax(0,1.55fr) minmax(270px,1fr);align-items:start;
+    gap:var(--space-md);}
+  .main-info {grid-column:1;}.stock-card {grid-column:2;}
+  .details-card {grid-column:1/-1;}
+  .info-card {min-width:0;background:var(--glass-bg-strong);border:1px solid var(--glass-border);
+    border-radius:var(--radius-lg);padding:var(--space-xl);box-shadow:var(--glass-shadow-sm);}
+  .info-card h2 {font-size:var(--text-lg);color:var(--ink-primary);}
+  .info-title {min-width:0;}
+  .info-title h1 {font-size:clamp(1.4rem,2.3vw,1.9rem);letter-spacing:var(--tracking-tight);
+    overflow-wrap:anywhere;}
+  .color-preview {width:70px;height:70px;border:2px solid var(--border-strong);}
+  .info-label {color:var(--ink-tertiary);letter-spacing:.04em;}
+  .info-value {overflow-wrap:anywhere;}
+  .stock-number {font-size:clamp(2.2rem,4vw,3rem);font-variant-numeric:tabular-nums;}
+  .stock-current.low .stock-number {color:var(--error);}
+  .stock-min_stock {background:var(--bg-2);border:1px solid var(--border);
+    border-radius:var(--radius-sm);}
+  .stock-actions {border-color:var(--divider);}
+  .adjust-amount {background:var(--bg-1);border-color:var(--border);}
+  .amount-btn {min-width:44px;min-height:44px;}
+  .amount-input {min-height:44px;font-variant-numeric:tabular-nums;}
+  .note-input {min-width:0;background:var(--bg-1);}
+  .adjust-buttons {gap:var(--space-sm);}
+  .adjust-buttons button {min-height:44px;border-radius:var(--radius-sm);}
+  .edit-input {min-height:44px;background:var(--bg-1);color:var(--ink-primary);}
+  .edit-input:focus-visible,.amount-input:focus-visible,.note-input:focus-visible,
+  .amount-btn:focus-visible,.header-actions button:focus-visible {
+    outline:2px solid var(--focus);outline-offset:2px;}
+  .material-note {background:var(--bg-2);border-color:var(--brand);}
+  .color-info {background:var(--bg-2);flex-wrap:wrap;overflow-wrap:anywhere;}
+  .btn-primary {background:var(--brand);color:var(--on-brand);}
+  .btn-primary:hover {background:var(--brand-2);}
+  @media(max-width:950px){.material-container {grid-template-columns:minmax(0,1fr);}
+    .main-info,.stock-card,.details-card {grid-column:auto;}}
+  @media(max-width:650px){.material-page {padding:var(--space-sm) 0 var(--space-xl);}
+    .info-card {padding:var(--space-lg);}.header-actions {width:100%;}
+    .header-actions button {flex:1 1 auto;}.info-header {gap:var(--space-sm);}
+    .adjust-controls {flex-direction:column;}}
+  @media(prefers-reduced-transparency:reduce){.info-card {background:var(--bg-1);}}
 </style>
