@@ -274,6 +274,9 @@
     }
   },
   "orderLists": {
+    "status_filter": "Filtrēt pēc statusa",
+    "scroll_hint": "Pavelciet sānis, lai skatītu pārējo pasūtījuma informāciju.",
+    "table_region": "Ritināma pasūtījumu tabula",
     "title": "Pasūtījumi",
     "new": "Jauns pasūtījums",
     "headers": {
@@ -1195,6 +1198,7 @@
       "secs": "Sekundes"
     },
     "chat": {
+      "send": "Nosūtīt ziņojumu",
       "title": "Sarunas",
       "start_desc": "Sāciet sarunu vai izvēlieties to no kreisās puses.",
       "conversations": "Sarunas",
@@ -1881,6 +1885,7 @@
     "showMore": "Rādīt vairāk signālu"
   },
   "productionPlanning": {
+    "totalsLabel": "Ražošanas paneļa kopsavilkums",
     "pendingPo": "Bez pasūtījuma numura",
     "untitled": "Pasūtījums bez nosaukuma",
     "unknownClient": "Nezināms klients",
@@ -2483,6 +2488,7 @@
     "canvasTab": "Audekls",
     "chatTab": "Sarunas",
     "canvas": {
+      "boardTitle": "Projekta nosaukums",
       "savedFiles": "Saglabātie faili",
       "savedFilesHelp": "Augšupielādētie faili šeit paliek arī tad, ja izvietošana vai Canvas saglabāšana neizdodas. Atlasiet failu, lai to pievienotu audeklam.",
       "refreshSavedFiles": "Atjaunināt failus",
