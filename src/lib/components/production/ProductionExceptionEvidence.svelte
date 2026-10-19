@@ -158,4 +158,31 @@
   .evidence code{font-size:.73rem;overflow-wrap:anywhere}
   .muted{color:var(--muted)}
   .caution,.alert{color:var(--warn);font-size:.78rem}
+
+  /* R04 evidence is auditable, so IDs and values remain visible and unmodified. */
+  .evidence{background:var(--bg-2);border:1px solid var(--glass-border);
+    border-radius:var(--radius-md);padding:var(--space-lg);gap:var(--space-md)}
+  .evidence header{gap:var(--space-sm);padding-bottom:var(--space-sm);
+    border-bottom:1px solid var(--divider)}
+  .evidence h4{font-size:var(--text-md);font-weight:750;color:var(--ink-primary)}
+  .evidence p{font-size:var(--text-sm);color:var(--ink-secondary);line-height:1.5}
+  .evidence button{min-height:42px;padding:9px 12px;
+    color:var(--ink-primary);border-color:var(--border);
+    border-radius:var(--radius-sm);background:var(--bg-1);font-weight:650}
+  .evidence button:hover:not(:disabled){background:var(--bg-3);border-color:var(--border-strong)}
+  .evidence button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  .facts{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:var(--space-sm)}
+  .facts>div{min-width:0;border:1px solid var(--border);
+    border-radius:var(--radius-sm);padding:var(--space-sm);
+    background:var(--bg-1);font-variant-numeric:tabular-nums}
+  .facts dt{color:var(--ink-tertiary);font-size:var(--text-xs)}
+  .facts dd{color:var(--ink-primary);line-height:1.45;overflow-wrap:anywhere}
+  .evidence ul{gap:var(--space-sm);scrollbar-width:thin;overscroll-behavior:contain}
+  .evidence li{background:var(--bg-1);border:1px solid var(--border);
+    border-radius:var(--radius-sm);padding:var(--space-md)}
+  .evidence code{color:var(--ink-secondary);font-variant-numeric:tabular-nums}
+  .caution{color:var(--warn)}
+  .alert{color:var(--error)}
+  @media(max-width:680px){.evidence{padding:var(--space-md)}
+    .evidence header{align-items:stretch}.facts{grid-template-columns:minmax(0,1fr)}}
 </style>
