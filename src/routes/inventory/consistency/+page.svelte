@@ -141,7 +141,7 @@
       {#if filtered.length===0}
         <p>{$t('inventoryConsistency.emptyPage')}</p>
       {:else}
-        <div class="table-scroll">
+        <div class="table-scroll" role="region" tabindex="0" aria-label={$t('inventoryConsistency.title')}>
           <table>
             <thead><tr>
               <th>{$t('inventoryConsistency.material')}</th>
@@ -187,8 +187,8 @@
     {/if}
     {#if target}
       <div class="modal-backdrop">
-        <form class="editor" onsubmit={e=>{e.preventDefault();void reconcile();}}>
-          <h2>{$t('inventoryConsistency.reconcile')} · {target.sku??target.materialId}</h2>
+        <form class="editor" role="dialog" aria-modal="true" aria-labelledby="reconcile-dialog-title" onsubmit={e=>{e.preventDefault();void reconcile();}}>
+          <h2 id="reconcile-dialog-title">{$t('inventoryConsistency.reconcile')} · {target.sku??target.materialId}</h2>
           <p class="warning">{$t('inventoryConsistency.countFirst')}</p>
           <p>{$t('inventoryConsistency.canonical')}: {target.canonicalStock}
             · {$t('inventoryConsistency.legacy')}: {target.legacyStock}</p>
@@ -236,4 +236,50 @@
   .editor input,.editor textarea{min-height:40px;padding:.5rem;
     border:1px solid var(--border);border-radius:7px;
     background:var(--bg-2);color:var(--text)}
+
+  /* Reconciliation is high-stakes: preserve numbers and physical-count evidence. */
+  .consistency {max-width:1380px;padding:var(--space-lg) 0 var(--space-2xl);gap:var(--space-lg);}
+  .consistency > header {position:relative;padding:var(--space-lg) 0;
+    border-bottom:1px solid var(--divider);gap:var(--space-md);}
+  .consistency > header::before {content:'';position:absolute;left:0;top:0;height:2px;width:92px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
+  .consistency h1 {font-size:clamp(1.5rem,2.5vw,2rem);letter-spacing:var(--tracking-tight);}
+  .consistency h2 {font-size:var(--text-lg);font-weight:750;}
+  .consistency header p,.consistency .hint {font-size:var(--text-sm);color:var(--ink-secondary);}
+  .consistency .warning {color:var(--warn);line-height:1.55;}
+  .consistency > .warning {border:1px solid color-mix(in oklab,var(--warn) 35%,var(--border));
+    border-radius:var(--radius-md);padding:var(--space-md);background:var(--bg-1);}
+  .consistency .counts {padding:var(--space-sm) var(--space-md);
+    background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-md);
+    font-variant-numeric:tabular-nums;}
+  .consistency .controls {justify-content:flex-start;gap:var(--space-md);}
+  .consistency .controls label {display:flex;align-items:center;gap:var(--space-xs);}
+  .consistency input[type='checkbox'] {accent-color:var(--brand);}
+  .consistency button,.consistency header a {min-height:42px;display:inline-flex;
+    align-items:center;justify-content:center;gap:var(--space-xs);padding:9px 13px;
+    color:var(--ink-primary);border:1px solid var(--border);background:var(--bg-1);
+    border-radius:var(--radius-sm);text-decoration:none;font-weight:650;}
+  .consistency button:hover:not(:disabled),.consistency header a:hover {background:var(--bg-2);}
+  .table-scroll {border:1px solid var(--glass-border);border-radius:var(--radius-lg);
+    background:var(--glass-bg-strong);max-width:100%;overflow:auto;scrollbar-width:thin;}
+  .table-scroll table {min-width:710px;font-variant-numeric:tabular-nums;}
+  .table-scroll th {background:var(--bg-1);position:sticky;top:0;z-index:1;font-size:var(--text-xs);
+    color:var(--ink-tertiary);}
+  .table-scroll th,.table-scroll td {padding:11px 13px;border-bottom:1px solid var(--divider);}
+  .table-scroll tbody tr:hover {background:var(--bg-2);}
+  .table-scroll td:first-child {min-width:180px;}
+  .editor {border:1px solid var(--border);border-radius:var(--radius-lg);
+    padding:var(--space-xl);max-height:calc(100dvh - 32px);box-shadow:var(--glass-shadow-lg);}
+  .editor label {font-size:var(--text-sm);font-weight:650;color:var(--ink-secondary);}
+  .editor input,.editor textarea {background:var(--bg-2);color:var(--ink-primary);
+    min-height:44px;border-radius:var(--radius-sm);}
+  .editor .actions {justify-content:flex-end;}
+  .editor button[type='submit'] {background:var(--brand);color:var(--on-brand);border-color:var(--brand);}
+  .editor button[type='submit']:hover:not(:disabled) {background:var(--brand-2);}
+  .table-scroll:focus-visible,.consistency button:focus-visible,
+  .consistency header a:focus-visible,.editor input:focus-visible,.editor textarea:focus-visible {
+    outline:2px solid var(--focus);outline-offset:2px;}
+  @media(max-width:700px){.consistency{padding:var(--space-sm) 0 var(--space-xl);}
+    .consistency > header{align-items:stretch;}.editor{padding:var(--space-md);}}
+  @media(prefers-reduced-transparency:reduce){.table-scroll{background:var(--bg-1);}}
 </style>
