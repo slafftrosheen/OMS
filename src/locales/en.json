@@ -484,6 +484,8 @@
     "log": "Log"
   },
   "calendar": {
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
     "title": "Calendar",
     "upcoming": "Upcoming",
     "all": "All",
