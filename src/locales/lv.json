@@ -776,6 +776,7 @@
     "tip": "Padoms: spiediet ⌘K / Ctrl-K"
   },
   "inventory": {
+    "exportCsv": "Eksportēt CSV",
     "title": "Krājumi",
     "search": "Meklēt",
     "search_placeholder": "SKU, nosaukums, krāsa, vieta…",
