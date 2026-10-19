@@ -132,18 +132,18 @@
     </div>
     <div class="row">
       {#if canManage}
-        <button class="tag" onclick={()=>showImport=!showImport}>
+        <button class="tag" type="button" aria-expanded={showImport} onclick={()=>showImport=!showImport}>
           <Upload size={14} aria-hidden="true" />
           {$t('inv.import') || 'Bulk import'}
         </button>
       {/if}
-      <button class="tag" onclick={()=>showScan=!showScan}>
+      <button class="tag" type="button" aria-expanded={showScan} onclick={()=>showScan=!showScan}>
         <ScanBarcodeIcon size={14} aria-hidden="true" />
         {$t('inv.scan') || 'Scan barcode'}
       </button>
       <button class="tag" onclick={exportCSV}>
         <Download size={14} aria-hidden="true" />
-        Export CSV
+        {$t('inventory.exportCsv')}
       </button>
       {#if canManage}
         <a class="tag" href={`${base}/inventory/new`}>
@@ -210,7 +210,7 @@
         <summary class="group-summary">
           <span>{g.title}</span>
           {#if canManage}
-            <button class="tag" onclick={() => handleCreateItem(currentTab, g.title)}><Plus size={14} aria-hidden="true"/> {$t('inventory.add')}</button>
+            <button class="tag" type="button" onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleCreateItem(currentTab, g.title); }}><Plus size={14} aria-hidden="true"/> {$t('inventory.add')}</button>
           {/if}
         </summary>
         {#each g.subgroups as sub (sub.id)}
@@ -218,10 +218,10 @@
             <summary class="sub-summary">
               <span>{sub.title}</span>
               {#if canManage}
-                <button class="tag" onclick={() => handleCreateItem(currentTab, g.title, sub.title)}><Plus size={14} aria-hidden="true"/> {$t('inventory.add')}</button>
+                <button class="tag" type="button" onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleCreateItem(currentTab, g.title, sub.title); }}><Plus size={14} aria-hidden="true"/> {$t('inventory.add')}</button>
               {/if}
             </summary>
-            <div class="table-wrap">
+            <div class="table-wrap" role="region" tabindex="0" aria-label={`${g.title} — ${sub.title}`}>
               <table class="rf-table">
                 <thead>
                   <tr>
@@ -381,4 +381,50 @@ tr.low-stock {
   background: color-mix(in oklab, var(--danger) 15%, var(--bg-0));
 }
 
+
+  /* Warehouse surfaces: stock/low-stock semantics, faithful product swatches. */
+  :global(.rf-main) > .card {min-width:0;}
+  .card {border:1px solid var(--glass-border);border-radius:var(--radius-lg);
+    background:var(--glass-bg-strong);box-shadow:var(--glass-shadow-sm);}
+  .card > .row {gap:var(--space-md);flex-wrap:wrap;}
+  .card :global(.rf-input) {min-height:44px;color:var(--ink-primary);background:var(--bg-1);
+    border-radius:var(--radius-sm);}
+  .card .row .tag {min-height:40px;border-radius:var(--radius-sm);padding:8px 12px;
+    color:var(--ink-secondary);border:1px solid var(--border);background:var(--bg-1);
+    display:inline-flex;align-items:center;justify-content:center;gap:var(--space-xs);}
+  .card .row .tag:hover {color:var(--ink-primary);background:var(--bg-2);}
+  .card .row .tag:focus-visible {outline:2px solid var(--focus);outline-offset:2px;}
+  .group-section {background:var(--bg-1);border-color:var(--glass-border);
+    border-radius:var(--radius-lg);padding:var(--space-md);margin-bottom:var(--space-lg);}
+  .group-summary {font-weight:700;font-size:var(--text-md);
+    border-bottom:1px solid var(--divider);padding-bottom:var(--space-sm);}
+  .sub-section {background:var(--bg-2);border-color:var(--border);
+    border-radius:var(--radius-md);padding:var(--space-md);min-width:0;}
+  .sub-summary {color:var(--ink-secondary);font-weight:700;}
+  .group-summary:focus-visible,.sub-summary:focus-visible {outline:2px solid var(--focus);outline-offset:3px;}
+  .group-summary button,.sub-summary button {min-height:36px;}
+  .table-wrap {max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;
+    scrollbar-width:thin;border:1px solid var(--border);border-radius:var(--radius-sm);
+    margin-top:var(--space-sm);}
+  .table-wrap:focus-visible {outline:2px solid var(--focus);outline-offset:2px;}
+  .rf-table {min-width:690px;width:100%;font-variant-numeric:tabular-nums;}
+  .rf-table thead th {background:var(--bg-1);color:var(--ink-tertiary);}
+  .rf-table tbody tr:hover {background:var(--bg-1);}
+  .rf-table tbody td {border-bottom:1px solid var(--divider);}
+  .sku-link {color:var(--link);font-weight:650;}
+  .color-swatch {width:18px;height:18px;border-radius:var(--radius-sm);}
+  .stock-low {color:var(--error);}
+  tr.low-stock {background:var(--error-soft);}
+  .icon-btn {width:40px;height:40px;min-height:40px;border-radius:var(--radius-sm);
+    color:var(--ink-secondary);background:var(--bg-1);}
+  .icon-btn:hover {background:var(--bg-2);color:var(--ink-primary);transform:none;}
+  .icon-btn.warn {color:var(--error);}
+  .icon-btn:focus-visible {outline:2px solid var(--focus);outline-offset:2px;}
+  @media(max-width:700px) {
+    .card {padding:var(--space-md);}
+    .card > .row {align-items:stretch!important;}
+    .group-section,.sub-section {padding:var(--space-sm);}
+    .group-summary,.sub-summary {flex-wrap:wrap;}
+  }
+  @media(prefers-reduced-transparency:reduce) {.card {background:var(--bg-1);}}
 </style>
