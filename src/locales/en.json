@@ -776,6 +776,7 @@
     "tip": "Tip: Press ⌘K / Ctrl-K"
   },
   "inventory": {
+    "exportCsv": "Export CSV",
     "title": "Inventory",
     "catalog": "Material Catalog",
     "add_material": "Add Material",
