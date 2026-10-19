@@ -37,7 +37,7 @@ function drawChart() {
   if (!data.dates || data.dates.length === 0) return;
 
   // Calculate scales
-  const maxValue = Math.max(...data.total, ...data.completed, ...data.inProgress);
+  const maxValue = Math.max(1, ...data.total, ...data.completed, ...data.inProgress);
   const padding = 40;
   const chartWidth = width - padding * 2;
   const innerHeight = chartHeight - padding * 2;
@@ -61,7 +61,7 @@ function drawChart() {
     ctx.beginPath();
 
     values.forEach((value, index) => {
-      const x = padding + (chartWidth / (values.length - 1)) * index;
+      const x = padding + (chartWidth / Math.max(1, values.length - 1)) * index;
       const y = chartHeight - padding - (value / maxValue) * innerHeight;
 
       if (index === 0) {
@@ -76,7 +76,7 @@ function drawChart() {
     // Draw dots
     ctx.fillStyle = color;
     values.forEach((value, index) => {
-      const x = padding + (chartWidth / (values.length - 1)) * index;
+      const x = padding + (chartWidth / Math.max(1, values.length - 1)) * index;
       const y = chartHeight - padding - (value / maxValue) * innerHeight;
       
       ctx.beginPath();
@@ -85,13 +85,15 @@ function drawChart() {
     });
   };
 
-  // Draw lines for different metrics
-  drawLine(data.total, '#3b82f6', 3);
-  drawLine(data.completed, '#10b981', 2);
-  drawLine(data.inProgress, '#f59e0b', 2);
+  // Canvas 2D requires resolved CSS colors, not var() strings.
+  const theme = getComputedStyle(document.documentElement);
+  const color = (name: string, fallback: string) => theme.getPropertyValue(name).trim() || fallback;
+  drawLine(data.total, color('--brand', '#ff2d55'), 3);
+  drawLine(data.completed, color('--ok', '#30d158'), 2);
+  drawLine(data.inProgress, color('--led-amber', '#ff9500'), 2);
 
   // Draw axes labels
-  ctx.fillStyle = 'var(--muted)';
+  ctx.fillStyle = color('--muted', '#a1a1a6');
   ctx.font = '12px sans-serif';
   ctx.textAlign = 'center';
 
@@ -99,7 +101,7 @@ function drawChart() {
   const labelInterval = Math.ceil(data.dates.length / 7);
   data.dates.forEach((date: string, index: number) => {
     if (index % labelInterval === 0) {
-      const x = padding + (chartWidth / (data.dates.length - 1)) * index;
+      const x = padding + (chartWidth / Math.max(1, data.dates.length - 1)) * index;
       const dateObj = new Date(date);
       const label = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
       ctx.fillText(label, x, chartHeight - 10);
@@ -132,15 +134,15 @@ $effect(() => {
 
   <div class="chart-legend">
     <div class="legend-item">
-      <span class="legend-color" style="background-color: #3b82f6;"></span>
+      <span class="legend-color" style="background-color: var(--brand);"></span>
       <span>Total Orders</span>
     </div>
     <div class="legend-item">
-      <span class="legend-color" style="background-color: #10b981;"></span>
+      <span class="legend-color" style="background-color: var(--ok);"></span>
       <span>Completed</span>
     </div>
     <div class="legend-item">
-      <span class="legend-color" style="background-color: #f59e0b;"></span>
+      <span class="legend-color" style="background-color: var(--led-amber);"></span>
       <span>In Progress</span>
     </div>
   </div>
