@@ -71,7 +71,7 @@
     <div class="alert-banner">
       <AlertCircle size={20} />
       <span>{lowStockList.length} {$t('inventory.low_stock_items') || 'materials low in stock'}</span>
-      <button class="btn sm" onclick={() => showLowStockOnly = !showLowStockOnly}>
+      <button class="btn sm" aria-pressed={showLowStockOnly} onclick={() => showLowStockOnly = !showLowStockOnly}>
         {showLowStockOnly ? ($t('inventory.show_all') || 'Show All') : ($t('inventory.show_alerts') || 'Show Alerts Only')}
       </button>
     </div>
@@ -80,13 +80,14 @@
   <div class="filters-bar">
     <div class="search-box">
       <Search size={16} />
-      <input 
-        bind:value={searchQuery} 
+      <input type="search"
+        bind:value={searchQuery}
+        aria-label={$t('inventory.search_materials')}
         placeholder={$t('inventory.search_materials') || 'Search materials...'}
       />
     </div>
     
-    <select bind:value={categoryFilter}>
+    <select bind:value={categoryFilter} aria-label={$t('inventory.all_categories')}>
       <option value="ALL">{$t('inventory.all_categories', { default: 'All Categories' })}</option>
       <optgroup label={$t('inventoryCatalog.group_acrylics')}>
         <option value="ACRYLIC_XT">{$t('inventoryCatalog.materials.ACRYLIC_XT')}</option>
@@ -125,9 +126,13 @@
   
   <div class="materials-grid">
     {#each filteredMaterials as material (material.id)}
-      <div class="material-card">
+      <a class="material-card" href={`${base}/inventory/${encodeURIComponent(material.id)}`}>
         <div class="material-image-placeholder">
-          <Package size={32} />
+          {#if material.hex_color}
+            <span class="material-swatch" style:background-color={material.hex_color} aria-hidden="true"></span>
+          {:else}
+            <Package size={32} />
+          {/if}
         </div>
         
         <div class="material-info">
@@ -155,7 +160,7 @@
             </div>
           {/if}
         </div>
-      </div>
+      </a>
     {:else}
       <div class="empty-state">
         <Package size={48} />
@@ -399,4 +404,44 @@
   .btn.ghost:hover {
     background: var(--bg-0);
   }
+
+  /* Material catalog entries are real links; swatches remain source data. */
+  .page-container {max-width:1500px;padding:var(--space-lg) 0 var(--space-2xl);}
+  .page-header {position:relative;gap:var(--space-md);flex-wrap:wrap;
+    padding:var(--space-lg) 0;border-bottom:1px solid var(--divider);}
+  .page-header::before {content:'';position:absolute;top:0;left:0;height:2px;width:90px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
+  .header-title h1 {font-size:clamp(1.5rem,2.7vw,2rem);letter-spacing:var(--tracking-tight);}
+  .header-title :global(svg) {color:var(--brand);}
+  .btn.primary {background:var(--brand);color:var(--on-brand);border-color:var(--brand);}
+  .btn.primary:hover {background:var(--brand-2);}
+  .btn {min-height:42px;border-radius:var(--radius-sm);}
+  .alert-banner {border-radius:var(--radius-md);flex-wrap:wrap;}
+  .filters-bar {gap:var(--space-sm);flex-wrap:wrap;}
+  .search-box {min-height:44px;min-width:min(100%,260px);background:var(--bg-1);
+    border-radius:var(--radius-sm);}
+  .filters-bar select {min-height:44px;background:var(--bg-1);border-radius:var(--radius-sm);}
+  .materials-grid {grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));
+    gap:var(--space-md);}
+  .material-card {display:flex;flex-direction:column;min-width:0;height:100%;
+    color:var(--ink-primary);text-decoration:none;background:var(--glass-bg-strong);
+    border:1px solid var(--glass-border);border-radius:var(--radius-lg);
+    box-shadow:var(--glass-shadow-sm);transition:border-color var(--motion-sm) var(--ease-standard);}
+  .material-card:hover {transform:none;border-color:color-mix(in oklab,var(--brand) 50%,var(--border));}
+  .material-card:focus-visible,.search-box:focus-within,.filters-bar select:focus-visible,
+  .btn:focus-visible {outline:2px solid var(--focus);outline-offset:2px;}
+  .material-image-placeholder {height:84px;background:var(--bg-2);}
+  .material-swatch {display:block;width:100%;height:100%;}
+  .material-info {padding:var(--space-lg);min-width:0;}
+  .material-info h3 {color:var(--ink-primary);}
+  .material-brand {font-variant-numeric:tabular-nums;color:var(--ink-secondary);}
+  .material-specs {gap:var(--space-xs);flex-wrap:wrap;}
+  .spec-tag {border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-2);}
+  .stock-info {border-top:1px solid var(--divider);padding-top:var(--space-sm);}
+  .stock-value {font-variant-numeric:tabular-nums;}
+  .low-stock-badge {background:var(--error-soft);color:var(--error);border-color:var(--error);}
+  @media(max-width:720px) {.page-container {padding:var(--space-sm) 0 var(--space-xl);}
+    .filters-bar{flex-direction:column;align-items:stretch;}
+    .search-box,.filters-bar select{width:100%;}}
+  @media(prefers-reduced-transparency:reduce) {.material-card{background:var(--bg-1);}}
 </style>
