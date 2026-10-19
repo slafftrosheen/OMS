@@ -9,10 +9,10 @@
   let user = $derived($currentUser);
 
   interface LogisticsStats {
-    pending_dispatch: number;
-    scheduled_today: number;
-    overdue: number;
-    loading_capacity_pct: number;
+    pending_dispatch: number | null;
+    scheduled_today: number | null;
+    overdue: number | null;
+    loading_capacity_pct: number | null;
   }
   let stats = $state<LogisticsStats | null>(null);
   let statsLoading = $state(true);
@@ -24,16 +24,19 @@
         fetch(`${base}/api/calendar/capacity`),
         fetch(`${base}/api/loading-days/capacity`),
       ]);
-      const cal  = calRes.ok  ? await calRes.json()  : {};
+      const cal  = calRes.ok ? await calRes.json() : {};
       const load = loadRes.ok ? await loadRes.json() : {};
+      // Unavailable aggregates are unknown, not zero. Preserve genuine zero values.
+      const numeric = (value: unknown): number | null =>
+        typeof value === 'number' && Number.isFinite(value) ? value : null;
       stats = {
-        pending_dispatch:    cal.pending_dispatch    ?? 0,
-        scheduled_today:     cal.scheduled_today     ?? 0,
-        overdue:             cal.overdue             ?? 0,
-        loading_capacity_pct: load.capacity_pct      ?? 0,
+        pending_dispatch: numeric(cal.pending_dispatch),
+        scheduled_today: numeric(cal.scheduled_today),
+        overdue: numeric(cal.overdue),
+        loading_capacity_pct: numeric(load.capacity_pct),
       };
     } catch {
-      // Non-critical — dashboard still usable without live stats
+      stats = null; // Keep the dashboard usable, never fabricate live metrics.
     } finally {
       statsLoading = false;
     }
@@ -86,7 +89,7 @@
         <span class="stat-label">{$t('logistics_dash.overdue', { default: 'Overdue' })}</span>
       </div>
       <div class="stat-card">
-        <span class="stat-value">{stats?.loading_capacity_pct ?? '—'}{stats != null ? '%' : ''}</span>
+        <span class="stat-value">{stats?.loading_capacity_pct ?? '—'}{stats?.loading_capacity_pct != null ? '%' : ''}</span>
         <span class="stat-label">{$t('logistics_dash.loading_capacity', { default: 'Loading Capacity' })}</span>
       </div>
     {/if}
@@ -97,19 +100,19 @@
     <div class="card">
       <h2>{$t('logistics_dash.quick_actions', { default: 'Quick Actions' })}</h2>
       <div class="actions">
-        {#if !user || can(user, 'Logistics')}
+        {#if user && can(user, 'viewCalendar')}
           <a href="{base}/calendar" class="action-btn">
             <Icon name="calendar" size="sm" />
             {$t('logistics_dash.view_calendar', { default: 'Delivery Calendar' })}
           </a>
         {/if}
-        {#if !user || can(user, 'Logistics')}
+        {#if user && can(user, 'viewInventory')}
           <a href="{base}/inventory" class="action-btn">
             <Icon name="package" size="sm" />
             {$t('logistics_dash.export_manifest', { default: 'Inventory & Manifests' })}
           </a>
         {/if}
-        <a href="{base}/orders?status=READY_FOR_DISPATCH" class="action-btn">
+        <a href="{base}/orders" class="action-btn">
           <Icon name="truck" size="sm" />
           {$t('logistics_dash.dispatch_queue', { default: 'Dispatch Queue' })}
         </a>
@@ -329,4 +332,41 @@
   .stats-row { grid-template-columns: repeat(2, 1fr); }
   .dashboard-header { flex-direction: column; }
 }
+
+  /* Logistics is a live operator console, not a promotional landing card grid. */
+  .dashboard-container {padding:var(--space-lg) 0 var(--space-2xl);gap:var(--space-lg);max-width:1320px;}
+  .dashboard-header {position:relative;border-bottom:1px solid var(--divider);padding:var(--space-lg) 0;}
+  .dashboard-header::before {content:'';position:absolute;left:0;top:0;width:88px;height:2px;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
+  .dashboard-header h1 {font-size:clamp(1.6rem,2.6vw,2.15rem);letter-spacing:var(--tracking-tight);}
+  .role-badge {border-radius:var(--radius-sm);border:1px solid color-mix(in oklab,var(--brand) 35%,var(--border));}
+  .btn-outline-sm {min-height:44px;border-radius:var(--radius-md);}
+  .btn-outline-sm:focus-visible,.action-btn:focus-visible {outline:2px solid var(--focus);outline-offset:2px;}
+  .stats-row {grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-sm);}
+  .stat-card {align-items:flex-start;text-align:start;min-width:0;min-height:105px;
+    border-radius:var(--radius-md);background:var(--bg-1);border-color:var(--glass-border);
+    padding:var(--space-lg);gap:var(--space-sm);}
+  .stat-value {font-size:clamp(1.4rem,2.2vw,1.9rem);font-variant-numeric:tabular-nums;}
+  .stat-label {text-align:start;letter-spacing:.02em;text-transform:none;line-height:1.3;}
+  .stat-card--warn {border-color:color-mix(in oklab,var(--warn) 45%,var(--border));}
+  .stat-card--danger {border-color:color-mix(in oklab,var(--error) 45%,var(--border));}
+  .stat-card--warn .stat-value {color:var(--warn);}
+  .stat-card--danger .stat-value {color:var(--error);}
+  .dashboard-grid {grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));
+    gap:var(--space-md);}
+  .card {min-width:0;background:var(--glass-bg-strong);border-color:var(--glass-border);
+    border-radius:var(--radius-lg);padding:var(--space-xl);box-shadow:var(--glass-shadow-sm);}
+  .card h2 {font-size:var(--text-lg);}
+  .actions {gap:var(--space-sm);}
+  .action-btn {min-height:44px;background:var(--bg-1);border:1px solid var(--border);
+    border-radius:var(--radius-sm);font-weight:650;color:var(--ink-secondary);}
+  .action-btn:hover {color:var(--ink-primary);background:var(--bg-2);}
+  .overview-list li {line-height:1.5;}
+  @media(max-width:760px) {
+    .dashboard-container {padding:var(--space-sm) 0 var(--space-xl);}
+    .stats-row {grid-template-columns:repeat(2,minmax(0,1fr));}
+    .card {padding:var(--space-lg);}
+  }
+  @media(prefers-reduced-motion:reduce) {.stat-card--loading {animation:none;}}
+  @media(prefers-reduced-transparency:reduce) {.card {background:var(--bg-1);}}
 </style>
