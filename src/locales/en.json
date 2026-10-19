@@ -394,11 +394,11 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "welcome": "Welcome back, {name}!",
+    "welcome": "Your production overview, at a glance.",
     "loading": "Loading dashboard...",
-    "new_order": "+ New Order",
+    "new_order": "New order",
     "view_all": "View All",
-    "no_orders": "No active orders",
+    "no_orders": "No orders available",
     "create_first": "Create First Order",
     "quick_actions": "Quick Actions",
     "chart_overview": "Orders Overview",
@@ -407,6 +407,12 @@
     "stat_active": "Active Orders",
     "stat_completed": "Completed",
     "stat_overdue": "Overdue",
+    "order_load_error": "Unable to load orders right now.",
+    "metrics_unavailable": "Live KPI breakdown unavailable; only the verified order total is shown.",
+    "orders_snapshot": "Orders snapshot",
+    "orders_kicker": "Priority first",
+    "stat_completed_today": "Completed today",
+    "stat_today": "Orders today",
     "actions": {
       "new_order": {
         "title": "New Order",
