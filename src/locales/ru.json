@@ -2544,6 +2544,8 @@
     "scan_qr": "Сканировать QR-код заказа"
   },
   "inventoryDetail": {
+    "addStock": "Добавить на склад",
+    "removeStock": "Списать со склада",
     "notes": "Примечания",
     "decreaseQuantity": "Уменьшить количество",
     "increaseQuantity": "Увеличить количество",
