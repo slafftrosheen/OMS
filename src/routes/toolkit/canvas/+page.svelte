@@ -862,10 +862,10 @@
 <div class="workspace">
   <header class="command-bar">
     <div class="workspace-title">
-      <button class="icon-toggle" onclick={() => projectListOpen = !projectListOpen}
+      <button class="icon-toggle" type="button" onclick={() => projectListOpen = !projectListOpen}
         aria-label={$t('toolkit.canvas.projects')} aria-expanded={projectListOpen}>☰</button>
       {#if boardId}
-        <input class="board-title" aria-label={$t('toolkit.canvas.projects')} maxlength="120" bind:value={boardTitle} oninput={markDirty} />
+        <input class="board-title" aria-label={$t('toolkit.canvas.boardTitle', { default: 'Project title' })} maxlength="120" bind:value={boardTitle} oninput={markDirty} />
       {:else}<h2>{$t('toolkit.canvas.noBoard')}</h2>{/if}
       <span class="save-indicator" role="status" aria-live="polite">
         {#if saving || discussionSaving}{$t('toolkit.canvas.saving')}{:else if conflict}{$t('toolkit.canvas.conflict')}{:else if dirty || discussionDirty}{$t('toolkit.canvas.unsaved')}{:else if lastSaved}{$t('toolkit.canvas.saved')} {lastSaved}{:else if boardId}{$t('toolkit.canvas.upToDate')}{/if}
@@ -877,7 +877,7 @@
       <button onclick={() => void flushCurrentChanges()} disabled={!boardId || saving || ( !dirty && !discussionDirty ) || conflict}>{$t('toolkit.canvas.save')}</button>
       <button onclick={arrangeIdeas} disabled={!boardId || !editor || conflict || remoteUpdated}>{$t('toolkit.canvas.arrangeIdeas')}</button>
       <button onclick={exportBrief} disabled={!boardId || !editor}>{$t('toolkit.canvas.exportBrief')}</button>
-      <button class="assistant-toggle" onclick={() => assistantOpen = !assistantOpen} aria-expanded={assistantOpen}>
+      <button class="assistant-toggle" type="button" onclick={() => assistantOpen = !assistantOpen} aria-expanded={assistantOpen}>
         {assistantOpen ? $t('toolkit.canvas.hideAssistant') : $t('toolkit.canvas.brainstorm')}
       </button>
     </div>
@@ -949,7 +949,7 @@
       </aside>
     {/if}
 
-    <main class="board-area" aria-label={$t('toolkit.canvas.canvasLabel')}>
+    <section class="board-area" aria-label={$t('toolkit.canvas.canvasLabel')}>
       {#if boardId && !loading}
         <div class="node-toolbar">
           <span class="small-heading">{$t('toolkit.canvas.compose')}</span>
@@ -1030,7 +1030,7 @@
           </div>
         </div>
       {/if}
-    </main>
+    </section>
 
     {#if assistantOpen}
       <aside class="assistant-pane">
@@ -1286,4 +1286,67 @@
   .research-sources{display:grid;gap:7px;font-size:11px;border-top:1px solid var(--border);padding-top:10px}
   .research-sources a{color:var(--brand);text-decoration:underline;overflow-wrap:anywhere}
   .canvas-security-note{font-size:11px;color:var(--ink-secondary)}
+
+  /* Canvas is a tool: magenta marks the single AI CTA, not every control. */
+  .workspace { background:var(--bg-0);border-radius:var(--radius-lg);border-color:var(--glass-border); }
+  .command-bar { padding:var(--space-sm) var(--space-md);background:var(--glass-bg-strong);
+    border-bottom:1px solid var(--border);min-width:0; }
+  .workspace-title { flex:1 1 220px;gap:var(--space-sm); }
+  .command-actions { gap:var(--space-xs); }
+  .command-actions button { flex-shrink:0; }
+  .team-label { color:var(--ink-tertiary);font-size:var(--text-xs); }
+  .board-title { min-width:0;max-width:380px;font-size:var(--text-md);
+    color:var(--ink-primary);font-weight:700; }
+  .board-title:focus-visible { border-color:var(--focus);outline:2px solid var(--focus);outline-offset:1px; }
+  .save-indicator { font-variant-numeric:tabular-nums;white-space:nowrap; }
+  .workspace button { border-radius:var(--radius-sm);transition:
+    background var(--motion-sm) var(--ease-standard),border-color var(--motion-sm) var(--ease-standard); }
+  .workspace button:focus-visible { outline:2px solid var(--focus);outline-offset:2px; }
+  .workspace button.primary,.workspace .assistant-toggle {
+    background:var(--brand);color:var(--on-brand);border-color:var(--brand);font-weight:700;
+  }
+  .workspace button.primary:hover,.workspace .assistant-toggle:hover {
+    background:var(--brand-2);border-color:var(--brand-2);color:var(--on-brand);
+  }
+  .workspace .new-project { background:var(--brand-soft);color:var(--brand);
+    border-color:color-mix(in oklab,var(--brand) 35%,var(--border)); }
+  .library,.assistant-pane { background:var(--bg-1); }
+  .library { flex-basis:clamp(205px,17vw,250px); }
+  .assistant-pane { flex-basis:clamp(280px,24vw,360px); }
+  .pane-heading { position:sticky;top:0;background:var(--bg-1);z-index:2;padding-bottom:4px; }
+  .project-entry.active { border-color:color-mix(in oklab,var(--brand) 40%,var(--border)); }
+  .project-open { min-height:44px; }
+  .project-open:hover { background:var(--bg-2); }
+  .node-toolbar { background:var(--bg-1);overscroll-behavior-x:contain;
+    scrollbar-width:thin; min-height:52px; }
+  .node-toolbar button { min-height:38px; }
+  .node-toolbar .chosen { border-color:var(--brand);background:var(--brand-soft); }
+  .advanced-tools summary { min-height:38px;display:flex;align-items:center; }
+  .advanced-menu { background:var(--bg-2); }
+  .conversation { overscroll-behavior:contain; }
+  .proposal { background:var(--bg-2);padding:var(--space-md); }
+  .proposal-kind { color:var(--brand); }
+  .assistant-pane .composer { position:sticky;bottom:0;background:var(--bg-1);z-index:2;
+    padding-bottom:var(--space-xs); }
+  .assistant-pane .composer textarea { min-height:88px; }
+  @media(max-width:1100px) and (min-width:781px) {
+    .library { flex-basis:190px; }
+    .assistant-pane { flex-basis:260px; }
+  }
+  @media(max-width:780px) {
+    .command-bar { flex-direction:column;align-items:stretch;gap:var(--space-xs); }
+    .workspace-title { flex:0 0 auto;min-height:40px;flex-wrap:wrap; }
+    .command-actions { flex-wrap:nowrap;max-width:100%;overflow-x:auto;
+      justify-content:flex-start;padding:2px 0 6px;scrollbar-width:thin; }
+    .command-actions .team-label { flex:0 0 auto; }
+    .panes { overflow-y:auto;overscroll-behavior:contain; }
+    .library { flex:0 0 auto;max-height:180px; }
+    .board-area { flex:1 0 auto;min-height:min(500px,65dvh); }
+    .assistant-pane { flex:0 0 auto;max-height:min(500px,62dvh); }
+    .node-toolbar { flex-wrap:nowrap;overflow-x:auto; }
+    .empty-actions { flex-wrap:wrap;justify-content:center; }
+  }
+  @media(prefers-reduced-transparency:reduce) {
+    .command-bar,.workspace { backdrop-filter:none;background:var(--bg-1); }
+  }
 </style>
