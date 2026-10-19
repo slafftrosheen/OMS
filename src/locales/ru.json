@@ -776,6 +776,7 @@
     "tip": "Совет: нажмите ⌘K / Ctrl-K"
   },
   "inventory": {
+    "exportCsv": "Экспорт CSV",
     "title": "Склад",
     "catalog": "Каталог материалов",
     "add_material": "Добавить материал",
