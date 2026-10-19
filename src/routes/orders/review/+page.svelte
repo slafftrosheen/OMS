@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
@@ -44,6 +44,31 @@
   let rejectTarget = $state<PendingOrder | null>(null);
   let rejectReason = $state('');
   let rejecting = $state(false);
+  let previousFocus: HTMLElement | null = null;
+
+  function rememberFocus(): void {
+    previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+  function restoreFocus(): void {
+    const target = previousFocus;
+    previousFocus = null;
+    void tick().then(() => target?.focus());
+  }
+  function handleDialogKeys(e: KeyboardEvent, close: () => void): void {
+    if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+    if (e.key !== 'Tab') return;
+    const dialog = e.currentTarget as HTMLElement;
+    const elements = [...dialog.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href]'
+    )].filter(el => el.getAttribute('aria-hidden') !== 'true');
+    const first = elements[0], last = elements[elements.length - 1];
+    if (!first || !last) { e.preventDefault(); dialog.focus(); return; }
+    if (e.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+      e.preventDefault(); first.focus();
+    }
+  }
 
   let canReview = $derived(can($currentUser, 'reviewQueue'));
   let canAssignPo = $derived(can($currentUser, 'assignPoNumber'));
@@ -73,8 +98,10 @@
   }
 
   async function openConfirm(order: PendingOrder) {
+    rememberFocus();
     const sequence=++confirmLoadSequence;
     confirmTarget=order;
+    void tick().then(() => document.getElementById('po-input')?.focus());
     poInput=order.po_number??'';
     confirmError='';
     confirmRevision=null;confirmFiles=null;confirmDocumentNames=[];confirmLoading=true;
@@ -119,6 +146,7 @@
     poInput='';
     confirmError='';
     confirmRevision=null;confirmFiles=null;confirmDocumentNames=[];confirmLoading=false;
+    restoreFocus();
   }
 
   async function submitConfirm() {
@@ -151,6 +179,7 @@
       confirmTarget=null;
       poInput='';
       confirmRevision=null;confirmFiles=null;confirmDocumentNames=[];
+      restoreFocus();
       await load();
     } catch (err: any) {
       confirmError = err?.message ?? 'Failed to confirm';
@@ -160,17 +189,21 @@
   }
 
   function openReject(order: PendingOrder) {
+    rememberFocus();
     rejectTarget = order;
     rejectReason = '';
+    void tick().then(() => document.getElementById('reject-reason')?.focus());
   }
 
-  function closeReject() {
+  function closeReject(force = false) {
+    if (rejecting && !force) return;
     rejectTarget = null;
     rejectReason = '';
+    restoreFocus();
   }
 
   async function submitReject() {
-    if (!rejectTarget || !rejectReason.trim()) return;
+    if (!rejectTarget || !rejectReason.trim() || rejecting) return;
     rejecting = true;
     try {
       const res = await fetch(`${base}/api/draft-orders/${rejectTarget.id}/reject`, {
@@ -180,15 +213,15 @@
       });
       if (!res.ok) {
         const p = await res.json().catch(() => ({}));
-        notifications.error(p?.message ?? 'Failed to reject');
+        notifications.error(p?.message ?? $t('orders.review.rejectFailed'));
         return;
       }
-      notifications.success('Order rejected');
-      closeReject();
+      notifications.success($t('orders.review.rejected'));
+      closeReject(true);
       await load();
     } catch (err) {
       console.error(err);
-      notifications.error('Failed to reject order');
+      notifications.error($t('orders.review.rejectFailed'));
     } finally {
       rejecting = false;
     }
@@ -196,7 +229,8 @@
 
   function formatDate(value: string | null): string {
     if (!value) return '—';
-    return new Date(value).toLocaleDateString();
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
   }
 
   function priorityTone(p: string | null): string {
@@ -320,7 +354,7 @@
   <div
     class="modal-backdrop"
     onclick={closeConfirm}
-    onkeydown={(e) => e.key === 'Escape' && closeConfirm()}
+    onkeydown={(e) => handleDialogKeys(e,closeConfirm)}
     role="dialog"
     aria-modal="true"
     aria-labelledby="confirm-title"
@@ -368,6 +402,8 @@
           id="po-input"
           type="text"
           bind:value={poInput}
+          readonly={!canAssignPo}
+          aria-readonly={!canAssignPo}
           maxlength="16"
           placeholder="e.g. PO-2026-00042"
           autocomplete="off"
@@ -416,7 +452,7 @@
   <div
     class="modal-backdrop"
     onclick={closeReject}
-    onkeydown={(e) => e.key === 'Escape' && closeReject()}
+    onkeydown={(e) => handleDialogKeys(e,closeReject)}
     role="dialog"
     aria-modal="true"
     aria-labelledby="reject-title"
