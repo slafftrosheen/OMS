@@ -7,6 +7,7 @@
   import { logout, type AuthState } from '$lib/auth/authState.svelte';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
+  import { buildInfo } from '$lib/build-info';
   import Icon from '$lib/ui/Icon.svelte';
   import Sun from 'lucide-svelte/icons/sun';
   import Moon from 'lucide-svelte/icons/moon';
@@ -144,6 +145,11 @@
   <header class="settings-header">
     <h1>{$t('settings.title', { default: 'Settings' })}</h1>
     <p class="muted">{$t('settings.description', { default: 'Customize your experience' })}</p>
+    <p class="build-fingerprint" title={buildInfo.builtAt}>
+      OMS UI · <code>{buildInfo.revision}</code>
+      <span aria-hidden="true">·</span>
+      <time datetime={buildInfo.builtAt}>{buildInfo.builtAt.slice(0,16).replace('T',' ')} UTC</time>
+    </p>
   </header>
 
   <div class="settings-grid">
@@ -672,4 +678,12 @@
     .openrouter-key-form input {min-width:0;flex-basis:100%;}
   }
   @media(prefers-reduced-transparency:reduce) {.settings-section {background:var(--bg-1);}}
+
+  /* Deliberately discreet but visible release identity for manual deployments. */
+  .build-fingerprint {display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-xs);
+    color:var(--ink-tertiary);font-size:var(--text-xs);font-variant-numeric:tabular-nums;
+    margin:var(--space-sm) 0 0;}
+  .build-fingerprint code {font-family:var(--font-mono);font-size:inherit;
+    color:var(--ink-secondary);user-select:all;overflow-wrap:anywhere}
+  .build-fingerprint time {color:var(--ink-quaternary)}
 </style>
