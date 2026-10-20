@@ -10,7 +10,7 @@ Check the **actual running process's** upload limit without printing any other e
 
 ```sh
 pid="$(systemctl show -p MainPID --value reclame-oms.service)"
-sudo cat "/proc/$pid/environ" | tr '\\0' '\\n' | grep '^BODY_SIZE_LIMIT=' || echo "BODY_SIZE_LIMIT is missing from the running process"
+sudo cat "/proc/$pid/environ" | tr '\0' '\n' | grep '^BODY_SIZE_LIMIT=' || echo "BODY_SIZE_LIMIT is missing from the running process"
 ```
 
 For files up to 25 MiB, the configured OMS process must have at least 26 MiB of multipart room; `BODY_SIZE_LIMIT=32M` is the documented setting. It must exist in the environment **of the process started by systemd**. The example configuration and Docker variables do not change host systemd settings.
