@@ -23,7 +23,7 @@ Example after a correctly rebuilt deployment:
 }
 ```
 
-An **HTTP 404 at `/api/build-info`** means the running app still predates this diagnostic (or a proxy serves a different instance). A valid endpoint with an older SHA/timestamp means the compiled application is stale.
+A **200 JSON response** confirms that the running app includes the diagnostic; compare its SHA and compilation time to the intended release. An **HTTP 404** may mean the running app predates the diagnostic or a proxy targets another instance. An **HTTP 401** is inconclusive for older builds: the server's API authentication hook returned 401 even for unknown routes. The new `/api/build-info` route is explicitly allowlisted for anonymous GET access. A valid response with an older SHA or timestamp means the compiled application is stale.
 
 ## Read-only diagnosis on the OMS host
 
@@ -40,11 +40,18 @@ curl -sS 'http://127.0.0.1:3000/brand.css?oms-source-check=20261020' | grep -F -
 ```
 
 - If the checkout SHA is old, the deployment checked out/pulled a different revision or directory.
-- If the checkout is current but `/api/build-info` is 404 or old, the app has not rebuilt/restarted with the current source (or systemd points elsewhere).
+- If the checkout is current but `/api/build-info` is 401, 404, or shows an older revision, verify the *compiled* bundle and whether the app service was restarted. A checkout with new source alone does not update `build/`. A 401 by itself does not prove the route exists.
 - If the app SHA and timestamp are current but the page still looks old, inspect the URL you are actually visiting, its upstream, browser cache, installed PWA versus tab, and the deployed `/brand.css` response.
 - The current `static/service-worker.js` is network-only for HTML, JS and CSS; an old service worker or external CDN is possible, but must not be assumed as the root cause without response evidence.
 
 To isolate reverse-proxy mismatch compare `/api/build-info` via the **public/Tailnet URL you open in the browser** with the response on `127.0.0.1:3000`. Responses should match exactly in revision and timestamp. Do not share internal host addresses, secrets or cookies in public logs.
+
+
+## Example of a source/bundle mismatch (observed October 20, 2026)
+
+The OMS host reported Git checkout SHA `886cef038beb`, but `systemctl show` indicated that the app process had started on **2026-10-19 at 16:57 EEST**, before that commit existed. This confirms a *running-process/source* mismatch: the current Git checkout is not the currently running process. It does not reveal the compiled bundle's source revision or prove precisely when `build/` was last written. The unauthenticated `/api/build-info` response was HTTP 401 from the generic API auth hook, not evidence that the endpoint was deployed. The allowlist is fixed in source after commit `153334f`.
+
+For manual app-only releases, a correct source SHA is necessary but insufficient: rebuilding via `npm run build` and restarting `reclame-oms.service` must happen **after** the intended commit. Only restart once the build completed successfully.
 
 ## Manual app-only release after diagnosis
 
