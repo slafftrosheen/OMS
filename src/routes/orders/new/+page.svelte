@@ -681,17 +681,30 @@
         formData.append('order_id', String(orderId));
         formData.append('file_type', 'sketch');
 
-        const uploadResponse = await fetch('/api/files/upload', { method: 'POST', body: formData });
-        if (!uploadResponse.ok) {
-          const payload = await uploadResponse.json().catch(() => ({}));
-          failedUploads.push(`${fileItem.file.name}${payload.error ? `: ${payload.error}` : ''}`);
-        } else {
-          uploadedFileKeys = new Set(uploadedFileKeys).add(fileKey);
+        try {
+          const uploadResponse = await fetch(`${base}/api/files/upload`, { method: 'POST', body: formData });
+          if (!uploadResponse.ok) {
+            // SvelteKit HttpError responses expose the reason as "message", not
+            // "error". Previously the UI discarded it and showed only the name.
+            const payload: Record<string, unknown> = await uploadResponse.json().catch(() => ({}));
+            const serverReason = typeof payload.message === 'string' ? payload.message
+              : typeof payload.error === 'string' ? payload.error : '';
+            const reason = serverReason.trim().slice(0, 320) ||
+              $t('orders.new.files.uploadHttpError', { values: { status: uploadResponse.status } });
+            failedUploads.push(`${fileItem.file.name}: ${reason}`);
+          } else {
+            // Successfully linked files are excluded from subsequent manual retries.
+            uploadedFileKeys = new Set(uploadedFileKeys).add(fileKey);
+          }
+        } catch {
+          failedUploads.push(`${fileItem.file.name}: ${$t('orders.new.files.uploadNetworkError')}`);
         }
       }
 
       if (failedUploads.length > 0) {
-        error = `Order saved, but ${failedUploads.length} attachment(s) failed. Retry save to upload them: ${failedUploads.join(', ')}`;
+        error = $t('orders.new.files.partialUpload', { values: {
+          count: failedUploads.length, details: failedUploads.join('; ')
+        } });
         return;
       }
 
