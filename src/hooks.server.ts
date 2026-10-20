@@ -154,6 +154,7 @@ const authHandler: Handle = async ({ event, resolve }) => {
 		{ path: '/api/users', methods: ['POST'] }, // Allow signup
 		{ path: '/api/health', methods: ['GET'] },
 		{ path: '/api/healthz', methods: ['GET'] },
+		{ path: '/api/build-info', methods: ['GET'] }, // Read-only compiled revision; never exposes credentials.
 		{ path: '/api/preferences', methods: ['GET'] }, // Returns defaults for anonymous users
 		{ path: '/api/materials', methods: ['GET'] }, // Read-only materials data
 	];
