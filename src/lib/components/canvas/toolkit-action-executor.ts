@@ -1,6 +1,6 @@
 /** Explicitly reviewed Canvas edits. Preflight the complete proposal set, then
  * apply in one history transaction. No network requests or order data writes. */
-import { canvasActionTargets, normalizeCanvasActions, normalizeEditableProps, type CanvasAction, MAX_CANVAS_ACTIONS } from './toolkit-actions';
+import { canvasActionTargets, isCanvasActionReference, normalizeCanvasActions, normalizeEditableProps, type CanvasAction, MAX_CANVAS_ACTIONS } from './toolkit-actions';
 import { captureToolkitScene, canvasShapeVersion, EDITABLE_CANVAS_TYPES, PROTECTED_CANVAS_TYPES } from './toolkit-scene';
 import { canvasLinkShapeProps } from './toolkit-media-url';
 import { ideaDefaults } from './idea-model';
@@ -88,29 +88,40 @@ function preflight(editor: any, actions: CanvasAction[]): ToolkitApplyResult | n
     getBindingsFromShape: (id: string, type: string) => editor.getBindingsFromShape?.(id, type),
     getAsset: (id: string) => editor.getAsset?.(id), getViewportPageBounds: () => editor.getViewportPageBounds?.()
   });
+  // Validate the complete declaration order together. An isolated later action
+  // cannot resolve a newly-created shape and must never acquire its own authority.
+  const normalized = normalizeCanvasActions(actions, scene);
   const deleted = new Set<string>();
+  const pendingConnections = new Set<string>();
   for (const action of actions) {
     if (action.pageId && action.pageId !== editor.getCurrentPageId?.()) return result('pageChanged');
     const targets = actionIds(action, all);
-    if (targets.some(id => !allIds.has(id) || deleted.has(id))) return result('missing');
-    const affected = affectedShapes(all, targets);
+    if (targets.some(id => (!isCanvasActionReference(id) && !allIds.has(id)) || deleted.has(id))) return result('missing');
+    const existingTargets = targets.filter(id => !isCanvasActionReference(id));
+    const affected = affectedShapes(all, existingTargets);
     const related = [...affected, ...ancestorsOf(all, affected)];
     if (related.some(blocked)) return result('protected');
     if (action.expected) {
       if (related.some(shape => action.expected![shape.id] !== canvasShapeVersion(shape))) return result('stale');
       if (Object.keys(action.expected).some(id => !related.some(shape => shape.id === id))) return result('stale');
-    } else if (!['revise','connect','layout','create'].includes(action.kind)) return result('stale');
-    if (!normalizeCanvasActions([action], scene).length) return result('invalid');
+    } else if (existingTargets.length && !['revise','connect','layout','create'].includes(action.kind)) return result('stale');
     if (action.kind === 'layout' && targets.length < 2) return result('empty');
-    if (action.kind === 'delete') for (const shape of affected) deleted.add(shape.id);
+    if (action.kind === 'delete') {
+      for (const shape of affected) deleted.add(shape.id);
+      for (const id of targets) deleted.add(id);
+    }
+    if (action.kind === 'ungroup') for (const id of targets) deleted.add(id);
     if (action.kind === 'connect') {
-      if (typeof editor.createBindings !== 'function' || !editor.getShapePageBounds?.(action.from) || !editor.getShapePageBounds?.(action.to)) return result('unsupported');
+      if (typeof editor.createBindings !== 'function' || typeof editor.createShape !== 'function' ||
+          existingTargets.some(id => !editor.getShapePageBounds?.(id))) return result('unsupported');
       const exists = all.filter(shape => shape.type === 'arrow').some(arrow => {
         const bindings = editor.getBindingsFromShape?.(arrow.id, 'arrow') ?? [];
         return bindings.find((binding: any) => binding.props?.terminal === 'start')?.toId === action.from &&
           bindings.find((binding: any) => binding.props?.terminal === 'end')?.toId === action.to;
       });
-      if (exists) return result('duplicateConnection');
+      const key = `${action.from}\u0000${action.to}`;
+      if (exists || pendingConnections.has(key)) return result('duplicateConnection');
+      pendingConnections.add(key);
     }
     const method: Partial<Record<CanvasAction['kind'], string>> = {
       create: 'createShape', update: 'updateShape', revise: 'updateShape', move: 'nudgeShapes', resize: 'resizeShape',
@@ -118,19 +129,37 @@ function preflight(editor: any, actions: CanvasAction[]): ToolkitApplyResult | n
       align: 'alignShapes', distribute: 'distributeShapes', layout: 'updateShapes'
     };
     if (method[action.kind] && typeof editor[method[action.kind]!] !== 'function') return result('unsupported');
+    if (action.kind === 'group' || action.kind === 'ungroup') {
+      if (typeof editor.getShape !== 'function') return result('unsupported');
+      if (editor.getCurrentToolId?.() && editor.getCurrentToolId() !== 'select' &&
+          typeof editor.setCurrentTool !== 'function') return result('unsupported');
+    }
     if (action.kind === 'reorder') {
       const methods = { front: 'bringToFront', back: 'sendToBack', forward: 'bringForward', backward: 'sendBackward' };
       if (typeof editor[methods[action.position]] !== 'function') return result('unsupported');
     }
-    if (action.kind === 'resize') {
+    if (action.kind === 'resize' && !isCanvasActionReference(action.target)) {
       const bounds = editor.getShapeGeometry?.(action.target)?.bounds;
       if (!bounds?.w || !bounds?.h) return result('unsupported');
     }
   }
+  if (normalized.length !== actions.length) return result('invalid');
   if (typeof editor.run !== 'function' || typeof editor.mark !== 'function' || typeof editor.bailToMark !== 'function') return result('unsupported');
   return null;
 }
-function execute(editor: any, action: CanvasAction) {
+function resolveTargets(action: CanvasAction, references: Map<string, string>): CanvasAction {
+  const resolve = (id: string) => {
+    if (!isCanvasActionReference(id)) return id;
+    const actual = references.get(id);
+    if (!actual) throw new Error('Unresolved Canvas reference');
+    return actual;
+  };
+  if (action.kind === 'connect') return { ...action, from: resolve(action.from), to: resolve(action.to) };
+  if ('target' in action) return { ...action, target: resolve(action.target) };
+  if ('targets' in action && action.targets) return { ...action, targets: action.targets.map(resolve) };
+  return action;
+}
+function execute(editor: any, action: CanvasAction, references: Map<string, string>) {
   switch (action.kind) {
     case 'create': {
       let props = action.shape.props;
@@ -140,7 +169,9 @@ function execute(editor: any, action: CanvasAction) {
         if (!media) throw new Error('Invalid media URL');
         props = { ...media, ...props };
       }
-      editor.createShape({ ...action.shape, id: newShapeId(), parentId: editor.getCurrentPageId(), props });
+      const id = newShapeId();
+      editor.createShape({ ...action.shape, id, parentId: editor.getCurrentPageId(), props });
+      if (action.ref) references.set(`@${action.ref}`, id);
       break;
     }
     case 'update': {
@@ -159,13 +190,25 @@ function execute(editor: any, action: CanvasAction) {
     case 'move': editor.nudgeShapes(action.targets, { x: action.dx, y: action.dy }); break;
     case 'resize': {
       const bounds = editor.getShapeGeometry(action.target).bounds;
+      if (!bounds?.w || !bounds?.h) throw new Error('Shape cannot be resized');
       editor.resizeShape(action.target, { x: action.width / bounds.w, y: action.height / bounds.h });
       break;
     }
     case 'delete': editor.deleteShapes(action.targets); break;
     case 'duplicate': editor.duplicateShapes(action.targets, { x: action.dx, y: action.dy }); break;
-    case 'group': editor.groupShapes(action.targets); break;
-    case 'ungroup': editor.ungroupShapes(action.targets); break;
+    case 'group': {
+      const groupId = newShapeId();
+      editor.groupShapes(action.targets, { groupId });
+      // Native grouping can return without changing anything (for example when
+      // the active tool refuses it). Never report that as an applied proposal.
+      if (editor.getShape(groupId)?.type !== 'group') throw new Error('Shapes were not grouped');
+      break;
+    }
+    case 'ungroup': {
+      editor.ungroupShapes(action.targets);
+      if (action.targets.some(id => editor.getShape(id))) throw new Error('Shapes were not ungrouped');
+      break;
+    }
     case 'align': editor.alignShapes(action.targets, action.alignment); break;
     case 'distribute': editor.distributeShapes(action.targets, action.axis); break;
     case 'reorder': {
@@ -208,10 +251,23 @@ export function applyToolkitActions(editor: any, actions: CanvasAction[]): Toolk
   if (validated.length !== actions.length) return result('invalid');
   const problem = preflight(editor, validated);
   if (problem) return problem;
+  if (validated.some(action => action.kind === 'group' || action.kind === 'ungroup') &&
+      editor.getCurrentToolId?.() && editor.getCurrentToolId() !== 'select') {
+    try {
+      // Finish the user's current gesture before the assistant's undo boundary.
+      // Recheck fingerprints in case completing that gesture changed a target.
+      editor.complete?.();
+      editor.setCurrentTool('select');
+    } catch { return result('unsupported'); }
+    if (editor.getCurrentToolId() !== 'select') return result('unsupported');
+    const changed = preflight(editor, validated);
+    if (changed) return changed;
+  }
   const mark = `toolkit-assistant-${newShapeId().slice(6)}`;
+  const references = new Map<string, string>();
   editor.mark(mark);
   try {
-    editor.run(() => { for (const action of validated) execute(editor, action); });
+    editor.run(() => { for (const action of validated) execute(editor, resolveTargets(action, references), references); });
     editor.mark(`${mark}-complete`);
     return result('applied', true, actions.length);
   } catch {

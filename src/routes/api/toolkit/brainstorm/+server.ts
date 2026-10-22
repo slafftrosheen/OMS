@@ -123,7 +123,7 @@ into the selected language. The user's message language is NOT the response-lang
         ? [{ type: 'text', text: userInput }, ...vision.parts] : userInput }],
       {
         model: vision.parts.length ? OPENROUTER_VISION_MODEL : model,
-        temperature: 0.35, maxTokens: 6500, timeoutMs: 90_000,
+        temperature: 0.35, maxTokens: 6500, timeoutMs: 90_000, signal: request.signal,
         ...(skill === 'research' && webMode === 'openrouter' ? { maxToolCalls: 2 } : {}),
         ...(skill === 'research' && webMode === 'openrouter'
           ? { tools: [{ type: 'openrouter:web_search', parameters: { max_uses: 2, max_results: 4, max_total_results: 8, search_context_size: 'low' } }] } : {})
@@ -151,6 +151,7 @@ into the selected language. The user's message language is NOT the response-lang
       searchNote
     }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (err) {
+    if (request.signal.aborted) return json({ error: 'Request cancelled' }, { status: 499 });
     console.error('[Toolkit] brainstorm provider unavailable', err instanceof Error ? err.name : 'unknown');
     return json({ error: 'Brainstorming is unavailable right now. Your board has not changed.' },
       { status: 503 });

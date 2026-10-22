@@ -3058,7 +3058,18 @@
       },
       "drawingIncluded": "Zīmējuma attēlā iekļauti objekti: {count}.",
       "drawingUnavailable": "Zīmējuma attēls nebija pieejams; iekļauts objektu teksts un ģeometrija.",
-      "drawingOmitted": "HTML un mediju objekti, kas aprakstīti kontekstā, nevis zīmējuma attēlā: {count}."
+      "drawingOmitted": "HTML un mediju objekti, kas aprakstīti kontekstā, nevis zīmējuma attēlā: {count}.",
+      "assistantSettings": "Asistenta iestatījumi un failu analīze",
+      "selectionPrompt": "Palīdzi izprast vai uzlabot atlasītos objektus.",
+      "stopRequest": "Apturēt",
+      "requestCancelled": "Pieprasījums apturēts. Jūsu jautājums ir saglabāts sarunā.",
+      "linkedEdits": "Šīs izmaiņas izveido un savieno jaunus objektus. Piemērojiet tās kopā.",
+      "discardEdits": "Noraidīt izmaiņas",
+      "discardedEdits": "Piedāvātās izmaiņas ir noraidītas.",
+      "leaveWarning": "Projektā ir nesaglabātas izmaiņas vai nepabeigtas darbības. Iziet un atmest tās?",
+      "recovering": "Saglabā atkopšanas kopiju…",
+      "recoveryKeptEdits": "Atkopšanas kopija saglabāta. Jaunākās izmaiņas paliek šajā projektā.",
+      "recoveryPrivateRetry": "Atkopšanas kopija ir saglabāta, taču privāto sarunu neizdevās nokopēt. Izvēlieties “Saglabāt kopiju”, lai mēģinātu vēlreiz. Sākotnējais projekts nav mainīts."
     },
     "draw": {
       "select": "Atlasīt",
@@ -3299,7 +3310,97 @@
       "back": "Aizmugurē",
       "invalidLink": "Ievadiet publisku HTTP vai HTTPS vietnes vai multivides saiti.",
       "linkAdded": "Saite pievienota audeklam.",
-      "linkFailed": "Neizdevās pievienot saiti. Mēģiniet vēlreiz."
+      "linkFailed": "Neizdevās pievienot saiti. Mēģiniet vēlreiz.",
+      "styles": "Stils un noformējums",
+      "stylesSelection": "Mainiet atlasīto objektu noformējumu.",
+      "stylesNext": "Izvēlieties nākamā zīmējamā objekta stilu.",
+      "noStyles": "Izvēlieties zīmēšanas rīku vai atlasiet objektu, lai mainītu tā stilu.",
+      "selection": "Atlase",
+      "selectObjects": "Atlasiet objektus uz audekla, lai tos šeit rediģētu.",
+      "lockedSelection": "Atlasē ir bloķēti objekti. Pirms rediģēšanas atbloķējiet tos.",
+      "readOnly": "Projekts ir tikai lasāms, līdz ir atrisināts konflikts ar jaunāko versiju. To joprojām var apskatīt un pārlūkot.",
+      "askSelection": "Jautāt par atlasi",
+      "fitSelection": "Ietilpināt atlasi",
+      "actualSize": "Faktiskais izmērs · 100%",
+      "alignDistribute": "Līdzināt un izkārtot",
+      "alignHint": "Atlasiet vismaz divus objektus līdzināšanai vai trīs vienmērīgai izkārtošanai.",
+      "align": {
+        "left": "Līdzināt pa kreisi",
+        "center": "Līdzināt centrus",
+        "right": "Līdzināt pa labi",
+        "top": "Līdzināt augšmalas",
+        "middle": "Līdzināt viduslīnijas",
+        "bottom": "Līdzināt apakšmalas"
+      },
+      "distributeHorizontal": "Izkārtot horizontāli",
+      "distributeVertical": "Izkārtot vertikāli",
+      "addingLink": "Pievieno saiti…",
+      "styleFields": {
+        "geo": "Figūra",
+        "font": "Fonts",
+        "textAlign": "Teksta līdzinājums",
+        "horizontalAlign": "Uzraksta novietojums",
+        "verticalAlign": "Vertikālais novietojums",
+        "spline": "Līnijas forma",
+        "arrowheadStart": "Bultas sākums",
+        "arrowheadEnd": "Bultas gals",
+        "mixed": "Dažādas vērtības"
+      },
+      "styleValues": {
+        "font": {
+          "draw": "Rokraksts",
+          "sans": "Bez serifiem",
+          "serif": "Ar serifiem",
+          "mono": "Vienplatuma"
+        },
+        "horizontal": {
+          "start": "Pa kreisi",
+          "middle": "Centrā",
+          "end": "Pa labi"
+        },
+        "vertical": {
+          "start": "Augšā",
+          "middle": "Vidū",
+          "end": "Apakšā"
+        },
+        "spline": {
+          "line": "Taisna",
+          "cubic": "Liekta"
+        },
+        "arrowhead": {
+          "arrow": "Bulta",
+          "triangle": "Trīsstūris",
+          "square": "Kvadrāts",
+          "dot": "Punkts",
+          "pipe": "Caurulīte",
+          "diamond": "Rombs",
+          "inverted": "Apgriezts trīsstūris",
+          "bar": "Svītra",
+          "none": "Nav"
+        },
+        "geo": {
+          "cloud": "Mākonis",
+          "rectangle": "Taisnstūris",
+          "ellipse": "Elipse",
+          "triangle": "Trīsstūris",
+          "diamond": "Rombs",
+          "pentagon": "Piecstūris",
+          "hexagon": "Sešstūris",
+          "octagon": "Astoņstūris",
+          "star": "Zvaigzne",
+          "rhombus": "Paralelograms",
+          "rhombus-2": "Apgriezts paralelograms",
+          "oval": "Ovāls",
+          "trapezoid": "Trapece",
+          "arrow-right": "Bulta pa labi",
+          "arrow-left": "Bulta pa kreisi",
+          "arrow-up": "Bulta uz augšu",
+          "arrow-down": "Bulta uz leju",
+          "x-box": "Lodziņš ar krustiņu",
+          "check-box": "Lodziņš ar ķeksīti",
+          "heart": "Sirds"
+        }
+      }
     }
   },
   "fabricationSpec": {

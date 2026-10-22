@@ -84,7 +84,7 @@ ${responseLanguageInstruction(locale)}`;
   try {
     const response = await openRouterCompleteWithMetadata(messages, {
       model: kind === 'image' ? OPENROUTER_VISION_MODEL : OPENROUTER_MODEL,
-      maxTokens: 2200, temperature: 0.2, timeoutMs: 120_000,
+      maxTokens: 2200, temperature: 0.2, timeoutMs: 120_000, signal: request.signal,
       ...(kind === 'pdf' ? { plugins: [{ id: 'file-parser', pdf: { engine } }] } : {})
     });
     if (!response.text.trim()) throw new Error('Empty model response');
@@ -100,6 +100,7 @@ ${responseLanguageInstruction(locale)}`;
       model: response.model, engine
     }, { headers: noStore });
   } catch (err) {
+    if (request.signal.aborted) return json({ error: 'Request cancelled' }, { status: 499, headers: noStore });
     console.error('[Toolkit] multimodal analysis unavailable', err instanceof Error ? err.name : 'unknown');
     return json({ error: 'Could not analyze this file with the configured OpenRouter model. The Canvas is unchanged. Check model modality support and provider configuration.' },
       { status: 503, headers: noStore });

@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
+  import { beforeNavigate } from '$app/navigation';
+  import { base } from '$app/paths';
   import { t, locale } from 'svelte-i18n';
   import { get } from 'svelte/store';
   import TldrawWrapper from '$lib/components/canvas/TldrawWrapper.svelte';
@@ -15,6 +17,10 @@
   import { applyToolkitAction, applyToolkitActions, actionSummary } from '$lib/components/canvas/toolkit-action-executor';
   import { captureToolkitScene } from '$lib/components/canvas/toolkit-scene';
   import { captureCanvasDrawing } from '$lib/components/canvas/toolkit-snapshot';
+  import { canvasActionsRequireBatch } from '$lib/components/canvas/toolkit-actions';
+  import { createSaveQueue } from '$lib/components/canvas/save-queue';
+  import { RequestScope } from '$lib/state/request-scope';
+  import { EMPTY_TOOLKIT_CONTROLS, applyToolkitToolbarAction } from '$lib/components/canvas/toolkit-controls';
 
   const tr = (key: string, vars: Record<string, string | number> = {}) => get(t)(`toolkit.${key}`, vars);
 
@@ -58,6 +64,12 @@
   let notice = $state('');
   let projectListOpen = $state(true);
   let assistantOpen = $state(true);
+  let assistantPane = $state.raw<HTMLElement | null>(null);
+  let promptInput = $state.raw<HTMLTextAreaElement | null>(null);
+  let assistantToggle = $state.raw<HTMLButtonElement | null>(null);
+  let recovering = $state(false);
+  let creating = $state(false);
+  let deletingId = $state<string | null>(null);
   let running = $state(false);
   let importing = $state(false);
   let importStatus = $state('');
@@ -65,18 +77,16 @@
   let savedFilesLoading = $state(false);
   let savedFilesError = $state('');
   let fileInput = $state<HTMLInputElement>();
-  let selectedTool = $state('select');
-  let canUndo = $state(false);
-  let canRedo = $state(false);
+  let canvasControls = $state(EMPTY_TOOLKIT_CONTROLS);
+  let toolkitStyleHost = $state.raw<HTMLElement | null>(null);
   let linking = $state(false);
   let requesting = $state(false);
   let selectedCount = $state(0);
-  let runnableCount = $state(0);
   let editor = $state.raw<any>(null);
   let lastSnapshot: unknown = null;
   let ready = $state(false);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
-  let pendingTemplate: Template | null = null;
+  let pendingTemplate: { id: string; template: Template } | null = null;
   let destroyed = false;
   let documentRevision = 0;
   let boardRevision = 0;
@@ -87,10 +97,46 @@
   let discussionError = $state('');
   let discussionRevision = 0;
   let chatTimer: ReturnType<typeof setTimeout> | undefined;
-  let saveInFlight: Promise<void> | null = null;
-  let chatInFlight: Promise<void> | null = null;
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
   let activeLoadToken = 0;
+  let navigationRequest = 0;
+  const pageController = new AbortController();
+  let boardController = new AbortController();
+  const assistantRequests = new RequestScope();
+  const boardReads = new RequestScope();
+  const boardSaves = createSaveQueue(() => !!boardId && dirty && !conflict && !destroyed, writeBoard);
+  const discussionSaves = createSaveQueue(() => !!boardId && discussionDirty && !destroyed, writeDiscussion);
+  let pendingRecovery = $state.raw<{
+    source: string; revision: number; discussionRevision: number; copy: Board;
+    messages: ChatMessage[]; proposals: Array<ProposedCard | CanvasAction>;
+  } | null>(null);
+  const linkedEdits = $derived(canvasActionsRequireBatch(actionProposals));
+
+  function currentBoard(id: string | null, token: number) {
+    return !destroyed && boardId === id && token === activeLoadToken;
+  }
+  function requestSignal(timeout = 20_000, owner = boardController.signal) {
+    return AbortSignal.any([pageController.signal, owner, AbortSignal.timeout(timeout)]);
+  }
+  function stopAssistant(showNotice = true) {
+    assistantRequests.reset();
+    requesting = false;
+    analyzingFile = false;
+    if (showNotice) notice = tr('canvas.requestCancelled');
+  }
+  async function revealAssistant(aboutSelection = false) {
+    assistantOpen = true;
+    if (aboutSelection && !prompt.trim()) prompt = tr('canvas.selectionPrompt');
+    await tick();
+    if (destroyed) return;
+    assistantPane?.scrollIntoView({ block: 'nearest' });
+    promptInput?.focus({ preventScroll: true });
+    promptInput?.scrollIntoView({ block: 'nearest' });
+  }
+  function closeAssistant() {
+    assistantOpen = false;
+    assistantToggle?.focus();
+  }
 
   const prompts: Array<{id: 'expand'|'challenge'|'compare'|'plan'|'research'|'brief'; skill: ToolkitSkill}> = [
     { id: 'expand', skill: 'explore' }, { id: 'challenge', skill: 'critique' },
@@ -99,9 +145,10 @@
   ];
   async function loadModelChoices() {
     try {
-      const response = await fetch('/api/toolkit/models', { cache: 'no-store' });
+      const response = await fetch(`${base}/api/toolkit/models`, { cache: 'no-store', signal: requestSignal(20_000, pageController.signal) });
       if (!response.ok) return;
       const data = await response.json();
+      if (destroyed) return;
       modelChoices = Array.isArray(data.models) ? data.models.filter((v: any) =>
         typeof v?.id === 'string' && typeof v?.label === 'string').slice(0, 9) : [];
       selectedModel = modelChoices.some(m => m.id === selectedModel)
@@ -116,7 +163,7 @@
   }
 
   function markDirty() {
-    if (!boardId) return;
+    if (!boardId || destroyed) return;
     dirty = true;
     documentRevision++;
     lastSaved = '';
@@ -132,167 +179,226 @@
     if (ready) markDirty();
   }
   function markDiscussionDirty() {
-    if (!boardId) return;
+    if (!boardId || destroyed) return;
     discussionDirty = true;
     discussionRevision++;
     if (chatTimer) clearTimeout(chatTimer);
     chatTimer = setTimeout(() => { void saveDiscussion(); }, 1400);
   }
-  async function saveDiscussion(): Promise<void> {
-    if (chatInFlight) { await chatInFlight; if (!discussionDirty) return; }
+  function saveDiscussion(): Promise<void> {
     if (chatTimer) clearTimeout(chatTimer);
     chatTimer = undefined;
-    if (!boardId || !discussionDirty) return;
-    const id = boardId, rev = discussionRevision;
+    return discussionSaves.flush();
+  }
+  async function writeDiscussion(): Promise<boolean> {
+    if (chatTimer) clearTimeout(chatTimer);
+    chatTimer = undefined;
+    const id = boardId, token = activeLoadToken, rev = discussionRevision;
+    if (!id) return false;
     const messagesToSave = messages.slice(-60);
     const proposalsToSave = [...suggestions.slice(0, 5), ...actionProposals.slice(0, 12)].slice(0, 17);
     discussionSaving = true;
-    chatInFlight = (async () => {
-      try {
-        const response = await fetch(`/api/toolkit/conversations/${encodeURIComponent(id)}`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: messagesToSave, proposals: proposalsToSave })
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result.message || result.error || tr('errors.privateSave'));
-        if (boardId === id) {
-          discussionDirty = rev !== discussionRevision;
-          discussionError = '';
-        }
-      } catch (e) {
-        if (boardId === id) discussionError = e instanceof Error ? e.message : 'Conversation save failed';
-      } finally {
-        discussionSaving = false;
-      }
-    })();
-    try { await chatInFlight; } finally { chatInFlight = null; }
+    try {
+      const response = await fetch(`${base}/api/toolkit/conversations/${encodeURIComponent(id)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: messagesToSave, proposals: proposalsToSave }),
+        signal: requestSignal()
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!currentBoard(id, token)) return false;
+      if (!response.ok) throw new Error(result.message || result.error || tr('errors.privateSave'));
+      discussionDirty = rev !== discussionRevision;
+      discussionError = '';
+      return true;
+    } catch (e) {
+      if (currentBoard(id, token)) discussionError = e instanceof Error ? e.message : tr('errors.privateSave');
+      return false;
+    } finally {
+      if (currentBoard(id, token)) discussionSaving = false;
+    }
   }
-  async function saveBoard(): Promise<void> {
-    if (saveInFlight) { await saveInFlight; if (!dirty || conflict) return; }
+  function saveBoard(): Promise<void> {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = undefined;
-    if (!boardId || !dirty || conflict) return;
-    const id = boardId;
-    const rev = documentRevision;
+    return boardSaves.flush();
+  }
+  async function writeBoard(): Promise<boolean> {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = undefined;
+    const id = boardId, token = activeLoadToken, rev = documentRevision;
+    if (!id) return false;
     const expectedRevision = boardRevision;
-    const title = boardTitle.trim().slice(0, 120) || 'Untitled project';
-    // Private conversations are NEVER written into the shared document.
-    // Share one in-flight save so rapid Save clicks cannot duplicate PATCHes.
+    const title = boardTitle.trim().slice(0, 120) || tr('canvas.templateBlank');
     saving = true;
-    saveInFlight = (async () => {
-      try {
-        // Always capture the latest document at the moment we save; session
-        // camera/selection never belongs in the shared team snapshot.
-        captureCurrentDocument();
-        const payload = { version: 1, snapshot: lastSnapshot };
-        const response = await fetch(`/api/ai/canvas/${encodeURIComponent(id)}`, {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, payload, revision: expectedRevision })
-        });
-        const data = await response.json().catch(() => ({}));
-        if (response.status === 409) {
-          conflict = true;
-          remoteUpdated = true;
-          throw new Error(tr('errors.newerVersion'));
-        }
-        if (!response.ok) throw new Error(data.error || tr('errors.save'));
-        if (id === boardId) {
-          boardRevision = data.canvas.revision;
-          dirty = documentRevision !== rev;
-          error = '';
-          lastSaved = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          boards = boards.map(board => board.id === id
-            ? { ...board, title, revision: boardRevision, updated_at: data.canvas.updated_at } : board);
-        }
-      } catch (e) {
-        if (id === boardId) error = e instanceof Error ? e.message : tr('errors.saveFailed');
-      } finally {
-        saving = false;
+    try {
+      // Capture only at the write boundary. Conversations and private viewport
+      // state never become part of the shared team document.
+      captureCurrentDocument();
+      const payload = { version: 1, snapshot: lastSnapshot };
+      const response = await fetch(`${base}/api/ai/canvas/${encodeURIComponent(id)}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, payload, revision: expectedRevision }),
+        signal: requestSignal()
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!currentBoard(id, token)) return false;
+      if (response.status === 409) {
+        conflict = true;
+        remoteUpdated = true;
+        throw new Error(tr('errors.newerVersion'));
       }
-    })();
-    try { await saveInFlight; } finally { saveInFlight = null; }
-    if (dirty && boardId === id && !conflict && !destroyed && !saveTimer) {
-      saveTimer = setTimeout(() => { void saveBoard(); }, 3000);
+      if (!response.ok || !Number.isSafeInteger(data.canvas?.revision)) throw new Error(data.error || tr('errors.save'));
+      boardRevision = data.canvas.revision;
+      dirty = documentRevision !== rev;
+      error = '';
+      lastSaved = new Date().toLocaleTimeString($locale || undefined, { hour: '2-digit', minute: '2-digit' });
+      boards = boards.map(board => board.id === id
+        ? { ...board, title, revision: boardRevision, updated_at: data.canvas.updated_at } : board);
+      return true;
+    } catch (e) {
+      if (currentBoard(id, token)) error = e instanceof Error ? e.message : tr('errors.saveFailed');
+      return false;
+    } finally {
+      if (currentBoard(id, token)) saving = false;
     }
   }
   async function flushCurrentChanges() {
-    await saveBoard();
-    await saveDiscussion();
+    await Promise.all([saveBoard(), saveDiscussion()]);
     return !dirty && !discussionDirty;
   }
   async function checkBoardRevision() {
     if (!boardId || loading || conflict || dirty || saving || document.hidden) return;
-    const id = boardId;
-    try {
-      const response = await fetch(`/api/ai/canvas/${encodeURIComponent(id)}?meta=1`, { cache: 'no-store' });
-      if (!response.ok || boardId !== id) return;
-      const data = await response.json();
-      if (data.canvas?.revision > boardRevision) remoteUpdated = true;
-    } catch { /* Connectivity failure must not discard the editing surface */ }
+    const id = boardId, token = activeLoadToken;
+    return boardReads.run('revision', async ({ signal, isCurrent }) => {
+      try {
+        const response = await fetch(`${base}/api/ai/canvas/${encodeURIComponent(id)}?meta=1`, { cache: 'no-store', signal: requestSignal(20_000, signal) });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!isCurrent() || !currentBoard(id, token)) return;
+        if (data.canvas?.revision > boardRevision) remoteUpdated = true;
+      } catch { /* Connectivity failure must not discard the editing surface. */ }
+    });
   }
   async function reloadLatest() {
+    if (!boardId || importing || recovering) return;
+    stopAssistant(false);
+    const id = boardId, token = activeLoadToken;
     await saveDiscussion();
+    if (!currentBoard(id, token)) return;
     if (discussionDirty) { discussionError = tr('errors.privateBeforeReload'); return; }
     if (dirty && !confirm(tr('canvas.confirmDiscard'))) return;
     // Reload must not try to re-save the known stale revision.
     if (saveTimer) clearTimeout(saveTimer);
     dirty = false; conflict = false; remoteUpdated = false;
-    const id = boardId;
-    if (id) { boardId = null; await openBoard(id); }
+    ready = false;
+    await openBoard(id);
   }
   async function saveRecoveryCopy() {
-    if (!boardId) return;
-    if (chatTimer) clearTimeout(chatTimer);
-    await saveDiscussion();
-    if (discussionDirty) return;
+    if (!boardId || recovering || importing) return;
+    const source = boardId, token = activeLoadToken;
+    recovering = true;
+    stopAssistant(false);
     try {
-      const title = `${boardTitle.trim() || 'Untitled'} — recovered copy`.slice(0, 120);
-      captureCurrentDocument();
-      const response = await fetch('/api/ai/canvas', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, payload: { version: 1, snapshot: lastSnapshot } })
-      });
-      const data = await response.json();
-      if (!response.ok || !data.canvas?.id) throw new Error(tr('errors.recoverySave'));
-      boards = [data.canvas, ...boards];
-      const privateCopy = await fetch(`/api/toolkit/conversations/${encodeURIComponent(data.canvas.id)}`, {
+      await saveDiscussion();
+      if (!currentBoard(source, token) || discussionDirty) return;
+      if (!pendingRecovery || pendingRecovery.source !== source) {
+        captureCurrentDocument();
+        const revision = documentRevision;
+        const privateRevision = discussionRevision;
+        const privateMessages = messages.slice(-60);
+        const privateProposals = [...suggestions.slice(0, 5), ...actionProposals.slice(0, 12)];
+        const response = await fetch(`${base}/api/ai/canvas/${encodeURIComponent(source)}/recover`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: `${boardTitle.trim() || tr('canvas.templateBlank')} — recovered copy`.slice(0, 120),
+            payload: { version: 1, snapshot: lastSnapshot } }),
+          signal: requestSignal(120_000)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!currentBoard(source, token)) return;
+        if (!response.ok || !data.canvas?.id) throw new Error(data.error || tr('errors.recoverySave'));
+        pendingRecovery = { source, revision, discussionRevision: privateRevision, copy: data.canvas,
+          messages: privateMessages, proposals: privateProposals };
+        boards = [data.canvas, ...boards.filter(board => board.id !== data.canvas.id)];
+      }
+      const recovery = pendingRecovery;
+      // Retry the discussion on the already-created copy, without duplicating
+      // uploaded files or replacing the original project's newer edits.
+      const privateCopy = await fetch(`${base}/api/toolkit/conversations/${encodeURIComponent(recovery.copy.id)}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: messages.slice(-60),
-          proposals: [...suggestions.slice(0, 5), ...actionProposals.slice(0, 12)] })
+        body: JSON.stringify({ messages: recovery.messages, proposals: recovery.proposals }),
+        signal: requestSignal()
       });
+      if (!currentBoard(source, token)) return;
       if (!privateCopy.ok) {
-        discussionError = tr('errors.privateCopy');
+        discussionError = tr('canvas.recoveryPrivateRetry');
+        return;
+      }
+      pendingRecovery = null;
+      discussionError = '';
+      if (documentRevision !== recovery.revision || discussionRevision !== recovery.discussionRevision) {
+        notice = tr('canvas.recoveryKeptEdits');
+        return;
       }
       if (saveTimer) clearTimeout(saveTimer);
       dirty = false; conflict = false; remoteUpdated = false;
-      boardId = null;
-      await openBoard(data.canvas.id);
-      notice = tr('errors.recoveryDone');
-    } catch (e) { error = e instanceof Error ? e.message : tr('errors.recoveryFailed'); }
+      recovering = false;
+      await openBoard(recovery.copy.id);
+      if (!destroyed && boardId === recovery.copy.id) notice = tr('errors.recoveryDone');
+    } catch (e) {
+      if (currentBoard(source, token)) {
+        if (pendingRecovery?.source === source) discussionError = tr('canvas.recoveryPrivateRetry');
+        else error = e instanceof Error ? e.message : tr('errors.recoveryFailed');
+      }
+    } finally {
+      if (!destroyed) recovering = false;
+    }
   }
   async function loadBoards() {
+    const navigation = navigationRequest;
     loading = true;
     try {
-      const response = await fetch('/api/ai/canvas', { cache: 'no-store' });
+      const response = await fetch(`${base}/api/ai/canvas`, { cache: 'no-store', signal: requestSignal(20_000, pageController.signal) });
       if (!response.ok) throw new Error(tr('errors.load'));
       const data = await response.json();
+      if (destroyed || navigation !== navigationRequest) return;
       boards = Array.isArray(data.items) ? data.items : [];
       if (boards.length) await openBoard(boards[0].id);
     } catch (e) {
-      error = e instanceof Error ? e.message : tr('errors.listUnavailable');
-    } finally { loading = false; }
+      if (!destroyed && navigation === navigationRequest) error = e instanceof Error ? e.message : tr('errors.listUnavailable');
+    } finally {
+      if (!destroyed && navigation === navigationRequest) loading = false;
+    }
   }
   async function openBoard(id: string) {
+    if (destroyed || recovering) return;
     if (importing) { notice = tr('canvas.loadingNotice'); return; }
-    if (id === boardId && ready) return;
-    if ((dirty || discussionDirty) && !(await flushCurrentChanges())) {
-      error = tr('errors.beforeSwitch');
+    if (id === boardId && ready) {
+      // Choosing the current project cancels a pending switch which is still
+      // waiting for this project's save, without recreating the editor.
+      ++navigationRequest;
       return;
     }
+    const navigation = ++navigationRequest;
+    stopAssistant(false);
+    if ((dirty || discussionDirty) && !(await flushCurrentChanges())) {
+      if (navigation === navigationRequest && !destroyed) error = tr('errors.beforeSwitch');
+      return;
+    }
+    if (destroyed || navigation !== navigationRequest) return;
     const token = ++activeLoadToken;
+    boardController.abort();
+    boardController = new AbortController();
+    boardReads.reset();
+    if (saveTimer) clearTimeout(saveTimer);
+    if (chatTimer) clearTimeout(chatTimer);
+    saveTimer = chatTimer = undefined;
     loading = true;
     ready = false;
+    boardId = null;
     editor = null;
+    canvasControls = EMPTY_TOOLKIT_CONTROLS;
+    toolkitStyleHost = null;
+    saving = discussionSaving = linking = running = false;
     messages = [];
     suggestions = [];
     actionProposals = [];
@@ -304,25 +410,26 @@
     lastUsedModel = '';
     analyzedAssets = {};
     lastAnalyzedAsset = null;
-    analyzingFile = false;
     legacyThreads = {};
     savedFiles = [];
+    savedFilesLoading = false;
     savedFilesError = '';
     prompt = '';
     selectedCount = 0;
+    pendingRecovery = null;
+    if (pendingTemplate?.id !== id) pendingTemplate = null;
     try {
       const [response, privateResponse] = await Promise.all([
-        fetch(`/api/ai/canvas/${encodeURIComponent(id)}`, { cache: 'no-store' }),
-        fetch(`/api/toolkit/conversations/${encodeURIComponent(id)}`, { cache: 'no-store' })
+        fetch(`${base}/api/ai/canvas/${encodeURIComponent(id)}`, { cache: 'no-store', signal: requestSignal() }),
+        fetch(`${base}/api/toolkit/conversations/${encodeURIComponent(id)}`, { cache: 'no-store', signal: requestSignal() })
       ]);
       if (!response.ok) throw new Error(tr('errors.open'));
       if (!privateResponse.ok) throw new Error(tr('errors.loadPrivate'));
-      const data = await response.json();
-      const privateData = await privateResponse.json();
-      if (token !== activeLoadToken) return;
+      const [data, privateData] = await Promise.all([response.json(), privateResponse.json()]);
+      if (destroyed || token !== activeLoadToken) return;
       const doc = data.canvas;
       if (!doc) throw new Error(tr('errors.notFound'));
-      boardTitle = doc.title || 'Untitled project';
+      boardTitle = doc.title || tr('canvas.templateBlank');
       const payload = doc.payload && typeof doc.payload === 'object' ? doc.payload : {};
       initialSnapshot = payload.snapshot ?? (payload.store ? payload : null);
       lastSnapshot = initialSnapshot;
@@ -350,44 +457,54 @@
       documentRevision = 0;
       discussionRevision = 0;
     } catch (e) {
-      if (token === activeLoadToken) {
+      if (!destroyed && token === activeLoadToken) {
         boardId = null;
         initialSnapshot = null;
         lastSnapshot = null;
         error = e instanceof Error ? e.message : tr('errors.openFailed');
       }
     } finally {
-      if (token === activeLoadToken) loading = false;
+      if (!destroyed && token === activeLoadToken) loading = false;
     }
   }
   async function createBoard(template: Template = 'blank') {
+    if (loading || creating || recovering || destroyed) return;
     if (importing) { notice = tr('canvas.newProjectNotice'); return; }
-    if ((dirty || discussionDirty) && !(await flushCurrentChanges())) {
-      error = tr('errors.beforeCreate');
-      return;
-    }
-    const labels: Record<Template, string> = {
-      blank: tr('canvas.templateBlank'), project: tr('canvas.templateProject'),
-      options: tr('canvas.templateOptions'), workshop: tr('canvas.templateWorkshop')
-    };
-    error = '';
+    creating = true;
+    const navigation = ++navigationRequest;
+    stopAssistant(false);
     try {
-      const response = await fetch('/api/ai/canvas', {
+      if ((dirty || discussionDirty) && !(await flushCurrentChanges())) {
+        if (!destroyed && navigation === navigationRequest) error = tr('errors.beforeCreate');
+        return;
+      }
+      if (destroyed || navigation !== navigationRequest) return;
+      const labels: Record<Template, string> = {
+        blank: tr('canvas.templateBlank'), project: tr('canvas.templateProject'),
+        options: tr('canvas.templateOptions'), workshop: tr('canvas.templateWorkshop')
+      };
+      error = '';
+      const response = await fetch(`${base}/api/ai/canvas`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: labels[template], payload: { version: 1, snapshot: null } })
+        body: JSON.stringify({ title: labels[template], payload: { version: 1, snapshot: null } }),
+        signal: requestSignal(20_000, pageController.signal)
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+      if (destroyed) return;
       if (!response.ok || !data.canvas?.id) throw new Error(data.error || tr('errors.create'));
       boards = [data.canvas, ...boards];
-      pendingTemplate = template;
+      if (navigation !== navigationRequest) return;
+      pendingTemplate = { id: data.canvas.id, template };
       await openBoard(data.canvas.id);
-      projectListOpen = false;
+      if (boardId === data.canvas.id) projectListOpen = false;
     } catch (e) {
-      error = e instanceof Error ? e.message : tr('errors.createFailed');
+      if (!destroyed && navigation === navigationRequest) error = e instanceof Error ? e.message : tr('errors.createFailed');
+    } finally {
+      if (!destroyed) creating = false;
     }
   }
   function addCard(kind: IdeaKind, title?: string, body?: string, x?: number, y?: number) {
-    if (!editor) return;
+    if (!editor || conflict || remoteUpdated) return;
     const center = editor.getViewportPageBounds().center;
     editor.createShape({
       type: 'idea-card',
@@ -407,8 +524,8 @@
   function onEditorReady(value: any) {
     editor = value;
     ready = true;
-    if (pendingTemplate) {
-      const template = pendingTemplate;
+    if (pendingTemplate?.id === boardId) {
+      const template = pendingTemplate.template;
       pendingTemplate = null;
       if (template !== 'blank') {
         seed(template);
@@ -416,13 +533,6 @@
         markDirty();
       }
     }
-  }
-  function undo() { editor?.undo(); }
-  function redo() { editor?.redo(); }
-  function zoomToContent() { editor?.zoomToFit?.(); }
-  function deleteSelection() {
-    const selected = editor?.getSelectedShapeIds?.() ?? [];
-    if (selected.length) editor?.deleteShapes?.(selected);
   }
   function getCardContext(shapes = editor?.getCurrentPageShapes?.() ?? []) {
     return {
@@ -473,76 +583,81 @@
   }
   async function brainstorm(question = prompt, requestedSkill: ToolkitSkill = skill) {
     const text = question.trim();
-    if (!text || requesting || !editor) return;
+    if (!text || requesting || analyzingFile || recovering || !ready || !editor || !boardId || deletingId === boardId) return;
     requesting = true;
     skill = requestedSkill;
     notice = '';
     searchNote = '';
     sceneStatus = '';
-    const activeBoardId = boardId;
+    const activeBoardId = boardId, token = activeLoadToken, activeEditor = editor;
     const context = getContext();
     const sendVisuals = includeImages;
-    const history = messages.slice(-10);
-    messages = [...messages, { role: 'user' as const, content: text }].slice(-60);
+    const retry = messages.at(-1)?.role === 'user' && messages.at(-1)?.content === text;
+    const history = (retry ? messages.slice(0, -1) : messages).slice(-10);
+    if (!retry) messages = [...messages, { role: 'user' as const, content: text }].slice(-60);
     prompt = '';
     suggestions = [];
     actionProposals = [];
     researchSources = [];
     webSearchRequests = null;
     markDiscussionDirty();
-    try {
-      let drawing = null;
-      if (sendVisuals) {
-        try { drawing = await captureCanvasDrawing(editor, context.scene?.shapes.map(shape => shape.id)); }
-        catch { /* Scene text and authorized image files remain useful if export is unavailable. */ }
-        if (boardId !== activeBoardId || destroyed) return;
+    return assistantRequests.run('assistant', async ({ signal, isCurrent }) => {
+      const stillCurrent = () => isCurrent() && currentBoard(activeBoardId, token) && editor === activeEditor;
+      try {
+        if (!stillCurrent()) return;
+        let drawing = null;
+        if (sendVisuals) {
+          try { drawing = await captureCanvasDrawing(activeEditor, context.scene?.shapes.map(shape => shape.id)); }
+          catch { /* Scene text and authorized image files remain useful if export is unavailable. */ }
+          if (!stillCurrent()) return;
+        }
+        const response = await fetch(`${base}/api/toolkit/brainstorm`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          signal: requestSignal(120_000, signal),
+          body: JSON.stringify({
+             prompt: text, ...context, boardId: activeBoardId, includeImages: sendVisuals, drawing,
+             history, skill: requestedSkill, language: $locale,
+             model: selectedModel || undefined,
+             webMode: requestedSkill === 'research' ? webMode : 'searxng'
+           })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!stillCurrent()) return;
+        if (!response.ok) throw new Error(data.error || tr('canvas.noSuggestions'));
+        lastUsedModel = typeof data.model === 'string' ? data.model : '';
+        webSearchRequests = Number.isSafeInteger(data.webSearchRequests) && data.webSearchRequests >= 0 ? data.webSearchRequests : null;
+        searchNote = typeof data.searchNote === 'string' ? data.searchNote.slice(0, 500) : '';
+        messages = [...messages, { role: 'assistant' as const, content: String(data.reply ?? '').slice(0, 5000) }].slice(-60);
+        suggestions = normalizeProposals(data.cards).slice(0, 5);
+        actionProposals = normalizeCanvasActions(data.actions, context.scene);
+        sceneStatus = data.scene ? tr('canvas.sceneIncluded', { count: data.scene.visibleShapes, total: data.scene.totalShapes }) : '';
+        if (data.scene?.truncated) sceneStatus += ' ' + tr('canvas.sceneTruncated');
+        if (data.vision?.requested) sceneStatus += ' ' + tr('canvas.imagesIncluded', { count: Number(data.vision.included) || 0 });
+        if (data.vision?.requested) sceneStatus += ' ' + tr(data.vision.drawing ? 'canvas.drawingIncluded' : 'canvas.drawingUnavailable', { count: Number(data.vision.drawingShapes) || 0 });
+        if (Number(data.vision?.drawingOmitted) > 0) sceneStatus += ' ' + tr('canvas.drawingOmitted', { count: data.vision.drawingOmitted });
+        if (Number(data.vision?.skipped) > 0) sceneStatus += ' ' + tr('canvas.imagesSkipped', { count: data.vision.skipped });
+        researchSources = Array.isArray(data.sources)
+          ? data.sources.filter((v: any) => typeof v?.url === 'string' &&
+            /^https?:\/\//.test(v.url)).slice(0, 5).map((v: any) => ({
+              title: String(v.title ?? '').slice(0, 180), url: v.url,
+              snippet: String(v.snippet ?? '').slice(0, 320),
+              provider: v.provider === 'openrouter' ? 'openrouter' : 'searxng'
+            })) : [];
+        markDiscussionDirty();
+      } catch (e) {
+        if (!stillCurrent()) return;
+        notice = e instanceof Error ? e.message : tr('canvas.noBrainstorm');
+        if (!prompt) prompt = text;
+      } finally {
+        if (stillCurrent()) requesting = false;
       }
-      const response = await fetch('/api/toolkit/brainstorm', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(120_000),
-        body: JSON.stringify({
-           prompt: text, ...context, boardId: activeBoardId, includeImages: sendVisuals, drawing,
-           history, skill: requestedSkill, language: $locale,
-           model: selectedModel || undefined,
-           webMode: requestedSkill === 'research' ? webMode : 'searxng'
-         })
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || tr('canvas.noSuggestions'));
-      // A switch or deletion while the provider was working must never write its
-      // response into a different project's personal discussion.
-      if (boardId !== activeBoardId || destroyed) return;
-      lastUsedModel = typeof data.model === 'string' ? data.model : '';
-      webSearchRequests = Number.isSafeInteger(data.webSearchRequests) && data.webSearchRequests >= 0 ? data.webSearchRequests : null;
-      searchNote = typeof data.searchNote === 'string' ? data.searchNote.slice(0, 500) : '';
-      messages = [...messages, { role: 'assistant' as const, content: String(data.reply ?? '').slice(0, 5000) }].slice(-60);
-      suggestions = normalizeProposals(data.cards).slice(0, 5);
-      actionProposals = normalizeCanvasActions(data.actions, context.scene);
-      sceneStatus = data.scene ? tr('canvas.sceneIncluded', { count: data.scene.visibleShapes, total: data.scene.totalShapes }) : '';
-      if (data.scene?.truncated) sceneStatus += ' ' + tr('canvas.sceneTruncated');
-      if (data.vision?.requested) sceneStatus += ' ' + tr('canvas.imagesIncluded', { count: Number(data.vision.included) || 0 });
-      if (data.vision?.requested) sceneStatus += ' ' + tr(data.vision.drawing ? 'canvas.drawingIncluded' : 'canvas.drawingUnavailable', { count: Number(data.vision.drawingShapes) || 0 });
-      if (Number(data.vision?.drawingOmitted) > 0) sceneStatus += ' ' + tr('canvas.drawingOmitted', { count: data.vision.drawingOmitted });
-      if (Number(data.vision?.skipped) > 0) sceneStatus += ' ' + tr('canvas.imagesSkipped', { count: data.vision.skipped });
-      researchSources = Array.isArray(data.sources)
-        ? data.sources.filter((v: any) => typeof v?.url === 'string' &&
-          /^https?:\/\//.test(v.url)).slice(0, 5).map((v: any) => ({
-            title: String(v.title ?? '').slice(0, 180), url: v.url,
-            snippet: String(v.snippet ?? '').slice(0, 320),
-            provider: v.provider === 'openrouter' ? 'openrouter' : 'searxng'
-          })) : [];
-      markDiscussionDirty();
-    } catch (e) {
-      if (boardId !== activeBoardId || destroyed) return;
-      notice = e instanceof Error ? e.message : tr('canvas.noBrainstorm');
-      // Retain the prompt in the conversation so the user can retry or copy it.
-    } finally { requesting = false; }
+    });
   }
   async function analyzeSelectedAsset() {
-    if (!editor || !boardId || analyzingFile || requesting) return;
+    if (!editor || !boardId || !ready || analyzingFile || requesting || recovering || deletingId === boardId) return;
     const selection = editor.getSelectedShapes?.() ?? [];
     const document = selection.find((shape: any) => shape?.type === 'document'
-      && ['image', 'pdf'].includes(shape.props?.kind) && typeof shape.props?.fileId === 'string');
+      && ['image', 'pdf'].includes(shape.props?.kind) && typeof shape.props?.fileId === 'string' && shape.props.fileId.length > 0);
     if (!document) { notice = tr('canvas.selectFileForAi'); return; }
     const fileId = String(document.props.fileId);
     const paidOcr = document.props.kind === 'pdf' && usePaidPdfOcr;
@@ -559,40 +674,46 @@
     messages = [...messages, { role: 'user' as const, content }].slice(-60);
     prompt = '';
     markDiscussionDirty();
-    try {
-      const response = await fetch('/api/toolkit/analyze-asset', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          boardId: originalBoard, assetId: fileId, question,
-          language: $locale, ocr: paidOcr
-        })
-      });
-      const result = await response.json().catch(() => ({}));
-      if (boardId !== originalBoard || token !== activeLoadToken || destroyed) return;
-      if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : (result.error?.message || result.message || tr('canvas.fileAnalysisFailed')));
-      const reply = typeof result.reply === 'string' ? result.reply.slice(0, 5000) : '';
-      if (!reply) throw new Error(tr('canvas.fileAnalysisFailed'));
-      // This is a private user-session cache only. Sharing an insight onto
-      // the team board requires the explicit "save answer" action.
-      analyzedAssets = {
-        ...analyzedAssets,
-        [fileId]: {
-          kind: result.kind === 'pdf' ? 'pdf' : 'image',
-          filename, evidence: String(result.evidence ?? '').slice(0, 6000),
-          answer: reply
-        }
-      };
-      lastAnalyzedAsset = fileId;
-      lastUsedModel = String(result.model ?? '').slice(0, 160);
-      messages = [...messages, { role: 'assistant' as const, content: reply }].slice(-60);
-      markDiscussionDirty();
-      notice = tr(result.evidence ? 'canvas.pdfTextReady' : 'canvas.fileReasoningReady');
-    } catch (e) {
-      if (boardId !== originalBoard || token !== activeLoadToken || destroyed) return;
-      notice = e instanceof Error ? e.message : tr('canvas.fileAnalysisFailed');
-    } finally {
-      if (boardId === originalBoard && token === activeLoadToken) analyzingFile = false;
-    }
+    return assistantRequests.run('assistant', async ({ signal, isCurrent }) => {
+      const stillCurrent = () => isCurrent() && currentBoard(originalBoard, token);
+      try {
+        if (!stillCurrent()) return;
+        const response = await fetch(`${base}/api/toolkit/analyze-asset`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          signal: requestSignal(120_000, signal),
+          body: JSON.stringify({
+            boardId: originalBoard, assetId: fileId, question,
+            language: $locale, ocr: paidOcr
+          })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!stillCurrent()) return;
+        if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : (result.error?.message || result.message || tr('canvas.fileAnalysisFailed')));
+        const reply = typeof result.reply === 'string' ? result.reply.slice(0, 5000) : '';
+        if (!reply) throw new Error(tr('canvas.fileAnalysisFailed'));
+        // This is a private user-session cache only. Sharing an insight onto
+        // the team board requires the explicit "save answer" action.
+        analyzedAssets = {
+          ...analyzedAssets,
+          [fileId]: {
+            kind: result.kind === 'pdf' ? 'pdf' : 'image',
+            filename, evidence: String(result.evidence ?? '').slice(0, 6000),
+            answer: reply
+          }
+        };
+        lastAnalyzedAsset = fileId;
+        lastUsedModel = String(result.model ?? '').slice(0, 160);
+        messages = [...messages, { role: 'assistant' as const, content: reply }].slice(-60);
+        markDiscussionDirty();
+        notice = tr(result.evidence ? 'canvas.pdfTextReady' : 'canvas.fileReasoningReady');
+      } catch (e) {
+        if (!stillCurrent()) return;
+        notice = e instanceof Error ? e.message : tr('canvas.fileAnalysisFailed');
+        if (!prompt) prompt = customQuestion;
+      } finally {
+        if (stillCurrent()) analyzingFile = false;
+      }
+    });
   }
 
   function pinFileAnalysis() {
@@ -688,7 +809,7 @@
     notice = tr('canvas.auditDone');
   }
   function applySuggestion(card: ProposedCard, index: number) {
-    if (!editor) return;
+    if (!editor || !boardId || conflict || remoteUpdated) return;
     const c = editor.getViewportPageBounds().center;
     addCard(card.kind, card.title, card.body, c.x + (index % 2) * 320 - 300, c.y + Math.floor(index / 2) * 245 - 110);
     suggestions = suggestions.filter(s => s !== card);
@@ -696,16 +817,19 @@
     notice = tr('canvas.savedToCanvas');
   }
   function applyAll() {
+    if (!editor || !boardId || conflict || remoteUpdated) return;
     const batch = [...suggestions];
     batch.forEach((card, index) => applySuggestion(card, index));
     suggestions = [];
   }
   function actionTargetName(id: string) {
-    const shape = editor?.getShape?.(id);
-    return String(shape?.props?.title ?? id).slice(0, 70);
+    const proposed = id.startsWith('@')
+      ? actionProposals.find(action => action.kind === 'create' && action.ref === id.slice(1)) : undefined;
+    const props = proposed?.kind === 'create' ? proposed.shape.props : editor?.getShape?.(id)?.props;
+    return String(props?.title || props?.text || props?.name || id).slice(0, 70);
   }
   function approveAction(action: CanvasAction) {
-    if (!editor || !boardId) return;
+    if (!editor || !boardId || linkedEdits) return;
     if (conflict || remoteUpdated) {
       notice = tr('errors.reloadBeforeApply');
       return;
@@ -732,9 +856,15 @@
       markDiscussionDirty();
     }
   }
+  function discardActions() {
+    actionProposals = [];
+    markDiscussionDirty();
+    notice = tr('canvas.discardedEdits');
+  }
   async function runSelectedTechnical() {
-    if (!editor || running) return;
-    const activeEditor = editor;
+    if (!editor || running || conflict || remoteUpdated) return;
+    const activeEditor = editor, id = boardId, token = activeLoadToken;
+    const signal = requestSignal(120_000);
     const selected = getRunnableShapeIds(activeEditor);
     if (!selected.length) { notice = tr('canvas.selectedToolFirst'); return; }
     running = true;
@@ -742,13 +872,13 @@
       let done = 0;
       for (const id of selected) {
         if (editor !== activeEditor || destroyed) return;
-        await runShape(activeEditor, id); done++;
+        await runShape(activeEditor, id, { signal }); done++;
       }
       if (editor === activeEditor && !destroyed) notice = tr('canvas.technicalCount', { count: done });
     } catch (e) {
       if (editor === activeEditor && !destroyed) notice = e instanceof Error ? e.message : tr('errors.toolFailed');
     }
-    finally { running = false; }
+    finally { if (currentBoard(id, token)) running = false; }
   }
   function addTechnical(type: string) {
     if (!editor) return;
@@ -756,18 +886,17 @@
     editor.createShape({ type, x: center.x - 180, y: center.y - 120 });
   }
   async function drawTool(tool: string) {
-    if (!editor || conflict || remoteUpdated) return;
+    if (!editor || ((conflict || remoteUpdated || deletingId === boardId) && !['select', 'hand'].includes(tool))) return;
     if (['rectangle', 'ellipse', 'triangle', 'diamond', 'star'].includes(tool)) {
       const activeEditor = editor;
       const { GeoShapeGeoStyle } = await import('@tldraw/tldraw');
-      if (editor !== activeEditor || conflict || remoteUpdated) return;
+      if (destroyed || editor !== activeEditor || conflict || remoteUpdated || deletingId === boardId) return;
       editor.setStyleForNextShapes(GeoShapeGeoStyle, tool);
       editor.setCurrentTool('geo');
-      selectedTool = 'geo';
     } else {
       editor.setCurrentTool(tool);
-      selectedTool = tool;
     }
+    editor.focus();
   }
   function insertFromToolbar(kind: string, value?: string) {
     if (!editor || conflict || remoteUpdated) return;
@@ -778,46 +907,41 @@
     else if (kind === 'technical') addTechnical(value || 'document');
   }
   function toolbarAction(action: string) {
-    if (!editor || conflict || remoteUpdated) return;
-    const ids = editor.getSelectedShapeIds();
-    if (action === 'undo') undo();
-    else if (action === 'redo') redo();
-    else if (action === 'fit') zoomToContent();
-    else if (action === 'arrange') arrangeIdeas();
-    else if (action === 'delete') deleteSelection();
-    else if (action === 'duplicate') editor.duplicateShapes(ids, { x: 24, y: 24 });
-    else if (action === 'group') editor.groupShapes(ids);
-    else if (action === 'ungroup') editor.ungroupShapes(ids);
-    else if (action === 'front') editor.bringToFront(ids);
-    else if (action === 'back') editor.sendToBack(ids);
+    if (!editor) return;
+    if (action === 'ask-selection') { void revealAssistant(true); return; }
+    if (action === 'arrange') { if (!conflict && !remoteUpdated) arrangeIdeas(); }
     else if (action === 'run') void runSelectedTechnical();
+    else applyToolkitToolbarAction(editor, action);
   }
-  async function addLink(value: string, point?: ToolkitPosition) {
-    if (!editor || !boardId || linking || conflict || remoteUpdated) return;
+  async function addLink(value: string, point?: ToolkitPosition): Promise<boolean> {
+    if (!editor || !boardId || linking || conflict || remoteUpdated) return false;
     const url = normalizeCanvasMediaUrl(value);
-    if (!url) { notice = tr('toolbar.invalidLink'); return; }
+    if (!url) { notice = tr('toolbar.invalidLink'); return false; }
     const activeEditor = editor, id = boardId, token = activeLoadToken;
     linking = true;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
     try {
       let metadata = {};
       try {
-        const response = await fetch('/api/toolkit/link-preview', {
+        const response = await fetch(`${base}/api/toolkit/link-preview`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ boardId: id, url }), signal: controller.signal
+          body: JSON.stringify({ boardId: id, url }), signal: requestSignal(10_000)
         });
         if (response.ok) metadata = await response.json();
       } catch { /* A usable URL card remains available when a site blocks metadata. */ }
-      if (destroyed || boardId !== id || editor !== activeEditor || token !== activeLoadToken || conflict || remoteUpdated) return;
+      if (!currentBoard(id, token) || editor !== activeEditor || conflict || remoteUpdated) return false;
       const props = canvasLinkShapeProps(url, metadata);
-      if (!props) return;
+      if (!props) return false;
       const center = editor.getViewportPageBounds().center;
       const position = point ?? { x: center.x - props.w / 2, y: center.y - props.h / 2 };
       editor.createShape({ type: 'document', ...position, props });
       notice = tr('toolbar.linkAdded');
-    } catch { notice = tr('toolbar.linkFailed'); }
-    finally { clearTimeout(timer); linking = false; }
+      return true;
+    } catch {
+      if (currentBoard(id, token)) notice = tr('toolbar.linkFailed');
+      return false;
+    } finally {
+      if (currentBoard(id, token)) linking = false;
+    }
   }
   function addMaterial(preset: string = 'brushed-metal', textureUrl?: string) {
     if (!editor) return;
@@ -836,28 +960,29 @@
     addMaterial('photo', image.props.url);
   }
   async function loadSavedFiles(id: string) {
-    if (!id || !boardId || boardId !== id) return;
-    savedFilesLoading = true;
-    savedFilesError = '';
-    try {
-      const response = await fetch(`/api/toolkit/assets/${encodeURIComponent(id)}/library`,
-        { cache: 'no-store' });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(
-        typeof data.error === 'string' ? data.error : tr('canvas.savedFilesError'));
-      if (boardId !== id || destroyed) return;
-      savedFiles = Array.isArray(data.files)
-        ? data.files.filter((a: any) => a && typeof a.id === 'string' &&
-            typeof a.fileName === 'string' && typeof a.mime === 'string' &&
-            Number.isSafeInteger(a.bytes)).slice(0, 100)
-        : [];
-    } catch (e) {
-      if (boardId === id && !destroyed) {
-        savedFilesError = e instanceof Error ? e.message : tr('canvas.savedFilesError');
+    if (!id || boardId !== id || destroyed) return;
+    const token = activeLoadToken;
+    return boardReads.run('files', async ({ signal, isCurrent }) => {
+      savedFilesLoading = true;
+      savedFilesError = '';
+      try {
+        const response = await fetch(`${base}/api/toolkit/assets/${encodeURIComponent(id)}/library`,
+          { cache: 'no-store', signal: requestSignal(20_000, signal) });
+        const data = await response.json().catch(() => ({}));
+        if (!isCurrent() || !currentBoard(id, token)) return;
+        if (!response.ok) throw new Error(
+          typeof data.error === 'string' ? data.error : tr('canvas.savedFilesError'));
+        savedFiles = Array.isArray(data.files)
+          ? data.files.filter((a: any) => a && typeof a.id === 'string' &&
+              typeof a.fileName === 'string' && typeof a.mime === 'string' &&
+              Number.isSafeInteger(a.bytes)).slice(0, 100)
+          : [];
+      } catch (e) {
+        if (isCurrent() && currentBoard(id, token)) savedFilesError = e instanceof Error ? e.message : tr('canvas.savedFilesError');
+      } finally {
+        if (isCurrent() && currentBoard(id, token)) savedFilesLoading = false;
       }
-    } finally {
-      if (boardId === id) savedFilesLoading = false;
-    }
+    });
   }
   function reattachSavedFile(file: ToolkitStoredAsset) {
     if (!editor || !boardId || conflict || remoteUpdated || importing) return;
@@ -875,12 +1000,14 @@
   async function importFiles(files: File[], point?: ToolkitPosition) {
     if (!boardId || !editor || importing || !files.length || conflict || remoteUpdated) return;
     importing = true;
-    const activeEditor = editor, id = boardId;
+    const activeEditor = editor, id = boardId, token = activeLoadToken;
     importStatus = 'Preparing files…';
     try {
       const result = await importToolkitFiles(activeEditor, id, files, point,
-        message => { if (boardId === id) importStatus = message; });
-      if (boardId === id) await loadSavedFiles(id);
+        message => { if (currentBoard(id, token)) importStatus = message; });
+      if (!currentBoard(id, token)) return;
+      await loadSavedFiles(id);
+      if (!currentBoard(id, token)) return;
       if (result.errors.length) {
         notice = result.errors.slice(0, 3).join(' | ');
         if (result.imported === 0) error = notice;
@@ -888,10 +1015,9 @@
         notice = tr('canvas.addedCount', { count: result.imported });
       }
     } catch (e) {
-      error = e instanceof Error ? e.message : tr('canvas.importError');
+      if (currentBoard(id, token)) error = e instanceof Error ? e.message : tr('canvas.importError');
     } finally {
-      importing = false;
-      importStatus = '';
+      if (currentBoard(id, token)) { importing = false; importStatus = ''; }
     }
   }
   function onFileSelected() {
@@ -900,31 +1026,52 @@
     void importFiles(files);
   }
   async function removeBoard(id: string) {
+    if (deletingId || recovering || creating || destroyed) return;
     if (importing) { notice = tr('canvas.deleteWait'); return; }
     if (!confirm(tr('canvas.confirmDelete'))) return;
-    if (id === boardId && (dirty || discussionDirty) && !(await flushCurrentChanges())) {
-      error = tr('errors.beforeDelete');
-      return;
-    }
+    deletingId = id;
+    if (id === boardId) stopAssistant(false);
     try {
-      const response = await fetch(`/api/ai/canvas?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (id === boardId && (dirty || discussionDirty) && !(await flushCurrentChanges())) {
+        if (!destroyed) error = tr('errors.beforeDelete');
+        return;
+      }
+      if (destroyed) return;
+      const response = await fetch(`${base}/api/ai/canvas?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE', signal: requestSignal(20_000, pageController.signal)
+      });
       if (!response.ok) throw new Error(tr('errors.delete'));
+      if (destroyed) return;
       boards = boards.filter(b => b.id !== id);
       if (id === boardId) {
+        stopAssistant(false);
+        ++activeLoadToken;
+        boardController.abort();
+        boardReads.reset();
+        if (saveTimer) clearTimeout(saveTimer);
+        if (chatTimer) clearTimeout(chatTimer);
         boardId = null; ready = false; editor = null; initialSnapshot = null;
-        lastSnapshot = null; messages = []; suggestions = []; dirty = false; discussionDirty = false;
-        conflict = false; remoteUpdated = false;
+        canvasControls = EMPTY_TOOLKIT_CONTROLS;
+        lastSnapshot = null; messages = []; suggestions = []; actionProposals = [];
+        dirty = false; discussionDirty = false; conflict = false; remoteUpdated = false;
         if (boards.length) await openBoard(boards[0].id);
       }
-    } catch (e) { error = e instanceof Error ? e.message : tr('errors.deleteFailed'); }
+    } catch (e) {
+      if (!destroyed) error = e instanceof Error ? e.message : tr('errors.deleteFailed');
+    } finally { if (!destroyed) deletingId = null; }
   }
+
+  beforeNavigate(({ cancel, willUnload }) => {
+    if (willUnload) return; // The native beforeunload handler covers page exits.
+    if ((dirty || discussionDirty || importing || recovering) && !window.confirm(tr('canvas.leaveWarning'))) cancel();
+  });
 
   onMount(() => {
     insecureClipboard = !window.isSecureContext || !navigator.clipboard?.writeText;
     void loadModelChoices();
     void loadBoards();
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (dirty || discussionDirty || importing) { e.preventDefault(); e.returnValue = ''; }
+      if (dirty || discussionDirty || importing || recovering) { e.preventDefault(); e.returnValue = ''; }
     };
     const onFocus = () => { void checkBoardRevision(); };
     window.addEventListener('beforeunload', onBeforeUnload);
@@ -932,6 +1079,12 @@
     refreshTimer = setInterval(() => { void checkBoardRevision(); }, 45_000);
     return () => {
       destroyed = true;
+      ++navigationRequest;
+      ++activeLoadToken;
+      stopAssistant(false);
+      boardReads.reset();
+      pageController.abort();
+      boardController.abort();
       if (saveTimer) clearTimeout(saveTimer);
       if (chatTimer) clearTimeout(chatTimer);
       if (refreshTimer) clearInterval(refreshTimer);
@@ -949,36 +1102,37 @@
       <button class="icon-toggle" type="button" onclick={() => projectListOpen = !projectListOpen}
         aria-label={$t('toolkit.canvas.projects')} aria-expanded={projectListOpen}>☰</button>
       {#if boardId}
-        <input class="board-title" aria-label={$t('toolkit.canvas.boardTitle', { default: 'Project title' })} maxlength="120" bind:value={boardTitle} oninput={markDirty} />
+        <input class="board-title" disabled={deletingId === boardId} aria-label={$t('toolkit.canvas.boardTitle', { default: 'Project title' })} maxlength="120" bind:value={boardTitle} oninput={markDirty} />
       {:else}<h2>{$t('toolkit.canvas.noBoard')}</h2>{/if}
       <span class="save-indicator" role="status" aria-live="polite">
-        {#if saving || discussionSaving}{$t('toolkit.canvas.saving')}{:else if conflict}{$t('toolkit.canvas.conflict')}{:else if dirty || discussionDirty}{$t('toolkit.canvas.unsaved')}{:else if lastSaved}{$t('toolkit.canvas.saved')} {lastSaved}{:else if boardId}{$t('toolkit.canvas.upToDate')}{/if}
+        {#if recovering}{$t('toolkit.canvas.recovering')}{:else if saving || discussionSaving}{$t('toolkit.canvas.saving')}{:else if conflict}{$t('toolkit.canvas.conflict')}{:else if dirty || discussionDirty}{$t('toolkit.canvas.unsaved')}{:else if lastSaved}{$t('toolkit.canvas.saved')} {lastSaved}{:else if boardId}{$t('toolkit.canvas.upToDate')}{/if}
       </span>
     </div>
     <div class="command-actions">
       <span class="team-label" title={$t('toolkit.canvas.sharedTitle')}>{$t('toolkit.canvas.shared')}</span>
-      <button onclick={() => createBoard('blank')}>{$t('toolkit.canvas.newProject')}</button>
-      <button onclick={() => void flushCurrentChanges()} disabled={!boardId || saving || ( !dirty && !discussionDirty ) || conflict}>{$t('toolkit.canvas.save')}</button>
+      <button disabled={loading || creating || recovering || importing} onclick={() => createBoard('blank')}>{$t('toolkit.canvas.newProject')}</button>
+      <button onclick={() => void flushCurrentChanges()} disabled={!boardId || saving || recovering || ( !dirty && !discussionDirty ) || conflict}>{$t('toolkit.canvas.save')}</button>
       <button onclick={exportBrief} disabled={!boardId || !editor}>{$t('toolkit.canvas.exportBrief')}</button>
-      <button class="assistant-toggle" type="button" onclick={() => assistantOpen = !assistantOpen} aria-expanded={assistantOpen}>
+      <button bind:this={assistantToggle} class="assistant-toggle" type="button" onclick={() => assistantOpen ? closeAssistant() : void revealAssistant()} aria-expanded={assistantOpen} aria-controls="canvas-assistant">
         {assistantOpen ? $t('toolkit.canvas.hideAssistant') : $t('toolkit.canvas.brainstorm')}
       </button>
     </div>
   </header>
 
   {#if error}<div class="workspace-alert" role="alert"><span>{error}</span>
-    {#if conflict}<button onclick={saveRecoveryCopy}>{$t('toolkit.canvas.saveCopy')}</button>
-      <button onclick={reloadLatest}>{$t('toolkit.canvas.reloadLatest')}</button>
+    {#if conflict}<button onclick={saveRecoveryCopy} disabled={recovering}>{$t('toolkit.canvas.saveCopy')}</button>
+      <button onclick={reloadLatest} disabled={recovering || importing}>{$t('toolkit.canvas.reloadLatest')}</button>
     {:else}<button onclick={() => { error = ''; if (boardId) void flushCurrentChanges(); else void loadBoards(); }}>{$t('toolkit.canvas.retry')}</button>{/if}
   </div>{/if}
   {#if remoteUpdated && !conflict && !dirty}
     <div class="remote-banner" role="status"><span>{$t('toolkit.canvas.remote')}</span>
-      <button onclick={reloadLatest}>{$t('toolkit.canvas.viewLatest')}</button>
+      <button onclick={reloadLatest} disabled={recovering || importing}>{$t('toolkit.canvas.viewLatest')}</button>
     </div>
   {/if}
   {#if discussionError}
     <div class="private-banner" role="alert"><span>{$t('toolkit.canvas.privateError')} {discussionError}</span>
-      <button onclick={() => void saveDiscussion()}>{$t('toolkit.canvas.retryPrivate')}</button>
+      {#if pendingRecovery}<button onclick={saveRecoveryCopy} disabled={recovering}>{$t('toolkit.canvas.saveCopy')}</button>
+      {:else}<button onclick={() => void saveDiscussion()} disabled={discussionSaving}>{$t('toolkit.canvas.retryPrivate')}</button>{/if}
     </div>
   {/if}
 
@@ -987,23 +1141,23 @@
     {#if projectListOpen}
       <aside class="library">
         <div class="pane-heading"><h3>{$t('toolkit.canvas.projects')}</h3><span>{boards.length}</span></div>
-        <button class="new-project" onclick={() => createBoard('blank')}>{$t('toolkit.canvas.blankProject')}</button>
+        <button class="new-project" disabled={loading || creating || recovering || importing} onclick={() => createBoard('blank')}>{$t('toolkit.canvas.blankProject')}</button>
         <div class="templates">
           <span class="small-heading">{$t('toolkit.canvas.quickStart')}</span>
-          <button onclick={() => createBoard('project')}>{$t('toolkit.canvas.projectConcept')}</button>
-          <button onclick={() => createBoard('options')}>{$t('toolkit.canvas.compareOptions')}</button>
-          <button onclick={() => createBoard('workshop')}>{$t('toolkit.canvas.workshopConcept')}</button>
+          <button disabled={loading || creating || recovering || importing} onclick={() => createBoard('project')}>{$t('toolkit.canvas.projectConcept')}</button>
+          <button disabled={loading || creating || recovering || importing} onclick={() => createBoard('options')}>{$t('toolkit.canvas.compareOptions')}</button>
+          <button disabled={loading || creating || recovering || importing} onclick={() => createBoard('workshop')}>{$t('toolkit.canvas.workshopConcept')}</button>
         </div>
         <div class="project-list">
           {#if loading && !boards.length}<p class="muted">{$t('toolkit.canvas.loadingProjects')}</p>{/if}
           {#each boards as b (b.id)}
             <div class="project-entry" class:active={boardId === b.id}>
-              <button class="project-open" onclick={() => openBoard(b.id)}
+              <button class="project-open" disabled={recovering || importing || deletingId === b.id} onclick={() => openBoard(b.id)}
                 aria-current={boardId === b.id ? 'true' : undefined}>
                 <strong>{b.title}</strong>
                 <span>{new Date(b.updated_at).toLocaleDateString($locale === 'ru' ? 'ru-RU' : $locale === 'lv' ? 'lv-LV' : 'en-GB')}</span>
               </button>
-              <button class="delete" title={$t('toolkit.canvas.deleteProject', { title: b.title })} aria-label={$t('toolkit.canvas.deleteProject', { title: b.title })} onclick={() => removeBoard(b.id)}>×</button>
+              <button class="delete" disabled={!!deletingId || recovering || importing || creating} title={$t('toolkit.canvas.deleteProject', { title: b.title })} aria-label={$t('toolkit.canvas.deleteProject', { title: b.title })} onclick={() => removeBoard(b.id)}>×</button>
             </div>
           {/each}
         </div>
@@ -1042,19 +1196,19 @@
         <div class="drawing-surface">
           {#key boardId}
             <TldrawWrapper snapshot={initialSnapshot ?? undefined}
-              toolkitBoardId={boardId} onToolkitFilesDrop={(files, position) => { void importFiles(files, position); }}
+              toolkitBoardId={boardId} {toolkitStyleHost} toolkitReadOnly={conflict || remoteUpdated || deletingId === boardId}
+              onToolkitFilesDrop={(files, position) => { void importFiles(files, position); }}
               onToolkitLinkDrop={(url, point) => { void addLink(url, point); }}
               onToolkitControlsChange={(state) => {
-                selectedTool = state.tool; selectedCount = state.selected;
-                runnableCount = state.runnable;
-                canUndo = state.canUndo; canRedo = state.canRedo;
+                canvasControls = state; selectedCount = state.selected;
               }}
               onDocumentChange={onDocumentChange} onReady={onEditorReady} onError={(message) => (error = message)} />
           {/key}
-          <CanvasToolbar tool={selectedTool} selected={selectedCount} runnable={runnableCount} {canUndo} {canRedo}
-            disabled={!ready || conflict || remoteUpdated} {importing} {linking} {running}
+          <CanvasToolbar controls={canvasControls}
+            disabled={!ready} {importing} {linking} {running}
             onTool={(tool) => { void drawTool(tool); }} onInsert={insertFromToolbar}
-            onAction={toolbarAction} onLink={(url) => { void addLink(url); }} />
+            onAction={toolbarAction} onLink={(url) => addLink(url)}
+            onStyleHost={(host) => toolkitStyleHost = host} />
         </div>
         <p class="canvas-hint">{$t('toolkit.canvas.hint')}</p>
       {:else if loading}
@@ -1065,22 +1219,24 @@
           <h2>{$t('toolkit.canvas.emptyTitle')}</h2>
           <p>{$t('toolkit.canvas.emptyDetail')}</p>
           <div class="empty-actions">
-            <button class="primary" onclick={() => createBoard('project')}>{$t('toolkit.canvas.startProject')}</button>
-            <button onclick={() => createBoard('blank')}>{$t('toolkit.canvas.blankCanvas')}</button>
+            <button class="primary" disabled={loading || creating || recovering || importing} onclick={() => createBoard('project')}>{$t('toolkit.canvas.startProject')}</button>
+            <button disabled={loading || creating || recovering || importing} onclick={() => createBoard('blank')}>{$t('toolkit.canvas.blankCanvas')}</button>
           </div>
         </div>
       {/if}
     </section>
 
     {#if assistantOpen}
-      <aside class="assistant-pane">
+      <aside bind:this={assistantPane} id="canvas-assistant" class="assistant-pane">
         <div class="pane-heading"><div><span class="small-heading">{$t('toolkit.canvas.private')}</span><h3>{$t('toolkit.canvas.brainstorm')}</h3></div>
-          <button aria-label={$t('toolkit.canvas.closeAssistant')} class="close-pane" onclick={() => assistantOpen = false}>×</button>
+          <button aria-label={$t('toolkit.canvas.closeAssistant')} class="close-pane" onclick={closeAssistant}>×</button>
         </div>
         <p class="assistant-intro">{$t('toolkit.canvas.intro')}</p>
+        <details class="assistant-options">
+          <summary>{$t('toolkit.canvas.assistantSettings')}</summary>
         <div class="skill-picker">
           <label for="toolkit-skill">{$t('toolkit.canvas.skill')}</label>
-          <select id="toolkit-skill" bind:value={skill} disabled={requesting}>
+          <select id="toolkit-skill" bind:value={skill} disabled={requesting || analyzingFile}>
             {#each TOOLKIT_SKILLS as item (item.id)}
               <option value={item.id}>{$t(`toolkit.skills.${item.id}`)}</option>
             {/each}
@@ -1088,7 +1244,7 @@
           <p>{$t(`toolkit.skills.${skill}Purpose`)}</p>
           {#if modelChoices.length}
             <label for="toolkit-model">{$t('toolkit.canvas.model')}</label>
-            <select id="toolkit-model" bind:value={selectedModel} disabled={requesting}>
+            <select id="toolkit-model" bind:value={selectedModel} disabled={requesting || analyzingFile}>
               {#each modelChoices as choice (choice.id)}
                 <option value={choice.id}>{choice.label}{choice.isDefault ? ' · ' + $t('toolkit.canvas.defaultModel') : ''}</option>
               {/each}
@@ -1102,7 +1258,7 @@
           <p>{$t('toolkit.canvas.includeImagesHint')}{#if includeImages && mediaVisionModel} · {mediaVisionModel}{/if}</p>
           {#if skill === 'research'}
             <label for="toolkit-web-mode">{$t('toolkit.canvas.webSource')}</label>
-            <select id="toolkit-web-mode" bind:value={webMode} disabled={requesting}>
+            <select id="toolkit-web-mode" bind:value={webMode} disabled={requesting || analyzingFile}>
               <option value="searxng">{$t('toolkit.canvas.searxng')}</option>
               {#if paidWebAvailable}<option value="openrouter">{$t('toolkit.canvas.openrouterSearch')}</option>{/if}
             </select>
@@ -1125,9 +1281,11 @@
             {#if usePaidPdfOcr}<small>{$t('toolkit.canvas.ocrCostWarning')}</small>{/if}
           {/if}
           <button class="analyze-button" onclick={analyzeSelectedAsset}
-            disabled={!boardId || !editor || analyzingFile || requesting}>
+            disabled={!boardId || !canvasControls.analyzableFile || analyzingFile || requesting || recovering}>
             {analyzingFile ? $t('toolkit.canvas.analyzingFile') : $t('toolkit.canvas.askSelectedFile')}
           </button>
+          {#if canvasControls.analyzableFile}<small>{canvasControls.analyzableFile.title}</small>
+          {:else}<small>{$t('toolkit.canvas.selectFileForAi')}</small>{/if}
           {#if lastAnalyzedAsset && analyzedAssets[lastAnalyzedAsset]}
             <small>{$t('toolkit.canvas.analyzedFile')}: {analyzedAssets[lastAnalyzedAsset].filename}</small>
             <button onclick={pinFileAnalysis} disabled={conflict || remoteUpdated}>
@@ -1135,12 +1293,13 @@
             </button>
           {/if}
         </section>
+        </details>
         <button class="board-audit" onclick={auditBoard} disabled={!boardId || !editor}
           title={$t('toolkit.canvas.auditTitle')}>{$t('toolkit.canvas.audit')}</button>
         <div class="quick-prompts" aria-label={$t('toolkit.canvas.promptList')}>
           {#each prompts as item (item.id)}
             <button onclick={() => brainstorm(tr(`prompts.${item.id}Question`), item.skill)}
-              disabled={!boardId || requesting}>{$t(`toolkit.prompts.${item.id}`)}</button>
+              disabled={!boardId || !ready || requesting || analyzingFile || recovering}>{$t(`toolkit.prompts.${item.id}`)}</button>
           {/each}
         </div>
         {#if Object.keys(legacyThreads).length}
@@ -1177,13 +1336,13 @@
         {#if suggestions.length}
           <div class="suggestion-list">
             <div class="proposal-header"><strong>{$t('toolkit.canvas.suggested')} · {suggestions.length}</strong>
-              <button onclick={applyAll}>{$t('toolkit.canvas.addAll')}</button></div>
+              <button disabled={conflict || remoteUpdated} onclick={applyAll}>{$t('toolkit.canvas.addAll')}</button></div>
             {#each suggestions as proposal, i (`${proposal.kind}:${proposal.title}:${i}`)}
               <div class="proposal">
                 <span class="proposal-kind">{$t(`toolkit.kind.${proposal.kind}`)}</span>
                 <strong>{proposal.title}</strong>
                 <p>{proposal.body}</p>
-                <button onclick={() => applySuggestion(proposal, i)}>{$t('toolkit.canvas.addToBoard')}</button>
+                <button disabled={conflict || remoteUpdated} onclick={() => applySuggestion(proposal, i)}>{$t('toolkit.canvas.addToBoard')}</button>
               </div>
             {/each}
           </div>
@@ -1191,15 +1350,16 @@
         {#if actionProposals.length}
           <div class="suggestion-list" aria-label={$t('toolkit.canvas.actionTools')}>
             <div class="proposal-header"><strong>{$t('toolkit.canvas.actions')} · {actionProposals.length}</strong>
-              <button disabled={conflict || remoteUpdated} onclick={approveAllActions}>{$t('toolkit.canvas.applyAllEdits')}</button>
+              <div class="proposal-actions"><button disabled={conflict || remoteUpdated} onclick={approveAllActions}>{$t('toolkit.canvas.applyAllEdits')}</button>
+                <button onclick={discardActions}>{$t('toolkit.canvas.discardEdits')}</button></div>
             </div>
-            <p class="scene-status">{$t('toolkit.canvas.editReviewHint')}</p>
+            <p class="scene-status">{$t(linkedEdits ? 'toolkit.canvas.linkedEdits' : 'toolkit.canvas.editReviewHint')}</p>
             {#each actionProposals as action, index (`${action.kind}:${index}`)}
               <div class="proposal">
                 <strong>{actionSummary(action, actionTargetName, tr)}</strong>
                 {#if action.reason}<p>{action.reason}</p>{/if}
-                <button disabled={conflict || remoteUpdated}
-                  onclick={() => approveAction(action)}>{$t('toolkit.canvas.reviewApply')}</button>
+                {#if !linkedEdits}<button disabled={conflict || remoteUpdated}
+                  onclick={() => approveAction(action)}>{$t('toolkit.canvas.reviewApply')}</button>{/if}
               </div>
             {/each}
           </div>
@@ -1234,11 +1394,12 @@
         {/if}
         <form class="composer" onsubmit={(e) => { e.preventDefault(); void brainstorm(); }}>
           <label for="toolkit-prompt">{$t('toolkit.canvas.question')}</label>
-          <textarea id="toolkit-prompt" bind:value={prompt} rows="3" maxlength="2500"
-            placeholder={$t('toolkit.canvas.questionPlaceholder')} disabled={!boardId || requesting}
+          <textarea bind:this={promptInput} id="toolkit-prompt" bind:value={prompt} rows="3" maxlength="2500"
+            placeholder={$t('toolkit.canvas.questionPlaceholder')} disabled={!boardId || !ready || requesting || analyzingFile || recovering}
             onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void brainstorm(); } }}></textarea>
           <div class="composer-footer"><span>{selectedCount ? $t('toolkit.canvas.selected', { count: selectedCount }) : $t('toolkit.canvas.wholeBoard')} · {$t('toolkit.canvas.boardContext')}</span>
-            <button class="primary" type="submit" disabled={!boardId || requesting || !prompt.trim()}>{$t('toolkit.canvas.ask')}</button>
+            {#if requesting || analyzingFile}<button type="button" onclick={() => stopAssistant()}>{$t('toolkit.canvas.stopRequest')}</button>
+            {:else}<button class="primary" type="submit" disabled={!boardId || !ready || recovering || !prompt.trim()}>{$t('toolkit.canvas.ask')}</button>{/if}
           </div>
         </form>
       </aside>
@@ -1279,10 +1440,16 @@
   .saved-file-list button{display:flex;gap:5px;align-items:center;min-width:0;text-align:left}
   .saved-file-list button span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .board-area{flex:1;min-width:0;display:flex;flex-direction:column;position:relative;background:var(--bg-0)}
-  .drawing-surface{flex:1;min-height:0;position:relative;isolation:isolate;container-type:inline-size}
+  .drawing-surface{flex:1;min-height:0;position:relative;isolation:isolate;container-type:size}
   .canvas-hint{margin:0;padding:7px 12px;font-size:11px;color:var(--ink-tertiary);border-top:1px solid var(--border)}
   .empty-canvas{flex:1;display:grid;place-content:center;justify-items:center;text-align:center;gap:12px;padding:24px}.empty-symbol{font-size:66px;color:var(--brand)}.empty-canvas h2{font-size:24px;margin:0}.empty-canvas p{max-width:42ch;color:var(--ink-tertiary)}
   .empty-actions{display:flex;gap:8px}.workspace-alert{background:var(--bg-1);border-bottom:1px solid var(--error);padding:9px 15px;display:flex;justify-content:space-between;gap:8px;font-size:13px}
+  .assistant-options{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;font-size:12px}
+  .assistant-options summary{cursor:pointer;font-weight:650;line-height:1.5;padding:3px}
+  .assistant-options summary:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+  .assistant-options[open]{display:grid;gap:9px}
+  .assistant-options .skill-picker{border:0;padding:4px 0}
+  .proposal-actions{display:flex;flex-wrap:wrap;gap:5px}
   .assistant-pane{display:flex;flex-direction:column;flex:0 0 300px;min-width:0;background:var(--bg-1);border-left:1px solid var(--border);gap:12px;padding:13px;overflow:auto}
   .close-pane{font-size:19px;background:transparent;border:0}.assistant-intro{font-size:12px;color:var(--ink-secondary);line-height:1.5;margin:0}
   .quick-prompts{display:flex;flex-wrap:wrap;gap:5px}.quick-prompts button{font-size:11px;padding:6px 8px;min-height:33px}
@@ -1292,7 +1459,7 @@
   .message.user{background:var(--brand-soft)}.message-role{font-size:10px;color:var(--ink-tertiary);text-transform:uppercase;font-weight:800;letter-spacing:.08em}
   .message p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55;margin:7px 0 0}
   .suggestion-list{max-height:250px;overflow:auto;display:grid;gap:6px;border-top:1px solid var(--border);padding-top:10px}
-  .proposal-header{display:flex;justify-content:space-between;align-items:center;font-size:12px}.proposal{display:grid;gap:4px;background:var(--bg-0);padding:8px;border:1px solid var(--border);border-radius:10px;font-size:12px}.proposal-kind{text-transform:uppercase;color:var(--brand);font-size:10px;font-weight:800}.proposal p{color:var(--ink-secondary);margin:0;line-height:1.4;white-space:pre-wrap}.proposal button{justify-self:end}
+  .proposal-header{display:flex;flex-wrap:wrap;gap:7px;justify-content:space-between;align-items:center;font-size:12px}.proposal{display:grid;gap:4px;background:var(--bg-0);padding:8px;border:1px solid var(--border);border-radius:10px;font-size:12px}.proposal-kind{text-transform:uppercase;color:var(--brand);font-size:10px;font-weight:800}.proposal p{color:var(--ink-secondary);margin:0;line-height:1.4;white-space:pre-wrap}.proposal button{justify-self:end}
   .composer{display:grid;gap:7px;border-top:1px solid var(--border);padding-top:10px}.composer label{font-size:11px;font-weight:800}.composer textarea{border:1px solid var(--border);border-radius:9px;background:var(--bg-0);color:var(--text);font:inherit;font-size:12px;padding:10px;resize:vertical;min-height:68px}
   .composer-footer{display:flex;align-items:center;justify-content:space-between;gap:8px}.composer-footer span{font-size:10px;color:var(--ink-tertiary)}
   @media(max-width:1100px){.library{flex-basis:190px}.assistant-pane{flex-basis:255px}}
@@ -1307,7 +1474,7 @@
   .import-progress{font-size:12px;font-weight:700;color:var(--brand);background:var(--bg-1);
     padding:8px 13px;border-bottom:1px solid var(--border)}
   .source-row{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:8px 0;border-bottom:1px solid var(--border)}
-  .source-row small{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;font-size:11px;line-height:1.5;color:var(--ink-tertiary)}
+  .source-row small{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden;font-size:11px;line-height:1.5;color:var(--ink-tertiary)}
   .source-row a{overflow-wrap:anywhere}
   .capture-answer{width:100%;margin:6px 0}
   .research-note,.web-cost-note{font-size:11px;line-height:1.45;color:var(--ink-secondary);margin:0}

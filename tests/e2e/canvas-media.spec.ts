@@ -328,6 +328,7 @@ test('canvas OpenRouter edits native shapes atomically, reads real drawing pixel
   await expect.poll(()=>records().length).toBe(3);
   await expect(page.getByText('Canvas changes applied. Undo is available.',{exact:true})).toBeVisible();
   const originals=records().map(shape=>({id:shape.id,type:shape.type,x:shape.x,y:shape.y,props:shape.props}));
+  await page.locator('.assistant-options > summary').click();
   await page.locator('.canvas-image-option input').check();
   await page.locator('#toolkit-prompt').fill('Inspect the drawing, clarify the labels, connect the steps and group them');
   await page.locator('#toolkit-prompt').press('Enter');

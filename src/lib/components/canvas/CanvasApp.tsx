@@ -1,6 +1,6 @@
 import canvasAssetUrls from './tldraw-asset-urls.json';
 import React, { useEffect, useRef } from 'react';
-import { Tldraw, getSnapshot, react as trackEditor, type Editor } from '@tldraw/tldraw';
+import { Tldraw, getSnapshot, GeoShapeGeoStyle, react as trackEditor, type Editor } from '@tldraw/tldraw';
 import '@tldraw/tldraw/tldraw.css';
 import { MakerShapeUtil } from './shapes/MakerShape';
 import { IdeaShapeUtil } from './shapes/IdeaShape';
@@ -24,6 +24,8 @@ import { setOrderBridge, clearOrderBridge } from './state-bridge';
 import { wireAssetDropHandler } from './asset-uploader';
 import { CanvasModeContext } from './canvas-mode';
 import { getRunnableShapeIds } from './node-runner';
+import { captureToolkitControls, type ToolkitControlsState } from './toolkit-controls';
+import { ToolkitStyleHostContext, ToolkitStyleTranslateContext, ToolkitStylePortal, ToolkitDesktopStylePanel } from './ToolkitStylePanel';
 
 const customShapeUtils = [
     IdeaShapeUtil,
@@ -46,7 +48,8 @@ const customShapeUtils = [
 // Toolkit has one app-owned bottom toolbar. The order editor retains its
 // native chrome; no global CSS hides tools in unrelated canvas surfaces.
 const toolkitUi = {
-    Toolbar: null, ActionsMenu: null, QuickActions: null, MenuPanel: null,
+    Toolbar: ToolkitStylePortal, StylePanel: ToolkitDesktopStylePanel,
+    ActionsMenu: null, QuickActions: null, MenuPanel: null,
     NavigationPanel: null, HelperButtons: null, ContextMenu: null,
     DebugPanel: null, DebugMenu: null,
 };
@@ -70,7 +73,10 @@ export interface CanvasAppProps {
     toolkitBoardId?: string | null;
     onToolkitFilesDrop?: (files: File[], position: { x: number; y: number }) => void;
     onToolkitLinkDrop?: (url: string, position?: { x: number; y: number }) => void;
-    onToolkitControlsChange?: (state: { tool: string; selected: number; runnable: number; canUndo: boolean; canRedo: boolean }) => void;
+    onToolkitControlsChange?: (state: ToolkitControlsState) => void;
+    toolkitStyleHost?: HTMLElement | null;
+    toolkitReadOnly?: boolean;
+    toolkitStyleTranslate?: (key: string) => string;
 }
 
 export function CanvasApp({
@@ -87,6 +93,9 @@ export function CanvasApp({
     onToolkitFilesDrop,
     onToolkitLinkDrop,
     onToolkitControlsChange,
+    toolkitStyleHost = null,
+    toolkitReadOnly = false,
+    toolkitStyleTranslate,
 }: CanvasAppProps) {
     const spawnedRef = useRef<SpawnedShapes | null>(null);
     const editorRef = useRef<Editor | null>(null);
@@ -105,6 +114,12 @@ export function CanvasApp({
     useEffect(() => {
         seedRef.current = orderSeed ?? null;
     }, [orderSeed]);
+
+    useEffect(() => {
+        if (toolkitBoardId && editorRef.current) {
+            editorRef.current.updateInstanceState({ isReadonly: toolkitReadOnly });
+        }
+    }, [toolkitBoardId, toolkitReadOnly]);
 
     // Wire Svelte callbacks into the editor-scoped bridge (replaces window globals,
     // so multiple canvases / HMR cannot collide).
@@ -134,6 +149,7 @@ export function CanvasApp({
 
     const handleMount = (editor: Editor) => {
         editorRef.current = editor;
+        if (toolkitBoardId) editor.updateInstanceState({ isReadonly: toolkitReadOnly });
 
         // Register the bridge immediately so any shape created during spawn can fire callbacks
         setOrderBridge(editor, { onOrderChange, onProfileChange, onAssetUploaded });
@@ -175,10 +191,9 @@ export function CanvasApp({
             cleanupAppearanceRef.current = () => appearance.disconnect();
             cleanupControlsRef.current?.();
             cleanupControlsRef.current = trackEditor('Toolkit controls', () => {
-                callbacksRef.current.onToolkitControlsChange?.({ tool: editor.getCurrentToolId(),
-                    selected: editor.getSelectedShapeIds().length,
-                    runnable: getRunnableShapeIds(editor).length,
-                    canUndo: editor.getCanUndo(), canRedo: editor.getCanRedo() });
+                callbacksRef.current.onToolkitControlsChange?.(captureToolkitControls(
+                    editor, editor.getStyleForNextShape(GeoShapeGeoStyle), getRunnableShapeIds(editor).length
+                ));
             });
             // Route paste as well as drag/drop through private persistent
             // uploads, instead of tldraw's ephemeral data-URL asset store.
@@ -249,6 +264,8 @@ export function CanvasApp({
     return (
         <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
             <CanvasModeContext.Provider value={toolkitBoardId ? 'toolkit' : 'order'}>
+              <ToolkitStyleHostContext.Provider value={toolkitBoardId ? toolkitStyleHost : null}>
+              <ToolkitStyleTranslateContext.Provider value={toolkitStyleTranslate}>
                 <Tldraw
                     assetUrls={canvasAssetUrls}
                     snapshot={initialSnapshot as any}
@@ -257,6 +274,8 @@ export function CanvasApp({
                     hideUi={hideUI}
                     components={toolkitBoardId ? toolkitUi : undefined}
                 />
+              </ToolkitStyleTranslateContext.Provider>
+              </ToolkitStyleHostContext.Provider>
             </CanvasModeContext.Provider>
         </div>
     );

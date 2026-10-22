@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from 'svelte-i18n';
   import type { CanvasAppProps } from './CanvasApp';
   import type { OrderSeed } from './templates/DraftOrderTemplate';
+  import type { ToolkitControlsState } from './toolkit-controls';
 
   interface Props {
     snapshot?: unknown;
@@ -22,7 +24,9 @@
     toolkitBoardId?: string | null;
     onToolkitFilesDrop?: (files: File[], position: { x: number; y: number }) => void;
     onToolkitLinkDrop?: (url: string, position?: { x: number; y: number }) => void;
-    onToolkitControlsChange?: (state: { tool: string; selected: number; runnable: number; canUndo: boolean; canRedo: boolean }) => void;
+    onToolkitControlsChange?: (state: ToolkitControlsState) => void;
+    toolkitStyleHost?: HTMLElement | null;
+    toolkitReadOnly?: boolean;
   }
 
   let {
@@ -40,6 +44,8 @@
     onToolkitFilesDrop = undefined,
     onToolkitLinkDrop = undefined,
     onToolkitControlsChange = undefined,
+    toolkitStyleHost = null,
+    toolkitReadOnly = false,
   }: Props = $props();
 
   let containerEl: HTMLDivElement;
@@ -50,10 +56,12 @@
   // The snapshot is a mount-only seed: feeding onSave snapshots back into
   // tldraw would recreate the store and reset selection/history each edit.
   $effect(() => {
+    const translate = $t;
     renderCanvas?.({
       onSave, onDocumentChange, orderSeed, onOrderChange, onProfileChange,
       onAssetUploaded, hideUI, toolkitBoardId, onToolkitFilesDrop,
-      onToolkitLinkDrop, onToolkitControlsChange,
+      onToolkitLinkDrop, onToolkitControlsChange, toolkitStyleHost, toolkitReadOnly,
+      toolkitStyleTranslate: toolkitBoardId ? (key) => translate(key) : undefined,
     });
   });
 

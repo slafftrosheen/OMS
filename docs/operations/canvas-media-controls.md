@@ -9,14 +9,26 @@ The order canvas keeps its existing interface.
 The main dock contains select, pen, arrow and text, followed by Insert and More
 tools. Insert opens files, website/media links, idea cards, material studies and
 technical nodes. More tools includes pan, highlighter, eraser, geometric shapes,
-line, frame, undo/redo, fit, layout, grouping, duplication and layer order. The
+line, frame, undo/redo, page/selection fit, zoom reset, layout, grouping, duplication,
+layer order, six alignments and horizontal/vertical distribution. The
 project header retains project creation, Save, Export brief and the assistant.
-The existing native style panel still controls the selected object's appearance.
+**Style & appearance** inside More tools exposes the native style panel at every
+canvas width. It runs inside tldraw's UI context and uses the same native styles
+and undo history. The desktop style panel hides while the dock's panel is open,
+so the same controls are not shown twice.
 Native drawing and keyboard shortcuts use the same tldraw editor state as the
-dock; selecting tools with the keyboard updates the dock's active indicator.
+dock; selecting tools with the keyboard updates the dock's active indicator,
+including the actual active geometry rather than a generic shape state.
+
+Selection actions use fresh editor capabilities. Locked descendants disable
+mutations of their group; alignment requires two editable shapes and distribution
+requires three. Grouping works even when a drawing tool was active. **Ask about
+selection** opens and focuses the assistant, including on a phone. Read-only
+conflict state still permits Select, Hand and view controls.
 
 The dock works at 320 px without adding a second toolbar. Popovers have bounded
-height, keyboard focus and Escape dismissal. EN/RU/LV labels follow the app's
+height, keyboard focus and Escape dismissal. Arrow keys, Home and End move focus
+through the main dock; Up or Down opens its Insert/More tools dialog. EN/RU/LV labels follow the app's
 selected language. Upload/link results are visible even when the assistant is
 closed.
 
@@ -61,6 +73,8 @@ policy boundaries. This change is not a comprehensive deactivation RLS audit.
 Paste an HTTP(S) URL onto the canvas or enter it under Insert. Website cards show
 a title, description, optional preview image, source and a link to the original.
 If a website refuses metadata retrieval, the URL card still remains usable.
+An invalid or failed link submission keeps the typed URL and presents an inline
+error so it can be corrected or retried.
 Known direct image, PDF, video and audio URLs use the corresponding viewer. An
 external site may impose CORS, authentication or hotlinking restrictions; private
 uploads avoid those dependencies.
@@ -104,3 +118,10 @@ toolbar, native drawing, website/embed/private video insertion, persistence,
 native editing after media insertion, clipboard URLs, small-screen layout and
 the three app themes. The media fixture uses controlled response bytes; it does
 not validate every browser codec or contact a live provider.
+
+`tests/unit/canvas-controls.test.ts` checks selection capabilities, locked groups,
+read-only commands, geometry state, eligible file analysis, fresh command state,
+native grouping refusal and history rollback. `tests/e2e/canvas-dock.spec.ts`
+exercises native mobile styling, selection commands, focus and link-entry behavior.
+See `canvas-workflow-stability.md` for save, navigation and independent media-copy
+recovery behavior.

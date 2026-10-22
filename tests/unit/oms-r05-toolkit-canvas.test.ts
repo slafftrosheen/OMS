@@ -104,7 +104,7 @@ describe('Toolkit route contracts', () => {
 
   it('loads, creates and persists a board, including suggestions', () => {
     const canvas = read('src/routes/toolkit/canvas/+page.svelte');
-    expect(canvas).toContain("fetch('/api/ai/canvas'");
+    expect(canvas).toContain("fetch(`${base}/api/ai/canvas`");
     expect(canvas).toContain("method: 'PATCH'");
     expect(canvas).toContain('snapshot: lastSnapshot');
     expect(canvas).toContain('messages.slice(-60)');

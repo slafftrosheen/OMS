@@ -114,7 +114,7 @@ describe('OMS-R07 Canvas skills and safe tool actions', () => {
     expect(canvas).toContain('lastSnapshot = { document: editor.store.getStoreSnapshot() }');
     expect(canvas).toContain('onDocumentChange={onDocumentChange}');
     expect(canvas).not.toContain('onSave={onCanvasChange}');
-    expect(canvas).toContain('saveInFlight = (async () => {');
+    expect(canvas).toContain('const boardSaves = createSaveQueue(');
     expect(canvas.match(/captureCurrentDocument\(\);/g)).toHaveLength(2);
   });
   it('keeps private chat data off shared canvases and warns on insecure clipboard', () => {

@@ -3058,7 +3058,18 @@
       },
       "drawingIncluded": "Drawing shapes inspected: {count}.",
       "drawingUnavailable": "No drawing image was available; shape text and geometry were included.",
-      "drawingOmitted": "HTML/media objects described by context instead of the drawing image: {count}."
+      "drawingOmitted": "HTML/media objects described by context instead of the drawing image: {count}.",
+      "assistantSettings": "Assistant settings & file analysis",
+      "selectionPrompt": "Help me understand or improve the selected objects.",
+      "stopRequest": "Stop",
+      "requestCancelled": "Request stopped. Your question is kept in the conversation.",
+      "linkedEdits": "These changes create and connect new objects. Apply them together.",
+      "discardEdits": "Discard edits",
+      "discardedEdits": "Proposed edits discarded.",
+      "leaveWarning": "This project has unsaved changes or work in progress. Leave and discard them?",
+      "recovering": "Saving recovery copy…",
+      "recoveryKeptEdits": "Recovery copy saved. Newer edits remain in this project.",
+      "recoveryPrivateRetry": "The recovery copy was saved, but its private discussion could not be copied. Choose Save copy to retry; your original project is intact."
     },
     "draw": {
       "select": "Select",
@@ -3299,7 +3310,97 @@
       "back": "Send to back",
       "invalidLink": "Enter a public HTTP or HTTPS website or media link.",
       "linkAdded": "Link added to the canvas.",
-      "linkFailed": "Could not add this link. Try again."
+      "linkFailed": "Could not add this link. Try again.",
+      "styles": "Style & appearance",
+      "stylesSelection": "Change the selected objects.",
+      "stylesNext": "Choose styles for the next object you draw.",
+      "noStyles": "Choose a drawing tool or select an object to change its style.",
+      "selection": "Selection",
+      "selectObjects": "Select objects on the canvas to edit them here.",
+      "lockedSelection": "This selection contains locked objects. Unlock them before editing.",
+      "readOnly": "This project is read-only until the newer version is resolved. You can still inspect and navigate it.",
+      "askSelection": "Ask about selection",
+      "fitSelection": "Fit selection",
+      "actualSize": "Actual size · 100%",
+      "alignDistribute": "Align & distribute",
+      "alignHint": "Select at least two objects to align, or three to distribute.",
+      "align": {
+        "left": "Align left",
+        "center": "Align centers",
+        "right": "Align right",
+        "top": "Align top",
+        "middle": "Align middles",
+        "bottom": "Align bottom"
+      },
+      "distributeHorizontal": "Distribute horizontally",
+      "distributeVertical": "Distribute vertically",
+      "addingLink": "Adding link…",
+      "styleFields": {
+        "geo": "Shape",
+        "font": "Font",
+        "textAlign": "Text alignment",
+        "horizontalAlign": "Label alignment",
+        "verticalAlign": "Vertical position",
+        "spline": "Line path",
+        "arrowheadStart": "Arrow start",
+        "arrowheadEnd": "Arrow end",
+        "mixed": "Mixed values"
+      },
+      "styleValues": {
+        "font": {
+          "draw": "Handwritten",
+          "sans": "Sans serif",
+          "serif": "Serif",
+          "mono": "Monospace"
+        },
+        "horizontal": {
+          "start": "Left",
+          "middle": "Center",
+          "end": "Right"
+        },
+        "vertical": {
+          "start": "Top",
+          "middle": "Middle",
+          "end": "Bottom"
+        },
+        "spline": {
+          "line": "Straight",
+          "cubic": "Curved"
+        },
+        "arrowhead": {
+          "arrow": "Arrow",
+          "triangle": "Triangle",
+          "square": "Square",
+          "dot": "Dot",
+          "pipe": "Pipe",
+          "diamond": "Diamond",
+          "inverted": "Inverted triangle",
+          "bar": "Bar",
+          "none": "None"
+        },
+        "geo": {
+          "cloud": "Cloud",
+          "rectangle": "Rectangle",
+          "ellipse": "Ellipse",
+          "triangle": "Triangle",
+          "diamond": "Diamond",
+          "pentagon": "Pentagon",
+          "hexagon": "Hexagon",
+          "octagon": "Octagon",
+          "star": "Star",
+          "rhombus": "Parallelogram",
+          "rhombus-2": "Reverse parallelogram",
+          "oval": "Oval",
+          "trapezoid": "Trapezoid",
+          "arrow-right": "Arrow right",
+          "arrow-left": "Arrow left",
+          "arrow-up": "Arrow up",
+          "arrow-down": "Arrow down",
+          "x-box": "Crossed box",
+          "check-box": "Checked box",
+          "heart": "Heart"
+        }
+      }
     }
   },
   "fabricationSpec": {

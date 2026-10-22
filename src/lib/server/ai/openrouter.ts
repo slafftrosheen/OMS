@@ -23,6 +23,8 @@ export interface OpenRouterChatOptions {
   stream?: boolean;
   temperature?: number;
   timeoutMs?: number;
+  /** The caller owns cancellation; the provider timeout remains an upper bound. */
+  signal?: AbortSignal;
   maxTokens?: number;
   /** OpenRouter server-tool budget; bounded to avoid accidental multi-search charges. */
   maxToolCalls?: number;
@@ -114,7 +116,9 @@ export async function openRouterChat(
   config?: OpenRouterClientConfig,
   fetcher: typeof fetch = fetch
 ): Promise<OpenRouterChatResult> {
+  options.signal?.throwIfAborted();
   const resolvedConfig = config ?? await configuredClientConfig();
+  options.signal?.throwIfAborted();
   if (!resolvedConfig.apiKey.trim()) throw new Error('OpenRouter is not configured: add the system key in Settings or set OPENROUTER_API_KEY');
   if (!/^https:\/\//i.test(resolvedConfig.baseUrl)) throw new Error('OPENROUTER_BASE_URL must use HTTPS');
   const body = openRouterRequestBody(options, resolvedConfig);
@@ -132,7 +136,9 @@ export async function openRouterChat(
       'X-Title': 'Reclame Fabriek OMS'
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs)
+    signal: options.signal
+      ? AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs)])
+      : AbortSignal.timeout(timeoutMs)
   });
   return { model: String(body.model), response };
 }

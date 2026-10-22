@@ -1,7 +1,9 @@
 <script lang="ts">
   import { locale } from 'svelte-i18n';
   import CanvasPage from '../../src/routes/toolkit/canvas/+page.svelte';
+  import { requestFixtureNavigation } from './navigation';
   let theme = $state('LightVim');
+  let canvasOpen = $state(true);
   $effect(() => { document.documentElement.dataset.theme = theme; });
 </script>
 
@@ -12,8 +14,9 @@
   <label>Language <select aria-label="Language" value={$locale} onchange={event => locale.set(event.currentTarget.value)}>
     <option value="en">English</option><option value="ru">Русский</option><option value="lv">Latviešu</option>
   </select></label>
+  <button onclick={() => { if (requestFixtureNavigation()) canvasOpen = false; }}>Leave canvas</button>
 </header>
-<main class="canvas-fixture"><CanvasPage /></main>
+<main class="canvas-fixture">{#if canvasOpen}<CanvasPage />{:else}<p>Canvas closed</p>{/if}</main>
 
 <style>
   .fixture-controls { display:flex;flex-wrap:wrap;gap:12px;padding:8px 12px;background:var(--bg-1);color:var(--text);border-bottom:1px solid var(--border); }

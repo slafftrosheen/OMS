@@ -5,10 +5,11 @@
 //   3. Persist assistant reply, update ai_runs.
 
 import type { RequestHandler } from '@sveltejs/kit';
-import { error as kitError } from '@sveltejs/kit';
+import { error as kitError, isHttpError } from '@sveltejs/kit';
 import { aiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
-import { AILAB, OPENROUTER_MODEL, OPENROUTER_VISION_MODEL } from '$lib/server/config';
+import { AILAB, OPENROUTER_MODEL } from '$lib/server/config';
 import { openRouterChat, parseToolArguments, type OpenRouterMessage } from '$lib/server/ai/openrouter';
+import { chatHistoryMessages, persistChatMessage, type StoredChatMessage } from '$lib/server/ai/chat-history';
 import {
     listTools,
     executeTool
@@ -60,7 +61,10 @@ Operating principles:
   • If multiple tools could apply, run them in parallel by
     emitting multiple tool calls in one assistant turn.`;
 
-export const POST: RequestHandler = async (event) => {
+// Dependency injection exercises the real request/persistence flow without
+// contacting a provider or the tool registry in regression tests.
+export function _createMessageHandler(dependencies = { openRouterChat, listTools, executeTool }): RequestHandler {
+return async (event) => {
     const { params, request, locals } = event;
     if (!locals.supabase || !locals.user) {
         throw kitError(401, 'Unauthorized');
@@ -118,16 +122,18 @@ export const POST: RequestHandler = async (event) => {
     }
 
     // Load history (last 30 messages).
-    const { data: history } = await db
+    const { data: history, error: historyError } = await db
         .from('ai_chat_messages')
         .select('role,content,tool_calls,tool_name')
         .eq('session_id', sid)
         .order('created_at', { ascending: false })
         .limit(30);
-    const recent = ((history ?? []) as OpenRouterMessage[]).reverse();
+    if (historyError) throw kitError(503, 'Conversation history unavailable');
+    const recent = chatHistoryMessages(((history ?? []) as StoredChatMessage[]).reverse());
 
     // Persist message text only. Vector search/RAG is disabled in the OpenRouter-only mode.
-    await db.from('ai_chat_messages').insert({
+    request.signal.throwIfAborted();
+    const userMessageId = await persistChatMessage(db, {
         session_id: sid,
         role: 'user',
         content: body.content
@@ -164,7 +170,7 @@ export const POST: RequestHandler = async (event) => {
     // ── Tool definitions — allow-list is reused for execution ───────────────
     // This is a security boundary, not just a model hint. The model cannot
     // request a hidden management tool using an invented function name.
-    const rows = await listTools({ role: locals.user.role }).catch(() => []);
+    const rows = await dependencies.listTools({ role: locals.user.role }).catch(() => []);
     const personaAllowed = personaTemplate?.tool_slugs?.length
         ? new Set(personaTemplate.tool_slugs)
         : null;
@@ -207,14 +213,17 @@ export const POST: RequestHandler = async (event) => {
     let usedModel = providerModel;
 
     let toolCallsUsed = 0;
+    let assistantMessageId = '';
     try {
     for (let hop = 0; hop < 3; hop++) {
-        const r = await openRouterChat({
+        request.signal.throwIfAborted();
+        const r = await dependencies.openRouterChat({
             model: providerModel,
             stream: false,
             messages: [...messages, ...toolMessages],
             tools: allTools,
-            temperature: 0.5
+            temperature: 0.5,
+            signal: request.signal
         });
         usedModel = r.model;
         if (!r.response.ok) {
@@ -228,15 +237,16 @@ export const POST: RequestHandler = async (event) => {
             role: 'assistant',
             content: typeof rawMessage.content === 'string' ? rawMessage.content : '',
             tool_calls: Array.isArray(rawMessage.tool_calls) ? rawMessage.tool_calls.map((call: any, index: number) => ({
-                id: typeof call.id === 'string' ? call.id : `call_${index}`,
+                id: typeof call.id === 'string' && call.id.trim() ? call.id : `call_${hop}_${index}`,
                 type: 'function' as const,
-                function: { name: String(call.function?.name ?? ''), arguments: call.function?.arguments ?? '{}' }
+                function: { name: String(call.function?.name ?? ''), arguments: typeof call.function?.arguments === 'string'
+                    ? call.function.arguments : JSON.stringify(call.function?.arguments ?? {}) }
             })) : []
         } : null;
         if (!m) break;
 
         if (m.tool_calls && m.tool_calls.length > 0) {
-            await db.from('ai_chat_messages').insert({
+            await persistChatMessage(db, {
                 session_id: sid,
                 role: 'assistant',
                 content: m.content ?? '',
@@ -246,35 +256,31 @@ export const POST: RequestHandler = async (event) => {
             });
             toolMessages.push({ role: 'assistant', content: m.content ?? '', tool_calls: m.tool_calls });
             for (const call of m.tool_calls) {
+                request.signal.throwIfAborted();
                 toolCallsUsed++;
                 const tool = allowedTools.get(call.function.name);
                 const callId = call.id;
-                if (!tool || toolCallsUsed > 8) {
-                    toolMessages.push({
-                        role: 'tool',
-                        tool_call_id: callId,
-                        content: JSON.stringify({ error: 'Tool not available for this user or request' })
-                    });
-                    continue;
-                }
                 let result: unknown;
-                try {
+                if (!tool || toolCallsUsed > 8) {
+                    result = { error: 'Tool not available for this user or request' };
+                } else try {
                     const serialized = typeof call.function.arguments === 'string' ? call.function.arguments : JSON.stringify(call.function.arguments ?? {});
                     if (serialized.length > 8_000) throw new Error('Tool arguments exceed the size limit');
                     const toolArgs = parseToolArguments(serialized);
-                    result = await executeTool(tool.slug, toolArgs, {
+                    result = await dependencies.executeTool(tool.slug, toolArgs, {
                         userId, role: locals.user.role, stations, supabase: db
                     });
                 } catch (err) {
                     result = { error: (err as Error).message };
                 }
-                await db.from('ai_chat_messages').insert({
+                const toolContent = JSON.stringify(result).slice(0, 12_000);
+                await persistChatMessage(db, {
                     session_id: sid,
                     role: 'tool',
-                    tool_name: tool.slug,
-                    content: JSON.stringify(result).slice(0, 12_000)
+                    tool_name: tool?.slug ?? call.function.name,
+                    content: toolContent
                 });
-                toolMessages.push({ role: 'tool', tool_call_id: callId, name: tool.slug, content: JSON.stringify(result).slice(0, 12_000) });
+                toolMessages.push({ role: 'tool', tool_call_id: callId, name: call.function.name, content: toolContent });
             }
             continue;
         }
@@ -283,20 +289,9 @@ export const POST: RequestHandler = async (event) => {
         break;
     }
 
-    } catch (err) {
-        if (runId) {
-            await db.from('ai_runs').update({
-                status: 'error', error: 'Provider or tool execution failed',
-                finished_at: new Date().toISOString()
-            }).eq('id', runId);
-        }
-        logger.error('[AI chat] inference run failed', { sessionId: sid, userId, kind: 'provider_or_tool' });
-        throw kitError(502, 'AI provider or tool execution failed');
-    }
-
+    request.signal.throwIfAborted();
     if (!finalText) finalText = '(no response)';
-
-    await db.from('ai_chat_messages').insert({
+    assistantMessageId = await persistChatMessage(db, {
         session_id: sid,
         role: 'assistant',
         content: finalText,
@@ -305,6 +300,20 @@ export const POST: RequestHandler = async (event) => {
         citations: [],
         latency_ms: Date.now() - startedAt.getTime()
     });
+    } catch (err) {
+        if (runId) {
+            await db.from('ai_runs').update({
+                status: 'error', error: request.signal.aborted ? 'Request cancelled'
+                    : isHttpError(err, 503) ? 'Conversation persistence failed' : 'Provider or tool execution failed',
+                finished_at: new Date().toISOString()
+            }).eq('id', runId);
+        }
+        if (request.signal.aborted) throw kitError(499, 'Request cancelled');
+        if (isHttpError(err, 503)) throw err;
+        logger.error('[AI chat] inference run failed', { sessionId: sid, userId, kind: 'provider_or_tool' });
+        throw kitError(502, 'AI provider or tool execution failed');
+    }
+
     await db.from('ai_chat_sessions').update({ last_message_at: new Date().toISOString() }).eq('id', sid);
     if (runId) {
         await db
@@ -324,6 +333,8 @@ export const POST: RequestHandler = async (event) => {
         JSON.stringify({
             ok: true,
             content: finalText,
+            userMessageId,
+            assistantMessageId,
             citations,
             model: usedModel,
             node: nodeLabel,
@@ -332,3 +343,6 @@ export const POST: RequestHandler = async (event) => {
         { headers: { 'Content-Type': 'application/json' } }
     );
 };
+}
+
+export const POST = _createMessageHandler();

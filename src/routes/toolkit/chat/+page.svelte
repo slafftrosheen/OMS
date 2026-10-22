@@ -4,6 +4,7 @@
   import Icon from '$lib/ui/Icon.svelte';
   import { t, locale } from 'svelte-i18n';
   import { get } from 'svelte/store';
+  import { confirmToolkitMessages, restoreToolkitDraft } from '$lib/chat/toolkit-send-state';
   const tr = (key: string) => get(t)(`toolkit.chat.${key}`);
 
 
@@ -124,6 +125,10 @@
     const token = loadToken;
     const controller = new AbortController();
     sendRequests.set(sessionId, controller);
+    const currentRequest = () => !destroyed && !controller.signal.aborted && sendRequests.get(sessionId) === controller;
+    const restoreFailedDraft = () => {
+      if (currentRequest()) input = restoreToolkitDraft(drafts, sessionId, textBody, activeSession?.id ?? null, input);
+    };
 
     input = '';
     drafts.delete(sessionId);
@@ -157,26 +162,24 @@
 
       if (res.ok) {
         const data = await res.json();
-        if (destroyed) return;
+        if (!currentRequest()) return;
         // Use the API response directly instead of a full refetch.
         // Replace the temp id on the optimistic user message with a stable one
         // and append the assistant reply.
         const reply = data.content ?? tr('emptyReply');
-        if (activeSession?.id === sessionId && token === loadToken) messages = [
-          ...messages.map(m => m.id === optimistic.id
-            ? { ...m, id: `${optimistic.id}-final` }
-            : m
-          ),
-          {
-            id: `assistant-${Date.now()}`,
+        const confirmedIds = typeof data.userMessageId === 'string' && !!data.userMessageId
+          && typeof data.assistantMessageId === 'string' && !!data.assistantMessageId;
+        if (activeSession?.id === sessionId && token === loadToken && confirmedIds) {
+          messages = confirmToolkitMessages(messages, optimistic.id, data.userMessageId, {
+            id: data.assistantMessageId,
             role: 'assistant',
             content: reply,
             model: data.model ?? null,
             node_label: data.node ?? null,
             latency_ms: null,
             created_at: new Date().toISOString(),
-          },
-        ];
+          });
+        }
 
         // Activity belongs to the original conversation even if the user has
         // switched views while the provider was answering.
@@ -187,24 +190,28 @@
           activeSession = { ...activeSession, last_message_at: lastMessageAt };
           // A return to this conversation may have loaded history before the
           // response was persisted. Refresh that view once, without duplicates.
-          if (token !== loadToken) await openSession(activeSession);
+          if (token !== loadToken || !confirmedIds) await openSession(activeSession);
           else void scrollToBottom();
         }
       } else {
         const errData = await res.json().catch(() => ({}));
-        if (!destroyed && activeSession?.id === sessionId) {
+        restoreFailedDraft();
+        if (currentRequest() && activeSession?.id === sessionId) {
           error = errData.message || errData.error || `Error ${res.status}`;
           messages = messages.filter(m => m.id !== optimistic.id);
         }
       }
     } catch {
-      if (!destroyed && activeSession?.id === sessionId && !controller.signal.aborted) {
+      restoreFailedDraft();
+      if (currentRequest() && activeSession?.id === sessionId) {
         error = tr('sendError');
         messages = messages.filter(m => m.id !== optimistic.id);
       }
     } finally {
-      const remaining = { ...sending }; delete remaining[sessionId]; sending = remaining;
-      sendRequests.delete(sessionId);
+      if (sendRequests.get(sessionId) === controller) {
+        const remaining = { ...sending }; delete remaining[sessionId]; sending = remaining;
+        sendRequests.delete(sessionId);
+      }
     }
   }
 
