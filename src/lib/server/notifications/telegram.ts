@@ -12,6 +12,10 @@ export interface TelegramConfig {
   settingsGeneration?: string;
 }
 
+export function isTelegramSecret(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{32,256}$/.test(value);
+}
+
 /** All credentials remain in server modules. Partial configuration is disabled. */
 export function readTelegramConfig(env: Record<string, string | undefined>): TelegramConfig | null {
   if (env.TELEGRAM_ENABLED?.trim().toLowerCase() !== 'true') return null;
@@ -21,8 +25,8 @@ export function readTelegramConfig(env: Record<string, string | undefined>): Tel
   const deliverySecret = env.TELEGRAM_DELIVERY_SECRET?.trim() ?? '';
   if (!/^\d+:[A-Za-z0-9_-]{20,}$/.test(botToken)
     || !/^[A-Za-z0-9_]{5,32}$/.test(botUsername) || !/bot$/i.test(botUsername)
-    || !/^[A-Za-z0-9_-]{32,256}$/.test(webhookSecret)
-    || !/^[A-Za-z0-9_-]{32,256}$/.test(deliverySecret)
+    || !isTelegramSecret(webhookSecret)
+    || !isTelegramSecret(deliverySecret)
     || webhookSecret === deliverySecret
     || !env.SUPABASE_SERVICE_ROLE_KEY?.trim() || !env.PUBLIC_SUPABASE_URL?.trim()) return null;
   try {

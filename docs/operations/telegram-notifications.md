@@ -136,6 +136,14 @@ The optional variables are retained in `.env.example` and Docker Compose for mig
 
 Bot credentials use the Vault names `reclame_oms_telegram_bot_token`, `reclame_oms_telegram_webhook_secret` and `reclame_oms_telegram_delivery_secret`. Public configuration resides in `telegram_system_settings`; connection metadata, link digests, notification outbox, replay state and command replies use separate service-only RLS tables. API responses are private/no-store, and provider bodies or token-bearing errors are not logged.
 
+## Notification request lifecycle
+
+The in-app bell and notifications page share one account-scoped realtime channel and initial refresh. Overlapping refreshes and identical pending writes reuse their request; clearing read notifications updates at most the 50 displayed IDs in one owner-scoped operation. Account changes and sign-out abort pending reads/writes and fence late responses before they can update the next account's feed.
+
+Personal Telegram pause/resume returns the refreshed connection status with its successful `PATCH`, avoiding a second HTTP request. The client retains a bounded status-`GET` fallback for deployments where an older server still returns only `success`. Existing webhook and scheduler URLs remain available; requests with absent or malformed machine secrets are rejected before reading configuration or Vault. Valid credentials still pass the authoritative saved-configuration and runtime-generation checks.
+
+Trusted notification publishing skips optional configuration lookup when there are no recipients. If a fanout discovers that the Telegram outbox migration is absent, its remaining batches use ordinary in-app notification storage directly. This fallback lasts only for that publication; a later publication can use a newly available migration.
+
 ## Verification and deployment checks
 
 Automated coverage includes option validation, secret masking/preservation, RD and active-account authorization, saved-disable precedence, fail-closed configuration outages, registered webhook destinations, private command menus, command/callback validation, language and bounded AI context, rendered-answer retry persistence, and permission revocation during inference.

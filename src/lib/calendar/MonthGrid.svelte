@@ -10,7 +10,7 @@
   }: {
     year: number;
     month: number; // 1-12
-    renderDay: (iso: string) => any; // slotless renderer (we reuse DayCell)
+    renderDay: (iso: string) => any; // Agenda content supplied by the calendar view
     onprevmonth?: () => void;
     onnextmonth?: () => void;
   } = $props();

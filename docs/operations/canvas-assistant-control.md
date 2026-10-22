@@ -46,6 +46,12 @@ The complete action set is preflighted before application. `editor.mark` establi
 
 The existing shared-board revision conflict gate also blocks Apply. Shared persistence still uses the normal revision-checked canvas endpoint. Discussion proposals are user scoped and can be restored after reopening a project. Restored proposals retain their fingerprints; reopening never silently refreshes a stale proposal into authority to overwrite newer work.
 
+Technical node buttons and the bottom toolbar share one execution path. The toolbar follows incoming arrow bindings; a node's own button uses its explicit form values. Form edits are stored immediately, overlapping runs of the same node reuse the pending request, and completion updates only the result/status fields. Edits and resizing made while a request is running are preserved. The toolbar's Run action excludes ordinary shapes and locked nodes.
+
+Toolkit captures the current document when saving or creating a recovery copy. It does not serialize full snapshots on every intermediate edit, and local brief/audit tools collect only their card graph. The order editor retains its full snapshot callback: live order data and callback updates rerender the existing React canvas without resetting its editor, shape IDs, selection, or history. Its initial snapshot remains a mount-only input, and restored order forms are synchronized by the matching order ID.
+
+Toolkit conversation requests belong to their original session. Switching conversations cancels obsolete history reads, keeps text drafts per session, and prevents an earlier reply or error from being appended to another conversation. Unmounting cancels outstanding browser requests. The legacy `/ai-lab`, `/ai-lab/canvas`, and `/ai-lab/chat` paths remain permanent redirect aliases without duplicate UI implementations.
+
 ## Provider and request configuration
 
 The existing R&D OpenRouter API-key setting supplies the credential. Text-only requests use the selected server-allowed Toolkit model; requests containing drawing/image pixels use the configured `OPENROUTER_VISION_MODEL`. That model must support image input. The actual routed model remains visible in the assistant UI.
@@ -59,3 +65,5 @@ The assistant endpoint requires Toolkit-manager access, uses the existing AI thr
 `tests/unit/canvas-scene-actions.test.ts` exercises full-scene privacy/bounds, selection priority, fingerprints, protected ancestors/descendants, supported property validation, unsafe media rejection, atomic edit/rollback behavior, bound native arrows, image ownership/byte checks, PNG signature/dimension validation and streamed request limits.
 
 The OpenRouter scenario in `tests/e2e/canvas-media.spec.ts` mounts the actual Toolkit page and tldraw editor with API fixtures. It creates real geometry/text shapes, generates a real native drawing PNG, applies content/style/move/resize/connect/group proposals, and verifies that one native Undo restores the preceding document. No live provider call is required for this regression test.
+
+The same browser spec covers live/restored order-form updates with stable editor and shape identity, current callback bindings, overlapping technical runs with edits during the request, and delayed conversation reads/replies across session switches. `tests/unit/canvas-node-runner.test.ts` covers success/failure edits, request coalescing, deletion/replacement, locks, cancellation, and native/legacy input bindings.

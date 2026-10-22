@@ -1,26 +1,16 @@
-import { ordersStore } from '$lib/stores/orders';
+import { orderState } from '$lib/order/orderState.svelte';
 import { notificationStore } from '$lib/stores/notifications';
-import { messages, rooms } from '$lib/chat/chat-store';
+import { resetChatState } from '$lib/chat/chat-store';
+import { resetUserDirectory } from '$lib/users/user-store';
+import { resetPreferencesCache } from '$lib/preferences';
 import { loads } from './loads';
-import { uiState } from './appState.svelte';
 
-/**
- * Resets all global stores to their initial state.
- * Called during logout to prevent data leakage between users.
- */
+/** Clear account-owned data and pending reads when signing out. */
 export function resetAllStores() {
-    // Svelte 4 / Writable stores
-    ordersStore.reset?.();
-    notificationStore.clear?.();
-    messages.set([]);
-    rooms.set([]);
-    loads.set([]);
-    
-    // Add other stores as discovered
-    // orderDetailStore.clear?.();
-    // changeRequestsStore.clear?.();
-
-    // Svelte 5 states
-    // Usually we want to keep UI preferences (theme, etc.) unless they are specifically tied to a user.
-    // If they ARE tied to a user, they should be reset or reloaded on login.
+  orderState.reset();
+  notificationStore.clear();
+  resetChatState();
+  resetUserDirectory();
+  resetPreferencesCache();
+  loads.set([]);
 }

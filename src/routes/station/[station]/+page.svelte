@@ -4,7 +4,7 @@
   import { currentUser } from '$lib/auth/authState.svelte';
   import { canOperateStation } from '$lib/order/lifecycle-guards';
   import { dueDateLabel, stageStateLabel, isOrderOverdue } from '$lib/order/operator-ui';
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { writable } from 'svelte/store';
   import { t } from 'svelte-i18n';
   import { realtimeStore } from '$lib/stores/realtime';
@@ -310,27 +310,33 @@
   let blockedCount    = $derived($orders.filter(o => o.stage?.state === 'BLOCKED').length);
   let reworkCount     = $derived($orders.filter(o => o.stage?.state === 'REWORK').length);
 
-  onMount(async () => {
-    await loadStationOrders();
+  onMount(() => {
+    const ownerId = $currentUser?.id;
+    const lifetime = new AbortController();
+    const isCurrent = () => !lifetime.signal.aborted && $currentUser?.id === ownerId;
+    void (async () => {
+      await loadStationOrders();
+      if (!isCurrent()) return;
 
-    unsubscribe = realtimeStore.subscribeToStation(station, () => {
-      void loadStationOrders(true);
-    });
+      unsubscribe = realtimeStore.subscribeToStation(station, () => {
+        if (isCurrent()) void loadStationOrders(true);
+      });
 
-    refreshInterval = setInterval(() => {
-      if (!document.hidden && !completeModalOpen && !blockModalOpen &&
-          !reworkModalOpen && !resolveModalOpen && !progressTarget && !packetTarget)
-        void loadStationOrders(true);
-    }, 30000);
+      refreshInterval = setInterval(() => {
+        if (isCurrent() && !document.hidden && !completeModalOpen && !blockModalOpen &&
+            !reworkModalOpen && !resolveModalOpen && !progressTarget && !packetTarget)
+          void loadStationOrders(true);
+      }, 30000);
 
-    // Ensure this station's chat room exists and load its messages
-    await ensureRoom({ id: stationRoomId, name: station });
-    await loadMessages(stationRoomId);
-  });
+      const confirmed = await ensureRoom({ id: stationRoomId, name: station }, lifetime.signal);
+      if (confirmed && isCurrent()) await loadMessages(stationRoomId);
+    })();
 
-  onDestroy(() => {
-    if (unsubscribe) unsubscribe();
-    if (refreshInterval) clearInterval(refreshInterval);
+    return () => {
+      lifetime.abort();
+      unsubscribe?.();
+      if (refreshInterval) clearInterval(refreshInterval);
+    };
   });
 </script>
 

@@ -76,8 +76,7 @@
   $effect(() => {
     const userId = $currentUser?.id;
     if (!userId) { notificationStore.clear(); return; }
-    void notificationStore.load(userId);
-    return notificationStore.subscribe_realtime(userId);
+    return notificationStore.connect(userId);
   });
 
   onMount(() => {

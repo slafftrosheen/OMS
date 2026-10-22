@@ -1,203 +1,137 @@
-// user-store.ts
 import { base } from '$app/paths';
 import { writable } from 'svelte/store';
-import type { User, Role, Section } from './types';
+import type { User, Role } from './types';
 
 function deriveRoleFromLegacy(roles: Record<string, string> | undefined): Role {
-  if (!roles) return 'Operator';
-  const vals = Object.values(roles);
-  if (vals.includes('SuperAdmin')) return 'RD';
-  if (vals.includes('StationLead')) return 'StationHead';
-  if (vals.includes('Viewer')) return 'Operator';
+  const values = Object.values(roles ?? {});
+  if (values.includes('SuperAdmin')) return 'RD';
+  if (values.includes('StationLead')) return 'StationHead';
   return 'Operator';
 }
 
-const isBrowser = typeof window !== 'undefined';
+const userStore = writable<User | null>(null);
 
-// Backward compatibility stores (only used in browser)
-const userLegacy = writable<User | null>(null);
-const loadingLegacy = writable<boolean>(false);
-const errorLegacy = writable<string | null>(null);
-
-export class AuthState {
-  user = $state<User | null>(null);
-  loading = $state<boolean>(false);
-  error = $state<string | null>(null);
-
-  constructor() {
-    if (isBrowser) {
-      this.load();
-    }
-  }
-
-  setUser(u: User | null) {
-    this.user = u;
-    userLegacy.set(u);
-  }
-
-  setLoading(l: boolean) {
-    this.loading = l;
-    loadingLegacy.set(l);
-  }
-
-  setError(e: string | null) {
-    this.error = e;
-    errorLegacy.set(e);
-  }
-
-  async load(timeoutMs = 10000): Promise<User | null> {
-    if (!isBrowser) return null;
-    
-    this.setLoading(true);
-    this.setError(null);
-
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Auth check timeout')), timeoutMs);
-    });
-
-    const fetchPromise = async (): Promise<User | null> => {
-      try {
-        const res = await fetch(`${base}/api/auth`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          cache: 'no-cache'
-        });
-
-        if (!res.ok) {
-          if (res.status === 401) {
-            this.setUser(null);
-            this.setLoading(false);
-            return null;
-          }
-          const errorText = await res.text().catch(() => 'Unknown error');
-          throw new Error(`Auth check failed: ${res.status} ${errorText}`);
-        }
-
-        const data = await res.json();
-        if (data.user) {
-          const raw = data.user;
-          // Normalise flat role from new schema; fall back to deriving from legacy roles JSONB
-          const role: User['role'] = raw.role ?? deriveRoleFromLegacy(raw.roles);
-          const user: User = {
-            id: raw.id,
-            username: raw.username ?? '',
-            displayName: raw.displayName ?? raw.display_name ?? raw.username ?? '',
-            email: raw.email,
-            avatarUrl: raw.avatarUrl ?? raw.avatar_url,
-            role,
-            stations: Array.isArray(raw.stations)
-              ? raw.stations.map((s: any) =>
-                  typeof s === 'string' ? { stationId: s, isHead: false } : s
-                )
-              : [],
-            // Legacy compat
-            primarySection: raw.primarySection,
-            sections: raw.sections,
-            roles: raw.roles,
-          };
-          this.setUser(user);
-          this.setLoading(false);
-          return user;
-        }
-        
-        this.setUser(null);
-        this.setLoading(false);
-        return null;
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-        this.setError(errorMessage);
-        this.setUser(null);
-        this.setLoading(false);
-        return null;
-      }
-    };
-
-    try {
-      return await Promise.race([fetchPromise(), timeoutPromise]);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Auth check failed';
-      this.setError(errorMessage);
-      this.setUser(null);
-      this.setLoading(false);
-      return null;
-    }
-  }
-
-  async logout(): Promise<void> {
-    if (!isBrowser) return;
-    try {
-      await fetch(`${base}/api/auth`, { method: 'DELETE', credentials: 'include' });
-    } catch (err) {
-      console.error('Logout failed:', err);
-    }
-    this.setUser(null);
-    this.setError(null);
-    
-    // Clear all global stores to prevent data leakage
-    const { resetAllStores } = await import('$lib/state/cleanup');
-    resetAllStores();
-  }
-}
-
-// Module-level singleton for use by exported functions
-// The constructor's isBrowser check prevents SSR side effects
-export const authState = new AuthState();
-
-// Helper to get current instance from context (browser only)
-function getInstance(): AuthState | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    // This will be called from components that have access to context
-    // For now, we'll keep a module-level reference set by the layout
-    return _currentInstance;
-  } catch {
-    return null;
-  }
-}
-
-let _currentInstance: AuthState | null = null;
-
-// Called by +layout.svelte to set the current instance
-export function setCurrentInstance(instance: AuthState) {
-  _currentInstance = instance;
-}
-
-// Backward compatibility: export currentUser as a subscribable store
-// so files importing { currentUser } from '$lib/auth/authState.svelte' work
-export const currentUser = {
-  subscribe: userLegacy.subscribe,
-  set: (u: User | null) => { authState.setUser(u); },
-  update: (fn: (u: User | null) => User | null) => { authState.setUser(fn(authState.user)); }
-};
-
-export function createCurrentUserStore(instance: AuthState) {
-  const instUserLegacy = writable<User | null>(instance.user);
-  const instLoadingLegacy = writable<boolean>(instance.loading);
-  const instErrorLegacy = writable<string | null>(instance.error);
-  
-  function instSyncToLegacy() {
-    instUserLegacy.set(instance.user);
-    instLoadingLegacy.set(instance.loading);
-    instErrorLegacy.set(instance.error);
-  }
-  
+async function fetchSession(signal: AbortSignal): Promise<User | null> {
+  const response = await fetch(`${base}/api/auth`, {
+    credentials: 'include', cache: 'no-store', signal
+  });
+  if (response.status === 401) return null;
+  if (!response.ok) throw new Error(`Auth check failed: ${response.status}`);
+  const raw = (await response.json())?.user;
+  if (!raw || typeof raw.id !== 'string') return null;
   return {
-    subscribe: instUserLegacy.subscribe,
-    set: (u: User | null) => { instance.setUser(u); instSyncToLegacy(); },
-    update: (fn: (u: User | null) => User | null) => { instance.setUser(fn(instance.user)); instSyncToLegacy(); }
+    id: raw.id,
+    username: raw.username ?? '',
+    displayName: raw.displayName ?? raw.display_name ?? raw.username ?? '',
+    email: raw.email,
+    avatarUrl: raw.avatarUrl ?? raw.avatar_url,
+    role: raw.role ?? deriveRoleFromLegacy(raw.roles),
+    stations: Array.isArray(raw.stations)
+      ? raw.stations.map((station: User['stations'][number] | string) =>
+        typeof station === 'string' ? { stationId: station, isHead: false } : station)
+      : [],
+    primarySection: raw.primarySection,
+    sections: raw.sections,
+    roles: raw.roles
   };
 }
 
-export function switchSection(instance: AuthState, section: Section) {
-  if (instance.user && instance.user.sections.includes(section)) {
-    instance.user = { ...instance.user, primarySection: section };
+/** One explicit session check owns its timer, request and publication. */
+export class AuthState {
+  user = $state<User | null>(null);
+  loading = $state(false);
+  error = $state<string | null>(null);
+  private revision = 0;
+  private pending: { controller: AbortController; promise: Promise<User | null> } | null = null;
+
+  private publish(user: User | null) {
+    this.user = user;
+    userStore.set(user);
+  }
+
+  cancelLoad() {
+    this.revision++;
+    this.pending?.controller.abort();
+    this.pending = null;
+    this.loading = false;
+  }
+
+  setUser(user: User | null) {
+    // A login or logout supersedes an older session check, even if its response arrives later.
+    this.cancelLoad();
+    this.error = null;
+    this.publish(user);
+  }
+
+  load(timeoutMs = 10000): Promise<User | null> {
+    if (typeof window === 'undefined') return Promise.resolve(null);
+    if (this.pending) return this.pending.promise;
+    const revision = ++this.revision;
+    const controller = new AbortController();
+    this.loading = true;
+    this.error = null;
+    let timedOut = false;
+    let onAbort!: () => void;
+    const cancelled = new Promise<never>((_, reject) => {
+      onAbort = () => reject(new Error(timedOut ? 'Auth check timeout' : 'Auth check cancelled'));
+      controller.signal.addEventListener('abort', onAbort, { once: true });
+    });
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, Number.isFinite(timeoutMs) ? Math.max(1, timeoutMs) : 10000);
+
+    const promise = Promise.race([fetchSession(controller.signal), cancelled])
+      .then(user => {
+        if (revision === this.revision) this.publish(user);
+        return this.user;
+      })
+      .catch(error => {
+        if (revision === this.revision) {
+          this.error = timedOut ? 'Auth check timeout' : error instanceof Error ? error.message : 'Auth check failed';
+          this.publish(null);
+        }
+        return this.user;
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+        controller.signal.removeEventListener('abort', onAbort);
+        if (revision === this.revision) {
+          this.pending = null;
+          this.loading = false;
+        }
+      });
+    this.pending = { controller, promise };
+    return promise;
+  }
+
+  async logout(): Promise<void> {
+    if (typeof window === 'undefined') return;
+    this.setUser(null);
+    const revision = this.revision;
+    try {
+      const { resetAllStores } = await import('$lib/state/cleanup');
+      if (revision !== this.revision) return;
+      resetAllStores();
+    } catch (error) {
+      console.error('Session cleanup failed:', error);
+    }
+    if (revision !== this.revision) return;
+    try {
+      await fetch(`${base}/api/auth`, { method: 'DELETE', credentials: 'include' });
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   }
 }
 
-export function getCurrentUser(instance: AuthState) { return instance.user; }
-export function getAuthLoading(instance: AuthState) { return instance.loading; }
-export function getAuthError(instance: AuthState) { return instance.error; }
+// Importing auth state never starts a request. The application shell owns bootstrap.
+export const authState = new AuthState();
+export const currentUser = {
+  subscribe: userStore.subscribe,
+  set: (user: User | null) => authState.setUser(user),
+  update: (fn: (user: User | null) => User | null) => authState.setUser(fn(authState.user))
+};
+
 export function loadCurrentUser(instance: AuthState, timeoutMs?: number) { return instance.load(timeoutMs); }
-export async function logout(instance: AuthState) { return instance.logout(); }
-export async function refreshCurrentUser(instance: AuthState) { return instance.load(); }
+export function logout(instance: AuthState) { return instance.logout(); }

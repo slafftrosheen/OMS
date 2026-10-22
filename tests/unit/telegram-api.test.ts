@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GET as status, POST as connect } from '../../src/routes/api/notifications/telegram/+server';
+import { GET as status, POST as connect, PATCH as setEnabled } from '../../src/routes/api/notifications/telegram/+server';
 import { POST as webhook } from '../../src/routes/api/telegram/webhook/+server';
 import { POST as dispatch } from '../../src/routes/api/telegram/dispatch/+server';
 
@@ -31,6 +31,50 @@ function locals(active = true): any {
 }
 
 describe('Telegram HTTP authorization boundaries', () => {
+  it('rejects absent or malformed machine credentials without opening settings or queue connections', async () => {
+    await withRuntime(async () => {
+      let calls = 0;
+      globalThis.fetch = async () => { calls++; throw new Error('Must not contact settings or providers'); };
+      for (const secret of ['', 'short', 's'.repeat(257)]) {
+        const webhookResponse = await webhook({ request: new Request('https://oms.example.test/api/telegram/webhook', {
+          method: 'POST', headers: secret ? { 'X-Telegram-Bot-Api-Secret-Token': secret } : {}, body: '{}'
+        }) } as any);
+        const dispatchResponse = await dispatch({ request: new Request('https://oms.example.test/api/telegram/dispatch', {
+          method: 'POST', headers: secret ? { Authorization: `Bearer ${secret}` } : {}
+        }) } as any);
+        expect(webhookResponse.status).toBe(401);
+        expect(dispatchResponse.status).toBe(401);
+      }
+      expect(calls).toBe(0);
+    });
+  });
+
+  it('returns fresh personal connection status with a successful pause without requiring another request', async () => {
+    await withRuntime(async () => {
+      let owner: string | undefined;
+      let enabled = true;
+      const calls: string[] = [];
+      globalThis.fetch = async (url, init) => {
+        const path = new URL(String(url)).pathname; calls.push(path);
+        if (path.endsWith('/rpc/get_telegram_settings')) return Response.json(null);
+        if (path.endsWith('/rpc/set_telegram_enabled')) {
+          const body = JSON.parse(String(init?.body)); owner = body.p_user_id; enabled = body.p_enabled;
+          return Response.json(true);
+        }
+        if (path.endsWith('/telegram_connections')) return Response.json({ username: 'my_phone', enabled, linked_at: '2026-10-22T12:00:00Z' });
+        if (path.endsWith('/telegram_link_tokens')) return Response.json(null);
+        throw new Error('Unexpected database request');
+      };
+      const response = await setEnabled({ locals: locals(), request: new Request('https://oms.example.test/api/notifications/telegram', {
+        method: 'PATCH', body: JSON.stringify({ enabled: false })
+      }) } as any);
+      expect(response.status).toBe(200);
+      expect(owner).toBe(locals().user.id);
+      expect(await response.json()).toMatchObject({ success: true, status: { available: true, connected: true, enabled: false, username: 'my_phone' } });
+      expect(calls.filter(path => path.endsWith('/rpc/get_telegram_settings'))).toHaveLength(1);
+    });
+  });
+
   it('rejects unsigned and inactive account access before exposing connection status', async () => {
     const unsigned = await status({ locals: { user: null } } as any);
     expect(unsigned.status).toBe(401);

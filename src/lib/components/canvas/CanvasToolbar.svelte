@@ -6,12 +6,12 @@
     Trash2, LayoutGrid, X } from 'lucide-svelte';
 
   interface Props {
-    tool: string; selected: number; canUndo: boolean; canRedo: boolean;
+    tool: string; selected: number; runnable: number; canUndo: boolean; canRedo: boolean;
     disabled?: boolean; importing?: boolean; linking?: boolean; running?: boolean;
     onTool: (tool: string) => void; onInsert: (kind: string, value?: string) => void;
     onAction: (action: string) => void; onLink: (url: string) => void;
   }
-  let { tool, selected, canUndo, canRedo, disabled = false, importing = false,
+  let { tool, selected, runnable, canUndo, canRedo, disabled = false, importing = false,
     linking = false, running = false, onTool, onInsert, onAction, onLink }: Props = $props();
   let panel = $state<'insert' | 'tools' | null>(null);
   let linkUrl = $state('');
@@ -97,7 +97,7 @@
           <button type="button" disabled={disabled || !selected} onclick={() => action('back')}><SendToBack size={17} />{$t('toolkit.toolbar.back')}</button>
           <button type="button" disabled={disabled || !selected} onclick={() => action('delete')}><Trash2 size={17} />{$t('toolkit.canvas.deleteSelected')}</button>
         </div></section>
-        <button type="button" class="run-tool" disabled={disabled || running || !selected} onclick={() => action('run')}>
+        <button type="button" class="run-tool" disabled={disabled || running || !runnable} onclick={() => action('run')}>
           {running ? $t('toolkit.canvas.working') : $t('toolkit.canvas.runTool')}
         </button>
       {/if}

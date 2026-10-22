@@ -2,14 +2,8 @@
   import BellRing from 'lucide-svelte/icons/bell-ring';
   import Check from 'lucide-svelte/icons/check';
   import CheckCheck from 'lucide-svelte/icons/check-check';
-  import Info from 'lucide-svelte/icons/info';
-  import MessageSquare from 'lucide-svelte/icons/message-square';
-  import Package from 'lucide-svelte/icons/package';
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
-  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
   import Trash2 from 'lucide-svelte/icons/trash-2';
-  import CalendarIcon from 'lucide-svelte/icons/calendar';
-  import Settings from 'lucide-svelte/icons/settings';
 
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
@@ -22,7 +16,6 @@
 
   let filter: 'all' | 'unread' | 'read' = $state('all');
   let typeFilter: string = $state('all');
-  let refreshing = $state(false);
 
   let storeState  = $derived($notificationStore);
   let allItems    = $derived(storeState.items);
@@ -36,10 +29,8 @@
   }));
 
   async function handleRefresh() {
-    refreshing = true;
     const userId = $currentUser?.id;
     if (userId) await notificationStore.load(userId);
-    refreshing = false;
   }
 
   async function handleMarkAllRead() {
@@ -52,12 +43,11 @@
   }
 
   async function handleDismiss(id: string) {
-    await notificationStore.delete(id);
+    await notificationStore.dismiss(id);
   }
 
   async function handleClearRead() {
-    const readItems = allItems.filter((n: Notification) => n.read);
-    for (const n of readItems) await notificationStore.delete(n.id);
+    await notificationStore.dismissRead();
   }
 
   const destination = (link: string) => base && link !== base && !link.startsWith(`${base}/`) ? `${base}${link}` : link;
@@ -80,8 +70,7 @@
   $effect(() => {
     const userId = $currentUser?.id;
     if (!userId) { notificationStore.clear(); return; }
-    void notificationStore.load(userId);
-    return notificationStore.subscribe_realtime(userId);
+    return notificationStore.connect(userId);
   });
 </script>
 
@@ -103,11 +92,11 @@
       <button
         class="notif-action-btn"
         onclick={handleRefresh}
-        disabled={refreshing || storeState.loading}
+        disabled={storeState.loading}
         aria-label={$t('notifications.refresh', { default: 'Refresh' })}
         title={$t('notifications.refresh', { default: 'Refresh' })}
       >
-        <span class:spinning={refreshing || storeState.loading}>
+        <span class:spinning={storeState.loading}>
           <RefreshCw size={16} />
         </span>
       </button>

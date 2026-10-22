@@ -4,19 +4,19 @@
   import Search from 'lucide-svelte/icons/search';
   import X from 'lucide-svelte/icons/x';
 
-  import { onMount, onDestroy } from 'svelte';
-  import { fade, slide, fly } from 'svelte/transition';
+  import { fade, fly } from 'svelte/transition';
   import { t } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/authState.svelte';
-  import { 
-    rooms, 
-    messages, 
-    sendMessage, 
-    loadRooms, 
-    loadMessages, 
-    ensureRoom, 
-    isChatOpen, 
-    toggleChat 
+  import {
+    rooms,
+    messages,
+    sendMessage,
+    loadRooms,
+    loadMessages,
+    ensureRoom,
+    openDirectRoom,
+    isChatOpen,
+    toggleChat
   } from '$lib/chat/chat-store';
   import { users, loadUsers } from '$lib/users/user-store';
   import Icon from '$lib/ui/Icon.svelte';
@@ -32,19 +32,25 @@
   let dmFilter = $state('');
   let newRoomName = $state('');
   let searchQuery = $state('');
-  
+  let creatingRoom = $state(false);
+  let openingDm = $state(false);
+  let accountId = $derived($currentUser?.id ?? null);
+  let viewLifetime: AbortController | null = null;
+  let scrollTimer: ReturnType<typeof setTimeout> | undefined;
+
   // View state: 'list' | 'room'
   let view: 'list' | 'room' = $state('room');
 
   let activeRoom = $derived($rooms.find(r => r.id === activeRoomId) || $rooms[0]);
   let roomMessages = $derived($messages.filter(m => m.roomId === activeRoomId));
-  let filteredRooms = $derived(searchQuery 
+  let filteredRooms = $derived(searchQuery
     ? $rooms.filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : $rooms);
 
   function scrollToBottom() {
+    clearTimeout(scrollTimer);
     if (scroller) {
-      setTimeout(() => {
+      scrollTimer = setTimeout(() => {
         if (scroller) scroller.scrollTop = scroller.scrollHeight;
       }, 50);
     }
@@ -65,35 +71,37 @@
   }
 
   async function createRoom() {
-    if (!newRoomName.trim()) return;
-    const roomId = newRoomName.toLowerCase().replace(/\s+/g, '-');
-    await ensureRoom({ id: roomId, name: newRoomName });
-    showRoomModal = false;
-    newRoomName = '';
-    selectRoom(roomId);
+    const lifetime = viewLifetime;
+    const ownerId = accountId;
+    const name = newRoomName.trim();
+    if (!name || creatingRoom || !ownerId || !lifetime || lifetime.signal.aborted) return;
+    const roomId = name.toLowerCase().replace(/\s+/g, '-');
+    creatingRoom = true;
+    try {
+      const confirmed = await ensureRoom({ id: roomId, name }, lifetime.signal);
+      if (!confirmed || lifetime.signal.aborted || viewLifetime !== lifetime || $currentUser?.id !== ownerId) return;
+      showRoomModal = false;
+      newRoomName = '';
+      selectRoom(roomId);
+    } finally {
+      if (viewLifetime === lifetime) creatingRoom = false;
+    }
   }
 
   /** Start (or reopen) a DM with another user. */
-  async function startDM(peerId: string, peerLabel: string) {
+  async function startDM(peerId: string) {
+    const lifetime = viewLifetime;
+    const ownerId = accountId;
+    if (openingDm || !ownerId || !lifetime || lifetime.signal.aborted) return;
+    openingDm = true;
     try {
-      const res = await fetch('/api/chat/dm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ peerId }),
-      });
-      if (!res.ok) {
-        console.error('DM creation failed:', await res.text());
-        return;
-      }
-      const data = await res.json();
-      const room = data.room;
-      // Make sure the room appears in our local list & is selected
-      await ensureRoom({ id: room.id, name: peerLabel });
+      const room = await openDirectRoom(peerId, lifetime.signal);
+      if (!room || lifetime.signal.aborted || viewLifetime !== lifetime || $currentUser?.id !== ownerId) return;
       showDmModal = false;
       dmFilter = '';
       selectRoom(room.id);
-    } catch (err) {
-      console.error('startDM failed:', err);
+    } finally {
+      if (viewLifetime === lifetime) openingDm = false;
     }
   }
 
@@ -118,7 +126,7 @@
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     if (date.toDateString() === today.toDateString()) return 'Today';
     if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
     return date.toLocaleDateString();
@@ -148,15 +156,30 @@
     return current.toDateString() !== prev.toDateString();
   }
 
-  onMount(async () => {
-    await Promise.all([loadRooms(), loadUsers()]);
-    // Initial load
-    if (activeRoomId) {
-        await loadMessages(activeRoomId);
-        scrollToBottom();
+  $effect(() => {
+    const ownerId = accountId;
+    const lifetime = new AbortController();
+    viewLifetime = lifetime;
+    activeRoomId = 'general';
+    messageText = '';
+    showRoomModal = false;
+    showDmModal = false;
+    newRoomName = '';
+    dmFilter = '';
+    creatingRoom = false;
+    openingDm = false;
+    if (ownerId) {
+      void Promise.all([loadRooms(), loadUsers(), loadMessages('general')]).then(() => {
+        if (!lifetime.signal.aborted && $currentUser?.id === ownerId) scrollToBottom();
+      });
     }
+    return () => {
+      lifetime.abort();
+      clearTimeout(scrollTimer);
+      if (viewLifetime === lifetime) viewLifetime = null;
+    };
   });
-  
+
   // Scroll whenever messages change or sidebar opens
   $effect(() => {
     if ($isChatOpen && activeRoomId && $messages) {
@@ -170,7 +193,7 @@
   <div class="sidebar-backdrop" onclick={toggleChat} transition:fade={{ duration: 200 }}></div>
 
   <aside class="chat-drawer" transition:fly={{ x: 400, duration: 300 }}>
-    
+
     <!-- Sidebar Header -->
     <header class="drawer-header">
       <div class="header-title">
@@ -220,7 +243,7 @@
           {:else}
             {#each dmCandidates as u (u.id)}
               {@const label = u.displayName || u.username || 'User'}
-              <button class="dm-modal-row" onclick={() => startDM(String(u.id), label)}>
+              <button class="dm-modal-row" onclick={() => startDM(String(u.id))} disabled={openingDm}>
                 <div class="dm-avatar">{(label.split(' ').map(p => p[0]).join('') || '?').slice(0, 2).toUpperCase()}</div>
                 <div class="dm-meta">
                   <span class="dm-name">{label}</span>
@@ -237,7 +260,7 @@
 
     <!-- Content Area -->
     <div class="drawer-content">
-      
+
       <!-- ROOM LIST VIEW -->
       {#if view === 'list'}
         <div class="rooms-view" in:fade>
@@ -245,11 +268,11 @@
             <Search size={14} />
             <input type="text" placeholder="Filter channels..." bind:value={searchQuery} />
           </div>
-          
+
           <div class="rooms-list">
             {#each filteredRooms as room (room.id)}
-              <button 
-                class="room-item" 
+              <button
+                class="room-item"
                 class:active={room.id === activeRoomId}
                 onclick={() => selectRoom(room.id)}
               >
@@ -280,14 +303,14 @@
                     <span>{formatDate(message.ts)}</span>
                   </div>
                 {/if}
-                
+
                 <div class="message" class:system={message.variant === 'system'} class:own={message.authorId === $currentUser?.id}>
                   {#if message.authorId !== $currentUser?.id}
                     <div class="message-avatar" title={authorName(message.authorId)}>
                       {authorInitials(message.authorId)}
                     </div>
                   {/if}
-                  
+
                   <div class="message-body">
                     {#if message.authorId !== $currentUser?.id}
                       <div class="message-meta">
@@ -298,11 +321,11 @@
                         <span class="time">{formatTime(message.ts)}</span>
                       </div>
                     {/if}
-                    
+
                     <div class="bubble">
                       <p>{message.text}</p>
                     </div>
-                    
+
                     {#if message.authorId === $currentUser?.id}
                         <span class="time-own">{formatTime(message.ts)}</span>
                     {/if}
@@ -313,9 +336,9 @@
           </div>
 
           <div class="input-area">
-            <MentionInput 
-              onCommit={handleSend} 
-              placeholder={`Message #${activeRoom?.name}...`} 
+            <MentionInput
+              onCommit={handleSend}
+              placeholder={`Message #${activeRoom?.name}...`}
             />
           </div>
         </div>
@@ -339,7 +362,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn-ghost" onclick={() => showRoomModal = false}>Cancel</button>
-        <button class="btn-primary" onclick={createRoom} disabled={!newRoomName.trim()}>Create</button>
+        <button class="btn-primary" onclick={createRoom} disabled={creatingRoom || !newRoomName.trim()}>Create</button>
       </div>
     </div>
   </div>
@@ -399,7 +422,7 @@
     padding: 4px;
     border-radius: 4px;
   }
-  
+
   .back-btn:hover { background: var(--bg-2); color: var(--text); }
 
   .header-actions {
@@ -460,7 +483,7 @@
     font-size: 0.9rem;
     color: var(--text);
   }
-  
+
   .search-box input:focus { outline: none; }
 
   .room-item {
@@ -623,7 +646,7 @@
     font-size: 0.7rem;
     color: var(--text-muted);
   }
-  
+
   .time-own {
     font-size: 0.7rem;
     color: var(--text-muted);
@@ -682,7 +705,7 @@
     justify-content: space-between;
     align-items: center;
   }
-  
+
   .modal-header h3 { margin: 0; font-size: 1.1rem; }
   .modal-header button { background: none; border: none; cursor: pointer; color: var(--text-muted); }
 
@@ -722,7 +745,7 @@
     font-weight: 600;
     cursor: pointer;
   }
-  
+
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .btn-ghost {

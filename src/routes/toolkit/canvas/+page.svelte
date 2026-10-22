@@ -9,7 +9,7 @@
   import { starterCards } from '$lib/components/canvas/toolkit-templates';
   import { markdownProjectBrief, briefFileName } from '$lib/components/canvas/toolkit-brief';
   import { extractBoardCards, extractBoardLinks, normalizeProposals, type ProposedCard } from '$lib/components/canvas/toolkit-context';
-  import { runShape } from '$lib/components/canvas/node-runner';
+  import { getRunnableShapeIds, runShape } from '$lib/components/canvas/node-runner';
   import { importToolkitFiles, placeToolkitAsset, type ToolkitStoredAsset, type ToolkitPosition } from '$lib/components/canvas/toolkit-media-import';
   import { TOOLKIT_SKILLS, boardInsights, normalizeCanvasActions, type CanvasAction, type ToolkitSkill } from '$lib/components/canvas/toolkit-skills';
   import { applyToolkitAction, applyToolkitActions, actionSummary } from '$lib/components/canvas/toolkit-action-executor';
@@ -64,15 +64,15 @@
   let savedFiles = $state<ToolkitStoredAsset[]>([]);
   let savedFilesLoading = $state(false);
   let savedFilesError = $state('');
-  let fileInput: HTMLInputElement;
+  let fileInput = $state<HTMLInputElement>();
   let selectedTool = $state('select');
   let canUndo = $state(false);
   let canRedo = $state(false);
   let linking = $state(false);
   let requesting = $state(false);
-  let selectedLabel = $state('');
   let selectedCount = $state(0);
-  let editor: any = null;
+  let runnableCount = $state(0);
+  let editor = $state.raw<any>(null);
   let lastSnapshot: unknown = null;
   let ready = $state(false);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -123,8 +123,10 @@
     if (saveTimer) clearTimeout(saveTimer);
     if (!conflict) saveTimer = setTimeout(() => { void saveBoard(); }, 1200);
   }
-  function onCanvasChange(value: unknown) {
-    lastSnapshot = value;
+  function captureCurrentDocument() {
+    // getStoreSnapshot is the document-only API in the installed tldraw.
+    // Capture on save/recovery, never on every intermediate drag update.
+    if (editor) lastSnapshot = { document: editor.store.getStoreSnapshot() };
   }
   function onDocumentChange() {
     if (ready) markDirty();
@@ -175,17 +177,13 @@
     const expectedRevision = boardRevision;
     const title = boardTitle.trim().slice(0, 120) || 'Untitled project';
     // Private conversations are NEVER written into the shared document.
-    // Acquire the in-flight lock BEFORE the asynchronous module import.
-    // Otherwise rapid Save clicks can send duplicate PATCH requests.
+    // Share one in-flight save so rapid Save clicks cannot duplicate PATCHes.
     saving = true;
     saveInFlight = (async () => {
       try {
         // Always capture the latest document at the moment we save; session
         // camera/selection never belongs in the shared team snapshot.
-        if (editor) {
-          const { getSnapshot } = await import('@tldraw/tldraw');
-          lastSnapshot = { document: getSnapshot(editor.store).document };
-        }
+        captureCurrentDocument();
         const payload = { version: 1, snapshot: lastSnapshot };
         const response = await fetch(`/api/ai/canvas/${encodeURIComponent(id)}`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -249,6 +247,7 @@
     if (discussionDirty) return;
     try {
       const title = `${boardTitle.trim() || 'Untitled'} — recovered copy`.slice(0, 120);
+      captureCurrentDocument();
       const response = await fetch('/api/ai/canvas', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, payload: { version: 1, snapshot: lastSnapshot } })
@@ -310,7 +309,6 @@
     savedFiles = [];
     savedFilesError = '';
     prompt = '';
-    selectedLabel = '';
     selectedCount = 0;
     try {
       const [response, privateResponse] = await Promise.all([
@@ -409,14 +407,12 @@
   function onEditorReady(value: any) {
     editor = value;
     ready = true;
-    updateSelectionSummary();
     if (pendingTemplate) {
       const template = pendingTemplate;
       pendingTemplate = null;
       if (template !== 'blank') {
         seed(template);
-        // CanvasApp listens for document changes and captures a debounced,
-        // non-deprecated document snapshot. Do not serialize inside every edit.
+        // CanvasApp marks document changes; the save captures one fresh snapshot.
         markDirty();
       }
     }
@@ -424,22 +420,20 @@
   function undo() { editor?.undo(); }
   function redo() { editor?.redo(); }
   function zoomToContent() { editor?.zoomToFit?.(); }
-  function updateSelectionSummary() {
-    const selected = editor?.getSelectedShapeIds?.() ?? [];
-    selectedCount = selected.length;
-    selectedLabel = selected.length ? tr('canvas.selected', { count: selected.length }) : tr('canvas.wholeBoard');
-  }
   function deleteSelection() {
     const selected = editor?.getSelectedShapeIds?.() ?? [];
     if (selected.length) editor?.deleteShapes?.(selected);
-    updateSelectionSummary();
+  }
+  function getCardContext(shapes = editor?.getCurrentPageShapes?.() ?? []) {
+    return {
+      cards: extractBoardCards(shapes),
+      links: extractBoardLinks(shapes, (arrowId) => editor?.getBindingsFromShape?.(arrowId, 'arrow') ?? [])
+    };
   }
   function getContext() {
-    if (!editor) return { cards: [], focusId: '' };
+    if (!editor) return { ...getCardContext([]), visualAssets: [], scene: undefined, focusId: '' };
     const all = editor.getCurrentPageShapes?.() ?? [];
     const selected = editor.getSelectedShapeIds?.() ?? [];
-    const cards = extractBoardCards(all);
-    const links = extractBoardLinks(all, (arrowId) => editor.getBindingsFromShape?.(arrowId, 'arrow') ?? []);
     const relevantTypes = new Set([
       'document', 'material-swatch', 'web-search', 'crawl',
       'lumigrid', 'led-strip', 'led-matrix', 'boxletter', 'maker'
@@ -475,9 +469,7 @@
           context
         };
       });
-    selectedCount = selected.length;
-    selectedLabel = selected.length ? tr('canvas.selected', { count: selected.length }) : tr('canvas.wholeBoard');
-    return { cards, links, visualAssets, scene: captureToolkitScene(editor), focusId: String(selected[0] ?? '') };
+    return { ...getCardContext(all), visualAssets, scene: captureToolkitScene(editor), focusId: String(selected[0] ?? '') };
   }
   async function brainstorm(question = prompt, requestedSkill: ToolkitSkill = skill) {
     const text = question.trim();
@@ -665,7 +657,7 @@
 
   function exportBrief() {
     if (!editor || !boardId) return;
-    const { cards, links } = getContext();
+    const { cards, links } = getCardContext();
     const markdown = markdownProjectBrief(boardTitle, cards, links ?? [], researchSources);
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -678,7 +670,7 @@
 
   function auditBoard() {
     if (!editor || !boardId) return;
-    const { cards, links } = getContext();
+    const { cards, links } = getCardContext();
     const report = boardInsights(cards, links);
     const text = [
       tr('canvas.auditLine', { cards: report.totalCards, links: report.connections }),
@@ -742,14 +734,20 @@
   }
   async function runSelectedTechnical() {
     if (!editor || running) return;
-    const selected = editor.getSelectedShapeIds?.() ?? [];
+    const activeEditor = editor;
+    const selected = getRunnableShapeIds(activeEditor);
     if (!selected.length) { notice = tr('canvas.selectedToolFirst'); return; }
     running = true;
     try {
       let done = 0;
-      for (const id of selected) { await runShape(editor, id); done++; }
-      notice = tr('canvas.technicalCount', { count: done });
-    } catch (e) { notice = e instanceof Error ? e.message : tr('errors.toolFailed'); }
+      for (const id of selected) {
+        if (editor !== activeEditor || destroyed) return;
+        await runShape(activeEditor, id); done++;
+      }
+      if (editor === activeEditor && !destroyed) notice = tr('canvas.technicalCount', { count: done });
+    } catch (e) {
+      if (editor === activeEditor && !destroyed) notice = e instanceof Error ? e.message : tr('errors.toolFailed');
+    }
     finally { running = false; }
   }
   function addTechnical(type: string) {
@@ -1048,11 +1046,12 @@
               onToolkitLinkDrop={(url, point) => { void addLink(url, point); }}
               onToolkitControlsChange={(state) => {
                 selectedTool = state.tool; selectedCount = state.selected;
+                runnableCount = state.runnable;
                 canUndo = state.canUndo; canRedo = state.canRedo;
               }}
-              onSave={onCanvasChange} onDocumentChange={onDocumentChange} onReady={onEditorReady} onError={(message) => (error = message)} />
+              onDocumentChange={onDocumentChange} onReady={onEditorReady} onError={(message) => (error = message)} />
           {/key}
-          <CanvasToolbar tool={selectedTool} selected={selectedCount} {canUndo} {canRedo}
+          <CanvasToolbar tool={selectedTool} selected={selectedCount} runnable={runnableCount} {canUndo} {canRedo}
             disabled={!ready || conflict || remoteUpdated} {importing} {linking} {running}
             onTool={(tool) => { void drawTool(tool); }} onInsert={insertFromToolbar}
             onAction={toolbarAction} onLink={(url) => { void addLink(url); }} />

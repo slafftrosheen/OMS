@@ -148,8 +148,9 @@
     if (!status?.connected) return;
     const enabled = !status.enabled;
     await perform('save', async signal => {
-      await request('PATCH', signal, { enabled });
-      const data = await request('GET', signal);
+      const saved = await request('PATCH', signal, { enabled });
+      // Older servers returned only success; keep rolling deployments usable.
+      const data = saved.status ?? await request('GET', signal);
       if (!mounted || signal.aborted) return;
       acceptStatus(data);
       feedback = $t(enabled ? 'settings.telegram.resumed' : 'settings.telegram.pauseSaved');

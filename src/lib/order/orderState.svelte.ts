@@ -32,15 +32,19 @@ export class OrderState {
           const userId = authState.user?.id ?? null;
           if (loadedFor === userId) return;
           loadedFor = userId;
-          this.loadController?.abort();
-          this.loadVersion += 1;
-          this.orders = [];
-          this.lastError = null;
-          this.loading = false;
-          if (userId) void this.load();
+          this.reset();
         });
       });
     }
+  }
+
+  reset() {
+    this.loadController?.abort();
+    this.loadController = null;
+    this.loadVersion += 1;
+    this.orders = [];
+    this.lastError = null;
+    this.loading = false;
   }
 
   async load() {
@@ -129,7 +133,7 @@ export async function listOrders(): Promise<Order[]> {
 export async function getOrder(id: string): Promise<Order | null> {
   if (!isBrowser) return null;
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(id)}`);
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(id)}`);
     if (response.ok) {
       const data = await response.json();
       return transformApiOrder(data);
@@ -150,7 +154,7 @@ export async function getOrder(id: string): Promise<Order | null> {
 export async function createOrder(seed: Partial<Order>): Promise<Order | null> {
   orderState.loading = true;
   try {
-    const response = await fetch('/api/draft-orders', {
+    const response = await fetch(`${base}/api/draft-orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -186,7 +190,7 @@ export async function createOrder(seed: Partial<Order>): Promise<Order | null> {
  */
 export async function updateOrder(id: string, updates: Partial<Order>): Promise<Order | null> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(id)}`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -219,7 +223,7 @@ export async function updateOrder(id: string, updates: Partial<Order>): Promise<
  */
 export async function deleteOrder(id: string): Promise<boolean> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(id)}`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(id)}`, {
       method: 'DELETE'
     });
 
@@ -266,7 +270,7 @@ export async function openChangeRequest(
   payload: { title: string; message: string; proposedChanges: any }
 ): Promise<any | null> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/change-requests`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}/change-requests`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -328,7 +332,7 @@ export async function declineChangeRequest(orderId: string, crId: string): Promi
  */
 export async function setBadges(orderId: string, badges: Badge[]): Promise<boolean> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/badges`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}/badges`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ badges })
@@ -354,7 +358,7 @@ export async function setBadges(orderId: string, badges: Badge[]): Promise<boole
  */
 export async function addRedoFlag(orderId: string, station: string, reason: string): Promise<boolean> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/redo`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}/redo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ station, reason, timestamp: new Date().toISOString() })
@@ -419,7 +423,7 @@ export function createNewOrder(): Order {
  */
 export async function addRevision(orderId: string, fileId: string, name: string): Promise<any | null> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/revisions`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}/revisions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileId, name })
@@ -440,7 +444,7 @@ export async function addRevision(orderId: string, fileId: string, name: string)
 
 export async function setDefaultRevision(orderId: string, revisionId: string): Promise<boolean> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/revisions`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}/revisions`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ revisionId })

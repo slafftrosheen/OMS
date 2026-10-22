@@ -20,12 +20,12 @@ function deferred<T>() {
 
 function fakeClient() {
   const replies: any[] = [];
-  const calls: Array<{ table: string; operation: string; values?: unknown; filters: any[] }> = [];
+  const calls: Array<{ table: string; operation: string; values?: unknown; filters: any[]; signal?: AbortSignal }> = [];
   const channels: any[] = [];
   const removed: any[] = [];
   const client = {
     from(table: string) {
-      const call = { table, operation: '', filters: [] as any[], values: undefined as unknown };
+      const call = { table, operation: '', filters: [] as any[], values: undefined as unknown, signal: undefined as AbortSignal | undefined };
       calls.push(call);
       const reply = replies.shift() ?? { data: [], error: null };
       const query: any = {
@@ -33,9 +33,10 @@ function fakeClient() {
         update(values: unknown) { call.operation = 'update'; call.values = values; return query; },
         delete() { call.operation = 'delete'; return query; },
         eq(...filter: unknown[]) { call.filters.push(filter); return query; },
+        in(...filter: unknown[]) { call.filters.push(filter); return query; },
         order() { return query; },
         limit() { return query; },
-        abortSignal() { return query; },
+        abortSignal(signal: AbortSignal) { call.signal = signal; return query; },
         then(resolve: any, reject: any) { return Promise.resolve(reply).then(resolve, reject); }
       };
       return query;
@@ -76,6 +77,43 @@ describe('notification row normalization', () => {
 });
 
 describe('notification store persistence and subscriptions', () => {
+  it('shares an in-flight refresh without aborting it or losing its result', async () => {
+    const fake = fakeClient();
+    const pending = deferred<any>();
+    fake.replies.push(pending.promise);
+    const store = createNotificationStore(fake.client);
+    const first = store.load('user-a');
+    const second = store.load('user-a');
+    expect(fake.calls).toHaveLength(1);
+    expect(fake.calls[0].signal?.aborted).toBe(false);
+    pending.resolve({ data: [row('n1')], error: null });
+    await Promise.all([first, second]);
+    expect(get(store).items.map(item => item.id)).toEqual(['n1']);
+    fake.replies.push({ data: [row('n2')], error: null });
+    await store.load('user-a');
+    expect(fake.calls).toHaveLength(2);
+    expect(get(store).items.map(item => item.id)).toEqual(['n2']);
+  });
+
+  it('coalesces repeated mark-read clicks and aborts old-account writes and reads on clear', async () => {
+    const fake = fakeClient();
+    fake.replies.push({ data: [row('n1')], error: null });
+    const store = createNotificationStore(fake.client);
+    await store.load('user-a');
+    const write = deferred<any>(); const read = deferred<any>();
+    fake.replies.push(write.promise, read.promise);
+    const first = store.markAsRead('n1'); const second = store.markAsRead('n1');
+    const refresh = store.load('user-a');
+    expect(fake.calls).toHaveLength(3);
+    store.clear();
+    expect(fake.calls[1].signal?.aborted).toBe(true);
+    expect(fake.calls[2].signal?.aborted).toBe(true);
+    write.resolve({ error: null }); read.resolve({ data: [row('n1')], error: null });
+    await Promise.all([first, second, refresh]);
+    expect(get(store).items).toEqual([]);
+    expect(get(store).error).toBe(null);
+  });
+
   it('loads canonical unread state, filters dismissed rows and writes is_read/read_at only once', async () => {
     const fake = fakeClient();
     fake.replies.push({ data: [row('n1'), row('n2', { is_read: true }), row('n3', { is_dismissed: true })], error: null });
@@ -96,7 +134,7 @@ describe('notification store persistence and subscriptions', () => {
   it('deduplicates realtime insertions and reflects update, dismissal and deletion', async () => {
     const fake = fakeClient();
     const store = createNotificationStore(fake.client);
-    const stop = store.subscribe_realtime('user-a');
+    const stop = store.connect('user-a');
     const channel = fake.channels[0];
     channel.emit('INSERT', row('n1'));
     channel.emit('INSERT', row('n1'));
@@ -116,12 +154,13 @@ describe('notification store persistence and subscriptions', () => {
   it('shares one channel between bell and page and scopes cleanup to the subscribing generation', () => {
     const fake = fakeClient();
     const store = createNotificationStore(fake.client);
-    const stopBell = store.subscribe_realtime('user-a');
-    const stopPage = store.subscribe_realtime('user-a');
+    const stopBell = store.connect('user-a');
+    const stopPage = store.connect('user-a');
     expect(fake.channels).toHaveLength(1);
+    expect(fake.calls).toHaveLength(1);
     stopBell();
     expect(fake.removed).toHaveLength(0);
-    const stopNextUser = store.subscribe_realtime('user-b');
+    const stopNextUser = store.connect('user-b');
     expect(fake.removed).toHaveLength(1);
     stopPage();
     expect(fake.removed).toHaveLength(1);
@@ -137,7 +176,7 @@ describe('notification store persistence and subscriptions', () => {
     fake.replies.push(pending.promise);
     const store = createNotificationStore(fake.client);
     const load = store.load('user-a');
-    store.subscribe_realtime('user-a');
+    store.connect('user-a');
     fake.channels[0].emit('INSERT', row('n2', { created_at: '2026-10-22T11:00:00Z' }));
     fake.channels[0].emit('UPDATE', row('n1', { is_read: true }));
     pending.resolve({ data: [row('n1')], error: null });
@@ -162,7 +201,7 @@ describe('notification store persistence and subscriptions', () => {
     await store.load('user-a');
     const mutation = deferred<any>();
     fake.replies.push(mutation.promise);
-    const dismiss = store.delete('n1');
+    const dismiss = store.dismiss('n1');
     fake.replies.push({ data: [row('n1', { user_id: 'user-b' })], error: null });
     await store.load('user-b');
     mutation.resolve({ error: null });
@@ -176,8 +215,8 @@ describe('notification store persistence and subscriptions', () => {
     const fake = fakeClient();
     fake.replies.push({ data: [row('n1')], error: null });
     const store = createNotificationStore(fake.client);
+    store.connect('user-a');
     await store.load('user-a');
-    store.subscribe_realtime('user-a');
     const update = deferred<any>();
     fake.replies.push(update.promise);
     const markAll = store.markAllAsRead('user-a');
@@ -188,6 +227,26 @@ describe('notification store persistence and subscriptions', () => {
     expect(get(store).items.find(item => item.id === 'n2')?.read).toBe(false);
     expect(fake.calls[1].values).toHaveProperty('is_read', true);
     expect(fake.calls[1].filters).toEqual([['user_id', 'user-a'], ['is_read', false]]);
+    store.clear();
+  });
+
+  it('clears visible read notifications in one owner-scoped write and keeps later arrivals', async () => {
+    const fake = fakeClient();
+    fake.replies.push({ data: [row('n1', { is_read: true }), row('n2', { is_read: true }), row('n3')], error: null });
+    const store = createNotificationStore(fake.client);
+    store.connect('user-a');
+    await store.load('user-a');
+    const pending = deferred<any>();
+    fake.replies.push(pending.promise);
+    const first = store.dismissRead(); const second = store.dismissRead();
+    fake.channels[0].emit('INSERT', row('n4', { is_read: true }));
+    expect(fake.calls).toHaveLength(2);
+    expect(fake.calls[1].values).toEqual({ is_dismissed: true });
+    expect(fake.calls[1].filters).toEqual([['user_id', 'user-a'], ['is_read', true], ['id', ['n1', 'n2']]]);
+    pending.resolve({ error: null });
+    await Promise.all([first, second]);
+    expect(get(store).items.map(item => item.id)).toEqual(['n3', 'n4']);
+    expect(get(store).unreadCount).toBe(1);
     store.clear();
   });
 
@@ -223,7 +282,7 @@ describe('notification store persistence and subscriptions', () => {
       (globalThis as any).Notification = BrowserNotification;
       const fake = fakeClient();
       const store = createNotificationStore(fake.client);
-      store.subscribe_realtime('user-a');
+      store.connect('user-a');
       fake.channels[0].emit('INSERT', row('n1'));
       expect(prompts).toBe(0);
       expect(shown).toBe(0);

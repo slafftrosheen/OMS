@@ -209,7 +209,6 @@
 
   // Load orders on mount (Svelte 5 correct pattern for initialization)
   onMount(() => {
-    console.log('🚀 Orders page mounted');
     refresh();
   });
 </script>

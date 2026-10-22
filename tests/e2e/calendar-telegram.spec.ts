@@ -150,7 +150,8 @@ test('Telegram creates a private QR link, links, pauses, resumes and disconnects
     }
     if (request.method() === 'PATCH') status.enabled = request.postDataJSON().enabled;
     if (request.method() === 'DELETE') status = { ...initialTelegram };
-    await route.fulfill({ json: request.method() === 'GET' ? status : { success: true } });
+    await route.fulfill({ json: request.method() === 'GET' ? status
+      : request.method() === 'PATCH' ? { success: true, status } : { success: true } });
   });
   await page.goto('/calendar-notifications.html?surface=telegram');
   await page.getByRole('button', { name: 'Connect Telegram', exact: true }).click();
@@ -162,15 +163,34 @@ test('Telegram creates a private QR link, links, pauses, resumes and disconnects
   await expect(page.locator('.telegram-settings')).toHaveAttribute('data-state', 'connected');
   await expect(page.locator('.account')).toContainText('@my_phone');
   await expect(page.getByRole('img', { name: /QR code/ })).toHaveCount(0);
+  const statusReads = methods.filter(method => method === 'GET').length;
   await page.getByRole('button', { name: 'Pause notifications', exact: true }).click();
   await expect(page.locator('.telegram-settings')).toHaveAttribute('data-state', 'paused');
   await page.getByRole('button', { name: 'Resume notifications', exact: true }).click();
   await expect(page.locator('.telegram-settings')).toHaveAttribute('data-state', 'connected');
+  expect(methods.filter(method => method === 'GET')).toHaveLength(statusReads);
   await page.getByRole('button', { name: 'Disconnect', exact: true }).click();
   await expect(page.locator('.telegram-settings')).toHaveAttribute('data-state', 'notLinked');
   expect(methods.filter(method => method === 'POST')).toHaveLength(1);
   expect(methods.filter(method => method === 'PATCH')).toHaveLength(2);
   expect(methods.filter(method => method === 'DELETE')).toHaveLength(1);
+});
+
+test('Telegram pause remains compatible with an older success-only response', async ({ page }) => {
+  let enabled = true;
+  let reads = 0;
+  await page.route('**/api/notifications/telegram', route => {
+    if (route.request().method() === 'PATCH') {
+      enabled = route.request().postDataJSON().enabled;
+      return route.fulfill({ json: { success: true } });
+    }
+    reads++;
+    return route.fulfill({ json: { ...initialTelegram, connected: true, enabled, username: 'my_phone' } });
+  });
+  await page.goto('/calendar-notifications.html?surface=telegram');
+  await page.getByRole('button', { name: 'Pause notifications', exact: true }).click();
+  await expect(page.locator('.telegram-settings')).toHaveAttribute('data-state', 'paused');
+  expect(reads).toBe(2);
 });
 
 test('Telegram failed pause preserves the connected state and offers recovery', async ({ page }) => {

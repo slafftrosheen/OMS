@@ -22,12 +22,12 @@ export function telegramErrorResponse(error: unknown): Response {
     not_configured: 'Telegram has not been configured by your administrator.',
     invalid_request: 'Invalid Telegram request.',
     not_connected: 'Connect your Telegram account first.',
-    link_rate_limited: 'Wait 30 seconds before creating another connection link.'
-    ,rd_required: 'Only active R&D accounts can manage Telegram settings.'
-    ,invalid_settings: 'Check the Telegram settings, public HTTPS address and credential formats.'
-    ,incomplete_settings: 'Complete the bot username, API token, public address and both different secrets before enabling Telegram.'
-    ,settings_unavailable: 'Telegram settings are unavailable. Check the database and apply the Telegram settings migration.'
-    ,provider_unavailable: 'Telegram did not accept this request. Check the saved bot credential and try again.'
+    link_rate_limited: 'Wait 30 seconds before creating another connection link.',
+    rd_required: 'Only active R&D accounts can manage Telegram settings.',
+    invalid_settings: 'Check the Telegram settings, public HTTPS address and credential formats.',
+    incomplete_settings: 'Complete the bot username, API token, public address and both different secrets before enabling Telegram.',
+    settings_unavailable: 'Telegram settings are unavailable. Check the database and apply the Telegram settings migration.',
+    provider_unavailable: 'Telegram did not accept this request. Check the saved bot credential and try again.'
   };
   return json({ error: messages[code] ?? 'Telegram is temporarily unavailable. Please try again.', code }, {
     status, headers: { ...telegramPrivateHeaders, ...(status === 429 ? { 'Retry-After': '30' } : {}) }

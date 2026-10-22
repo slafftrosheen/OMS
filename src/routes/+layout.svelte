@@ -21,19 +21,20 @@
   import Keybindings from '$lib/help/Keybindings.svelte';
   import { t } from 'svelte-i18n';
   import { startPreferenceUrlSync } from '$lib/settings/url-sync';
-  import { ui } from '$lib/state/appState.svelte';
+  import { ui, type Prefs } from '$lib/state/appState.svelte';
   import { setLocale } from '$lib/i18n';
   import Icon from '$lib/ui/Icon.svelte';
-  import { AuthState, currentUser, loadCurrentUser, logout } from '$lib/auth/authState.svelte';
-  import { initChatRealtime } from '$lib/chat/chat-store';
-  import { websocket } from '$lib/stores/websocket';
-  import { OrderState } from '$lib/order/orderState.svelte';
+  import { authState, currentUser, loadCurrentUser, logout } from '$lib/auth/authState.svelte';
+  import { initChatRealtime, isChatOpen, resetChatState } from '$lib/chat/chat-store';
+  import { resetUserDirectory } from '$lib/users/user-store';
+  import { setPreferencesUser } from '$lib/preferences';
+  import { orderState } from '$lib/order/orderState.svelte';
   import { setContext } from 'svelte';
 
   let { children } = $props();
 
-  const authStateInstance = new AuthState();
-  const orderStateInstance = new OrderState();
+  const authStateInstance = authState;
+  const orderStateInstance = orderState;
   setContext('authState', authStateInstance);
   setContext('orderState', orderStateInstance);
 
@@ -72,8 +73,7 @@
   async function handleInstall() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    console.log('Install prompt outcome:', outcome);
+    await deferredPrompt.userChoice;
     showInstallPrompt = false;
     deferredPrompt = null;
   }
@@ -94,13 +94,27 @@
   function handleDismissUpdate() { showUpdatePrompt = false; }
 
   onMount(() => {
-    let stopChatRealtime: () => void;
-    let stopPreferenceSync: () => void;
+    let disposed = false;
+    const events = new AbortController();
+    let scrollFrame: number | null = null;
+    let stopChatRealtime = () => {};
+    let activeUserId: string | null = null;
+    const stopSession = currentUser.subscribe(user => {
+      const userId = user?.id ?? null;
+      void setPreferencesUser(userId);
+      if (userId === activeUserId) return;
+      stopChatRealtime();
+      resetChatState();
+      resetUserDirectory();
+      activeUserId = userId;
+      stopChatRealtime = userId ? initChatRealtime() : () => {};
+    });
 
     const init = async () => {
       const userPromise = loadCurrentUser(authStateInstance);
       if (isPublicRoute) authChecked = true;
       const user = await userPromise;
+      if (disposed) return;
       if (!authChecked) authChecked = true;
 
       if (!user && !isPublicRoute) {
@@ -108,24 +122,19 @@
         return;
       }
 
-      if (user) {
-        stopChatRealtime = initChatRealtime();
-        websocket.connect();
-      }
-
       const q = new URLSearchParams(location.search);
-      const theme   = q.get('theme') as any;
-      const density = q.get('density') as any;
+      const theme   = q.get('theme');
+      const density = q.get('density');
       const lang    = q.get('lang');
       const font    = q.get('font');
 
       if (lang) setLocale(lang);
-      ui.update(p => ({
-        ...p,
-        theme:     theme   || p.theme,
-        density:   density || p.density,
-        fontScale: font ? Math.max(0.85, Math.min(1.3, +font)) : p.fontScale
-      }));
+      const queryPreferences: Partial<Prefs> = {};
+      if (theme === 'LightVim' || theme === 'DarkVim' || theme === 'HighContrastVim') queryPreferences.theme = theme;
+      else if (theme === 'HighContrast') queryPreferences.theme = 'HighContrastVim';
+      if (density === 'compact' || density === 'cozy' || density === 'comfortable') queryPreferences.density = density;
+      if (font && Number.isFinite(+font)) queryPreferences.fontScale = Math.max(0.85, Math.min(1.3, +font));
+      if (Object.keys(queryPreferences).length) ui.patch(queryPreferences);
 
       if (theme || density || lang || font) {
         const newUrl = new URL(location.href);
@@ -135,7 +144,8 @@
 
       if ('serviceWorker' in navigator) {
         try {
-          const registration = await navigator.serviceWorker.register('/service-worker.js', { scope: '/' });
+          const registration = await navigator.serviceWorker.register(`${base}/service-worker.js`, { scope: `${base}/` });
+          if (disposed) return;
           registration.addEventListener('updatefound', () => {
             const nw = registration.installing;
             if (nw) {
@@ -143,17 +153,17 @@
                 if (nw.state === 'installed' && navigator.serviceWorker.controller) {
                   showUpdatePrompt = true;
                 }
-              });
+              }, { signal: events.signal });
             }
-          });
-          registration.update();
+          }, { signal: events.signal });
+          void registration.update().catch(() => {});
         } catch (err) {
           console.error('Service Worker registration failed:', err);
         }
       }
     };
 
-    init();
+    void init();
 
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
@@ -161,30 +171,28 @@
       if (Date.now() - dismissedAt <= INSTALL_PROMPT_COOLDOWN_MS) return;
       deferredPrompt = e;
       showInstallPrompt = true;
-    });
+    }, { signal: events.signal });
 
     window.addEventListener('appinstalled', () => {
       showInstallPrompt = false;
       deferredPrompt = null;
-    });
+    }, { signal: events.signal });
 
     isOnline = navigator.onLine;
-    window.addEventListener('online',  () => { isOnline = true; });
-    window.addEventListener('offline', () => { isOnline = false; });
+    window.addEventListener('online', () => { isOnline = true; }, { signal: events.signal });
+    window.addEventListener('offline', () => { isOnline = false; }, { signal: events.signal });
 
     // Scroll-aware topbar shadow (rAF-throttled)
-    let scrollTicking = false;
     const onScroll = () => {
-      if (scrollTicking) return;
-      scrollTicking = true;
-      requestAnimationFrame(() => {
+      if (scrollFrame !== null) return;
+      scrollFrame = requestAnimationFrame(() => {
         topbarScrolled = window.scrollY > 4;
-        scrollTicking = false;
+        scrollFrame = null;
       });
     };
-    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('scroll', onScroll, { passive: true, signal: events.signal });
 
-    stopPreferenceSync = startPreferenceUrlSync();
+    const stopPreferenceSync = startPreferenceUrlSync();
 
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -202,7 +210,7 @@
       if (!adm && key === 'n') window.dispatchEvent(new CustomEvent('rf-open-cr'));
       if (!adm && key === 'l') window.dispatchEvent(new CustomEvent('rf-focus-quicklog'));
     };
-    window.addEventListener('keydown', handler);
+    window.addEventListener('keydown', handler, { signal: events.signal });
 
     if (import.meta.env.DEV) {
       import('axe-core').then(axe => {
@@ -219,11 +227,13 @@
     }
 
     return () => {
+      disposed = true;
+      authStateInstance.cancelLoad();
+      events.abort();
+      if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
       stopPreferenceSync?.();
-      window.removeEventListener('keydown', handler);
-      window.removeEventListener('scroll', onScroll);
-      if (stopChatRealtime) stopChatRealtime();
-      websocket.disconnect();
+      stopSession();
+      stopChatRealtime();
     };
   });
 </script>
@@ -378,7 +388,7 @@
   {#if $currentUser}
     <MobileNav />
     <BottomBar />
-    <ChatSidebar />
+    {#if $isChatOpen}<ChatSidebar />{/if}
   {/if}
 
   <Toast />

@@ -18,6 +18,7 @@ export interface TrustedNotification {
  * The generic notifications POST endpoint must not use this privileged writer.
  */
 export async function publishNotifications(db: Database, rows: TrustedNotification[]): Promise<{ error: unknown | null }> {
+  if (!rows.length) return { error: null };
   let outbox: Database | undefined;
   try { outbox = (await getTelegramRuntime())?.db; } catch { /* Optional provider configuration must not break the business action. */ }
   return publishNotificationRows(db, rows, outbox);
@@ -26,15 +27,20 @@ export async function publishNotifications(db: Database, rows: TrustedNotificati
 /** The optional outbox client inserts notifications and deliveries in one transaction. */
 export async function publishNotificationRows(db: Database, rows: TrustedNotification[], outbox?: Database): Promise<{ error: unknown | null }> {
   let error: unknown | null = null;
+  let warned = false;
   for (let offset = 0; offset < rows.length; offset += 100) {
     const batch = rows.slice(offset, offset + 100).map(row => ({ ...row, id: randomUUID() }));
     if (outbox) {
       try {
         const result = await outbox.rpc('publish_telegram_notifications', { p_notifications: batch });
         if (!result.error) continue;
+        // An absent migration cannot recover between batches of one fanout.
+        // Keep transient failures retryable, but avoid repeating an unsupported RPC.
+        if (['PGRST202', '42883', '42P01'].includes(result.error.code)) outbox = undefined;
       } catch { /* Preserve the ordinary notification when Telegram storage is unavailable. */ }
       // No provider response, notification body or credential is logged.
-      console.warn('[notifications] Telegram queue unavailable; preserving in-app notifications.');
+      if (!warned) console.warn('[notifications] Telegram queue unavailable; preserving in-app notifications.');
+      warned = true;
     }
     try {
       const result = await db.from('notifications').insert(batch);

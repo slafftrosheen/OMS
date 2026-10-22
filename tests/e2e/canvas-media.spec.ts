@@ -58,6 +58,141 @@ async function waitForCanvasPaint(page: Page, content: Locator) {
   })).toBe(true);
 }
 
+test('order form updates reuse the editor, preserve saved shapes and refresh callback bindings', async ({page}) => {
+  await page.goto('/order-canvas-bridge.html');
+  await expect(page.getByTestId('editor-mounts')).toHaveText('1', {timeout:45_000});
+  const inspect = () => page.evaluate(() => (window as any).__orderCanvasBridge.inspect());
+  await expect.poll(async () => (await inspect()).shapes.filter((shape: any) => shape.type === 'order-details').length).toBe(1);
+  await page.evaluate(() => (window as any).__orderCanvasBridge.annotate());
+  const previousSaves = Number(await page.getByTestId('snapshot-saves').textContent());
+  await page.getByRole('button', {name:'Update seed',exact:true}).click();
+  await expect.poll(async () => (await inspect()).shapes.find((shape: any) => shape.type === 'order-details').props.title).toBe('Updated live order');
+  await expect.poll(async () => Number(await page.getByTestId('snapshot-saves').textContent())).toBeGreaterThan(previousSaves);
+  const current = await inspect();
+  expect(current.sameEditor).toBe(true);
+  expect(current.selected).toEqual(['shape:fixture-note']);
+  expect(current.shapes.map((shape: any) => shape.id).sort()).toEqual([...current.initialIds, 'shape:fixture-note'].sort());
+  expect(current.shapes.find((shape: any) => shape.type === 'order-details').props).toMatchObject({
+    title:'Updated live order',clientName:'Updated client',poNumber:'PO-200',notes:'Keep these notes'
+  });
+  expect(current.shapes.find((shape: any) => shape.type === 'order-address').props.deliveryEmail).toBe('updated@example.com');
+  await expect(page.getByTestId('editor-mounts')).toHaveText('1');
+
+  await page.getByRole('button',{name:'Replace callbacks',exact:true}).click();
+  await expect(page.getByTestId('callback-version')).toHaveText('current');
+  await page.getByRole('button',{name:'Use callbacks',exact:true}).click();
+  await expect(page.getByTestId('callback-events')).toHaveText('current:order:fixture-order|current:profile:fixture-order|current:asset:fixture-order');
+
+  await page.getByRole('button',{name:'Restore saved canvas',exact:true}).click();
+  await expect(page.getByTestId('editor-mounts')).toHaveText('2', {timeout:45_000});
+  await page.getByRole('button',{name:'Update seed',exact:true}).click();
+  await expect.poll(async () => (await inspect()).shapes.find((shape: any) => shape.type === 'order-details').props.title).toBe('Updated restored order');
+  const restored = await inspect();
+  expect(restored.shapes.map((shape: any) => shape.id).sort()).toEqual(current.shapes.map((shape: any) => shape.id).sort());
+  expect(restored.shapes.find((shape: any) => shape.type === 'profile-7st').props.data.quantity).toBe(2);
+  expect(restored.firstBridgePresent).toBe(false);
+  expect(restored.bridgePresent).toBe(true);
+});
+
+test('technical node buttons and the toolbar share one request without erasing pending edits', async ({page}) => {
+  const {saved} = await mountCanvas(page);
+  await page.getByRole('button',{name:'Hide assistant',exact:true}).click();
+  await page.getByRole('button',{name:'Projects',exact:true}).click();
+  let release!: () => void;
+  const provider = new Promise<void>(resolve => { release = resolve; });
+  const requests: any[] = [];
+  await page.route('**/api/ai/web-search', async route => {
+    requests.push(route.request().postDataJSON());
+    await provider;
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+      backend:'fixture',query:'Initial query',hits:[{title:'Search result',url:'https://example.com/result',snippet:'Useful reference',engine:null}]
+    })});
+  });
+  await page.getByRole('button',{name:'Insert',exact:true}).click();
+  await page.getByText('Technical tools',{exact:true}).click();
+  await page.getByRole('button',{name:'Web search',exact:true}).click();
+  await page.getByText('🔎 Web search',{exact:true}).click();
+  const query = page.getByPlaceholder('What do you want to know?');
+  await query.fill('Initial query');
+  await page.getByRole('button',{name:'Run',exact:true}).click();
+  await expect.poll(() => requests.length).toBe(1);
+  await query.fill('Edited while waiting');
+  await page.getByRole('button',{name:'More tools',exact:true}).click();
+  await page.getByRole('button',{name:'Run selected tool',exact:true}).click();
+  expect(requests).toHaveLength(1);
+  release();
+  await expect(page.getByRole('link',{name:'Search result',exact:true})).toBeVisible();
+  await expect(query).toHaveValue('Edited while waiting');
+  await expect.poll(() => saved.at(-1)?.payload?.snapshot?.document?.store &&
+    Object.values(saved.at(-1).payload.snapshot.document.store).find((shape: any) => shape.type === 'web-search')).toMatchObject({
+      props:{query:'Edited while waiting',status:'done'}
+    });
+  expect(requests[0].query).toBe('Initial query');
+  expect(requests).toHaveLength(1);
+});
+
+test('Toolkit conversation switches keep drafts and late reads or replies in the correct session', async ({page}) => {
+  const sessions = ['a','b'].map(id => ({id,title:`Conversation ${id.toUpperCase()}`,persona:null,model:null,
+    pinned:false,archived:false,last_message_at:null,created_at:'2026-10-22T12:00:00Z'}));
+  const history: Record<string, any[]> = Object.fromEntries(['a','b'].map(id => [id,[{
+    id:`${id}-initial`,role:'assistant',content:`History ${id.toUpperCase()}`,created_at:'2026-10-22T12:00:00Z'
+  }]]));
+  let delayB = true;
+  let releaseRead!: () => void;
+  const pendingRead = new Promise<void>(resolve => { releaseRead = resolve; });
+  let releaseReply!: () => void;
+  const pendingReply = new Promise<void>(resolve => { releaseReply = resolve; });
+  let sent = 0;
+  await page.route('**/api/ai/sessions**', async route => {
+    const path = new URL(route.request().url()).pathname;
+    const reply = (data: unknown) => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
+    if (path === '/api/ai/sessions') return reply({items:sessions});
+    const id = path.split('/')[4];
+    if (path.endsWith('/messages')) {
+      sent++;
+      const content = route.request().postDataJSON().content;
+      history[id].push({id:`${id}-question`,role:'user',content,created_at:'2026-10-22T12:01:00Z'});
+      await pendingReply;
+      history[id].push({id:`${id}-reply`,role:'assistant',content:'Reply only for A',created_at:'2026-10-22T12:02:00Z'});
+      return reply({content:'Reply only for A',model:'fixture'});
+    }
+    if (id === 'b' && delayB) {
+      delayB = false;
+      await pendingRead;
+      // Switching views cancels this request; fulfillment may race cancellation.
+      try { await reply({messages:history.b}); } catch { /* Request was cancelled by the view. */ }
+      return;
+    }
+    return reply({messages:history[id]});
+  });
+  await page.goto('/toolkit-chat.html');
+  await expect(page.getByText('History A',{exact:true})).toBeVisible();
+  const input = page.locator('textarea');
+  await input.fill('Draft for A');
+  await page.getByRole('button',{name:/^Conversation B\b/}).click();
+  await expect(input).toBeDisabled();
+  await page.getByRole('button',{name:/^Conversation A\b/}).click();
+  await expect(input).toHaveValue('Draft for A');
+  releaseRead();
+  await expect(page.getByText('History A',{exact:true})).toBeVisible();
+  await expect(page.getByText('History B',{exact:true})).toHaveCount(0);
+  await input.press('Enter');
+  await expect.poll(() => sent).toBe(1);
+  await page.getByRole('button',{name:/^Conversation B\b/}).click();
+  await expect(page.getByText('History B',{exact:true})).toBeVisible();
+  await expect(input).toBeEnabled();
+  await input.fill('Draft for B');
+  releaseReply();
+  await expect.poll(() => history.a.length).toBe(3);
+  await expect(page.getByText('Reply only for A',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('History B',{exact:true})).toBeVisible();
+  await expect(input).toHaveValue('Draft for B');
+  await page.getByRole('button',{name:/^Conversation A\b/}).click();
+  await expect(page.getByText('Reply only for A',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:/^Conversation B\b/}).click();
+  await expect(input).toHaveValue('Draft for B');
+});
+
 test('canvas has one compact tool selector and native drawing remains operational', async ({page}) => {
   const {saved} = await mountCanvas(page);
   await expect(page.getByRole('toolbar',{name:'Canvas tools'})).toHaveCount(1);

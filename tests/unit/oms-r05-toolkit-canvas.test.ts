@@ -7,6 +7,7 @@ import {
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { ideaDefaults } from '../../src/lib/components/canvas/idea-model';
+import { load as redirectLegacyToolkit } from '../../src/routes/ai-lab/+layout.server';
 
 const require = createRequire(import.meta.url);
 const ts: typeof import('typescript') = require(process.cwd() + '/node_modules/typescript');
@@ -75,6 +76,16 @@ describe('Toolkit idea board', () => {
 });
 
 describe('Toolkit route contracts', () => {
+  it('redirects each legacy entry point with its deployment prefix and query intact', async () => {
+    for (const path of ['/ai-lab', '/ai-lab/canvas?board=example', '/ai-lab/chat?session=example', '/oms/ai-lab/chat?session=example#reply']) {
+      let result: any;
+      try { await redirectLegacyToolkit({ url: new URL(path, 'https://oms.example') } as any); }
+      catch (error) { result = error; }
+      expect(result?.status).toBe(308);
+      expect(result?.location).toBe(path.replace('/ai-lab', '/toolkit'));
+    }
+  });
+
   it('preserves bookmarks while making Toolkit canonical', () => {
     const route = read('src/routes/ai-lab/+layout.server.ts');
     expect(route).toContain("'/toolkit'");

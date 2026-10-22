@@ -7,9 +7,12 @@ import '../../src/app.css';
 import '../../src/lib/styles/a11y.css';
 import '../../src/lib/styles/responsive.css';
 import CalendarNotificationsHarness from './CalendarNotificationsHarness.svelte';
+import { authState } from '$lib/auth/authState.svelte';
 
 addMessages('en', en);
 addMessages('ru', ru);
 addMessages('lv', lv);
 await init({ fallbackLocale: 'en', initialLocale: 'en' });
+// This standalone route fixture performs the session bootstrap normally owned by the layout.
+await authState.load();
 mount(CalendarNotificationsHarness, { target: document.getElementById('app')! });

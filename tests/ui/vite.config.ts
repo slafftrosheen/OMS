@@ -13,6 +13,9 @@ export default defineConfig({
       '$lib': path('../../src/lib'),
       '$app/paths': path('../../src/app/paths.js'),
       '$app/environment': path('../../src/app/environment.js'),
+      '$app/state': path('./app-state.ts'),
+      '$app/stores': path('../../src/app/stores.js'),
+      '$app/navigation': path('./navigation.ts'),
       '$env/dynamic/public': path('./env-public.ts')
     }
   },

@@ -36,7 +36,6 @@ export class ChatShapeUtil extends BaseBoxShapeUtil<ChatShape> {
 
             // Proximity check: find MakerShapes near this ChatShape
             const allShapes = this.editor.getCurrentPageShapes();
-            let contextText = '';
             
             const center = { x: shape.x + w/2, y: shape.y + h/2 };
             

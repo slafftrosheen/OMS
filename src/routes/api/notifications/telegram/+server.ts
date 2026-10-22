@@ -32,7 +32,7 @@ export const PATCH: RequestHandler = async ({ locals, request }) => {
     const { data, error } = await runtime.db.rpc('set_telegram_enabled', { p_user_id: userId, p_enabled: body.enabled });
     if (error) throw new TelegramServiceError('preferences_unavailable');
     if (data !== true) throw new TelegramServiceError('not_connected', 409);
-    return json({ success: true }, { headers: telegramPrivateHeaders });
+    return json({ success: true, status: await readTelegramStatus(runtime.config, runtime.db, userId) }, { headers: telegramPrivateHeaders });
   } catch (error) { return telegramErrorResponse(error); }
 };
 

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { DEFAULT_TELEGRAM_OPTIONS, TELEGRAM_CATEGORIES, TELEGRAM_COMMANDS, type TelegramOptions, type TelegramAdminStatus } from '$lib/notifications/telegram-options';
-import { readTelegramConfig, type TelegramConfig } from './telegram';
+import { isTelegramSecret, readTelegramConfig, type TelegramConfig } from './telegram';
 import { TelegramServiceError } from './telegram-service';
 import { telegramSettingsGeneration } from './telegram-runtime-fence';
 
@@ -70,7 +70,7 @@ export function normalizeTelegramSettingsInput(value: unknown, current: Telegram
   if (next.botToken && !/^\d+:[A-Za-z0-9_-]{20,}$/.test(next.botToken)) throw new TelegramServiceError('invalid_settings', 400);
   if (next.options.botUsername && (!/^[A-Za-z0-9_]{5,32}$/.test(next.options.botUsername) || !/bot$/i.test(next.options.botUsername))) throw new TelegramServiceError('invalid_settings', 400);
   for (const name of ['webhookSecret', 'deliverySecret'] as const) {
-    if (next[name] && !/^[A-Za-z0-9_-]{32,256}$/.test(next[name])) throw new TelegramServiceError('invalid_settings', 400);
+    if (next[name] && !isTelegramSecret(next[name])) throw new TelegramServiceError('invalid_settings', 400);
   }
   if (next.webhookSecret && next.webhookSecret === next.deliverySecret) throw new TelegramServiceError('invalid_settings', 400);
   if (next.options.enabled && (!next.botToken || !next.options.botUsername || !next.webhookSecret || !next.deliverySecret || !next.options.appUrl)) throw new TelegramServiceError('incomplete_settings', 400);

@@ -8,7 +8,8 @@ describe('loadPreferences', () => {
   });
 
   it('deduplicates concurrent preference loads', async () => {
-    const { resetPreferencesCache } = await import('$lib/preferences');
+    const { resetPreferencesCache, setPreferencesUser } = await import('$lib/preferences');
+    await setPreferencesUser(null);
     resetPreferencesCache();
     const response = { ok: true, json: vi.fn().mockResolvedValue({ theme: 'DarkVim' }) };
     /** @type {(value: any) => void} */
@@ -20,7 +21,7 @@ describe('loadPreferences', () => {
 
     const { loadPreferences } = await import('$lib/preferences');
 
-    const first = loadPreferences();
+    const first = setPreferencesUser('test-user');
     const second = loadPreferences();
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -33,14 +34,15 @@ describe('loadPreferences', () => {
   });
 
   it('returns cached preferences on subsequent calls', async () => {
-    const { resetPreferencesCache } = await import('$lib/preferences');
+    const { resetPreferencesCache, setPreferencesUser } = await import('$lib/preferences');
+    await setPreferencesUser(null);
     resetPreferencesCache();
     const response = { ok: true, json: vi.fn().mockResolvedValue({ locale: 'en' }) };
     global.fetch = vi.fn().mockResolvedValue(response);
 
     const { loadPreferences } = await import('$lib/preferences');
 
-    const first = await loadPreferences();
+    const first = await setPreferencesUser('test-user');
     const second = await loadPreferences();
 
     expect(global.fetch).toHaveBeenCalledTimes(1);

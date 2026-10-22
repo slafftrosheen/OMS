@@ -23,6 +23,7 @@ import { spawnDraftOrderTemplate, syncOrderDataToCanvas, type OrderSeed, type Sp
 import { setOrderBridge, clearOrderBridge } from './state-bridge';
 import { wireAssetDropHandler } from './asset-uploader';
 import { CanvasModeContext } from './canvas-mode';
+import { getRunnableShapeIds } from './node-runner';
 
 const customShapeUtils = [
     IdeaShapeUtil,
@@ -69,7 +70,7 @@ export interface CanvasAppProps {
     toolkitBoardId?: string | null;
     onToolkitFilesDrop?: (files: File[], position: { x: number; y: number }) => void;
     onToolkitLinkDrop?: (url: string, position?: { x: number; y: number }) => void;
-    onToolkitControlsChange?: (state: { tool: string; selected: number; canUndo: boolean; canRedo: boolean }) => void;
+    onToolkitControlsChange?: (state: { tool: string; selected: number; runnable: number; canUndo: boolean; canRedo: boolean }) => void;
 }
 
 export function CanvasApp({
@@ -96,8 +97,9 @@ export function CanvasApp({
     const cleanupControlsRef = useRef<(() => void) | null>(null);
     const cleanupAppearanceRef = useRef<(() => void) | null>(null);
     const captureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const latestSaveRef = useRef(onSave);
-    latestSaveRef.current = onSave;
+    const spawnFrameRef = useRef<number | null>(null);
+    const callbacksRef = useRef({ onSave, onDocumentChange, onToolkitFilesDrop, onToolkitLinkDrop, onToolkitControlsChange });
+    callbacksRef.current = { onSave, onDocumentChange, onToolkitFilesDrop, onToolkitLinkDrop, onToolkitControlsChange };
 
     // Keep seedRef current so the drop handler can read the latest orderId
     useEffect(() => {
@@ -113,12 +115,21 @@ export function CanvasApp({
         return () => clearOrderBridge(editor);
     }, [onOrderChange, onProfileChange, onAssetUploaded]);
 
-    // Sync updated seed data into canvas without re-spawning
+    const syncSeed = (editor: Editor, seed: OrderSeed) => {
+        // Restored snapshots already contain the forms, so no template was
+        // spawned this mount. Find only this order's existing form records.
+        const forms = editor.getCurrentPageShapes().filter((shape) =>
+            (shape.props as { orderId?: string }).orderId === seed.orderId);
+        syncOrderDataToCanvas(editor,
+            forms.find((shape) => shape.type === 'order-details')?.id,
+            forms.find((shape) => shape.type === 'order-address')?.id,
+            seed);
+    };
+
+    // Sync updated seed data into canvas without re-spawning or resetting history.
     useEffect(() => {
         const editor = editorRef.current;
-        const shapes = spawnedRef.current;
-        if (!editor || !shapes || !orderSeed) return;
-        syncOrderDataToCanvas(editor, shapes.detailsId, shapes.addressId, orderSeed);
+        if (editor && orderSeed) syncSeed(editor, orderSeed);
     }, [orderSeed]);
 
     const handleMount = (editor: Editor) => {
@@ -127,20 +138,20 @@ export function CanvasApp({
         // Register the bridge immediately so any shape created during spawn can fire callbacks
         setOrderBridge(editor, { onOrderChange, onProfileChange, onAssetUploaded });
 
-        // Save only document records on the team-shared board (never user
-        // camera/selection session). Coalesce rapid drag updates so large
-        // snapshots are not recomputed hundreds of times per second.
+        // Toolkit captures its document only when saving. The order editor
+        // still requests debounced full snapshots via onSave.
         const capture = () => {
             if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
             captureTimerRef.current = null;
-            const snapshot = getSnapshot(editor.store);
-            latestSaveRef.current?.(toolkitBoardId
-                ? { document: snapshot.document }
-                : snapshot);
+            const onSave = callbacksRef.current.onSave;
+            if (onSave) onSave(toolkitBoardId
+                ? { document: editor.store.getStoreSnapshot() }
+                : getSnapshot(editor.store));
         };
         const unlisten = editor.store.listen(
             () => {
-                if (toolkitBoardId) onDocumentChange?.();
+                callbacksRef.current.onDocumentChange?.();
+                if (!callbacksRef.current.onSave) return;
                 if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
                 captureTimerRef.current = setTimeout(capture, 250);
             },
@@ -164,17 +175,18 @@ export function CanvasApp({
             cleanupAppearanceRef.current = () => appearance.disconnect();
             cleanupControlsRef.current?.();
             cleanupControlsRef.current = trackEditor('Toolkit controls', () => {
-                onToolkitControlsChange?.({ tool: editor.getCurrentToolId(),
+                callbacksRef.current.onToolkitControlsChange?.({ tool: editor.getCurrentToolId(),
                     selected: editor.getSelectedShapeIds().length,
+                    runnable: getRunnableShapeIds(editor).length,
                     canUndo: editor.getCanUndo(), canRedo: editor.getCanRedo() });
             });
             // Route paste as well as drag/drop through private persistent
             // uploads, instead of tldraw's ephemeral data-URL asset store.
             editor.registerExternalContentHandler('files', async ({ files, point }) => {
-                onToolkitFilesDrop?.(files, point ?? editor.getViewportPageBounds().center);
+                callbacksRef.current.onToolkitFilesDrop?.(files, point ?? editor.getViewportPageBounds().center);
             });
             editor.registerExternalContentHandler('url', async ({ url, point }) => {
-                onToolkitLinkDrop?.(url, point);
+                callbacksRef.current.onToolkitLinkDrop?.(url, point);
             });
         }
 
@@ -194,7 +206,7 @@ export function CanvasApp({
                     // DOM clientX/clientY are screen coordinates. tldraw
                     // screenToPage handles the editor container offset.
                     const position = editor.screenToPage({ x: event.clientX, y: event.clientY });
-                    onToolkitFilesDrop(files, position);
+                    callbacksRef.current.onToolkitFilesDrop?.(files, position);
                 };
                 container.addEventListener('dragover', onDragOver, true);
                 container.addEventListener('drop', onDrop, true);
@@ -213,9 +225,12 @@ export function CanvasApp({
         const seed = seedRef.current;
         if (seed && !initialSnapshot && !spawnedRef.current) {
             // Defer by one tick so the editor is fully settled
-            requestAnimationFrame(() => {
-                spawnedRef.current = spawnDraftOrderTemplate(editor, seed);
+            spawnFrameRef.current = requestAnimationFrame(() => {
+                spawnFrameRef.current = null;
+                spawnedRef.current = spawnDraftOrderTemplate(editor, seedRef.current ?? seed);
             });
+        } else if (seed) {
+            syncSeed(editor, seed);
         }
     };
 
@@ -224,6 +239,9 @@ export function CanvasApp({
         cleanupStoreRef.current?.();
         cleanupControlsRef.current?.();
         cleanupAppearanceRef.current?.();
+        if (spawnFrameRef.current !== null) cancelAnimationFrame(spawnFrameRef.current);
+        if (editorRef.current) clearOrderBridge(editorRef.current);
+        editorRef.current = null;
         if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
         captureTimerRef.current = null;
     }, []);

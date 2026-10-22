@@ -1,6 +1,6 @@
 <!-- src/routes/+page.svelte — Reclame Fabriek OMS Dashboard (2026) -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
   import { currentUser } from '$lib/auth/authState.svelte';
@@ -9,7 +9,8 @@
   import Card from '$lib/components/ui/Card.svelte';
   import Icon from '$lib/ui/Icon.svelte';
   import { tokenColor } from '$lib/utils/tokenColor';
-  import { t } from 'svelte-i18n';
+  import { t, locale } from 'svelte-i18n';
+  import { loadDashboard } from '$lib/dashboard/data';
   import OrderBadges from '$lib/badges/OrderBadges.svelte';
 
   let recentOrders: any[] = $state([]);
@@ -19,6 +20,8 @@
   let chartData = $state<{ labels: string[]; datasets: any[] }>({ labels: [], datasets: [] });
   let loading = $state(true);
 
+  let dashboardRequest: AbortController | null = null;
+
   async function loadDashboardData() {
     loading = true;
     ordersError = false;
@@ -26,78 +29,33 @@
     verifiedTotal = null;
     recentOrders = [];
     chartData = { labels: [], datasets: [] };
-    try {
-      const response = await fetch('/api/orders?limit=5');
-      if (!response.ok) throw new Error('Orders request failed');
-      const result = await response.json();
-      if (typeof result?.count === 'number') verifiedTotal = result.count;
-
-      let ordersData: any[] = [];
-      if (Array.isArray(result.data)) ordersData = result.data;
-      else if (Array.isArray(result.orders)) ordersData = result.orders;
-      else if (Array.isArray(result)) ordersData = result;
-
-      // Normalize order fields for display without mutating order forms.
-      recentOrders = ordersData.slice(0, 5).map((o: any) => ({
-        ...o,
-        po_number: o.po_number ?? o.poNumber ?? '',
-        client: o.client ?? o.clientName ?? '',
-        due_date: o.due_date ?? o.deadline ?? '',
-        loading_date: o.loading_date ?? o.loadingDate ?? null,
-        badges: o.badges ?? [],
-        status: String(o.status ?? '').toLowerCase(),
-        priority: o.priority ?? 'NORMAL',
-        progress_percentage: o.progress_percentage ?? 0
-      }));
-
-      // Aggregate KPIs are not the five records above. Absent DB views
-      // yield a visible unavailable state instead of fabricated numbers.
-      try {
-        const kpiRes = await fetch('/api/analytics?type=kpis');
-        if (kpiRes.ok) {
-          const kpi = (await kpiRes.json())?.data?.orders;
-          if (kpi && [kpi.total, kpi.active, kpi.today, kpi.completedToday]
-            .every((x: unknown) => typeof x === 'number' && Number.isFinite(x))) {
-            liveKpis = { total: kpi.total, active: kpi.active,
-                         today: kpi.today, completedToday: kpi.completedToday };
-          }
-        }
-      } catch (err) {
-        console.debug('Live KPI view not available', err);
-      }
-
-      try {
-        const analyticsResponse = await fetch('/api/analytics?type=trends&period=30');
-        if (analyticsResponse.ok) {
-          const analyticsData = await analyticsResponse.json();
-          const trends = analyticsData?.data;
-          if (Array.isArray(trends?.dates) && Array.isArray(trends?.total)) {
-            chartData = {
-              labels: trends.dates,
-              datasets: [{
-                label: 'Orders',
-                data: trends.total,
-                borderColor:     tokenColor('--brand', '#ff2d55'),
-                backgroundColor: tokenColor('--brand', '#ff2d55', 0.16)
-              }]
-            };
-          }
-        }
-      } catch (analyticsError) {
-        console.log('Analytics data not available:', analyticsError);
-      }
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-      ordersError = true;
-    } finally {
-      loading = false;
+    dashboardRequest?.abort();
+    const controller = new AbortController();
+    dashboardRequest = controller;
+    const result = await loadDashboard({ basePath: base, signal: controller.signal });
+    if (controller.signal.aborted) return;
+    recentOrders = result.orders;
+    verifiedTotal = result.verifiedTotal;
+    liveKpis = result.kpis;
+    ordersError = result.ordersError;
+    if (result.trends) {
+      chartData = {
+        labels: result.trends.dates,
+        datasets: [{
+          label: $t('dashboard.orders_label', { default: 'Order volume' }),
+          data: result.trends.total,
+          borderColor: tokenColor('--brand', '#ff2d55'),
+          backgroundColor: tokenColor('--brand', '#ff2d55', 0.16)
+        }]
+      };
     }
+    loading = false;
   }
 
   function formatDue(value: string | null | undefined): string {
     if (!value) return '—';
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat(undefined, {
+    return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat($locale || 'en', {
       day: 'numeric', month: 'short', year: 'numeric'
     }).format(date);
   }
@@ -120,7 +78,8 @@
     return $t('dashboard.greeting_evening', { default: 'Good evening' });
   });
 
-  onMount(() => { loadDashboardData(); });
+  onMount(() => { void loadDashboardData(); });
+  onDestroy(() => dashboardRequest?.abort());
 </script>
 
 <svelte:head>
