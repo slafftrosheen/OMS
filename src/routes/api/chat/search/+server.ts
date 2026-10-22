@@ -29,6 +29,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
         .from('chat_messages')
         .select('id, room_id, user_id, content, text, created_at')
         .ilike('content', `%${q}%`)
+        .eq('is_deleted', false)
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -41,6 +42,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
             .from('chat_messages')
             .select('id, room_id, user_id, content, text, created_at')
             .ilike('text', `%${q}%`)
+            .eq('is_deleted', false)
             .order('created_at', { ascending: false })
             .limit(limit);
         const fb = roomId ? fallback.eq('room_id', roomId) : fallback;

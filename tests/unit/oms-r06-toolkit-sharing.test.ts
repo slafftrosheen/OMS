@@ -53,7 +53,7 @@ describe('OMS-R06 shared canvas role contract', () => {
     expect(migration).toContain('toolkit_canvas_sanitize_insert');
     expect(migration).toContain('NEW.payload := public.toolkit_strip_private_canvas_payload(NEW.payload)');
     expect(discussion).toContain('legacyThreads: data?.node_threads');
-    expect(workspace).toContain('Archived personal canvas chats');
+    expect(workspace).toContain("$t('toolkit.canvas.archived')");
     expect(discussion).not.toContain('.upsert(');
   });
   it('keeps every canvas discussion and proposal owner-only even for other managers', () => {
@@ -96,8 +96,8 @@ describe('OMS-R06 shared-board stability and interaction', () => {
     expect(workspace).toContain('conflict = true');
     expect(workspace).toContain('async function saveRecoveryCopy()');
     expect(workspace).toContain('async function reloadLatest()');
-    expect(workspace).toContain('A teammate saved a newer version');
-    expect(workspace).toContain('Save a copy');
+    expect(workspace).toContain("tr('errors.newerVersion')");
+    expect(workspace).toContain("$t('toolkit.canvas.saveCopy')");
   });
   it('keeps private chat and shared board saves in independent flows', () => {
     expect(workspace).toContain('async function saveDiscussion()');
@@ -113,10 +113,10 @@ describe('OMS-R06 shared-board stability and interaction', () => {
     expect(workspace).toContain('function zoomToContent()');
     expect(workspace).toContain('function deleteSelection()');
     const idea = file('src/lib/components/canvas/shapes/IdeaShape.tsx');
-    expect(idea).toContain('Drag here to move this card');
+    expect(idea).toContain("tn('drag')");
     expect(idea).toContain('onKeyDown={stop}');
     const document = file('src/lib/components/canvas/shapes/DocumentShape.tsx');
-    expect(document).toContain('Document notes');
+    expect(document).toContain("tn('documentNotes')");
     expect(document).toContain('edit({ content: e.target.value })');
     expect(file('src/lib/components/canvas/CanvasApp.tsx')).toContain('OrderDetailsShapeUtil');
   });

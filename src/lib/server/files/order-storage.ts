@@ -21,7 +21,7 @@ export function normalizeOrderFile(file: Pick<File,'name'|'type'|'size'>) {
   if (!expected || !file.name.trim()) throw new Error('Unsupported file type');
   if (declared && declared !== 'application/octet-stream' && declared !== expected &&
       // Many CAD browsers report one of these for DXF/CDR.
-      !(ext === 'dxf' && declared === 'application/x-dxf') &&
+      !(ext === 'dxf' && ['application/x-dxf','image/vnd.dxf'].includes(declared)) &&
       !(ext === 'cdr' && ['application/coreldraw','application/x-coreldraw',
         'application/vnd.corel-draw'].includes(declared))) {
     throw new Error('File extension does not match its MIME type');

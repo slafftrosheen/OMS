@@ -24,8 +24,8 @@ describe('OMS-R00 authorization boundaries', () => {
   it('requires request-scoped clients for user-facing data routes', () => {
     for (const file of routes) {
       const code = read(file);
-      expect(code, file).not.toContain("import { supabase } from '$lib/server/supabase'");
-      expect(code, file).toContain('const supabase = locals.supabase;');
+      expect(code, file).not.toMatch(/import[\s\S]*?from\s*['"]\$lib\/server\/supabase['"]/);
+      expect(code, file).toMatch(/(?:const\s+supabase\s*=\s*locals\.supabase\s*;|locals\.supabase\.(?:from|rpc)\()/);
     }
   });
   it('never uses service_role to initialize the global client', () => {

@@ -139,9 +139,9 @@
         "delivery": "Piegādes adrese"
       },
       "files": {
-        "hint": "Augšupielādējiet PDF un CDR failus ar pasūtījuma skicēm.",
+        "hint": "Augšupielādējiet PDF, CDR, DXF vai attēlu failus ar pasūtījuma skicēm.",
         "drag_drop": "Velciet un nometiet vai noklikšķiniet",
-        "formats": "PDF, CDR, AI, EPS, JPG, PNG",
+        "formats": "PDF, CDR, DXF, JPG, PNG, GIF, WebP",
         "preview": "Priekšskatījums",
         "no_preview": "Izvēlieties failu priekšskatījumam",
         "loading_pdf": "Ielādē PDF..."

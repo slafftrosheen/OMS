@@ -486,7 +486,7 @@
     const activeBoardId = boardId;
     const context = getContext();
     const history = messages.slice(-10);
-    messages = [...messages, { role: 'user', content: text }].slice(-60);
+    messages = [...messages, { role: 'user' as const, content: text }].slice(-60);
     prompt = '';
     suggestions = [];
     actionProposals = [];
@@ -510,7 +510,7 @@
       lastUsedModel = typeof data.model === 'string' ? data.model : '';
       webSearchRequests = Number.isSafeInteger(data.webSearchRequests) && data.webSearchRequests >= 0 ? data.webSearchRequests : null;
       searchNote = typeof data.searchNote === 'string' ? data.searchNote.slice(0, 500) : '';
-      messages = [...messages, { role: 'assistant', content: String(data.reply ?? '').slice(0, 5000) }].slice(-60);
+      messages = [...messages, { role: 'assistant' as const, content: String(data.reply ?? '').slice(0, 5000) }].slice(-60);
       suggestions = normalizeProposals(data.cards).slice(0, 5);
       actionProposals = normalizeCanvasActions(data.actions,
         new Set(context.cards.map(c => c.id)));
@@ -546,7 +546,7 @@
     analyzingFile = true;
     notice = '';
     const content = tr('canvas.fileAnalysisQuestion', { name: filename, question });
-    messages = [...messages, { role: 'user', content }].slice(-60);
+    messages = [...messages, { role: 'user' as const, content }].slice(-60);
     prompt = '';
     markDiscussionDirty();
     try {
@@ -574,7 +574,7 @@
       };
       lastAnalyzedAsset = fileId;
       lastUsedModel = String(result.model ?? '').slice(0, 160);
-      messages = [...messages, { role: 'assistant', content: reply }].slice(-60);
+      messages = [...messages, { role: 'assistant' as const, content: reply }].slice(-60);
       markDiscussionDirty();
       notice = tr(result.evidence ? 'canvas.pdfTextReady' : 'canvas.fileReasoningReady');
     } catch (e) {
@@ -673,7 +673,7 @@
         ? tr('canvas.auditMissingDetails', { names: report.cardsMissingDetails.join(', ') })
         : tr('canvas.auditAllDetailed')
     ].join('\n');
-    messages = [...messages, { role: 'assistant', content: text.slice(0, 5000) }].slice(-60);
+    messages = [...messages, { role: 'assistant' as const, content: text.slice(0, 5000) }].slice(-60);
     markDiscussionDirty();
     notice = tr('canvas.auditDone');
   }

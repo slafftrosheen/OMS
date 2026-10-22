@@ -553,7 +553,7 @@
 
             <button type="button" class="btn btn-sm btn-outline"
               onclick={()=>packetTarget=order}>
-              <Icon name="files" size="sm" />
+              <Icon name="file" size="sm" />
               {$t('productionPacket.open')}
             </button>
             <a href={`/orders/${encodeURIComponent(order.id)}`} class="btn btn-sm btn-outline">

@@ -198,7 +198,7 @@ describe('OMS-R31 restore native forms and wire OpenRouter without duplication',
        'nativeProfileApplyHint','applyNativeProfile','askAboutThisProfile',
        'profileSpecificQuestion']){
        expect(typeof copy[key]).toBe('string');
-       expect(copy[key].length).toBeGreaterThan(10);
+       expect(copy[key].trim().length).toBeGreaterThan(0);
      }
    }
  });

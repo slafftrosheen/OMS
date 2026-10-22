@@ -31,9 +31,9 @@ describe('OMS-R14 grounded production intelligence',()=>{
       .toBe('unknown');
     expect(reconcileOrderMaterials([{...material,quantity:0}],inventory)[0].status)
       .toBe('unknown');
-    expect(reconcileOrderMaterials([material],[...inventory,{...inventory,id}])[0].match)
+    expect(reconcileOrderMaterials([material],[...inventory,{...inventory[0],id}])[0].match)
       .toBe('ambiguous');
-    expect(reconcileOrderMaterials([material],[{...inventory,stock:3}])[0].status)
+    expect(reconcileOrderMaterials([material],[{...inventory[0],stock:3}])[0].status)
       .toBe('insufficient');
   });
   it('blocks actual shortages and empty orders independently from the model',()=>{
@@ -41,7 +41,7 @@ describe('OMS-R14 grounded production intelligence',()=>{
     expect(deterministicReadiness(ok).state).toBe('needs-review');
     expect(deterministicReadiness(ok).issues.some(i=>i.code==='low-stock-after-use')).toBe(true);
     const insufficient=readinessEvidenceSchema.parse({
-      ...evidence(),materials:reconcileOrderMaterials([material],[{...inventory,stock:1}])
+      ...evidence(),materials:reconcileOrderMaterials([material],[{...inventory[0],stock:1}])
     });
     expect(deterministicReadiness(insufficient).state).toBe('blocked');
     expect(deterministicReadiness(insufficient).issues.some(i=>i.code==='stock-shortfall')).toBe(true);

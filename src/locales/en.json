@@ -139,9 +139,9 @@
         "delivery": "Delivery Address"
       },
       "files": {
-        "hint": "Upload PDF and CDR files with order sketches.",
+        "hint": "Upload PDF, CDR, DXF or image files with order sketches.",
         "drag_drop": "Drag and drop or click",
-        "formats": "PDF, CDR, AI, EPS, JPG, PNG",
+        "formats": "PDF, CDR, DXF, JPG, PNG, GIF, WebP",
         "preview": "Preview",
         "no_preview": "Select a file to preview",
         "loading_pdf": "Loading PDF..."

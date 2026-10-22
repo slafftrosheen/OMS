@@ -130,26 +130,20 @@
   let pdfPageCache = $state(new Map<string, any>());
   let pdfjsLib: any = null;
   
-  let newGuideContext=$derived({
-    phase:'new' as const,status:'DRAFT',
-    clientName,deadline,title:'',
-    profileCount:profiles.length,
-    unassignedProfiles:profiles.filter(p=>!p.profileTemplateId).length,
-    fileCount:uploadedFiles.length,
-    dirty:true,
-    canEdit:can($currentUser,'createDraftOrder')
-  });
-  
   // Initialize pdfjs on client-side
   onMount(() => {
     if (typeof window !== 'undefined') {
-      import('pdfjs-dist').then((module) => {
+      Promise.all([
+        import('pdfjs-dist'),
+        import('pdfjs-dist/build/pdf.worker.min.mjs?url')
+      ]).then(([module, {default: workerSrc}]) => {
         pdfjsLib = module;
         if (module.GlobalWorkerOptions) {
-          module.GlobalWorkerOptions.workerSrc = new URL(
-            'pdfjs-dist/build/pdf.worker.min.js',
-            import.meta.url
-          ).href;
+          module.GlobalWorkerOptions.workerSrc = workerSrc;
+        }
+        const selected = selectedFileIndex === null ? null : uploadedFiles[selectedFileIndex];
+        if (selected?.type === 'pdf' && selected.pdfDataUrl) {
+          void renderPdfPage(selected.pdfDataUrl, 1);
         }
       }).catch((err) => {
         console.error('Failed to load pdfjs-dist:', err);
@@ -232,12 +226,16 @@
   
   let zoomTimeout: ReturnType<typeof setTimeout>;
   $effect(() => {
-    if (selectedFileIndex !== null && uploadedFiles[selectedFileIndex]?.type === 'pdf' && uploadedFiles[selectedFileIndex]?.pdfDataUrl && previewZoom) {
-      clearTimeout(zoomTimeout);
+    const selected = selectedFileIndex === null ? null : uploadedFiles[selectedFileIndex];
+    clearTimeout(zoomTimeout);
+    if (selected?.type === 'pdf' && selected.pdfDataUrl && previewZoom) {
+      const dataUrl = selected.pdfDataUrl;
+      const page = pdfCurrentPage;
       zoomTimeout = setTimeout(() => {
-        renderPdfPage(uploadedFiles[selectedFileIndex!].pdfDataUrl!, pdfCurrentPage);
+        void renderPdfPage(dataUrl, page);
       }, 200);
     }
+    return () => clearTimeout(zoomTimeout);
   });
 
   function zoomIn() {
@@ -356,6 +354,7 @@
     configuration: any;
     collapsed: boolean;
     profileTemplateId?: string | null;
+    notes?: string;
   };
 
   const defaultConfiguration = {
@@ -389,6 +388,16 @@
   let profiles = $state<ProfileItem[]>([
     { id: createId(), quantity: 1, configuration: JSON.parse(JSON.stringify(defaultConfiguration)), collapsed: false }
   ]);
+
+  let newGuideContext=$derived({
+    phase:'new' as const,status:'DRAFT',
+    clientName,deadline,title:'',
+    profileCount:profiles.length,
+    unassignedProfiles:profiles.filter(p=>!p.profileTemplateId).length,
+    fileCount:uploadedFiles.length,
+    dirty:true,
+    canEdit:can($currentUser,'createDraftOrder')
+  });
 
   let isAdmin = $derived(
     $currentUser?.role === 'RD' || 
@@ -882,7 +891,7 @@
             type="file" 
             id="file-upload" 
             multiple 
-            accept=".pdf,.cdr,.ai,.eps,.jpg,.jpeg,.png"
+            accept=".pdf,.cdr,.dxf,.jpg,.jpeg,.png,.gif,.webp"
             onchange={handleFileSelect}
             class="visually-hidden-file"
           />

@@ -71,7 +71,7 @@ describe('OMS-R29 deterministic technical evidence and assistant integration',()
    ).toThrow();
    expect(()=>buildOrderTechnicalChecks([],[],NaN)).toThrow();
    expect(()=>buildOrderTechnicalChecks([],[], -1)).toThrow();
-   expect(()=>buildOrderTechnicalChecks([],[],0,{sourceLimitReached:true})
+   expect(buildOrderTechnicalChecks([],[],0,{sourceLimitReached:true})
      .sourceLimitReached).toBe(true);
  });
  it('checks source order role/RLS before responding without any AI request',()=>{

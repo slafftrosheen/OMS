@@ -74,7 +74,8 @@ describe('OMS-R01 source contract guardrails', () => {
   it('does not write a temporary CSV file from a production handler', () => {
     const code = source('src/routes/api/export/+server.ts');
     expect(code).not.toContain("require('fs')");
-    expect(code).not.toContain('temp.csv');
+    expect(code).not.toMatch(/(?:writeFile(?:Sync)?|createWriteStream)\s*\(/);
+    expect(code).toContain("Buffer.from(exportCsv(data, selectedColumns), 'utf8')");
   });
 
   it('never calls the non-idempotent legacy lock RPC for set-state', () => {

@@ -8,10 +8,11 @@ import { ChatService } from '$lib/server/chat/ChatService';
  * Supports both roomId (general chat) and orderId (order-specific chat)
  */
 export const GET: RequestHandler = async ({ url, locals }) => {
+    if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
     const roomId = url.searchParams.get('roomId');
     const orderId = url.searchParams.get('orderId');
     const before = url.searchParams.get('before') || undefined;
-    const limit = parseInt(url.searchParams.get('limit') || '100');
+    const limit = Math.max(1, Math.min(100, Number.parseInt(url.searchParams.get('limit') || '100', 10) || 100));
 
     // Handle room-based chat (general, workstations, logistics)
     if (roomId && !orderId) {
@@ -20,18 +21,16 @@ export const GET: RequestHandler = async ({ url, locals }) => {
             if (!locals.supabase) {
                 console.error('Supabase client not available');
                 return json({ 
-                    success: true, 
-                    messages: [], 
-                    hasMore: false,
-                    error: 'Database not available'
-                });
+                    success: false, messages: [], hasMore: false, error: 'Database not available'
+                }, { status: 503 });
             }
 
             // Fetch messages from chat_messages table
             let query = locals.supabase
                 .from('chat_messages')
-                .select('id, room_id, user_id, content, attachments, created_at')
+                .select('id, room_id, user_id, content, text, attachments, created_at')
                 .eq('room_id', roomId)
+                .eq('is_deleted', false)
                 .order('created_at', { ascending: false })
                 .limit(limit);
 
@@ -44,11 +43,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
             if (error) {
                 console.error('Error fetching room messages:', error);
                 return json({ 
-                    success: true,
-                    messages: [],
-                    hasMore: false,
-                    error: error.message
-                });
+                    success: false, messages: [], hasMore: false, error: 'Failed to fetch messages'
+                }, { status: 500 });
             }
 
             // Get unique user IDs and fetch profiles
@@ -71,7 +67,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
                 id: msg.id,
                 roomId: msg.room_id,
                 authorId: msg.user_id || 'system',
-                text: msg.content,
+                text: msg.content ?? msg.text,
+                attachments: msg.attachments ?? [],
                 ts: msg.created_at,
                 mentions: [],
                 variant: msg.user_id ? 'user' : 'system',
@@ -94,10 +91,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
         } catch (err) {
             console.error('Unexpected error fetching room messages:', err);
             return json({ 
-                success: true,
-                messages: [],
-                hasMore: false
-            });
+                success: false, messages: [], hasMore: false
+            }, { status: 500 });
         }
     }
 
@@ -148,11 +143,12 @@ export const GET: RequestHandler = async ({ url, locals }) => {
  * POST /api/chat/messages - Send a message to a room or order
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
+    if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
     try {
         const body = await request.json();
         const { roomId, orderId, text, authorId, variant, mentions, event } = body;
 
-        if (!text || text.trim().length === 0) {
+        if (typeof text !== 'string' || text.trim().length === 0) {
             return json({ error: 'Message text required' }, { status: 400 });
         }
 

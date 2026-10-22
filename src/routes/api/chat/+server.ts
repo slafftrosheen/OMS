@@ -53,12 +53,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     if (!locals.supabase) return json({ success: true, room: { id, name, kind } });
 
+    const { data: existing, error: readError } = await locals.supabase
+        .from('chat_rooms').select('*').eq('id', id).maybeSingle();
+    if (readError) return json({ error: 'Failed to load room' }, { status: 500 });
+    if (existing) return json({ success: true, room: existing });
+
     const { data, error } = await locals.supabase
         .from('chat_rooms')
-        .upsert({ id, name, kind, station: station || null, order_id: order_id || null, created_by: locals.user.id })
+        .insert({ id, name, kind, station: station || null, order_id: order_id || null, created_by: locals.user.id })
         .select()
         .single();
 
+    if (error?.code === '23505') {
+        const { data: raced } = await locals.supabase.from('chat_rooms')
+            .select('*').eq('id', id).maybeSingle();
+        if (raced) return json({ success: true, room: raced });
+    }
     if (error) {
         console.error('[/api/chat POST] upsert error:', error);
         return json({ error: 'Failed to create room' }, { status: 500 });

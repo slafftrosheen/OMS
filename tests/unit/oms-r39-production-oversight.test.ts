@@ -40,6 +40,16 @@ describe('OMS-R39 — manager production oversight',()=>{
       stageState:'IN_PROGRESS'
     });
   });
+  it('orders older stage records first even when their displayed elapsed hours tie',()=>{
+    const result=deriveProductionOversight(orders,[
+      {draft_order_id:'alpha',station:'CAD',state:'QUEUED',
+        updated_at:'2026-10-13T18:00:00Z'},
+      {draft_order_id:'alpha',station:'CNC',state:'IN_PROGRESS',
+        updated_at:'2026-10-13T17:59:59Z'}
+    ],asOf);
+    expect(result.signals.map(x=>x.elapsedHours)).toEqual([72,72]);
+    expect(result.signals.map(x=>x.station)).toEqual(['CNC','CAD']);
+  });
   it('reports actual material-declaration skips on completed stages without claiming an outstanding debt',()=>{
     const result=deriveProductionOversight(orders,[
       {draft_order_id:'alpha',station:'CAD',state:'COMPLETED',

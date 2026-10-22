@@ -13,25 +13,31 @@ SvelteKit order-management and production workflow application with a self-hoste
 
 Check live DB schema/functions before relying on old migration-era assumptions.
 
+## Current release readiness
+
+For the current `main` release, use the [OMS-R26 deployment readiness runbook](docs/operations/OMS-R26-deployment-readiness.md) together with the feature-specific [R41](docs/operations/OMS-R41-inventory-provenance-and-reconciliation.md), [R42](docs/operations/OMS-R42-canonical-inventory-parity.md), and [R44](docs/operations/OMS-R44-inventory-replenishment-planning.md) acceptance notes. The read-only preflight checks production and inventory schema, RPC grants, RLS, and inventory consistency observations through R44. It does not apply migrations or prove role behavior in a browser.
+
+Compare the compiled server's `GET /api/build-info` revision with the intended checkout when diagnosing a deployment. A matching fingerprint does not prove that database prerequisites are installed; confirm those separately on staging before release.
+
 ## Toolkit — idea and project canvas
 
 Toolkit is the shared visual thinking workspace at `/toolkit/canvas`. It features editable idea/research/decision/task/note cards, saved projects and starter layouts, connections, a contextual Brainstorm assistant that proposes cards for **explicit approval**, and secondary engineering tools. Old `/ai-lab` bookmarks redirect. Shared canvas edit rights belong to **RD, Boss and HeadOfProduction**; per-user brainstorming and conversations remain private. Toolkit now also supports authenticated team-shared PNG/JPEG/WebP/GIF/PDF imports, PDF page previews, drawing/annotation controls, and material surface-study cards; see [visual asset testing](docs/operations/OMS-R06-toolkit-visual-assets.md). Shared saves use revision checks, with a recovery-copy option on conflict. See [R07 upload repair, Canvas skills and deployment checks](docs/operations/OMS-R07-toolkit-stability-and-skills.md) and [R06 sharing/stability runbook](docs/operations/OMS-R06-toolkit-sharing-stability.md) and [initial Toolkit design notes](docs/operations/OMS-R05-toolkit-canvas.md).
 
 ## OpenRouter tools and LumiGrid planning (OMS-R04)
 
-Review the [R04 tool security and live-provider acceptance checklist](docs/operations/OMS-R04-ai-tool-hardening.md) before deploying. AI tool calls now honor signed-in user permissions, the crawler blocks private destinations and redirects, and LumiGrid estimates model **8 PWM outputs plus 8 addressable RMT lanes**. `GET /api/ai/health` does not probe OpenRouter; only RD can deliberately POST a single live inference diagnostic. **R01/R02 unapplied SQL migrations remain mandatory before this app release.**
+Review the [R04 tool security and live-provider acceptance checklist](docs/operations/OMS-R04-ai-tool-hardening.md) before deploying. AI tool calls now honor signed-in user permissions, the crawler blocks private destinations and redirects, and LumiGrid estimates model **8 PWM outputs plus 8 addressable RMT lanes**. `GET /api/ai/health` does not probe OpenRouter; only RD can deliberately POST a single live inference diagnostic. R04's R01/R02 migration note is historical; use the current release readiness section above for the full gate.
 
 ## Operator workstation UI (OMS-R03)
 
-The [OMS-R03 operator usability checklist](docs/operations/OMS-R03-operator-workspaces.md) covers mobile/tablet station UX, read-only production overview, real stage status, QR navigation, controlled rework resolution, error recovery, and manual accessibility checks. The R03 app still **requires all R01/R02 database migrations before deployment**.
+The [OMS-R03 operator usability checklist](docs/operations/OMS-R03-operator-workspaces.md) covers mobile/tablet station UX, read-only production overview, real stage status, QR navigation, controlled rework resolution, error recovery, and manual accessibility checks. Its R01/R02 deployment note applies to that historical release; use the current release readiness section above for `main`.
 
 ## Manufacturing lifecycle (OMS-R02)
 
-See [R02 deployment and end-to-end acceptance checklist](docs/operations/OMS-R02-manufacturing-lifecycle.md). **Four new atomic PostgreSQL RPC migrations must be reviewed/applied before deploying the R02 application.** R01's pending lock permission migration must also be accounted for. Do not deploy app-only first.
+See the [R02 deployment and end-to-end acceptance checklist](docs/operations/OMS-R02-manufacturing-lifecycle.md) for the original manufacturing-lifecycle release. Its migration gate is historical for that release; use the current release readiness section above when preparing current `main`.
 
 ## Database/API contracts (OMS-R01)
 
-The [OMS-R01 contract reconciliation notes](docs/operations/OMS-R01-contract-reconciliation.md) describe export, station log, loading-capacity, calendar and stage fixes, plus required live PostgREST/RLS smoke checks. One **unapplied privilege-hardening migration** is included; the private `exports` storage bucket remains an unverified prerequisite.
+The [OMS-R01 contract reconciliation notes](docs/operations/OMS-R01-contract-reconciliation.md) describe the original export, station log, loading-capacity, calendar and stage contract work. Its unapplied-migration and private `exports` bucket notes are historical status; use the current release readiness section above for present deployment prerequisites.
 
 ## Security and recovery (OMS-R00)
 

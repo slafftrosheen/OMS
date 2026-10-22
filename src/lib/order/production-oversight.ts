@@ -64,7 +64,7 @@ export function deriveProductionOversight(
   // Stable deterministic ordering avoids flicker in repeatedly refreshed boards.
   rows.sort((a,b)=>{
     const kind=a.kind===b.kind?0:a.kind==='MATERIAL_SKIPPED'?-1:1;
-    return kind||b.elapsedHours-a.elapsedHours||
+    return kind||Date.parse(a.recordedAt)-Date.parse(b.recordedAt)||
       (a.poNumber??a.orderId).localeCompare(b.poNumber??b.orderId)||
       a.station.localeCompare(b.station);
   });

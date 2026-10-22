@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { buildOrderFileLink, formatFileRecord, safeDownloadFilename, storageKeyFromFileRow, canDeleteGlobalFile } from './contract';
+import { normalizeOrderFile } from './order-storage';
 
 describe('order file storage and DTO contract', () => {
+  it('accepts the DXF MIME type supplied by Chromium file selection', () => {
+    expect(normalizeOrderFile({name:'sign.dxf',type:'image/vnd.dxf',size:613}).mime)
+      .toBe('application/dxf');
+  });
   it('links file metadata through the deployed junction columns', () => {
     expect(buildOrderFileLink('order-1', 'file-1', 'sketch', 'drawing.pdf')).toEqual({
       draft_order_id: 'order-1', file_id: 'file-1', file_type: 'sketch', display_name: 'drawing.pdf'

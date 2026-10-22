@@ -84,7 +84,7 @@ describe('OMS-R13 OpenRouter Smart Order Intake',()=>{
     expect(old).not.toContain('pdf-parse');
     const editor=read('src/routes/orders/[id]/edit/+page.svelte');
     const pdf=editor.split('function extractPdfToForms()')[1]?.split('Tool definitions')[0]??'';
-    expect(pdf).toContain("rightTab='intake'");
+    expect(pdf).toContain("openWorkspaceSection('intake')");
     expect(pdf).not.toContain("fetch(");
     expect(pdf).not.toContain('clientName = data.details');
     expect(editor).toContain('<OrderIntakeAssistant {orderId}');
@@ -98,10 +98,13 @@ describe('OMS-R13 OpenRouter Smart Order Intake',()=>{
     expect(ui).toContain('JSON.stringify(current)!==baseState');
     expect(ui).toContain('fresh.updatedAt!==analysis.orderUpdatedAt');
     expect(ui).toContain('onApply(proposalsToPatch(accepted))');
-    expect(ui).not.toContain("fetch('/api/draft-orders/");
+    // Re-reading the saved version is required for optimistic concurrency;
+    // the assistant must not persist mutations itself.
+    expect(ui.split('async function apply')[1] ?? ui.slice(ui.indexOf('const accepted='))).not.toMatch(/method\s*:\s*['"](?:PUT|POST|PATCH|DELETE)['"]/g);
+
     const editor=read('src/routes/orders/[id]/edit/+page.svelte');
     expect(editor).toContain('Only the allowlisted draft fields');
-    expect(editor).toContain("rightTab='details'");
+    expect(editor).toContain("openWorkspaceSection('details')");
     expect(editor).toContain("canEdit");
   });
   it('keeps EN, LV and RU UI translation parity',()=>{

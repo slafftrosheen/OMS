@@ -91,7 +91,7 @@ export function parseReplenishmentChange(data:unknown):ReplenishmentInput{
  if(typeof note!=='string'||note.length>1000||
    (supplier!==null&&(typeof supplier!=='string'||supplier.length>200))||
    (reference!==null&&(typeof reference!=='string'||reference.length>200))||
-   (action==='order'&&(!reference||!reference.trim()))||
+   (action==='order'&&(typeof reference!=='string'||!reference.trim()))||
    (action!=='order'&&reference!==null)||
    (['close','cancel'].includes(action)&&note.trim().length<5))
    throw new Error('Supplier reference or review note is invalid');
