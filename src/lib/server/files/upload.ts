@@ -57,10 +57,23 @@ export async function uploadOrderFile(request: Request, locals: App.Locals) {
   const { error: storageError }=await locals.supabase.storage.from(ORDER_FILE_BUCKET)
     .upload(storageKey,buffer,{contentType:metadata.mime,upsert:false});
   if(storageError) {
-    logger.error('Order Storage upload failed',storageError as Error,{ orderId:order.id });
-    throw kitError(503,'Private files bucket unavailable; check Storage migration and policies');
+    const status = String((storageError as { statusCode?: string | number }).statusCode ?? '');
+    logger.error('Order Storage upload failed',storageError as Error,{
+      orderId:order.id, statusCode:status
+    });
+    // Storage and the OMS upload endpoint have independent body limits and RLS.
+    // Preserve these distinctions rather than flattening every cause to 503.
+    if(status === '413') throw kitError(413,
+      'Supabase Storage rejected the file size. Check its global and files-bucket size limits.');
+    if(status === '401' || status === '403') throw kitError(503,
+      'Supabase Storage denied this write. Check the private files bucket INSERT policy and session.');
+    if(status === '404') throw kitError(503,
+      'Private files Storage bucket not found. Inspect the applied Storage bucket migration.');
+    throw kitError(503,
+      'Private files upload failed. Check Supabase Storage logs and connectivity.');
   }
   let dbFileId:string|null=null;
+  let registrationPhase: 'files metadata' | 'order attachment link' = 'files metadata';
   try {
     const { data:file,error:fileError }=await locals.supabase.from('files').insert({
       filename:`${id}-${metadata.fileName}`,
@@ -73,6 +86,7 @@ export async function uploadOrderFile(request: Request, locals: App.Locals) {
     }).select('*').single();
     if(fileError || !file) throw new Error('Could not register file');
     dbFileId=file.id;
+    registrationPhase = 'order attachment link';
     const { error:linkError }=await locals.supabase.from('order_files').insert(
       buildOrderFileLink(order.id,file.id,fileType,metadata.fileName)
     );
@@ -80,13 +94,18 @@ export async function uploadOrderFile(request: Request, locals: App.Locals) {
     return {success:true,file:formatFileRecord({...file,file_type:fileType,
       display_name:metadata.fileName})};
   } catch(err) {
+    logger.error('Order attachment registration failed',err as Error,{
+      orderId:order.id, phase:registrationPhase
+    });
     if(dbFileId){
       const { error:dbCleanup }=await locals.supabase.from('files').delete().eq('id',dbFileId);
       if(dbCleanup) logger.error('Orphan order file metadata cleanup failed',dbCleanup,{orderId:order.id});
     }
     const { error:storageCleanup }=await locals.supabase.storage.from(ORDER_FILE_BUCKET).remove([storageKey]);
     if(storageCleanup) logger.error('Orphan order Storage cleanup failed',storageCleanup as Error,{orderId:order.id});
-    throw kitError(503,'File could not be saved and linked to the order');
+    throw kitError(503,registrationPhase === 'files metadata'
+      ? 'Could not register the uploaded file. Check files table INSERT permissions and schema.'
+      : 'Could not link the uploaded file to the order. Check order_files INSERT permissions and schema.');
   }
 }
 
