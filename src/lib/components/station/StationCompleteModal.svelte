@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onDestroy, tick } from 'svelte';
+  import { onDestroy } from 'svelte';
+  import { base } from '$app/paths';
+  import { modalDialog } from '$lib/ui/modal-dialog';
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
   import Button from '$lib/ui/Button.svelte';
@@ -56,17 +58,19 @@
   let actualHours = $state<number | undefined>(undefined);
   let completionNotes = $state('');
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
-  let searchInput: HTMLInputElement | undefined = $state();
-  onDestroy(() => { if (searchTimer) clearTimeout(searchTimer); });
+  let searchController: AbortController | undefined;
+  let searchGeneration = 0;
+  onDestroy(cancelSearch);
 
   $effect(() => {
     if (open) {
+      void orderRef; void station;
       reset();
-      tick().then(() => searchInput?.focus());
-    }
+    } else cancelSearch();
   });
 
   function reset() {
+    cancelSearch();
     search = '';
     results = [];
     rows = [];
@@ -80,33 +84,35 @@
 
   function close() {
     if (submitting) return;
-    if (searchTimer) clearTimeout(searchTimer);
+    cancelSearch();
     open = false;
   }
 
-  async function runSearch() {
+  function cancelSearch() {
+    searchGeneration++;
     if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = null; searchController?.abort(); searchController = undefined; searching = false;
+  }
+  function runSearch(event: Event) {
+    search = (event.currentTarget as HTMLInputElement).value;
+    cancelSearch(); results = []; searchError = '';
+    const q = search.trim(), token = searchGeneration;
+    if (!q) return;
+    searching = true;
     searchTimer = setTimeout(async () => {
-      const q = search.trim();
-      if (!q) {
-        results = [];
-        return;
-      }
-      searching = true;
-      searchError = '';
+      searchTimer = null;
+      const controller = new AbortController(); searchController = controller;
       try {
-        const res = await fetch(`/api/inventory/items?search=${encodeURIComponent(q)}&limit=20`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const payload = await res.json();
+        const response = await fetch(`${base}/api/inventory/items?search=${encodeURIComponent(q)}&limit=20`, { signal: controller.signal });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
         const list = (payload.data ?? payload) as CatalogItem[];
         if (!Array.isArray(list)) throw new Error('Invalid inventory response');
-        results = list.slice(0, 20);
-      } catch (err) {
-        console.error('Inventory search failed:', err);
-        results = [];
-        searchError = 'Inventory search unavailable. Retry or contact Head of Production.';
+        if (token === searchGeneration && !controller.signal.aborted) results = list.slice(0, 20);
+      } catch {
+        if (token === searchGeneration && !controller.signal.aborted) searchError = 'Inventory search unavailable. Retry or contact Head of Production.';
       } finally {
-        searching = false;
+        if (token === searchGeneration) { searching = false; searchController = undefined; }
       }
     }, 200);
   }
@@ -127,6 +133,7 @@
         stock: item.stock,
       },
     ];
+    cancelSearch();
     search = '';
     results = [];
   }
@@ -195,16 +202,9 @@
 </script>
 
 {#if open}
-  <div
-    class="modal-backdrop"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="station-complete-title"
-    onclick={close}
-    onkeydown={(e) => e.key === 'Escape' && close()}
-    tabindex="-1"
-  >
-    <div class="modal" onclick={(e) => e.stopPropagation()} role="document">
+  <dialog class="modal-backdrop" aria-labelledby="station-complete-title"
+    use:modalDialog={{ onClose: close, closeOnEscape: !submitting, closeOnBackdrop: !submitting, initialFocus: '#material-search' }}>
+    <div class="modal">
       <header class="modal-header">
         <div>
           <h2 id="station-complete-title">
@@ -212,20 +212,19 @@
           </h2>
           <p class="muted">{station} · {orderRef}</p>
         </div>
-        <button class="icon-btn" onclick={close} aria-label="Close">
+        <button class="icon-btn" onclick={close} aria-label="Close" disabled={submitting}>
           <Icon name="x" size="sm" />
         </button>
       </header>
 
       <div class="modal-body">
         <p class="hint" role="note">{$t('productionExecution.reviewReminder')}</p>
-        <div class="mode-toggle" role="tablist">
+        <div class="mode-toggle" role="group" aria-label="Material declaration mode">
           <button
             class="mode-btn"
             class:active={!skipMode}
             onclick={() => (skipMode = false)}
-            role="tab"
-            aria-selected={!skipMode}
+            aria-pressed={!skipMode} disabled={submitting}
           >
             <Icon name="package" size="sm" />
             {$t('station.complete.declare', { default: 'Declare materials' })}
@@ -234,8 +233,7 @@
             class="mode-btn"
             class:active={skipMode}
             onclick={() => (skipMode = true)}
-            role="tab"
-            aria-selected={skipMode}
+            aria-pressed={skipMode} disabled={submitting}
           >
             <Icon name="skip-forward" size="sm" />
             {$t('station.complete.skip', { default: 'Skip (notify HoP)' })}
@@ -248,7 +246,6 @@
           </label>
           <input
             id="material-search"
-            bind:this={searchInput}
             type="text"
             bind:value={search}
             oninput={runSearch}
@@ -360,11 +357,20 @@
         </Button>
       </footer>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>
+  .modal-backdrop:not([open]) { display:none; }
+  .modal-backdrop::backdrop { background:transparent; }
   .modal-backdrop {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border: 0;
+    color: inherit;
     position: fixed;
     inset: 0;
     z-index: 1000;

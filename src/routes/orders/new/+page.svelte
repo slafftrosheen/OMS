@@ -1595,8 +1595,7 @@
     margin-top: 4px;
   }
 
-  input.invalid,
-  textarea.invalid {
+  input.invalid {
     border-color: var(--error);
     box-shadow: 0 0 0 2px color-mix(in oklab, var(--error) 25%, transparent);
   }
@@ -1631,11 +1630,6 @@
     cursor: not-allowed;
   }
 
-  input.readonly {
-    background: var(--bg-disabled, var(--bg-2));
-    color: var(--text-secondary, var(--ink-tertiary));
-    cursor: default;
-  }
 
   select {
     cursor: pointer;

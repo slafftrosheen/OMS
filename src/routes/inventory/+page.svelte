@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { scrollRegion } from '$lib/a11y/scroll-region';
   import { materials, catalogError, createMaterial, updateMaterial, removeMaterial, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
   import type { Material, Section } from '$lib/inventory/types';
   import { base } from '$app/paths';
@@ -221,7 +222,7 @@
                 <button class="tag" type="button" onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleCreateItem(currentTab, g.title, sub.title); }}><Plus size={14} aria-hidden="true"/> {$t('inventory.add')}</button>
               {/if}
             </summary>
-            <div class="table-wrap" role="region" tabindex="0" aria-label={`${g.title} — ${sub.title}`}>
+            <div class="table-wrap" role="region" use:scrollRegion aria-label={`${g.title} — ${sub.title}`}>
               <table class="rf-table">
                 <thead>
                   <tr>
@@ -279,26 +280,6 @@
 .table-wrap{overflow:auto}
 .rf-table thead th{position:sticky;top:0;background:var(--bg-1);z-index:1}
 .rf-table thead th:first-child{left:0}
-.link{color:inherit;text-decoration:underline}
-.icon{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:4px;
-  border-radius:6px;
-  border:1px solid var(--border);
-  background:var(--bg-0);
-  color:var(--text);
-  cursor:pointer;
-  text-decoration:none;
-}
-.icon:hover{
-  background:var(--bg-2);
-}
-.icon.warn{
-  color:var(--danger);
-  border-color:var(--danger);
-}
 .group-section{
   margin-bottom:20px;
   padding:12px;

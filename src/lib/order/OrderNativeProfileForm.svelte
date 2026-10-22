@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import Profile7stVisual from '$lib/profiles/components/Profile7stVisual.svelte';
 
   // An isolated editing copy prevents the native form's default-merging effect
@@ -8,7 +9,9 @@
     editable:boolean;
     onChange:(configuration:Record<string,unknown>)=>void;
   }=$props();
-  let localConfiguration=$state<any>(JSON.parse(JSON.stringify(configuration??{})));
+  // The parent keys this editor by the opened profile. Later onChange echoes
+  // must not replace the user's isolated working copy or merge defaults upstream.
+  let localConfiguration=$state<any>(untrack(() => JSON.parse(JSON.stringify(configuration??{}))));
 
   function forwardExplicitEdit(value:unknown){
     if(!editable||!value||typeof value!=='object'||Array.isArray(value))return;

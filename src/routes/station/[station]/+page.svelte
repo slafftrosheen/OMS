@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modalDialog } from '$lib/ui/modal-dialog';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { currentUser } from '$lib/auth/authState.svelte';
@@ -50,11 +51,12 @@
   let resolutionNotes = $state('');
   let resolutionBusy = $state(false);
   let operatorCanAct = $derived(canOperateStation($currentUser, station));
-  let todayLocal = new Date().toLocaleDateString('sv-SE');
+  let todayLocal = $state(new Date().toLocaleDateString('sv-SE'));
 
   let completeModalOpen = $state(false);
   let completeTarget = $state<StationOrder | null>(null);
   let progressTarget = $state<StationOrder | null>(null);
+  let progressBusy = $state(false);
   let packetTarget = $state<StationOrder | null>(null);
   let showChat = $state(false);
 
@@ -131,10 +133,13 @@
     } finally { workingOnOrderId = null; }
   }
 
-  async function handleQRScan(data: string) {
-    if (!data.startsWith('ORDER:')) { notifications.error('Unrecognized OMS QR code'); return; }
-    const id = data.slice('ORDER:'.length).trim();
-    if (!id) return;
+  async function handleQRScan(data: unknown) {
+    const result = data && typeof data === 'object' ? data as { valid?: unknown; orderId?: unknown } : null;
+    if (result?.valid !== true || typeof result.orderId !== 'string' || !result.orderId.trim()) {
+      notifications.error('Unrecognized OMS QR code');
+      return;
+    }
+    const id = result.orderId.trim();
     // Scan identifies an order. Starting production remains an explicit action.
     $showScanner = false;
     await goto(`/orders/${encodeURIComponent(id)}`);
@@ -574,56 +579,31 @@
 </div>
 
 {#if $showScanner}
-  <div
-    class="modal-overlay"
-    onclick={() => $showScanner = false}
-    onkeydown={(e) => e.key === 'Escape' && ($showScanner = false)}
-    role="button"
-    tabindex="0"
-  >
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div
-      class="modal-content"
-      onclick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="scanner-title"
-    >
-      <div class="modal-header">
-        <h2 id="scanner-title">{$t('stationView.scan_qr')}</h2>
-        <button class="close-btn" onclick={() => $showScanner = false} aria-label={$t('common.close')}>×</button>
-      </div>
-      <QRScanner onscan={(data) => handleQRScan(data)} />
-    </div>
-  </div>
+  <QRScanner bind:open={$showScanner} onscan={handleQRScan} />
 {/if}
 
 {#if packetTarget}
-  <div class="modal-overlay" role="presentation" onclick={()=>packetTarget=null}
-    onkeydown={e=>{if(e.key==='Escape')packetTarget=null;}}>
-    <div class="modal-content production-packet-modal" role="dialog" aria-modal="true"
-      aria-label={$t('productionPacket.title')}
-      onclick={e=>e.stopPropagation()} onkeydown={e=>e.stopPropagation()}>
+  <dialog class="modal-overlay" aria-label={$t('productionPacket.title')}
+    use:modalDialog={{ onClose: () => { packetTarget = null; } }}>
+    <div class="modal-content production-packet-modal">
       {#key packetTarget.id}
         <StationProductionPacket orderId={packetTarget.id} {station}
           onClose={()=>packetTarget=null}/>
       {/key}
     </div>
-  </div>
+  </dialog>
 {/if}
 
 {#if progressTarget}
-  <div class="modal-overlay" role="presentation" onclick={() => (progressTarget=null)}
-    onkeydown={(e)=>{if(e.key==='Escape')progressTarget=null;}}>
-    <div class="modal-content" role="dialog" aria-modal="true" aria-label={$t('productionFloor.title')}
-      onclick={(e)=>e.stopPropagation()} onkeydown={(e)=>e.stopPropagation()}>
-      <StationProgressPanel orderId={progressTarget.id} {station}
+  <dialog class="modal-overlay" aria-label={$t('productionFloor.title')}
+    use:modalDialog={{ onClose: () => { if (!progressBusy) progressTarget = null; }, closeOnEscape: !progressBusy, closeOnBackdrop: !progressBusy }}>
+    <div class="modal-content">
+      <StationProgressPanel orderId={progressTarget.id} {station} bind:busy={progressBusy}
         expectedUpdatedAt={progressTarget.stage.updated_at}
         onClose={() => (progressTarget=null)}
         onSaved={() => {operationMessage=$t('productionFloor.saved');void loadStationOrders(true);}} />
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <StationCompleteModal
@@ -656,26 +636,12 @@
 
 <!-- Block Order Modal -->
 {#if blockModalOpen}
-  <div
-    class="modal-overlay"
-    onclick={() => blockModalOpen = false}
-    onkeydown={(e) => e.key === 'Escape' && (blockModalOpen = false)}
-    role="button"
-    tabindex="0"
-    aria-label={$t('common.close', { default: 'Close' })}
-  >
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div
-      class="modal-content"
-      onclick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="block-modal-title"
-    >
+  <dialog class="modal-overlay" aria-labelledby="block-modal-title"
+    use:modalDialog={{ onClose: () => { if (!workingOnOrderId) blockModalOpen = false; }, closeOnEscape: workingOnOrderId === null, closeOnBackdrop: workingOnOrderId === null }}>
+    <div class="modal-content">
       <div class="modal-header">
         <h2 id="block-modal-title">{$t('stationView.block_order', { default: 'Block Order' })}</h2>
-        <button class="close-btn" onclick={() => blockModalOpen = false} aria-label={$t('common.close', { default: 'Close' })}>
+        <button class="close-btn" disabled={workingOnOrderId !== null} onclick={() => blockModalOpen = false} aria-label={$t('common.close', { default: 'Close' })}>
           <Icon name="x" size="sm" />
         </button>
       </div>
@@ -684,14 +650,14 @@
           {$t('stationView.block_reason_label', { default: 'Reason for blocking' })}
           <textarea
             class="modal-textarea"
-            bind:value={blockReason}
+            bind:value={blockReason} disabled={workingOnOrderId !== null}
             rows="3"
             placeholder={$t('stationView.block_reason_placeholder', { default: 'Describe why this order is blocked…' })}
           ></textarea>
         </label>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-outline" onclick={() => blockModalOpen = false}>
+        <button class="btn btn-outline" disabled={workingOnOrderId !== null} onclick={() => blockModalOpen = false}>
           {$t('actions.cancel', { default: 'Cancel' })}
         </button>
         <button class="btn btn-danger" onclick={submitBlock} disabled={!blockReason.trim() || workingOnOrderId !== null}>
@@ -700,38 +666,24 @@
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <!-- Rework Request Modal -->
 {#if reworkModalOpen}
-  <div
-    class="modal-overlay"
-    onclick={() => reworkModalOpen = false}
-    onkeydown={(e) => e.key === 'Escape' && (reworkModalOpen = false)}
-    role="button"
-    tabindex="0"
-    aria-label={$t('common.close', { default: 'Close' })}
-  >
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div
-      class="modal-content"
-      onclick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="rework-modal-title"
-    >
+  <dialog class="modal-overlay" aria-labelledby="rework-modal-title"
+    use:modalDialog={{ onClose: () => { if (!workingOnOrderId) reworkModalOpen = false; }, closeOnEscape: workingOnOrderId === null, closeOnBackdrop: workingOnOrderId === null }}>
+    <div class="modal-content">
       <div class="modal-header">
         <h2 id="rework-modal-title">{$t('stationView.request_rework', { default: 'Request Rework' })}</h2>
-        <button class="close-btn" onclick={() => reworkModalOpen = false} aria-label={$t('common.close', { default: 'Close' })}>
+        <button class="close-btn" disabled={workingOnOrderId !== null} onclick={() => reworkModalOpen = false} aria-label={$t('common.close', { default: 'Close' })}>
           <Icon name="x" size="sm" />
         </button>
       </div>
       <div class="modal-body">
         <label class="modal-label">
           {$t('stationView.rework_reason_label', { default: 'Rework reason' })}
-          <select class="modal-select" bind:value={reworkReason}>
+          <select class="modal-select" bind:value={reworkReason} disabled={workingOnOrderId !== null}>
             {#each REWORK_REASONS as r}
               <option value={r}>{r}</option>
             {/each}
@@ -741,14 +693,14 @@
           {$t('stationView.rework_description_label', { default: 'Describe the issue' })}
           <textarea
             class="modal-textarea"
-            bind:value={reworkDescription}
+            bind:value={reworkDescription} disabled={workingOnOrderId !== null}
             rows="3"
             placeholder={$t('stationView.rework_description_placeholder', { default: 'What needs to be redone and why…' })}
           ></textarea>
         </label>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-outline" onclick={() => reworkModalOpen = false}>
+        <button class="btn btn-outline" disabled={workingOnOrderId !== null} onclick={() => reworkModalOpen = false}>
           {$t('actions.cancel', { default: 'Cancel' })}
         </button>
         <button class="btn btn-warning" onclick={submitRework} disabled={!reworkDescription.trim() || workingOnOrderId !== null}>
@@ -757,15 +709,14 @@
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <!-- Resolving rework changes the cycle and stage together via the R02 RPC. -->
 {#if resolveModalOpen}
-  <div class="modal-overlay" role="presentation">
-    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="resolve-rework-title"
-      onkeydown={(event) => { if (event.key === 'Escape' && !resolutionBusy) resolveModalOpen = false; }}
-      tabindex="-1">
+  <dialog class="modal-overlay" aria-labelledby="resolve-rework-title"
+    use:modalDialog={{ onClose: () => { if (!resolutionBusy) resolveModalOpen = false; }, closeOnEscape: !resolutionBusy, closeOnBackdrop: false }}>
+    <div class="modal-content">
       <div class="modal-header">
         <h2 id="resolve-rework-title">{$t('stationView.resolveTitle')}</h2>
         <button class="close-btn" onclick={() => resolveModalOpen = false}
@@ -775,7 +726,7 @@
         <p>{$t('stationView.resolveHelp', { values: { station } })}</p>
         <label class="modal-label">
           {$t('stationView.resolveNotes')}
-          <textarea class="modal-textarea" bind:value={resolutionNotes} rows="4" required
+          <textarea class="modal-textarea" bind:value={resolutionNotes} rows="4" required disabled={resolutionBusy}
             placeholder={$t('stationView.resolvePlaceholder')}></textarea>
         </label>
       </div>
@@ -786,7 +737,7 @@
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>
@@ -1375,4 +1326,8 @@
   @media(prefers-reduced-transparency:reduce) {
     .station-header,.station-order-card {background:var(--bg-1);}
   }
+
+  dialog.modal-overlay { margin:0;width:100%;height:100%;max-width:none;max-height:none;border:0;color:inherit;box-sizing:border-box; }
+  dialog.modal-overlay:not([open]) { display:none; }
+  dialog.modal-overlay::backdrop { background:transparent; }
 </style>

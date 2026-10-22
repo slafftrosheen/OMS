@@ -12,7 +12,8 @@
  * Complex query builder with saved filters
  */
 
-import { onMount } from 'svelte';
+import { onMount, untrack } from 'svelte';
+import { modalDialog } from '$lib/ui/modal-dialog';
 import { notifications } from '$lib/notify/store';
 import { slide } from 'svelte/transition';
 import Icon from '$lib/ui/Icon.svelte';
@@ -27,7 +28,9 @@ let {
   onsearch?: (data: { results: any; pagination: any; query: string; filters: any }) => void;
 } = $props();
 
-let query = $state(initialQuery);
+// These are draft seeds. Editing and saved-filter selection deliberately own
+// the local state rather than overwriting it when the parent rerenders.
+let query = $state(untrack(() => initialQuery));
 let filters = $state({
   status: '',
   client: '',
@@ -35,7 +38,7 @@ let filters = $state({
   dateTo: '',
   assignee: '',
   tags: [] as string[],
-  ...initialFilters
+  ...untrack(() => initialFilters)
 });
 
 let showFilters = $state(false);
@@ -385,8 +388,9 @@ function handleKeydown(event: KeyboardEvent) {
 </div>
 
 {#if showSaveDialog}
-  <div class="modal-overlay" onclick={() => showSaveDialog = false}>
-    <div class="modal-content" onclick={(e) => e.stopPropagation()}>
+  <dialog class="modal-overlay" aria-label="Save Search Filter"
+    use:modalDialog={{ onClose: () => showSaveDialog = false, initialFocus: '#filter-name' }}>
+    <div class="modal-content">
       <div class="modal-header">
         <h3>Save Search Filter</h3>
         <button 
@@ -454,10 +458,12 @@ function handleKeydown(event: KeyboardEvent) {
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>
+  .modal-overlay:not([open]) { display:none; }
+  .modal-overlay::backdrop { background:transparent; }
   .advanced-search {
     position: relative;
     display: flex;
@@ -486,7 +492,7 @@ function handleKeydown(event: KeyboardEvent) {
     border-color: var(--accent-1);
   }
 
-  .search-icon {
+  .search-input-group :global(.search-icon) {
     color: var(--muted);
     flex-shrink: 0;
   }
@@ -689,6 +695,13 @@ function handleKeydown(event: KeyboardEvent) {
   }
 
   .modal-overlay {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border: 0;
+    color: inherit;
     position: fixed;
     inset: 0;
     background: color-mix(in oklab, var(--bg-0) 55%, transparent);

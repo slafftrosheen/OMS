@@ -273,7 +273,6 @@
     box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
   
-  .material-image,
   .material-image-placeholder {
     width: 100%;
     height: 160px;
@@ -317,10 +316,6 @@
     color: var(--text-2);
   }
   
-  .spec-tag.weather {
-    background: color-mix(in srgb, green 15%, transparent);
-    color: green;
-  }
   
   .stock-info {
     display: flex;

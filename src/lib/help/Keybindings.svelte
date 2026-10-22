@@ -1,21 +1,19 @@
 <script lang="ts">
 
   import { t } from 'svelte-i18n';
+  import { modalDialog } from '$lib/ui/modal-dialog';
   interface Props {
     open?: boolean;
   }
 
   let { open = $bindable(false) }: Props = $props();
   
-  function close(e: MouseEvent | KeyboardEvent) {
-    if (e instanceof KeyboardEvent && e.key !== 'Escape') return;
-    open = false;
-  }
+  function close() { open = false; }
 </script>
 
 {#if open}
-<div class="cmd" role="dialog" tabindex="0" aria-modal="true" aria-label={$t('help.title') || 'Keyboard shortcuts'} onclick={close} onkeydown={close}>
-  <div class="panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="document" tabindex="0">
+<dialog class="cmd" aria-label={$t('help.title') || 'Keyboard shortcuts'} use:modalDialog={{ onClose: close }}>
+  <div class="panel">
     <h3>{$t('help.title') || 'Shortcuts'}</h3>
     <ul>
       <li><b>Ctrl/Cmd + K</b> — Command palette</li>
@@ -27,11 +25,20 @@
       <button class="tag" onclick={()=>open=false}>Close</button>
     </div>
   </div>
-</div>
+</dialog>
 {/if}
 
 <style>
+.cmd:not([open]){display:none}
+.cmd::backdrop{background:transparent}
 .cmd{
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border: 0;
+    color: inherit;
   position:fixed;
   inset:0;
   display:grid;

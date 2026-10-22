@@ -1,7 +1,8 @@
 <!-- src/lib/profiles/components/fields/MultiSelectChips.svelte -->
 <script lang="ts">
   import X from 'lucide-svelte/icons/x';
-  import Icon from '$lib/ui/Icon.svelte';
+
+  const groupId = $props.id();
 
   interface Props {
     value?: string[];
@@ -41,8 +42,9 @@
   }
 </script>
 
-<div class="multi-select-chips" class:disabled class:error={!!error}>
-  <label class="label">
+<fieldset class="multi-select-chips" {disabled} class:disabled class:error={!!error}
+  aria-describedby={error ? `${groupId}-error` : undefined}>
+  <legend class="label">
     {label}
     {#if required}
       <span class="required">*</span>
@@ -52,7 +54,7 @@
         ({value.length}/{maxSelections})
       </span>
     {/if}
-  </label>
+  </legend>
 
   <div class="chips-container">
     {#each options as option}
@@ -60,6 +62,7 @@
         type="button"
         class="chip"
         class:selected={value.includes(option)}
+        aria-pressed={value.includes(option)}
         class:disabled-chip={maxSelections && value.length >= maxSelections && !value.includes(option)}
         onclick={() => toggleOption(option)}
         {disabled}
@@ -94,18 +97,24 @@
   {/if}
 
   {#if error}
-    <div class="error-message">{error}</div>
+    <div class="error-message" id={`${groupId}-error`}>{error}</div>
   {/if}
-</div>
+</fieldset>
 
 <style>
   .multi-select-chips {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-sm, 8px);
   }
 
   .label {
+    padding: 0;
+    margin-bottom: var(--space-sm, 8px);
     display: flex;
     align-items: center;
     gap: var(--space-xs, 4px);

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { t } from 'svelte-i18n';
   import type { ModelReadiness, ReadinessIssue, ReadinessEvidence } from './production-readiness';
 
@@ -16,7 +17,8 @@
   let error=$state('');
   let report=$state<Report|null>(null);
   let consent=$state(false);
-  let lastOrderId=$state(orderId);
+  // Track the previous order separately so the reset effect detects navigation.
+  let lastOrderId=$state(untrack(() => orderId));
   $effect(()=>{
     if(lastOrderId!==orderId){lastOrderId=orderId;report=null;consent=false;error='';}
   });

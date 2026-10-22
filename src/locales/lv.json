@@ -797,7 +797,28 @@
     },
     "no_messages": "Vēl nav ziņojumu",
     "order_discussion": "Pasūtījuma diskusija",
-    "type_message": "Ierakstiet ziņojumu..."
+    "type_message": "Ierakstiet ziņojumu...",
+    "sidebar": {
+      "close": "Aizvērt tērzēšanu",
+      "new_direct": "Jauna privātā ziņa",
+      "start_direct": "Sākt privātu sarunu",
+      "search_people": "Meklēt cilvēkus…",
+      "no_matching_users": "Lietotāji nav atrasti."
+    },
+    "composer": {
+      "replying_to": "Atbilde lietotājam {name}",
+      "cancel_reply": "Atcelt atbildi",
+      "attach_file": "Pievienot failu",
+      "message_input": "Ziņas teksts",
+      "send": "Sūtīt",
+      "edit_message": "Rediģēt ziņu",
+      "reply": "Atbildēt",
+      "edited": "rediģēts",
+      "send_failed": "Ziņu neizdevās nosūtīt. Melnraksts ir saglabāts atkārtotai sūtīšanai.",
+      "edit_failed": "Ziņu neizdevās rediģēt. Melnraksts joprojām ir pieejams.",
+      "delete_failed": "Ziņu neizdevās izdzēst.",
+      "load_failed": "Sarunu neizdevās ielādēt."
+    }
   },
   "loading": {
     "assign": "Piešķirt",

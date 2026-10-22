@@ -797,7 +797,28 @@
     },
     "no_messages": "No messages yet",
     "order_discussion": "Order Discussion",
-    "type_message": "Type a message..."
+    "type_message": "Type a message...",
+    "sidebar": {
+      "close": "Close Chat",
+      "new_direct": "New direct message",
+      "start_direct": "Start direct message",
+      "search_people": "Search people…",
+      "no_matching_users": "No matching users."
+    },
+    "composer": {
+      "replying_to": "Replying to {name}",
+      "cancel_reply": "Cancel reply",
+      "attach_file": "Attach file",
+      "message_input": "Message input",
+      "send": "Send",
+      "edit_message": "Edit message",
+      "reply": "Reply",
+      "edited": "edited",
+      "send_failed": "The message could not be sent. Your draft is ready to retry.",
+      "edit_failed": "The message could not be edited. Your draft is still available.",
+      "delete_failed": "The message could not be deleted.",
+      "load_failed": "The conversation could not be loaded."
+    }
   },
   "loading": {
     "assign": "Assign",

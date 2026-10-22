@@ -1,78 +1,80 @@
 <script lang="ts">
   import dayjs from 'dayjs';
-  
-  let {
-    year,
-    month,
-    renderDay,
-    onprevmonth,
-    onnextmonth
-  }: {
+  import { tick } from 'svelte';
+  import { t } from 'svelte-i18n';
+
+  let { year, month, renderDay, onprevmonth, onnextmonth }: {
     year: number;
-    month: number; // 1-12
-    renderDay: (iso: string) => any; // Agenda content supplied by the calendar view
+    month: number; // 1–12
+    renderDay: (iso: string) => any;
     onprevmonth?: () => void;
     onnextmonth?: () => void;
   } = $props();
-  
-  let start = $state(dayjs(`${year}-${String(month).padStart(2,'0')}-01`));
-  let days = $state(Array.from({length: start.daysInMonth()}, (_, i) => start.add(i, 'day')));
-  let active = $state(1);
-  
-  function keyNav(e: KeyboardEvent) {
+
+  let start = $derived(dayjs(`${year}-${String(month).padStart(2, '0')}-01`));
+  let days = $derived(Array.from({ length: start.daysInMonth() }, (_, i) => start.add(i, 'day')));
+  let rows = $derived(Array.from({ length: Math.ceil(days.length / 7) }, (_, i) => days.slice(i * 7, i * 7 + 7)));
+  let preferredDay = $state(1);
+  let active = $derived(Math.min(preferredDay, days.length));
+  let grid: HTMLDivElement;
+  let focusRequest = 0;
+
+  async function focusDay() {
+    const request = ++focusRequest;
+    await tick();
+    if (request !== focusRequest || !grid?.isConnected) return;
+    grid.querySelector<HTMLButtonElement>(`[data-day="${active}"]`)?.focus();
+  }
+
+  $effect.pre(() => {
+    start;
+    if (grid?.contains(grid.ownerDocument.activeElement)) void focusDay();
+  });
+
+  function keyNav(event: KeyboardEvent) {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
     const max = days.length;
-    let next = active;
-    
-    if (e.key === 'ArrowRight') next = Math.min(max, active + 1);
-    if (e.key === 'ArrowLeft') next = Math.max(1, active - 1);
-    if (e.key === 'ArrowDown') next = Math.min(max, active + 7);
-    if (e.key === 'ArrowUp') next = Math.max(1, active - 7);
-    if (e.key === 'Home') next = 1;
-    if (e.key === 'End') next = max;
-    
-    if (e.key === 'PageUp') {
-      onprevmonth?.();
-      e.preventDefault();
-      return;
-    }
-    if (e.key === 'PageDown') {
-      onnextmonth?.();
-      e.preventDefault();
-      return;
-    }
-    
-    if (next !== active) {
-      active = next;
-      e.preventDefault();
-      setTimeout(() => {
-        (document.getElementById(`d-${next}`) as HTMLButtonElement)?.focus();
-      }, 0);
+    const moves: Record<string, number> = {
+      ArrowRight: Math.min(max, active + 1), ArrowLeft: Math.max(1, active - 1),
+      ArrowDown: Math.min(max, active + 7), ArrowUp: Math.max(1, active - 7),
+      Home: 1, End: max
+    };
+    if (event.key === 'PageUp' || event.key === 'PageDown') {
+      event.preventDefault();
+      if (event.key === 'PageUp') onprevmonth?.();
+      else onnextmonth?.();
+      void focusDay();
+    } else if (event.key in moves) {
+      event.preventDefault();
+      preferredDay = moves[event.key];
+      void focusDay();
     }
   }
-  
-  $effect(() => {
-    // Recalculate days when year or month changes
-    start = dayjs(`${year}-${String(month).padStart(2,'0')}-01`);
-    days = Array.from({length: start.daysInMonth()}, (_, i) => start.add(i, 'day'));
-  });
 </script>
 
-<div class="grid cal" style="grid-template-columns:repeat(7,1fr)" onkeydown={keyNav} role="grid" aria-label="Month">
-  {#each days as d, i}
-    <button 
-      id={`d-${i+1}`} 
-      class="day" 
-      role="gridcell" 
-      tabindex={i+1 === active ? 0 : -1}
-      aria-label={d.format('YYYY-MM-DD')}
-    >
-      <div class="day-num">{d.date()}</div>
-      {@html renderDay(d.format('YYYY-MM-DD'))}
-    </button>
+<div bind:this={grid} class="grid cal" style="grid-template-columns:repeat(7,1fr)" onkeydown={keyNav} role="grid" tabindex="-1" aria-label={$t('calendar.title')}>
+  {#each rows as row}
+    <div role="row" class="week">
+      {#each row as day}
+        <button
+          type="button"
+          data-day={day.date()}
+          class="day"
+          role="gridcell"
+          tabindex={day.date() === active ? 0 : -1}
+          aria-label={day.format('YYYY-MM-DD')}
+          onfocus={() => preferredDay = day.date()}
+        >
+          <span class="day-num">{day.date()}</span>
+          {@html renderDay(day.format('YYYY-MM-DD'))}
+        </button>
+      {/each}
+    </div>
   {/each}
 </div>
 
 <style>
+.week { display: contents; }
 .day {
   border: 1px solid var(--cal-day-border);
   border-radius: 12px;
@@ -86,11 +88,7 @@
   flex-direction: column;
   gap: 6px;
 }
-.day:hover {
-  background: var(--bg-2);
-}
-.day-num {
-  font-weight: 700;
-  color: var(--cal-num);
-}
+.day:hover { background: var(--bg-2); }
+.day:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.day-num { font-weight: 700; color: var(--cal-num); }
 </style>

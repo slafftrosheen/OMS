@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { scrollRegion } from '$lib/a11y/scroll-region';
   import Activity from 'lucide-svelte/icons/activity';
   import AlertCircle from 'lucide-svelte/icons/alert-circle';
   import FilePlus from 'lucide-svelte/icons/file-plus';
@@ -316,7 +317,7 @@
 
   <div class="table-wrapper">
     <p class="mobile-table-hint">{$t('orderLists.scroll_hint', { default: 'Swipe sideways to see more order details.' })}</p>
-    <div class="rf-scroll" style="max-height:65vh" role="region" tabindex="0" aria-label={$t('orderLists.table_region', { default: 'Scrollable orders table' })}>
+    <div class="rf-scroll" style="max-height:65vh" role="region" use:scrollRegion aria-label={$t('orderLists.table_region', { default: 'Scrollable orders table' })}>
       <table class="rf-table orders-table">
         <thead>
           <tr>

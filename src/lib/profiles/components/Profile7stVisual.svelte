@@ -20,6 +20,7 @@
   import MaterialSelect from "./fields/MaterialSelect.svelte";
   import MaterialThicknessSelect from "$lib/components/MaterialThicknessSelect.svelte";
   import { t } from "svelte-i18n";
+
   import {
     readFaceMaterials,
     withFaceMaterials,
@@ -54,6 +55,8 @@
     Plus,
     Trash2,
   } from "lucide-svelte";
+
+  const formId = $props.id();
 
   // ColorValue is imported from $lib/profiles/helpers (extracted in Phase 6.1).
 
@@ -508,8 +511,8 @@
         </div>
 
         <!-- BACK -->
-        <div class="field">
-          <label>BACK</label>
+        <fieldset class="field">
+          <legend class="field-label">BACK</legend>
           <div class="picker-row">
             <MaterialSelect
               bind:value={configuration.CNC_FREZER.back}
@@ -541,7 +544,7 @@
               onchange={emit}
             />
           {/if}
-        </div>
+        </fieldset>
 
         <!-- Options -->
         <div class="options">
@@ -589,8 +592,8 @@
     <div class="section section-sm">
       <div class="section-title"><Square size={12} /> BENDER</div>
       <div class="section-content">
-        <div class="field">
-          <label>SIDES</label>
+        <fieldset class="field">
+          <legend class="field-label">SIDES</legend>
           <div class="picker-row">
             <MaterialSelect
               bind:value={configuration.BENDER.sides}
@@ -622,11 +625,12 @@
               onchange={emit}
             />
           {/if}
-        </div>
+        </fieldset>
 
         <div class="depth-box">
-          <label>DEPTH</label>
+          <label for={`${formId}-depth`}>DEPTH</label>
           <input
+            id={`${formId}-depth`}
             type="number"
             class="depth-input"
             bind:value={configuration.BENDER.depth}
@@ -1097,8 +1101,9 @@
                   {configuration.ASSEMBLING.frameMaterialShort || "ALU"}{#if configuration.ASSEMBLING.frameDimensions}/{configuration.ASSEMBLING.frameDimensions}{/if}
                 </span>
                 <div class="field">
-                  <label>{isRoundFrame ? "DIAMETER (mm)" : "FRAME SIZE"}</label>
+                  <label for={`${formId}-frame-size`}>{isRoundFrame ? "DIAMETER (mm)" : "FRAME SIZE"}</label>
                   <input
+                    id={`${formId}-frame-size`}
                     type="text"
                     bind:value={configuration.ASSEMBLING.frameDimensions}
                     placeholder={isRoundFrame ? "e.g. D20" : "e.g. 40x40"}
@@ -1307,6 +1312,10 @@
 
   /* FIELDS */
   .field {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-xs, 4px);
@@ -1318,6 +1327,11 @@
     font-weight: 600;
     color: var(--muted, var(--ink-tertiary));
     text-transform: uppercase;
+  }
+
+  .field > legend {
+    padding: 0;
+    margin-bottom: var(--space-xs, 4px);
   }
 
   .face-materials,
@@ -1399,27 +1413,6 @@
     min-width: 80px;
   }
 
-  .material-badge {
-    padding: var(--space-xs, 4px) var(--space-sm, 8px);
-    border-radius: var(--radius-sm, 4px);
-    font-weight: 700;
-    font-size: 12px;
-    text-transform: uppercase;
-    white-space: nowrap;
-    flex-shrink: 0;
-    border: 1px solid color-mix(in oklab, var(--bg-0) 10%, transparent);
-  }
-
-  .thickness-input {
-    width: 45px;
-    padding: var(--space-xs, 4px) var(--space-sm, 6px);
-    border: 1px solid var(--border, var(--border));
-    border-radius: var(--radius-sm, 4px);
-    font-size: 12px;
-    font-weight: 600;
-    text-align: center;
-  }
-
   /* DEPTH */
   .depth-box {
     display: flex;
@@ -1443,6 +1436,7 @@
     font-size: 28px;
     font-weight: 900;
     text-align: center;
+    appearance: textfield;
     -moz-appearance: textfield;
   }
 
@@ -1509,29 +1503,6 @@
   .toggle-label input {
     width: 14px;
     height: 14px;
-  }
-
-  .inline-controls {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-    padding-left: 20px;
-  }
-
-  .inline-controls :global(.material-select) {
-    flex: 1;
-    min-width: 120px;
-    max-width: 200px;
-  }
-
-  /* FILM BADGE */
-  .film-badge {
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 700;
-    white-space: nowrap;
   }
 
   /* PAINT GRID */
@@ -1620,87 +1591,6 @@
   }
 
   /* LARGE MATERIAL BADGE - 4x size */
-  /* Standardized Material Badges */
-  .material-badge,
-  .film-badge,
-  .color-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    background: var(--bg-2, var(--bg-2));
-    border: 1px solid var(--border, var(--border));
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-secondary, var(--ink-secondary));
-    white-space: nowrap;
-    min-height: 28px; /* Fixed height for consistency */
-    max-width: 100%; /* Prevent overflow */
-  }
-
-  .material-badge {
-    background: linear-gradient(135deg, var(--brand-soft), var(--brand-soft));
-    border-color: var(--brand-soft);
-    color: color-mix(in oklab, var(--brand) 85%, black);
-  }
-
-  .film-badge {
-    background: linear-gradient(135deg, var(--error-soft), var(--error-soft));
-    border-color: color-mix(in oklab, var(--error) 40%, transparent);
-    color: #be185d;
-  }
-
-  .color-badge {
-    background: linear-gradient(135deg, var(--warn-soft), color-mix(in oklab, var(--warn) 35%, transparent));
-    border-color: color-mix(in oklab, var(--warn) 65%, var(--bg-0));
-    color: color-mix(in oklab, var(--warn) 65%, black);
-  }
-
-  .badge-swatch {
-    width: 16px;
-    height: 16px;
-    border-radius: 3px;
-    border: 1px solid color-mix(in oklab, var(--bg-0) 10%, transparent);
-    flex-shrink: 0;
-  }
-
-  .badge-remove {
-    background: transparent;
-    border: none;
-    padding: 0;
-    width: 14px;
-    height: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: currentColor;
-    opacity: 0.6;
-    transition: opacity 0.15s;
-  }
-
-  .badge-remove:hover {
-    opacity: 1;
-  }
-
-  /* Ensure all selectors show badges the same way */
-  .material-selector,
-  .film-selector,
-  .color-selector {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .material-selector > select,
-  .film-selector > select,
-  .color-selector > .color-input-group {
-    flex: 1;
-    min-width: 120px;
-  }
-
   .material-badge-lg {
     display: flex;
     align-items: center;
@@ -1720,22 +1610,6 @@
     min-width: 0;
     box-sizing: border-box;
     text-align: center;
-  }
-
-  .thickness-select {
-    width: 100%;
-    padding: var(--space-xs, 4px) var(--space-sm, 6px);
-    border: 1px solid var(--border, var(--border));
-    border-radius: var(--radius-sm, 4px);
-    font-size: 12px;
-    font-weight: 600;
-    background: white;
-    cursor: pointer;
-  }
-
-  .thickness-select:focus {
-    outline: none;
-    border-color: var(--brand);
   }
 
   .no-badge-lg {
@@ -1836,16 +1710,6 @@
   }
 
   /* FRAME */
-  .dims-input {
-    width: 100%;
-    padding: 8px;
-    border: 2px solid var(--ink-primary);
-    border-radius: 4px;
-    font-size: 13px;
-    font-weight: 700;
-    text-align: center;
-  }
-
   .frame-options {
     display: flex;
     flex-wrap: wrap;
@@ -2034,7 +1898,6 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .assembly-grid,
     .assembly-grid-2x2 {
       grid-template-columns: minmax(0, 1fr);
     }

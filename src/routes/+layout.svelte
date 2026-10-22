@@ -265,7 +265,7 @@
   </a>
 
   {#if $currentUser}
-    <header class="rf-topbar" class:rf-topbar--scrolled={topbarScrolled} role="banner">
+    <header class="rf-topbar" class:rf-topbar--scrolled={topbarScrolled}>
       <!-- Brand -->
       <a href="{base}/" class="rf-topbar__brand" aria-label={$t('app.brand.label', { default: 'OMS' })}>
         <Logo />

@@ -1,7 +1,7 @@
 <!-- src/lib/profiles/components/fields/SignTrimSelector.svelte -->
 <script lang="ts">
   import Search from 'lucide-svelte/icons/search';
-  import Icon from '$lib/ui/Icon.svelte';
+  import { t } from 'svelte-i18n';
 
   interface Props {
     value?: string;
@@ -20,7 +20,6 @@
   }: Props = $props();
 
   let searchQuery = $state('');
-  let selectedColor: { code: string; name: string; hex: string } | null = $state(null);
 
   let colorEntries = $derived(Object.entries(colors).map(([code, data]) => ({
     code,
@@ -38,14 +37,10 @@
       )
     : colorEntries);
 
-  $effect(() => {
-    if (value) {
-      selectedColor = colorEntries.find(c => c.code === value) || null;
-    }
-  });
+  let selectedColor = $derived(colorEntries.find(color => color.code === value) ?? null);
 
   function selectColor(color: typeof colorEntries[0]) {
-    selectedColor = color;
+    if (disabled) return;
     value = color.code;
   }
 
@@ -58,13 +53,13 @@
   }
 </script>
 
-<div class="signtrim-selector">
-  <label class="label">
+<fieldset class="signtrim-selector" {disabled}>
+  <legend class="label">
     {label}
     {#if required}
       <span class="required">*</span>
     {/if}
-  </label>
+  </legend>
 
   <!-- Search -->
   <div class="search-box">
@@ -73,6 +68,7 @@
       type="text"
       bind:value={searchQuery}
       placeholder="Search SignTrim colors..."
+      aria-label={`${label} · ${$t('common.search')}`}
       class="search-input"
     />
   </div>
@@ -98,8 +94,10 @@
       <div class="colors-grid">
         {#each popularColors as color}
           <button
+            type="button"
             class="color-box"
             class:selected={selectedColor?.code === color.code}
+            aria-pressed={selectedColor?.code === color.code}
             style="background-color: {color.hex}; color: {getTextColor(color.hex)}; border: 2px solid {selectedColor?.code === color.code ? '#000' : '#999'};"
             onclick={() => selectColor(color)}
             {disabled}
@@ -119,8 +117,10 @@
     <div class="colors-grid">
       {#each filteredColors as color}
         <button
+          type="button"
           class="color-box"
           class:selected={selectedColor?.code === color.code}
+          aria-pressed={selectedColor?.code === color.code}
           style="background-color: {color.hex}; color: {getTextColor(color.hex)}; border: 2px solid {selectedColor?.code === color.code ? '#000' : '#ccc'};"
           onclick={() => selectColor(color)}
           {disabled}
@@ -132,16 +132,22 @@
       {/each}
     </div>
   </div>
-</div>
+</fieldset>
 
 <style>
   .signtrim-selector {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
     display: flex;
     flex-direction: column;
     gap: 1rem;
   }
 
   .label {
+    padding: 0;
+    margin-bottom: 1rem;
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--ink-primary);

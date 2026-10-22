@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { scrollRegion } from '$lib/a11y/scroll-region';
   import {base} from '$app/paths';
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
@@ -89,7 +90,7 @@
       {$t('inventory.movements_page.empty', { default: 'No movements recorded.' })}
     </p>
   {:else}
-    <div class="table-wrap" role="region" tabindex="0" aria-label={$t('inventory.movements_page.title')}>
+    <div class="table-wrap" role="region" use:scrollRegion aria-label={$t('inventory.movements_page.title')}>
       <table class="rf-table">
         <thead>
           <tr>

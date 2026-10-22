@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modalDialog } from '$lib/ui/modal-dialog';
   /**
    * Phase 7: Corel-style canvas layout for Order editing.
    * Left panel = toolbox, top bar = context bar, right docker = management,
@@ -701,7 +702,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
   // ── Request rework ────────────────────────────────────────────────────────────
   async function submitRework() {
-    if (!reworkReason.trim()) return;
+    if (!reworkReason.trim() || reworking) return;
+    reworking = true;
     try {
       const res = await fetch(`/api/draft-orders/${orderId}/reject`, {
         method: 'POST',
@@ -715,6 +717,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       notifySuccess('Rework requested');
     } catch (err: any) {
       notifyError(err.message || 'Failed to request rework');
+    } finally {
+      reworking = false;
     }
   }
 
@@ -862,6 +866,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   // ── PDF "Extract to Order Forms" — context menu action ──────────────────────
   let confirmOrderModal = $state(false);
   let reworkModal = $state(false);
+  let reworking = $state(false);
   let reworkReason = $state('');
 
   let pdfMenu: { x: number; y: number; fileId: string; shapeId: string } | null = $state(null);
@@ -1437,9 +1442,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 </div>
 
 {#if confirmOrderModal}
-  <div class="edit-modal-backdrop" onclick={() => confirmOrderModal = false} role="dialog" aria-modal="true" tabindex="-1">
-    <div class="edit-modal" onclick={(e) => e.stopPropagation()} role="document">
-      <h3>{$t('orderWorkspace.confirmTitle')}</h3>
+  <dialog class="edit-modal-backdrop" aria-labelledby="order-confirm-title"
+    use:modalDialog={{ onClose: () => { if (!confirming) confirmOrderModal = false; }, closeOnEscape: !confirming, closeOnBackdrop: !confirming, initialFocus: '#confirm-po' }}>
+    <div class="edit-modal">
+      <h3 id="order-confirm-title">{$t('orderWorkspace.confirmTitle')}</h3>
       <p>{$t('orderWorkspace.confirmProductionWarning')}</p>
       {#if status==='DRAFT'}
         <p class="zone-intro" role="status">{$t('orderWorkspace.confirmDirectDraft')}</p>
@@ -1453,39 +1459,40 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       {/if}
       <label for="confirm-po">{$t('orderWorkspace.confirmPoLabel')}</label>
       <input id="confirm-po" bind:value={poNumber} maxlength="16"
-        readonly={!canAssignPo && !!poNumber} disabled={!canAssignPo}
+        readonly={!canAssignPo && !!poNumber} disabled={!canAssignPo || confirming}
         placeholder={$t(canAssignPo ? 'orderWorkspace.confirmPoPlaceholder':'orderWorkspace.confirmBossRequired')} />
       {#if !canAssignPo && !poNumber}<p>{$t('orderWorkspace.confirmBossRequired')}</p>{/if}
       <div class="edit-modal-actions">
-        <button class="action-btn ghost" onclick={() => confirmOrderModal = false}>{$t('orderWorkspace.confirmCancel')}</button>
+        <button class="action-btn ghost" disabled={confirming} onclick={() => confirmOrderModal = false}>{$t('orderWorkspace.confirmCancel')}</button>
         <button class="action-btn success" onclick={confirmOrder} disabled={confirming || !poNumber.trim() ||
             attachedFilesCount===null || attachedFilesCount<1 || filesCountError}>
           {$t(confirming?'orderWorkspace.confirmingAction':'orderWorkspace.confirmAction')}
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 {#if reworkModal}
-  <div class="edit-modal-backdrop" onclick={() => reworkModal = false} role="dialog" aria-modal="true" tabindex="-1">
-    <div class="edit-modal" onclick={(e) => e.stopPropagation()} role="document">
-      <h3>{$t('orderWorkspace.editor.requestRework')}</h3>
+  <dialog class="edit-modal-backdrop" aria-labelledby="order-rework-title"
+    use:modalDialog={{ onClose: () => { if (!reworking) reworkModal = false; }, closeOnEscape: !reworking, closeOnBackdrop: !reworking, initialFocus: '#rework-reason-input' }}>
+    <div class="edit-modal">
+      <h3 id="order-rework-title">{$t('orderWorkspace.editor.requestRework')}</h3>
       <label for="rework-reason-input">{$t('orderWorkspace.editor.reworkReason')}</label>
       <textarea
         id="rework-reason-input"
-        bind:value={reworkReason}
+        bind:value={reworkReason} disabled={reworking}
         rows="4"
         placeholder={$t('orderWorkspace.editor.reworkPlaceholder')}
       ></textarea>
       <div class="edit-modal-actions">
-        <button class="action-btn ghost" onclick={() => reworkModal = false}>{$t('common.cancel')}</button>
-        <button class="action-btn warn" onclick={submitRework} disabled={!reworkReason.trim()}>
+        <button class="action-btn ghost" disabled={reworking} onclick={() => reworkModal = false}>{$t('common.cancel')}</button>
+        <button class="action-btn warn" onclick={submitRework} disabled={reworking || !reworkReason.trim()}>
           {$t('orderWorkspace.editor.requestRework')}
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>
@@ -1749,7 +1756,6 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   .workspace-focused .docker-content{width:100%;max-width:1080px;margin:0 auto;box-sizing:border-box}
   .workspace-focused .order-field-panel{grid-template-columns:repeat(2,minmax(0,1fr));
     gap:16px;padding:18px}
-  .workspace-focused .order-field-panel>h4{grid-column:1/-1}
   .workspace-focused .order-profile-edit{min-width:0}
   @media(max-width:980px){
     .top-bar{gap:8px;padding:0 9px}
@@ -1944,16 +1950,6 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     background: var(--bg-0);
   }
 
-  .ai-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: var(--space-lg) 0;
-    color: var(--text-muted);
-    font-size: 12px;
-    text-align: center;
-  }
 
   .ai-message .ai-label {
     font-size: 10px;
@@ -2058,7 +2054,6 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
-  .spinner.sm { width: 16px; height: 16px; border-width: 2px; }
 
   @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -2253,4 +2248,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     .workspace-panel-heading {flex-wrap:wrap;}
   }
   @media(prefers-reduced-motion:reduce) {.canvas-editor button{transition:none;}}
+
+  dialog.edit-modal-backdrop { margin:0;width:100%;height:100%;max-width:none;max-height:none;border:0;color:inherit;box-sizing:border-box; }
+  dialog.edit-modal-backdrop:not([open]) { display:none; }
+  dialog.edit-modal-backdrop::backdrop { background:transparent; }
 </style>

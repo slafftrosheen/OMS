@@ -16,7 +16,6 @@
     disabled?: boolean;
     readonly?: boolean;
     error?: boolean;
-    autofocus?: boolean;
     required?: boolean;
     name?: string;
     id?: string;
@@ -43,7 +42,6 @@
     disabled = false,
     readonly = false,
     error = false,
-    autofocus = false,
     required = false,
     name,
     id,
@@ -59,10 +57,11 @@
     trailing
   }: Props = $props();
 
-  const inputId = $derived(id ?? (name ? `rf-input-${name}` : undefined));
+  const generatedId = $props.id();
+  const inputId = $derived(id ?? (name ? `rf-input-${name}` : generatedId));
   const describedBy = $derived(
     [
-      hint  ? `${inputId}-hint`  : null,
+      hint && !(error && errorText) ? `${inputId}-hint` : null,
       error && errorText ? `${inputId}-error` : null
     ].filter(Boolean).join(' ') || undefined
   );
@@ -97,7 +96,6 @@
       {disabled}
       {readonly}
       {required}
-      {autofocus}
       {name}
       id={inputId}
       aria-label={ariaLabel ?? label}
