@@ -157,6 +157,9 @@ const authHandler: Handle = async ({ event, resolve }) => {
 		{ path: '/api/build-info', methods: ['GET'] }, // Read-only compiled revision; never exposes credentials.
 		{ path: '/api/preferences', methods: ['GET'] }, // Returns defaults for anonymous users
 		{ path: '/api/materials', methods: ['GET'] }, // Read-only materials data
+		// Machine-to-machine routes verify separate server-only secrets inside their handlers.
+		{ path: '/api/telegram/webhook', methods: ['POST'] },
+		{ path: '/api/telegram/dispatch', methods: ['POST'] },
 	];
 
 	// Check if the current request matches any public route

@@ -12,7 +12,8 @@ export default defineConfig({
     alias: {
       '$lib': path('../../src/lib'),
       '$app/paths': path('../../src/app/paths.js'),
-      '$app/environment': path('../../src/app/environment.js')
+      '$app/environment': path('../../src/app/environment.js'),
+      '$env/dynamic/public': path('./env-public.ts')
     }
   },
   server: { host: '127.0.0.1', port: 4175, strictPort: true, fs: { allow: [path('../../')] } }

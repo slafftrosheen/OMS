@@ -611,7 +611,56 @@
     "due_prefix": "Due:",
     "no_unscheduled": "No unscheduled orders available",
     "carrier_optional": "Carrier (optional)",
-    "note_optional": "Note (optional)"
+    "note_optional": "Note (optional)",
+    "badges": {
+      "loading": "Loading",
+      "loading_day": "Loading day",
+      "due": "Due",
+      "overdue": "Overdue",
+      "meeting": "Meetings",
+      "note": "Notes",
+      "closed": "Loading closed"
+    },
+    "agenda": {
+      "eyebrow": "Daily overview",
+      "description": "Loading, deadlines and events — see the day at a glance.",
+      "notifications": "Notifications",
+      "today": "Today",
+      "loading": "Loading the schedule…",
+      "select_hint": "Select a day to see its full agenda.",
+      "day_title": "Day agenda",
+      "incomplete": "Some schedule data is unavailable",
+      "unavailable": "Could not load: {sources}. Counts are incomplete until you retry.",
+      "sources": {
+        "orders": "orders",
+        "loading_days": "loading days",
+        "events": "calendar events"
+      },
+      "partial_agenda": "This agenda is incomplete while some data is unavailable.",
+      "capacity": "{assigned} scheduled · daily capacity {capacity}",
+      "loading_orders": "Orders for loading",
+      "deadlines": "Order deadlines",
+      "events": "Meetings & notes",
+      "no_po": "Awaiting PO",
+      "closed_order": "Closed",
+      "clear_day": "Nothing scheduled",
+      "clear_day_hint": "No loading, deadlines or events on this day.",
+      "read_only": "Schedule changes are available to manufacturing management.",
+      "overdue_hint": "Overdue badges stay on the missed deadline date. Closed orders are excluded from alerts.",
+      "orders_unavailable": "Orders could not be loaded. Retry above to restore counts.",
+      "no_matching_orders": "No orders match this filter.",
+      "loading_date": "Loading date",
+      "showing_orders": "Showing {shown} of {total} orders",
+      "show_more": "Show more",
+      "remove_order": "Remove {po} from this loading day",
+      "ready_hint": "Only unassigned production orders are listed. Readiness, QC and capacity are checked when you assign.",
+      "no_eligible_orders": "No unassigned production orders are available.",
+      "saving": "Saving…",
+      "save_failed": "The change could not be saved.",
+      "loading_created": "Loading day created.",
+      "order_assigned": "Order added to the loading day.",
+      "order_removed": "Order removed from the loading day."
+    }
   },
   "calendar_page": {
     "tooltip": "Toggle admin mode to mark loading days. Click days to view or assign orders.",
@@ -956,7 +1005,8 @@
     "pinned_section": "Pinned",
     "rework_requested": "{order} ({orderId}) • {station} sent to rework",
     "stage_completed": "{order} ({orderId}) • {station} marked completed",
-    "mark_all_read": "Mark all read"
+    "mark_all_read": "Mark all read",
+    "sync_failed": "Notifications could not be updated. Try again."
   },
   "analytics": {
     "title": "Analytics Dashboard",
@@ -1045,6 +1095,55 @@
       "new": "New Password",
       "submit": "Update Password",
       "title": "Change Password"
+    },
+    "telegram": {
+      "description": "Get order review, confirmation and stock alerts on your phone.",
+      "loading": "Checking Telegram connection…",
+      "setupHint": "Your administrator needs to enable the OMS Telegram bot before you can connect.",
+      "unavailableHint": "Telegram is configured, but the connection service is unavailable. Try again or ask your administrator to check the setup.",
+      "connectHint": "Link your own Telegram account to receive notifications. Each OMS account connects to one private chat.",
+      "pendingHint": "A connection link is waiting. Press Start in the Telegram bot chat, then check the connection here. You can create a new link if needed.",
+      "deliveryHint": "New alerts are sent to your private chat. You can pause them at any time.",
+      "pausedHint": "Phone notifications are paused. Resume to receive new alerts; older queued alerts will not be replayed.",
+      "account": "Connected to @{username}",
+      "privateChat": "Connected to your private Telegram chat",
+      "connect": "Connect Telegram",
+      "creatingLink": "Creating link…",
+      "newLink": "Create new link",
+      "linkTitle": "Finish connecting on your phone",
+      "linkInstructions": "Scan this code with your phone or open Telegram below. Press Start in the bot chat, then return here.",
+      "openTelegram": "Open Telegram",
+      "qrAlt": "QR code for your private Telegram connection link",
+      "qrUnavailable": "The QR code could not be created. Use the Open Telegram link instead.",
+      "expires": "This private link expires at {time}.",
+      "checkConnection": "Check connection",
+      "cancelLink": "Cancel connection",
+      "pause": "Pause notifications",
+      "resume": "Resume notifications",
+      "disconnect": "Disconnect",
+      "retry": "Try again",
+      "refresh": "Refresh status",
+      "linked": "Telegram connected. New notifications will arrive in your private chat.",
+      "pauseSaved": "Phone notifications paused.",
+      "resumed": "Phone notifications resumed.",
+      "disconnected": "Telegram disconnected. Pending links and queued notifications were cancelled.",
+      "expired": "The connection link expired. Create a new link to try again.",
+      "status": {
+        "notConfigured": "Not set up",
+        "unavailable": "Unavailable",
+        "notLinked": "Not connected",
+        "connected": "Notifications on",
+        "paused": "Paused",
+        "pending": "Waiting for Telegram"
+      },
+      "errors": {
+        "signIn": "Your session has expired. Sign in again to manage Telegram.",
+        "conflict": "This account or chat is already connected. Refresh the status or disconnect the existing link first.",
+        "unavailable": "Telegram is not available yet. Ask your administrator to check the setup, then try again.",
+        "request": "Could not update the Telegram connection. Check your connection and try again.",
+        "timeout": "The Telegram connection request timed out. Try again.",
+        "rateLimited": "A connection link was just created. Wait 30 seconds before creating another."
+      }
     }
   },
   "files": {
@@ -1708,8 +1807,8 @@
       "BLOCKED": "Blocked production stage",
       "REWORK": "Stage in rework",
       "MISSED_BOOKING": "Missed approved work date",
-    "STAGE_UNCHANGED": "Stage record unchanged ≥72 hours",
-    "MATERIAL_SKIPPED": "Material declaration skipped"
+      "STAGE_UNCHANGED": "Stage record unchanged ≥72 hours",
+      "MATERIAL_SKIPPED": "Material declaration skipped"
     },
     "state": {
       "UNCLAIMED": "Unclaimed",
@@ -1723,8 +1822,8 @@
       "activeProductionInterruption": "Open blocked/rework station assignment",
       "approvedDatePassedWhileStageActive": "Approved booking in the past while this stage is still active",
       "conditionNotCurrentlyReported": "Review record retained; this condition is not currently detected",
-    "stageRecordUnchanged": "No stage-record update in at least 72 hours; progress notes may exist separately",
-    "materialSkipForReview": "Completed stage marked Skip materials; verify reconciliation and record a decision"
+      "stageRecordUnchanged": "No stage-record update in at least 72 hours; progress notes may exist separately",
+      "materialSkipForReview": "Completed stage marked Skip materials; verify reconciliation and record a decision"
     },
     "notCurrent": "Not currently reported",
     "assignedToYou": "Assigned to you",
@@ -2024,7 +2123,17 @@
     "download": "Download",
     "delete": "Delete"
   },
-  "productionExecution": {"handoffUnknown":"Stage completion was saved, but the next-station receipt could not be verified. Refresh the production board; do not repeat the completion.","declared":"Stage completed. {count} material line(s) recorded.","skipped":"Stage completed with material declaration skipped. Review the recorded reason.","materialSkipRecorded":"Material declaration skipped: ","ledger":"Recorded material consumption","ledgerUnavailable":"Material records could not be verified. Open the order consumption tab and refresh.","noDeclaredMaterials":"No material-consumption records have been logged yet.","ledgerPartial":"Showing at most 100 entries. Open the order consumption tab for the complete record.","reviewReminder":"Check the current production packet and drawing revisions before completing this stage. Concurrent changes will require a refresh."},
+  "productionExecution": {
+    "handoffUnknown": "Stage completion was saved, but the next-station receipt could not be verified. Refresh the production board; do not repeat the completion.",
+    "declared": "Stage completed. {count} material line(s) recorded.",
+    "skipped": "Stage completed with material declaration skipped. Review the recorded reason.",
+    "materialSkipRecorded": "Material declaration skipped: ",
+    "ledger": "Recorded material consumption",
+    "ledgerUnavailable": "Material records could not be verified. Open the order consumption tab and refresh.",
+    "noDeclaredMaterials": "No material-consumption records have been logged yet.",
+    "ledgerPartial": "Showing at most 100 entries. Open the order consumption tab for the complete record.",
+    "reviewReminder": "Check the current production packet and drawing revisions before completing this stage. Concurrent changes will require a refresh."
+  },
   "productionPacket": {
     "progressSummary": "{completed} of {total} manufacturing stages completed (delivery tracked separately)",
     "progressHeld": "Blocked: {blocked} · Rework: {rework}",
@@ -2324,8 +2433,25 @@
     "saveBeforePropose": "Save the current order changes before asking AI to suggest field edits.",
     "reviewStale": "These suggestions refer to an older saved version or different local fields. Save/reload and ask again before applying.",
     "noDifference": "Already matches the current value.",
-    "confidence": {"high":"High confidence","medium":"Medium confidence","low":"Low confidence"},
-    "fieldNames": {"clientName":"Client","title":"Order title","deadline":"Deadline","loadingDate":"Loading date","priority":"Priority","notes":"Order notes","deliveryAddress":"Delivery address","deliveryContact":"Delivery contact","deliveryPhone":"Delivery phone","deliveryEmail":"Delivery email","isRd":"R&D order","rdNotes":"R&D notes"},
+    "confidence": {
+      "high": "High confidence",
+      "medium": "Medium confidence",
+      "low": "Low confidence"
+    },
+    "fieldNames": {
+      "clientName": "Client",
+      "title": "Order title",
+      "deadline": "Deadline",
+      "loadingDate": "Loading date",
+      "priority": "Priority",
+      "notes": "Order notes",
+      "deliveryAddress": "Delivery address",
+      "deliveryContact": "Delivery contact",
+      "deliveryPhone": "Delivery phone",
+      "deliveryEmail": "Delivery email",
+      "isRd": "R&D order",
+      "rdNotes": "R&D notes"
+    },
     "askAboutThisProfile": "Ask AI about this profile",
     "profileSpecificQuestion": "Review only saved production profile #{number} in this order. Check its active CNC, BENDER, FRONT, PAINTING and ASSEMBLING choices for missing requirements and contradictions. Treat disabled options as inactive, do not invent drawings or machine capabilities.",
     "applyNativeProfile": "Apply to draft",

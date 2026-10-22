@@ -11,7 +11,6 @@
   import CalendarIcon from 'lucide-svelte/icons/calendar';
   import Settings from 'lucide-svelte/icons/settings';
 
-  import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
   import { currentUser } from '$lib/auth/authState.svelte';
@@ -29,7 +28,7 @@
   let filteredNotifications = $derived(allItems.filter((n: Notification) => {
     if (filter === 'unread' && n.read)  return false;
     if (filter === 'read'   && !n.read) return false;
-    if (typeFilter !== 'all' && n.type !== typeFilter.toUpperCase()) return false;
+    if (typeFilter !== 'all' && n.category !== typeFilter.toUpperCase()) return false;
     return true;
   }));
 
@@ -88,10 +87,10 @@
     return date.toLocaleDateString();
   }
 
-  onMount(() => {
+  $effect(() => {
     const userId = $currentUser?.id;
-    if (!userId) return;
-    notificationStore.load(userId);
+    if (!userId) { notificationStore.clear(); return; }
+    void notificationStore.load(userId);
     return notificationStore.subscribe_realtime(userId);
   });
 </script>
@@ -161,6 +160,10 @@
     </select>
   </div>
 
+  {#if storeState.error}
+    <p class="notif-error" role="alert">{$t('notifications.sync_failed', { default: 'Notifications could not be updated. Try again.' })}</p>
+  {/if}
+
   <!-- List -->
   <div class="notif-list">
     {#if storeState.loading && allItems.length === 0}
@@ -168,7 +171,7 @@
         <div class="rf-spinner"></div>
         <p>{$t('notifications.loading', { default: 'Loading notifications…' })}</p>
       </div>
-    {:else if filteredNotifications.length === 0}
+    {:else if filteredNotifications.length === 0 && !storeState.error}
       <div class="notif-state">
         <BellRing size={48} class="notif-state__icon" />
         <p class="notif-state__title">{$t('notifications.no_notifs', { default: 'No notifications' })}</p>
@@ -229,6 +232,13 @@
   .notif-page {
     max-width: 720px;
     margin: 0 auto;
+  }
+
+  .notif-error {
+    padding: var(--space-md);
+    color: var(--text);
+    border: 1px solid var(--error);
+    border-radius: var(--radius-sm);
   }
 
   /* Header */

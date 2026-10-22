@@ -1,1295 +1,437 @@
 <script lang="ts">
-  import Check from 'lucide-svelte/icons/check';
-
-  import { onMount } from 'svelte';
-  import { t } from 'svelte-i18n';
-  import { ordersStore } from '$lib/order/orderState.svelte';
-  import type { Order } from '$lib/order/types';
-  import { blankStages } from '$lib/order/stages';
-  import Icon from '$lib/ui/Icon.svelte';
-  import Badge from '$lib/ui/Badge.svelte';
-  import { badgeTone } from '$lib/order/badges';
+  import { onMount, tick } from 'svelte';
+  import { base } from '$app/paths';
+  import { t, locale } from 'svelte-i18n';
+  import { currentUser } from '$lib/auth/authState.svelte';
+  import { mayAssignLoading } from '$lib/order/lifecycle-guards';
   import { downloadCSV, toCSV } from '$lib/export/csv';
-  import { get } from 'svelte/store';
-  
-  let today = new Date();
-  let y = $state(today.getFullYear());
-  let m = $state(today.getMonth());
-  let selectedDate: string | null = $state(null);
-  let orders: Order[] = $state([]);
-  let loadingDays: any[] = $state([]);
-  let loadingDaysLoading = $state(false);
-  let loadingDaysError = $state<string | null>(null);
-  let filterStatus: 'all' | 'scheduled' | 'unscheduled' = $state('all');
+  import Icon from '$lib/ui/Icon.svelte';
+  import CalendarDayBadges from '$lib/calendar/CalendarDayBadges.svelte';
+  import {
+    buildCalendarDaySummary, localDateKey, normalizeCalendarEvent, normalizeLoadingDay,
+    isOutstandingOrder, type CalendarDaySummary, type CalendarLoadingDay, type CalendarOrder
+  } from '$lib/calendar/day-summary';
+  import { fetchCalendarJson, fetchCalendarOrders } from '$lib/calendar/calendar-data';
+  import type { CalEvent } from '$lib/calendar/types';
 
-  // Modal state
-  let showAddOrderModal = $state(false);
-  let showNewLoadingDayModal = $state(false);
-  let newLoadingDayCarrier = $state('');
-  let newLoadingDayNote = $state('');
-  let availableOrders: Order[] = $state([]);
-  
-  async function refreshOrders() {
-    try {
-      const response = await fetch('/api/draft-orders');
-      if (response.ok) {
-        const responseData = await response.json();
-        const data = Array.isArray(responseData)
-          ? responseData
-          : Array.isArray(responseData?.data)
-            ? responseData.data
-            : [];
-        orders = data.map((d: any) => ({
-          id: d.id,
-          poNumber: d.poNumber,
-          title: d.title || d.clientName,
-          client: d.clientName,
-          due: d.deadline,
-          loadingDate: d.loadingDate,
-          badges: d.status === 'draft' ? ['DRAFT'] : [],
-          fields: [],
-          materials: [],
-          stages: blankStages(),
-          isDraft: d.status === 'draft',
-          profiles: d.profiles || []
-        }));
-        ordersStore.set(orders);
-      }
-    } catch (err) {
-      console.error('Failed to fetch orders:', err);
-    }
-  }
-  
-  async function refreshLoadingDays() {
-    loadingDaysLoading = true;
-    loadingDaysError = null;
-    const controller = new AbortController();
-    // Hard timeout: if the server is slow/unreachable, bail out so the UI
-    // never hangs on an indefinite spinner.
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    try {
-      const response = await fetch('/api/loading-days?active=true', { signal: controller.signal });
-      if (response.ok) {
-        loadingDays = await response.json();
-      } else {
-        loadingDaysError = `Failed to load loading days (HTTP ${response.status})`;
-        console.error(loadingDaysError);
-      }
-    } catch (err) {
-      if (controller.signal.aborted) {
-        loadingDaysError = 'Loading days request timed out';
-      } else {
-        loadingDaysError = 'Failed to load loading days';
-      }
-      console.error('Failed to fetch loading days:', err);
-    } finally {
-      clearTimeout(timeout);
-      loadingDaysLoading = false;
-    }
-  }
-  
-  async function createLoadingDay() {
-    if (!selectedDate) return;
-    
-    try {
-      const response = await fetch('/api/loading-days', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: selectedDate,
-          carrier: newLoadingDayCarrier,
-          note: newLoadingDayNote
-        })
-      });
-      
-      if (response.ok) {
-        await refreshLoadingDays();
-        showNewLoadingDayModal = false;
-        newLoadingDayCarrier = '';
-        newLoadingDayNote = '';
-      }
-    } catch (err) {
-      console.error('Failed to create loading day:', err);
-    }
-  }
-  
-  async function assignOrderToLoadingDate(orderId: string | number) {
-    if (!selectedDate) return;
-    
-    try {
-      const response = await fetch(`/api/draft-orders/${orderId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          loadingDate: selectedDate
-        })
-      });
-      
-      if (response.ok) {
-        await refreshOrders();
-        showAddOrderModal = false;
-      }
-    } catch (err) {
-      console.error('Failed to assign order:', err);
-    }
-  }
-  
-  async function removeOrderFromLoadingDate(orderId: string | number) {
-    try {
-      const response = await fetch(`/api/draft-orders/${orderId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          loadingDate: null
-        })
-      });
-      
-      if (response.ok) {
-        await refreshOrders();
-      }
-    } catch (err) {
-      console.error('Failed to remove order:', err);
-    }
-  }
-  
-  function openAddOrderModal() {
-    availableOrders = orders.filter(o => !o.loadingDate);
-    showAddOrderModal = true;
-  }
-  
-  function prev() {
-    m -= 1;
-    if (m < 0) { m = 11; y -= 1; }
-  }
-  
-  function next() {
-    m += 1;
-    if (m > 11) { m = 0; y += 1; }
-  }
-  
-  function getDaysInMonth(year: number, month: number): Date[] {
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startDayOfWeek = firstDay.getDay();
-    
-    const days: Date[] = [];
-    
-    // Add previous month days
-    const prevMonthLastDay = new Date(year, month, 0).getDate();
-    for (let i = startDayOfWeek - 1; i >= 0; i--) {
-      days.push(new Date(year, month - 1, prevMonthLastDay - i));
-    }
-    
-    // Add current month days
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push(new Date(year, month, i));
-    }
-    
-    // Add next month days to fill the grid
-    const remaining = 42 - days.length;
-    for (let i = 1; i <= remaining; i++) {
-      days.push(new Date(year, month + 1, i));
-    }
-    
-    return days;
-  }
-  
-  function formatDate(date: Date): string {
-    // Use local date to avoid timezone issues
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-  
-  function getOrdersForDate(date: string): Order[] {
-    return orders.filter(o => o.loadingDate === date);
-  }
-  
-  function isLoadingDay(date: string): boolean {
-    return loadingDays.some(l => l.date === date && l.active);
-  }
-  
-  function getLoadingDayInfo(date: string) {
-    return loadingDays.find(l => l.date === date);
-  }
-  
-  function isToday(date: Date): boolean {
-    const todayStr = formatDate(new Date());
-    return formatDate(date) === todayStr;
-  }
-  
-  function isSelectedMonth(date: Date): boolean {
-    return date.getMonth() === m && date.getFullYear() === y;
-  }
-  
-  function selectDate(date: Date) {
-    selectedDate = formatDate(date);
-  }
-  
-  const exportDayCSV = $derived(() => {
-    return () => {
-      if (!selectedDate) return;
-      const dayOrders = getOrdersForDate(selectedDate);
-      const columns = [
-        { label: $t('calendar.columns.po') || 'PO', value: (order: Order) => order.poNumber || order.id },
-        { label: $t('calendar.columns.client') || 'Client', value: (order: Order) => order.client },
-        { label: $t('calendar.columns.title') || 'Title', value: (order: Order) => order.title },
-        { label: $t('calendar.columns.due') || 'Due', value: (order: Order) => order.due }
-      ];
-      const rows = dayOrders.map((order) =>
-        Object.fromEntries(columns.map((column) => [column.label, column.value(order)]))
-      );
-      downloadCSV(`loading-${selectedDate}.csv`, toCSV(rows, columns.map((column) => column.label)));
-    };
+  const initialDate = new Date();
+  let year = $state(initialDate.getFullYear());
+  let month = $state(initialDate.getMonth());
+  let today = $state(localDateKey(initialDate));
+  let selectedDate = $state(localDateKey(initialDate));
+  let orders = $state<CalendarOrder[]>([]);
+  let loadingDays = $state<CalendarLoadingDay[]>([]);
+  let events = $state<CalEvent[]>([]);
+  let loading = $state(true);
+  let errors = $state<string[]>([]);
+  let mounted = $state(false);
+  let filterStatus = $state<'all' | 'scheduled' | 'unscheduled'>('all');
+  let visibleOrderCount = $state(20);
+  let modal = $state<'assign' | 'loading' | null>(null);
+  let dialog = $state<HTMLDialogElement>();
+  let newCarrier = $state('');
+  let newNote = $state('');
+  let operation = $state(false);
+  let actionError = $state('');
+  let actionNotice = $state('');
+  let requestId = 0;
+  let controller: AbortController | null = null;
+  let mutationController: AbortController | null = null;
+  let alive = true;
+
+  const canManage = $derived(['RD', 'Boss', 'HeadOfProduction'].includes($currentUser?.role ?? ''));
+  const currentLocale = $derived($locale || 'en');
+  const days = $derived.by(() => {
+    const start = new Date(year, month, 1);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    return Array.from({ length: 42 }, (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index));
   });
-  
-  let days = $derived(getDaysInMonth(y, m));
-  let selectedDayOrders = $derived(selectedDate ? getOrdersForDate(selectedDate) : []);
-  let selectedLoadingDay = $derived(selectedDate ? getLoadingDayInfo(selectedDate) : null);
-  let filteredOrders = $derived(filterStatus === 'all' ? orders :
-                      filterStatus === 'scheduled' ? orders.filter(o => o.loadingDate) :
-                      orders.filter(o => !o.loadingDate));
-  let monthName = $derived(new Date(y, m, 1).toLocaleDateString('en-US', { month: 'long' }));
-  
-  onMount(() => {
-    // Initial data load
-    (async () => {
-      await Promise.all([refreshOrders(), refreshLoadingDays()]);
-    })();
+  const summaries = $derived(new Map(days.map(day => {
+    const date = localDateKey(day);
+    return [date, buildCalendarDaySummary(date, { orders, loadingDays, events, today })] as const;
+  })));
+  const selected = $derived(summaries.get(selectedDate) ?? buildCalendarDaySummary(selectedDate, { orders, loadingDays, events, today }));
+  const monthName = $derived(new Intl.DateTimeFormat(currentLocale, { month: 'long', year: 'numeric' }).format(new Date(year, month, 1)));
+  const eligibleOrders = $derived(orders.filter(order => !order.loadingDate && mayAssignLoading(order.status)));
+  const filteredOrders = $derived(orders.filter(order => filterStatus === 'all' ||
+    (filterStatus === 'scheduled' ? !!order.loadingDate : !order.loadingDate)));
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const badgeKinds = ['loading', 'due', 'overdue', 'meeting', 'note', 'closed'] as const;
+  const sources = ['orders', 'loading_days', 'events'] as const;
 
-    const handler = (event: StorageEvent) => {
-      if (!event.key || event.key === 'rf_orders_vcs') {
-        refreshOrders();
-      }
+  function formatDate(date: string, full = false): string {
+    return new Intl.DateTimeFormat(currentLocale, full
+      ? { weekday: 'long', day: 'numeric', month: 'long' }
+      : { day: 'numeric', month: 'short' }).format(new Date(`${date}T12:00:00`));
+  }
+
+  function dayDescription(summary: CalendarDaySummary): string {
+    const badges = summary.badges.map(badge => {
+      const key = badge.kind === 'loading' && badge.count === 0 ? 'loading_day' : badge.kind;
+      return `${$t(`calendar.badges.${key}`)}${badge.count > 0 ? `: ${badge.count}` : ''}`;
+    });
+    return `${formatDate(summary.date, true)}${badges.length ? ` — ${badges.join(', ')}` : ''}`;
+  }
+
+  async function refreshCalendar(from = localDateKey(days[0]), to = localDateKey(days[41])) {
+    const version = ++requestId;
+    controller?.abort();
+    controller = new AbortController();
+    const options = { basePath: base, signal: controller.signal };
+    loading = true;
+    errors = [];
+    const results = await Promise.allSettled([
+      fetchCalendarOrders(options),
+      fetchCalendarJson('/api/loading-days', options).then(payload => {
+        if (!Array.isArray(payload)) throw new Error('Invalid loading days response');
+        return payload.map(normalizeLoadingDay).filter((day): day is CalendarLoadingDay => !!day);
+      }),
+      fetchCalendarJson(`/api/calendar?from=${from}&to=${to}`, options).then(payload => {
+        if (!Array.isArray(payload)) throw new Error('Invalid calendar events response');
+        return payload.map(normalizeCalendarEvent).filter((event): event is CalEvent => !!event);
+      })
+    ]);
+    if (!alive || version !== requestId) return;
+    orders = results[0].status === 'fulfilled' ? results[0].value : [];
+    loadingDays = results[1].status === 'fulfilled' ? results[1].value : [];
+    events = results[2].status === 'fulfilled' ? results[2].value : [];
+    errors = results.flatMap((result, index) => result.status === 'rejected' ? [sources[index]] : []);
+    loading = false;
+  }
+
+  $effect(() => {
+    if (mounted) void refreshCalendar(localDateKey(days[0]), localDateKey(days[41]));
+  });
+
+  $effect(() => {
+    if (dialog && modal && !dialog.open) dialog.showModal();
+  });
+
+  function navigateMonth(offset: number) {
+    const next = new Date(year, month + offset, 1);
+    year = next.getFullYear();
+    month = next.getMonth();
+    selectedDate = localDateKey(next);
+  }
+
+  function selectDay(date: Date) {
+    selectedDate = localDateKey(date);
+    if (date.getMonth() !== month || date.getFullYear() !== year) {
+      year = date.getFullYear();
+      month = date.getMonth();
+    }
+    actionNotice = '';
+  }
+
+  async function navigateDay(event: KeyboardEvent, date: Date) {
+    const offsets: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+    if (!(event.key in offsets)) return;
+    event.preventDefault();
+    const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + offsets[event.key]);
+    selectDay(next);
+    await tick();
+    document.querySelector<HTMLButtonElement>(`[data-date="${selectedDate}"]`)?.focus();
+  }
+
+  function jumpToToday() { selectDay(new Date()); }
+
+  function openModal(kind: 'assign' | 'loading') {
+    if (!canManage || loading || errors.includes('loading_days') || (kind === 'assign' && errors.includes('orders'))) return;
+    actionError = '';
+    actionNotice = '';
+    newCarrier = '';
+    newNote = '';
+    modal = kind;
+  }
+
+  async function mutate(path: string, init: RequestInit, success: string): Promise<boolean> {
+    if (!canManage || operation) return false;
+    operation = true;
+    actionError = '';
+    actionNotice = '';
+    mutationController = new AbortController();
+    try {
+      await fetchCalendarJson(path, { basePath: base, signal: mutationController.signal }, init);
+      if (!alive) return false;
+      modal = null;
+      actionNotice = success;
+      await refreshCalendar();
+      return true;
+    } catch (error) {
+      if (alive) actionError = error instanceof Error ? error.message : $t('calendar.agenda.save_failed');
+      return false;
+    } finally {
+      if (alive) operation = false;
+    }
+  }
+
+  async function createLoadingDay(event: SubmitEvent) {
+    event.preventDefault();
+    if (selected.loadingDay) return;
+    await mutate('/api/loading-days', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: selectedDate, carrier: newCarrier.trim(), note: newNote.trim() })
+    }, $t('calendar.agenda.loading_created'));
+  }
+
+  async function assignOrder(order: CalendarOrder) {
+    const day = selected.loadingDay;
+    if (!day?.active || !mayAssignLoading(order.status)) return;
+    await mutate(`/api/loading-days/${encodeURIComponent(day.id)}/orders`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: order.id })
+    }, $t('calendar.agenda.order_assigned'));
+  }
+
+  async function removeOrder(order: CalendarOrder) {
+    const day = selected.loadingDay;
+    if (!day || order.status !== 'READY_TO_LOAD') return;
+    await mutate(`/api/loading-days/${encodeURIComponent(day.id)}/orders?orderId=${encodeURIComponent(order.id)}`, {
+      method: 'DELETE'
+    }, $t('calendar.agenda.order_removed'));
+  }
+
+  function exportDay() {
+    const rows = selected.loadingOrders.map(order => ({
+      PO: order.poNumber || order.id,
+      [$t('calendar.columns.client')]: order.client,
+      [$t('calendar.columns.title')]: order.title,
+      [$t('calendar.columns.due')]: order.dueDate ?? ''
+    }));
+    downloadCSV(`loading-${selectedDate}.csv`, toCSV(rows));
+  }
+
+  onMount(() => {
+    mounted = true;
+    const handleRefresh = () => void refreshCalendar();
+    const timer = window.setInterval(() => today = localDateKey(new Date()), 60_000);
+    window.addEventListener('rf-orders-change', handleRefresh);
+    return () => {
+      alive = false;
+      requestId += 1;
+      controller?.abort();
+      mutationController?.abort();
+      window.clearInterval(timer);
+      window.removeEventListener('rf-orders-change', handleRefresh);
     };
-    window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
   });
 </script>
 
-<svelte:head>
-  <title>{$t('calendar.schedule_title')} — OMS</title>
-</svelte:head>
+<svelte:head><title>{$t('calendar.schedule_title')} — OMS</title></svelte:head>
 
 <div class="calendar-page">
-  <!-- Top Bar -->
-  <div class="calendar-topbar">
-    <div class="topbar-left">
-      <Icon name="calendar" size="md" />
+  <header class="calendar-topbar">
+    <div>
       <h1>{$t('calendar.schedule_title')}</h1>
+      <p class="page-description">{$t('calendar.agenda.description')}</p>
     </div>
-    <div class="topbar-right">
-      <button class="btn-secondary" onclick={() => selectedDate && (showNewLoadingDayModal = true)} disabled={!selectedDate}>
-        <Icon name="plus" size="sm" />
-        {$t('calendar.mark_loading_day')}
-      </button>
-      <button class="btn-ghost" onclick={() => exportDayCSV()} disabled={!selectedDate}>
-        <Icon name="download" size="sm" />
-        {$t('calendar.export_csv')}
+    <div class="topbar-actions">
+      <a class="text-link" href={`${base}/notifications`}><Icon name="bell" size={16} />{$t('calendar.agenda.notifications')}</a>
+      <button class="btn-secondary" type="button" onclick={() => refreshCalendar()} disabled={loading || operation}>
+        <Icon name="refresh-cw" size={16} />{$t('common.refresh', { default: 'Refresh' })}
       </button>
     </div>
-  </div>
-  
-  <!-- Main Content - Side by Side -->
-  <div class="calendar-grid">
-    <!-- Left: Calendar -->
-    <div class="calendar-section">
+  </header>
+
+  {#if errors.length}
+    <div class="calendar-alert" role="alert">
+      <Icon name="alert-triangle" size={18} />
+      <div><strong>{$t('calendar.agenda.incomplete')}</strong>
+        <p>{$t('calendar.agenda.unavailable', { sources: errors.map(source => $t(`calendar.agenda.sources.${source}`)).join(', ') })}</p></div>
+      <button class="btn-secondary" type="button" onclick={() => refreshCalendar()} disabled={loading}>{$t('common.retry', { default: 'Retry' })}</button>
+    </div>
+  {/if}
+  {#if actionError && !modal}<div class="calendar-alert" role="alert">{$t('calendar.agenda.save_failed')} {actionError}</div>{/if}
+  {#if actionNotice}<p class="notice" role="status">{actionNotice}</p>{/if}
+
+  <div class="calendar-layout">
+    <section class="calendar-section" aria-label={$t('calendar.schedule_title')} aria-busy={loading}>
       <div class="calendar-header">
-        <button class="nav-btn" type="button" onclick={prev} aria-label={$t('calendar.prevMonth')}>
-          <Icon name="chevron-left" size="sm" />
-        </button>
-        <h2 class="month-title">{monthName} {y}</h2>
-        <button class="nav-btn" type="button" onclick={next} aria-label={$t('calendar.nextMonth')}>
-          <Icon name="chevron-right" size="sm" />
-        </button>
-      </div>
-      
-      {#if loadingDaysLoading}
-        <div class="loading-days-status loading">{$t('calendar_widget.loading_days_loading') || 'Loading loading days…'}</div>
-      {:else if loadingDaysError}
-        <div class="loading-days-status error">{loadingDaysError}</div>
-      {:else if loadingDays.length === 0}
-        <div class="loading-days-status empty">{$t('calendar_widget.no_loading_days') || 'No loading days configured.'}</div>
-      {/if}
-      
-      <div class="calendar-body">
-        <div class="weekdays">
-          <div class="weekday">{$t('calendar_widget.weekdays_short.sun')}</div>
-          <div class="weekday">{$t('calendar_widget.weekdays_short.mon')}</div>
-          <div class="weekday">{$t('calendar_widget.weekdays_short.tue')}</div>
-          <div class="weekday">{$t('calendar_widget.weekdays_short.wed')}</div>
-          <div class="weekday">{$t('calendar_widget.weekdays_short.thu')}</div>
-          <div class="weekday">{$t('calendar_widget.weekdays_short.fri')}</div>
-          <div class="weekday">{$t('calendar_widget.weekdays_short.sat')}</div>
+        <div class="month-controls">
+          <button class="icon-button" type="button" onclick={() => navigateMonth(-1)} aria-label={$t('calendar.prevMonth')}><Icon name="chevron-left" size={18} /></button>
+          <h2>{monthName}</h2>
+          <button class="icon-button" type="button" onclick={() => navigateMonth(1)} aria-label={$t('calendar.nextMonth')}><Icon name="chevron-right" size={18} /></button>
         </div>
-        
+        <button class="btn-secondary today-button" type="button" onclick={jumpToToday}>{$t('calendar.agenda.today')}</button>
+      </div>
+      <p class="calendar-status" aria-live="polite">{loading ? $t('calendar.agenda.loading') : $t('calendar.agenda.select_hint')}</p>
+      <div class="calendar-body">
+        <div class="weekdays" aria-hidden="true">{#each dayNames as name}<span>{$t(`calendar.days.${name}`)}</span>{/each}</div>
         <div class="days-grid">
-          {#each days as day}
-            {@const dateStr = formatDate(day)}
-            {@const dayOrders = getOrdersForDate(dateStr)}
-            {@const isLoading = isLoadingDay(dateStr)}
-            <button
-              class="day-cell"
-              class:other-month={!isSelectedMonth(day)}
-              class:today={isToday(day)}
-              class:selected={selectedDate === dateStr}
-              class:has-loading={isLoading}
-              class:has-orders={dayOrders.length > 0}
-              aria-pressed={selectedDate === dateStr}
-              aria-label={dateStr}
-              onclick={() => selectDate(day)}
-            >
-              <span class="day-number">{day.getDate()}</span>
-              {#if dayOrders.length > 0}
-                <span class="order-count">{dayOrders.length}</span>
-              {/if}
-              {#if isLoading}
-                <span class="loading-indicator" title={$t('calendar_widget.loading_day')}>
-                  <Icon name="truck" size={10} />
-                  <span class="loading-text">LD</span>
-                </span>
-              {/if}
+          {#each days as day (localDateKey(day))}
+            {@const date = localDateKey(day)}
+            {@const summary = summaries.get(date)!}
+            <button class="day-cell" type="button" data-date={date}
+              class:other-month={day.getMonth() !== month}
+              class:today={date === today} class:selected={date === selectedDate}
+              aria-pressed={date === selectedDate} aria-current={date === today ? 'date' : undefined}
+              aria-label={dayDescription(summary)} onclick={() => selectDay(day)} onkeydown={event => navigateDay(event, day)}>
+              <span class="day-number">{day.getDate()}{#if date === today}<span class="today-dot" aria-hidden="true"></span>{/if}</span>
+              <CalendarDayBadges {summary} compact />
             </button>
           {/each}
         </div>
       </div>
-    </div>
-    
-    <!-- Right: Schedule List -->
-    <div class="schedule-section">
-      <div class="schedule-header">
-        <h3>{selectedDate ? $t('calendar.schedule_for', { values: { date: selectedDate } }) : $t('calendar.select_date')}</h3>
-        {#if selectedDate && selectedDayOrders.length > 0}
-          <span class="order-badge">{selectedDayOrders.length} {selectedDayOrders.length === 1 ? 'order' : 'orders'}</span>
-        {/if}
+      <div class="calendar-legend" aria-label={$t('calendar.legend.title')}>
+        {#each badgeKinds as kind}
+          <CalendarDayBadges summary={{ date: '', loadingDay: null, loadingOrders: [], dueOrders: [], events: [], badges: [{ kind, count: 0 }] }} />
+        {/each}
       </div>
-      
-      {#if selectedDate && selectedLoadingDay}
-        <div class="loading-day-info">
-          <Icon name="truck" size="sm" />
-          <span>{$t('calendar.loading_day')}</span>
-          {#if selectedLoadingDay.carrier}
-            <span class="carrier-badge">{selectedLoadingDay.carrier}</span>
-          {/if}
+      <p class="calendar-footnote">{$t('calendar.agenda.overdue_hint')}</p>
+    </section>
+
+    <section class="day-agenda" aria-label={$t('calendar.agenda.day_title')} aria-busy={loading}>
+      <header class="agenda-header">
+        <h2>{formatDate(selectedDate, true)}</h2>
+        <CalendarDayBadges summary={selected} />
+      </header>
+      {#if errors.length}<p class="agenda-warning">{$t('calendar.agenda.partial_agenda')}</p>{/if}
+      {#if selected.loadingDay}
+        <div class="loading-detail" class:closed={!selected.loadingDay.active}>
+          <Icon name="truck" size={18} />
+          <div><strong>{$t(selected.loadingDay.active ? 'calendar.badges.loading_day' : 'calendar.badges.closed')}</strong>
+            {#if selected.loadingDay.carrier}<p>{selected.loadingDay.carrier}</p>{/if}
+            {#if selected.loadingDay.note}<p class="preserve-lines">{selected.loadingDay.note}</p>{/if}
+            {#if selected.loadingDay.capacity !== null}<p>{$t('calendar.agenda.capacity', { assigned: selected.loadingOrders.length, capacity: selected.loadingDay.capacity })}</p>{/if}
+          </div>
         </div>
       {/if}
-      
-      <div class="schedule-body">
-        {#if selectedDate}
-          {#if selectedDayOrders.length === 0}
-            <div class="empty-state">
-              <Icon name="calendar" size="md" />
-              <p>{$t('calendar.no_orders_date')}</p>
-              <button class="btn-secondary" onclick={openAddOrderModal}>
-                <Icon name="plus" size="sm" />
-                {$t('calendar.add_order')}
-              </button>
-            </div>
-          {:else}
-            <div class="orders-list">
-              {#each selectedDayOrders as order}
-                <div class="order-card">
-                  <div class="order-header">
-                    <span class="order-id">{order.poNumber || order.id}</span>
-                    <div class="order-actions">
-                      <button class="btn-icon-sm" onclick={() => removeOrderFromLoadingDate(order.id)} title={$t('calendar_widget.remove_from_schedule')} aria-label={$t('calendar_widget.remove_from_schedule')}>
-                        <Icon name="x" size="sm" />
-                      </button>
-                    </div>
-                  </div>
-                  <h4 class="order-title">{order.title}</h4>
-                  <div class="order-meta">
-                    <span class="meta-item">{$t('calendar.client_prefix')} {order.client}</span>
-                    <span class="meta-item">{$t('calendar.due_prefix')} {order.due}</span>
-                  </div>
-                </div>
-              {/each}
-            </div>
-            <button class="btn-secondary add-more-btn" onclick={openAddOrderModal}>
-              <Icon name="plus" size="sm" />
-              {$t('calendar.add_more')}
-            </button>
-          {/if}
-        {:else}
-          <div class="empty-state">
-            <Icon name="calendar" size="md" />
-            <p>{$t('calendar.select_date_view')}</p>
-          </div>
-        {/if}
-      </div>
-    </div>
-  </div>
-  
-  <!-- Bottom: All Orders -->
-  <div class="all-orders-section">
-    <div class="section-header">
-      <h3>{$t('calendar.all_orders')}</h3>
-      <div class="filter-group">
-        <button
-          class="filter-btn"
-          class:active={filterStatus === 'all'}
-          aria-pressed={filterStatus === 'all'}
-          onclick={() => filterStatus = 'all'}
-        >
-          {$t('calendar.all')} ({orders.length})
-        </button>
-        <button
-          class="filter-btn"
-          class:active={filterStatus === 'scheduled'}
-          aria-pressed={filterStatus === 'scheduled'}
-          onclick={() => filterStatus = 'scheduled'}
-        >
-          {$t('calendar.scheduled')} ({orders.filter(o => o.loadingDate).length})
-        </button>
-        <button
-          class="filter-btn"
-          class:active={filterStatus === 'unscheduled'}
-          aria-pressed={filterStatus === 'unscheduled'}
-          onclick={() => filterStatus = 'unscheduled'}
-        >
-          {$t('calendar.unscheduled')} ({orders.filter(o => !o.loadingDate).length})
-        </button>
-      </div>
-    </div>
-    
-    <div class="orders-table">
-      {#each filteredOrders.slice(0, 10) as order}
-        <div class="table-row">
-          <span class="col-po">{order.id}</span>
-          <span class="col-client">{order.client}</span>
-          <span class="col-title">{order.title}</span>
-          <span class="col-due">{order.due}</span>
-          <span class="col-loading">{order.loadingDate || '—'}</span>
+
+      {#if selected.loadingOrders.length}
+        <div class="agenda-group">
+          <div class="group-heading"><h3><Icon name="truck" size={16} />{$t('calendar.agenda.loading_orders')}</h3><span>{selected.loadingOrders.length}</span></div>
+          {#each selected.loadingOrders as order (order.id)}
+            <article class="agenda-order">
+              <a href={`${base}/orders/${encodeURIComponent(order.id)}`}><strong>{order.poNumber || $t('calendar.agenda.no_po')}</strong><span>{order.title || order.client}</span><small>{order.client}</small></a>
+              <div class="order-footer">
+                <span>{$t('calendar.due_prefix')} {order.dueDate ? formatDate(order.dueDate) : '—'}</span>
+                {#if canManage && selected.loadingDay && order.status === 'READY_TO_LOAD'}
+                  <button class="icon-button small" type="button" onclick={() => removeOrder(order)} disabled={operation || loading}
+                    aria-label={$t('calendar.agenda.remove_order', { po: order.poNumber || order.title })} title={$t('calendar_widget.remove_from_schedule')}><Icon name="x" size={14} /></button>
+                {/if}
+              </div>
+            </article>
+          {/each}
         </div>
-      {/each}
-    </div>
+      {/if}
+
+      {#if selected.dueOrders.length}
+        <div class="agenda-group">
+          <div class="group-heading"><h3><Icon name="clock" size={16} />{$t('calendar.agenda.deadlines')}</h3><span>{selected.dueOrders.length}</span></div>
+          {#each selected.dueOrders as order (order.id)}
+            <a class="deadline-item" href={`${base}/orders/${encodeURIComponent(order.id)}`}>
+              <div><strong>{order.poNumber || $t('calendar.agenda.no_po')}</strong><span>{order.title || order.client}</span></div>
+              {#if isOutstandingOrder(order)}<span class="deadline-state" class:late={selectedDate < today}>{$t(selectedDate < today ? 'calendar.badges.overdue' : 'calendar.badges.due')}</span>
+              {:else}<span class="deadline-state complete"><Icon name="check" size={13} />{$t('calendar.agenda.closed_order')}</span>{/if}
+            </a>
+          {/each}
+        </div>
+      {/if}
+
+      {#if selected.events.length}
+        <div class="agenda-group">
+          <div class="group-heading"><h3><Icon name="calendar" size={16} />{$t('calendar.agenda.events')}</h3><span>{selected.events.length}</span></div>
+          {#each selected.events as event (event.id)}
+            <article class="event-item" data-kind={event.kind}>
+              <Icon name={event.kind === 'loading' ? 'truck' : event.kind === 'meeting' ? 'users' : 'file-text'} size={16} />
+              <div>
+                <strong>{event.kind === 'loading' ? $t('calendar.badges.loading_day') : event.title || $t(`calendar.badges.${event.kind}`)}</strong>
+                {#if event.kind === 'meeting'}
+                  {#if event.start}<p><time>{event.start}{event.end ? `–${event.end}` : ''}</time></p>{/if}
+                  {#if event.location}<p>{event.location}</p>{/if}
+                {:else if event.kind === 'loading'}
+                  {#if event.carrier}<p>{event.carrier}</p>{/if}
+                  {#if event.window?.start || event.window?.end}<p>{event.window?.start || '—'}–{event.window?.end || '—'}</p>{/if}
+                  {#if event.poList.length}<p>{event.poList.join(', ')}</p>{/if}
+                {/if}
+                {#if event.note}<p class="preserve-lines">{event.note}</p>{/if}
+              </div>
+            </article>
+          {/each}
+        </div>
+      {/if}
+
+      {#if !loading && !errors.length && !selected.loadingDay && !selected.loadingOrders.length && !selected.dueOrders.length && !selected.events.length}
+        <div class="empty-agenda"><Icon name="calendar-check" size={26} /><h3>{$t('calendar.agenda.clear_day')}</h3><p>{$t('calendar.agenda.clear_day_hint')}</p></div>
+      {/if}
+
+      <footer class="agenda-actions">
+        {#if canManage}
+          {#if selected.loadingDay?.active}
+            <button class="btn-primary" type="button" onclick={() => openModal('assign')} disabled={operation || loading || errors.includes('orders') || errors.includes('loading_days')}><Icon name="plus" size={16} />{$t('calendar.add_order')}</button>
+          {:else if !selected.loadingDay}
+            <button class="btn-primary" type="button" onclick={() => openModal('loading')} disabled={operation || loading || errors.includes('loading_days')}><Icon name="plus" size={16} />{$t('calendar.mark_loading_day')}</button>
+          {/if}
+        {:else}<p class="muted">{$t('calendar.agenda.read_only')}</p>{/if}
+        {#if selected.loadingOrders.length}<button class="btn-secondary" type="button" onclick={exportDay} disabled={loading || errors.includes('orders')}><Icon name="download" size={16} />{$t('calendar.export_csv')}</button>{/if}
+      </footer>
+    </section>
   </div>
+
+  <section class="orders-section" aria-label={$t('calendar.all_orders')}>
+    <header class="orders-header"><h2>{$t('calendar.all_orders')}</h2>
+      <div class="filter-group">
+        {#each ['all', 'scheduled', 'unscheduled'] as filter}
+          <button type="button" class="filter-button" class:active={filterStatus === filter} aria-pressed={filterStatus === filter}
+            onclick={() => { filterStatus = filter as typeof filterStatus; visibleOrderCount = 20; }}>{$t(`calendar.${filter}`)}</button>
+        {/each}
+      </div>
+    </header>
+    {#if errors.includes('orders')}<p class="agenda-warning">{$t('calendar.agenda.orders_unavailable')}</p>
+    {:else if !loading && filteredOrders.length === 0}<p class="muted">{$t('calendar.agenda.no_matching_orders')}</p>
+    {:else}
+      <div class="orders-scroll"><table>
+        <thead><tr><th>PO</th><th>{$t('calendar.columns.client')}</th><th>{$t('calendar.columns.title')}</th><th>{$t('calendar.columns.due')}</th><th>{$t('calendar.agenda.loading_date')}</th></tr></thead>
+        <tbody>{#each filteredOrders.slice(0, visibleOrderCount) as order (order.id)}<tr>
+          <td><a href={`${base}/orders/${encodeURIComponent(order.id)}`}>{order.poNumber || $t('calendar.agenda.no_po')}</a></td>
+          <td>{order.client || '—'}</td><td>{order.title || '—'}</td><td>{order.dueDate ? formatDate(order.dueDate) : '—'}</td>
+          <td>{#if order.loadingDate}<button type="button" class="date-link" onclick={() => selectDay(new Date(`${order.loadingDate}T12:00:00`))}>{formatDate(order.loadingDate)}</button>{:else}—{/if}</td>
+        </tr>{/each}</tbody>
+      </table></div>
+      <div class="orders-footer"><p>{$t('calendar.agenda.showing_orders', { shown: Math.min(visibleOrderCount, filteredOrders.length), total: filteredOrders.length })}</p>
+        {#if visibleOrderCount < filteredOrders.length}<button class="btn-secondary" type="button" onclick={() => visibleOrderCount += 20}>{$t('calendar.agenda.show_more')}</button>{/if}
+      </div>
+    {/if}
+  </section>
 </div>
 
-<!-- Add Order Modal -->
-{#if showAddOrderModal}
-  <div
-    class="modal-overlay"
-    onclick={() => showAddOrderModal = false}
-    onkeydown={(e) => e.key === 'Escape' && (showAddOrderModal = false)}
-    role="button"
-    tabindex="0"
-  >
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div
-      class="modal"
-      onclick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="add-order-title"
-      tabindex="-1"
-    >
-      <div class="modal-header">
-        <h3 id="add-order-title">{$t('calendar.add_order_date', { values: { date: selectedDate } })}</h3>
-        <button class="btn-icon" onclick={() => showAddOrderModal = false} aria-label={$t('common.close')}>
-          <Icon name="x" size="sm" />
+{#if modal}
+  <dialog bind:this={dialog} class="calendar-dialog" aria-labelledby="calendar-dialog-title"
+    oncancel={event => { if (operation) event.preventDefault(); else modal = null; }} onclose={() => modal = null}>
+    <header class="dialog-header"><div><p class="dialog-date">{formatDate(selectedDate, true)}</p><h2 id="calendar-dialog-title">{$t(modal === 'assign' ? 'calendar.add_order' : 'calendar.mark_loading_day')}</h2></div>
+      <button class="icon-button" type="button" onclick={() => modal = null} disabled={operation} aria-label={$t('common.close')}><Icon name="x" size={18} /></button></header>
+    {#if actionError}<div class="calendar-alert" role="alert">{$t('calendar.agenda.save_failed')} {actionError}</div>{/if}
+    {#if modal === 'assign'}
+      <p class="muted">{$t('calendar.agenda.ready_hint')}</p>
+      {#if eligibleOrders.length === 0}<p class="empty-modal">{$t('calendar.agenda.no_eligible_orders')}</p>{/if}
+      <div class="available-orders">{#each eligibleOrders as order (order.id)}
+        <button type="button" class="available-order" onclick={() => assignOrder(order)} disabled={operation}>
+          <span><strong>{order.poNumber || $t('calendar.agenda.no_po')}</strong><span>{order.title || order.client}</span><small>{order.client}{order.dueDate ? ` · ${formatDate(order.dueDate)}` : ''}</small></span><Icon name="plus" size={18} />
         </button>
-      </div>
-      <div class="modal-body">
-        {#if availableOrders.length === 0}
-          <p class="empty-text">{$t('calendar.no_unscheduled')}</p>
-        {:else}
-          <div class="available-orders">
-            {#each availableOrders as order}
-              <button class="available-order" onclick={() => assignOrderToLoadingDate(order.id)}>
-                <div class="order-info">
-                  <span class="order-po">{order.poNumber || order.id}</span>
-                  <span class="order-client">{order.client}</span>
-                </div>
-                <span class="order-due">{$t('calendar.due_prefix')} {order.due}</span>
-                <Check size={18} class="add-icon" />
-              </button>
-            {/each}
-          </div>
-        {/if}
-      </div>
-    </div>
-  </div>
-{/if}
-
-<!-- New Loading Day Modal -->
-{#if showNewLoadingDayModal}
-  <div
-    class="modal-overlay"
-    onclick={() => showNewLoadingDayModal = false}
-    onkeydown={(e) => e.key === 'Escape' && (showNewLoadingDayModal = false)}
-    role="button"
-    tabindex="0"
-  >
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div
-      class="modal"
-      onclick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="loading-day-title"
-      tabindex="-1"
-    >
-      <div class="modal-header">
-        <h3 id="loading-day-title">{$t('calendar.mark_loading_day_date', { values: { date: selectedDate } })}</h3>
-        <button class="btn-icon" onclick={() => showNewLoadingDayModal = false} aria-label={$t('common.close')}>
-          <Icon name="x" size="sm" />
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="carrier">{$t('calendar.carrier_optional')}</label>
-          <input type="text" id="carrier" bind:value={newLoadingDayCarrier} placeholder="e.g., DPD, DHL, Own transport" />
-        </div>
-        <div class="form-group">
-          <label for="note">{$t('calendar.note_optional')}</label>
-          <textarea id="note" bind:value={newLoadingDayNote} placeholder={$t('calendar_widget.any_special')}></textarea>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-ghost" onclick={() => showNewLoadingDayModal = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
-        <button class="btn-secondary" onclick={createLoadingDay}>
-          <Icon name="truck" size="sm" />
-          {$t('calendar.create_loading_day')}
-        </button>
-      </div>
-    </div>
-  </div>
+      {/each}</div>
+    {:else}
+      <form onsubmit={createLoadingDay}>
+        <label for="calendar-carrier">{$t('calendar.carrier_optional')}</label><input id="calendar-carrier" bind:value={newCarrier} maxlength={120} disabled={operation} />
+        <label for="calendar-note">{$t('calendar.note_optional')}</label><textarea id="calendar-note" bind:value={newNote} maxlength={4000} rows="3" disabled={operation}></textarea>
+        <footer class="dialog-footer"><button class="btn-secondary" type="button" onclick={() => modal = null} disabled={operation}>{$t('actions.cancel', { default: 'Cancel' })}</button>
+          <button class="btn-primary" type="submit" disabled={operation}>{operation ? $t('calendar.agenda.saving') : $t('calendar.create_loading_day')}</button></footer>
+      </form>
+    {/if}
+  </dialog>
 {/if}
 
 <style>
-  .calendar-page {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-    padding: var(--space-lg);
-    background: var(--bg-0);
-    min-height: 100vh;
-  }
-  
-  /* Top Bar */
-  .calendar-topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--space-md) var(--space-lg);
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-  }
-  
-  .topbar-left {
-    display: flex;
-    align-items: center;
-    gap: var(--space-md);
-  }
-  
-  .topbar-left h1 {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text);
-  }
-  
-  .topbar-right {
-    display: flex;
-    gap: var(--space-sm);
-  }
-  
-  .btn-secondary, .btn-ghost {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-md);
-    border-radius: var(--radius-md);
-    font-weight: 500;
-    cursor: pointer;
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
-    border: 1px solid var(--border);
-    background: var(--bg-1);
-    color: var(--text);
-  }
-  
-  .btn-secondary {
-    background: var(--accent-1);
-    color: var(--bg-0);
-    border-color: var(--accent-1);
-  }
-  
-  .btn-secondary:hover {
-    background: color-mix(in oklab, var(--accent-1) 90%, black);
-  }
-  
-  .btn-ghost:hover {
-    background: var(--bg-2);
-  }
-  
-  .btn-ghost:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  
-  /* Main Grid */
-  .calendar-grid {
-    display: grid;
-    grid-template-columns: 1fr 400px;
-    gap: var(--space-lg);
-    align-items: start;
-  }
-  
-  .calendar-section, .schedule-section {
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: var(--space-lg);
-  }
-  
-  /* Calendar */
-  .calendar-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--space-lg);
-  }
-  
-  .month-title {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--text);
-  }
-  
-  .nav-btn {
-    padding: var(--space-xs);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text);
-    cursor: pointer;
-    transition: background 0.2s ease;
-  }
-  
-  .nav-btn:hover {
-    background: var(--bg-2);
-  }
-  
-  .weekdays {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: var(--space-xs);
-    margin-bottom: var(--space-sm);
-  }
-  
-  .weekday {
-    text-align: center;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: var(--space-xs);
-  }
-  
-  .days-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: var(--space-xs);
-  }
-  
-  .day-cell {
-    aspect-ratio: 1;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-0);
-    color: var(--text);
-    cursor: pointer;
-    position: relative;
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-xs);
-  }
-  
-  .day-cell:hover {
-    background: var(--bg-2);
-    border-color: var(--accent-1);
-  }
-  
-  .day-cell.other-month {
-    opacity: 0.3;
-  }
-  
-  .day-cell.today {
-    border-color: var(--accent-1);
-    border-width: 2px;
-    font-weight: 600;
-  }
-  
-  .day-cell.selected {
-    background: var(--accent-1);
-    color: var(--bg-0);
-    border-color: var(--accent-1);
-  }
-  
-  .day-cell.has-loading {
-    background: color-mix(in oklab, var(--accent-1) 10%, var(--bg-0));
-  }
-  
-  .day-number {
-    font-size: 0.875rem;
-  }
-  
-  .order-count {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    background: var(--accent-1);
-    color: var(--bg-0);
-    font-size: 0.625rem;
-    padding: 2px 4px;
-    border-radius: 999px;
-    font-weight: 600;
-    min-width: 16px;
-    text-align: center;
-  }
-  
-  .day-cell.selected .order-count {
-    background: white;
-    color: var(--accent-1);
-  }
-  
-  .loading-indicator {
-    position: absolute;
-    bottom: 2px;
-    right: 2px;
-    background: color-mix(in oklab, var(--accent-1) 15%, var(--bg-1));
-    color: var(--accent-1);
-    font-size: 0.625rem;
-    padding: 2px 4px;
-    border-radius: 4px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    z-index: 1;
-  }
-
-  .loading-days-status {
-    margin: 8px 0;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-  }
-  .loading-days-status.loading {
-    background: color-mix(in oklab, var(--accent-1) 12%, transparent);
-    color: var(--accent-1);
-  }
-  .loading-days-status.error {
-    background: var(--error-soft, color-mix(in oklab, var(--error) 12%, transparent));
-    color: var(--error);
-    border: 1px solid color-mix(in oklab, var(--error) 30%, transparent);
-  }
-  .loading-days-status.empty {
-    background: var(--bg-2, #1f2430);
-    color: var(--text-muted, #9aa4b2);
-  }
-  
-  /* Schedule Section */
-  .schedule-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--space-lg);
-    padding-bottom: var(--space-md);
-    border-bottom: 1px solid var(--border);
-  }
-  
-  .schedule-header h3 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text);
-  }
-  
-  .order-badge {
-    padding: var(--space-xs) var(--space-sm);
-    background: var(--bg-2);
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text);
-  }
-  
-  .schedule-body {
-    min-height: 400px;
-  }
-  
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-2xl);
-    color: var(--muted);
-    gap: var(--space-md);
-  }
-  
-  .empty-state p {
-    margin: 0;
-    font-size: 0.875rem;
-  }
-  
-  .orders-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
-  }
-  
-  .order-card {
-    padding: var(--space-md);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--bg-0);
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
-  }
-  
-  .order-card:hover {
-    border-color: var(--accent-1);
-    box-shadow: 0 2px 8px color-mix(in oklab, var(--bg-0) 10%, transparent);
-  }
-  
-  .order-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--space-sm);
-  }
-  
-  .order-id {
-    font-weight: 600;
-    color: var(--accent-1);
-  }
-  
-  /* Unused .order-badges and .badge-text removed */
-  
-  .order-title {
-    margin: 0 0 var(--space-sm) 0;
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--text);
-  }
-  
-  .order-meta {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xxs);
-  }
-  
-  .meta-item {
-    font-size: 0.75rem;
-    color: var(--muted);
-  }
-  
-  /* All Orders Section */
-  .all-orders-section {
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: var(--space-lg);
-  }
-  
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--space-lg);
-  }
-  
-  .section-header h3 {
-    margin: 0;
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--text);
-  }
-  
-  .filter-group {
-    display: flex;
-    gap: var(--space-xs);
-  }
-  
-  .filter-btn {
-    padding: var(--space-xs) var(--space-md);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: transparent;
-    color: var(--text);
-    cursor: pointer;
-    font-size: 0.875rem;
-    transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
-  }
-  
-  .filter-btn:hover {
-    background: var(--bg-2);
-  }
-  
-  .filter-btn.active {
-    background: var(--accent-1);
-    color: var(--bg-0);
-    border-color: var(--accent-1);
-  }
-  
-  .orders-table {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    background: var(--border);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-  }
-  
-  .table-row {
-    display: grid;
-    grid-template-columns: 120px 180px 1fr 120px 120px;
-    gap: var(--space-md);
-    padding: var(--space-md);
-    background: var(--bg-0);
-    font-size: 0.875rem;
-  }
-  
-  .col-po {
-    font-weight: 600;
-    color: var(--accent-1);
-  }
-  
-  .col-client, .col-title {
-    color: var(--text);
-  }
-  
-  .col-due, .col-loading {
-    color: var(--muted);
-  }
-  
-  @media (max-width: 1280px) {
-    .calendar-grid {
-      grid-template-columns: 1fr;
-    }
-    
-    .schedule-section {
-      order: -1;
-    }
-  }
-  
-  @media (max-width: 768px) {
-    .calendar-topbar {
-      flex-direction: column;
-      gap: var(--space-md);
-    }
-    
-    .topbar-left, .topbar-right {
-      width: 100%;
-      justify-content: space-between;
-    }
-    
-    .table-row {
-      grid-template-columns: 1fr;
-      gap: var(--space-xs);
-    }
-  }
-
-  /* Loading Day Info */
-  .loading-day-info {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-md);
-    background: color-mix(in oklab, var(--accent-1) 15%, var(--bg-1));
-    border: 1px solid var(--accent-1);
-    border-radius: var(--radius-md);
-    margin-bottom: var(--space-md);
-    font-size: 0.875rem;
-    color: var(--accent-1);
-    font-weight: 500;
-  }
-
-  .carrier-badge {
-    padding: 2px 8px;
-    background: var(--accent-1);
-    color: var(--bg-0);
-    border-radius: var(--radius-sm);
-    font-size: 0.75rem;
-  }
-
-  .add-more-btn {
-    margin-top: var(--space-md);
-    width: 100%;
-    justify-content: center;
-  }
-
-  .order-actions {
-    display: flex;
-    gap: var(--space-xs);
-  }
-
-  .btn-icon-sm {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    background: var(--bg-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    color: var(--muted);
-    transition: all 0.15s;
-  }
-
-  .btn-icon-sm:hover {
-    background: var(--danger);
-    color: var(--bg-0);
-    border-color: var(--danger);
-  }
-
-  /* Modal Styles */
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: color-mix(in oklab, var(--bg-0) 45%, transparent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: var(--z-overlay);
-  }
-
-  .modal {
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    width: 100%;
-    max-width: 480px;
-    max-height: 80vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--space-md) var(--space-lg);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .modal-header h3 {
-    margin: 0;
-    font-size: 1.125rem;
-    font-weight: 600;
-  }
-
-  .modal-body {
-    padding: var(--space-lg);
-    overflow-y: auto;
-    flex: 1;
-  }
-
-  .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-sm);
-    padding: var(--space-md) var(--space-lg);
-    border-top: 1px solid var(--border);
-  }
-
-  .btn-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: transparent;
-    border: none;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    color: var(--muted);
-    transition: all 0.15s;
-  }
-
-  .btn-icon:hover {
-    background: var(--bg-2);
-    color: var(--text);
-  }
-
-  .available-orders {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-  }
-
-  .available-order {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-md);
-    background: var(--bg-0);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: all 0.15s;
-    text-align: left;
-    width: 100%;
-  }
-
-  .available-order:hover {
-    border-color: var(--accent-1);
-    background: color-mix(in oklab, var(--accent-1) 5%, var(--bg-0));
-  }
-
-  .available-order .order-info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .available-order .order-po {
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .available-order .order-client {
-    font-size: 0.875rem;
-    color: var(--muted);
-  }
-
-  .available-order .order-due {
-    font-size: 0.75rem;
-    color: var(--muted);
-  }
-
-  .available-order :global(.add-icon) {
-    color: var(--success, var(--ok));
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-
-  .available-order:hover :global(.add-icon) {
-    opacity: 1;
-  }
-
-  .empty-text {
-    text-align: center;
-    color: var(--muted);
-    padding: var(--space-xl);
-  }
-
-  .form-group {
-    margin-bottom: var(--space-md);
-  }
-
-  .form-group label {
-    display: block;
-    margin-bottom: var(--space-xs);
-    font-weight: 500;
-    font-size: 0.875rem;
-    color: var(--text);
-  }
-
-  .form-group input,
-  .form-group textarea {
-    width: 100%;
-    padding: var(--space-sm) var(--space-md);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--bg-0);
-    color: var(--text);
-    font-size: 0.875rem;
-  }
-
-  .form-group textarea {
-    min-height: 80px;
-    resize: vertical;
-  }
-
-  .form-group input:focus,
-  .form-group textarea:focus {
-    outline: none;
-    border-color: var(--accent-1);
-  }
-
-  /* LUMIGRID calendar: neutral schedule grid, semantic loading/day markers. */
-  .calendar-page {max-width:1660px;margin:0 auto;padding:var(--space-lg) 0 var(--space-2xl);
-    min-height:0;background:transparent;gap:var(--space-lg);}
-  .calendar-topbar {position:relative;background:var(--glass-bg-strong);
-    border-color:var(--glass-border);padding:var(--space-lg);
-    border-radius:var(--radius-lg);gap:var(--space-md);}
-  .calendar-topbar::before {content:'';position:absolute;left:0;top:0;height:2px;width:90px;
-    background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent);}
-  .topbar-left h1 {font-size:clamp(1.5rem,2.6vw,2rem);letter-spacing:var(--tracking-tight);}
-  .topbar-left :global(svg) {color:var(--brand);}
-  .topbar-right {gap:var(--space-sm);flex-wrap:wrap;}
-  .btn-secondary,.btn-ghost {min-height:44px;border-radius:var(--radius-md);font-weight:650;}
-  .btn-secondary {background:var(--brand);color:var(--on-brand);border-color:var(--brand);}
-  .btn-secondary:hover:not(:disabled) {background:var(--brand-2);border-color:var(--brand-2);}
-  .btn-secondary:disabled {opacity:.5;cursor:not-allowed;}
-  .calendar-grid {grid-template-columns:minmax(0,1.7fr) minmax(290px,1fr);gap:var(--space-lg);}
-  .calendar-section,.schedule-section,.all-orders-section {min-width:0;background:var(--glass-bg-strong);
-    border:1px solid var(--glass-border);border-radius:var(--radius-lg);box-shadow:var(--glass-shadow-sm);}
-  .calendar-header {gap:var(--space-md);}
-  .nav-btn {width:44px;height:44px;min-height:44px;display:inline-grid;place-items:center;
-    border-radius:var(--radius-sm);background:var(--bg-2);border:1px solid var(--border);}
-  .nav-btn:hover {background:var(--bg-3);}
-  .month-title {font-size:var(--text-lg);font-variant-numeric:tabular-nums;}
-  .calendar-body {overflow-x:auto;scrollbar-width:thin;}
-  .weekdays,.days-grid {min-width:320px;gap:var(--space-xs);}
-  .day-cell {min-width:0;min-height:44px;position:relative;background:var(--bg-1);
-    border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--ink-primary);
-    padding:var(--space-xs);font-variant-numeric:tabular-nums;}
-  .day-cell:hover {border-color:var(--border-strong);background:var(--bg-2);}
-  .day-cell.today {border-color:color-mix(in oklab,var(--brand) 70%,var(--border));}
-  .day-cell.selected {background:var(--brand-soft);border:2px solid var(--brand);
-    color:var(--ink-primary);}
-  .day-cell.has-loading:not(.selected) {background:color-mix(in oklab,var(--led-amber) 6%,var(--bg-1));}
-  .day-cell:focus-visible,.filter-btn:focus-visible,.nav-btn:focus-visible,
-  .btn-secondary:focus-visible,.btn-ghost:focus-visible {outline:2px solid var(--focus);outline-offset:2px;}
-  .order-count {font-variant-numeric:tabular-nums;}
-  .loading-day-info {background:var(--brand-soft);color:var(--ink-primary);
-    border-color:color-mix(in oklab,var(--brand) 28%,var(--border));}
-  .carrier-badge {background:var(--bg-2);color:var(--ink-primary);
-    border:1px solid var(--border);}
-  .schedule-section {min-width:0;}
-  .schedule-body {min-width:0;}
-  .order-card {background:var(--bg-1);border:1px solid var(--border);
-    border-radius:var(--radius-md);}
-  .order-card:hover {border-color:var(--border-strong);}
-  .btn-icon-sm {width:40px;height:40px;}
-  .btn-icon-sm:hover {color:var(--error);background:var(--error-soft);}
-  .all-orders-section {padding:var(--space-lg);}
-  .filter-group {gap:var(--space-xs);overflow-x:auto;max-width:100%;}
-  .filter-btn {border-radius:var(--radius-sm);min-height:40px;white-space:nowrap;}
-  .filter-btn.active {color:var(--brand);background:var(--brand-soft);border-color:var(--brand);}
-  .table-row {border-bottom:1px solid var(--divider);gap:var(--space-sm);}
-  .modal {background:var(--bg-1);max-height:min(85dvh,760px);border-radius:var(--radius-lg);}
-  .available-order :global(.add-icon) {opacity:1;}
-  @media(max-width:1280px) {.calendar-grid {grid-template-columns:minmax(0,1fr);}
-    .schedule-section {order:0;}}
-  @media(max-width:768px) {
-    .calendar-page {padding:var(--space-sm) 0 var(--space-xl);}
-    .calendar-topbar {align-items:stretch;padding:var(--space-md);}
-    .topbar-right {width:100%;justify-content:flex-start;}
-    .topbar-right > button {flex:1 1 auto;}
-    .calendar-section,.schedule-section,.all-orders-section {padding:var(--space-md);}
-    .weekday {padding:var(--space-xs) 0;}
-    .days-grid,.weekdays {min-width:328px;}
-    .table-row {grid-template-columns:repeat(2,minmax(0,1fr));}
-    .col-title {grid-column:1 / -1;}
-  }
-  @media(prefers-reduced-transparency:reduce) {
-    .calendar-topbar,.calendar-section,.schedule-section,.all-orders-section {background:var(--bg-1);}
-  }
+  .calendar-page{max-width:1660px;margin:0 auto;padding:24px;display:grid;gap:20px;color:var(--text)}
+  h1,h2,h3,p{margin:0}h1{font-size:clamp(24px,3vw,34px);font-weight:750;line-height:1.15;letter-spacing:-.025em}h2{font-size:20px;line-height:1.3;letter-spacing:-.015em}h3{font-size:14px;line-height:1.4}
+  .calendar-topbar{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:8px 0}.dialog-date{font-size:12px;color:var(--ink-secondary);margin-bottom:6px}.page-description{margin-top:10px;max-width:62ch;font-size:14px;color:var(--ink-secondary);line-height:1.5}.topbar-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}.text-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text);text-decoration:none}.text-link:hover{text-decoration:underline}
+  .btn-primary,.btn-secondary,.icon-button,.filter-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:9px 13px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}.btn-primary{background:var(--brand);border-color:var(--brand);color:var(--on-brand,#fff)}.btn-secondary,.icon-button{background:var(--bg-1);color:var(--text)}button:disabled{opacity:.5;cursor:not-allowed}.btn-secondary:hover:not(:disabled),.icon-button:hover:not(:disabled){background:var(--bg-2);border-color:var(--border-strong)}button:focus-visible,a:focus-visible{outline:2px solid var(--focus);outline-offset:3px}.icon-button{width:40px;padding:0;flex-shrink:0}.small{width:32px;min-height:32px}
+  .calendar-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(310px,1fr);gap:20px;align-items:start}.calendar-section,.day-agenda,.orders-section{min-width:0;background:var(--bg-1);border:1px solid var(--border);border-radius:14px}.calendar-section{padding:20px}.calendar-header{display:flex;justify-content:space-between;gap:12px;align-items:center}.month-controls{display:flex;align-items:center;gap:10px;min-width:0}.month-controls h2{text-align:center;min-width:0;text-transform:capitalize}.calendar-status{min-height:20px;margin:12px 0;color:var(--ink-secondary);font-size:12px;line-height:1.5}.calendar-body{min-width:0}.weekdays,.days-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}.weekdays{margin-bottom:8px;color:var(--ink-secondary);font-size:11px;font-weight:600;text-align:center}
+  .day-cell{font:inherit;min-width:0;min-height:112px;display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:7px;border:1px solid var(--border);border-radius:8px;background:var(--bg-1);color:var(--text);cursor:pointer;text-align:left}.day-cell:hover{background:var(--bg-2);border-color:var(--border-strong)}.day-cell.other-month{background:var(--bg-2)}.day-cell.other-month .day-number{color:var(--muted)}.day-cell.today{border-color:color-mix(in srgb,var(--brand) 60%,var(--border))}.day-cell.selected{background:var(--brand-soft);border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}.day-number{display:flex;align-items:center;gap:5px;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}.today-dot{width:5px;height:5px;background:var(--brand);border-radius:50%}.calendar-legend{display:flex;gap:6px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}.calendar-footnote{color:var(--ink-secondary);font-size:11px;line-height:1.5;margin-top:10px}
+  .day-agenda{display:grid;gap:18px;padding:20px}.agenda-header{display:grid;gap:8px}.agenda-header h2{text-transform:capitalize}.loading-detail{display:flex;gap:10px;padding:12px;background:var(--bg-2);border:1px solid var(--border);border-radius:8px}.loading-detail.closed{background:color-mix(in srgb,var(--danger) 6%,var(--bg-1));border-color:color-mix(in srgb,var(--danger) 35%,var(--border))}.loading-detail strong{font-size:13px}.loading-detail p{font-size:12px;line-height:1.5;margin-top:4px;overflow-wrap:anywhere}.preserve-lines{white-space:pre-wrap}.agenda-group{display:grid;gap:8px;min-width:0}.group-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px}.group-heading h3{display:flex;gap:7px;align-items:center}.group-heading>span{color:var(--ink-secondary);font-size:12px;font-variant-numeric:tabular-nums}
+  .agenda-order{border:1px solid var(--border);border-radius:8px;overflow:hidden}.agenda-order>a{display:grid;gap:4px;padding:11px;color:var(--text);text-decoration:none;overflow-wrap:anywhere}.agenda-order>a:hover{background:var(--bg-2)}.agenda-order strong,.deadline-item strong{font-size:12px}.agenda-order span{font-size:13px;line-height:1.4}.agenda-order small{color:var(--ink-secondary);font-size:11px}.order-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;background:var(--bg-2)}.order-footer span{font-size:11px;color:var(--ink-secondary)}.deadline-item{display:flex;align-items:start;justify-content:space-between;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text)}.deadline-item:hover{background:var(--bg-2)}.deadline-item>div{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere;font-size:12px;line-height:1.4}.deadline-state{display:inline-flex;align-items:center;gap:3px;padding:3px 5px;border:1px solid color-mix(in srgb,var(--warn) 35%,var(--border));border-radius:5px;background:color-mix(in srgb,var(--warn) 9%,var(--bg-1));font-size:10px;font-weight:700;white-space:nowrap}.deadline-state.late{border-color:color-mix(in srgb,var(--danger) 40%,var(--border));background:color-mix(in srgb,var(--danger) 8%,var(--bg-1))}.deadline-state.complete{border-color:var(--border);background:var(--bg-2);color:var(--ink-secondary)}
+  .event-item{display:flex;gap:9px;padding:10px;border:1px solid var(--border);background:var(--bg-2);border-radius:8px;min-width:0}.event-item>div{min-width:0;overflow-wrap:anywhere}.event-item strong{font-size:13px}.event-item p{font-size:12px;line-height:1.5;margin-top:4px;color:var(--ink-secondary)}.empty-agenda{display:grid;justify-items:center;text-align:center;gap:10px;padding:28px 10px;color:var(--ink-secondary)}.empty-agenda h3{color:var(--text)}.empty-agenda p{max-width:28ch;font-size:13px;line-height:1.5}.agenda-actions{display:flex;flex-wrap:wrap;gap:8px;padding-top:14px;border-top:1px solid var(--border)}.muted,.agenda-warning{font-size:12px;line-height:1.5;color:var(--ink-secondary)}.agenda-warning{padding:10px;background:color-mix(in srgb,var(--warn) 8%,var(--bg-1));border-radius:6px}
+  .calendar-alert{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--warn) 45%,var(--border));background:color-mix(in srgb,var(--warn) 7%,var(--bg-1));border-radius:9px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}.calendar-alert>div{flex:1;min-width:0}.calendar-alert p{margin-top:3px}.notice{padding:10px 14px;background:color-mix(in srgb,var(--ok) 9%,var(--bg-1));border:1px solid color-mix(in srgb,var(--ok) 40%,var(--border));border-radius:8px;font-size:13px}
+  .orders-section{padding:20px}.orders-header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}.filter-group{display:flex;gap:5px;flex-wrap:wrap}.filter-button{min-height:36px;padding:6px 11px;background:var(--bg-1);color:var(--ink-secondary);font-size:12px}.filter-button.active{background:var(--brand-soft);border-color:var(--brand);color:var(--text)}.orders-scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;text-align:left;font-size:12px}th{font-weight:600;color:var(--ink-secondary);font-size:11px;white-space:nowrap}th,td{padding:11px 10px;border-bottom:1px solid var(--border)}td{overflow-wrap:anywhere;min-width:100px;max-width:360px}td a,.date-link{color:var(--text);text-decoration:underline;text-underline-offset:3px}.date-link{border:0;background:none;padding:0;cursor:pointer;font:inherit;white-space:nowrap}.orders-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;font-size:12px;color:var(--ink-secondary)}
+  .calendar-dialog{width:min(520px,calc(100vw - 32px));max-height:85dvh;overflow:auto;padding:22px;background:var(--bg-1);color:var(--text);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-xl)}.calendar-dialog::backdrop{background:rgba(0,0,0,.5)}.dialog-header{display:flex;align-items:start;justify-content:space-between;gap:12px;margin-bottom:16px}.calendar-dialog .calendar-alert{margin-bottom:14px}.calendar-dialog form{display:grid;gap:10px}.calendar-dialog label{font-size:13px;font-weight:600;margin-top:8px}.calendar-dialog input,.calendar-dialog textarea{width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-2);color:var(--text);font:inherit;font-size:14px}.dialog-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.available-orders{display:grid;gap:8px;margin-top:14px}.available-order{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;background:var(--bg-1);color:var(--text);border:1px solid var(--border);border-radius:8px;text-align:left;cursor:pointer}.available-order:hover:not(:disabled){background:var(--bg-2);border-color:var(--brand)}.available-order>span{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere;font-size:13px}.available-order small{color:var(--ink-secondary);font-size:11px}.empty-modal{margin:20px 0;font-size:13px;line-height:1.5;color:var(--ink-secondary)}
+  @media(max-width:1150px){.calendar-layout{grid-template-columns:minmax(0,1fr)}.day-cell{min-height:108px}.day-agenda{gap:16px}}
+  @media(max-width:600px){.calendar-page{padding:12px 8px;gap:14px}.calendar-topbar{flex-direction:column;align-items:stretch;gap:14px}.topbar-actions{justify-content:space-between}.calendar-section,.day-agenda,.orders-section{padding:12px}.calendar-header{gap:6px}.month-controls{gap:4px}.month-controls h2{font-size:15px}.month-controls .icon-button{width:32px;min-height:40px}.today-button{padding:8px;font-size:11px}.weekdays,.days-grid{gap:3px}.weekdays{font-size:10px}.day-cell{padding:4px;min-height:92px;gap:6px;border-radius:5px}.day-number{font-size:11px;gap:3px}.calendar-legend{gap:5px}.calendar-alert{flex-wrap:wrap;gap:8px}.calendar-alert>div{flex-basis:calc(100% - 30px)}.calendar-dialog{padding:16px}.orders-footer{flex-wrap:wrap}}
 </style>

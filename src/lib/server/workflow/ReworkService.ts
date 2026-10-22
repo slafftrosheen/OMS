@@ -1,5 +1,6 @@
 // src/lib/server/workflow/ReworkService.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { publishNotifications } from '../notifications/publish';
 import { logger } from '../logging/logger';
 
 export type ReworkReason = 
@@ -257,11 +258,12 @@ export class ReworkService {
                 user_id: u.id,
                 title: 'Rework Initiated',
                 message: `Order "${order.title}" (${order.client}) requires rework at ${station} station. Reason: ${reason}`,
-                type: 'warning' as const,
-                action_url: `/orders/${orderId}`,
-                read: false
+                notification_type: 'rework',
+                link: `/orders/${orderId}`,
+                source_type: 'order',
+                source_id: orderId
             }));
 
-        await this.supabase.from('notifications').insert(notifications);
+        await publishNotifications(this.supabase, notifications);
     }
 }

@@ -16,7 +16,7 @@
 
   // Ephemeral notices + DB notifications merged for display
   let allItems = $derived([
-    ...noticesList.map((n: any) => ({ ephemeral: true, text: n.text, kind: n.kind, time: n.time, read: false, id: null })),
+    ...noticesList.map((n: any) => ({ ephemeral: true, text: n.text, kind: n.kind, time: n.time, read: false, id: null, link: null })),
     ...storeState.items.map(n => ({
       ephemeral: false,
       id: n.id,
@@ -24,7 +24,8 @@
       kind: n.type,
       time: n.created_at,
       read: n.read,
-      message: n.message
+      message: n.message,
+      link: n.link
     }))
   ]);
 
@@ -46,6 +47,10 @@
     }
   }
 
+  function linkWithBase(link: string) {
+    return base && link !== base && !link.startsWith(`${base}/`) ? `${base}${link}` : link;
+  }
+
   async function markAllRead() {
     const userId = $currentUser?.id;
     if (userId) await notificationStore.markAllAsRead(userId);
@@ -65,18 +70,26 @@
     return new Date(ts).toLocaleDateString();
   }
 
-  onMount(() => {
+  $effect(() => {
     const userId = $currentUser?.id;
-    if (!userId) return;
-    notificationStore.load(userId);
-    const unsubscribe = notificationStore.subscribe_realtime(userId);
+    if (!userId) { notificationStore.clear(); return; }
+    void notificationStore.load(userId);
+    return notificationStore.subscribe_realtime(userId);
+  });
+
+  onMount(() => {
     document.addEventListener('click', onDocClick, true);
-    return () => {
-      document.removeEventListener('click', onDocClick, true);
-      unsubscribe?.();
-    };
+    return () => document.removeEventListener('click', onDocClick, true);
   });
 </script>
+
+{#snippet itemContent(item: any)}
+  <span class="rf-notif__item-dot" data-kind={item.kind} aria-hidden="true"></span>
+  <span class="rf-notif__item-text">{item.text}</span>
+  {#if item.time}
+    <span class="rf-notif__item-time">{formatRelative(item.time)}</span>
+  {/if}
+{/snippet}
 
 <div class="rf-notif" bind:this={root}>
   <button
@@ -116,7 +129,18 @@
         </div>
       </div>
 
-      {#if allItems.length === 0}
+      {#if storeState.error}
+        <div class="rf-notif__error" role="alert">
+          <span>{$t('notifications.sync_failed', { default: 'Notifications could not be updated. Try again.' })}</span>
+          <button type="button" class="rf-notif__mark-all" onclick={() => $currentUser?.id && notificationStore.load($currentUser.id)} disabled={storeState.loading}>
+            {$t('notifications.refresh')}
+          </button>
+        </div>
+      {/if}
+
+      {#if allItems.length === 0 && storeState.loading}
+        <p class="rf-notif__empty" role="status">{$t('notifications.loading')}</p>
+      {:else if allItems.length === 0 && !storeState.error}
         <div class="rf-notif__empty">
           <Icon name="bell" size="lg" />
           <span>{$t('notifications.empty', { default: 'No notifications yet.' })}</span>
@@ -124,6 +148,17 @@
       {:else}
         <div class="rf-notif__list">
           {#each allItems.slice(0, 8) as item}
+            {#if item.link}
+              <a
+                role="menuitem"
+                class="rf-notif__item"
+                class:unread={!item.read}
+                href={linkWithBase(item.link)}
+                onclick={() => { void handleItemClick(item); open = false; }}
+              >
+                {@render itemContent(item)}
+              </a>
+            {:else}
             <button
               role="menuitem"
               class="rf-notif__item"
@@ -131,12 +166,9 @@
               type="button"
               onclick={() => handleItemClick(item)}
             >
-              <span class="rf-notif__item-dot" data-kind={item.kind} aria-hidden="true"></span>
-              <span class="rf-notif__item-text">{item.text}</span>
-              {#if item.time}
-                <span class="rf-notif__item-time">{formatRelative(item.time)}</span>
-              {/if}
+              {@render itemContent(item)}
             </button>
+            {/if}
           {/each}
         </div>
       {/if}
@@ -282,6 +314,18 @@
     gap: 2px;
   }
 
+  .rf-notif__error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    color: var(--text);
+    font-size: var(--text-sm);
+    border: 1px solid var(--error);
+    border-radius: var(--radius-sm);
+  }
+
   .rf-notif__item {
     display: grid;
     grid-template-columns: 8px 1fr auto;
@@ -294,6 +338,7 @@
     background: transparent;
     cursor: pointer;
     text-align: left;
+    text-decoration: none;
     transition: background var(--motion-sm) var(--ease-standard);
     box-shadow: none;
     transform: none;

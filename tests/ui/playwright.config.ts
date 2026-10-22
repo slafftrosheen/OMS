@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   testDir: '../e2e',
-  testMatch: ['profile-materials.spec.ts', 'theme-contrast.spec.ts'],
+  testMatch: ['profile-materials.spec.ts', 'theme-contrast.spec.ts', 'calendar-telegram.spec.ts'],
   timeout: 60000,
   workers: 1,
   use: {

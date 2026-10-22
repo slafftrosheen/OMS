@@ -17,6 +17,7 @@
   import Palette from 'lucide-svelte/icons/palette';
   import Shield from 'lucide-svelte/icons/shield';
   import Plug from 'lucide-svelte/icons/plug';
+  import TelegramSettings from '$lib/notifications/TelegramSettings.svelte';
   let aiSettings = $state<{ configured: boolean; masked: string; source?: string } | null>(null);
   let openRouterKey = $state('');
   let aiSettingsLoading = $state(false);
@@ -318,13 +319,7 @@
         <h2>{$t('settings.sections.integrations', { default: 'Integrations' })}</h2>
       </div>
       <div class="integrations-list">
-        <div class="integration-item">
-          <div class="integration-info">
-            <strong>Telegram</strong>
-            <span class="muted">{$t('settings.integrations.telegram', { default: 'Notifications via Telegram bot' })}</span>
-          </div>
-          <span class="status-badge">{$t('common.coming_soon')}</span>
-        </div>
+        <TelegramSettings />
         <div class="integration-item">
           <div class="integration-info">
             <strong>n8n</strong>
