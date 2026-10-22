@@ -13,10 +13,21 @@
   let total = $state(1);
   let page = $state(1);
   let ready = $state(false);
+  let pdfModule: Promise<typeof import('pdfjs-dist')> | undefined;
+
+  function loadPdfModule() {
+    return pdfModule ??= Promise.all([
+      import('pdfjs-dist'),
+      import('pdfjs-dist/build/pdf.worker.min.mjs?url')
+    ]).then(([pdf, { default: workerSrc }]) => {
+      pdf.GlobalWorkerOptions.workerSrc = workerSrc;
+      return pdf;
+    });
+  }
 
   async function mount(el: HTMLElement, url: string) {
-    // pdf.js lite mount (assumes window.pdfjsLib & worker loaded in app.html)
-    const pdf = await (window as any).pdfjsLib.getDocument(url).promise;
+    const pdfjs = await loadPdfModule();
+    const pdf = await pdfjs.getDocument(url).promise;
     total = Math.max(total, pdf.numPages);
     const cvs = document.createElement("canvas");
     const ctx = cvs.getContext("2d")!;

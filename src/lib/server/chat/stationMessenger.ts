@@ -52,12 +52,14 @@ export async function postStationMessage(
     const body = `${orderRef} ${verb} ${msg.station}${actor}`;
 
     try {
-        await supabase.from('chat_messages').insert({
+        const { error } = await supabase.from('chat_messages').insert({
             room_id: roomId,
             user_id: null,
             content: body,
             text: body,
+            variant: 'system',
         });
+        if (error) console.warn('[stationMessenger] insert failed:', error.message);
     } catch (err) {
         // eslint-disable-next-line no-console
         console.warn('[stationMessenger] insert failed:', err);

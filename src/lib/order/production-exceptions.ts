@@ -24,10 +24,13 @@ export function parseReviewChange(raw:unknown):ReviewChange {
  if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new Error('Invalid review input');
  const x=raw as Record<string,unknown>;
  const action=x.action;
- if(!['claim','take','update','resolve','reopen'].includes(String(action)))
+ if(typeof action!=='string'||!['claim','take','update','resolve','reopen'].includes(action))
    throw new Error('Unsupported review action');
- const note=x.note===undefined||x.note===null?null:x.note;
- if(note!==null&&(typeof note!=='string'||note.length>2000))
+ let note:string|null;
+ if(x.note===undefined||x.note===null)note=null;
+ else if(typeof x.note==='string')note=x.note;
+ else throw new Error('Review note must be a string');
+ if(note!==null&&note.length>2000)
    throw new Error('Review note must be at most 2000 characters');
  const ids=x.evidenceMovementIds??[];
  if(!Array.isArray(ids)||ids.length>10||
@@ -41,6 +44,8 @@ export function parseReviewChange(raw:unknown):ReviewChange {
  const base:ReviewChange={action:action as ReviewAction,orderId:null,station:null,
    kind:null,reviewId:null,expectedUpdatedAt:null,dueDate:due as string|null,
    note:note as string|null,evidenceMovementIds:ids as string[]};
+ if(['claim','take','update'].includes(action)&&due===null)
+   throw new Error('A follow-up due date is required');
  if(action==='claim'){
    if(typeof x.orderId!=='string'||!uuid.test(x.orderId)||
       typeof x.station!=='string'||!ALL_STATIONS.includes(x.station.toUpperCase())||
@@ -55,8 +60,6 @@ export function parseReviewChange(raw:unknown):ReviewChange {
    !Number.isFinite(Date.parse(x.expectedUpdatedAt))||
    x.orderId!==undefined||x.station!==undefined||x.kind!==undefined)
    throw new Error('Existing review ID and exact revision required');
- if(['claim','take','update'].includes(action)&&due===null)
-   throw new Error('A follow-up due date is required');
  if(action==='update'&&(note===null||note.length>1000))
    throw new Error('An update note up to 1000 characters is required');
  if(action==='resolve'&&(!note||!note.trim()))

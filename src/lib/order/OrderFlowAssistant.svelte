@@ -120,7 +120,7 @@
       if(requestedMode==='propose' && (dirty || JSON.stringify(current)!==capturedCurrent))
         throw Error($t('orderAssistant.localChanged'));
       // Never allow a response against an older form to silently apply fields.
-      turns=[...turns,{role:'user',content:text},{role:'assistant',content:body.reply}].slice(-16);
+      turns=[...turns,{role:'user' as const,content:text},{role:'assistant' as const,content:body.reply}].slice(-16);
       model=body.model??'';lastMode=requestedMode;
       if(body.technicalChecks?.kind==='deterministic-technical-evidence'){
         technical=body.technicalChecks;

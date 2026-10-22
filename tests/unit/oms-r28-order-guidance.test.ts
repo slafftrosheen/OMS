@@ -71,7 +71,7 @@ describe('OMS-R28 contextual order guidance UX',()=>{
    const detail=read('src/routes/orders/[id]/+page.svelte');
    expect(detail).toContain("mayAskOrderAssistant");
    expect(detail).toContain("orderGuide.lifecycle.");
-   expect(detail).toContain("goto(workspaceUrl(orderId,'chat'))");
+   expect(detail).toContain("goto(base + workspaceUrl(orderId,'chat'))");
    expect(detail).toContain("['RD','Boss','HeadOfProduction']");
  });
  it('localizes all section tips, statuses and safe prepared questions in EN/RU/LV',()=>{

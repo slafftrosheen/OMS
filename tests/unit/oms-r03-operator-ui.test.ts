@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import {deriveProductionPlanning} from '../../src/lib/order/production-planning';
 import {
   priorityLabel, priorityRank, stageStateLabel, dueDateLabel,
   isOrderOverdue, compareStationOrders
@@ -41,7 +42,7 @@ describe('OMS-R03 workflow UI guardrails', () => {
     const board = source('src/lib/components/production/StationBoard.svelte');
     expect(board).not.toContain('status-select');
     expect(board).not.toContain('onstatuschange');
-    expect(board).toContain('Workstation');
+    expect(board).toContain("$t('productionPlanning.workstation')");
     expect(board).toContain('stageStateLabel');
     const page = source('src/routes/production/+page.svelte');
     expect(page).not.toContain('handleStatusChange');
@@ -49,7 +50,11 @@ describe('OMS-R03 workflow UI guardrails', () => {
   it('renders real station stages instead of order lifecycle status', () => {
     const api = source('src/routes/api/production/board/+server.ts');
     expect(api).toContain(".from('order_stages')");
-    expect(api).toContain('stageState: stageStateByKey.get');
+    expect(api).toContain('deriveProductionPlanning(orders,stages,rigaDate())');
+    const plan=deriveProductionPlanning([{id:'order-a',status:'IN_PRODUCTION'}],
+      [{draft_order_id:'order-a',station:'CNC',state:'QUEUED'}],'2026-10-21');
+    expect(plan.stations.CNC[0].stageState).toBe('QUEUED');
+    expect(plan.stations.CNC[0].status).toBe('IN_PRODUCTION');
   });
   it('does not start an order implicitly on QR scan', () => {
     const station = source('src/routes/station/[station]/+page.svelte');
@@ -61,7 +66,7 @@ describe('OMS-R03 workflow UI guardrails', () => {
     const station = source('src/routes/station/[station]/+page.svelte');
     expect(station).toContain('aria-pressed=');
     expect(station).toContain('role="alert"');
-    expect(station).toContain('Clear order search');
+    expect(station).toContain("aria-label={$t('stationView.clearSearch')}");
     expect(station).toContain('hasLoaded');
     expect(station).toContain('operatorCanAct');
     expect(station).toContain('min-height: 44px');

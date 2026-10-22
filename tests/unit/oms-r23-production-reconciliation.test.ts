@@ -74,7 +74,7 @@ describe('OMS-R23 reconciliation of approved capacity and stage work',()=>{
    const drift=reconcileProductionSchedule(source,[config],bookings,'2026-10-14');
    const reasons=new Set(drift.map(x=>x.reason));
    for(const reason of ['blockedCommitment','pausedCommitment','pastCommitment',
-       'estimateExceeded','actualOverEstimate','capacityExceeded','stageUnavailable'])
+       'estimateExceeded','actualOverEstimate','capacityExceeded','stageUnavailable'] as const)
      expect(reasons.has(reason)).toBe(true);
    expect(drift.find(x=>x.reason==='capacityExceeded')?.hours).toBe(1);
  });

@@ -21,10 +21,10 @@ export const GET: RequestHandler = async ({ locals }) => {
     locals.supabase.storage.from(ORDER_FILE_BUCKET).list('', { limit: 1 })
       .then(({ error }) => ({ ok: !error, code: String((error as { statusCode?: number | string } | null)?.statusCode ?? '') }))
       .catch(() => ({ ok: false, code: '' })),
-    locals.supabase.from('files').select('id').limit(1)
+    Promise.resolve(locals.supabase.from('files').select('id').limit(1))
       .then(({ error }) => ({ ok: !error, code: error?.code ?? '' }))
       .catch(() => ({ ok: false, code: '' })),
-    locals.supabase.from('order_files').select('id').limit(1)
+    Promise.resolve(locals.supabase.from('order_files').select('id').limit(1))
       .then(({ error }) => ({ ok: !error, code: error?.code ?? '' }))
       .catch(() => ({ ok: false, code: '' }))
   ]);

@@ -73,7 +73,7 @@
         <option value="order">{kindLabel('order')}</option>
         <option value="adjustment">{kindLabel('adjustment')}</option>
       </select>
-      <button class="tag" onclick={load} disabled={loading}>
+      <button class="tag" onclick={()=>void load()} disabled={loading}>
         <Icon name="refresh-cw" size="sm" />
         {$t('common.refresh', { default: 'Refresh' })}
       </button>

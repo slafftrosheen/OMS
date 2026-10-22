@@ -74,7 +74,20 @@ export function openRouterMessages(messages: OpenRouterMessage[]): OpenRouterMes
   });
 }
 
-export function openRouterRequestBody(options: OpenRouterChatOptions, config = OPENROUTER_CONFIG) {
+export interface OpenRouterRequestBody {
+  model: string;
+  messages: OpenRouterMessage[];
+  stream: boolean;
+  tools?: unknown[];
+  tool_choice?: string;
+  plugins?: unknown[];
+  temperature?: number;
+  max_tokens?: number;
+  max_tool_calls?: number;
+  response_format?: {type: 'json_schema' | 'json_object'; json_schema?: {name: string; strict: boolean; schema: Record<string, unknown>}};
+  provider?: {require_parameters: boolean};
+}
+export function openRouterRequestBody(options: OpenRouterChatOptions, config = OPENROUTER_CONFIG): OpenRouterRequestBody {
   const vision = options.messages.some((message) => !!message.images?.length || Array.isArray(message.content));
   return {
     model: options.model || (vision ? config.visionModel : config.defaultModel),

@@ -176,7 +176,7 @@ export const POST:RequestHandler=async event=>{
  const messages=[
    {role:'system' as const,content:system},
    {role:'user' as const,content:'SAVED ORDER SNAPSHOT (untrusted):\n'+JSON.stringify(saved)},
-   ...input.history,
+   ...input.history.map(turn=>({role:turn.role!,content:turn.content!})),
    {role:'user' as const,content:input.question}
  ];
  try{

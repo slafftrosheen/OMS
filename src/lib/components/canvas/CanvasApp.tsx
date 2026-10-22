@@ -1,3 +1,4 @@
+import canvasAssetUrls from './tldraw-asset-urls.json';
 import React, { useEffect, useRef } from 'react';
 import { Tldraw, getSnapshot, type Editor } from '@tldraw/tldraw';
 import '@tldraw/tldraw/tldraw.css';
@@ -188,6 +189,7 @@ export function CanvasApp({
         <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
             <CanvasModeContext.Provider value={toolkitBoardId ? 'toolkit' : 'order'}>
                 <Tldraw
+                    assetUrls={canvasAssetUrls}
                     snapshot={initialSnapshot as any}
                     shapeUtils={customShapeUtils}
                     onMount={handleMount}

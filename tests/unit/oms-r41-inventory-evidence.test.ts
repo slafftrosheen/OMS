@@ -1,5 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {readFileSync} from 'node:fs';
+import assert from 'node:assert/strict';
+import {POST as changeReview} from '../../src/routes/api/production/exception-reviews/+server';
 import {parseReviewChange} from '../../src/lib/order/production-exceptions';
 
 const read=(p:string)=>readFileSync(p,'utf8');
@@ -40,17 +42,31 @@ describe('OMS-R41: real inventory evidence, atomic stock writes and audited refe
    expect(api).not.toContain("method:'POST'");
    expect(api).not.toContain(".update(");
  });
- it('requires manager and validates cited movements against the actual review order',()=>{
-   const api=read('src/routes/api/production/exception-reviews/+server.ts');
-   expect(api).toContain("canManageSharedInventory(locals.user.role)");
-   expect(api).toContain('input.evidenceMovementIds');
-   expect(api).toContain(".from('production_exception_reviews')");
-   expect(api).toContain(".from('inventory_movements')");
-   expect(api).toContain(".eq('reference_type','order').eq('reference_id',source.draft_order_id)");
-   expect(api).toContain('linked??[]');
-   expect(api).toContain('Movement evidence:');
-   expect(api).toContain("p_note:auditedNote");
-   expect(api).toContain("oms_manage_production_exception");
+ it('requires management authorization before reading or writing review evidence',async()=>{
+   for(const [user,status] of [[null,401],[{role:'CNC'},403]] as const){
+     await assert.rejects(async()=>await changeReview({locals:{user},request:new Request('http://localhost',{
+       method:'POST',body:'{}'
+     })} as any),(error:any)=>error.status===status);
+   }
+ });
+ it('rejects citations with another order, reference type or movement ID before the audit RPC',async()=>{
+   for(const changes of [{reference_id:'another-order'},
+     {reference_type:'manual'},{id:'another-movement'}]){
+     const {event,rpcCalls}=movementReviewEvent(changes);
+     await assert.rejects(async()=>await changeReview(event),(error:any)=>error.status===409);
+     expect(rpcCalls).toHaveLength(0);
+   }
+ });
+ it('saves verified order movement citations in the existing audited review RPC',async()=>{
+   const {event,rpcCalls}=movementReviewEvent();
+   const response=await changeReview(event);
+   expect(response.status).toBe(200);
+   expect(rpcCalls).toHaveLength(1);
+   expect(rpcCalls[0]).toMatchObject({name:'oms_manage_production_exception',args:{
+     p_action:'resolve',p_review_id:order,p_expected_updated_at:changedAt
+   }});
+   expect(rpcCalls[0].args.p_note).toContain('Material reconciled');
+   expect(rpcCalls[0].args.p_note).toContain(movement);
  });
  it('replaces unsafe split app writes with one manager-only transaction',()=>{
    const api=read('src/routes/api/inventory/movements/+server.ts');
@@ -129,3 +145,35 @@ describe('OMS-R41: real inventory evidence, atomic stock writes and audited refe
    }
  });
 });
+
+// Query-boundary fixture: actual handler filters decide which records are visible.
+function movementReviewEvent(changes:Record<string,unknown>={}){
+ const rpcCalls:{name:string;args:Record<string,unknown>}[]=[];
+ const tables:Record<string,Record<string,unknown>[]>={
+   production_exception_reviews:[{id:order,draft_order_id:order,kind:'MATERIAL_SKIPPED'}],
+   inventory_movements:[{id:movement,reference_type:'order',reference_id:order,...changes}]
+ };
+ const supabase={
+   from(table:string){
+     let rows=tables[table];
+     if(!rows)throw new Error('Unexpected table '+table);
+     const query={
+       select(){return query;},
+       eq(key:string,value:unknown){rows=rows.filter(row=>row[key]===value);return query;},
+       in(key:string,values:unknown[]){rows=rows.filter(row=>values.includes(row[key]));return query;},
+       async maybeSingle(){return {data:rows[0]??null,error:null};},
+       then(resolve:(result:unknown)=>unknown){return Promise.resolve({data:rows,error:null}).then(resolve);}
+     };
+     return query;
+   },
+   async rpc(name:string,args:Record<string,unknown>){
+     rpcCalls.push({name,args});return {data:{id:order},error:null};
+   }
+ };
+ return {rpcCalls,event:{locals:{user:{role:'Boss'},supabase},
+   request:new Request('http://localhost/api/production/exception-reviews',{
+     method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({action:'resolve',reviewId:order,expectedUpdatedAt:changedAt,
+       note:'Material reconciled',evidenceMovementIds:[movement]})
+   })} as any};
+}

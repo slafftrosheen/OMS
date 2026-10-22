@@ -107,7 +107,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   if(data.stock!==undefined && data.stock!==null && Number(data.stock)!==0)
     throw error(409,'Create items with zero stock; post opening quantities via audited movements');
 
-  const { data: item, error } = await locals.supabase
+  const { data: item, error: insertError } = await locals.supabase
     .from('materials')
     .insert({
       id: data.id || crypto.randomUUID(),
@@ -137,9 +137,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     .select()
     .single();
 
-  if (error) {
-    console.error('Failed to create inventory item:', error);
-    if (error.code === '23505') {
+  if (insertError) {
+    console.error('Failed to create inventory item:', insertError);
+    if (insertError.code === '23505') {
       return json({ error: 'SKU or ID already exists' }, { status: 409 });
     }
     return json({ error: 'Failed to create item' }, { status: 500 });

@@ -168,6 +168,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let formDirty = $derived(savedFormFingerprint !== null &&
     formFingerprint() !== savedFormFingerprint);
   let hasUnsavedChanges = $derived(formDirty || canvasDirty);
+  let rightTab: WorkspaceSection = $state('details');
   let activeGroup = $derived(workspaceGroup(rightTab));
   let pendingReviewCount = $derived(changeRequests.filter(
     cr=>cr.status==='pending'||cr.status==='open').length);
@@ -195,11 +196,13 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       return null;
     }
   }
-  beforeNavigate(({cancel}) => {
+  beforeNavigate(({cancel,willUnload}) => {
+    // Reloads and external links use the native beforeunload handler below.
+    // Browsers prohibit opening a custom confirm dialog during unload.
+    if(willUnload)return;
     if(unsavedWarningEnabled && hasUnsavedChanges &&
       !window.confirm($t('orderWorkspace.leaveWarning'))) cancel();
   });
-  let rightTab: WorkspaceSection = $state('details');
   // Restore the workspace section when browser Back/Forward navigates through
   // SvelteKit shallow-history entries. Switching sections does not discard forms.
   $effect(() => {
@@ -1497,7 +1500,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
   /* ── Layout ──────────────────────────────────────────────────────────────── */
   .canvas-editor {
-    position: fixed;
+    /* Keep the workspace inside #main, below the app navigation, even when
+       the page-entry animation no longer creates a fixed containing block. */
+    position: absolute;
     inset: 0;
     display: flex;
     flex-direction: column;
@@ -2202,7 +2207,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   }
   .native-profile-dialog {max-height:calc(100dvh - 20px);overscroll-behavior:contain;}
   @media(max-width:720px) {
-    .canvas-editor {height:100dvh;min-height:0;}
+    .canvas-editor {height:auto;min-height:0;}
     .top-bar {flex:0 0 auto;padding:var(--space-xs) var(--space-sm);align-content:start;}
     .top-bar-left {flex:1 1 100%;justify-content:space-between;}
     .order-identity {min-width:0;overflow-wrap:anywhere;}

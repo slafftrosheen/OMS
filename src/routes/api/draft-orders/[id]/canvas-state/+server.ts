@@ -42,7 +42,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
     if (snapshot !== null && (typeof snapshot !== 'object' || Array.isArray(snapshot))) {
       throw error(400, 'Canvas snapshot must be an object');
     }
-    if (snapshot && ['conversation','conversations','messages','proposals'].some(k => k in snapshot)) {
+    if (snapshot !== null && typeof snapshot === 'object' && ['conversation','conversations','messages','proposals'].some(k => k in snapshot)) {
       throw error(400, 'Private conversation data must not be placed in order Canvas snapshots');
     }
 

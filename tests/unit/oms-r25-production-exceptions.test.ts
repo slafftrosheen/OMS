@@ -67,7 +67,9 @@ describe('OMS-R25 exception detection and management contracts',()=>{
     dueDate:'2026-10-23',note:'Check timecard'};
   expect(parseReviewChange(claim)).toMatchObject({station:'CNC',kind:'MISSING_ACTUAL'});
   expect(()=>parseReviewChange({...claim,kind:'SOMETHING_ELSE'})).toThrow();
-  expect(()=>parseReviewChange({...claim,dueDate:null})).toThrow();
+  for(const dueDate of [null,undefined]){
+    expect(()=>parseReviewChange({...claim,dueDate})).toThrow('follow-up due date');
+  }
   expect(()=>parseReviewChange({action:'take',reviewId:order,
     expectedUpdatedAt:'2026-10-14T12:00:00Z'})).toThrow();
   expect(()=>parseReviewChange({action:'resolve',reviewId:order,

@@ -103,7 +103,9 @@ async function loadTests(files) {
       // Provide enough rune semantics for .svelte.ts stores imported by unit
       // tests; component tests still belong in the browser test suite.
       banner: {
-        js: `globalThis.$state ??= (value) => value;
+        js: `import { createRequire as __rfCreateRequire } from 'node:module';
+const require = __rfCreateRequire(${JSON.stringify(join(root, 'package.json'))});
+globalThis.$state ??= (value) => value;
 globalThis.$derived ??= Object.assign((value) => value, { by: (fn) => fn() });
 globalThis.$effect ??= (fn) => fn();`
       },

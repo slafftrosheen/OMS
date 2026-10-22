@@ -139,12 +139,12 @@
         "delivery": "Delivery Address"
       },
       "files": {
-      "uploadHttpError": "Upload failed (HTTP {status})",
-      "uploadNetworkError": "Network connection failed during upload. Retry saving the existing draft.",
-      "partialUpload": "Order saved as a draft, but {count} attachment(s) could not be uploaded: {details}. Fix the issue, then retry Save on this same draft.",
-        "hint": "Upload PDF and CDR files with order sketches.",
+        "uploadHttpError": "Upload failed (HTTP {status})",
+        "uploadNetworkError": "Network connection failed during upload. Retry saving the existing draft.",
+        "partialUpload": "Order saved as a draft, but {count} attachment(s) could not be uploaded: {details}. Fix the issue, then retry Save on this same draft.",
+        "hint": "Upload PDF, CDR, DXF or image files with order sketches.",
         "drag_drop": "Drag and drop or click",
-        "formats": "PDF, CDR, AI, EPS, JPG, PNG",
+        "formats": "PDF, CDR, DXF, JPG, PNG, GIF, WebP",
         "preview": "Preview",
         "no_preview": "Select a file to preview",
         "loading_pdf": "Loading PDF..."

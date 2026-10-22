@@ -9,7 +9,7 @@ interface EditPageData {
     session: any;
 }
 
-export const load: PageLoad = async ({ params, fetch, locals }: any): Promise<EditPageData> => {
+export const load: PageLoad = async ({ params, fetch }): Promise<EditPageData> => {
     const id = params.id;
     
     try {
@@ -39,7 +39,9 @@ export const load: PageLoad = async ({ params, fetch, locals }: any): Promise<Ed
             order,
             files,
             profilePresets,
-            session: locals.session ?? null
+            // Authentication is supplied by the request-scoped API and the
+            // auth store; universal loaders have no server-side locals.
+            session: null
         };
     } catch (error) {
         console.error('Failed to load order data:', error);
@@ -48,7 +50,7 @@ export const load: PageLoad = async ({ params, fetch, locals }: any): Promise<Ed
             order: null,
             files: [],
             profilePresets: [],
-            session: locals.session ?? null
+            session: null
         };
     }
 };

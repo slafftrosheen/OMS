@@ -1,8 +1,9 @@
-# OMS-R26 — Production deployment and end-to-end readiness
+# OMS release — Production deployment and end-to-end readiness
 
-R26 hardens read-only production-board and performance/history pagination and
-supplies two **manual, non-mutating** deployment checks. No GitHub Actions,
-no automatic database migration, no production write.
+R26 introduced the read-only production checks; this runbook now covers the
+current production and inventory release contracts through R44. It supplies
+manual, non-mutating database and HTTP checks. No GitHub Actions, automatic
+database migration or production write is performed.
 
 ## Required migration order
 
@@ -14,9 +15,21 @@ on staging **in timestamp order** before deploying the corresponding app code.
 - R21 `20261014000002_production_station_capacity.sql`
 - R22 `20261014000003_production_reservation_approvals.sql`
 - R25 `20261014000004_production_exception_reviews.sql`
+- R36 `20261016000001_confirmation_handoff_guards.sql`
+- R38 `20261016000002_versioned_stage_completion_handoff.sql`
+- R40 `20261016000003_production_oversight_review_kinds.sql`
+- R41 `20261016000004_inventory_audit_atomic_manual_movements.sql`
+- R42 `20261016000005_canonical_inventory_consumption.sql`
+- R44 `20261018000001_inventory_replenishment_requests.sql`
+- Order-child access `20261021000001_fix_order_access_assignee_column.sql`
+- Station update actor `20261021000002_order_stage_update_actor.sql`
+- Chat schema and order-linked room access `20261021000003_chat_schema_contract.sql`
 
-Other OMS migrations (rework, loading, order confirmation, forms and access
-controls) must also be present. Do not assume pushing code applies SQL.
+Apply all other required OMS migrations as well, including rework, loading,
+order confirmation, forms and access controls. The list above supplements
+those earlier prerequisites; it is not a database reset script. Do not assume
+pushing code applies SQL. Feature-specific prerequisites and acceptance
+details remain in each R36–R44 handoff document.
 
 ### Database preflight (read-only)
 
@@ -30,10 +43,17 @@ It uses the existing `supabase-db` Docker container when available; otherwise
 the locally configured `DATABASE_URL` and `psql`. Connection credentials are
 no longer printed by the migration script's list and push messages.
 
-The preflight checks canonical relations, RPC signatures, authenticated/anon
-grants and RLS and displays counts of data requiring review. It opens a
-READ ONLY transaction and ROLLBACKs. A missing prerequisite causes a nonzero
-exit status. Do **not** run against the live database as your first test.
+The preflight checks production and inventory relations, RPC signatures,
+authenticated/anon grants, RLS and inventory write-RPC security-definer status.
+It also displays counts of unmatched or divergent legacy inventory mappings
+for manager review. It opens a READ ONLY transaction and ROLLBACKs. A missing
+prerequisite causes a nonzero exit status. Do **not** run against the live
+database as your first test.
+
+The version-checked eight-argument stage-completion RPC must be executable by
+authenticated users; the internal seven-argument implementation and
+`consume_materials_for_order` helper must not be. The preflight checks this
+boundary as well as the R41/R42 inventory RPC grants.
 
 ### Manual HTTP smoke (read-only)
 
@@ -45,10 +65,15 @@ OMS_STAGING_URL=https://staging.example.test \
 OMS_STAGING_COOKIE='paste-session-cookie-locally' npm run oms:staging-smoke
 ```
 
-The script probes the board, station capacity, all-dates approved snapshot,
-reservation ledger, 7-day performance and exception-review ledger with GET.
-It validates basic payload completeness and anonymous-denial behavior.
-It checks no changes and never logs session cookies or full order data.
+Use a manager session because the checks include management-only inventory
+diagnostics. The script probes the production board, station capacity,
+all-dates approved snapshot, reservation ledger, 7-day performance,
+exception-review ledger, inventory movements, stock consistency and
+replenishment board with GET. It also checks the intentionally public,
+read-only build fingerprint and, when a saved replenishment request exists,
+its bounded audit history. It validates basic payload completeness and
+anonymous-denial behavior for protected routes. It changes no data and never
+logs session cookies or full order data.
 Host allowlisting requires an explicit staging-like hostname (or localhost).
 An arbitrary Tailscale address is **not** assumed to be staging. Override
 with `OMS_ALLOW_NONSTAGING=1` only after verifying the destination is a
@@ -58,6 +83,8 @@ safe staging instance. Clear the environment variable after the test.
 operator, StationHead, manager, and inactive user, confirming expected
 403s on unauthorized actions and actual RLS-scoped order visibility. The
 smoke test does not POST or mutate anything, even with a manager cookie.
+It checks only the first page of stock consistency and does not prove a full
+physical inventory count or reconcile any discrepancy.
 
 ### Staging acceptance sequence
 
@@ -81,6 +108,10 @@ smoke test does not POST or mutate anything, even with a manager cookie.
    stale reservations, missing migration, network outage and data gaps.
 8. Repeat RU/LV/EN UI and phone/desktop workflows, then review any
    performance or permissions findings before deploying production.
+9. For inventory, complete the role, idempotency, parity and procurement
+   lifecycle checks in the linked R41, R42 and R44 staging acceptance lists.
+   Use a physical count for stock reconciliation; replenishment closure is
+   not a goods receipt.
 
 ## Limitations
 
@@ -90,6 +121,7 @@ PostgREST pages are **not** a transactional snapshot. Stable count alone
 cannot detect every concurrent edit. A real snapshot isolation requirement
 needs a server-side database RPC with appropriate transaction isolation.
 
-This change was authored through the GitHub connector without a local OMS
-checkout, database credentials or a staging web session. Compile, tests,
-SQL preflight and HTTP smoke were **not run** by the assistant.
+Passing these checks is evidence for the specific staging target and revision
+tested; it is not a guarantee about another database or deployment. Record
+release results in the approved release record rather than editing this
+runbook with environment-specific values.

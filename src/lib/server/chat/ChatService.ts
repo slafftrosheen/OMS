@@ -59,11 +59,11 @@ export class ChatService {
                 order_id: orderId,
                 user_id: userId,
                 text: message.trim(),
-                message: message.trim(),
-                attachments,
-                reply_to: replyTo,
-                edited: false,
-                deleted: false
+                content: message.trim(),
+                attachments: attachments ?? [],
+                reply_to_id: replyTo ?? null,
+                is_edited: false,
+                is_deleted: false
             })
             .select()
             .single();
@@ -72,12 +72,6 @@ export class ChatService {
             logger.error('Failed to send chat message', error);
             throw new Error('Could not send message');
         }
-
-        // Update order's last activity
-        await this.supabase
-            .from('orders')
-            .update({ last_message_at: new Date().toISOString() })
-            .eq('id', orderId);
 
         // Send notifications to order participants (except sender)
         await this.notifyParticipants(orderId, userId, message);
@@ -93,9 +87,9 @@ export class ChatService {
             orderId,
             userId,
             username: user.username,
-            message: chatMessage.message,
+            message: chatMessage.content ?? chatMessage.text,
             attachments: chatMessage.attachments,
-            replyTo: chatMessage.reply_to,
+            replyTo: chatMessage.reply_to_id,
             timestamp: new Date(chatMessage.created_at),
             edited: false,
             deleted: false
@@ -111,6 +105,8 @@ export class ChatService {
         newMessage: string
     ): Promise<void> {
         
+        if (!newMessage.trim()) throw new Error('Message cannot be empty');
+
         // Verify ownership
         const { data: message, error: fetchError } = await this.supabase
             .from('chat_messages')
@@ -132,16 +128,16 @@ export class ChatService {
             throw new Error('Message too old to edit (15 minute limit)');
         }
 
-        const { error } = await this.supabase
+        const { data: changed, error } = await this.supabase
             .from('chat_messages')
             .update({ 
-                message: newMessage.trim(),
-                edited: true,
-                edited_at: new Date().toISOString()
+                text: newMessage.trim(),
+                content: newMessage.trim(),
+                is_edited: true
             })
-            .eq('id', messageId);
+            .eq('id', messageId).select('id').single();
 
-        if (error) {
+        if (error || !changed) {
             throw new Error('Failed to edit message');
         }
 
@@ -177,16 +173,14 @@ export class ChatService {
             throw new Error('Unauthorized to delete this message');
         }
 
-        const { error } = await this.supabase
+        const { data: changed, error } = await this.supabase
             .from('chat_messages')
             .update({ 
-                deleted: true,
-                deleted_at: new Date().toISOString(),
-                deleted_by: userId
+                is_deleted: true
             })
-            .eq('id', messageId);
+            .eq('id', messageId).select('id').single();
 
-        if (error) {
+        if (error || !changed) {
             throw new Error('Failed to delete message');
         }
 
@@ -208,16 +202,17 @@ export class ChatService {
                 id,
                 order_id,
                 user_id,
-                message,
+                content,
+                text,
                 attachments,
-                reply_to,
+                reply_to_id,
                 created_at,
-                edited,
-                deleted,
+                is_edited,
+                is_deleted,
                 profiles!inner(username, avatar_url)
             `)
             .eq('order_id', orderId)
-            .eq('deleted', false)
+            .eq('is_deleted', false)
             .order('created_at', { ascending: false })
             .limit(limit);
 
@@ -227,22 +222,22 @@ export class ChatService {
 
         const { data, error } = await query;
 
-        if (error || !data) {
+        if (error) {
             logger.error('Failed to fetch chat messages', error);
-            return [];
+            throw new Error('Could not fetch messages');
         }
 
-        return data.map(m => ({
+        return (data ?? []).map(m => ({
             id: m.id,
             orderId: m.order_id,
             userId: m.user_id,
-            username: (m.profiles as { username?: string; avatar_url?: string }[] | null)?.[0]?.username,
-            message: m.message,
+            username: (Array.isArray(m.profiles) ? m.profiles[0] : m.profiles)?.username ?? '',
+            message: m.content ?? m.text,
             attachments: m.attachments,
-            replyTo: m.reply_to,
+            replyTo: m.reply_to_id,
             timestamp: new Date(m.created_at),
-            edited: m.edited,
-            deleted: m.deleted
+            edited: m.is_edited,
+            deleted: m.is_deleted
         })).reverse(); // Return in chronological order
     }
 
@@ -319,16 +314,17 @@ export class ChatService {
                 id,
                 order_id,
                 user_id,
-                message,
+                content,
+                text,
                 attachments,
-                reply_to,
+                reply_to_id,
                 created_at,
-                edited,
-                deleted,
+                is_edited,
+                is_deleted,
                 profiles!inner(username)
             `)
-            .ilike('message', `%${query}%`)
-            .eq('deleted', false)
+            .ilike('content', `%${query}%`)
+            .eq('is_deleted', false)
             .order('created_at', { ascending: false })
             .limit(100);
 
@@ -346,17 +342,17 @@ export class ChatService {
             return [];
         }
 
-        return data.map(m => ({
+        return (data ?? []).map(m => ({
             id: m.id,
             orderId: m.order_id,
             userId: m.user_id,
-            username: (m.profiles as { username?: string; avatar_url?: string }[] | null)?.[0]?.username,
-            message: m.message,
+            username: (Array.isArray(m.profiles) ? m.profiles[0] : m.profiles)?.username ?? '',
+            message: m.content ?? m.text,
             attachments: m.attachments,
-            replyTo: m.reply_to,
+            replyTo: m.reply_to_id,
             timestamp: new Date(m.created_at),
-            edited: m.edited,
-            deleted: m.deleted
+            edited: m.is_edited,
+            deleted: m.is_deleted
         }));
     }
 
@@ -371,17 +367,17 @@ export class ChatService {
         
         // Get order participants
         const { data: order } = await this.supabase
-            .from('orders')
-            .select('created_by, assigned_to')
+            .from('draft_orders')
+            .select('created_by')
             .eq('id', orderId)
             .single();
 
         if (!order) return;
 
         const participants = new Set([order.created_by]);
-        if (order.assigned_to) {
-            order.assigned_to.forEach((id: string) => participants.add(id));
-        }
+        const { data: assignees } = await this.supabase.from('order_assignees')
+            .select('assignee_id').eq('draft_order_id', orderId);
+        for (const assignment of assignees ?? []) participants.add(assignment.assignee_id);
         participants.delete(senderId); // Don't notify sender
 
         // Get sender name

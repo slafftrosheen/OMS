@@ -83,19 +83,44 @@ function deepMatch(actual, expected) {
 
     const keys = Object.keys(expected);
     for (const key of keys) {
-        if (!deepMatch(actual[key], expected[key])) return false;
+        if (!Object.prototype.hasOwnProperty.call(actual, key) || !deepMatch(actual[key], expected[key])) return false;
     }
 
     return true;
 }
 
-export function expect(actual) {
-  return {
+function hasAsymmetricMatcher(value, seen = new WeakSet()) {
+  if (!value || typeof value !== 'object' || seen.has(value)) return false;
+  if (typeof value.asymmetricMatch === 'function') return true;
+  seen.add(value);
+  return Reflect.ownKeys(value).some(key => hasAsymmetricMatcher(value[key], seen));
+}
+
+// Preserve Node's exact equality for ordinary values, including Maps and cycles.
+// Recurse only where an asymmetric matcher needs to inspect part of the value.
+function exactMatch(actual, expected) {
+  if (expected && typeof expected.asymmetricMatch === 'function') return expected.asymmetricMatch(actual);
+  if (!hasAsymmetricMatcher(expected)) {
+    try { assert.deepStrictEqual(actual, expected); return true; } catch { return false; }
+  }
+  if (Object.is(actual, expected)) return true;
+  if (!actual || !expected || typeof actual !== 'object' || typeof expected !== 'object') return false;
+  if (Object.getPrototypeOf(actual) !== Object.getPrototypeOf(expected)) return false;
+  if (!Array.isArray(expected) && Object.getPrototypeOf(expected) !== Object.prototype) {
+    try { assert.deepStrictEqual(actual, expected); return true; } catch { return false; }
+  }
+  const keys = Reflect.ownKeys(expected);
+  return keys.length === Reflect.ownKeys(actual).length && keys.every(key =>
+    Object.prototype.hasOwnProperty.call(actual, key) && exactMatch(actual[key], expected[key]));
+}
+
+export function expect(actual, message = undefined) {
+  const matchers = {
     toBe(expected) {
       assert.strictEqual(actual, expected);
     },
     toEqual(expected) {
-      assert.deepStrictEqual(actual, expected);
+      assert.ok(exactMatch(actual, expected), message ?? 'Expected deeply equal values');
     },
     toBeTruthy() {
       assert.ok(actual);
@@ -132,9 +157,76 @@ export function expect(actual) {
     toHaveBeenCalledTimes(expected) {
         const calls = actual.mock?.calls || [];
         assert.strictEqual(calls.length, expected);
+    },
+    toThrow(expected) {
+      assert.equal(typeof actual, 'function', 'toThrow requires a function');
+      let thrown = false, error;
+      try { actual(); } catch (reason) { thrown = true; error = reason; }
+      assert.ok(thrown, 'Expected function to throw');
+      if (expected instanceof RegExp) assert.match(String(error?.message ?? error), expected);
+      else if (typeof expected === 'string') assert.ok(String(error?.message ?? error).includes(expected));
+      else if (typeof expected === 'function') assert.ok(error instanceof expected);
+      else if (expected instanceof Error) assert.equal(error?.message, expected.message);
+    },
+    toMatchObject(expected) { assert.ok(deepMatch(actual, expected), 'Expected matching object fields'); },
+    toMatch(expected) {
+      if (expected instanceof RegExp) assert.match(actual, expected);
+      else assert.ok(actual.includes(expected));
+    },
+    toBeGreaterThan(expected) { assert.ok(actual > expected, `${actual} must be > ${expected}`); },
+    toBeGreaterThanOrEqual(expected) { assert.ok(actual >= expected); },
+    toBeLessThan(expected) { assert.ok(actual < expected, `${actual} must be < ${expected}`); },
+    toBeLessThanOrEqual(expected) { assert.ok(actual <= expected); },
+    toBeUndefined() { assert.equal(actual, undefined); },
+    toBeDefined() { assert.notEqual(actual, undefined); },
+    toBeTypeOf(expected) { assert.equal(typeof actual, expected); },
+    toBeInstanceOf(expected) { assert.ok(actual instanceof expected); },
+    toHaveProperty(property, expected) {
+      const parts = Array.isArray(property) ? property : property.split('.');
+      let value = actual;
+      for (const key of parts) {
+        assert.ok(value != null && Object.prototype.hasOwnProperty.call(value, key), `Missing property ${property}`);
+        value = value[key];
+      }
+      if (arguments.length > 1) assert.deepStrictEqual(value, expected);
     }
   };
+  matchers.not = new Proxy(matchers.not, {
+    get(_target, name) {
+      if (typeof matchers[name] !== 'function') throw new Error(`Unsupported matcher: ${String(name)}`);
+      return (...args) => {
+        try { matchers[name](...args); }
+        catch (error) { if (error instanceof assert.AssertionError) return; throw error; }
+        assert.fail(`Expected ${String(name)} assertion not to match`);
+      };
+    }
+  });
+  Object.defineProperty(matchers, 'rejects', {
+    get() {
+      // Attach a rejection handler immediately so rejected promises cannot
+      // escape the test runner as an unhandled rejection.
+      const outcome = Promise.resolve(actual).then(
+        value => ({ rejected: false, value }),
+        value => ({ rejected: true, value })
+      );
+      return new Proxy({}, {
+        get(_target, name) {
+          return async (...args) => {
+            const result = await outcome;
+            assert.ok(result.rejected, 'Expected promise to reject');
+            const value = name === 'toThrow' ? () => { throw result.value; } : result.value;
+            return expect(value)[name](...args);
+          };
+        }
+      });
+    }
+  });
+  return matchers;
 }
+
+expect.objectContaining = function(expected) {
+  return { asymmetricMatch(actual) { return actual !== null && typeof actual === 'object' && deepMatch(actual, expected); } };
+};
 
 expect.any = function(constructor) {
     return {
@@ -189,6 +281,7 @@ export async function runSuites({ reporter = console } = {}) {
     }
 
     for (const test of suite.tests) {
+      executed += 1;
       try {
         // Run all beforeEach functions from ancestors
         for (const ancestor of ancestors) {
@@ -202,7 +295,6 @@ export async function runSuites({ reporter = console } = {}) {
           await result;
         }
         reporter.log(`${'  '.repeat(depth)}✓ ${test.name}`);
-        executed += 1;
       } catch (error) {
         failures += 1;
         reporter.error(`${'  '.repeat(depth)}✗ ${test.name}`);
@@ -219,7 +311,7 @@ export async function runSuites({ reporter = console } = {}) {
     await runSuite(suite);
   }
 
-  reporter.log(`Ran ${executed} test${executed === 1 ? '' : 's'}.`);
+  reporter.log(`Ran ${executed} test${executed === 1 ? '' : 's'}: ${executed - failures} passed, ${failures} failed.`);
   return failures;
 }
 
