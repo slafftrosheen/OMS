@@ -3050,5 +3050,55 @@
         "sheltered": "Zem nojumes"
       }
     }
+  },
+  "materialPicker": {
+    "select": "Izvēlēties…",
+    "search": "Meklēt visos materiālos…",
+    "categories": "Materiālu kategorijas",
+    "backToCategories": "Visas kategorijas",
+    "chooseCategory": "Izvēlieties kategoriju",
+    "loading": "Ielādē materiālus…",
+    "noResults": "Materiāli nav atrasti",
+    "loadError": "Neizdevās ielādēt materiālus. Mēģiniet vēlreiz.",
+    "retry": "Mēģināt vēlreiz",
+    "custom": "Ievadīt citu materiālu",
+    "customPlaceholder": "Ievadiet materiāla nosaukumu…",
+    "customColor": "Ievadītā materiāla krāsa",
+    "switchToPicker": "Izvēlēties no kataloga",
+    "categoryOther": "Citi materiāli",
+    "categoryNames": {
+      "ACRYLIC_XT": "Ekstrudēts akrils (XT)",
+      "ACRYLIC_GS": "Liets akrils (GS)",
+      "ACRYLIC_LED": "Akrils LED apgaismojumam",
+      "ALU_SHEET": "Alumīnija loksnes",
+      "ALU_COMPOSITE": "Alumīnija kompozīts",
+      "PVC_FOAM": "Putu PVC",
+      "ALU_PROFILE": "Alumīnija profili",
+      "VINYL_ORACAL": "Oracal plēves",
+      "PAINT_RAL": "RAL krāsas",
+      "PAINT_PANTONE": "Pantone krāsas",
+      "LED_MODULE": "LED moduļi",
+      "LED_STRIP": "LED lentes",
+      "PSU_MEANWELL": "Barošanas bloki",
+      "WIRE": "Kabeļi un vadi",
+      "LED_ACCESSORY": "LED piederumi"
+    }
+  },
+  "materialThickness": {
+    "label": "Biezums (mm)",
+    "select": "Izvēlieties biezumu",
+    "loading": "Ielādē biezumus…",
+    "unavailable": "Neizdevās ielādēt biezuma variantus. Ievadiet vērtību vai mēģiniet vēlreiz.",
+    "empty": "Šim materiālam nav standarta biezumu. Ievadiet vērtību mm.",
+    "retry": "Mēģināt vēlreiz",
+    "custom": "Ievadiet biezumu",
+    "saved": "Saglabātā vērtība"
+  },
+  "profiles": {
+    "materials": {
+      "addFace": "Pievienot priekšpuses materiālu",
+      "removeFace": "Noņemt priekšpuses materiālu {number}",
+      "faceNumber": "Priekšpuses materiāls {number}"
+    }
   }
 }

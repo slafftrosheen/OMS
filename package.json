@@ -26,6 +26,7 @@
     "supabase:migrate:push": "bash scripts/supabase-migrate.sh push",
     "type-check": "svelte-check --tsconfig ./tsconfig.json",
     "test:unit": "node packages/vitest/bin.js tests/unit",
+    "test:ui:profiles": "playwright test --config tests/ui/playwright.config.ts",
     "docker:build": "docker build -t oms:latest .",
     "docker:run": "docker-compose up -d",
     "docker:stop": "docker-compose down",

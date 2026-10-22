@@ -19,6 +19,15 @@
    */
   import MaterialSelect from "./fields/MaterialSelect.svelte";
   import MaterialThicknessSelect from "$lib/components/MaterialThicknessSelect.svelte";
+  import { t } from "svelte-i18n";
+  import {
+    readFaceMaterials,
+    withFaceMaterials,
+    applyProfileMaterialSelection,
+    nextFaceMaterialId,
+    type FaceMaterialSelection,
+    type ProfileMaterialChange,
+  } from "$lib/profiles/face-materials";
   import {
     type ColorValue,
     defaultColor,
@@ -42,6 +51,8 @@
     Moon,
     Check,
     X,
+    Plus,
+    Trash2,
   } from "lucide-svelte";
 
   // ColorValue is imported from $lib/profiles/helpers (extracted in Phase 6.1).
@@ -59,10 +70,15 @@
       faceHex?: string;
       faceShort?: string;
       faceThickness?: string;
+      faceMaterials?: FaceMaterialSelection[];
+      faceCategory?: string;
+      faceThicknessOptions?: number[];
       back: string;
       backHex?: string;
       backShort?: string;
       backThickness?: string;
+      backCategory?: string;
+      backThicknessOptions?: number[];
       laser?: boolean;
       print3d?: boolean;
       notes?: string;
@@ -73,6 +89,8 @@
       sidesHex?: string;
       sidesShort?: string;
       sidesThickness?: string;
+      sidesCategory?: string;
+      sidesThicknessOptions?: number[];
       depth: number;
       notes?: string;
     };
@@ -206,42 +224,29 @@
   /** Props for the profile form. */
   let {
     /** The configuration object for the profile form. */
-    configuration = $bindable({ ...defaultConfiguration }),
+    configuration: incomingConfiguration = $bindable({}),
     /** If true, disables all inputs, making the form read-only. */
     readonly = false,
     /** Callback for configuration changes. */
     onchange,
   }: {
-    configuration?: ProfileConfiguration;
+    configuration?: Partial<ProfileConfiguration> | null;
     readonly?: boolean;
     onchange?: (config: ProfileConfiguration) => void;
   } = $props();
 
-  import { untrack } from "svelte";
+  import { onDestroy, untrack } from "svelte";
 
-  /**
-   * Effect to merge the incoming configuration with the default.
-   * This ensures that the component can handle partially-defined configuration objects
-   * without crashing due to missing nested properties.
-   * Uses untrack() to prevent infinite loop when modifying configuration.
-   */
-  /**
-   * Effect to merge the incoming configuration with the default.
-   * This ensures that the component can handle partially-defined configuration objects
-   * without crashing due to missing nested properties.
-   * Uses JSON comparison to prevent infinite loops when updating configuration.
-   */
-  $effect(() => {
-    // Read configuration to create dependency
-    const currentConfig = configuration;
-    if (currentConfig) {
-      // Create the new merged configuration
-      const newConfig: ProfileConfiguration = {
+  function normalizeConfiguration(value: Partial<ProfileConfiguration> | null | undefined): ProfileConfiguration {
+      const currentConfig = value ?? {};
+      return {
         ...defaultConfiguration,
         ...currentConfig,
         CNC_FREZER: {
           ...defaultConfiguration.CNC_FREZER,
           ...(currentConfig.CNC_FREZER || {}),
+          // Hydration only: legacy scalar selections are untouched until an edit.
+          faceMaterials: readFaceMaterials(currentConfig.CNC_FREZER),
         },
         BENDER: {
           ...defaultConfiguration.BENDER,
@@ -276,15 +281,18 @@
           ...(currentConfig.ASSEMBLING || {}),
         },
       };
+  }
 
-      // Only update if actually different to prevent infinite loops
-      // Simple JSON stringify is sufficient for configuration objects like this
-      if (JSON.stringify(currentConfig) !== JSON.stringify(newConfig)) {
-        untrack(() => {
-          configuration = newConfig;
-        });
-      }
-    }
+  // The first render needs complete sections too: effects run after rendering.
+  // Keep normalization local so opening an old profile never edits its source.
+  let configuration = $state(normalizeConfiguration(untrack(() => incomingConfiguration)));
+
+  $effect(() => {
+    const nextConfiguration = normalizeConfiguration(incomingConfiguration);
+    const fingerprint = JSON.stringify(nextConfiguration);
+    untrack(() => {
+      if (JSON.stringify(configuration) !== fingerprint) configuration = nextConfiguration;
+    });
   });
 
   // Pre-defined material categories for the MaterialSelect component.
@@ -310,17 +318,79 @@
   const wireCategories = ["WIRE", "LED_ACCESSORY"];
   const frameMaterials = ["ALU_PROFILE", "ALU_SHEET"];
 
-  // Local state for material thickness options
-  let faceThicknessOptions: number[] = [];
-  let backThicknessOptions: number[] = [];
-  let sidesThicknessOptions: number[] = [];
+  let faceEntries = $derived(
+    configuration.CNC_FREZER.faceMaterials ?? readFaceMaterials(configuration.CNC_FREZER),
+  );
 
-  /**
-   * Emits a 'change' event with the current configuration.
-   * This function is called after any user interaction that modifies the form data.
-   */
+  function addFaceMaterial() {
+    if (readonly) return;
+    configuration.CNC_FREZER.faceMaterials = [
+      ...faceEntries,
+      { id: nextFaceMaterialId(faceEntries), value: "" },
+    ];
+    emit();
+  }
+
+  function removeFaceMaterial(id: string) {
+    if (readonly) return;
+    configuration.CNC_FREZER.faceMaterials = faceEntries.filter(entry => entry.id !== id);
+    emit();
+  }
+
+  function selectFaceMaterial(entry: FaceMaterialSelection, data: ProfileMaterialChange) {
+    if (readonly) return;
+    Object.assign(entry, applyProfileMaterialSelection(entry, data));
+    emit();
+  }
+
+  function selectBackMaterial(data: ProfileMaterialChange) {
+    if (readonly) return;
+    const entry = applyProfileMaterialSelection({
+      id: "back", value: configuration.CNC_FREZER.back,
+      thickness: configuration.CNC_FREZER.backThickness,
+      category: configuration.CNC_FREZER.backCategory,
+    }, data, "ALU");
+    Object.assign(configuration.CNC_FREZER, {
+      back: entry.value, backHex: entry.hex, backShort: entry.shortName,
+      backThickness: entry.thickness, backCategory: entry.category,
+      backThicknessOptions: entry.thicknessOptions,
+    });
+    emit();
+  }
+
+  function selectSidesMaterial(data: ProfileMaterialChange) {
+    if (readonly) return;
+    const entry = applyProfileMaterialSelection({
+      id: "sides", value: configuration.BENDER.sides,
+      thickness: configuration.BENDER.sidesThickness,
+      category: configuration.BENDER.sidesCategory,
+    }, data, "ALU");
+    Object.assign(configuration.BENDER, {
+      sides: entry.value, sidesHex: entry.hex, sidesShort: entry.shortName,
+      sidesThickness: entry.thickness, sidesCategory: entry.category,
+      sidesThicknessOptions: entry.thicknessOptions,
+    });
+    emit();
+  }
+
+  let emitQueued = false;
+  let destroyed = false;
+  onDestroy(() => { destroyed = true; });
+
+  /** Forward explicit edits after Svelte finishes the current DOM bindings. */
   function emit() {
-    onchange?.(configuration);
+    if (readonly || destroyed || emitQueued) return;
+    emitQueued = true;
+    // oninput/onchange runs before bind:value/bind:checked updates the model.
+    // Parents clone this snapshot immediately, so synchronous forwarding would
+    // persist the previous character or checkbox state. Coalesce one DOM turn.
+    queueMicrotask(() => {
+      emitQueued = false;
+      if (readonly || destroyed) return;
+      configuration.CNC_FREZER = withFaceMaterials(configuration.CNC_FREZER, faceEntries);
+      incomingConfiguration = configuration;
+      onchange?.(configuration);
+    });
   }
 
   // A derived variable to determine if the "FRONT" section should be expanded.
@@ -384,60 +454,56 @@
       <div class="section-title"><Scissors size={12} /> CNC FREZER</div>
       <div class="section-content">
         <!-- FACE -->
-        <div class="field">
-          <label>FACE</label>
-          <div class="picker-row">
-            <MaterialSelect
-              bind:value={configuration.CNC_FREZER.face}
-              categories={faceMaterials}
-              placeholder="Select..."
-              allowCustom={true}
-              {readonly}
-              onchange={(data) => {
-                configuration.CNC_FREZER.faceHex = data.hex;
-                configuration.CNC_FREZER.faceShort = extractShortName(
-                  data,
-                  "ACRYLIC",
-                );
-                faceThicknessOptions = data.material?.thickness_options || [];
-                if (
-                  faceThicknessOptions.length > 0 &&
-                  !faceThicknessOptions.includes(
-                    Number(configuration.CNC_FREZER.faceThickness),
-                  )
-                ) {
-                  configuration.CNC_FREZER.faceThickness =
-                    faceThicknessOptions[0].toString();
-                } else if (
-                  !configuration.CNC_FREZER.faceThickness &&
-                  faceThicknessOptions.length > 0
-                ) {
-                  configuration.CNC_FREZER.faceThickness =
-                    faceThicknessOptions[0].toString();
-                }
-                emit();
-              }}
-            />
-          </div>
-          {#if configuration.CNC_FREZER.face}
-            <span
-              class="material-badge-lg"
-              style:background={configuration.CNC_FREZER.faceHex || "#87CEEB"}
-              style:color={getTextColor(
-                configuration.CNC_FREZER.faceHex || "#87CEEB",
-              )}
-            >
-              {configuration.CNC_FREZER.faceShort ||
-                getShortName(configuration.CNC_FREZER.face, "ACRYLIC")}{#if configuration.CNC_FREZER.faceThickness}/{configuration.CNC_FREZER.faceThickness}{/if}
-            </span>
-            <MaterialThicknessSelect
-              bind:value={configuration.CNC_FREZER.faceThickness}
-              materialType={configuration.CNC_FREZER.face.split("_")[0] ||
-                "PVC"}
-              placeholder="Select thickness"
-              {readonly}
-              onchange={emit}
-            />
+        <div class="field face-materials">
+          <span class="field-label">FACE</span>
+          {#each faceEntries as material, index (material.id)}
+            <div class="face-material-entry" role="group"
+              aria-label={$t('profiles.materials.faceNumber', { number: index + 1 })}>
+              {#if faceEntries.length > 1}
+                <div class="face-material-heading">
+                  <span>{$t('profiles.materials.faceNumber', { number: index + 1 })}</span>
+                  {#if !readonly}
+                    <button type="button" class="remove-face"
+                      aria-label={$t('profiles.materials.removeFace', { number: index + 1 })}
+                      title={$t('profiles.materials.removeFace', { number: index + 1 })}
+                      onclick={() => removeFaceMaterial(material.id)}>
+                      <Trash2 size={14} />
+                    </button>
+                  {/if}
+                </div>
+              {/if}
+              <div class="picker-row">
+                <MaterialSelect
+                  bind:value={material.value}
+                  customColor={material.hex ?? ""}
+                  categories={faceMaterials}
+                  allowCustom={true}
+                  {readonly}
+                  onchange={(data) => selectFaceMaterial(material, data)}
+                />
+              </div>
+              {#if material.value}
+                <span class="material-badge-lg"
+                  style:background={material.hex || "#87CEEB"}
+                  style:color={getTextColor(material.hex || "#87CEEB")}>
+                  {material.shortName || getShortName(material.value, material.category || "ACRYLIC")}{#if material.thickness}/{material.thickness}{/if}
+                </span>
+                <MaterialThicknessSelect
+                  bind:value={material.thickness}
+                  materialType={material.category || material.value}
+                  thicknessOptions={material.thicknessOptions}
+                  autoSelectLowest={false}
+                  label={`${$t('profiles.materials.faceNumber', { number: index + 1 })} · ${$t('materialThickness.select')}`}
+                  {readonly}
+                  onchange={emit}
+                />
+              {/if}
+            </div>
+          {/each}
+          {#if !readonly}
+            <button type="button" class="add-face" onclick={addFaceMaterial}>
+              <Plus size={14} /> {$t('profiles.materials.addFace')}
+            </button>
           {/if}
         </div>
 
@@ -447,34 +513,11 @@
           <div class="picker-row">
             <MaterialSelect
               bind:value={configuration.CNC_FREZER.back}
+              customColor={configuration.CNC_FREZER.backHex ?? ""}
               categories={backMaterials}
-              placeholder="Select..."
               allowCustom={true}
               {readonly}
-              onchange={(data) => {
-                configuration.CNC_FREZER.backHex = data.hex;
-                configuration.CNC_FREZER.backShort = extractShortName(
-                  data,
-                  "ALU",
-                );
-                backThicknessOptions = data.material?.thickness_options || [];
-                if (
-                  backThicknessOptions.length > 0 &&
-                  !backThicknessOptions.includes(
-                    Number(configuration.CNC_FREZER.backThickness),
-                  )
-                ) {
-                  configuration.CNC_FREZER.backThickness =
-                    backThicknessOptions[0].toString();
-                } else if (
-                  !configuration.CNC_FREZER.backThickness &&
-                  backThicknessOptions.length > 0
-                ) {
-                  configuration.CNC_FREZER.backThickness =
-                    backThicknessOptions[0].toString();
-                }
-                emit();
-              }}
+              onchange={selectBackMaterial}
             />
           </div>
           {#if configuration.CNC_FREZER.back}
@@ -490,9 +533,10 @@
             </span>
             <MaterialThicknessSelect
               bind:value={configuration.CNC_FREZER.backThickness}
-              materialType={configuration.CNC_FREZER.back.split("_")[0] ||
-                "PVC"}
-              placeholder="Select thickness"
+              materialType={configuration.CNC_FREZER.backCategory || configuration.CNC_FREZER.back}
+              thicknessOptions={configuration.CNC_FREZER.backThicknessOptions}
+              autoSelectLowest={false}
+              label={`BACK · ${$t('materialThickness.select')}`}
               {readonly}
               onchange={emit}
             />
@@ -550,31 +594,11 @@
           <div class="picker-row">
             <MaterialSelect
               bind:value={configuration.BENDER.sides}
+              customColor={configuration.BENDER.sidesHex ?? ""}
               categories={sidesMaterials}
-              placeholder="Select..."
               allowCustom={true}
               {readonly}
-              onchange={(data) => {
-                configuration.BENDER.sidesHex = data.hex;
-                configuration.BENDER.sidesShort = extractShortName(data, "ALU");
-                sidesThicknessOptions = data.material?.thickness_options || [];
-                if (
-                  sidesThicknessOptions.length > 0 &&
-                  !sidesThicknessOptions.includes(
-                    Number(configuration.BENDER.sidesThickness),
-                  )
-                ) {
-                  configuration.BENDER.sidesThickness =
-                    sidesThicknessOptions[0].toString();
-                } else if (
-                  !configuration.BENDER.sidesThickness &&
-                  sidesThicknessOptions.length > 0
-                ) {
-                  configuration.BENDER.sidesThickness =
-                    sidesThicknessOptions[0].toString();
-                }
-                emit();
-              }}
+              onchange={selectSidesMaterial}
             />
           </div>
           {#if configuration.BENDER.sides}
@@ -590,8 +614,10 @@
             </span>
             <MaterialThicknessSelect
               bind:value={configuration.BENDER.sidesThickness}
-              materialType={configuration.BENDER.sides.split("_")[0] || "ALU"}
-              placeholder="Select thickness"
+              materialType={configuration.BENDER.sidesCategory || configuration.BENDER.sides}
+              thicknessOptions={configuration.BENDER.sidesThicknessOptions}
+              autoSelectLowest={false}
+              label={`SIDES · ${$t('materialThickness.select')}`}
               {readonly}
               onchange={emit}
             />
@@ -1225,7 +1251,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 1px;
-    background: var(--ink-0, var(--ink-primary));
+    background: var(--border);
   }
 
   .section {
@@ -1245,10 +1271,10 @@
     min-width: 140px;
   }
   .section-lg {
-    min-width: 240px;
+    min-width: 0;
   }
   .section-xl {
-    min-width: 350px;
+    min-width: 0;
     grid-column: span 2;
   }
 
@@ -1286,11 +1312,79 @@
     gap: var(--space-xs, 4px);
   }
 
-  .field > label {
+  .field > label,
+  .field-label {
     font-size: 10px;
     font-weight: 600;
     color: var(--muted, var(--ink-tertiary));
     text-transform: uppercase;
+  }
+
+  .face-materials,
+  .face-material-entry {
+    min-width: 0;
+  }
+
+  .face-material-entry {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs, 4px);
+  }
+
+  .face-material-entry + .face-material-entry {
+    margin-top: var(--space-sm, 8px);
+    padding-top: var(--space-sm, 8px);
+    border-top: 1px solid var(--border);
+  }
+
+  .face-material-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm, 8px);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-secondary);
+  }
+
+  .add-face,
+  .remove-face {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--bg-1);
+    color: var(--ink-secondary);
+    cursor: pointer;
+  }
+
+  .add-face {
+    margin-top: var(--space-xs, 4px);
+    padding: 7px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: start;
+  }
+
+  .remove-face {
+    min-width: 36px;
+    padding: 6px;
+    flex-shrink: 0;
+  }
+
+  .add-face:hover,
+  .remove-face:hover {
+    background: var(--bg-2);
+    color: var(--ink-primary);
+  }
+
+  .add-face:focus-visible,
+  .remove-face:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
   }
 
   /* PICKER ROW - consistent layout for all material pickers */
@@ -1505,12 +1599,13 @@
   /* ASSEMBLY 2x2 GRID */
   .assembly-grid-2x2 {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-md, 12px);
   }
 
   .assembly-item {
     display: flex;
+    min-width: 0;
     flex-direction: column;
     gap: var(--space-sm, 8px);
     padding: var(--space-md, 12px);
@@ -1695,10 +1790,15 @@
   .cable-row {
     display: flex;
     gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
   }
 
   .length-input {
     width: 50px;
+    flex: 0 0 64px;
+    min-width: 0;
+    max-width: 100%;
     padding: 6px;
     border: 1px solid var(--border, var(--border));
     border-radius: 4px;
@@ -1707,7 +1807,7 @@
   }
 
   .cable-row :global(.material-select) {
-    flex: 1;
+    flex: 1 1 100px;
   }
 
   .wago-label {
@@ -1891,24 +1991,34 @@
 
   /* RESPONSIVE */
   @media (max-width: 1400px) {
+    .form-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
     .section-xl {
-      grid-column: span 1;
+      grid-column: 1 / -1;
     }
   }
 
   @media (max-width: 900px) {
     .form-grid {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .assembly-grid-2x2 {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
   @media (max-width: 600px) {
     .form-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .section-sm,
+    .section-lg,
+    .section-xl {
+      min-width: 0;
     }
 
     .form-header {
@@ -1921,11 +2031,12 @@
     }
 
     .paint-grid {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .assembly-grid {
-      grid-template-columns: 1fr;
+    .assembly-grid,
+    .assembly-grid-2x2 {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 </style>

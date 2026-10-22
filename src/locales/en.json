@@ -3050,5 +3050,55 @@
         "sheltered": "Sheltered exterior"
       }
     }
+  },
+  "materialPicker": {
+    "select": "Select…",
+    "search": "Search all materials…",
+    "categories": "Material categories",
+    "backToCategories": "All categories",
+    "chooseCategory": "Choose a category",
+    "loading": "Loading materials…",
+    "noResults": "No materials found",
+    "loadError": "Could not load materials. Try again.",
+    "retry": "Retry",
+    "custom": "Enter custom value",
+    "customPlaceholder": "Enter custom material…",
+    "customColor": "Custom material color",
+    "switchToPicker": "Choose from catalog",
+    "categoryOther": "Other materials",
+    "categoryNames": {
+      "ACRYLIC_XT": "Extruded acrylic (XT)",
+      "ACRYLIC_GS": "Cast acrylic (GS)",
+      "ACRYLIC_LED": "LED acrylic",
+      "ALU_SHEET": "Aluminum sheets",
+      "ALU_COMPOSITE": "Aluminum composite",
+      "PVC_FOAM": "Foamed PVC",
+      "ALU_PROFILE": "Aluminum profiles",
+      "VINYL_ORACAL": "Oracal films",
+      "PAINT_RAL": "RAL colors",
+      "PAINT_PANTONE": "Pantone colors",
+      "LED_MODULE": "LED modules",
+      "LED_STRIP": "LED strips",
+      "PSU_MEANWELL": "Power supplies",
+      "WIRE": "Cables and wires",
+      "LED_ACCESSORY": "LED accessories"
+    }
+  },
+  "materialThickness": {
+    "label": "Thickness (mm)",
+    "select": "Select thickness",
+    "loading": "Loading thicknesses…",
+    "unavailable": "Thickness options could not be loaded. Enter a value or retry.",
+    "empty": "No standard thicknesses for this material. Enter a value in mm.",
+    "retry": "Retry",
+    "custom": "Enter thickness",
+    "saved": "Saved value"
+  },
+  "profiles": {
+    "materials": {
+      "addFace": "Add FACE material",
+      "removeFace": "Remove FACE material {number}",
+      "faceNumber": "FACE material {number}"
+    }
   }
 }

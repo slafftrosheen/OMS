@@ -1,10 +1,21 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { untrack } from 'svelte';
+  import { t } from 'svelte-i18n';
+  import { base } from '$app/paths';
+  import {
+    createCatalogThicknessOptions,
+    fetchThicknessOptions,
+    normalizeThicknessValue,
+    thicknessOptionValue,
+    type ThicknessOption
+  } from '$lib/materials/thickness-options';
 
   let {
     value = $bindable(''),
     materialType = 'PVC',
-    placeholder = 'Select thickness',
+    thicknessOptions,
+    placeholder,
+    label,
     disabled = false,
     readonly = false,
     autoSelectLowest = true,
@@ -12,128 +23,237 @@
   }: {
     value?: string;
     materialType?: string;
+    thicknessOptions?: number[];
     placeholder?: string;
+    label?: string;
     disabled?: boolean;
     readonly?: boolean;
     autoSelectLowest?: boolean;
     onchange?: () => void;
   } = $props();
 
-  interface ThicknessOption {
-    id: number;
-    material_type: string;
-    thickness: number;
-    unit: string;
-    display_name: string;
-  }
-
   let options: ThicknessOption[] = $state([]);
   let loading = $state(true);
-  let hasLoadedOnce = $state(false);
+  let loadError = $state(false);
+  let retryVersion = $state(0);
 
-  onMount(async () => {
-    await loadOptions();
-  });
-
-  async function loadOptions() {
-    loading = true;
-    try {
-      const response = await fetch(`/api/material-thickness-options?materialType=${materialType}`);
-      if (response.ok) {
-        options = await response.json();
-        
-        // Auto-select lowest thickness if enabled and value is empty
-        if (autoSelectLowest && !value && options.length > 0) {
-          // Sort by thickness to find the lowest
-          const sortedOptions = [...options].sort((a, b) => a.thickness - b.thickness);
-          const lowestOption = sortedOptions[0];
-          value = `${lowestOption.thickness}${lowestOption.unit}`;
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load thickness options:', err);
-    } finally {
-      loading = false;
-      hasLoadedOnce = true;
-    }
-  }
+  const selectedValue = $derived(normalizeThicknessValue(value));
+  const hasSavedOption = $derived(
+    !!selectedValue && !options.some(option => thicknessOptionValue(option) === selectedValue)
+  );
+  const manualValue = $derived(selectedValue.replace(/mm$/i, ''));
 
   $effect(() => {
-    if (materialType) {
-      loadOptions();
+    const type = materialType;
+    const hasCatalogOptions = Array.isArray(thicknessOptions);
+    const catalogOptions = createCatalogThicknessOptions(thicknessOptions);
+    const blocked = disabled || readonly;
+    // Retry is an explicit user action, never an automatic fetch loop.
+    retryVersion;
+    let current = true;
+    const controller = new AbortController();
+    options = catalogOptions;
+    loadError = false;
+    loading = false;
+
+    const applyOptions = (next: ThicknessOption[]) => {
+      if (!current) return;
+      options = next;
+      // Reading or opening an order must not replace an existing saved thickness.
+      untrack(() => {
+        if (!blocked && autoSelectLowest && !value && next.length > 0) {
+          value = thicknessOptionValue(next[0]);
+          onchange?.();
+        }
+      });
+    };
+
+    if (hasCatalogOptions) {
+      applyOptions(catalogOptions);
+    } else if (type && !blocked) {
+      loading = true;
+      void fetchThicknessOptions(type, { signal: controller.signal, basePath: base })
+        .then(applyOptions)
+        .catch(() => {
+          if (current) loadError = true;
+        })
+        .finally(() => {
+          if (current) loading = false;
+        });
     }
+
+    // A late response for the previous material cannot replace the current choices.
+    return () => {
+      current = false;
+      controller.abort();
+    };
   });
 
-  function handleChange() {
+  function handleChange(event: Event) {
+    value = normalizeThicknessValue((event.currentTarget as HTMLSelectElement).value);
+    onchange?.();
+  }
+
+  function handleManualInput(event: Event) {
+    value = normalizeThicknessValue((event.currentTarget as HTMLInputElement).value);
     onchange?.();
   }
 </script>
 
-{#if hasLoadedOnce && options.length > 0 && !loading}
-  <select bind:value disabled={disabled || readonly} class="thickness-select" onchange={handleChange}>
-    <option value="" disabled selected>Select thickness</option>
-    {#each options as option}
-      <option value="{option.thickness}{option.unit}">
-        {option.thickness}mm - {option.display_name}
+<div class="thickness-field" aria-busy={loading}>
+  {#if options.length > 0 || loading}
+    <select
+      value={selectedValue}
+      disabled={disabled || readonly || loading}
+      class="thickness-select"
+      aria-label={label || $t('materialThickness.label')}
+      onchange={handleChange}
+    >
+      <option value="">
+        {loading ? $t('materialThickness.loading') : (placeholder || $t('materialThickness.select'))}
       </option>
-    {/each}
-  </select>
-{:else}
-  <select bind:value disabled={disabled || readonly} class="thickness-select" class:loading onchange={handleChange}>
-    <option value="" disabled selected>{loading ? 'Loading...' : placeholder}</option>
-    {#each options as option}
-      <option value="{option.thickness}{option.unit}">
-        {option.thickness}mm - {option.display_name}
-      </option>
-    {/each}
-  </select>
-{/if}
+      {#if hasSavedOption}
+        <option value={selectedValue}>{value} · {$t('materialThickness.saved')}</option>
+      {/if}
+      {#each options as option (thicknessOptionValue(option))}
+        <option value={thicknessOptionValue(option)}>{option.thickness} {option.unit}</option>
+      {/each}
+    </select>
+  {:else}
+    <div class="manual-input">
+      <input
+        type="text"
+        inputmode="decimal"
+        value={manualValue}
+        disabled={disabled || readonly}
+        aria-label={label || $t('materialThickness.label')}
+        placeholder={$t('materialThickness.custom')}
+        oninput={handleManualInput}
+      />
+      <span aria-hidden="true">mm</span>
+    </div>
+  {/if}
+
+  {#if !loading && !readonly && !disabled && options.length === 0}
+    <div class="thickness-status" class:error={loadError} role="status">
+      <span>{loadError ? $t('materialThickness.unavailable') : $t('materialThickness.empty')}</span>
+      {#if loadError}
+        <button type="button" class="retry-button" onclick={() => retryVersion++}>
+          {$t('materialThickness.retry')}
+        </button>
+      {/if}
+    </div>
+  {/if}
+</div>
 
 <style>
-  .thickness-select {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid var(--border, var(--border));
-    border-radius: 8px;
-    font-size: 14px;
-    color: var(--text-primary, var(--ink-primary));
-    font-family: inherit;
-    background: var(--bg-1);
-    transition: all 0.2s;
-    cursor: pointer;
+  .thickness-field {
+    min-width: 0;
+    display: grid;
+    gap: 6px;
   }
 
-  .thickness-select:focus {
-    outline: none;
+  .thickness-select,
+  .manual-input {
+    width: 100%;
+    min-width: 0;
+    min-height: 40px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md, 8px);
+    font: inherit;
+    font-size: 0.875rem;
+    color: var(--text);
+    background: var(--bg-1);
+    transition: border-color 0.15s ease;
+  }
+
+  .thickness-select {
+    padding: 9px 10px;
+    cursor: pointer;
+    text-overflow: ellipsis;
+  }
+
+  /* Native popups need explicit colors, including on an OS using the other theme. */
+  .thickness-select option {
+    color: var(--text);
+    background: var(--bg-1);
+  }
+
+  .thickness-select:focus-visible,
+  .manual-input:focus-within {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
     border-color: var(--brand);
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 10%, transparent);
   }
 
   .thickness-select:disabled {
-    background: var(--bg-disabled, var(--bg-2));
-    color: var(--text-muted, var(--muted));
+    background: var(--bg-2);
+    color: var(--muted);
     cursor: not-allowed;
+    opacity: 1;
   }
 
-  .thickness-select.loading {
-    opacity: 0.6;
-  }
-  
-  .selected-thickness {
+  .manual-input {
     display: flex;
     align-items: center;
-    justify-content: center;
-    width: 100%;
-    padding: 12px 16px;
-    border: 1px solid var(--border, var(--border));
-    border-radius: 8px;
-    background: var(--bg-1);
-    min-height: 44px;
   }
-  
-  .thickness-value {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: var(--text-primary, var(--ink-primary));
+
+  .manual-input input {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    padding: 9px 10px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    outline: none;
+  }
+
+  .manual-input input::placeholder {
+    color: var(--muted);
+  }
+
+  .manual-input input:disabled {
+    cursor: not-allowed;
+    color: var(--muted);
+  }
+
+  .manual-input span {
+    padding-right: 10px;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+
+  .thickness-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    align-items: baseline;
+    color: var(--muted);
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+
+  .thickness-status.error {
+    color: var(--error);
+  }
+
+  .retry-button {
+    border: 0;
+    background: transparent;
+    padding: 4px 0;
+    color: var(--brand);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  .retry-button:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
+    border-radius: 2px;
   }
 </style>
