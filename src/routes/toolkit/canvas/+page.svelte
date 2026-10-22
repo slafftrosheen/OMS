@@ -3,6 +3,8 @@
   import { t, locale } from 'svelte-i18n';
   import { get } from 'svelte/store';
   import TldrawWrapper from '$lib/components/canvas/TldrawWrapper.svelte';
+  import CanvasToolbar from '$lib/components/canvas/CanvasToolbar.svelte';
+  import { canvasLinkShapeProps, normalizeCanvasMediaUrl } from '$lib/components/canvas/toolkit-media-url';
   import { ideaDefaults, type IdeaKind } from '$lib/components/canvas/idea-model';
   import { starterCards } from '$lib/components/canvas/toolkit-templates';
   import { markdownProjectBrief, briefFileName } from '$lib/components/canvas/toolkit-brief';
@@ -10,7 +12,9 @@
   import { runShape } from '$lib/components/canvas/node-runner';
   import { importToolkitFiles, placeToolkitAsset, type ToolkitStoredAsset, type ToolkitPosition } from '$lib/components/canvas/toolkit-media-import';
   import { TOOLKIT_SKILLS, boardInsights, normalizeCanvasActions, type CanvasAction, type ToolkitSkill } from '$lib/components/canvas/toolkit-skills';
-  import { applyToolkitAction } from '$lib/components/canvas/toolkit-action-executor';
+  import { applyToolkitAction, applyToolkitActions, actionSummary } from '$lib/components/canvas/toolkit-action-executor';
+  import { captureToolkitScene } from '$lib/components/canvas/toolkit-scene';
+  import { captureCanvasDrawing } from '$lib/components/canvas/toolkit-snapshot';
 
   const tr = (key: string, vars: Record<string, string | number> = {}) => get(t)(`toolkit.${key}`, vars);
 
@@ -41,6 +45,8 @@
   let analyzedAssets = $state<Record<string, {kind:string; filename:string; evidence:string; answer:string}>>({});
   let lastAnalyzedAsset = $state<string | null>(null);
   let lastUsedModel = $state('');
+  let includeImages = $state(false);
+  let sceneStatus = $state('');
   let insecureClipboard = $state(false);
   let legacyThreads = $state<Record<string, Array<{role: string; content: string}>>>({});
   let prompt = $state('');
@@ -60,12 +66,15 @@
   let savedFilesError = $state('');
   let fileInput: HTMLInputElement;
   let selectedTool = $state('select');
+  let canUndo = $state(false);
+  let canRedo = $state(false);
+  let linking = $state(false);
   let requesting = $state(false);
   let selectedLabel = $state('');
   let selectedCount = $state(0);
   let editor: any = null;
   let lastSnapshot: unknown = null;
-  let ready = false;
+  let ready = $state(false);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let pendingTemplate: Template | null = null;
   let destroyed = false;
@@ -83,13 +92,6 @@
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
   let activeLoadToken = 0;
 
-  const kinds: { kind: IdeaKind; label: string; emoji: string }[] = [
-    { kind: 'idea', label: 'Idea', emoji: '✦' },
-    { kind: 'research', label: 'Research', emoji: '◈' },
-    { kind: 'decision', label: 'Decision', emoji: '◇' },
-    { kind: 'task', label: 'Task', emoji: '✓' },
-    { kind: 'note', label: 'Note', emoji: '▤' }
-  ];
   const prompts: Array<{id: 'expand'|'challenge'|'compare'|'plan'|'research'|'brief'; skill: ToolkitSkill}> = [
     { id: 'expand', skill: 'explore' }, { id: 'challenge', skill: 'critique' },
     { id: 'compare', skill: 'compare' }, { id: 'plan', skill: 'plan' },
@@ -141,7 +143,7 @@
     if (!boardId || !discussionDirty) return;
     const id = boardId, rev = discussionRevision;
     const messagesToSave = messages.slice(-60);
-    const proposalsToSave = [...suggestions.slice(0, 5), ...actionProposals.slice(0, 3)].slice(0, 8);
+    const proposalsToSave = [...suggestions.slice(0, 5), ...actionProposals.slice(0, 12)].slice(0, 17);
     discussionSaving = true;
     chatInFlight = (async () => {
       try {
@@ -257,7 +259,7 @@
       const privateCopy = await fetch(`/api/toolkit/conversations/${encodeURIComponent(data.canvas.id)}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: messages.slice(-60),
-          proposals: [...suggestions.slice(0, 5), ...actionProposals.slice(0, 3)] })
+          proposals: [...suggestions.slice(0, 5), ...actionProposals.slice(0, 12)] })
       });
       if (!privateCopy.ok) {
         discussionError = tr('errors.privateCopy');
@@ -295,6 +297,8 @@
     messages = [];
     suggestions = [];
     actionProposals = [];
+    sceneStatus = '';
+    includeImages = false;
     researchSources = [];
     webSearchRequests = null;
     searchNote = '';
@@ -417,7 +421,6 @@
       }
     }
   }
-  function setArrowTool() { editor?.setCurrentTool('arrow'); }
   function undo() { editor?.undo(); }
   function redo() { editor?.redo(); }
   function zoomToContent() { editor?.zoomToFit?.(); }
@@ -474,7 +477,7 @@
       });
     selectedCount = selected.length;
     selectedLabel = selected.length ? tr('canvas.selected', { count: selected.length }) : tr('canvas.wholeBoard');
-    return { cards, links, visualAssets, focusId: String(selected[0] ?? '') };
+    return { cards, links, visualAssets, scene: captureToolkitScene(editor), focusId: String(selected[0] ?? '') };
   }
   async function brainstorm(question = prompt, requestedSkill: ToolkitSkill = skill) {
     const text = question.trim();
@@ -483,8 +486,10 @@
     skill = requestedSkill;
     notice = '';
     searchNote = '';
+    sceneStatus = '';
     const activeBoardId = boardId;
     const context = getContext();
+    const sendVisuals = includeImages;
     const history = messages.slice(-10);
     messages = [...messages, { role: 'user' as const, content: text }].slice(-60);
     prompt = '';
@@ -494,10 +499,18 @@
     webSearchRequests = null;
     markDiscussionDirty();
     try {
+      let drawing = null;
+      if (sendVisuals) {
+        try { drawing = await captureCanvasDrawing(editor, context.scene?.shapes.map(shape => shape.id)); }
+        catch { /* Scene text and authorized image files remain useful if export is unavailable. */ }
+        if (boardId !== activeBoardId || destroyed) return;
+      }
       const response = await fetch('/api/toolkit/brainstorm', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(120_000),
         body: JSON.stringify({
-           prompt: text, ...context, history, skill: requestedSkill, language: $locale,
+           prompt: text, ...context, boardId: activeBoardId, includeImages: sendVisuals, drawing,
+           history, skill: requestedSkill, language: $locale,
            model: selectedModel || undefined,
            webMode: requestedSkill === 'research' ? webMode : 'searxng'
          })
@@ -512,8 +525,13 @@
       searchNote = typeof data.searchNote === 'string' ? data.searchNote.slice(0, 500) : '';
       messages = [...messages, { role: 'assistant' as const, content: String(data.reply ?? '').slice(0, 5000) }].slice(-60);
       suggestions = normalizeProposals(data.cards).slice(0, 5);
-      actionProposals = normalizeCanvasActions(data.actions,
-        new Set(context.cards.map(c => c.id)));
+      actionProposals = normalizeCanvasActions(data.actions, context.scene);
+      sceneStatus = data.scene ? tr('canvas.sceneIncluded', { count: data.scene.visibleShapes, total: data.scene.totalShapes }) : '';
+      if (data.scene?.truncated) sceneStatus += ' ' + tr('canvas.sceneTruncated');
+      if (data.vision?.requested) sceneStatus += ' ' + tr('canvas.imagesIncluded', { count: Number(data.vision.included) || 0 });
+      if (data.vision?.requested) sceneStatus += ' ' + tr(data.vision.drawing ? 'canvas.drawingIncluded' : 'canvas.drawingUnavailable', { count: Number(data.vision.drawingShapes) || 0 });
+      if (Number(data.vision?.drawingOmitted) > 0) sceneStatus += ' ' + tr('canvas.drawingOmitted', { count: data.vision.drawingOmitted });
+      if (Number(data.vision?.skipped) > 0) sceneStatus += ' ' + tr('canvas.imagesSkipped', { count: data.vision.skipped });
       researchSources = Array.isArray(data.sources)
         ? data.sources.filter((v: any) => typeof v?.url === 'string' &&
           /^https?:\/\//.test(v.url)).slice(0, 5).map((v: any) => ({
@@ -642,7 +660,7 @@
     if (!confirm(tr('canvas.confirmArrange'))) return;
     const result = applyToolkitAction(editor,
       { kind: 'layout', layout: 'columns', reason: 'Explicit user command' });
-    notice = result.detail;
+    notice = tr(result.messageKey);
   }
 
   function exportBrief() {
@@ -704,13 +722,22 @@
         !confirm(tr('canvas.confirmArrange'))) return;
     try {
       const result = applyToolkitAction(editor, action);
-      notice = result.detail;
+      notice = tr(result.messageKey);
       if (result.ok) {
         actionProposals = actionProposals.filter(candidate => candidate !== action);
         markDiscussionDirty();
       }
     } catch (e) {
       notice = e instanceof Error ? e.message : tr('errors.applyFailed');
+    }
+  }
+  function approveAllActions() {
+    if (!editor || !boardId || conflict || remoteUpdated || !actionProposals.length) return;
+    const result = applyToolkitActions(editor, actionProposals);
+    notice = tr(result.messageKey);
+    if (result.ok) {
+      actionProposals = [];
+      markDiscussionDirty();
     }
   }
   async function runSelectedTechnical() {
@@ -730,10 +757,69 @@
     const center = editor.getViewportPageBounds().center;
     editor.createShape({ type, x: center.x - 180, y: center.y - 120 });
   }
-  function drawTool(tool: string) {
-    if (!editor) return;
-    editor.setCurrentTool(tool);
-    selectedTool = tool;
+  async function drawTool(tool: string) {
+    if (!editor || conflict || remoteUpdated) return;
+    if (['rectangle', 'ellipse', 'triangle', 'diamond', 'star'].includes(tool)) {
+      const activeEditor = editor;
+      const { GeoShapeGeoStyle } = await import('@tldraw/tldraw');
+      if (editor !== activeEditor || conflict || remoteUpdated) return;
+      editor.setStyleForNextShapes(GeoShapeGeoStyle, tool);
+      editor.setCurrentTool('geo');
+      selectedTool = 'geo';
+    } else {
+      editor.setCurrentTool(tool);
+      selectedTool = tool;
+    }
+  }
+  function insertFromToolbar(kind: string, value?: string) {
+    if (!editor || conflict || remoteUpdated) return;
+    if (kind === 'files') fileInput?.click();
+    else if (kind === 'card') addCard(value as IdeaKind);
+    else if (kind === 'material') addMaterial(value);
+    else if (kind === 'photo-material') createPhotoMaterial();
+    else if (kind === 'technical') addTechnical(value || 'document');
+  }
+  function toolbarAction(action: string) {
+    if (!editor || conflict || remoteUpdated) return;
+    const ids = editor.getSelectedShapeIds();
+    if (action === 'undo') undo();
+    else if (action === 'redo') redo();
+    else if (action === 'fit') zoomToContent();
+    else if (action === 'arrange') arrangeIdeas();
+    else if (action === 'delete') deleteSelection();
+    else if (action === 'duplicate') editor.duplicateShapes(ids, { x: 24, y: 24 });
+    else if (action === 'group') editor.groupShapes(ids);
+    else if (action === 'ungroup') editor.ungroupShapes(ids);
+    else if (action === 'front') editor.bringToFront(ids);
+    else if (action === 'back') editor.sendToBack(ids);
+    else if (action === 'run') void runSelectedTechnical();
+  }
+  async function addLink(value: string, point?: ToolkitPosition) {
+    if (!editor || !boardId || linking || conflict || remoteUpdated) return;
+    const url = normalizeCanvasMediaUrl(value);
+    if (!url) { notice = tr('toolbar.invalidLink'); return; }
+    const activeEditor = editor, id = boardId, token = activeLoadToken;
+    linking = true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      let metadata = {};
+      try {
+        const response = await fetch('/api/toolkit/link-preview', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ boardId: id, url }), signal: controller.signal
+        });
+        if (response.ok) metadata = await response.json();
+      } catch { /* A usable URL card remains available when a site blocks metadata. */ }
+      if (destroyed || boardId !== id || editor !== activeEditor || token !== activeLoadToken || conflict || remoteUpdated) return;
+      const props = canvasLinkShapeProps(url, metadata);
+      if (!props) return;
+      const center = editor.getViewportPageBounds().center;
+      const position = point ?? { x: center.x - props.w / 2, y: center.y - props.h / 2 };
+      editor.createShape({ type: 'document', ...position, props });
+      notice = tr('toolbar.linkAdded');
+    } catch { notice = tr('toolbar.linkFailed'); }
+    finally { clearTimeout(timer); linking = false; }
   }
   function addMaterial(preset: string = 'brushed-metal', textureUrl?: string) {
     if (!editor) return;
@@ -789,7 +875,7 @@
   }
 
   async function importFiles(files: File[], point?: ToolkitPosition) {
-    if (!boardId || !editor || importing || !files.length) return;
+    if (!boardId || !editor || importing || !files.length || conflict || remoteUpdated) return;
     importing = true;
     const activeEditor = editor, id = boardId;
     importStatus = 'Preparing files…';
@@ -875,7 +961,6 @@
       <span class="team-label" title={$t('toolkit.canvas.sharedTitle')}>{$t('toolkit.canvas.shared')}</span>
       <button onclick={() => createBoard('blank')}>{$t('toolkit.canvas.newProject')}</button>
       <button onclick={() => void flushCurrentChanges()} disabled={!boardId || saving || ( !dirty && !discussionDirty ) || conflict}>{$t('toolkit.canvas.save')}</button>
-      <button onclick={arrangeIdeas} disabled={!boardId || !editor || conflict || remoteUpdated}>{$t('toolkit.canvas.arrangeIdeas')}</button>
       <button onclick={exportBrief} disabled={!boardId || !editor}>{$t('toolkit.canvas.exportBrief')}</button>
       <button class="assistant-toggle" type="button" onclick={() => assistantOpen = !assistantOpen} aria-expanded={assistantOpen}>
         {assistantOpen ? $t('toolkit.canvas.hideAssistant') : $t('toolkit.canvas.brainstorm')}
@@ -899,6 +984,7 @@
     </div>
   {/if}
 
+  {#if notice}<p role="status" class="canvas-notice">{notice}</p>{/if}
   <div class="panes">
     {#if projectListOpen}
       <aside class="library">
@@ -935,7 +1021,7 @@
               {#each savedFiles as asset (asset.id)}
                 <button title={asset.fileName} onclick={() => reattachSavedFile(asset)}
                   disabled={!editor || conflict || remoteUpdated || importing}>
-                  <span aria-hidden="true">{asset.mime === 'application/pdf' ? '📄' : '🖼️'}</span>
+                  <span aria-hidden="true">{asset.mime === 'application/pdf' ? '📄' : asset.mime.startsWith('video/') ? '▶' : asset.mime.startsWith('audio/') ? '♫' : '🖼️'}</span>
                   <span>{asset.fileName}</span>
                 </button>
               {/each}
@@ -951,70 +1037,25 @@
 
     <section class="board-area" aria-label={$t('toolkit.canvas.canvasLabel')}>
       {#if boardId && !loading}
-        <div class="node-toolbar">
-          <span class="small-heading">{$t('toolkit.canvas.compose')}</span>
-          <input class="file-input" bind:this={fileInput} type="file" multiple
-            accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.pdf"
-            aria-label={$t('toolkit.canvas.chooseFiles')} onchange={onFileSelected} />
-          <button class="import-button" onclick={() => fileInput?.click()} disabled={importing}>
-            {importing ? $t('toolkit.canvas.importing') : $t('toolkit.canvas.addFiles')}
-          </button>
-          <span class="toolbar-separator" aria-hidden="true"></span>
-          {#each [
-            { tool: 'select', title: $t('toolkit.draw.selectTitle'), label: $t('toolkit.draw.select') },
-            { tool: 'draw', title: $t('toolkit.draw.drawTitle'), label: $t('toolkit.draw.draw') },
-            { tool: 'highlight', title: $t('toolkit.draw.highlightTitle'), label: $t('toolkit.draw.highlight') },
-            { tool: 'geo', title: $t('toolkit.draw.geoTitle'), label: $t('toolkit.draw.geo') },
-            { tool: 'text', title: $t('toolkit.draw.textTitle'), label: $t('toolkit.draw.text') },
-            { tool: 'eraser', title: $t('toolkit.draw.eraserTitle'), label: $t('toolkit.draw.eraser') }
-          ] as drawing}
-            <button title={drawing.title} class:chosen={selectedTool === drawing.tool}
-              aria-pressed={selectedTool === drawing.tool}
-              onclick={() => drawTool(drawing.tool)}>{drawing.label}</button>
-          {/each}
-          <span class="toolbar-separator" aria-hidden="true"></span>
-          <span class="small-heading">{$t('toolkit.canvas.ideas')}</span>
-          {#each kinds as item (item.kind)}
-            <button title={$t('toolkit.canvas.addKind', { kind: $t(`toolkit.kind.${item.kind}`) })} onclick={() => addCard(item.kind)}>
-              <span>{item.emoji}</span> {$t(`toolkit.kind.${item.kind}`)}
-            </button>
-          {/each}
-          <button onclick={() => { setArrowTool(); selectedTool = 'arrow'; }}
-            title={$t('toolkit.canvas.connectTitle')}>{$t('toolkit.canvas.connect')}</button>
-          <details class="advanced-tools">
-            <summary>{$t('toolkit.canvas.materials')}</summary>
-            <div class="advanced-menu" role="group" aria-label={$t('toolkit.canvas.materialRefs')}>
-              {#each ['brushed-metal','matte','frosted-acrylic','wood-grain','concrete','patina','mesh'] as material}
-                <button onclick={() => addMaterial(material)}>{$t(`toolkit.nodes.materialPresets.${material}`)}</button>
-              {/each}
-              <button onclick={createPhotoMaterial}>{$t('toolkit.canvas.fromImage')}</button>
-            </div>
-          </details>
-          <span class="toolbar-separator" aria-hidden="true"></span>
-          <button onclick={undo} title={$t('toolkit.canvas.undo')} aria-label={$t('toolkit.canvas.undoTitle')}>↶</button>
-          <button onclick={redo} title={$t('toolkit.canvas.redo')} aria-label={$t('toolkit.canvas.redoTitle')}>↷</button>
-          <button onclick={zoomToContent} title={$t('toolkit.canvas.fitTitle')}>{$t('toolkit.canvas.fit')}</button>
-          <button onclick={deleteSelection} title={$t('toolkit.canvas.deleteSelected')}>{$t('toolkit.canvas.deleteSelected')}</button>
-          <details class="advanced-tools">
-            <summary>{$t('toolkit.canvas.technical')}</summary>
-            <div class="advanced-menu">
-              {#each [{ type: 'web-search', name: $t('toolkit.nodes.techWeb') }, { type: 'crawl', name: $t('toolkit.nodes.techCrawl') },
-                { type: 'lumigrid', name: 'LumiGrid' }, { type: 'led-strip', name: $t('toolkit.nodes.techStrip') },
-                { type: 'led-matrix', name: $t('toolkit.nodes.techMatrix') }, { type: 'boxletter', name: $t('toolkit.nodes.techLetter') },
-                { type: 'maker', name: $t('toolkit.nodes.techSketch') }, { type: 'document', name: $t('toolkit.nodes.techDocument') }] as tool}
-                <button onclick={() => addTechnical(tool.type)}>{tool.name}</button>
-              {/each}
-              <button onclick={runSelectedTechnical} disabled={running}>{running ? $t('toolkit.canvas.working') : $t('toolkit.canvas.runTool')}</button>
-            </div>
-          </details>
-        </div>
+        <input class="file-input" bind:this={fileInput} type="file" multiple
+          accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,.pdf,.mp3,.wav,.ogg,.m4a"
+          aria-label={$t('toolkit.canvas.chooseFiles')} onchange={onFileSelected} />
         {#if importStatus}<div class="import-progress" role="status">{importStatus}</div>{/if}
         <div class="drawing-surface">
           {#key boardId}
             <TldrawWrapper snapshot={initialSnapshot ?? undefined}
               toolkitBoardId={boardId} onToolkitFilesDrop={(files, position) => { void importFiles(files, position); }}
+              onToolkitLinkDrop={(url, point) => { void addLink(url, point); }}
+              onToolkitControlsChange={(state) => {
+                selectedTool = state.tool; selectedCount = state.selected;
+                canUndo = state.canUndo; canRedo = state.canRedo;
+              }}
               onSave={onCanvasChange} onDocumentChange={onDocumentChange} onReady={onEditorReady} onError={(message) => (error = message)} />
           {/key}
+          <CanvasToolbar tool={selectedTool} selected={selectedCount} {canUndo} {canRedo}
+            disabled={!ready || conflict || remoteUpdated} {importing} {linking} {running}
+            onTool={(tool) => { void drawTool(tool); }} onInsert={insertFromToolbar}
+            onAction={toolbarAction} onLink={(url) => { void addLink(url); }} />
         </div>
         <p class="canvas-hint">{$t('toolkit.canvas.hint')}</p>
       {:else if loading}
@@ -1055,6 +1096,11 @@
             </select>
             <p>{$t('toolkit.canvas.modelHint')}</p>
           {/if}
+          <label class="canvas-image-option">
+            <input type="checkbox" bind:checked={includeImages} disabled={requesting || analyzingFile} />
+            <span>{$t('toolkit.canvas.includeImages')}</span>
+          </label>
+          <p>{$t('toolkit.canvas.includeImagesHint')}{#if includeImages && mediaVisionModel} · {mediaVisionModel}{/if}</p>
           {#if skill === 'research'}
             <label for="toolkit-web-mode">{$t('toolkit.canvas.webSource')}</label>
             <select id="toolkit-web-mode" bind:value={webMode} disabled={requesting}>
@@ -1145,15 +1191,13 @@
         {/if}
         {#if actionProposals.length}
           <div class="suggestion-list" aria-label={$t('toolkit.canvas.actionTools')}>
-            <div class="proposal-header"><strong>{$t('toolkit.canvas.actions')} · {actionProposals.length}</strong></div>
+            <div class="proposal-header"><strong>{$t('toolkit.canvas.actions')} · {actionProposals.length}</strong>
+              <button disabled={conflict || remoteUpdated} onclick={approveAllActions}>{$t('toolkit.canvas.applyAllEdits')}</button>
+            </div>
+            <p class="scene-status">{$t('toolkit.canvas.editReviewHint')}</p>
             {#each actionProposals as action, index (`${action.kind}:${index}`)}
               <div class="proposal">
-                <span class="proposal-kind">{action.kind}</span>
-                <strong>{action.kind === 'connect'
-    ? $t('toolkit.canvas.actionConnect', { from: actionTargetName(action.from), to: actionTargetName(action.to) })
-    : action.kind === 'revise'
-      ? $t('toolkit.canvas.actionRevise', { title: actionTargetName(action.target) })
-      : $t('toolkit.canvas.actionLayout', { layout: $t(`toolkit.canvas.layout${action.layout === 'grid' ? 'Grid' : 'Columns'}`) })}</strong>
+                <strong>{actionSummary(action, actionTargetName, tr)}</strong>
                 {#if action.reason}<p>{action.reason}</p>{/if}
                 <button disabled={conflict || remoteUpdated}
                   onclick={() => approveAction(action)}>{$t('toolkit.canvas.reviewApply')}</button>
@@ -1161,6 +1205,7 @@
             {/each}
           </div>
         {/if}
+        {#if sceneStatus}<p class="scene-status" role="status">{sceneStatus}</p>{/if}
         {#if searchNote}
           <p class="research-note" role="status">{$t('toolkit.canvas.researchStatus')}: {$t(`toolkit.canvas.searchNote${searchNote}`)}</p>
         {/if}
@@ -1188,7 +1233,6 @@
         {#if insecureClipboard}
           <p class="canvas-security-note" role="status">{$t('toolkit.canvas.clipboard')}</p>
         {/if}
-        {#if notice}<p role="status" class="note">{notice}</p>{/if}
         <form class="composer" onsubmit={(e) => { e.preventDefault(); void brainstorm(); }}>
           <label for="toolkit-prompt">{$t('toolkit.canvas.question')}</label>
           <textarea id="toolkit-prompt" bind:value={prompt} rows="3" maxlength="2500"
@@ -1216,8 +1260,8 @@
   .team-label{font-size:11px;font-weight:700;color:var(--ink-secondary);white-space:nowrap}
   .remote-banner,.private-banner{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--bg-1);font-size:12px}
   .remote-banner{border-color:var(--brand)}.private-banner{border-color:var(--error)}
-  .toolbar-separator{height:26px;width:1px;background:var(--border);margin:0 4px}
   .save-indicator,.muted{font-size:11px;color:var(--ink-tertiary)}
+  .canvas-notice{margin:0;padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--ink-secondary);background:var(--bg-1);overflow-wrap:anywhere}
   .icon-toggle{font-size:16px;min-width:38px}.panes{display:flex;flex:1;min-height:0;position:relative}
   .library{display:flex;flex-direction:column;flex:0 0 230px;min-width:0;background:var(--bg-1);border-right:1px solid var(--border);padding:12px;gap:12px;overflow:auto}
   .pane-heading{display:flex;justify-content:space-between;align-items:center;gap:10px}
@@ -1236,11 +1280,8 @@
   .saved-file-list button{display:flex;gap:5px;align-items:center;min-width:0;text-align:left}
   .saved-file-list button span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .board-area{flex:1;min-width:0;display:flex;flex-direction:column;position:relative;background:var(--bg-0)}
-  .node-toolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;z-index:5;background:var(--bg-1);border-bottom:1px solid var(--border);padding:8px}
-  .node-toolbar button{white-space:nowrap}.drawing-surface{flex:1;min-height:0;position:relative;isolation:isolate}
-  .advanced-tools{position:relative;font-size:12px}.advanced-tools summary{padding:9px;cursor:pointer;border:1px solid var(--border);border-radius:9px;list-style:none;font-weight:650}
-  .advanced-menu{position:absolute;z-index:15;top:calc(100% + 6px);right:0;width:190px;padding:8px;background:var(--bg-1);border:1px solid var(--border);border-radius:12px;box-shadow:var(--glass-shadow-lg);display:grid;gap:5px}
-  .advanced-menu button{text-align:left}.canvas-hint{margin:0;padding:7px 12px;font-size:11px;color:var(--ink-tertiary);border-top:1px solid var(--border)}
+  .drawing-surface{flex:1;min-height:0;position:relative;isolation:isolate;container-type:inline-size}
+  .canvas-hint{margin:0;padding:7px 12px;font-size:11px;color:var(--ink-tertiary);border-top:1px solid var(--border)}
   .empty-canvas{flex:1;display:grid;place-content:center;justify-items:center;text-align:center;gap:12px;padding:24px}.empty-symbol{font-size:66px;color:var(--brand)}.empty-canvas h2{font-size:24px;margin:0}.empty-canvas p{max-width:42ch;color:var(--ink-tertiary)}
   .empty-actions{display:flex;gap:8px}.workspace-alert{background:var(--bg-1);border-bottom:1px solid var(--error);padding:9px 15px;display:flex;justify-content:space-between;gap:8px;font-size:13px}
   .assistant-pane{display:flex;flex-direction:column;flex:0 0 300px;min-width:0;background:var(--bg-1);border-left:1px solid var(--border);gap:12px;padding:13px;overflow:auto}
@@ -1254,9 +1295,9 @@
   .suggestion-list{max-height:250px;overflow:auto;display:grid;gap:6px;border-top:1px solid var(--border);padding-top:10px}
   .proposal-header{display:flex;justify-content:space-between;align-items:center;font-size:12px}.proposal{display:grid;gap:4px;background:var(--bg-0);padding:8px;border:1px solid var(--border);border-radius:10px;font-size:12px}.proposal-kind{text-transform:uppercase;color:var(--brand);font-size:10px;font-weight:800}.proposal p{color:var(--ink-secondary);margin:0;line-height:1.4;white-space:pre-wrap}.proposal button{justify-self:end}
   .composer{display:grid;gap:7px;border-top:1px solid var(--border);padding-top:10px}.composer label{font-size:11px;font-weight:800}.composer textarea{border:1px solid var(--border);border-radius:9px;background:var(--bg-0);color:var(--text);font:inherit;font-size:12px;padding:10px;resize:vertical;min-height:68px}
-  .composer-footer{display:flex;align-items:center;justify-content:space-between;gap:8px}.composer-footer span{font-size:10px;color:var(--ink-tertiary)}.note{font-size:12px;color:var(--brand)}
+  .composer-footer{display:flex;align-items:center;justify-content:space-between;gap:8px}.composer-footer span{font-size:10px;color:var(--ink-tertiary)}
   @media(max-width:1100px){.library{flex-basis:190px}.assistant-pane{flex-basis:255px}}
-  @media(max-width:780px){.panes{flex-direction:column;overflow-y:auto}.library{flex:0 0 auto;max-height:190px;border-right:0;border-bottom:1px solid var(--border)}.board-area{min-height:480px;flex:1 0 490px}.assistant-pane{flex:0 0 auto;max-height:420px;border-left:0;border-top:1px solid var(--border)}.node-toolbar{overflow-x:auto;flex-wrap:nowrap}.command-bar{padding:8px}}
+  @media(max-width:780px){.panes{flex-direction:column;overflow-y:auto}.library{flex:0 0 auto;max-height:190px;border-right:0;border-bottom:1px solid var(--border)}.board-area{min-height:480px;flex:1 0 490px}.assistant-pane{flex:0 0 auto;max-height:420px;border-left:0;border-top:1px solid var(--border)}.command-bar{padding:8px}}
   @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
   .legacy-threads{border:1px solid var(--border);padding:10px;border-radius:10px;font-size:12px}
   .legacy-threads summary{cursor:pointer;font-weight:750}
@@ -1264,11 +1305,8 @@
   .legacy-thread p{font-size:11px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 
   .file-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-  .node-toolbar .chosen{border-color:var(--brand);background:var(--brand-soft);color:var(--brand)}
-  .import-button{border-color:var(--brand)}
   .import-progress{font-size:12px;font-weight:700;color:var(--brand);background:var(--bg-1);
     padding:8px 13px;border-bottom:1px solid var(--border)}
-  @media(max-width:840px){.node-toolbar{overflow-x:auto;flex-wrap:nowrap}}
   .source-row{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:8px 0;border-bottom:1px solid var(--border)}
   .source-row small{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;font-size:11px;line-height:1.5;color:var(--ink-tertiary)}
   .source-row a{overflow-wrap:anywhere}
@@ -1283,6 +1321,9 @@
   .skill-picker label{font-size:11px;font-weight:750}
   .skill-picker select{background:var(--bg-0);color:var(--text);border:1px solid var(--border);padding:7px;border-radius:7px;max-width:100%}
   .skill-picker p{font-size:11px;color:var(--ink-tertiary);line-height:1.4;margin:0}
+  .skill-picker .canvas-image-option{display:flex;align-items:flex-start;gap:8px;cursor:pointer;min-height:32px;padding-top:5px;font-size:12px;line-height:1.4}
+  .canvas-image-option input{flex:none;width:16px;height:16px;margin:1px 0 0;accent-color:var(--brand)}
+  .scene-status{font-size:11px;line-height:1.5;color:var(--ink-secondary);margin:0;overflow-wrap:anywhere}
   .research-sources{display:grid;gap:7px;font-size:11px;border-top:1px solid var(--border);padding-top:10px}
   .research-sources a{color:var(--brand);text-decoration:underline;overflow-wrap:anywhere}
   .canvas-security-note{font-size:11px;color:var(--ink-secondary)}
@@ -1317,12 +1358,6 @@
   .project-entry.active { border-color:color-mix(in oklab,var(--brand) 40%,var(--border)); }
   .project-open { min-height:44px; }
   .project-open:hover { background:var(--bg-2); }
-  .node-toolbar { background:var(--bg-1);overscroll-behavior-x:contain;
-    scrollbar-width:thin; min-height:52px; }
-  .node-toolbar button { min-height:38px; }
-  .node-toolbar .chosen { border-color:var(--brand);background:var(--brand-soft); }
-  .advanced-tools summary { min-height:38px;display:flex;align-items:center; }
-  .advanced-menu { background:var(--bg-2); }
   .conversation { overscroll-behavior:contain; }
   .proposal { background:var(--bg-2);padding:var(--space-md); }
   .proposal-kind { color:var(--brand); }
@@ -1343,8 +1378,7 @@
     .library { flex:0 0 auto;max-height:180px; }
     .board-area { flex:1 0 auto;min-height:min(500px,65dvh); }
     .assistant-pane { flex:0 0 auto;max-height:min(500px,62dvh); }
-    .node-toolbar { flex-wrap:nowrap;overflow-x:auto; }
-    .empty-actions { flex-wrap:wrap;justify-content:center; }
+      .empty-actions { flex-wrap:wrap;justify-content:center; }
   }
   @media(prefers-reduced-transparency:reduce) {
     .command-bar,.workspace { backdrop-filter:none;background:var(--bg-1); }

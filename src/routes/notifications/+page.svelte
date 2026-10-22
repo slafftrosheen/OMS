@@ -16,6 +16,9 @@
   import { currentUser } from '$lib/auth/authState.svelte';
   import { notificationStore } from '$lib/stores/notifications';
   import type { Notification } from '$lib/stores/notifications';
+  import { base } from '$app/paths';
+  import SemanticBadge from '$lib/badges/SemanticBadge.svelte';
+  import { badgeDescriptor, notificationBadge } from '$lib/badges/catalog';
 
   let filter: 'all' | 'unread' | 'read' = $state('all');
   let typeFilter: string = $state('all');
@@ -57,20 +60,7 @@
     for (const n of readItems) await notificationStore.delete(n.id);
   }
 
-  function getIcon(type: string) {
-    switch (type?.toLowerCase()) {
-      case 'assignment':
-      case 'order':        return Package;
-      case 'rework':
-      case 'stage_change': return AlertTriangle;
-      case 'chat':
-      case 'info':         return MessageSquare;
-      case 'success':      return Check;
-      case 'warning':      return AlertTriangle;
-      case 'error':        return AlertTriangle;
-      default:             return Info;
-    }
-  }
+  const destination = (link: string) => base && link !== base && !link.startsWith(`${base}/`) ? `${base}${link}` : link;
 
   function formatDate(dateStr: string): string {
     const date   = new Date(dateStr);
@@ -106,7 +96,7 @@
       <Icon name="bell" size="lg" />
       <h1>{$t('notifications.title')}</h1>
       {#if unreadCount > 0}
-        <span class="notif-header__badge">{unreadCount} {$t('notifications.filter.unread')}</span>
+        <SemanticBadge badge={badgeDescriptor('unread', { count: unreadCount })} />
       {/if}
     </div>
     <div class="notif-header__actions">
@@ -179,21 +169,17 @@
       </div>
     {:else}
       {#each filteredNotifications as n (n.id)}
-        {@const ItemIcon = getIcon(n.type)}
         <div class="notif-card" class:notif-card--unread={!n.read} role="article">
-          <div class="notif-card__icon" data-type={n.type?.toLowerCase()}>
-            <ItemIcon size={18} />
-          </div>
-
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            class="notif-card__body"
-            onclick={() => !n.read && handleMarkRead(n.id)}
-            onkeypress={(e) => e.key === 'Enter' && !n.read && handleMarkRead(n.id)}
-            role="button"
-            tabindex="0"
-          >
-            <p class="notif-card__title">{n.title}</p>
+          <div class="notif-card__body">
+            <div class="notif-card__badges">
+              <SemanticBadge badge={notificationBadge(n)} />
+              <SemanticBadge badge={badgeDescriptor(n.read ? 'read' : 'unread')} />
+            </div>
+            <p class="notif-card__title">
+              {#if n.link}
+                <a href={destination(n.link)} onclick={() => { if (!n.read) void handleMarkRead(n.id); }}>{n.title}</a>
+              {:else}{n.title}{/if}
+            </p>
             {#if n.message}
               <p class="notif-card__msg">{n.message}</p>
             {/if}
@@ -229,6 +215,9 @@
 </div>
 
 <style>
+  .notif-card__badges { display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px; }
+  .notif-card__title a { color:inherit;text-decoration:underline;text-underline-offset:3px; }
+  .notif-card__title a:focus-visible { outline:2px solid var(--focus);outline-offset:3px;border-radius:2px; }
   .notif-page {
     max-width: 720px;
     margin: 0 auto;
@@ -260,15 +249,7 @@
     font-weight: 700;
     margin: 0;
   }
-  .notif-header__badge {
-    font-size: var(--text-xs);
-    font-weight: 700;
-    padding: var(--space-xxs) var(--space-sm);
-    border-radius: var(--radius-full);
-    background: var(--brand-soft);
-    color: var(--brand);
-    letter-spacing: var(--tracking-wide);
-  }
+
   .notif-header__actions {
     display: flex;
     align-items: center;
@@ -403,33 +384,6 @@
   }
   .notif-card--unread:hover {
     background: color-mix(in oklab, var(--brand) 8%, var(--glass-bg-strong));
-  }
-
-  .notif-card__icon {
-    width: 40px; height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-sm);
-    background: var(--bg-2);
-    color: var(--ink-tertiary);
-    flex-shrink: 0;
-  }
-  .notif-card__icon[data-type="order"],
-  .notif-card__icon[data-type="assignment"] {
-    background: color-mix(in oklab, var(--brand) 14%, transparent);
-    color: var(--brand);
-  }
-  .notif-card__icon[data-type="rework"],
-  .notif-card__icon[data-type="warning"],
-  .notif-card__icon[data-type="error"] {
-    background: color-mix(in oklab, var(--error) 14%, transparent);
-    color: var(--error);
-  }
-  .notif-card__icon[data-type="chat"],
-  .notif-card__icon[data-type="info"] {
-    background: color-mix(in oklab, var(--ok) 14%, transparent);
-    color: var(--ok);
   }
 
   .notif-card__body {

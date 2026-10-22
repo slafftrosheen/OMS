@@ -1,6 +1,7 @@
 <script lang="ts">
     import { Calendar, User, AlertCircle, ChevronRight } from "lucide-svelte";
     import type { Order } from "$lib/stores/orders";
+    import OrderBadges from '$lib/badges/OrderBadges.svelte';
 
     let { order }: { order: Order } = $props();
 
@@ -47,14 +48,7 @@
     <div class="card-header">
         <div class="order-info">
             <h3 class="order-code">{code}</h3>
-            <span
-                class="status-badge"
-                style="background-color: {getStatusColor(
-                    order.status,
-                )}20; color: {getStatusColor(order.status)}"
-            >
-                {order.status.replace("_", " ")}
-            </span>
+            <OrderBadges {order} />
         </div>
         <ChevronRight size={20} class="chevron" />
     </div>
@@ -89,10 +83,6 @@
                 </div>
             {/if}
 
-            <div class="meta-item priority" style="color: {priority.color}">
-                <AlertCircle size={14} />
-                <span>{priority.label}</span>
-            </div>
         </div>
     </div>
 </a>
@@ -132,16 +122,6 @@
         font-size: 1.125rem;
         font-weight: 600;
         color: var(--ink-primary);
-    }
-
-    .status-badge {
-        display: inline-block;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: capitalize;
-        width: fit-content;
     }
 
     /* Using :global to avoid unused selector warning if component is unused,
@@ -205,7 +185,4 @@
         color: var(--ink-tertiary);
     }
 
-    .meta-item.priority {
-        font-weight: 500;
-    }
 </style>

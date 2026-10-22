@@ -10,6 +10,7 @@
   import Icon from '$lib/ui/Icon.svelte';
   import { tokenColor } from '$lib/utils/tokenColor';
   import { t } from 'svelte-i18n';
+  import OrderBadges from '$lib/badges/OrderBadges.svelte';
 
   let recentOrders: any[] = $state([]);
   let verifiedTotal: number | null = $state(null);
@@ -45,7 +46,7 @@
         loading_date: o.loading_date ?? o.loadingDate ?? null,
         badges: o.badges ?? [],
         status: String(o.status ?? '').toLowerCase(),
-        priority: typeof o.priority === 'number' ? o.priority : 0,
+        priority: o.priority ?? 'NORMAL',
         progress_percentage: o.progress_percentage ?? 0
       }));
 
@@ -226,7 +227,7 @@
               <small>{order.po_number || '—'} · {order.client || '—'}</small>
             </span>
             <span class="dash-order__meta">
-              <span class="dash-order__status">{String(order.status || '—').replaceAll('_', ' ')}</span>
+              <OrderBadges {order} />
               <small>{$t('orders.due_date', { default: 'Due' })}: {formatDue(order.due_date)}</small>
             </span>
             <Icon name="arrow-right" size="sm" />
@@ -552,9 +553,7 @@
   .dash-order__identity strong { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .dash-order small { color:var(--ink-tertiary); font-size:var(--text-xs); }
   .dash-order__meta { justify-items:end; text-align:right; }
-  .dash-order__status { max-width:100%; font-size:var(--text-xs); text-transform:capitalize;
-    color:var(--ink-secondary); background:var(--bg-2); border:1px solid var(--border);
-    border-radius:var(--radius-full); padding:2px var(--space-sm); }
+
   .dash-order :global(svg) { color:var(--ink-tertiary); }
   .dash-order:hover :global(svg) { color:var(--brand); }
   @media (max-width:640px) {

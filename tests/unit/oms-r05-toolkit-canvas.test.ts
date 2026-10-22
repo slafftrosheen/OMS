@@ -97,7 +97,7 @@ describe('Toolkit route contracts', () => {
     expect(canvas).toContain("method: 'PATCH'");
     expect(canvas).toContain('snapshot: lastSnapshot');
     expect(canvas).toContain('messages.slice(-60)');
-    expect(canvas).toContain('actionProposals.slice(0, 3)');
+    expect(canvas).toContain('actionProposals.slice(0, 12)');
     expect(canvas).toContain('documentRevision !== rev');
     expect(canvas).toContain('{#key boardId}');
     expect(canvas).toContain("tr('errors.beforeSwitch')");
@@ -132,8 +132,10 @@ describe('Toolkit route contracts', () => {
     expect(canvasApp).toContain('Profile7stShapeUtil');
     expect(canvasApp).toContain('LumiGridShapeUtil');
     const canvas = read('src/routes/toolkit/canvas/+page.svelte');
-    expect(canvas).toContain("$t('toolkit.canvas.technical')");
-    expect(canvas).toContain("editor?.setCurrentTool('arrow')");
+    const toolbar = read('src/lib/components/canvas/CanvasToolbar.svelte');
+    expect(toolbar).toContain("$t('toolkit.canvas.technical')");
+    expect(toolbar).toContain("id:'arrow'");
+    expect(canvas).toContain('editor.setCurrentTool(tool)');
   });
 });
 

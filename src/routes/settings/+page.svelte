@@ -18,6 +18,7 @@
   import Shield from 'lucide-svelte/icons/shield';
   import Plug from 'lucide-svelte/icons/plug';
   import TelegramSettings from '$lib/notifications/TelegramSettings.svelte';
+  import TelegramAdminSettings from '$lib/notifications/TelegramAdminSettings.svelte';
   let aiSettings = $state<{ configured: boolean; masked: string; source?: string } | null>(null);
   let openRouterKey = $state('');
   let aiSettingsLoading = $state(false);
@@ -309,6 +310,12 @@
           {#if aiSettingsMessage}<p class="settings-success" role="status">{aiSettingsMessage}</p>{/if}
           <p class="muted security-hint">{$t('settings.provider.securityHint')}</p>
         </div>
+      </section>
+    {/if}
+
+    {#if showOpenRouterSettings}
+      <section class="settings-section telegram-admin-section" aria-label={$t('settings.telegramAdmin.title')}>
+        <TelegramAdminSettings />
       </section>
     {/if}
 

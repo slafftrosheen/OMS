@@ -22,7 +22,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
   const orderIds = [...new Set((stages ?? []).map(s => s.draft_order_id).filter(Boolean))];
   if (!orderIds.length) return json([]);
   const { data: orderRows, error: orderError } = await db.from('draft_orders')
-    .select('id, po_number, title, client, due_date, priority, status, badges')
+    .select('id, po_number, title, client, due_date, loading_date, priority, status, badges')
     .in('id', orderIds)
     .in('status', [...ACTIVE_ORDER_STATUSES]);
   if (orderError) {

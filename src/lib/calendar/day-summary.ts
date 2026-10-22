@@ -9,6 +9,8 @@ export type CalendarOrder = {
   loadingDate: string | null;
   status: string;
   priority: string;
+  badges?: string[];
+  isRD?: boolean;
 };
 export type CalendarLoadingDay = {
   id: string;
@@ -59,7 +61,11 @@ export function normalizeCalendarOrder(value: unknown): CalendarOrder | null {
     dueDate: dateKey(row.deadline ?? row.dueDate ?? row.due_date ?? row.due),
     loadingDate: dateKey(row.loadingDate ?? row.loading_date),
     status: text(row.status).toUpperCase(),
-    priority: text(row.priority).toUpperCase()
+    priority: (typeof row.priority === 'number' && Number.isFinite(row.priority)
+      ? String(row.priority) : text(row.priority)).trim().toUpperCase(),
+    badges: Array.isArray(row.badges)
+      ? [...new Set(row.badges.filter((badge): badge is string => typeof badge === 'string'))] : [],
+    isRD: row.isRD === true || row.isRd === true || row.is_rd === true
   };
 }
 

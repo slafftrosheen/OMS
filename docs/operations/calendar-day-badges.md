@@ -26,3 +26,24 @@ The agenda's scheduled-order count reflects order loading dates. It is shown sep
 RD, Boss and Head of Production users can create loading days and assign eligible orders. Removal is offered only for `READY_TO_LOAD` assignments, matching the existing server operation. Failed writes keep the relevant dialog open with an error. Other users can inspect the calendar and agenda.
 
 Calendar badges do not create phone messages. The separately prepared Telegram channel forwards supported workflow notifications after deployment configuration and individual user opt-in. See [Telegram phone notifications](telegram-notifications.md) for activation and its supported events.
+
+## Shared badges throughout OMS
+
+The same semantic badge component now serves the calendar and order lists, recent orders, order details and review, workstation queues, production station boards, order cards and notification surfaces. An icon and readable localized label accompany every state; counts and date details remain available to assistive technology and tooltips. Long labels wrap in ordinary cards. Compact calendar cells retain their icon/count layout at phone widths.
+
+Order badges derive from the authoritative lifecycle, priority and civil dates. Manual flags remain supported, but a stale manual lifecycle badge cannot override the saved lifecycle. Repeated flags are deduplicated. Unknown lifecycle values remain visible as unknown text instead of being silently labeled Draft.
+
+| Signal | Rule |
+| --- | --- |
+| Lifecycle | Draft, pending review, confirmed, in production, ready to load, dispatched, archived, cancelled, voided or on hold; legacy aliases are normalized for display. |
+| Priority | Urgent/high priorities are shown in compact order summaries. Workstations can show the full priority, including legacy numbered values. |
+| Deadline | Overdue before today, Due today on the actual deadline, Due soon within the next three civil days. |
+| Loading | Loading today, Loading scheduled, or Loading date passed. A passed loading date never claims that the order was dispatched. |
+| Exceptions | Explicit blocked, rework and low-stock flags; R&D designation. |
+| Notifications | Order, message, inventory or system category, with explicit read/unread state and specific rework/low-stock indicators. |
+
+Dispatched, archived, completed, cancelled, rejected and voided work does not show active priority, deadline or loading alarms. R&D remains useful historical context. Date signals update across midnight and when returning to the browser.
+
+The order-list data adapter preserves the record UUID separately from the visible PO number, retains lifecycle and priority, and reads every advertised page before replacing the list. A later-page error keeps the last complete list and exposes a refresh error. Account changes cancel stale loads and clear the previous account's rows. Active/completed filters now use lifecycle rather than treating every non-draft as active.
+
+Implementation: `src/lib/badges/catalog.ts`, `SemanticBadge.svelte`, `OrderBadges.svelte`, and `src/lib/order/order-list-data.ts`. Badge rules are presentation logic and are never used to authorize workflow transitions.

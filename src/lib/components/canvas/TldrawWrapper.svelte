@@ -20,6 +20,8 @@
     hideUI?: boolean;
     toolkitBoardId?: string | null;
     onToolkitFilesDrop?: (files: File[], position: { x: number; y: number }) => void;
+    onToolkitLinkDrop?: (url: string, position?: { x: number; y: number }) => void;
+    onToolkitControlsChange?: (state: { tool: string; selected: number; canUndo: boolean; canRedo: boolean }) => void;
   }
 
   let {
@@ -35,6 +37,8 @@
     hideUI = false,
     toolkitBoardId = null,
     onToolkitFilesDrop = undefined,
+    onToolkitLinkDrop = undefined,
+    onToolkitControlsChange = undefined,
   }: Props = $props();
 
   let containerEl: HTMLDivElement;
@@ -72,6 +76,8 @@
             hideUI,
             toolkitBoardId,
             onToolkitFilesDrop,
+            onToolkitLinkDrop,
+            onToolkitControlsChange,
           })
         );
       } catch (err) {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import OrderBadges from '$lib/badges/OrderBadges.svelte';
   import { onMount, tick } from 'svelte';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
@@ -295,7 +296,7 @@
           <div class="card-row top">
             <div class="ref">
               <span class="internal-ref">{order.internal_ref ?? order.id.slice(0, 8)}</span>
-              <span class="priority pri-{priorityTone(order.priority)}">{order.priority ?? 'NORMAL'}</span>
+              <OrderBadges {order} />
             </div>
             <div class="actions">
               <Button variant="secondary" onclick={() => goto(`${base}/orders/${order.id}`)}>
@@ -581,26 +582,7 @@
   .internal-ref {
     color: var(--ink-secondary);
   }
-  .priority {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 2px 8px;
-    border-radius: var(--radius-full, 999px);
-    background: color-mix(in oklab, var(--ink-primary) 8%, transparent);
-  }
-  .priority.pri-urgent {
-    background: color-mix(in oklab, var(--brand) 18%, transparent);
-    color: var(--brand);
-  }
-  .priority.pri-high {
-    background: color-mix(in oklab, #ff9500 18%, transparent);
-    color: #ff9500;
-  }
-  .priority.pri-low {
-    background: color-mix(in oklab, var(--ink-primary) 6%, transparent);
-    color: var(--ink-tertiary);
-  }
+
   .actions {
     display: flex;
     gap: 8px;
@@ -758,11 +740,7 @@
     padding-bottom:var(--space-sm);}
   .ref {gap:var(--space-sm);flex-wrap:wrap;min-width:0;}
   .internal-ref {font-variant-numeric:tabular-nums;color:var(--ink-primary);}
-  .priority {border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-2);}
-  .priority.pri-urgent {color:var(--error);background:var(--error-soft);
-    border-color:color-mix(in oklab,var(--error) 30%,var(--border));}
-  .priority.pri-high {color:var(--warn);background:var(--warn-soft);
-    border-color:color-mix(in oklab,var(--warn) 30%,var(--border));}
+
   .actions {align-items:center;gap:var(--space-xs);flex-wrap:wrap;}
   .actions :global(button) {border-radius:var(--radius-sm);min-height:42px;}
   .card-row.body {grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-md);}

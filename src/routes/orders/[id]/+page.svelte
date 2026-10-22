@@ -7,7 +7,9 @@
     import { t } from "svelte-i18n";
     import Button from "$lib/components/ui/Button.svelte";
     import Card from "$lib/components/ui/Card.svelte";
-    import Badge from "$lib/components/ui/Badge.svelte";
+    import OrderBadges from "$lib/badges/OrderBadges.svelte";
+    import SemanticBadge from "$lib/badges/SemanticBadge.svelte";
+    import { stageBadge } from "$lib/badges/catalog";
     import Tabs from "$lib/components/ui/Tabs.svelte";
     import ChatContainer from "$lib/components/chat/ChatContainer.svelte";
     import OrderFiles from "$lib/order/OrderFiles.svelte";
@@ -20,7 +22,7 @@
     import Modal from "$lib/components/ui/Modal.svelte";
     import OrderTimeline from "$lib/order/OrderTimeline.svelte";
     import { currentUser } from "$lib/auth/authState.svelte";
-    import { can, normaliseStatus, ORDER_STATUS_LABELS } from "$lib/auth/permission-utils";
+    import { can, normaliseStatus } from "$lib/auth/permission-utils";
     import { notifications } from "$lib/notify/store";
     import { buildStagePatch } from '$lib/order/stage-contract';
 
@@ -308,11 +310,7 @@
                 </Button>
                 <div class="header-info">
                     <h1 class="order-title">{order.title}</h1>
-                    <Badge
-                        variant={normaliseStatus(order.status) === 'CONFIRMED' || normaliseStatus(order.status) === 'IN_PRODUCTION' ? 'info' : normaliseStatus(order.status) === 'DISPATCHED' || normaliseStatus(order.status) === 'ARCHIVED' ? 'success' : 'warning'}
-                    >
-                        {ORDER_STATUS_LABELS[normaliseStatus(order.status)]}
-                    </Badge>
+                    <OrderBadges {order} size="md" />
                 </div>
             </div>
             <div class="header-actions">
@@ -483,11 +481,7 @@
                                     style="border-left-color: {getStatusColor(String(stageRow.state))}">
                                     <div class="stage-header">
                                         <h4 class="stage-name">{stageRow.station}</h4>
-                                        <Badge variant={stageRow.state === "COMPLETED" ? "success" : "info"} size="sm">
-                                            {$t(`orderDetail.stage_status.${stageRow.state}`,{
-                                                default:String(stageRow.state).replace("_"," ")
-                                            })}
-                                        </Badge>
+                                        <SemanticBadge badge={stageBadge(stageRow.state)} />
                                     </div>
                                     {#if (stageRow.state==='BLOCKED'||stageRow.state==='REWORK')}
                                       <p class="stage-hint stage-progress-alert" role="status">
@@ -897,14 +891,6 @@
         background: white;
         cursor: pointer;
         width: 100%;
-    }
-
-    .coming-soon {
-        text-align: center;
-        padding: 2rem;
-        color: var(--color-gray-500, var(--muted));
-        font-style: italic;
-        margin: 0;
     }
 
     @media (max-width: 768px) {

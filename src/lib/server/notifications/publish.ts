@@ -19,7 +19,7 @@ export interface TrustedNotification {
  */
 export async function publishNotifications(db: Database, rows: TrustedNotification[]): Promise<{ error: unknown | null }> {
   let outbox: Database | undefined;
-  try { outbox = getTelegramRuntime()?.db; } catch { /* Optional provider configuration must not break the business action. */ }
+  try { outbox = (await getTelegramRuntime())?.db; } catch { /* Optional provider configuration must not break the business action. */ }
   return publishNotificationRows(db, rows, outbox);
 }
 

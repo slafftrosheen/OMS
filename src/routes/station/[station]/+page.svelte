@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { canOperateStation } from '$lib/order/lifecycle-guards';
-  import { priorityLabel, dueDateLabel, stageStateLabel, isOrderOverdue } from '$lib/order/operator-ui';
+  import { dueDateLabel, stageStateLabel, isOrderOverdue } from '$lib/order/operator-ui';
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
   import { t } from 'svelte-i18n';
@@ -16,6 +16,9 @@
   import { ensureRoom, loadMessages } from '$lib/chat/chat-store';
   import ChatPane from '$lib/ui/ChatPane.svelte';
   import Icon from '$lib/ui/Icon.svelte';
+  import OrderBadges from '$lib/badges/OrderBadges.svelte';
+  import SemanticBadge from '$lib/badges/SemanticBadge.svelte';
+  import { priorityBadge, stageBadge } from '$lib/badges/catalog';
 
   let station = $derived(page.params.station.toUpperCase());
   let stationRoomId = $derived(`station-${page.params.station.toLowerCase()}`);
@@ -164,7 +167,7 @@
     items: Array<{ item_id: string; quantity: number }>,
     opts: { skipped: boolean; skipReason: string | null; actualHours?:number|null; notes?:string|null },
   ) {
-    if (!completeTarget || !operatorCanAct || 
+    if (!completeTarget || !operatorCanAct ||
         completeTarget.stage?.state!=='IN_PROGRESS' ||
         typeof completeTarget.stage?.updated_at!=='string')
       return {ok:false,error:$t('productionFloor.staleStage')};
@@ -472,9 +475,7 @@
               <h3>{order.title || $t('productionPlanning.untitled')}</h3>
               <span class="po-number">{order.po_number}</span>
             </div>
-            <span class="priority-badge" class:urgent={['HIGH','URGENT','CRITICAL'].includes(String(order.priority ?? '').toUpperCase())}>
-              {priorityLabel(order.priority)}
-            </span>
+            <SemanticBadge badge={priorityBadge(order.priority)} />
           </div>
 
           <div class="order-info">
@@ -488,11 +489,10 @@
             </div>
             <div class="info-item">
               <span class="label">{$t('admin.users.table.status')}:</span>
-              <span class="status-badge status-{order.stage?.state?.toLowerCase()}">
-                {stageStateLabel(order.stage?.state)}
-              </span>
+              <SemanticBadge badge={stageBadge(order.stage?.state)} />
             </div>
           </div>
+          <OrderBadges {order} lifecycle={false} priority={false} flags={false} />
 
           {#if order.stage?.state==='BLOCKED'||order.stage?.state==='REWORK'}
             <div class="blocked-notice" role="status">
@@ -931,21 +931,6 @@
     font-family: 'Courier New', monospace;
   }
 
-  .priority-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    background: var(--warn);
-    color: var(--bg-0);
-  }
-
-  .priority-badge.priority-8,
-  .priority-badge.priority-9,
-  .priority-badge.priority-10 {
-    background: var(--danger);
-  }
-
   .order-info {
     display: flex;
     flex-direction: column;
@@ -967,19 +952,6 @@
     color: var(--text);
   }
 
-  .status-badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-  }
-
-  .status-queued { background: var(--link, var(--brand)); color: white; }
-  .status-in_progress { background: var(--brand); color: white; }
-  .status-blocked { background: var(--error); color: white; }
-  .status-rework { background: var(--warn); color: black; }
-  .status-completed { background: var(--ok); color: white; }
   .blocked-notice,
   .stage-notes {
     padding: 0.75rem;
@@ -1049,10 +1021,6 @@
     background: transparent;
     border: 1px solid var(--border);
     color: var(--text);
-  }
-
-  .icon {
-    flex-shrink: 0;
   }
 
   .loading-state,
@@ -1295,7 +1263,7 @@
   }
   .load-error { border-color: var(--error); display: flex; justify-content: space-between; gap: .75rem; align-items: center; flex-wrap: wrap; }
   .info-item .overdue { color: var(--error); font-weight: 750; }
-  .priority-badge.urgent { background: var(--error); }
+
   .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
   .filter-btn:focus-visible, .btn:focus-visible, .close-btn:focus-visible, .order-actions a:focus-visible {
     outline: 3px solid var(--brand); outline-offset: 3px;
@@ -1376,20 +1344,11 @@
     box-shadow:var(--elevation-1);}
   .order-header h3 {font-size:var(--text-lg);overflow-wrap:anywhere;}
   .po-number {font-family:var(--font-mono,monospace);font-variant-numeric:tabular-nums;}
-  .priority-badge {border-radius:var(--radius-sm);color:var(--ink-primary);
-    background:var(--warn-soft);border:1px solid color-mix(in oklab,var(--warn) 45%,var(--border));}
-  .priority-badge.urgent {color:var(--error);background:var(--error-soft);
-    border-color:color-mix(in oklab,var(--error) 40%,var(--border));}
+
   .order-info {gap:var(--space-sm);}
   .info-item {gap:var(--space-md);}
   .info-item .value {text-align:right;overflow-wrap:anywhere;max-width:65%;}
-  .status-badge {color:var(--ink-secondary);background:var(--bg-2);
-    border:1px solid var(--border);border-radius:var(--radius-sm);}
-  .status-queued {color:var(--ink-secondary);background:var(--bg-2);}
-  .status-in_progress {color:var(--brand);background:var(--brand-soft);}
-  .status-blocked {color:var(--error);background:var(--error-soft);}
-  .status-rework {color:var(--warn);background:var(--warn-soft);}
-  .status-completed {color:var(--ok);background:var(--ok-soft);}
+
   .blocked-notice {color:var(--ink-primary);background:var(--error-soft);border-color:var(--error);}
   .stage-notes {color:var(--ink-primary);background:var(--bg-2);border-color:var(--brand);}
   .order-actions {gap:var(--space-sm);}

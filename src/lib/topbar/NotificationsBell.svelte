@@ -6,6 +6,8 @@
   import { base } from '$app/paths';
   import { notificationStore } from '$lib/stores/notifications';
   import { currentUser } from '$lib/auth/authState.svelte';
+  import SemanticBadge from '$lib/badges/SemanticBadge.svelte';
+  import { notificationBadge } from '$lib/badges/catalog';
 
   let open = $state(false);
   let btn: HTMLButtonElement | undefined = $state();
@@ -22,6 +24,7 @@
       id: n.id,
       text: n.title,
       kind: n.type,
+      category: n.category,
       time: n.created_at,
       read: n.read,
       message: n.message,
@@ -84,8 +87,10 @@
 </script>
 
 {#snippet itemContent(item: any)}
-  <span class="rf-notif__item-dot" data-kind={item.kind} aria-hidden="true"></span>
-  <span class="rf-notif__item-text">{item.text}</span>
+  <span class="rf-notif__item-text">
+    {#if !item.ephemeral}<SemanticBadge badge={notificationBadge(item)} />{/if}
+    <span>{item.text}</span>
+  </span>
   {#if item.time}
     <span class="rf-notif__item-time">{formatRelative(item.time)}</span>
   {/if}
@@ -328,7 +333,7 @@
 
   .rf-notif__item {
     display: grid;
-    grid-template-columns: 8px 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--space-sm);
     width: 100%;
@@ -344,24 +349,10 @@
     transform: none;
   }
   .rf-notif__item:hover { background: color-mix(in oklab, var(--bg-2) 60%, transparent); transform: none; filter: none; }
+  .rf-notif__item-text { display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0; }
   .rf-notif__item:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
   .rf-notif__item.unread { background: color-mix(in oklab, var(--brand) 6%, transparent); }
   .rf-notif__item.unread:hover { background: color-mix(in oklab, var(--brand) 12%, transparent); }
-
-  .rf-notif__item-dot {
-    width: 8px; height: 8px;
-    border-radius: var(--radius-full);
-    background: var(--ink-3);
-    align-self: center;
-    flex-shrink: 0;
-  }
-  .rf-notif__item.unread .rf-notif__item-dot { background: var(--brand); box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 22%, transparent); }
-  .rf-notif__item-dot[data-kind="ASSIGNMENT"],
-  .rf-notif__item-dot[data-kind="STAGE_CHANGE"] { background: var(--brand); }
-  .rf-notif__item-dot[data-kind="REWORK"],
-  .rf-notif__item-dot[data-kind="WARNING"] { background: var(--warn); }
-  .rf-notif__item-dot[data-kind="ERROR"] { background: var(--error); }
-  .rf-notif__item-dot[data-kind="SUCCESS"] { background: var(--ok); }
 
   .rf-notif__item-text {
     font-size: var(--text-sm);

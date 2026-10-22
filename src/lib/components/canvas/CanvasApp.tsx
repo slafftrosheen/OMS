@@ -1,6 +1,6 @@
 import canvasAssetUrls from './tldraw-asset-urls.json';
 import React, { useEffect, useRef } from 'react';
-import { Tldraw, getSnapshot, type Editor } from '@tldraw/tldraw';
+import { Tldraw, getSnapshot, react as trackEditor, type Editor } from '@tldraw/tldraw';
 import '@tldraw/tldraw/tldraw.css';
 import { MakerShapeUtil } from './shapes/MakerShape';
 import { IdeaShapeUtil } from './shapes/IdeaShape';
@@ -42,6 +42,14 @@ const customShapeUtils = [
     BoxLetterShapeUtil
 ];
 
+// Toolkit has one app-owned bottom toolbar. The order editor retains its
+// native chrome; no global CSS hides tools in unrelated canvas surfaces.
+const toolkitUi = {
+    Toolbar: null, ActionsMenu: null, QuickActions: null, MenuPanel: null,
+    NavigationPanel: null, HelperButtons: null, ContextMenu: null,
+    DebugPanel: null, DebugMenu: null,
+};
+
 export interface CanvasAppProps {
     initialSnapshot?: unknown;
     onSave?: (snapshot: unknown) => void;
@@ -60,6 +68,8 @@ export interface CanvasAppProps {
     /** Toolkit shared board: register external drag/drop asset callback. */
     toolkitBoardId?: string | null;
     onToolkitFilesDrop?: (files: File[], position: { x: number; y: number }) => void;
+    onToolkitLinkDrop?: (url: string, position?: { x: number; y: number }) => void;
+    onToolkitControlsChange?: (state: { tool: string; selected: number; canUndo: boolean; canRedo: boolean }) => void;
 }
 
 export function CanvasApp({
@@ -74,6 +84,8 @@ export function CanvasApp({
     hideUI = false,
     toolkitBoardId = null,
     onToolkitFilesDrop,
+    onToolkitLinkDrop,
+    onToolkitControlsChange,
 }: CanvasAppProps) {
     const spawnedRef = useRef<SpawnedShapes | null>(null);
     const editorRef = useRef<Editor | null>(null);
@@ -81,6 +93,8 @@ export function CanvasApp({
     const containerRef = useRef<HTMLDivElement | null>(null);
     const dropCleanupRef = useRef<(() => void) | null>(null);
     const cleanupStoreRef = useRef<(() => void) | null>(null);
+    const cleanupControlsRef = useRef<(() => void) | null>(null);
+    const cleanupAppearanceRef = useRef<(() => void) | null>(null);
     const captureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const latestSaveRef = useRef(onSave);
     latestSaveRef.current = onSave;
@@ -136,6 +150,33 @@ export function CanvasApp({
         cleanupStoreRef.current = unlisten;
         // Register listener before templates / callbacks create new shapes.
         if (onEditorReady) onEditorReady(editor);
+        if (toolkitBoardId) {
+            const syncAppearance = () => {
+                const colorScheme = document.documentElement.dataset.theme === 'LightVim' ? 'light' : 'dark';
+                if (editor.user.getUserPreferences().colorScheme !== colorScheme) {
+                    editor.user.updateUserPreferences({ colorScheme });
+                }
+            };
+            syncAppearance();
+            const appearance = new MutationObserver(syncAppearance);
+            appearance.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+            cleanupAppearanceRef.current?.();
+            cleanupAppearanceRef.current = () => appearance.disconnect();
+            cleanupControlsRef.current?.();
+            cleanupControlsRef.current = trackEditor('Toolkit controls', () => {
+                onToolkitControlsChange?.({ tool: editor.getCurrentToolId(),
+                    selected: editor.getSelectedShapeIds().length,
+                    canUndo: editor.getCanUndo(), canRedo: editor.getCanRedo() });
+            });
+            // Route paste as well as drag/drop through private persistent
+            // uploads, instead of tldraw's ephemeral data-URL asset store.
+            editor.registerExternalContentHandler('files', async ({ files, point }) => {
+                onToolkitFilesDrop?.(files, point ?? editor.getViewportPageBounds().center);
+            });
+            editor.registerExternalContentHandler('url', async ({ url, point }) => {
+                onToolkitLinkDrop?.(url, point);
+            });
+        }
 
         // Separate order-document uploads from Toolkit shared-board imports.
         if (containerRef.current) {
@@ -181,6 +222,8 @@ export function CanvasApp({
     useEffect(() => () => {
         dropCleanupRef.current?.();
         cleanupStoreRef.current?.();
+        cleanupControlsRef.current?.();
+        cleanupAppearanceRef.current?.();
         if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
         captureTimerRef.current = null;
     }, []);
@@ -194,6 +237,7 @@ export function CanvasApp({
                     shapeUtils={customShapeUtils}
                     onMount={handleMount}
                     hideUi={hideUI}
+                    components={toolkitBoardId ? toolkitUi : undefined}
                 />
             </CanvasModeContext.Provider>
         </div>

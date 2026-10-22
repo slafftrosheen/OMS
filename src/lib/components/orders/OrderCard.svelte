@@ -1,6 +1,9 @@
 <script lang="ts">
   import type { Order } from '$lib/stores/orders';
   import { t } from '$lib/i18n';
+  import OrderBadges from '$lib/badges/OrderBadges.svelte';
+  import { buildOrderBadges } from '$lib/badges/catalog';
+  import { currentDay } from '$lib/badges/current-day';
 
   let {
     order,
@@ -18,9 +21,9 @@
     ondelete?: (order: Order) => void;
   } = $props();
 
-  let daysUntilDue = $derived(order.days_until_due || 0);
-  let isOverdue = $derived(daysUntilDue < 0);
-  let isDueSoon = $derived(daysUntilDue >= 0 && daysUntilDue < 3);
+  let scheduleBadges = $derived(buildOrderBadges(order, $currentDay));
+  let isOverdue = $derived(scheduleBadges.some(badge => badge.id === 'overdue'));
+  let isDueSoon = $derived(scheduleBadges.some(badge => ['due_today', 'due_soon'].includes(badge.id)));
   let urgencyClass = $derived(isOverdue ? 'overdue' : isDueSoon ? 'due-soon' : '');
 
   let progressColor = $derived(
@@ -70,15 +73,7 @@
     </div>
 
     <div class="badges">
-      {#if order.is_rd}
-        <span class="badge badge-rd" title="R&D Order">R&D</span>
-      {/if}
-      {#if order.badges}
-        {#each order.badges as badge}
-          <span class="badge badge-{badge.toLowerCase()}">{badge}</span>
-        {/each}
-      {/if}
-      <span class="badge badge-status badge-{order.status}">{order.status}</span>
+      <OrderBadges {order} />
     </div>
   </header>
 
@@ -93,11 +88,6 @@
         <span class="label">{$t('orders.due_date')}:</span>
         <span class="value" class:text-danger={isOverdue} class:text-warning={isDueSoon}>
           {formatDate(order.due_date)}
-          {#if daysUntilDue < 0}
-            <small class="text-danger">({Math.abs(daysUntilDue)}d overdue)</small>
-          {:else if daysUntilDue < 7}
-            <small class="text-warning">({daysUntilDue}d left)</small>
-          {/if}
         </span>
       </div>
 

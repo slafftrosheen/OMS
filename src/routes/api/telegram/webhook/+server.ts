@@ -7,7 +7,7 @@ import { telegramErrorResponse, telegramPrivateHeaders } from '$lib/server/notif
 /** Telegram's webhook secret is the authentication boundary, never a user cookie. */
 export const POST: RequestHandler = async ({ request }) => {
   try {
-    const runtime = getTelegramRuntime();
+    const runtime = await getTelegramRuntime();
     if (!runtime) throw new TelegramServiceError('not_configured');
     if (!matchesTelegramSecret(request.headers.get('x-telegram-bot-api-secret-token'), runtime.config.webhookSecret)) {
       throw new TelegramServiceError('forbidden', 401);

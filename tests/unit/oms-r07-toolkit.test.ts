@@ -118,7 +118,7 @@ describe('OMS-R07 Canvas skills and safe tool actions', () => {
   });
   it('keeps private chat data off shared canvases and warns on insecure clipboard', () => {
     expect(canvas).toContain('const payload = { version: 1, snapshot: lastSnapshot }');
-    expect(canvas).toContain('actionProposals.slice(0, 3)');
+    expect(canvas).toContain('actionProposals.slice(0, 12)');
     expect(canvas).toContain('!window.isSecureContext');
     expect(canvas).toContain("$t('toolkit.canvas.clipboard')");
     expect(canvas).toContain('function auditBoard()');

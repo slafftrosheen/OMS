@@ -13,7 +13,10 @@ async function withRuntime(run: () => Promise<void>) {
   const previous = Object.fromEntries(Object.keys(environment).map(key => [key, process.env[key]]));
   const previousFetch = globalThis.fetch;
   Object.assign(process.env, environment);
-  globalThis.fetch = async () => { throw new Error('Unexpected external request in Telegram API test'); };
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith('/rpc/get_telegram_settings')) return Response.json(null);
+    throw new Error('Unexpected external request in Telegram API test');
+  };
   try { await run(); } finally {
     globalThis.fetch = previousFetch;
     for (const [key, value] of Object.entries(previous)) {
@@ -52,6 +55,7 @@ describe('Telegram HTTP authorization boundaries', () => {
     await withRuntime(async () => {
       let owner: string | null = null;
       globalThis.fetch = async (url, init) => {
+        if (String(url).endsWith('/rpc/get_telegram_settings')) return Response.json(null);
         if (!String(url).endsWith('/rpc/prepare_telegram_link')) throw new Error('Unexpected database request');
         owner = JSON.parse(String(init?.body)).p_user_id;
         return Response.json('2099-01-01T00:00:00Z');
@@ -67,10 +71,13 @@ describe('Telegram HTTP authorization boundaries', () => {
     });
   });
 
-  it('requires the distinct webhook and scheduler secrets without making database or Telegram requests', async () => {
+  it('requires distinct persisted webhook and scheduler secrets before reading accounts or calling Telegram', async () => {
     await withRuntime(async () => {
       let requests = 0;
-      globalThis.fetch = async () => { requests++; throw new Error('Must not fetch'); };
+      globalThis.fetch = async (url) => {
+        if (String(url).endsWith('/rpc/get_telegram_settings')) return Response.json(null);
+        requests++; throw new Error('Must not fetch account data or Telegram');
+      };
       const webhookResponse = await webhook({ request: new Request('https://oms.example.test/api/telegram/webhook', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': environment.TELEGRAM_DELIVERY_SECRET }, body: '{}'
       }) } as any);
@@ -87,6 +94,7 @@ describe('Telegram HTTP authorization boundaries', () => {
     await withRuntime(async () => {
       let stored: any;
       globalThis.fetch = async (url, init) => {
+        if (String(url).endsWith('/rpc/get_telegram_settings')) return Response.json(null);
         if (!String(url).endsWith('/rpc/process_telegram_update')) throw new Error('Unexpected database request');
         stored = JSON.parse(String(init?.body));
         return Response.json(true);

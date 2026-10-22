@@ -16,6 +16,7 @@ function fakeDatabase() {
     },
     async rpc(name: string, args: any) {
       if (state.errors) return { data: null, error: { code: '42P01' } };
+      if (name === 'get_telegram_settings') return { data: null, error: null };
       if (name === 'prepare_telegram_link') {
         state.savedTokenHash = args.p_token_hash;
         return { data: '2099-01-01T00:00:00Z', error: null };

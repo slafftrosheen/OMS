@@ -7,7 +7,7 @@
   import { fade } from 'svelte/transition';
   import { t } from 'svelte-i18n';
   import type { Order } from '$lib/order/types';
-  import OrderBadge from './OrderBadge.svelte';
+  import OrderBadges from '$lib/badges/OrderBadges.svelte';
   import Icon from '$lib/ui/Icon.svelte';
   
   interface Props {
@@ -34,12 +34,10 @@
   <div class="card-header">
     <div class="card-title">
       <FileText size={16} aria-hidden="true" />
-      <h4>PO-{order.id}</h4>
+      <h4>{order.poNumber || order.id}</h4>
     </div>
     <div class="card-badges">
-      {#each order.badges as badge}
-        <OrderBadge {badge} size="sm" />
-      {/each}
+      <OrderBadges {order} />
     </div>
   </div>
   

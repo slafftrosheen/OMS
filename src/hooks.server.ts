@@ -7,6 +7,7 @@ import { env as publicEnv } from '$env/dynamic/public';
 import { enforceEnvironmentSecurity } from '$lib/server/env-validator';
 import { logger } from '$lib/server/logging/logger';
 import { startSwarmHealthLoop } from '$lib/server/ai/swarm';
+import { startTelegramWorker } from '$lib/server/notifications/telegram-worker';
 import type { SessionUser } from '$lib/server/auth/session';
 import * as Sentry from '@sentry/node';
 
@@ -25,6 +26,7 @@ enforceEnvironmentSecurity(building);
 
 // Start AI swarm health monitoring
 startSwarmHealthLoop();
+if (!building && !dev && process.env.NODE_ENV !== 'test') startTelegramWorker();
 
 // Get the Supabase URL and Key
 // Prioritize environment variables, fallback to defaults

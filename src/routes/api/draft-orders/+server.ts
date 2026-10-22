@@ -51,6 +51,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       loadingDate: row.loading_date || null,
       status: row.status || 'draft',
       priority: row.priority || 'normal',
+      badges: Array.isArray(row.badges) ? row.badges : [],
+      isRD: row.is_rd === true,
       deliveryAddress: row.delivery_address || null,
       deliveryContact: row.delivery_contact || null,
       deliveryPhone: row.delivery_phone || null,
