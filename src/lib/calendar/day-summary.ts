@@ -1,4 +1,5 @@
 import type { CalEvent } from './types';
+import { isTerminalOrderStatus, isCancelledOrderStatus, orderStatusFromRecord } from '$lib/order/status-semantics';
 
 export type CalendarOrder = {
   id: string;
@@ -32,8 +33,6 @@ export type CalendarDaySummary = {
 };
 
 const text = (value: unknown): string => typeof value === 'string' ? value : '';
-const terminal = new Set(['DISPATCHED', 'ARCHIVED', 'CANCELLED', 'VOIDED', 'REJECTED', 'DONE', 'COMPLETED']);
-const cancelled = new Set(['CANCELLED', 'VOIDED', 'REJECTED']);
 
 /** Calendar dates are civil dates. Never shift them through UTC conversion. */
 export function localDateKey(value: Date): string {
@@ -60,7 +59,7 @@ export function normalizeCalendarOrder(value: unknown): CalendarOrder | null {
     client: text(row.clientName ?? row.client),
     dueDate: dateKey(row.deadline ?? row.dueDate ?? row.due_date ?? row.due),
     loadingDate: dateKey(row.loadingDate ?? row.loading_date),
-    status: text(row.status).toUpperCase(),
+    status: orderStatusFromRecord(row),
     priority: (typeof row.priority === 'number' && Number.isFinite(row.priority)
       ? String(row.priority) : text(row.priority)).trim().toUpperCase(),
     badges: Array.isArray(row.badges)
@@ -104,7 +103,7 @@ export function normalizeCalendarEvent(value: unknown): CalEvent | null {
 }
 
 export function isOutstandingOrder(order: CalendarOrder): boolean {
-  return !terminal.has(order.status);
+  return !isTerminalOrderStatus(orderStatusFromRecord(order));
 }
 
 export function buildCalendarDaySummary(date: string, input: {
@@ -114,7 +113,7 @@ export function buildCalendarDaySummary(date: string, input: {
   today: string;
 }): CalendarDaySummary {
   const allOrders = [...new Map((input.orders ?? []).map(order => [order.id, order])).values()];
-  const orders = allOrders.filter(order => !cancelled.has(order.status));
+  const orders = allOrders.filter(order => !isCancelledOrderStatus(orderStatusFromRecord(order)));
   const loadingDay = input.loadingDays?.find(day => day.date === date) ?? null;
   const loadingOrders = orders.filter(order => order.loadingDate === date);
   const dueOrders = orders.filter(order => order.dueDate === date);
@@ -133,7 +132,7 @@ export function buildCalendarDaySummary(date: string, input: {
       const reference = po.trim();
       if (!reference) continue;
       const order = ordersByReference.get(reference);
-      if (order && cancelled.has(order.status)) continue;
+      if (order && isCancelledOrderStatus(orderStatusFromRecord(order))) continue;
       loadingReferences.add(order ? `id:${order.id}` : `po:${reference}`);
     }
   }

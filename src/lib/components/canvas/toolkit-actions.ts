@@ -10,7 +10,7 @@ export type CreatableCanvasType = typeof CREATABLE_CANVAS_TYPES[number];
 type Envelope = { reason: string; expected?: Record<string, string>; pageId?: string };
 export type CanvasAction = Envelope & (
   | { kind: 'connect'; from: string; to: string; label?: string }
-  | { kind: 'revise'; target: string; title: string; body: string; state?: 'open' | 'in-progress' | 'done' }
+  | { kind: 'revise'; target: string; title?: string; body?: string; state?: 'open' | 'in-progress' | 'done' }
   | { kind: 'layout'; layout: 'grid' | 'columns'; targets?: string[] }
   | { kind: 'create'; ref?: string; shape: { type: CreatableCanvasType; x: number; y: number; parentId?: string; props: Record<string, unknown> } }
   | { kind: 'update'; target: string; patch: { x?: number; y?: number; rotation?: number; opacity?: number; props?: Record<string, unknown> } }
@@ -188,6 +188,9 @@ export function normalizeCanvasActions(input: unknown, context?: Set<string> | T
     declared.add(item.ref);
   }
   const scene = context && !(context instanceof Set) ? normalizeToolkitScene(context) : null;
+  // Omitted context is intentional when reading saved proposals. A supplied but
+  // invalid scene must never acquire the unrestricted persistence-parser semantics.
+  if (context !== undefined && !(context instanceof Set) && !scene) return [];
   const ids = context instanceof Set ? context : scene ? new Set(scene.shapes.filter(shape => shape.editable).map(shape => shape.id)) : null;
   const shapeFor = (id: string) => scene?.shapes.find(shape => shape.id === id);
   const created = new Map<string, CreatableCanvasType>();
@@ -212,9 +215,15 @@ export function normalizeCanvasActions(input: unknown, context?: Set<string> | T
     } else if (item.kind === 'revise' && known(item.target) &&
         ((!scene && !created.has(item.target)) || typeFor(item.target) === 'idea-card') &&
         (typeof item.title === 'string' || typeof item.body === 'string')) {
-      const state = ['open','in-progress','done'].includes(item.state) ? item.state : undefined;
-      action = { kind: 'revise', target: item.target, title: stringValue(item.title, 120) ?? '',
-        body: stringValue(item.body, 5000) ?? '', ...(state ? { state } : {}), reason };
+      if (('title' in item && typeof item.title !== 'string') ||
+          ('body' in item && typeof item.body !== 'string') ||
+          ('state' in item && !['open','in-progress','done'].includes(item.state))) continue;
+      // Missing means unchanged throughout proposal persistence and application.
+      // An explicit empty string is the only way to clear text.
+      action = { kind: 'revise', target: item.target,
+        ...(typeof item.title === 'string' ? { title: item.title.slice(0, 120) } : {}),
+        ...(typeof item.body === 'string' ? { body: item.body.slice(0, 5000) } : {}),
+        ...(item.state ? { state: item.state } : {}), reason };
     } else if (item.kind === 'layout' && ['grid','columns'].includes(item.layout)) {
       const targets = item.targets !== undefined ? targetList(item.targets)
         : scene?.shapes.filter(shape => shape.type === 'idea-card' && shape.editable).map(shape => shape.id).slice(0, MAX_ACTION_TARGETS);
@@ -301,8 +310,9 @@ export const CANVAS_ACTION_INSTRUCTIONS = `Canvas edit proposals use these exact
 - {kind:"align",targets:["shape:id",...],alignment:"left|right|top|bottom|center-horizontal|center-vertical",reason}
 - {kind:"distribute",targets:["shape:id",...],axis:"horizontal|vertical",reason}
 - {kind:"connect",from:"shape:id",to:"shape:id",label?:"arrow text",reason}
-- {kind:"revise",target:"idea-card-id",title:"...",body:"...",state?:"open|in-progress|done",reason}
+- {kind:"revise",target:"idea-card-id",title?:"...",body?:"...",state?:"open|in-progress|done",reason}
 - {kind:"layout",layout:"grid|columns",targets?:["shape:id"|"@new_name",...],reason} (arranges idea cards only; omitted targets means existing idea cards).
+For revise, provide at least title or body. Omitted text fields stay unchanged; use an explicit empty string only to intentionally clear a field.
 Use exact existing IDs, or @new_name to target an earlier create with ref:"new_name" in this same proposal. References are unique, 1..40 letters/digits/_/-, start with a letter, and may never point forward or to another proposal. Use them to create a complete diagram, then connect, edit, align or group its new shapes in one reviewed batch. For example: create with ref:"start", create with ref:"finish", then connect from:"@start",to:"@finish". Put connected diagram content in these actions; do not also duplicate it in the separate cards array. Never supply persistent shape IDs for creates. A linked batch is applied together; keep it within 12 actions. No existing target may have editable:false. Coordinates x/y are parent-local; bounds are page coordinates; moves use page deltas. Width/height 16..10000. Rotation is radians. Use update to rotate, change text or change styles.
 For a structured board, first create a named frame (ref:"phase", props:{w:900,h:650,name:"Phase"}), then create its contents with shape.parentId:"@phase". A parent may also be an existing editable frame on this page. Child x/y are LOCAL to that frame; leave room for the frame heading. Moving the frame then moves its actual contents. Nested frames are allowed. References must point backward; never use a group, non-frame, locked object, arbitrary page ID, or a frame from another page as parent. Only creates accept parentId; changing existing ownership is not supported. Keep frame and content actions together.
 Allowed editable props: idea-card: w,h,title,body,kind,state,accent (#RRGGBB). document: w,h,title,content,fit(contain|cover),opacity(0..100),pdfPage. Native geo: w,h,text,color,labelColor,fill,dash,size,font,align,verticalAlign,geo. Native text: w,text,color,size,font,align,autoSize. Native note: text,color,labelColor,size,font,align,verticalAlign. frame: w,h,name. arrow: text,color,labelColor,fill,dash,size,font,arrowheadStart,arrowheadEnd,bend. Native draw/line/highlight: color,dash,size (draw also fill). image/video/embed/bookmark: w,h (image also flipX,flipY). Other editable technical nodes: w,h,title only; their calculated inputs/outputs are reference data and must never be fabricated or overwritten.

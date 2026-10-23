@@ -191,7 +191,9 @@ function execute(editor: any, action: CanvasAction, references: Map<string, stri
     case 'revise': {
       const shape = editor.getShape(action.target);
       editor.updateShape({ id: shape.id, type: 'idea-card', props: {
-        title: action.title, body: action.body, ...(action.state ? { state: action.state } : {}) } });
+        ...(action.title !== undefined ? { title: action.title } : {}),
+        ...(action.body !== undefined ? { body: action.body } : {}),
+        ...(action.state ? { state: action.state } : {}) } });
       break;
     }
     case 'move': editor.nudgeShapes(action.targets, { x: action.dx, y: action.dy }); break;

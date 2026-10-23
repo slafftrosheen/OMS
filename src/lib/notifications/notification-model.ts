@@ -48,3 +48,24 @@ export function normalizeNotification(value: unknown): Notification | null {
     created_at: typeof row.created_at === 'string' ? row.created_at : ''
   };
 }
+
+/** The HTTP endpoint and realtime consumers project the same canonical row.
+ * Camel-case aliases remain for existing clients; canonical fields are authoritative. */
+export function notificationApiRecord(row: Record<string, unknown>) {
+  const notification = normalizeNotification(row);
+  if (!notification) return null;
+  return {
+    ...notification,
+    type: notification.notification_type,
+    is_read: notification.read,
+    is_dismissed: false,
+    source_type: notification.reference_type ?? null,
+    source_id: notification.reference_id ?? null,
+    read_at: typeof row.read_at === 'string' ? row.read_at : null,
+    isRead: notification.read,
+    sourceType: notification.reference_type ?? null,
+    sourceId: notification.reference_id ?? null,
+    createdAt: notification.created_at,
+    readAt: typeof row.read_at === 'string' ? row.read_at : null
+  };
+}

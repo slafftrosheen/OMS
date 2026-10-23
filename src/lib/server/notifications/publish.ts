@@ -30,20 +30,31 @@ export async function publishNotificationRows(db: Database, rows: TrustedNotific
   let warned = false;
   for (let offset = 0; offset < rows.length; offset += 100) {
     const batch = rows.slice(offset, offset + 100).map(row => ({ ...row, id: randomUUID() }));
+    let uncertainCommit = false;
     if (outbox) {
+      uncertainCommit = true;
       try {
         const result = await outbox.rpc('publish_telegram_notifications', { p_notifications: batch });
         if (!result.error) continue;
         // An absent migration cannot recover between batches of one fanout.
         // Keep transient failures retryable, but avoid repeating an unsupported RPC.
-        if (['PGRST202', '42883', '42P01'].includes(result.error.code)) outbox = undefined;
+        if (['PGRST202', '42883', '42P01'].includes(result.error.code)) {
+          outbox = undefined;
+          uncertainCommit = false;
+        }
       } catch { /* Preserve the ordinary notification when Telegram storage is unavailable. */ }
       // No provider response, notification body or credential is logged.
       if (!warned) console.warn('[notifications] Telegram queue unavailable; preserving in-app notifications.');
       warned = true;
     }
     try {
-      const result = await db.from('notifications').insert(batch);
+      // The RPC may have committed before its acknowledgement was lost. Reuse
+      // the same IDs and DO NOTHING on conflict; never overwrite an existing
+      // notification or emit a second record during this fallback.
+      const query = db.from('notifications');
+      const result = uncertainCommit
+        ? await query.upsert(batch, { onConflict: 'id', ignoreDuplicates: true })
+        : await query.insert(batch);
       if (result.error) error = result.error;
     } catch { error = new Error('Notification storage unavailable'); }
   }
