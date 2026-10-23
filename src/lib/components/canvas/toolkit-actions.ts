@@ -12,7 +12,7 @@ export type CanvasAction = Envelope & (
   | { kind: 'connect'; from: string; to: string; label?: string }
   | { kind: 'revise'; target: string; title: string; body: string; state?: 'open' | 'in-progress' | 'done' }
   | { kind: 'layout'; layout: 'grid' | 'columns'; targets?: string[] }
-  | { kind: 'create'; ref?: string; shape: { type: CreatableCanvasType; x: number; y: number; props: Record<string, unknown> } }
+  | { kind: 'create'; ref?: string; shape: { type: CreatableCanvasType; x: number; y: number; parentId?: string; props: Record<string, unknown> } }
   | { kind: 'update'; target: string; patch: { x?: number; y?: number; rotation?: number; opacity?: number; props?: Record<string, unknown> } }
   | { kind: 'move'; targets: string[]; dx: number; dy: number }
   | { kind: 'resize'; target: string; width: number; height: number }
@@ -122,6 +122,7 @@ export function normalizeEditableProps(type: string, input: unknown, create = fa
 }
 
 export function canvasActionTargets(action: CanvasAction): string[] {
+  if (action.kind === 'create') return action.shape.parentId ? [action.shape.parentId] : [];
   if (action.kind === 'connect') return [action.from, action.to];
   if ('target' in action) return [action.target];
   if ('targets' in action) return action.targets ?? [];
@@ -134,6 +135,7 @@ export function canvasActionsRequireBatch(actions: readonly CanvasAction[]): boo
 }
 
 function rawTargets(item: Record<string, any>): unknown[] {
+  if (item.kind === 'create' && item.shape && typeof item.shape === 'object' && !Array.isArray(item.shape) && 'parentId' in item.shape) return [item.shape.parentId];
   if (item.kind === 'connect') return [item.from, item.to];
   if ('target' in item) return [item.target];
   return Array.isArray(item.targets) ? item.targets : [];
@@ -224,9 +226,14 @@ export function normalizeCanvasActions(input: unknown, context?: Set<string> | T
       continue;
     } else if (item.kind === 'create' && CREATABLE_CANVAS_TYPES.includes(item.shape?.type) &&
         scalar(item.shape.x, -1_000_000, 1_000_000) && scalar(item.shape.y, -1_000_000, 1_000_000)) {
+      // Containers are only existing editable frames or earlier frame creates.
+      // Persisted IDs without a scene defer type/permission checks to preflight.
+      const parentId = item.shape.parentId;
+      if ('parentId' in item.shape && (!known(parentId) ||
+          (typeFor(parentId) !== undefined && typeFor(parentId) !== 'frame'))) continue;
       const props = normalizeEditableProps(item.shape.type, item.shape.props ?? {}, true);
       if (props) action = { kind: 'create', ...(item.ref ? { ref: item.ref } : {}),
-        shape: { type: item.shape.type, x: item.shape.x, y: item.shape.y, props }, reason };
+        shape: { type: item.shape.type, x: item.shape.x, y: item.shape.y, ...(parentId ? { parentId } : {}), props }, reason };
     } else if (item.kind === 'update' && known(item.target) && item.patch && typeof item.patch === 'object' && !Array.isArray(item.patch)) {
       if (Object.keys(item.patch).some(key => !['x','y','rotation','opacity','props'].includes(key))) continue;
       const patch: Extract<CanvasAction, { kind: 'update' }>['patch'] = {};
@@ -283,7 +290,7 @@ export function normalizeCanvasActions(input: unknown, context?: Set<string> | T
 /** Compact schema instructions deliberately work with text-only router models
  * too; validation happens independently of provider function/schema support. */
 export const CANVAS_ACTION_INSTRUCTIONS = `Canvas edit proposals use these exact JSON shapes (reason is a short explanation):
-- {kind:"create",ref?:"new_name",shape:{type:"idea-card|geo|text|note|frame|document",x:number,y:number,props:{...}},reason}
+- {kind:"create",ref?:"new_name",shape:{type:"idea-card|geo|text|note|frame|document",x:number,y:number,parentId?:"shape:frame-id|@earlier_frame",props:{...}},reason}
 - {kind:"update",target:"shape:id",patch:{x?:number,y?:number,rotation?:radians,opacity?:0..1,props?:{...}},reason}
 - {kind:"move",targets:["shape:id"],dx:number,dy:number,reason}
 - {kind:"resize",target:"shape:id",width:number,height:number,reason}
@@ -297,7 +304,8 @@ export const CANVAS_ACTION_INSTRUCTIONS = `Canvas edit proposals use these exact
 - {kind:"revise",target:"idea-card-id",title:"...",body:"...",state?:"open|in-progress|done",reason}
 - {kind:"layout",layout:"grid|columns",targets?:["shape:id"|"@new_name",...],reason} (arranges idea cards only; omitted targets means existing idea cards).
 Use exact existing IDs, or @new_name to target an earlier create with ref:"new_name" in this same proposal. References are unique, 1..40 letters/digits/_/-, start with a letter, and may never point forward or to another proposal. Use them to create a complete diagram, then connect, edit, align or group its new shapes in one reviewed batch. For example: create with ref:"start", create with ref:"finish", then connect from:"@start",to:"@finish". Put connected diagram content in these actions; do not also duplicate it in the separate cards array. Never supply persistent shape IDs for creates. A linked batch is applied together; keep it within 12 actions. No existing target may have editable:false. Coordinates x/y are parent-local; bounds are page coordinates; moves use page deltas. Width/height 16..10000. Rotation is radians. Use update to rotate, change text or change styles.
+For a structured board, first create a named frame (ref:"phase", props:{w:900,h:650,name:"Phase"}), then create its contents with shape.parentId:"@phase". A parent may also be an existing editable frame on this page. Child x/y are LOCAL to that frame; leave room for the frame heading. Moving the frame then moves its actual contents. Nested frames are allowed. References must point backward; never use a group, non-frame, locked object, arbitrary page ID, or a frame from another page as parent. Only creates accept parentId; changing existing ownership is not supported. Keep frame and content actions together.
 Allowed editable props: idea-card: w,h,title,body,kind,state,accent (#RRGGBB). document: w,h,title,content,fit(contain|cover),opacity(0..100),pdfPage. Native geo: w,h,text,color,labelColor,fill,dash,size,font,align,verticalAlign,geo. Native text: w,text,color,size,font,align,autoSize. Native note: text,color,labelColor,size,font,align,verticalAlign. frame: w,h,name. arrow: text,color,labelColor,fill,dash,size,font,arrowheadStart,arrowheadEnd,bend. Native draw/line/highlight: color,dash,size (draw also fill). image/video/embed/bookmark: w,h (image also flipX,flipY). Other editable technical nodes: w,h,title only; their calculated inputs/outputs are reference data and must never be fabricated or overwritten.
 Native colors: black,grey,light-violet,violet,blue,light-blue,yellow,orange,green,light-green,light-red,red,white. Fill:none|semi|solid|pattern; dash:draw|solid|dashed|dotted; size:s|m|l|xl; font:draw|sans|serif|mono; align:start|middle|end; verticalAlign:start|middle|end. Geo types:rectangle,ellipse,triangle,diamond,pentagon,hexagon,octagon,star,oval,arrow-right,arrow-left,arrow-up,arrow-down.
 Create a web/media reference as document with props.url using an exact supplied/public source URL; omit props.kind so the app derives a safe embed/link/video/audio/image/pdf type. Never invent a media URL or asset ID. Create a plain note as document with props.kind:"note", title and content.
-No arbitrary code, raw HTML, tools, assetId/fileId, output, authentication fields, locks, parentId or order data may be supplied. Do not add expected/pageId fields; OMS attaches stale-edit guards. For group/align select at least2 targets; distribute at least3. Max40 targets per action and max12 actions. Prefer one cohesive set of changes for the user's actual request, avoid filler.`;
+No arbitrary code, raw HTML, tools, assetId/fileId, output, authentication fields, locks or order data may be supplied. Do not add expected/pageId fields; OMS attaches stale-edit guards. For group/align select at least2 targets; distribute at least3. Max40 targets per action and max12 actions. Prefer one cohesive set of changes for the user's actual request, avoid filler.`;
