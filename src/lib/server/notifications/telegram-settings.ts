@@ -5,17 +5,18 @@ import { TelegramServiceError } from './telegram-service';
 import { telegramSettingsGeneration } from './telegram-runtime-fence';
 
 const secret = z.string().trim().max(256).optional();
-const publicUrl = z.string().trim().max(500).refine(value => {
+const appUrl = z.string().trim().max(500).refine(value => {
   if (!value) return true;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash
-      && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash;
   } catch { return false; }
-}, 'Use the public HTTPS address of this OMS installation.');
+}, 'Use an HTTP or HTTPS OMS address without credentials, query or fragment.');
 const schema = z.object({
+  connectionMode: z.enum(['polling', 'webhook']).default('webhook'),
+  pollingTimeoutSeconds: z.number().int().min(10).max(50).default(25),
   enabled: z.boolean(), botUsername: z.string().trim().max(33).transform(v => v.replace(/^@/, '')),
-  appUrl: publicUrl, commandsEnabled: z.boolean(), aiEnabled: z.boolean(),
+  appUrl, commandsEnabled: z.boolean(), aiEnabled: z.boolean(),
   commands: z.array(z.enum([...TELEGRAM_COMMANDS, 'ask'])).max(9),
   notificationCategories: z.array(z.enum(TELEGRAM_CATEGORIES)).max(4),
   timezone: z.string().min(1).max(80).refine(v => { try { new Intl.DateTimeFormat('en', { timeZone: v }); return true; } catch { return false; } }),
@@ -35,7 +36,10 @@ export interface TelegramSettingsRecord {
 
 export function environmentTelegramSettings(env: Record<string, string | undefined>): TelegramSettingsRecord {
   return {
-    options: { ...DEFAULT_TELEGRAM_OPTIONS, enabled: env.TELEGRAM_ENABLED?.trim().toLowerCase() === 'true',
+    options: { ...DEFAULT_TELEGRAM_OPTIONS,
+      // An existing environment installation must not silently lose its webhook.
+      connectionMode: env.TELEGRAM_BOT_TOKEN?.trim() ? 'webhook' : 'polling',
+      enabled: env.TELEGRAM_ENABLED?.trim().toLowerCase() === 'true',
       botUsername: (env.TELEGRAM_BOT_USERNAME ?? '').trim().replace(/^@/, ''), appUrl: (env.PUBLIC_APP_URL || env.PUBLIC_BASE_URL || '').replace(/\/$/, '') },
     botToken: env.TELEGRAM_BOT_TOKEN?.trim() ?? '', webhookSecret: env.TELEGRAM_WEBHOOK_SECRET?.trim() ?? '',
     deliverySecret: env.TELEGRAM_DELIVERY_SECRET?.trim() ?? '', source: env.TELEGRAM_BOT_TOKEN?.trim() ? 'environment' : 'none'
@@ -58,6 +62,14 @@ export function resolveTelegramSettings(data: unknown, env: Record<string, strin
 }
 
 export function normalizeTelegramSettingsInput(value: unknown, current: TelegramSettingsRecord) {
+  // Older open settings tabs must preserve the new transport fields instead of switching modes.
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const candidate = value as Record<string, unknown>;
+    if (candidate.options && typeof candidate.options === 'object' && !Array.isArray(candidate.options)) {
+      value = { ...candidate, options: { connectionMode: current.options.connectionMode ?? 'webhook',
+        pollingTimeoutSeconds: current.options.pollingTimeoutSeconds ?? 25, ...candidate.options } };
+    }
+  }
   const input = z.object({ options: schema, botToken: z.string().trim().max(256).optional(), webhookSecret: secret, deliverySecret: secret }).strict().safeParse(value);
   if (!input.success) throw new TelegramServiceError('invalid_settings', 400);
   const next: TelegramSettingsRecord = { ...current, options: input.data.options as TelegramOptions, source: 'settings' };
@@ -73,7 +85,12 @@ export function normalizeTelegramSettingsInput(value: unknown, current: Telegram
     if (next[name] && !isTelegramSecret(next[name])) throw new TelegramServiceError('invalid_settings', 400);
   }
   if (next.webhookSecret && next.webhookSecret === next.deliverySecret) throw new TelegramServiceError('invalid_settings', 400);
-  if (next.options.enabled && (!next.botToken || !next.options.botUsername || !next.webhookSecret || !next.deliverySecret || !next.options.appUrl)) throw new TelegramServiceError('incomplete_settings', 400);
+  if (next.options.connectionMode === 'webhook' && next.options.appUrl) {
+    const url = new URL(next.options.appUrl);
+    if (url.protocol !== 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) throw new TelegramServiceError('invalid_settings', 400);
+  }
+  if (next.options.enabled && (!next.botToken || !next.options.botUsername
+    || (next.options.connectionMode === 'webhook' && (!next.webhookSecret || !next.deliverySecret || !next.options.appUrl)))) throw new TelegramServiceError('incomplete_settings', 400);
   return next;
 }
 
@@ -81,9 +98,11 @@ export function telegramConfigFromSettings(record: TelegramSettingsRecord, env: 
   const config = readTelegramConfig({ ...env,
     TELEGRAM_ENABLED: String(record.options.enabled), TELEGRAM_BOT_TOKEN: record.botToken,
     TELEGRAM_BOT_USERNAME: record.options.botUsername, TELEGRAM_WEBHOOK_SECRET: record.webhookSecret,
-    TELEGRAM_DELIVERY_SECRET: record.deliverySecret, PUBLIC_APP_URL: record.options.appUrl
-  });
-  return config ? { ...config, options: record.options,
+    TELEGRAM_DELIVERY_SECRET: record.deliverySecret, PUBLIC_APP_URL: record.options.appUrl,
+    // An intentionally empty optional address must not resurrect an environment URL.
+    PUBLIC_BASE_URL: ''
+  }, record.options.connectionMode ?? 'webhook');
+  return config ? { ...config, options: record.options, settingsRevision: record.revision,
     settingsGeneration: record.source === 'settings' ? telegramSettingsGeneration(record) : 'environment' } : null;
 }
 
@@ -92,8 +111,8 @@ export function publicTelegramSettings(record: TelegramSettingsRecord, available
   return { available, source: record.source, options: record.options,
     configured: !!telegramConfigFromSettings({ ...record, options: { ...record.options, enabled: true } }, env),
     credentials: { botToken: mask(record.botToken), webhookSecret: mask(record.webhookSecret), deliverySecret: mask(record.deliverySecret) },
-    webhookUrl: record.options.appUrl ? `${record.options.appUrl}/api/telegram/webhook` : null,
-    dispatchUrl: record.options.appUrl ? `${record.options.appUrl}/api/telegram/dispatch` : null,
+    webhookUrl: record.options.connectionMode !== 'polling' && record.options.appUrl ? `${record.options.appUrl}/api/telegram/webhook` : null,
+    dispatchUrl: record.deliverySecret && record.options.appUrl ? `${record.options.appUrl}/api/telegram/dispatch` : null,
     counts: { connected: 0, pending: 0, failed: 0 }
   };
 }

@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { TELEGRAM_COMMANDS, type TelegramCommandName, type TelegramOptions } from '$lib/notifications/telegram-options';
+import { TELEGRAM_COMMANDS, type TelegramCommandName, type TelegramOptions, type TelegramConnectionMode } from '$lib/notifications/telegram-options';
 
 export interface TelegramConfig {
   botToken: string;
@@ -10,6 +10,8 @@ export interface TelegramConfig {
   options?: TelegramOptions;
   /** Server-only fingerprint of the settings/credential generation. */
   settingsGeneration?: string;
+  /** Exact database revision used by the incoming receiver lease. */
+  settingsRevision?: string;
 }
 
 export function isTelegramSecret(value: unknown): value is string {
@@ -17,17 +19,18 @@ export function isTelegramSecret(value: unknown): value is string {
 }
 
 /** All credentials remain in server modules. Partial configuration is disabled. */
-export function readTelegramConfig(env: Record<string, string | undefined>): TelegramConfig | null {
-  if (env.TELEGRAM_ENABLED?.trim().toLowerCase() !== 'true') return null;
+export function readTelegramConfig(env: Record<string, string | undefined>, mode: TelegramConnectionMode = 'webhook'): TelegramConfig | null {
+  if (env.TELEGRAM_ENABLED?.trim().toLowerCase() !== 'true' || !['polling', 'webhook'].includes(mode)) return null;
   const botToken = env.TELEGRAM_BOT_TOKEN?.trim() ?? '';
   const botUsername = (env.TELEGRAM_BOT_USERNAME?.trim() ?? '').replace(/^@/, '');
   const webhookSecret = env.TELEGRAM_WEBHOOK_SECRET?.trim() ?? '';
   const deliverySecret = env.TELEGRAM_DELIVERY_SECRET?.trim() ?? '';
   if (!/^\d+:[A-Za-z0-9_-]{20,}$/.test(botToken)
     || !/^[A-Za-z0-9_]{5,32}$/.test(botUsername) || !/bot$/i.test(botUsername)
-    || !isTelegramSecret(webhookSecret)
-    || !isTelegramSecret(deliverySecret)
-    || webhookSecret === deliverySecret
+    || (mode === 'webhook' && (!isTelegramSecret(webhookSecret) || !isTelegramSecret(deliverySecret)))
+    || (!!webhookSecret && !isTelegramSecret(webhookSecret))
+    || (!!deliverySecret && !isTelegramSecret(deliverySecret))
+    || (!!webhookSecret && webhookSecret === deliverySecret)
     || !env.SUPABASE_SERVICE_ROLE_KEY?.trim() || !env.PUBLIC_SUPABASE_URL?.trim()) return null;
   try {
     if (!['https:', 'http:'].includes(new URL(env.PUBLIC_SUPABASE_URL.trim()).protocol)) return null;
@@ -69,7 +72,7 @@ export function readTelegramUpdateIdentity(update: unknown): { updateId: number;
   const value = update as any;
   if (!Number.isSafeInteger(value.update_id) || value.update_id < 0
     || (!value.callback_query && (!Number.isSafeInteger(value.message?.date) || value.message.date <= 0))) return null;
-  // A callback refers to an older bot message; the authenticated webhook's
+  // A callback refers to an older bot message; the authenticated transport's
   // receipt time is used, while update_id remains the duplicate/replay fence.
   const date = value.callback_query ? new Date() : new Date(value.message.date * 1000);
   return Number.isFinite(date.getTime()) ? { updateId: value.update_id, messageAt: date.toISOString() } : null;

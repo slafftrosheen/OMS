@@ -11,6 +11,7 @@ export const POST: RequestHandler = async ({ request }) => {
     if (!isTelegramSecret(secret)) throw new TelegramServiceError('forbidden', 401);
     const runtime = await getTelegramRuntime();
     if (!runtime) throw new TelegramServiceError('not_configured');
+    if (runtime.config.options?.connectionMode === 'polling') throw new TelegramServiceError('webhook_disabled', 409);
     if (!matchesTelegramSecret(secret, runtime.config.webhookSecret)) {
       throw new TelegramServiceError('forbidden', 401);
     }
