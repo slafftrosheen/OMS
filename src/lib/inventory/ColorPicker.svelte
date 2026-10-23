@@ -1,7 +1,6 @@
 <script lang="ts">
   import Hash from 'lucide-svelte/icons/hash';
   import Palette from 'lucide-svelte/icons/palette';
-  import Icon from '$lib/ui/Icon.svelte';
   import type { ColorSpec } from './material-types';
   
   let { value = $bindable<ColorSpec | null>(null), onChange }: {
@@ -9,17 +8,18 @@
     onChange: (color: ColorSpec | null) => void;
   } = $props();
   
-  let mode: 'RAL' | 'PANTONE' | 'HEX' | 'CUSTOM' = 'RAL';
-  let ralInput = '';
-  let pantoneInput = '';
-  let hexInput = '';
-  let customName = '';
-  let finishType: ColorSpec['finishType'] = 'MATTE';
+  let mode = $state<'RAL' | 'PANTONE' | 'HEX' | 'CUSTOM'>('RAL');
+  let ralInput = $state('');
+  let pantoneInput = $state('');
+  let hexInput = $state('');
+  let customName = $state('');
+  let finishType = $state<ColorSpec['finishType']>('MATTE');
   
   function handleSubmit() {
+    const code = mode === 'RAL' ? ralInput : mode === 'PANTONE' ? pantoneInput : hexInput;
     const color: ColorSpec = {
       id: crypto.randomUUID(),
-      name: customName || `${mode} ${ralInput || pantoneInput || hexInput}`,
+      name: mode === 'CUSTOM' ? customName : `${mode} ${code}`,
       finishType
     };
     
@@ -39,10 +39,10 @@
   </div>
   
   <div class="mode-selector">
-    <button class:active={mode === 'RAL'} onclick={() => mode = 'RAL'}>RAL</button>
-    <button class:active={mode === 'PANTONE'} onclick={() => mode = 'PANTONE'}>Pantone</button>
-    <button class:active={mode === 'HEX'} onclick={() => mode = 'HEX'}>HEX</button>
-    <button class:active={mode === 'CUSTOM'} onclick={() => mode = 'CUSTOM'}>Custom</button>
+    <button type="button" class:active={mode === 'RAL'} aria-pressed={mode === 'RAL'} onclick={() => mode = 'RAL'}>RAL</button>
+    <button type="button" class:active={mode === 'PANTONE'} aria-pressed={mode === 'PANTONE'} onclick={() => mode = 'PANTONE'}>Pantone</button>
+    <button type="button" class:active={mode === 'HEX'} aria-pressed={mode === 'HEX'} onclick={() => mode = 'HEX'}>HEX</button>
+    <button type="button" class:active={mode === 'CUSTOM'} aria-pressed={mode === 'CUSTOM'} onclick={() => mode = 'CUSTOM'}>Custom</button>
   </div>
   
   <div class="input-section">
@@ -104,8 +104,8 @@
   </div>
   
   <div class="modal-actions">
-    <button class="btn primary" onclick={handleSubmit}>Add Color</button>
-    <button class="btn ghost" onclick={() => onChange(null)}>Cancel</button>
+    <button type="button" class="btn primary" onclick={handleSubmit}>Add Color</button>
+    <button type="button" class="btn ghost" onclick={() => onChange(null)}>Cancel</button>
   </div>
 </div>
 

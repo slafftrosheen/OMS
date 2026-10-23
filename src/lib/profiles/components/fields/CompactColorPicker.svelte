@@ -4,15 +4,14 @@
   import ChevronDown from 'lucide-svelte/icons/chevron-down';
   import Palette from 'lucide-svelte/icons/palette';
   import X from 'lucide-svelte/icons/x';
-  import { stopPropagation } from 'svelte/legacy';
+  import { t } from 'svelte-i18n';
 
-  import { onMount } from 'svelte';
-  import Icon from '$lib/ui/Icon.svelte';
-  
   // Import catalog data directly
   import ralColors from '$lib/profiles/data/ral-classic.json';
   import oracalColors from '$lib/profiles/data/oracal-8500.json';
   import pantoneColors from '$lib/profiles/data/pantone-solid-coated.json';
+
+  const controlId = $props.id();
   
   let {
     value = { system: '', code: '', hex: '' },
@@ -28,9 +27,15 @@
     onchange?: (value: { system: string; code: string; hex: string }) => void;
   } = $props();
   
-  let isOpen = false;
-  let selectedSystem: 'RAL' | 'ORACAL' | 'PANTONE' = 'RAL';
-  let searchQuery = '';
+  let isOpen = $state(false);
+  let selectedSystem = $state<'RAL' | 'ORACAL' | 'PANTONE'>('RAL');
+  let searchQuery = $state('');
+  let pickerElement = $state<HTMLDivElement>();
+  let triggerElement = $state<HTMLButtonElement>();
+
+  $effect(() => {
+    if (readonly) isOpen = false;
+  });
   
   // Get colors based on selected system
   function getColors() {
@@ -67,15 +72,19 @@
     : colors.slice(0, 30));
   
   function selectColor(color: { code: string; name: string; hex: string }) {
+    if (readonly) return;
     value = { system: selectedSystem, code: color.code, hex: color.hex };
     isOpen = false;
     searchQuery = '';
     onchange?.(value);
+    triggerElement?.focus();
   }
   
   function clearSelection() {
+    if (readonly) return;
     value = { system: '', code: '', hex: '' };
     onchange?.(value);
+    triggerElement?.focus();
   }
   
   function getTextColor(hex: string): string {
@@ -89,70 +98,89 @@
   
   function togglePicker() {
     if (!readonly) {
+      if (!isOpen && ['RAL', 'ORACAL', 'PANTONE'].includes(value.system)) {
+        selectedSystem = value.system as typeof selectedSystem;
+      }
       isOpen = !isOpen;
     }
   }
   
   // Close picker when clicking outside
   function handleClickOutside(event: MouseEvent) {
-    const target = event.target as HTMLElement;
-    if (!target.closest('.compact-color-picker')) {
+    if (event.target instanceof Node && !pickerElement?.contains(event.target)) {
       isOpen = false;
     }
   }
-  
-  onMount(() => {
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  });
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && isOpen && event.target instanceof Node && pickerElement?.contains(event.target)) {
+      event.preventDefault();
+      isOpen = false;
+      triggerElement?.focus();
+    }
+  }
 </script>
 
-<div class="compact-color-picker" class:compact class:has-value={!!value.code}>
+<svelte:document onclick={handleClickOutside} onkeydown={handleKeydown} />
+
+<div class="compact-color-picker" bind:this={pickerElement} class:compact class:has-value={!!value.code}>
   {#if label}
-    <span class="picker-label">{label}</span>
+    <label class="picker-label" for={controlId} id={`${controlId}-label`}>{label}</label>
   {/if}
-  
-  <button
-    type="button"
-    class="picker-trigger"
-    style={value.hex ? `background-color: ${value.hex}; color: ${getTextColor(value.hex)}; border-color: ${value.hex};` : ''}
-    onclick={togglePicker}
-    disabled={readonly}
-  >
-    {#if value.code}
-      <span class="selected-code">{value.system} {value.code}</span>
-      {#if !readonly}
-        <button type="button" class="clear-btn" onclick={stopPropagation(clearSelection)}>
-          <X size={12} />
-        </button>
+
+  <div class="picker-controls" class:clearable={!!value.code && !readonly}>
+    <button
+      id={controlId}
+      bind:this={triggerElement}
+      type="button"
+      class="picker-trigger"
+      style={value.hex ? `background-color: ${value.hex}; color: ${getTextColor(value.hex)}; border-color: ${value.hex};` : ''}
+      onclick={togglePicker}
+      disabled={readonly}
+      aria-expanded={isOpen}
+      aria-controls={isOpen ? `${controlId}-options` : undefined}
+      aria-labelledby={label ? `${controlId}-label ${controlId}-value` : undefined}
+    >
+      {#if value.code}
+        <span class="selected-code" id={`${controlId}-value`}>{value.system} {value.code}</span>
+      {:else}
+        <Palette size={14} />
+        <span class="placeholder" id={`${controlId}-value`}>Select</span>
+        <ChevronDown size={12} />
       {/if}
-    {:else}
-      <Palette size={14} />
-      <span class="placeholder">Select</span>
-      <ChevronDown size={12} />
+    </button>
+    {#if value.code && !readonly}
+      <button type="button" class="clear-btn" onclick={clearSelection}
+        style:color={getTextColor(value.hex)}
+        aria-label={`${$t('common.remove')} ${label || value.system} ${value.code}`}>
+        <X size={12} />
+      </button>
     {/if}
-  </button>
+  </div>
   
   {#if isOpen}
-    <div class="picker-dropdown">
+    <div class="picker-dropdown" id={`${controlId}-options`}>
       <!-- System Tabs -->
       <div class="system-tabs">
         <button
           type="button"
           class="system-tab"
           class:active={selectedSystem === 'RAL'}
+          aria-pressed={selectedSystem === 'RAL'}
           onclick={() => { selectedSystem = 'RAL'; searchQuery = ''; }}
         >RAL</button>
         <button
           type="button"
           class="system-tab"
           class:active={selectedSystem === 'ORACAL'}
+          aria-pressed={selectedSystem === 'ORACAL'}
           onclick={() => { selectedSystem = 'ORACAL'; searchQuery = ''; }}
         >ORACAL</button>
         <button
           type="button"
           class="system-tab"
           class:active={selectedSystem === 'PANTONE'}
+          aria-pressed={selectedSystem === 'PANTONE'}
           onclick={() => { selectedSystem = 'PANTONE'; searchQuery = ''; }}
         >PANTONE</button>
       </div>
@@ -163,6 +191,7 @@
           type="text"
           bind:value={searchQuery}
           placeholder="Search..."
+          aria-label={$t('common.search')}
           class="search-input"
         />
       </div>
@@ -175,6 +204,7 @@
             class="color-swatch"
             style="background-color: {color.hex}; color: {getTextColor(color.hex)};"
             title="{color.name} ({color.code})"
+            aria-pressed={value.system === selectedSystem && value.code === color.code}
             onclick={() => selectColor(color)}
           >
             <span class="swatch-code">{color.code}</span>
@@ -204,6 +234,7 @@
   }
   
   .picker-trigger {
+    width: 100%;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -238,8 +269,20 @@
   .placeholder {
     color: var(--muted);
   }
+
+  .picker-controls {
+    position: relative;
+  }
+
+  .picker-controls.clearable .picker-trigger {
+    padding-right: 30px;
+  }
   
   .clear-btn {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -251,6 +294,12 @@
     border-radius: 50%;
     cursor: pointer;
     color: inherit;
+  }
+
+  .picker-trigger:focus-visible,
+  .clear-btn:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
   }
   
   .clear-btn:hover {

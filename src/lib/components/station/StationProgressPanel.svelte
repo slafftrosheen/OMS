@@ -1,48 +1,76 @@
 <script lang="ts">
-  import {onMount} from 'svelte';
   import {t} from 'svelte-i18n';
-  let {orderId,station,expectedUpdatedAt,onClose,onSaved}:{
+  let {orderId,station,expectedUpdatedAt,onClose,onSaved,busy=$bindable(false)}:{
     orderId:string;station:string;expectedUpdatedAt:string;
-    onClose:()=>void;onSaved:()=>void
+    onClose:()=>void;onSaved:()=>void;busy?:boolean
   }=$props();
   type Entry={createdAt:string;actor:string|null;note:string;progressPercent:number|null};
   let note=$state('');
   let progressPercent=$state<number|undefined>(undefined);
   let history=$state<Entry[]>([]);
   let loading=$state(false);
-  let busy=$state(false);
   let errorMessage=$state('');
   let saved=$state(false);
-  async function loadHistory(){
+  type Target={orderId:string;station:string;active:boolean};
+  let target:Target|null=null;
+  let historyRequest:AbortController|null=null;
+  const isCurrent=(context:Target)=>context.active&&target===context&&
+    context.orderId===orderId&&context.station===station;
+  const endpoint=(context:Target)=>`/api/station/${encodeURIComponent(context.station)}/orders/${encodeURIComponent(context.orderId)}/progress`;
+  async function loadHistory(context:Target){
+    if(!isCurrent(context))return;
+    historyRequest?.abort();
+    const request=new AbortController();
+    historyRequest=request;
+    const current=()=>isCurrent(context)&&historyRequest===request&&!request.signal.aborted;
     loading=true;
     errorMessage='';
     try{
-      const res=await fetch(`/api/station/${encodeURIComponent(station)}/orders/${encodeURIComponent(orderId)}/progress`,{cache:'no-store'});
+      const res=await fetch(endpoint(context),{cache:'no-store',signal:request.signal});
       if(!res.ok)throw new Error($t('productionFloor.historyFailed'));
       const body=await res.json();
       if(!Array.isArray(body))throw new Error($t('productionFloor.historyFailed'));
-      history=body;
-    }catch(e){errorMessage=e instanceof Error?e.message:$t('productionFloor.historyFailed');}
-    finally{loading=false;}
+      if(current())history=body;
+    }catch(e){
+      if(current())errorMessage=e instanceof Error?e.message:$t('productionFloor.historyFailed');
+    }finally{
+      if(current()){loading=false;historyRequest=null;}
+    }
   }
   async function save(){
-    if(busy)return;
+    const context=target;
+    if(busy||!context||!isCurrent(context))return;
     busy=true;errorMessage='';saved=false;
     try{
-      const res=await fetch(`/api/station/${encodeURIComponent(station)}/orders/${encodeURIComponent(orderId)}/progress`,{
+      const res=await fetch(endpoint(context),{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({note,progressPercent:progressPercent??null,expectedUpdatedAt})
       });
       const payload=await res.json().catch(()=>({}));
+      if(!isCurrent(context))return;
       if(!res.ok)throw new Error(res.status===409?$t('productionFloor.staleStage'):
         payload.message??payload.error??$t('productionFloor.saveFailed'));
       note='';progressPercent=undefined;saved=true;
       onSaved();
-      await loadHistory();
-    }catch(e){errorMessage=e instanceof Error?e.message:$t('productionFloor.saveFailed');}
-    finally{busy=false;}
+      // The write is acknowledged. A slow history refresh must not prevent
+      // closing the saved dialog or navigating back to the station queue.
+      void loadHistory(context);
+    }catch(e){
+      if(isCurrent(context))errorMessage=e instanceof Error?e.message:$t('productionFloor.saveFailed');
+    }finally{if(isCurrent(context))busy=false;}
   }
-  onMount(()=>{void loadHistory();});
+  $effect(()=>{
+    const context:Target={orderId,station,active:true};
+    target=context;
+    note='';progressPercent=undefined;history=[];saved=false;busy=false;
+    void loadHistory(context);
+    return()=>{
+      context.active=false;
+      historyRequest?.abort();
+      historyRequest=null;
+      if(target===context)target=null;
+    };
+  });
 </script>
 
 <section class="progress-form">

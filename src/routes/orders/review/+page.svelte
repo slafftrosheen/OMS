@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { modalDialog } from '$lib/ui/modal-dialog';
+  import OrderBadges from '$lib/badges/OrderBadges.svelte';
+  import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
@@ -44,32 +46,6 @@
   let rejectTarget = $state<PendingOrder | null>(null);
   let rejectReason = $state('');
   let rejecting = $state(false);
-  let previousFocus: HTMLElement | null = null;
-
-  function rememberFocus(): void {
-    previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  }
-  function restoreFocus(): void {
-    const target = previousFocus;
-    previousFocus = null;
-    void tick().then(() => target?.focus());
-  }
-  function handleDialogKeys(e: KeyboardEvent, close: () => void): void {
-    if (e.key === 'Escape') { e.preventDefault(); close(); return; }
-    if (e.key !== 'Tab') return;
-    const dialog = e.currentTarget as HTMLElement;
-    const elements = [...dialog.querySelectorAll<HTMLElement>(
-      'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href]'
-    )].filter(el => el.getAttribute('aria-hidden') !== 'true');
-    const first = elements[0], last = elements[elements.length - 1];
-    if (!first || !last) { e.preventDefault(); dialog.focus(); return; }
-    if (e.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
-      e.preventDefault(); last.focus();
-    } else if (!e.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
-      e.preventDefault(); first.focus();
-    }
-  }
-
   let canReview = $derived(can($currentUser, 'reviewQueue'));
   let canAssignPo = $derived(can($currentUser, 'assignPoNumber'));
 
@@ -98,10 +74,8 @@
   }
 
   async function openConfirm(order: PendingOrder) {
-    rememberFocus();
     const sequence=++confirmLoadSequence;
     confirmTarget=order;
-    void tick().then(() => document.getElementById('po-input')?.focus());
     poInput=order.po_number??'';
     confirmError='';
     confirmRevision=null;confirmFiles=null;confirmDocumentNames=[];confirmLoading=true;
@@ -146,7 +120,6 @@
     poInput='';
     confirmError='';
     confirmRevision=null;confirmFiles=null;confirmDocumentNames=[];confirmLoading=false;
-    restoreFocus();
   }
 
   async function submitConfirm() {
@@ -179,7 +152,6 @@
       confirmTarget=null;
       poInput='';
       confirmRevision=null;confirmFiles=null;confirmDocumentNames=[];
-      restoreFocus();
       await load();
     } catch (err: any) {
       confirmError = err?.message ?? 'Failed to confirm';
@@ -189,16 +161,13 @@
   }
 
   function openReject(order: PendingOrder) {
-    rememberFocus();
     rejectTarget = order;
     rejectReason = '';
-    void tick().then(() => document.getElementById('reject-reason')?.focus());
   }
 
   function clearReject(): void {
     rejectTarget = null;
     rejectReason = '';
-    restoreFocus();
   }
   function closeReject(): void {
     if (rejecting) return;
@@ -295,7 +264,7 @@
           <div class="card-row top">
             <div class="ref">
               <span class="internal-ref">{order.internal_ref ?? order.id.slice(0, 8)}</span>
-              <span class="priority pri-{priorityTone(order.priority)}">{order.priority ?? 'NORMAL'}</span>
+              <OrderBadges {order} />
             </div>
             <div class="actions">
               <Button variant="secondary" onclick={() => goto(`${base}/orders/${order.id}`)}>
@@ -354,19 +323,15 @@
 </div>
 
 {#if confirmTarget}
-  <div
+  <dialog
     class="modal-backdrop"
-    onclick={closeConfirm}
-    onkeydown={(e) => handleDialogKeys(e,closeConfirm)}
-    role="dialog"
-    aria-modal="true"
+    use:modalDialog={{ onClose: closeConfirm, closeOnEscape: !confirming, closeOnBackdrop: !confirming, initialFocus: '#po-input' }}
     aria-labelledby="confirm-title"
-    tabindex="-1"
   >
-    <div class="modal" onclick={(e) => e.stopPropagation()} role="document">
+    <div class="modal">
       <header class="modal-header">
         <h2 id="confirm-title">{$t('orders.review.confirm_title', { default: 'Confirm order' })}</h2>
-        <button class="icon-btn" onclick={closeConfirm} aria-label={$t('common.close')}>
+        <button class="icon-btn" disabled={confirming} onclick={closeConfirm} aria-label={$t('common.close')}>
           <Icon name="x" size="sm" />
         </button>
       </header>
@@ -405,6 +370,7 @@
           id="po-input"
           type="text"
           bind:value={poInput}
+          disabled={confirming}
           readonly={!canAssignPo}
           aria-readonly={!canAssignPo}
           maxlength="16"
@@ -432,7 +398,7 @@
       </div>
 
       <footer class="modal-footer">
-        <Button variant="secondary" onclick={closeConfirm}>
+        <Button variant="secondary" disabled={confirming} onclick={closeConfirm}>
           {$t('actions.cancel', { default: 'Cancel' })}
         </Button>
         <Button variant="primary" onclick={submitConfirm} disabled={
@@ -448,23 +414,19 @@
         </Button>
       </footer>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 {#if rejectTarget}
-  <div
+  <dialog
     class="modal-backdrop"
-    onclick={closeReject}
-    onkeydown={(e) => handleDialogKeys(e,closeReject)}
-    role="dialog"
-    aria-modal="true"
+    use:modalDialog={{ onClose: closeReject, closeOnEscape: !rejecting, closeOnBackdrop: !rejecting, initialFocus: '#reject-reason' }}
     aria-labelledby="reject-title"
-    tabindex="-1"
   >
-    <div class="modal" onclick={(e) => e.stopPropagation()} role="document">
+    <div class="modal">
       <header class="modal-header">
         <h2 id="reject-title">{$t('orders.review.reject_title', { default: 'Reject order' })}</h2>
-        <button class="icon-btn" onclick={closeReject} aria-label={$t('common.close')}>
+        <button class="icon-btn" disabled={rejecting} onclick={closeReject} aria-label={$t('common.close')}>
           <Icon name="x" size="sm" />
         </button>
       </header>
@@ -476,12 +438,13 @@
         <textarea
           id="reject-reason"
           bind:value={rejectReason}
+          disabled={rejecting}
           rows="4"
           placeholder={$t('orders.review.reject_placeholder', { default: 'Describe why this order is being rejected…' })}
         ></textarea>
       </div>
       <footer class="modal-footer">
-        <Button variant="secondary" onclick={closeReject}>
+        <Button variant="secondary" disabled={rejecting} onclick={closeReject}>
           {$t('actions.cancel', { default: 'Cancel' })}
         </Button>
         <Button variant="ghost" onclick={submitReject} disabled={rejecting || !rejectReason.trim()}>
@@ -495,7 +458,7 @@
         </Button>
       </footer>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>
@@ -581,26 +544,7 @@
   .internal-ref {
     color: var(--ink-secondary);
   }
-  .priority {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 2px 8px;
-    border-radius: var(--radius-full, 999px);
-    background: color-mix(in oklab, var(--ink-primary) 8%, transparent);
-  }
-  .priority.pri-urgent {
-    background: color-mix(in oklab, var(--brand) 18%, transparent);
-    color: var(--brand);
-  }
-  .priority.pri-high {
-    background: color-mix(in oklab, #ff9500 18%, transparent);
-    color: #ff9500;
-  }
-  .priority.pri-low {
-    background: color-mix(in oklab, var(--ink-primary) 6%, transparent);
-    color: var(--ink-tertiary);
-  }
+
   .actions {
     display: flex;
     gap: 8px;
@@ -758,11 +702,7 @@
     padding-bottom:var(--space-sm);}
   .ref {gap:var(--space-sm);flex-wrap:wrap;min-width:0;}
   .internal-ref {font-variant-numeric:tabular-nums;color:var(--ink-primary);}
-  .priority {border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-2);}
-  .priority.pri-urgent {color:var(--error);background:var(--error-soft);
-    border-color:color-mix(in oklab,var(--error) 30%,var(--border));}
-  .priority.pri-high {color:var(--warn);background:var(--warn-soft);
-    border-color:color-mix(in oklab,var(--warn) 30%,var(--border));}
+
   .actions {align-items:center;gap:var(--space-xs);flex-wrap:wrap;}
   .actions :global(button) {border-radius:var(--radius-sm);min-height:42px;}
   .card-row.body {grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-md);}
@@ -786,4 +726,8 @@
     .actions :global(button) {flex:1 1 120px;}
     .modal-footer{flex-wrap:wrap;}.modal-footer :global(button){flex:1 1 130px;}}
   @media(prefers-reduced-transparency:reduce){.review-card{background:var(--bg-1);}}
+
+  dialog.modal-backdrop { margin:0;width:100%;height:100%;max-width:none;max-height:none;border:0;color:inherit;box-sizing:border-box; }
+  dialog.modal-backdrop:not([open]) { display:none; }
+  dialog.modal-backdrop::backdrop { background:transparent; }
 </style>

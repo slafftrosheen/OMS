@@ -2,7 +2,8 @@
 <script lang="ts">
   import ChevronDown from 'lucide-svelte/icons/chevron-down';
   import { onMount } from 'svelte';
-  import Icon from '$lib/ui/Icon.svelte';
+
+  const controlId = $props.id();
 
   let {
     disabled = false,
@@ -59,13 +60,16 @@
 </script>
 
 <div class="profile-selector">
-  <label>Profile Type <span class="required">*</span></label>
+  <label for={controlId}>Profile Type <span class="required">*</span></label>
   
   <div class="selector-wrapper">
     <button
+      id={controlId}
       type="button"
       class="selector-button"
       class:open={isOpen}
+      aria-expanded={isOpen}
+      aria-controls={isOpen ? `${controlId}-options` : undefined}
       onclick={toggleDropdown}
       {disabled}
     >
@@ -80,7 +84,7 @@
     </button>
 
     {#if isOpen && !loading}
-      <div class="dropdown-menu">
+      <div class="dropdown-menu" id={`${controlId}-options`}>
         {#each profiles as profile (profile.code)}
           <button
             type="button"

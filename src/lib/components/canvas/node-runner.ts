@@ -1,28 +1,11 @@
 // Canvas node graph executor.
 //
-// Each "AI node" shape exposes a node descriptor (`getNodeDescriptor`) so the
-// runner can execute it standalone or as part of a DAG traversal driven by
-// tldraw arrows. Arrows whose `end` terminal binds to a shape become input
-// edges — the upstream shape's `output` prop is fed into the downstream
-// shape's `runFromInputs` call.
-//
-// Why we don't reuse tldraw's flow graph extensions: those expect a custom
-// arrow util and a binding registry we don't have time to wire end-to-end.
-// Walking the editor's record store on demand is enough for our scale
-// (≤ ~50 shapes/canvas).
+// Custom technical shapes register a runner shared by their own Run button
+// and the canvas toolbar. Native arrow bindings supply optional upstream
+// inputs, and completion only patches execution state so edits made while a
+// request is pending are preserved.
 
 import type { Editor, TLShape } from '@tldraw/tldraw';
-
-export type NodeKind =
-    | 'web-search'
-    | 'crawl'
-    | 'lumigrid'
-    | 'led-strip'
-    | 'led-matrix'
-    | 'boxletter'
-    | 'maker'
-    | 'chat'
-    | 'document';
 
 export interface NodeRunContext {
     editor: Editor;
@@ -46,6 +29,7 @@ export interface NodeOutput {
 export type NodeRunner = (ctx: NodeRunContext) => Promise<NodeOutput>;
 
 const RUNNERS = new Map<string, NodeRunner>();
+const ACTIVE_RUNS = new WeakMap<Editor, Map<string, Promise<NodeOutput>>>();
 
 /** Register a runner for a custom shape type. */
 export function registerNodeRunner(type: string, fn: NodeRunner): void {
@@ -55,6 +39,15 @@ export function registerNodeRunner(type: string, fn: NodeRunner): void {
 /** Look up a runner. */
 export function getNodeRunner(type: string): NodeRunner | undefined {
     return RUNNERS.get(type);
+}
+
+/** Only editable technical nodes can run from a mixed canvas selection. */
+export function getRunnableShapeIds(editor: Editor, ids = editor.getSelectedShapeIds()): string[] {
+    if (editor.getInstanceState().isReadonly) return [];
+    return ids.filter((id) => {
+        const shape = editor.getShape(id);
+        return !!shape && RUNNERS.has(shape.type) && !editor.isShapeOrAncestorLocked(shape);
+    });
 }
 
 // ─── Graph traversal ────────────────────────────────────────────────────────
@@ -95,7 +88,9 @@ export function findUpstreamIds(editor: Editor, targetId: string): string[] {
                     incoming.push(sibling.toId);
                 }
             }
-            if (incoming.length > 0) return incoming;
+            // An empty native binding result is authoritative too. Most
+            // standalone nodes have no inputs; don't scan the entire page.
+            return incoming;
         } catch { /* tldraw version may not expose this — fall through */ }
     }
 
@@ -129,6 +124,8 @@ export function harvestOutput(shape: TLShape): unknown {
 
 export interface RunOptions {
     signal?: AbortSignal;
+    /** Node buttons use their explicit form values; the toolbar follows arrows. */
+    useUpstream?: boolean;
     /** Updates the shape's status as it runs. */
     onStatus?: (id: string, status: 'running' | 'done' | 'error', detail?: string) => void;
 }
@@ -139,14 +136,30 @@ export async function runShape(
     shapeId: string,
     opts: RunOptions = {}
 ): Promise<NodeOutput> {
+    let active = ACTIVE_RUNS.get(editor);
+    if (!active) { active = new Map(); ACTIVE_RUNS.set(editor, active); }
+    const existing = active.get(shapeId);
+    if (existing) return existing;
+
+    const pending = executeShape(editor, shapeId, opts);
+    active.set(shapeId, pending);
+    try { return await pending; }
+    finally { active.delete(shapeId); }
+}
+
+async function executeShape(editor: Editor, shapeId: string, opts: RunOptions): Promise<NodeOutput> {
     const shape = editor.getShape(shapeId as any);
     if (!shape) throw new Error(`runShape: ${shapeId} not found`);
     const runner = getNodeRunner(shape.type);
     if (!runner) {
         throw new Error(`No runner registered for shape type "${shape.type}"`);
     }
+    if (editor.getInstanceState().isReadonly || editor.isShapeOrAncestorLocked(shape)) {
+        throw new Error('This technical node is locked or read-only');
+    }
+    opts.signal?.throwIfAborted();
 
-    const upstreamIds = findUpstreamIds(editor, shapeId);
+    const upstreamIds = opts.useUpstream === false ? [] : findUpstreamIds(editor, shapeId);
     const inputs: Record<string, unknown> = {};
     for (const id of upstreamIds) {
         const up = editor.getShape(id as any);
@@ -157,6 +170,12 @@ export async function runShape(
         }
     }
 
+    const update = (props: Record<string, unknown>) => {
+        // A deleted/replaced shape must never be recreated by a late response.
+        if (editor.getShape(shape.id)?.type !== shape.type) return;
+        editor.updateShape({ id: shape.id, type: shape.type, props } as any);
+    };
+    update({ status: 'running', error: null });
     opts.onStatus?.(shapeId, 'running');
     try {
         const result = await runner({
@@ -165,60 +184,15 @@ export async function runShape(
             inputs,
             signal: opts.signal ?? new AbortController().signal
         });
+        opts.signal?.throwIfAborted();
         // Persist result on the shape so downstream nodes can read it.
-        try {
-            const props = (shape as { props?: Record<string, unknown> }).props ?? {};
-            editor.updateShape({
-                id: shapeId as any,
-                type: shape.type,
-                props: { ...props, output: result.data, status: 'done', error: null }
-            } as any);
-        } catch { /* shape may have been deleted mid-run */ }
+        update({ output: result.data, status: 'done', error: null });
         opts.onStatus?.(shapeId, 'done', result.summary);
         return result;
     } catch (err) {
-        const msg = (err as Error).message;
-        try {
-            const props = (shape as { props?: Record<string, unknown> }).props ?? {};
-            editor.updateShape({
-                id: shapeId as any,
-                type: shape.type,
-                props: { ...props, status: 'error', error: msg }
-            } as any);
-        } catch { /* swallow */ }
+        const msg = err instanceof Error ? err.message : String(err);
+        update({ status: 'error', error: msg });
         opts.onStatus?.(shapeId, 'error', msg);
         throw err;
-    }
-}
-
-/**
- * Run every AI node on the page in topological order. Skips shapes that have
- * no registered runner. Tolerates cycles by stopping when no more progress
- * can be made.
- */
-export async function runAll(editor: Editor, opts: RunOptions = {}): Promise<void> {
-    const all = editor.getCurrentPageShapes();
-    const targets = all.filter((s) => RUNNERS.has(s.type));
-    const completed = new Set<string>();
-    const errored = new Set<string>();
-
-    let progress = true;
-    while (progress) {
-        progress = false;
-        for (const t of targets) {
-            if (completed.has(t.id) || errored.has(t.id)) continue;
-            const upstream = findUpstreamIds(editor, t.id).filter((id) =>
-                targets.some((s) => s.id === id)
-            );
-            const ready = upstream.every((id) => completed.has(id));
-            if (!ready) continue;
-            try {
-                await runShape(editor, t.id, opts);
-                completed.add(t.id);
-            } catch {
-                errored.add(t.id);
-            }
-            progress = true;
-        }
     }
 }

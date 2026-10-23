@@ -3,7 +3,8 @@
   import ChevronDown from 'lucide-svelte/icons/chevron-down';
   import Minus from 'lucide-svelte/icons/minus';
   import Plus from 'lucide-svelte/icons/plus';
-  import Icon from '$lib/ui/Icon.svelte';
+
+  const controlId = $props.id();
 
   interface Props {
     value?: number;
@@ -69,7 +70,7 @@
 </script>
 
 <div class="thickness-selector" class:disabled class:error={!!error}>
-  <label class="label">
+  <label class="label" for={controlId}>
     {label}
     {#if required}
       <span class="required">*</span>
@@ -89,6 +90,9 @@
 
     <div class="input-container">
       <input
+        id={controlId}
+        aria-invalid={!!error}
+        aria-describedby={error ? `${controlId}-error` : undefined}
         bind:this={inputElement}
         type="number"
         bind:value
@@ -143,7 +147,7 @@
   </div>
 
   {#if error}
-    <div class="error-message">{error}</div>
+    <div class="error-message" id={`${controlId}-error`}>{error}</div>
   {/if}
 </div>
 
@@ -236,6 +240,7 @@
   }
 
   .thickness-input[type=number] {
+    appearance: textfield;
     -moz-appearance: textfield;
   }
 

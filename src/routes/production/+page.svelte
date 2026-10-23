@@ -364,9 +364,6 @@
     .board-preferences { width: 100%; justify-content: space-between; }
     .stations-grid { grid-template-columns: 1fr; }
   }
-  @media (prefers-reduced-motion: reduce) {
-    .station-board { scroll-behavior: auto; }
-  }
 
   /* LUMIGRID operator surface: measured density, vivid risk only where needed. */
   .production-container { gap:var(--space-lg); padding:var(--space-md) 0 var(--space-2xl); }

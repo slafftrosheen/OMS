@@ -2,25 +2,20 @@
   import BellRing from 'lucide-svelte/icons/bell-ring';
   import Check from 'lucide-svelte/icons/check';
   import CheckCheck from 'lucide-svelte/icons/check-check';
-  import Info from 'lucide-svelte/icons/info';
-  import MessageSquare from 'lucide-svelte/icons/message-square';
-  import Package from 'lucide-svelte/icons/package';
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
-  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
   import Trash2 from 'lucide-svelte/icons/trash-2';
-  import CalendarIcon from 'lucide-svelte/icons/calendar';
-  import Settings from 'lucide-svelte/icons/settings';
 
-  import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { notificationStore } from '$lib/stores/notifications';
   import type { Notification } from '$lib/stores/notifications';
+  import { base } from '$app/paths';
+  import SemanticBadge from '$lib/badges/SemanticBadge.svelte';
+  import { badgeDescriptor, notificationBadge } from '$lib/badges/catalog';
 
   let filter: 'all' | 'unread' | 'read' = $state('all');
   let typeFilter: string = $state('all');
-  let refreshing = $state(false);
 
   let storeState  = $derived($notificationStore);
   let allItems    = $derived(storeState.items);
@@ -29,15 +24,13 @@
   let filteredNotifications = $derived(allItems.filter((n: Notification) => {
     if (filter === 'unread' && n.read)  return false;
     if (filter === 'read'   && !n.read) return false;
-    if (typeFilter !== 'all' && n.type !== typeFilter.toUpperCase()) return false;
+    if (typeFilter !== 'all' && n.category !== typeFilter.toUpperCase()) return false;
     return true;
   }));
 
   async function handleRefresh() {
-    refreshing = true;
     const userId = $currentUser?.id;
     if (userId) await notificationStore.load(userId);
-    refreshing = false;
   }
 
   async function handleMarkAllRead() {
@@ -50,28 +43,14 @@
   }
 
   async function handleDismiss(id: string) {
-    await notificationStore.delete(id);
+    await notificationStore.dismiss(id);
   }
 
   async function handleClearRead() {
-    const readItems = allItems.filter((n: Notification) => n.read);
-    for (const n of readItems) await notificationStore.delete(n.id);
+    await notificationStore.dismissRead();
   }
 
-  function getIcon(type: string) {
-    switch (type?.toLowerCase()) {
-      case 'assignment':
-      case 'order':        return Package;
-      case 'rework':
-      case 'stage_change': return AlertTriangle;
-      case 'chat':
-      case 'info':         return MessageSquare;
-      case 'success':      return Check;
-      case 'warning':      return AlertTriangle;
-      case 'error':        return AlertTriangle;
-      default:             return Info;
-    }
-  }
+  const destination = (link: string) => base && link !== base && !link.startsWith(`${base}/`) ? `${base}${link}` : link;
 
   function formatDate(dateStr: string): string {
     const date   = new Date(dateStr);
@@ -88,11 +67,10 @@
     return date.toLocaleDateString();
   }
 
-  onMount(() => {
+  $effect(() => {
     const userId = $currentUser?.id;
-    if (!userId) return;
-    notificationStore.load(userId);
-    return notificationStore.subscribe_realtime(userId);
+    if (!userId) { notificationStore.clear(); return; }
+    return notificationStore.connect(userId);
   });
 </script>
 
@@ -107,18 +85,18 @@
       <Icon name="bell" size="lg" />
       <h1>{$t('notifications.title')}</h1>
       {#if unreadCount > 0}
-        <span class="notif-header__badge">{unreadCount} {$t('notifications.filter.unread')}</span>
+        <SemanticBadge badge={badgeDescriptor('unread', { count: unreadCount })} />
       {/if}
     </div>
     <div class="notif-header__actions">
       <button
         class="notif-action-btn"
         onclick={handleRefresh}
-        disabled={refreshing || storeState.loading}
+        disabled={storeState.loading}
         aria-label={$t('notifications.refresh', { default: 'Refresh' })}
         title={$t('notifications.refresh', { default: 'Refresh' })}
       >
-        <span class:spinning={refreshing || storeState.loading}>
+        <span class:spinning={storeState.loading}>
           <RefreshCw size={16} />
         </span>
       </button>
@@ -161,6 +139,10 @@
     </select>
   </div>
 
+  {#if storeState.error}
+    <p class="notif-error" role="alert">{$t('notifications.sync_failed', { default: 'Notifications could not be updated. Try again.' })}</p>
+  {/if}
+
   <!-- List -->
   <div class="notif-list">
     {#if storeState.loading && allItems.length === 0}
@@ -168,7 +150,7 @@
         <div class="rf-spinner"></div>
         <p>{$t('notifications.loading', { default: 'Loading notifications…' })}</p>
       </div>
-    {:else if filteredNotifications.length === 0}
+    {:else if filteredNotifications.length === 0 && !storeState.error}
       <div class="notif-state">
         <BellRing size={48} class="notif-state__icon" />
         <p class="notif-state__title">{$t('notifications.no_notifs', { default: 'No notifications' })}</p>
@@ -176,21 +158,17 @@
       </div>
     {:else}
       {#each filteredNotifications as n (n.id)}
-        {@const ItemIcon = getIcon(n.type)}
         <div class="notif-card" class:notif-card--unread={!n.read} role="article">
-          <div class="notif-card__icon" data-type={n.type?.toLowerCase()}>
-            <ItemIcon size={18} />
-          </div>
-
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            class="notif-card__body"
-            onclick={() => !n.read && handleMarkRead(n.id)}
-            onkeypress={(e) => e.key === 'Enter' && !n.read && handleMarkRead(n.id)}
-            role="button"
-            tabindex="0"
-          >
-            <p class="notif-card__title">{n.title}</p>
+          <div class="notif-card__body">
+            <div class="notif-card__badges">
+              <SemanticBadge badge={notificationBadge(n)} />
+              <SemanticBadge badge={badgeDescriptor(n.read ? 'read' : 'unread')} />
+            </div>
+            <p class="notif-card__title">
+              {#if n.link}
+                <a href={destination(n.link)} onclick={() => { if (!n.read) void handleMarkRead(n.id); }}>{n.title}</a>
+              {:else}{n.title}{/if}
+            </p>
             {#if n.message}
               <p class="notif-card__msg">{n.message}</p>
             {/if}
@@ -226,9 +204,19 @@
 </div>
 
 <style>
+  .notif-card__badges { display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px; }
+  .notif-card__title a { color:inherit;text-decoration:underline;text-underline-offset:3px; }
+  .notif-card__title a:focus-visible { outline:2px solid var(--focus);outline-offset:3px;border-radius:2px; }
   .notif-page {
     max-width: 720px;
     margin: 0 auto;
+  }
+
+  .notif-error {
+    padding: var(--space-md);
+    color: var(--text);
+    border: 1px solid var(--error);
+    border-radius: var(--radius-sm);
   }
 
   /* Header */
@@ -250,15 +238,7 @@
     font-weight: 700;
     margin: 0;
   }
-  .notif-header__badge {
-    font-size: var(--text-xs);
-    font-weight: 700;
-    padding: var(--space-xxs) var(--space-sm);
-    border-radius: var(--radius-full);
-    background: var(--brand-soft);
-    color: var(--brand);
-    letter-spacing: var(--tracking-wide);
-  }
+
   .notif-header__actions {
     display: flex;
     align-items: center;
@@ -393,33 +373,6 @@
   }
   .notif-card--unread:hover {
     background: color-mix(in oklab, var(--brand) 8%, var(--glass-bg-strong));
-  }
-
-  .notif-card__icon {
-    width: 40px; height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-sm);
-    background: var(--bg-2);
-    color: var(--ink-tertiary);
-    flex-shrink: 0;
-  }
-  .notif-card__icon[data-type="order"],
-  .notif-card__icon[data-type="assignment"] {
-    background: color-mix(in oklab, var(--brand) 14%, transparent);
-    color: var(--brand);
-  }
-  .notif-card__icon[data-type="rework"],
-  .notif-card__icon[data-type="warning"],
-  .notif-card__icon[data-type="error"] {
-    background: color-mix(in oklab, var(--error) 14%, transparent);
-    color: var(--error);
-  }
-  .notif-card__icon[data-type="chat"],
-  .notif-card__icon[data-type="info"] {
-    background: color-mix(in oklab, var(--ok) 14%, transparent);
-    color: var(--ok);
   }
 
   .notif-card__body {

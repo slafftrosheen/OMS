@@ -110,15 +110,16 @@ describe('OMS-R07 Canvas skills and safe tool actions', () => {
     expect(canvas).not.toContain('editor.store.getSnapshot()');
     expect(app).toContain('setTimeout(capture, 250)');
     expect(app).toContain('onDocumentChange?.()');
-    expect(canvas).toContain("lastSnapshot = { document: getSnapshot(editor.store).document }");
+    expect(app).toContain('if (!callbacksRef.current.onSave) return;');
+    expect(canvas).toContain('lastSnapshot = { document: editor.store.getStoreSnapshot() }');
     expect(canvas).toContain('onDocumentChange={onDocumentChange}');
-    expect(canvas).toContain('saveInFlight = (async () => {');
-    expect(canvas.indexOf('saveInFlight = (async () => {')).toBeLessThan(
-      canvas.indexOf("const { getSnapshot } = await import('@tldraw/tldraw')"));
+    expect(canvas).not.toContain('onSave={onCanvasChange}');
+    expect(canvas).toContain('const boardSaves = createSaveQueue(');
+    expect(canvas.match(/captureCurrentDocument\(\);/g)).toHaveLength(2);
   });
   it('keeps private chat data off shared canvases and warns on insecure clipboard', () => {
     expect(canvas).toContain('const payload = { version: 1, snapshot: lastSnapshot }');
-    expect(canvas).toContain('actionProposals.slice(0, 3)');
+    expect(canvas).toContain('actionProposals.slice(0, 12)');
     expect(canvas).toContain('!window.isSecureContext');
     expect(canvas).toContain("$t('toolkit.canvas.clipboard')");
     expect(canvas).toContain('function auditBoard()');

@@ -3,11 +3,11 @@
   import Palette from 'lucide-svelte/icons/palette';
   import Search from 'lucide-svelte/icons/search';
   import X from 'lucide-svelte/icons/x';
-  import { stopPropagation } from 'svelte/legacy';
-
   import { onMount } from 'svelte';
-  import Icon from '$lib/ui/Icon.svelte';
+  import { t } from 'svelte-i18n';
   import type { ColorSystem } from '$lib/profiles/types';
+
+  const controlId = $props.id();
 
   interface Props {
     value?: string;
@@ -32,17 +32,16 @@
   }: Props = $props();
 
   let colors: ColorSystem[] = $state([]);
-  let filteredColors: ColorSystem[] = $state([]);
-  let selectedColor: ColorSystem | null = $state(null);
+  let selectedColor = $derived(colors.find(color => color.code === value) ?? null);
   let searchQuery: string = $state('');
+  let filteredColors = $derived(colors.filter(color => {
+    const query = searchQuery.toLowerCase().trim();
+    return color.code.toLowerCase().includes(query) || color.name.toLowerCase().includes(query);
+  }));
   let loading = $state(false);
   let isOpen = $state(false);
-
-  const previewSizes = {
-    sm: '32px',
-    md: '48px',
-    lg: '64px'
-  };
+  let pickerElement = $state<HTMLDivElement>();
+  let triggerElement = $state<HTMLButtonElement>();
 
   onMount(async () => {
     await loadRALColors();
@@ -52,14 +51,9 @@
     loading = true;
     try {
       const response = await fetch('/api/colors?system=RAL');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      colors = data.items || data;
-      filteredColors = colors;
-
-      // Set selected color if value provided
-      if (value) {
-        selectedColor = colors.find(c => c.code === value) || null;
-      }
+      colors = Array.isArray(data) ? data : (Array.isArray(data.items) ? data.items : []);
     } catch (err) {
       console.error('Failed to load RAL colors:', err);
     } finally {
@@ -67,30 +61,19 @@
     }
   }
 
-  function filterColors() {
-    const query = searchQuery.toLowerCase().trim();
-    if (!query) {
-      filteredColors = colors;
-      return;
-    }
-
-    filteredColors = colors.filter(color => 
-      color.code.toLowerCase().includes(query) ||
-      color.name.toLowerCase().includes(query)
-    );
-  }
-
   function selectColor(color: ColorSystem) {
-    selectedColor = color;
+    if (disabled) return;
     value = color.code;
     isOpen = false;
     searchQuery = '';
+    triggerElement?.focus();
   }
 
   function clearSelection() {
-    selectedColor = null;
+    if (disabled) return;
     value = '';
     searchQuery = '';
+    triggerElement?.focus();
   }
 
   function togglePicker() {
@@ -100,14 +83,26 @@
   }
 
   $effect(() => {
-    if (searchQuery !== undefined) {
-      filterColors();
-    }
+    if (disabled) isOpen = false;
   });
+
+  function handleClickOutside(event: MouseEvent) {
+    if (event.target instanceof Node && !pickerElement?.contains(event.target)) isOpen = false;
+  }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && isOpen && event.target instanceof Node && pickerElement?.contains(event.target)) {
+      event.preventDefault();
+      isOpen = false;
+      triggerElement?.focus();
+    }
+  }
 </script>
 
-<div class="color-ral" class:disabled class:error={!!error}>
-  <label class="label">
+<svelte:document onclick={handleClickOutside} onkeydown={handleKeydown} />
+
+<div class="color-ral" bind:this={pickerElement} class:disabled class:error={!!error}>
+  <label class="label" for={controlId}>
     {label}
     {#if required}
       <span class="required">*</span>
@@ -127,10 +122,15 @@
     {/if}
 
     <button
+      id={controlId}
+      bind:this={triggerElement}
       type="button"
       class="picker-button"
       class:open={isOpen}
       class:has-value={!!selectedColor}
+      aria-expanded={isOpen}
+      aria-controls={isOpen ? `${controlId}-options` : undefined}
+      aria-describedby={error ? `${controlId}-error` : undefined}
       onclick={togglePicker}
       {disabled}
     >
@@ -149,27 +149,28 @@
         <Palette size={18} />
         <span class="placeholder">{placeholder}</span>
       {/if}
-
-      {#if selectedColor && !disabled}
-        <button
-          type="button"
-          class="clear-button"
-          onclick={stopPropagation(clearSelection)}
-          title="Clear selection"
-        >
-          <X size={16} />
-        </button>
-      {/if}
     </button>
+    {#if selectedColor && !disabled}
+      <button
+        type="button"
+        class="clear-button"
+        onclick={clearSelection}
+        aria-label={`${$t('common.remove')} ${label} ${selectedColor.code}`}
+        title="Clear selection"
+      >
+        <X size={16} />
+      </button>
+    {/if}
 
     {#if isOpen && !loading}
-      <div class="color-picker-panel">
+      <div class="color-picker-panel" id={`${controlId}-options`}>
         <div class="search-box">
           <Search size={16} />
           <input
             type="text"
             bind:value={searchQuery}
             placeholder="Search by code or name..."
+            aria-label={`${label} · ${$t('common.search')}`}
             class="search-input"
           />
         </div>
@@ -180,6 +181,7 @@
               type="button"
               class="color-item"
               class:selected={color.code === value}
+              aria-pressed={color.code === value}
               onclick={() => selectColor(color)}
               title="{color.name} (RAL {color.code})"
             >
@@ -203,7 +205,7 @@
   </div>
 
   {#if error}
-    <div class="error-message">{error}</div>
+    <div class="error-message" id={`${controlId}-error`}>{error}</div>
   {/if}
 </div>
 
@@ -311,6 +313,7 @@
   }
 
   .clear-button {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -328,6 +331,12 @@
     background: var(--danger-bg, var(--error-soft));
     border-color: var(--danger, var(--error));
     color: var(--danger, var(--error));
+  }
+
+  .picker-button:focus-visible,
+  .clear-button:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
   }
 
   .color-picker-panel {

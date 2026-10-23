@@ -1,18 +1,22 @@
 <script lang="ts">
   import { preventDefault } from 'svelte/legacy';
+  import { untrack } from 'svelte';
 
   import { t } from 'svelte-i18n';
   import { createMaterial, updateMaterial, type Material } from './store';
   import type { Section } from './types';
 
+  const controlId = $props.id();
+
   // Accept both 'material' and 'item' props for backwards compatibility
   let { material, item = $bindable(), onClose = () => {} }: { material?: Partial<Material>; item?: Partial<Material>; onClose?: () => void } = $props();
   
-  // Use material if provided, otherwise fall back to item
-  let data = $state<Partial<Material>>({
+  // Each modal opening mounts a new draft. Keep later store refreshes from
+  // replacing unsaved metadata edits; use material before the legacy item prop.
+  let data = $state<Partial<Material>>(untrack(() => ({
     section: 'materials',
     ...(material || item || {})
-  });
+  })));
 
   const sectionOptions: { id: Section; labelKey: string }[] = [
     { id: 'materials', labelKey: 'inventory.materials' },
@@ -22,7 +26,7 @@
     { id: 'cons', labelKey: 'inventory.consumables' }
   ];
 
-  const isNew = !data.id;
+  const isNew = $derived(!data.id);
 
   $effect(() => {
     if (!data.section) {
@@ -108,13 +112,14 @@
         {$t('inventory.labels.color', { default: 'Color Code' })}
         <input bind:value={data.color_code} placeholder="e.g., RAL 9010" />
       </label>
-      <label>
-        {$t('inventory.hexColor', { default: 'Color (Hex)' })}
+      <div class="color-field">
+        <label for={`${controlId}-hex`}>{$t('inventory.hexColor', { default: 'Color (Hex)' })}</label>
         <div class="color-input-row">
-          <input type="color" bind:value={data.hex_color} class="color-picker" />
-          <input bind:value={data.hex_color} placeholder="#000000" class="color-text" />
+          <input type="color" bind:value={data.hex_color} class="color-picker"
+            aria-label={$t('inventory.hexColor', { default: 'Color (Hex)' })} />
+          <input id={`${controlId}-hex`} bind:value={data.hex_color} placeholder="#000000" class="color-text" />
         </div>
-      </label>
+      </div>
       <label>
         {$t('inventory.modal.supplier_label')}
         <input bind:value={data.supplier} />
@@ -149,12 +154,13 @@
   max-height: 90vh;
   overflow-y: auto;
 }
-label {
+label, .color-field {
   display: grid;
   gap: 6px;
   margin: 8px 0;
 }
-input, textarea, select {
+.color-field label { margin: 0; }
+input, select {
   background: var(--bg-0);
   border: 1px solid var(--border);
   border-radius: 10px;

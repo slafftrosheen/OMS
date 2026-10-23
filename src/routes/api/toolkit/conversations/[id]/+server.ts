@@ -37,12 +37,12 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw error(400, 'Invalid discussion');
   if (JSON.stringify(body).length > 320_000) throw error(413, 'Discussion exceeds size limit');
   const messages = cleanMessages(body.messages);
-  if (!Array.isArray(body.proposals) || body.proposals.length > 8) throw error(400, 'Invalid proposals');
+  if (!Array.isArray(body.proposals) || body.proposals.length > 17) throw error(400, 'Invalid proposals');
   // Both card drafts and tool actions remain private to this user.
   const proposals = [
     ...normalizeProposals(body.proposals).slice(0, 5),
-    ...normalizeCanvasActions(body.proposals).slice(0, 3)
-  ].slice(0, 8);
+    ...normalizeCanvasActions(body.proposals).slice(0, 12)
+  ].slice(0, 17);
   // Update only the discussion columns, never the archived legacy node_threads.
   // A generic upsert could reset unspecified columns to their defaults.
   const now = new Date().toISOString();

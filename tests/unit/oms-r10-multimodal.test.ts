@@ -99,9 +99,9 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
 
   it('keeps media evidence private and never automatically mutates the shared drawing', () => {
     const ui = read('src/routes/toolkit/canvas/+page.svelte');
-    expect(ui).toContain("fetch('/api/toolkit/analyze-asset'");
+    expect(ui).toContain('fetch(`${base}/api/toolkit/analyze-asset`');
     expect(ui).toContain('const originalBoard = boardId, token = activeLoadToken');
-    expect(ui).toContain('token !== activeLoadToken');
+    expect(ui).toContain('isCurrent() && currentBoard(originalBoard, token)');
     expect(ui).toContain('analyzedAssets = {');
     expect(ui).toContain('markDiscussionDirty()');
     expect(ui).toContain('confirm(tr(\'canvas.confirmPaidOcr\'))');

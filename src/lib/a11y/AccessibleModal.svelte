@@ -1,13 +1,11 @@
 <!-- src/lib/a11y/AccessibleModal.svelte -->
 <script lang="ts">
   import X from 'lucide-svelte/icons/x';
-	import { onMount, onDestroy } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
-	import Icon from '$lib/ui/Icon.svelte';
-	import { focusManager } from '$lib/a11y/focus-manager';
+	import { modalDialog } from '$lib/ui/modal-dialog';
 
 	let { children, footer,
-		open = false,
+		open = $bindable(false),
 		title,
 		description = undefined,
 		size = 'medium',
@@ -26,88 +24,21 @@
 		onclose?: () => void;
 	} = $props();
 
-	let modalElement: HTMLElement;
-	let releaseFocusTrap: (() => void) | undefined;
-
-	$effect(() => {
-		if (open && modalElement) {
-			handleOpen();
-		} else if (!open && releaseFocusTrap) {
-			handleClose();
-		}
-	});
-
-	function handleOpen() {
-		// Save current focus
-		focusManager.saveFocus();
-
-		// Trap focus in modal
-		releaseFocusTrap = focusManager.trapFocus(modalElement);
-
-		// Prevent body scroll
-		document.body.style.overflow = 'hidden';
-
-		// Announce to screen readers
-		focusManager.announce(`${title} dialog opened`, 'assertive');
-	}
-
-	function handleClose() {
-		// Release focus trap
-		if (releaseFocusTrap) {
-			releaseFocusTrap();
-			releaseFocusTrap = undefined;
-		}
-
-		// Restore body scroll
-		document.body.style.overflow = '';
-
-		// Restore previous focus
-		focusManager.restoreFocus();
-	}
-
-	function close() {
-		open = false;
-		onclose?.();
-	}
-
-	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape' && closeOnEscape) {
-			close();
-		}
-	}
-
-	function handleBackdropClick(e: MouseEvent) {
-		if (closeOnBackdrop && e.target === e.currentTarget) {
-			close();
-		}
-	}
-
-	onDestroy(() => {
-		if (open) {
-			handleClose();
-		}
-	});
+	const dialogId = $props.id();
+	function close() { open = false; onclose?.(); }
 </script>
 
 {#if open}
-	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-	<div
+	<dialog
 		class="modal-backdrop"
 		transition:fade={{ duration: 200 }}
-		onclick={handleBackdropClick}
-		onkeydown={handleKeydown}
+		use:modalDialog={{ onClose: close, closeOnEscape, closeOnBackdrop }}
+		aria-labelledby={`${dialogId}-title`}
+		aria-describedby={description ? `${dialogId}-description` : undefined}
 	>
-		<div
-			bind:this={modalElement}
-			class="modal modal-{size}"
-			transition:fly={{ y: 50, duration: 300 }}
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="modal-title"
-			aria-describedby={description ? 'modal-description' : undefined}
-		>
+		<div class="modal modal-{size}" transition:fly={{ y: 50, duration: 300 }}>
 			<div class="modal-header">
-				<h2 id="modal-title" class="modal-title">{title}</h2>
+				<h2 id={`${dialogId}-title`} class="modal-title">{title}</h2>
 				<button
 					class="modal-close"
 					onclick={close}
@@ -119,7 +50,7 @@
 			</div>
 
 			{#if description}
-				<p id="modal-description" class="modal-description sr-only">
+				<p id={`${dialogId}-description`} class="modal-description sr-only">
 					{description}
 				</p>
 			{/if}
@@ -132,11 +63,20 @@
 				{@render footer?.()}
 			</div>
 		</div>
-	</div>
+	</dialog>
 {/if}
 
 <style>
+  .modal-backdrop:not([open]) { display:none; }
+  .modal-backdrop::backdrop { background:transparent; }
 	.modal-backdrop {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border: 0;
+    color: inherit;
 		position: fixed;
 		inset: 0;
 		z-index: var(--z-tooltip);

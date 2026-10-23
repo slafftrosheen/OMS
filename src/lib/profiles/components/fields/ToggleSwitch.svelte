@@ -1,5 +1,6 @@
 <!-- src/lib/profiles/components/fields/ToggleSwitch.svelte -->
 <script lang="ts">
+  const controlId = $props.id();
   let {
     value = $bindable(false),
     label = 'Toggle',
@@ -20,11 +21,12 @@
 </script>
 
 <div class="toggle-switch" class:disabled class:error={!!error}>
-  <label class="label">
+  <label class="label" for={controlId} id={`${controlId}-label`}>
     {label}
   </label>
 
   <button
+    id={controlId}
     type="button"
     class="switch"
     class:active={value}
@@ -32,12 +34,15 @@
     {disabled}
     role="switch"
     aria-checked={value}
+    aria-labelledby={`${controlId}-label`}
+    aria-invalid={!!error}
+    aria-describedby={error ? `${controlId}-error` : undefined}
   >
     <span class="slider"></span>
   </button>
 
   {#if error}
-    <div class="error-message">{error}</div>
+    <div class="error-message" id={`${controlId}-error`}>{error}</div>
   {/if}
 </div>
 

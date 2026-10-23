@@ -4,19 +4,19 @@
   import Search from 'lucide-svelte/icons/search';
   import X from 'lucide-svelte/icons/x';
 
-  import { onMount, onDestroy } from 'svelte';
-  import { fade, slide, fly } from 'svelte/transition';
+  import { modalDialog } from '$lib/ui/modal-dialog';
+  import { fade, fly } from 'svelte/transition';
   import { t } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/authState.svelte';
-  import { 
-    rooms, 
-    messages, 
-    sendMessage, 
-    loadRooms, 
-    loadMessages, 
-    ensureRoom, 
-    isChatOpen, 
-    toggleChat 
+  import {
+    rooms,
+    messages,
+    sendMessage,
+    loadRooms,
+    loadMessages,
+    ensureRoom,
+    openDirectRoom,
+    isChatOpen
   } from '$lib/chat/chat-store';
   import { users, loadUsers } from '$lib/users/user-store';
   import Icon from '$lib/ui/Icon.svelte';
@@ -25,32 +25,40 @@
   import StationBadge from '$lib/ui/StationBadge.svelte';
 
   let activeRoomId = $state('general');
-  let messageText = $state('');
+  let drafts = $state<Record<string, { text: string; mentions: string[] }>>({ general: { text: '', mentions: [] } });
+  let activeDraft = $derived(drafts[activeRoomId]);
   let scroller: HTMLDivElement | null = $state(null);
   let showRoomModal = $state(false);
   let showDmModal = $state(false);
   let dmFilter = $state('');
   let newRoomName = $state('');
   let searchQuery = $state('');
-  
+  let creatingRoom = $state(false);
+  let openingDm = $state(false);
+  let accountId = $derived($currentUser?.id ?? null);
+  let viewLifetime: AbortController | null = null;
+  let scrollTimer: ReturnType<typeof setTimeout> | undefined;
+
   // View state: 'list' | 'room'
   let view: 'list' | 'room' = $state('room');
 
   let activeRoom = $derived($rooms.find(r => r.id === activeRoomId) || $rooms[0]);
   let roomMessages = $derived($messages.filter(m => m.roomId === activeRoomId));
-  let filteredRooms = $derived(searchQuery 
+  let filteredRooms = $derived(searchQuery
     ? $rooms.filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : $rooms);
 
   function scrollToBottom() {
+    clearTimeout(scrollTimer);
     if (scroller) {
-      setTimeout(() => {
+      scrollTimer = setTimeout(() => {
         if (scroller) scroller.scrollTop = scroller.scrollHeight;
       }, 50);
     }
   }
 
   function selectRoom(roomId: string) {
+    drafts[roomId] ??= { text: '', mentions: [] };
     activeRoomId = roomId;
     loadMessages(roomId);
     view = 'room';
@@ -60,40 +68,47 @@
   function handleSend(text: string, mentions: string[] = []) {
     if (!text.trim()) return;
     sendMessage(activeRoomId, text, mentions);
-    messageText = '';
     scrollToBottom();
   }
 
-  async function createRoom() {
-    if (!newRoomName.trim()) return;
-    const roomId = newRoomName.toLowerCase().replace(/\s+/g, '-');
-    await ensureRoom({ id: roomId, name: newRoomName });
+  function closeChat() {
     showRoomModal = false;
-    newRoomName = '';
-    selectRoom(roomId);
+    showDmModal = false;
+    isChatOpen.set(false);
+  }
+
+  async function createRoom() {
+    const lifetime = viewLifetime;
+    const ownerId = accountId;
+    const name = newRoomName.trim();
+    if (!name || creatingRoom || !ownerId || !lifetime || lifetime.signal.aborted) return;
+    const roomId = name.toLowerCase().replace(/\s+/g, '-');
+    creatingRoom = true;
+    try {
+      const confirmed = await ensureRoom({ id: roomId, name }, lifetime.signal);
+      if (!confirmed || lifetime.signal.aborted || viewLifetime !== lifetime || $currentUser?.id !== ownerId) return;
+      showRoomModal = false;
+      newRoomName = '';
+      selectRoom(roomId);
+    } finally {
+      if (viewLifetime === lifetime) creatingRoom = false;
+    }
   }
 
   /** Start (or reopen) a DM with another user. */
-  async function startDM(peerId: string, peerLabel: string) {
+  async function startDM(peerId: string) {
+    const lifetime = viewLifetime;
+    const ownerId = accountId;
+    if (openingDm || !ownerId || !lifetime || lifetime.signal.aborted) return;
+    openingDm = true;
     try {
-      const res = await fetch('/api/chat/dm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ peerId }),
-      });
-      if (!res.ok) {
-        console.error('DM creation failed:', await res.text());
-        return;
-      }
-      const data = await res.json();
-      const room = data.room;
-      // Make sure the room appears in our local list & is selected
-      await ensureRoom({ id: room.id, name: peerLabel });
+      const room = await openDirectRoom(peerId, lifetime.signal);
+      if (!room || lifetime.signal.aborted || viewLifetime !== lifetime || $currentUser?.id !== ownerId) return;
       showDmModal = false;
       dmFilter = '';
       selectRoom(room.id);
-    } catch (err) {
-      console.error('startDM failed:', err);
+    } finally {
+      if (viewLifetime === lifetime) openingDm = false;
     }
   }
 
@@ -118,7 +133,7 @@
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     if (date.toDateString() === today.toDateString()) return 'Today';
     if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
     return date.toLocaleDateString();
@@ -148,15 +163,30 @@
     return current.toDateString() !== prev.toDateString();
   }
 
-  onMount(async () => {
-    await Promise.all([loadRooms(), loadUsers()]);
-    // Initial load
-    if (activeRoomId) {
-        await loadMessages(activeRoomId);
-        scrollToBottom();
+  $effect(() => {
+    const ownerId = accountId;
+    const lifetime = new AbortController();
+    viewLifetime = lifetime;
+    activeRoomId = 'general';
+    drafts = { general: { text: '', mentions: [] } };
+    showRoomModal = false;
+    showDmModal = false;
+    newRoomName = '';
+    dmFilter = '';
+    creatingRoom = false;
+    openingDm = false;
+    if (ownerId) {
+      void Promise.all([loadRooms(), loadUsers(), loadMessages('general')]).then(() => {
+        if (!lifetime.signal.aborted && $currentUser?.id === ownerId) scrollToBottom();
+      });
     }
+    return () => {
+      lifetime.abort();
+      clearTimeout(scrollTimer);
+      if (viewLifetime === lifetime) viewLifetime = null;
+    };
   });
-  
+
   // Scroll whenever messages change or sidebar opens
   $effect(() => {
     if ($isChatOpen && activeRoomId && $messages) {
@@ -166,61 +196,57 @@
 </script>
 
 {#if $isChatOpen}
-  <!-- Backdrop for mobile/tablet -->
-  <div class="sidebar-backdrop" onclick={toggleChat} transition:fade={{ duration: 200 }}></div>
+  <dialog class="chat-drawer" aria-label={$t('chat.title')} use:modalDialog={{ onClose: closeChat, initialFocus: '.close-btn' }} transition:fly={{ x: 400, duration: 300 }}>
 
-  <aside class="chat-drawer" transition:fly={{ x: 400, duration: 300 }}>
-    
     <!-- Sidebar Header -->
     <header class="drawer-header">
       <div class="header-title">
         {#if view === 'room'}
-          <button class="back-btn" onclick={() => view = 'list'}>
+          <button type="button" class="back-btn" aria-label={$t('chat.channels_section')} onclick={() => view = 'list'}>
             <Hash size={18} />
           </button>
           <h3>#{activeRoom?.name || 'Chat'}</h3>
         {:else}
-          <h3>Channels</h3>
+          <h3>{$t('chat.channels_section')}</h3>
         {/if}
       </div>
       <div class="header-actions">
         {#if view === 'list'}
-          <button class="icon-btn" onclick={() => showDmModal = true} title="New direct message">
+          <button type="button" class="icon-btn" onclick={() => showDmModal = true} title={$t('chat.sidebar.new_direct')}>
             <Icon name="user-plus" size="sm" />
           </button>
-          <button class="icon-btn" onclick={() => showRoomModal = true} title="New Channel">
+          <button type="button" class="icon-btn" onclick={() => showRoomModal = true} title={$t('chat.create_channel_title')}>
             <Plus size={18} />
           </button>
         {/if}
-        <button class="icon-btn close-btn" onclick={toggleChat} title="Close Chat">
+        <button type="button" class="icon-btn close-btn" onclick={closeChat} title={$t('chat.sidebar.close')}>
           <X size={20} />
         </button>
       </div>
     </header>
 
     {#if showDmModal}
-      <div class="dm-modal-backdrop" onclick={() => showDmModal = false} role="presentation"></div>
-      <div class="dm-modal">
+      <dialog class="dm-modal" aria-label={$t('chat.sidebar.start_direct')} use:modalDialog={{ onClose: () => showDmModal = false, initialFocus: '.dm-modal-search' }}>
         <div class="dm-modal-header">
-          <span>Start direct message</span>
-          <button class="icon-btn" onclick={() => showDmModal = false}>
+          <span>{$t('chat.sidebar.start_direct')}</span>
+          <button type="button" class="icon-btn" aria-label={$t('common.close')} onclick={() => showDmModal = false}>
             <X size={16} />
           </button>
         </div>
         <input
           type="text"
           class="dm-modal-search"
-          placeholder="Search people…"
+          placeholder={$t('chat.sidebar.search_people')}
+          aria-label={$t('chat.sidebar.search_people')}
           bind:value={dmFilter}
-          autofocus
         />
         <div class="dm-modal-list">
           {#if dmCandidates.length === 0}
-            <p class="dm-modal-empty">No matching users.</p>
+            <p class="dm-modal-empty">{$t('chat.sidebar.no_matching_users')}</p>
           {:else}
             {#each dmCandidates as u (u.id)}
               {@const label = u.displayName || u.username || 'User'}
-              <button class="dm-modal-row" onclick={() => startDM(String(u.id), label)}>
+              <button type="button" class="dm-modal-row" onclick={() => startDM(String(u.id))} disabled={openingDm}>
                 <div class="dm-avatar">{(label.split(' ').map(p => p[0]).join('') || '?').slice(0, 2).toUpperCase()}</div>
                 <div class="dm-meta">
                   <span class="dm-name">{label}</span>
@@ -232,24 +258,24 @@
             {/each}
           {/if}
         </div>
-      </div>
+      </dialog>
     {/if}
 
     <!-- Content Area -->
     <div class="drawer-content">
-      
+
       <!-- ROOM LIST VIEW -->
       {#if view === 'list'}
         <div class="rooms-view" in:fade>
           <div class="search-box">
             <Search size={14} />
-            <input type="text" placeholder="Filter channels..." bind:value={searchQuery} />
+            <input type="text" placeholder={$t('chat.search_rooms')} aria-label={$t('chat.search_rooms')} bind:value={searchQuery} />
           </div>
-          
+
           <div class="rooms-list">
             {#each filteredRooms as room (room.id)}
-              <button 
-                class="room-item" 
+              <button
+                class="room-item"
                 class:active={room.id === activeRoomId}
                 onclick={() => selectRoom(room.id)}
               >
@@ -280,14 +306,14 @@
                     <span>{formatDate(message.ts)}</span>
                   </div>
                 {/if}
-                
+
                 <div class="message" class:system={message.variant === 'system'} class:own={message.authorId === $currentUser?.id}>
                   {#if message.authorId !== $currentUser?.id}
                     <div class="message-avatar" title={authorName(message.authorId)}>
                       {authorInitials(message.authorId)}
                     </div>
                   {/if}
-                  
+
                   <div class="message-body">
                     {#if message.authorId !== $currentUser?.id}
                       <div class="message-meta">
@@ -298,11 +324,11 @@
                         <span class="time">{formatTime(message.ts)}</span>
                       </div>
                     {/if}
-                    
+
                     <div class="bubble">
                       <p>{message.text}</p>
                     </div>
-                    
+
                     {#if message.authorId === $currentUser?.id}
                         <span class="time-own">{formatTime(message.ts)}</span>
                     {/if}
@@ -313,36 +339,40 @@
           </div>
 
           <div class="input-area">
-            <MentionInput 
-              onCommit={handleSend} 
-              placeholder={`Message #${activeRoom?.name}...`} 
-            />
+            {#key activeRoomId}
+              {#if activeDraft}
+                <MentionInput
+                  bind:value={activeDraft.text}
+                  bind:mentions={activeDraft.mentions}
+                  onCommit={handleSend}
+                  placeholder={$t('chat.message_placeholder')}
+                />
+              {/if}
+            {/key}
           </div>
         </div>
       {/if}
     </div>
-  </aside>
+  </dialog>
 {/if}
 
 <!-- Create Room Modal -->
-{#if showRoomModal}
-  <div class="modal-backdrop" onclick={() => showRoomModal = false}>
-    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog">
+{#if $isChatOpen && showRoomModal}
+    <dialog class="modal" aria-label={$t('chat.create_channel_title')} use:modalDialog={{ onClose: () => showRoomModal = false, initialFocus: 'input' }}>
       <div class="modal-header">
-        <h3>Create Channel</h3>
-        <button onclick={() => showRoomModal = false}><X size={18} /></button>
+        <h3>{$t('chat.create_channel_title')}</h3>
+        <button type="button" aria-label={$t('common.close')} onclick={() => showRoomModal = false}><X size={18} /></button>
       </div>
       <div class="modal-body">
-        <label>Channel Name
-          <input type="text" placeholder="e.g. logistics-team" bind:value={newRoomName} />
+        <label>{$t('chat.channel_name_label')}
+          <input type="text" placeholder={$t('chat.channel_name_placeholder')} bind:value={newRoomName} />
         </label>
       </div>
       <div class="modal-footer">
-        <button class="btn-ghost" onclick={() => showRoomModal = false}>Cancel</button>
-        <button class="btn-primary" onclick={createRoom} disabled={!newRoomName.trim()}>Create</button>
+        <button type="button" class="btn-ghost" onclick={() => showRoomModal = false}>{$t('common.cancel')}</button>
+        <button type="button" class="btn-primary" onclick={createRoom} disabled={creatingRoom || !newRoomName.trim()}>{$t('chat.create_channel_btn')}</button>
       </div>
-    </div>
-  </div>
+    </dialog>
 {/if}
 
 <style>
@@ -353,19 +383,23 @@
     right: 0;
     bottom: 0;
     width: 380px;
+    max-width: 100%;
+    height: 100dvh;
+    max-height: none;
+    margin: 0 0 0 auto;
+    padding: 0;
+    border: 0;
+    color: var(--text);
     background: var(--bg-1, var(--bg-0));
     box-shadow: -4px 0 24px color-mix(in oklab, var(--bg-0) 15%, transparent);
     z-index: var(--z-modal);
-    display: flex;
     flex-direction: column;
     border-left: 1px solid var(--border);
   }
 
-  .sidebar-backdrop {
-    position: fixed;
-    inset: 0;
+  .chat-drawer[open] { display: flex; }
+  .chat-drawer::backdrop {
     background: color-mix(in oklab, var(--bg-0) 20%, transparent);
-    z-index: calc(var(--z-modal) - 1);
     backdrop-filter: blur(2px);
   }
 
@@ -399,7 +433,7 @@
     padding: 4px;
     border-radius: 4px;
   }
-  
+
   .back-btn:hover { background: var(--bg-2); color: var(--text); }
 
   .header-actions {
@@ -460,7 +494,7 @@
     font-size: 0.9rem;
     color: var(--text);
   }
-  
+
   .search-box input:focus { outline: none; }
 
   .room-item {
@@ -623,7 +657,7 @@
     font-size: 0.7rem;
     color: var(--text-muted);
   }
-  
+
   .time-own {
     font-size: 0.7rem;
     color: var(--text-muted);
@@ -656,17 +690,14 @@
   }
 
   /* Modal */
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
+  .modal::backdrop, .dm-modal::backdrop {
     background: color-mix(in oklab, var(--bg-0) 55%, transparent);
-    z-index: calc(var(--z-modal) + 100);
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
 
   .modal {
+    padding: 0;
+    color: var(--text);
+    border: 1px solid var(--border);
     background: var(--bg-1);
     width: 90%;
     max-width: 360px;
@@ -682,7 +713,7 @@
     justify-content: space-between;
     align-items: center;
   }
-  
+
   .modal-header h3 { margin: 0; font-size: 1.1rem; }
   .modal-header button { background: none; border: none; cursor: pointer; color: var(--text-muted); }
 
@@ -722,7 +753,7 @@
     font-weight: 600;
     cursor: pointer;
   }
-  
+
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .btn-ghost {
@@ -740,28 +771,21 @@
   }
 
   /* ── DM modal ──────────────────────────────────────────────────────────── */
-  .dm-modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 80;
-  }
   .dm-modal {
     position: fixed;
-    z-index: 81;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    padding: 0;
+    color: var(--text);
+    margin: auto;
     width: min(380px, 90vw);
     max-height: 70vh;
     background: var(--bg-1);
     border: 1px solid var(--border);
     border-radius: 12px;
     box-shadow: var(--glass-shadow, 0 12px 36px rgba(0,0,0,0.25));
-    display: flex;
     flex-direction: column;
     overflow: hidden;
   }
+  .dm-modal[open] { display: flex; }
   .dm-modal-header {
     display: flex;
     align-items: center;

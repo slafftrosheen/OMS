@@ -51,7 +51,7 @@ describe('OMS-R06 visual file import security', () => {
     const importer = source('src/lib/components/canvas/toolkit-media-import.ts');
     expect(importer).toContain('/api/toolkit/assets/');
     expect(importer).toContain("type: 'document'");
-    expect(importer).toContain("kind: pdf ? 'pdf' : 'image'");
+    expect(importer).toContain('toolkitDocumentKind(asset.mime)');
     expect(importer).not.toContain('FileReader');
     const wrapper = source('src/lib/components/canvas/TldrawWrapper.svelte');
     const app = source('src/lib/components/canvas/CanvasApp.tsx');
@@ -80,11 +80,14 @@ describe('OMS-R06 visual file import security', () => {
     expect(source('src/lib/components/canvas/shapes/ChatShape.tsx')).toContain('toolkitMode');
     expect(source('src/lib/components/canvas/shapes/ChatShape.tsx')).toContain("tn('archivedChat')");
     const canvas = source('src/routes/toolkit/canvas/+page.svelte');
-    for (const action of ["'draw'","'highlight'","'geo'","'text'","'eraser'"]) {
-      expect(canvas).toContain(action);
+    const toolbar = source('src/lib/components/canvas/CanvasToolbar.svelte');
+    for (const action of ["'draw'","'highlight'","'rectangle'","'text'","'eraser'"]) {
+      expect(toolbar).toContain(action);
     }
-    expect(canvas).toContain("$t('toolkit.canvas.materials')");
-    expect(canvas).toContain('brushed-metal');
+    expect(canvas).toContain('CanvasToolbar');
+    expect(canvas).not.toContain('class="node-toolbar"');
+    expect(toolbar).toContain("$t('toolkit.canvas.materials')");
+    expect(toolbar).toContain('brushed-metal');
     expect(canvas).toContain('createPhotoMaterial');
     const swatch = source('src/lib/components/canvas/shapes/MaterialSwatchShape.tsx');
     expect(swatch).toContain("tn('materialNote')");

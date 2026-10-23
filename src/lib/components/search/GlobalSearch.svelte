@@ -1,7 +1,11 @@
 <!-- src/lib/components/search/GlobalSearch.svelte -->
 <script lang="ts">
 
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy, untrack } from 'svelte';
+    import { currentUser } from '$lib/auth/authState.svelte';
+    import { goto } from '$app/navigation';
+    import { base } from '$app/paths';
+    import { modalDialog } from '$lib/ui/modal-dialog';
     import Badge from '$lib/components/ui/Badge.svelte';
     import Icon from '$lib/ui/Icon.svelte';
     import type { IconName } from '$lib/ui/icons';
@@ -21,86 +25,86 @@
         title: string;
         description?: string;
         url: string;
-        highlight?: string;
         relevance: number;
     }> = $state([]);
-    let suggestions: string[] = $state([]);
     let loading = $state(false);
-    let searchTimeout: number;
+    let searchTimeout: ReturnType<typeof setTimeout> | undefined;
     let selectedIndex = $state(-1);
-    let searchInput: HTMLInputElement;
+    let request: AbortController | undefined;
+    let generation = 0;
+    let searchError = $state('');
+    const dialogId = $props.id();
+    let observedOwner: string | null | undefined;
+    $effect(() => {
+        const owner = $currentUser?.id ?? null;
+        if (observedOwner !== undefined && owner !== observedOwner) untrack(close);
+        observedOwner = owner;
+    });
 
-    async function search() {
-        if (searchQuery.length < 2) {
-            results = [];
-            return;
-        }
-
-        loading = true;
-
-        try {
-            const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
-            const data = await response.json();
-
-            if (data.success) {
-                results = data.results;
-            }
-        } catch (error) {
-            console.error('Search failed:', error);
-        } finally {
-            loading = false;
-        }
-    }
-
-    async function fetchSuggestions() {
-        if (searchQuery.length < 2) {
-            suggestions = [];
-            return;
-        }
-
-        try {
-            const response = await fetch(`/api/search/suggestions?q=${encodeURIComponent(searchQuery)}`);
-            const data = await response.json();
-
-            if (data.success) {
-                suggestions = data.suggestions;
-            }
-        } catch (error) {
-            console.error('Failed to fetch suggestions:', error);
-        }
-    }
-
-    function handleInput() {
+    function cancelSearch() {
+        generation++;
         clearTimeout(searchTimeout);
-        
-        searchTimeout = setTimeout(() => {
-            search();
-            fetchSuggestions();
-        }, 300) as unknown as number;
+        request?.abort();
+        request = undefined;
+        loading = false;
     }
+
+    async function search(query: string, token: number) {
+        const controller = new AbortController();
+        request = controller;
+        const owner = $currentUser?.id ?? null;
+        try {
+            const response = await fetch(`${base}/api/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
+            const data = await response.json();
+            if (!open || token !== generation || owner !== ($currentUser?.id ?? null)) return;
+            if (!response.ok || !Array.isArray(data.results)) throw new Error('Search unavailable');
+            results = data.results.flatMap((result: any) => {
+                const url = result.href ?? result.url;
+                if (typeof result.id !== 'string' || typeof result.title !== 'string' ||
+                    typeof url !== 'string' || !url.startsWith('/') || url.startsWith('//')) return [];
+                return [{ ...result, url, description: result.subtitle ?? result.description }];
+            });
+            selectedIndex = -1;
+        } catch (error) {
+            if (controller.signal.aborted || !open || token !== generation) return;
+            searchError = 'Search is unavailable. Please try again.';
+        } finally {
+            if (token === generation) loading = false;
+        }
+    }
+
+    function handleInput(event: Event) {
+        searchQuery = (event.currentTarget as HTMLInputElement).value;
+        cancelSearch();
+        results = [];
+        selectedIndex = -1;
+        searchError = '';
+        const query = searchQuery.trim();
+        if (query.length < 2) return;
+        loading = true;
+        const token = generation;
+        searchTimeout = setTimeout(() => { void search(query, token); }, 300);
+    }
+
+    $effect(() => { if (!open) { cancelSearch(); searchQuery = ''; results = []; selectedIndex = -1; searchError = ''; } });
+    onDestroy(cancelSearch);
 
     function handleKeydown(event: KeyboardEvent) {
-        if (event.key === 'Escape') {
-            close();
-        } else if (event.key === 'ArrowDown') {
+        if (event.key === 'ArrowDown') {
             event.preventDefault();
             selectedIndex = Math.min(selectedIndex + 1, results.length - 1);
         } else if (event.key === 'ArrowUp') {
             event.preventDefault();
             selectedIndex = Math.max(selectedIndex - 1, -1);
         } else if (event.key === 'Enter' && selectedIndex >= 0) {
-            navigateToResult(results[selectedIndex]);
+            event.preventDefault();
+            if (results[selectedIndex]) navigateToResult(results[selectedIndex]);
         }
     }
 
     function navigateToResult(result: any) {
-        window.location.href = result.url;
+        void goto(`${base}${result.url}`);
         close();
-    }
-
-    function selectSuggestion(suggestion: string) {
-        searchQuery = suggestion;
-        search();
     }
 
     function getTypeIcon(type: string): IconName {
@@ -124,10 +128,10 @@
     }
 
     function close() {
+        cancelSearch();
         open = false;
         searchQuery = '';
         results = [];
-        suggestions = [];
         selectedIndex = -1;
         onclose?.();
     }
@@ -138,7 +142,6 @@
             if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
                 event.preventDefault();
                 open = true;
-                setTimeout(() => searchInput?.focus(), 50);
             }
         };
 
@@ -151,41 +154,26 @@
 </script>
 
 {#if open}
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="search-overlay" onclick={close} role="button" tabindex="-1">
-        <div class="search-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+    <dialog class="search-overlay" aria-label="Search orders"
+        use:modalDialog={{ onClose: close, initialFocus: `#${dialogId}-query` }}>
+        <div class="search-modal">
             <div class="search-input-wrapper">
                 <span class="search-icon" aria-hidden="true"><Icon name="search" size="md" /></span>
                 <input
-                    bind:this={searchInput}
+                    id={`${dialogId}-query`}
+                    aria-label="Search orders"
                     type="text"
                     bind:value={searchQuery}
                     oninput={handleInput}
                     onkeydown={handleKeydown}
-                    placeholder="Search orders, files, messages..."
+                    placeholder="Search orders..."
                     class="search-input"
                 />
                 {#if loading}
-                    <div class="search-spinner"></div>
+                    <div class="search-spinner" role="status" aria-label="Searching"></div>
                 {/if}
-                <kbd class="search-kbd">ESC</kbd>
+                <button type="button" class="search-kbd" onclick={close} aria-label="Close search">ESC</button>
             </div>
-
-            {#if suggestions.length > 0 && searchQuery.length > 0}
-                <div class="suggestions-section">
-                    <p class="section-label">Suggestions</p>
-                    <div class="suggestions-list">
-                        {#each suggestions as suggestion}
-                            <button
-                                class="suggestion-item"
-                                onclick={() => selectSuggestion(suggestion)}
-                            >
-                                {suggestion}
-                            </button>
-                        {/each}
-                    </div>
-                </div>
-            {/if}
 
             {#if results.length > 0}
                 <div class="results-section">
@@ -211,17 +199,14 @@
                                     {#if result.description}
                                         <p class="result-description">{result.description}</p>
                                     {/if}
-                                    {#if result.highlight}
-                                        <div class="result-highlight">
-                                            {@html result.highlight}
-                                        </div>
-                                    {/if}
                                 </div>
                             </button>
                         {/each}
                     </div>
                 </div>
-            {:else if searchQuery.length >= 2 && !loading}
+            {:else if searchError}
+                <p class="empty-message" role="alert">{searchError}</p>
+            {:else if searchQuery.trim().length >= 2 && !loading}
                 <div class="empty-results">
                     <p class="empty-message">No results found for "{searchQuery}"</p>
                     <p class="empty-hint">Try different keywords or check your spelling</p>
@@ -236,11 +221,14 @@
                 </div>
             </div>
         </div>
-    </div>
+    </dialog>
 {/if}
 
 <style>
+    .search-overlay:not([open]) { display:none; }
+    .search-overlay::backdrop { background:transparent; }
     .search-overlay {
+        margin:0;width:100%;height:100%;max-width:none;max-height:none;border:0;color:inherit;
         position: fixed;
         inset: 0;
         z-index: var(--z-tooltip);
@@ -334,7 +322,6 @@
         color: var(--color-gray-600, var(--ink-tertiary));
     }
 
-    .suggestions-section,
     .results-section {
         max-height: 400px;
         overflow-y: auto;
@@ -350,26 +337,8 @@
         margin: 0;
     }
 
-    .suggestions-list {
-        padding: 0 0.5rem 0.5rem;
-    }
 
-    .suggestion-item {
-        width: 100%;
-        text-align: left;
-        padding: 0.5rem 0.75rem;
-        background: none;
-        border: none;
-        border-radius: 0.375rem;
-        cursor: pointer;
-        font-size: 0.875rem;
-        color: var(--color-gray-700, var(--ink-secondary));
-        transition: background-color 0.15s ease;
-    }
 
-    .suggestion-item:hover {
-        background-color: var(--color-gray-100, var(--bg-2));
-    }
 
     .results-list {
         padding: 0 0.5rem 0.5rem;
@@ -429,18 +398,7 @@
         white-space: nowrap;
     }
 
-    .result-highlight {
-        font-size: 0.75rem;
-        color: var(--color-gray-500, var(--muted));
-        margin-top: 0.25rem;
-    }
 
-    .result-highlight :global(mark) {
-        background-color: var(--warn-soft);
-        color: color-mix(in oklab, var(--warn) 65%, black);
-        padding: 0.125rem 0.25rem;
-        border-radius: 0.125rem;
-    }
 
     .empty-results {
         padding: 3rem 2rem;
@@ -474,17 +432,14 @@
     }
 
     /* Custom scrollbar */
-    .suggestions-section::-webkit-scrollbar,
     .results-section::-webkit-scrollbar {
         width: 0.5rem;
     }
 
-    .suggestions-section::-webkit-scrollbar-track,
     .results-section::-webkit-scrollbar-track {
         background: var(--color-gray-100, var(--bg-2));
     }
 
-    .suggestions-section::-webkit-scrollbar-thumb,
     .results-section::-webkit-scrollbar-thumb {
         background: var(--color-gray-400, var(--muted));
         border-radius: 0.25rem;

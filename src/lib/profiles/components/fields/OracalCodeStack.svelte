@@ -1,5 +1,7 @@
 <!-- src/lib/profiles/components/fields/OracalCodeStack.svelte -->
 <script lang="ts">
+  import { swatchTextColor } from './swatch-contrast';
+
   let {
     codes: initialCodes = [] as string[],
     label = 'ORACAL Codes',
@@ -14,13 +16,8 @@
     onchange?: (codes: string[]) => void;
   } = $props();
   
-  // Local state to avoid mutating props
-  let localCodes = $state([...initialCodes]);
-  
-  // Sync with prop changes
-  $effect(() => {
-    localCodes = [...initialCodes];
-  });
+  // Keep a separate editable array and reset it when the parent supplies codes.
+  let localCodes = $derived([...initialCodes]);
   
   // ORACAL 8500 colors lookup
   const oracalColors: Record<string, { name: string; hex: string }> = {
@@ -72,16 +69,6 @@
     return oracalColors[colorCode]?.hex || '#2563EB'; // Default to blue if not found
   }
   
-  function getTextColor(bgHex: string): string {
-    // Calculate luminance to determine if text should be white or black
-    const hex = bgHex.replace('#', '');
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.5 ? '#000000' : '#FFFFFF';
-  }
-  
   function updateCode(index: number, value: string) {
     localCodes[index] = value;
     localCodes = [...localCodes];
@@ -109,7 +96,7 @@
   <div class="code-boxes">
     {#each localCodes as code, i}
       {@const bgColor = getOracalColor(code)}
-      {@const textColor = getTextColor(bgColor)}
+      {@const textColor = swatchTextColor(bgColor)}
       <div class="code-box" style="background-color: {bgColor};">
         {#if readonly}
           <span class="code-value" style="color: {textColor};">{code || '—'}</span>
@@ -117,9 +104,10 @@
           <input
             type="text"
             class="code-input"
-            style="color: {textColor};"
+            style="background-color: {bgColor}; color: {textColor};"
             value={code}
             placeholder="8500-XXX"
+            aria-label={`${label} ${i + 1}`}
             oninput={(e) => updateCode(i, e.currentTarget.value)}
           />
           {#if localCodes.length > 1}
@@ -193,7 +181,6 @@
   .code-input {
     flex: 1;
     padding: 4px 8px;
-    background: transparent;
     border: none;
     font-weight: 700;
     font-size: 12px;
@@ -203,7 +190,8 @@
   }
   
   .code-input::placeholder {
-    color: color-mix(in oklab, var(--ink-tertiary) 70%, transparent);
+    color: inherit;
+    opacity: 1;
   }
   
   .remove-btn {

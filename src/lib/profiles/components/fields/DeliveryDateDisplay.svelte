@@ -12,7 +12,7 @@
     onchange?: (date: string) => void;
   } = $props();
   
-  let dateInput: HTMLInputElement;
+  let dateInput = $state<HTMLInputElement>();
   
   let parsedDate = $derived(date ? new Date(date) : null);
   
@@ -49,17 +49,20 @@
 </script>
 
 <div class="delivery-date">
-  <div class="date-display" onclick={openDatePicker} onkeydown={(e) => e.key === 'Enter' && openDatePicker()} role="button" tabindex="0" class:readonly>
-    <div class="month-day">{monthDay}</div>
-    <div class="divider">/</div>
-    <div class="year">{year}</div>
-  </div>
+  <button type="button" class="date-display" onclick={openDatePicker}
+    disabled={readonly} aria-label={`${label}: ${monthDay} / ${year}`} class:readonly>
+    <span class="month-day">{monthDay}</span>
+    <span class="divider">/</span>
+    <span class="year">{year}</span>
+  </button>
   
   {#if !readonly}
     <input
       type="date"
       bind:this={dateInput}
       class="hidden-input"
+      aria-label={label}
+      tabindex="-1"
       value={date}
       onchange={handleDateChange}
     />

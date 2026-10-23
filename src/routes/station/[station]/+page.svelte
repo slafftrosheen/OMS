@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { modalDialog } from '$lib/ui/modal-dialog';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { canOperateStation } from '$lib/order/lifecycle-guards';
-  import { priorityLabel, dueDateLabel, stageStateLabel, isOrderOverdue } from '$lib/order/operator-ui';
-  import { onMount, onDestroy } from 'svelte';
+  import { dueDateLabel, stageStateLabel, isOrderOverdue } from '$lib/order/operator-ui';
+  import { onMount } from 'svelte';
   import { writable } from 'svelte/store';
   import { t } from 'svelte-i18n';
   import { realtimeStore } from '$lib/stores/realtime';
@@ -16,6 +17,9 @@
   import { ensureRoom, loadMessages } from '$lib/chat/chat-store';
   import ChatPane from '$lib/ui/ChatPane.svelte';
   import Icon from '$lib/ui/Icon.svelte';
+  import OrderBadges from '$lib/badges/OrderBadges.svelte';
+  import SemanticBadge from '$lib/badges/SemanticBadge.svelte';
+  import { priorityBadge, stageBadge } from '$lib/badges/catalog';
 
   let station = $derived(page.params.station.toUpperCase());
   let stationRoomId = $derived(`station-${page.params.station.toLowerCase()}`);
@@ -47,11 +51,12 @@
   let resolutionNotes = $state('');
   let resolutionBusy = $state(false);
   let operatorCanAct = $derived(canOperateStation($currentUser, station));
-  let todayLocal = new Date().toLocaleDateString('sv-SE');
+  let todayLocal = $state(new Date().toLocaleDateString('sv-SE'));
 
   let completeModalOpen = $state(false);
   let completeTarget = $state<StationOrder | null>(null);
   let progressTarget = $state<StationOrder | null>(null);
+  let progressBusy = $state(false);
   let packetTarget = $state<StationOrder | null>(null);
   let showChat = $state(false);
 
@@ -128,10 +133,13 @@
     } finally { workingOnOrderId = null; }
   }
 
-  async function handleQRScan(data: string) {
-    if (!data.startsWith('ORDER:')) { notifications.error('Unrecognized OMS QR code'); return; }
-    const id = data.slice('ORDER:'.length).trim();
-    if (!id) return;
+  async function handleQRScan(data: unknown) {
+    const result = data && typeof data === 'object' ? data as { valid?: unknown; orderId?: unknown } : null;
+    if (result?.valid !== true || typeof result.orderId !== 'string' || !result.orderId.trim()) {
+      notifications.error('Unrecognized OMS QR code');
+      return;
+    }
+    const id = result.orderId.trim();
     // Scan identifies an order. Starting production remains an explicit action.
     $showScanner = false;
     await goto(`/orders/${encodeURIComponent(id)}`);
@@ -164,7 +172,7 @@
     items: Array<{ item_id: string; quantity: number }>,
     opts: { skipped: boolean; skipReason: string | null; actualHours?:number|null; notes?:string|null },
   ) {
-    if (!completeTarget || !operatorCanAct || 
+    if (!completeTarget || !operatorCanAct ||
         completeTarget.stage?.state!=='IN_PROGRESS' ||
         typeof completeTarget.stage?.updated_at!=='string')
       return {ok:false,error:$t('productionFloor.staleStage')};
@@ -307,27 +315,33 @@
   let blockedCount    = $derived($orders.filter(o => o.stage?.state === 'BLOCKED').length);
   let reworkCount     = $derived($orders.filter(o => o.stage?.state === 'REWORK').length);
 
-  onMount(async () => {
-    await loadStationOrders();
+  onMount(() => {
+    const ownerId = $currentUser?.id;
+    const lifetime = new AbortController();
+    const isCurrent = () => !lifetime.signal.aborted && $currentUser?.id === ownerId;
+    void (async () => {
+      await loadStationOrders();
+      if (!isCurrent()) return;
 
-    unsubscribe = realtimeStore.subscribeToStation(station, () => {
-      void loadStationOrders(true);
-    });
+      unsubscribe = realtimeStore.subscribeToStation(station, () => {
+        if (isCurrent()) void loadStationOrders(true);
+      });
 
-    refreshInterval = setInterval(() => {
-      if (!document.hidden && !completeModalOpen && !blockModalOpen &&
-          !reworkModalOpen && !resolveModalOpen && !progressTarget && !packetTarget)
-        void loadStationOrders(true);
-    }, 30000);
+      refreshInterval = setInterval(() => {
+        if (isCurrent() && !document.hidden && !completeModalOpen && !blockModalOpen &&
+            !reworkModalOpen && !resolveModalOpen && !progressTarget && !packetTarget)
+          void loadStationOrders(true);
+      }, 30000);
 
-    // Ensure this station's chat room exists and load its messages
-    await ensureRoom({ id: stationRoomId, name: station });
-    await loadMessages(stationRoomId);
-  });
+      const confirmed = await ensureRoom({ id: stationRoomId, name: station }, lifetime.signal);
+      if (confirmed && isCurrent()) await loadMessages(stationRoomId);
+    })();
 
-  onDestroy(() => {
-    if (unsubscribe) unsubscribe();
-    if (refreshInterval) clearInterval(refreshInterval);
+    return () => {
+      lifetime.abort();
+      unsubscribe?.();
+      if (refreshInterval) clearInterval(refreshInterval);
+    };
   });
 </script>
 
@@ -472,9 +486,7 @@
               <h3>{order.title || $t('productionPlanning.untitled')}</h3>
               <span class="po-number">{order.po_number}</span>
             </div>
-            <span class="priority-badge" class:urgent={['HIGH','URGENT','CRITICAL'].includes(String(order.priority ?? '').toUpperCase())}>
-              {priorityLabel(order.priority)}
-            </span>
+            <SemanticBadge badge={priorityBadge(order.priority)} />
           </div>
 
           <div class="order-info">
@@ -488,11 +500,10 @@
             </div>
             <div class="info-item">
               <span class="label">{$t('admin.users.table.status')}:</span>
-              <span class="status-badge status-{order.stage?.state?.toLowerCase()}">
-                {stageStateLabel(order.stage?.state)}
-              </span>
+              <SemanticBadge badge={stageBadge(order.stage?.state)} />
             </div>
           </div>
+          <OrderBadges {order} lifecycle={false} priority={false} flags={false} />
 
           {#if order.stage?.state==='BLOCKED'||order.stage?.state==='REWORK'}
             <div class="blocked-notice" role="status">
@@ -568,56 +579,31 @@
 </div>
 
 {#if $showScanner}
-  <div
-    class="modal-overlay"
-    onclick={() => $showScanner = false}
-    onkeydown={(e) => e.key === 'Escape' && ($showScanner = false)}
-    role="button"
-    tabindex="0"
-  >
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div
-      class="modal-content"
-      onclick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="scanner-title"
-    >
-      <div class="modal-header">
-        <h2 id="scanner-title">{$t('stationView.scan_qr')}</h2>
-        <button class="close-btn" onclick={() => $showScanner = false} aria-label={$t('common.close')}>×</button>
-      </div>
-      <QRScanner onscan={(data) => handleQRScan(data)} />
-    </div>
-  </div>
+  <QRScanner bind:open={$showScanner} onscan={handleQRScan} />
 {/if}
 
 {#if packetTarget}
-  <div class="modal-overlay" role="presentation" onclick={()=>packetTarget=null}
-    onkeydown={e=>{if(e.key==='Escape')packetTarget=null;}}>
-    <div class="modal-content production-packet-modal" role="dialog" aria-modal="true"
-      aria-label={$t('productionPacket.title')}
-      onclick={e=>e.stopPropagation()} onkeydown={e=>e.stopPropagation()}>
+  <dialog class="modal-overlay" aria-label={$t('productionPacket.title')}
+    use:modalDialog={{ onClose: () => { packetTarget = null; } }}>
+    <div class="modal-content production-packet-modal">
       {#key packetTarget.id}
         <StationProductionPacket orderId={packetTarget.id} {station}
           onClose={()=>packetTarget=null}/>
       {/key}
     </div>
-  </div>
+  </dialog>
 {/if}
 
 {#if progressTarget}
-  <div class="modal-overlay" role="presentation" onclick={() => (progressTarget=null)}
-    onkeydown={(e)=>{if(e.key==='Escape')progressTarget=null;}}>
-    <div class="modal-content" role="dialog" aria-modal="true" aria-label={$t('productionFloor.title')}
-      onclick={(e)=>e.stopPropagation()} onkeydown={(e)=>e.stopPropagation()}>
-      <StationProgressPanel orderId={progressTarget.id} {station}
+  <dialog class="modal-overlay" aria-label={$t('productionFloor.title')}
+    use:modalDialog={{ onClose: () => { if (!progressBusy) progressTarget = null; }, closeOnEscape: !progressBusy, closeOnBackdrop: !progressBusy }}>
+    <div class="modal-content">
+      <StationProgressPanel orderId={progressTarget.id} {station} bind:busy={progressBusy}
         expectedUpdatedAt={progressTarget.stage.updated_at}
         onClose={() => (progressTarget=null)}
         onSaved={() => {operationMessage=$t('productionFloor.saved');void loadStationOrders(true);}} />
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <StationCompleteModal
@@ -650,26 +636,12 @@
 
 <!-- Block Order Modal -->
 {#if blockModalOpen}
-  <div
-    class="modal-overlay"
-    onclick={() => blockModalOpen = false}
-    onkeydown={(e) => e.key === 'Escape' && (blockModalOpen = false)}
-    role="button"
-    tabindex="0"
-    aria-label={$t('common.close', { default: 'Close' })}
-  >
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div
-      class="modal-content"
-      onclick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="block-modal-title"
-    >
+  <dialog class="modal-overlay" aria-labelledby="block-modal-title"
+    use:modalDialog={{ onClose: () => { if (!workingOnOrderId) blockModalOpen = false; }, closeOnEscape: workingOnOrderId === null, closeOnBackdrop: workingOnOrderId === null }}>
+    <div class="modal-content">
       <div class="modal-header">
         <h2 id="block-modal-title">{$t('stationView.block_order', { default: 'Block Order' })}</h2>
-        <button class="close-btn" onclick={() => blockModalOpen = false} aria-label={$t('common.close', { default: 'Close' })}>
+        <button class="close-btn" disabled={workingOnOrderId !== null} onclick={() => blockModalOpen = false} aria-label={$t('common.close', { default: 'Close' })}>
           <Icon name="x" size="sm" />
         </button>
       </div>
@@ -678,14 +650,14 @@
           {$t('stationView.block_reason_label', { default: 'Reason for blocking' })}
           <textarea
             class="modal-textarea"
-            bind:value={blockReason}
+            bind:value={blockReason} disabled={workingOnOrderId !== null}
             rows="3"
             placeholder={$t('stationView.block_reason_placeholder', { default: 'Describe why this order is blocked…' })}
           ></textarea>
         </label>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-outline" onclick={() => blockModalOpen = false}>
+        <button class="btn btn-outline" disabled={workingOnOrderId !== null} onclick={() => blockModalOpen = false}>
           {$t('actions.cancel', { default: 'Cancel' })}
         </button>
         <button class="btn btn-danger" onclick={submitBlock} disabled={!blockReason.trim() || workingOnOrderId !== null}>
@@ -694,38 +666,24 @@
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <!-- Rework Request Modal -->
 {#if reworkModalOpen}
-  <div
-    class="modal-overlay"
-    onclick={() => reworkModalOpen = false}
-    onkeydown={(e) => e.key === 'Escape' && (reworkModalOpen = false)}
-    role="button"
-    tabindex="0"
-    aria-label={$t('common.close', { default: 'Close' })}
-  >
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div
-      class="modal-content"
-      onclick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="rework-modal-title"
-    >
+  <dialog class="modal-overlay" aria-labelledby="rework-modal-title"
+    use:modalDialog={{ onClose: () => { if (!workingOnOrderId) reworkModalOpen = false; }, closeOnEscape: workingOnOrderId === null, closeOnBackdrop: workingOnOrderId === null }}>
+    <div class="modal-content">
       <div class="modal-header">
         <h2 id="rework-modal-title">{$t('stationView.request_rework', { default: 'Request Rework' })}</h2>
-        <button class="close-btn" onclick={() => reworkModalOpen = false} aria-label={$t('common.close', { default: 'Close' })}>
+        <button class="close-btn" disabled={workingOnOrderId !== null} onclick={() => reworkModalOpen = false} aria-label={$t('common.close', { default: 'Close' })}>
           <Icon name="x" size="sm" />
         </button>
       </div>
       <div class="modal-body">
         <label class="modal-label">
           {$t('stationView.rework_reason_label', { default: 'Rework reason' })}
-          <select class="modal-select" bind:value={reworkReason}>
+          <select class="modal-select" bind:value={reworkReason} disabled={workingOnOrderId !== null}>
             {#each REWORK_REASONS as r}
               <option value={r}>{r}</option>
             {/each}
@@ -735,14 +693,14 @@
           {$t('stationView.rework_description_label', { default: 'Describe the issue' })}
           <textarea
             class="modal-textarea"
-            bind:value={reworkDescription}
+            bind:value={reworkDescription} disabled={workingOnOrderId !== null}
             rows="3"
             placeholder={$t('stationView.rework_description_placeholder', { default: 'What needs to be redone and why…' })}
           ></textarea>
         </label>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-outline" onclick={() => reworkModalOpen = false}>
+        <button class="btn btn-outline" disabled={workingOnOrderId !== null} onclick={() => reworkModalOpen = false}>
           {$t('actions.cancel', { default: 'Cancel' })}
         </button>
         <button class="btn btn-warning" onclick={submitRework} disabled={!reworkDescription.trim() || workingOnOrderId !== null}>
@@ -751,15 +709,14 @@
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <!-- Resolving rework changes the cycle and stage together via the R02 RPC. -->
 {#if resolveModalOpen}
-  <div class="modal-overlay" role="presentation">
-    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="resolve-rework-title"
-      onkeydown={(event) => { if (event.key === 'Escape' && !resolutionBusy) resolveModalOpen = false; }}
-      tabindex="-1">
+  <dialog class="modal-overlay" aria-labelledby="resolve-rework-title"
+    use:modalDialog={{ onClose: () => { if (!resolutionBusy) resolveModalOpen = false; }, closeOnEscape: !resolutionBusy, closeOnBackdrop: false }}>
+    <div class="modal-content">
       <div class="modal-header">
         <h2 id="resolve-rework-title">{$t('stationView.resolveTitle')}</h2>
         <button class="close-btn" onclick={() => resolveModalOpen = false}
@@ -769,7 +726,7 @@
         <p>{$t('stationView.resolveHelp', { values: { station } })}</p>
         <label class="modal-label">
           {$t('stationView.resolveNotes')}
-          <textarea class="modal-textarea" bind:value={resolutionNotes} rows="4" required
+          <textarea class="modal-textarea" bind:value={resolutionNotes} rows="4" required disabled={resolutionBusy}
             placeholder={$t('stationView.resolvePlaceholder')}></textarea>
         </label>
       </div>
@@ -780,7 +737,7 @@
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>
@@ -931,21 +888,6 @@
     font-family: 'Courier New', monospace;
   }
 
-  .priority-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    background: var(--warn);
-    color: var(--bg-0);
-  }
-
-  .priority-badge.priority-8,
-  .priority-badge.priority-9,
-  .priority-badge.priority-10 {
-    background: var(--danger);
-  }
-
   .order-info {
     display: flex;
     flex-direction: column;
@@ -967,19 +909,6 @@
     color: var(--text);
   }
 
-  .status-badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-  }
-
-  .status-queued { background: var(--link, var(--brand)); color: white; }
-  .status-in_progress { background: var(--brand); color: white; }
-  .status-blocked { background: var(--error); color: white; }
-  .status-rework { background: var(--warn); color: black; }
-  .status-completed { background: var(--ok); color: white; }
   .blocked-notice,
   .stage-notes {
     padding: 0.75rem;
@@ -1049,10 +978,6 @@
     background: transparent;
     border: 1px solid var(--border);
     color: var(--text);
-  }
-
-  .icon {
-    flex-shrink: 0;
   }
 
   .loading-state,
@@ -1295,7 +1220,7 @@
   }
   .load-error { border-color: var(--error); display: flex; justify-content: space-between; gap: .75rem; align-items: center; flex-wrap: wrap; }
   .info-item .overdue { color: var(--error); font-weight: 750; }
-  .priority-badge.urgent { background: var(--error); }
+
   .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
   .filter-btn:focus-visible, .btn:focus-visible, .close-btn:focus-visible, .order-actions a:focus-visible {
     outline: 3px solid var(--brand); outline-offset: 3px;
@@ -1376,20 +1301,11 @@
     box-shadow:var(--elevation-1);}
   .order-header h3 {font-size:var(--text-lg);overflow-wrap:anywhere;}
   .po-number {font-family:var(--font-mono,monospace);font-variant-numeric:tabular-nums;}
-  .priority-badge {border-radius:var(--radius-sm);color:var(--ink-primary);
-    background:var(--warn-soft);border:1px solid color-mix(in oklab,var(--warn) 45%,var(--border));}
-  .priority-badge.urgent {color:var(--error);background:var(--error-soft);
-    border-color:color-mix(in oklab,var(--error) 40%,var(--border));}
+
   .order-info {gap:var(--space-sm);}
   .info-item {gap:var(--space-md);}
   .info-item .value {text-align:right;overflow-wrap:anywhere;max-width:65%;}
-  .status-badge {color:var(--ink-secondary);background:var(--bg-2);
-    border:1px solid var(--border);border-radius:var(--radius-sm);}
-  .status-queued {color:var(--ink-secondary);background:var(--bg-2);}
-  .status-in_progress {color:var(--brand);background:var(--brand-soft);}
-  .status-blocked {color:var(--error);background:var(--error-soft);}
-  .status-rework {color:var(--warn);background:var(--warn-soft);}
-  .status-completed {color:var(--ok);background:var(--ok-soft);}
+
   .blocked-notice {color:var(--ink-primary);background:var(--error-soft);border-color:var(--error);}
   .stage-notes {color:var(--ink-primary);background:var(--bg-2);border-color:var(--brand);}
   .order-actions {gap:var(--space-sm);}
@@ -1410,4 +1326,8 @@
   @media(prefers-reduced-transparency:reduce) {
     .station-header,.station-order-card {background:var(--bg-1);}
   }
+
+  dialog.modal-overlay { margin:0;width:100%;height:100%;max-width:none;max-height:none;border:0;color:inherit;box-sizing:border-box; }
+  dialog.modal-overlay:not([open]) { display:none; }
+  dialog.modal-overlay::backdrop { background:transparent; }
 </style>

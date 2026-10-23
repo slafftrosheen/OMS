@@ -3,7 +3,6 @@
   import Globe from 'lucide-svelte/icons/globe';
   import { locale, t } from 'svelte-i18n';
   import { setLocale } from '$lib/i18n';
-  import { savePrefs } from '$lib/settings/service';
   import { track } from '$lib/telemetry';
 
   type LanguageCode = 'en' | 'ru' | 'lv';
@@ -63,7 +62,6 @@
     }
 
     setLocale(code);
-    savePrefs();
     track('locale_toggle', { locale: code });
     closeMenu();
     trigger?.focus();

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
-import { registerNodeRunner } from '../node-runner';
+import { registerNodeRunner, runShape } from '../node-runner';
 import { useToolkitText } from '../use-toolkit-text';
 import {
     bodyStyle,
@@ -56,8 +56,6 @@ export class CrawlShapeUtil extends BaseBoxShapeUtil<CrawlShape> {
     override component(shape: CrawlShape) {
         const tn = useToolkitText();
         const { w, h, url, selector, includeLinks, maxChars, status, error, output } = shape.props;
-        const [draftUrl, setDraftUrl] = useState(url);
-        const [draftSel, setDraftSel] = useState(selector);
         const stop = (e: React.PointerEvent | React.MouseEvent | React.KeyboardEvent) =>
             e.stopPropagation();
 
@@ -65,31 +63,17 @@ export class CrawlShapeUtil extends BaseBoxShapeUtil<CrawlShape> {
             this.editor.updateShape<CrawlShape>({
                 id: shape.id,
                 type: 'crawl',
-                props: { ...shape.props, ...patch }
+                props: patch
             });
         };
 
         const run = async () => {
-            const u = draftUrl.trim();
+            const u = url.trim();
             if (!u || status === 'running') return;
-            update({ status: 'running', error: null, url: u, selector: draftSel.trim() });
+            update({ url: u, selector: selector.trim() });
             try {
-                const res = await fetch('/api/ai/crawl', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        url: u,
-                        selector: draftSel || undefined,
-                        include_links: includeLinks,
-                        max_chars: maxChars
-                    })
-                });
-                if (!res.ok) throw new Error(await res.text());
-                const data = await res.json();
-                update({ status: 'done', output: data });
-            } catch (err) {
-                update({ status: 'error', error: (err as Error).message });
-            }
+                await runShape(this.editor, shape.id, { useUpstream: false });
+            } catch { /* The shared runner displays the error on this node. */ }
         };
 
         return (
@@ -100,15 +84,15 @@ export class CrawlShapeUtil extends BaseBoxShapeUtil<CrawlShape> {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 8 }} onPointerDown={stop}>
                     <input
-                        value={draftUrl}
-                        onChange={(e) => setDraftUrl(e.target.value)}
+                        value={url}
+                        onChange={(e) => update({ url: e.target.value })}
                         onKeyDown={(e) => { if (e.key === 'Enter') run(); }}
                         placeholder="https://example.com/page"
                         style={inputStyle}
                     />
                     <input
-                        value={draftSel}
-                        onChange={(e) => setDraftSel(e.target.value)}
+                        value={selector}
+                        onChange={(e) => update({ selector: e.target.value })}
                         placeholder={tn('selector')}
                         style={inputStyle}
                     />
@@ -171,7 +155,7 @@ export class CrawlShapeUtil extends BaseBoxShapeUtil<CrawlShape> {
     }
 }
 
-registerNodeRunner('crawl', async ({ shape, inputs }) => {
+registerNodeRunner('crawl', async ({ shape, inputs, signal }) => {
     const props = (shape as CrawlShape).props;
     // Allow upstream web-search hits to chain into a crawl: pull the first URL.
     const upstreamUrl =
@@ -180,6 +164,7 @@ registerNodeRunner('crawl', async ({ shape, inputs }) => {
     if (!upstreamUrl) throw new Error('crawl: url is empty');
     const res = await fetch('/api/ai/crawl', {
         method: 'POST',
+        signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             url: upstreamUrl,

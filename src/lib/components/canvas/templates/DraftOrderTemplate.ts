@@ -193,33 +193,26 @@ export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): Spawne
  */
 export function syncOrderDataToCanvas(
     editor: Editor,
-    detailsId: TLShapeId,
-    addressId: TLShapeId,
+    detailsId: TLShapeId | undefined,
+    addressId: TLShapeId | undefined,
     data: Partial<OrderSeed>
 ) {
+    const sync = (id: TLShapeId | undefined, type: string, fields: Array<keyof OrderSeed>) => {
+        const shape = id ? editor.getShape(id) : undefined;
+        if (!shape || shape.type !== type) return;
+        const current = shape.props as Record<string, unknown>;
+        if (data.orderId && current.orderId !== data.orderId) return;
+        const patch = Object.fromEntries(fields
+            .filter((key) => data[key] !== undefined && data[key] !== current[key])
+            .map((key) => [key, data[key]]));
+        if (Object.keys(patch).length) editor.updateShape({ id: shape.id, type, props: patch } as any);
+    };
     editor.batch(() => {
-        editor.updateShape({
-            id: detailsId,
-            type: 'order-details',
-            props: {
-                title: data.title,
-                clientName: data.clientName,
-                deadline: data.deadline,
-                loadingDate: data.loadingDate,
-                priority: data.priority,
-                notes: data.notes,
-                status: data.status,
-            },
-        });
-
-        editor.updateShape({
-            id: addressId,
-            type: 'order-address',
-            props: {
-                deliveryAddress: data.deliveryAddress,
-                deliveryContact: data.deliveryContact,
-                deliveryPhone: data.deliveryPhone,
-            },
-        });
+        sync(detailsId, 'order-details', [
+            'title', 'clientName', 'poNumber', 'deadline', 'loadingDate', 'priority', 'notes', 'status'
+        ]);
+        sync(addressId, 'order-address', [
+            'deliveryAddress', 'deliveryContact', 'deliveryPhone', 'deliveryEmail', 'shippingMethod'
+        ]);
     });
 }

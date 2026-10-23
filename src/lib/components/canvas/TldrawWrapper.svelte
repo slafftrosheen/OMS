@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from 'svelte-i18n';
+  import type { CanvasAppProps } from './CanvasApp';
   import type { OrderSeed } from './templates/DraftOrderTemplate';
+  import type { ToolkitControlsState } from './toolkit-controls';
 
   interface Props {
     snapshot?: unknown;
@@ -20,12 +23,16 @@
     hideUI?: boolean;
     toolkitBoardId?: string | null;
     onToolkitFilesDrop?: (files: File[], position: { x: number; y: number }) => void;
+    onToolkitLinkDrop?: (url: string, position?: { x: number; y: number }) => void;
+    onToolkitControlsChange?: (state: ToolkitControlsState) => void;
+    toolkitStyleHost?: HTMLElement | null;
+    toolkitReadOnly?: boolean;
   }
 
   let {
     snapshot = undefined,
-    onSave = () => {},
-    onDocumentChange = () => {},
+    onSave = undefined,
+    onDocumentChange = undefined,
     onReady = () => {},
     onError = () => {},
     orderSeed = null,
@@ -35,14 +42,33 @@
     hideUI = false,
     toolkitBoardId = null,
     onToolkitFilesDrop = undefined,
+    onToolkitLinkDrop = undefined,
+    onToolkitControlsChange = undefined,
+    toolkitStyleHost = null,
+    toolkitReadOnly = false,
   }: Props = $props();
 
   let containerEl: HTMLDivElement;
   let reactRoot: { unmount: () => void } | null = null;
-  let editorRef: any = null;
+  let renderCanvas = $state<((props: CanvasAppProps) => void) | null>(null);
+
+  // Update the same React root when Svelte form data or callbacks change.
+  // The snapshot is a mount-only seed: feeding onSave snapshots back into
+  // tldraw would recreate the store and reset selection/history each edit.
+  $effect(() => {
+    const translate = $t;
+    renderCanvas?.({
+      onSave, onDocumentChange, orderSeed, onOrderChange, onProfileChange,
+      onAssetUploaded, hideUI, toolkitBoardId, onToolkitFilesDrop,
+      onToolkitLinkDrop, onToolkitControlsChange, toolkitStyleHost, toolkitReadOnly,
+      toolkitStyleTranslate: toolkitBoardId ? (key) => translate(key) : undefined,
+    });
+  });
 
   onMount(() => {
     let disposed = false;
+    // tldraw freezes stored records, so detach any Svelte state proxies first.
+    const initialSnapshot = $state.snapshot(snapshot);
     (async () => {
       try {
         const [React, { createRoot }, { CanvasApp }] = await Promise.all([
@@ -55,23 +81,14 @@
         const root = createRoot(containerEl);
         reactRoot = root;
 
-        root.render(
+        renderCanvas = (props) => root.render(
           React.createElement(CanvasApp, {
-            initialSnapshot: snapshot,
-            onSave,
-            onDocumentChange,
+            ...props,
+            initialSnapshot,
             onEditorReady: (editor: any) => {
               if (disposed) return;
-              editorRef = editor;
               onReady(editor);
             },
-            orderSeed,
-            onOrderChange,
-            onProfileChange,
-            onAssetUploaded,
-            hideUI,
-            toolkitBoardId,
-            onToolkitFilesDrop,
           })
         );
       } catch (err) {
@@ -82,15 +99,11 @@
 
     return () => {
       disposed = true;
-      editorRef = null;
+      renderCanvas = null;
       reactRoot?.unmount();
       reactRoot = null;
     };
   });
-
-  export function getEditor() {
-    return editorRef;
-  }
 </script>
 
 <div class="tldraw-wrapper" bind:this={containerEl}></div>

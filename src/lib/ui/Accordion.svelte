@@ -15,16 +15,20 @@
     children?: Snippet<[{ s: Section }]>;
   } = $props();
 
-  let openIds = $state<Set<string>>(new Set([sections[0]?.id ?? '']));
+  // The first section remains the default even when sections arrive later.
+  // Once used, preserve the user's explicit choices as the list refreshes.
+  let chosenIds = $state<Set<string> | null>(null);
+  const openIds = $derived(chosenIds ?? new Set(sections[0] ? [sections[0].id] : []));
+  const accordionId = $props.id();
 
   function toggle(id: string) {
     if (multiple) {
       const next = new Set(openIds);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      openIds = next;
+      chosenIds = next;
     } else {
-      openIds = openIds.has(id) ? new Set() : new Set([id]);
+      chosenIds = openIds.has(id) ? new Set() : new Set([id]);
     }
   }
 
@@ -40,8 +44,8 @@
           class="rf-accordion__trigger"
           type="button"
           aria-expanded={open}
-          aria-controls={`rf-acc-panel-${s.id}`}
-          id={`rf-acc-hdr-${s.id}`}
+          aria-controls={`${accordionId}-panel-${s.id}`}
+          id={`${accordionId}-hdr-${s.id}`}
           onclick={() => toggle(s.id)}
         >
           <span class="rf-accordion__trigger-body">
@@ -59,8 +63,8 @@
       {#if open}
         <div
           role="region"
-          id={`rf-acc-panel-${s.id}`}
-          aria-labelledby={`rf-acc-hdr-${s.id}`}
+          id={`${accordionId}-panel-${s.id}`}
+          aria-labelledby={`${accordionId}-hdr-${s.id}`}
           class="rf-accordion__panel"
           transition:slide={{ duration: 220 }}
         >

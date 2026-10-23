@@ -674,19 +674,7 @@
   color: var(--muted);
 }
 
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid var(--border);
-  border-top-color: var(--accent-1, var(--brand));
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: var(--space-md);
-}
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
 
 @media (max-width: 600px) {
   .material-page {

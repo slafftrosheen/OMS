@@ -24,13 +24,8 @@
     onselectedId?: (id: string | null) => void;
   } = $props();
 
-  // Local state for selection
-  let localSelectedId = $state(initialSelectedId);
-  
-  // Sync with prop changes
-  $effect(() => {
-    localSelectedId = initialSelectedId;
-  });
+  // User toggles may override this until the parent supplies a new selection.
+  let localSelectedId = $derived(initialSelectedId);
 
   function toggle(id: string) {
     const next = localSelectedId === id ? null : id;
@@ -81,7 +76,7 @@
         </details>
       </li>
     {/each}
-    {#if items.length===0}<div class="muted">{$t('order.changeRequests.empty')}</div>{/if}
+    {#if items.length===0}<li class="muted">{$t('order.changeRequests.empty')}</li>{/if}
   </ul>
 </div>
 

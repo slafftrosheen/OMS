@@ -1,6 +1,11 @@
 export type Room = {
   id: string;
   name: string;
+  kind?: string;
+  station?: string | null;
+  order_id?: string | null;
+  created_at?: string;
+  peer?: { id: string; displayName?: string | null; username?: string | null };
   private?: boolean;
   members?: string[];
 };

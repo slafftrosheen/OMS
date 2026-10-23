@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { scrollRegion } from '$lib/a11y/scroll-region';
   import {onMount} from 'svelte';
   import {base} from '$app/paths';
   import {t} from 'svelte-i18n';
@@ -141,7 +142,7 @@
     <section class="panel">
       <h2>{$t('productionPerformance.stationComparison')}</h2>
       <p class="hint">{$t('productionPerformance.stationExplanation')}</p>
-      <div class="table-scroll" role="region" tabindex="0" aria-label={$t('productionPerformance.stationComparison')}>
+      <div class="table-scroll" role="region" use:scrollRegion aria-label={$t('productionPerformance.stationComparison')}>
         <table>
           <thead><tr>
             <th>{$t('productionPerformance.station')}</th>

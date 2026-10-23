@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
-import { registerNodeRunner } from '../node-runner';
+import { registerNodeRunner, runShape } from '../node-runner';
 import { useToolkitText } from '../use-toolkit-text';
 
 export type WebSearchShape = TLBaseShape<'web-search', {
@@ -39,9 +39,7 @@ export class WebSearchShapeUtil extends BaseBoxShapeUtil<WebSearchShape> {
 
     override component(shape: WebSearchShape) {
         const tn = useToolkitText();
-        const { w, h, query, topK, language, site, status, error, output } = shape.props;
-        const [draftQuery, setDraftQuery] = useState(query);
-        const [draftSite, setDraftSite] = useState(site);
+        const { w, h, query, topK, site, status, error, output } = shape.props;
 
         const stop = (e: React.PointerEvent | React.MouseEvent | React.KeyboardEvent) =>
             e.stopPropagation();
@@ -50,31 +48,17 @@ export class WebSearchShapeUtil extends BaseBoxShapeUtil<WebSearchShape> {
             this.editor.updateShape<WebSearchShape>({
                 id: shape.id,
                 type: 'web-search',
-                props: { ...shape.props, ...patch }
+                props: patch
             });
         };
 
         const run = async () => {
-            const q = draftQuery.trim();
+            const q = query.trim();
             if (!q || status === 'running') return;
-            update({ status: 'running', error: null, query: q, site: draftSite.trim() });
+            update({ query: q, site: site.trim() });
             try {
-                const res = await fetch('/api/ai/web-search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        query: q,
-                        top_k: topK,
-                        language: language || undefined,
-                        site: draftSite ? draftSite.split(',').map((s) => s.trim()).filter(Boolean) : undefined
-                    })
-                });
-                if (!res.ok) throw new Error(await res.text());
-                const data = await res.json();
-                update({ status: 'done', output: data });
-            } catch (err) {
-                update({ status: 'error', error: (err as Error).message });
-            }
+                await runShape(this.editor, shape.id, { useUpstream: false });
+            } catch { /* The shared runner displays the error on this node. */ }
         };
 
         return (
@@ -100,15 +84,15 @@ export class WebSearchShapeUtil extends BaseBoxShapeUtil<WebSearchShape> {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 8 }} onPointerDown={stop}>
                     <input
-                        value={draftQuery}
-                        onChange={(e) => setDraftQuery(e.target.value)}
+                        value={query}
+                        onChange={(e) => update({ query: e.target.value })}
                         onKeyDown={(e) => { if (e.key === 'Enter') run(); }}
                         placeholder={tn('webQuestion')}
                         style={inputStyle}
                     />
                     <input
-                        value={draftSite}
-                        onChange={(e) => setDraftSite(e.target.value)}
+                        value={site}
+                        onChange={(e) => update({ site: e.target.value })}
                         placeholder={tn('webSite')}
                         style={inputStyle}
                     />
@@ -205,7 +189,7 @@ const statusBadgeStyle = (s: string): React.CSSProperties => ({
 
 // Register the runner so the graph executor can drive this node alongside
 // the shape's own Run button.
-registerNodeRunner('web-search', async ({ shape, inputs }) => {
+registerNodeRunner('web-search', async ({ shape, inputs, signal }) => {
     const props = (shape as WebSearchShape).props;
     // Allow upstream nodes to override the query (e.g. a chat shape feeding in).
     const upstreamText =
@@ -216,6 +200,7 @@ registerNodeRunner('web-search', async ({ shape, inputs }) => {
     if (!query) throw new Error('web-search: query is empty');
     const res = await fetch('/api/ai/web-search', {
         method: 'POST',
+        signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             query,

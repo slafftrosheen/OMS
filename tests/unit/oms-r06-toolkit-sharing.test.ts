@@ -100,18 +100,20 @@ describe('OMS-R06 shared-board stability and interaction', () => {
     expect(workspace).toContain("$t('toolkit.canvas.saveCopy')");
   });
   it('keeps private chat and shared board saves in independent flows', () => {
-    expect(workspace).toContain('async function saveDiscussion()');
-    expect(workspace).toContain('async function saveBoard()');
+    expect(workspace).toContain('discussionSaves.flush()');
+    expect(workspace).toContain('boardSaves.flush()');
     expect(workspace).toContain('await saveDiscussion()');
     expect(workspace).toContain("markDiscussionDirty()");
-    expect(workspace).toContain('history = messages.slice(-10)');
+    expect(workspace).toContain('const history = (retry ? messages.slice(0, -1) : messages).slice(-10)');
     expect(file('src/routes/api/toolkit/brainstorm/+server.ts')).toContain('recentPrivateConversation: history');
   });
   it('restores editor affordances without dropping old shapes', () => {
-    expect(workspace).toContain('function undo()');
-    expect(workspace).toContain('function redo()');
-    expect(workspace).toContain('function zoomToContent()');
-    expect(workspace).toContain('function deleteSelection()');
+    const controls = file('src/lib/components/canvas/toolkit-controls.ts');
+    expect(workspace).toContain('applyToolkitToolbarAction(editor, action)');
+    expect(controls).toContain('editor.undo()');
+    expect(controls).toContain('editor.redo()');
+    expect(controls).toContain('editor.zoomToFit()');
+    expect(controls).toContain('editor.deleteShapes(ids)');
     const idea = file('src/lib/components/canvas/shapes/IdeaShape.tsx');
     expect(idea).toContain("tn('drag')");
     expect(idea).toContain('onKeyDown={stop}');

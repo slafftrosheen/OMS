@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { scrollRegion } from '$lib/a11y/scroll-region';
   import Activity from 'lucide-svelte/icons/activity';
   import AlertCircle from 'lucide-svelte/icons/alert-circle';
   import FilePlus from 'lucide-svelte/icons/file-plus';
@@ -13,13 +14,15 @@
   import ErrorBoundary from '$lib/ui/ErrorBoundary.svelte';
   import type { Order, Station, Badge as BadgeCode } from '$lib/order/types';
   import type { OrderState } from '$lib/order/orderState.svelte';
-  import { blankStages, STATE_LABEL, type StageState } from '$lib/order/stages';
-  
+  import { blankStages, type StageState } from '$lib/order/stages';
+
   const orderState = getContext<OrderState>('orderState');
   import { TERMS } from '$lib/order/names';
   import { t } from 'svelte-i18n';
-  import { BADGE_ICONS, badgeTone } from '$lib/order/badges';
-  import Badge from '$lib/ui/Badge.svelte';
+  import OrderBadges from '$lib/badges/OrderBadges.svelte';
+  import SemanticBadge from '$lib/badges/SemanticBadge.svelte';
+  import { buildOrderBadges, isTerminalOrderStatus, stageBadge } from '$lib/badges/catalog';
+  import { currentDay } from '$lib/badges/current-day';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { can } from '$lib/auth/permission-utils';
   import { dragging } from '$lib/dnd';
@@ -28,6 +31,8 @@
 
   type OrderRow = {
     id: string;
+    poNumber: string;
+    order: Order | null;
     client: string;
     title: string;
     stages: [Station, StageState][];
@@ -43,6 +48,8 @@
     if (!order) {
       return {
         id: 'N/A',
+        poNumber: '—',
+        order: null,
         client: 'Unknown',
         title: 'Unknown Order',
         stages: [],
@@ -56,12 +63,14 @@
     }
 
     const stagesMap = order.stages ?? blankStages();
-    const stagesEntries = stagesMap && typeof stagesMap === 'object' 
-      ? Object.entries(stagesMap) 
+    const stagesEntries = stagesMap && typeof stagesMap === 'object'
+      ? Object.entries(stagesMap)
       : [];
 
     return {
       id: order.id || 'N/A',
+      poNumber: order.poNumber && order.poNumber !== 'N/A' ? order.poNumber : order.id.slice(0, 8),
+      order,
       client: order.client || 'Unknown',
       title: order.title || 'Untitled',
       stages: stagesEntries as [Station, StageState][],
@@ -110,25 +119,27 @@
   // Use slice().sort() instead of toSorted() for browser compatibility
   let visible = $derived.by(() => {
     let filtered = rows || [];
-    
+
     if (statusFilter === 'draft') {
       filtered = filtered.filter(r => r?.isDraft);
     } else if (statusFilter === 'active') {
-      filtered = filtered.filter(r => !r?.isDraft);
+      filtered = filtered.filter(r => !r?.isDraft && !isTerminalOrderStatus(r.order?.status));
+    } else if (statusFilter === 'completed') {
+      filtered = filtered.filter(r => ['DISPATCHED', 'ARCHIVED', 'DONE', 'COMPLETED'].includes(r.order?.status ?? ''));
     }
-    
+
     if (qLower) {
       filtered = filtered.filter((row) => {
         if (!row) return false;
-        return `${row.id || ''} ${row.client || ''} ${row.title || ''}`.toLowerCase().includes(qLower);
+        return `${row.id} ${row.poNumber} ${row.client} ${row.title}`.toLowerCase().includes(qLower);
       });
     }
-    
+
     // Use slice() to create a copy, then sort it
     return filtered.slice().sort((a, b) => {
       if (!a || !b) return 0;
-      let av = a[sortKey] || '';
-      let bv = b[sortKey] || '';
+      let av = (sortKey === 'id' ? a.poNumber : a[sortKey]) || '';
+      let bv = (sortKey === 'id' ? b.poNumber : b[sortKey]) || '';
       const result = av > bv ? 1 : av < bv ? -1 : 0;
       return sortAsc ? result : -result;
     });
@@ -136,24 +147,21 @@
 
   let totalPages = $derived(Math.max(1, Math.ceil((visible?.length || 0) / itemsPerPage)));
   let paginatedRows = $derived((visible || []).slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage));
+  $effect(() => { void qLower; void statusFilter; void itemsPerPage; currentPage = 1; });
+  $effect(() => { if (currentPage > totalPages) currentPage = totalPages; });
 
   let isAdmin = $derived(
-    $currentUser?.role === 'RD' || 
-    $currentUser?.role === 'Boss' || 
+    $currentUser?.role === 'RD' ||
+    $currentUser?.role === 'Boss' ||
     $currentUser?.role === 'HeadOfProduction'
   );
   let isSuperAdmin = $derived($currentUser?.role === 'RD' || $currentUser?.role === 'Boss');
-  
+
   let totalOrders = $derived(rows?.length || 0);
   let draftOrders = $derived((rows || []).filter(r => r?.isDraft).length);
-  let urgentOrders = $derived((rows || []).filter(r => {
-    if (!r?.due) return false;
-    const dueDate = new Date(r.due);
-    const today = new Date();
-    const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return diffDays <= 3 && diffDays >= 0;
-  }).length);
-  let activeOrders = $derived(totalOrders - draftOrders);
+  let urgentOrders = $derived(rows.filter(r => buildOrderBadges(r.order, $currentDay)
+    .some(b => ['urgent', 'overdue', 'due_today', 'due_soon'].includes(b.id))).length);
+  let activeOrders = $derived(rows.filter(r => !r.isDraft && !isTerminalOrderStatus(r.order?.status)).length);
 
   async function refresh() {
     if (refreshing) return;
@@ -186,11 +194,10 @@
   }
 
   const stationLabel = (code: Station) => $t(TERMS.stations[code]);
-  const badgeLabel = (badge: BadgeCode) => $t(TERMS.badges[badge]);
-  
+
   function exportToPDF() {
-    const csvContent = visible.map(row => 
-      `${row.id},${row.client},${row.title},${row.due},${row.loadingDate || 'N/A'}`
+    const csvContent = visible.map(row =>
+      `${row.poNumber},${row.client},${row.title},${row.due},${row.loadingDate || 'N/A'}`
     ).join('\n');
     const blob = new Blob([`PO,Client,Title,Due Date,Loading Date\n${csvContent}`], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -203,7 +210,6 @@
 
   // Load orders on mount (Svelte 5 correct pattern for initialization)
   onMount(() => {
-    console.log('🚀 Orders page mounted');
     refresh();
   });
 </script>
@@ -311,7 +317,7 @@
 
   <div class="table-wrapper">
     <p class="mobile-table-hint">{$t('orderLists.scroll_hint', { default: 'Swipe sideways to see more order details.' })}</p>
-    <div class="rf-scroll" style="max-height:65vh" role="region" tabindex="0" aria-label={$t('orderLists.table_region', { default: 'Scrollable orders table' })}>
+    <div class="rf-scroll" style="max-height:65vh" role="region" use:scrollRegion aria-label={$t('orderLists.table_region', { default: 'Scrollable orders table' })}>
       <table class="rf-table orders-table">
         <thead>
           <tr>
@@ -359,8 +365,8 @@
               </td>
               <td>
                 <div class="po-cell">
-                  <a 
-                    href={row.href} 
+                  <a
+                    href={row.href}
                     class="order-link"
                     draggable="true"
                     ondragstart={(e) => {
@@ -369,11 +375,8 @@
                     }}
                     ondragend={() => dragging.set(null)}
                     aria-label={$t('orderLists.drag_aria', { default: 'Drag {id} to a loading day', values: { id: row.id } })}>
-                    {row.id}
+                    {row.poNumber}
                   </a>
-                  {#if row.isDraft}
-                    <span class="draft-badge">{$t('ordersList.draft_badge')}</span>
-                  {/if}
                 </div>
               </td>
               <td>{row.client}</td>
@@ -382,18 +385,7 @@
               <td>{row.due}</td>
               <td>
                 <div class="badges-cell">
-                  {#if row.badges.length && !row.isDraft}
-                    {#each row.badges as badge}
-                      {@const label = badgeLabel(badge)}
-                      <Badge tone={badgeTone(badge)} label={label}>
-                        {@const SvelteComponent = BADGE_ICONS[badge]}
-                        <SvelteComponent aria-hidden="true" />
-                        <span class="badge-text">{label}</span>
-                      </Badge>
-                    {/each}
-                  {:else if !row.isDraft}
-                    <span class="muted">{$t('orderLists.no_badges')}</span>
-                  {/if}
+                  <OrderBadges order={row.order} />
                 </div>
               </td>
               <td>
@@ -418,30 +410,12 @@
                       <div class="stages-grid">
                         {#each row.stages.slice(0, 6) as [station, state]}
                           <div class="stage-item">
-                            <span class="tag stage-tag" data-tone={STATE_LABEL[state] !== 'COMPLETED' ? 'primary' : 'success'}>
-                              <strong>{stationLabel(station)}</strong>
-                              <span class="muted"> · </span>
-                              {$t(STATE_LABEL[state])}
-                            </span>
+                            <strong>{stationLabel(station)}</strong>
+                            <SemanticBadge badge={stageBadge(state)} />
                           </div>
                         {/each}
                       </div>
                     </div>
-                    {#if row.badges.length > 0}
-                      <div class="expanded-section">
-                        <h4>{$t('orderLists.headers.all_badges')}</h4>
-                        <div class="badges-expanded">
-                          {#each row.badges as badge}
-                            {@const label = badgeLabel(badge)}
-                            <Badge tone={badgeTone(badge)} label={label}>
-                              {@const SvelteComponent_1 = BADGE_ICONS[badge]}
-                              <SvelteComponent_1 aria-hidden="true" />
-                              <span>{label}</span>
-                            </Badge>
-                          {/each}
-                        </div>
-                      </div>
-                    {/if}
                     <div class="expanded-actions">
                       <a href={row.href} class="tag">{$t('orderLists.view_details', { default: 'View Details' })} →</a>
                     </div>
@@ -815,15 +789,6 @@
     text-decoration: underline;
   }
 
-  .draft-badge {
-    font-size: 10px;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: var(--warning, var(--warn));
-    color: var(--bg-0);
-  }
-
   .title-cell {
     max-width: 200px;
     overflow: hidden;
@@ -854,14 +819,8 @@
     align-items: center;
   }
 
-  .badge-text {
-    display: none;
-  }
-
   @media (min-width: 64rem) {
-    .badge-text {
-      display: inline;
-    }
+
   }
 
   .actions-cell {
@@ -917,16 +876,6 @@
 
   .stage-item {
     display: flex;
-  }
-
-  .stage-tag {
-    width: 100%;
-  }
-
-  .badges-expanded {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-sm);
   }
 
   .expanded-actions {
@@ -1023,7 +972,7 @@
       flex-direction: column;
       align-items: stretch;
     }
-    
+
     .header-actions {
       justify-content: flex-end;
     }
@@ -1119,15 +1068,6 @@
     gap: var(--space-md);
   }
 
-  .spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid var(--border);
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
   .loading-container p {
     color: var(--text-muted);
     font-size: var(--font-size-lg);
@@ -1137,11 +1077,6 @@
     text-align: center;
     padding: var(--space-2xl) var(--space-lg);
     color: var(--text-muted);
-  }
-
-  .empty-state-icon {
-    margin: 0 auto var(--space-lg);
-    opacity: 0.5;
   }
 
   .empty-state h3 {

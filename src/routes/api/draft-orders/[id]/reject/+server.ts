@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { publishNotifications } from '$lib/server/notifications/publish';
 
 const PRIVILEGED_ROLES = new Set(['RD', 'Boss', 'HeadOfProduction']);
 
@@ -77,7 +78,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
           source_id: order.id,
       }));
     if (recipientRows.length > 0) {
-        await locals.supabase.from('notifications').insert(recipientRows);
+        await publishNotifications(locals.supabase, recipientRows);
     }
 
     // Audit Log

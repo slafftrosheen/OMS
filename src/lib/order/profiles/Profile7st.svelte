@@ -5,6 +5,8 @@
   import ColorSwatchSelector from "../form-elements/ColorSwatchSelector.svelte";
   import Input from "$lib/ui/Input.svelte";
 
+  const controlId = $props.id();
+
   let {
     data = $bindable({} as any),
     onRemove = () => {},
@@ -230,8 +232,8 @@
           options={ledTypes}
         />
 
-        <div class="options-section">
-          <label class="section-label">Waterproof Options</label>
+        <fieldset class="options-section">
+          <legend class="section-label">Waterproof Options</legend>
           <div class="checkbox-grid">
             {#each waterproofOptions as option}
               <label class="checkbox-label">
@@ -257,10 +259,10 @@
               </label>
             {/each}
           </div>
-        </div>
+        </fieldset>
 
-        <div class="options-section">
-          <label class="section-label">Frame Options</label>
+        <fieldset class="options-section">
+          <legend class="section-label">Frame Options</legend>
           <div class="checkbox-grid">
             {#each frameOptionsList as option}
               <label class="checkbox-label">
@@ -286,10 +288,10 @@
               </label>
             {/each}
           </div>
-        </div>
+        </fieldset>
 
-        <div class="options-section">
-          <label class="section-label">Special Requirements</label>
+        <fieldset class="options-section">
+          <legend class="section-label">Special Requirements</legend>
           <div class="checkbox-grid">
             {#each specialRequirementsList as option}
               <label class="checkbox-label">
@@ -317,7 +319,7 @@
               </label>
             {/each}
           </div>
-        </div>
+        </fieldset>
       </div>
     </section>
 
@@ -326,8 +328,9 @@
       <h4>Delivery</h4>
       <div class="section-grid">
         <div class="date-input-group">
-          <label class="section-label">Delivery Date</label>
+          <label class="section-label" for={controlId}>Delivery Date</label>
           <input
+            id={controlId}
             type="date"
             bind:value={data.delivery.deliveryDate}
             class="date-input"
@@ -444,15 +447,24 @@
   }
 
   .options-section {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
   }
 
   .section-label {
+    padding: 0;
     font-size: 0.875rem;
     font-weight: 500;
     color: var(--muted);
+  }
+
+  .options-section > legend {
+    margin-bottom: var(--space-sm);
   }
 
   .date-input-group {

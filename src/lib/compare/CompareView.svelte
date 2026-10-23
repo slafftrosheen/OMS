@@ -21,7 +21,7 @@
     onpreview?: (rev: string) => void;
   } = $props();
 
-  const changes = fieldDiff(baseFields, candidateFields);
+  const changes = $derived(fieldDiff(baseFields, candidateFields));
 </script>
 
 <div class="grid" style="grid-template-columns:1fr 1fr" role="group" aria-labelledby="compare-heading">
@@ -45,36 +45,32 @@
 
   <div class="card">
     <h3>Files</h3>
-    <table class="rf-table" role="table" aria-label="File comparison list">
-      <thead role="rowgroup">
-        <tr role="row">
-          <th role="columnheader">Rev</th>
-          <th role="columnheader">File</th>
-          <th role="columnheader">Size</th>
-          <th role="columnheader">Date</th>
-          <th role="columnheader">Actions</th>
+    <table class="rf-table" aria-label="File comparison list">
+      <thead>
+        <tr>
+          <th scope="col">Rev</th>
+          <th scope="col">File</th>
+          <th scope="col">Size</th>
+          <th scope="col">Date</th>
+          <th scope="col">Actions</th>
         </tr>
       </thead>
-      <tbody role="rowgroup">
+      <tbody>
         {#each fileList as f}
           <tr 
             class:active={f.rev === activeRev} 
             class:preview={f.rev === previewRev} 
-            onclick={() => onpreview?.(f.rev)}
-            role="row"
-            tabindex="0"
-            aria-selected={f.rev === previewRev}
             aria-label={`File revision ${f.rev.slice(0, 8)}, ${f.name}, ${(f.size / 1024).toFixed(1)} KB, ${new Date(f.date).toLocaleString()}`}
           >
-            <td role="cell">{f.rev.slice(0, 8)}</td>
-            <td role="cell">{f.name}</td>
-            <td role="cell" aria-label={`${(f.size / 1024).toFixed(1)} kilobytes`}>{(f.size / 1024).toFixed(1)} KB</td>
-            <td role="cell" aria-label={`Uploaded on ${new Date(f.date).toLocaleString()}`}>{new Date(f.date).toLocaleString()}</td>
-            <td role="cell">
+            <td>{f.rev.slice(0, 8)}</td>
+            <td><button type="button" class="file-preview" aria-pressed={f.rev === previewRev} disabled={!onpreview} onclick={() => onpreview?.(f.rev)}>{f.name}</button></td>
+            <td aria-label={`${(f.size / 1024).toFixed(1)} kilobytes`}>{(f.size / 1024).toFixed(1)} KB</td>
+            <td aria-label={`Uploaded on ${new Date(f.date).toLocaleString()}`}>{new Date(f.date).toLocaleString()}</td>
+            <td>
               {#if canManage}
                 <button 
                   class="tag" 
-                  onclick={(e) => { e.stopPropagation(); onUseAsCurrent(f.rev); }}
+                  onclick={() => onUseAsCurrent(f.rev)}
                   aria-label={`Set ${f.name} as current version`}
                 >
                   Use as current
@@ -105,8 +101,9 @@
     border: 0;
   }
   
+  .file-preview { border:0;background:none;color:inherit;font:inherit;cursor:pointer;text-align:left;padding:4px;text-decoration:underline; }
   /* Focus styles for keyboard navigation */
-  tr[tabindex]:focus {
+  .file-preview:focus-visible {
     outline: 2px solid var(--accent-1);
     outline-offset: 2px;
   }

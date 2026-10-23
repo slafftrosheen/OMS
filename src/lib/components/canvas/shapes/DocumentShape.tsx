@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useToolkitText } from '../use-toolkit-text';
 import { PdfPreview } from './PdfPreview';
 import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
+import { canvasLinkDescriptor, normalizeCanvasMediaUrl, safeCanvasDocumentUrl } from '../toolkit-media-url';
 
 export type DocumentShape = TLBaseShape<'document', {
     w: number;
@@ -14,7 +15,12 @@ export type DocumentShape = TLBaseShape<'document', {
     /** MIME type, used to choose render mode */
     mime?: string;
     /** Display variant — 'image' inlines the asset, 'pdf' shows preview frame, 'file' is a card */
-    kind?: 'image' | 'pdf' | 'file' | 'note';
+    kind?: 'image' | 'pdf' | 'file' | 'note' | 'video' | 'audio' | 'link' | 'embed';
+    description?: string;
+    previewImage?: string;
+    siteName?: string;
+    /** Stored only as descriptive metadata; playback derives its URL from url. */
+    embedUrl?: string;
     /** Linked DB id from order_files (used by AI extract / context menus) */
     fileId?: string;
     fit?: 'contain' | 'cover';
@@ -32,13 +38,16 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
             title: 'New Document',
             content: '',
             status: 'ready',
-            url: undefined,
-            mime: undefined,
+            // tldraw document records require JSON-serializable values. Empty
+            // optional values keep notes and URL cards valid before upload.
+            url: '',
+            mime: '',
             kind: 'note',
-            fileId: undefined,
+            fileId: '',
             fit: 'contain',
             opacity: 100,
             pdfPage: 1,
+            description: '', previewImage: '', siteName: '', embedUrl: '',
         };
     }
 
@@ -51,6 +60,23 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
         const editable = !kind || kind === 'note';
 
         const renderBody = () => {
+            if ((kind === 'video' || kind === 'audio') && url) {
+                const source = safeCanvasDocumentUrl(url);
+                if (!source) return <p style={{ padding: 14 }}>{tn('mediaUnavailable')}</p>;
+                return <div onPointerDown={stop} onKeyDown={stop} onDoubleClick={stop}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1,
+                        minHeight: 0, padding: kind === 'audio' ? 18 : 0,
+                        background: kind === 'video' ? '#111' : 'var(--bg-1)' }}>
+                    {kind === 'video' ? <video controls playsInline preload="metadata" src={source}
+                        aria-label={title} style={{ width: '100%', height: '100%', objectFit: 'contain' }}>
+                        <a href={source}>{tn('download')} {title}</a>
+                    </video> : <audio controls preload="metadata" src={source} aria-label={title}
+                        style={{ width: '100%' }}><a href={source}>{tn('download')} {title}</a></audio>}
+                </div>;
+            }
+            if ((kind === 'link' || kind === 'embed') && url) {
+                return <CanvasLinkPreview key={url} shape={shape} />;
+            }
             if (kind === 'image' && url) {
                 return (
                     <img
@@ -140,8 +166,8 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
                         fontSize: 9,
                         padding: '2px 6px',
                         borderRadius: 4,
-                        background: status === 'ready' ? '#d1fae5' : (status === 'failed' ? '#fee2e2' : '#fef3c7'),
-                        color: status === 'ready' ? '#065f46' : (status === 'failed' ? '#991b1b' : '#92400e'),
+                        background: status === 'ready' ? 'var(--success-soft, #d1fae5)' : (status === 'failed' ? 'var(--error-soft, #fee2e2)' : 'var(--warning-soft, #fef3c7)'),
+                        color: status === 'ready' ? 'var(--success, #065f46)' : (status === 'failed' ? 'var(--error, #991b1b)' : 'var(--warning, #92400e)'),
                         textTransform: 'uppercase',
                         fontWeight: 700,
                         letterSpacing: '0.04em',
@@ -157,6 +183,46 @@ export class DocumentShapeUtil extends BaseBoxShapeUtil<DocumentShape> {
     override indicator(shape: DocumentShape) {
         return <rect width={shape.props.w} height={shape.props.h} rx={8} />;
     }
+}
+
+function CanvasLinkPreview({ shape }: { shape: DocumentShape }) {
+    const tn = useToolkitText();
+    const [playing, setPlaying] = useState(false);
+    const [imageFailed, setImageFailed] = useState(false);
+    const { url, title, description, previewImage, siteName } = shape.props;
+    const link = canvasLinkDescriptor(url);
+    const image = normalizeCanvasMediaUrl(previewImage);
+    const stop = (event: React.SyntheticEvent) => event.stopPropagation();
+    if (!link) return <p style={{ padding: 14 }}>{tn('mediaUnavailable')}</p>;
+    return <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+        {playing && link.embedUrl ? <iframe src={link.embedUrl} title={title}
+            sandbox="allow-scripts allow-same-origin allow-presentation"
+            allow="encrypted-media; picture-in-picture; fullscreen" allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            onPointerDown={stop} style={{ flex: 1, width: '100%', minHeight: 200, border: 0 }} />
+        : <>
+            {image && !imageFailed && <img src={image} alt="" loading="lazy" referrerPolicy="no-referrer"
+                draggable={false} onError={() => setImageFailed(true)}
+                style={{ width: '100%', maxHeight: link.embedUrl ? 115 : 155, minHeight: 0, objectFit: 'cover' }} />}
+            <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 9, flex: 1, minHeight: 0 }}>
+                <span style={{ fontSize: 11, color: 'var(--ink-secondary)' }}>{siteName || link.siteName}</span>
+                <strong style={{ fontSize: 15, overflowWrap: 'anywhere' }}>{title}</strong>
+                {description && <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, overflow: 'hidden',
+                    color: 'var(--ink-secondary)', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 3 }}>{description}</p>}
+                {link.embedUrl && <button type="button" onPointerDown={stop} onKeyDown={stop}
+                    onClick={event => { stop(event); setPlaying(true); }}
+                    style={{ alignSelf: 'flex-start', minHeight: 38, border: '1px solid var(--border)',
+                        borderRadius: 7, padding: '7px 12px', background: 'var(--brand)', color: 'var(--on-brand)' }}>
+                    {tn('playEmbeddedVideo')}
+                </button>}
+            </div>
+        </>}
+        <a href={link.url} target="_blank" rel="noopener noreferrer" onPointerDown={stop} onKeyDown={stop} onClick={stop}
+            style={{ ...linkStyle, padding: '10px 14px', borderTop: '1px solid var(--border)',
+                flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {tn('openOriginal')} · {link.siteName} ↗
+        </a>
+    </div>;
 }
 
 const linkStyle: React.CSSProperties = {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { scrollRegion } from '$lib/a11y/scroll-region';
   import AlertCircle from 'lucide-svelte/icons/alert-circle';
   import Check from 'lucide-svelte/icons/check';
   import Edit2 from 'lucide-svelte/icons/edit-2';
@@ -397,7 +398,7 @@
   {#if loading}
     <div class="loading">{$t('admin.users.loading')}</div>
   {:else}
-    <div class="users-table-wrapper" role="region" tabindex="0" aria-label={$t('admin.users.title')}>
+    <div class="users-table-wrapper" role="region" use:scrollRegion aria-label={$t('admin.users.title')}>
       <table class="users-table">
         <thead>
           <tr>
@@ -1053,12 +1054,6 @@
     cursor: not-allowed;
   }
 
-  .form-group small {
-    display: block;
-    margin-top: 4px;
-    font-size: 12px;
-    color: var(--text-2);
-  }
 
   .form-row {
     display: grid;
@@ -1132,11 +1127,6 @@
     font-weight: 500;
   }
 
-  .role-row select {
-    flex: 1;
-    padding: 8px 10px;
-    font-size: 13px;
-  }
 
   @media (max-width: 768px) {
     .page-header {
