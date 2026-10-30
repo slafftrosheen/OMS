@@ -17,6 +17,12 @@ export const catalogSources = [
     manifestPath: 'supabase/catalogs/lemona-2026-10-30-expansion.json',
     migrationPath: 'supabase/migrations/20261030000002_lemona_catalog_expansion.sql',
     temporaryTable: 'lemona_catalog_20261030_expansion'
+  },
+  {
+    id: 'lemona-2026-10-30-batch-3', verifiedAt: '2026-10-30', immutable: true,
+    manifestPath: 'supabase/catalogs/lemona-2026-10-30-batch-3.json',
+    migrationPath: 'supabase/migrations/20261030000003_lemona_catalog_batch_3.sql',
+    temporaryTable: 'lemona_catalog_20261030_batch_3'
   }
 ];
 // Preserve the original exports for callers that specifically inspect the first seed.
@@ -72,14 +78,15 @@ export function validateCatalog(catalog) {
     }
     for (const field of ['voltage_v', 'power_w', 'current_a', 'color_temperature_k',
       'watts_per_m', 'leds_per_m', 'length_m', 'wire_cross_section_mm2', 'diameter_mm', 'weight_kg',
-      'width_mm', 'height_mm', 'cut_interval_mm', 'volume_ml', 'wire_cross_section_max_mm2',
+      'width_mm', 'height_mm', 'body_length_mm', 'cut_interval_mm', 'volume_ml', 'wire_cross_section_max_mm2',
+      'max_watts_per_m', 'white_channel_temperature_k',
       'beam_angle_deg', 'beam_angle_horizontal_deg', 'beam_angle_vertical_deg']) {
       if (field in metadata && (typeof metadata[field] !== 'number'
         || !Number.isFinite(metadata[field]) || metadata[field] <= 0)) {
         throw new Error(`Invalid ${field}: ${product.code}`);
       }
     }
-    for (const field of ['color_temperature_range_k', 'wire_cross_section_range_mm2',
+    for (const field of ['color_temperature_range_k', 'white_channel_temperature_range_k', 'wire_cross_section_range_mm2',
       'solid_conductor_range_mm2', 'fine_stranded_conductor_range_mm2']) {
       const range = metadata[field];
       if (field in metadata && (!Array.isArray(range) || range.length !== 2

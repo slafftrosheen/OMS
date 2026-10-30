@@ -992,12 +992,14 @@
               </label>
             </div>
             {#if configuration.ASSEMBLING.psu}
-              <div class="psu-type">
+              <div class="psu-type" role="radiogroup"
+                aria-label={$t("profiles.materials.psuType", { default: "Power supply type" })}>
                 <label
                   class:active={configuration.ASSEMBLING.psuType === "regular"}
                 >
                   <input
                     type="radio"
+                    name={`${formId}-psu-type`}
                     bind:group={configuration.ASSEMBLING.psuType}
                     value="regular"
                     disabled={readonly}
@@ -1010,6 +1012,7 @@
                 >
                   <input
                     type="radio"
+                    name={`${formId}-psu-type`}
                     bind:group={configuration.ASSEMBLING.psuType}
                     value="dimmable"
                     disabled={readonly}
@@ -1230,6 +1233,7 @@
                   <input
                     type="checkbox"
                     bind:checked={configuration.ASSEMBLING.frameWaterholes}
+                    aria-label={$t("profiles.materials.frameWaterholes", { default: "Frame waterholes" })}
                     disabled={readonly}
                     onchange={emit}
                   />
@@ -1242,6 +1246,7 @@
                   <input
                     type="checkbox"
                     bind:checked={configuration.ASSEMBLING.frameMountingHoles}
+                    aria-label={$t("profiles.materials.frameMountingHoles", { default: "Frame mounting holes" })}
                     disabled={readonly}
                     onchange={emit}
                   />
@@ -1260,6 +1265,7 @@
             <input
               type="checkbox"
               bind:checked={configuration.ASSEMBLING.shablon}
+              aria-label={$t("profiles.materials.template", { default: "Template" })}
               disabled={readonly}
               onchange={emit}
             />
@@ -1760,6 +1766,8 @@
     font-size: 10px;
     font-weight: 600;
     cursor: pointer;
+    min-height: 32px;
+    box-sizing: border-box;
   }
 
   .psu-type label.active {
@@ -1768,8 +1776,18 @@
     border-color: var(--ink-secondary);
   }
 
-  .psu-type input {
-    display: none;
+  .psu-type input, .opt input, .extra input, .wago-label input {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    margin: 0;
+    accent-color: var(--brand);
+  }
+
+  .psu-type input:focus-visible, .opt input:focus-visible, .extra input:focus-visible,
+  .wago-label input:focus-visible {
+    outline: 2px solid var(--focus, var(--brand));
+    outline-offset: 3px;
   }
 
   /* CABLES */
@@ -1801,17 +1819,6 @@
     align-items: center;
     gap: 6px;
     cursor: pointer;
-  }
-
-  .wago-label input {
-    width: 14px;
-    height: 14px;
-    accent-color: var(--brand);
-  }
-
-  .wago-label input:focus-visible {
-    outline: 2px solid var(--focus, var(--brand));
-    outline-offset: 3px;
   }
 
   .wago-badge {
@@ -1846,10 +1853,8 @@
     cursor: pointer;
     background: var(--bg-1, var(--bg-0));
     border: 1px solid var(--border, var(--border));
-  }
-
-  .opt input {
-    display: none;
+    min-height: 32px;
+    box-sizing: border-box;
   }
   .opt.waterholes.active {
     background: var(--ok-soft);
@@ -1882,14 +1887,16 @@
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
+    min-height: 32px;
+    box-sizing: border-box;
   }
 
   .extra.active {
     background: var(--ink-secondary);
     color: var(--bg-0);
   }
-  .extra input {
-    display: none;
+  @media (pointer: coarse) {
+    .psu-type label, .opt, .extra, .wago-label { min-height: 44px; }
   }
 
   /* INPUTS */

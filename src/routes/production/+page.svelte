@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { untrack } from 'svelte';
   import { getAssistantContext } from '$lib/assistant/context';
+  import { createScreenReadScope, productionScreenContext, screenOwnerKey } from '$lib/assistant/operational-context';
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
   import { ALL_STATIONS } from '$lib/order/workflow';
@@ -15,14 +16,9 @@
 
   const STATIONS = ALL_STATIONS;
   const assistant = getAssistantContext();
-  onMount(() => assistant.register({
-    id: 'production', title: () => $t('production.title'), tools: () => [],
-    context: () => ({ loading, unavailable: !!boardError, filters: { hideEmpty, showUpcoming, attentionOnly, oversightKind },
-      displayedTotals: totals,
-      visibleStations: visibleStations.map(station => ({ station, summary: stationSummary[station] })),
-      visibleAlerts: alerts.slice(0,15).map(item => ({ reference: item.poNumber, title: item.title,
-        station: item.station, stage: item.stageState, risk: item.risk, dueDate: item.dueDate })) })
-  }));
+  const boardReads = createScreenReadScope();
+  let accountScope = $derived(screenOwnerKey($currentUser));
+  let loadedScope = $state('');
   let stationOrders = $state<Record<string, PlanningItem[]>>({});
   let stationSummary = $state<Record<string,StationSummary>>({});
   let totals = $state<PlanningTotals|null>(null);
@@ -53,13 +49,16 @@
   let activeStations = $derived(STATIONS.filter(s=>(stationSummary[s]?.active??0)>0).length);
 
   async function loadProductionData() {
-    if (refreshing) return;
+    if (refreshing || !accountScope) return;
+    const owner = accountScope;
+    const request = boardReads.begin(owner);
     refreshing = true;
     if (!loadedOnce) loading = true;
     try {
-      const response = await fetch('/api/production/board', { cache: 'no-store' });
+      const response = await fetch(`${base}/api/production/board`, { cache: 'no-store', signal: request.signal });
       if (!response.ok) throw new Error(`Could not refresh production board (HTTP ${response.status})`);
       const payload = await response.json();
+      if (!request.accepts(accountScope)) return;
       if (!payload?.success || !payload?.stations || !payload?.workload ||
           !payload?.totals || !Array.isArray(payload.alerts) ||
           (isManager && (!payload.oversight ||
@@ -74,12 +73,13 @@
       boardError = null;
       lastUpdated = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       loadedOnce = true;
+      loadedScope = owner;
     } catch (err) {
+      if (!request.accepts(accountScope)) return;
       boardError = err instanceof Error ? err.message : 'Could not refresh production board';
       console.error('[Production Board] Refresh failed', err);
     } finally {
-      loading = false;
-      refreshing = false;
+      if (request.accepts(accountScope)) { loading = false; refreshing = false; }
     }
   }
 
@@ -94,12 +94,27 @@
     }
   }
 
-  onMount(() => {
-    void loadProductionData();
-    const interval = setInterval(() => {
-      if (!document.hidden) void loadProductionData();
-    }, 30000);
-    return () => clearInterval(interval);
+  $effect(() => {
+    const owner = accountScope;
+    return untrack(() => {
+      stationOrders = {}; stationSummary = {}; totals = null; alerts = []; oversight = null;
+      loadedScope = ''; loadedOnce = false; loading = true; refreshing = false; boardError = null;
+      lastUpdated = null; showScanner = false; expandedOversight = false;
+      const unregister = assistant.register({
+        id: `production:${owner}`, title: () => $t('production.title'), tools: () => [],
+        context: () => productionScreenContext({
+          current: loadedScope === accountScope, loading, refreshing, error: !!boardError, loaded: loadedOnce,
+          isManager, hideEmpty, showUpcoming, attentionOnly, oversightKind, expandedOversight,
+          totals, activeStations, stations: visibleStations, summaries: stationSummary,
+          orders: displayOrders, alerts, oversight, visibleOversight, scannerOpen: showScanner
+        })
+      });
+      void loadProductionData();
+      const interval = setInterval(() => {
+        if (!document.hidden) void loadProductionData();
+      }, 30000);
+      return () => { clearInterval(interval); boardReads.cancel(); unregister(); };
+    });
   });
 </script>
 

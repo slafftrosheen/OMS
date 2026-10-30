@@ -5,7 +5,7 @@ import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from '$lib/server/config';
 import { logger } from '$lib/server/logging/logger';
 import { suggestFeedsSpeeds } from './cnc-feeds';
 import { matchPaint } from './paint-match';
-import { getPendingOrders, getLowStock, searchMaterialCatalog } from './data-tools';
+import { getPendingOrders, getLowStock, searchMaterialCatalog, compareMaterialCatalog } from './data-tools';
 import { listSketches, readSketch } from './maker-tools';
 import { webSearch, crawlUrl } from './web-search';
 import { planLumiGrid, planLedStrip, planLedMatrix, planBoxLetter } from './signage';
@@ -45,6 +45,7 @@ export interface ToolContext {
 
 export const TOOL_EXECUTORS: Record<string, (args: Record<string, unknown>, ctx: ToolContext) => Promise<unknown>> = {
   'catalog.search': (args, ctx) => searchMaterialCatalog(ctx.supabase, args, ctx.signal),
+  'catalog.compare': (args, ctx) => compareMaterialCatalog(ctx.supabase, args, ctx.signal),
   'cnc.feeds_speeds': (args, ctx) => suggestFeedsSpeeds(args as unknown as Parameters<typeof suggestFeedsSpeeds>[0], ctx.supabase, ctx.signal),
   'paint.match': (args, ctx) => matchPaint(args as unknown as Parameters<typeof matchPaint>[0], ctx.supabase, ctx.signal),
   'data.pending_orders': (_args, ctx) => getPendingOrders(ctx.supabase, ctx.signal),
@@ -64,6 +65,11 @@ export const BUILTIN_TOOLS: ToolRow[] = [
   {
     slug: 'catalog.search', label: 'Material catalog', description: 'Find catalog materials by name, brand or model.', icon: 'search', category: 'data',
     schema: { name: 'catalog_search', description: 'Search the OMS material catalog for exact product names, codes and recorded specifications. Does not verify live supplier stock or prices.', parameters: { type: 'object', properties: { query: { type: 'string', minLength: 2, maxLength: 100 }, category: { type: 'string', description: 'Optional exact OMS material category' } }, required: ['query'], additionalProperties: false } },
+    roles: [], stations: [], endpoint: '/api/ai/assistant', enabled: true
+  },
+  {
+    slug: 'catalog.compare', label: 'Compare catalog materials', description: 'Compare recorded specifications of 2–4 exact product codes.', icon: 'columns-2', category: 'data',
+    schema: { name: 'catalog_compare', description: 'Read exact OMS catalog records side by side. Obtain exact codes from catalog search or current screen first. Missing codes stay missing. Respect package/stock units and W versus W/m. This is not a compatibility approval and does not verify supplier stock or prices.', parameters: { type: 'object', properties: { codes: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 100 }, minItems: 2, maxItems: 4, uniqueItems: true } }, required: ['codes'], additionalProperties: false } },
     roles: [], stations: [], endpoint: '/api/ai/assistant', enabled: true
   },
   {

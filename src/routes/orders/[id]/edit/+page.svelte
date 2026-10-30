@@ -9,7 +9,7 @@
   import { onDestroy, untrack, tick } from 'svelte';
   import { getAssistantContext } from '$lib/assistant/context';
   import { summarizeNativeProfileConfiguration } from '$lib/order/native-profile-context';
-  import { orderEditorProfilesContext } from '$lib/assistant/visible-context';
+  import { orderScreenContext, validProfileIndex } from '$lib/assistant/visible-context';
   import {fetchOrderFilesCount} from '$lib/order/order-files-client';
   import { goto, pushState, beforeNavigate } from '$app/navigation';
   import { page } from '$app/state';
@@ -373,19 +373,19 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         { id: 'readiness', label: $t('productionReadiness.title') },
         ...(canEdit ? [{ id: 'canvas', label: $t('orderAssistant.canvasTools') }] : [])
       ] : [],
-      context: () => ({
+      context: () => orderScreenContext({
         screen: 'order-editor', orderId, status, section: rightTab,
-        orderUpdatedAt, unsaved: hasUnsavedChanges, profileEditorUnsaved,
+        orderUpdatedAt, unsaved: hasUnsavedChanges,
+        profileEditorUnsaved: validProfileIndex(activeNativeProfileIndex, profiles.length) !== null && profileEditorUnsaved,
         current: { ...intakeCurrent, notes: notes.slice(0, 3000), rdNotes: rdNotes.slice(0, 1500) },
-        profiles: orderEditorProfilesContext(profiles),
-        selectedProfileIndex: intakeProfileIndex,
-        nativeProfileDraft: activeNativeProfileIndex !== null && stagedNativeConfiguration ? {
+        selectedProfileIndex: validProfileIndex(intakeProfileIndex, profiles.length),
+        nativeProfileDraft: validProfileIndex(activeNativeProfileIndex, profiles.length) !== null && stagedNativeConfiguration ? {
           profileIndex: activeNativeProfileIndex, editable: canEdit, appliedToOrder: false,
           nativeProfile: summarizeNativeProfileConfiguration(stagedNativeConfiguration)
         } : null,
         selectedCanvasShape: selectedShape, selectedCanvasCount: multiSelectCount,
         fileCount: attachedFilesCount, fileContentsProvided: false
-      }),
+      }, profiles, validProfileIndex(intakeProfileIndex, profiles.length)),
       content: orderAssistantContent
     }));
   });

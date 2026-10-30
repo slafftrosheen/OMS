@@ -6,14 +6,16 @@ const materials = [
   { id: 3, category: 'ALU_COMPOSITE', code: 'ALU_COMPOSITE_0A000', name_en: 'Aluminum composite white 0A000', name_ru: 'Белый алюминиевый композит 0A000', name_lv: 'Balts alumīnija kompozīts 0A000', thickness_options: [2, 3, 4], metadata: { hex: '#ffffff', short_name: '0A000' } },
   { id: 4, category: 'PVC_FOAM', code: 'PVC_CUSTOM', name_en: 'PVC made to order', thickness_options: [], metadata: {} },
   { id: 5, category: 'ALU_PROFILE', code: 'ALU_TUBE', name_en: 'Aluminium tube 40x40', thickness_options: [1.5, 2, 3], metadata: { short_name: 'ALU' } },
-  { id: 6, category: 'LED_STRIP', code: 'LED_001', name_en: 'Lemlux LP-2835-120-24V LED strip 4000K', thickness_options: [], metadata: { short_name: 'LED' } },
-  { id: 7, category: 'LED_STRIP', code: 'LED_002', name_en: 'Lemlux COB-480-24V LED strip 3000K', thickness_options: [], metadata: { short_name: 'LED' } },
-  { id: 8, category: 'PSU_MEANWELL', code: 'MW_LRS_100_12', name_en: 'Mean Well LRS-100-12 12V 102W', thickness_options: [], metadata: { short_name: 'PSU' } },
-  { id: 9, category: 'WIRE', code: 'WIRE_001', name_en: 'LAPP H05VV-F 3G0.75 white', thickness_options: [], metadata: { short_name: 'CABLE' } },
-  { id: 10, category: 'FDM_PETG', code: 'PETG_001', name_en: 'Spectrum PET-G Premium 1.75mm Polar White', thickness_options: [], metadata: { short_name: 'PETG' } },
-  { id: 11, category: 'LED_ACCESSORY', code: 'WAGO_221_413', name_en: 'WAGO 221-413 3-conductor connector', thickness_options: [], metadata: { brand: 'WAGO', model: '221-413', short_name: 'WAGO 221-413' } },
+  // Specifications below are isolated test fixtures, never supplier catalog input.
+  { id: 6, category: 'LED_STRIP', code: 'LED_001', name_en: 'Lemlux LP-2835-120-24V LED strip 4000K', unit: 'm', thickness_options: [], metadata: { short_name: 'LED', voltage_v: 24, watts_per_m: 9.6, led_type: 'SMD 2835', leds_per_m: 120, color_temperature_k: 4000, packSize: '5 m reel; sold per metre', length_m: 5 } },
+  { id: 7, category: 'LED_STRIP', code: 'LED_002', name_en: 'Lemlux COB-480-24V LED strip 3000K', unit: 'roll', thickness_options: [], metadata: { short_name: 'LED', voltage_v: 24, watts_per_m: 10, led_type: 'COB', leds_per_m: 480, color_temperature_k: 3000, packSize: '5 m reel', length_m: 5 } },
+  { id: 8, category: 'PSU_MEANWELL', code: 'MW_LRS_100_12', name_en: 'Mean Well LRS-100-12 12V 102W', unit: 'PCS', thickness_options: [], metadata: { short_name: 'PSU', voltage_v: 12, power_w: 102, current_a: 8.5, ip_rating: 'IP20' } },
+  { id: 9, category: 'WIRE', code: 'WIRE_001', name_en: 'LAPP H05VV-F 3G0.75 white', unit: 'm', thickness_options: [], metadata: { short_name: 'CABLE', wire_cross_section_mm2: 0.75, cores: 3 } },
+  { id: 10, category: 'FDM_PETG', code: 'PETG_001', name_en: 'Spectrum PET-G Premium 1.75mm Polar White', unit: 'PCS', thickness_options: [], metadata: { short_name: 'PETG', material: 'PET-G', diameter_mm: 1.75, weight_kg: 1, packSize: '1 spool' } },
+  { id: 11, category: 'LED_ACCESSORY', code: 'WAGO_221_413', name_en: 'WAGO 221-413 3-conductor connector', unit: 'PCS', thickness_options: [], metadata: { brand: 'WAGO', model: '221-413', short_name: 'WAGO 221-413', connections: 3, wire_cross_section_range_mm2: [0.14, 4] } },
   { id: 12, category: 'PAINT_RAL', code: 'RAL_9005', name_en: 'RAL 9005 Jet black', thickness_options: [], metadata: { hex: '#0a0a0a', short_name: '9005' } },
-  { id: 13, category: 'PAINT_PANTONE', code: 'PANTONE_186_C', name_en: 'Pantone 186 C', thickness_options: [], metadata: { hex: '#c8102e', short_name: '186 C' } }
+  { id: 13, category: 'PAINT_PANTONE', code: 'PANTONE_186_C', name_en: 'Pantone 186 C', thickness_options: [], metadata: { hex: '#c8102e', short_name: '186 C' } },
+  { id: 14, category: 'LED_STRIP', code: 'TEST_RGBW', name_en: 'TEST SK6812 RGBW strip', unit: 'm', thickness_options: [], metadata: { voltage_v: 12, max_watts_per_m: 32, led_type: 'SK6812 RGBW', white_channel_temperature_range_k: [2800, 3200], length_m: 5, packSize: '5 m reel; sold per metre' } }
 ];
 
 async function catalogResponse(route: Route) {
@@ -63,16 +65,96 @@ test('saved model labels remain visible during catalog loading and after resolut
     await page.goto('/');
     const led = page.locator('.assembly-item').filter({ has: page.getByLabel('LED', { exact: true }) });
     await expect(led.locator('.select-trigger .value-text')).toHaveText('Lemlux LP-2835-120-24V LED strip 4000K');
+    await expect(led.locator('.specification-summary')).toHaveCount(0);
     await expect(page.getByTestId('change-count')).toHaveText('0');
     releaseCatalog();
     await expect(led.locator('.select-trigger .value-category')).toHaveText('LED strips');
     await expect(led.locator('.select-trigger .value-text')).toHaveText('Lemlux LP-2835-120-24V LED strip 4000K');
+    await expect(led.locator('.select-trigger [data-specification="voltage"]')).toContainText('24 V');
     await expect(page.locator('.face-material-entry .select-trigger .value-text')).toHaveText('0F00');
     await expect(page.getByTestId('change-count')).toHaveText('0');
     expect((await savedConfiguration(page)).ASSEMBLING.ledModuleCategory).toBeUndefined();
   } finally {
     releaseCatalog();
   }
+});
+
+test('catalog summaries distinguish actual specifications, package contents and stock unit without guessing custom values', async ({ page }) => {
+  await page.goto('/');
+  const led = page.locator('.assembly-item').filter({ has: page.getByRole('checkbox', { name: 'LED', exact: true }) });
+  const psu = page.locator('.assembly-item').filter({ has: page.getByRole('checkbox', { name: 'PSU', exact: true }) });
+  const cables = page.locator('.assembly-item').filter({ has: page.getByRole('checkbox', { name: 'CABLES', exact: true }) });
+  await expect(led.locator('.select-trigger [data-specification="powerPerMetre"]')).toContainText('9.6 W/m');
+  await expect(led.locator('.select-trigger [data-specification="ledType"]')).toContainText('SMD 2835');
+  await expect(led.locator('.select-trigger [data-specification="package"]')).toHaveText('Package contents: 5 m reel; sold per metre');
+  await expect(led.locator('.select-trigger [data-specification="unit"]')).toHaveText('Stock unit: m');
+  await expect(psu.locator('.select-trigger [data-specification="power"]')).toContainText('102 W');
+  await expect(psu.locator('[data-specification="powerPerMetre"]')).toHaveCount(0);
+  await expect(cables.locator('.select-trigger [data-specification="crossSection"]')).toContainText('0.75 mm²');
+  await expect(page.locator('.face-material-entry .specification-summary')).toHaveCount(0);
+  await expect(page.getByTestId('change-count')).toHaveText('0');
+
+  await led.locator('.select-trigger').click();
+  await led.getByRole('button', { name: /LED strips/ }).click();
+  const cob = led.getByRole('button', { name: /Lemlux COB-480-24V/ });
+  await expect(cob.locator('[data-specification="ledType"]')).toContainText('COB');
+  await expect(cob.locator('[data-specification="powerPerMetre"]')).toContainText('10 W/m');
+  await expect(cob.locator('[data-specification="unit"]')).toHaveText('Stock unit: roll');
+  const rgbw = led.getByRole('button', { name: /TEST SK6812 RGBW strip/ });
+  await expect(rgbw.locator('[data-specification="maxPowerPerMetre"]')).toHaveText('Maximum power per metre: 32 W/m');
+  await expect(rgbw.locator('[data-specification="whiteColorTemperature"]')).toHaveText('White channel temperature: 2800–3200 K');
+  await expect(rgbw.locator('[data-specification="colorTemperature"]')).toHaveCount(0);
+  await rgbw.click();
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await expect(led.locator('.select-trigger .value-text')).toHaveText('TEST SK6812 RGBW strip');
+  await expect(led.locator('.select-trigger [data-specification="maxPowerPerMetre"]')).toContainText('32 W/m');
+  await page.getByRole('button', { name: 'Toggle read only' }).click();
+  await expect(led.locator('.select-trigger')).toBeDisabled();
+  await expect(led.locator('.select-trigger [data-specification="whiteColorTemperature"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Toggle read only' }).click();
+  await led.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await expect(led.locator('.specification-summary')).toHaveCount(0);
+  await led.locator('.select-trigger').click();
+  await led.getByRole('button', { name: 'Enter custom value', exact: true }).click();
+  await led.getByRole('textbox', { name: 'Enter custom value', exact: true }).fill('Custom lamp named 24V');
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await expect(led.getByRole('textbox', { name: 'Enter custom value', exact: true })).toHaveValue('Custom lamp named 24V');
+  await expect(led.locator('.specification-summary')).toHaveCount(0);
+  expect((await savedConfiguration(page)).ASSEMBLING.ledModule).toBe('Custom lamp named 24V');
+});
+
+test('PSU type, frame options and template work with the keyboard and retain saved/read-only semantics', async ({ page }) => {
+  await page.goto('/');
+  const psuType = page.getByRole('radiogroup', { name: 'Power supply type', exact: true });
+  const regular = psuType.getByRole('radio', { name: 'Regular', exact: true });
+  const dimmable = psuType.getByRole('radio', { name: 'Dimmable', exact: true });
+  await expect(regular).toBeVisible();
+  await expect(regular).toBeChecked();
+  await regular.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(dimmable).toBeFocused();
+  await expect(dimmable).toBeChecked();
+
+  const waterholes = page.getByRole('checkbox', { name: 'Frame waterholes', exact: true });
+  const mounting = page.getByRole('checkbox', { name: 'Frame mounting holes', exact: true });
+  const template = page.getByRole('checkbox', { name: 'Template', exact: true });
+  for (const checkbox of [waterholes, mounting, template]) {
+    await expect(checkbox).toBeVisible();
+    await checkbox.focus();
+    await page.keyboard.press('Space');
+  }
+  expect((await savedConfiguration(page)).ASSEMBLING).toMatchObject({
+    psuType: 'dimmable', frameWaterholes: false, frameMountingHoles: true, shablon: true
+  });
+  const edits = await page.getByTestId('change-count').innerText();
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await expect(dimmable).toBeChecked();
+  await expect(waterholes).not.toBeChecked();
+  await expect(mounting).toBeChecked();
+  await expect(template).toBeChecked();
+  await expect(page.getByTestId('change-count')).toHaveText(edits);
+  await page.getByRole('button', { name: 'Toggle read only' }).click();
+  for (const control of [regular, dimmable, waterholes, mounting, template]) await expect(control).toBeDisabled();
 });
 
 test('legacy assembly badges identify the selected part and never persist a hydration edit', async ({ page }) => {
@@ -136,6 +218,9 @@ test('selecting a different LED model updates its badge, and 3D catalog material
   await printing.getByRole('button', { name: /PETG filament/ }).click();
   await printing.getByRole('button', { name: /Spectrum PET-G/ }).click();
   await expect(printing.locator('.material-badge-lg')).toHaveText('Spectrum PET-G Premium 1.75mm Polar White');
+  await expect(printing.locator('.select-trigger [data-specification="material"]')).toContainText('PET-G');
+  await expect(printing.locator('.select-trigger [data-specification="diameter"]')).toContainText('1.75 mm');
+  await expect(printing.locator('.select-trigger [data-specification="package"]')).toHaveText('Package contents: 1 spool · 1 kg');
   const saved = await savedConfiguration(page);
   expect(saved.CNC_FREZER.print3dMaterialCategory).toBe('FDM_PETG');
   expect(saved.ASSEMBLING.ledModuleShort).toBe('Lemlux COB-480-24V LED strip 3000K');
@@ -143,6 +228,7 @@ test('selecting a different LED model updates its badge, and 3D catalog material
   await page.getByRole('button', { name: 'Reload serialized profile' }).click();
   await expect(led.locator('.material-badge-lg')).toContainText('COB-480-24V');
   await expect(printing.locator('.material-badge-lg')).toHaveText('Spectrum PET-G Premium 1.75mm Polar White');
+  await expect(printing.locator('.select-trigger [data-specification="diameter"]')).toContainText('1.75 mm');
   await page.getByRole('button', { name: 'Toggle read only' }).click();
   await expect(printing.locator('.select-trigger')).toBeDisabled();
   await expect(page.getByLabel('FRAME · Select thickness', { exact: true })).toBeDisabled();

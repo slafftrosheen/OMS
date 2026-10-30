@@ -1,15 +1,22 @@
 <script lang="ts">
   import { preventDefault } from 'svelte/legacy';
-  import { untrack } from 'svelte';
+  import { untrack, onDestroy } from 'svelte';
 
   import { t } from 'svelte-i18n';
   import { createMaterial, updateMaterial, type Material } from './store';
   import type { Section } from './types';
+  import { getAssistantContext } from '$lib/assistant/context';
+  import { currentUser } from '$lib/auth/authState.svelte';
+  import { inventoryItemEditorFields, inventoryItemEditorFingerprint, screenOwnerKey, type InventoryEditorSnapshot } from '$lib/assistant/operational-context';
+  const assistantState = getAssistantContext().state;
 
   const controlId = $props.id();
 
   // Accept both 'material' and 'item' props for backwards compatibility
-  let { material, item = $bindable(), onClose = () => {} }: { material?: Partial<Material>; item?: Partial<Material>; onClose?: () => void } = $props();
+  let { material, item = $bindable(), onClose = () => {}, onDraftChange }: {
+    material?: Partial<Material>; item?: Partial<Material>; onClose?: () => void;
+    onDraftChange?: (draft: InventoryEditorSnapshot | null) => void;
+  } = $props();
   
   // Each modal opening mounts a new draft. Keep later store refreshes from
   // replacing unsaved metadata edits; use material before the legacy item prop.
@@ -36,26 +43,38 @@
 
   let saving=$state(false);
   let saveError=$state('');
+  let disposed = false;
+  const initialFingerprint = untrack(() => inventoryItemEditorFingerprint(data));
+  $effect(() => {
+    const snapshot: InventoryEditorSnapshot = { mode: isNew ? 'create' : 'edit', id: data.id ?? null,
+      fields: inventoryItemEditorFields(data), unsavedChanges: inventoryItemEditorFingerprint(data) !== initialFingerprint,
+      saving, error: !!saveError };
+    untrack(() => onDraftChange?.(snapshot));
+  });
+  onDestroy(() => { disposed = true; onDraftChange?.(null); });
   async function save() {
     if(saving)return;
     saving=true;saveError='';
     const payload = { ...data } as Partial<Material> & { id?: string };
+    const owner = screenOwnerKey($currentUser), record = data.id;
+    const accept = () => !disposed && screenOwnerKey($currentUser) === owner && data.id === record;
     const section = (payload.section as Section) ?? 'materials';
     payload.section = section;
 
     try{
       const {id: _id,stock:_stock,...metadata}=payload;
-      const result=isNew?await createMaterial({...metadata,stock:0}):
-        data.id?await updateMaterial(data.id,metadata):null;
+      const result=isNew?await createMaterial({...metadata,stock:0},{ accept }):
+        data.id?await updateMaterial(data.id,metadata,{ accept }):null;
+      if (!accept()) return;
       if(!result)throw Error($t('inventoryConsolidation.metadataFailed'));
       onClose();
     }catch(e){
-      saveError=e instanceof Error?e.message:$t('inventoryConsolidation.metadataFailed');
-    }finally{saving=false;}
+      if (accept()) saveError=e instanceof Error?e.message:$t('inventoryConsolidation.metadataFailed');
+    }finally{if (accept()) saving=false;}
   }
 </script>
 
-<div class="sheet" role="dialog" aria-modal="true" aria-label={isNew ? $t('inventory.newItem') : $t('inventory.editItem')}>
+<div class="sheet" role="dialog" aria-modal={!$assistantState.isOpen} aria-label={isNew ? $t('inventory.newItem') : $t('inventory.editItem')}>
   <form class="card" onsubmit={preventDefault(save)}>
     <header class="row" style="justify-content:space-between">
       <strong>{isNew ? $t('inventory.newItem') : $t('inventory.editItem')}</strong>

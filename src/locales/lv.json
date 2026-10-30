@@ -3541,7 +3541,11 @@
       "removeFace": "Noņemt priekšpuses materiālu {number}",
       "faceNumber": "Priekšpuses materiāls {number}",
       "print3d": "3D drukas materiāls",
-      "connector": "Savienotāja modelis"
+      "connector": "Savienotāja modelis",
+      "psuType": "Barošanas bloka veids",
+      "frameWaterholes": "Rāmja drenāžas atveres",
+      "frameMountingHoles": "Rāmja montāžas atveres",
+      "template": "Šablons"
     }
   },
   "appBadges": {
@@ -3667,7 +3671,8 @@
       "signage_led_matrix": "LED matricas plānošana",
       "signage_boxletter": "Telpisko burtu plānošana",
       "cnc_feeds_speeds": "CNC padeve un apgriezieni",
-      "paint_match": "Krāsas piemeklēšana"
+      "paint_match": "Krāsas piemeklēšana",
+      "catalog_compare": "Salīdzināt kataloga materiālus"
     },
     "contextAndTools": "Konteksts un rīki",
     "unsavedContext": "Nesaglabātas izmaiņas",
@@ -3691,7 +3696,40 @@
       "alerts": "Iekļautie brīdinājumi",
       "selected": "Atlasītie vienumi",
       "files": "Pievienotie faili",
-      "editingProfile": "Rediģējamais profils"
-    }
+      "editingProfile": "Rediģējamais profils",
+      "code": "Preces kods",
+      "group": "Grupa",
+      "stations": "Iekļautās stacijas"
+    },
+    "codeBlock": "Koda piemērs",
+    "comparisonTable": "Salīdzinājuma tabula",
+    "contextTrimmed": "Iekļauta daļa ekrāna datu. Lai iegūtu sīkāku informāciju, jautājiet par konkrētu vienumu."
+  },
+  "materialSpecifications": {
+    "voltage": "Spriegums",
+    "power": "Jauda",
+    "powerPerMetre": "Jauda uz metru",
+    "maxPowerPerMetre": "Maksimālā jauda uz metru",
+    "current": "Strāva",
+    "ledType": "LED tips",
+    "ledDensity": "LED blīvums",
+    "colorTemperature": "Krāsas temperatūra",
+    "whiteColorTemperature": "Baltā kanāla temperatūra",
+    "ipRating": "IP aizsardzības pakāpe",
+    "crossSection": "Dzīslas šķērsgriezums",
+    "cores": "Dzīslas",
+    "connections": "Savienojumi",
+    "material": "Materiāls",
+    "diameter": "Diametrs",
+    "bodyLength": "Korpusa garums",
+    "package": "Iepakojuma saturs",
+    "unit": "Uzskaites mērvienība"
+  },
+  "catalogDetails": {
+    "title": "Informācija par produktu",
+    "code": "Kataloga kods",
+    "supplierSource": "Lemona avots",
+    "manufacturerSource": "Ražotāja informācija",
+    "sourceChecked": "Avots pārbaudīts: {date}"
   }
 }

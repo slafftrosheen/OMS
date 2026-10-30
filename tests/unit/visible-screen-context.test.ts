@@ -2,7 +2,7 @@ import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   dashboardScreenContext, orderListScreenContext, inventoryCatalogScreenContext, adminMaterialsScreenContext,
-  orderEditorProfilesContext, type MaterialEditorFields
+  orderEditorProfilesContext, orderScreenContext, validProfileIndex, type MaterialEditorFields
 } from '../../src/lib/assistant/visible-context';
 import { safeScreenData } from '../../src/lib/assistant/screen-context';
 
@@ -36,19 +36,44 @@ const listInput = () => ({
 
 describe('visible assistant screen projections', () => {
   it('preserves saved editor material specifications through the bounded screen sanitizer', () => {
-    const profiles = orderEditorProfilesContext([{ quantity: 2, configuration: {
+    const summary = orderEditorProfilesContext([{ quantity: 2, configuration: {
       profileName: 'Illuminated letters', signType: 'EXTERIOR',
       CNC_FREZER: { back: 'Aluminium 1050', backThickness: '2', face: 'PLEXIGLAS 0F00', faceThickness: '3' },
       ASSEMBLING: { led: true, ledModule: 'Mean Well LED fixture', cables: false, cableType: 'Hidden cable choice' },
       privateApiKey: 'private credential', fileBytes: 'private file data'
     } }]);
-    const context = safeScreenData({ screen: 'order-editor', profiles }) as { profiles: typeof profiles };
+    const context = safeScreenData({ screen: 'order-editor', ...summary }) as typeof summary;
     assert.equal(context.profiles[0].quantity, 2);
     assert.equal(context.profiles[0].sections.CNC_FREZER?.back, 'Aluminium 1050');
     assert.equal(context.profiles[0].sections.CNC_FREZER?.backThickness, '2');
     assert.equal(context.profiles[0].sections.CNC_FREZER?.faceThickness, '3');
     assert.equal(context.profiles[0].sections.ASSEMBLING?.ledModule, 'Mean Well LED fixture');
     assert.doesNotMatch(JSON.stringify(context), /private credential|private file|Hidden cable/);
+  });
+
+  it('budgets rich saved profiles behind the current staged selection and discloses omitted profiles', () => {
+    const profiles = Array.from({ length: 50 }, (_, index) => ({ quantity: 1, configuration: {
+      profileName: `Profile ${index}`, signType: 'EXTERIOR',
+      CNC_FREZER: { face: 'A'.repeat(160), faceThickness: '3', back: 'B'.repeat(160), backThickness: '2', notes: 'n'.repeat(160) },
+      ASSEMBLING: { led: true, ledModule: 'L'.repeat(160), psu: true, psuModel: 'P'.repeat(160),
+        cables: true, cableType: 'C'.repeat(160), frame: true, frameMaterial: 'F'.repeat(160), notes: 'n'.repeat(160) }
+    } }));
+    const context = orderScreenContext({ unsaved: true, profileEditorUnsaved: true,
+      selectedProfileIndex: 49, nativeProfileDraft: { profileIndex: 49, appliedToOrder: false,
+        nativeProfile: { sections: { ASSEMBLING: { led: true, ledModule: 'Current staged COB 24 V' } } } },
+      current: { notes: 'n'.repeat(3000) } }, profiles, 49);
+    assert.ok(JSON.stringify(context).length <= 11500);
+    assert.ok(JSON.stringify(context.profiles).length <= 6000);
+    assert.equal(context.profilesTotal, 50);
+    assert.equal(context.profilesIncluded, context.profiles.length);
+    assert.equal(context.profilesTruncated, true);
+    assert.ok(context.profiles.some(profile => profile.index === 49));
+    assert.match(JSON.stringify(context.nativeProfileDraft), /Current staged COB 24 V/);
+    assert.equal(context.profileEditorUnsaved, true);
+    assert.equal(validProfileIndex(50, 50), null);
+    assert.equal(validProfileIndex(-1, 50), null);
+    assert.equal(validProfileIndex(NaN, 50), null);
+    assert.equal(validProfileIndex(49, 50), 49);
   });
 
   it('keeps unavailable dashboard totals distinct from confirmed zero and excludes hidden panels', () => {

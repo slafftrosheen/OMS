@@ -44,7 +44,7 @@ describe('literal catalog code lookup', () => {
     expect(clauses[0]).toBe('code.eq."PLEX_GS_0F00"');
     expect(JSON.parse(clauses[0].slice('code.eq.'.length))).toBe('PLEX_GS_0F00');
     expect(clauses.length).toBe(5);
-    expect(seen.limit).toBe(20);
+    expect(seen.limit).toBe(21);
   });
 
   it('keeps quotes, backslashes and attempted OR syntax inside the exact code value', async () => {

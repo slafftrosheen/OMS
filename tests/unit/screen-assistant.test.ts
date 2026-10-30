@@ -80,10 +80,10 @@ describe('screen assistant request and authorization boundary', () => {
     const response = await handlers.GET(event(undefined, { url: 'https://oms.example.test/api/ai/assistant?path=/&role=RD' }));
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
     assert.equal(filters[0].role, 'Operator');
-    assert.deepEqual((await response.json()).tools.map((item: any) => item.id), ['catalog.search']);
+    assert.deepEqual((await response.json()).tools.map((item: any) => item.id), ['catalog.search', 'catalog.compare']);
     await assert.rejects(async () => handlers.GET(event(undefined, { url: 'https://oms.example.test/api/ai/assistant?path=/station/cnc' })), { status: 403 });
     const assigned = await handlers.GET(event(undefined, { station: 'cnc', url: 'https://oms.example.test/api/ai/assistant?path=/station/CNC' }));
-    assert.deepEqual((await assigned.json()).tools.map((item: any) => item.id), ['catalog.search', 'cnc.feeds_speeds']);
+    assert.deepEqual((await assigned.json()).tools.map((item: any) => item.id), ['catalog.search', 'catalog.compare', 'cnc.feeds_speeds']);
     await handlers.GET(event(undefined, { role: 'Boss', url: 'https://oms.example.test/api/ai/assistant?path=/station/cnc' }));
     assert.equal(filters.at(-1).station, 'CNC');
   });
@@ -292,7 +292,7 @@ describe('shared assistant executors', () => {
     };
     const db: any = { from: (table: string) => { assert.equal(table, 'materials'); return query; } };
     const result = await searchMaterialCatalog(db, { query: 'Mean_Well%,code.eq.1', category: 'PSU_MEANWELL' }, controller.signal);
-    assert.equal(seen.limit, 20); assert.equal(seen.signal, controller.signal); assert.equal(seen.category, 'PSU_MEANWELL');
+    assert.equal(seen.limit, 21); assert.equal(seen.signal, controller.signal); assert.equal(seen.category, 'PSU_MEANWELL');
     assert.ok(String(seen.or).startsWith('code.eq."Mean_Well%,code.eq.1",'));
     assert.equal((String(seen.or).match(/\.ilike\./g) ?? []).length, 4);
     assert.ok(String(seen.or).endsWith('name_lv.ilike.%Mean Well code.eq.1%'));

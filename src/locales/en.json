@@ -3541,7 +3541,11 @@
       "removeFace": "Remove FACE material {number}",
       "faceNumber": "FACE material {number}",
       "print3d": "3D printing material",
-      "connector": "Connector model"
+      "connector": "Connector model",
+      "psuType": "Power supply type",
+      "frameWaterholes": "Frame waterholes",
+      "frameMountingHoles": "Frame mounting holes",
+      "template": "Template"
     }
   },
   "appBadges": {
@@ -3667,7 +3671,8 @@
       "signage_led_matrix": "LED matrix planning",
       "signage_boxletter": "Channel-letter planning",
       "cnc_feeds_speeds": "CNC feeds and speeds",
-      "paint_match": "Paint matching"
+      "paint_match": "Paint matching",
+      "catalog_compare": "Compare catalog materials"
     },
     "contextAndTools": "Context and tools",
     "unsavedContext": "Unsaved changes",
@@ -3691,7 +3696,40 @@
       "alerts": "Alerts included",
       "selected": "Selected items",
       "files": "Linked files",
-      "editingProfile": "Editing profile"
-    }
+      "editingProfile": "Editing profile",
+      "code": "Product code",
+      "group": "Group",
+      "stations": "Stations included"
+    },
+    "codeBlock": "Code example",
+    "comparisonTable": "Comparison table",
+    "contextTrimmed": "This is a selected part of the screen. Ask about a specific item for more detail."
+  },
+  "materialSpecifications": {
+    "voltage": "Voltage",
+    "power": "Power",
+    "powerPerMetre": "Power per metre",
+    "maxPowerPerMetre": "Maximum power per metre",
+    "current": "Current",
+    "ledType": "LED type",
+    "ledDensity": "LED density",
+    "colorTemperature": "Color temperature",
+    "whiteColorTemperature": "White channel temperature",
+    "ipRating": "IP rating",
+    "crossSection": "Conductor cross-section",
+    "cores": "Cores",
+    "connections": "Connections",
+    "material": "Material",
+    "diameter": "Diameter",
+    "bodyLength": "Body length",
+    "package": "Package contents",
+    "unit": "Stock unit"
+  },
+  "catalogDetails": {
+    "title": "Product details",
+    "code": "Catalog code",
+    "supplierSource": "Lemona source",
+    "manufacturerSource": "Manufacturer reference",
+    "sourceChecked": "Source checked {date}"
   }
 }

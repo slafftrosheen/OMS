@@ -278,6 +278,82 @@ test('workflow offers open a current native tool only on click and disappear whe
   await expect(panel.getByRole('navigation').getByRole('button', { name: 'Drawing intake', exact: true })).toHaveCount(0);
 });
 
+for (const viewport of [{ width: 375, height: 812 }, { width: 320, height: 568 }]) {
+  test(`formatted catalog comparisons stay readable and inert at ${viewport.width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    const fetchedMedia: string[] = [];
+    page.on('request', request => {
+      if (request.url().includes('assistant-fixture.invalid')) fetchedMedia.push(request.url());
+    });
+    const reply = [
+      '## Recorded product comparison',
+      '',
+      '**Compare the exact model** and confirm the intended load.',
+      '',
+      '| Model | Voltage | Power | Package | Stock unit |',
+      '| --- | --- | --- | --- | --- |',
+      '| `LRS-35-5` | 5 V | 35 W | 1 supply | pcs |',
+      '| `S010060CA4SA1` | 5 V | Maximum 14 W/m | 5 m reel | m |',
+      '| `MISSING-CODE` | Not recorded | Not recorded | Not recorded | Not recorded |',
+      '',
+      '- W is the supply rating.',
+      '- W/m is the recorded strip consumption per metre.',
+      '',
+      '1. Confirm the required voltage.',
+      '2. Confirm the recorded package and purchasing unit.',
+      '',
+      '```text',
+      'No compatibility or live supplier stock was verified.',
+      '```',
+      '',
+      '[Supplier reference](https://www.lemona.lv/product.html)',
+      '',
+      '<img src="https://assistant-fixture.invalid/tracker.png" onerror="document.documentElement.dataset.assistantExecuted=1">',
+      '![Tracking image](https://assistant-fixture.invalid/image.png)',
+      '[Unsafe link](javascript:alert(1))'
+    ].join('\n');
+    await assistantFixture(page, route => route.fulfill({ json: { reply, toolsUsed: ['catalog.compare'] } }));
+    await openScreenHelp(page);
+    await sendQuestion(page, 'Compare the three exact catalog codes.');
+    const panel = page.getByRole('dialog', { name: 'Assistant', exact: true });
+    const answer = panel.locator('.assistant-response');
+    await expect(answer.getByRole('heading', { name: 'Recorded product comparison', exact: true })).toBeAttached();
+    await expect(answer.locator('strong')).toHaveText('Compare the exact model');
+    await expect(answer.locator('ul > li')).toHaveCount(2);
+    await expect(answer.locator('ol > li')).toHaveCount(2);
+    await expect(answer.getByRole('columnheader')).toHaveCount(5);
+    await expect(answer.getByRole('cell', { name: 'Maximum 14 W/m', exact: true })).toBeAttached();
+    await expect(answer.getByLabel('Code example', { exact: true })).toContainText('No compatibility');
+    await expect(answer.getByRole('link')).toHaveCount(1);
+    await expect(answer.getByRole('link')).toHaveAttribute('href', 'https://www.lemona.lv/product.html');
+    await expect(answer.getByRole('link')).toHaveAttribute('rel', /noopener.*noreferrer/);
+    await expect(answer.locator('img, iframe, script')).toHaveCount(0);
+    await expect(answer).toContainText('<img src=');
+    await expect(answer).toContainText('[Unsafe link](javascript:alert(1))');
+    expect(await page.evaluate(() => document.documentElement.dataset.assistantExecuted)).toBeUndefined();
+    expect(fetchedMedia).toEqual([]);
+    await expect(panel.getByRole('log')).toContainText('Compare catalog materials');
+
+    const table = answer.getByRole('region', { name: 'Comparison table', exact: true });
+    await table.scrollIntoViewIfNeeded();
+    await table.focus();
+    await expect(table).toBeFocused();
+    expect(await table.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(() => table.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+    expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const bounds = await panel.boundingBox();
+    for (const control of [panel.getByLabel('Question for the assistant', { exact: true }), panel.getByRole('button', { name: 'Send', exact: true })]) {
+      const box = await control.boundingBox();
+      expect(box!.y).toBeGreaterThanOrEqual(bounds!.y);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height);
+    }
+    await table.evaluate(element => { element.scrollLeft = 0; });
+    await panel.screenshot({ path: testInfo.outputPath(`assistant-comparison-${viewport.width}.png`) });
+  });
+}
+
 test('one assistant follows an opted-in native profile dialog and leaves confirmation dialogs modal', async ({ page }) => {
   const observed = await assistantFixture(page);
   await page.getByRole('button', { name: 'Edit profile in dialog', exact: true }).click();

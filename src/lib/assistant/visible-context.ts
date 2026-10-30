@@ -1,4 +1,6 @@
 import { summarizeNativeProfileConfiguration } from '$lib/order/native-profile-context';
+import { safeScreenData } from './screen-context';
+import { fitScreenContextBudget, OPERATIONAL_CONTEXT_BUDGET } from './operational-context';
 
 /** Explicit projections of rendered state. Never send an API record or its metadata wholesale. */
 const text = (value: unknown, limit = 160): string | null => typeof value === 'string'
@@ -6,10 +8,36 @@ const text = (value: unknown, limit = 160): string | null => typeof value === 's
 const number = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null;
 
 /** Keep section values within the shared sanitizer's bounded nesting depth. */
-export function orderEditorProfilesContext(profiles: readonly { quantity?: unknown; configuration?: unknown }[]) {
-  return profiles.slice(0, 20).map((profile, index) => ({
-    index, quantity: number(profile.quantity), ...summarizeNativeProfileConfiguration(profile.configuration)
-  }));
+export function orderEditorProfilesContext(profiles: readonly { quantity?: unknown; configuration?: unknown }[],
+  options: { budget?: number; selectedIndex?: number | null } = {}) {
+  const selected = validProfileIndex(options.selectedIndex, profiles.length);
+  const indices = [...(selected === null ? [] : [selected]), ...profiles.map((_, index) => index)
+    .filter(index => index !== selected)].slice(0, 20);
+  const rows: Array<{ index: number; quantity: number | null } & ReturnType<typeof summarizeNativeProfileConfiguration>> = [];
+  let used = 2;
+  const budget = Math.max(0, Math.min(options.budget ?? 6000, 6000));
+  for (const index of indices) {
+    const profile = profiles[index];
+    const row = { index, quantity: number(profile.quantity), ...summarizeNativeProfileConfiguration(profile.configuration) };
+    const size = JSON.stringify(row).length + 1;
+    if (used + size > budget) continue;
+    rows.push(row); used += size;
+  }
+  rows.sort((left, right) => left.index - right.index);
+  return { profiles: rows, profilesTotal: profiles.length, profilesIncluded: rows.length, profilesTruncated: rows.length < profiles.length };
+}
+
+export function validProfileIndex(index: unknown, count: number): number | null {
+  return typeof index === 'number' && Number.isInteger(index) && index >= 0 && index < count ? index : null;
+}
+
+/** Current staged selections take the budget before optional saved-profile samples. */
+export function orderScreenContext<T extends Record<string, unknown>>(primary: T, profiles: readonly { quantity?: unknown; configuration?: unknown }[],
+  selectedIndex: number | null = null) {
+  // Preserve the caller's projected field names; the sanitizer may omit fields.
+  const context = fitScreenContextBudget(safeScreenData(primary) as Partial<T>, OPERATIONAL_CONTEXT_BUDGET - 180);
+  const remaining = OPERATIONAL_CONTEXT_BUDGET - JSON.stringify(context).length - 180;
+  return { ...context, ...orderEditorProfilesContext(profiles, { budget: remaining, selectedIndex }) };
 }
 
 function visibleRows<T, R>(rows: readonly T[], project: (row: T, index: number) => R, limit = 15, budget = 6000) {

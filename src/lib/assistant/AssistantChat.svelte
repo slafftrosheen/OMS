@@ -7,6 +7,7 @@
   import { summarizeScreenContext } from './context-summary';
   import { screenWorkflows } from './workflows';
   import type { AssistantRegistration } from './context';
+  import AssistantResponse from './AssistantResponse.svelte';
 
   let { path, title, registration, active = false, onOpenWorkflow }: {
     path: string; title: string; registration: AssistantRegistration | null; active?: boolean;
@@ -118,7 +119,8 @@
       <div class="context-details">
         <p>{$t('assistant.contextHint')}</p>
         {#if preview.loading}<p role="status">{$t('assistant.contextLoading')}</p>{/if}
-        {#if preview.unavailable}<p class="context-warning">{$t('assistant.contextUnavailable')}</p>{/if}
+        {#if preview.unavailable && !preview.loading}<p class="context-warning">{$t('assistant.contextUnavailable')}</p>{/if}
+        {#if preview.truncated}<p>{$t('assistant.contextTrimmed')}</p>{/if}
         {#if preview.rows.length}
           <dl>{#each preview.rows as row (row.key)}<div><dt>{$t(`assistant.contextField.${row.key}`)}</dt><dd>{row.value}</dd></div>{/each}</dl>
         {:else}<p>{$t('assistant.contextRouteOnly')}</p>{/if}
@@ -147,7 +149,7 @@
     {#each turns as turn, index (index)}
       <article class:user={turn.role === 'user'} class="turn">
         <strong>{$t(turn.role === 'user' ? 'assistant.you' : 'assistant.title')}</strong>
-        <p>{turn.content}</p>
+        {#if turn.role === 'assistant'}<AssistantResponse content={turn.content} />{:else}<p>{turn.content}</p>{/if}
         {#if turn.workflows?.length && onOpenWorkflow}
           <div class="workflow-suggestions">
             {#each workflows.filter(tool => turn.workflows?.includes(tool.id)) as tool (tool.id)}

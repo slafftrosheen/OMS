@@ -32,7 +32,7 @@ export function safeScreenData(value: unknown, depth = 0): unknown {
 
 /** Match tools to the current task; permission checks remain server-owned. */
 export function isToolRelevant(slug: string, screen: AssistantScreen, station?: string): boolean {
-  if (slug === 'catalog.search') return ['dashboard','orders','draft','inventory','materials','production','station','canvas','toolkit'].includes(screen);
+  if (slug === 'catalog.search' || slug === 'catalog.compare') return ['dashboard','orders','draft','inventory','materials','production','station','canvas','toolkit'].includes(screen);
   if (slug === 'data.pending_orders') return ['dashboard','orders','calendar','production'].includes(screen);
   if (slug === 'data.low_stock') return ['dashboard','inventory','materials','production'].includes(screen);
   if (slug.startsWith('signage.')) return ['draft','canvas','toolkit'].includes(screen) || (screen === 'station' && station === 'ASSEMBLY');

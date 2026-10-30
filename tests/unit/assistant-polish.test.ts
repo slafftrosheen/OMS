@@ -85,6 +85,7 @@ describe('human screen context summary', () => {
     });
     assert.equal(result.unsaved, true);
     assert.equal(result.unavailable, true);
+    assert.equal(result.truncated, true);
     assert.deepEqual(result.rows, [
       { key: 'selection', value: 'Mean Well HDR-60-24' }, { key: 'search', value: 'Mean Well' },
       { key: 'materials', value: '3 / 42' }
@@ -98,6 +99,30 @@ describe('human screen context summary', () => {
     assert.equal(result.unsaved, false);
     assert.deepEqual(result.rows, [{ key: 'orders', value: 0 }, { key: 'editingProfile', value: 2 }, { key: 'files', value: 0 }]);
     assert.equal(summarizeScreenContext({ profileEditorUnsaved: true }).unsaved, true);
+  });
+
+  it('uses the visible inventory draft fields and discloses partial profile counts', () => {
+    const result = summarizeScreenContext({
+      material: { name: 'Saved supply', sku: 'SAVED-SKU', group: 'Saved group' },
+      editor: { fields: { name: 'Edited supply', sku: 'EDITED-SKU', group: 'Power supplies' }, unsavedChanges: true },
+      profiles: [{}, {}], profilesTotal: 14, profilesIncluded: 2, profilesTruncated: true
+    });
+    assert.deepEqual(result.rows, [
+      { key: 'selection', value: 'Edited supply' }, { key: 'code', value: 'EDITED-SKU' },
+      { key: 'group', value: 'Power supplies' }, { key: 'profiles', value: '2 / 14' }
+    ]);
+    assert.equal(result.unsaved, true);
+    assert.equal(result.truncated, true);
+    assert.doesNotMatch(JSON.stringify(result), /Saved|SAVED/);
+  });
+
+  it('does not present unknown counts or cleared draft selections as saved values', () => {
+    const result = summarizeScreenContext({ loading: true, material: { name: 'Previous item', sku: 'OLD-SKU' },
+      editor: { fields: { name: '', sku: '', group: '' } },
+      visibleOrders: { rows: [], totalVisible: null, includedRows: 0, truncated: false } });
+    assert.equal(result.loading, true);
+    assert.equal(result.truncated, false);
+    assert.deepEqual(result.rows, []);
   });
 });
 

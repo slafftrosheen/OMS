@@ -5,6 +5,11 @@
   import { locale, t } from "$lib/i18n";
   import { materialDisplayName } from "$lib/profiles/helpers";
   import {
+    getMaterialSpecificationFacts,
+    MATERIAL_SPECIFICATION_LABELS,
+    type MaterialSpecificationKey
+  } from "$lib/materials/catalog-presentation";
+  import {
     buildMaterialCatalogUrl,
     getMaterialCatalogView,
     materialCatalog,
@@ -98,6 +103,26 @@
 
   function materialName(material: Material): string {
     return ($locale === "ru" ? material.name_ru : $locale === "lv" ? material.name_lv : "") || material.name_en || material.code;
+  }
+
+  const specificationPriority: MaterialSpecificationKey[] = [
+    "voltage", "power", "powerPerMetre", "maxPowerPerMetre", "ledType",
+    "whiteColorTemperature", "colorTemperature", "material", "diameter",
+    "crossSection", "cores", "connections", "current", "ledDensity", "ipRating", "bodyLength"
+  ];
+  const visibleSpecificationLabels = new Set<MaterialSpecificationKey>([
+    "maxPowerPerMetre", "whiteColorTemperature", "cores", "connections", "bodyLength", "package", "unit"
+  ]);
+
+  function compactSpecifications(material: Material | null) {
+    const facts = getMaterialSpecificationFacts(material);
+    const technical = facts.filter(fact => fact.key !== "package" && fact.key !== "unit")
+      .sort((a, b) => specificationPriority.indexOf(a.key) - specificationPriority.indexOf(b.key)).slice(0, 4);
+    return [...technical, ...facts.filter(fact => fact.key === "package" || fact.key === "unit")];
+  }
+
+  function specificationLabel(key: MaterialSpecificationKey): string {
+    return $t(`materialSpecifications.${key}`, { default: MATERIAL_SPECIFICATION_LABELS[key] });
   }
 
   async function loadMaterials(url: string, retry = false) {
@@ -258,6 +283,19 @@
   }
 </script>
 
+{#snippet specificationSummary(material: Material | null)}
+  {@const facts = compactSpecifications(material)}
+  {#if facts.length}
+    <span class="specification-summary">
+      {#each facts as fact (fact.key)}
+        <span class="specification-fact" data-specification={fact.key} title={specificationLabel(fact.key)}>
+          <span class:visually-hidden={!visibleSpecificationLabels.has(fact.key)}>{`${specificationLabel(fact.key)}: `}</span>{fact.value}
+        </span>
+      {/each}
+    </span>
+  {/if}
+{/snippet}
+
 <svelte:window onpointerdown={handleClickOutside} onkeydown={handleKeydown}
   onfocusin={handleFocusIn} onblur={() => { open = false; }} />
 
@@ -300,6 +338,7 @@
             {#if resolvedCategory}
               <span class="value-category">{categoryLabel(resolvedCategory)}</span>
             {/if}
+            {@render specificationSummary(selectedMaterial)}
           </span>
         </span>
       {:else}
@@ -379,6 +418,7 @@
                     {#if material.thickness_options?.length}
                       <span class="option-thickness">{material.thickness_options.join(" / ")} mm</span>
                     {/if}
+                    {@render specificationSummary(material)}
                   </span>
                 </button>
               {/each}
@@ -550,6 +590,9 @@
   .option-details { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
   .option-name { font-weight: 500; overflow-wrap: anywhere; }
   .option-thickness { font-size: 11px; color: var(--ink-secondary, var(--muted)); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .specification-summary { display: flex; flex-wrap: wrap; gap: 2px 8px; min-width: 0; color: var(--ink-secondary, var(--muted)); font-size: 11px; font-weight: 400; line-height: 1.5; }
+  .specification-fact { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   .custom-mode { display: flex; align-items: center; flex: 1; min-width: 0; gap: 4px; }
   .custom-color-picker { width: 32px; height: 32px; flex-shrink: 0; padding: 2px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; background: var(--bg-1, white); }
   .custom-color-picker::-webkit-color-swatch { border: 0; border-radius: 2px; }

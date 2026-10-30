@@ -86,7 +86,8 @@ describe('OMS-R43 — single inventory UI contract and audit-only stock mutation
    expect(scan).not.toContain('updateMaterial(');
    expect(scan).not.toContain('recordMovement(');
    const detail=read('src/routes/inventory/[id]/+page.svelte');
-   expect(detail).toContain('loadMaterialById(materialId)');
+   expect(detail).toContain('loadMaterialById(id, { signal: request.signal');
+   expect(detail).toContain('request.accepts(detailScope)');
    expect(detail).toContain('await move(');
    expect(detail).toContain('Number.isSafeInteger(adjustAmount)');
    expect(detail).toContain('canManage');

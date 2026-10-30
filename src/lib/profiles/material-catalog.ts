@@ -6,6 +6,7 @@ export interface CatalogMaterial {
   name_en: string;
   name_ru?: string;
   name_lv?: string;
+  unit?: string | null;
   thickness_options?: number[];
   metadata: {
     hex?: string;

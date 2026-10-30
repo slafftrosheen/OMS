@@ -1,5 +1,21 @@
 // OMS data tools run under the user's request-scoped client (RLS), never service_role.
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { CATALOG_EVIDENCE_NOTE, projectCatalogEvidence } from '$lib/materials/catalog-evidence';
+
+const catalogColumns = 'code,name_en,name_ru,name_lv,category,unit,thickness_options,metadata';
+const quotedCatalogCode = (value: string) => `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+
+function catalogSample(rows: unknown[], limit: number, budget = 10500) {
+    const materials: ReturnType<typeof projectCatalogEvidence>[] = [];
+    let used = 2;
+    for (const row of rows.slice(0, limit)) {
+        const projected = projectCatalogEvidence(row);
+        const size = JSON.stringify(projected).length + 1;
+        if (used + size > budget) break;
+        materials.push(projected); used += size;
+    }
+    return materials;
+}
 
 /** Bounded, RLS-aware catalog lookup. This does not infer stock or supplier prices. */
 export async function searchMaterialCatalog(db: SupabaseClient, args: Record<string, unknown>, signal?: AbortSignal) {
@@ -11,36 +27,70 @@ export async function searchMaterialCatalog(db: SupabaseClient, args: Record<str
     // Preserve exact supplier/legacy codes (including underscores) as a quoted
     // PostgREST value. Quote/backslash escaping keeps commas and parentheses in
     // that value, never in the OR grammar. Supabase handles URL percent encoding.
-    const exactCode = `"${query.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+    const exactCode = quotedCatalogCode(query);
     // Broad text search still strips query syntax and wildcard characters.
     const term = query.replace(/[,%_()*\\"']/g, ' ').replace(/\s+/g, ' ').trim();
     const conditions = [`code.eq.${exactCode}`];
     if (term.length >= 2) {
         conditions.push(...['code', 'name_en', 'name_ru', 'name_lv'].map(column => `${column}.ilike.%${term}%`));
     }
+    const limit = 20;
     let lookup = db.from('materials')
-        .select('code,name_en,name_ru,name_lv,category,unit,thickness_options,metadata')
+        .select(catalogColumns)
         .or(conditions.join(','))
-        .order('code').limit(20);
+        .order('code').limit(limit + 1);
     if (category) lookup = lookup.eq('category', category);
     if (signal) lookup = lookup.abortSignal(signal);
     const { data, error } = await lookup;
     signal?.throwIfAborted();
     if (error) throw new Error('Material catalog unavailable or access denied');
-    const metadataKeys = ['brand','model','manufacturer_part_number','short_name','supplier','supplier_sku','supplier_product_code',
-        'source_url','verified_at','voltage_v','power_w','current_a','ip_rating','color_temperature_k',
-        'watts_per_m','leds_per_m','length_m','wire_cross_section_mm2','diameter_mm','weight_kg','material',
-        'cores','conductor','color','led_type','control_ic','manufacturer_source_url','source_kind',
-        'data_notes','product_family','package_type','connections','wire_cross_section_range_mm2',
-        'fine_stranded_conductor_range_mm2','solid_conductor_range_mm2','wire_cross_section_max_mm2',
-        'color_temperature_range_k','width_mm','height_mm','cut_interval_mm','beam_angle_deg',
-        'beam_angle_horizontal_deg','beam_angle_vertical_deg','volume_ml','mounting'];
-    return { materials: (data ?? []).map(row => ({
-        code: row.code, name: row.name_en, name_ru: row.name_ru, name_lv: row.name_lv,
-        category: row.category, unit: row.unit, thickness_options: row.thickness_options,
-        specifications: Object.fromEntries(metadataKeys.filter(key => row.metadata?.[key] !== undefined)
-            .map(key => [key, row.metadata[key]]))
-    })), limit: 20, stockVerified: false, supplierPriceVerified: false };
+    const inspected = data ?? [];
+    const materials = catalogSample(inspected, limit);
+    return { materials, limit, inspectedCount: inspected.length, returnedCount: materials.length,
+        mayBeIncomplete: materials.length < inspected.length,
+        stockVerified: false, supplierPriceVerified: false, evidenceNote: CATALOG_EVIDENCE_NOTE };
+}
+
+/** Exact, bounded comparison. No fuzzy replacement of missing or hidden codes. */
+export async function compareMaterialCatalog(db: SupabaseClient, args: Record<string, unknown>, signal?: AbortSignal) {
+    signal?.throwIfAborted();
+    if (Object.keys(args).some(key => key !== 'codes') || !Array.isArray(args.codes)
+        || args.codes.length < 2 || args.codes.length > 4 || !args.codes.every(code =>
+            typeof code === 'string' && code.trim().length > 0 && code.trim().length <= 100)) {
+        throw new Error('Comparison requires 2–4 exact material codes');
+    }
+    const codes = [...new Set((args.codes as string[]).map(code => code.trim()))];
+    if (codes.length < 2) throw new Error('Choose at least two distinct material codes');
+    // Quote each equality explicitly: older PostgREST clients do not escape
+    // quotes/backslashes inside every IN-list value.
+    let lookup = db.from('materials').select(catalogColumns)
+        .or(codes.map(code => `code.eq.${quotedCatalogCode(code)}`).join(',')).limit(4);
+    if (signal) lookup = lookup.abortSignal(signal);
+    const { data, error } = await lookup;
+    signal?.throwIfAborted();
+    if (error) throw new Error('Material comparison unavailable or access denied');
+    const rows = (data ?? []).filter(row => codes.includes(row.code));
+    const ambiguousCodes = codes.filter(code => rows.filter(row => row.code === code).length > 1);
+    const found = codes.filter(code => !ambiguousCodes.includes(code)).flatMap(code =>
+        rows.filter(row => row.code === code));
+    const materials = catalogSample(found, 4);
+    const missingCodes = codes.filter(code => !rows.some(row => row.code === code));
+    const comparison = () => {
+        const omittedCodes = found.filter(row => !materials.some(item => item.code === row.code)).map(row => row.code);
+        return { requestedCodes: codes, materials, missingCodes, ambiguousCodes, omittedCodes,
+            complete: missingCodes.length === 0 && ambiguousCodes.length === 0 && omittedCodes.length === 0,
+            compatibilityVerified: false, stockVerified: false, supplierPriceVerified: false,
+            evidenceNote: CATALOG_EVIDENCE_NOTE };
+    };
+    let result = comparison();
+    // Codes appear in both the request and omission lists, and JSON escaping can
+    // expand them. Fit the complete result below the assistant's 14KB boundary
+    // so its exact completeness fields are never replaced by a text excerpt.
+    while (materials.length && JSON.stringify(result).length > 13500) {
+        materials.pop();
+        result = comparison();
+    }
+    return result;
 }
 
 export async function getPendingOrders(db: SupabaseClient, signal?: AbortSignal) {

@@ -13,7 +13,7 @@
   import { base } from '$app/paths';
   import { validateOrderForm } from '$lib/validation/orderSchema';
   import { getAssistantContext } from '$lib/assistant/context';
-  import { orderEditorProfilesContext } from '$lib/assistant/visible-context';
+  import { orderScreenContext } from '$lib/assistant/visible-context';
 
   const assistant = getAssistantContext();
 
@@ -408,16 +408,15 @@
     id: 'order:new',
     title: () => $t('orders.new.title'),
     tools: () => [{ id: 'prepare', label: $t('orderGuide.title') }],
-    context: () => ({
+    context: () => orderScreenContext({
       screen: 'order-draft', orderId: savedOrderId, status: 'DRAFT',
       unsaved: true, clientName, deadline, loadingDate, priority,
       notes: notes.slice(0, 3000), isRd,
-      profiles: orderEditorProfilesContext(profiles),
       attachments: uploadedFiles.slice(0, 20).map(entry => ({
         name: entry.file.name, type: entry.file.type, size: entry.file.size
       })),
       fileContentsProvided: false
-    }),
+    }, profiles),
     content: draftAssistantContent
   }));
 
