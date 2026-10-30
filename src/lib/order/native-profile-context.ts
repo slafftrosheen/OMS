@@ -22,7 +22,7 @@ const properties={
  PAINTING:['face','faceCustom','sides','sidesCustom','back','backCustom',
    'frame','frameCustom','notes'],
  ASSEMBLING:['led','ledModule','ledCustom','psu','psuModel','psuType','psuMounting',
-   'cables','cableType','cablesLength','cablesWago','frame','frameMaterial',
+   'cables','cableType','cablesLength','cablesWago','cablesConnector','frame','frameMaterial',
    'frameDimensions','frameThickness','frameCustom','frameWaterholes','frameMountingHoles','shablon','notes']
 } as const;
 type ProductionSection=keyof typeof properties;
@@ -50,10 +50,11 @@ function inactiveChoice(section:ProductionSection,key:string,values:RecordValue)
    }
  }
  if(section==='ASSEMBLING'){
+   if(key==='cablesConnector'&&values.cablesWago!==true)return true;
    const dependents:Record<string,readonly string[]>={
      led:['ledModule','ledCustom'],
      psu:['psuModel','psuType','psuMounting'],
-     cables:['cableType','cablesLength','cablesWago'],
+     cables:['cableType','cablesLength','cablesWago','cablesConnector'],
      frame:['frameMaterial','frameDimensions','frameThickness','frameCustom',
        'frameWaterholes','frameMountingHoles']
    };

@@ -30,6 +30,7 @@ export const MATERIAL_CATEGORY_LABELS: Record<string, string> = {
   PAINT_PANTONE: 'Pantone paint',
   LED_MODULE: 'LED modules',
   LED_STRIP: 'LED strips',
+  LED_NEON: 'LED neon flex',
   PSU_MEANWELL: 'Mean Well power supplies',
   WIRE: 'Cables and wires',
   LED_ACCESSORY: 'LED accessories',

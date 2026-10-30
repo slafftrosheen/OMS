@@ -9,7 +9,7 @@
   import Search from 'lucide-svelte/icons/search';
   import Trash2 from 'lucide-svelte/icons/trash-2';
   import X from 'lucide-svelte/icons/x';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { t } from 'svelte-i18n';
   import { base } from '$app/paths';
   import { currentUser } from '$lib/auth/authState.svelte';
@@ -17,6 +17,11 @@
   import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
   import { emptyConfirm, type ConfirmState } from '$lib/components/ui/confirm-types';
   import { getLemonaSourceUrl, mergeCatalogMetadata } from '$lib/materials/catalog-metadata';
+  import { getAssistantContext } from '$lib/assistant/context';
+  import { adminMaterialsScreenContext, type MaterialEditorFields } from '$lib/assistant/visible-context';
+
+  const assistant = getAssistantContext();
+  const assistantState = assistant.state;
 
   let confirmState = $state<ConfirmState>(emptyConfirm());
 
@@ -55,9 +60,10 @@
   let editingMaterial = $state<Material | null>(null);
   let saving = $state(false);
   let modalError = $state('');
+  let formBaseline = $state('');
 
   // Form data
-  let formData = $state({
+  let formData = $state<MaterialEditorFields>({
     category: '',
     code: '',
     nameEn: '',
@@ -186,6 +192,25 @@
     return acc;
   }, {} as Record<string, Material[]>));
 
+  $effect(() => {
+    // Reset the conversation when another record is opened, not on each keystroke.
+    const scope = canManage && showModal
+      ? modalMode === 'create' ? 'create' : `edit:${editingMaterial?.id ?? 'unknown'}`
+      : 'browse';
+    return untrack(() => assistant.register({
+      id: `materials:admin:${scope}`, title: () => $t('admin_materials.title'), tools: () => [],
+      context: () => adminMaterialsScreenContext({
+        loading, error: !!error, search: searchQuery, category: categoryFilter, canManage,
+        rows: Object.values(groupedMaterials).flat(),
+        editor: showModal ? {
+          mode: modalMode, selected: editingMaterial, saving, error: !!modalError,
+          unsavedChanges: JSON.stringify(formData) !== formBaseline, form: formData,
+          groups: { sheet: isSheet, electronics: isElectronics, filament: isFilament, hardware: isHardware }
+        } : null
+      })
+    }));
+  });
+
   onMount(async () => {
     console.log('📦 Materials catalog page mounted');
     await loadMaterials();
@@ -243,6 +268,7 @@
       packSize: '',
       minOrder: ''
     };
+    formBaseline = JSON.stringify(formData);
     modalError = '';
     showModal = true;
   }
@@ -275,6 +301,7 @@
       packSize: material.metadata?.packSize || '',
       minOrder: material.metadata?.minOrder || ''
     };
+    formBaseline = JSON.stringify(formData);
     modalError = '';
     showModal = true;
   }
@@ -511,7 +538,7 @@
       class="modal" 
       onclick={(e) => e.stopPropagation()}
       role="dialog" 
-      aria-modal="true"
+      aria-modal={!$assistantState.isOpen}
       aria-labelledby="material-dialog-title"
       tabindex="-1"
     >

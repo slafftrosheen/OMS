@@ -5,7 +5,7 @@
   import { currentUser } from '$lib/auth/authState.svelte';
   import { canOperateStation } from '$lib/order/lifecycle-guards';
   import { dueDateLabel, stageStateLabel, isOrderOverdue } from '$lib/order/operator-ui';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { getAssistantContext } from '$lib/assistant/context';
   import { writable } from 'svelte/store';
   import { t } from 'svelte-i18n';
@@ -24,15 +24,23 @@
 
   let station = $derived(page.params.station.toUpperCase());
   const assistant = getAssistantContext();
-  onMount(() => assistant.register({
-    id: 'station', title: () => `${$t('assistant.screen.station')} · ${station}`, tools: () => [],
-    context: () => ({ station, filter: $filter, search: searchQuery, loading: $loading,
-      unavailable: !!loadError, selectedOrder: workingOnOrderId ?? packetTarget?.id ?? progressTarget?.id ?? null,
-      visibleOrders: $orders.filter(order => (!$filter || $filter === 'ALL' || order.stage?.state === $filter) &&
-        [order.po_number,order.title,order.client].some(value => String(value ?? '').toLowerCase().includes(searchQuery.toLowerCase())))
-        .slice(0,15).map(order => ({ reference: order.po_number, title: order.title, priority: order.priority,
-          dueDate: order.due_date, stage: order.stage?.state })) })
-  }));
+  $effect(() => {
+    const registeredStation = station;
+    return untrack(() => assistant.register({
+      id: `station:${registeredStation}`, title: () => `${$t('assistant.screen.station')} · ${registeredStation}`, tools: () => [],
+      context: () => {
+        const currentQueue = queueStation === registeredStation && !!$currentUser?.id && queueAccountId === $currentUser.id;
+        return { station: registeredStation, filter: $filter, search: searchQuery.slice(0, 240), loading: $loading,
+          refreshing, unavailable: !!loadError || (!$loading && !currentQueue),
+          selectedOrder: currentQueue ? workingOnOrderId ?? packetTarget?.id ?? progressTarget?.id ?? null : null,
+          visibleOrders: currentQueue ? filteredOrders.slice(0,15).map(order => ({
+            reference: String(order.po_number ?? '').slice(0,96), title: String(order.title ?? '').slice(0,160),
+            priority: order.priority, dueDate: order.due_date, stage: order.stage?.state })) : [],
+          totalMatches: currentQueue ? filteredOrders.length : null,
+          truncated: currentQueue && filteredOrders.length > 15 };
+      }
+    }));
+  });
   let stationRoomId = $derived(`station-${page.params.station.toLowerCase()}`);
 
   interface StationOrder {
@@ -50,6 +58,8 @@
   const filter = writable<'ALL' | 'QUEUED' | 'IN_PROGRESS' | 'BLOCKED' | 'REWORK'>('ALL');
   const showScanner = writable(false);
   let loadError = $state<string | null>(null);
+  let queueStation = $state<string | null>(null);
+  let queueAccountId = $state<string | null>(null);
   let hasLoaded = $state(false);
   let refreshing = $state(false);
   let lastUpdated = $state<string | null>(null);
@@ -88,21 +98,28 @@
 
   async function loadStationOrders(quiet = false) {
     if (refreshing) return;
+    const requestedStation = station;
+    const requestedAccount = $currentUser?.id ?? null;
+    const isCurrent = () => station === requestedStation && ($currentUser?.id ?? null) === requestedAccount;
     refreshing = true;
     if (!hasLoaded) $loading = true;
     try {
-      const response = await fetch(`/api/station/${encodeURIComponent(station)}/orders`, { cache: 'no-store' });
+      const response = await fetch(`/api/station/${encodeURIComponent(requestedStation)}/orders`, { cache: 'no-store' });
       if (!response.ok) throw new Error(response.status === 401 ? 'Session expired — sign in again.'
         : response.status === 403 ? 'You cannot view this station.' :
           `Station refresh failed (HTTP ${response.status})`);
       const data = await response.json();
+      if (!isCurrent()) return;
       if (!Array.isArray(data)) throw new Error('Invalid station queue response');
       $orders = data;
+      queueStation = requestedStation;
+      queueAccountId = requestedAccount;
       loadError = null;
       hasLoaded = true;
       lastUpdated = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       todayLocal = new Date().toLocaleDateString('sv-SE');
     } catch (err) {
+      if (!isCurrent()) return;
       loadError = err instanceof Error ? err.message : 'Failed to load station';
       if (!quiet) notifications.error(loadError);
     } finally {

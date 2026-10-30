@@ -13,7 +13,7 @@
   import { base } from '$app/paths';
   import { validateOrderForm } from '$lib/validation/orderSchema';
   import { getAssistantContext } from '$lib/assistant/context';
-  import { summarizeNativeProfileConfiguration } from '$lib/order/native-profile-context';
+  import { orderEditorProfilesContext } from '$lib/assistant/visible-context';
 
   const assistant = getAssistantContext();
 
@@ -412,10 +412,7 @@
       screen: 'order-draft', orderId: savedOrderId, status: 'DRAFT',
       unsaved: true, clientName, deadline, loadingDate, priority,
       notes: notes.slice(0, 3000), isRd,
-      profiles: profiles.slice(0, 20).map(profile => ({
-        quantity: profile.quantity,
-        nativeProfile: summarizeNativeProfileConfiguration(profile.configuration)
-      })),
+      profiles: orderEditorProfilesContext(profiles),
       attachments: uploadedFiles.slice(0, 20).map(entry => ({
         name: entry.file.name, type: entry.file.type, size: entry.file.size
       })),

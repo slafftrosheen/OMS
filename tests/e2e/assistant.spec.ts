@@ -13,7 +13,7 @@ test.beforeEach(({ page }) => {
 });
 test.afterEach(({ page }) => expect(runtimeErrors.get(page)).toEqual([]));
 
-async function assistantFixture(page: Page, provider?: Provider, toolProvider?: Provider) {
+async function assistantFixture(page: Page, provider?: Provider, toolProvider?: Provider, url = '/assistant.html') {
   const requests: ObservedRequest[] = [];
   const abortedPosts: string[] = [];
   page.on('requestfailed', request => {
@@ -40,7 +40,7 @@ async function assistantFixture(page: Page, provider?: Provider, toolProvider?: 
     if (provider) return provider(route, observed, call);
     return route.fulfill({ json: { reply: 'Use the selected Mean Well model and confirm its voltage.', toolsUsed: ['catalog.search'] } });
   });
-  await page.goto('/assistant.html');
+  await page.goto(url);
   await expect(page.getByRole('button', { name: 'Open assistant', exact: true })).toBeVisible();
   return {
     requests,
@@ -166,7 +166,7 @@ test('tool-list recovery does not send the pending question', async ({ page }) =
   });
   await openScreenHelp(page);
   await page.getByLabel('Question for the assistant', { exact: true }).fill('Question waiting for me');
-  await page.getByText('Available lookups and tools', { exact: true }).click();
+  await page.getByText('Context and tools', { exact: false }).click();
   await expect(page.getByText('Tools could not be loaded.', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(page.getByText('Material catalog', { exact: true })).toBeVisible();
@@ -214,6 +214,104 @@ for (const boundary of ['route', 'account'] as const) {
     } finally { release(); }
   });
 }
+
+test('context preview reflects current selections and never exposes hidden context keys', async ({ page }) => {
+  const observed = await assistantFixture(page);
+  await openScreenHelp(page);
+  await page.getByText('Context and tools', { exact: false }).click();
+  const details = page.getByRole('dialog', { name: 'Assistant', exact: true }).locator('.context-details');
+  await expect(details).toContainText('Mean Well LRS-100-12');
+  await page.getByLabel('Selected material', { exact: true }).fill('Mean Well HDR-60-24');
+  await expect(details).toContainText('Mean Well HDR-60-24');
+  await expect(details).not.toContainText('fixture-secret');
+  await expect(details).not.toContainText('fixture-file-bytes');
+  expect(observed.posts()).toHaveLength(0);
+});
+
+for (const viewport of [{ width: 375, height: 812 }, { width: 320, height: 568 }]) {
+  test(`screen-help composer remains reachable before and after long replies at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    await assistantFixture(page, route => route.fulfill({ json: { reply: 'Check the selected product model against the recorded catalog specifications.\n\n'.repeat(45), toolsUsed: [] } }));
+    await openScreenHelp(page);
+    const panel = page.getByRole('dialog', { name: 'Assistant', exact: true });
+    const withinPanel = async () => {
+      const bounds = await panel.boundingBox();
+      for (const control of [page.getByLabel('Question for the assistant', { exact: true }), page.getByRole('button', { name: 'Send', exact: true })]) {
+        const box = await control.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box!.y).toBeGreaterThanOrEqual(bounds!.y);
+        expect(box!.y + box!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height);
+      }
+      expect(await panel.locator('.messages').evaluate(element => element.clientHeight)).toBeGreaterThan(75);
+    };
+    await withinPanel();
+    await sendQuestion(page, 'Review the current selections.');
+    await expect(page.getByRole('log')).toContainText('recorded catalog specifications');
+    await withinPanel();
+    expect(await panel.locator('.messages').evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+    await panel.screenshot({ path: testInfo.outputPath(`assistant-composer-${viewport.width}.png`) });
+  });
+}
+
+test('workflow offers open a current native tool only on click and disappear when the tool is removed', async ({ page }) => {
+  const posts: string[] = [];
+  page.on('request', request => { if (request.method() === 'POST') posts.push(new URL(request.url()).pathname); });
+  await page.route('**/api/files?*', route => route.fulfill({ headers: { 'X-Total-Count': '0' }, json: [] }));
+  const observed = await assistantFixture(page, route => route.fulfill({ json: {
+    reply: 'Choose drawing intake to review the file.', toolsUsed: [], suggestedWorkflows: ['intake', 'save-order', 'canvas']
+  } }), undefined, '/assistant.html?native=order');
+  await openScreenHelp(page);
+  await sendQuestion(page, 'Where should I analyze my drawing?');
+  const panel = page.getByRole('dialog', { name: 'Assistant', exact: true });
+  const offer = panel.getByRole('button', { name: 'Open Drawing intake', exact: true });
+  await expect(offer).toBeVisible();
+  await expect(panel.locator('.intake')).toBeHidden();
+  await expect(panel.locator('.workflow-suggestions button')).toHaveCount(1);
+  expect(observed.posts()[0].body.screen.workflows.map((tool: any) => tool.id)).toEqual(['discuss', 'intake', 'readiness']);
+  await offer.click();
+  await expect(panel.locator('.intake')).toBeVisible();
+  await expect(panel.getByRole('navigation').getByRole('button', { name: 'Drawing intake', exact: true })).toBeFocused();
+  expect(posts).toEqual(['/api/ai/assistant']);
+  await panel.getByRole('button', { name: 'Screen help', exact: true }).click();
+  await page.getByRole('button', { name: 'Disable intake tool', exact: true }).click();
+  await expect(offer).toHaveCount(0);
+  await expect(panel.getByRole('navigation').getByRole('button', { name: 'Drawing intake', exact: true })).toHaveCount(0);
+});
+
+test('one assistant follows an opted-in native profile dialog and leaves confirmation dialogs modal', async ({ page }) => {
+  const observed = await assistantFixture(page);
+  await page.getByRole('button', { name: 'Edit profile in dialog', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Profile editor fixture', exact: true });
+  await expect(editor.locator('.assistant-layer')).toHaveCount(1);
+  await page.getByLabel('Pending profile material', { exact: true }).fill('WAGO 221-413 pending choice');
+  await openScreenHelp(page);
+  await sendQuestion(page, 'Review this staged profile.');
+  await expect(page.getByRole('log')).toContainText('selected Mean Well');
+  expect(observed.posts()[0].body.screen.data.nativeProfileDraft).toMatchObject({ material: 'WAGO 221-413 pending choice', appliedToOrder: false });
+  await page.getByRole('button', { name: 'Close assistant', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect(editor).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Assistant', exact: true })).toBeHidden();
+  await page.getByRole('button', { name: 'Close profile editor', exact: true }).click();
+  await expect(editor).toHaveCount(0);
+  await expect(page.locator('.assistant-layer')).toHaveCount(1);
+  expect(await page.locator('.assistant-layer').evaluate(element => !!element.closest('dialog'))).toBe(false);
+  await openScreenHelp(page);
+  await sendQuestion(page, 'Now review the whole order.');
+  await expect.poll(() => observed.posts().length).toBe(2);
+  expect(observed.posts()[1].body.screen.data.nativeProfileDraft).toBeNull();
+  await page.getByRole('button', { name: 'Close assistant', exact: true }).click();
+  await page.getByRole('button', { name: 'Open confirmation', exact: true }).click();
+  const confirmation = page.getByRole('dialog', { name: 'Confirmation fixture', exact: true });
+  await expect(confirmation).toBeVisible();
+  await expect(confirmation.locator('.assistant-layer')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cancel confirmation', exact: true }).focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Cancel confirmation', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(confirmation).toHaveCount(0);
+  expect(observed.posts()).toHaveLength(2);
+});
 
 for (const viewport of [{ width: 1440, height: 1000 }, { width: 375, height: 812 }]) {
   test(`assistant fits ${viewport.width}px, keeps navigation clear and returns keyboard focus on Escape`, async ({ page }) => {

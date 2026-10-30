@@ -9,6 +9,7 @@
   import { onDestroy, untrack, tick } from 'svelte';
   import { getAssistantContext } from '$lib/assistant/context';
   import { summarizeNativeProfileConfiguration } from '$lib/order/native-profile-context';
+  import { orderEditorProfilesContext } from '$lib/assistant/visible-context';
   import {fetchOrderFilesCount} from '$lib/order/order-files-client';
   import { goto, pushState, beforeNavigate } from '$app/navigation';
   import { page } from '$app/state';
@@ -241,13 +242,17 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let activeNativeProfileIndex = $state<number|null>(null);
   let activeNativeProfile = $derived(activeNativeProfileIndex===null ? null : profiles[activeNativeProfileIndex]??null);
   let stagedNativeConfiguration = $state<Record<string,unknown>|null>(null);
+  let nativeProfileBaseline = $state('');
+  let profileEditorUnsaved = $derived(activeNativeProfileIndex !== null && stagedNativeConfiguration !== null &&
+    JSON.stringify(stagedNativeConfiguration) !== nativeProfileBaseline);
   let nativeProfileDialog = $state<HTMLDialogElement|undefined>(undefined);
   async function openNativeProfile(index:number){
     const profile=profiles[index];
     if(!profile)return;
     // Keep staged edits away from the order until Apply is explicitly clicked.
     // The native form merges defaults while mounting; that must not dirty a draft.
-    stagedNativeConfiguration=JSON.parse(JSON.stringify(profile.configuration??{}));
+    nativeProfileBaseline=JSON.stringify(profile.configuration??{});
+    stagedNativeConfiguration=JSON.parse(nativeProfileBaseline);
     activeNativeProfileIndex=index;
     await tick();
     if(nativeProfileDialog && !nativeProfileDialog.open)nativeProfileDialog.showModal();
@@ -255,6 +260,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   function clearNativeProfileDialog(){
     activeNativeProfileIndex=null;
     stagedNativeConfiguration=null;
+    nativeProfileBaseline='';
   }
   function closeNativeProfile(){
     nativeProfileDialog?.close();
@@ -369,13 +375,14 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       ] : [],
       context: () => ({
         screen: 'order-editor', orderId, status, section: rightTab,
-        orderUpdatedAt, unsaved: hasUnsavedChanges,
+        orderUpdatedAt, unsaved: hasUnsavedChanges, profileEditorUnsaved,
         current: { ...intakeCurrent, notes: notes.slice(0, 3000), rdNotes: rdNotes.slice(0, 1500) },
-        profiles: profiles.slice(0, 20).map((profile, index) => ({
-          index, quantity: profile.quantity,
-          nativeProfile: summarizeNativeProfileConfiguration(profile.configuration)
-        })),
+        profiles: orderEditorProfilesContext(profiles),
         selectedProfileIndex: intakeProfileIndex,
+        nativeProfileDraft: activeNativeProfileIndex !== null && stagedNativeConfiguration ? {
+          profileIndex: activeNativeProfileIndex, editable: canEdit, appliedToOrder: false,
+          nativeProfile: summarizeNativeProfileConfiguration(stagedNativeConfiguration)
+        } : null,
         selectedCanvasShape: selectedShape, selectedCanvasCount: multiSelectCount,
         fileCount: attachedFilesCount, fileContentsProvided: false
       }),
@@ -1433,7 +1440,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
               </button>
             {/if}
             {#if activeNativeProfileIndex!==null && activeNativeProfile}
-              <dialog class="native-profile-dialog" bind:this={nativeProfileDialog}
+              <dialog class="native-profile-dialog" data-assistant-host bind:this={nativeProfileDialog}
                 aria-labelledby="native-profile-dialog-title"
                 onclose={clearNativeProfileDialog}>
                 <div class="native-profile-dialog-header">

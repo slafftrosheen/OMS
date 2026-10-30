@@ -74,6 +74,35 @@ export function extractShortName(data: { value?: string; shortName?: string; mat
     return data.shortName || data.value || '';
 }
 
+/** Resolve saved paint codes without turning Pantone/custom text into a RAL. */
+export function paintMaterialValue(color: Partial<ColorValue> | undefined): string {
+    const code = nonempty(color?.code);
+    if (!code) return '';
+    const system = nonempty(color?.system).toUpperCase();
+    if (system === 'CUSTOM') return color?.code || '';
+    if (system === 'PANTONE') return `PANTONE_${code.replace(/^PANTONE[_\s-]+/i, '')}`;
+    if (system === 'RAL' || !system) {
+        const ralCode = code.replace(/^RAL[_\s-]+/i, '');
+        if (/^\d{4}$/.test(ralCode)) return `RAL_${ralCode}`;
+    }
+    return color?.code || '';
+}
+
+/** Catalog, custom entry and clearing share one explicit paint-change contract. */
+export function applyPaintMaterialSelection(data: {
+    value: string; hex: string; material: MaterialDisplaySource | null;
+}): ColorValue {
+    if (!data.value) return { ...defaultColor };
+    if (data.material) {
+        return {
+            system: data.material.category === 'PAINT_PANTONE' ? 'Pantone' : 'RAL',
+            code: (data.material.code || data.value).replace(/^(?:RAL|PANTONE)[_\s-]+/i, ''),
+            hex: data.hex || ''
+        };
+    }
+    return { system: 'CUSTOM', code: data.value, hex: data.hex || '' };
+}
+
 // ─── getTextColor ───────────────────────────────────────────────────────────
 
 /**

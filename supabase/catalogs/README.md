@@ -1,6 +1,13 @@
 # Sourced material catalogs
 
-`lemona-2026-10-30.json` contains **42 catalog products** researched against public LEMONA Latvija product pages and catalog listings on **2026-10-30**. Each product carries its supplier URL and verification date. Mean Well manufacturer documents supplement the supplier pages where series names round the rated output power.
+The two additive manifests contain **62 distinct catalog products**, researched against public LEMONA Latvija sources on **2026-10-30**:
+
+| Manifest | Products | Migration |
+| --- | ---: | --- |
+| `lemona-2026-10-30.json` | 42 | `20261030000001_lemona_branded_catalog.sql` |
+| `lemona-2026-10-30-expansion.json` | 20 | `20261030000002_lemona_catalog_expansion.sql` |
+
+The initial manifest and migration remain byte-for-byte unchanged. The expansion adds distinct products, all with direct Lemona.lv product-page sources. Each product carries its supplier URL and verification date. Mean Well and WAGO manufacturer documents supplement supplier specifications where needed.
 
 This is a product-identity and specification snapshot. It does not contain supplier stock, purchase prices, availability, delivery promises or live synchronization. A retrieved page may itself be an indexed snapshot. Recheck the linked supplier page when purchasing.
 
@@ -8,21 +15,25 @@ This is a product-identity and specification snapshot. It does not contain suppl
 
 | Family | Count | Brands | Canonical picker category |
 | --- | ---: | --- | --- |
-| Power supplies | 12 | MEAN WELL | `PSU_MEANWELL` |
-| LED strips | 8 | LED line, AKTO | `LED_STRIP` |
-| LED modules | 2 | AKTO, LEMLUX | `LED_MODULE` |
-| Cables | 6 | Lietkabelis | `WIRE` |
-| Lever connectors | 3 | WAGO | `LED_ACCESSORY` |
+| Power supplies | 15 | MEAN WELL | `PSU_MEANWELL` |
+| LED strips | 13 | LED line, AKTO, LEMLUX | `LED_STRIP` |
+| Neon flex | 1 | LEMLUX | `LED_NEON` |
+| LED modules | 5 | AKTO, LEMLUX | `LED_MODULE` |
+| Cables | 9 | Lietkabelis, LAPP | `WIRE` |
+| Lever connectors | 5 | WAGO | `LED_ACCESSORY` |
 | PLA filament | 3 | The Filament Spectrum, Fiberlogy | `FDM_PLA` |
 | PETG filament | 2 | The Filament Spectrum | `FDM_PETG` |
 | ABS / ABS+ filament | 2 | GEMBIRD, Rosa3D | `FDM_ABS` |
 | ASA filament | 1 | Fiberlogy | `FDM_ASA` |
-| TPU filament | 1 | Rosa3D | `FDM_TPU` |
-| Photopolymer resin | 2 | Anycubic | `RESIN_ANYCUBIC` |
+| TPU filament | 2 | Rosa3D, Fiberlogy | `FDM_TPU` |
+| PA12 with carbon fibre | 1 | Fiberlogy | `FDM_OTHER` |
+| Photopolymer resin | 3 | Anycubic, PrimaCreator | `RESIN_ANYCUBIC`, `RESIN_OTHER` |
+
+The expansion fills functional gaps: 12 V white strips at two power levels, high-density 24 V white and tunable-white strips, side-emitting COB and neon flex; 12 V, 24 V and asymmetric edge-lighting modules; small enclosed, DIN-rail and HLG power supplies; inline and larger-conductor WAGO connectors; four- and five-core LAPP cables and 2.5 mm² installation cable; PA12-CF, FiberFlex TPU and water-washable resin. It does not inflate coverage by adding repeated colors of the same product.
 
 The migration writes `public.materials`, the canonical catalog/inventory table introduced by `20260217000000_unify_materials_inventory.sql`. It does not write the retired `inventory_items` table. Existing API and material pickers already consume these category values. Electronics use section `electronics`; filaments and resins use `3dprinting`.
 
-Non-sheet products have an explicit empty `thickness_options` list. Filament diameter is `metadata.diameter_mm`, not a selectable sheet thickness. New cable and most LED-strip records use `m`; the AKTO `AFL-60B14424M-830` 5 m reel uses `roll`. Filament spools/refills and resin packages use `PCS`, with confirmed net weight in metadata. The current canonical stock column is an integer: this seed does not change stock precision or introduce fractional stock accounting.
+Non-sheet products have an explicit empty `thickness_options` list. Filament diameter is `metadata.diameter_mm`, not a selectable sheet thickness. New cable and most LED-strip records use `m`; the 5 m reels `AFL-60B14424M-830`, `AFLP-168B28824M-CCT` and `NF-612-12V-NW` use `roll`. The `BVV-P/3x2.5` supplier reel contains 25 m but is sold by the metre, so its unit remains `m`. Filament spools/refills and resin packages use `PCS`, with confirmed net weight or volume in metadata. The current canonical stock column is an integer: these seeds do not change stock precision or introduce fractional stock accounting.
 
 ## Identity, source and specification fields
 
@@ -30,13 +41,17 @@ Non-sheet products have an explicit empty `thickness_options` list. Filament dia
 
 Every product includes `supplier`, `source_url`, `source_kind`, `verified_at`, and `catalog_seed`. `source_kind` distinguishes a direct `product_page` from a `catalog_listing`. `manufacturer_source_url` links the supplementary primary manufacturer document where used. `data_notes` records conflicts and important omissions rather than guessing a value.
 
-Confirmed numeric values use explicit units in their keys: `voltage_v`, `current_a`, `power_w`, `watts_per_m`, `color_temperature_k`, `leds_per_m`, `length_m`, `wire_cross_section_mm2`, `diameter_mm`, and `weight_kg`. `length_m` describes a confirmed package/reel length, not the stock quantity. Cable and connector metadata include conductor/connection counts and applicable cross-section ranges. LED metadata distinguishes COB, SMD type, RGB/white variants and WS2811 control where verified. Equivalent human-readable fields such as `voltage`, `wattage`, `ipRating`, `diameter` and `weight` populate the existing admin form.
+Confirmed numeric values use explicit units in their keys: `voltage_v`, `current_a`, `power_w`, `watts_per_m`, `color_temperature_k`, `leds_per_m`, `length_m`, `wire_cross_section_mm2`, `diameter_mm`, `weight_kg`, `volume_ml`, `width_mm`, `height_mm`, `cut_interval_mm`, and beam angles in degrees. `color_temperature_range_k` is a two-number minimum/maximum range for tunable-white strips, rather than a fabricated single color temperature. `length_m` describes a confirmed package/reel length, not the stock quantity. Cable and connector metadata include conductor/connection counts, verified cross-section ranges or `wire_cross_section_max_mm2` when only a maximum is confirmed. `mounting` identifies the DIN-rail PSU. LED metadata distinguishes COB, SMD type, RGB/white variants, asymmetric edge optics and WS2811 control where verified. Equivalent human-readable fields such as `voltage`, `wattage`, `ipRating`, `diameter` and `weight` populate the existing admin form.
 
 The admin form merges edits into existing metadata, preserving source links, product identity and custom fields. If a visible free-text specification is changed or cleared, its old numeric equivalent is removed instead of leaving a contradictory assistant-visible value. Renaming a product updates its badge label. A source link is rendered only for HTTPS URLs on `lemona.lv` or `www.lemona.lv` without credentials or nonstandard ports.
 
 ## Evidence limits and deliberate omissions
 
 - Mean Well series labels are not necessarily rated output watts. The seed uses confirmed ratings, including LRS-100N2-12 **102 W**, LRS-100N2-24 **108 W**, LRS-150-24 **156 W**, LRS-350-12 **348 W**, LRS-350-24 **350.4 W**, XLG-200-12-A **192 W** and XLG-200-24-A **199.2 W**. Refer to the manufacturer URLs in those rows. No dimming capability is inferred from an `A` suffix.
+- The expansion uses the manufacturer-confirmed **50.4 W** rating for `LRS-50-12`. `HLG-120H-24A` is **IP65**, as confirmed for the A variant; a series-wide IP67 claim would be incorrect.
+- LEMLUX `LEDM-EDGE-144W` has 1.44 W in its title/table and 1.4 W in the non-AI description. The exact power is omitted, and its metadata explains that the row alone cannot establish PSU sizing. Its 12 V, SMD3030, 6500 K, IP67 and horizontal/vertical 15°/45° optics remain confirmed.
+- WAGO `221-612` includes the manufacturer-confirmed maximum cross-section of 6 mm². No conductor-specific minimum is inferred. LAPP supplier codes are retained without inventing separate numeric manufacturer part numbers or circuit ampacity.
+- PrimaCreator `PCR-18260` is a **500 ml** bottle. No weight is inferred from volume because density was not verified. Fiberlogy weights use net filament content, not gross shipping weight; mechanical properties and print settings are omitted.
 - LED line `476845` has inconsistent color temperature, luminous flux and width across the supplier's title and tables. Those values are absent. Its confirmed COB density, voltage, power per metre and IP rating remain usable.
 - AKTO `HM-5050-60-RGBHTm24` has a different model string in its description. The product code and specification table establish identity; description dimensions are omitted.
 - `PLA-tWHI-175-1-TF` has no independently confirmed diameter in the retrieved fields. The seed does not decode a diameter from the SKU.
@@ -47,7 +62,7 @@ The admin form merges edits into existing metadata, preserving source links, pro
 
 ## Safe import behavior
 
-The generated migration is `../migrations/20261030000001_lemona_branded_catalog.sql`.
+The generated migrations are listed above, under `../migrations/`, in chronological order. Both use the same preservation and identity-check rules.
 
 New records receive the catalog unit, supplier, vendor, section and grouping. The table's stock default is zero and price remains null; this initializes an unreceived catalog item and makes no assertion about supplier or physical stock.
 
@@ -55,7 +70,7 @@ For an existing matching `code`, the migration refreshes names, category, thickn
 
 The migration checks the canonical schema before writing and aborts the complete transaction on a SKU held under another material code or a conflicting known brand. Such a collision requires reviewing the existing identity; the seed does not silently consolidate inventory. A repeated import with the same source data performs no updates, including `updated_at`.
 
-Do not edit this migration after it has been applied. A later supplier refresh should be a new dated manifest and migration. This repository change does not apply itself to a live database. Review the target's migration history and schema through the normal deployment process before applying it. Do not run old `scripts/run-seeds.js` / `run-new-seeds.js` paths: they refer to retired seed locations.
+Do not edit a published/applied migration. Later catalog additions belong in a new dated manifest and migration registered in `catalogSources` in the generator. The current generator enforces additive, distinct product codes across manifests; an intentional refresh of existing products requires an explicit reviewed update migration. This repository change does not apply itself to a live database. Review the target's migration history and schema through the normal deployment process before applying it. Do not run old `scripts/run-seeds.js` / `run-new-seeds.js` paths: they refer to retired seed locations.
 
 ## Reproduce verification
 
@@ -63,16 +78,18 @@ From the repository root:
 
 ```sh
 node scripts/catalog/generate-lemona-seed.mjs --check
-node packages/vitest/bin.js tests/unit/lemona-catalog.test.ts
+node packages/vitest/bin.js tests/unit/lemona-catalog.test.ts tests/unit/lemona-catalog-expansion.test.ts
 ```
 
-To regenerate the SQL while reviewing an unapplied catalog change:
+To generate the new SQL while reviewing an unpublished catalog change:
 
 ```sh
 node scripts/catalog/generate-lemona-seed.mjs
 ```
 
-The optional integration check executes the actual migration in an isolated in-memory PostgreSQL engine, using table/column definitions extracted from the canonical migrations. It checks first import, product units, preservation of operational fields/custom metadata/legacy rows, repeat-import idempotence, collision rollback and incompatible-schema rejection. It never contacts Supabase or reads database credentials. Install PGlite outside the repository and point the verifier at it:
+The generator validates every registered manifest and checks immutable snapshots before writing anything. Both current snapshots are marked immutable and are never rewritten. Use `immutable: false` only while generating and reviewing a new unpublished entry, then mark it immutable before publishing/applying it. Add a new entry for further additions. Unit tests also pin the original manifest and SQL hashes.
+
+The optional integration check executes every registered migration in an isolated in-memory PostgreSQL engine, using table/column definitions extracted from the canonical migrations. It checks sequential additive imports, every product's unit and sourced metadata, preservation of operational fields/custom metadata/legacy rows, previous-catalog preservation, repeat-import idempotence, each migration's collision rollback and incompatible-schema rejection. It never contacts Supabase or reads database credentials. Install PGlite outside the repository and point the verifier at it:
 
 ```sh
 npm install --prefix /tmp/oms-catalog-qa --no-audit --no-fund --ignore-scripts @electric-sql/pglite@0.5.13

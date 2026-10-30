@@ -21,9 +21,9 @@ Compare the compiled server's `GET /api/build-info` revision with the intended c
 
 ## Shared assistant and material catalog
 
-A single floating **Assistant** button is available on signed-in screens. The drawer combines current-screen help with existing order discussion, file intake, readiness and canvas tools. Context is collected when a question is sent; available lookups follow server-side role and station permissions. Provider configuration stays in R&D Settings. See [the shared assistant contract](docs/operations/unified-assistant.md) for lifecycle, extension points and verification.
+A single floating **Assistant** button is available on signed-in screens, including native profile editors. The drawer combines current-screen help with existing order discussion, file intake, readiness and canvas tools. A compact context preview follows the current selection and unsaved edits, and suggested workflow buttons open only after a user click. Context is collected again when a question is sent; available lookups follow server-side role and station permissions. Provider configuration stays in R&D Settings. See [the shared assistant contract](docs/operations/unified-assistant.md) for lifecycle, extension points and verification.
 
-Order material badges retain the selected product/model, and FACE, BACK, SIDES and FRAME use the same thickness selector. The [branded Lemona catalog](supabase/catalogs/README.md) contains verified cables, MEAN WELL power supplies, LED products, WAGO connectors, filaments and resins. Its SQL migration is applied separately from the application build and preserves existing inventory and business fields.
+Order material pickers and badges retain the selected product/model, and FACE, BACK, SIDES and FRAME use the same thickness selector. The [branded Lemona catalog](supabase/catalogs/README.md) contains 62 sourced cables, MEAN WELL power supplies, LED products, WAGO connectors, filaments and resins across two additive snapshots. Its SQL migrations are applied separately from the application build and preserve existing inventory and business fields.
 
 ## Toolkit — idea and project canvas
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from "svelte";
   import { base } from "$app/paths";
-  import { ArrowLeft, ChevronDown, ChevronRight, Pencil, RefreshCw } from "lucide-svelte";
+  import { ArrowLeft, ChevronDown, ChevronRight, Pencil, RefreshCw, X } from "lucide-svelte";
   import { locale, t } from "$lib/i18n";
   import { materialDisplayName } from "$lib/profiles/helpers";
   import {
@@ -17,22 +17,24 @@
     category = "",
     categories = [] as string[],
     placeholder = "",
+    label = "",
+    selectedCategory = "",
     readonly = false,
     showColor = true,
     customColor = "",
     allowCustom = false,
-    showValueInTrigger = false,
     onchange,
   }: {
     value?: string;
     category?: string;
     categories?: string[];
     placeholder?: string;
+    label?: string;
+    selectedCategory?: string;
     readonly?: boolean;
     showColor?: boolean;
     customColor?: string;
     allowCustom?: boolean;
-    showValueInTrigger?: boolean;
     onchange?: (data: {
       value: string;
       material: Material | null;
@@ -40,6 +42,8 @@
       shortName?: string;
     }) => void;
   } = $props();
+
+  const pickerId = $props.id();
 
   let materials = $state<Material[]>([]);
   let loading = $state(true);
@@ -67,6 +71,7 @@
   let hexColor = $derived(selectedMaterial?.metadata?.hex || "");
 
   let shortName = $derived(materialDisplayName(selectedMaterial, value));
+  let resolvedCategory = $derived(selectedMaterial?.category || selectedCategory);
 
   $effect(() => {
     const url = catalogUrl;
@@ -130,6 +135,21 @@
     const short = materialDisplayName(material, value);
 
     onchange?.({ value, material, hex: material.metadata?.hex || "", shortName: short });
+    triggerRef?.focus();
+  }
+
+  async function clearSelection() {
+    if (readonly) return;
+    value = "";
+    customHex = "";
+    customMode = false;
+    open = false;
+    search = "";
+    activeCategory = "";
+    // An explicit clear is the same event for catalog and custom selections.
+    // Parent fields also discard the old swatch/category/thickness metadata.
+    onchange?.({ value: "", material: null, hex: "", shortName: "" });
+    await tick();
     triggerRef?.focus();
   }
 
@@ -242,6 +262,7 @@
   onfocusin={handleFocusIn} onblur={() => { open = false; }} />
 
 <div class="material-select" class:open bind:this={dropdownRef}>
+  <div class="selection-control">
   {#if customMode}
     <div class="custom-mode">
       {#if showColor}
@@ -264,14 +285,22 @@
   {:else}
     <button type="button" class="select-trigger" class:open bind:this={triggerRef}
       disabled={readonly} aria-expanded={open}
-      aria-label={placeholder || $t("materialPicker.select", { default: "Select…" })}
+      aria-label={label ? `${label} · ${$t("materialPicker.select", { default: "Select…" })}`
+        : placeholder || $t("materialPicker.select", { default: "Select…" })}
+      aria-describedby={value ? `${pickerId}-selection` : undefined}
+      aria-controls={open ? `${pickerId}-options` : undefined}
       onclick={toggleDropdown}>
-      {#if value && (showValueInTrigger || !selectedMaterial)}
-        <span class="selected-value">
+      {#if value}
+        <span class="selected-value" id={`${pickerId}-selection`}>
           {#if showColor && hexColor}
             <span class="color-dot" style:background-color={hexColor}></span>
           {/if}
-          <span class="value-text" title={value}>{shortName || value}</span>
+          <span class="value-details">
+            <span class="value-text" title={selectedMaterial?.name_en || value}>{shortName || value}</span>
+            {#if resolvedCategory}
+              <span class="value-category">{categoryLabel(resolvedCategory)}</span>
+            {/if}
+          </span>
         </span>
       {:else}
         <span class="placeholder">{placeholder || $t("materialPicker.select", { default: "Select…" })}</span>
@@ -279,9 +308,17 @@
       <ChevronDown size={14} class="chevron" aria-hidden="true" />
     </button>
   {/if}
+  {#if value && !readonly}
+    <button type="button" class="clear-selection" onclick={clearSelection}
+      aria-label={$t("materialPicker.clear", { default: "Clear selection" })}
+      title={$t("materialPicker.clear", { default: "Clear selection" })}>
+      <X size={16} aria-hidden="true" />
+    </button>
+  {/if}
+  </div>
 
   {#if open}
-    <div class="dropdown" bind:this={panelRef} role="group"
+    <div class="dropdown" id={`${pickerId}-options`} bind:this={panelRef} role="group"
       aria-label={$t("materialPicker.categories", { default: "Material categories" })}>
       <div class="search-box">
         <input type="search" bind:this={searchRef} bind:value={search} autocomplete="off"
@@ -364,9 +401,11 @@
   }
 
   .material-select.open { z-index: var(--z-overlay, 40); }
+  .selection-control { display: flex; align-items: stretch; gap: 4px; min-width: 0; }
 
   .select-trigger {
     width: 100%;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -394,13 +433,16 @@
   .custom-option:focus-visible,
   .retry-button:focus-visible,
   .btn-switch-mode:focus-visible,
+  .clear-selection:focus-visible,
   .custom-color-picker:focus-visible {
     outline: 2px solid var(--brand);
     outline-offset: 2px;
   }
 
   .selected-value { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
-  .value-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .value-details { display: grid; gap: 2px; min-width: 0; }
+  .value-text { min-width: 0; overflow-wrap: anywhere; }
+  .value-category { color: var(--ink-secondary, var(--muted)); font-size: 11px; overflow-wrap: anywhere; }
   .placeholder { color: var(--ink-secondary, var(--muted)); font-weight: 400; }
 
   .color-dot {
@@ -508,17 +550,19 @@
   .option-details { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
   .option-name { font-weight: 500; overflow-wrap: anywhere; }
   .option-thickness { font-size: 11px; color: var(--ink-secondary, var(--muted)); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-  .custom-mode { display: flex; align-items: center; min-width: 0; gap: 4px; }
+  .custom-mode { display: flex; align-items: center; flex: 1; min-width: 0; gap: 4px; }
   .custom-color-picker { width: 32px; height: 32px; flex-shrink: 0; padding: 2px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; background: var(--bg-1, white); }
   .custom-color-picker::-webkit-color-swatch { border: 0; border-radius: 2px; }
   .custom-color-picker::-webkit-color-swatch-wrapper { padding: 0; }
   .custom-text-input { flex: 1; min-width: 0; width: 100%; padding: 6px 8px; border: 1px solid var(--brand); border-radius: 4px; font-size: 12px; background: var(--bg-1, white); color: inherit; min-height: 32px; box-sizing: border-box; }
   .btn-switch-mode { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-2); cursor: pointer; color: inherit; }
   .btn-switch-mode:hover:not(:disabled) { border-color: var(--brand); }
+  .clear-selection { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; min-height: 32px; border: 1px solid var(--border); border-radius: var(--radius-sm, 4px); background: var(--bg-1, white); color: var(--ink-secondary, var(--muted)); cursor: pointer; }
+  .clear-selection:hover { border-color: var(--border-strong, var(--muted)); color: var(--text, var(--ink-primary)); background: var(--bg-2); }
 
   @media (pointer: coarse) {
-    .select-trigger, .category-option, .option, .category-back, .custom-option, .retry-button, .custom-text-input, .btn-switch-mode, .custom-color-picker { min-height: 44px; }
-    .btn-switch-mode, .custom-color-picker { min-width: 40px; }
+    .select-trigger, .category-option, .option, .category-back, .custom-option, .retry-button, .custom-text-input, .btn-switch-mode, .custom-color-picker, .clear-selection { min-height: 44px; }
+    .btn-switch-mode, .custom-color-picker, .clear-selection { min-width: 40px; }
   }
 
   @media (prefers-reduced-motion: reduce) {

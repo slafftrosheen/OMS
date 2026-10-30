@@ -2,12 +2,16 @@
 const structuredSpecKeys: Record<string, string[]> = {
   voltage: ['voltage_v'],
   wattage: ['power_w', 'watts_per_m'],
-  colorTemp: ['color_temperature_k'],
+  colorTemp: ['color_temperature_k', 'color_temperature_range_k'],
   ledCount: ['leds_per_m'],
   length: ['length_m'],
   ipRating: ['ip_rating'],
   diameter: ['diameter_mm'],
-  weight: ['weight_kg']
+  weight: ['weight_kg', 'volume_ml'],
+  // These describe the package content. Width/height describe the product itself.
+  packSize: ['length_m', 'weight_kg', 'volume_ml'],
+  width: ['width_mm'],
+  height: ['height_mm']
 };
 
 export function mergeCatalogMetadata(

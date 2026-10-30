@@ -35,8 +35,10 @@
     extractShortName,
     getTextColor,
     selectionBadgeLabel,
+    paintMaterialValue,
+    applyPaintMaterialSelection,
   } from "$lib/profiles/helpers";
-  import { readLegacyFrameThickness, withFrameThickness } from "$lib/profiles/frame-sizing";
+  import { frameBadgeLabel, readLegacyFrameThickness, withFrameThickness } from "$lib/profiles/frame-sizing";
   import {
     AlertCircle,
     Zap,
@@ -107,16 +109,19 @@
       faceFilm: string;
       faceFilmHex?: string;
       faceFilmShort?: string;
+      faceFilmCategory?: string;
       faceCustom?: string;
       back: boolean;
       backFilm: string;
       backFilmHex?: string;
       backFilmShort?: string;
+      backFilmCategory?: string;
       backCustom?: string;
       sides: boolean;
       sidesFilm: string;
       sidesFilmHex?: string;
       sidesFilmShort?: string;
+      sidesFilmCategory?: string;
       sidesCustom?: string;
       notes?: string;
     };
@@ -142,19 +147,25 @@
       ledModule: string;
       ledModuleHex?: string;
       ledModuleShort?: string;
+      ledModuleCategory?: string;
       ledCustom?: string;
 
       psu: boolean;
       psuModel: string;
       psuModelShort?: string;
+      psuModelCategory?: string;
       psuType: "regular" | "dimmable";
       psuMounting?: string;
 
       cables: boolean;
       cableType: string;
       cableTypeShort?: string;
+      cableTypeCategory?: string;
       cablesLength: string;
       cablesWago: boolean;
+      cablesConnector?: string;
+      cablesConnectorShort?: string;
+      cablesConnectorCategory?: string;
 
       frame: boolean;
       frameMaterial: string;
@@ -220,6 +231,7 @@
       cableType: "",
       cablesLength: "2m",
       cablesWago: false,
+      cablesConnector: "",
       frame: true,
       frameMaterial: "",
       frameDimensions: "40x40x2",
@@ -258,12 +270,14 @@
           // MaterialSelect's bindable value has a string fallback. Legacy
           // profiles must supply a concrete value before mounting this picker.
           print3dMaterial: currentConfig.CNC_FREZER?.print3dMaterial ?? "",
+          backThickness: currentConfig.CNC_FREZER?.backThickness ?? "",
           // Hydration only: legacy scalar selections are untouched until an edit.
           faceMaterials: readFaceMaterials(currentConfig.CNC_FREZER),
         },
         BENDER: {
           ...defaultConfiguration.BENDER,
           ...(currentConfig.BENDER || {}),
+          sidesThickness: currentConfig.BENDER?.sidesThickness ?? "",
         },
         FRONT: {
           ...defaultConfiguration.FRONT,
@@ -292,6 +306,7 @@
         ASSEMBLING: {
           ...defaultConfiguration.ASSEMBLING,
           ...(currentConfig.ASSEMBLING || {}),
+          cablesConnector: currentConfig.ASSEMBLING?.cablesConnector ?? "",
           frameThickness: currentConfig.ASSEMBLING?.frameThickness ??
             readLegacyFrameThickness(currentConfig.ASSEMBLING?.frameDimensions),
         },
@@ -328,9 +343,10 @@
   const sidesMaterials = ["ALU_SHEET", "ALU_PROFILE"];
   const filmCategories = ["VINYL_ORACAL"];
   const paintCategories = ["PAINT_RAL", "PAINT_PANTONE"];
-  const ledCategories = ["LED_MODULE", "LED_STRIP"];
+  const ledCategories = ["LED_MODULE", "LED_STRIP", "LED_NEON"];
   const psuCategories = ["PSU_MEANWELL"];
-  const wireCategories = ["WIRE", "LED_ACCESSORY"];
+  const wireCategories = ["WIRE"];
+  const connectorCategories = ["LED_ACCESSORY"];
   const frameMaterials = ["ALU_PROFILE", "ALU_SHEET"];
   const print3dMaterials = ["FDM_PLA", "FDM_PETG", "FDM_ABS", "FDM_ASA", "FDM_TPU", "FDM_OTHER", "RESIN_ANYCUBIC", "RESIN_ELEGOO", "RESIN_OTHER"];
 
@@ -525,6 +541,8 @@
               <div class="picker-row">
                 <MaterialSelect
                   bind:value={material.value}
+                  label={$t('profiles.materials.faceNumber', { number: index + 1 })}
+                  selectedCategory={material.category}
                   customColor={material.hex ?? ""}
                   categories={faceMaterials}
                   allowCustom={true}
@@ -563,6 +581,8 @@
           <div class="picker-row">
             <MaterialSelect
               bind:value={configuration.CNC_FREZER.back}
+              label="BACK"
+              selectedCategory={configuration.CNC_FREZER.backCategory}
               customColor={configuration.CNC_FREZER.backHex ?? ""}
               categories={backMaterials}
               allowCustom={true}
@@ -619,6 +639,8 @@
             <legend class="field-label">{$t('profiles.materials.print3d', { default: '3D printing material' })}</legend>
             <MaterialSelect
               bind:value={configuration.CNC_FREZER.print3dMaterial}
+              label={$t('profiles.materials.print3d', { default: '3D printing material' })}
+              selectedCategory={configuration.CNC_FREZER.print3dMaterialCategory}
               categories={print3dMaterials}
               allowCustom={true}
               showColor={false}
@@ -667,6 +689,8 @@
           <div class="picker-row">
             <MaterialSelect
               bind:value={configuration.BENDER.sides}
+              label="SIDES"
+              selectedCategory={configuration.BENDER.sidesCategory}
               customColor={configuration.BENDER.sidesHex ?? ""}
               categories={sidesMaterials}
               allowCustom={true}
@@ -751,12 +775,15 @@
               <div class="picker-row">
                 <MaterialSelect
                   bind:value={configuration.FRONT[`${part}Film`]}
+                  label={`FRONT · ${part.toUpperCase()}`}
+                  customColor={configuration.FRONT[`${part}FilmHex`] ?? ""}
+                  selectedCategory={configuration.FRONT[`${part}FilmCategory`]}
                   categories={filmCategories}
-                  placeholder="Select..."
                   allowCustom={true}
                   {readonly}
                   onchange={(data) => {
                     configuration.FRONT[`${part}FilmHex`] = data.hex;
+                    configuration.FRONT[`${part}FilmCategory`] = data.material?.category || "";
                     configuration.FRONT[`${part}FilmShort`] = extractShortName(
                       data,
                       "ORACAL",
@@ -830,32 +857,16 @@
               </label>
               {#if configuration.PAINTING[item.key]}
                 <MaterialSelect
-                  value={configuration.PAINTING[`${item.key}Color`].code
-                    ? `RAL ${configuration.PAINTING[`${item.key}Color`].code}`
-                    : ""}
+                  value={paintMaterialValue(configuration.PAINTING[`${item.key}Color`])}
+                  label={`PAINTING · ${item.label}`}
+                  customColor={configuration.PAINTING[`${item.key}Color`].hex ?? ""}
+                  selectedCategory={configuration.PAINTING[`${item.key}Color`].system?.toUpperCase() === 'PANTONE'
+                    ? 'PAINT_PANTONE' : configuration.PAINTING[`${item.key}Color`].system?.toUpperCase() === 'RAL' ? 'PAINT_RAL' : ''}
                   categories={paintCategories}
-                  placeholder="RAL..."
                   allowCustom={true}
                   {readonly}
                   onchange={(data) => {
-                    const material = data.material;
-                    if (material) {
-                      configuration.PAINTING[`${item.key}Color`] = {
-                        system:
-                          material.category === "PAINT_RAL" ? "RAL" : "Pantone",
-                        code: material.code
-                          .replace("RAL_", "")
-                          .replace("PANTONE_", ""),
-                        hex: data.hex || "",
-                      };
-                    } else if (data.value) {
-                      const code = data.value.match(/\d{4}/)?.[0] || data.value;
-                      configuration.PAINTING[`${item.key}Color`] = {
-                        system: "RAL",
-                        code,
-                        hex: "",
-                      };
-                    }
+                    configuration.PAINTING[`${item.key}Color`] = applyPaintMaterialSelection(data);
                     emit();
                   }}
                 />
@@ -929,13 +940,15 @@
               <div class="picker-row">
                 <MaterialSelect
                   bind:value={configuration.ASSEMBLING.ledModule}
+                  label="LED"
+                  selectedCategory={configuration.ASSEMBLING.ledModuleCategory}
                   categories={ledCategories}
-                  placeholder="Select..."
                   allowCustom={true}
                   showColor={false}
                   {readonly}
                   onchange={(data) => {
                     configuration.ASSEMBLING.ledModuleHex = data.hex;
+                    configuration.ASSEMBLING.ledModuleCategory = data.material?.category || "";
                     configuration.ASSEMBLING.ledModuleShort = extractShortName(
                       data,
                       "LED",
@@ -1008,12 +1021,14 @@
               <div class="picker-row">
                 <MaterialSelect
                   bind:value={configuration.ASSEMBLING.psuModel}
+                  label="PSU"
+                  selectedCategory={configuration.ASSEMBLING.psuModelCategory}
                   categories={psuCategories}
-                  placeholder="Select..."
                   allowCustom={true}
                   showColor={false}
                   {readonly}
                   onchange={(data) => {
+                    configuration.ASSEMBLING.psuModelCategory = data.material?.category || "";
                     configuration.ASSEMBLING.psuModelShort = extractShortName(
                       data,
                       "PSU",
@@ -1073,12 +1088,14 @@
                 />
                 <MaterialSelect
                   bind:value={configuration.ASSEMBLING.cableType}
+                  label="CABLES"
+                  selectedCategory={configuration.ASSEMBLING.cableTypeCategory}
                   categories={wireCategories}
-                  placeholder="Select..."
                   allowCustom={true}
                   showColor={false}
                   {readonly}
                   onchange={(data) => {
+                    configuration.ASSEMBLING.cableTypeCategory = data.material?.category || "";
                     configuration.ASSEMBLING.cableTypeShort = extractShortName(
                       data,
                       "WIRE",
@@ -1108,10 +1125,33 @@
                   disabled={readonly}
                   onchange={emit}
                 />
-                <span class="wago-badge"
-                  >{configuration.ASSEMBLING.cablesWago ? "✓" : ""} WAGO</span
-                >
+                <span class="wago-badge"><span aria-hidden="true">{configuration.ASSEMBLING.cablesWago ? "✓" : ""}</span> WAGO</span>
               </label>
+              {#if configuration.ASSEMBLING.cablesWago}
+                <fieldset class="field connector-material">
+                  <legend class="field-label">{$t('profiles.materials.connector', { default: 'Connector model' })}</legend>
+                  <MaterialSelect
+                    bind:value={configuration.ASSEMBLING.cablesConnector}
+                    label={$t('profiles.materials.connector', { default: 'Connector model' })}
+                    selectedCategory={configuration.ASSEMBLING.cablesConnectorCategory}
+                    categories={connectorCategories}
+                    showColor={false}
+                    allowCustom={true}
+                    {readonly}
+                    onchange={(data) => {
+                      configuration.ASSEMBLING.cablesConnectorShort = extractShortName(data, 'LED_ACCESSORY');
+                      configuration.ASSEMBLING.cablesConnectorCategory = data.material?.category || '';
+                      emit();
+                    }}
+                  />
+                  {#if configuration.ASSEMBLING.cablesConnector}
+                    <span class="material-badge-lg connector-badge">
+                      <Cable size={16} />
+                      {selectionBadgeLabel(configuration.ASSEMBLING.cablesConnector, configuration.ASSEMBLING.cablesConnectorShort, 'LED_ACCESSORY')}
+                    </span>
+                  {/if}
+                </fieldset>
+              {/if}
             {:else}
               <span class="no-badge-lg"><X size={14} /> NO CABLES</span>
             {/if}
@@ -1137,8 +1177,9 @@
               <div class="picker-row">
                 <MaterialSelect
                   bind:value={configuration.ASSEMBLING.frameMaterial}
+                  label="FRAME"
+                  selectedCategory={configuration.ASSEMBLING.frameMaterialCategory}
                   categories={frameMaterials}
-                  placeholder="Select..."
                   allowCustom={true}
                   {readonly}
                   onchange={selectFrameMaterial}
@@ -1154,7 +1195,10 @@
                   )}
                 >
                   <Square size={16} />
-                  {selectionBadgeLabel(configuration.ASSEMBLING.frameMaterial, configuration.ASSEMBLING.frameMaterialShort, configuration.ASSEMBLING.frameMaterialCategory || "ALU")}{#if configuration.ASSEMBLING.frameDimensions}/{configuration.ASSEMBLING.frameDimensions}{/if}{#if configuration.ASSEMBLING.frameThickness && !readLegacyFrameThickness(configuration.ASSEMBLING.frameDimensions)}/{configuration.ASSEMBLING.frameThickness}{/if}
+                  {frameBadgeLabel(
+                    selectionBadgeLabel(configuration.ASSEMBLING.frameMaterial, configuration.ASSEMBLING.frameMaterialShort, configuration.ASSEMBLING.frameMaterialCategory || "ALU"),
+                    configuration.ASSEMBLING.frameDimensions, configuration.ASSEMBLING.frameThickness,
+                  )}
                 </span>
                 <MaterialThicknessSelect
                   bind:value={configuration.ASSEMBLING.frameThickness}
@@ -1678,7 +1722,7 @@
 
   .material-badge-lg :global(svg) { flex-shrink: 0; }
 
-  .print3d-badge { background: var(--bg-3, var(--bg-2)); color: var(--text); }
+  .print3d-badge, .connector-badge { background: var(--bg-3, var(--bg-2)); color: var(--text); }
 
   .no-badge-lg {
     display: flex;
@@ -1760,7 +1804,14 @@
   }
 
   .wago-label input {
-    display: none;
+    width: 14px;
+    height: 14px;
+    accent-color: var(--brand);
+  }
+
+  .wago-label input:focus-visible {
+    outline: 2px solid var(--focus, var(--brand));
+    outline-offset: 3px;
   }
 
   .wago-badge {

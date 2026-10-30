@@ -10,7 +10,10 @@ const materials = [
   { id: 7, category: 'LED_STRIP', code: 'LED_002', name_en: 'Lemlux COB-480-24V LED strip 3000K', thickness_options: [], metadata: { short_name: 'LED' } },
   { id: 8, category: 'PSU_MEANWELL', code: 'MW_LRS_100_12', name_en: 'Mean Well LRS-100-12 12V 102W', thickness_options: [], metadata: { short_name: 'PSU' } },
   { id: 9, category: 'WIRE', code: 'WIRE_001', name_en: 'LAPP H05VV-F 3G0.75 white', thickness_options: [], metadata: { short_name: 'CABLE' } },
-  { id: 10, category: 'FDM_PETG', code: 'PETG_001', name_en: 'Spectrum PET-G Premium 1.75mm Polar White', thickness_options: [], metadata: { short_name: 'PETG' } }
+  { id: 10, category: 'FDM_PETG', code: 'PETG_001', name_en: 'Spectrum PET-G Premium 1.75mm Polar White', thickness_options: [], metadata: { short_name: 'PETG' } },
+  { id: 11, category: 'LED_ACCESSORY', code: 'WAGO_221_413', name_en: 'WAGO 221-413 3-conductor connector', thickness_options: [], metadata: { brand: 'WAGO', model: '221-413', short_name: 'WAGO 221-413' } },
+  { id: 12, category: 'PAINT_RAL', code: 'RAL_9005', name_en: 'RAL 9005 Jet black', thickness_options: [], metadata: { hex: '#0a0a0a', short_name: '9005' } },
+  { id: 13, category: 'PAINT_PANTONE', code: 'PANTONE_186_C', name_en: 'Pantone 186 C', thickness_options: [], metadata: { hex: '#c8102e', short_name: '186 C' } }
 ];
 
 async function catalogResponse(route: Route) {
@@ -48,6 +51,30 @@ test('partial legacy profile opens without edits, and bare thickness stays selec
   await expect(page.getByTestId('standalone-thickness')).toHaveText('3');
 });
 
+test('saved model labels remain visible during catalog loading and after resolution without editing the profile', async ({ page }) => {
+  let releaseCatalog!: () => void;
+  const pendingCatalog = new Promise<void>(resolve => { releaseCatalog = resolve; });
+  await page.unroute('**/api/materials**');
+  await page.route('**/api/materials**', async route => {
+    await pendingCatalog;
+    await catalogResponse(route);
+  });
+  try {
+    await page.goto('/');
+    const led = page.locator('.assembly-item').filter({ has: page.getByLabel('LED', { exact: true }) });
+    await expect(led.locator('.select-trigger .value-text')).toHaveText('Lemlux LP-2835-120-24V LED strip 4000K');
+    await expect(page.getByTestId('change-count')).toHaveText('0');
+    releaseCatalog();
+    await expect(led.locator('.select-trigger .value-category')).toHaveText('LED strips');
+    await expect(led.locator('.select-trigger .value-text')).toHaveText('Lemlux LP-2835-120-24V LED strip 4000K');
+    await expect(page.locator('.face-material-entry .select-trigger .value-text')).toHaveText('0F00');
+    await expect(page.getByTestId('change-count')).toHaveText('0');
+    expect((await savedConfiguration(page)).ASSEMBLING.ledModuleCategory).toBeUndefined();
+  } finally {
+    releaseCatalog();
+  }
+});
+
 test('legacy assembly badges identify the selected part and never persist a hydration edit', async ({ page }) => {
   await page.goto('/');
   for (const label of [
@@ -57,6 +84,7 @@ test('legacy assembly badges identify the selected part and never persist a hydr
   await expect(page.getByLabel('FRAME · Select thickness', { exact: true })).toHaveValue('2mm');
   await expect(page.getByLabel('FRAME SIZE', { exact: true })).toHaveValue('40x40x2');
   await expect(page.getByLabel('DIAMETER (mm)', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.assembly-item').filter({ has: page.getByLabel('FRAME', { exact: true }) }).locator('.material-badge-lg')).toHaveText('Aluminium tube 40x40x2');
   await expect(page.getByTestId('change-count')).toHaveText('0');
   expect((await savedConfiguration(page)).ASSEMBLING.frameThickness).toBeUndefined();
   expect((await savedConfiguration(page)).ASSEMBLING.frameDimensions).toBe('40x40x2');
@@ -111,12 +139,100 @@ test('selecting a different LED model updates its badge, and 3D catalog material
   const saved = await savedConfiguration(page);
   expect(saved.CNC_FREZER.print3dMaterialCategory).toBe('FDM_PETG');
   expect(saved.ASSEMBLING.ledModuleShort).toBe('Lemlux COB-480-24V LED strip 3000K');
+  expect(saved.ASSEMBLING.ledModuleCategory).toBe('LED_STRIP');
   await page.getByRole('button', { name: 'Reload serialized profile' }).click();
   await expect(led.locator('.material-badge-lg')).toContainText('COB-480-24V');
   await expect(printing.locator('.material-badge-lg')).toHaveText('Spectrum PET-G Premium 1.75mm Polar White');
   await page.getByRole('button', { name: 'Toggle read only' }).click();
   await expect(printing.locator('.select-trigger')).toBeDisabled();
   await expect(page.getByLabel('FRAME · Select thickness', { exact: true })).toBeDisabled();
+});
+
+test('clearing saved materials removes stale swatches and thickness while retaining frame geometry and toggles', async ({ page }) => {
+  await page.goto('/');
+  const face = page.locator('.face-material-entry').first();
+  const back = page.locator('fieldset').filter({ has: page.locator('legend', { hasText: /^BACK$/ }) }).first();
+  const frame = page.locator('.assembly-item').filter({ has: page.getByLabel('FRAME', { exact: true }) });
+  const led = page.locator('.assembly-item').filter({ has: page.getByLabel('LED', { exact: true }) });
+  for (const field of [face, back, frame, led]) {
+    await field.getByRole('button', { name: 'Clear selection', exact: true }).click();
+    await expect(field.locator('.select-trigger')).toBeFocused();
+    await expect(field.locator('.material-badge-lg')).toHaveCount(0);
+    await expect(field.locator('.thickness-field')).toHaveCount(0);
+  }
+  const saved = await savedConfiguration(page);
+  expect(saved.CNC_FREZER.faceMaterials[0]).toMatchObject({ value: '', thickness: '', hex: '', category: '', shortName: '', thicknessOptions: [] });
+  expect(saved.CNC_FREZER.backThickness).toBe('');
+  expect(saved.ASSEMBLING.frameThickness).toBe('');
+  expect(saved.ASSEMBLING.frameDimensions).toBe('40x40x2');
+  expect(saved.ASSEMBLING.frame).toBe(true);
+  expect(saved.ASSEMBLING.led).toBe(true);
+  expect(saved.ASSEMBLING.ledModuleShort).toBe('');
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  for (const field of [face, back, frame, led]) {
+    await expect(field.locator('.select-trigger .placeholder')).toBeVisible();
+    await expect(field.locator('.material-badge-lg')).toHaveCount(0);
+  }
+});
+
+test('optional branded connectors retain the WAGO flag, survive reopen and respect inactive/read-only states', async ({ page }) => {
+  await page.goto('/');
+  const wago = page.getByRole('checkbox', { name: 'WAGO', exact: true });
+  await expect(wago).toBeVisible();
+  await wago.focus();
+  await page.keyboard.press('Space');
+  await expect(wago).toBeChecked();
+  const connector = page.locator('.connector-material');
+  await connector.locator('.select-trigger').click();
+  await connector.getByRole('button', { name: /LED accessories/ }).click();
+  await connector.getByRole('button', { name: /WAGO 221-413/ }).click();
+  await expect(connector.locator('.connector-badge')).toHaveText('WAGO 221-413 3-conductor connector');
+  let saved = await savedConfiguration(page);
+  expect(saved.ASSEMBLING).toMatchObject({ cablesWago: true, cablesConnector: 'WAGO 221-413 3-conductor connector', cablesConnectorCategory: 'LED_ACCESSORY' });
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await expect(connector.locator('.select-trigger .value-text')).toContainText('WAGO 221-413');
+  await wago.uncheck();
+  await expect(connector).toHaveCount(0);
+  saved = await savedConfiguration(page);
+  expect(saved.ASSEMBLING.cablesWago).toBe(false);
+  expect(saved.ASSEMBLING.cablesConnector).toBe('WAGO 221-413 3-conductor connector');
+  await wago.check();
+  await connector.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await expect(wago).toBeChecked();
+  expect((await savedConfiguration(page)).ASSEMBLING.cablesConnector).toBe('');
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await expect(wago).toBeChecked();
+  await expect(connector.locator('.select-trigger .placeholder')).toBeVisible();
+  await page.getByRole('button', { name: 'Toggle read only' }).click();
+  await expect(wago).toBeDisabled();
+  await expect(connector.locator('.select-trigger')).toBeDisabled();
+  await expect(connector.locator('.clear-selection')).toHaveCount(0);
+});
+
+test('paint catalog identity, custom text and swatch survive reopen and clear together', async ({ page }) => {
+  await page.goto('/');
+  const paint = page.locator('.paint-item').filter({ has: page.getByLabel('SIDES', { exact: true }) });
+  await paint.locator('.select-trigger').click();
+  await paint.getByRole('button', { name: /Pantone colors/ }).click();
+  await paint.getByRole('button', { name: 'Pantone 186 C', exact: true }).click();
+  expect((await savedConfiguration(page)).PAINTING.sidesColor).toEqual({ system: 'Pantone', code: '186_C', hex: '#c8102e' });
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await expect(paint.locator('.select-trigger .value-text')).toHaveText('186 C');
+  await expect(paint.locator('.select-trigger .value-category')).toHaveText('Pantone colors');
+  await paint.locator('.select-trigger').click();
+  await paint.getByRole('button', { name: 'Enter custom value', exact: true }).click();
+  await paint.getByRole('textbox', { name: 'Enter custom value', exact: true }).fill('Brand blue 1234 special finish');
+  await paint.getByLabel('Custom material color').evaluate((element: HTMLInputElement) => {
+    element.value = '#1234ab';
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await expect(paint.getByRole('textbox', { name: 'Enter custom value', exact: true })).toHaveValue('Brand blue 1234 special finish');
+  await expect(paint.getByLabel('Custom material color')).toHaveValue('#1234ab');
+  await expect(paint.locator('.ral-badge')).toHaveText('Brand blue 1234 special finish');
+  await paint.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await expect(paint.locator('.ral-badge')).toHaveCount(0);
+  expect((await savedConfiguration(page)).PAINTING.sidesColor).toEqual({ system: '', code: '', hex: '' });
 });
 
 test('the last typed character and checkbox change are present in the saved profile', async ({ page }) => {

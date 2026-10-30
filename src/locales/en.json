@@ -3520,8 +3520,10 @@
       "FDM_OTHER": "Other filament",
       "RESIN_ANYCUBIC": "Anycubic resin",
       "RESIN_ELEGOO": "ELEGOO resin",
-      "RESIN_OTHER": "Other resin"
-    }
+      "RESIN_OTHER": "Other resin",
+      "LED_NEON": "LED neon flex"
+    },
+    "clear": "Clear selection"
   },
   "materialThickness": {
     "label": "Thickness (mm)",
@@ -3538,7 +3540,8 @@
       "addFace": "Add FACE material",
       "removeFace": "Remove FACE material {number}",
       "faceNumber": "FACE material {number}",
-      "print3d": "3D printing material"
+      "print3d": "3D printing material",
+      "connector": "Connector model"
     }
   },
   "appBadges": {
@@ -3665,6 +3668,30 @@
       "signage_boxletter": "Channel-letter planning",
       "cnc_feeds_speeds": "CNC feeds and speeds",
       "paint_match": "Paint matching"
+    },
+    "contextAndTools": "Context and tools",
+    "unsavedContext": "Unsaved changes",
+    "contextLoading": "This screen is still loading. Its details may be incomplete.",
+    "contextUnavailable": "Some screen details are unavailable. Reload this screen before relying on a review.",
+    "contextRouteOnly": "General help for this screen. Select an item to make the question more specific.",
+    "openWorkflow": "Open {name}",
+    "contextField": {
+      "reference": "Order",
+      "client": "Customer",
+      "selection": "Selected material",
+      "project": "Project",
+      "section": "Section",
+      "status": "Status",
+      "date": "Selected day",
+      "search": "Search",
+      "orders": "Orders included",
+      "materials": "Materials included",
+      "profiles": "Profiles",
+      "cards": "Canvas cards",
+      "alerts": "Alerts included",
+      "selected": "Selected items",
+      "files": "Linked files",
+      "editingProfile": "Editing profile"
     }
   }
 }

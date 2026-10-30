@@ -6,6 +6,7 @@
   import OrderFlowAssistant from '$lib/order/OrderFlowAssistant.svelte';
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
   import OrderReadinessAssistant from '$lib/order/OrderReadinessAssistant.svelte';
+  import { modalDialog } from '$lib/ui/modal-dialog';
 
   const controller = provideAssistantContext();
   const realNative = new URL(window.location.href).searchParams.get('native') === 'order';
@@ -15,13 +16,17 @@
     clientName: 'Workshop customer', title: 'Outdoor illuminated channel letters',
     deadline: '2026-11-20', priority: 'NORMAL', notes: 'Verify the 12V power supply and attachment before production.'
   });
-  let path = $state('/orders/new');
+  let path = $state(realNative ? `/orders/${orderId}/edit` : '/orders/new');
   let accountId = $state('account-one');
   let draftNotes = $state('Original draft notes');
   let nativeMounts = $state(0);
   let nativeDisposals = $state(0);
   let nativeActions = $state(0);
   let selectedMaterial = $state('Mean Well LRS-100-12');
+  let profileEditorOpen = $state(false);
+  let confirmationOpen = $state(false);
+  let intakeAvailable = $state(true);
+  let profileDraft = $state('Original profile material');
 
   // Match a real route lease: unmount/re-register on navigation, while an
   // account change independently exercises the shell's account boundary.
@@ -32,7 +37,7 @@
       title: () => route === '/inventory' ? 'Workshop inventory' : 'Window-sign draft',
       tools: () => realNative ? [
         { id: 'discuss', label: 'Order discussion' },
-        { id: 'intake', label: 'Drawing intake' },
+        ...(intakeAvailable ? [{ id: 'intake', label: 'Drawing intake' }] : []),
         { id: 'readiness', label: 'Production readiness' }
       ] : route === '/inventory'
         ? [{ id: 'stock', label: 'Stock checks' }]
@@ -42,6 +47,7 @@
         notes: draftNotes,
         selectedMaterial,
         unsaved: true,
+        nativeProfileDraft: profileEditorOpen ? { profileIndex: 0, material: profileDraft, appliedToOrder: false } : null,
         credentials: { apiKey: 'fixture-secret-must-not-leave-browser' },
         fileBytes: 'fixture-file-bytes-must-not-leave-browser'
       }),
@@ -78,6 +84,9 @@
     <button onclick={navigate}>Change route</button>
     <button onclick={switchAccount}>Change account</button>
     <button onclick={() => controller.open('files')}>Open attachment context</button>
+    <button onclick={() => profileEditorOpen = true}>Edit profile in dialog</button>
+    <button onclick={() => confirmationOpen = true}>Open confirmation</button>
+    {#if realNative}<button onclick={() => intakeAvailable = false}>Disable intake tool</button>{/if}
   </div>
   <dl>
     <div><dt>Current route</dt><dd data-testid="route">{path}</dd></div>
@@ -90,6 +99,21 @@
 <footer class="fixture-bottom-nav" data-testid="bottom-navigation">Home · Orders · Inventory · Settings</footer>
 
 <AssistantShell {controller} {path} {accountId} />
+
+{#if profileEditorOpen}
+  <dialog class="fixture-dialog" data-assistant-host aria-label="Profile editor fixture"
+    use:modalDialog={{ onClose: () => profileEditorOpen = false, initialFocus: '#profile-draft' }}>
+    <h2>Profile editor fixture</h2>
+    <label for="profile-draft">Pending profile material</label><input id="profile-draft" bind:value={profileDraft} />
+    <button onclick={() => profileEditorOpen = false}>Close profile editor</button>
+  </dialog>
+{/if}
+{#if confirmationOpen}
+  <dialog class="fixture-dialog" aria-label="Confirmation fixture"
+    use:modalDialog={{ onClose: () => confirmationOpen = false }}>
+    <h2>Confirm the change</h2><button onclick={() => confirmationOpen = false}>Cancel confirmation</button>
+  </dialog>
+{/if}
 
 {#snippet orderTools(toolId: string)}
   <div class="native-order-probe">
@@ -148,6 +172,8 @@
   .native-probe [hidden] { display: none; }
   .native-order-probe { min-width: 0; }
   .native-order-probe [hidden] { display: none; }
+  .fixture-dialog { width:min(850px,95vw);max-height:90dvh;padding:24px;border:1px solid var(--border);border-radius:var(--radius-lg);color:var(--ink-primary);background:var(--bg-1); }
+  .fixture-dialog::backdrop { background:rgb(0 0 0 / .4); }
   .native-probe h3 { font-size: 17px; margin: 0 0 12px; }
   @media (max-width: 1024px) { .fixture-bottom-nav { height: 72px; } }
   @media (max-width: 600px) { main { margin: 70px 0 90px; } }

@@ -32,7 +32,9 @@ export async function searchMaterialCatalog(db: SupabaseClient, args: Record<str
         'watts_per_m','leds_per_m','length_m','wire_cross_section_mm2','diameter_mm','weight_kg','material',
         'cores','conductor','color','led_type','control_ic','manufacturer_source_url','source_kind',
         'data_notes','product_family','package_type','connections','wire_cross_section_range_mm2',
-        'fine_stranded_conductor_range_mm2','solid_conductor_range_mm2'];
+        'fine_stranded_conductor_range_mm2','solid_conductor_range_mm2','wire_cross_section_max_mm2',
+        'color_temperature_range_k','width_mm','height_mm','cut_interval_mm','beam_angle_deg',
+        'beam_angle_horizontal_deg','beam_angle_vertical_deg','volume_ml','mounting'];
     return { materials: (data ?? []).map(row => ({
         code: row.code, name: row.name_en, name_ru: row.name_ru, name_lv: row.name_lv,
         category: row.category, unit: row.unit, thickness_options: row.thickness_options,
