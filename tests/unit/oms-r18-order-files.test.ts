@@ -46,7 +46,7 @@ describe('OMS-R18 canonical attachment pagination',()=>{
       expect(read(p)).toContain('fetchAllOrderFiles');
     expect(read('src/lib/order/OrderFiles.svelte')).toContain('loadFiles(false)');
     expect(read('src/routes/orders/[id]/edit/+page.svelte')).toContain('fetchOrderFilesCount(id)');
-    expect(read('src/routes/orders/[id]/+page.svelte')).toContain('fetchOrderFilesCount(orderId)');
+    expect(read('src/routes/orders/[id]/+page.svelte')).toContain('fetchOrderFilesCount(requestedId)');
     expect(read('src/routes/orders/[id]/edit/+page.ts')).not.toContain('const filesRes');
   });
   it('updates local views only after successful mutation and retains error feedback',()=>{

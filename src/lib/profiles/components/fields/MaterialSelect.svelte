@@ -1,8 +1,14 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from "svelte";
   import { base } from "$app/paths";
-  import { ArrowLeft, ChevronDown, ChevronRight, Pencil, RefreshCw } from "lucide-svelte";
+  import { ArrowLeft, ChevronDown, ChevronRight, Pencil, RefreshCw, X } from "lucide-svelte";
   import { locale, t } from "$lib/i18n";
+  import { materialDisplayName } from "$lib/profiles/helpers";
+  import {
+    getMaterialSpecificationFacts,
+    MATERIAL_SPECIFICATION_LABELS,
+    type MaterialSpecificationKey
+  } from "$lib/materials/catalog-presentation";
   import {
     buildMaterialCatalogUrl,
     getMaterialCatalogView,
@@ -16,22 +22,24 @@
     category = "",
     categories = [] as string[],
     placeholder = "",
+    label = "",
+    selectedCategory = "",
     readonly = false,
     showColor = true,
     customColor = "",
     allowCustom = false,
-    showValueInTrigger = false,
     onchange,
   }: {
     value?: string;
     category?: string;
     categories?: string[];
     placeholder?: string;
+    label?: string;
+    selectedCategory?: string;
     readonly?: boolean;
     showColor?: boolean;
     customColor?: string;
     allowCustom?: boolean;
-    showValueInTrigger?: boolean;
     onchange?: (data: {
       value: string;
       material: Material | null;
@@ -39,6 +47,8 @@
       shortName?: string;
     }) => void;
   } = $props();
+
+  const pickerId = $props.id();
 
   let materials = $state<Material[]>([]);
   let loading = $state(true);
@@ -65,12 +75,8 @@
   let browsingCategories = $derived(!activeCategory && !search.trim());
   let hexColor = $derived(selectedMaterial?.metadata?.hex || "");
 
-  // Get short name for display - priority: metadata.short_name > colorCode > code > name
-  let shortName = $derived(
-    selectedMaterial?.metadata?.short_name ||
-      selectedMaterial?.metadata?.colorCode ||
-      getShortName(selectedMaterial?.code || value, selectedMaterial?.category),
-  );
+  let shortName = $derived(materialDisplayName(selectedMaterial, value));
+  let resolvedCategory = $derived(selectedMaterial?.category || selectedCategory);
 
   $effect(() => {
     const url = catalogUrl;
@@ -99,171 +105,24 @@
     return ($locale === "ru" ? material.name_ru : $locale === "lv" ? material.name_lv : "") || material.name_en || material.code;
   }
 
-  // Extract short name from value - improved to extract proper codes
-  function getShortName(val: string, cat?: string): string {
-    if (!val) return "";
+  const specificationPriority: MaterialSpecificationKey[] = [
+    "voltage", "power", "powerPerMetre", "maxPowerPerMetre", "ledType",
+    "whiteColorTemperature", "colorTemperature", "material", "diameter",
+    "crossSection", "cores", "connections", "current", "ledDensity", "ipRating", "bodyLength"
+  ];
+  const visibleSpecificationLabels = new Set<MaterialSpecificationKey>([
+    "maxPowerPerMetre", "whiteColorTemperature", "cores", "connections", "bodyLength", "package", "unit"
+  ]);
 
-    // For Oracal/Vinyl - show FULL code like 8500_064 (series_colorCode)
-    if (
-      cat?.includes("ORACAL") ||
-      cat?.includes("VINYL") ||
-      val.toLowerCase().includes("oracal")
-    ) {
-      // Match complete Oracal codes: 8500-064, 8500_064, 8500 064, etc.
-      const fullMatch = val.match(/(\d{4})[-_\s]?(\d{2,3})/);
-      if (fullMatch) return `${fullMatch[1]}_${fullMatch[2]}`;
-      // Try to extract from ORACAL_8500_064 format
-      const oracalMatch = val.match(/ORACAL[_-]?(\d{4})[_-]?(\d{2,3})/i);
-      if (oracalMatch) return `${oracalMatch[1]}_${oracalMatch[2]}`;
-      // Just series + color code at end
-      const seriesMatch = val.match(/(\d{4})/);
-      const colorMatch = val.match(/[-_](\d{2,3})(?:\s|$)/);
-      if (seriesMatch && colorMatch)
-        return `${seriesMatch[1]}_${colorMatch[1]}`;
-      // Fallback: try to get any 4-digit + 2-3 digit pattern
-      const anyMatch = val.match(/\b(\d{4})\D+(\d{2,3})\b/);
-      if (anyMatch) return `${anyMatch[1]}_${anyMatch[2]}`;
-      return val
-        .replace(/oracal\s*/i, "")
-        .replace(/vinyl\s*/i, "")
-        .trim()
-        .substring(0, 12)
-        .toUpperCase();
-    }
+  function compactSpecifications(material: Material | null) {
+    const facts = getMaterialSpecificationFacts(material);
+    const technical = facts.filter(fact => fact.key !== "package" && fact.key !== "unit")
+      .sort((a, b) => specificationPriority.indexOf(a.key) - specificationPriority.indexOf(b.key)).slice(0, 4);
+    return [...technical, ...facts.filter(fact => fact.key === "package" || fact.key === "unit")];
+  }
 
-    // For acrylic - extract colorCode like 3N570, WN071, 0F00, WH10
-    if (
-      cat?.includes("ACRYLIC") ||
-      val.toLowerCase().includes("acrylic") ||
-      val.toLowerCase().includes("plexi")
-    ) {
-      // Look for standard PLEXIGLAS colorCodes: 3N570, WN071, WH10, 0F00, 0E010, 7A670
-      const codePatterns = [
-        /\b(\d[A-Z]\d{3})\b/i, // 3N570, 0F00, 0E010
-        /\b([A-Z]{2}\d{2,3})\b/i, // WN071, WH10, WN297
-        /\b(\d[A-Z]{2}\d{2})\b/i, // 7A670
-      ];
-      for (const pattern of codePatterns) {
-        const match = val.match(pattern);
-        if (match) return match[1].toUpperCase();
-      }
-      // Try extracting from PLEXIGLAS_XT_3N570 format
-      const plexMatch = val.match(/(?:XT|GS|LED)[_-]?([A-Z0-9]{4,6})/i);
-      if (plexMatch) return plexMatch[1].toUpperCase();
-      // Descriptive fallbacks
-      if (val.toLowerCase().includes("opal")) return "OPAL";
-      if (val.toLowerCase().includes("clear") || val.includes("0F00"))
-        return "CLEAR";
-      if (/white/i.test(val) && !/opal/i.test(val)) return "WHITE";
-      // Last part might be the code
-      const parts = val.split(/[-_\s]+/);
-      const lastPart = parts[parts.length - 1];
-      if (lastPart && /^[A-Z0-9]{4,6}$/i.test(lastPart))
-        return lastPart.toUpperCase();
-      return "PLEX";
-    }
-
-    // For ALU - show ALU + thickness or dimensions
-    if (cat?.includes("ALU") || val.toLowerCase().includes("alu")) {
-      // Extract thickness like 1.5mm, 2.0mm
-      const thicknessMatch = val.match(/([\d.,]+)\s*mm/i);
-      if (thicknessMatch) return `ALU ${thicknessMatch[1].replace(",", ".")}`;
-      // Extract profile dimensions like 40x40, 20x20
-      const profileMatch = val.match(/(\d+x\d+)/i);
-      if (profileMatch) return `ALU ${profileMatch[1]}`;
-      // Extract from code like ALU_MILL_1_5 -> ALU 1.5
-      const codeMatch = val.match(
-        /ALU[_-]?(?:MILL|BRUSH|ANOD)?[_-]?(\d)[_-]?(\d)/i,
-      );
-      if (codeMatch) return `ALU ${codeMatch[1]}.${codeMatch[2]}`;
-      return "ALU";
-    }
-
-    // For PVC
-    if (
-      cat?.includes("PVC") ||
-      val.toLowerCase().includes("pvc") ||
-      val.toLowerCase().includes("forex")
-    ) {
-      const thicknessMatch = val.match(/(\d+)\s*mm/i);
-      if (thicknessMatch) return `PVC ${thicknessMatch[1]}`;
-      if (val.toLowerCase().includes("forex")) return "FOREX";
-      return "PVC";
-    }
-
-    // For RAL paint - just the 4-digit code
-    if (cat?.includes("RAL") || val.toLowerCase().includes("ral")) {
-      const ralMatch = val.match(/\b(\d{4})\b/);
-      if (ralMatch) return ralMatch[1];
-    }
-
-    // For Pantone
-    if (cat?.includes("PANTONE") || val.toLowerCase().includes("pantone")) {
-      const pantoneMatch = val.match(/(\d+\s*[A-Z]*)/i);
-      if (pantoneMatch) return pantoneMatch[1].trim();
-    }
-
-    // For LED modules - Brand + Color Temp (e.g., "BaltLed 4500K")
-    if (cat?.includes("LED")) {
-      const parts: string[] = [];
-      const brandMatch = val.match(
-        /\b(BaltLed|Sloan|Samsung|Nichia|Osram|Cree|LemLux|LG|Seoul)\b/i,
-      );
-      if (brandMatch) parts.push(brandMatch[1]);
-      const tempMatch = val.match(/(\d{4})\s*[kK]/);
-      if (tempMatch) parts.push(`${tempMatch[1]}K`);
-      const colorNameMatch = val.match(
-        /\b(warm|cold|neutral|daylight|white|rgb)\b/i,
-      );
-      if (colorNameMatch && parts.length < 2)
-        parts.push(colorNameMatch[1].toUpperCase());
-      if (parts.length > 0) return parts.join(" ");
-      const wattMatch = val.match(/(\d+\.?\d*)\s*[wW]/);
-      if (wattMatch) return `${wattMatch[1]}W`;
-      return "LED";
-    }
-
-    // For PSU - Brand + Watts (e.g., "MeanWell 100W")
-    if (cat?.includes("PSU")) {
-      const parts: string[] = [];
-      const brandMatch = val.match(
-        /\b(MeanWell|Mean\s*Well|Philips|Inventronics|Osram|Tridonic)\b/i,
-      );
-      if (brandMatch) parts.push(brandMatch[1].replace(/\s+/g, ""));
-      const wattMatch = val.match(/(\d+)\s*[wW]/);
-      if (wattMatch) parts.push(`${wattMatch[1]}W`);
-      if (parts.length > 0) return parts.join(" ");
-      return "PSU";
-    }
-
-    // For Cables/Wire - Dimensions + Color (e.g., "2x0.75 BLACK")
-    if (cat?.includes("WIRE") || cat?.includes("CABLE")) {
-      const parts: string[] = [];
-      const dimsMatch = val.match(/(\d+x[\d.,]+)/i);
-      if (dimsMatch) parts.push(dimsMatch[1]);
-      const cableColorMatch = val.match(
-        /\b(black|white|red|blue|green|grey|gray)\b/i,
-      );
-      if (cableColorMatch) parts.push(cableColorMatch[1].toUpperCase());
-      if (parts.length > 0) return parts.join(" ");
-      return "CABLE";
-    }
-
-    // Default: try to find a code-like pattern first
-    const codePattern = val.match(/\b([A-Z0-9]{3,8})\b/i);
-    if (
-      codePattern &&
-      !/the|and|for|with|board|sheet|foam/i.test(codePattern[1])
-    ) {
-      return codePattern[1].toUpperCase();
-    }
-    const words = val
-      .split(/[\s_-]+/)
-      .filter((w) => w.length > 1 && !/the|and|for|with/i.test(w));
-    if (words.length > 0) {
-      return words[0].substring(0, 8).toUpperCase();
-    }
-    return val.substring(0, 8).toUpperCase();
+  function specificationLabel(key: MaterialSpecificationKey): string {
+    return $t(`materialSpecifications.${key}`, { default: MATERIAL_SPECIFICATION_LABELS[key] });
   }
 
   async function loadMaterials(url: string, retry = false) {
@@ -298,14 +157,24 @@
     search = "";
     customMode = false;
 
-    // Priority: metadata.short_name > metadata.colorCode > extracted from code > extracted from name
-    const short =
-      material.metadata?.short_name ||
-      material.metadata?.colorCode ||
-      getShortName(material.code, material.category) ||
-      getShortName(value, material.category);
+    const short = materialDisplayName(material, value);
 
     onchange?.({ value, material, hex: material.metadata?.hex || "", shortName: short });
+    triggerRef?.focus();
+  }
+
+  async function clearSelection() {
+    if (readonly) return;
+    value = "";
+    customHex = "";
+    customMode = false;
+    open = false;
+    search = "";
+    activeCategory = "";
+    // An explicit clear is the same event for catalog and custom selections.
+    // Parent fields also discard the old swatch/category/thickness metadata.
+    onchange?.({ value: "", material: null, hex: "", shortName: "" });
+    await tick();
     triggerRef?.focus();
   }
 
@@ -414,10 +283,24 @@
   }
 </script>
 
+{#snippet specificationSummary(material: Material | null)}
+  {@const facts = compactSpecifications(material)}
+  {#if facts.length}
+    <span class="specification-summary">
+      {#each facts as fact (fact.key)}
+        <span class="specification-fact" data-specification={fact.key} title={specificationLabel(fact.key)}>
+          <span class:visually-hidden={!visibleSpecificationLabels.has(fact.key)}>{`${specificationLabel(fact.key)}: `}</span>{fact.value}
+        </span>
+      {/each}
+    </span>
+  {/if}
+{/snippet}
+
 <svelte:window onpointerdown={handleClickOutside} onkeydown={handleKeydown}
   onfocusin={handleFocusIn} onblur={() => { open = false; }} />
 
 <div class="material-select" class:open bind:this={dropdownRef}>
+  <div class="selection-control">
   {#if customMode}
     <div class="custom-mode">
       {#if showColor}
@@ -440,14 +323,23 @@
   {:else}
     <button type="button" class="select-trigger" class:open bind:this={triggerRef}
       disabled={readonly} aria-expanded={open}
-      aria-label={placeholder || $t("materialPicker.select", { default: "Select…" })}
+      aria-label={label ? `${label} · ${$t("materialPicker.select", { default: "Select…" })}`
+        : placeholder || $t("materialPicker.select", { default: "Select…" })}
+      aria-describedby={value ? `${pickerId}-selection` : undefined}
+      aria-controls={open ? `${pickerId}-options` : undefined}
       onclick={toggleDropdown}>
-      {#if value && (showValueInTrigger || !selectedMaterial)}
-        <span class="selected-value">
+      {#if value}
+        <span class="selected-value" id={`${pickerId}-selection`}>
           {#if showColor && hexColor}
             <span class="color-dot" style:background-color={hexColor}></span>
           {/if}
-          <span class="value-text" title={value}>{shortName || value}</span>
+          <span class="value-details">
+            <span class="value-text" title={selectedMaterial?.name_en || value}>{shortName || value}</span>
+            {#if resolvedCategory}
+              <span class="value-category">{categoryLabel(resolvedCategory)}</span>
+            {/if}
+            {@render specificationSummary(selectedMaterial)}
+          </span>
         </span>
       {:else}
         <span class="placeholder">{placeholder || $t("materialPicker.select", { default: "Select…" })}</span>
@@ -455,9 +347,17 @@
       <ChevronDown size={14} class="chevron" aria-hidden="true" />
     </button>
   {/if}
+  {#if value && !readonly}
+    <button type="button" class="clear-selection" onclick={clearSelection}
+      aria-label={$t("materialPicker.clear", { default: "Clear selection" })}
+      title={$t("materialPicker.clear", { default: "Clear selection" })}>
+      <X size={16} aria-hidden="true" />
+    </button>
+  {/if}
+  </div>
 
   {#if open}
-    <div class="dropdown" bind:this={panelRef} role="group"
+    <div class="dropdown" id={`${pickerId}-options`} bind:this={panelRef} role="group"
       aria-label={$t("materialPicker.categories", { default: "Material categories" })}>
       <div class="search-box">
         <input type="search" bind:this={searchRef} bind:value={search} autocomplete="off"
@@ -518,6 +418,7 @@
                     {#if material.thickness_options?.length}
                       <span class="option-thickness">{material.thickness_options.join(" / ")} mm</span>
                     {/if}
+                    {@render specificationSummary(material)}
                   </span>
                 </button>
               {/each}
@@ -540,9 +441,11 @@
   }
 
   .material-select.open { z-index: var(--z-overlay, 40); }
+  .selection-control { display: flex; align-items: stretch; gap: 4px; min-width: 0; }
 
   .select-trigger {
     width: 100%;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -570,13 +473,16 @@
   .custom-option:focus-visible,
   .retry-button:focus-visible,
   .btn-switch-mode:focus-visible,
+  .clear-selection:focus-visible,
   .custom-color-picker:focus-visible {
     outline: 2px solid var(--brand);
     outline-offset: 2px;
   }
 
   .selected-value { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
-  .value-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .value-details { display: grid; gap: 2px; min-width: 0; }
+  .value-text { min-width: 0; overflow-wrap: anywhere; }
+  .value-category { color: var(--ink-secondary, var(--muted)); font-size: 11px; overflow-wrap: anywhere; }
   .placeholder { color: var(--ink-secondary, var(--muted)); font-weight: 400; }
 
   .color-dot {
@@ -684,17 +590,22 @@
   .option-details { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
   .option-name { font-weight: 500; overflow-wrap: anywhere; }
   .option-thickness { font-size: 11px; color: var(--ink-secondary, var(--muted)); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-  .custom-mode { display: flex; align-items: center; min-width: 0; gap: 4px; }
+  .specification-summary { display: flex; flex-wrap: wrap; gap: 2px 8px; min-width: 0; color: var(--ink-secondary, var(--muted)); font-size: 11px; font-weight: 400; line-height: 1.5; }
+  .specification-fact { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .custom-mode { display: flex; align-items: center; flex: 1; min-width: 0; gap: 4px; }
   .custom-color-picker { width: 32px; height: 32px; flex-shrink: 0; padding: 2px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; background: var(--bg-1, white); }
   .custom-color-picker::-webkit-color-swatch { border: 0; border-radius: 2px; }
   .custom-color-picker::-webkit-color-swatch-wrapper { padding: 0; }
   .custom-text-input { flex: 1; min-width: 0; width: 100%; padding: 6px 8px; border: 1px solid var(--brand); border-radius: 4px; font-size: 12px; background: var(--bg-1, white); color: inherit; min-height: 32px; box-sizing: border-box; }
   .btn-switch-mode { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-2); cursor: pointer; color: inherit; }
   .btn-switch-mode:hover:not(:disabled) { border-color: var(--brand); }
+  .clear-selection { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; min-height: 32px; border: 1px solid var(--border); border-radius: var(--radius-sm, 4px); background: var(--bg-1, white); color: var(--ink-secondary, var(--muted)); cursor: pointer; }
+  .clear-selection:hover { border-color: var(--border-strong, var(--muted)); color: var(--text, var(--ink-primary)); background: var(--bg-2); }
 
   @media (pointer: coarse) {
-    .select-trigger, .category-option, .option, .category-back, .custom-option, .retry-button, .custom-text-input, .btn-switch-mode, .custom-color-picker { min-height: 44px; }
-    .btn-switch-mode, .custom-color-picker { min-width: 40px; }
+    .select-trigger, .category-option, .option, .category-back, .custom-option, .retry-button, .custom-text-input, .btn-switch-mode, .custom-color-picker, .clear-selection { min-height: 44px; }
+    .btn-switch-mode, .custom-color-picker, .clear-selection { min-width: 40px; }
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -58,9 +58,15 @@ describe('OMS-R35: form/Canvas revision chain', () => {
   it('revalidates linked drawing evidence before applying file-based proposals', () => {
     const intake = read('src/lib/order/OrderIntakeAssistant.svelte');
     expect(intake).toContain('if(analysis.fileId){');
-    expect(intake).toContain('fetchAllOrderFiles<OrderFile>(orderId)');
+    expect(intake).toContain('fetchAllOrderFiles<OrderFile>(orderId, scopedFetch)');
+    expect(intake).toContain('const scopedFetch: typeof fetch');
+    expect(intake).toContain('signal: requestSignal(20_000)');
     expect(intake).toContain('linkedNow.some(file=>file.id===analysis?.fileId)');
     expect(intake).toContain("throw new Error($t('orderIntake.sourceChanged'))");
+    const recheck = intake.indexOf('const linkedNow=await fetchAllOrderFiles<OrderFile>(orderId, scopedFetch)');
+    const localApply = intake.indexOf('onApply(proposalsToPatch(accepted))');
+    expect(recheck).toBeGreaterThan(intake.indexOf('if(analysis.fileId){'));
+    expect(localApply).toBeGreaterThan(recheck);
     // Notes-only analysis has no linked file to re-check.
   });
 

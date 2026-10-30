@@ -6,7 +6,8 @@ export interface CatalogMaterial {
   name_en: string;
   name_ru?: string;
   name_lv?: string;
-  thickness_options: number[];
+  unit?: string | null;
+  thickness_options?: number[];
   metadata: {
     hex?: string;
     short_name?: string;
@@ -30,9 +31,19 @@ export const MATERIAL_CATEGORY_LABELS: Record<string, string> = {
   PAINT_PANTONE: 'Pantone paint',
   LED_MODULE: 'LED modules',
   LED_STRIP: 'LED strips',
+  LED_NEON: 'LED neon flex',
   PSU_MEANWELL: 'Mean Well power supplies',
   WIRE: 'Cables and wires',
-  LED_ACCESSORY: 'LED accessories'
+  LED_ACCESSORY: 'LED accessories',
+  FDM_PLA: 'PLA filament',
+  FDM_PETG: 'PETG filament',
+  FDM_ABS: 'ABS filament',
+  FDM_ASA: 'ASA filament',
+  FDM_TPU: 'TPU filament',
+  FDM_OTHER: 'Other filament',
+  RESIN_ANYCUBIC: 'Anycubic resin',
+  RESIN_ELEGOO: 'Elegoo resin',
+  RESIN_OTHER: 'Other resin'
 };
 
 export function buildMaterialCatalogUrl(base: string, category: string, categories: string[]): string {
@@ -57,7 +68,8 @@ export function getMaterialCatalogView(
     ? materials.filter((material) => [
         material.name_en, material.name_ru, material.name_lv, material.code,
         material.category, MATERIAL_CATEGORY_LABELS[material.category], localizedCategoryLabels[material.category],
-        material.metadata?.brand, material.metadata?.short_name, material.metadata?.colorCode
+        material.metadata?.brand, material.metadata?.model, material.metadata?.manufacturer_part_number,
+        material.metadata?.short_name, material.metadata?.colorCode
       ].some((value) => typeof value === 'string' && value.toLocaleLowerCase().includes(query)))
     : category ? materials.filter((material) => material.category === category) : [];
   const grouped = new Map<string, CatalogMaterial[]>();
@@ -85,7 +97,7 @@ function parseCatalog(value: unknown): CatalogMaterial[] {
       name_en: typeof entry.name_en === 'string' ? entry.name_en : entry.code,
       thickness_options: Array.isArray(entry.thickness_options)
         ? [...new Set(entry.thickness_options.map(Number).filter((n: number) => Number.isFinite(n) && n > 0))]
-        : [],
+        : undefined,
       metadata: entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata) ? entry.metadata : {}
     } as CatalogMaterial;
   });

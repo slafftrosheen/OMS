@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { t } from 'svelte-i18n';
   import { proposalsToPatch, proposalMatchesCurrent, type IntakeProposal, type IntakeResponse } from './intake-contract';
   import {fetchAllOrderFiles,watchOrderFilesChanged} from './order-files-client';
@@ -15,6 +15,19 @@
     onApply:(patch:Record<string,unknown>)=>void;
   }=$props();
 
+  const requestController = new AbortController();
+  let disposed = false;
+  const requestSignal = (timeout = 120_000) => AbortSignal.any([
+    requestController.signal, AbortSignal.timeout(timeout)
+  ]);
+  const scopedFetch: typeof fetch = (input, init) => fetch(input, {
+    ...init, signal: requestSignal(20_000)
+  });
+  onDestroy(() => {
+    disposed = true;
+    filesLoadVersion++;
+    requestController.abort();
+  });
   let files=$state<OrderFile[]>([]);
   let filesLoadVersion=0;
   let fileId=$state('');
@@ -31,8 +44,8 @@
   let applied=$state(false);
   $effect(()=>{if(selectedFileId)fileId=selectedFileId;});
   $effect(()=>{
-    if(selectedProfileIndex!==null && selectedProfileIndex>=0)
-      profileChoice=String(selectedProfileIndex);
+    profileChoice=selectedProfileIndex!==null && selectedProfileIndex>=0
+      ? String(selectedProfileIndex) : '';
   });
   let profileIndex=$derived(profileChoice===''?null:Number(profileChoice));
   function isUnchanged(p:IntakeProposal){
@@ -57,17 +70,17 @@
     const id=orderId,version=++filesLoadVersion;
     loading=true;problem='';
     try{
-      const data=await fetchAllOrderFiles<OrderFile>(id);
-      if(id!==orderId||version!==filesLoadVersion)return;
+      const data=await fetchAllOrderFiles<OrderFile>(id, scopedFetch);
+      if(disposed||id!==orderId||version!==filesLoadVersion)return;
       files=data.filter(f=>['application/pdf','image/jpeg','image/png','image/webp']
         .includes(f.mimeType??f.mime_type??''));
       if(fileId && !files.some(f=>f.id===fileId)){
         fileId=files[0]?.id??'';
         analysis=null;approvals={};applied=false;
       }else if(!fileId && files.length)fileId=files[0].id;
-    }catch(err){if(id===orderId && version===filesLoadVersion)
+    }catch(err){if(!disposed&&id===orderId && version===filesLoadVersion)
       problem=err instanceof Error?err.message:$t('orderIntake.filesError');}
-    finally{if(id===orderId && version===filesLoadVersion)loading=false;}
+    finally{if(!disposed&&id===orderId && version===filesLoadVersion)loading=false;}
   }
   async function analyze(){
     if(!editable||!consent||analyzing)return;
@@ -88,13 +101,13 @@
     includePaidOcr=false;
     try{
       const res=await fetch('/api/ai/order-intake',{
-        method:'POST',headers:{'Content-Type':'application/json'},
+        method:'POST',headers:{'Content-Type':'application/json'},signal:requestSignal(),
         body:JSON.stringify({orderId:capturedOrderId,
           fileId:capturedFileId||null,profileIndex:capturedProfileIndex,
           expectedUpdatedAt:capturedVersion,ocr:!!ocr,language:$t('orderIntake.locale')})
       });
       const body=await res.json().catch(()=>({}));
-      if(orderId!==capturedOrderId)return;
+      if(disposed||orderId!==capturedOrderId)return;
       if(!res.ok)throw new Error(body.message||body.error||$t('orderIntake.analyzeError'));
       // A changed selection never silently binds provider output to a new file/profile.
       if(body.fileId!==(capturedFileId||null)||
@@ -105,9 +118,9 @@
       // No checkboxes are accepted by default. Every field is a deliberate
       // staff decision, including low-confidence suggestions.
       approvals={};
-    }catch(err){if(orderId===capturedOrderId)
+    }catch(err){if(!disposed&&orderId===capturedOrderId)
       problem=err instanceof Error?err.message:$t('orderIntake.analyzeError');
-    }finally{if(orderId===capturedOrderId)analyzing=false;}
+    }finally{if(!disposed&&orderId===capturedOrderId)analyzing=false;}
   }
   async function apply(){
     if(!analysis||!editable||applying||applied)return;
@@ -127,24 +140,26 @@
       // A parallel reviewer could have modified/confirmed the draft while the
       // model was working. Do not silently apply against a stale saved order.
       const res=await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}`,
-        {cache:'no-store'});
+        {cache:'no-store',signal:requestSignal(20_000)});
       if(!res.ok)throw new Error($t('orderIntake.changedOnServer'));
       const fresh=await res.json();
+      if(disposed)return;
       if(fresh.updatedAt!==analysis.orderUpdatedAt ||
          !['DRAFT','draft','PENDING_REVIEW'].includes(fresh.status))
         throw new Error($t('orderIntake.changedOnServer'));
       // File links can be removed without bumping draft_orders.updated_at.
       // Recheck the canonical linked-file list before approving old evidence.
       if(analysis.fileId){
-        const linkedNow=await fetchAllOrderFiles<OrderFile>(orderId);
+        const linkedNow=await fetchAllOrderFiles<OrderFile>(orderId, scopedFetch);
         if(!linkedNow.some(file=>file.id===analysis?.fileId))
           throw new Error($t('orderIntake.sourceChanged'));
       }
+      if(disposed)return;
       if(!sourceMatches || analysisStale)throw new Error($t('orderIntake.changedLocally'));
       onApply(proposalsToPatch(accepted));
       applied=true;
-    }catch(err){problem=err instanceof Error?err.message:$t('orderIntake.applyError');}
-    finally{applying=false;}
+    }catch(err){if(!disposed)problem=err instanceof Error?err.message:$t('orderIntake.applyError');}
+    finally{if(!disposed)applying=false;}
   }
 </script>
 

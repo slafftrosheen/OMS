@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { GET as status, POST as connect, PATCH as setEnabled } from '../../src/routes/api/notifications/telegram/+server';
 import { POST as webhook } from '../../src/routes/api/telegram/webhook/+server';
 import { POST as dispatch } from '../../src/routes/api/telegram/dispatch/+server';
+import { defaultTelegramPreferences } from '../../src/lib/notifications/telegram-account';
 
 const environment = {
   TELEGRAM_ENABLED: 'true', TELEGRAM_BOT_TOKEN: '123456:abcdefghijklmnopqrstuvwxyz_0123456789', TELEGRAM_BOT_USERNAME: 'OMS_notify_bot',
@@ -61,8 +62,13 @@ describe('Telegram HTTP authorization boundaries', () => {
           const body = JSON.parse(String(init?.body)); owner = body.p_user_id; enabled = body.p_enabled;
           return Response.json(true);
         }
-        if (path.endsWith('/telegram_connections')) return Response.json({ username: 'my_phone', enabled, linked_at: '2026-10-22T12:00:00Z' });
-        if (path.endsWith('/telegram_link_tokens')) return Response.json(null);
+        if (path.endsWith('/rpc/telegram_account_status')) {
+          const body = JSON.parse(String(init?.body));
+          expect(body.p_user_id).toBe(locals().user.id);
+          return Response.json({ accountId: body.p_user_id, connected: true, username: 'my_phone', enabled,
+            telegramUserId: '1234', linkedAt: '2026-10-22T12:00:00Z', pendingUntil: null,
+            pendingApproval: null, preferences: defaultTelegramPreferences() });
+        }
         throw new Error('Unexpected database request');
       };
       const response = await setEnabled({ locals: locals(), request: new Request('https://oms.example.test/api/notifications/telegram', {
@@ -95,7 +101,7 @@ describe('Telegram HTTP authorization boundaries', () => {
     });
   });
 
-  it('binds a connection request to the authenticated user even if the body names another user', async () => {
+  it('rejects a spoofed account field and binds valid connection requests to the authenticated user', async () => {
     await withRuntime(async () => {
       let owner: string | null = null;
       globalThis.fetch = async (url, init) => {
@@ -104,8 +110,13 @@ describe('Telegram HTTP authorization boundaries', () => {
         owner = JSON.parse(String(init?.body)).p_user_id;
         return Response.json('2099-01-01T00:00:00Z');
       };
-      const response = await connect({ locals: locals(), request: new Request('https://oms.example.test/api/notifications/telegram', {
+      const spoofed = await connect({ locals: locals(), request: new Request('https://oms.example.test/api/notifications/telegram', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'connect', userId: 'someone-else' })
+      }) } as any);
+      expect(spoofed.status).toBe(400);
+      expect(owner).toBe(null);
+      const response = await connect({ locals: locals(), request: new Request('https://oms.example.test/api/notifications/telegram', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'connect' })
       }) } as any);
       expect(response.status).toBe(200);
       expect(owner).toBe('12345678-0000-0000-0000-000000000001');

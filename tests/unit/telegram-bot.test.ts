@@ -51,7 +51,7 @@ describe('Telegram replies and read-only OpenRouter questions',()=>{
   it('sends only a bounded question/context with read-only instructions and account language',async()=>{
     let captured:any;
     const complete:any=async(messages:any,options:any)=>{captured={messages,options};return 'Šodien paredzēta viena iekraušana.';};
-    const answer=await answerTelegramQuestion({kind:'ask',locale:'lv',question:'Kas notiek šodien?',date:'2026-10-22',orders:[{po_number:'PO1'}],events:[],notifications:[]},complete);
+    const answer=await answerTelegramQuestion({kind:'ask',personalAiAllowed:true,locale:'lv',question:'Kas notiek šodien?',date:'2026-10-22',orders:[{po_number:'PO1'}],events:[],notifications:[]},complete);
     expect(captured.messages[0].content.includes('Latvian')).toBe(true);
     expect(captured.messages[0].content.includes('cannot change orders')).toBe(true);
     expect(captured.options.maxTokens).toBe(900);expect(captured.options.timeoutMs).toBe(20000);
@@ -60,17 +60,17 @@ describe('Telegram replies and read-only OpenRouter questions',()=>{
   });
   it('returns a localized safe fallback without provider error details',async()=>{
     const complete:any=async()=>{throw new Error(config.botToken);};
-    const answer=await answerTelegramQuestion({locale:'ru',question:'Что сегодня?'},complete);
+    const answer=await answerTelegramQuestion({personalAiAllowed:true,locale:'ru',question:'Что сегодня?'},complete);
     expect(answer.includes('ИИ-помощник недоступен')).toBe(true);
     expect(answer.includes(config.botToken)).toBe(false);
   });
   it('persists rendered AI answers before send and retries without repeating inference',async()=>{
-    const state:any={status:'pending',attempts:0,payload:{kind:'ask',locale:'en',question:'What is due?',orders:[]}};
+    const state:any={status:'pending',attempts:0,payload:{kind:'ask',personalAiAllowed:true,locale:'en',question:'What is due?',orders:[]}};
     const db:any={rpc:async(name:string,args:any)=>{
       if(name==='get_telegram_settings')return {data:null,error:null};
       if(name==='claim_telegram_bot_replies')return {data:state.status==='pending'?[{id:'reply',claim_token:'lease',attempts:++state.attempts}]:[],error:null};
       if(name==='telegram_bot_reply_payload')return {data:{chatId:'1234',payload:state.payload},error:null};
-      if(name==='prepare_telegram_bot_reply'){state.payload={kind:'ask',locale:'en',rendered:args.p_text,keyboard:args.p_keyboard};return {data:true,error:null};}
+      if(name==='prepare_telegram_bot_reply'){state.payload={kind:'ask',personalAiAllowed:true,locale:'en',rendered:args.p_text,keyboard:args.p_keyboard};return {data:true,error:null};}
       if(name==='finish_telegram_bot_reply'){state.status=args.p_status;return {data:true,error:null};}
       throw new Error('Unexpected RPC');
     }};
@@ -87,7 +87,7 @@ describe('Telegram replies and read-only OpenRouter questions',()=>{
     const db:any={rpc:async(name:string,args:any)=>{
       if(name==='get_telegram_settings')return {data:null,error:null};
       if(name==='claim_telegram_bot_replies')return {data:[{id:'reply',claim_token:'lease',attempts:1}],error:null};
-      if(name==='telegram_bot_reply_payload')return {data:++reads===1?{chatId:'1234',payload:{kind:'ask',question:'What is due?'}}:null,error:null};
+      if(name==='telegram_bot_reply_payload')return {data:++reads===1?{chatId:'1234',payload:{kind:'ask',personalAiAllowed:true,question:'What is due?'}}:null,error:null};
       if(name==='prepare_telegram_bot_reply')return {data:true,error:null};
       if(name==='finish_telegram_bot_reply'){finalStatus=args.p_status;return {data:true,error:null};}
       throw new Error('Unexpected RPC');

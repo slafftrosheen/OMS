@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
+  import { getAssistantContext } from '$lib/assistant/context';
   import { beforeNavigate } from '$app/navigation';
   import { base } from '$app/paths';
   import { t, locale } from 'svelte-i18n';
@@ -22,6 +23,7 @@
   import { RequestScope } from '$lib/state/request-scope';
   import { EMPTY_TOOLKIT_CONTROLS, applyToolkitToolbarAction } from '$lib/components/canvas/toolkit-controls';
 
+  const assistant = getAssistantContext();
   const tr = (key: string, vars: Record<string, string | number> = {}) => get(t)(`toolkit.${key}`, vars);
 
   type Board = { id: string; title: string; revision: number; updated_at: string; created_at: string };
@@ -63,10 +65,7 @@
   let error = $state('');
   let notice = $state('');
   let projectListOpen = $state(true);
-  let assistantOpen = $state(true);
-  let assistantPane = $state.raw<HTMLElement | null>(null);
   let promptInput = $state.raw<HTMLTextAreaElement | null>(null);
-  let assistantToggle = $state.raw<HTMLButtonElement | null>(null);
   let recovering = $state(false);
   let creating = $state(false);
   let deletingId = $state<string | null>(null);
@@ -125,17 +124,12 @@
     if (showNotice) notice = tr('canvas.requestCancelled');
   }
   async function revealAssistant(aboutSelection = false) {
-    assistantOpen = true;
+    assistant.open('canvas');
     if (aboutSelection && !prompt.trim()) prompt = tr('canvas.selectionPrompt');
     await tick();
     if (destroyed) return;
-    assistantPane?.scrollIntoView({ block: 'nearest' });
     promptInput?.focus({ preventScroll: true });
     promptInput?.scrollIntoView({ block: 'nearest' });
-  }
-  function closeAssistant() {
-    assistantOpen = false;
-    assistantToggle?.focus();
   }
 
   const prompts: Array<{id: 'expand'|'challenge'|'compare'|'plan'|'research'|'brief'; skill: ToolkitSkill}> = [
@@ -1066,6 +1060,26 @@
     if ((dirty || discussionDirty || importing || recovering) && !window.confirm(tr('canvas.leaveWarning'))) cancel();
   });
 
+  $effect(() => {
+    const registeredBoardId = boardId;
+    return untrack(() => assistant.register({
+    id: `toolkit:canvas:${registeredBoardId ?? 'new'}`,
+    title: () => boardId ? boardTitle : $t('toolkit.canvasTab'),
+    tools: () => [{ id: 'canvas', label: $t('toolkit.canvas.brainstorm') }],
+    context: () => ({
+      screen: 'toolkit-canvas', projectId: boardId, projectTitle: boardTitle,
+      unsaved: dirty, selectedCount,
+      selectedShapeIds: (editor?.getSelectedShapeIds?.() ?? []).slice(0, 30),
+      cards: extractBoardCards(editor?.getCurrentPageShapes?.() ?? [], 20),
+      selectedFile: canvasControls.analyzableFile ? {
+        title: canvasControls.analyzableFile.title
+      } : null,
+      fileContentsProvided: false
+    }),
+    content: canvasAssistantContent
+    }));
+  });
+
   onMount(() => {
     insecureClipboard = !window.isSecureContext || !navigator.clipboard?.writeText;
     void loadModelChoices();
@@ -1113,9 +1127,6 @@
       <button disabled={loading || creating || recovering || importing} onclick={() => createBoard('blank')}>{$t('toolkit.canvas.newProject')}</button>
       <button onclick={() => void flushCurrentChanges()} disabled={!boardId || saving || recovering || ( !dirty && !discussionDirty ) || conflict}>{$t('toolkit.canvas.save')}</button>
       <button onclick={exportBrief} disabled={!boardId || !editor}>{$t('toolkit.canvas.exportBrief')}</button>
-      <button bind:this={assistantToggle} class="assistant-toggle" type="button" onclick={() => assistantOpen ? closeAssistant() : void revealAssistant()} aria-expanded={assistantOpen} aria-controls="canvas-assistant">
-        {assistantOpen ? $t('toolkit.canvas.hideAssistant') : $t('toolkit.canvas.brainstorm')}
-      </button>
     </div>
   </header>
 
@@ -1226,11 +1237,11 @@
       {/if}
     </section>
 
-    {#if assistantOpen}
-      <aside bind:this={assistantPane} id="canvas-assistant" class="assistant-pane">
-        <div class="pane-heading"><div><span class="small-heading">{$t('toolkit.canvas.private')}</span><h3>{$t('toolkit.canvas.brainstorm')}</h3></div>
-          <button aria-label={$t('toolkit.canvas.closeAssistant')} class="close-pane" onclick={closeAssistant}>×</button>
-        </div>
+  </div>
+</div>
+
+{#snippet canvasAssistantContent(toolId: string)}
+      <section id="canvas-assistant" class="toolkit-assistant assistant-pane" hidden={toolId !== 'canvas'} aria-label={$t('toolkit.canvas.brainstorm')}>
         <p class="assistant-intro">{$t('toolkit.canvas.intro')}</p>
         <details class="assistant-options">
           <summary>{$t('toolkit.canvas.assistantSettings')}</summary>
@@ -1402,17 +1413,15 @@
             {:else}<button class="primary" type="submit" disabled={!boardId || !ready || recovering || !prompt.trim()}>{$t('toolkit.canvas.ask')}</button>{/if}
           </div>
         </form>
-      </aside>
-    {/if}
-  </div>
-</div>
+      </section>
+{/snippet}
 
 <style>
   .workspace{display:flex;flex-direction:column;width:100%;min-height:0;flex:1;background:var(--bg-0);color:var(--text);border:1px solid var(--border);border-radius:15px;overflow:hidden}
   button{cursor:pointer;border:1px solid var(--border);border-radius:9px;padding:8px 11px;min-height:36px;background:var(--bg-1);color:var(--text);font:inherit;font-size:12px;font-weight:650}
   button:hover{border-color:var(--brand);background:var(--bg-2)}button:disabled{opacity:.5;cursor:not-allowed}
   button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
-  button.primary,.new-project,.assistant-toggle{background:var(--brand);color:white;border-color:var(--brand)}
+  button.primary,.new-project{background:var(--brand);color:white;border-color:var(--brand)}
   .command-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg-1);border-bottom:1px solid var(--border);gap:12px;flex-wrap:wrap}
   .workspace-title,.command-actions{display:flex;align-items:center;gap:8px;min-width:0}.workspace-title{flex:1}.workspace-title h2{font-size:16px;margin:0}.command-actions{flex-wrap:wrap;justify-content:flex-end;max-width:100%}
   .board-title{font-family:inherit;font-size:16px;font-weight:750;background:transparent;border:1px solid transparent;padding:6px;border-radius:7px;min-width:100px;max-width:340px;flex:1;color:var(--text)}
@@ -1451,7 +1460,7 @@
   .assistant-options .skill-picker{border:0;padding:4px 0}
   .proposal-actions{display:flex;flex-wrap:wrap;gap:5px}
   .assistant-pane{display:flex;flex-direction:column;flex:0 0 300px;min-width:0;background:var(--bg-1);border-left:1px solid var(--border);gap:12px;padding:13px;overflow:auto}
-  .close-pane{font-size:19px;background:transparent;border:0}.assistant-intro{font-size:12px;color:var(--ink-secondary);line-height:1.5;margin:0}
+  .assistant-intro{font-size:12px;color:var(--ink-secondary);line-height:1.5;margin:0}
   .quick-prompts{display:flex;flex-wrap:wrap;gap:5px}.quick-prompts button{font-size:11px;padding:6px 8px;min-height:33px}
   .conversation{flex:1;overflow-y:auto;min-height:80px;display:flex;flex-direction:column;gap:11px}
   .conversation-empty{font-size:12px;line-height:1.6;color:var(--ink-tertiary);padding:16px 6px}
@@ -1506,13 +1515,13 @@
     color:var(--ink-primary);font-weight:700; }
   .board-title:focus-visible { border-color:var(--focus);outline:2px solid var(--focus);outline-offset:1px; }
   .save-indicator { font-variant-numeric:tabular-nums;white-space:nowrap; }
-  .workspace button { border-radius:var(--radius-sm);transition:
+  :is(.workspace,.toolkit-assistant) button { border-radius:var(--radius-sm);transition:
     background var(--motion-sm) var(--ease-standard),border-color var(--motion-sm) var(--ease-standard); }
-  .workspace button:focus-visible { outline:2px solid var(--focus);outline-offset:2px; }
-  .workspace button.primary,.workspace .assistant-toggle {
+  :is(.workspace,.toolkit-assistant) button:focus-visible { outline:2px solid var(--focus);outline-offset:2px; }
+  :is(.workspace,.toolkit-assistant) button.primary {
     background:var(--brand);color:var(--on-brand);border-color:var(--brand);font-weight:700;
   }
-  .workspace button.primary:hover,.workspace .assistant-toggle:hover {
+  :is(.workspace,.toolkit-assistant) button.primary:hover {
     background:var(--brand-2);border-color:var(--brand-2);color:var(--on-brand);
   }
   .workspace .new-project { background:var(--brand-soft);color:var(--brand);
@@ -1549,4 +1558,10 @@
   @media(prefers-reduced-transparency:reduce) {
     .command-bar,.workspace { backdrop-filter:none;background:var(--bg-1); }
   }
+  .toolkit-assistant.assistant-pane { flex: none; width: 100%; min-width: 0; max-height: none; border: 0; padding: 0; overflow: visible; }
+  .toolkit-assistant[hidden] { display: none; }
+  .toolkit-assistant .conversation { flex: none; overflow: visible; min-height: 80px; }
+  .toolkit-assistant .composer { position: static; }
+  .toolkit-assistant .quick-prompts button { min-height: 40px; }
+  .toolkit-assistant select, .toolkit-assistant textarea { max-width: 100%; min-width: 0; }
 </style>

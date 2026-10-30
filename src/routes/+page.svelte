@@ -12,6 +12,12 @@
   import { t, locale } from 'svelte-i18n';
   import { loadDashboard } from '$lib/dashboard/data';
   import OrderBadges from '$lib/badges/OrderBadges.svelte';
+  import { buildOrderBadges } from '$lib/badges/catalog';
+  import { currentDay } from '$lib/badges/current-day';
+  import { getAssistantContext } from '$lib/assistant/context';
+  import { dashboardScreenContext } from '$lib/assistant/visible-context';
+
+  const assistant = getAssistantContext();
 
   let recentOrders: any[] = $state([]);
   let verifiedTotal: number | null = $state(null);
@@ -78,7 +84,21 @@
     return $t('dashboard.greeting_evening', { default: 'Good evening' });
   });
 
-  onMount(() => { void loadDashboardData(); });
+  onMount(() => {
+    void loadDashboardData();
+    return assistant.register({
+      id: 'dashboard', title: () => $t('dashboard.title', { default: 'Dashboard' }), tools: () => [],
+      context: () => dashboardScreenContext({
+        loading, ordersError, verifiedTotal, kpis: liveKpis,
+        recentOrders: recentOrders.map(order => ({
+          id: order.id, reference: order.po_number, title: order.title, client: order.client,
+          dueDate: order.due_date,
+          badges: buildOrderBadges(order, $currentDay).map(badge => $t(badge.labelKey, badge.values ?? {}))
+        })),
+        trends: chartData.datasets.length ? { dates: chartData.labels, total: chartData.datasets[0].data } : null
+      })
+    });
+  });
   onDestroy(() => dashboardRequest?.abort());
 </script>
 

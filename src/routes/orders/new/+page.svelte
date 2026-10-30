@@ -12,6 +12,10 @@
   import { can } from '$lib/auth/permission-utils';
   import { base } from '$app/paths';
   import { validateOrderForm } from '$lib/validation/orderSchema';
+  import { getAssistantContext } from '$lib/assistant/context';
+  import { orderScreenContext } from '$lib/assistant/visible-context';
+
+  const assistant = getAssistantContext();
 
 
   // SVELTE 5: Convert all reactive state to $state()
@@ -81,6 +85,7 @@
   let newGuideStep=$state<GuideStepId>('brief');
   let newGuideSection=$state<WorkspaceSection>('details');
   function jumpToNewStep(_target:WorkspaceSection,step:GuideStepId){
+    assistant.close();
     newGuideStep=step;
     newGuideSection=step==='files'?'files':step==='review'?'readiness':'details';
     const anchor=step==='brief'?'new-order-details':
@@ -398,6 +403,22 @@
     dirty:true,
     canEdit:can($currentUser,'createDraftOrder')
   });
+
+  onMount(() => assistant.register({
+    id: 'order:new',
+    title: () => $t('orders.new.title'),
+    tools: () => [{ id: 'prepare', label: $t('orderGuide.title') }],
+    context: () => orderScreenContext({
+      screen: 'order-draft', orderId: savedOrderId, status: 'DRAFT',
+      unsaved: true, clientName, deadline, loadingDate, priority,
+      notes: notes.slice(0, 3000), isRd,
+      attachments: uploadedFiles.slice(0, 20).map(entry => ({
+        name: entry.file.name, type: entry.file.type, size: entry.file.size
+      })),
+      fileContentsProvided: false
+    }, profiles),
+    content: draftAssistantContent
+  }));
 
   let isAdmin = $derived(
     $currentUser?.role === 'RD' || 
@@ -754,6 +775,21 @@
   }
 </script>
 
+
+{#snippet draftAssistantContent(toolId: string)}
+  <div class="draft-assistant-tools" hidden={toolId !== 'prepare'}>
+    <OrderWorkflowCoach context={newGuideContext} section={newGuideSection}
+      focusStep={newGuideStep} onNavigate={jumpToNewStep}/>
+    <p>{$t('orderAssistant.saveAndAskHint')}</p>
+    <button class="btn-secondary" type="button"
+      onclick={()=>void saveOrder('assistant')}
+      disabled={saving || !!successMessage || !can($currentUser, 'createDraftOrder')}>
+      <Icon name="save" size="sm" /> {$t('orderAssistant.saveAndAsk')}
+    </button>
+    {#if error}<p class="assistant-form-error" role="alert">{error}</p>{/if}
+  </div>
+{/snippet}
+
 <svelte:head>
   <!-- PDF.js loaded locally via runes import to avoid external CDN dependency -->
   <script lang="ts">
@@ -778,12 +814,6 @@
     <div class="header-actions">
       <button class="btn-secondary" onclick={() => goto('/orders')}>
         {$t('actions.cancel')}
-      </button>
-      <button class="btn-secondary" type="button"
-        title={$t('orderAssistant.saveAndAskHint')}
-        onclick={()=>void saveOrder('assistant')}
-        disabled={saving || !!successMessage || !can($currentUser, 'createDraftOrder')}>
-        ✦ {$t('orderAssistant.saveAndAsk')}
       </button>
       <button id="new-order-save" class="btn-primary" onclick={()=>void saveOrder('review')} disabled={saving || !!successMessage || !can($currentUser, 'createDraftOrder')}>
         {#if saving}
@@ -814,8 +844,6 @@
     </div>
   {/if}
 
-  <OrderWorkflowCoach context={newGuideContext} section={newGuideSection}
-    focusStep={newGuideStep} onNavigate={jumpToNewStep}/>
   <!-- 1. PROFILES SECTION (TOP) -->
   <section id="new-order-profiles" class="profiles-section full-width">
     <div class="profiles-header">
@@ -1330,6 +1358,11 @@
 </div>
 
 <style>
+  .draft-assistant-tools { display: grid; gap: 12px; min-width: 0; }
+  .draft-assistant-tools[hidden] { display: none; }
+  .draft-assistant-tools p { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-secondary); }
+  .draft-assistant-tools .assistant-form-error { color: var(--danger); }
+
   /* Native order form contracts remain unchanged; visual/keyboard refinements below. */
   .po-pending {
     display: inline-flex;

@@ -1,11 +1,14 @@
 <script lang="ts">
   import { scrollRegion } from '$lib/a11y/scroll-region';
-  import { materials, catalogError, createMaterial, updateMaterial, removeMaterial, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
+  import { materials, catalogError, isLoading as catalogLoading, removeMaterial, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
   import type { Material, Section } from '$lib/inventory/types';
   import { base } from '$app/paths';
   import {currentUser} from '$lib/auth/authState.svelte';
   import { t } from 'svelte-i18n';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
+  import { getAssistantContext } from '$lib/assistant/context';
+  import { createScreenReadScope, inventoryListScreenContext, screenOwnerKey, type InventoryEditorSnapshot } from '$lib/assistant/operational-context';
   import { toCSV, downloadCSV } from '$lib/inventory/export';
   import Tabs from '$lib/ui/Tabs.svelte';
   import ItemModal from '$lib/inventory/ItemModal.svelte';
@@ -23,6 +26,12 @@
   import { emptyConfirm, type ConfirmState } from '$lib/components/ui/confirm-types';
 
   let canManage=$derived(['RD','Boss','HeadOfProduction'].includes($currentUser?.role??''));
+  const assistant = getAssistantContext();
+  const catalogReads = createScreenReadScope();
+  let accountScope = $derived(screenOwnerKey($currentUser));
+  let loadedScope = $state('');
+  let editorSnapshot = $state<InventoryEditorSnapshot | null>(null);
+  let collapsedGroups = $state(new SvelteSet<string>());
   let confirmState = $state<ConfirmState>(emptyConfirm());
   function askDelete(it: Material) {
     confirmState = {
@@ -45,13 +54,47 @@
   // Load materials and subscribe to store updates
   onMount(() => {
     const unsub=materials.subscribe(value=>{
+      if (loadedScope !== accountScope) return;
       list=value;
       low=getLowStockMaterials();
     });
     const unsubError=catalogError.subscribe(value=>inventoryError=value);
-    void loadMaterials();
     return()=>{unsub();unsubError();};
   });
+
+  async function refreshInventory() {
+    const owner = accountScope;
+    if (!owner) return;
+    const request = catalogReads.begin(owner);
+    const result = await loadMaterials({ signal: request.signal, accept: () => request.accepts(accountScope) });
+    if (!request.accepts(accountScope)) return;
+    loadedScope = owner; list = result;
+    low = result.filter(row => row.stock <= row.min_stock);
+  }
+  $effect(() => {
+    const owner = accountScope;
+    return untrack(() => {
+      loadedScope = ''; list = []; low = []; inventoryError = null;
+      editing = null; editorSnapshot = null; confirmState = emptyConfirm();
+      showImport = false; showScan = false;
+      const unregister = assistant.register({
+        id: `inventory:${owner}`, title: () => $t('assistant.screen.inventory'), tools: () => [],
+        context: () => inventoryListScreenContext({
+          current: loadedScope === accountScope, loading: $catalogLoading || loadedScope !== accountScope,
+          error: !!inventoryError, section: currentTab, search: q, matchingAllSections: filtered.length,
+          rows: grouped.filter(group => !collapsedGroups.has(group.id)).flatMap(group => group.subgroups
+            .filter(subgroup => !collapsedGroups.has(subgroup.id)).flatMap(subgroup => subgroup.items)),
+          lowStock: low, canManage, editor: editing ? editorSnapshot : null,
+          importOpen: showImport, scannerOpen: showScan
+        })
+      });
+      void refreshInventory();
+      return () => { catalogReads.cancel(); unregister(); };
+    });
+  });
+  function rememberGroup(id: string, open: boolean) {
+    if (open) collapsedGroups.delete(id); else collapsedGroups.add(id);
+  }
 
   const tabs = [
     {id:'materials', label: $t('inventory.materials')},
@@ -171,7 +214,7 @@
 {#if inventoryError}
   <section class="card" role="alert">
     <p>{$t('inventoryConsolidation.catalogUnavailable')}</p>
-    <button class="tag" onclick={()=>void loadMaterials()}>
+    <button class="tag" onclick={()=>void refreshInventory()}>
       {$t('common.refresh', {default:'Refresh'})}
     </button>
   </section>
@@ -207,7 +250,7 @@
       <div class="muted">{$t('inventory.empty_filter')}</div>
     {/if}
     {#each grouped as g (g.id)}
-      <details class="group-section" open>
+      <details class="group-section" open={!collapsedGroups.has(g.id)} ontoggle={event => rememberGroup(g.id, event.currentTarget.open)}>
         <summary class="group-summary">
           <span>{g.title}</span>
           {#if canManage}
@@ -215,7 +258,7 @@
           {/if}
         </summary>
         {#each g.subgroups as sub (sub.id)}
-          <details class="sub-section" open>
+          <details class="sub-section" open={!collapsedGroups.has(sub.id)} ontoggle={event => rememberGroup(sub.id, event.currentTarget.open)}>
             <summary class="sub-summary">
               <span>{sub.title}</span>
               {#if canManage}
@@ -271,7 +314,7 @@
 </section>
 
 {#if editing && canManage}
-  <ItemModal bind:item={editing} onClose={() => editing = null} />
+  <ItemModal bind:item={editing} onDraftChange={snapshot => editorSnapshot = snapshot} onClose={() => { editing = null; editorSnapshot = null; }} />
 {/if}
 
 <ConfirmModal bind:state={confirmState} />

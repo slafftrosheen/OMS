@@ -1,7 +1,10 @@
 <script lang="ts">
   import { materials, move, updateMaterial, removeMaterial, loadMaterialById, type Material } from '$lib/inventory/store';
   import { currentUser } from '$lib/auth/authState.svelte';
-  import { onMount,onDestroy } from 'svelte';
+  import { onMount, untrack } from 'svelte';
+  import { getAssistantContext } from '$lib/assistant/context';
+  import { createScreenReadScope, inventoryDetailEditorFingerprint, inventoryDetailScreenContext, screenOwnerKey } from '$lib/assistant/operational-context';
+  import { getMaterialSpecificationFacts, MATERIAL_SPECIFICATION_LABELS } from '$lib/materials/catalog-presentation';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
@@ -17,33 +20,58 @@
   import Clock from 'lucide-svelte/icons/clock';
   import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
   import { emptyConfirm, type ConfirmState } from '$lib/components/ui/confirm-types';
+  import CatalogSpecificationCard from '$lib/materials/CatalogSpecificationCard.svelte';
 
   // Get id from URL params via page store
   let materialId = $derived(page.params.id);
+  const assistant = getAssistantContext();
+  const detailReads = createScreenReadScope();
+  let acceptsDetailScope = () => false;
+  let accountScope = $derived(screenOwnerKey($currentUser));
+  let detailScope = $derived(`${accountScope}:${materialId}`);
+  let loadedScope = $state('');
 
   let material: Material | undefined = $state(undefined);
   let editMode = $state(false);
   let editedMaterial: Partial<Material> = $state({});
 
-  const unsubscribe = materials.subscribe((list) => {
-    material = list.find((x) => x.id === materialId);
-    if (material && !editMode) {
-      editedMaterial = { ...material };
-    }
-  });
-
-  onDestroy(() => unsubscribe?.());
+  onMount(() => materials.subscribe((list) => {
+    if (loadedScope !== detailScope) return;
+    const updated = list.find((x) => x.id === materialId);
+    if (updated) material = updated;
+  }));
+  $effect(() => { if (material && !editMode) editedMaterial = { ...material }; });
 
   let detailLoading=$state(true);
   let detailUnavailable=$state(false);
-  onMount(()=>{
-    let active=true;
-    void loadMaterialById(materialId).then(item=>{
-      if(!active)return;
-      detailLoading=false;
-      detailUnavailable=!item;
+  $effect(() => {
+    const id = materialId, scope = detailScope, owner = accountScope;
+    return untrack(() => {
+      material = undefined; editedMaterial = {}; editMode = false; loadedScope = '';
+      detailLoading = true; detailUnavailable = false;
+      adjustAmount = 1; adjustNote = ''; adjusting = false; savingMetadata = false;
+      inventoryFailure = ''; inventoryMessage = ''; confirmState = emptyConfirm();
+      const request = detailReads.begin(scope);
+      acceptsDetailScope = () => request.accepts(detailScope);
+      const unregister = assistant.register({
+        id: `inventory-detail:${scope}`, title: () => material?.name_en || material?.code || $t('assistant.screen.inventory'),
+        tools: () => [], context: () => inventoryDetailScreenContext({
+          id: materialId, current: loadedScope === detailScope, loading: detailLoading, error: detailUnavailable,
+          material, canManage, editing: editMode, draft: editedMaterial,
+          changed: !!material && inventoryDetailEditorFingerprint(editedMaterial) !== inventoryDetailEditorFingerprint(material),
+          saving: savingMetadata, adjusting, actionError: !!inventoryFailure, quantity: adjustAmount, note: adjustNote,
+          specifications: material ? getMaterialSpecificationFacts(material).map(fact => ({
+            label: $t(`materialSpecifications.${fact.key}`, { default: MATERIAL_SPECIFICATION_LABELS[fact.key] }), value: fact.value
+          })) : []
+        })
+      });
+      if (owner && id) void loadMaterialById(id, { signal: request.signal, accept: () => request.accepts(detailScope) }).then(item => {
+        if (!request.accepts(detailScope)) return;
+        loadedScope = scope; material = item ?? undefined;
+        detailLoading = false; detailUnavailable = !item;
+      });
+      return () => { detailReads.cancel(); unregister(); };
     });
-    return()=>{active=false;};
   });
 
   let adjustAmount = $state(1);
@@ -60,28 +88,34 @@
       inventoryFailure=$t('inventoryConsolidation.invalidQuantity');return;
     }
     adjusting=true;inventoryFailure='';inventoryMessage='';
+    const accept = acceptsDetailScope;
     try{
-      const receipt=await move(material.id,kind,adjustAmount,'',adjustNote||undefined);
+      const receipt=await move(material.id,kind,adjustAmount,'',adjustNote||undefined,{ accept });
+      if (!accept()) return;
       if(!receipt)throw Error($t('inventoryConsolidation.movementUnconfirmed'));
       inventoryMessage=$t('inventoryConsolidation.movementSaved');
       adjustAmount=1;adjustNote='';
     }catch(e){
+      if (!accept()) return;
       inventoryFailure=e instanceof Error?e.message:$t('inventoryConsolidation.movementUnconfirmed');
-    }finally{adjusting=false;}
+    }finally{if (accept()) adjusting=false;}
   }
 
   async function saveChanges() {
     if(!material||savingMetadata||!canManage||detailLoading||detailUnavailable)return;
     savingMetadata=true;inventoryFailure='';inventoryMessage='';
+    const accept = acceptsDetailScope;
     try{
       const {stock:_stock,...metadata}=editedMaterial;
-      const updated=await updateMaterial(material.id,metadata);
+      const updated=await updateMaterial(material.id,metadata,{ accept });
+      if (!accept()) return;
       if(!updated)throw Error($t('inventoryConsolidation.metadataFailed'));
       editMode=false;
       inventoryMessage=$t('inventoryConsolidation.metadataSaved');
     }catch(e){
+      if (!accept()) return;
       inventoryFailure=e instanceof Error?e.message:$t('inventoryConsolidation.metadataFailed');
-    }finally{savingMetadata=false;}
+    }finally{if (accept()) savingMetadata=false;}
   }
 
   let confirmState = $state<ConfirmState>(emptyConfirm());
@@ -89,6 +123,7 @@
   function deleteMaterial() {
     if (!material) return;
     const m = material;
+    const accept = acceptsDetailScope;
     confirmState = {
       open: true,
       title: $t('inventoryDetail.delete_title', { default: 'Delete material' }),
@@ -98,8 +133,8 @@
       }),
       tone: 'danger',
       action: async () => {
-        await removeMaterial(m.id);
-        goto(`${base}/inventory`);
+        await removeMaterial(m.id, { accept });
+        if (accept()) goto(`${base}/inventory`);
       }
     };
   }
@@ -148,8 +183,8 @@
           {/if}
           <div class="info-title">
             {#if editMode}
-              <input class="edit-input title-input" bind:value={editedMaterial.name_en} placeholder={$t('inventoryDetail.material_name')} />
-              <input class="edit-input sku-input" bind:value={editedMaterial.sku} placeholder={$t('common.sku')} />
+              <input class="edit-input title-input" bind:value={editedMaterial.name_en} aria-label={$t('inventoryDetail.material_name')} placeholder={$t('inventoryDetail.material_name')} />
+              <input class="edit-input sku-input" bind:value={editedMaterial.sku} aria-label={$t('common.sku')} placeholder={$t('common.sku')} />
             {:else}
               <h1>{material.name_en}</h1>
               <span class="sku">{material.sku}</span>
@@ -162,7 +197,7 @@
             <Tag size={16} />
             <span class="info-label">{$t('inventory.item_group', { default: 'Category' })}</span>
             {#if editMode}
-              <input class="edit-input" bind:value={editedMaterial.item_group} />
+              <input class="edit-input" bind:value={editedMaterial.item_group} aria-label={$t('inventory.item_group', { default: 'Category' })} />
             {:else}
               <span class="info-value">{material.item_group || material.category}</span>
             {/if}
@@ -172,7 +207,7 @@
             <MapPin size={16} />
             <span class="info-label">{$t('inventory.headers.location', { default: 'Location' })}</span>
             {#if editMode}
-              <input class="edit-input" bind:value={editedMaterial.location} />
+              <input class="edit-input" bind:value={editedMaterial.location} aria-label={$t('inventory.headers.location', { default: 'Location' })} />
             {:else}
               <span class="info-value">{material.location || '—'}</span>
             {/if}
@@ -251,6 +286,8 @@
         </div>
         {/if}
       </div>
+
+      <CatalogSpecificationCard {material} />
 
       <!-- Details Card -->
       {#if material.supplier || material.price || material.barcode || material.thickness_mm}

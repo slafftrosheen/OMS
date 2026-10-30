@@ -1,5 +1,7 @@
 import type { IconName } from '$lib/ui/icons';
 import { dateKey, localDateKey } from '$lib/calendar/day-summary';
+import { orderLifecycle, orderStatusFromRecord, isTerminalOrderStatus } from '$lib/order/status-semantics';
+export { isTerminalOrderStatus } from '$lib/order/status-semantics';
 
 export type BadgeTone = 'neutral' | 'brand' | 'info' | 'success' | 'warn' | 'danger';
 export type BadgeDescriptor = {
@@ -36,21 +38,12 @@ export function badgeDescriptor(id: BadgeId, extra: Partial<BadgeDescriptor> = {
 
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
 const upper = (value: unknown) => text(value).toUpperCase();
-const lifecycle: Record<string, BadgeId> = {
-  DRAFT: 'draft', PENDING_REVIEW: 'pending_review', PENDING: 'pending_review', APPROVED: 'confirmed', CONFIRMED: 'confirmed',
-  ACTIVE: 'in_production', QUEUED: 'in_production', IN_PROGRESS: 'in_production', IN_PRODUCTION: 'in_production',
-  READY_TO_LOAD: 'ready_to_load', READY_TO_SHIP: 'ready_to_load', DISPATCHED: 'dispatched', ARCHIVED: 'archived',
-  CANCELLED: 'cancelled', CANCELED: 'cancelled', REJECTED: 'cancelled', VOIDED: 'voided', ON_HOLD: 'on_hold',
-  DONE: 'completed', COMPLETED: 'completed', OPEN: 'open'
-};
-const terminalIds = new Set(['dispatched', 'archived', 'cancelled', 'voided', 'completed']);
-export function isTerminalOrderStatus(value: unknown): boolean { return terminalIds.has(lifecycle[upper(value)]); }
-
 /** Presentation only: never infer authorization or workflow transitions from a badge. */
 export function lifecycleBadge(value: unknown): BadgeDescriptor | null {
   const status = upper(value);
   if (!status) return null;
-  return lifecycle[status] ? badgeDescriptor(lifecycle[status])
+  const id = orderLifecycle(status);
+  return id ? badgeDescriptor(id)
     : badgeDescriptor('unknown', { values: { state: status.replaceAll('_', ' ').slice(0, 80) } });
 }
 
@@ -84,10 +77,9 @@ export function buildOrderBadges(value: unknown, today = localDateKey(new Date()
   if (!value || typeof value !== 'object') return [];
   const row = value as Record<string, unknown>;
   const flags = Array.isArray(row.badges) ? row.badges.map(legacyOrderBadge).filter((b): b is BadgeDescriptor => !!b) : [];
-  const status = lifecycleBadge(row.status) ?? (row.isDraft === true ? badgeDescriptor('draft') : null)
-    ?? ['completed', 'draft', 'ready_to_load', 'in_production', 'open']
-      .map(id => flags.find(flag => flag.id === id)).find(Boolean) ?? null;
-  const done = status !== null && terminalIds.has(status.id);
+  const statusValue = orderStatusFromRecord(row);
+  const status = lifecycleBadge(statusValue);
+  const done = isTerminalOrderStatus(statusValue);
   const result: BadgeDescriptor[] = [];
   const add = (badge: BadgeDescriptor | null) => { if (badge && !result.some(item => item.id === badge.id)) result.push(badge); };
   if (options.includeLifecycle !== false) {

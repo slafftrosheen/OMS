@@ -5,7 +5,7 @@ import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from '$lib/server/config';
 import { logger } from '$lib/server/logging/logger';
 import { suggestFeedsSpeeds } from './cnc-feeds';
 import { matchPaint } from './paint-match';
-import { getPendingOrders, getLowStock } from './data-tools';
+import { getPendingOrders, getLowStock, searchMaterialCatalog, compareMaterialCatalog } from './data-tools';
 import { listSketches, readSketch } from './maker-tools';
 import { webSearch, crawlUrl } from './web-search';
 import { planLumiGrid, planLedStrip, planLedMatrix, planBoxLetter } from './signage';
@@ -37,14 +37,19 @@ export interface ToolContext {
   userId: string;
   role: string;
   stations?: string[];
+  /** Active station derived from the authenticated request's screen. */
+  station?: string;
+  signal?: AbortSignal;
   supabase: SupabaseClient;
 }
 
 export const TOOL_EXECUTORS: Record<string, (args: Record<string, unknown>, ctx: ToolContext) => Promise<unknown>> = {
-  'cnc.feeds_speeds': (args, ctx) => suggestFeedsSpeeds(args as unknown as Parameters<typeof suggestFeedsSpeeds>[0], ctx.supabase),
-  'paint.match': (args, ctx) => matchPaint(args as unknown as Parameters<typeof matchPaint>[0], ctx.supabase),
-  'data.pending_orders': (_args, ctx) => getPendingOrders(ctx.supabase),
-  'data.low_stock': (_args, ctx) => getLowStock(ctx.supabase),
+  'catalog.search': (args, ctx) => searchMaterialCatalog(ctx.supabase, args, ctx.signal),
+  'catalog.compare': (args, ctx) => compareMaterialCatalog(ctx.supabase, args, ctx.signal),
+  'cnc.feeds_speeds': (args, ctx) => suggestFeedsSpeeds(args as unknown as Parameters<typeof suggestFeedsSpeeds>[0], ctx.supabase, ctx.signal),
+  'paint.match': (args, ctx) => matchPaint(args as unknown as Parameters<typeof matchPaint>[0], ctx.supabase, ctx.signal),
+  'data.pending_orders': (_args, ctx) => getPendingOrders(ctx.supabase, ctx.signal),
+  'data.low_stock': (_args, ctx) => getLowStock(ctx.supabase, ctx.signal),
   'maker.list_sketches': (_args, ctx) => listSketches(ctx.supabase),
   'maker.read_sketch': (args, ctx) => readSketch(ctx.supabase, String(args.id ?? '')),
   // Deliberately no maker.save_sketch: model-generated tool calls must be read-only.
@@ -57,6 +62,26 @@ export const TOOL_EXECUTORS: Record<string, (args: Record<string, unknown>, ctx:
 };
 
 export const BUILTIN_TOOLS: ToolRow[] = [
+  {
+    slug: 'catalog.search', label: 'Material catalog', description: 'Find catalog materials by name, brand or model.', icon: 'search', category: 'data',
+    schema: { name: 'catalog_search', description: 'Search the OMS material catalog for exact product names, codes and recorded specifications. Does not verify live supplier stock or prices.', parameters: { type: 'object', properties: { query: { type: 'string', minLength: 2, maxLength: 100 }, category: { type: 'string', description: 'Optional exact OMS material category' } }, required: ['query'], additionalProperties: false } },
+    roles: [], stations: [], endpoint: '/api/ai/assistant', enabled: true
+  },
+  {
+    slug: 'catalog.compare', label: 'Compare catalog materials', description: 'Compare recorded specifications of 2–4 exact product codes.', icon: 'columns-2', category: 'data',
+    schema: { name: 'catalog_compare', description: 'Read exact OMS catalog records side by side. Obtain exact codes from catalog search or current screen first. Missing codes stay missing. Respect package/stock units and W versus W/m. This is not a compatibility approval and does not verify supplier stock or prices.', parameters: { type: 'object', properties: { codes: { type: 'array', items: { type: 'string', minLength: 1, maxLength: 100 }, minItems: 2, maxItems: 4, uniqueItems: true } }, required: ['codes'], additionalProperties: false } },
+    roles: [], stations: [], endpoint: '/api/ai/assistant', enabled: true
+  },
+  {
+    slug: 'data.pending_orders', label: 'Pending orders', description: 'Read up to 25 earliest-due pending orders visible to the signed-in user. Respect mayBeIncomplete; a partial result is not the complete queue or a verified total.', icon: 'clipboard-list', category: 'data',
+    schema: { name: 'pending_orders', parameters: { type: 'object', properties: {}, additionalProperties: false } },
+    roles: ['RD','Boss','HeadOfProduction'], stations: [], endpoint: '/api/ai/assistant', enabled: true
+  },
+  {
+    slug: 'data.low_stock', label: 'Low stock', description: 'Inspect up to 500 recent materials and return up to 100 with recorded stock <= minimum, including zero/zero defaults. Respect scanMayBeIncomplete, resultsTruncated and unclassifiedCount; an empty partial result does not prove inventory has no shortages.', icon: 'package', category: 'data',
+    schema: { name: 'low_stock', parameters: { type: 'object', properties: {}, additionalProperties: false } },
+    roles: ['RD','Boss','HeadOfProduction'], stations: [], endpoint: '/api/ai/assistant', enabled: true
+  },
   {
     slug: 'web.search', label: 'Web search', description: 'Search the company search index for technical references and vendor datasheets.', icon: 'search', category: 'web',
     schema: { name: 'web_search', description: 'Search for current vendor specifications or technical references.', parameters: { type: 'object', properties: { query: { type: 'string' }, top_k: { type: 'number' }, language: { type: 'string' }, site: { type: 'array', items: { type: 'string' } }, categories: { type: 'array', items: { type: 'string' } } }, required: ['query'] } },
@@ -104,18 +129,25 @@ const RETIRED_LOCAL_AI_TOOL_SLUGS = new Set(['rag.search_knowledge', 'engineerin
 
 const RESTRICTED_DATA_TOOLS = new Set(['data.pending_orders', 'data.low_stock']);
 
+export function normalizeToolStation(station: string | undefined): string | undefined {
+  const normalized = station?.trim().toUpperCase();
+  // Legacy production records use PAINT; current user assignments use painting.
+  return normalized === 'PAINT' ? 'PAINTING' : normalized || undefined;
+}
+
 // Models may choose from registered, implemented and authorized tools only.
 // Database descriptors can disable a built-in but cannot publish an executable
 // arbitrary URL, bypass role checks or turn on an autonomous write.
 export function mayUseTool(tool: ToolRow, filter: { role?: string; station?: string } = {}): boolean {
   if (!tool.enabled || RETIRED_LOCAL_AI_TOOL_SLUGS.has(tool.slug)) return false;
   if (!tool.schema || typeof tool.schema.name !== 'string' || !tool.schema.name.trim()) return false;
-  if (!(tool.slug in TOOL_EXECUTORS)) return false;
+  if (!Object.prototype.hasOwnProperty.call(TOOL_EXECUTORS, tool.slug)) return false;
   if (tool.slug === 'maker.save_sketch') return false;
   if (RESTRICTED_DATA_TOOLS.has(tool.slug) &&
       !['RD', 'Boss', 'HeadOfProduction'].includes(filter.role ?? '')) return false;
   if (tool.roles?.length && (!filter.role || !tool.roles.includes(filter.role))) return false;
-  if (tool.stations?.length && (!filter.station || !tool.stations.includes(filter.station))) return false;
+  if (tool.stations?.length && (!filter.station ||
+      !tool.stations.some(station => normalizeToolStation(station) === normalizeToolStation(filter.station)))) return false;
   return true;
 }
 
@@ -188,12 +220,21 @@ export async function findToolBySchemaName(name: string, filter: { role?: string
 
 export async function executeTool(slug: string, args: Record<string, unknown>, ctx: ToolContext): Promise<unknown> {
   if (!ctx?.userId || !ctx?.role || !ctx?.supabase) throw new Error('Authenticated tool context is required');
+  ctx.signal?.throwIfAborted();
   if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Tool arguments must be an object');
   if (slug === 'maker.save_sketch') throw new Error('Autonomous writes require a separate user approval workflow');
   if (RETIRED_LOCAL_AI_TOOL_SLUGS.has(slug)) throw new Error('Tool disabled in OpenRouter-only mode');
-  const available = await listTools({ role: ctx.role });
+  const station = normalizeToolStation(ctx.station);
+  if (station && !['RD', 'Boss', 'HeadOfProduction'].includes(ctx.role) &&
+      !ctx.stations?.some(assignment => normalizeToolStation(assignment) === station)) {
+    throw new Error('Station assignment required');
+  }
+  const available = await listTools({ role: ctx.role, station });
+  ctx.signal?.throwIfAborted();
   if (!available.some(tool => tool.slug === slug)) throw new Error('Tool unavailable or not authorized');
   const executor = TOOL_EXECUTORS[slug];
-  if (!executor) throw new Error('Tool executor is not installed');
-  return executor(args, ctx);
+  if (typeof executor !== 'function') throw new Error('Tool executor is not installed');
+  const result = await executor(args, ctx);
+  ctx.signal?.throwIfAborted();
+  return result;
 }

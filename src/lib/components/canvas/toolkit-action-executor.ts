@@ -104,7 +104,7 @@ function preflight(editor: any, actions: CanvasAction[]): ToolkitApplyResult | n
     if (action.expected) {
       if (related.some(shape => action.expected![shape.id] !== canvasShapeVersion(shape))) return result('stale');
       if (Object.keys(action.expected).some(id => !related.some(shape => shape.id === id))) return result('stale');
-    } else if (existingTargets.length && !['revise','connect','layout','create'].includes(action.kind)) return result('stale');
+    } else if (existingTargets.length && !['revise','connect','layout'].includes(action.kind)) return result('stale');
     if (action.kind === 'layout' && targets.length < 2) return result('empty');
     if (action.kind === 'delete') {
       for (const shape of affected) deleted.add(shape.id);
@@ -129,7 +129,7 @@ function preflight(editor: any, actions: CanvasAction[]): ToolkitApplyResult | n
       align: 'alignShapes', distribute: 'distributeShapes', layout: 'updateShapes'
     };
     if (method[action.kind] && typeof editor[method[action.kind]!] !== 'function') return result('unsupported');
-    if (action.kind === 'group' || action.kind === 'ungroup') {
+    if ((action.kind === 'create' && action.shape.parentId) || action.kind === 'group' || action.kind === 'ungroup') {
       if (typeof editor.getShape !== 'function') return result('unsupported');
       if (editor.getCurrentToolId?.() && editor.getCurrentToolId() !== 'select' &&
           typeof editor.setCurrentTool !== 'function') return result('unsupported');
@@ -154,6 +154,7 @@ function resolveTargets(action: CanvasAction, references: Map<string, string>): 
     if (!actual) throw new Error('Unresolved Canvas reference');
     return actual;
   };
+  if (action.kind === 'create' && action.shape.parentId) return { ...action, shape: { ...action.shape, parentId: resolve(action.shape.parentId) } };
   if (action.kind === 'connect') return { ...action, from: resolve(action.from), to: resolve(action.to) };
   if ('target' in action) return { ...action, target: resolve(action.target) };
   if ('targets' in action && action.targets) return { ...action, targets: action.targets.map(resolve) };
@@ -170,7 +171,13 @@ function execute(editor: any, action: CanvasAction, references: Map<string, stri
         props = { ...media, ...props };
       }
       const id = newShapeId();
-      editor.createShape({ ...action.shape, id, parentId: editor.getCurrentPageId(), props });
+      const parentId = action.shape.parentId ?? editor.getCurrentPageId();
+      if (action.shape.parentId) {
+        const parent = editor.getShape(parentId);
+        if (!parent || parent.type !== 'frame' || parent.isLocked) throw new Error('Frame is unavailable');
+      }
+      editor.createShape({ ...action.shape, id, parentId, props });
+      if (action.shape.parentId && editor.getShape(id)?.parentId !== parentId) throw new Error('Frame ownership was not applied');
       if (action.ref) references.set(`@${action.ref}`, id);
       break;
     }
@@ -184,7 +191,9 @@ function execute(editor: any, action: CanvasAction, references: Map<string, stri
     case 'revise': {
       const shape = editor.getShape(action.target);
       editor.updateShape({ id: shape.id, type: 'idea-card', props: {
-        title: action.title, body: action.body, ...(action.state ? { state: action.state } : {}) } });
+        ...(action.title !== undefined ? { title: action.title } : {}),
+        ...(action.body !== undefined ? { body: action.body } : {}),
+        ...(action.state ? { state: action.state } : {}) } });
       break;
     }
     case 'move': editor.nudgeShapes(action.targets, { x: action.dx, y: action.dy }); break;

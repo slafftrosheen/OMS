@@ -1,6 +1,8 @@
 <script lang="ts">
   import OrderBadges from '$lib/badges/OrderBadges.svelte';
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
+  import { getAssistantContext } from '$lib/assistant/context';
+  import { calendarScreenContext, screenOwnerKey } from '$lib/assistant/operational-context';
   import { base } from '$app/paths';
   import { t, locale } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/authState.svelte';
@@ -16,6 +18,10 @@
   import type { CalEvent } from '$lib/calendar/types';
 
   const initialDate = new Date();
+  const assistant = getAssistantContext();
+  let accountScope = $derived(screenOwnerKey($currentUser));
+  let loadedScope = $state('');
+  let loadedRange = $state('');
   let year = $state(initialDate.getFullYear());
   let month = $state(initialDate.getMonth());
   let today = $state(localDateKey(initialDate));
@@ -35,6 +41,8 @@
   let operation = $state(false);
   let actionError = $state('');
   let actionNotice = $state('');
+  let pendingOrderId = $state<string | null>(null);
+  let mutationVersion = 0;
   let requestId = 0;
   let controller: AbortController | null = null;
   let mutationController: AbortController | null = null;
@@ -75,10 +83,13 @@
   }
 
   async function refreshCalendar(from = localDateKey(days[0]), to = localDateKey(days[41])) {
+    const owner = accountScope;
+    if (!owner) return;
     const version = ++requestId;
     controller?.abort();
-    controller = new AbortController();
-    const options = { basePath: base, signal: controller.signal };
+    const requestController = new AbortController();
+    controller = requestController;
+    const options = { basePath: base, signal: requestController.signal };
     loading = true;
     errors = [];
     const results = await Promise.allSettled([
@@ -92,16 +103,37 @@
         return payload.map(normalizeCalendarEvent).filter((event): event is CalEvent => !!event);
       })
     ]);
-    if (!alive || version !== requestId) return;
+    if (!alive || version !== requestId || owner !== accountScope || requestController.signal.aborted) return;
     orders = results[0].status === 'fulfilled' ? results[0].value : [];
     loadingDays = results[1].status === 'fulfilled' ? results[1].value : [];
     events = results[2].status === 'fulfilled' ? results[2].value : [];
     errors = results.flatMap((result, index) => result.status === 'rejected' ? [sources[index]] : []);
+    loadedScope = owner; loadedRange = `${from}:${to}`;
     loading = false;
   }
 
   $effect(() => {
-    if (mounted) void refreshCalendar(localDateKey(days[0]), localDateKey(days[41]));
+    const owner = accountScope;
+    return untrack(() => {
+      requestId++; controller?.abort(); mutationVersion++; mutationController?.abort();
+      loadedScope = ''; loadedRange = ''; orders = []; loadingDays = []; events = [];
+      errors = []; loading = true; modal = null; operation = false; pendingOrderId = null;
+      newCarrier = ''; newNote = ''; actionError = ''; actionNotice = '';
+      return assistant.register({
+        id: `calendar:${owner}`, title: () => $t('assistant.screen.calendar'), tools: () => [],
+        context: () => calendarScreenContext({
+          current: loadedScope === accountScope && loadedRange === `${localDateKey(days[0])}:${localDateKey(days[41])}`,
+          loading, errors, selectedDate, displayedMonth: `${year}-${String(month + 1).padStart(2, '0')}`,
+          filter: filterStatus, selected, visibleOrders: filteredOrders.slice(0, visibleOrderCount), matchingOrders: filteredOrders.length,
+          canManage, modal, carrier: newCarrier, note: newNote, saving: operation, actionError: !!actionError,
+          pendingOrderId, eligibleOrders
+        })
+      });
+    });
+  });
+  $effect(() => {
+    const owner = accountScope, from = localDateKey(days[0]), to = localDateKey(days[41]);
+    if (mounted && owner) untrack(() => { void refreshCalendar(from, to); });
   });
 
   $effect(() => {
@@ -147,22 +179,24 @@
 
   async function mutate(path: string, init: RequestInit, success: string): Promise<boolean> {
     if (!canManage || operation) return false;
+    const owner = accountScope, selected = selectedDate, version = ++mutationVersion;
+    const current = () => alive && owner === accountScope && version === mutationVersion;
     operation = true;
     actionError = '';
     actionNotice = '';
     mutationController = new AbortController();
     try {
       await fetchCalendarJson(path, { basePath: base, signal: mutationController.signal }, init);
-      if (!alive) return false;
-      modal = null;
+      if (!current()) return false;
+      if (selected === selectedDate) modal = null;
       actionNotice = success;
       await refreshCalendar();
       return true;
     } catch (error) {
-      if (alive) actionError = error instanceof Error ? error.message : $t('calendar.agenda.save_failed');
+      if (current()) actionError = error instanceof Error ? error.message : $t('calendar.agenda.save_failed');
       return false;
     } finally {
-      if (alive) operation = false;
+      if (current()) { operation = false; pendingOrderId = null; }
     }
   }
 
@@ -178,6 +212,7 @@
   async function assignOrder(order: CalendarOrder) {
     const day = selected.loadingDay;
     if (!day?.active || !mayAssignLoading(order.status)) return;
+    pendingOrderId = order.id;
     await mutate(`/api/loading-days/${encodeURIComponent(day.id)}/orders`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: order.id })
     }, $t('calendar.agenda.order_assigned'));
@@ -396,7 +431,7 @@
 </div>
 
 {#if modal}
-  <dialog bind:this={dialog} class="calendar-dialog" aria-labelledby="calendar-dialog-title"
+  <dialog bind:this={dialog} class="calendar-dialog" data-assistant-host aria-labelledby="calendar-dialog-title"
     oncancel={event => { if (operation) event.preventDefault(); else modal = null; }} onclose={() => modal = null}>
     <header class="dialog-header"><div><p class="dialog-date">{formatDate(selectedDate, true)}</p><h2 id="calendar-dialog-title">{$t(modal === 'assign' ? 'calendar.add_order' : 'calendar.mark_loading_day')}</h2></div>
       <button class="icon-button" type="button" onclick={() => modal = null} disabled={operation} aria-label={$t('common.close')}><Icon name="x" size={18} /></button></header>

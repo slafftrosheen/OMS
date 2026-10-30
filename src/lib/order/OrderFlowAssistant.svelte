@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import {t,locale} from 'svelte-i18n';
   import {base} from '$app/paths';
   import {proposalsToPatch,proposalMatchesCurrent,type IntakeProposal} from './intake-contract';
@@ -33,6 +34,17 @@
   let showAllTechnical=$state(false),technicalSequence=0;
   let requestSerial=0;
   let lastPrefillRevision=0;
+  const requestController = new AbortController();
+  let disposed = false;
+  const requestSignal = (timeout = 120_000) => AbortSignal.any([
+    requestController.signal, AbortSignal.timeout(timeout)
+  ]);
+  onDestroy(() => {
+    disposed = true;
+    requestSerial++;
+    technicalSequence++;
+    requestController.abort();
+  });
   // A workflow tip prepares a question but never sends it or grants consent.
   $effect(()=>{
     if(promptRevision>lastPrefillRevision&&!busy&&suggestedPrompt){
@@ -49,19 +61,19 @@
     technicalBusy=true;technicalError='';showAllTechnical=false;
     try{
       const response=await fetch(`${base}/api/orders/${encodeURIComponent(checkedId)}/technical-checks`,
-        {method:'GET',cache:'no-store'});
+        {method:'GET',cache:'no-store',signal:requestSignal(20_000)});
       if(!response.ok)throw new Error($t('orderAssistant.technicalUnavailable'));
       const result=await response.json();
-      if(checkedId!==orderId||sequence!==technicalSequence)return;
+      if(disposed||checkedId!==orderId||sequence!==technicalSequence)return;
       if(result?.orderId!==checkedId||
          result.checks?.kind!=='deterministic-technical-evidence'||
          typeof result.orderUpdatedAt!=='string')
         throw new Error($t('orderAssistant.technicalUnavailable'));
       technical=result.checks;technicalVersion=result.orderUpdatedAt;
     }catch(err){
-      if(checkedId===orderId&&sequence===technicalSequence)
+      if(!disposed&&checkedId===orderId&&sequence===technicalSequence)
         technicalError=err instanceof Error?err.message:$t('orderAssistant.technicalUnavailable');
-    }finally{if(checkedId===orderId&&sequence===technicalSequence)technicalBusy=false;}
+    }finally{if(!disposed&&checkedId===orderId&&sequence===technicalSequence)technicalBusy=false;}
   }
   $effect(()=>{
     if(technicalVersion!==null&&orderUpdatedAt!==technicalVersion){
@@ -103,13 +115,13 @@
     problem='';busy=true;question='';resetProposals();
     try{
       const response=await fetch(`${base}/api/ai/order-assistant`,{
-        method:'POST',headers:{'Content-Type':'application/json'},
+        method:'POST',headers:{'Content-Type':'application/json'},signal:requestSignal(),
         body:JSON.stringify({orderId:questionOrder,question:text,mode:requestedMode,
           consent:true,language:$locale||'en',history:prior,
           ...(capturedVersion?{expectedUpdatedAt:capturedVersion}:{})})
       });
       const body=await response.json().catch(()=>({}));
-      if(questionOrder!==orderId||serial!==requestSerial)return;
+      if(disposed||questionOrder!==orderId||serial!==requestSerial)return;
       if(!response.ok)throw Error(response.status===409?$t('orderAssistant.stale'):
         body.message??body.error??$t('orderAssistant.failed'));
       if(typeof body.reply!=='string'||!body.reply.trim()||
@@ -134,10 +146,10 @@
         approvals={};applied=false;
       }
     }catch(err){
-      if(questionOrder===orderId&&serial===requestSerial){
+      if(!disposed&&questionOrder===orderId&&serial===requestSerial){
         question=text;problem=err instanceof Error?err.message:$t('orderAssistant.failed');
       }
-    }finally{if(questionOrder===orderId&&serial===requestSerial)busy=false;}
+    }finally{if(!disposed&&questionOrder===orderId&&serial===requestSerial)busy=false;}
   }
   async function apply(){
     if(!editable||applying||busy||applied||!hasAccepted)return;
@@ -148,9 +160,10 @@
     applying=true;
     try{
       const response=await fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}`,
-        {cache:'no-store'});
+        {cache:'no-store',signal:requestSignal(20_000)});
       if(!response.ok)throw Error($t('orderAssistant.stale'));
       const latest=await response.json();
+      if(disposed)return;
       if(latest.updatedAt!==proposalVersion||!
         ['DRAFT','draft','PENDING_REVIEW'].includes(latest.status))
         throw Error($t('orderAssistant.stale'));
@@ -159,8 +172,8 @@
       // selected (unchecked-by-default) fields are copied to LOCAL form state.
       onApply(proposalsToPatch(proposals.filter((_,i)=>approvals[i]===true)));
       applied=true;approvals={};
-    }catch(err){problem=err instanceof Error?err.message:$t('orderAssistant.applyFailed');}
-    finally{applying=false;}
+    }catch(err){if(!disposed)problem=err instanceof Error?err.message:$t('orderAssistant.applyFailed');}
+    finally{if(!disposed)applying=false;}
   }
   function resetConversation(){
     requestSerial++;turns=[];question='';problem='';resetProposals();model='';

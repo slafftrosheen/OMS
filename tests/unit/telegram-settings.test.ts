@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { DEFAULT_TELEGRAM_OPTIONS } from '../../src/lib/notifications/telegram-options';
 import { environmentTelegramSettings, normalizeTelegramSettingsInput, publicTelegramSettings, resolveTelegramSettings, telegramConfigFromSettings } from '../../src/lib/server/notifications/telegram-settings';
 import { GET, PUT, POST, DELETE } from '../../src/routes/api/settings/telegram/+server';
-import { GET as personalStatus } from '../../src/routes/api/notifications/telegram/+server';
+import { GET as personalStatus, POST as personalConnect } from '../../src/routes/api/notifications/telegram/+server';
 import { checkTelegramRuntimeFence, telegramSettingsGeneration } from '../../src/lib/server/notifications/telegram-runtime-fence';
 
 const env = { TELEGRAM_ENABLED: 'true', TELEGRAM_BOT_TOKEN: '123456:abcdefghijklmnopqrstuvwxyz_0123456789', TELEGRAM_BOT_USERNAME: 'OMS_notify_bot',
@@ -23,10 +23,13 @@ async function runtime(run: (calls: Array<{url:string;body:any}>, setRecord: (va
     calls.push({ url, body });
     if (url.endsWith('/rpc/get_telegram_settings')) return Response.json(saved);
     if (url.endsWith('/rpc/telegram_admin_counts')) return Response.json({ connected: 3, pending: 2, failed: 1 });
+    if (url.endsWith('/rpc/telegram_receiver_status')) return Response.json({ available: true, state: 'webhook' });
+    if (url.endsWith('/rpc/claim_telegram_receiver')) return Response.json({ token: body.p_lease_token, offset: null, prepared: false, failures: 0 });
+    if (url.endsWith('/rpc/renew_telegram_receiver') || url.endsWith('/rpc/release_telegram_receiver')) return Response.json(true);
     if (url.endsWith('/rpc/set_telegram_settings')) { saved = { options: body.p_options, botToken: body.p_bot_token, webhookSecret: body.p_webhook_secret, deliverySecret: body.p_delivery_secret }; return Response.json(null); }
     if (url.endsWith('/rpc/remove_telegram_credentials')) return Response.json(null);
     if (url.includes('/audit_log')) return Response.json(null);
-    if (url.endsWith('/getMe')) return Response.json({ ok: true, result: { is_bot: true, username: 'OMS_notify_bot' } });
+    if (url.endsWith('/getMe')) return Response.json({ ok: true, result: { id: 123456, is_bot: true, username: 'OMS_notify_bot' } });
     if (url.endsWith('/getWebhookInfo')) return Response.json({ ok: true, result: { url: 'https://oms.example.test/api/telegram/webhook', pending_update_count: 0, last_error_message: env.TELEGRAM_BOT_TOKEN } });
     if (url.endsWith('/setWebhook') || url.endsWith('/setMyCommands') || url.endsWith('/deleteWebhook')) return Response.json({ ok: true, result: true });
     throw new Error('Unexpected test request');
@@ -112,15 +115,22 @@ describe('Telegram R&D settings HTTP authorization and provider actions', () => 
       expect(response.status).toBe(200); expect((await response.json()).configured).toBe(false);
     });
   });
-  it('fails closed during a settings database outage rather than resurrecting environment credentials', async () => {
+  it('reports an unavailable personal account and blocks connections during a settings outage', async () => {
     await runtime(async () => {
       globalThis.fetch=async()=>Response.json({ code:'08006', message:'Database unavailable' },{status:503});
       const response=await personalStatus({locals:locals('Operator')} as any);
-      expect(response.status).toBe(503); expect((await response.json()).code).toBe('settings_unavailable');
+      // Reading preferences remains a safe status response when Vault is down.
+      // It must never resurrect the legacy enabled bot or fabricate account state.
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ configured:false, available:false, connected:false, enabled:false, botUsername:null });
+      const connection=await personalConnect({locals:locals('Operator'),request:request('POST',{action:'connect'})} as any);
+      expect(connection.status).toBe(503); expect((await connection.json()).code).toBe('settings_unavailable');
     });
   });
   it('registers only the saved application endpoint with its webhook secret and private command scopes', async () => {
-    await runtime(async calls => {
+    await runtime(async (calls,setRecord) => {
+      const revision='2026-10-23T00:00:00.000001+00:00';
+      setRecord({...record(),revision});
       const response=await POST({locals:locals(),request:request('POST',{action:'registerWebhook'})} as any);
       expect(response.status).toBe(200);
       const webhook=calls.find(call=>call.url.endsWith('/setWebhook'))!.body;
@@ -128,6 +138,9 @@ describe('Telegram R&D settings HTTP authorization and provider actions', () => 
       expect(webhook.secret_token).toBe(env.TELEGRAM_WEBHOOK_SECRET);
       expect(webhook.allowed_updates).toEqual(['message','callback_query']);
       expect(webhook.drop_pending_updates).toBe(false);
+      const transport=calls.filter(call=>/\/(?:claim_telegram_receiver|renew_telegram_receiver|release_telegram_receiver|setWebhook)$/.test(call.url));
+      expect(transport.map(call=>call.url.split('/').pop())).toEqual(['claim_telegram_receiver','renew_telegram_receiver','setWebhook','release_telegram_receiver']);
+      expect(transport[0].body.p_revision).toBe(revision);
       const menus=calls.filter(call=>call.url.endsWith('/setMyCommands'));
       expect(menus.length).toBe(4); expect(menus.every(call=>call.body.scope.type==='all_private_chats')).toBe(true);
       expect(menus[0].body.commands.some((command:any)=>command.command==='ask')).toBe(false);

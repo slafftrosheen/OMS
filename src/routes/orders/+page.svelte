@@ -28,6 +28,10 @@
   import { dragging } from '$lib/dnd';
   import Icon from '$lib/ui/Icon.svelte';
   import KpiCard from '$lib/ui/KpiCard.svelte';
+  import { getAssistantContext } from '$lib/assistant/context';
+  import { orderListScreenContext } from '$lib/assistant/visible-context';
+
+  const assistant = getAssistantContext();
 
   type OrderRow = {
     id: string;
@@ -210,7 +214,22 @@
 
   // Load orders on mount (Svelte 5 correct pattern for initialization)
   onMount(() => {
-    refresh();
+    void refresh();
+    return assistant.register({
+      id: 'orders:list', title: () => $t('orderLists.title'), tools: () => [],
+      context: () => orderListScreenContext({
+        loading: isLoading, refreshing, error: !!errorMessage, hasLoadedOnce,
+        search: q, status: statusFilter, sortKey, sortAsc,
+        page: currentPage, pageSize: itemsPerPage, totalPages, matchingOrders: visible.length,
+        counts: { total: totalOrders, active: activeOrders, urgent: urgentOrders,
+          ...(isAdmin ? { drafts: draftOrders } : {}) },
+        rows: paginatedRows.map(row => ({
+          id: row.id, reference: row.poNumber, title: row.title, client: row.client,
+          dueDate: row.due, loadingDate: row.loadingDate, expanded: row.expanded, stages: row.stages,
+          badges: buildOrderBadges(row.order, $currentDay).map(badge => $t(badge.labelKey, badge.values ?? {}))
+        }))
+      })
+    });
   });
 </script>
 

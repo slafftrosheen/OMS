@@ -114,7 +114,10 @@ describe('OMS-R14 grounded production intelligence',()=>{
     expect(panel).toContain("report.ai.recommendations");
     expect(panel).toContain("!currentReport");
     expect(editor).toContain('<OrderReadinessAssistant {orderId}');
-    expect(editor).toContain("rightTab === 'readiness'");
+    expect(editor).toContain("{ id: 'readiness', label: $t('productionReadiness.title') }");
+    expect(editor).toContain("hidden={toolId !== 'readiness'}");
+    expect(editor).toContain('content: orderAssistantContent');
+    expect(editor).toContain("canRun={!!$currentUser && can($currentUser, 'editOrder')");
     expect(editor).toContain("fetch('/api/order/profile-choices'");
     expect(editor).toContain('profileTemplateId:e.currentTarget.value||null');
     const catalog=read('src/routes/api/order/profile-choices/+server.ts');

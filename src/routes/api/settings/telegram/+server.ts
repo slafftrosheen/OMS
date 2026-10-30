@@ -5,6 +5,8 @@ import { TelegramServiceError, dispatchTelegramDeliveries } from '$lib/server/no
 import { telegramErrorResponse, telegramPrivateHeaders } from '$lib/server/notifications/telegram-http';
 import { telegramApi } from '$lib/server/notifications/telegram';
 import { dispatchTelegramBotReplies, telegramCommandMenu } from '$lib/server/notifications/telegram-bot';
+import { readTelegramReceiverStatus, withTelegramWebhookLease } from '$lib/server/notifications/telegram-receiver-admin';
+import { TelegramReceiverError } from '$lib/server/notifications/telegram-polling';
 
 async function requireAdmin(locals: App.Locals): Promise<string> {
   if (!locals.user?.id) throw new TelegramServiceError('unauthorized', 401);
@@ -23,6 +25,10 @@ async function readBody(request: Request): Promise<any> {
 async function audit(db: any, userId: string, action: string) {
   try { await db.from('audit_log').insert({ user_id: userId, action, entity_type: 'system_setting', details: { provider: 'telegram' } }); } catch { /* Never log credential-bearing request data. */ }
 }
+function adminError(error: unknown) {
+  return telegramErrorResponse(error instanceof TelegramReceiverError
+    ? new TelegramServiceError(error.code, ['receiver_conflict', 'runtime_changed'].includes(error.code) ? 409 : 503) : error);
+}
 
 export const GET: RequestHandler = async ({ locals }) => {
   try {
@@ -30,12 +36,13 @@ export const GET: RequestHandler = async ({ locals }) => {
     const { record, available, db } = await getTelegramSettings();
     const status = publicTelegramSettings(record, available, telegramEnvironment());
     if (available) {
-      const counts = await db.rpc('telegram_admin_counts');
+      const [counts, receiver] = await Promise.all([db.rpc('telegram_admin_counts'), readTelegramReceiverStatus(db)]);
+      status.receiver = receiver;
       if (!counts.error && counts.data && typeof counts.data === 'object') status.counts = counts.data;
       else status.available = false;
     }
     return json(status, { headers: telegramPrivateHeaders });
-  } catch (error) { return telegramErrorResponse(error); }
+  } catch (error) { return adminError(error); }
 };
 
 export const PUT: RequestHandler = async ({ locals, request }) => {
@@ -45,16 +52,20 @@ export const PUT: RequestHandler = async ({ locals, request }) => {
     const { record, available, db } = await getTelegramSettings();
     if (!available) throw new TelegramServiceError('settings_unavailable');
     const next = normalizeTelegramSettingsInput(body, record);
+    if (next.options.enabled && next.options.connectionMode === 'polling' && !(await readTelegramReceiverStatus(db)).available) {
+      throw new TelegramServiceError('migration_required');
+    }
     const result = await db.rpc('set_telegram_settings', { p_actor: userId, p_options: next.options,
       p_bot_token: next.botToken, p_webhook_secret: next.webhookSecret, p_delivery_secret: next.deliverySecret,
       p_previous_bot_id: record.botToken.split(':')[0] || null });
     if (result.error) throw new TelegramServiceError('settings_unavailable');
     await audit(db, userId, 'telegram_settings_updated');
     const status = publicTelegramSettings(next, true, telegramEnvironment());
-    const counts = await db.rpc('telegram_admin_counts');
+    const [counts, receiver] = await Promise.all([db.rpc('telegram_admin_counts'), readTelegramReceiverStatus(db)]);
+    status.receiver = receiver;
     if (!counts.error && counts.data) status.counts = counts.data;
     return json(status, { headers: telegramPrivateHeaders });
-  } catch (error) { return telegramErrorResponse(error); }
+  } catch (error) { return adminError(error); }
 };
 
 export const DELETE: RequestHandler = async ({ locals }) => {
@@ -66,31 +77,39 @@ export const DELETE: RequestHandler = async ({ locals }) => {
     if (result.error) throw new TelegramServiceError('settings_unavailable');
     await audit(db, userId, 'telegram_credentials_removed');
     return json({ ok: true }, { headers: telegramPrivateHeaders });
-  } catch (error) { return telegramErrorResponse(error); }
+  } catch (error) { return adminError(error); }
 };
 
 export const POST: RequestHandler = async ({ locals, request }) => {
   try {
     const userId = await requireAdmin(locals);
     const body = await readBody(request);
-    if (!body || Object.keys(body).some(key => key !== 'action') || !['probe', 'registerWebhook', 'removeWebhook', 'syncCommands', 'dispatch', 'retryFailures'].includes(body.action)) throw new TelegramServiceError('invalid_request', 400);
+    if (!body || Object.keys(body).some(key => key !== 'action') || !['receiverStatus', 'probe', 'registerWebhook', 'removeWebhook', 'syncCommands', 'dispatch', 'retryFailures'].includes(body.action)) throw new TelegramServiceError('invalid_request', 400);
     const { record, db } = await getTelegramSettings();
+    if (body.action === 'receiverStatus') return json({ receiver: await readTelegramReceiverStatus(db) }, { headers: telegramPrivateHeaders });
     if (!record.botToken) throw new TelegramServiceError('not_configured');
     const config = telegramConfigFromSettings({ ...record, options: { ...record.options, enabled: true } }, telegramEnvironment());
-    const expectedUrl = record.options.appUrl ? `${record.options.appUrl}/api/telegram/webhook` : null;
+    const polling = record.options.connectionMode === 'polling';
+    const expectedUrl = !polling && record.options.appUrl ? `${record.options.appUrl}/api/telegram/webhook` : null;
     if (body.action === 'probe') {
       const bot = await telegramApi(record, 'getMe');
       if (!bot.ok || bot.result?.is_bot !== true || typeof bot.result?.username !== 'string') throw new TelegramServiceError('provider_unavailable');
       const webhook = await telegramApi(record, 'getWebhookInfo');
-      return json({ ok: true, botUsername: bot.result.username, botMatches: bot.result.username.toLowerCase() === record.options.botUsername.toLowerCase(),
-        webhook: webhook.ok ? { registered: !!webhook.result?.url, matches: webhook.result?.url === expectedUrl,
-          pending: Number(webhook.result?.pending_update_count) || 0, hasError: !!webhook.result?.last_error_date,
-          lastErrorAt: webhook.result?.last_error_date ? new Date(webhook.result.last_error_date * 1000).toISOString() : null } : null
+      return json({ ok: true, connectionMode: record.options.connectionMode ?? 'webhook', botUsername: bot.result.username,
+        botMatches: String(bot.result.id) === record.botToken.split(':')[0] && bot.result.username.toLowerCase() === record.options.botUsername.toLowerCase(),
+        receiver: await readTelegramReceiverStatus(db),
+        webhook: webhook.ok ? { registered: !!webhook.result?.url, matches: polling ? !webhook.result?.url : webhook.result?.url === expectedUrl,
+          pending: Number(webhook.result?.pending_update_count) || 0, hasError: !polling && !!webhook.result?.last_error_date,
+          lastErrorAt: !polling && webhook.result?.last_error_date ? new Date(webhook.result.last_error_date * 1000).toISOString() : null } : null
       }, { headers: telegramPrivateHeaders });
     }
+    if ((body.action === 'registerWebhook' || body.action === 'removeWebhook') && polling) throw new TelegramServiceError('runtime_changed', 409);
     if (body.action === 'removeWebhook') {
-      const result = await telegramApi(record, 'deleteWebhook', { drop_pending_updates: false });
-      if (!result.ok) throw new TelegramServiceError('provider_unavailable');
+      const transport = config ?? { ...record, botUsername: record.options.botUsername, appUrl: record.options.appUrl || null, settingsRevision: record.revision };
+      await withTelegramWebhookLease(transport, db, async () => {
+        const result = await telegramApi(record, 'deleteWebhook', { drop_pending_updates: false });
+        if (!result.ok) throw new TelegramServiceError('provider_unavailable');
+      });
       await audit(db, userId, 'telegram_webhook_removed');
       return json({ ok: true }, { headers: telegramPrivateHeaders });
     }
@@ -113,9 +132,11 @@ export const POST: RequestHandler = async ({ locals, request }) => {
       if (!record.options.enabled || !expectedUrl?.startsWith('https://')) throw new TelegramServiceError('incomplete_settings', 400);
       const bot = await telegramApi(record, 'getMe');
       if (!bot.ok || typeof bot.result?.username !== 'string' || bot.result.username.toLowerCase() !== record.options.botUsername.toLowerCase()) throw new TelegramServiceError('provider_unavailable');
-      const result = await telegramApi(record, 'setWebhook', { url: expectedUrl, secret_token: record.webhookSecret,
-        allowed_updates: ['message', 'callback_query'], max_connections: 10, drop_pending_updates: false });
-      if (!result.ok) throw new TelegramServiceError('provider_unavailable');
+      await withTelegramWebhookLease(config, db, async () => {
+        const result = await telegramApi(record, 'setWebhook', { url: expectedUrl, secret_token: record.webhookSecret,
+          allowed_updates: ['message', 'callback_query'], max_connections: 10, drop_pending_updates: false });
+        if (!result.ok) throw new TelegramServiceError('provider_unavailable');
+      });
       await audit(db, userId, 'telegram_webhook_registered');
     }
     let commandsSynced = true;
@@ -124,5 +145,5 @@ export const POST: RequestHandler = async ({ locals, request }) => {
       if (!synced.ok) commandsSynced = false;
     }
     return json({ ok: true, commandsSynced }, { headers: telegramPrivateHeaders });
-  } catch (error) { return telegramErrorResponse(error); }
+  } catch (error) { return adminError(error); }
 };

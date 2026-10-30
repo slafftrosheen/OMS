@@ -1,9 +1,2 @@
-export const page = {
-  url: new URL(window.location.href),
-  params: {},
-  route: { id: '/settings' },
-  status: 200,
-  error: null,
-  data: {},
-  form: null
-};
+// Keep the established test import path while matching $app/state reactivity.
+export { page } from './app-state.svelte';

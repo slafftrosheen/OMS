@@ -18,6 +18,8 @@ export interface OpenRouterChatOptions {
   model?: string;
   messages: OpenRouterMessage[];
   tools?: unknown[];
+  /** Retain tool schemas while requiring a final, non-tool answer. */
+  toolChoice?: 'auto' | 'none' | 'required';
   /** OpenRouter request-scoped plugins, e.g. explicit PDF parser engine. */
   plugins?: unknown[];
   stream?: boolean;
@@ -94,7 +96,7 @@ export function openRouterRequestBody(options: OpenRouterChatOptions, config = O
   return {
     model: options.model || (vision ? config.visionModel : config.defaultModel),
     messages: openRouterMessages(options.messages),
-    ...(options.tools?.length ? { tools: options.tools, tool_choice: 'auto' } : {}),
+    ...(options.tools?.length ? { tools: options.tools, tool_choice: options.toolChoice ?? 'auto' } : {}),
     ...(options.plugins?.length ? { plugins: options.plugins } : {}),
     ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
     ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),

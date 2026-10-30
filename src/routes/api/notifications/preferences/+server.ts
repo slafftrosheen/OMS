@@ -1,78 +1,52 @@
-/**
- * Notification Preferences API
- * Manage user email preferences
- */
-
-import { json, error } from '@sveltejs/kit';
+/** Per-type preferences shared by in-app policy and Telegram delivery.
+ * The canonical table has one row per (user_id, notification_type), not one email record. */
+import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-// Query using the request-scoped, RLS-aware Supabase client.
+import { requireActiveAccount } from '$lib/server/auth/active-account';
+import { readBoundedJson } from '$lib/server/api/bounded-json';
+import { isRecord, isNotificationType, NotificationRequestError,
+  notificationErrorResponse, notificationPrivateHeaders } from '$lib/server/notifications/http';
 
-// GET /api/notifications/preferences - Get user preferences
+type Preference = { notification_type: string; enabled: boolean };
+function project(rows: unknown): Preference[] {
+  if (!Array.isArray(rows)) throw new Error('Preference response unavailable');
+  return rows.map(row => {
+    if (!isRecord(row) || !isNotificationType(row.notification_type)) throw new Error('Invalid preference record');
+    return { notification_type: row.notification_type, enabled: row.enabled !== false };
+  });
+}
+function changes(body: unknown): Preference[] {
+  if (!isRecord(body)) throw new NotificationRequestError();
+  const rows = 'preferences' in body ? (Object.keys(body).length === 1 ? body.preferences : null) : [body];
+  if (!Array.isArray(rows) || rows.length < 1 || rows.length > 100) throw new NotificationRequestError('Provide 1–100 per-type preferences.');
+  const seen = new Set<string>();
+  return rows.map(row => {
+    if (!isRecord(row) || Object.keys(row).some(key => !['notification_type', 'enabled'].includes(key))
+      || !isNotificationType(row.notification_type) || typeof row.enabled !== 'boolean' || seen.has(row.notification_type)) throw new NotificationRequestError();
+    seen.add(row.notification_type);
+    return { notification_type: row.notification_type, enabled: row.enabled };
+  });
+}
+
+/** Missing rows mean the existing default policy; GET never creates records. */
 export const GET: RequestHandler = async ({ locals }) => {
-  const supabase = locals.supabase;
-  const user = locals.user;
-  if (!user) throw error(401, 'Unauthorized');
-
   try {
-    const { data, error: dbError } = await supabase
-      .from('notification_preferences')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-
-    if (dbError && dbError.code !== 'PGRST116') { // Not found is ok
-      console.error('[Preferences API] Error:', dbError);
-      throw error(500, 'Failed to fetch preferences');
-    }
-
-    // Create default preferences if none exist
-    if (!data) {
-      const { data: newPrefs, error: createError } = await supabase
-        .from('notification_preferences')
-        .insert({ user_id: user.id })
-        .select()
-        .single();
-
-      if (createError) throw createError;
-      return json({ data: newPrefs });
-    }
-
-    return json({ data });
-
-  } catch (err) {
-    console.error('[Preferences API] Error:', err);
-    throw error(500, 'Failed to fetch preferences');
-  }
+    const userId = await requireActiveAccount(locals);
+    const { data, error } = await locals.supabase.from('notification_preferences')
+      .select('notification_type,enabled').eq('user_id', userId).order('notification_type');
+    if (error) throw new Error('Preference read unavailable');
+    return json({ data: project(data) }, { headers: notificationPrivateHeaders });
+  } catch (cause) { return notificationErrorResponse(cause); }
 };
 
-// PATCH /api/notifications/preferences - Update preferences
 export const PATCH: RequestHandler = async ({ request, locals }) => {
-  const supabase = locals.supabase;
-  const user = locals.user;
-  if (!user) throw error(401, 'Unauthorized');
-
-  const body = await request.json();
-
   try {
-    const { data, error: dbError } = await supabase
-      .from('notification_preferences')
-      .update({
-        ...body,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', user.id)
-      .select()
-      .single();
-
-    if (dbError) {
-      console.error('[Preferences API] Update error:', dbError);
-      throw error(500, 'Failed to update preferences');
-    }
-
-    return json({ data });
-
-  } catch (err) {
-    console.error('[Preferences API] Error:', err);
-    throw error(500, 'Failed to update preferences');
-  }
+    const userId = await requireActiveAccount(locals);
+    const entries = changes(await readBoundedJson(request));
+    const { data, error } = await locals.supabase.from('notification_preferences')
+      .upsert(entries.map(entry => ({ user_id: userId, ...entry })), { onConflict: 'user_id,notification_type' })
+      .select('notification_type,enabled');
+    if (error) throw new Error('Preference write unavailable');
+    return json({ data: project(data) }, { headers: notificationPrivateHeaders });
+  } catch (cause) { return notificationErrorResponse(cause); }
 };
