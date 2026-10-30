@@ -3,6 +3,7 @@
  */
 import { normalizeProposals } from '$lib/components/canvas/toolkit-context';
 import { normalizeCanvasActions } from '$lib/components/canvas/toolkit-skills';
+import type { ToolkitScene } from '$lib/components/canvas/toolkit-scene';
 
 function extractObject(text: string): unknown {
   const value = text.trim();
@@ -19,13 +20,13 @@ function extractObject(text: string): unknown {
   return null;
 }
 
-export function parseToolkitModelResponse(raw: string, cardIds: Set<string>, fallback: string) {
+export function parseToolkitModelResponse(raw: string, cardIds: Set<string> | ToolkitScene, fallback: string) {
   const parsed = extractObject(raw) as Record<string, unknown> | null;
   if (!parsed) return { reply: raw.trim().slice(0, 5000) || fallback, cards: [], actions: [], structured: false };
   return {
     reply: typeof parsed.reply === 'string' && parsed.reply.trim() ? parsed.reply.trim().slice(0, 5000) : fallback,
     cards: normalizeProposals(parsed.cards).slice(0, 5),
-    actions: normalizeCanvasActions(parsed.actions, cardIds).slice(0, 3),
+    actions: normalizeCanvasActions(parsed.actions, cardIds),
     structured: true
   };
 }

@@ -1,6 +1,6 @@
 <!-- src/lib/components/ui/Modal.svelte -->
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { modalDialog } from '$lib/ui/modal-dialog';
     import { fade, fly } from 'svelte/transition';
 
     let { children, footer,
@@ -23,81 +23,26 @@
         onclose?: () => void;
     } = $props();
 
-    let dialogElement: HTMLDivElement;
-    let previousActiveElement: HTMLElement | null = $state(null);
-
-    $effect(() => {
-        if (open) {
-            previousActiveElement = document.activeElement as HTMLElement;
-            setTimeout(() => {
-                const firstFocusable = dialogElement?.querySelector<HTMLElement>(
-                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-                );
-                firstFocusable?.focus();
-            }, 100);
-        } else {
-            previousActiveElement?.focus();
-            previousActiveElement = null;
-        }
-    });
+    const dialogId = $props.id();
 
     function close() {
         open = false;
         onclose?.();
     }
-
-    function handleBackdropClick(event: MouseEvent) {
-        if (closeOnClickOutside && event.target === event.currentTarget) {
-            close();
-        }
-    }
-
-    function handleKeydown(event: KeyboardEvent) {
-        if (closeOnEscape && event.key === 'Escape') {
-            close();
-        }
-
-        // Trap focus within modal
-        if (event.key === 'Tab' && open) {
-            const focusableElements = dialogElement.querySelectorAll<HTMLElement>(
-                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-            );
-            const firstElement = focusableElements[0];
-            const lastElement = focusableElements[focusableElements.length - 1];
-
-            if (event.shiftKey && document.activeElement === firstElement) {
-                event.preventDefault();
-                lastElement?.focus();
-            } else if (!event.shiftKey && document.activeElement === lastElement) {
-                event.preventDefault();
-                firstElement?.focus();
-            }
-        }
-    }
-
-    onMount(() => {
-        return () => {
-            previousActiveElement?.focus();
-        };
-    });
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
 {#if open}
-    <div class="modal-backdrop" transition:fade={{ duration: 200 }} onclick={handleBackdropClick}>
+    <dialog class="modal-backdrop" transition:fade={{ duration: 200 }}
+        use:modalDialog={{ onClose: close, closeOnEscape, closeOnBackdrop: closeOnClickOutside }}
+        aria-labelledby={title ? dialogId : undefined} aria-label={title ? undefined : "Dialog"}>
         <div
-            bind:this={dialogElement}
             class="modal-dialog modal-{size}"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={title ? 'modal-title' : undefined}
             transition:fly={{ y: -50, duration: 300 }}
         >
             {#if title || showCloseButton}
                 <div class="modal-header">
                     {#if title}
-                        <h2 id="modal-title" class="modal-title">{title}</h2>
+                        <h2 id={dialogId} class="modal-title">{title}</h2>
                     {/if}
                     {#if showCloseButton}
                         <button
@@ -122,11 +67,20 @@
                 </div>
             {/if}
         </div>
-    </div>
+    </dialog>
 {/if}
 
 <style>
+  .modal-backdrop:not([open]) { display:none; }
+  .modal-backdrop::backdrop { background:transparent; }
     .modal-backdrop {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border: 0;
+    color: inherit;
         position: fixed;
         inset: 0;
         z-index: var(--z-modal);

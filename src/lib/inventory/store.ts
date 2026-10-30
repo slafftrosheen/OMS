@@ -14,7 +14,10 @@ export type NewMaterialInput = Omit<Material, 'id' | 'created_at' | 'updated_at'
 
 export type MaterialUpdate = Partial<Omit<Material, 'id'>> & { updated_at?: string };
 
-export type MovementOptions = {
+/** Controls local publication only; a committed mutation still returns its receipt. */
+export type InventoryMutationOptions = { accept?: () => boolean };
+
+export type MovementOptions = InventoryMutationOptions & {
   by?: string;
   note?: string;
   refPO?: string;
@@ -86,9 +89,16 @@ export const catalogError=writable<string|null>(null);
  */
 const pendingManualMovements=new Map<string,{requestId:string;signature:string}>();
 
-// Load materials from API
-export async function loadMaterials(): Promise<Material[]> {
+export type InventoryReadOptions = { signal?: AbortSignal; accept?: () => boolean };
+let catalogLoadVersion = 0;
+
+// Load materials from API. Only the newest accepted read owns shared catalog state.
+export async function loadMaterials(options: InventoryReadOptions = {}): Promise<Material[]> {
   if (typeof window === 'undefined') return [];
+  if (options.signal?.aborted || options.accept?.() === false) return [];
+  const version = ++catalogLoadVersion;
+  const current = () => version === catalogLoadVersion && !options.signal?.aborted && options.accept?.() !== false;
+  if (!current()) return [];
 
   isLoading.set(true);
   catalogError.set(null);
@@ -100,10 +110,11 @@ export async function loadMaterials(): Promise<Material[]> {
     let page=1,hasNext=true;
     while(hasNext && page<=100){
       const response=await fetch(`${base}/api/inventory/items?page=${page}&limit=100`,{
-        cache:'no-store'
+        cache:'no-store', signal: options.signal
       });
       if(!response.ok)throw new Error('Material catalog unavailable');
       const payload=await response.json();
+      if (!current()) return [];
       if(!Array.isArray(payload.data)||typeof payload.pagination?.hasNext!=='boolean')
         throw new Error('Incomplete material catalog');
       all.push(...payload.data.map((row:Record<string,unknown>)=>materialFromItemDto(row)));
@@ -111,13 +122,15 @@ export async function loadMaterials(): Promise<Material[]> {
       page++;
     }
     if(hasNext)throw new Error('Material catalog exceeds safe page limit');
+    if (!current()) return [];
     materials.set(all);
     return all;
   } catch (err) {
+    if (!current()) return [];
     console.error('Failed to load materials:', err);
     catalogError.set('Material catalog unavailable or incomplete. Refresh to verify stock.');
   } finally {
-    isLoading.set(false);
+    if (version === catalogLoadVersion) isLoading.set(false);
   }
   return [];
 }
@@ -125,19 +138,26 @@ export async function loadMaterials(): Promise<Material[]> {
 /** Direct material links must fetch their own authoritative record.
  * They cannot assume the paged inventory index has already initialized.
  */
-export async function loadMaterialById(id:string):Promise<Material|null> {
+export async function loadMaterialById(id:string, options:InventoryReadOptions = {}):Promise<Material|null> {
+  const current = () => !options.signal?.aborted && options.accept?.() !== false;
+  if (!current()) return null;
   try{
     const response=await fetch(`${base}/api/inventory/items/${encodeURIComponent(id)}`,
-      {cache:'no-store'});
+      {cache:'no-store',signal:options.signal});
     if(!response.ok)return null;
-    const item=materialFromItemDto(await response.json(),getMaterial(id)??{});
+    const payload = await response.json();
+    if (!current()) return null;
+    // A detail GET is authoritative. Missing fields must not inherit values
+    // cached under another account or an earlier catalog response.
+    const item=materialFromItemDto(payload);
+    if (item.id !== id) return null;
     materials.update(list=>{
       const found=list.some(row=>row.id===item.id);
-      return found?list.map(row=>row.id===item.id?{...row,...item}:row):
+      return found?list.map(row=>row.id===item.id?item:row):
         [...list,item];
     });
     return item;
-  }catch(e){console.error('Failed to load material detail',e);return null;}
+  }catch(e){if(current())console.error('Failed to load material detail',e);return null;}
 }
 
 // Load movements from API
@@ -172,7 +192,7 @@ export function findMaterialBySku(sku: string) {
   return found.length===1?found[0]:null;
 }
 
-export async function addMaterial(input: NewMaterialInput): Promise<Material | null> {
+export async function addMaterial(input: NewMaterialInput, options: InventoryMutationOptions = {}): Promise<Material | null> {
   try {
     const response = await fetch(`${base}/api/inventory/items`, {
       method: 'POST',
@@ -182,7 +202,7 @@ export async function addMaterial(input: NewMaterialInput): Promise<Material | n
 
     if (response.ok) {
       const newMaterial=materialFromItemDto(await response.json(),input);
-      materials.update((list) => [newMaterial, ...list]);
+      if (options.accept?.() !== false) materials.update((list) => [newMaterial, ...list]);
       return newMaterial;
     }
   } catch (err) {
@@ -191,7 +211,7 @@ export async function addMaterial(input: NewMaterialInput): Promise<Material | n
   return null;
 }
 
-export async function createMaterial(partial: Partial<Material> = {}): Promise<Material | null> {
+export async function createMaterial(partial: Partial<Material> = {}, options: InventoryMutationOptions = {}): Promise<Material | null> {
   const newMaterial: Partial<Material> = {
     sku: '',
     code: 'INV-' + Date.now(),
@@ -205,10 +225,11 @@ export async function createMaterial(partial: Partial<Material> = {}): Promise<M
     min_stock: 0,
     ...partial
   };
-  return addMaterial(newMaterial as NewMaterialInput);
+  return addMaterial(newMaterial as NewMaterialInput, options);
 }
 
-export async function updateMaterial(materialId: string, patch: MaterialUpdate): Promise<Material | null> {
+export async function updateMaterial(materialId: string, patch: MaterialUpdate, options: InventoryMutationOptions = {}): Promise<Material | null> {
+  const original = { ...getMaterial(materialId), ...patch };
   try {
     const response = await fetch(`${base}/api/inventory/items/${encodeURIComponent(materialId)}`, {
       method: 'PUT',
@@ -217,8 +238,8 @@ export async function updateMaterial(materialId: string, patch: MaterialUpdate):
     });
 
     if (response.ok) {
-      const updated=materialFromItemDto(await response.json(),{...getMaterial(materialId),...patch});
-      materials.update(list=>
+      const updated=materialFromItemDto(await response.json(),original);
+      if (options.accept?.() !== false) materials.update(list=>
         list.map(material=>material.id===materialId?
           {...material,...updated,...patch,stock:updated.stock,
             updated_at:updated.updated_at}:material)
@@ -231,15 +252,17 @@ export async function updateMaterial(materialId: string, patch: MaterialUpdate):
   return null;
 }
 
-export async function removeMaterial(materialId: string): Promise<boolean> {
+export async function removeMaterial(materialId: string, options: InventoryMutationOptions = {}): Promise<boolean> {
   try {
     const response = await fetch(`${base}/api/inventory/items/${encodeURIComponent(materialId)}`, {
       method: 'DELETE'
     });
 
     if (response.ok) {
-      materials.update((list) => list.filter((material) => material.id !== materialId));
-      movements.update((records) => records.filter((m) => m.materialId !== materialId));
+      if (options.accept?.() !== false) {
+        materials.update((list) => list.filter((material) => material.id !== materialId));
+        movements.update((records) => records.filter((m) => m.materialId !== materialId));
+      }
       return true;
     }
   } catch (err) {
@@ -293,15 +316,6 @@ export async function recordMovement(
         throw new Error('Committed movement receipt cannot be verified');
       pendingManualMovements.delete(materialId);
 
-      // Update local store with new stock
-      materials.update((list) =>
-        list.map((material) => {
-          if (material.id !== materialId) return material;
-          return { ...material, stock: result.newStock, updated_at: new Date().toISOString() };
-        })
-      );
-
-      // Add movement to local store
       const movement: Movement = {
         id: result.id,
         materialId,
@@ -313,7 +327,13 @@ export async function recordMovement(
         note: options.note,
         refPO: options.refPO
       };
-      movements.update((records) => [movement, ...records]);
+      // Preserve the successful receipt and idempotency resolution, but never
+      // publish an old screen/account's result into the current local cache.
+      if (options.accept?.() !== false) {
+        materials.update((list) => list.map((material) => material.id !== materialId ? material :
+          { ...material, stock: result.newStock, updated_at: new Date().toISOString() }));
+        movements.update((records) => [movement, ...records]);
+      }
 
       return movement;
     }
@@ -327,16 +347,18 @@ export async function recordMovement(
   return null;
 }
 
-export async function move(materialId: string, kind: MovementKind, qty: number, by = 'admin', note?: string) {
-  const result = await recordMovement(materialId, kind, qty, { by, note });
+export async function move(materialId: string, kind: MovementKind, qty: number, by = 'admin', note?: string,
+  options: InventoryMutationOptions = {}) {
+  const result = await recordMovement(materialId, kind, qty, { ...options, by, note });
 
-  if (result) {
+  if (result && options.accept?.() !== false) {
     const material = getMaterial(materialId);
     if (material && material.stock <= material.min_stock) {
       Promise.all([
         import('$lib/stores/toast'),
         import('$lib/notify/bus')
       ]).then(([{ announce }, { push }]) => {
+        if (options.accept?.() === false) return;
         announce(`Low stock: ${material.sku} (${material.stock} ${material.unit})`, 'warning');
         push('warn', `Low stock: ${material.sku} (${material.stock} ${material.unit})`);
       });

@@ -3,18 +3,25 @@
   import Check from 'lucide-svelte/icons/check';
   import ChevronDown from 'lucide-svelte/icons/chevron-down';
   import Edit2 from 'lucide-svelte/icons/edit-2';
+  import ExternalLink from 'lucide-svelte/icons/external-link';
   import Package from 'lucide-svelte/icons/package';
   import Plus from 'lucide-svelte/icons/plus';
   import Search from 'lucide-svelte/icons/search';
   import Trash2 from 'lucide-svelte/icons/trash-2';
   import X from 'lucide-svelte/icons/x';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { t } from 'svelte-i18n';
   import { base } from '$app/paths';
   import { currentUser } from '$lib/auth/authState.svelte';
   import Icon from '$lib/ui/Icon.svelte';
   import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
   import { emptyConfirm, type ConfirmState } from '$lib/components/ui/confirm-types';
+  import { getLemonaSourceUrl, mergeCatalogMetadata } from '$lib/materials/catalog-metadata';
+  import { getAssistantContext } from '$lib/assistant/context';
+  import { adminMaterialsScreenContext, type MaterialEditorFields } from '$lib/assistant/visible-context';
+
+  const assistant = getAssistantContext();
+  const assistantState = assistant.state;
 
   let confirmState = $state<ConfirmState>(emptyConfirm());
 
@@ -53,9 +60,10 @@
   let editingMaterial = $state<Material | null>(null);
   let saving = $state(false);
   let modalError = $state('');
+  let formBaseline = $state('');
 
   // Form data
-  let formData = $state({
+  let formData = $state<MaterialEditorFields>({
     category: '',
     code: '',
     nameEn: '',
@@ -184,6 +192,25 @@
     return acc;
   }, {} as Record<string, Material[]>));
 
+  $effect(() => {
+    // Reset the conversation when another record is opened, not on each keystroke.
+    const scope = canManage && showModal
+      ? modalMode === 'create' ? 'create' : `edit:${editingMaterial?.id ?? 'unknown'}`
+      : 'browse';
+    return untrack(() => assistant.register({
+      id: `materials:admin:${scope}`, title: () => $t('admin_materials.title'), tools: () => [],
+      context: () => adminMaterialsScreenContext({
+        loading, error: !!error, search: searchQuery, category: categoryFilter, canManage,
+        rows: Object.values(groupedMaterials).flat(),
+        editor: showModal ? {
+          mode: modalMode, selected: editingMaterial, saving, error: !!modalError,
+          unsavedChanges: JSON.stringify(formData) !== formBaseline, form: formData,
+          groups: { sheet: isSheet, electronics: isElectronics, filament: isFilament, hardware: isHardware }
+        } : null
+      })
+    }));
+  });
+
   onMount(async () => {
     console.log('📦 Materials catalog page mounted');
     await loadMaterials();
@@ -241,6 +268,7 @@
       packSize: '',
       minOrder: ''
     };
+    formBaseline = JSON.stringify(formData);
     modalError = '';
     showModal = true;
   }
@@ -255,7 +283,7 @@
       nameRu: material.name_ru || '',
       nameLv: material.name_lv || '',
       thicknessOptions: material.thickness_options?.join(', ') || '',
-      hex: material.metadata?.hex || '#FFFFFF',
+      hex: material.metadata?.hex || '',
       brand: material.metadata?.brand || '',
       colorCode: material.metadata?.colorCode || '',
       type: material.metadata?.type || '',
@@ -273,6 +301,7 @@
       packSize: material.metadata?.packSize || '',
       minOrder: material.metadata?.minOrder || ''
     };
+    formBaseline = JSON.stringify(formData);
     modalError = '';
     showModal = true;
   }
@@ -304,7 +333,7 @@
       nameRu: formData.nameRu || null,
       nameLv: formData.nameLv || null,
       thicknessOptions: thicknessArr,
-      metadata: {
+      metadata: mergeCatalogMetadata(editingMaterial?.metadata, {
         hex: formData.hex || undefined,
         brand: formData.brand || undefined,
         colorCode: formData.colorCode || undefined,
@@ -322,8 +351,12 @@
         weight: formData.weight || undefined,
         packSize: formData.packSize || undefined,
         minOrder: formData.minOrder || undefined
-      }
+      })
     };
+
+    if (editingMaterial && formData.nameEn !== (editingMaterial.name_en || '')) {
+      payload.metadata.short_name = formData.nameEn.trim() || formData.code;
+    }
 
     try {
       const url = modalMode === 'create'
@@ -451,6 +484,7 @@
         </h2>
         <div class="materials-grid">
           {#each items as material}
+            {@const sourceUrl = getLemonaSourceUrl(material.metadata?.source_url)}
             <div class="material-card">
               <div class="material-color" style="background-color: {getColorPreview(material)}"></div>
               <div class="material-info">
@@ -458,6 +492,11 @@
                 <div class="material-code">{material.code}</div>
                 {#if material.metadata?.brand}
                   <div class="material-brand">{material.metadata.brand}</div>
+                {/if}
+                {#if sourceUrl}
+                  <a class="material-source" href={sourceUrl} target="_blank" rel="noopener noreferrer" title={`LEMONA · ${material.code}`}>
+                    LEMONA <ExternalLink size={12} aria-hidden="true" />
+                  </a>
                 {/if}
                 {#if material.thickness_options?.length > 0}
                   <div class="thickness-tags">
@@ -499,7 +538,7 @@
       class="modal" 
       onclick={(e) => e.stopPropagation()}
       role="dialog" 
-      aria-modal="true"
+      aria-modal={!$assistantState.isOpen}
       aria-labelledby="material-dialog-title"
       tabindex="-1"
     >
@@ -566,7 +605,7 @@
           <div class="form-group">
             <label for="hex">{$t('admin_materials.form.hex_color')}</label>
             <div class="color-input">
-              <input type="color" bind:value={formData.hex} aria-label={$t('admin_materials.form.hex_color')} />
+              <input type="color" value={formData.hex || '#FFFFFF'} oninput={(event) => formData.hex = event.currentTarget.value} aria-label={$t('admin_materials.form.hex_color')} />
               <input type="text" id="hex" bind:value={formData.hex} placeholder="#FFFFFF" />
             </div>
           </div>
@@ -893,6 +932,23 @@
     font-size: 12px;
     color: var(--text-2);
     margin-bottom: 8px;
+  }
+
+  .material-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 24px;
+    margin-bottom: 6px;
+    color: var(--brand);
+    font-size: 12px;
+    text-underline-offset: 3px;
+  }
+
+  .material-source:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
+    border-radius: 2px;
   }
 
   .thickness-tags {

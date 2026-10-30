@@ -1,5 +1,7 @@
 <script lang="ts">
-    import { onMount, onDestroy } from "svelte";
+    import { untrack } from "svelte";
+    import { base } from "$app/paths";
+    import { parseOrderChatMessage, reconcileOrderMessages, type OrderChatMessage } from "./order-chat-state";
     import { currentUser } from "$lib/auth/authState.svelte";
     import { realtimeService } from "$lib/realtime/realtime-service";
     import { notifications } from "$lib/notify/store";
@@ -15,16 +17,7 @@
         typingUsers = [],
     }: {
         orderId: string;
-        messages?: Array<{
-            id: string;
-            userId: string;
-            username: string;
-            message: string;
-            timestamp: Date;
-            edited?: boolean;
-            replyTo?: string;
-            attachments?: string[];
-        }>;
+        messages?: OrderChatMessage[];
         typingUsers?: string[];
     } = $props();
 
@@ -33,77 +26,94 @@
         $state(null);
     let shouldScrollToBottom = $state(true);
 
-    async function loadMessages() {
-        try {
-            const response = await fetch(
-                `/api/chat/messages?orderId=${orderId}`,
-            );
-            const data = await response.json();
-
-            if (data.success) {
-                messages = data.messages.map((m: any) => ({
-                    ...m,
-                    timestamp: new Date(m.timestamp),
-                }));
-            }
-        } catch (error) {
-            console.error("Failed to load messages:", error);
-        }
+    interface Conversation {
+        orderId: string;
+        ownerId: string;
+        controller: AbortController;
+        changes: Map<string, OrderChatMessage | null>;
     }
-
-    async function sendMessage(data: { message: string; replyTo?: string | null }) {
-        const { message, replyTo } = data;
-
-        try {
-            const response = await fetch("/api/chat/messages", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    orderId,
-                    message,
-                    replyTo,
-                }),
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                messages = [
-                    ...messages,
-                    {
-                        ...data.message,
-                        timestamp: new Date(data.message.timestamp),
-                    },
-                ];
-                shouldScrollToBottom = true;
-            }
-        } catch (error) {
-            console.error("Failed to send message:", error);
-        }
-    }
-
-    async function editMessage(data: { id: string; message: string }) {
-        const { id, message } = data;
-
-        try {
-            const response = await fetch(`/api/chat/messages/${id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ message }),
-            });
-
-            if (response.ok) {
-                messages = messages.map((m) =>
-                    m.id === id ? { ...m, message, edited: true } : m,
-                );
-            }
-        } catch (error) {
-            console.error("Failed to edit message:", error);
-        }
-    }
-
+    let conversation: Conversation | null = null;
+    let accountId = $derived($currentUser?.id ?? null);
     let pendingDeleteId = $state<string | null>(null);
     let confirmDeleteOpen = $state(false);
+    let loading = $state(false);
+    let loadFailed = $state(false);
+
+    function isCurrent(scope: Conversation | null): scope is Conversation {
+        return !!scope && conversation === scope && !scope.controller.signal.aborted
+            && orderId === scope.orderId && $currentUser?.id === scope.ownerId;
+    }
+
+    function requestSignal(scope: Conversation) {
+        return AbortSignal.any([scope.controller.signal, AbortSignal.timeout(20000)]);
+    }
+
+    async function loadMessages(scope: Conversation) {
+        loading = true;
+        loadFailed = false;
+        try {
+            const response = await fetch(`${base}/api/chat/messages?${new URLSearchParams({ orderId: scope.orderId })}`, { signal: requestSignal(scope) });
+            const data = await response.json();
+            if (!isCurrent(scope)) return;
+            if (!response.ok || !data.success || !Array.isArray(data.messages)) throw new Error('Messages unavailable');
+            const confirmed = data.messages.map(parseOrderChatMessage);
+            if (confirmed.some((message: OrderChatMessage | null) => !message)) throw new Error('Invalid message response');
+            messages = reconcileOrderMessages(confirmed, scope.changes);
+        } catch {
+            if (isCurrent(scope)) loadFailed = true;
+        } finally {
+            if (isCurrent(scope)) loading = false;
+        }
+    }
+
+    async function sendMessage(data: { message: string; replyTo?: string | null }): Promise<boolean> {
+        const scope = conversation;
+        if (!isCurrent(scope)) return false;
+        try {
+            const response = await fetch(`${base}/api/chat/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: requestSignal(scope),
+                body: JSON.stringify({ orderId: scope.orderId, text: data.message, replyTo: data.replyTo })
+            });
+            const body = await response.json();
+            if (!isCurrent(scope)) return false;
+            const confirmed = parseOrderChatMessage(body.message);
+            if (!response.ok || !body.success || !confirmed) throw new Error('Send failed');
+            scope.changes.set(confirmed.id, confirmed);
+            messages = reconcileOrderMessages(messages, new Map([[confirmed.id, confirmed]]));
+            shouldScrollToBottom = true;
+            return true;
+        } catch {
+            if (isCurrent(scope)) notifications.error($t('chat.composer.send_failed'));
+            return false;
+        }
+    }
+
+    async function editMessage(data: { id: string; message: string }): Promise<boolean> {
+        const scope = conversation;
+        if (!isCurrent(scope)) return false;
+        try {
+            const response = await fetch(`${base}/api/chat/messages/${encodeURIComponent(data.id)}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                signal: requestSignal(scope),
+                body: JSON.stringify({ message: data.message })
+            });
+            if (!isCurrent(scope)) return false;
+            if (!response.ok) throw new Error('Edit failed');
+            const existing = messages.find(message => message.id === data.id);
+            if (existing) {
+                const changed = { ...existing, message: data.message.trim(), edited: true };
+                scope.changes.set(data.id, changed);
+                messages = reconcileOrderMessages(messages, new Map([[data.id, changed]]));
+            }
+            return true;
+        } catch {
+            if (isCurrent(scope)) notifications.error($t('chat.composer.edit_failed'));
+            return false;
+        }
+    }
 
     function deleteMessage(messageId: string) {
         pendingDeleteId = messageId;
@@ -111,26 +121,21 @@
     }
 
     async function confirmDeleteMessage() {
+        const scope = conversation;
         const id = pendingDeleteId;
         confirmDeleteOpen = false;
         pendingDeleteId = null;
-        if (!id) return;
+        if (!id || !isCurrent(scope)) return;
         try {
-            const response = await fetch(`/api/chat/messages/${id}`, {
-                method: "DELETE",
+            const response = await fetch(`${base}/api/chat/messages/${encodeURIComponent(id)}`, {
+                method: 'DELETE', signal: requestSignal(scope)
             });
-            if (response.ok) {
-                messages = messages.filter((m) => m.id !== id);
-            } else {
-                notifications.error(
-                    $t("chat.delete_failed", { default: "Failed to delete message" })
-                );
-            }
-        } catch (error) {
-            console.error("Failed to delete message:", error);
-            notifications.error(
-                $t("chat.delete_failed", { default: "Failed to delete message" })
-            );
+            if (!isCurrent(scope)) return;
+            if (!response.ok) throw new Error('Delete failed');
+            scope.changes.set(id, null);
+            messages = messages.filter(message => message.id !== id);
+        } catch {
+            if (isCurrent(scope)) notifications.error($t('chat.composer.delete_failed'));
         }
     }
 
@@ -146,13 +151,15 @@
 
     function handleTyping(isTyping: boolean) {
         const me = $currentUser;
-        if (!me || !orderId) return;
+        const scope = conversation;
+        if (!me || !isCurrent(scope)) return;
         // Throttle typing broadcasts to once per second per user.
         if (typingThrottle && isTyping) return;
+        if (typingThrottle) clearTimeout(typingThrottle);
         typingThrottle = setTimeout(() => { typingThrottle = null; }, 1000);
         try {
             realtimeService.broadcast(
-                `order:${orderId}:chat`,
+                `order:${scope.orderId}:chat`,
                 "typing",
                 {
                     userId: me.id,
@@ -182,15 +189,27 @@
         }
     }
 
-    onMount(() => {
-        loadMessages();
-    });
-
-    onDestroy(() => {
-        if (typingThrottle) {
-            clearTimeout(typingThrottle);
+    $effect(() => {
+        const ownerId = accountId;
+        const target = orderId;
+        const scope: Conversation = {
+            orderId: target, ownerId: ownerId ?? '', controller: new AbortController(), changes: new Map()
+        };
+        conversation = scope;
+        messages = [];
+        replyingTo = null;
+        pendingDeleteId = null;
+        confirmDeleteOpen = false;
+        shouldScrollToBottom = true;
+        loading = false;
+        loadFailed = false;
+        if (ownerId && target) untrack(() => { void loadMessages(scope); });
+        return () => {
+            scope.controller.abort();
+            if (conversation === scope) conversation = null;
+            if (typingThrottle) clearTimeout(typingThrottle);
             typingThrottle = null;
-        }
+        };
     });
 
     $effect(() => {
@@ -203,7 +222,7 @@
 
 <div class="chat-container">
     <div class="chat-header">
-        <h3 class="chat-title">Order Discussion</h3>
+        <h3 class="chat-title">{$t('chat.order_discussion')}</h3>
         {#if messages.length > 0}
             <span class="message-count"
                 >{messages.length} message{messages.length !== 1
@@ -218,10 +237,16 @@
         class="messages-container"
         onscroll={handleScroll}
     >
-        {#if messages.length === 0}
+        {#if loadFailed}
+            <div class="empty-state" role="status">
+                <p>{$t('chat.composer.load_failed')}</p>
+                <button type="button" onclick={() => { if (isCurrent(conversation)) void loadMessages(conversation); }} disabled={loading}>{$t('common.retry')}</button>
+            </div>
+        {/if}
+        {#if messages.length === 0 && !loadFailed}
             <div class="empty-state">
-                <p class="empty-message">No messages yet</p>
-                <p class="empty-hint">Start the conversation below</p>
+                <p class="empty-message">{$t('chat.no_messages')}</p>
+                <p class="empty-hint">{$t('chat.start_conversation')}</p>
             </div>
         {:else}
             {#each messages as message (message.id)}
@@ -250,12 +275,15 @@
         {/if}
     </div>
 
+    {#key `${accountId}:${orderId}`}
     <ChatInput
+        disabled={!accountId || !orderId}
         {replyingTo}
         onsend={sendMessage}
         ontyping={handleTyping}
         oncancelReply={() => (replyingTo = null)}
     />
+    {/key}
 </div>
 
 <Modal

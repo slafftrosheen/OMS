@@ -1,7 +1,8 @@
 <!-- src/lib/profiles/components/fields/Dropdown.svelte -->
 <script lang="ts">
   import ChevronDown from 'lucide-svelte/icons/chevron-down';
-  import Icon from '$lib/ui/Icon.svelte';
+
+  const controlId = $props.id();
 
   let {
     value = $bindable(''),
@@ -23,7 +24,7 @@
 </script>
 
 <div class="dropdown" class:disabled class:error={!!error}>
-  <label class="label">
+  <label class="label" for={controlId}>
     {label}
     {#if required}
       <span class="required">*</span>
@@ -31,7 +32,10 @@
   </label>
 
   <div class="select-wrapper">
-    <select 
+    <select
+      id={controlId}
+      aria-invalid={!!error}
+      aria-describedby={error ? `${controlId}-error` : undefined}
       bind:value 
       {disabled}
       class="select-input"
@@ -46,7 +50,7 @@
   </div>
 
   {#if error}
-    <div class="error-message">{error}</div>
+    <div class="error-message" id={`${controlId}-error`}>{error}</div>
   {/if}
 </div>
 

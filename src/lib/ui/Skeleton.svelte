@@ -34,9 +34,9 @@
         class: className = ''
     }: Props = $props();
 
-    const resolvedHeight = height ?? (circle ? size ?? '40px' : '1em');
-    const resolvedWidth  = circle ? (size ?? '40px') : width;
-    const resolvedRadius = circle ? '50%' : radius;
+    const resolvedHeight = $derived(height ?? (circle ? size ?? '40px' : '1em'));
+    const resolvedWidth = $derived(circle ? (size ?? '40px') : width);
+    const resolvedRadius = $derived(circle ? '50%' : radius);
 </script>
 
 {#if lines > 1}

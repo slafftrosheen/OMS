@@ -1,6 +1,9 @@
 <script lang="ts">
   import CheckCircle from 'lucide-svelte/icons/check-circle';
   import Download from 'lucide-svelte/icons/download';
+  import File from 'lucide-svelte/icons/file';
+  import { base } from '$app/paths';
+  import { modalDialog } from '$lib/ui/modal-dialog';
   import FileSpreadsheet from 'lucide-svelte/icons/file-spreadsheet';
   import FileText from 'lucide-svelte/icons/file-text';
   import Loader2 from 'lucide-svelte/icons/loader-2';
@@ -11,12 +14,11 @@
  * UI for generating exports with templates
  */
 
-import Icon from '$lib/ui/Icon.svelte';
 
 let {
   exportType = 'orders',
   filters = {},
-  show = false,
+  show = $bindable(false),
   onclose
 }: {
   exportType?: 'orders' | 'stations' | 'loading_schedule';
@@ -62,7 +64,7 @@ const availableColumns: Record<string, string[]> = {
   ]
 };
 
-const formatIcons = {
+const formatIcons: Record<string, typeof FileSpreadsheet> = {
   excel: FileSpreadsheet,
   pdf: FileText,
   csv: File
@@ -75,67 +77,74 @@ const formatLabels = {
 };
 
 let columns = $derived(availableColumns[exportType] || []);
+const titleId = $props.id();
+let generation = 0;
+let exportController: AbortController | undefined;
+let downloadTimer: ReturnType<typeof setTimeout> | undefined;
 $effect(() => {
-  if (selectedColumns.length === 0) selectedColumns = [...columns];
+  selectedColumns = [...availableColumns[exportType]];
+  selectedTemplate = null; useTemplate = false;
 });
 
-async function loadTemplates() {
-  try {
-    const response = await fetch(`/api/export/templates?type=${exportType}`);
-    const result = await response.json();
-    templates = result.data;
-  } catch (err) {
-    console.error('Failed to load templates:', err);
-  }
+function cancelExport() {
+  generation++;
+  exportController?.abort(); exportController = undefined;
+  if (downloadTimer) clearTimeout(downloadTimer);
+  downloadTimer = undefined; exporting = false;
 }
 
-async function handleExport() {
-  exporting = true;
-  error = null;
-  exportResult = null;
-
-  try {
-    const response = await fetch('/api/export', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        exportType,
-        format,
-        filters,
-        columns: selectedColumns,
-        templateId: selectedTemplate?.id || null
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Export failed');
+$effect(() => {
+  const visible = show, type = exportType;
+  cancelExport();
+  exportResult = null; error = null; templates = [];
+  if (!visible) return;
+  const token = generation, controller = new AbortController();
+  void (async () => {
+    try {
+      const response = await fetch(`${base}/api/export/templates?type=${type}`, { signal: controller.signal });
+      const result = await response.json();
+      if (response.ok && token === generation && Array.isArray(result.data)) templates = result.data;
+    } catch (err) {
+      if (!controller.signal.aborted) console.error('Failed to load templates:', err);
     }
+  })();
+  return () => { controller.abort(); cancelExport(); };
+});
 
+async function handleExport() {
+  if (exporting || selectedColumns.length === 0) return;
+  const token = generation, controller = new AbortController();
+  exportController = controller;
+  exporting = true; error = null; exportResult = null;
+  try {
+    const response = await fetch(`${base}/api/export`, {
+      method: 'POST', signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exportType, format, filters, columns: selectedColumns,
+        templateId: useTemplate ? selectedTemplate?.id || null : null })
+    });
     const result = await response.json();
+    if (token !== generation || controller.signal.aborted) return;
+    if (!response.ok || !result.data) throw new Error(result.message || 'Export failed');
     exportResult = result.data;
-
-    // Auto-download after short delay
-    setTimeout(() => {
-      if (exportResult.downloadUrl) {
-        window.open(exportResult.downloadUrl, '_blank');
-      }
+    const downloadUrl = result.data.downloadUrl;
+    downloadTimer = setTimeout(() => {
+      downloadTimer = undefined;
+      if (token === generation && show && typeof downloadUrl === 'string') window.open(downloadUrl, '_blank', 'noopener');
     }, 1000);
-
   } catch (err) {
-    console.error('Export error:', err);
-    error = err instanceof Error ? err.message : 'Export failed';
+    if (token === generation && !controller.signal.aborted) error = err instanceof Error ? err.message : 'Export failed';
   } finally {
-    exporting = false;
+    if (token === generation) { exporting = false; exportController = undefined; }
   }
 }
 
 function handleTemplateSelect(template: any) {
   selectedTemplate = template;
   if (template.columns && template.columns.length > 0) {
-    selectedColumns = template.columns;
+    selectedColumns = template.columns.filter((column: string) => columns.includes(column));
   }
-  if (template.format) {
+  if (template.format && template.format in formatLabels) {
     format = template.format;
   }
 }
@@ -145,22 +154,20 @@ function selectFormat(key: string) {
 }
 
 function handleClose() {
+  cancelExport();
   show = false;
   exportResult = null;
   error = null;
   onclose?.();
 }
 
-$effect(() => {
-  if (show) loadTemplates();
-});
 </script>
 
 {#if show}
-  <div class="modal-overlay" onclick={handleClose}>
-    <div class="modal-content" onclick={(e) => e.stopPropagation()}>
+  <dialog class="modal-overlay" aria-labelledby={titleId} use:modalDialog={{ onClose: handleClose }}>
+    <div class="modal-content">
       <div class="modal-header">
-        <h3>
+        <h3 id={titleId}>
           <Download size={20} />
           Export {exportType.replace('_', ' ')}
         </h3>
@@ -185,7 +192,7 @@ $effect(() => {
               href={exportResult.downloadUrl}
               download={exportResult.fileName}
               class="download-link"
-              target="_blank"
+              target="_blank" rel="noopener noreferrer"
             >
               <Download size={16} />
               Download {exportResult.fileName}
@@ -202,6 +209,7 @@ $effect(() => {
                   class="format-option"
                   class:active={format === key}
                   onclick={() => selectFormat(key)}
+                  aria-pressed={format === key} disabled={exporting}
                 >
                   <SvelteComponent size={24} />
                   <span>{label}</span>
@@ -216,7 +224,7 @@ $effect(() => {
               <div class="section-header">
                 <h4>Use Template (Optional)</h4>
                 <label class="checkbox-label">
-                  <input type="checkbox" bind:checked={useTemplate} />
+                  <input type="checkbox" bind:checked={useTemplate} disabled={exporting} />
                   <span>Use template</span>
                 </label>
               </div>
@@ -228,6 +236,7 @@ $effect(() => {
                       class="template-item"
                       class:active={selectedTemplate?.id === template.id}
                       onclick={() => handleTemplateSelect(template)}
+                      aria-pressed={selectedTemplate?.id === template.id} disabled={exporting}
                     >
                       <div class="template-info">
                         <strong>{template.name}</strong>
@@ -253,7 +262,7 @@ $effect(() => {
                     <input
                       type="checkbox"
                       value={column}
-                      bind:group={selectedColumns}
+                      bind:group={selectedColumns} disabled={exporting}
                     />
                     <span>{column.replace(/_/g, ' ')}</span>
                   </label>
@@ -292,11 +301,14 @@ $effect(() => {
         {/if}
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>
+  .modal-overlay:not([open]) { display:none; }
+  .modal-overlay::backdrop { background:transparent; }
   .modal-overlay {
+    margin:0;width:100%;height:100%;max-width:none;max-height:none;border:0;color:inherit;
     position: fixed;
     inset: 0;
     background: color-mix(in oklab, var(--bg-0) 55%, transparent);

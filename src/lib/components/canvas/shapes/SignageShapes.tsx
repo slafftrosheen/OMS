@@ -3,10 +3,10 @@
 // endpoint and exposes `output` so downstream nodes (chat, document) can
 // pick up the calculation summary.
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useToolkitText } from '../use-toolkit-text';
-import { BaseBoxShapeUtil, HTMLContainer, type TLBaseShape } from '@tldraw/tldraw';
-import { registerNodeRunner } from '../node-runner';
+import { BaseBoxShapeUtil, HTMLContainer, type Editor, type TLBaseShape } from '@tldraw/tldraw';
+import { registerNodeRunner, runShape } from '../node-runner';
 import {
     bodyStyle,
     containerStyle,
@@ -37,7 +37,6 @@ interface BasePlanProps {
 
 interface FieldDef {
     key: string;
-    label: string;
     type: 'number' | 'text' | 'checkbox' | 'select';
     options?: Array<string | number>;
     placeholder?: string;
@@ -49,52 +48,31 @@ function PlanCard<T extends BasePlanProps>(props: {
     icon: string;
     fields: FieldDef[];
     shape: { id: string; type: string; props: T };
-    endpoint: string;
-    editor: { updateShape: (s: any) => void };
+    editor: Editor;
     /** Renders a result summary block next to the notes/warnings list. */
     renderSummary?: (output: NonNullable<T['output']>) => React.ReactNode;
 }) {
     const tn = useToolkitText();
-    const { accent, title, icon, fields, shape, endpoint, editor, renderSummary } = props;
+    const { accent, title, icon, fields, shape, editor, renderSummary } = props;
     const { w, h, inputs, status, error, output } = shape.props;
-    const [draft, setDraft] = useState<Record<string, any>>({ ...inputs });
     const stop = (e: React.PointerEvent | React.MouseEvent | React.KeyboardEvent) =>
         e.stopPropagation();
 
-    const update = (patch: Partial<T>) => {
+    const updateInput = (key: string, value: string | number | boolean) => {
+        const current = editor.getShape(shape.id as any);
+        if (!current || current.type !== shape.type) return;
         editor.updateShape({
-            id: shape.id,
+            id: current.id,
             type: shape.type,
-            props: { ...shape.props, ...patch }
-        });
+            props: { inputs: { ...(current.props as BasePlanProps).inputs, [key]: value } }
+        } as any);
     };
 
     const run = async () => {
         if (status === 'running') return;
-        update({
-            inputs: draft,
-            status: 'running',
-            error: null
-        } as any);
         try {
-            // Coerce numeric strings → number before posting.
-            const payload: Record<string, unknown> = {};
-            for (const f of fields) {
-                const v = draft[f.key];
-                if (v === undefined || v === '') continue;
-                payload[f.key] = f.type === 'number' ? Number(v) : v;
-            }
-            const res = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (!res.ok) throw new Error((await res.json()).error ?? `HTTP ${res.status}`);
-            const data = await res.json();
-            update({ status: 'done', output: data } as any);
-        } catch (err) {
-            update({ status: 'error', error: (err as Error).message } as any);
-        }
+            await runShape(editor, shape.id, { useUpstream: false });
+        } catch { /* The shared runner displays the error on this node. */ }
     };
 
     return (
@@ -110,13 +88,13 @@ function PlanCard<T extends BasePlanProps>(props: {
                         {f.type === 'checkbox' ? (
                             <input
                                 type="checkbox"
-                                checked={!!draft[f.key]}
-                                onChange={(e) => setDraft({ ...draft, [f.key]: e.target.checked })}
+                                checked={!!inputs[f.key]}
+                                onChange={(e) => updateInput(f.key, e.target.checked)}
                             />
                         ) : f.type === 'select' ? (
                             <select
-                                value={String(draft[f.key] ?? '')}
-                                onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
+                                value={String(inputs[f.key] ?? '')}
+                                onChange={(e) => updateInput(f.key, e.target.value)}
                                 style={inputStyle}
                             >
                                 <option value="">—</option>
@@ -127,12 +105,12 @@ function PlanCard<T extends BasePlanProps>(props: {
                         ) : (
                             <input
                                 type={f.type}
-                                value={draft[f.key] ?? ''}
+                                value={String(inputs[f.key] ?? '')}
                                 placeholder={f.placeholder}
                                 onChange={(e) =>
-                                    setDraft({ ...draft, [f.key]: f.type === 'number'
+                                    updateInput(f.key, f.type === 'number'
                                         ? (e.target.value === '' ? '' : parseFloat(e.target.value))
-                                        : e.target.value })
+                                        : e.target.value)
                                 }
                                 onKeyDown={(e) => { if (e.key === 'Enter') run(); }}
                                 style={{ ...inputStyle, flex: 1 }}
@@ -167,17 +145,17 @@ function PlanCard<T extends BasePlanProps>(props: {
 export type LumiGridShape = TLBaseShape<'lumigrid', BasePlanProps>;
 
 const LUMIGRID_FIELDS: FieldDef[] = [
-    { key: 'channels', label: 'PWM outputs used (0–8)', type: 'number', placeholder: '4' },
-    { key: 'channel_ma', label: 'mA per PWM load', type: 'number', placeholder: '350' },
-    { key: 'volts', label: 'PWM supply (V)', type: 'select', options: [12, 24] },
-    { key: 'addressable_lanes', label: 'RMT lanes used (0–8)', type: 'number', placeholder: '0' },
-    { key: 'pixels_per_lane', label: 'Pixels per RMT lane (≤256)', type: 'number', placeholder: '0' },
-    { key: 'pixel_ma', label: 'mA per pixel at full brightness', type: 'number', placeholder: '0' },
-    { key: 'pixel_volts', label: 'Pixel supply (V)', type: 'select', options: [5, 12, 24] },
-    { key: 'pwm_hz', label: 'Requested PWM Hz (verify firmware)', type: 'number', placeholder: '24000' },
-    { key: 'pwm_bits', label: 'Configured PWM bits (verify)', type: 'number', placeholder: '16' },
-    { key: 'gamma', label: 'Gamma', type: 'number', placeholder: '2.2' },
-    { key: 'camera_safe', label: 'Camera flicker warning', type: 'checkbox' }
+    { key: 'channels', type: 'number', placeholder: '4' },
+    { key: 'channel_ma', type: 'number', placeholder: '350' },
+    { key: 'volts', type: 'select', options: [12, 24] },
+    { key: 'addressable_lanes', type: 'number', placeholder: '0' },
+    { key: 'pixels_per_lane', type: 'number', placeholder: '0' },
+    { key: 'pixel_ma', type: 'number', placeholder: '0' },
+    { key: 'pixel_volts', type: 'select', options: [5, 12, 24] },
+    { key: 'pwm_hz', type: 'number', placeholder: '24000' },
+    { key: 'pwm_bits', type: 'number', placeholder: '16' },
+    { key: 'gamma', type: 'number', placeholder: '2.2' },
+    { key: 'camera_safe', type: 'checkbox' }
 ];
 
 export class LumiGridShapeUtil extends BaseBoxShapeUtil<LumiGridShape> {
@@ -200,7 +178,6 @@ export class LumiGridShapeUtil extends BaseBoxShapeUtil<LumiGridShape> {
                 fields={LUMIGRID_FIELDS}
                 shape={shape}
                 editor={this.editor}
-                endpoint="/api/ai/signage/lumigrid"
                 renderSummary={(o: any) => (
                     <div style={summaryStyle}>
                         <strong>{o.channels}/8 PWM · {o.addressable_lanes}/8 RMT</strong>
@@ -225,12 +202,12 @@ export class LumiGridShapeUtil extends BaseBoxShapeUtil<LumiGridShape> {
 export type LedStripShape = TLBaseShape<'led-strip', BasePlanProps>;
 
 const STRIP_FIELDS: FieldDef[] = [
-    { key: 'length_m', label: 'Length (m)', type: 'number', placeholder: '5' },
-    { key: 'volts', label: 'Volts', type: 'select', options: [5, 12, 24] },
-    { key: 'leds_per_m', label: 'LEDs/m', type: 'number', placeholder: '60' },
-    { key: 'ma_per_led', label: 'mA / LED', type: 'number', placeholder: '60' },
-    { key: 'wire_mm2', label: 'Wire mm²', type: 'number', placeholder: '4' },
-    { key: 'fps', label: 'Target fps', type: 'number', placeholder: '60' }
+    { key: 'length_m', type: 'number', placeholder: '5' },
+    { key: 'volts', type: 'select', options: [5, 12, 24] },
+    { key: 'leds_per_m', type: 'number', placeholder: '60' },
+    { key: 'ma_per_led', type: 'number', placeholder: '60' },
+    { key: 'wire_mm2', type: 'number', placeholder: '4' },
+    { key: 'fps', type: 'number', placeholder: '60' }
 ];
 
 export class LedStripShapeUtil extends BaseBoxShapeUtil<LedStripShape> {
@@ -251,7 +228,6 @@ export class LedStripShapeUtil extends BaseBoxShapeUtil<LedStripShape> {
                 fields={STRIP_FIELDS}
                 shape={shape}
                 editor={this.editor}
-                endpoint="/api/ai/signage/led-strip"
                 renderSummary={(o: any) => (
                     <div style={summaryStyle}>
                         <strong>{o.leds_total} LED</strong>
@@ -274,12 +250,12 @@ export class LedStripShapeUtil extends BaseBoxShapeUtil<LedStripShape> {
 export type LedMatrixShape = TLBaseShape<'led-matrix', BasePlanProps>;
 
 const MATRIX_FIELDS: FieldDef[] = [
-    { key: 'pitch_mm', label: 'Pitch mm', type: 'number', placeholder: '4' },
-    { key: 'width_mm', label: 'Width mm', type: 'number', placeholder: '1920' },
-    { key: 'height_mm', label: 'Height mm', type: 'number', placeholder: '1080' },
-    { key: 'refresh_hz', label: 'Refresh Hz', type: 'number', placeholder: '60' },
-    { key: 'scan', label: 'Scan 1/n', type: 'number', placeholder: '16' },
-    { key: 'ma_per_pixel', label: 'mA / pixel', type: 'number', placeholder: '18' }
+    { key: 'pitch_mm', type: 'number', placeholder: '4' },
+    { key: 'width_mm', type: 'number', placeholder: '1920' },
+    { key: 'height_mm', type: 'number', placeholder: '1080' },
+    { key: 'refresh_hz', type: 'number', placeholder: '60' },
+    { key: 'scan', type: 'number', placeholder: '16' },
+    { key: 'ma_per_pixel', type: 'number', placeholder: '18' }
 ];
 
 export class LedMatrixShapeUtil extends BaseBoxShapeUtil<LedMatrixShape> {
@@ -300,7 +276,6 @@ export class LedMatrixShapeUtil extends BaseBoxShapeUtil<LedMatrixShape> {
                 fields={MATRIX_FIELDS}
                 shape={shape}
                 editor={this.editor}
-                endpoint="/api/ai/signage/led-matrix"
                 renderSummary={(o: any) => (
                     <div style={summaryStyle}>
                         <strong>{o.cols}×{o.rows}</strong>
@@ -323,15 +298,15 @@ export class LedMatrixShapeUtil extends BaseBoxShapeUtil<LedMatrixShape> {
 export type BoxLetterShape = TLBaseShape<'boxletter', BasePlanProps>;
 
 const BOXLETTER_FIELDS: FieldDef[] = [
-    { key: 'height_mm', label: 'Cap height mm', type: 'number', placeholder: '300' },
-    { key: 'stroke_mm', label: 'Stroke mm', type: 'number', placeholder: '60' },
-    { key: 'depth_mm', label: 'Depth mm', type: 'number', placeholder: '80' },
-    { key: 'count', label: 'Letter count', type: 'number', placeholder: '6' },
-    { key: 'nits_target', label: 'Target cd/m²', type: 'number', placeholder: '1500' },
-    { key: 'module', label: 'Module', type: 'select', options: ['tetra', 'opto', 'mini-strip'] },
-    { key: 'volts', label: 'Volts', type: 'select', options: [12, 24] },
-    { key: 'module_ma', label: 'mA/module', type: 'number', placeholder: '90' },
-    { key: 'module_lm', label: 'lm/module', type: 'number', placeholder: '12' }
+    { key: 'height_mm', type: 'number', placeholder: '300' },
+    { key: 'stroke_mm', type: 'number', placeholder: '60' },
+    { key: 'depth_mm', type: 'number', placeholder: '80' },
+    { key: 'count', type: 'number', placeholder: '6' },
+    { key: 'nits_target', type: 'number', placeholder: '1500' },
+    { key: 'module', type: 'select', options: ['tetra', 'opto', 'mini-strip'] },
+    { key: 'volts', type: 'select', options: [12, 24] },
+    { key: 'module_ma', type: 'number', placeholder: '90' },
+    { key: 'module_lm', type: 'number', placeholder: '12' }
 ];
 
 export class BoxLetterShapeUtil extends BaseBoxShapeUtil<BoxLetterShape> {
@@ -352,7 +327,6 @@ export class BoxLetterShapeUtil extends BaseBoxShapeUtil<BoxLetterShape> {
                 fields={BOXLETTER_FIELDS}
                 shape={shape}
                 editor={this.editor}
-                endpoint="/api/ai/signage/boxletter"
                 renderSummary={(o: any) => (
                     <div style={summaryStyle}>
                         <strong>{o.modules_total} modules</strong>
@@ -381,33 +355,36 @@ const summaryStyle: React.CSSProperties = {
 
 // ─── Runners ────────────────────────────────────────────────────────────────
 
-function makeRunner(endpoint: string, label: string) {
-    return registerNodeRunner.bind(null, label) as (
-        runner: (ctx: any) => Promise<any>
-    ) => void;
-}
-
-const _registerSignageRunner = (kind: string, endpoint: string) => {
-    registerNodeRunner(kind, async ({ shape }) => {
+function registerSignageRunner(kind: string, endpoint: string, fields: FieldDef[]) {
+    registerNodeRunner(kind, async ({ shape, signal }) => {
         const props = (shape as { props: BasePlanProps }).props;
+        const payload: Record<string, unknown> = {};
+        for (const field of fields) {
+            const value = props.inputs?.[field.key];
+            if (value === undefined || value === '') continue;
+            const numeric = field.type === 'number' ||
+                (field.type === 'select' && typeof field.options?.[0] === 'number');
+            payload[field.key] = numeric ? Number(value) : value;
+        }
         const res = await fetch(endpoint, {
             method: 'POST',
+            signal,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(props.inputs ?? {})
+            body: JSON.stringify(payload)
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) {
+            const error = await res.json().catch(() => ({}));
+            throw new Error(error.error ?? `HTTP ${res.status}`);
+        }
         const data = await res.json();
         return {
             data,
             summary: (data.notes?.[0] as string) ?? `${kind} computed`
         };
     });
-};
+}
 
-_registerSignageRunner('lumigrid',   '/api/ai/signage/lumigrid');
-_registerSignageRunner('led-strip',  '/api/ai/signage/led-strip');
-_registerSignageRunner('led-matrix', '/api/ai/signage/led-matrix');
-_registerSignageRunner('boxletter',  '/api/ai/signage/boxletter');
-
-// `makeRunner` retained for future per-shape extension; suppress unused-warn.
-void makeRunner;
+registerSignageRunner('lumigrid',   '/api/ai/signage/lumigrid', LUMIGRID_FIELDS);
+registerSignageRunner('led-strip',  '/api/ai/signage/led-strip', STRIP_FIELDS);
+registerSignageRunner('led-matrix', '/api/ai/signage/led-matrix', MATRIX_FIELDS);
+registerSignageRunner('boxletter',  '/api/ai/signage/boxletter', BOXLETTER_FIELDS);

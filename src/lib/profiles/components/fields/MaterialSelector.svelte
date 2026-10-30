@@ -5,8 +5,9 @@
   import ChevronDown from 'lucide-svelte/icons/chevron-down';
   import Package from 'lucide-svelte/icons/package';
   import { onMount } from 'svelte';
-  import Icon from '$lib/ui/Icon.svelte';
   import type { Material } from '$lib/profiles/types';
+
+  const controlId = $props.id();
 
   interface Props {
     value?: string;
@@ -30,9 +31,10 @@
     error = null
   }: Props = $props();
 
-  let materials: Material[] = [];
-  let filteredMaterials: Material[] = $state([]);
-  let selectedMaterial: Material | null = $state(null);
+  let materials = $state<Material[]>([]);
+  let filteredMaterials = $derived(options.length > 0
+    ? materials.filter(material => options.includes(material.code)) : materials);
+  let selectedMaterial = $derived(materials.find(material => material.code === value) ?? null);
   let loading = $state(false);
   let inventoryStatus: Record<string, { inStock: boolean; quantity: number }> = $state({});
   let isOpen = $state(false);
@@ -48,22 +50,11 @@
       const data = await response.json();
       materials = data.items || data;
 
-      // Filter by provided options
-      if (options.length > 0) {
-        filteredMaterials = materials.filter(m => options.includes(m.code));
-      } else {
-        filteredMaterials = materials;
-      }
-
       // Load inventory status if enabled
       if (checkInventory) {
         await loadInventoryStatus();
       }
 
-      // Set selected material if value is provided
-      if (value) {
-        selectedMaterial = filteredMaterials.find(m => m.code === value) || null;
-      }
     } catch (err) {
       console.error('Failed to load materials:', err);
     } finally {
@@ -82,7 +73,6 @@
   }
 
   function selectMaterial(material: Material) {
-    selectedMaterial = material;
     value = material.code;
     isOpen = false;
   }
@@ -105,7 +95,7 @@
 </script>
 
 <div class="material-selector" class:disabled class:error={!!error}>
-  <label class="label">
+  <label class="label" for={controlId}>
     {label}
     {#if required}
       <span class="required">*</span>
@@ -114,9 +104,13 @@
 
   <div class="selector-wrapper">
     <button 
+      id={controlId}
       type="button"
       class="selector-button" 
       class:open={isOpen}
+      aria-expanded={isOpen}
+      aria-controls={isOpen ? `${controlId}-options` : undefined}
+      aria-describedby={error ? `${controlId}-error` : undefined}
       onclick={toggleDropdown}
       {disabled}
     >
@@ -153,12 +147,13 @@
     </button>
 
     {#if isOpen && !loading}
-      <div class="dropdown-menu">
+      <div class="dropdown-menu" id={`${controlId}-options`}>
         {#each filteredMaterials as material (material.id)}
           <button
             type="button"
             class="material-option"
             class:selected={material.code === value}
+            aria-pressed={material.code === value}
             onclick={() => selectMaterial(material)}
           >
             <div 
@@ -197,7 +192,7 @@
   </div>
 
   {#if error}
-    <div class="error-message">
+    <div class="error-message" id={`${controlId}-error`}>
       <AlertCircle size={14} />
       {error}
     </div>
@@ -312,7 +307,7 @@
     font-size: var(--text-sm, 0.875rem);
   }
 
-  .chevron {
+  .selector-button :global(.chevron) {
     color: var(--text-muted, var(--ink-tertiary));
     transition: transform 0.2s ease;
   }

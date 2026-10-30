@@ -1,6 +1,7 @@
 // src/lib/profiles/utils/generateProfilePDF.ts
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import type { ProfileConfiguration } from '$lib/profiles/types';
+import { readFaceMaterials, withFaceMaterials, type FaceMaterialSelection } from '$lib/profiles/face-materials';
 
 export interface PDFGenerationOptions {
   poNumber: string;
@@ -75,7 +76,8 @@ export async function generateProfilePDF(options: PDFGenerationOptions): Promise
   const sectionWidth = 40;
   const sectionHeight = 80;
 
-  const sections = Object.entries(options.configuration);
+  const sections = Object.entries(options.configuration).filter(([, value]) =>
+    value && typeof value === 'object' && !Array.isArray(value));
 
   sections.forEach(([sectionName, sectionData], index) => {
     // Section header (black background)
@@ -92,7 +94,12 @@ export async function generateProfilePDF(options: PDFGenerationOptions): Promise
 
     // Field values
     let fieldY = sectionY + 13;
-    Object.entries(sectionData as Record<string, any>).forEach(([fieldKey, fieldValue]) => {
+    const fields = sectionName === 'CNC_FREZER' && Array.isArray(sectionData.faceMaterials)
+      ? withFaceMaterials(sectionData, readFaceMaterials(sectionData)) : sectionData;
+    Object.entries(fields as Record<string, any>).forEach(([fieldKey, fieldValue]) => {
+      // Row details get a complete, paginated schedule below. Picker metadata
+      // must never appear as [object Object] or opaque option arrays in print.
+      if (fieldKey === 'faceMaterials' || /^(face|back|sides)(Category|ThicknessOptions)$/.test(fieldKey)) return;
       if (fieldValue && fieldY < sectionY + sectionHeight - 5) {
         // Draw colored box for visual fields
         if (fieldKey.includes('material') || fieldKey.includes('color')) {
@@ -150,7 +157,65 @@ export async function generateProfilePDF(options: PDFGenerationOptions): Promise
     pdf.text('THE NETHERLANDS', pageWidth - 50, pageHeight - 10);
   }
 
+  const faceMaterials = readFaceMaterials(options.configuration.CNC_FREZER)
+    .filter(row => row.value.trim());
+  if (faceMaterials.length > 1) appendFaceMaterialSchedule(pdf, faceMaterials, options);
+
   return pdf.output('blob');
+}
+
+/** The compact work-form column cannot fit an arbitrary number of FACE rows. */
+function appendFaceMaterialSchedule(pdf: jsPDF, rows: FaceMaterialSelection[], options: PDFGenerationOptions) {
+  const margin = 20;
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const materialX = 38;
+  const thicknessX = pageWidth - 54;
+  const lineHeight = 5;
+  let y = 0;
+
+  function startPage() {
+    pdf.addPage();
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(15);
+    pdf.text('FACE materials', margin, 20);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(10);
+    const heading = pdf.splitTextToSize(
+      `${options.poNumber} / ${options.profileName || options.profileCode}`,
+      pageWidth - margin * 2
+    );
+    pdf.text(heading, margin, 28);
+    y = 31 + heading.length * lineHeight;
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('#', margin, y);
+    pdf.text('Material', materialX, y);
+    pdf.text('Thickness', thicknessX, y);
+    pdf.setDrawColor(180, 180, 180);
+    pdf.line(margin, y + 3, pageWidth - margin, y + 3);
+    y += 10;
+    pdf.setFont('helvetica', 'normal');
+  }
+
+  startPage();
+  rows.forEach((row, index) => {
+    const materialLines: string[] = pdf.splitTextToSize(row.value, thicknessX - materialX - 8);
+    const thicknessLines: string[] = pdf.splitTextToSize(row.thickness || '-', pageWidth - thicknessX - margin);
+    const lineCount = Math.max(materialLines.length, thicknessLines.length);
+    let offset = 0;
+    while (offset < lineCount) {
+      if (y + lineHeight > pageHeight - margin) startPage();
+      const count = Math.min(lineCount - offset, Math.max(1, Math.floor((pageHeight - margin - y) / lineHeight)));
+      pdf.text(String(index + 1), margin, y);
+      const materialChunk = materialLines.slice(offset, offset + count);
+      const thicknessChunk = thicknessLines.slice(offset, offset + count);
+      if (materialChunk.length) pdf.text(materialChunk, materialX, y);
+      if (thicknessChunk.length) pdf.text(thicknessChunk, thicknessX, y);
+      offset += count;
+      y += count * lineHeight + 4;
+    }
+  });
 }
 
 function getFieldBoxColor(fieldKey: string, value: any): [number, number, number] {

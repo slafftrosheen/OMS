@@ -1,9 +1,9 @@
 <!-- src/lib/profiles/components/fields/MaterialField.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { derived } from 'svelte/store';
-  import type { Material } from '$lib/profiles/types';
   import plexiglasData from '$lib/profiles/data/plexiglas-materials.json';
+
+  const groupId = $props.id();
 
   interface Props {
     value?: {
@@ -177,11 +177,11 @@
   }
 </script>
 
-<div class="material-field">
-  <label class="label">
+<fieldset class="material-field" {disabled}>
+  <legend class="label">
     {label}
     {#if required}<span class="required">*</span>{/if}
-  </label>
+  </legend>
 
   <div class="material-type-selector">
     {#each materialTypes as type}
@@ -189,6 +189,7 @@
         type="button"
         class="type-button"
         class:active={selectedType === type}
+        aria-pressed={selectedType === type}
         onclick={() => selectMaterialType(type)}
         {disabled}
       >
@@ -259,8 +260,8 @@
             {/each}
           </div>
           <div class="section-size-input">
-            <label>Enter section size:</label>
-            <input type="text" placeholder="e.g., 20x20" bind:value={sectionSize} oninput={updateValue}/>
+            <label for={`${groupId}-section`}>Enter section size:</label>
+            <input id={`${groupId}-section`} type="text" placeholder="e.g., 20x20" bind:value={sectionSize} oninput={updateValue}/>
           </div>
           <p class="helper-text">Select Round Profile (Tube):</p>
           <div class="size-grid">
@@ -269,8 +270,8 @@
             {/each}
           </div>
           <div class="section-size-input">
-            <label>Enter diameter (mm):</label>
-            <input type="number" placeholder="e.g., 20" bind:value={diameter} oninput={updateValue}/>
+            <label for={`${groupId}-diameter`}>Enter diameter (mm):</label>
+            <input id={`${groupId}-diameter`} type="number" placeholder="e.g., 20" bind:value={diameter} oninput={updateValue}/>
           </div>
         </div>
       {/if}
@@ -284,15 +285,21 @@
       </div>
     </div>
   {/if}
-</div>
+</fieldset>
 
 <style>
   .material-field {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-md, 12px);
   }
   .label {
+    padding: 0;
+    margin-bottom: var(--space-md, 12px);
     font-weight: 600;
   }
   .required {
@@ -341,13 +348,13 @@
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     gap: var(--space-xs, 4px);
   }
-  .size-option, .thickness-option {
+  .size-option {
     padding: var(--space-sm, 8px);
     border: 2px solid var(--border, var(--border));
     border-radius: var(--radius-md, 6px);
     cursor: pointer;
   }
-  .size-option.selected, .thickness-option.selected, .acrylic-option.selected {
+  .size-option.selected, .acrylic-option.selected {
     border-color: var(--primary, var(--brand));
     box-shadow: 0 0 0 2px var(--primary, var(--brand));
   }

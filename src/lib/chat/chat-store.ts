@@ -1,23 +1,20 @@
 import { writable, get } from 'svelte/store';
 import type { Room, Message, Attachment, SystemMessageEvent } from './types';
 import { currentUser } from '$lib/auth/authState.svelte';
-import { users } from '$lib/users/user-store';
 import { base } from '$app/paths';
 import { notify } from '$lib/notifications/store';
 import { toasts } from '$lib/stores/toast';
 import { env } from '$env/dynamic/public';
 import { supabase } from '$lib/supabase-client';
+import { RequestScope } from '$lib/state/request-scope';
+import { createId } from '$lib/utils/id';
 
 const isBrowser = typeof window !== 'undefined';
 
 // State
 export const isChatOpen = writable<boolean>(false);
 export const unreadCount = writable<number>(0);
-export const rooms = writable<Room[]>([
-  { id: 'general', name: 'General' },
-  { id: 'workstations', name: 'Workstations' },
-  { id: 'logistics', name: 'Logistics' }
-]);
+export const rooms = writable<Room[]>([]);
 
 export const messages = writable<Message[]>([]);
 export const chatLoading = writable<boolean>(false);
@@ -46,42 +43,35 @@ export function toggleChat() {
   });
 }
 
-/**
- * Supabase Realtime Subscription (replaces WebSocket)
- * This works because it uses Supabase Realtime (self-hosted on reclame-supabase.local)
- */
-let realtimeChannel: any = null;
-let supabaseClient: any = null;
-
+/** The application shell owns one account-scoped realtime subscription. */
 export function initChatRealtime() {
-  if (!isBrowser) return () => {};
-  
+  const ownerId = get(currentUser)?.id;
+  if (!isBrowser || !ownerId) return () => {};
+
   const supabaseUrl = env.PUBLIC_SUPABASE_URL;
   const supabaseKey = env.PUBLIC_SUPABASE_ANON_KEY;
-  
+
   if (!supabaseUrl || !supabaseKey) {
-    console.warn(`Supabase credentials not configured, realtime chat disabled. 
-Expected PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY.
-Received URL: ${supabaseUrl || 'undefined'}, Key: ${supabaseKey ? '***' : 'undefined'}`);
     return () => {};
   }
 
-  supabaseClient = supabase;
+  let active = true;
 
   // Subscribe to chat_messages table for real-time updates
-  realtimeChannel = supabaseClient
-    .channel('chat-messages')
+  const channel = supabase
+    .channel(`chat-messages:${ownerId}`)
     .on(
       'postgres_changes',
-      { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'chat_messages' 
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'chat_messages'
       },
       (payload: any) => {
         const newMessage = payload.new;
         const me = get(currentUser);
-        
+        if (!active || me?.id !== ownerId || get(messages).some(message => message.id === newMessage.id)) return;
+
         // Transform to Message format
         const message: Message = {
           id: newMessage.id,
@@ -106,7 +96,7 @@ Received URL: ${supabaseUrl || 'undefined'}, Key: ${supabaseKey ? '***' : 'undef
           if (!get(isChatOpen)) {
             unreadCount.update(n => n + 1);
             playSound();
-            
+
             notify('New chat message', {
               urgency: 'normal'
             });
@@ -121,61 +111,123 @@ Received URL: ${supabaseUrl || 'undefined'}, Key: ${supabaseKey ? '***' : 'undef
       }
     )
     .subscribe((status: string) => {
-      console.log('Chat realtime status:', status);
-      realtimeConnected.set(status === 'SUBSCRIBED');
+      if (active && get(currentUser)?.id === ownerId) realtimeConnected.set(status === 'SUBSCRIBED');
     });
 
   return () => {
-    if (realtimeChannel && supabaseClient) {
-      supabaseClient.removeChannel(realtimeChannel);
-      realtimeConnected.set(false);
+    active = false;
+    void Promise.resolve(supabase.removeChannel(channel)).catch(() => {});
+    realtimeConnected.set(false);
+  };
+}
+
+const roomReads = new RequestScope();
+const messageReads = new RequestScope();
+const pendingWrites = new Set<AbortController>();
+const optimisticIds = new Set<string>();
+let sessionGeneration = 0;
+
+function beginWrite(timeoutMs = 20000, parentSignal?: AbortSignal) {
+  const ownerId = get(currentUser)?.id;
+  if (!isBrowser || !ownerId || parentSignal?.aborted) return null;
+  const generation = sessionGeneration;
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  parentSignal?.addEventListener('abort', onAbort, { once: true });
+  pendingWrites.add(controller);
+  const timer = setTimeout(onAbort, timeoutMs);
+  return {
+    ownerId,
+    signal: controller.signal,
+    isCurrent: () => generation === sessionGeneration && get(currentUser)?.id === ownerId && !parentSignal?.aborted,
+    finish() {
+      clearTimeout(timer);
+      parentSignal?.removeEventListener('abort', onAbort);
+      pendingWrites.delete(controller);
     }
   };
 }
 
-/**
- * Load chat rooms from database
- */
-export async function loadRooms(): Promise<void> {
-  if (!isBrowser) return;
-  
-  try {
-    const res = await fetch(`${base}/api/chat`);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        rooms.set(data.map((r: any) => ({ id: r.id, name: r.name })));
-      }
-    }
-  } catch (err) {
-    console.error('Failed to load chat rooms:', err);
-  }
+function isRoom(value: unknown): value is Room {
+  return !!value && typeof value === 'object' && typeof (value as Room).id === 'string'
+    && !!(value as Room).id && typeof (value as Room).name === 'string';
 }
 
-/**
- * Load messages for a room from database
- */
-export async function loadMessages(roomId: string, limit = 100): Promise<void> {
-  if (!isBrowser) return;
-  
-  chatLoading.set(true);
-  try {
-    const res = await fetch(`${base}/api/chat/messages?roomId=${roomId}&limit=${limit}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success && Array.isArray(data.messages)) {
-        // Replace messages for this room
-        messages.update(current => {
-          const otherRoomMessages = current.filter(m => m.roomId !== roomId);
-          return [...otherRoomMessages, ...data.messages];
+function keepRoom(room: Room) {
+  rooms.update(current => [...current.filter(item => item.id !== room.id), room]);
+}
+
+function chronological(items: Message[]): Message[] {
+  return items.sort((a, b) => a.ts.localeCompare(b.ts) || a.id.localeCompare(b.id));
+}
+
+export function resetChatState() {
+  sessionGeneration++;
+  roomReads.reset();
+  messageReads.reset();
+  for (const controller of pendingWrites) controller.abort();
+  pendingWrites.clear();
+  optimisticIds.clear();
+  messages.set([]);
+  rooms.set([]);
+  unreadCount.set(0);
+  chatLoading.set(false);
+  isChatOpen.set(false);
+}
+
+/** Shared by the chat page and drawer; concurrent reads use one request. */
+export function loadRooms(): Promise<void> {
+  const ownerId = get(currentUser)?.id;
+  if (!isBrowser || !ownerId) return Promise.resolve();
+  return roomReads.run('rooms', async ({ signal, isCurrent }) => {
+    const initialIds = new Set(get(rooms).map(room => room.id));
+    try {
+      const response = await fetch(`${base}/api/chat`, { signal });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (isCurrent() && get(currentUser)?.id === ownerId && Array.isArray(data)) {
+        rooms.update(current => {
+          const byId = new Map<string, Room>(data.filter(isRoom).map(room => [room.id, room]));
+          for (const room of current) if (!initialIds.has(room.id)) byId.set(room.id, room);
+          return [...byId.values()];
         });
       }
+    } catch (error) {
+      if (isCurrent() && get(currentUser)?.id === ownerId) console.error('Failed to load chat rooms:', error);
     }
-  } catch (err) {
-    console.error('Failed to load messages:', err);
-  } finally {
-    chatLoading.set(false);
-  }
+  });
+}
+
+export function loadMessages(roomId: string, limit = 100): Promise<void> {
+  const ownerId = get(currentUser)?.id;
+  if (!isBrowser || !ownerId || !roomId) return Promise.resolve();
+  chatLoading.set(true);
+  const request = messageReads.run(`${roomId}:${limit}`, async ({ signal, isCurrent }) => {
+    const initialIds = new Set(get(messages).filter(message => message.roomId === roomId).map(message => message.id));
+    try {
+      const query = new URLSearchParams({ roomId, limit: String(limit) });
+      const response = await fetch(`${base}/api/chat/messages?${query}`, { signal });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (isCurrent() && get(currentUser)?.id === ownerId && data.success && Array.isArray(data.messages)) {
+        messages.update(current => {
+          const byId = new Map<string, Message>(data.messages
+            .filter((message: Message) => message && message.roomId === roomId && typeof message.id === 'string')
+            .map((message: Message) => [message.id, message]));
+          // Refresh existing history while retaining realtime arrivals and unacknowledged sends.
+          for (const message of current) {
+            if (message.roomId === roomId && (!initialIds.has(message.id) || optimisticIds.has(message.id))) {
+              byId.set(message.id, { ...message, ...byId.get(message.id) });
+            }
+          }
+          return [...current.filter(message => message.roomId !== roomId), ...chronological([...byId.values()])];
+        });
+      }
+    } catch (error) {
+      if (isCurrent() && get(currentUser)?.id === ownerId) console.error('Failed to load messages:', error);
+    }
+  });
+  return request.finally(() => chatLoading.set(messageReads.size > 0));
 }
 
 type MessageOptions = {
@@ -196,7 +248,8 @@ export async function uploadAttachment(
   file: File,
   messageId?: string
 ): Promise<Attachment | null> {
-  if (!isBrowser) return null;
+  const write = beginWrite(60000);
+  if (!write) return null;
 
   const form = new FormData();
   form.append('roomId', roomId);
@@ -207,20 +260,19 @@ export async function uploadAttachment(
     const res = await fetch(`${base}/api/chat/attachments`, {
       method: 'POST',
       body: form,
+      signal: write.signal,
     });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      notify(err.error ?? 'File upload failed', { urgency: 'urgent' });
-      return null;
-    }
-
+    if (!write.isCurrent()) return null;
+    if (!res.ok || write.signal.aborted) throw new Error('File upload failed');
     const data = await res.json();
-    return data.attachment as Attachment;
-  } catch (err) {
-    console.error('uploadAttachment failed:', err);
-    notify('File upload failed', { urgency: 'urgent' });
+    if (!write.isCurrent()) return null;
+    if (write.signal.aborted || !data.success || typeof data.attachment?.id !== 'string') throw new Error('Invalid upload response');
+    return data.attachment;
+  } catch {
+    if (write.isCurrent()) notify('File upload failed', { urgency: 'urgent' });
     return null;
+  } finally {
+    write.finish();
   }
 }
 
@@ -230,16 +282,17 @@ export async function sendMessage(
   mentions: string[] = [],
   options: MessageOptions = {}
 ) {
-  const me = get(currentUser);
   const payload = text.trim();
-  if (!payload) return;
+  if (!payload || !roomId) return;
+  const write = beginWrite();
+  if (!write) return;
 
   // Optimistic UI update
-  const tempId = `temp_${Date.now()}`;
+  const tempId = `temp_${createId('message')}`;
   const optimisticMessage: Message = {
     id: tempId,
     roomId,
-    authorId: options.authorId ?? (me?.id ? String(me.id) : 'anonymous'),
+    authorId: options.authorId ?? write.ownerId,
     ts: new Date().toISOString(),
     text: payload,
     mentions,
@@ -249,14 +302,15 @@ export async function sendMessage(
     replyToId: options.replyToId ?? null,
   };
 
+  optimisticIds.add(tempId);
   messages.update((value) => [...value, optimisticMessage]);
 
   // Persist to database
-  if (isBrowser) {
-    try {
+  try {
       const res = await fetch(`${base}/api/chat/messages`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
+        signal: write.signal,
         body: JSON.stringify({
           roomId,
           text: payload,
@@ -267,73 +321,73 @@ export async function sendMessage(
           replyToId: options.replyToId ?? null,
         })
       });
-      
-      if (res.ok) {
-        const result = await res.json();
-        if (result.success && result.message) {
-          // Replace optimistic message with server response
-          messages.update(msgs => 
-            msgs.map(m => m.id === tempId ? result.message : m)
-          );
-        }
-      } else {
-        // Remove optimistic message on error
-        messages.update(msgs => msgs.filter(m => m.id !== tempId));
-        notify('Failed to send message', { urgency: 'urgent' });
-      }
-    } catch (err) {
-      console.error('Failed to send message:', err);
+
+      if (!write.isCurrent()) return;
+      if (!res.ok || write.signal.aborted) throw new Error('Failed to send message');
+      const result = await res.json();
+      if (!write.isCurrent()) return;
+      if (write.signal.aborted || !result.success || typeof result.message?.id !== 'string'
+        || result.message.roomId !== roomId) throw new Error('Invalid message response');
+      // A realtime echo can arrive before this acknowledgement. Keep one canonical message.
+      messages.update(current => chronological([
+        ...current.filter(message => message.id !== tempId && message.id !== result.message.id),
+        { ...optimisticMessage, ...result.message }
+      ]));
+  } catch {
+    if (write.isCurrent()) {
       messages.update(msgs => msgs.filter(m => m.id !== tempId));
       notify('Failed to send message', { urgency: 'urgent' });
     }
+  } finally {
+    optimisticIds.delete(tempId);
+    write.finish();
   }
 }
 
-export function postSystemEvent(
-  roomId: string,
-  text: string,
-  event: SystemMessageEvent,
-  mentions: string[] = []
-) {
-  sendMessage(roomId, text, mentions, { authorId: 'system', variant: 'system', event });
-}
-
-export async function ensureRoom(room: Room) {
-  rooms.update((value) => {
-    if (value.some((item) => item.id === room.id)) return value;
-    return [...value, room];
-  });
-
-  // Persist to database
-  if (isBrowser) {
-    try {
-      await fetch(`${base}/api/chat`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(room)
-      });
-    } catch (err) {
-      console.error('Failed to create room:', err);
-    }
+/** Add a room only after the server confirms its identity and metadata. */
+export async function ensureRoom(room: Room, signal?: AbortSignal): Promise<boolean> {
+  const write = beginWrite(20000, signal);
+  if (!write) return false;
+  try {
+    const response = await fetch(`${base}/api/chat`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(room), signal: write.signal
+    });
+    if (!write.isCurrent()) return false;
+    if (!response.ok || write.signal.aborted) throw new Error('Failed to create room');
+    const data = await response.json();
+    if (!write.isCurrent()) return false;
+    if (write.signal.aborted || !data.success || !isRoom(data.room) || data.room.id !== room.id) throw new Error('Invalid room response');
+    keepRoom(data.room);
+    return true;
+  } catch {
+    if (write.isCurrent()) notify('Failed to create room', { urgency: 'urgent' });
+    return false;
+  } finally {
+    write.finish();
   }
 }
 
-export async function deleteRoom(roomId: string) {
-  rooms.update((value) => value.filter((room) => room.id !== roomId));
-  messages.update((value) => value.filter((message) => message.roomId !== roomId));
-
-  // Delete from database
-  if (isBrowser) {
-    try {
-      await fetch(`${base}/api/chat?id=${roomId}`, { method: 'DELETE' });
-    } catch (err) {
-      console.error('Failed to delete room:', err);
-    }
+/** The DM endpoint already creates the room; no second channel POST is needed. */
+export async function openDirectRoom(peerId: string, signal?: AbortSignal): Promise<Room | null> {
+  const write = beginWrite(20000, signal);
+  if (!write) return null;
+  try {
+    const response = await fetch(`${base}/api/chat/dm`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ peerId }), signal: write.signal
+    });
+    if (!write.isCurrent()) return null;
+    if (!response.ok || write.signal.aborted) throw new Error('Failed to open direct message');
+    const data = await response.json();
+    if (!write.isCurrent()) return null;
+    if (write.signal.aborted || !data.success || !isRoom(data.room)) throw new Error('Invalid direct message response');
+    keepRoom(data.room);
+    return data.room;
+  } catch {
+    if (write.isCurrent()) notify('Failed to open direct message', { urgency: 'urgent' });
+    return null;
+  } finally {
+    write.finish();
   }
-}
-
-export function mentionsForMessage(message: Message) {
-  const idSet = new Set(message.mentions || []);
-  const lookup = get(users);
-  return lookup.filter((user) => idSet.has(String(user.id)));
 }

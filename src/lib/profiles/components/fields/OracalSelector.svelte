@@ -1,8 +1,8 @@
 <!-- src/lib/profiles/components/fields/OracalSelector.svelte -->
 <script lang="ts">
   import Search from 'lucide-svelte/icons/search';
-  import { onMount } from 'svelte';
-  import Icon from '$lib/ui/Icon.svelte';
+  import { t } from 'svelte-i18n';
+  import { swatchTextColor } from './swatch-contrast';
 
   interface Props {
     value?: string; // Selected color code
@@ -23,9 +23,6 @@
   }: Props = $props();
 
   let searchQuery = $state('');
-  let oracalColors: any[] = $state([]);
-  let filteredColors: any[] = $state([]);
-  let selectedColor: any = $state(null);
 
   // ORACAL 8500 colors from PDF
   const oracal8500Colors = [
@@ -69,46 +66,32 @@
     { code: '743', name: 'Traffic Grey', hex: '#6C757D', popular: false },
   ];
 
-  onMount(() => {
-    oracalColors = oracal8500Colors;
-    filteredColors = oracalColors;
-    
-    if (value) {
-      selectedColor = oracalColors.find(c => c.code === value);
-    }
-  });
-
-  function filterColors() {
+  let selectedColor = $derived(oracal8500Colors.find(color => color.code === value) ?? null);
+  let filteredColors = $derived.by(() => {
     const query = searchQuery.toLowerCase();
-    filteredColors = oracalColors.filter(color =>
+    return oracal8500Colors.filter(color =>
       color.code.includes(query) ||
       color.name.toLowerCase().includes(query)
     );
-  }
+  });
 
   function selectColor(color: any) {
-    selectedColor = color;
+    if (disabled) return;
     value = color.code;
   }
-
-  $effect(() => {
-    if (searchQuery !== undefined) {
-      filterColors();
-    }
-  });
 
   // Group colors: popular first, then others
   let popularColors = $derived(filteredColors.filter(c => c.popular));
   let otherColors = $derived(filteredColors.filter(c => !c.popular));
 </script>
 
-<div class="oracal-selector">
-  <label class="label">
+<fieldset class="oracal-selector" {disabled}>
+  <legend class="label">
     {label} - {series} Series
     {#if required}
       <span class="required">*</span>
     {/if}
-  </label>
+  </legend>
 
   <!-- Search Box -->
   <div class="search-box">
@@ -117,6 +100,7 @@
       type="text"
       bind:value={searchQuery}
       placeholder="Search by code or color name..."
+      aria-label={`${label} · ${$t('common.search')}`}
       class="search-input"
     />
   </div>
@@ -126,9 +110,9 @@
     <div class="selected-preview">
       <div 
         class="preview-box"
-        style="background-color: {selectedColor.hex}; border: 2px solid #000;"
+        style="background-color: {selectedColor.hex}; color: {swatchTextColor(selectedColor.hex)}; border: 2px solid #000;"
       >
-        <span class="preview-code" style="color: {selectedColor.hex === '#FFFFFF' || selectedColor.hex === '#FFF44F' ? '#000' : '#fff'};">
+        <span class="preview-code">
           {selectedColor.code}
         </span>
       </div>
@@ -146,17 +130,19 @@
       <div class="colors-grid">
         {#each popularColors as color}
           <button
+            type="button"
             class="color-item"
             class:selected={selectedColor?.code === color.code}
+            aria-pressed={selectedColor?.code === color.code}
             onclick={() => selectColor(color)}
-            style="background-color: {color.hex}; border: 2px solid {selectedColor?.code === color.code ? '#000' : '#ccc'};"
+            style="background-color: {color.hex}; color: {swatchTextColor(color.hex)}; border: 2px solid {selectedColor?.code === color.code ? '#000' : '#ccc'};"
             title="{color.name} ({color.code})"
             {disabled}
           >
-            <span class="color-code" style="color: {color.hex === '#FFFFFF' || color.hex === '#FFD700' || color.hex === '#FFF44F' ? '#000' : '#fff'};">
+            <span class="color-code">
               {color.code}
             </span>
-            <span class="color-name" style="color: {color.hex === '#FFFFFF' || color.hex === '#FFD700' || color.hex === '#FFF44F' ? '#000' : '#fff'};">
+            <span class="color-name">
               {color.name}
             </span>
           </button>
@@ -172,17 +158,19 @@
       <div class="colors-grid">
         {#each otherColors as color}
           <button
+            type="button"
             class="color-item"
             class:selected={selectedColor?.code === color.code}
+            aria-pressed={selectedColor?.code === color.code}
             onclick={() => selectColor(color)}
-            style="background-color: {color.hex}; border: 2px solid {selectedColor?.code === color.code ? '#000' : '#ccc'};"
+            style="background-color: {color.hex}; color: {swatchTextColor(color.hex)}; border: 2px solid {selectedColor?.code === color.code ? '#000' : '#ccc'};"
             title="{color.name} ({color.code})"
             {disabled}
           >
-            <span class="color-code" style="color: {color.hex === '#FFFFFF' || color.hex === '#FFD700' ? '#000' : '#fff'};">
+            <span class="color-code">
               {color.code}
             </span>
-            <span class="color-name" style="color: {color.hex === '#FFFFFF' || color.hex === '#FFD700' ? '#000' : '#fff'};">
+            <span class="color-name">
               {color.name}
             </span>
           </button>
@@ -190,16 +178,22 @@
       </div>
     </div>
   {/if}
-</div>
+</fieldset>
 
 <style>
   .oracal-selector {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-md, 12px);
   }
 
   .label {
+    padding: 0;
+    margin-bottom: var(--space-md, 12px);
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
     color: var(--text-primary, var(--ink-primary));

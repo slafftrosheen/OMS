@@ -1,5 +1,7 @@
 <!-- src/lib/components/chat/ChatMessage.svelte -->
 <script lang="ts">
+    import { tick, untrack } from 'svelte';
+    import { locale, t } from 'svelte-i18n';
     import Icon from '$lib/ui/Icon.svelte';
 
     interface MessageType {
@@ -24,66 +26,90 @@
         isOwn?: boolean;
         onreply?: (msg: MessageType) => void;
         ondelete?: (id: string) => void;
-        onedit?: (data: { id: string; message: string }) => void;
+        onedit?: (data: { id: string; message: string }) => void | boolean | Promise<void | boolean>;
     } = $props();
 
-    let showActions = false;
-    let isEditing = false;
-    let editedText = message.message;
+    let editingId = $state<string | null>(null);
+    let isEditing = $derived(editingId === message.id && isOwn);
+    let editedText = $state('');
+    let saving = $state(false);
+    let editGeneration = 0;
+    let editButton = $state<HTMLButtonElement>();
+    let editor = $state<HTMLTextAreaElement>();
+
+    $effect.pre(() => {
+        const id = message.id;
+        const own = isOwn;
+        untrack(() => {
+            if (editingId && (editingId !== id || !own)) {
+                editingId = null;
+                editedText = '';
+                saving = false;
+                editGeneration++;
+            }
+        });
+    });
 
     function formatTime(date: Date): string {
-        return new Intl.DateTimeFormat('en', {
-            hour: '2-digit',
-            minute: '2-digit'
-        }).format(date);
-    }
-
-    function formatDate(date: Date): string {
-        const today = new Date();
-        const messageDate = new Date(date);
-        
-        if (messageDate.toDateString() === today.toDateString()) {
-            return 'Today';
-        }
-        
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        if (messageDate.toDateString() === yesterday.toDateString()) {
-            return 'Yesterday';
-        }
-        
-        return messageDate.toLocaleDateString();
+        return new Intl.DateTimeFormat($locale || 'en', { hour: '2-digit', minute: '2-digit' }).format(date);
     }
 
     function handleReply() {
         onreply?.(message);
     }
 
-    function handleEdit() {
-        isEditing = true;
+    async function handleEdit() {
+        if (!isOwn) return;
+        const id = message.id;
+        editGeneration++;
+        saving = false;
+        editedText = message.message;
+        editingId = id;
+        await tick();
+        if (editingId === id && message.id === id && editor?.isConnected) editor.focus();
+    }
+
+    async function finishEdit() {
+        const id = editingId;
+        editingId = null;
+        await tick();
+        if (message.id === id && editButton?.isConnected) editButton.focus();
     }
 
     function handleDelete() {
         ondelete?.(message.id);
     }
 
-    function saveEdit() {
-        if (editedText.trim() && editedText !== message.message) {
-            onedit?.({ id: message.id, message: editedText });
+    async function saveEdit() {
+        if (!isEditing || saving || !editedText.trim()) return;
+        const id = message.id;
+        const generation = editGeneration;
+        saving = true;
+        try {
+            const confirmed = editedText === message.message ? true : await onedit?.({ id, message: editedText });
+            if (confirmed !== false && editingId === id && message.id === id && generation === editGeneration) void finishEdit();
+        } catch {
+            // The request owner reports failures; retain this draft for retry.
+        } finally {
+            if (generation === editGeneration) saving = false;
         }
-        isEditing = false;
     }
 
     function cancelEdit() {
+        editGeneration++;
+        saving = false;
         editedText = message.message;
-        isEditing = false;
+        void finishEdit();
     }
 
     function handleKeydown(event: KeyboardEvent) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
             saveEdit();
         } else if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
             cancelEdit();
         }
     }
@@ -92,8 +118,6 @@
 <div
     class="chat-message"
     class:own={isOwn}
-    onmouseenter={() => showActions = true}
-    onmouseleave={() => showActions = false}
 >
     {#if !isOwn}
         <div class="avatar">
@@ -113,14 +137,16 @@
             {#if isEditing}
                 <textarea
                     bind:value={editedText}
+                    disabled={saving}
                     onkeydown={handleKeydown}
                     class="edit-textarea"
                     rows="3"
-                    autofocus
+                    bind:this={editor}
+                    aria-label={$t('chat.composer.edit_message')}
 ></textarea>
                 <div class="edit-actions">
-                    <button class="edit-btn save" onclick={saveEdit}>Save</button>
-                    <button class="edit-btn cancel" onclick={cancelEdit}>Cancel</button>
+                    <button type="button" class="edit-btn save" onclick={saveEdit} disabled={saving || !editedText.trim()}>{$t('common.save')}</button>
+                    <button type="button" class="edit-btn cancel" onclick={cancelEdit}>{$t('common.cancel')}</button>
                 </div>
             {:else}
                 <p class="message-text">{message.message}</p>
@@ -136,7 +162,7 @@
                 {/if}
 
                 {#if message.edited}
-                    <span class="edited-indicator">(edited)</span>
+                    <span class="edited-indicator">({$t('chat.composer.edited')})</span>
                 {/if}
             {/if}
         </div>
@@ -147,16 +173,16 @@
             </div>
         {/if}
 
-        {#if showActions && !isEditing}
+        {#if !isEditing}
             <div class="message-actions">
-                <button class="action-btn" onclick={handleReply} aria-label="Reply" title="Reply">
+                <button type="button" class="action-btn" onclick={handleReply} aria-label={$t('chat.composer.reply')} title={$t('chat.composer.reply')}>
                     <Icon name="reply" size="sm" />
                 </button>
                 {#if isOwn}
-                    <button class="action-btn" onclick={handleEdit} aria-label="Edit" title="Edit">
+                    <button type="button" bind:this={editButton} class="action-btn" onclick={handleEdit} aria-label={$t('common.edit')} title={$t('common.edit')}>
                         <Icon name="edit" size="sm" />
                     </button>
-                    <button class="action-btn danger" onclick={handleDelete} aria-label="Delete" title="Delete">
+                    <button type="button" class="action-btn danger" onclick={handleDelete} aria-label={$t('common.delete')} title={$t('common.delete')}>
                         <Icon name="trash-2" size="sm" />
                     </button>
                 {/if}
@@ -304,6 +330,8 @@
     }
 
     .message-actions {
+        opacity: 0;
+        pointer-events: none;
         position: absolute;
         top: -2rem;
         right: 0;
@@ -315,6 +343,11 @@
         gap: 0.25rem;
         box-shadow: 0 4px 6px -1px color-mix(in oklab, var(--bg-0) 10%, transparent);
     }
+
+    .chat-message:hover .message-actions,
+    .chat-message:focus-within .message-actions { opacity: 1; pointer-events: auto; }
+
+    @media (hover: none) { .message-actions { position: static; opacity: 1; pointer-events: auto; } }
 
     .own .message-actions {
         left: 0;

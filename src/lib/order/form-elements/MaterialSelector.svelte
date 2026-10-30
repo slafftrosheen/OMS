@@ -1,4 +1,5 @@
 <script lang="ts">
+  const controlId = $props.id();
   let {
     value = $bindable(''),
     label = 'Material',
@@ -15,11 +16,12 @@
 </script>
 
 <div class="material-selector">
-  <label class="label">
+  <label class="label" for={controlId}>
     {label}
     {#if required}<span class="required">*</span>{/if}
   </label>
   <select
+    id={controlId}
     bind:value
     class="material-select"
     {required}

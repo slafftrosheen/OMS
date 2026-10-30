@@ -43,7 +43,7 @@ describe('OMS-R03 workflow UI guardrails', () => {
     expect(board).not.toContain('status-select');
     expect(board).not.toContain('onstatuschange');
     expect(board).toContain("$t('productionPlanning.workstation')");
-    expect(board).toContain('stageStateLabel');
+    expect(board).toContain('stageBadge(order.stageState)');
     const page = source('src/routes/production/+page.svelte');
     expect(page).not.toContain('handleStatusChange');
   });

@@ -120,6 +120,6 @@ describe('OMS-R09 Toolkit AI workflow', () => {
     expect(ui).toContain('captureAnswer()');
     expect(ui).toContain('exportBrief()');
     expect(ui).toContain('skill: requestedSkill, language: $locale');
-    expect(ui).toContain('boardId !== activeBoardId');
+    expect(ui).toContain('isCurrent() && currentBoard(activeBoardId, token)');
   });
 });

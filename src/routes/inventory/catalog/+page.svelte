@@ -4,12 +4,16 @@
   import Plus from 'lucide-svelte/icons/plus';
   import Search from 'lucide-svelte/icons/search';
   import { onMount } from 'svelte';
-  import { materials, catalogError, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
+  import { materials, catalogError, isLoading as inventoryLoading, loadMaterials, getLowStockMaterials } from '$lib/inventory/store';
   import {base} from '$app/paths';
   import {currentUser} from '$lib/auth/authState.svelte';
   import Icon from '$lib/ui/Icon.svelte';
   import { t } from 'svelte-i18n';
   import type { Category } from '$lib/inventory/types';
+  import { getAssistantContext } from '$lib/assistant/context';
+  import { inventoryCatalogScreenContext } from '$lib/assistant/visible-context';
+
+  const assistant = getAssistantContext();
 
   let searchQuery = $state('');
   let categoryFilter: Category | 'ALL' = $state('ALL');
@@ -27,7 +31,16 @@
     });
     const unsubError=catalogError.subscribe(value=>catalogFailure=value);
     void loadMaterials();
-    return()=>{unsub();unsubError();};
+    const unregister = assistant.register({
+      id: 'materials:inventory-catalog', title: () => $t('inventory.catalog', { default: 'Material Catalog' }),
+      tools: () => [],
+      context: () => inventoryCatalogScreenContext({
+        loading: $inventoryLoading, error: !!catalogFailure, search: searchQuery,
+        category: categoryFilter, lowStockOnly: showLowStockOnly,
+        lowStockCount: lowStockList.length, canManage, rows: filteredMaterials
+      })
+    });
+    return()=>{unsub();unsubError();unregister();};
   });
 
   let filteredMaterials = $derived(materialList.filter(mat => {
@@ -273,7 +286,6 @@
     box-shadow: 0 4px 12px color-mix(in oklab, var(--bg-0) 10%, transparent);
   }
   
-  .material-image,
   .material-image-placeholder {
     width: 100%;
     height: 160px;
@@ -317,10 +329,6 @@
     color: var(--text-2);
   }
   
-  .spec-tag.weather {
-    background: color-mix(in srgb, green 15%, transparent);
-    color: green;
-  }
   
   .stock-info {
     display: flex;

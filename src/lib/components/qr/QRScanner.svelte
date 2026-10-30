@@ -1,6 +1,7 @@
 <!-- src/lib/components/qr/QRScanner.svelte -->
 <script lang="ts">
-    import { onMount, onDestroy } from 'svelte';
+    import { tick, untrack } from 'svelte';
+    import { base } from '$app/paths';
     import Button from '$lib/components/ui/Button.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
 
@@ -16,127 +17,103 @@
         onclose?: () => void;
     } = $props();
 
-    let videoElement: HTMLVideoElement;
-    let canvasElement: HTMLCanvasElement;
-    let stream: MediaStream | null = $state(null);
+    let videoElement = $state<HTMLVideoElement>();
+    let canvasElement = $state<HTMLCanvasElement>();
+    let stream: MediaStream | null = null;
     let scanning = $state(false);
-    let error: string | null = $state(null);
-    let scanInterval: number;
-
-    async function startScanning() {
-        error = null;
-        
-        try {
-            stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' }
-            });
-
-            if (videoElement) {
-                videoElement.srcObject = stream;
-                videoElement.play();
-                scanning = true;
-
-                // Start scan loop
-                scanInterval = setInterval(() => {
-                    scanQRCode();
-                }, 500) as unknown as number;
-            }
-        } catch (err) {
-            error = 'Camera access denied or not available';
-            console.error('Camera error:', err);
-        }
-    }
-
-    function scanQRCode() {
-        if (!videoElement || !canvasElement || !scanning) return;
-
-        const canvas = canvasElement;
-        const video = videoElement;
-        const context = canvas.getContext('2d');
-
-        if (!context) return;
-
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        
-        // Use jsQR library for QR detection
-        // @ts-ignore
-        const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-        if (code) {
-            handleQRCodeDetected(code.data);
-        }
-    }
-
-    async function handleQRCodeDetected(data: string) {
-        if (!continuous) {
-            stopScanning();
-        }
-
-        // Validate QR code with backend
-        try {
-            const response = await fetch('/api/qr-codes/scan', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: data })
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                onscan?.(result.data);
-                
-                if (!continuous) {
-                    open = false;
-                }
-            } else {
-                error = 'Invalid QR code';
-            }
-        } catch (err) {
-            error = 'Failed to validate QR code';
-        }
-    }
+    let error = $state<string | null>(null);
+    let scanInterval: ReturnType<typeof setInterval> | undefined;
+    let generation = 0;
+    let validation: AbortController | undefined;
+    let lastDetected = '';
 
     function stopScanning() {
+        generation++;
         scanning = false;
         clearInterval(scanInterval);
+        validation?.abort();
+        validation = undefined;
+        stream?.getTracks().forEach(track => track.stop());
+        stream = null;
+        if (videoElement) { videoElement.pause(); videoElement.srcObject = null; }
+    }
 
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            stream = null;
-        }
-
-        if (videoElement) {
-            videoElement.srcObject = null;
+    async function startScanning() {
+        stopScanning();
+        const token = generation;
+        error = null;
+        lastDetected = '';
+        await tick();
+        if (!open || token !== generation || !videoElement || !canvasElement) return;
+        try {
+            const acquired = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            if (!open || token !== generation || !videoElement) {
+                acquired.getTracks().forEach(track => track.stop());
+                return;
+            }
+            stream = acquired;
+            videoElement.srcObject = acquired;
+            await videoElement.play();
+            if (!open || token !== generation) return;
+            scanning = true;
+            scanInterval = setInterval(() => scanQRCode(token), 500);
+        } catch (err) {
+            if (!open || token !== generation) return;
+            stopScanning();
+            error = 'Camera access denied or not available';
         }
     }
 
-    function handleClose() {
-        stopScanning();
-        open = false;
-        onclose?.();
+    function scanQRCode(token: number) {
+        if (!videoElement || !canvasElement || !scanning || validation || token !== generation) return;
+        const video = videoElement;
+        if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) return;
+        const decode = (window as any).jsQR;
+        if (typeof decode !== 'function') {
+            stopScanning();
+            error = 'QR decoder is unavailable. Check your connection and try again.';
+            return;
+        }
+        const context = canvasElement.getContext('2d');
+        if (!context) return;
+        canvasElement.width = video.videoWidth;
+        canvasElement.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+        const image = context.getImageData(0, 0, canvasElement.width, canvasElement.height);
+        const code = decode(image.data, image.width, image.height);
+        if (!code) { lastDetected = ''; return; }
+        if (code.data === lastDetected) return;
+        lastDetected = code.data;
+        void validateCode(code.data, token);
     }
 
-    onMount(() => {
-        if (open) {
-            startScanning();
-        }
-    });
+    async function validateCode(content: string, token: number) {
+        const controller = new AbortController();
+        validation = controller;
+        let timedOut = false;
+        const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 12000);
+        try {
+            const response = await fetch(`${base}/api/qr-codes/scan`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content }), signal: controller.signal
+            });
+            const result = await response.json();
+            if (!open || token !== generation || controller.signal.aborted) return;
+            if (!response.ok || !result.success) throw new Error('Invalid QR code');
+            onscan?.(result.data);
+            if (!continuous) { stopScanning(); open = false; }
+        } catch (err) {
+            if (!open || token !== generation || (controller.signal.aborted && !timedOut)) return;
+            stopScanning();
+            error = timedOut ? 'QR validation timed out. Please try again.' : err instanceof Error && err.message === 'Invalid QR code' ? 'Invalid QR code' : 'Failed to validate QR code';
+        } finally { clearTimeout(timeout); if (validation === controller) validation = undefined; }
+    }
 
-    onDestroy(() => {
-        stopScanning();
-    });
+    function handleClose() { stopScanning(); open = false; onclose?.(); }
 
     $effect(() => {
-        if (open && !scanning) {
-            startScanning();
-        } else if (!open && scanning) {
-            stopScanning();
-        }
+        if (open) untrack(() => { void startScanning(); });
+        return stopScanning;
     });
 </script>
 

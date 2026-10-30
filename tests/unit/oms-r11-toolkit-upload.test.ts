@@ -125,7 +125,7 @@ describe('OMS-R11 end-to-end upload readiness and recovery contracts', () => {
     expect(ui).toContain('async function loadSavedFiles(id: string)');
     expect(ui).toContain('function reattachSavedFile(file: ToolkitStoredAsset)');
     expect(ui).toContain('placeToolkitAsset(editor, boardId, file)');
-    expect(ui).toContain('if (boardId === id) await loadSavedFiles(id);');
+    expect(ui).toContain('if (!currentBoard(id, token)) return;\n      await loadSavedFiles(id);');
     expect(ui).toContain("tr('canvas.savedFileAttached')");
     const script = read('scripts/smoke-toolkit-upload.sh');
     expect(script).toContain('sha256sum');

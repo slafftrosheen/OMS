@@ -7,12 +7,14 @@
 
   interface Props {
     value?: string;
+    mentions?: string[];
     onCommit?: (text: string, mentions: string[]) => void;
     placeholder?: string;
   }
 
   let {
     value = $bindable(''),
+    mentions = $bindable([]),
     onCommit = () => {},
     placeholder = 'Message (use @name to mention)'
   }: Props = $props();
@@ -21,11 +23,11 @@
   let cursor = $state(0);
   let showList = $state(false);
   let query = $state('');
-  let picked: string[] = $state([]);
+  let suggestionList = $state<HTMLDivElement>();
 
   let suggestions = $derived(showList
     ? $users.filter((user) => {
-        if (picked.includes(String(user.id))) return false;
+        if (mentions.includes(String(user.id))) return false;
         return user.name.toLowerCase().includes(query.toLowerCase());
       })
     : []);
@@ -37,7 +39,7 @@
   const nameFromId = (id: string) => $users.find((user) => String(user.id) === id)?.name ?? id;
 
   const removeMention = (id: string) => {
-    picked = picked.filter((item) => item !== id);
+    mentions = mentions.filter((item) => item !== id);
   };
 
   const extractMentionIds = (text: string) => {
@@ -78,22 +80,44 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
+    if (event.isComposing || event.keyCode === 229) return;
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       const payload = value.trim();
       if (!payload) return;
-      const mentionIds = Array.from(new Set([...picked, ...extractMentionIds(payload)]));
+      const mentionIds = Array.from(new Set([...mentions, ...extractMentionIds(payload)]));
       onCommit(payload, mentionIds);
       value = '';
-      picked = [];
+      mentions = [];
       showList = false;
       query = '';
       return;
     }
     if (event.key === 'ArrowDown' && showList) {
       event.preventDefault();
-      inputEl?.blur();
+      suggestionList?.querySelector<HTMLButtonElement>('button')?.focus();
     }
+  }
+
+  function handleSuggestionKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      showList = false;
+      inputEl?.focus();
+      return;
+    }
+    const options = Array.from(suggestionList?.querySelectorAll<HTMLButtonElement>('button') ?? []);
+    const current = options.indexOf(event.target as HTMLButtonElement);
+    if (current < 0) return;
+    let next = current;
+    if (event.key === 'ArrowDown') next = Math.min(options.length - 1, current + 1);
+    else if (event.key === 'ArrowUp') next = Math.max(0, current - 1);
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = options.length - 1;
+    else return;
+    event.preventDefault();
+    options[next]?.focus();
   }
 
   function insertMention(id: string) {
@@ -103,20 +127,20 @@
     const before = value.slice(0, cursor).replace(/@[\w-]*$/i, `@${handle} `);
     const after = value.slice(cursor);
     value = `${before}${after}`;
-    picked = picked.includes(id) ? picked : [...picked, id];
+    mentions = mentions.includes(id) ? mentions : [...mentions, id];
     showList = false;
     query = '';
     tick().then(() => {
-      if (!inputEl) return;
+      if (!inputEl?.isConnected) return;
       inputEl.focus();
       inputEl.selectionStart = inputEl.selectionEnd = before.length;
     });
   }
 
   function applyPreset(ids: string[]) {
-    const newIds = ids.filter((id) => !picked.includes(id));
+    const newIds = ids.filter((id) => !mentions.includes(id));
     if (newIds.length === 0) return;
-    picked = Array.from(new Set([...picked, ...newIds]));
+    mentions = Array.from(new Set([...mentions, ...newIds]));
   }
 
   onMount(() => {
@@ -145,10 +169,10 @@
   </div>
 {/if}
 
-{#if picked.length}
+{#if mentions.length}
   <div class="mention-picked" aria-live="polite">
     <span class="muted label">{$t('chat.sending_to')}</span>
-    {#each picked as id (id)}
+    {#each mentions as id (id)}
       <span class="mention-chip">
         @{nameFromId(id)}
         <button
@@ -170,6 +194,7 @@
   bind:this={inputEl}
   bind:value
   placeholder={placeholder}
+  aria-label={placeholder}
   oninput={handleInput}
   onclick={() => {
     updateCursor();
@@ -180,7 +205,7 @@
 ></textarea>
 
 {#if showList && suggestions.length > 0}
-  <div class="mention-list card" role="listbox">
+  <div class="mention-list card" role="listbox" tabindex="-1" aria-label={$t('chat.mentions')} bind:this={suggestionList} onkeydown={handleSuggestionKeydown}>
     {#each suggestions as user}
       <button
         type="button"

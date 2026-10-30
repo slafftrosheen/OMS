@@ -150,6 +150,8 @@ export type Order = {
   id: string;
   /** Optional separate PO Number if different from ID */
   poNumber?: string;
+  /** Authoritative lifecycle, kept separate from manual badges. */
+  status?: string;
   /** The title or description of the order. */
   title: string;
   /** The client or customer for whom the order is being fulfilled. */

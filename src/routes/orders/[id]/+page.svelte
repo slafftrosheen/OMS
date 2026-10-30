@@ -3,11 +3,14 @@
     import { page } from "$app/state";
     import { base } from "$app/paths";
     import { goto } from "$app/navigation";
-    import { onMount } from "svelte";
+    import { onMount, untrack } from "svelte";
+    import { getAssistantContext, GENERAL_ASSISTANT_TOOL } from '$lib/assistant/context';
     import { t } from "svelte-i18n";
     import Button from "$lib/components/ui/Button.svelte";
     import Card from "$lib/components/ui/Card.svelte";
-    import Badge from "$lib/components/ui/Badge.svelte";
+    import OrderBadges from "$lib/badges/OrderBadges.svelte";
+    import SemanticBadge from "$lib/badges/SemanticBadge.svelte";
+    import { stageBadge } from "$lib/badges/catalog";
     import Tabs from "$lib/components/ui/Tabs.svelte";
     import ChatContainer from "$lib/components/chat/ChatContainer.svelte";
     import OrderFiles from "$lib/order/OrderFiles.svelte";
@@ -20,15 +23,38 @@
     import Modal from "$lib/components/ui/Modal.svelte";
     import OrderTimeline from "$lib/order/OrderTimeline.svelte";
     import { currentUser } from "$lib/auth/authState.svelte";
-    import { can, normaliseStatus, ORDER_STATUS_LABELS } from "$lib/auth/permission-utils";
+    import { can, normaliseStatus } from "$lib/auth/permission-utils";
     import { notifications } from "$lib/notify/store";
     import { buildStagePatch } from '$lib/order/stage-contract';
 
     let orderId = $derived(page.params.id);
+    const assistant = getAssistantContext();
+    $effect(() => {
+      const id = orderId;
+      return untrack(() => assistant.register({
+        id: `order-detail:${id}`, title: () => currentOrderVisible
+          ? order?.po_number || order?.title || $t('assistant.screen.orders') : $t('assistant.screen.orders'),
+        defaultToolId: GENERAL_ASSISTANT_TOOL,
+        tools: () => mayAskOrderAssistant ? [{ id: 'review', label: $t('orderWorkspace.title') }] : [],
+        content: orderDetailAssistant,
+        context: () => ({ orderId: id, section: activeTab, loading,
+          unavailable: loadFailed || (!loading && !currentOrderVisible),
+          order: !loading && currentOrderVisible ? { reference: order.po_number, title: order.title,
+            client: order.client, status: order.status, dueDate: order.due_date, loadingDate: order.loading_date,
+            priority: order.priority, stages: (order.stages ?? []).slice(0,15).map((stage: any) => ({
+              station: stage.station, state: stage.state })) } : null,
+          fileCount: !loading && currentOrderVisible ? fileCount : null, fileContentsProvided: false })
+      }));
+    });
 
     let order: any = $state(null);
+    let loadedOrderId = $state<string | null>(null);
+    let loadedAccountId = $state<string | null>(null);
+    let loadFailed = $state(false);
+    let currentOrderVisible = $derived(order?.id === orderId && loadedOrderId === orderId &&
+      !!$currentUser?.id && loadedAccountId === $currentUser.id);
     let stageSummary=$derived(stageProgressSummary(order?.stages));
-    let mayAskOrderAssistant=$derived(!!$currentUser&&!!order&&(
+    let mayAskOrderAssistant=$derived(!!$currentUser&&currentOrderVisible&&(
       (['RD','Boss','HeadOfProduction'].includes($currentUser.role??'')&&
         ['DRAFT','PENDING_REVIEW','CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD']
           .includes(normaliseStatus(order.status)))
@@ -181,28 +207,40 @@
     }
 
     async function loadOrderData() {
+        const requestedId = orderId;
+        const requestedAccount = $currentUser?.id ?? null;
+        const isCurrent = () => orderId === requestedId && ($currentUser?.id ?? null) === requestedAccount;
         loading = true;
+        loadFailed = false;
 
         try {
             const [orderRes, count] = await Promise.all([
-                fetch(`/api/orders/${orderId}`),
-                fetchOrderFilesCount(orderId).catch(() => null),
+                fetch(`/api/orders/${requestedId}`),
+                fetchOrderFilesCount(requestedId).catch(() => null),
             ]);
-            fileCount = count;
+            if (!isCurrent()) return;
 
             if (orderRes.ok) {
                 const orderData = await orderRes.json();
+                if (!isCurrent()) return;
                 // API returns the order fields at top level (with stages, materials,
                 // assignees, rework_cycles, revisions, activity_log).
                 order = orderData?.order ?? orderData;
+                fileCount = count;
+                loadedOrderId = requestedId;
+                loadedAccountId = requestedAccount;
             } else {
                 order = null;
+                fileCount = null;
+                loadFailed = true;
             }
 
         } catch (error) {
+            if (!isCurrent()) return;
+            loadFailed = true;
             console.error("Failed to load order:", error);
         } finally {
-            loading = false;
+            if (isCurrent()) loading = false;
         }
     }
 
@@ -270,6 +308,22 @@
     });
 </script>
 
+{#snippet orderDetailAssistant(toolId: string)}
+  {#if toolId === 'review' && mayAskOrderAssistant}
+    <div class="detail-assistant-tools">
+      <p>{$t('orderAssistant.savedOnly')}</p>
+      <button type="button" class="entry-link" onclick={() => goto(base + workspaceUrl(orderId,'chat'))}>
+        {$t('orderGuide.askButton')}
+      </button>
+      {#if ['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status))}
+        <button type="button" class="entry-link" onclick={() => goto(base + workspaceUrl(orderId,'intake'))}>
+          {$t('orderAssistant.openFileAnalysis')}
+        </button>
+      {/if}
+    </div>
+  {/if}
+{/snippet}
+
 <svelte:head>
     <title>{$t("orderDetail.title_prefix", { default: "Order" })} {orderId} — OMS</title>
 </svelte:head>
@@ -308,11 +362,7 @@
                 </Button>
                 <div class="header-info">
                     <h1 class="order-title">{order.title}</h1>
-                    <Badge
-                        variant={normaliseStatus(order.status) === 'CONFIRMED' || normaliseStatus(order.status) === 'IN_PRODUCTION' ? 'info' : normaliseStatus(order.status) === 'DISPATCHED' || normaliseStatus(order.status) === 'ARCHIVED' ? 'success' : 'warning'}
-                    >
-                        {ORDER_STATUS_LABELS[normaliseStatus(order.status)]}
-                    </Badge>
+                    <OrderBadges {order} size="md" />
                 </div>
             </div>
             <div class="header-actions">
@@ -406,12 +456,6 @@
               class="entry-link featured">
               {$t('orderWorkspace.continue')}
             </button>
-            {#if mayAskOrderAssistant}
-              <button onclick={() => goto(base + workspaceUrl(orderId,'chat'))}
-                class="entry-link" aria-label={$t('orderGuide.askButton')}>
-                ✦ {$t('orderGuide.askButton')}
-              </button>
-            {/if}
             <button onclick={() => goto(base + workspaceUrl(orderId,'details'))} class="entry-link">
               {$t('orderWorkspace.sections.details')}
             </button>
@@ -421,10 +465,6 @@
             </button>
             {#if !!$currentUser && (can($currentUser,'editOrder') ||
               (order.created_by === $currentUser.id && ['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status))))}
-              <button onclick={() => goto(base + workspaceUrl(orderId,'intake'))} class="entry-link"
-                disabled={!['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status))}>
-                {$t('orderWorkspace.sections.intake')}
-              </button>
               <button onclick={() => goto(base + workspaceUrl(orderId,'readiness'))} class="entry-link">
                 {$t('orderWorkspace.sections.readiness')}
               </button>
@@ -483,11 +523,7 @@
                                     style="border-left-color: {getStatusColor(String(stageRow.state))}">
                                     <div class="stage-header">
                                         <h4 class="stage-name">{stageRow.station}</h4>
-                                        <Badge variant={stageRow.state === "COMPLETED" ? "success" : "info"} size="sm">
-                                            {$t(`orderDetail.stage_status.${stageRow.state}`,{
-                                                default:String(stageRow.state).replace("_"," ")
-                                            })}
-                                        </Badge>
+                                        <SemanticBadge badge={stageBadge(stageRow.state)} />
                                     </div>
                                     {#if (stageRow.state==='BLOCKED'||stageRow.state==='REWORK')}
                                       <p class="stage-hint stage-progress-alert" role="status">
@@ -624,6 +660,8 @@
 {/if}
 
 <style>
+  .detail-assistant-tools { display:flex;flex-direction:column;gap:12px;min-width:0; }
+  .detail-assistant-tools p { margin:0;font-size:13px;line-height:1.5;color:var(--ink-secondary); }
     .station-control{display:grid;gap:6px;font-size:11px;margin-top:10px}
     .stage-hint{font-size:11px;color:var(--text-muted);margin:8px 0 0}
     .stage-progress-context{font-size:11px;color:var(--text-muted)}
@@ -897,14 +935,6 @@
         background: white;
         cursor: pointer;
         width: 100%;
-    }
-
-    .coming-soon {
-        text-align: center;
-        padding: 2rem;
-        color: var(--color-gray-500, var(--muted));
-        font-style: italic;
-        margin: 0;
     }
 
     @media (max-width: 768px) {

@@ -1,13 +1,11 @@
 <script lang="ts">
   import { locale, getLocaleFromNavigator, t } from 'svelte-i18n';
   import { setLocale } from '$lib/i18n';
-  import { savePrefs } from '$lib/settings/service';
   let lang = $derived($locale || 'en');
 
   function change(e: Event) {
     const v = (e.target as HTMLSelectElement).value as 'en'|'ru'|'lv';
     setLocale(v);
-    savePrefs();
   }
 </script>
 

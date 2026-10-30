@@ -51,13 +51,14 @@ export interface FeedsSpeedsResult {
     } | null;
 }
 
-export async function suggestFeedsSpeeds(args: FeedsSpeedsArgs, db: SupabaseClient): Promise<FeedsSpeedsResult> {
+export async function suggestFeedsSpeeds(args: FeedsSpeedsArgs, db: SupabaseClient, signal?: AbortSignal): Promise<FeedsSpeedsResult> {
+    signal?.throwIfAborted();
     if (!args || typeof args.material !== 'string' || args.material.trim().length > 120 ||
         !['profile','pocket','engrave','drill'].includes(args.operation) ||
         !Number.isFinite(args.tool_diameter_mm) || args.tool_diameter_mm <= 0) {
         throw new Error('Invalid CNC material, operation or cutter diameter');
     }
-    const { data: hist, error: lookupError } = await db
+    let lookup = db
         .from('cnc_feeds_speeds')
         .select('*')
         .ilike('material', `%${args.material}%`)
@@ -65,6 +66,9 @@ export async function suggestFeedsSpeeds(args: FeedsSpeedsArgs, db: SupabaseClie
         .order('verified', { ascending: false })
         .order('confidence', { ascending: false })
         .limit(8);
+    if (signal) lookup = lookup.abortSignal(signal);
+    const { data: hist, error: lookupError } = await lookup;
+    signal?.throwIfAborted();
 
     if (lookupError) throw new Error('CNC records unavailable or access denied');
     const historical = ((hist ?? []) as Array<Record<string, unknown>>).map((r) => ({
@@ -99,7 +103,8 @@ have no data for. Output ONLY the JSON, no prose.`;
             model: MODEL.engineer.primary,
             temperature: 0.2,
             jsonMode: true,
-            maxTokens: 1200
+            maxTokens: 1200,
+            signal
         });
         const start = txt.indexOf('{');
         const end = txt.lastIndexOf('}');
@@ -107,8 +112,10 @@ have no data for. Output ONLY the JSON, no prose.`;
             recommendation = JSON.parse(txt.slice(start, end + 1));
         }
     } catch (err) {
+        signal?.throwIfAborted();
         logger.warn('feeds/speeds LLM unavailable; returning historical only', { reason: 'provider_unavailable' });
     }
 
+    signal?.throwIfAborted();
     return { historical, recommendation };
 }

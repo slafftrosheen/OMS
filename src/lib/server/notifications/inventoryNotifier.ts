@@ -9,6 +9,7 @@
 // Best-effort. Failures are logged, not raised.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { publishNotifications } from './publish';
 
 type Sb = SupabaseClient<any, any, any>;
 const RECIPIENT_ROLES = ['HeadOfProduction', 'Boss', 'RD'] as const;
@@ -18,7 +19,7 @@ async function fanOut(
   rows: Array<{ user_id: string; notification_type: string; title: string; message: string; link: string; source_type: string; source_id: string }>,
 ): Promise<void> {
   if (rows.length === 0) return;
-  const { error } = await supabase.from('notifications').insert(rows);
+  const { error } = await publishNotifications(supabase, rows);
   if (error) console.error('inventoryNotifier insert failed:', error);
 }
 

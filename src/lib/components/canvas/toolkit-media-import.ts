@@ -1,6 +1,7 @@
 /** Private media upload and reattachment. Storage is authoritative; tldraw
  * shapes are references. A failed snapshot never destroys the stored file.
  */
+import { TOOLKIT_MEDIA_MAX_BYTES, TOOLKIT_MEDIA_MIMES, toolkitFileMime, toolkitDocumentKind } from './toolkit-media-types';
 export interface ToolkitPosition { x: number; y: number; }
 export interface ToolkitStoredAsset {
   id: string; fileName: string; mime: string; bytes: number; url: string;
@@ -11,21 +12,12 @@ export interface ToolkitImportResult {
   stored: ToolkitStoredAsset[];
   errors: string[];
 }
-const MAX_BYTES = 25 * 1024 * 1024;
-const SUPPORTED = new Set(['image/png','image/jpeg','image/webp','image/gif','application/pdf']);
+const MAX_BYTES = TOOLKIT_MEDIA_MAX_BYTES;
+const SUPPORTED = TOOLKIT_MEDIA_MIMES;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const MIME_BY_EXTENSION: Record<string, string> = {
-  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-  webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf'
-};
 
 export function isSupportedToolkitAsset(file: Pick<File, 'name' | 'type'>): boolean {
-  const declared = file.type.toLowerCase();
-  const extension = MIME_BY_EXTENSION[file.name.split('.').pop()?.toLowerCase() ?? ''];
-  // For missing/unknown browser types fall back to extension; the server
-  // performs the MIME and magic-byte validation before any Storage write.
-  if (declared && declared !== 'application/octet-stream' && !SUPPORTED.has(declared)) return false;
-  return SUPPORTED.has(declared) || !!extension;
+  return SUPPORTED.has(toolkitFileMime(file));
 }
 
 export function canonicalToolkitAsset(boardId: string, value: unknown): ToolkitStoredAsset {
@@ -51,12 +43,13 @@ export function placeToolkitAsset(
   const center = editor.getViewportPageBounds?.().center ?? { x: 0, y: 0 };
   const position = point ?? { x: center.x - 200, y: center.y - 150 };
   const pdf = asset.mime === 'application/pdf';
+  const kind = toolkitDocumentKind(asset.mime);
   editor.createShape({
     type: 'document', x: position.x, y: position.y,
     props: {
-      w: pdf ? 490 : 430, h: pdf ? 580 : 320,
+      w: pdf ? 490 : 430, h: pdf ? 580 : kind === 'audio' ? 180 : 320,
       title: asset.fileName, content: '', status: 'ready',
-      kind: pdf ? 'pdf' : 'image', url: asset.url, mime: asset.mime,
+      kind, url: asset.url, mime: asset.mime,
       fileId: asset.id, fit: 'contain', opacity: 100, pdfPage: 1
     }
   });
@@ -76,7 +69,7 @@ export async function importToolkitFiles(
   try {
     for (const [index, file] of files.entries()) {
       if (!isSupportedToolkitAsset(file)) {
-        errors.push(`${file.name}: unsupported file. Use PNG, JPEG, WebP, GIF or PDF.`);
+        errors.push(`${file.name}: unsupported file. Use an image, PDF, MP4, WebM, MP3, WAV, Ogg or M4A.`);
         continue;
       }
       if (file.size < 1 || file.size > MAX_BYTES) {

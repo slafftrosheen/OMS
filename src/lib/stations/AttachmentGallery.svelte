@@ -11,8 +11,8 @@
  * Displays photo grid with lightbox and filtering
  */
 
-import { onMount } from 'svelte';
-import Icon from '$lib/ui/Icon.svelte';
+import { base } from '$app/paths';
+import { modalDialog } from '$lib/ui/modal-dialog';
 import { notifications } from '$lib/notify/store';
 
 interface Props {
@@ -31,7 +31,10 @@ let attachments: any[] = $state([]);
 let loading = $state(true);
 let error: string | null = $state(null);
 let selectedImage: any | null = $state(null);
-let selectedIndex = $state(0);
+const imageAttachments = $derived(attachments.filter(attachment => attachment.file_type?.startsWith('image/')));
+const selectedIndex = $derived(imageAttachments.findIndex(attachment => attachment.id === selectedImage?.id));
+let deleting = $state<string[]>([]);
+let generation = 0;
 let filterType = $state('all');
 
 const typeFilters = [
@@ -43,40 +46,30 @@ const typeFilters = [
   { value: 'rework_doc', label: 'Rework Docs' }
 ];
 
-onMount(() => {
-  loadAttachments();
+$effect(() => {
+  const params = new URLSearchParams({ orderId });
+  if (station) params.set('station', station);
+  if (filterType !== 'all') params.set('type', filterType);
+  const controller = new AbortController(), token = ++generation;
+  selectedImage = null; attachments = []; error = null; loading = true;
+  void (async () => {
+    try {
+      const response = await fetch(`${base}/api/station-attachments?${params}`, { signal: controller.signal });
+      if (!response.ok) throw new Error('Failed to load attachments');
+      const result = await response.json();
+      if (token === generation && !controller.signal.aborted) attachments = Array.isArray(result.data) ? result.data : [];
+    } catch (err) {
+      if (token === generation && !controller.signal.aborted) error = err instanceof Error ? err.message : 'Failed to load attachments';
+    } finally {
+      if (token === generation && !controller.signal.aborted) loading = false;
+    }
+  })();
+  return () => { controller.abort(); generation++; };
 });
 
-async function loadAttachments() {
-  loading = true;
-  error = null;
-
-  try {
-    const params = new URLSearchParams({ orderId });
-    if (station) params.append('station', station);
-    if (filterType !== 'all') params.append('type', filterType);
-
-    const response = await fetch(`/api/station-attachments?${params}`);
-    if (!response.ok) throw new Error('Failed to load attachments');
-
-    const result = await response.json();
-    attachments = result.data;
-  } catch (err) {
-    console.error('Load error:', err);
-    error = err instanceof Error ? err.message : 'Failed to load attachments';
-  } finally {
-    loading = false;
-  }
-}
-
-function openLightbox(attachment: any, index: number) {
-  if (attachment.file_type.startsWith('image/')) {
-    selectedImage = attachment;
-    selectedIndex = index;
-  } else {
-    // Download PDF
-    window.open(attachment.url, '_blank');
-  }
+function openLightbox(attachment: any) {
+  if (attachment.file_type?.startsWith('image/')) selectedImage = attachment;
+  else window.open(attachment.url, '_blank', 'noopener');
 }
 
 function closeLightbox() {
@@ -84,67 +77,42 @@ function closeLightbox() {
 }
 
 function previousImage() {
-  const imageAttachments = attachments.filter(a => a.file_type.startsWith('image/'));
-  const currentImageIndex = imageAttachments.findIndex(a => a.id === selectedImage?.id);
-  if (currentImageIndex > 0) {
-    selectedImage = imageAttachments[currentImageIndex - 1];
-    selectedIndex = currentImageIndex - 1;
-  }
+  if (selectedIndex > 0) selectedImage = imageAttachments[selectedIndex - 1];
 }
-
 function nextImage() {
-  const imageAttachments = attachments.filter(a => a.file_type.startsWith('image/'));
-  const currentImageIndex = imageAttachments.findIndex(a => a.id === selectedImage?.id);
-  if (currentImageIndex < imageAttachments.length - 1) {
-    selectedImage = imageAttachments[currentImageIndex + 1];
-    selectedIndex = currentImageIndex + 1;
-  }
+  if (selectedIndex >= 0 && selectedIndex < imageAttachments.length - 1) selectedImage = imageAttachments[selectedIndex + 1];
 }
-
 async function deleteAttachment(id: string) {
-  if (!confirm('Delete this attachment? This cannot be undone.')) return;
-
+  if (!canDelete || deleting.includes(id) || !confirm('Delete this attachment? This cannot be undone.')) return;
+  const token = generation;
+  deleting = [...deleting, id];
   try {
-    const response = await fetch(`/api/station-attachments/${id}`, {
-      method: 'DELETE'
-    });
-
+    const response = await fetch(`${base}/api/station-attachments/${encodeURIComponent(id)}`, { method: 'DELETE' });
     if (!response.ok) throw new Error('Failed to delete attachment');
-
-    attachments = attachments.filter(a => a.id !== id);
+    if (token !== generation) return;
+    attachments = attachments.filter(attachment => attachment.id !== id);
     if (selectedImage?.id === id) closeLightbox();
-  } catch (err) {
-    console.error('Delete error:', err);
-    notifications.error('Failed to delete attachment');
-  }
+  } catch {
+    if (token === generation) notifications.error('Failed to delete attachment');
+  } finally { deleting = deleting.filter(value => value !== id); }
 }
-
 function handleKeydown(event: KeyboardEvent) {
-  if (!selectedImage) return;
-
-  if (event.key === 'Escape') closeLightbox();
-  else if (event.key === 'ArrowLeft') previousImage();
-  else if (event.key === 'ArrowRight') nextImage();
+  if (event.key === 'ArrowLeft') { event.preventDefault(); previousImage(); }
+  else if (event.key === 'ArrowRight') { event.preventDefault(); nextImage(); }
 }
-
-$effect(() => {
-  if (filterType) loadAttachments();
-});
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
 
 <div class="attachment-gallery">
   <div class="gallery-header">
     <h3>Attachments</h3>
-    <div class="filter-tabs" role="tablist">
+    <div class="filter-tabs" role="group" aria-label="Attachment type">
       {#each typeFilters as filter}
         <button
-          role="tab"
           class="filter-tab"
           class:active={filterType === filter.value}
           onclick={() => filterType = filter.value}
-          aria-selected={filterType === filter.value}
+          aria-pressed={filterType === filter.value}
         >
           {filter.label}
         </button>
@@ -153,18 +121,18 @@ $effect(() => {
   </div>
 
   {#if loading}
-    <div class="loading">Loading attachments...</div>
+    <div class="loading" role="status">Loading attachments...</div>
   {:else if error}
-    <div class="error">{error}</div>
+    <div class="error" role="alert">{error}</div>
   {:else if attachments.length === 0}
     <div class="empty">No attachments found</div>
   {:else}
     <div class="gallery-grid" role="list">
-      {#each attachments as attachment, i (attachment.id)}
+      {#each attachments as attachment (attachment.id)}
         <div class="gallery-item" role="listitem">
           <button
             class="thumbnail"
-            onclick={() => openLightbox(attachment, i)}
+            onclick={() => openLightbox(attachment)}
             aria-label="View {attachment.file_name}"
           >
             {#if attachment.file_type.startsWith('image/')}
@@ -194,6 +162,7 @@ $effect(() => {
             <button
               class="delete-btn"
               onclick={() => deleteAttachment(attachment.id)}
+              disabled={deleting.includes(attachment.id)}
               aria-label="Delete attachment"
             >
               <Trash2 size={16} />
@@ -206,33 +175,39 @@ $effect(() => {
 </div>
 
 {#if selectedImage}
-  <div class="lightbox" onclick={closeLightbox} role="dialog" aria-modal="true">
-    <div class="lightbox-content" onclick={(e) => e.stopPropagation()}>
-      <button class="lightbox-close" onclick={closeLightbox} aria-label="Close">
-        <X size={24} />
-      </button>
-
-      <button 
-        class="lightbox-nav prev" 
-        onclick={previousImage}
-        disabled={selectedIndex === 0}
-        aria-label="Previous image"
-      >
-        <ChevronLeft size={32} />
-      </button>
-
-      <div class="lightbox-image-container">
-        <img src={selectedImage.url} alt={selectedImage.caption || selectedImage.file_name} />
+  <dialog class="lightbox" aria-label={selectedImage.file_name || 'Attachment preview'}
+    use:modalDialog={{ onClose: closeLightbox }} onkeydown={handleKeydown}>
+    <div class="lightbox-content">
+      <div class="lightbox-header">
+        <strong class="lightbox-filename">{selectedImage.file_name}</strong>
+        <button class="lightbox-close" onclick={closeLightbox} aria-label="Close">
+          <X size={24} />
+        </button>
       </div>
 
-      <button 
-        class="lightbox-nav next" 
-        onclick={nextImage}
-        disabled={selectedIndex === attachments.filter(a => a.file_type.startsWith('image/')).length - 1}
-        aria-label="Next image"
-      >
-        <ChevronRight size={32} />
-      </button>
+      <div class="lightbox-viewer">
+        <button
+          class="lightbox-nav"
+          onclick={previousImage}
+          disabled={selectedIndex === 0}
+          aria-label="Previous image"
+        >
+          <ChevronLeft size={32} />
+        </button>
+
+        <div class="lightbox-image-container">
+          <img src={selectedImage.url} alt={selectedImage.caption || selectedImage.file_name} />
+        </div>
+
+        <button
+          class="lightbox-nav"
+          onclick={nextImage}
+          disabled={selectedIndex === imageAttachments.length - 1}
+          aria-label="Next image"
+        >
+          <ChevronRight size={32} />
+        </button>
+      </div>
 
       <div class="lightbox-info">
         {#if selectedImage.caption}
@@ -258,7 +233,7 @@ $effect(() => {
         </a>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>
@@ -391,11 +366,15 @@ $effect(() => {
     transition: opacity 0.2s;
   }
 
-  .gallery-item:hover .delete-btn {
+  .gallery-item:hover .delete-btn,
+  .gallery-item:focus-within .delete-btn {
     opacity: 1;
   }
 
+  .lightbox:not([open]) { display:none; }
+  .lightbox::backdrop { background:transparent; }
   .lightbox {
+    margin:0;width:100%;height:100%;max-width:none;max-height:none;border:0;color:white;
     position: fixed;
     inset: 0;
     z-index: var(--z-modal);
@@ -403,51 +382,80 @@ $effect(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 2rem;
+    padding: clamp(0.5rem, 2vw, 2rem);
+    overflow: auto;
   }
 
   .lightbox-content {
-    position: relative;
-    max-width: 90vw;
-    max-height: 90vh;
+    width: min(1100px, 100%);
+    max-width: 100%;
+    max-height: 100%;
     display: flex;
     flex-direction: column;
+    gap: 0.75rem;
+    overflow: auto;
+  }
+
+  .lightbox-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     gap: 1rem;
+    flex: 0 0 auto;
+  }
+
+  .lightbox-filename {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .lightbox-close {
-    position: absolute;
-    top: -3rem;
-    right: 0;
+    flex: 0 0 auto;
+    min-width: 44px;
+    min-height: 44px;
+    display: grid;
+    place-items: center;
     padding: 0.5rem;
     background: transparent;
     border: none;
-    color: var(--bg-0);
+    color: white;
     cursor: pointer;
-    z-index: var(--z-sticky);
+  }
+
+  .lightbox-viewer {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: clamp(0.25rem, 1.5vw, 1rem);
+    min-height: 64px;
+    min-width: 0;
+    flex: 0 0 auto;
   }
 
   .lightbox-image-container {
-    max-height: calc(90vh - 150px);
+    min-width: 0;
+    min-height: 64px;
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
   .lightbox-image-container img {
+    display: block;
     max-width: 100%;
-    max-height: 100%;
+    max-height: 60vh;
     object-fit: contain;
   }
 
   .lightbox-nav {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    padding: 1rem;
+    min-width: 44px;
+    min-height: 44px;
+    display: grid;
+    place-items: center;
+    padding: 0.25rem;
     background: color-mix(in oklab, var(--bg-0) 1%, transparent);
     border: none;
-    color: var(--bg-0);
+    color: white;
     cursor: pointer;
     border-radius: 4px;
     transition: background 0.2s;
@@ -462,19 +470,13 @@ $effect(() => {
     cursor: not-allowed;
   }
 
-  .lightbox-nav.prev {
-    left: 1rem;
-  }
-
-  .lightbox-nav.next {
-    right: 1rem;
-  }
-
   .lightbox-info {
+    flex: 0 0 auto;
+    overflow-wrap: anywhere;
     background: color-mix(in oklab, var(--bg-0) 1%, transparent);
     padding: 1rem;
     border-radius: 6px;
-    color: var(--bg-0);
+    color: white;
   }
 
   .lightbox-info h4 {
@@ -490,6 +492,7 @@ $effect(() => {
 
   .lightbox-meta {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
     font-size: 0.75rem;
     opacity: 0.7;

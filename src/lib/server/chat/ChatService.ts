@@ -1,6 +1,7 @@
 // src/lib/server/chat/ChatService.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '../logging/logger';
+import { publishNotifications } from '../notifications/publish';
 
 interface ChatMessage {
     id: string;
@@ -388,17 +389,18 @@ export class ChatService {
             .single();
 
         // Create notifications
-        const notifications = Array.from(participants).map(userId => ({
+        const notifications = Array.from(participants).filter((userId): userId is string => typeof userId === 'string' && !!userId).map(userId => ({
             user_id: userId,
             title: 'New Message',
             message: `${sender?.username || 'Someone'} sent a message: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`,
-            type: 'info' as const,
-            action_url: `/orders/${orderId}?tab=chat`,
-            read: false
+            notification_type: 'chat_message',
+            link: `/orders/${orderId}?tab=chat`,
+            source_type: 'chat',
+            source_id: orderId
         }));
 
         if (notifications.length > 0) {
-            await this.supabase.from('notifications').insert(notifications);
+            await publishNotifications(this.supabase, notifications);
         }
     }
 

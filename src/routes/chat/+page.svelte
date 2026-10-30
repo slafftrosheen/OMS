@@ -1,23 +1,20 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
   import { t } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/authState.svelte';
-  import { 
-    rooms, 
-    messages, 
-    sendMessage, 
-    loadRooms, 
-    loadMessages, 
-    ensureRoom,
-    initChatRealtime 
+  import {
+    rooms,
+    messages,
+    sendMessage,
+    loadRooms,
+    loadMessages,
+    ensureRoom
   } from '$lib/chat/chat-store';
   import { users, loadUsers } from '$lib/users/user-store';
   import Icon from '$lib/ui/Icon.svelte';
   import MentionInput from '$lib/chat/MentionInput.svelte';
   import type { StationTag } from '$lib/order/stages';
   import StationBadge from '$lib/ui/StationBadge.svelte';
-
-  type Room = { id: string; name: string; kind?: string; station?: string };
+  import type { Room } from '$lib/chat/types';
 
   let activeRoomId = $state('general');
   let messageText = $state('');
@@ -26,7 +23,10 @@
   let newRoomName = $state('');
   let searchQuery = $state('');
   let showMembers = $state(false);
-  let cleanupRealtime: (() => void) | undefined = $state(undefined);
+  let creatingRoom = $state(false);
+  let accountId = $derived($currentUser?.id ?? null);
+  let viewLifetime: AbortController | null = null;
+  let scrollTimer: ReturnType<typeof setTimeout> | undefined;
 
   let activeRoom = $derived($rooms.find((r: Room) => r.id === activeRoomId) || $rooms[0]);
   let roomMessages = $derived($messages.filter((m: any) => m.roomId === activeRoomId));
@@ -40,8 +40,9 @@
   let currentUserId = $derived(($currentUser as any)?.id || '');
 
   function scrollToBottom() {
+    clearTimeout(scrollTimer);
     if (scroller) {
-      setTimeout(() => { if (scroller) scroller.scrollTop = scroller.scrollHeight; }, 50);
+      scrollTimer = setTimeout(() => { if (scroller) scroller.scrollTop = scroller.scrollHeight; }, 50);
     }
   }
 
@@ -66,12 +67,21 @@
   }
 
   async function createRoom() {
-    if (!newRoomName.trim()) return;
-    const roomId = newRoomName.toLowerCase().replace(/\s+/g, '-');
-    await ensureRoom({ id: roomId, name: newRoomName });
-    showRoomModal = false;
-    newRoomName = '';
-    selectRoom(roomId);
+    const lifetime = viewLifetime;
+    const ownerId = accountId;
+    const name = newRoomName.trim();
+    if (!name || creatingRoom || !ownerId || !lifetime || lifetime.signal.aborted) return;
+    const roomId = name.toLowerCase().replace(/\s+/g, '-');
+    creatingRoom = true;
+    try {
+      const confirmed = await ensureRoom({ id: roomId, name }, lifetime.signal);
+      if (!confirmed || lifetime.signal.aborted || viewLifetime !== lifetime || $currentUser?.id !== ownerId) return;
+      showRoomModal = false;
+      newRoomName = '';
+      selectRoom(roomId);
+    } finally {
+      if (viewLifetime === lifetime) creatingRoom = false;
+    }
   }
 
   function formatTime(iso: string) {
@@ -112,21 +122,27 @@
     return current.toDateString() !== prev.toDateString();
   }
 
-  function stationColor(kind: string | undefined): string {
-    return kind === 'station' ? 'var(--brand)' : 'var(--text-muted)';
-  }
-
-  onMount(async () => {
-    await Promise.all([loadRooms(), loadUsers()]);
-    await loadMessages(activeRoomId);
-    scrollToBottom();
-
-    cleanupRealtime = initChatRealtime();
+  $effect(() => {
+    const ownerId = accountId;
+    const lifetime = new AbortController();
+    viewLifetime = lifetime;
+    activeRoomId = 'general';
+    messageText = '';
+    showRoomModal = false;
+    newRoomName = '';
+    creatingRoom = false;
+    if (ownerId) {
+      void Promise.all([loadRooms(), loadUsers(), loadMessages('general')]).then(() => {
+        if (!lifetime.signal.aborted && $currentUser?.id === ownerId) scrollToBottom();
+      });
+    }
+    return () => {
+      lifetime.abort();
+      clearTimeout(scrollTimer);
+      if (viewLifetime === lifetime) viewLifetime = null;
+    };
   });
 
-  onDestroy(() => {
-    if (cleanupRealtime) cleanupRealtime();
-  });
 </script>
 
 <div class="chat-page">
@@ -324,7 +340,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick={() => showRoomModal = false}>{$t('actions.cancel', { default: 'Cancel' })}</button>
-        <button class="btn btn-primary" onclick={createRoom} disabled={!newRoomName.trim()}>
+        <button class="btn btn-primary" onclick={createRoom} disabled={creatingRoom || !newRoomName.trim()}>
           {$t('chat.create_channel_btn', { default: 'Create Channel' })}
         </button>
       </div>

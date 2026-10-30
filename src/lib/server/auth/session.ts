@@ -43,6 +43,10 @@ export async function getSessionUser(event: RequestEvent): Promise<SessionUser |
     return null;
   }
 
+  // A still-valid Auth session must not keep a deactivated OMS profile signed
+  // in to server routes. Missing activity data also fails closed.
+  if (profile.is_active !== true) return null;
+
   return {
     id: profile.id,
     email: supabaseUser.email,

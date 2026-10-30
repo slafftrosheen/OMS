@@ -4,7 +4,6 @@
   import Contrast from 'lucide-svelte/icons/contrast';
   import { theme, type ThemeName } from '$lib/stores/theme';
   import { t } from 'svelte-i18n';
-  import { savePrefs } from '$lib/settings/service';
   import { track } from '$lib/telemetry';
 
   type ThemeOption = {
@@ -22,7 +21,6 @@
   function selectTheme(value: ThemeName) {
     if ($theme === value) return;
     theme.set(value);
-    savePrefs();
     track('theme_toggle', { theme: value });
   }
 </script>

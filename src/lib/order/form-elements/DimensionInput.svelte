@@ -1,4 +1,5 @@
 <script lang="ts">
+  const controlId = $props.id();
   let {
     value = $bindable(''),
     label = 'Dimension',
@@ -27,12 +28,13 @@
 </script>
 
 <div class="dimension-input">
-  <label class="label">
+  <label class="label" for={controlId}>
     {label}
     {#if required}<span class="required">*</span>{/if}
   </label>
   <div class="input-wrapper">
     <input
+      id={controlId}
       type="number"
       bind:value
       {placeholder}
@@ -103,6 +105,7 @@
   }
 
   .dim-input[type='number'] {
+    appearance: textfield;
     -moz-appearance: textfield;
   }
 </style>

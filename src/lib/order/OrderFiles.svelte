@@ -7,10 +7,9 @@
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
   import Trash2 from 'lucide-svelte/icons/trash-2';
   import Upload from 'lucide-svelte/icons/upload';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { t } from 'svelte-i18n';
   import { base } from '$app/paths';
-  import Icon from '$lib/ui/Icon.svelte';
   import {fetchOrderFilePage,announceOrderFilesChanged,ORDER_FILE_PAGE_SIZE} from './order-files-client';
 
   let {
@@ -43,12 +42,13 @@
   let totalCount = $state<number|null>(null);
   let deletingId = $state('');
   let requestVersion = 0;
-  let lastOrderId = $state(orderId);
+  // This is the previous-order marker; the effect below handles later changes.
+  let lastOrderId = $state(untrack(() => orderId));
   let loading = $state(false);
   let uploading = $state(false);
   let fileError = $state('');
   let dragOver = $state(false);
-  let fileInput: HTMLInputElement;
+  let fileInput = $state<HTMLInputElement>();
 
   const formatSize = (bytes: number) => {
     if (bytes === 0) return '0 B';

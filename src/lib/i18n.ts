@@ -1,12 +1,12 @@
 import { register, init, getLocaleFromNavigator, locale, addMessages, t } from 'svelte-i18n';
-import { base } from '$app/paths';
-import { loadPreferences, resetPreferencesCache } from '$lib/preferences';
+import { queuePreferenceUpdate, subscribePreferences } from '$lib/preferences';
 import en from '../locales/en.json';
 
 const KEY = 'rf_locale';
 let localeChangeVersion = 0;
 const SUPPORTED_LOCALES = ['en', 'ru', 'lv'] as const;
 type LocaleCode = (typeof SUPPORTED_LOCALES)[number];
+let selectedLocale: LocaleCode | undefined;
 
 addMessages('en', en);
 register('ru', () => import('../locales/ru.json'));
@@ -15,78 +15,44 @@ register('lv', () => import('../locales/lv.json'));
 function normalizeLocale(value: string | null | undefined, fallback: LocaleCode): LocaleCode {
   if (!value) return fallback;
   const lower = value.toLowerCase();
-  if ((SUPPORTED_LOCALES as readonly string[]).includes(lower)) {
-    return lower as LocaleCode;
-  }
+  if ((SUPPORTED_LOCALES as readonly string[]).includes(lower)) return lower as LocaleCode;
   const base = lower.split('-')[0];
-  if ((SUPPORTED_LOCALES as readonly string[]).includes(base)) {
-    return base as LocaleCode;
-  }
-  return fallback;
+  return (SUPPORTED_LOCALES as readonly string[]).includes(base) ? base as LocaleCode : fallback;
 }
 
-async function syncLocaleToServer(localeCode: LocaleCode) {
-  if (typeof window === 'undefined') return;
-  try {
-    const response = await fetch(`${base}/api/preferences`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ locale: localeCode })
-    });
-    if (response.ok) resetPreferencesCache();
-  } catch (err) {
-    console.debug('Failed to sync locale preference:', err);
+function applyLocale(code: LocaleCode) {
+  localeChangeVersion++;
+  selectedLocale = code;
+  locale.set(code);
+  if (typeof window !== 'undefined') {
+    try { localStorage.setItem(KEY, code); } catch { /* Keep the in-memory choice. */ }
   }
+  if (typeof document !== 'undefined') document.documentElement.lang = code;
 }
 
 export async function setupI18n(defaultLocale: LocaleCode = 'en') {
-  // Use localStorage for instant load
-  const saved = typeof window !== 'undefined' ? localStorage.getItem(KEY) : null;
+  let saved: string | null = null;
+  if (typeof window !== 'undefined') {
+    try { saved = localStorage.getItem(KEY); } catch { /* Browser storage can be disabled. */ }
+  }
   const initial = normalizeLocale(saved || getLocaleFromNavigator(), defaultLocale);
   const versionAtStart = localeChangeVersion;
-  await init({
-    fallbackLocale: 'en',
-    initialLocale: initial
-  });
-
-  if (typeof document !== 'undefined') document.documentElement.lang = initial;
-
-  // Load from server and sync if different
-  if (typeof window !== 'undefined') {
-    try {
-      const prefs = await loadPreferences();
-      // Never allow an older async preference fetch to undo a user's click.
-      if (versionAtStart === localeChangeVersion && prefs?.locale && prefs.locale !== initial) {
-        const serverLocale = normalizeLocale(prefs.locale, defaultLocale);
-        locale.set(serverLocale);
-        localStorage.setItem(KEY, serverLocale);
-        document.documentElement.lang = serverLocale;
-      }
-    } catch (err) {
-      console.debug('Failed to load locale from server:', err);
-    }
-  }
+  await init({ fallbackLocale: 'en', initialLocale: initial });
+  // Dictionary loading must not undo a newer account hydration or explicit selection.
+  if (versionAtStart !== localeChangeVersion && selectedLocale) locale.set(selectedLocale);
+  else selectedLocale = initial;
+  if (typeof document !== 'undefined') document.documentElement.lang = selectedLocale;
 }
-
-let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export function setLocale(code: LocaleCode | string) {
-  localeChangeVersion++;
   const normalized = normalizeLocale(code, 'en');
-  locale.set(normalized);
-  if (typeof window !== 'undefined') {
-    // Keep localStorage as cache
-    localStorage.setItem(KEY, normalized);
-    document.documentElement.lang = normalized;
-    
-    // Debounce server sync
-    if (syncTimeout) clearTimeout(syncTimeout);
-    syncTimeout = setTimeout(() => syncLocaleToServer(normalized), 500);
-  }
+  applyLocale(normalized);
+  queuePreferenceUpdate({ locale: normalized });
 }
 
-// Re-export locale for compatibility
-export { locale, t };
+subscribePreferences(preferences => {
+  if (typeof preferences.locale === 'string') applyLocale(normalizeLocale(preferences.locale, 'en'));
+});
 
-// Export available locales
+export { locale, t };
 export const locales = SUPPORTED_LOCALES;

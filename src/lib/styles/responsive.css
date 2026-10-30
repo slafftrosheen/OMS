@@ -183,19 +183,9 @@
     }
 }
 
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg-primary: #111827;
-        --bg-secondary: #1f2937;
-        --text-primary: #f9fafb;
-        --text-secondary: #d1d5db;
-        --border-color: #374151;
-    }
-
-    .dark-mode-support {
-        background: var(--bg-primary);
-        color: var(--text-primary);
-        border-color: var(--border-color);
-    }
+/* Follow the selected application theme through the legacy aliases. */
+.dark-mode-support {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
 }

@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { tick } from 'svelte';
   import { fade, scale } from 'svelte/transition';
-  import { trap } from '$lib/a11y/focus-trap';
+  import { modalDialog } from './modal-dialog';
   import Icon from './Icon.svelte';
 
   type Size = 'sm' | 'md' | 'lg' | 'xl' | 'full';
@@ -28,67 +27,26 @@
     header
   }: Props = $props();
 
-  let panel: HTMLDivElement | null = $state(null);
-  let previouslyFocused: HTMLElement | null = null;
-
-  function backdrop(e: MouseEvent) {
-    if (!closeOnBackdrop) return;
-    if (e.target === e.currentTarget) onClose();
-  }
-  function backdropKey(e: KeyboardEvent) {
-    if (e.target !== e.currentTarget) return;
-    if (e.key === 'Escape') { e.preventDefault(); onClose(); }
-  }
-  function keyHandler(e: KeyboardEvent) {
-    if (e.key === 'Escape' && open) { e.preventDefault(); onClose(); }
-  }
-
-  $effect(() => {
-    if (open) {
-      if (typeof document !== 'undefined') {
-        previouslyFocused = document.activeElement as HTMLElement | null;
-        document.addEventListener('keydown', keyHandler);
-        tick().then(() => {
-          if (!panel) return;
-          const target = panel.querySelector<HTMLElement>(
-            '[autofocus], button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-          );
-          target?.focus();
-        });
-        return () => document.removeEventListener('keydown', keyHandler);
-      }
-    } else if (previouslyFocused) {
-      previouslyFocused.focus?.();
-      previouslyFocused = null;
-    }
-  });
+  const dialogId = $props.id();
 </script>
 
 {#if open}
-  <div
+  <dialog
     class="rf-modal"
-    role="presentation"
     transition:fade={{ duration: 180 }}
-    onclick={backdrop}
-    onkeydown={backdropKey}
+    use:modalDialog={{ onClose, closeOnBackdrop }}
+    aria-labelledby={title && !header ? dialogId : undefined}
+    aria-label={title && !header ? undefined : title || 'Dialog'}
   >
-    <div
-      class="rf-modal__panel"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={title ? 'rf-modal-title' : undefined}
-      data-size={size}
-      bind:this={panel}
-      use:trap
-      transition:scale={{ duration: 220, start: 0.96 }}
-    >
+    <div class="rf-modal__panel" data-size={size}
+      transition:scale={{ duration: 220, start: 0.96 }}>
       <header class="rf-modal__header">
         {#if header}
           {@render header()}
         {:else if title}
-          <h3 id="rf-modal-title" class="rf-modal__title">{title}</h3>
+          <h3 id={dialogId} class="rf-modal__title">{title}</h3>
         {/if}
-        <button class="rf-modal__close" onclick={onClose} aria-label="Close">
+        <button type="button" class="rf-modal__close" onclick={onClose} aria-label="Close">
           <Icon name="x" size="sm" />
         </button>
       </header>
@@ -101,11 +59,20 @@
         <footer class="rf-modal__footer">{@render footer()}</footer>
       {/if}
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>
+  .rf-modal:not([open]) { display:none; }
+  .rf-modal::backdrop { background:transparent; }
   .rf-modal {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border: 0;
+    color: inherit;
     position: fixed;
     inset: 0;
     display: grid;

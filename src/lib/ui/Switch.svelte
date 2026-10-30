@@ -21,7 +21,8 @@
     onchange?: (checked: boolean) => void;
   } = $props();
 
-  const inputId = $derived(id ?? (name ? `rf-switch-${name}` : `rf-switch-${Math.random().toString(36).slice(2)}`));
+  const generatedId = $props.id();
+  const inputId = $derived(id ?? (name ? `rf-switch-${name}` : generatedId));
 
   function handleChange(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -135,7 +136,6 @@
   }
 
   /* Focus */
-  .rf-switch__input:focus-visible + * .rf-switch,
   .rf-switch-wrap:focus-within .rf-switch {
     box-shadow: var(--focus-ring);
   }

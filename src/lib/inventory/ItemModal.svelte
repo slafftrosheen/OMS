@@ -1,18 +1,29 @@
 <script lang="ts">
   import { preventDefault } from 'svelte/legacy';
+  import { untrack, onDestroy } from 'svelte';
 
   import { t } from 'svelte-i18n';
   import { createMaterial, updateMaterial, type Material } from './store';
   import type { Section } from './types';
+  import { getAssistantContext } from '$lib/assistant/context';
+  import { currentUser } from '$lib/auth/authState.svelte';
+  import { inventoryItemEditorFields, inventoryItemEditorFingerprint, screenOwnerKey, type InventoryEditorSnapshot } from '$lib/assistant/operational-context';
+  const assistantState = getAssistantContext().state;
+
+  const controlId = $props.id();
 
   // Accept both 'material' and 'item' props for backwards compatibility
-  let { material, item = $bindable(), onClose = () => {} }: { material?: Partial<Material>; item?: Partial<Material>; onClose?: () => void } = $props();
+  let { material, item = $bindable(), onClose = () => {}, onDraftChange }: {
+    material?: Partial<Material>; item?: Partial<Material>; onClose?: () => void;
+    onDraftChange?: (draft: InventoryEditorSnapshot | null) => void;
+  } = $props();
   
-  // Use material if provided, otherwise fall back to item
-  let data = $state<Partial<Material>>({
+  // Each modal opening mounts a new draft. Keep later store refreshes from
+  // replacing unsaved metadata edits; use material before the legacy item prop.
+  let data = $state<Partial<Material>>(untrack(() => ({
     section: 'materials',
     ...(material || item || {})
-  });
+  })));
 
   const sectionOptions: { id: Section; labelKey: string }[] = [
     { id: 'materials', labelKey: 'inventory.materials' },
@@ -22,7 +33,7 @@
     { id: 'cons', labelKey: 'inventory.consumables' }
   ];
 
-  const isNew = !data.id;
+  const isNew = $derived(!data.id);
 
   $effect(() => {
     if (!data.section) {
@@ -32,26 +43,38 @@
 
   let saving=$state(false);
   let saveError=$state('');
+  let disposed = false;
+  const initialFingerprint = untrack(() => inventoryItemEditorFingerprint(data));
+  $effect(() => {
+    const snapshot: InventoryEditorSnapshot = { mode: isNew ? 'create' : 'edit', id: data.id ?? null,
+      fields: inventoryItemEditorFields(data), unsavedChanges: inventoryItemEditorFingerprint(data) !== initialFingerprint,
+      saving, error: !!saveError };
+    untrack(() => onDraftChange?.(snapshot));
+  });
+  onDestroy(() => { disposed = true; onDraftChange?.(null); });
   async function save() {
     if(saving)return;
     saving=true;saveError='';
     const payload = { ...data } as Partial<Material> & { id?: string };
+    const owner = screenOwnerKey($currentUser), record = data.id;
+    const accept = () => !disposed && screenOwnerKey($currentUser) === owner && data.id === record;
     const section = (payload.section as Section) ?? 'materials';
     payload.section = section;
 
     try{
       const {id: _id,stock:_stock,...metadata}=payload;
-      const result=isNew?await createMaterial({...metadata,stock:0}):
-        data.id?await updateMaterial(data.id,metadata):null;
+      const result=isNew?await createMaterial({...metadata,stock:0},{ accept }):
+        data.id?await updateMaterial(data.id,metadata,{ accept }):null;
+      if (!accept()) return;
       if(!result)throw Error($t('inventoryConsolidation.metadataFailed'));
       onClose();
     }catch(e){
-      saveError=e instanceof Error?e.message:$t('inventoryConsolidation.metadataFailed');
-    }finally{saving=false;}
+      if (accept()) saveError=e instanceof Error?e.message:$t('inventoryConsolidation.metadataFailed');
+    }finally{if (accept()) saving=false;}
   }
 </script>
 
-<div class="sheet" role="dialog" aria-modal="true" aria-label={isNew ? $t('inventory.newItem') : $t('inventory.editItem')}>
+<div class="sheet" role="dialog" aria-modal={!$assistantState.isOpen} aria-label={isNew ? $t('inventory.newItem') : $t('inventory.editItem')}>
   <form class="card" onsubmit={preventDefault(save)}>
     <header class="row" style="justify-content:space-between">
       <strong>{isNew ? $t('inventory.newItem') : $t('inventory.editItem')}</strong>
@@ -108,13 +131,14 @@
         {$t('inventory.labels.color', { default: 'Color Code' })}
         <input bind:value={data.color_code} placeholder="e.g., RAL 9010" />
       </label>
-      <label>
-        {$t('inventory.hexColor', { default: 'Color (Hex)' })}
+      <div class="color-field">
+        <label for={`${controlId}-hex`}>{$t('inventory.hexColor', { default: 'Color (Hex)' })}</label>
         <div class="color-input-row">
-          <input type="color" bind:value={data.hex_color} class="color-picker" />
-          <input bind:value={data.hex_color} placeholder="#000000" class="color-text" />
+          <input type="color" bind:value={data.hex_color} class="color-picker"
+            aria-label={$t('inventory.hexColor', { default: 'Color (Hex)' })} />
+          <input id={`${controlId}-hex`} bind:value={data.hex_color} placeholder="#000000" class="color-text" />
         </div>
-      </label>
+      </div>
       <label>
         {$t('inventory.modal.supplier_label')}
         <input bind:value={data.supplier} />
@@ -149,12 +173,13 @@
   max-height: 90vh;
   overflow-y: auto;
 }
-label {
+label, .color-field {
   display: grid;
   gap: 6px;
   margin: 8px 0;
 }
-input, textarea, select {
+.color-field label { margin: 0; }
+input, select {
   background: var(--bg-0);
   border: 1px solid var(--border);
   border-radius: 10px;

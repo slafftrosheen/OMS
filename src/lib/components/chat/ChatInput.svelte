@@ -1,9 +1,11 @@
 <!-- src/lib/components/chat/ChatInput.svelte -->
 <script lang="ts">
+    import { onDestroy } from "svelte";
+    import { t } from "svelte-i18n";
     import Button from "$lib/components/ui/Button.svelte";
 
     let {
-        placeholder = "Type a message...",
+        placeholder,
         disabled = false,
         replyingTo = null,
         ontyping,
@@ -18,58 +20,72 @@
         onsend?: (data: {
             message: string;
             replyTo: string | undefined;
-        }) => void;
+        }) => void | boolean | Promise<void | boolean>;
         oncancelReply?: () => void;
         onfileSelect?: (files: File[]) => void;
     } = $props();
 
-    let message = "";
+    let message = $state("");
+    let sending = $state(false);
     let textareaElement: HTMLTextAreaElement;
+    let fileInput: HTMLInputElement;
     let isTyping = false;
-    let typingTimeout: number;
+    let typingTimeout: ReturnType<typeof setTimeout> | undefined;
+    let typingCallback: typeof ontyping;
+    let destroyed = false;
+
+    function stopTyping() {
+        clearTimeout(typingTimeout);
+        if (isTyping) typingCallback?.(false);
+        isTyping = false;
+        typingCallback = undefined;
+    }
 
     function handleInput() {
-        // Auto-resize textarea
         if (textareaElement) {
             textareaElement.style.height = "auto";
             textareaElement.style.height = textareaElement.scrollHeight + "px";
         }
-
-        // Typing indicator
         if (!isTyping) {
             isTyping = true;
-            ontyping?.(true);
+            typingCallback = ontyping;
+            typingCallback?.(true);
         }
-
         clearTimeout(typingTimeout);
-        typingTimeout = setTimeout(() => {
-            isTyping = false;
-            ontyping?.(false);
-        }, 1000) as unknown as number;
+        typingTimeout = setTimeout(stopTyping, 1000);
     }
 
     function handleKeydown(event: KeyboardEvent) {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
-            sendMessage();
+            void sendMessage();
         }
     }
 
-    function sendMessage() {
+    async function sendMessage() {
         const trimmed = message.trim();
-        if (!trimmed || disabled) return;
-
-        onsend?.({
-            message: trimmed,
-            replyTo: replyingTo?.id,
-        });
-
-        message = "";
-        if (textareaElement) {
-            textareaElement.style.height = "auto";
+        if (!trimmed || disabled || sending || !onsend) return;
+        const sentReplyId = replyingTo?.id;
+        sending = true;
+        stopTyping();
+        try {
+            const confirmed = await onsend({ message: trimmed, replyTo: sentReplyId });
+            if (destroyed || confirmed === false) return;
+            message = "";
+            if (textareaElement) textareaElement.style.height = "auto";
+            if (replyingTo?.id === sentReplyId) cancelReply();
+        } catch {
+            // Keep the draft available for retry. The request owner reports failures.
+        } finally {
+            if (!destroyed) sending = false;
         }
-        cancelReply();
     }
+
+    onDestroy(() => {
+        destroyed = true;
+        clearTimeout(typingTimeout);
+    });
 
     function cancelReply() {
         oncancelReply?.();
@@ -78,9 +94,10 @@
     function handleFileSelect(event: Event) {
         const input = event.target as HTMLInputElement;
         const files = input.files;
-        if (files && files.length > 0) {
+        if (!disabled && !sending && files && files.length > 0) {
             onfileSelect?.(Array.from(files));
         }
+        input.value = "";
     }
 </script>
 
@@ -89,7 +106,7 @@
         <div class="reply-preview">
             <div class="reply-content">
                 <span class="reply-label"
-                    >Replying to {replyingTo.username}</span
+                    >{$t('chat.composer.replying_to', { values: { name: replyingTo.username } })}</span
                 >
                 <p class="reply-message">
                     {replyingTo.message.substring(0, 100)}{replyingTo.message
@@ -99,9 +116,10 @@
                 </p>
             </div>
             <button
+                type="button"
                 class="reply-cancel"
                 onclick={cancelReply}
-                aria-label="Cancel reply"
+                aria-label={$t('chat.composer.cancel_reply')}
             >
                 ✕
             </button>
@@ -109,38 +127,33 @@
     {/if}
 
     <div class="input-wrapper">
-        <label for="file-input" class="file-button" title="Attach file">
-            <input
-                id="file-input"
-                type="file"
-                multiple
-                onchange={handleFileSelect}
-                style="display: none;"
-            />
+        <input bind:this={fileInput} type="file" multiple disabled={disabled || sending} onchange={handleFileSelect} hidden />
+        <button type="button" class="file-button" title={$t('chat.composer.attach_file')} aria-label={$t('chat.composer.attach_file')}
+            disabled={disabled || sending || !onfileSelect} onclick={() => fileInput?.click()}>
             📎
-        </label>
+        </button>
 
         <textarea
             bind:this={textareaElement}
             bind:value={message}
             oninput={handleInput}
             onkeydown={handleKeydown}
-            {placeholder}
-            {disabled}
+            placeholder={placeholder ?? $t('chat.type_message')}
+            disabled={disabled || sending}
             class="message-input"
             rows="1"
-            aria-label="Message input"
+            aria-label={$t('chat.composer.message_input')}
         ></textarea>
 
         <Button
             variant="primary"
             size="sm"
-            disabled={!message.trim() || disabled}
+            disabled={!message.trim() || disabled || sending || !onsend}
             onclick={sendMessage}
             icon="📤"
             iconPosition="right"
         >
-            Send
+            {$t('chat.composer.send')}
         </Button>
     </div>
 </div>
@@ -229,7 +242,9 @@
         flex-shrink: 0;
     }
 
-    .file-button:hover {
+    .file-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .file-button:hover:not(:disabled) {
         background-color: var(--color-gray-50, var(--bg-2));
         border-color: var(--color-gray-300, var(--border));
     }

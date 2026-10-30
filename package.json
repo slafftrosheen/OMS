@@ -26,6 +26,7 @@
     "supabase:migrate:push": "bash scripts/supabase-migrate.sh push",
     "type-check": "svelte-check --tsconfig ./tsconfig.json",
     "test:unit": "node packages/vitest/bin.js tests/unit",
+    "test:ui:profiles": "playwright test --config tests/ui/playwright.config.ts",
     "docker:build": "docker build -t oms:latest .",
     "docker:run": "docker-compose up -d",
     "docker:stop": "docker-compose down",
@@ -42,16 +43,13 @@
     "@sveltejs/kit": "^2.7.4",
     "@tldraw/tldraw": "^2.4.4",
     "@types/nodemailer": "^8.0.0",
-    "apexcharts": "file:packages/apexcharts",
     "chart.js": "^4.4.0",
     "cheerio": "^1.0.0",
-    "csv-writer": "1.6.0",
     "dayjs": "^1.11.18",
     "dotenv": "^16.4.5",
     "esbuild": "^0.21.5",
     "exceljs": "4.4.0",
     "ical-generator": "^10.0.0",
-    "jsbarcode": "^3.12.3",
     "jspdf": "^3.0.3",
     "lucide-svelte": "^0.462.0",
     "makerjs": "^0.19.2",
@@ -66,7 +64,6 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "svelte": "^5.1.16",
-    "svelte-apexcharts": "file:packages/svelte-apexcharts",
     "svelte-i18n": "file:packages/svelte-i18n",
     "zod": "^3.23.8"
   },
@@ -77,7 +74,6 @@
     "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.3.1",
-    "@types/jsbarcode": "^3.11.4",
     "@types/node": "^25.0.10",
     "@types/pg": "^8.16.0",
     "@types/qrcode": "^1.5.6",
@@ -95,10 +91,5 @@
     "typescript-eslint": "^8.54.0",
     "vite": "^5.4.10",
     "vitest": "file:packages/vitest"
-  },
-  "overrides": {
-    "svelte-apexcharts": {
-      "svelte": "^5.0.0"
-    }
   }
 }

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { modalDialog } from '$lib/ui/modal-dialog';
+  import { scrollRegion } from '$lib/a11y/scroll-region';
   import {onMount} from 'svelte';
   import {base} from '$app/paths';
   import {t} from 'svelte-i18n';
@@ -141,7 +143,7 @@
       {#if filtered.length===0}
         <p>{$t('inventoryConsistency.emptyPage')}</p>
       {:else}
-        <div class="table-scroll" role="region" tabindex="0" aria-label={$t('inventoryConsistency.title')}>
+        <div class="table-scroll" role="region" use:scrollRegion aria-label={$t('inventoryConsistency.title')}>
           <table>
             <thead><tr>
               <th>{$t('inventoryConsistency.material')}</th>
@@ -186,8 +188,9 @@
       <p role="status">{$t('inventoryConsistency.saved')}: <code>{receipt}</code></p>
     {/if}
     {#if target}
-      <div class="modal-backdrop">
-        <form class="editor" role="dialog" aria-modal="true" aria-labelledby="reconcile-dialog-title" onsubmit={e=>{e.preventDefault();void reconcile();}}>
+      <dialog class="modal-backdrop" aria-labelledby="reconcile-dialog-title"
+         use:modalDialog={{ onClose: dismiss, closeOnEscape: !saving, closeOnBackdrop: !saving }}>
+        <form class="editor" onsubmit={e=>{e.preventDefault();void reconcile();}}>
           <h2 id="reconcile-dialog-title">{$t('inventoryConsistency.reconcile')} · {target.sku??target.materialId}</h2>
           <p class="warning">{$t('inventoryConsistency.countFirst')}</p>
           <p>{$t('inventoryConsistency.canonical')}: {target.canonicalStock}
@@ -197,7 +200,7 @@
               bind:value={physicalCount} disabled={saving}/></label>
           <label>{$t('inventoryConsistency.reason')}
             <textarea rows="3" maxlength="1000" bind:value={explanation}
-              disabled={saving}/></label>
+              disabled={saving}></textarea></label>
           {#if saveError}<p role="alert" class="warning">{saveError}</p>{/if}
           <div class="actions">
             <button type="button" disabled={saving} onclick={dismiss}>
@@ -207,7 +210,7 @@
           </div>
           <p class="hint">{$t('inventoryConsistency.retry')}</p>
         </form>
-      </div>
+      </dialog>
     {/if}
   {/if}
 </section>
@@ -282,4 +285,8 @@
   @media(max-width:700px){.consistency{padding:var(--space-sm) 0 var(--space-xl);}
     .consistency > header{align-items:stretch;}.editor{padding:var(--space-md);}}
   @media(prefers-reduced-transparency:reduce){.table-scroll{background:var(--bg-1);}}
+
+  dialog.modal-backdrop { margin:0;width:100%;height:100%;max-width:none;max-height:none;border:0;color:inherit;box-sizing:border-box; }
+  dialog.modal-backdrop:not([open]) { display:none; }
+  dialog.modal-backdrop::backdrop { background:transparent; }
 </style>

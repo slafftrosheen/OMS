@@ -1,7 +1,8 @@
 <!-- src/lib/profiles/components/fields/DimensionInput.svelte -->
 <script lang="ts">
   import Ruler from 'lucide-svelte/icons/ruler';
-  import Icon from '$lib/ui/Icon.svelte';
+
+  const groupId = $props.id();
 
   interface Props {
     value?: { width?: number; height?: number; depth?: number };
@@ -37,21 +38,24 @@
   }
 </script>
 
-<div class="dimension-input" class:disabled class:error={!!error}>
-  <label class="label">
+<fieldset class="dimension-input" {disabled} class:disabled class:error={!!error}
+  aria-describedby={error ? `${groupId}-error` : undefined}>
+  <legend class="label">
     <Ruler size={14} />
     {label}
     {#if required}
       <span class="required">*</span>
     {/if}
-  </label>
+  </legend>
 
   <div class="fields-grid">
     {#each fields as field}
       <div class="dimension-field">
-        <label class="field-label">{labels[field]}</label>
+        <label class="field-label" for={`${groupId}-${field}`}>{labels[field]}</label>
         <div class="input-wrapper">
           <input
+            id={`${groupId}-${field}`}
+            aria-invalid={!!error}
             type="number"
             value={value[field] || ''}
             oninput={(e) => handleInput(field, e)}
@@ -68,18 +72,24 @@
   </div>
 
   {#if error}
-    <div class="error-message">{error}</div>
+    <div class="error-message" id={`${groupId}-error`}>{error}</div>
   {/if}
-</div>
+</fieldset>
 
 <style>
   .dimension-input {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-sm, 8px);
   }
 
   .label {
+    padding: 0;
+    margin-bottom: var(--space-sm, 8px);
     display: flex;
     align-items: center;
     gap: var(--space-xs, 4px);
@@ -143,6 +153,7 @@
   }
 
   .dimension-value[type=number] {
+    appearance: textfield;
     -moz-appearance: textfield;
   }
 

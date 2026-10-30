@@ -31,7 +31,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     // Read/list checks do not prove writes. The R11 smoke test performs a
     // real authenticated upload, verified download and library lookup.
     storageWriteVerified: false,
-    formats: ['PNG','JPEG','WebP','GIF','PDF'],
+    formats: ['PNG','JPEG','WebP','GIF','PDF','MP4','WebM','MP3','WAV','Ogg','M4A'],
     maximumFileBytes: MAX_TOOLKIT_ASSET_BYTES,
     ...(!capacity.ready ? { error: 'The OMS server upload limit is below 26 MB. Set BODY_SIZE_LIMIT=32M in the systemd service environment, restart OMS, and check the proxy client_max_body_size.' } : {})
   }, { status: capacity.ready ? 200 : 503, headers: noStore });
@@ -54,7 +54,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
   try { form = await request.formData(); }
   catch { throw error(413, 'Could not read upload. Check file size and reverse-proxy body limit.'); }
   const entry = form.get('file');
-  if (!(entry instanceof File)) throw error(400, 'Choose an image or PDF');
+  if (!(entry instanceof File)) throw error(400, 'Choose an image, PDF, video or audio file');
   const file = entry;
   const { mime, name } = validatedToolkitFile(file); 
   // Reject before loading into memory. SvelteKit already enforces a global

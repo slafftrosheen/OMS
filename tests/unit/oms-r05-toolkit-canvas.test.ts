@@ -7,6 +7,7 @@ import {
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { ideaDefaults } from '../../src/lib/components/canvas/idea-model';
+import { load as redirectLegacyToolkit } from '../../src/routes/ai-lab/+layout.server';
 
 const require = createRequire(import.meta.url);
 const ts: typeof import('typescript') = require(process.cwd() + '/node_modules/typescript');
@@ -75,6 +76,16 @@ describe('Toolkit idea board', () => {
 });
 
 describe('Toolkit route contracts', () => {
+  it('redirects each legacy entry point with its deployment prefix and query intact', async () => {
+    for (const path of ['/ai-lab', '/ai-lab/canvas?board=example', '/ai-lab/chat?session=example', '/oms/ai-lab/chat?session=example#reply']) {
+      let result: any;
+      try { await redirectLegacyToolkit({ url: new URL(path, 'https://oms.example') } as any); }
+      catch (error) { result = error; }
+      expect(result?.status).toBe(308);
+      expect(result?.location).toBe(path.replace('/ai-lab', '/toolkit'));
+    }
+  });
+
   it('preserves bookmarks while making Toolkit canonical', () => {
     const route = read('src/routes/ai-lab/+layout.server.ts');
     expect(route).toContain("'/toolkit'");
@@ -93,11 +104,11 @@ describe('Toolkit route contracts', () => {
 
   it('loads, creates and persists a board, including suggestions', () => {
     const canvas = read('src/routes/toolkit/canvas/+page.svelte');
-    expect(canvas).toContain("fetch('/api/ai/canvas'");
+    expect(canvas).toContain("fetch(`${base}/api/ai/canvas`");
     expect(canvas).toContain("method: 'PATCH'");
     expect(canvas).toContain('snapshot: lastSnapshot');
     expect(canvas).toContain('messages.slice(-60)');
-    expect(canvas).toContain('actionProposals.slice(0, 3)');
+    expect(canvas).toContain('actionProposals.slice(0, 12)');
     expect(canvas).toContain('documentRevision !== rev');
     expect(canvas).toContain('{#key boardId}');
     expect(canvas).toContain("tr('errors.beforeSwitch')");
@@ -132,8 +143,10 @@ describe('Toolkit route contracts', () => {
     expect(canvasApp).toContain('Profile7stShapeUtil');
     expect(canvasApp).toContain('LumiGridShapeUtil');
     const canvas = read('src/routes/toolkit/canvas/+page.svelte');
-    expect(canvas).toContain("$t('toolkit.canvas.technical')");
-    expect(canvas).toContain("editor?.setCurrentTool('arrow')");
+    const toolbar = read('src/lib/components/canvas/CanvasToolbar.svelte');
+    expect(toolbar).toContain("$t('toolkit.canvas.technical')");
+    expect(toolbar).toContain("id:'arrow'");
+    expect(canvas).toContain('editor.setCurrentTool(tool)');
   });
 });
 

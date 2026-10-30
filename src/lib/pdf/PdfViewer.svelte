@@ -1,187 +1,156 @@
-<script>
-  import { onMount } from 'svelte';
+<script lang="ts">
+  import { onMount, untrack } from 'svelte';
   import { t } from 'svelte-i18n';
+  import type { PDFDocumentProxy, PDFDocumentLoadingTask, RenderTask } from 'pdfjs-dist';
   import PdfAnnotationsLayer from './PdfAnnotationsLayer.svelte';
 
-  let { 
-    src = '', 
-    maxScale = 3.0, 
-    defaultScale = 1.0, 
-    po = '', 
-    revision = 'current' 
-  } = $props();
-  
-  let canvasEl;
-  let pageNum = 1;
-  let pageCount = 1;
-  let scale = defaultScale;
-  let pdfjsLib;
-  let mounted = false;
-  let pdfDoc;
-  let renderTask;
-  let currentSrc = '';
-  let loading = false;
-  let error = '';
-  let lastSrc = '';
-  let full = false;
-  let hostEl;
-  let container;
-  let ro;
+  let { src = '', maxScale = 3, defaultScale = 1, po = '', revision = 'current' } = $props<{
+    src?: string; maxScale?: number; defaultScale?: number; po?: string; revision?: string;
+  }>();
+  let canvasEl = $state<HTMLCanvasElement>();
+  let hostEl = $state<HTMLDivElement>();
+  let container = $state<HTMLDivElement>();
+  let pageNum = $state(1), pageCount = $state(1);
+  // A default is a mount-time seed; page/zoom buttons own the live viewport.
+  let scale = $state(untrack(() => defaultScale));
+  let mounted = $state(false), visible = $state(false), full = $state(false);
+  let pdfDoc = $state.raw<PDFDocumentProxy | null>(null);
+  let documentLoading = $state(false), painting = $state(false), error = $state('');
+  const loading = $derived(documentLoading || painting);
+  let paintedView = $state.raw<{ doc: PDFDocumentProxy; page: number; zoom: number } | null>(null);
+  let paintSucceeded = $state(false);
+  const annotationsReady = $derived(paintSucceeded && !loading &&
+    paintedView?.doc === pdfDoc && paintedView?.page === pageNum && paintedView?.zoom === boundedZoom(scale));
+  const annotationPage = $derived(paintedView?.page ?? 1);
+  let pdfModule: Promise<typeof import('pdfjs-dist')> | undefined;
+  let renderTask: RenderTask | undefined;
+  let paintGeneration = 0;
 
-  async function ensurePdf() {
-    if (pdfjsLib) return;
-    const [{ default: workerSrc }, pdfModule] = await Promise.all([
+  function ensurePdf() {
+    return pdfModule ??= Promise.all([
       import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
       import('pdfjs-dist/legacy/build/pdf.mjs')
-    ]);
-    pdfjsLib = pdfModule;
-    pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+    ]).then(([{ default: workerSrc }, module]) => {
+      module.GlobalWorkerOptions.workerSrc = workerSrc;
+      return module;
+    }).catch(err => { pdfModule = undefined; throw err; });
   }
-
-  async function render(forceReload = false) {
-    if (!mounted || !src || !canvasEl) return;
-    await ensurePdf();
-    loading = true;
-    error = '';
+  function boundedZoom(value: number) {
+    const maximum = Number.isFinite(maxScale) ? Math.max(.5, maxScale) : 3;
+    return Math.min(maximum, Math.max(.5, Number.isFinite(value) ? value : 1));
+  }
+  function setZoom(value: number) {
+    scale = boundedZoom(Math.round(value * 100) / 100);
+    try { localStorage.setItem('rf_pdf_zoom', String(scale)); } catch { /* Preference storage is optional. */ }
+  }
+  async function fitToWidth() {
+    const doc = pdfDoc, currentPage = pageNum;
+    if (!doc || !container) return;
     try {
-      if (forceReload || currentSrc !== src) {
-        renderTask?.cancel();
-        await pdfDoc?.destroy?.();
-        // Use cacheKey to help with loading optimization
-        const loadingTask = pdfjsLib.getDocument({
-          url: src,
-          cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/cmaps/',
-          cMapPacked: true,
-          // Disable streaming for faster initial load on smaller files
-          disableAutoFetch: true,
-          disableStream: true
-        });
-        pdfDoc = await loadingTask.promise;
-        currentSrc = src;
-        lastSrc = src;
-        pageCount = pdfDoc.numPages;
-        pageNum = 1;
-      }
-
-      const page = await pdfDoc.getPage(pageNum);
-      const viewport = page.getViewport({ scale });
-      const context = canvasEl.getContext('2d');
-      
-      // Use devicePixelRatio for better rendering on high-DPI displays
-      const outputScale = window.devicePixelRatio || 1;
-      
-      canvasEl.width = Math.floor(viewport.width * outputScale);
-      canvasEl.height = Math.floor(viewport.height * outputScale);
-      canvasEl.style.width = Math.floor(viewport.width) + 'px';
-      canvasEl.style.height = Math.floor(viewport.height) + 'px';
-      
-      const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
-      
-      renderTask?.cancel();
-      renderTask = page.render({ 
-        canvasContext: context, 
-        viewport,
-        transform
-      });
-      await renderTask.promise;
-      renderTask = undefined;
-    } catch (err) {
-      if (err?.name === 'RenderingCancelledException') {
-        renderTask = undefined;
-        return;
-      }
-      console.error('Unable to render PDF', err);
-      error = $t('pdf.error');
-      renderTask = undefined;
-    } finally {
-      loading = false;
-    }
+      const page = await doc.getPage(currentPage);
+      if (!mounted || pdfDoc !== doc || pageNum !== currentPage || !container) return;
+      const width = container.clientWidth - 24;
+      if (width <= 0) return;
+      const fit = boundedZoom(width / page.getViewport({ scale: 1 }).width);
+      if (Math.abs(fit - scale) > .01) setZoom(fit);
+    } catch { /* A document switch can destroy an outstanding page read. */ }
   }
-
-  const prev = async () => {
-    if (pageNum > 1) {
-      pageNum--;
-      await render();
-    }
-  };
-
-  const next = async () => {
-    if (pageNum < pageCount) {
-      pageNum++;
-      await render();
-    }
-  };
-
-  function setZoom(z) {
-    scale = Math.min(maxScale, Math.max(0.5, +z.toFixed(2)));
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('rf_pdf_zoom', String(scale));
-    }
-    render();
-  }
-
-  function fitToWidth() {
-    if (!pdfDoc || !container) return;
-    pdfDoc.getPage(pageNum).then(page => {
-      const viewport = page.getViewport({ scale: 1.0 });
-      const containerWidth = container.clientWidth - 24; // padding
-      const fitScale = Math.max(0.5, Math.min(maxScale, containerWidth / viewport.width));
-      if (Math.abs(fitScale - scale) > 0.01) {
-        setZoom(fitScale);
-      }
-    });
-  }
+  const prev = () => { if (pageNum > 1) pageNum--; };
+  const next = () => { if (pageNum < pageCount) pageNum++; };
 
   onMount(() => {
+    try { const saved = localStorage.getItem('rf_pdf_zoom'); if (saved) scale = boundedZoom(Number(saved)); }
+    catch { /* Use the supplied default when storage is unavailable. */ }
+    scale = boundedZoom(scale);
     mounted = true;
-    
-    // Load saved zoom preference
-    if (typeof window !== 'undefined') {
-      const savedZoom = localStorage.getItem('rf_pdf_zoom');
-      if (savedZoom) {
-        scale = +savedZoom || 1.0;
-      }
-    }
-    
-    // ResizeObserver to fit PDF to width on container resize
-    ro = new ResizeObserver(() => {
-      if (pdfDoc) fitToWidth();
-    });
-    if (container) ro.observe(container);
-    
-    // Lazy load PDF when it becomes visible
-    const observer = new IntersectionObserver((entries) => {
-      const entry = entries.find(e => e.isIntersecting);
-      if (entry && src && !pdfDoc) {
-        render(true).then(() => fitToWidth());
-      }
-    }, { threshold: 0.1 });
-    
-    if (hostEl) {
-      observer.observe(hostEl);
-    }
-    
+    const resize = new ResizeObserver(() => { void fitToWidth(); });
+    if (container) resize.observe(container);
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) { visible = true; observer.disconnect(); }
+    }, { threshold: .1 });
+    if (hostEl) observer.observe(hostEl);
+    return () => { mounted = false; observer.disconnect(); resize.disconnect(); };
+  });
+
+  $effect(() => {
+    const source = src;
+    if (!mounted || !visible) return;
+    let active = true;
+    let task: PDFDocumentLoadingTask | undefined;
+    let loaded: PDFDocumentProxy | undefined;
+    pdfDoc = null;
+    pageNum = 1; pageCount = 1; error = '';
+    documentLoading = !!source;
+    if (source) void (async () => {
+      try {
+        const library = await ensurePdf();
+        if (!active) return;
+        task = library.getDocument({ url: source,
+          cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/cmaps/', cMapPacked: true,
+          disableAutoFetch: true, disableStream: true });
+        const doc = await task.promise;
+        if (!active) { await doc.destroy(); return; }
+        loaded = doc;
+        pageCount = doc.numPages;
+        pdfDoc = doc;
+        void fitToWidth();
+      } catch (err) {
+        if (active) { console.error('Unable to load PDF', err); error = $t('pdf.error'); }
+      } finally { if (active) documentLoading = false; }
+    })();
     return () => {
-      mounted = false;
-      observer.disconnect();
-      ro?.disconnect();
-      renderTask?.cancel();
-      renderTask = undefined;
-      currentSrc = '';
-      lastSrc = '';
-      pdfDoc?.destroy?.();
-      pdfDoc = undefined;
-      pdfjsLib = undefined;
+      active = false;
+      // Loading-task destruction also closes its worker and loaded document.
+      if (task) void task.destroy().catch(() => {});
+      else if (loaded) void loaded.destroy().catch(() => {});
     };
   });
 
   $effect(() => {
-    if (mounted && src && src !== lastSrc) {
-      lastSrc = src;
-      render(true).then(() => fitToWidth());
+    const doc = pdfDoc, canvas = canvasEl, currentPage = pageNum, zoom = boundedZoom(scale);
+    const token = ++paintGeneration;
+    const previous = renderTask;
+    previous?.cancel();
+    renderTask = undefined;
+    painting = false; paintSucceeded = false;
+    if (!mounted || !doc || !canvas) {
+      if (canvas && !doc) { canvas.width = 0; canvas.height = 0; }
+      return;
     }
+    let active = true;
+    painting = true;
+    void (async () => {
+      try {
+        // PDF.js does not allow concurrent renders on the same canvas.
+        await previous?.promise.catch(() => {});
+        const page = await doc.getPage(currentPage);
+        if (!active || token !== paintGeneration) return;
+        const viewport = page.getViewport({ scale: zoom });
+        const ratio = window.devicePixelRatio || 1;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('PDF canvas unavailable');
+        canvas.width = Math.floor(viewport.width * ratio);
+        canvas.height = Math.floor(viewport.height * ratio);
+        canvas.style.width = `${Math.floor(viewport.width)}px`;
+        canvas.style.height = `${Math.floor(viewport.height)}px`;
+        const task = page.render({ canvasContext: context, viewport,
+          transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0] });
+        renderTask = task;
+        await task.promise;
+        if (active && token === paintGeneration) {
+          paintedView = { doc, page: currentPage, zoom };
+          paintSucceeded = true; error = '';
+        }
+      } catch (err: any) {
+        if (active && token === paintGeneration && err?.name !== 'RenderingCancelledException') error = $t('pdf.error');
+      } finally {
+        if (active && token === paintGeneration) { painting = false; renderTask = undefined; }
+      }
+    })();
+    return () => { active = false; if (token === paintGeneration) renderTask?.cancel(); };
   });
 </script>
+
 <div class="pdf-host" class:overlay={full} bind:this={hostEl}>
   <div class="pdf-controls" bind:this={container}>
     <div class="row" style="justify-content:space-between;margin-bottom:8px">
@@ -196,13 +165,13 @@
           <button
             class="tag"
             onclick={() => setZoom(scale - 0.2)}
-            disabled={scale <= 0.5}>-
+            aria-label="Zoom out" disabled={scale <= 0.5}>-
           </button>
           <div class="tag">{Math.round(scale * 100)}%</div>
           <button
             class="tag"
             onclick={() => setZoom(scale + 0.2)}
-            disabled={scale >= maxScale}>+
+            aria-label="Zoom in" disabled={scale >= maxScale}>+
           </button>
           <button class="tag" onclick={fitToWidth}>Fit</button>
         </div>
@@ -211,19 +180,23 @@
     </div>
   </div>
   {#if loading}
-    <div class="pdf-loading">{$t('pdf.loading') || 'Loading...'}</div>
+    <div class="pdf-loading" role="status">{$t('pdf.loading') || 'Loading...'}</div>
   {/if}
   {#if error}
-    <div class="tag tag-error" style="margin-bottom:8px">{error}</div>
+    <div class="tag tag-error" role="alert" style="margin-bottom:8px">{error}</div>
   {/if}
-  <div class="pdf-stage" style="position:relative">
+  <div class="pdf-stage">
     <canvas
       class="viewer"
       bind:this={canvasEl}
       aria-busy={loading}
     ></canvas>
     {#if po}
-      <PdfAnnotationsLayer {po} {revision} />
+      <!-- Keep drafts mounted during loading/zoom, including when storage is
+           unavailable. Only the successfully painted view is interactive. -->
+      <div class="pdf-annotations" hidden={!annotationsReady} inert={!annotationsReady}>
+        <PdfAnnotationsLayer {po} {revision} page={annotationPage} />
+      </div>
     {/if}
   </div>
 </div>
@@ -233,7 +206,7 @@
   height: 60vh; 
   min-height: 400px;
   max-width: 100%;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .overlay{
@@ -283,8 +256,10 @@
   color: var(--danger);
   border-color: color-mix(in oklab, var(--danger) 40%, transparent);
 }
+.pdf-stage { position:relative;width:max-content; }
+.pdf-annotations { position:absolute;inset:0; }
 .viewer{
-  max-width:100%;
+  max-width:none;
   height:auto;
   border-radius:12px;
   border:1px solid color-mix(in oklab,var(--border) 85%, transparent);

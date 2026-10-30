@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { base } from '$app/paths';
+import { RequestScope } from '$lib/state/request-scope';
 
 export type Role = 'RD' | 'Boss' | 'HeadOfProduction' | 'StationHead' | 'Operator';
 export type Section = 'Admin' | 'Production' | 'Logistics';
@@ -35,22 +36,27 @@ export const usersLoading = writable<boolean>(false);
 // Store for the currently selected user ID (for impersonation/switching in UI)
 export const currentUserId = writable<string | number>('');
 
-/**
- * Load users from database
- */
-export async function loadUsers(): Promise<void> {
-  if (!isBrowser) return;
-  
+const directoryReads = new RequestScope();
+
+export function resetUserDirectory() {
+  directoryReads.reset();
+  users.set([]);
+  usersLoading.set(false);
+  currentUserId.set('');
+}
+
+/** Load the directory once when several open views request it together. */
+export function loadUsers(): Promise<void> {
+  if (!isBrowser) return Promise.resolve();
   usersLoading.set(true);
-  try {
-    const res = await fetch(`${base}/api/users`);
-    if (res.ok) {
-      const data = await res.json();
-      users.set(data);
+  return directoryReads.run('users', async ({ signal, isCurrent }) => {
+    try {
+      const response = await fetch(`${base}/api/users`, { signal });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (isCurrent() && Array.isArray(data)) users.set(data);
+    } catch (error) {
+      if (isCurrent()) console.error('Failed to load users:', error);
     }
-  } catch (err) {
-    console.error('Failed to load users:', err);
-  } finally {
-    usersLoading.set(false);
-  }
+  }).finally(() => usersLoading.set(directoryReads.size > 0));
 }

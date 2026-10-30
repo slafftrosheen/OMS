@@ -1,10 +1,11 @@
 import type { Order, Badge, Station } from './types';
 import { blankStages, STATIONS } from './stages';
-import { handleApiError, retryWithBackoff } from '$lib/utils/error-handler';
+import { handleApiError } from '$lib/utils/error-handler';
 import { notifySuccess, notifyError } from '$lib/notify/toast';
-import { normaliseStatus } from '$lib/auth/permission-utils';
 import { writable } from 'svelte/store';
 import { authState } from '$lib/auth/authState.svelte';
+import { base } from '$app/paths';
+import { fetchOrderListRows, normalizeOrderListRow } from './order-list-data';
 
 const isBrowser = typeof window !== 'undefined';
 
@@ -12,6 +13,8 @@ export class OrderState {
   orders = $state<Order[]>([]);
   loading = $state<boolean>(false);
   lastError = $state<string | null>(null);
+  private loadController: AbortController | null = null;
+  private loadVersion = 0;
 
   constructor() {
     if (isBrowser) {
@@ -23,33 +26,46 @@ export class OrderState {
           errorLegacy.set(this.lastError);
         });
 
-        let hasLoaded = false;
+        let loadedFor: string | null = null;
         $effect(() => {
-          if (!authState.loading && authState.user && !hasLoaded) {
-            hasLoaded = true;
-            this.load();
-          }
+          if (authState.loading) return;
+          const userId = authState.user?.id ?? null;
+          if (loadedFor === userId) return;
+          loadedFor = userId;
+          this.reset();
         });
       });
     }
   }
 
+  reset() {
+    this.loadController?.abort();
+    this.loadController = null;
+    this.loadVersion += 1;
+    this.orders = [];
+    this.lastError = null;
+    this.loading = false;
+  }
+
   async load() {
+    this.loadController?.abort();
+    const controller = new AbortController();
+    this.loadController = controller;
+    const version = ++this.loadVersion;
     this.loading = true;
     this.lastError = null;
     try {
-      const responseData = await retryWithBackoff(async () => {
-        const response = await fetch('/api/draft-orders');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json();
-      });
-      const rawOrders = Array.isArray(responseData) ? responseData : (responseData?.data || responseData?.orders || []);
-      this.orders = rawOrders.map((d: any) => transformApiOrder(d));
+      const rows = await fetchOrderListRows({ basePath: base, signal: controller.signal });
+      if (version === this.loadVersion) this.orders = rows;
     } catch (err) {
+      if (controller.signal.aborted || version !== this.loadVersion) return;
       this.lastError = handleApiError(err, 'Failed to fetch orders');
       notifyError(this.lastError);
     } finally {
-      this.loading = false;
+      if (version === this.loadVersion) {
+        this.loading = false;
+        this.loadController = null;
+      }
     }
   }
 
@@ -117,7 +133,7 @@ export async function listOrders(): Promise<Order[]> {
 export async function getOrder(id: string): Promise<Order | null> {
   if (!isBrowser) return null;
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(id)}`);
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(id)}`);
     if (response.ok) {
       const data = await response.json();
       return transformApiOrder(data);
@@ -138,7 +154,7 @@ export async function getOrder(id: string): Promise<Order | null> {
 export async function createOrder(seed: Partial<Order>): Promise<Order | null> {
   orderState.loading = true;
   try {
-    const response = await fetch('/api/draft-orders', {
+    const response = await fetch(`${base}/api/draft-orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -174,7 +190,7 @@ export async function createOrder(seed: Partial<Order>): Promise<Order | null> {
  */
 export async function updateOrder(id: string, updates: Partial<Order>): Promise<Order | null> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(id)}`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -182,7 +198,6 @@ export async function updateOrder(id: string, updates: Partial<Order>): Promise<
         title: updates.title,
         due: updates.due,
         loadingDate: updates.loadingDate,
-        status: normaliseStatus(updates.isDraft ? 'draft' : 'pending'),
         notes: updates.rdNotes,
         profiles: updates.profiles
       })
@@ -208,7 +223,7 @@ export async function updateOrder(id: string, updates: Partial<Order>): Promise<
  */
 export async function deleteOrder(id: string): Promise<boolean> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(id)}`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(id)}`, {
       method: 'DELETE'
     });
 
@@ -237,33 +252,7 @@ export async function setLoadingDate(orderId: string, date: string): Promise<boo
  * Transform API response to Order type
  */
 function transformApiOrder(d: any): Order {
-  return {
-    id: d.poNumber || d.id,
-    title: d.title || d.clientName || '',
-    client: d.clientName || d.client || '',
-    due: d.deadline || d.due || '',
-    loadingDate: d.loadingDate || '',
-    badges: (d.badges || (d.status === 'draft' ? ['DRAFT'] : [])) as Badge[],
-    fields: d.fields || [],
-    materials: d.materials || [],
-    stages: d.stages || blankStages(),
-    isDraft: d.status === 'draft',
-    profiles: d.profiles || [],
-    isRD: d.isRD || false,
-    rdNotes: d.notes || d.rdNotes || '',
-    redo: d.redo || [],
-    redoReasons: d.redoReasons || {},
-    redoStage: d.redoStage || '',
-    redoReason: d.redoReason || '',
-    progress: d.progress || {},
-    cycles: d.cycles || [],
-    defaultBranch: d.defaultBranch || 'main',
-    branches: d.branches || [],
-    prs: d.prs || [],
-    revisions: d.revisions || [],
-    defaultRevisionId: d.defaultRevisionId || '',
-    assignees: d.assignees || {}
-  };
+  return normalizeOrderListRow(d?.order ?? d);
 }
 
 /**
@@ -281,7 +270,7 @@ export async function openChangeRequest(
   payload: { title: string; message: string; proposedChanges: any }
 ): Promise<any | null> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/change-requests`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}/change-requests`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -343,7 +332,7 @@ export async function declineChangeRequest(orderId: string, crId: string): Promi
  */
 export async function setBadges(orderId: string, badges: Badge[]): Promise<boolean> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/badges`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}/badges`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ badges })
@@ -369,7 +358,7 @@ export async function setBadges(orderId: string, badges: Badge[]): Promise<boole
  */
 export async function addRedoFlag(orderId: string, station: string, reason: string): Promise<boolean> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/redo`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}/redo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ station, reason, timestamp: new Date().toISOString() })
@@ -434,7 +423,7 @@ export function createNewOrder(): Order {
  */
 export async function addRevision(orderId: string, fileId: string, name: string): Promise<any | null> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/revisions`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}/revisions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileId, name })
@@ -455,7 +444,7 @@ export async function addRevision(orderId: string, fileId: string, name: string)
 
 export async function setDefaultRevision(orderId: string, revisionId: string): Promise<boolean> {
   try {
-    const response = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/revisions`, {
+    const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}/revisions`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ revisionId })

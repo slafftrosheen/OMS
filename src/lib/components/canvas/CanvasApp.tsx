@@ -1,6 +1,6 @@
 import canvasAssetUrls from './tldraw-asset-urls.json';
 import React, { useEffect, useRef } from 'react';
-import { Tldraw, getSnapshot, type Editor } from '@tldraw/tldraw';
+import { Tldraw, getSnapshot, GeoShapeGeoStyle, react as trackEditor, type Editor } from '@tldraw/tldraw';
 import '@tldraw/tldraw/tldraw.css';
 import { MakerShapeUtil } from './shapes/MakerShape';
 import { IdeaShapeUtil } from './shapes/IdeaShape';
@@ -23,6 +23,9 @@ import { spawnDraftOrderTemplate, syncOrderDataToCanvas, type OrderSeed, type Sp
 import { setOrderBridge, clearOrderBridge } from './state-bridge';
 import { wireAssetDropHandler } from './asset-uploader';
 import { CanvasModeContext } from './canvas-mode';
+import { getRunnableShapeIds } from './node-runner';
+import { captureToolkitControls, type ToolkitControlsState } from './toolkit-controls';
+import { ToolkitStyleHostContext, ToolkitStyleTranslateContext, ToolkitStylePortal, ToolkitDesktopStylePanel } from './ToolkitStylePanel';
 
 const customShapeUtils = [
     IdeaShapeUtil,
@@ -42,6 +45,15 @@ const customShapeUtils = [
     BoxLetterShapeUtil
 ];
 
+// Toolkit has one app-owned bottom toolbar. The order editor retains its
+// native chrome; no global CSS hides tools in unrelated canvas surfaces.
+const toolkitUi = {
+    Toolbar: ToolkitStylePortal, StylePanel: ToolkitDesktopStylePanel,
+    ActionsMenu: null, QuickActions: null, MenuPanel: null,
+    NavigationPanel: null, HelperButtons: null, ContextMenu: null,
+    DebugPanel: null, DebugMenu: null,
+};
+
 export interface CanvasAppProps {
     initialSnapshot?: unknown;
     onSave?: (snapshot: unknown) => void;
@@ -60,6 +72,11 @@ export interface CanvasAppProps {
     /** Toolkit shared board: register external drag/drop asset callback. */
     toolkitBoardId?: string | null;
     onToolkitFilesDrop?: (files: File[], position: { x: number; y: number }) => void;
+    onToolkitLinkDrop?: (url: string, position?: { x: number; y: number }) => void;
+    onToolkitControlsChange?: (state: ToolkitControlsState) => void;
+    toolkitStyleHost?: HTMLElement | null;
+    toolkitReadOnly?: boolean;
+    toolkitStyleTranslate?: (key: string) => string;
 }
 
 export function CanvasApp({
@@ -74,6 +91,11 @@ export function CanvasApp({
     hideUI = false,
     toolkitBoardId = null,
     onToolkitFilesDrop,
+    onToolkitLinkDrop,
+    onToolkitControlsChange,
+    toolkitStyleHost = null,
+    toolkitReadOnly = false,
+    toolkitStyleTranslate,
 }: CanvasAppProps) {
     const spawnedRef = useRef<SpawnedShapes | null>(null);
     const editorRef = useRef<Editor | null>(null);
@@ -81,14 +103,23 @@ export function CanvasApp({
     const containerRef = useRef<HTMLDivElement | null>(null);
     const dropCleanupRef = useRef<(() => void) | null>(null);
     const cleanupStoreRef = useRef<(() => void) | null>(null);
+    const cleanupControlsRef = useRef<(() => void) | null>(null);
+    const cleanupAppearanceRef = useRef<(() => void) | null>(null);
     const captureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const latestSaveRef = useRef(onSave);
-    latestSaveRef.current = onSave;
+    const spawnFrameRef = useRef<number | null>(null);
+    const callbacksRef = useRef({ onSave, onDocumentChange, onToolkitFilesDrop, onToolkitLinkDrop, onToolkitControlsChange });
+    callbacksRef.current = { onSave, onDocumentChange, onToolkitFilesDrop, onToolkitLinkDrop, onToolkitControlsChange };
 
     // Keep seedRef current so the drop handler can read the latest orderId
     useEffect(() => {
         seedRef.current = orderSeed ?? null;
     }, [orderSeed]);
+
+    useEffect(() => {
+        if (toolkitBoardId && editorRef.current) {
+            editorRef.current.updateInstanceState({ isReadonly: toolkitReadOnly });
+        }
+    }, [toolkitBoardId, toolkitReadOnly]);
 
     // Wire Svelte callbacks into the editor-scoped bridge (replaces window globals,
     // so multiple canvases / HMR cannot collide).
@@ -99,34 +130,44 @@ export function CanvasApp({
         return () => clearOrderBridge(editor);
     }, [onOrderChange, onProfileChange, onAssetUploaded]);
 
-    // Sync updated seed data into canvas without re-spawning
+    const syncSeed = (editor: Editor, seed: OrderSeed) => {
+        // Restored snapshots already contain the forms, so no template was
+        // spawned this mount. Find only this order's existing form records.
+        const forms = editor.getCurrentPageShapes().filter((shape) =>
+            (shape.props as { orderId?: string }).orderId === seed.orderId);
+        syncOrderDataToCanvas(editor,
+            forms.find((shape) => shape.type === 'order-details')?.id,
+            forms.find((shape) => shape.type === 'order-address')?.id,
+            seed);
+    };
+
+    // Sync updated seed data into canvas without re-spawning or resetting history.
     useEffect(() => {
         const editor = editorRef.current;
-        const shapes = spawnedRef.current;
-        if (!editor || !shapes || !orderSeed) return;
-        syncOrderDataToCanvas(editor, shapes.detailsId, shapes.addressId, orderSeed);
+        if (editor && orderSeed) syncSeed(editor, orderSeed);
     }, [orderSeed]);
 
     const handleMount = (editor: Editor) => {
         editorRef.current = editor;
+        if (toolkitBoardId) editor.updateInstanceState({ isReadonly: toolkitReadOnly });
 
         // Register the bridge immediately so any shape created during spawn can fire callbacks
         setOrderBridge(editor, { onOrderChange, onProfileChange, onAssetUploaded });
 
-        // Save only document records on the team-shared board (never user
-        // camera/selection session). Coalesce rapid drag updates so large
-        // snapshots are not recomputed hundreds of times per second.
+        // Toolkit captures its document only when saving. The order editor
+        // still requests debounced full snapshots via onSave.
         const capture = () => {
             if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
             captureTimerRef.current = null;
-            const snapshot = getSnapshot(editor.store);
-            latestSaveRef.current?.(toolkitBoardId
-                ? { document: snapshot.document }
-                : snapshot);
+            const onSave = callbacksRef.current.onSave;
+            if (onSave) onSave(toolkitBoardId
+                ? { document: editor.store.getStoreSnapshot() }
+                : getSnapshot(editor.store));
         };
         const unlisten = editor.store.listen(
             () => {
-                if (toolkitBoardId) onDocumentChange?.();
+                callbacksRef.current.onDocumentChange?.();
+                if (!callbacksRef.current.onSave) return;
                 if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
                 captureTimerRef.current = setTimeout(capture, 250);
             },
@@ -136,6 +177,33 @@ export function CanvasApp({
         cleanupStoreRef.current = unlisten;
         // Register listener before templates / callbacks create new shapes.
         if (onEditorReady) onEditorReady(editor);
+        if (toolkitBoardId) {
+            const syncAppearance = () => {
+                const colorScheme = document.documentElement.dataset.theme === 'LightVim' ? 'light' : 'dark';
+                if (editor.user.getUserPreferences().colorScheme !== colorScheme) {
+                    editor.user.updateUserPreferences({ colorScheme });
+                }
+            };
+            syncAppearance();
+            const appearance = new MutationObserver(syncAppearance);
+            appearance.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+            cleanupAppearanceRef.current?.();
+            cleanupAppearanceRef.current = () => appearance.disconnect();
+            cleanupControlsRef.current?.();
+            cleanupControlsRef.current = trackEditor('Toolkit controls', () => {
+                callbacksRef.current.onToolkitControlsChange?.(captureToolkitControls(
+                    editor, editor.getStyleForNextShape(GeoShapeGeoStyle), getRunnableShapeIds(editor).length
+                ));
+            });
+            // Route paste as well as drag/drop through private persistent
+            // uploads, instead of tldraw's ephemeral data-URL asset store.
+            editor.registerExternalContentHandler('files', async ({ files, point }) => {
+                callbacksRef.current.onToolkitFilesDrop?.(files, point ?? editor.getViewportPageBounds().center);
+            });
+            editor.registerExternalContentHandler('url', async ({ url, point }) => {
+                callbacksRef.current.onToolkitLinkDrop?.(url, point);
+            });
+        }
 
         // Separate order-document uploads from Toolkit shared-board imports.
         if (containerRef.current) {
@@ -153,7 +221,7 @@ export function CanvasApp({
                     // DOM clientX/clientY are screen coordinates. tldraw
                     // screenToPage handles the editor container offset.
                     const position = editor.screenToPage({ x: event.clientX, y: event.clientY });
-                    onToolkitFilesDrop(files, position);
+                    callbacksRef.current.onToolkitFilesDrop?.(files, position);
                 };
                 container.addEventListener('dragover', onDragOver, true);
                 container.addEventListener('drop', onDrop, true);
@@ -172,15 +240,23 @@ export function CanvasApp({
         const seed = seedRef.current;
         if (seed && !initialSnapshot && !spawnedRef.current) {
             // Defer by one tick so the editor is fully settled
-            requestAnimationFrame(() => {
-                spawnedRef.current = spawnDraftOrderTemplate(editor, seed);
+            spawnFrameRef.current = requestAnimationFrame(() => {
+                spawnFrameRef.current = null;
+                spawnedRef.current = spawnDraftOrderTemplate(editor, seedRef.current ?? seed);
             });
+        } else if (seed) {
+            syncSeed(editor, seed);
         }
     };
 
     useEffect(() => () => {
         dropCleanupRef.current?.();
         cleanupStoreRef.current?.();
+        cleanupControlsRef.current?.();
+        cleanupAppearanceRef.current?.();
+        if (spawnFrameRef.current !== null) cancelAnimationFrame(spawnFrameRef.current);
+        if (editorRef.current) clearOrderBridge(editorRef.current);
+        editorRef.current = null;
         if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
         captureTimerRef.current = null;
     }, []);
@@ -188,13 +264,18 @@ export function CanvasApp({
     return (
         <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
             <CanvasModeContext.Provider value={toolkitBoardId ? 'toolkit' : 'order'}>
+              <ToolkitStyleHostContext.Provider value={toolkitBoardId ? toolkitStyleHost : null}>
+              <ToolkitStyleTranslateContext.Provider value={toolkitStyleTranslate}>
                 <Tldraw
                     assetUrls={canvasAssetUrls}
                     snapshot={initialSnapshot as any}
                     shapeUtils={customShapeUtils}
                     onMount={handleMount}
                     hideUi={hideUI}
+                    components={toolkitBoardId ? toolkitUi : undefined}
                 />
+              </ToolkitStyleTranslateContext.Provider>
+              </ToolkitStyleHostContext.Provider>
             </CanvasModeContext.Provider>
         </div>
     );

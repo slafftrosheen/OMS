@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {onMount} from 'svelte';
+  import {onMount,untrack} from 'svelte';
   import {t} from 'svelte-i18n';
   import type {RevisionChange,RevisionModel} from './revision-contract';
   import {fetchAllOrderFiles,watchOrderFilesChanged} from './order-files-client';
@@ -33,7 +33,8 @@
   let created=$state(false);
   let history=$state<ChangeRequest[]>([]);
 
-  let lastOrderId=$state(orderId);
+  // Initial load belongs to onMount; this marker handles subsequent navigation.
+  let lastOrderId=$state(untrack(() => orderId));
   $effect(()=>{
     if(lastOrderId!==orderId){
       lastOrderId=orderId;files=[];baselineId='';revisedId='';

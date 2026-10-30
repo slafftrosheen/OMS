@@ -9,6 +9,7 @@
 // raised, so a flaky notify path can't break the lifecycle transition.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { publishNotifications } from './publish';
 
 type Sb = SupabaseClient<any, any, any>;
 
@@ -58,7 +59,7 @@ export async function notifyDraftCreated(
 
   if (rows.length === 0) return;
 
-  const { error: insertErr } = await supabase.from('notifications').insert(rows);
+  const { error: insertErr } = await publishNotifications(supabase, rows);
   if (insertErr) {
     console.error('orderNotifier.notifyDraftCreated insert failed:', insertErr);
   }
@@ -107,7 +108,7 @@ export async function notifyOrderConfirmed(
     source_id: orderId,
   }));
 
-  const { error } = await supabase.from('notifications').insert(rows);
+  const { error } = await publishNotifications(supabase, rows);
   if (error) {
     console.error('orderNotifier.notifyOrderConfirmed insert failed:', error);
   }

@@ -1,24 +1,16 @@
 import { error } from '@sveltejs/kit';
+import { TOOLKIT_MEDIA_MAX_BYTES, TOOLKIT_MEDIA_MIMES, toolkitFileMime } from '$lib/components/canvas/toolkit-media-types';
 
 export const TOOLKIT_ASSET_BUCKET = 'toolkit-assets';
-export const MAX_TOOLKIT_ASSET_BYTES = 25 * 1024 * 1024;
-export const TOOLKIT_MIMES = new Set([
-  'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf'
-]);
+export const MAX_TOOLKIT_ASSET_BYTES = TOOLKIT_MEDIA_MAX_BYTES;
+export const TOOLKIT_MIMES = TOOLKIT_MEDIA_MIMES;
 
 export function validatedToolkitFile(file: File): { mime: string; name: string } {
   if (!(file instanceof File)) throw error(400, 'A file is required');
   // Some Windows/browser File objects arrive with no MIME type.
   // Resolve only known extensions, then verify the actual magic bytes below.
-  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
-  const byExtension: Record<string,string> = {
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-    webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf'
-  };
-  const declaredMime = file.type.toLowerCase();
-  const mime = !declaredMime || declaredMime === 'application/octet-stream'
-    ? byExtension[extension] || '' : declaredMime;
-  if (!TOOLKIT_MIMES.has(mime)) throw error(415, 'Supported formats: PNG, JPG, WebP, GIF and PDF');
+  const mime = toolkitFileMime(file);
+  if (!TOOLKIT_MIMES.has(mime)) throw error(415, 'Supported formats: PNG, JPG, WebP, GIF, PDF, MP4, WebM, MP3, WAV, Ogg and M4A');
   if (file.size < 1 || file.size > MAX_TOOLKIT_ASSET_BYTES) throw error(413, 'File must be 1 byte to 25 MB');
   const name = file.name.replace(/[\\/\r\n\0<>]/g, '_').slice(0, 180).trim();
   if (!name) throw error(400, 'File name required');
@@ -31,7 +23,26 @@ export function signatureMatches(mime: string, header: Uint8Array): boolean {
   if (mime === 'image/jpeg') return header.length >= 3 && header[0] === 255 && header[1] === 216 && header[2] === 255;
   if (mime === 'image/gif') return ['GIF87a','GIF89a'].includes(ascii(0, 6));
   if (mime === 'image/webp') return ascii(0, 4) === 'RIFF' && ascii(8, 4) === 'WEBP';
+  if (mime === 'video/mp4' || mime === 'audio/mp4') return header.length >= 12 && ascii(4, 4) === 'ftyp' &&
+    ['isom','iso2','iso5','iso6','mp41','mp42','M4V ','M4A ','avc1','dash'].includes(ascii(8, 4));
+  if (mime === 'video/webm') return header.length >= 4 && [0x1a,0x45,0xdf,0xa3].every((value, index) => header[index] === value);
+  if (mime === 'audio/mpeg') return ascii(0, 3) === 'ID3' ||
+    (header.length >= 2 && header[0] === 0xff && (header[1] & 0xe0) === 0xe0);
+  if (mime === 'audio/wav') return ascii(0, 4) === 'RIFF' && ascii(8, 4) === 'WAVE';
+  if (mime === 'audio/ogg') return ascii(0, 4) === 'OggS';
   return false;
+}
+
+/** One RFC7233 byte range, sufficient for media seeking and PDF previews. */
+export function toolkitByteRange(value: string | null, size: number): { start: number; end: number } | null | false {
+  if (!value) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(value.trim());
+  if (!match || (!match[1] && !match[2])) return false;
+  const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+  const end = match[1] && match[2] ? Math.min(Number(match[2]), size - 1) : size - 1;
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) ||
+    (!match[1] && Number(match[2]) === 0) || start < 0 || start >= size || end < start) return false;
+  return { start, end };
 }
 export function isUuid(value: unknown): value is string {
   return typeof value === 'string' &&

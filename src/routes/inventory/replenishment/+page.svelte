@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { modalDialog } from '$lib/ui/modal-dialog';
+  import { scrollRegion } from '$lib/a11y/scroll-region';
  import {onMount} from 'svelte';
  import {base} from '$app/paths';
  import {t} from 'svelte-i18n';
@@ -214,7 +216,7 @@
      {#if candidates.length===0}
        <p>{$t('inventoryReplenishment.noCandidates')}</p>
      {:else}
-       <div class="table-wrap" role="region" tabindex="0" aria-label={$t('inventoryReplenishment.reviewCandidates')}><table>
+       <div class="table-wrap" role="region" use:scrollRegion aria-label={$t('inventoryReplenishment.reviewCandidates')}><table>
          <thead><tr>
            <th>{$t('inventoryReplenishment.material')}</th>
            <th>{$t('inventoryReplenishment.stock')}</th>
@@ -248,7 +250,7 @@
      <h2>{$t('inventoryReplenishment.activeRequests')}</h2>
      {#if active.length===0}<p>{$t('inventoryReplenishment.noActive')}</p>
      {:else}
-       <div class="table-wrap" role="region" tabindex="0" aria-label={$t('inventoryReplenishment.activeRequests')}><table>
+       <div class="table-wrap" role="region" use:scrollRegion aria-label={$t('inventoryReplenishment.activeRequests')}><table>
          <thead><tr>
            <th>{$t('inventoryReplenishment.material')}</th>
            <th>{$t('inventoryReplenishment.quantity')}</th>
@@ -310,7 +312,7 @@
        <h2>{$t('inventoryReplenishment.closedRequests')}</h2>
        {#if finished.length===0}<p>{$t('inventoryReplenishment.noClosed')}</p>
        {:else}
-         <div class="table-wrap" role="region" tabindex="0" aria-label={$t('inventoryReplenishment.closedRequests')}><table><tbody>
+         <div class="table-wrap" role="region" use:scrollRegion aria-label={$t('inventoryReplenishment.closedRequests')}><table><tbody>
            {#each finished as req (req.id)}
              <tr><td>{requestMaterials.get(req.material_id)?.sku??req.material_id}</td>
                <td>{req.quantity} {req.unit}</td>
@@ -337,8 +339,9 @@
      {/if}
    {/if}
    {#if editorOpen}
-     <div class="scrim">
-       <form class="editor" role="dialog" aria-modal="true" aria-labelledby="replenishment-dialog-title" onsubmit={e=>{e.preventDefault();void submit();}}>
+     <dialog class="scrim" aria-labelledby="replenishment-dialog-title"
+         use:modalDialog={{ onClose: closeEditor, closeOnEscape: !saving, closeOnBackdrop: !saving }}>
+       <form class="editor" onsubmit={e=>{e.preventDefault();void submit();}}>
          <h2 id="replenishment-dialog-title">{$t(`inventoryReplenishment.actionsByKind.${action}`)}</h2>
          <p class="small">{$t('inventoryReplenishment.editingWarning')}</p>
          {#if selectedCandidate}
@@ -370,7 +373,7 @@
              {$t('inventoryReplenishment.confirm')}</button>
          </div>
        </form>
-     </div>
+     </dialog>
    {/if}
  {/if}
 </section>
@@ -447,4 +450,8 @@
   @media(max-width:430px) {.summary {grid-template-columns:minmax(0,1fr);}
     .toolbar input[type='search'] {width:100%;max-width:100%;}}
   @media(prefers-reduced-transparency:reduce) {.table-wrap {background:var(--bg-1);}}
+
+  dialog.scrim { margin:0;width:100%;height:100%;max-width:none;max-height:none;border:0;color:inherit;box-sizing:border-box; }
+  dialog.scrim:not([open]) { display:none; }
+  dialog.scrim::backdrop { background:transparent; }
 </style>

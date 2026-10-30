@@ -1,8 +1,11 @@
 <script lang="ts">
   import { base } from '$app/paths';
-  import { dueDateLabel, priorityLabel, stageStateLabel } from '$lib/order/operator-ui';
+  import { dueDateLabel } from '$lib/order/operator-ui';
   import {t} from 'svelte-i18n';
   import type {PlanningItem,StationSummary} from '$lib/order/production-planning';
+  import OrderBadges from '$lib/badges/OrderBadges.svelte';
+  import SemanticBadge from '$lib/badges/SemanticBadge.svelte';
+  import { priorityBadge, stageBadge } from '$lib/badges/catalog';
 
   let {station,orders=[],summary}:{
     station:string;orders?:PlanningItem[];summary?:StationSummary
@@ -37,7 +40,7 @@
     </p>
   {/if}
   {#if summary && summary.missingEstimates>0}
-    <p class="estimate-note">{$t('productionPlanning.stationMissing',{values:{count:summary.missingEstimates}})}</p>
+    <p class="estimate-note">{$t('productionPlanning.stationMissing',{count:summary.missingEstimates})}</p>
   {/if}
   <div class="orders-list">
     {#each orders as order (order.id)}
@@ -45,22 +48,18 @@
         aria-label={`Open order ${order.poNumber ?? order.title} at ${station}`}>
         <div class="order-topline">
           <span class="order-po">{order.poNumber ?? $t('productionPlanning.pendingPo')}</span>
-          <span class="order-priority">{priorityLabel(order.priority)}</span>
+          <SemanticBadge badge={priorityBadge(order.priority)} />
         </div>
         <h3>{order.title || $t('productionPlanning.untitled')}</h3>
         <p class="client">{order.client || $t('productionPlanning.unknownClient')}</p>
         <div class="order-bottomline">
-          <span class="stage-state" data-state={(order.stageState ?? 'NOT_STARTED').toLowerCase()}>
-            {stageStateLabel(order.stageState)}
-          </span>
+          <SemanticBadge badge={stageBadge(order.stageState)} />
           <span class="due-date">{dueDateLabel(order.dueDate)}</span>
         </div>
-        {#if order.risk}
-          <p class="risk-note" data-risk={order.risk}>{$t(`productionPlanning.risk.${order.risk}`)}</p>
-        {/if}
+        <div class="schedule-badges"><OrderBadges {order} lifecycle={order.paused} priority={false} flags={false} /></div>
         {#if order.blockedReason}<p class="block-reason">{order.blockedReason}</p>{/if}
         {#if order.estimatedHours !== null}
-          <small>{$t('productionPlanning.stageEstimate',{values:{hours:order.estimatedHours}})}</small>
+          <small>{$t('productionPlanning.stageEstimate',{hours:order.estimatedHours})}</small>
         {/if}
       </a>
     {:else}
@@ -73,6 +72,7 @@
 </section>
 
 <style>
+  .schedule-badges { margin-top:8px; }
   .station-board[data-pressure="blocked"]{border-color:var(--error)}
   .station-board[data-pressure="atRisk"]{border-color:var(--warn)}
   .station-metrics{padding:.6rem 1rem;display:flex;flex-wrap:wrap;gap:.5rem;
@@ -81,8 +81,7 @@
   .pressure-note,.estimate-note{padding:.45rem 1rem;font-size:.74rem;margin:0;color:var(--muted)}
   .pressure-note[data-pressure="blocked"]{color:var(--error)}
   .pressure-note[data-pressure="atRisk"]{color:var(--warn)}
-  .risk-note{font-weight:700;font-size:.74rem;margin:.5rem 0;color:var(--muted)}
-  .risk-note[data-risk="blocked"],.risk-note[data-risk="overdue"]{color:var(--error)}
+
   .block-reason{font-size:.77rem;overflow-wrap:anywhere}
   .station-board {
     background: var(--bg-1);
@@ -146,16 +145,9 @@
     flex-wrap: wrap; gap: .5rem;
   }
   .order-po { font-weight: 750; font-variant-numeric: tabular-nums; font-size: .8rem; }
-  .order-priority { color: var(--muted); font-size: .75rem; font-weight: 600; }
+
   .client { margin: 0 0 .75rem; color: var(--muted); font-size: .86rem; overflow-wrap: anywhere; }
-  .stage-state {
-    font-size: .72rem; font-weight: 750; border: 1px solid var(--border);
-    color: var(--text); border-radius: 999px; padding: .3rem .55rem;
-    background: var(--bg-2);
-  }
-  .stage-state[data-state="in_progress"] { border-color: var(--brand); }
-  .stage-state[data-state="blocked"] { border-color: var(--error); color: var(--error); }
-  .stage-state[data-state="rework"] { border-color: var(--warn); }
+
   .due-date { color: var(--muted); font-size: .76rem; }
   .empty-station { padding: 1.4rem 1rem; text-align: center; color: var(--muted); }
   .empty-station p { margin: 0 0 .7rem; }
@@ -211,12 +203,7 @@
   .order-card:hover { background:var(--bg-2);border-color:color-mix(in oklab,var(--brand) 50%,var(--border)); }
   .order-po { color:var(--ink-primary);font-size:var(--text-sm); }
   .order-card h3 { color:var(--ink-primary); }
-  .order-priority { font-size:var(--text-xs);color:var(--ink-secondary); }
-  .stage-state[data-state="in_progress"] { color:var(--brand);background:var(--brand-soft); }
-  .stage-state[data-state="blocked"] { background:var(--error-soft); }
-  .stage-state[data-state="rework"] { color:var(--warn);background:var(--warn-soft); }
-  .risk-note { padding-left:var(--space-sm);border-left:2px solid var(--warn); }
-  .risk-note[data-risk="blocked"],.risk-note[data-risk="overdue"] { border-left-color:var(--error); }
+
   .empty-station { min-height:125px;display:flex;flex-direction:column;
     justify-content:center;align-items:center;gap:var(--space-xs); }
   @media(prefers-reduced-transparency:reduce) { .station-board { background:var(--bg-1); } }

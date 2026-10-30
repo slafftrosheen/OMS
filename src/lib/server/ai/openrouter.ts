@@ -18,11 +18,15 @@ export interface OpenRouterChatOptions {
   model?: string;
   messages: OpenRouterMessage[];
   tools?: unknown[];
+  /** Retain tool schemas while requiring a final, non-tool answer. */
+  toolChoice?: 'auto' | 'none' | 'required';
   /** OpenRouter request-scoped plugins, e.g. explicit PDF parser engine. */
   plugins?: unknown[];
   stream?: boolean;
   temperature?: number;
   timeoutMs?: number;
+  /** The caller owns cancellation; the provider timeout remains an upper bound. */
+  signal?: AbortSignal;
   maxTokens?: number;
   /** OpenRouter server-tool budget; bounded to avoid accidental multi-search charges. */
   maxToolCalls?: number;
@@ -92,7 +96,7 @@ export function openRouterRequestBody(options: OpenRouterChatOptions, config = O
   return {
     model: options.model || (vision ? config.visionModel : config.defaultModel),
     messages: openRouterMessages(options.messages),
-    ...(options.tools?.length ? { tools: options.tools, tool_choice: 'auto' } : {}),
+    ...(options.tools?.length ? { tools: options.tools, tool_choice: options.toolChoice ?? 'auto' } : {}),
     ...(options.plugins?.length ? { plugins: options.plugins } : {}),
     ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
     ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
@@ -114,7 +118,9 @@ export async function openRouterChat(
   config?: OpenRouterClientConfig,
   fetcher: typeof fetch = fetch
 ): Promise<OpenRouterChatResult> {
+  options.signal?.throwIfAborted();
   const resolvedConfig = config ?? await configuredClientConfig();
+  options.signal?.throwIfAborted();
   if (!resolvedConfig.apiKey.trim()) throw new Error('OpenRouter is not configured: add the system key in Settings or set OPENROUTER_API_KEY');
   if (!/^https:\/\//i.test(resolvedConfig.baseUrl)) throw new Error('OPENROUTER_BASE_URL must use HTTPS');
   const body = openRouterRequestBody(options, resolvedConfig);
@@ -132,7 +138,9 @@ export async function openRouterChat(
       'X-Title': 'Reclame Fabriek OMS'
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs)
+    signal: options.signal
+      ? AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs)])
+      : AbortSignal.timeout(timeoutMs)
   });
   return { model: String(body.model), response };
 }

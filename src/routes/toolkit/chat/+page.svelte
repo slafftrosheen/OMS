@@ -1,9 +1,10 @@
 <script lang="ts">
   /** Toolkit conversations, served by the existing private messages API. */
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import Icon from '$lib/ui/Icon.svelte';
   import { t, locale } from 'svelte-i18n';
   import { get } from 'svelte/store';
+  import { confirmToolkitMessages, restoreToolkitDraft } from '$lib/chat/toolkit-send-state';
   const tr = (key: string) => get(t)(`toolkit.chat.${key}`);
 
 
@@ -34,51 +35,72 @@
   let input = $state('');
   let loading = $state(false);
   let sessionsLoading = $state(true);
-  let sendLoading = $state(false);
+  let sending = $state<Record<string, boolean>>({});
+  let sendLoading = $derived(!!activeSession && sending[activeSession.id] === true);
+  let creating = $state(false);
   let error = $state('');
   let scroller: HTMLDivElement | null = $state(null);
-
-
+  let destroyed = false;
+  let loadToken = 0;
+  let sessionsRequest: AbortController | null = null;
+  let messagesRequest: AbortController | null = null;
+  const sendRequests = new Map<string, AbortController>();
+  const drafts = new Map<string, string>();
 
   async function loadSessions() {
+    const controller = new AbortController();
+    sessionsRequest?.abort();
+    sessionsRequest = controller;
     sessionsLoading = true;
     try {
-      const res = await fetch('/api/ai/sessions');
+      const res = await fetch('/api/ai/sessions', { signal: controller.signal });
       if (res.ok) {
         const data = await res.json();
+        if (destroyed || controller.signal.aborted) return;
         sessions = data.items ?? [];
+        sessionsLoading = false;
         if (sessions.length > 0 && !activeSession) {
           await openSession(sessions[0]);
         }
       } else if (res.status === 401) {
         error = tr('login');
-      }
+      } else throw new Error(tr('loadSessions'));
     } catch {
-      error = tr('loadSessions');
+      if (!destroyed && !controller.signal.aborted) error = tr('loadSessions');
     } finally {
-      sessionsLoading = false;
+      if (sessionsRequest === controller) { sessionsRequest = null; sessionsLoading = false; }
     }
   }
 
   async function openSession(session: Session) {
+    if (activeSession) drafts.set(activeSession.id, input);
+    input = drafts.get(session.id) ?? '';
+    messagesRequest?.abort();
+    const controller = new AbortController();
+    messagesRequest = controller;
+    const token = ++loadToken;
     activeSession = session;
     loading = true;
     messages = [];
+    error = '';
     try {
-      const res = await fetch(`/api/ai/sessions/${session.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        messages = data.messages ?? [];
-        scrollToBottom();
-      }
+      const res = await fetch(`/api/ai/sessions/${encodeURIComponent(session.id)}`, { signal: controller.signal, cache: 'no-store' });
+      if (!res.ok) throw new Error(tr('loadMessages'));
+      const data = await res.json();
+      if (destroyed || token !== loadToken || controller.signal.aborted) return;
+      messages = data.messages ?? [];
+      void scrollToBottom();
     } catch {
-      error = tr('loadMessages');
+      if (!destroyed && token === loadToken && !controller.signal.aborted) error = tr('loadMessages');
     } finally {
-      loading = false;
+      if (token === loadToken) loading = false;
+      if (messagesRequest === controller) messagesRequest = null;
     }
   }
 
   async function createSession() {
+    if (creating) return;
+    creating = true;
     try {
       const res = await fetch('/api/ai/sessions', {
         method: 'POST',
@@ -87,20 +109,30 @@
       });
       if (res.ok) {
         const data = await res.json();
+        if (destroyed) return;
         sessions = [data.session, ...sessions];
         await openSession(data.session);
-      }
+      } else throw new Error(tr('create'));
     } catch {
-      error = tr('create');
-    }
+      if (!destroyed) error = tr('create');
+    } finally { creating = false; }
   }
 
   async function send() {
     const textBody = input.trim();
-    if (!textBody || !activeSession) return;
+    if (!textBody || !activeSession || loading || sendLoading) return;
+    const sessionId = activeSession.id;
+    const token = loadToken;
+    const controller = new AbortController();
+    sendRequests.set(sessionId, controller);
+    const currentRequest = () => !destroyed && !controller.signal.aborted && sendRequests.get(sessionId) === controller;
+    const restoreFailedDraft = () => {
+      if (currentRequest()) input = restoreToolkitDraft(drafts, sessionId, textBody, activeSession?.id ?? null, input);
+    };
 
     input = '';
-    sendLoading = true;
+    drafts.delete(sessionId);
+    sending = { ...sending, [sessionId]: true };
     error = '';
 
     const optimistic: Message = {
@@ -113,7 +145,7 @@
       created_at: new Date().toISOString(),
     };
     messages = [...messages, optimistic];
-    scrollToBottom();
+    void scrollToBottom();
 
     const payload: Record<string, unknown> = {
       content: textBody,
@@ -121,63 +153,85 @@
     };
 
     try {
-      const res = await fetch(`/api/ai/sessions/${activeSession.id}/messages`, {
+      const res = await fetch(`/api/ai/sessions/${encodeURIComponent(sessionId)}/messages`, {
         method: 'POST',
+        signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         const data = await res.json();
+        if (!currentRequest()) return;
         // Use the API response directly instead of a full refetch.
         // Replace the temp id on the optimistic user message with a stable one
         // and append the assistant reply.
         const reply = data.content ?? tr('emptyReply');
-        messages = [
-          ...messages.map(m => m.id === optimistic.id
-            ? { ...m, id: `${optimistic.id}-final` }
-            : m
-          ),
-          {
-            id: `assistant-${Date.now()}`,
+        const confirmedIds = typeof data.userMessageId === 'string' && !!data.userMessageId
+          && typeof data.assistantMessageId === 'string' && !!data.assistantMessageId;
+        if (activeSession?.id === sessionId && token === loadToken && confirmedIds) {
+          messages = confirmToolkitMessages(messages, optimistic.id, data.userMessageId, {
+            id: data.assistantMessageId,
             role: 'assistant',
             content: reply,
             model: data.model ?? null,
             node_label: data.node ?? null,
             latency_ms: null,
             created_at: new Date().toISOString(),
-          },
-        ];
-
-        // Update session's last_message_at locally so the sidebar reflects activity
-        if (activeSession) {
-          activeSession = { ...activeSession, last_message_at: new Date().toISOString() };
-          sessions = sessions.map(s => s.id === activeSession!.id ? activeSession! : s);
+          });
         }
-        scrollToBottom();
+
+        // Activity belongs to the original conversation even if the user has
+        // switched views while the provider was answering.
+        const lastMessageAt = new Date().toISOString();
+        sessions = sessions.map(session => session.id === sessionId
+          ? { ...session, last_message_at: lastMessageAt } : session);
+        if (activeSession?.id === sessionId) {
+          activeSession = { ...activeSession, last_message_at: lastMessageAt };
+          // A return to this conversation may have loaded history before the
+          // response was persisted. Refresh that view once, without duplicates.
+          if (token !== loadToken || !confirmedIds) await openSession(activeSession);
+          else void scrollToBottom();
+        }
       } else {
         const errData = await res.json().catch(() => ({}));
-        error = errData.message || errData.error || `Error ${res.status}`;
-        // Remove optimistic message
+        restoreFailedDraft();
+        if (currentRequest() && activeSession?.id === sessionId) {
+          error = errData.message || errData.error || `Error ${res.status}`;
+          messages = messages.filter(m => m.id !== optimistic.id);
+        }
+      }
+    } catch {
+      restoreFailedDraft();
+      if (currentRequest() && activeSession?.id === sessionId) {
+        error = tr('sendError');
         messages = messages.filter(m => m.id !== optimistic.id);
       }
-    } catch (e: any) {
-      error = tr('sendError');
-      messages = messages.filter(m => m.id !== optimistic.id);
     } finally {
-      sendLoading = false;
+      if (sendRequests.get(sessionId) === controller) {
+        const remaining = { ...sending }; delete remaining[sessionId]; sending = remaining;
+        sendRequests.delete(sessionId);
+      }
     }
   }
 
-  function scrollToBottom() {
-    setTimeout(() => { if (scroller) scroller.scrollTop = scroller.scrollHeight; }, 50);
+  async function scrollToBottom() {
+    await tick();
+    if (!destroyed && scroller) scroller.scrollTop = scroller.scrollHeight;
   }
 
   function formatTime(iso: string) {
     return new Date(iso).toLocaleTimeString(get(locale) === 'ru' ? 'ru-RU' : get(locale) === 'lv' ? 'lv-LV' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
   }
 
-  onMount(loadSessions);
+  onMount(() => {
+    void loadSessions();
+    return () => {
+      destroyed = true;
+      sessionsRequest?.abort(); messagesRequest?.abort();
+      for (const controller of sendRequests.values()) controller.abort();
+    };
+  });
 </script>
 
 <div class="chat-toolkit">
@@ -185,7 +239,7 @@
   <aside class="sessions-panel">
     <div class="sessions-header">
       <span class="sessions-title">{$t('ailab.chat.conversations')}</span>
-      <button type="button" class="icon-btn" onclick={createSession} title={$t('ailab.chat.new_convo')} aria-label={$t('ailab.chat.new_convo')}>
+      <button type="button" class="icon-btn" onclick={createSession} disabled={creating} title={$t('ailab.chat.new_convo')} aria-label={$t('ailab.chat.new_convo')}>
         <Icon name="plus" size="sm" />
       </button>
     </div>
@@ -195,7 +249,7 @@
     {:else if sessions.length === 0}
       <div class="empty-state">
         <p>{$t('ailab.chat.no_convos')}</p>
-        <button class="btn-create" onclick={createSession}>{$t('ailab.chat.start_one')}</button>
+        <button class="btn-create" onclick={createSession} disabled={creating}>{$t('ailab.chat.start_one')}</button>
       </div>
     {:else}
       <div class="session-list">
@@ -219,12 +273,17 @@
 
   <!-- Main chat -->
   <section class="chat-main">
+    {#if error}
+      <div class="error-bar" role="alert">
+        <Icon name="alert-circle" size="sm" /> {error}
+      </div>
+    {/if}
     {#if !activeSession}
       <div class="empty-chat">
         <Icon name="message-square" size="md" />
         <h3>{$t('toolkit.chatTab')}</h3>
         <p>{$t('toolkit.chat.startIntro')}</p>
-        <button class="btn-create" onclick={createSession}>{$t('ailab.chat.new_convo')}</button>
+        <button class="btn-create" onclick={createSession} disabled={creating}>{$t('ailab.chat.new_convo')}</button>
       </div>
     {:else}
       <header class="chat-header">
@@ -233,12 +292,6 @@
           <span class="model-tag">{activeSession.model}</span>
         {/if}
       </header>
-
-      {#if error}
-        <div class="error-bar">
-          <Icon name="alert-circle" size="sm" /> {error}
-        </div>
-      {/if}
 
       <div class="messages" bind:this={scroller} role="log" aria-live="polite" aria-relevant="additions" aria-label={$t('ailab.chat.conversations')}>
         {#if loading}
@@ -277,10 +330,10 @@
           aria-label={$t('ailab.chat.placeholder')}
           placeholder={$t('ailab.chat.placeholder')}
           rows={3}
-          disabled={sendLoading}
+          disabled={sendLoading || loading}
           onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
         ></textarea>
-        <button type="button" class="send-btn" onclick={send} disabled={sendLoading || !input.trim()} aria-label={$t('ailab.chat.send', { default: 'Send message' })}>
+        <button type="button" class="send-btn" onclick={send} disabled={sendLoading || loading || !input.trim()} aria-label={$t('ailab.chat.send', { default: 'Send message' })}>
           {#if sendLoading}
             <div class="spin"></div>
           {:else}
@@ -460,15 +513,6 @@
   .typing span:nth-child(2) { animation-delay: 0.2s; }
   .typing span:nth-child(3) { animation-delay: 0.4s; }
   @keyframes bounce { 0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; } 40% { transform: scale(1.1); opacity: 1; } }
-
-  .vv-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px 0;
-    background: var(--bg-1);
-    flex-shrink: 0;
-  }
 
   .input-area {
     display: flex;

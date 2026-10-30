@@ -25,14 +25,15 @@
   }
 </script>
 
-<div class="color-selector">
-  <label class="label">{label}</label>
+<fieldset class="color-selector">
+  <legend class="label">{label}</legend>
   <div class="colors-grid">
     {#each colors as color}
       <button
         type="button"
         class="color-swatch"
         class:active={value === color.code}
+        aria-pressed={value === color.code}
         style="--swatch-color: {color.hex}"
         onclick={() => selectColor(color.code, color.hex)}
         title={color.name || color.code}
@@ -49,6 +50,7 @@
         bind:value={customColor}
         oninput={handleCustomInput}
         placeholder="Custom color code"
+        aria-label={`${label} · Custom color code`}
         class="rf-input"
       />
     </div>
@@ -58,16 +60,22 @@
       Selected: <strong>{value}</strong>
     </div>
   {/if}
-</div>
+</fieldset>
 
 <style>
   .color-selector {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
   }
 
   .label {
+    padding: 0;
+    margin-bottom: var(--space-sm);
     font-size: 0.875rem;
     font-weight: 500;
     color: var(--muted);

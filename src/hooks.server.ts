@@ -7,6 +7,7 @@ import { env as publicEnv } from '$env/dynamic/public';
 import { enforceEnvironmentSecurity } from '$lib/server/env-validator';
 import { logger } from '$lib/server/logging/logger';
 import { startSwarmHealthLoop } from '$lib/server/ai/swarm';
+import { startTelegramWorker } from '$lib/server/notifications/telegram-worker';
 import type { SessionUser } from '$lib/server/auth/session';
 import * as Sentry from '@sentry/node';
 
@@ -25,6 +26,7 @@ enforceEnvironmentSecurity(building);
 
 // Start AI swarm health monitoring
 startSwarmHealthLoop();
+if (!building && !dev && process.env.NODE_ENV !== 'test') startTelegramWorker();
 
 // Get the Supabase URL and Key
 // Prioritize environment variables, fallback to defaults
@@ -157,6 +159,9 @@ const authHandler: Handle = async ({ event, resolve }) => {
 		{ path: '/api/build-info', methods: ['GET'] }, // Read-only compiled revision; never exposes credentials.
 		{ path: '/api/preferences', methods: ['GET'] }, // Returns defaults for anonymous users
 		{ path: '/api/materials', methods: ['GET'] }, // Read-only materials data
+		// Machine-to-machine routes verify separate server-only secrets inside their handlers.
+		{ path: '/api/telegram/webhook', methods: ['POST'] },
+		{ path: '/api/telegram/dispatch', methods: ['POST'] },
 	];
 
 	// Check if the current request matches any public route

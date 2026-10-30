@@ -20,27 +20,19 @@
     multiSelect = false
   }: Props = $props();
 
-  let selectedValues: string[] = $state([]);
-
-  $effect(() => {
-    if (!multiSelect && value) {
-      selectedValues = [value];
-    }
-  });
+  let selectedValues = $derived(multiSelect
+    ? value.split(',').filter(Boolean)
+    : value ? [value] : []);
 
   function selectOption(option: string) {
     if (disabled) return;
 
     if (multiSelect) {
-      if (selectedValues.includes(option)) {
-        selectedValues = selectedValues.filter(v => v !== option);
-      } else {
-        selectedValues = [...selectedValues, option];
-      }
-      value = selectedValues.join(',');
+      value = (selectedValues.includes(option)
+        ? selectedValues.filter(v => v !== option)
+        : [...selectedValues, option]).join(',');
     } else {
       value = option;
-      selectedValues = [option];
     }
   }
 
@@ -60,14 +52,14 @@
   }
 </script>
 
-<div class="button-group">
+<fieldset class="button-group" {disabled}>
   {#if label}
-    <label class="label">
+    <legend class="label">
       {label}
       {#if required}
         <span class="required">*</span>
       {/if}
-    </label>
+    </legend>
   {/if}
 
   <div class="options-container" class:boxes-style={visualStyle === 'boxes'}>
@@ -79,6 +71,7 @@
         type="button"
         class="option-button"
         class:selected={selectedValues.includes(option)}
+        aria-pressed={selectedValues.includes(option)}
         class:box-style={visualStyle === 'boxes'}
         style={visualStyle === 'boxes' ? `background-color: ${bgColor}; color: ${textColor}; border: 2px solid ${selectedValues.includes(option) ? '#000' : '#ccc'};` : ''}
         onclick={() => selectOption(option)}
@@ -88,16 +81,22 @@
       </button>
     {/each}
   </div>
-</div>
+</fieldset>
 
 <style>
   .button-group {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-xs, 4px);
   }
 
   .label {
+    padding: 0;
+    margin-bottom: var(--space-xs, 4px);
     font-size: var(--text-sm, 0.875rem);
     font-weight: 600;
     color: var(--text-primary, var(--ink-primary));

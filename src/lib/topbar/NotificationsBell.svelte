@@ -6,6 +6,8 @@
   import { base } from '$app/paths';
   import { notificationStore } from '$lib/stores/notifications';
   import { currentUser } from '$lib/auth/authState.svelte';
+  import SemanticBadge from '$lib/badges/SemanticBadge.svelte';
+  import { notificationBadge } from '$lib/badges/catalog';
 
   let open = $state(false);
   let btn: HTMLButtonElement | undefined = $state();
@@ -16,15 +18,17 @@
 
   // Ephemeral notices + DB notifications merged for display
   let allItems = $derived([
-    ...noticesList.map((n: any) => ({ ephemeral: true, text: n.text, kind: n.kind, time: n.time, read: false, id: null })),
+    ...noticesList.map((n: any) => ({ ephemeral: true, text: n.text, kind: n.kind, time: n.time, read: false, id: null, link: null })),
     ...storeState.items.map(n => ({
       ephemeral: false,
       id: n.id,
       text: n.title,
       kind: n.type,
+      category: n.category,
       time: n.created_at,
       read: n.read,
-      message: n.message
+      message: n.message,
+      link: n.link
     }))
   ]);
 
@@ -46,6 +50,10 @@
     }
   }
 
+  function linkWithBase(link: string) {
+    return base && link !== base && !link.startsWith(`${base}/`) ? `${base}${link}` : link;
+  }
+
   async function markAllRead() {
     const userId = $currentUser?.id;
     if (userId) await notificationStore.markAllAsRead(userId);
@@ -65,18 +73,27 @@
     return new Date(ts).toLocaleDateString();
   }
 
-  onMount(() => {
+  $effect(() => {
     const userId = $currentUser?.id;
-    if (!userId) return;
-    notificationStore.load(userId);
-    const unsubscribe = notificationStore.subscribe_realtime(userId);
+    if (!userId) { notificationStore.clear(); return; }
+    return notificationStore.connect(userId);
+  });
+
+  onMount(() => {
     document.addEventListener('click', onDocClick, true);
-    return () => {
-      document.removeEventListener('click', onDocClick, true);
-      unsubscribe?.();
-    };
+    return () => document.removeEventListener('click', onDocClick, true);
   });
 </script>
+
+{#snippet itemContent(item: any)}
+  <span class="rf-notif__item-text">
+    {#if !item.ephemeral}<SemanticBadge badge={notificationBadge(item)} />{/if}
+    <span>{item.text}</span>
+  </span>
+  {#if item.time}
+    <span class="rf-notif__item-time">{formatRelative(item.time)}</span>
+  {/if}
+{/snippet}
 
 <div class="rf-notif" bind:this={root}>
   <button
@@ -116,7 +133,18 @@
         </div>
       </div>
 
-      {#if allItems.length === 0}
+      {#if storeState.error}
+        <div class="rf-notif__error" role="alert">
+          <span>{$t('notifications.sync_failed', { default: 'Notifications could not be updated. Try again.' })}</span>
+          <button type="button" class="rf-notif__mark-all" onclick={() => $currentUser?.id && notificationStore.load($currentUser.id)} disabled={storeState.loading}>
+            {$t('notifications.refresh')}
+          </button>
+        </div>
+      {/if}
+
+      {#if allItems.length === 0 && storeState.loading}
+        <p class="rf-notif__empty" role="status">{$t('notifications.loading')}</p>
+      {:else if allItems.length === 0 && !storeState.error}
         <div class="rf-notif__empty">
           <Icon name="bell" size="lg" />
           <span>{$t('notifications.empty', { default: 'No notifications yet.' })}</span>
@@ -124,6 +152,17 @@
       {:else}
         <div class="rf-notif__list">
           {#each allItems.slice(0, 8) as item}
+            {#if item.link}
+              <a
+                role="menuitem"
+                class="rf-notif__item"
+                class:unread={!item.read}
+                href={linkWithBase(item.link)}
+                onclick={() => { void handleItemClick(item); open = false; }}
+              >
+                {@render itemContent(item)}
+              </a>
+            {:else}
             <button
               role="menuitem"
               class="rf-notif__item"
@@ -131,12 +170,9 @@
               type="button"
               onclick={() => handleItemClick(item)}
             >
-              <span class="rf-notif__item-dot" data-kind={item.kind} aria-hidden="true"></span>
-              <span class="rf-notif__item-text">{item.text}</span>
-              {#if item.time}
-                <span class="rf-notif__item-time">{formatRelative(item.time)}</span>
-              {/if}
+              {@render itemContent(item)}
             </button>
+            {/if}
           {/each}
         </div>
       {/if}
@@ -282,9 +318,21 @@
     gap: 2px;
   }
 
+  .rf-notif__error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    color: var(--text);
+    font-size: var(--text-sm);
+    border: 1px solid var(--error);
+    border-radius: var(--radius-sm);
+  }
+
   .rf-notif__item {
     display: grid;
-    grid-template-columns: 8px 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--space-sm);
     width: 100%;
@@ -294,29 +342,16 @@
     background: transparent;
     cursor: pointer;
     text-align: left;
+    text-decoration: none;
     transition: background var(--motion-sm) var(--ease-standard);
     box-shadow: none;
     transform: none;
   }
   .rf-notif__item:hover { background: color-mix(in oklab, var(--bg-2) 60%, transparent); transform: none; filter: none; }
+  .rf-notif__item-text { display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0; }
   .rf-notif__item:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
   .rf-notif__item.unread { background: color-mix(in oklab, var(--brand) 6%, transparent); }
   .rf-notif__item.unread:hover { background: color-mix(in oklab, var(--brand) 12%, transparent); }
-
-  .rf-notif__item-dot {
-    width: 8px; height: 8px;
-    border-radius: var(--radius-full);
-    background: var(--ink-3);
-    align-self: center;
-    flex-shrink: 0;
-  }
-  .rf-notif__item.unread .rf-notif__item-dot { background: var(--brand); box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 22%, transparent); }
-  .rf-notif__item-dot[data-kind="ASSIGNMENT"],
-  .rf-notif__item-dot[data-kind="STAGE_CHANGE"] { background: var(--brand); }
-  .rf-notif__item-dot[data-kind="REWORK"],
-  .rf-notif__item-dot[data-kind="WARNING"] { background: var(--warn); }
-  .rf-notif__item-dot[data-kind="ERROR"] { background: var(--error); }
-  .rf-notif__item-dot[data-kind="SUCCESS"] { background: var(--ok); }
 
   .rf-notif__item-text {
     font-size: var(--text-sm);

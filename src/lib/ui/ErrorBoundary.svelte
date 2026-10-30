@@ -2,8 +2,7 @@
   import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
   import Home from 'lucide-svelte/icons/home';
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
-  import { onMount, onDestroy } from 'svelte';
-  import Icon from '$lib/ui/Icon.svelte';
+  import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import type { Snippet } from 'svelte';
   
@@ -60,11 +59,10 @@
   onMount(() => {
     window.addEventListener('error', handleError);
     window.addEventListener('unhandledrejection', handlePromiseRejection);
-  });
-  
-  onDestroy(() => {
-    window.removeEventListener('error', handleError);
-    window.removeEventListener('unhandledrejection', handlePromiseRejection);
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handlePromiseRejection);
+    };
   });
 </script>
 
@@ -123,7 +121,7 @@
     text-align: center;
   }
 
-  .error-icon {
+  .error-boundary-content :global(.error-icon) {
     color: var(--danger);
     margin-bottom: var(--space-lg);
   }

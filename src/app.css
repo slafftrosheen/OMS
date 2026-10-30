@@ -6,6 +6,12 @@
 
 /* ---------- Semantic color aliases (back-compat) ---------- */
 :root {
+  --bg-primary:   var(--bg-1);
+  --bg-secondary: var(--bg-2);
+  --text-primary: var(--text);
+  --text-secondary: var(--ink-secondary);
+  --border-color: var(--border);
+
   --color-bg-0:   var(--bg-0);
   --color-bg-1:   var(--bg-1);
   --color-bg-2:   var(--bg-2);

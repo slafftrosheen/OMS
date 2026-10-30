@@ -1,6 +1,6 @@
 <script lang="ts">
   import { AuthState, currentUser, logout } from '$lib/auth/authState.svelte';
-  import { getContext } from 'svelte';
+  import { getContext, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
   import Icon from '$lib/ui/Icon.svelte';
@@ -8,6 +8,10 @@
   let open = $state(false);
   let menuEl: HTMLDivElement | undefined = $state();
   let me = $derived($currentUser);
+  let trigger = $state<HTMLButtonElement>();
+  let dropdown = $state<HTMLDivElement>();
+  const menuId = $props.id();
+  let openAtEnd = false;
 
   const authState = getContext<AuthState>('authState');
 
@@ -17,7 +21,37 @@
     goto(`${base}/login`);
   }
 
-  function toggleMenu(e: MouseEvent) { e.stopPropagation(); open = !open; }
+  function close(restoreFocus = false) {
+    open = false;
+    if (restoreFocus) trigger?.focus();
+  }
+  function items() { return Array.from(dropdown?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []); }
+  function toggleMenu() { openAtEnd = false; open = !open; }
+  function triggerKey(event: KeyboardEvent) {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault(); openAtEnd = event.key === 'ArrowUp';
+    if (open) { const list = items(); list[openAtEnd ? list.length - 1 : 0]?.focus(); }
+    else open = true;
+  }
+  function menuKey(event: KeyboardEvent) {
+    const list = items(), index = list.indexOf(document.activeElement as HTMLElement);
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(true); }
+    else if (event.key === 'Tab') { close(true); }
+    else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault();
+      const target = event.key === 'Home' ? 0 : event.key === 'End' ? list.length - 1
+        : (index + (event.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length;
+      list[target]?.focus();
+    } else if (event.key === ' ' && event.target instanceof HTMLAnchorElement) {
+      event.preventDefault(); event.target.click();
+    }
+  }
+  $effect(() => {
+    if (!open) return;
+    let active = true;
+    void tick().then(() => { if (active) { const list = items(); list[openAtEnd ? list.length - 1 : 0]?.focus(); } });
+    return () => { active = false; };
+  });
   function handleClickOutside(e: MouseEvent) {
     if (menuEl && !menuEl.contains(e.target as Node)) open = false;
   }
@@ -32,13 +66,16 @@
 
 <div class="rf-user" bind:this={menuEl}>
   <button
+    bind:this={trigger}
     class="rf-user__trigger"
     class:open
     type="button"
     aria-haspopup="menu"
     aria-expanded={open}
+    aria-controls={open ? menuId : undefined}
     aria-label={`User menu — ${me?.displayName || me?.username || 'User'}`}
     onclick={toggleMenu}
+    onkeydown={triggerKey}
   >
     <span class="rf-user__avatar" aria-hidden="true">{initials(me?.displayName || me?.username)}</span>
     <span class="rf-user__info">
@@ -51,7 +88,7 @@
   </button>
 
   {#if open}
-    <div class="rf-user__dropdown" role="menu" onclick={(e) => e.stopPropagation()}>
+    <div id={menuId} class="rf-user__dropdown" bind:this={dropdown} role="menu" tabindex="-1" aria-label="User menu" onkeydown={menuKey}>
       <div class="rf-user__header">
         <span class="rf-user__avatar rf-user__avatar--lg" aria-hidden="true">{initials(me?.displayName || me?.username)}</span>
         <div class="rf-user__header-info">
@@ -62,14 +99,14 @@
 
       <div class="rf-user__divider" role="separator"></div>
 
-      <a href={`${base}/settings`} class="rf-user__item" onclick={() => open = false}>
+      <a href={`${base}/settings`} class="rf-user__item" role="menuitem" tabindex="-1" onclick={() => open = false}>
         <Icon name="settings" size="sm" />
         <span>Settings</span>
       </a>
 
       <div class="rf-user__divider" role="separator"></div>
 
-      <button class="rf-user__item rf-user__item--danger" type="button" onclick={signOut}>
+      <button class="rf-user__item rf-user__item--danger" role="menuitem" tabindex="-1" type="button" onclick={signOut}>
         <Icon name="log-out" size="sm" />
         Sign out
       </button>
