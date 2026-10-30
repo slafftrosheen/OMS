@@ -1,6 +1,7 @@
 <script lang="ts">
   import OrderBadges from '$lib/badges/OrderBadges.svelte';
   import { onMount, tick } from 'svelte';
+  import { getAssistantContext } from '$lib/assistant/context';
   import { base } from '$app/paths';
   import { t, locale } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/authState.svelte';
@@ -16,6 +17,16 @@
   import type { CalEvent } from '$lib/calendar/types';
 
   const initialDate = new Date();
+  const assistant = getAssistantContext();
+  onMount(() => assistant.register({
+    id: 'calendar', title: () => $t('assistant.screen.calendar'), tools: () => [],
+    context: () => ({ selectedDate, displayedMonth: `${year}-${String(month + 1).padStart(2, '0')}`,
+      filter: filterStatus, loading, unavailableSources: errors,
+      selectedDay: { badges: selected.badges.map(badge => ({ type: badge.kind, count: badge.count })) },
+      visibleOrders: filteredOrders.slice(0, Math.min(visibleOrderCount, 15)).map(order => ({
+        reference: order.poNumber, title: order.title, status: order.status,
+        dueDate: order.dueDate, loadingDate: order.loadingDate })) })
+  }));
   let year = $state(initialDate.getFullYear());
   let month = $state(initialDate.getMonth());
   let today = $state(localDateKey(initialDate));

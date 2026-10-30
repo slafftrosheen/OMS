@@ -7,7 +7,13 @@
     profileName: 'TEST ONLY profile',
     signType: 'EXTERIOR',
     CNC_FREZER: { face: 'PLEXIGLAS_GS_0F00', faceThickness: '3mm', back: 'ALU_COMPOSITE_0A000', backThickness: '2' },
-    BENDER: { sides: '', depth: 100 }
+    BENDER: { sides: '', depth: 100 },
+    ASSEMBLING: {
+      led: true, ledModule: 'Lemlux LP-2835-120-24V LED strip 4000K', ledModuleShort: 'LED',
+      psu: true, psuModel: 'Mean Well LRS-100-12 12V 102W', psuModelShort: 'PSU',
+      cables: true, cableType: 'LAPP H05VV-F 3G0.75 white', cableTypeShort: 'CABLE',
+      frame: true, frameMaterial: 'Aluminium tube 40x40', frameMaterialShort: 'ALU', frameDimensions: '40x40x2'
+    }
   };
   let configuration = $state<Record<string, unknown>>(JSON.parse(JSON.stringify(legacy)));
   let latest = $state<Record<string, unknown>>(JSON.parse(JSON.stringify(legacy)));

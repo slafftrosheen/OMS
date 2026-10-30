@@ -4,7 +4,13 @@ const materials = [
   { id: 1, category: 'ACRYLIC_GS', code: 'PLEXIGLAS_GS_0F00', name_en: 'PLEXIGLAS GS Clear 0F00', name_ru: 'Литой акрил прозрачный 0F00', name_lv: 'Caurspīdīgs liets akrils 0F00', thickness_options: [1.5, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25], metadata: { hex: '#f5f5f0', short_name: '0F00' } },
   { id: 2, category: 'ACRYLIC_GS', code: 'PLEXIGLAS_GS_LONG', name_en: 'PLEXIGLAS GS White translucent acrylic with a deliberately long catalog name', name_ru: 'Белый светорассеивающий литой акрил с длинным названием материала', name_lv: 'Balts gaismu izkliedējošs liets akrils ar garu materiāla nosaukumu', thickness_options: [3, 5, 8, 10], metadata: { hex: '#ffffff', short_name: 'WH10' } },
   { id: 3, category: 'ALU_COMPOSITE', code: 'ALU_COMPOSITE_0A000', name_en: 'Aluminum composite white 0A000', name_ru: 'Белый алюминиевый композит 0A000', name_lv: 'Balts alumīnija kompozīts 0A000', thickness_options: [2, 3, 4], metadata: { hex: '#ffffff', short_name: '0A000' } },
-  { id: 4, category: 'PVC_FOAM', code: 'PVC_CUSTOM', name_en: 'PVC made to order', thickness_options: [], metadata: {} }
+  { id: 4, category: 'PVC_FOAM', code: 'PVC_CUSTOM', name_en: 'PVC made to order', thickness_options: [], metadata: {} },
+  { id: 5, category: 'ALU_PROFILE', code: 'ALU_TUBE', name_en: 'Aluminium tube 40x40', thickness_options: [1.5, 2, 3], metadata: { short_name: 'ALU' } },
+  { id: 6, category: 'LED_STRIP', code: 'LED_001', name_en: 'Lemlux LP-2835-120-24V LED strip 4000K', thickness_options: [], metadata: { short_name: 'LED' } },
+  { id: 7, category: 'LED_STRIP', code: 'LED_002', name_en: 'Lemlux COB-480-24V LED strip 3000K', thickness_options: [], metadata: { short_name: 'LED' } },
+  { id: 8, category: 'PSU_MEANWELL', code: 'MW_LRS_100_12', name_en: 'Mean Well LRS-100-12 12V 102W', thickness_options: [], metadata: { short_name: 'PSU' } },
+  { id: 9, category: 'WIRE', code: 'WIRE_001', name_en: 'LAPP H05VV-F 3G0.75 white', thickness_options: [], metadata: { short_name: 'CABLE' } },
+  { id: 10, category: 'FDM_PETG', code: 'PETG_001', name_en: 'Spectrum PET-G Premium 1.75mm Polar White', thickness_options: [], metadata: { short_name: 'PETG' } }
 ];
 
 async function catalogResponse(route: Route) {
@@ -40,6 +46,77 @@ test('partial legacy profile opens without edits, and bare thickness stays selec
   await expect(page.getByTestId('change-count')).toHaveText('0');
   expect((await savedConfiguration(page)).CNC_FREZER.faceMaterials).toBeUndefined();
   await expect(page.getByTestId('standalone-thickness')).toHaveText('3');
+});
+
+test('legacy assembly badges identify the selected part and never persist a hydration edit', async ({ page }) => {
+  await page.goto('/');
+  for (const label of [
+    'Lemlux LP-2835-120-24V LED strip 4000K', 'Mean Well LRS-100-12 12V 102W',
+    'LAPP H05VV-F 3G0.75 white', 'Aluminium tube 40x40'
+  ]) await expect(page.locator('.assembly-item .material-badge-lg').filter({ hasText: label })).toBeVisible();
+  await expect(page.getByLabel('FRAME · Select thickness', { exact: true })).toHaveValue('2mm');
+  await expect(page.getByLabel('FRAME SIZE', { exact: true })).toHaveValue('40x40x2');
+  await expect(page.getByLabel('DIAMETER (mm)', { exact: true })).toHaveCount(0);
+  await expect(page.getByTestId('change-count')).toHaveText('0');
+  expect((await savedConfiguration(page)).ASSEMBLING.frameThickness).toBeUndefined();
+  expect((await savedConfiguration(page)).ASSEMBLING.frameDimensions).toBe('40x40x2');
+});
+
+test('BACK, SIDES and FRAME use independent catalog thickness selectors and survive save/reopen', async ({ page }) => {
+  await page.goto('/');
+  const back = page.locator('fieldset').filter({ has: page.locator('legend', { hasText: /^BACK$/ }) }).first();
+  await back.locator('.select-trigger').click();
+  await back.getByRole('button', { name: /Aluminum composite/ }).click();
+  await back.getByRole('button', { name: /Aluminum composite white/ }).click();
+  await back.locator('.thickness-select').selectOption('4mm');
+
+  const sides = page.locator('fieldset').filter({ has: page.locator('legend', { hasText: /^SIDES$/ }) }).first();
+  await sides.locator('.select-trigger').click();
+  await sides.getByRole('button', { name: /Aluminum profiles/ }).click();
+  await sides.getByRole('button', { name: /Aluminium tube/ }).click();
+  await sides.locator('.thickness-select').selectOption('1.5mm');
+
+  const frame = page.locator('.assembly-item').filter({ has: page.getByLabel('FRAME', { exact: true }) });
+  await frame.locator('.select-trigger').click();
+  await frame.getByRole('button', { name: /Aluminum profiles/ }).click();
+  await frame.getByRole('button', { name: /Aluminium tube/ }).click();
+  await frame.locator('.thickness-select').selectOption('3mm');
+
+  let saved = await savedConfiguration(page);
+  expect(saved.CNC_FREZER.backThickness).toBe('4mm');
+  expect(saved.BENDER.sidesThickness).toBe('1.5mm');
+  expect(saved.ASSEMBLING.frameThickness).toBe('3mm');
+  expect(saved.ASSEMBLING.frameDimensions).toBe('40x40x3');
+  const edits = await page.getByTestId('change-count').innerText();
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await expect(page.getByLabel('BACK · Select thickness', { exact: true })).toHaveValue('4mm');
+  await expect(page.getByLabel('SIDES · Select thickness', { exact: true })).toHaveValue('1.5mm');
+  await expect(page.getByLabel('FRAME · Select thickness', { exact: true })).toHaveValue('3mm');
+  await expect(page.getByTestId('change-count')).toHaveText(edits);
+});
+
+test('selecting a different LED model updates its badge, and 3D catalog material survives serialized reopen', async ({ page }) => {
+  await page.goto('/');
+  const led = page.locator('.assembly-item').filter({ has: page.getByLabel('LED', { exact: true }) });
+  await led.locator('.select-trigger').click();
+  await led.getByRole('button', { name: /LED strips/ }).click();
+  await led.getByRole('button', { name: /COB-480-24V/ }).click();
+  await expect(led.locator('.material-badge-lg')).toContainText('Lemlux COB-480-24V LED strip 3000K');
+  await page.getByLabel('3D', { exact: true }).check();
+  const printing = page.locator('.print3d-material');
+  await printing.locator('.select-trigger').click();
+  await printing.getByRole('button', { name: /PETG filament/ }).click();
+  await printing.getByRole('button', { name: /Spectrum PET-G/ }).click();
+  await expect(printing.locator('.material-badge-lg')).toHaveText('Spectrum PET-G Premium 1.75mm Polar White');
+  const saved = await savedConfiguration(page);
+  expect(saved.CNC_FREZER.print3dMaterialCategory).toBe('FDM_PETG');
+  expect(saved.ASSEMBLING.ledModuleShort).toBe('Lemlux COB-480-24V LED strip 3000K');
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await expect(led.locator('.material-badge-lg')).toContainText('COB-480-24V');
+  await expect(printing.locator('.material-badge-lg')).toHaveText('Spectrum PET-G Premium 1.75mm Polar White');
+  await page.getByRole('button', { name: 'Toggle read only' }).click();
+  await expect(printing.locator('.select-trigger')).toBeDisabled();
+  await expect(page.getByLabel('FRAME · Select thickness', { exact: true })).toBeDisabled();
 });
 
 test('the last typed character and checkbox change are present in the saved profile', async ({ page }) => {

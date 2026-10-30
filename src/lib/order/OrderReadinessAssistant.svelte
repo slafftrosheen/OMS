@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { untrack, onDestroy } from 'svelte';
   import { t } from 'svelte-i18n';
   import type { ModelReadiness, ReadinessIssue, ReadinessEvidence } from './production-readiness';
 
@@ -13,6 +13,9 @@
     ai:ModelReadiness|null;aiWarning?:string|null;model?:string|null;
   };
   let {orderId,canRun,orderUpdatedAt}:{orderId:string;canRun:boolean;orderUpdatedAt?:string|null}=$props();
+  const requestController = new AbortController();
+  let disposed = false;
+  onDestroy(() => { disposed = true; requestController.abort(); });
   let busy=$state(false);
   let error=$state('');
   let report=$state<Report|null>(null);
@@ -29,15 +32,16 @@
     try{
       const res=await fetch('/api/ai/order-readiness',{
         method:'POST',headers:{'Content-Type':'application/json'},
+        signal:AbortSignal.any([requestController.signal,AbortSignal.timeout(120_000)]),
         body:JSON.stringify({orderId:requestedId,consent:true})
       });
       const result=await res.json().catch(()=>({}));
-      if(requestedId!==orderId)return;
+      if(disposed||requestedId!==orderId)return;
       if(!res.ok)throw new Error(result.message||result.error||$t('productionReadiness.failed'));
       report=result as Report;
     }catch(err){
-      if(requestedId===orderId)error=err instanceof Error?err.message:$t('productionReadiness.failed');
-    }finally{if(requestedId===orderId)busy=false;}
+      if(!disposed&&requestedId===orderId)error=err instanceof Error?err.message:$t('productionReadiness.failed');
+    }finally{if(!disposed&&requestedId===orderId)busy=false;}
   }
   const statusLabel=(status:Report['state'])=>{
     if(status==='blocked')return $t('productionReadiness.blocked');

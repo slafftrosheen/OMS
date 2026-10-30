@@ -35,7 +35,8 @@ export interface PaintMatchResult {
     } | null;
 }
 
-export async function matchPaint(args: PaintMatchArgs, db: SupabaseClient): Promise<PaintMatchResult> {
+export async function matchPaint(args: PaintMatchArgs, db: SupabaseClient, signal?: AbortSignal): Promise<PaintMatchResult> {
+    signal?.throwIfAborted();
     if (!args || typeof args.target !== 'string' || typeof args.substrate !== 'string' ||
         !args.target.trim() || !args.substrate.trim() ||
         args.target.length > 120 || args.substrate.length > 120) {
@@ -53,8 +54,10 @@ export async function matchPaint(args: PaintMatchArgs, db: SupabaseClient): Prom
 
     if (isHex) q = q.ilike('target_hex', `%${norm}%`);
     else q = q.ilike('target_label', `%${args.target}%`);
+    if (signal) q = q.abortSignal(signal);
 
     const { data, error: lookupError } = await q;
+    signal?.throwIfAborted();
     if (lookupError) throw new Error('Paint records unavailable or access denied');
 
     const historical = ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
@@ -85,7 +88,8 @@ rationale. Use historical entries and datasheets to ground the recipe.`;
             model: MODEL.chat.primary,
             temperature: 0.3,
             jsonMode: true,
-            maxTokens: 1200
+            maxTokens: 1200,
+            signal
         });
         const start = txt.indexOf('{');
         const end = txt.lastIndexOf('}');
@@ -93,9 +97,11 @@ rationale. Use historical entries and datasheets to ground the recipe.`;
             recommendation = JSON.parse(txt.slice(start, end + 1));
         }
     } catch {
+        signal?.throwIfAborted();
         /* swallow — historical hits still useful */
     }
 
+    signal?.throwIfAborted();
     return {
         historical,
         recommendation

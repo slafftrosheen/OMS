@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { getAssistantContext } from '$lib/assistant/context';
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
   import { ALL_STATIONS } from '$lib/order/workflow';
@@ -13,6 +14,15 @@
   import Skeleton from '$lib/ui/Skeleton.svelte';
 
   const STATIONS = ALL_STATIONS;
+  const assistant = getAssistantContext();
+  onMount(() => assistant.register({
+    id: 'production', title: () => $t('production.title'), tools: () => [],
+    context: () => ({ loading, unavailable: !!boardError, filters: { hideEmpty, showUpcoming, attentionOnly, oversightKind },
+      displayedTotals: totals,
+      visibleStations: visibleStations.map(station => ({ station, summary: stationSummary[station] })),
+      visibleAlerts: alerts.slice(0,15).map(item => ({ reference: item.poNumber, title: item.title,
+        station: item.station, stage: item.stageState, risk: item.risk, dueDate: item.dueDate })) })
+  }));
   let stationOrders = $state<Record<string, PlanningItem[]>>({});
   let stationSummary = $state<Record<string,StationSummary>>({});
   let totals = $state<PlanningTotals|null>(null);

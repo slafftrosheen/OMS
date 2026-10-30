@@ -6,6 +6,7 @@
   import { canOperateStation } from '$lib/order/lifecycle-guards';
   import { dueDateLabel, stageStateLabel, isOrderOverdue } from '$lib/order/operator-ui';
   import { onMount } from 'svelte';
+  import { getAssistantContext } from '$lib/assistant/context';
   import { writable } from 'svelte/store';
   import { t } from 'svelte-i18n';
   import { realtimeStore } from '$lib/stores/realtime';
@@ -22,6 +23,16 @@
   import { priorityBadge, stageBadge } from '$lib/badges/catalog';
 
   let station = $derived(page.params.station.toUpperCase());
+  const assistant = getAssistantContext();
+  onMount(() => assistant.register({
+    id: 'station', title: () => `${$t('assistant.screen.station')} · ${station}`, tools: () => [],
+    context: () => ({ station, filter: $filter, search: searchQuery, loading: $loading,
+      unavailable: !!loadError, selectedOrder: workingOnOrderId ?? packetTarget?.id ?? progressTarget?.id ?? null,
+      visibleOrders: $orders.filter(order => (!$filter || $filter === 'ALL' || order.stage?.state === $filter) &&
+        [order.po_number,order.title,order.client].some(value => String(value ?? '').toLowerCase().includes(searchQuery.toLowerCase())))
+        .slice(0,15).map(order => ({ reference: order.po_number, title: order.title, priority: order.priority,
+          dueDate: order.due_date, stage: order.stage?.state })) })
+  }));
   let stationRoomId = $derived(`station-${page.params.station.toLowerCase()}`);
 
   interface StationOrder {

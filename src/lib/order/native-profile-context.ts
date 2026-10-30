@@ -15,7 +15,7 @@ const scalar=(value:unknown):string|number|boolean|undefined=>{
  return text(value);
 };
 const properties={
- CNC_FREZER:['face','back','faceThickness','backThickness','laser','print3d','notes'],
+ CNC_FREZER:['face','back','faceThickness','backThickness','laser','print3d','print3dMaterial','notes'],
  BENDER:['sides','sidesThickness','depth','notes'],
  FRONT:['face','faceFilm','faceCustom','back','backFilm','backCustom',
    'sides','sidesFilm','sidesCustom','notes'],
@@ -23,7 +23,7 @@ const properties={
    'frame','frameCustom','notes'],
  ASSEMBLING:['led','ledModule','ledCustom','psu','psuModel','psuType','psuMounting',
    'cables','cableType','cablesLength','cablesWago','frame','frameMaterial',
-   'frameDimensions','frameCustom','frameWaterholes','frameMountingHoles','shablon','notes']
+   'frameDimensions','frameThickness','frameCustom','frameWaterholes','frameMountingHoles','shablon','notes']
 } as const;
 type ProductionSection=keyof typeof properties;
 
@@ -34,6 +34,7 @@ function inactiveChoice(section:ProductionSection,key:string,values:RecordValue)
  if(section==='CNC_FREZER'){
    if(key==='faceThickness')return !text(values.face);
    if(key==='backThickness')return !text(values.back);
+   if(key==='print3dMaterial')return values.print3d!==true;
  }
  if(section==='BENDER'&&['sidesThickness','depth'].includes(key))
    return !text(values.sides);
@@ -53,7 +54,7 @@ function inactiveChoice(section:ProductionSection,key:string,values:RecordValue)
      led:['ledModule','ledCustom'],
      psu:['psuModel','psuType','psuMounting'],
      cables:['cableType','cablesLength','cablesWago'],
-     frame:['frameMaterial','frameDimensions','frameCustom',
+     frame:['frameMaterial','frameDimensions','frameThickness','frameCustom',
        'frameWaterholes','frameMountingHoles']
    };
    for(const [toggle,fields] of Object.entries(dependents)){

@@ -4,6 +4,7 @@
     import { base } from "$app/paths";
     import { goto } from "$app/navigation";
     import { onMount } from "svelte";
+    import { getAssistantContext, GENERAL_ASSISTANT_TOOL } from '$lib/assistant/context';
     import { t } from "svelte-i18n";
     import Button from "$lib/components/ui/Button.svelte";
     import Card from "$lib/components/ui/Card.svelte";
@@ -27,6 +28,19 @@
     import { buildStagePatch } from '$lib/order/stage-contract';
 
     let orderId = $derived(page.params.id);
+    const assistant = getAssistantContext();
+    onMount(() => assistant.register({
+      id: 'order-detail', title: () => order?.po_number || order?.title || $t('assistant.screen.orders'),
+      defaultToolId: GENERAL_ASSISTANT_TOOL,
+      tools: () => mayAskOrderAssistant ? [{ id: 'review', label: $t('orderWorkspace.title') }] : [],
+      content: orderDetailAssistant,
+      context: () => ({ orderId, section: activeTab, loading,
+        order: order?.id === orderId ? { reference: order.po_number, title: order.title,
+          client: order.client, status: order.status, dueDate: order.due_date, loadingDate: order.loading_date,
+          priority: order.priority, stages: (order.stages ?? []).slice(0,15).map((stage: any) => ({
+            station: stage.station, state: stage.state })) } : null,
+        fileCount, fileContentsProvided: false })
+    }));
 
     let order: any = $state(null);
     let stageSummary=$derived(stageProgressSummary(order?.stages));
@@ -272,6 +286,22 @@
     });
 </script>
 
+{#snippet orderDetailAssistant(toolId: string)}
+  {#if toolId === 'review' && mayAskOrderAssistant}
+    <div class="detail-assistant-tools">
+      <p>{$t('orderAssistant.savedOnly')}</p>
+      <button type="button" class="entry-link" onclick={() => goto(base + workspaceUrl(orderId,'chat'))}>
+        {$t('orderGuide.askButton')}
+      </button>
+      {#if ['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status))}
+        <button type="button" class="entry-link" onclick={() => goto(base + workspaceUrl(orderId,'intake'))}>
+          {$t('orderAssistant.openFileAnalysis')}
+        </button>
+      {/if}
+    </div>
+  {/if}
+{/snippet}
+
 <svelte:head>
     <title>{$t("orderDetail.title_prefix", { default: "Order" })} {orderId} — OMS</title>
 </svelte:head>
@@ -404,12 +434,6 @@
               class="entry-link featured">
               {$t('orderWorkspace.continue')}
             </button>
-            {#if mayAskOrderAssistant}
-              <button onclick={() => goto(base + workspaceUrl(orderId,'chat'))}
-                class="entry-link" aria-label={$t('orderGuide.askButton')}>
-                ✦ {$t('orderGuide.askButton')}
-              </button>
-            {/if}
             <button onclick={() => goto(base + workspaceUrl(orderId,'details'))} class="entry-link">
               {$t('orderWorkspace.sections.details')}
             </button>
@@ -419,10 +443,6 @@
             </button>
             {#if !!$currentUser && (can($currentUser,'editOrder') ||
               (order.created_by === $currentUser.id && ['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status))))}
-              <button onclick={() => goto(base + workspaceUrl(orderId,'intake'))} class="entry-link"
-                disabled={!['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status))}>
-                {$t('orderWorkspace.sections.intake')}
-              </button>
               <button onclick={() => goto(base + workspaceUrl(orderId,'readiness'))} class="entry-link">
                 {$t('orderWorkspace.sections.readiness')}
               </button>
@@ -618,6 +638,8 @@
 {/if}
 
 <style>
+  .detail-assistant-tools { display:flex;flex-direction:column;gap:12px;min-width:0; }
+  .detail-assistant-tools p { margin:0;font-size:13px;line-height:1.5;color:var(--ink-secondary); }
     .station-control{display:grid;gap:6px;font-size:11px;margin-top:10px}
     .stage-hint{font-size:11px;color:var(--text-muted);margin:8px 0 0}
     .stage-progress-context{font-size:11px;color:var(--text-muted)}

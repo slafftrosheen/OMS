@@ -19,6 +19,12 @@ For the current `main` release, use the [OMS-R26 deployment readiness runbook](d
 
 Compare the compiled server's `GET /api/build-info` revision with the intended checkout when diagnosing a deployment. A matching fingerprint does not prove that database prerequisites are installed; confirm those separately on staging before release.
 
+## Shared assistant and material catalog
+
+A single floating **Assistant** button is available on signed-in screens. The drawer combines current-screen help with existing order discussion, file intake, readiness and canvas tools. Context is collected when a question is sent; available lookups follow server-side role and station permissions. Provider configuration stays in R&D Settings. See [the shared assistant contract](docs/operations/unified-assistant.md) for lifecycle, extension points and verification.
+
+Order material badges retain the selected product/model, and FACE, BACK, SIDES and FRAME use the same thickness selector. The [branded Lemona catalog](supabase/catalogs/README.md) contains verified cables, MEAN WELL power supplies, LED products, WAGO connectors, filaments and resins. Its SQL migration is applied separately from the application build and preserves existing inventory and business fields.
+
 ## Toolkit — idea and project canvas
 
 Toolkit is the shared visual thinking workspace at `/toolkit/canvas`. It features editable idea/research/decision/task/note cards, saved projects and starter layouts, connections, a contextual Brainstorm assistant that proposes cards for **explicit approval**, and secondary engineering tools. Old `/ai-lab` bookmarks redirect. Shared canvas edit rights belong to **RD, Boss and HeadOfProduction**; per-user brainstorming and conversations remain private. Toolkit now also supports authenticated team-shared PNG/JPEG/WebP/GIF/PDF imports, PDF page previews, drawing/annotation controls, and material surface-study cards; see [visual asset testing](docs/operations/OMS-R06-toolkit-visual-assets.md). Shared saves use revision checks, with a recovery-copy option on conflict. See [R07 upload repair, Canvas skills and deployment checks](docs/operations/OMS-R07-toolkit-stability-and-skills.md) and [R06 sharing/stability runbook](docs/operations/OMS-R06-toolkit-sharing-stability.md) and [initial Toolkit design notes](docs/operations/OMS-R05-toolkit-canvas.md).

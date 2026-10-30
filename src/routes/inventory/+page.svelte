@@ -6,6 +6,7 @@
   import {currentUser} from '$lib/auth/authState.svelte';
   import { t } from 'svelte-i18n';
   import { onMount } from 'svelte';
+  import { getAssistantContext } from '$lib/assistant/context';
   import { toCSV, downloadCSV } from '$lib/inventory/export';
   import Tabs from '$lib/ui/Tabs.svelte';
   import ItemModal from '$lib/inventory/ItemModal.svelte';
@@ -23,6 +24,15 @@
   import { emptyConfirm, type ConfirmState } from '$lib/components/ui/confirm-types';
 
   let canManage=$derived(['RD','Boss','HeadOfProduction'].includes($currentUser?.role??''));
+  const assistant = getAssistantContext();
+  onMount(() => assistant.register({
+    id: 'inventory', title: () => $t('assistant.screen.inventory'), tools: () => [],
+    context: () => ({ section: currentTab, search: q, catalogUnavailable: !!inventoryError,
+      visibleMaterials: filtered.filter(item => (item.section || 'materials') === currentTab).slice(0, 15)
+        .map(item => ({ code: item.code, name: item.name_en, category: item.category, unit: item.unit,
+          displayedStock: item.stock, displayedMinimum: item.min_stock })),
+      totalMatches: filtered.length })
+  }));
   let confirmState = $state<ConfirmState>(emptyConfirm());
   function askDelete(it: Material) {
     confirmState = {

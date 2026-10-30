@@ -30,10 +30,13 @@
   import { setPreferencesUser } from '$lib/preferences';
   import { orderState } from '$lib/order/orderState.svelte';
   import { setContext } from 'svelte';
+  import { provideAssistantContext } from '$lib/assistant/context';
+  import AssistantShell from '$lib/assistant/AssistantShell.svelte';
 
   let { children } = $props();
 
   const authStateInstance = authState;
+  const assistant = provideAssistantContext();
   const orderStateInstance = orderState;
   setContext('authState', authStateInstance);
   setContext('orderState', orderStateInstance);
@@ -103,6 +106,7 @@
       const userId = user?.id ?? null;
       void setPreferencesUser(userId);
       if (userId === activeUserId) return;
+      assistant.reset();
       stopChatRealtime();
       resetChatState();
       resetUserDirectory();
@@ -388,6 +392,7 @@
   {#if $currentUser}
     <MobileNav />
     <BottomBar />
+    <AssistantShell controller={assistant} path={page.url.pathname.slice(base.length) || '/'} accountId={$currentUser.id} />
     {#if $isChatOpen}<ChatSidebar />{/if}
   {/if}
 

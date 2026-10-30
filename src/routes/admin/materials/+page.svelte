@@ -3,6 +3,7 @@
   import Check from 'lucide-svelte/icons/check';
   import ChevronDown from 'lucide-svelte/icons/chevron-down';
   import Edit2 from 'lucide-svelte/icons/edit-2';
+  import ExternalLink from 'lucide-svelte/icons/external-link';
   import Package from 'lucide-svelte/icons/package';
   import Plus from 'lucide-svelte/icons/plus';
   import Search from 'lucide-svelte/icons/search';
@@ -15,6 +16,7 @@
   import Icon from '$lib/ui/Icon.svelte';
   import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
   import { emptyConfirm, type ConfirmState } from '$lib/components/ui/confirm-types';
+  import { getLemonaSourceUrl, mergeCatalogMetadata } from '$lib/materials/catalog-metadata';
 
   let confirmState = $state<ConfirmState>(emptyConfirm());
 
@@ -255,7 +257,7 @@
       nameRu: material.name_ru || '',
       nameLv: material.name_lv || '',
       thicknessOptions: material.thickness_options?.join(', ') || '',
-      hex: material.metadata?.hex || '#FFFFFF',
+      hex: material.metadata?.hex || '',
       brand: material.metadata?.brand || '',
       colorCode: material.metadata?.colorCode || '',
       type: material.metadata?.type || '',
@@ -304,7 +306,7 @@
       nameRu: formData.nameRu || null,
       nameLv: formData.nameLv || null,
       thicknessOptions: thicknessArr,
-      metadata: {
+      metadata: mergeCatalogMetadata(editingMaterial?.metadata, {
         hex: formData.hex || undefined,
         brand: formData.brand || undefined,
         colorCode: formData.colorCode || undefined,
@@ -322,8 +324,12 @@
         weight: formData.weight || undefined,
         packSize: formData.packSize || undefined,
         minOrder: formData.minOrder || undefined
-      }
+      })
     };
+
+    if (editingMaterial && formData.nameEn !== (editingMaterial.name_en || '')) {
+      payload.metadata.short_name = formData.nameEn.trim() || formData.code;
+    }
 
     try {
       const url = modalMode === 'create'
@@ -451,6 +457,7 @@
         </h2>
         <div class="materials-grid">
           {#each items as material}
+            {@const sourceUrl = getLemonaSourceUrl(material.metadata?.source_url)}
             <div class="material-card">
               <div class="material-color" style="background-color: {getColorPreview(material)}"></div>
               <div class="material-info">
@@ -458,6 +465,11 @@
                 <div class="material-code">{material.code}</div>
                 {#if material.metadata?.brand}
                   <div class="material-brand">{material.metadata.brand}</div>
+                {/if}
+                {#if sourceUrl}
+                  <a class="material-source" href={sourceUrl} target="_blank" rel="noopener noreferrer" title={`LEMONA · ${material.code}`}>
+                    LEMONA <ExternalLink size={12} aria-hidden="true" />
+                  </a>
                 {/if}
                 {#if material.thickness_options?.length > 0}
                   <div class="thickness-tags">
@@ -566,7 +578,7 @@
           <div class="form-group">
             <label for="hex">{$t('admin_materials.form.hex_color')}</label>
             <div class="color-input">
-              <input type="color" bind:value={formData.hex} aria-label={$t('admin_materials.form.hex_color')} />
+              <input type="color" value={formData.hex || '#FFFFFF'} oninput={(event) => formData.hex = event.currentTarget.value} aria-label={$t('admin_materials.form.hex_color')} />
               <input type="text" id="hex" bind:value={formData.hex} placeholder="#FFFFFF" />
             </div>
           </div>
@@ -893,6 +905,23 @@
     font-size: 12px;
     color: var(--text-2);
     margin-bottom: 8px;
+  }
+
+  .material-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 24px;
+    margin-bottom: 6px;
+    color: var(--brand);
+    font-size: 12px;
+    text-underline-offset: 3px;
+  }
+
+  .material-source:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
+    border-radius: 2px;
   }
 
   .thickness-tags {

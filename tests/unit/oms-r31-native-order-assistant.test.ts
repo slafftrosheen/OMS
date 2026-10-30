@@ -134,7 +134,9 @@ describe('OMS-R31 restore native forms and wire OpenRouter without duplication',
    const editor=read('src/routes/orders/[id]/edit/+page.svelte');
    const assistant=read('src/lib/order/OrderFlowAssistant.svelte');
    const intake=read('src/routes/api/ai/order-intake/+server.ts');
-   expect(editor).toContain("onclick={()=>openWorkspaceSection('intake')}");
+   expect(editor).toContain("assistant.open(tool)");
+   expect(editor).toContain("content: orderAssistantContent");
+   expect(editor).not.toContain('class="file-assistant-entry"');
    expect(editor).toContain('onOpenIntake={()=>openWorkspaceSection');
    expect(editor).toContain('askWorkflowHelp(');
    expect(assistant).toContain('onOpenIntake?:()=>void');

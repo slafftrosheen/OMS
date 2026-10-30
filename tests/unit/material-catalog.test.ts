@@ -55,6 +55,16 @@ describe('material category browsing', () => {
 });
 
 describe('material catalog request lifecycle', () => {
+  it('distinguishes a missing legacy thickness list from a deliberately empty list', async () => {
+    const loader = createMaterialCatalogLoader(async () => Response.json([
+      { id: 1, code: 'OLD_ALU', category: 'ALU_SHEET', name_en: 'Old aluminium', metadata: {} },
+      { id: 2, code: 'CUSTOM_ALU', category: 'ALU_SHEET', name_en: 'Custom aluminium', metadata: {}, thickness_options: [] }
+    ]));
+    const catalog = await loader.load('/api/materials');
+    expect(catalog[0].thickness_options).toBeUndefined();
+    expect(catalog[1].thickness_options).toEqual([]);
+  });
+
   it('shares one in-flight request and uses the resulting cache for repeated fields', async () => {
     let requests = 0;
     let finish!: (response: Response) => void;

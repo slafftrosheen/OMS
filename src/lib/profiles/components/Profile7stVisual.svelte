@@ -34,8 +34,9 @@
     defaultColor,
     extractShortName,
     getTextColor,
-    getShortName,
+    selectionBadgeLabel,
   } from "$lib/profiles/helpers";
+  import { readLegacyFrameThickness, withFrameThickness } from "$lib/profiles/frame-sizing";
   import {
     AlertCircle,
     Zap,
@@ -84,6 +85,9 @@
       backThicknessOptions?: number[];
       laser?: boolean;
       print3d?: boolean;
+      print3dMaterial?: string;
+      print3dMaterialShort?: string;
+      print3dMaterialCategory?: string;
       notes?: string;
     };
 
@@ -156,6 +160,9 @@
       frameMaterial: string;
       frameMaterialHex?: string;
       frameMaterialShort?: string;
+      frameMaterialCategory?: string;
+      frameThickness?: string;
+      frameThicknessOptions?: number[];
       frameDimensions?: string;
       frameCustom?: string;
       frameWaterholes: boolean;
@@ -172,7 +179,7 @@
   const defaultConfiguration: ProfileConfiguration = {
     profileName: "New Profile",
     signType: "EXTERIOR",
-    CNC_FREZER: { face: "", back: "", laser: false, print3d: false, notes: "" },
+    CNC_FREZER: { face: "", back: "", laser: false, print3d: false, print3dMaterial: "", notes: "" },
     BENDER: { sides: "", depth: 100, notes: "" },
     FRONT: {
       face: false,
@@ -248,6 +255,9 @@
         CNC_FREZER: {
           ...defaultConfiguration.CNC_FREZER,
           ...(currentConfig.CNC_FREZER || {}),
+          // MaterialSelect's bindable value has a string fallback. Legacy
+          // profiles must supply a concrete value before mounting this picker.
+          print3dMaterial: currentConfig.CNC_FREZER?.print3dMaterial ?? "",
           // Hydration only: legacy scalar selections are untouched until an edit.
           faceMaterials: readFaceMaterials(currentConfig.CNC_FREZER),
         },
@@ -282,6 +292,8 @@
         ASSEMBLING: {
           ...defaultConfiguration.ASSEMBLING,
           ...(currentConfig.ASSEMBLING || {}),
+          frameThickness: currentConfig.ASSEMBLING?.frameThickness ??
+            readLegacyFrameThickness(currentConfig.ASSEMBLING?.frameDimensions),
         },
       };
   }
@@ -320,6 +332,7 @@
   const psuCategories = ["PSU_MEANWELL"];
   const wireCategories = ["WIRE", "LED_ACCESSORY"];
   const frameMaterials = ["ALU_PROFILE", "ALU_SHEET"];
+  const print3dMaterials = ["FDM_PLA", "FDM_PETG", "FDM_ABS", "FDM_ASA", "FDM_TPU", "FDM_OTHER", "RESIN_ANYCUBIC", "RESIN_ELEGOO", "RESIN_OTHER"];
 
   let faceEntries = $derived(
     configuration.CNC_FREZER.faceMaterials ?? readFaceMaterials(configuration.CNC_FREZER),
@@ -376,6 +389,38 @@
     emit();
   }
 
+  function selectFrameMaterial(data: ProfileMaterialChange) {
+    if (readonly) return;
+    const entry = applyProfileMaterialSelection({
+      id: "frame", value: configuration.ASSEMBLING.frameMaterial,
+      thickness: configuration.ASSEMBLING.frameThickness,
+      category: configuration.ASSEMBLING.frameMaterialCategory,
+    }, data, "ALU");
+    Object.assign(configuration.ASSEMBLING, {
+      frameMaterial: entry.value, frameMaterialHex: entry.hex, frameMaterialShort: entry.shortName,
+      frameThickness: entry.thickness, frameMaterialCategory: entry.category,
+      frameThicknessOptions: entry.thicknessOptions,
+      frameDimensions: withFrameThickness(configuration.ASSEMBLING.frameDimensions, entry.thickness),
+    });
+    emit();
+  }
+
+  function changeFrameThickness() {
+    configuration.ASSEMBLING.frameDimensions = withFrameThickness(
+      configuration.ASSEMBLING.frameDimensions, configuration.ASSEMBLING.frameThickness,
+    );
+    emit();
+  }
+
+  function changeFrameDimensions(event: Event) {
+    if (readonly) return;
+    const dimensions = (event.currentTarget as HTMLInputElement).value;
+    configuration.ASSEMBLING.frameDimensions = dimensions;
+    const embeddedThickness = readLegacyFrameThickness(dimensions);
+    if (embeddedThickness) configuration.ASSEMBLING.frameThickness = embeddedThickness;
+    emit();
+  }
+
   let emitQueued = false;
   let destroyed = false;
   onDestroy(() => { destroyed = true; });
@@ -404,11 +449,13 @@
   );
 
   let isRoundFrame = $derived(
-    configuration.ASSEMBLING.frameMaterial?.toLowerCase().includes("tube") ||
-      configuration.ASSEMBLING.frameMaterial?.toLowerCase().includes("round") ||
-      configuration.ASSEMBLING.frameMaterial?.toLowerCase().includes(" d") ||
-      configuration.ASSEMBLING.frameMaterial?.startsWith("D") ||
-      configuration.ASSEMBLING.frameMaterialShort?.startsWith("D"),
+    // A tube may be square. Only explicit round/diameter notation earns the
+    // diameter label; a generic tube or 40x40 profile keeps the frame-size label.
+    /\b(?:round|circular)\b|(?:^|[\s_(])(?:D|Ø|⌀)\s*\d/i.test([
+      configuration.ASSEMBLING.frameMaterial,
+      configuration.ASSEMBLING.frameMaterialShort,
+      configuration.ASSEMBLING.frameDimensions,
+    ].filter(Boolean).join(" ")),
   );
 </script>
 
@@ -489,7 +536,7 @@
                 <span class="material-badge-lg"
                   style:background={material.hex || "#87CEEB"}
                   style:color={getTextColor(material.hex || "#87CEEB")}>
-                  {material.shortName || getShortName(material.value, material.category || "ACRYLIC")}{#if material.thickness}/{material.thickness}{/if}
+                  {selectionBadgeLabel(material.value, material.shortName, material.category || "ACRYLIC")}{#if material.thickness}/{material.thickness}{/if}
                 </span>
                 <MaterialThicknessSelect
                   bind:value={material.thickness}
@@ -531,8 +578,7 @@
                 configuration.CNC_FREZER.backHex || "#A0A0A0",
               )}
             >
-              {configuration.CNC_FREZER.backShort ||
-                getShortName(configuration.CNC_FREZER.back, "ALU")}{#if configuration.CNC_FREZER.backThickness}/{configuration.CNC_FREZER.backThickness}{/if}
+              {selectionBadgeLabel(configuration.CNC_FREZER.back, configuration.CNC_FREZER.backShort, configuration.CNC_FREZER.backCategory || "ALU")}{#if configuration.CNC_FREZER.backThickness}/{configuration.CNC_FREZER.backThickness}{/if}
             </span>
             <MaterialThicknessSelect
               bind:value={configuration.CNC_FREZER.backThickness}
@@ -567,6 +613,30 @@
             <Layers size={12} /> 3D
           </label>
         </div>
+
+        {#if configuration.CNC_FREZER.print3d}
+          <fieldset class="field print3d-material">
+            <legend class="field-label">{$t('profiles.materials.print3d', { default: '3D printing material' })}</legend>
+            <MaterialSelect
+              bind:value={configuration.CNC_FREZER.print3dMaterial}
+              categories={print3dMaterials}
+              allowCustom={true}
+              showColor={false}
+              {readonly}
+              onchange={(data) => {
+                configuration.CNC_FREZER.print3dMaterialShort = extractShortName(data, "FDM");
+                configuration.CNC_FREZER.print3dMaterialCategory = data.material?.category || "";
+                emit();
+              }}
+            />
+            {#if configuration.CNC_FREZER.print3dMaterial}
+              <span class="material-badge-lg print3d-badge">
+                <Layers size={16} />
+                {selectionBadgeLabel(configuration.CNC_FREZER.print3dMaterial, configuration.CNC_FREZER.print3dMaterialShort, "FDM")}
+              </span>
+            {/if}
+          </fieldset>
+        {/if}
 
         <div
           class="notes-field"
@@ -612,8 +682,7 @@
                 configuration.BENDER.sidesHex || "#A0A0A0",
               )}
             >
-              {configuration.BENDER.sidesShort ||
-                getShortName(configuration.BENDER.sides, "ALU")}{#if configuration.BENDER.sidesThickness}/{configuration.BENDER.sidesThickness}{/if}
+              {selectionBadgeLabel(configuration.BENDER.sides, configuration.BENDER.sidesShort, configuration.BENDER.sidesCategory || "ALU")}{#if configuration.BENDER.sidesThickness}/{configuration.BENDER.sidesThickness}{/if}
             </span>
             <MaterialThicknessSelect
               bind:value={configuration.BENDER.sidesThickness}
@@ -704,11 +773,7 @@
                       configuration.FRONT[`${part}FilmHex`] || "#f0f0f0",
                     )}
                   >
-                    {configuration.FRONT[`${part}FilmShort`] ||
-                      getShortName(
-                        configuration.FRONT[`${part}Film`],
-                        "ORACAL",
-                      )}
+                    {selectionBadgeLabel(configuration.FRONT[`${part}Film`], configuration.FRONT[`${part}FilmShort`], "ORACAL")}
                   </span>
                 {/if}
               </div>
@@ -889,8 +954,7 @@
                   )}
                 >
                   <Zap size={16} />
-                  {configuration.ASSEMBLING.ledModuleShort ||
-                    getShortName(configuration.ASSEMBLING.ledModule, "LED")}
+                  {selectionBadgeLabel(configuration.ASSEMBLING.ledModule, configuration.ASSEMBLING.ledModuleShort, "LED")}
                 </span>
               {/if}
             {:else}
@@ -965,8 +1029,7 @@
                   style:color="var(--brand)"
                 >
                   <Power size={16} />
-                  {configuration.ASSEMBLING.psuModelShort ||
-                    getShortName(configuration.ASSEMBLING.psuModel, "PSU")}
+                  {selectionBadgeLabel(configuration.ASSEMBLING.psuModel, configuration.ASSEMBLING.psuModelShort, "PSU")}
                 </span>
               {/if}
               <input
@@ -1032,9 +1095,7 @@
                 >
                   <Cable size={16} />
                   {configuration.ASSEMBLING.cablesLength || ""}
-                  {configuration.ASSEMBLING.cableTypeShort
-                    ? ` ${configuration.ASSEMBLING.cableTypeShort}`
-                    : ""}
+                  {selectionBadgeLabel(configuration.ASSEMBLING.cableType, configuration.ASSEMBLING.cableTypeShort, "WIRE")}
                 </span>
               {/if}
               <label
@@ -1080,12 +1141,7 @@
                   placeholder="Select..."
                   allowCustom={true}
                   {readonly}
-                  onchange={(data) => {
-                    configuration.ASSEMBLING.frameMaterialHex = data.hex;
-                    configuration.ASSEMBLING.frameMaterialShort =
-                      extractShortName(data, "ALU");
-                    emit();
-                  }}
+                  onchange={selectFrameMaterial}
                 />
               </div>
               {#if configuration.ASSEMBLING.frameMaterial}
@@ -1098,17 +1154,26 @@
                   )}
                 >
                   <Square size={16} />
-                  {configuration.ASSEMBLING.frameMaterialShort || "ALU"}{#if configuration.ASSEMBLING.frameDimensions}/{configuration.ASSEMBLING.frameDimensions}{/if}
+                  {selectionBadgeLabel(configuration.ASSEMBLING.frameMaterial, configuration.ASSEMBLING.frameMaterialShort, configuration.ASSEMBLING.frameMaterialCategory || "ALU")}{#if configuration.ASSEMBLING.frameDimensions}/{configuration.ASSEMBLING.frameDimensions}{/if}{#if configuration.ASSEMBLING.frameThickness && !readLegacyFrameThickness(configuration.ASSEMBLING.frameDimensions)}/{configuration.ASSEMBLING.frameThickness}{/if}
                 </span>
+                <MaterialThicknessSelect
+                  bind:value={configuration.ASSEMBLING.frameThickness}
+                  materialType={configuration.ASSEMBLING.frameMaterialCategory || configuration.ASSEMBLING.frameMaterial}
+                  thicknessOptions={configuration.ASSEMBLING.frameThicknessOptions}
+                  autoSelectLowest={false}
+                  label={`FRAME · ${$t('materialThickness.select')}`}
+                  {readonly}
+                  onchange={changeFrameThickness}
+                />
                 <div class="field">
                   <label for={`${formId}-frame-size`}>{isRoundFrame ? "DIAMETER (mm)" : "FRAME SIZE"}</label>
                   <input
                     id={`${formId}-frame-size`}
                     type="text"
-                    bind:value={configuration.ASSEMBLING.frameDimensions}
+                    value={configuration.ASSEMBLING.frameDimensions}
                     placeholder={isRoundFrame ? "e.g. D20" : "e.g. 40x40"}
                     disabled={readonly}
-                    oninput={emit}
+                    oninput={changeFrameDimensions}
                     class="custom-input"
                   />
                 </div>
@@ -1600,17 +1665,20 @@
     border-radius: var(--radius-md, 6px);
     font-weight: 800;
     font-size: 14px;
-    text-transform: uppercase;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.4;
     border: 2px solid color-mix(in oklab, var(--bg-0) 10%, transparent);
-    height: 48px;
+    min-height: 48px;
     flex: 1;
     min-width: 0;
     box-sizing: border-box;
     text-align: center;
   }
+
+  .material-badge-lg :global(svg) { flex-shrink: 0; }
+
+  .print3d-badge { background: var(--bg-3, var(--bg-2)); color: var(--text); }
 
   .no-badge-lg {
     display: flex;

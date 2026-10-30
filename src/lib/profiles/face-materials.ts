@@ -77,8 +77,11 @@ export interface ProfileMaterialChange {
   hex: string;
   shortName?: string;
   material: {
+    code?: string;
+    name_en?: string;
     category?: string;
     thickness_options?: number[];
+    metadata?: Record<string, unknown>;
   } | null;
 }
 
@@ -88,14 +91,17 @@ export function applyProfileMaterialSelection(
   fallbackCategory = 'ACRYLIC'
 ): FaceMaterialSelection {
   const options = thicknesses(selection.material?.thickness_options);
+  const missingCatalogOptions = !!selection.material && !Array.isArray(selection.material.thickness_options);
   const normalized = normalizeThicknessValue(previous.thickness ?? '');
   const retained = options.some(value => `${value}mm` === normalized);
   const thickness = !selection.value ? '' : options.length
     ? retained ? previous.thickness : `${options[0]}mm`
-    : !selection.material && !previous.category ? previous.thickness ?? '' : '';
+    : (!selection.material && !previous.category) ||
+      (missingCatalogOptions && previous.category === selection.material?.category)
+      ? previous.thickness ?? '' : '';
   return {
     ...previous, value: selection.value, thickness,
     hex: selection.hex, shortName: selection.value ? extractShortName(selection, fallbackCategory) : '',
-    category: selection.material?.category ?? '', thicknessOptions: options
+    category: selection.material?.category ?? '', thicknessOptions: missingCatalogOptions ? undefined : options
   };
 }

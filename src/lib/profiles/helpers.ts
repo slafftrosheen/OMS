@@ -18,13 +18,60 @@ export const defaultColor: ColorValue = { system: '', code: '', hex: '' };
 
 // ─── extractShortName ───────────────────────────────────────────────────────
 
-export function extractShortName(data: any, fallbackCategory: string): string {
-    return (
-        data.shortName ||
-        data.material?.metadata?.short_name ||
-        data.material?.metadata?.colorCode ||
-        getShortName(data.material?.code || data.value, fallbackCategory)
-    );
+interface MaterialDisplaySource {
+    code?: string;
+    name_en?: string;
+    category?: string;
+    metadata?: Record<string, unknown>;
+}
+
+const nonempty = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+
+/** Only color catalogs have a meaningful compact identifier. Parts need their model. */
+function usesColorCode(category: string): boolean {
+    return /ACRYLIC|VINYL|ORACAL|PAINT|RAL|PANTONE/.test(category.toUpperCase());
+}
+
+function usefulShortName(value: string): boolean {
+    return !!value && !/^(LED|PSU|CABLE|WIRE|ALU|ALUMINI?UM|PVC|FDM|PLA|PETG|ABS|ASA|TPU|RESIN|FILAMENT|PLEX)$/i.test(value);
+}
+
+/** One display contract for picker, emitted selection and persisted profile badges. */
+export function materialDisplayName(material: MaterialDisplaySource | null | undefined, fallback = ''): string {
+    const category = material?.category || '';
+    const name = nonempty(material?.name_en);
+    const code = nonempty(material?.code);
+    const short = nonempty(material?.metadata?.short_name);
+    const colorCode = nonempty(material?.metadata?.colorCode);
+    if (usesColorCode(category)) {
+        if (usefulShortName(short)) return short;
+        if (colorCode) return colorCode;
+        return getShortName(code || name || fallback, category);
+    }
+    // Never reduce a specific LED strip, PSU or cable to its family/wattage.
+    if (usefulShortName(name)) return name;
+    if (usefulShortName(short)) return short;
+    const model = nonempty(material?.metadata?.model) || nonempty(material?.metadata?.manufacturer_part_number);
+    if (model) return [nonempty(material?.metadata?.brand), model].filter(Boolean).join(' ');
+    return code || name || fallback;
+}
+
+/** Old generic saved abbreviations are display artifacts, not material identity. */
+export function selectionBadgeLabel(value: string, shortName?: string, category = ''): string {
+    if (!value) return '';
+    if (!usefulShortName(value) && usefulShortName(nonempty(shortName))) return nonempty(shortName);
+    if (usesColorCode(category) && usefulShortName(nonempty(shortName))) return nonempty(shortName);
+    return getShortName(value, category);
+}
+
+export function extractShortName(data: { value?: string; shortName?: string; material?: MaterialDisplaySource | null }, fallbackCategory: string): string {
+    if (data.material) {
+        const category = data.material.category || fallbackCategory;
+        if (usesColorCode(category) && usefulShortName(nonempty(data.shortName))) return nonempty(data.shortName);
+        return materialDisplayName({ ...data.material, category }, data.value);
+    }
+    // Custom values are never abbreviated, including custom acrylic and film.
+    return data.shortName || data.value || '';
 }
 
 // ─── getTextColor ───────────────────────────────────────────────────────────
@@ -46,11 +93,15 @@ export function getTextColor(hex: string): string {
 }
 
 // ─── getShortName ───────────────────────────────────────────────────────────
-// Category-aware short-name extractor.  Each branch keeps the original
-// per-material parsing logic intact so behaviour is unchanged.
+// Color catalogs keep their familiar swatch codes. Other families retain the
+// complete product name/code so variants can be distinguished during assembly.
 
 export function getShortName(value: string, category?: string): string {
     if (!value) return '';
+
+    // Display the complete part identity. Matching the catalog code first used
+    // to collapse every unrecognised LED, PSU and cable to the same label.
+    if (category && !usesColorCode(category)) return value;
 
     // Oracal / Vinyl: full code like 8500_064
     if (
@@ -97,29 +148,6 @@ export function getShortName(value: string, category?: string): string {
         return 'PLEX';
     }
 
-    // ALU: thickness or profile dimensions
-    if (category?.includes('ALU') || value.toLowerCase().includes('alu')) {
-        const thicknessMatch = value.match(/([\d.,]+)\s*mm/i);
-        if (thicknessMatch) return `ALU ${thicknessMatch[1].replace(',', '.')}`;
-        const profileMatch = value.match(/(\d+x\d+)/i);
-        if (profileMatch) return `ALU ${profileMatch[1]}`;
-        const codeMatch = value.match(/ALU[_-]?(?:MILL|BRUSH|ANOD)?[_-]?(\d)[_-]?(\d)/i);
-        if (codeMatch) return `ALU ${codeMatch[1]}.${codeMatch[2]}`;
-        return 'ALU';
-    }
-
-    // PVC / Forex
-    if (
-        category?.includes('PVC') ||
-        value.toLowerCase().includes('pvc') ||
-        value.toLowerCase().includes('forex')
-    ) {
-        const thicknessMatch = value.match(/(\d+)\s*mm/i);
-        if (thicknessMatch) return `PVC ${thicknessMatch[1]}`;
-        if (value.toLowerCase().includes('forex')) return 'FOREX';
-        return 'PVC';
-    }
-
     // RAL paint
     if (category?.includes('RAL') || value.toLowerCase().includes('ral')) {
         const ralMatch = value.match(/\b(\d{4})\b/);
@@ -132,51 +160,6 @@ export function getShortName(value: string, category?: string): string {
         if (pantoneMatch) return pantoneMatch[1].trim();
     }
 
-    // LED modules: Brand + colour temperature
-    if (category?.includes('LED')) {
-        const parts: string[] = [];
-        const brandMatch = value.match(/\b(BaltLed|Sloan|Samsung|Nichia|Osram|Cree|LemLux|LG|Seoul)\b/i);
-        if (brandMatch) parts.push(brandMatch[1]);
-        const tempMatch = value.match(/(\d{4})\s*[kK]/);
-        if (tempMatch) parts.push(`${tempMatch[1]}K`);
-        const colorMatch = value.match(/\b(warm|cold|neutral|daylight|white|rgb)\b/i);
-        if (colorMatch && parts.length < 2) parts.push(colorMatch[1].toUpperCase());
-        if (parts.length > 0) return parts.join(' ');
-        const wattMatch = value.match(/(\d+\.?\d*)\s*[wW]/);
-        if (wattMatch) return `${wattMatch[1]}W`;
-        return 'LED';
-    }
-
-    // PSU: brand + wattage
-    if (category?.includes('PSU')) {
-        const parts: string[] = [];
-        const brandMatch = value.match(
-            /\b(MeanWell|Mean\s*Well|Philips|Inventronics|Osram|Tridonic)\b/i
-        );
-        if (brandMatch) parts.push(brandMatch[1].replace(/\s+/g, ''));
-        const wattMatch = value.match(/(\d+)\s*[wW]/);
-        if (wattMatch) parts.push(`${wattMatch[1]}W`);
-        if (parts.length > 0) return parts.join(' ');
-        return 'PSU';
-    }
-
-    // Wire / Cable: dimensions + colour
-    if (category?.includes('WIRE') || category?.includes('CABLE')) {
-        const parts: string[] = [];
-        const dimsMatch = value.match(/(\d+x[\d.,]+)/i);
-        if (dimsMatch) parts.push(dimsMatch[1]);
-        const colorMatch = value.match(/\b(black|white|red|blue|green|grey|gray)\b/i);
-        if (colorMatch) parts.push(colorMatch[1].toUpperCase());
-        if (parts.length > 0) return parts.join(' ');
-        return 'CABLE';
-    }
-
-    // Default fallback
-    const codePattern = value.match(/\b([A-Z0-9]{3,8})\b/i);
-    if (codePattern && !/the|and|for|with|board|sheet|foam/i.test(codePattern[1])) {
-        return codePattern[1].toUpperCase();
-    }
-    const words = value.split(/[\s_-]+/).filter((w) => w.length > 1 && !/the|and|for|with/i.test(w));
-    if (words.length > 0) return words[0].substring(0, 8).toUpperCase();
-    return value.substring(0, 8).toUpperCase();
+    // Unknown/custom catalog values retain their identity too.
+    return value;
 }

@@ -6,7 +6,9 @@
    * top-right = primary action buttons (Save Draft / Confirm / Rework).
    * The tldraw canvas fills the centre.
    */
-  import { onMount, untrack, tick } from 'svelte';
+  import { onDestroy, untrack, tick } from 'svelte';
+  import { getAssistantContext } from '$lib/assistant/context';
+  import { summarizeNativeProfileConfiguration } from '$lib/order/native-profile-context';
   import {fetchOrderFilesCount} from '$lib/order/order-files-client';
   import { goto, pushState, beforeNavigate } from '$app/navigation';
   import { page } from '$app/state';
@@ -28,11 +30,20 @@
     WORKSPACE_GROUPS,sectionFromQuery,workspaceGroup,sectionsForGroup,
     type WorkspaceSection
   } from '$lib/order/workspace-navigation';
-import { notifications } from '$lib/notify/store';
 import { can, normaliseStatus, ORDER_STATUS_LABELS } from '$lib/auth/permission-utils';
 import type { OrderStatus } from '$lib/auth/permission-utils';
 
   let { data } = $props();
+  const assistant = getAssistantContext();
+  let routeController = new AbortController();
+  let routeDisposed = false;
+  onDestroy(() => { routeDisposed = true; routeController.abort(); });
+  const assistantSections: Partial<Record<WorkspaceSection, string>> = {
+    chat: 'discuss', intake: 'intake', readiness: 'readiness'
+  };
+  const visibleWorkspaceGroups = WORKSPACE_GROUPS.map(group => ({
+    ...group, sections: (group.sections as readonly WorkspaceSection[]).filter(section => !assistantSections[section])
+  })).filter(group => group.sections.length > 0);
 
   // ── Order state ─────────────────────────────────────────────────────────────
   let orderId: string | null = $state(null);
@@ -174,6 +185,11 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let pendingReviewCount = $derived(changeRequests.filter(
     cr=>cr.status==='pending'||cr.status==='open').length);
   function openWorkspaceSection(section:WorkspaceSection) {
+    const tool = assistantSections[section];
+    if (tool) {
+      if (canAskOrderAssistant) assistant.open(tool);
+      return;
+    }
     rightTab=section;
     focusPanel=section!=='layers';
     if(typeof window!=='undefined'){
@@ -210,6 +226,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     const linked=sectionFromQuery(page.url.searchParams.get('section'));
     // Depend only on the URL, not on the local selection being changed.
     untrack(() => {
+      if (assistantSections[linked]) {
+        if (orderId && canAskOrderAssistant) assistant.open(assistantSections[linked]);
+        return;
+      }
       if(rightTab!==linked){
         rightTab=linked;
         focusPanel=linked!=='layers';
@@ -254,6 +274,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     closeNativeProfile();
   }
   async function navigateWorkflowHelp(target:WorkspaceSection,step:GuideStepId){
+    if (!assistantSections[target]) assistant.close();
     openWorkspaceSection(target);
     if(step==='profiles'){
       await tick();
@@ -305,13 +326,13 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     if(typeof patch.isRd==='boolean') isRd=patch.isRd;
     if(typeof patch.rdNotes==='string') rdNotes=patch.rdNotes;
     // These are order-form fields, not Canvas edits. formFingerprint tracks them.
-    notifySuccess('Approved fields applied locally. Review them and click Save Draft.');
+    notifySuccess($t('orderIntake.applied'));
+    assistant.close();
     openWorkspaceSection('details');
   }
   let activeTool = $state('select');
   let aiPrompt = $state('');
   let useSelectionCtx = $state(false);
-  let showCanvasAi = $state(false);
   let aiRunning = $state(false);
   let aiResponse = $state('');
 
@@ -332,6 +353,34 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     fileCount:filesCountError?null:attachedFilesCount,
     dirty:hasUnsavedChanges,
     canEdit:canAskOrderAssistant
+  });
+
+
+  $effect(() => {
+    const id = data.id;
+    return untrack(() => assistant.register({
+      id: `order:${id}`,
+      title: () => poNumber || title || clientName || $t('orderAssistant.title'),
+      tools: () => canAskOrderAssistant ? [
+        { id: 'discuss', label: $t('orderAssistant.title') },
+        ...(canEdit ? [{ id: 'intake', label: $t('orderAssistant.openFileAnalysis') }] : []),
+        { id: 'readiness', label: $t('productionReadiness.title') },
+        ...(canEdit ? [{ id: 'canvas', label: $t('orderAssistant.canvasTools') }] : [])
+      ] : [],
+      context: () => ({
+        screen: 'order-editor', orderId, status, section: rightTab,
+        orderUpdatedAt, unsaved: hasUnsavedChanges,
+        current: { ...intakeCurrent, notes: notes.slice(0, 3000), rdNotes: rdNotes.slice(0, 1500) },
+        profiles: profiles.slice(0, 20).map((profile, index) => ({
+          index, quantity: profile.quantity,
+          nativeProfile: summarizeNativeProfileConfiguration(profile.configuration)
+        })),
+        selectedProfileIndex: intakeProfileIndex,
+        selectedCanvasShape: selectedShape, selectedCanvasCount: multiSelectCount,
+        fileCount: attachedFilesCount, fileContentsProvided: false
+      }),
+      content: orderAssistantContent
+    }));
   });
 
   // ── Canvas seed (reactive, passed into TldrawWrapper) ────────────────────────
@@ -360,28 +409,53 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   );
 
   // ── Load order ────────────────────────────────────────────────────────────────
-  onMount(async () => {
+  $effect(() => {
+    const id = data.id;
+    untrack(() => { void initializeOrder(id); });
+  });
+
+  async function initializeOrder(id: string) {
+    routeController.abort();
+    routeController = new AbortController();
+    unsavedWarningEnabled = false;
+    orderId = null;
+    savedFormFingerprint = null;
+    canvasLoaded = false;
+    canvasDirty = false;
+    canvasSnapshot = null;
+    editorRef = null;
+    assistantPrefill = '';
+    assistantPrefillVersion = 0;
+    intakeProfileIndex = null;
+    intakeFileId = '';
+    aiPrompt = ''; aiResponse = ''; aiRunning = false;
+    attachedFilesCount = null;
+    clearNativeProfileDialog();
     const query=new URLSearchParams(window.location.search);
     const initial=sectionFromQuery(query.get('section'));
-    rightTab=initial;
-    focusPanel=initial!=='layers';
-    await loadOrder();
+    rightTab=assistantSections[initial] ? 'details' : initial;
+    focusPanel=rightTab!=='layers';
+    await loadOrder(id, routeController.signal);
+    if (routeDisposed || id !== data.id || !orderId) return;
     void loadProfileChoices();
     canvasLoaded=true;
     await Promise.all([loadChangeRequests(),refreshFileCount()]);
+    if (routeDisposed || id !== data.id) return;
     unsavedWarningEnabled=true;
+    if (assistantSections[initial]) openWorkspaceSection(initial);
     // Only a fixed, user-requested shortcut. No consent and no model call.
     if(query.get('assist')==='profiles' && canAskOrderAssistant)
       askWorkflowHelp($t('orderAssistant.nativeProfileQuestion'),'profiles');
-  });
+  }
 
-  async function loadOrder() {
+  async function loadOrder(id: string, signal: AbortSignal) {
     loading = true;
     error = '';
     try {
-      const response = await fetch(`/api/draft-orders/${data.id}`);
+      const response = await fetch(`/api/draft-orders/${id}`, {signal});
       if (!response.ok) throw new Error('Order not found');
       const order = await response.json();
+      if (routeDisposed || signal.aborted || id !== data.id) return;
 
       orderId = String(order.id);
       createdBy = String(order.createdBy ?? '');
@@ -405,15 +479,16 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       savedFormFingerprint=formFingerprint();
 
       // Load canvas snapshot if exists
-      const csRes = await fetch(`/api/draft-orders/${data.id}/canvas-state`);
+      const csRes = await fetch(`/api/draft-orders/${id}/canvas-state`, {signal});
       if (csRes.ok) {
         const cs = await csRes.json();
+        if (routeDisposed || signal.aborted || id !== data.id) return;
         canvasSnapshot = cs.snapshot ?? null;
       }
     } catch (err: any) {
-      error = err.message || 'Failed to load order';
+      if (!routeDisposed && !signal.aborted && id === data.id) error = err.message || 'Failed to load order';
     } finally {
-      loading = false;
+      if (!routeDisposed && !signal.aborted && id === data.id) loading = false;
     }
   }
 
@@ -745,6 +820,11 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   }
 
   async function replaceSelectionWithMaker(prompt: string) {
+    if (!canEdit || aiRunning || routeDisposed) return;
+    const requestOrderId = orderId;
+    const requestEditor = editorRef;
+    const signal = AbortSignal.any([routeController.signal, AbortSignal.timeout(120_000)]);
+    const currentRequest = () => !routeDisposed && !signal.aborted && requestOrderId === orderId && requestEditor === editorRef;
     const sel = editorRef?.getSelectedShapes?.() ?? [];
     if (sel.length === 0) {
       notifyError('Select a shape first');
@@ -762,7 +842,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         props: s.props,
       }));
       const res = await fetch('/api/ai/canvas/replace', {
-        method: 'POST',
+        method: 'POST', signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, selection }),
       });
@@ -771,6 +851,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         throw new Error(err.error || 'AI replace failed');
       }
       const { code, params } = await res.json();
+      if (!currentRequest()) return;
       const anchor = sel[0];
       editorRef.batch(() => {
         editorRef.deleteShapes(sel.map((s: any) => s.id));
@@ -784,16 +865,20 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       aiResponse = 'Replaced selection with a Maker.js node.';
       notifySuccess('Sketch replaced');
     } catch (err: any) {
+      if (!currentRequest()) return;
       aiResponse = `Replacement failed: ${err.message ?? 'unknown'}`;
       notifyError(aiResponse);
     } finally {
-      aiRunning = false;
+      if (!routeDisposed && requestOrderId === orderId) aiRunning = false;
     }
   }
 
   async function runAiPrompt() {
-    if (!aiPrompt.trim()) return;
+    if (!canEdit || aiRunning || routeDisposed || !aiPrompt.trim()) return;
     const prompt = aiPrompt;
+    const requestOrderId = orderId;
+    const signal = AbortSignal.any([routeController.signal, AbortSignal.timeout(120_000)]);
+    const currentRequest = () => !routeDisposed && !signal.aborted && requestOrderId === orderId;
 
     // If the user is asking the AI to clean up the selection, route to the
     // shape-replacement endpoint instead of plain chat.
@@ -815,7 +900,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       // Use SSE streaming so tokens render progressively instead of waiting
       // for the full reply. Falls back to plain JSON if the stream errors.
       const res = await fetch('/api/ai/chat?stream=1', {
-        method: 'POST',
+        method: 'POST', signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           stream: true,
@@ -827,6 +912,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         }),
       });
 
+      if (!currentRequest()) return;
       if (!res.ok || !res.body) {
         aiResponse = 'AI service unavailable.';
         return;
@@ -838,6 +924,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
       while (true) {
         const { value, done } = await reader.read();
+        if (!currentRequest()) { await reader.cancel(); return; }
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const events = buffer.split('\n\n');
@@ -857,9 +944,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       }
       if (!aiResponse) aiResponse = '(no response)';
     } catch {
-      aiResponse = 'Failed to reach AI service.';
+      if (!routeDisposed && requestOrderId === orderId) aiResponse = 'Failed to reach AI service.';
     } finally {
-      aiRunning = false;
+      if (!routeDisposed && requestOrderId === orderId) aiRunning = false;
     }
   }
 
@@ -930,6 +1017,90 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     VOIDED:'var(--error,#ff453a)'
   };
 </script>
+
+
+{#snippet orderAssistantContent(toolId: string)}
+  {#if orderId && !loading && canAskOrderAssistant}
+    {#key orderId}
+      <div class="order-assistant-tool" hidden={toolId !== 'discuss'}>
+        <details class="assistant-guide">
+          <summary>{$t('orderGuide.title')}</summary>
+          <OrderWorkflowCoach context={orderGuideContext} section={rightTab}
+            onNavigate={navigateWorkflowHelp} onAsk={askWorkflowHelp} />
+        </details>
+        {#if profiles.length}
+          <div class="assistant-profile-context">
+            <label for="assistant-order-profile">{$t('orderIntake.profileFocus')}</label>
+            <select id="assistant-order-profile"
+              value={intakeProfileIndex === null ? '' : String(intakeProfileIndex)}
+              onchange={(event) => { intakeProfileIndex = event.currentTarget.value === '' ? null : Number(event.currentTarget.value); }}>
+              <option value="">{$t('orderIntake.wholeOrder')}</option>
+              {#each profiles as profile, index}
+                <option value={String(index)}>{index + 1}. {profile.configuration?.profileName || $t('orderWorkspace.editor.profiles',{values:{count:1}})}</option>
+              {/each}
+            </select>
+            <button type="button" class="action-btn" onclick={() => askWorkflowHelp(
+              intakeProfileIndex === null ? $t('orderAssistant.nativeProfileQuestion') :
+                $t('orderAssistant.profileSpecificQuestion',{values:{number:intakeProfileIndex+1}}),'profiles')}>
+              {$t(intakeProfileIndex === null ? 'orderAssistant.askAboutProfiles' : 'orderAssistant.askAboutThisProfile')}
+            </button>
+            {#if canEdit && intakeProfileIndex !== null}
+              <button type="button" class="action-btn" onclick={() => openProfileIntake(intakeProfileIndex!)}>
+                {$t('orderIntake.openForProfile')}
+              </button>
+            {/if}
+          </div>
+        {/if}
+        <OrderFlowAssistant {orderId} {orderUpdatedAt} editable={canEdit}
+          canAsk={canAskOrderAssistant}
+          current={intakeCurrent} dirty={hasUnsavedChanges}
+          suggestedPrompt={assistantPrefill} promptRevision={assistantPrefillVersion}
+          onOpenIntake={()=>openWorkspaceSection('intake')}
+          onOpenProfiles={()=>void navigateWorkflowHelp('details','profiles')}
+          onApply={applyIntakeFields}/>
+      </div>
+      {#if canEdit}
+        <div class="order-assistant-tool" hidden={toolId !== 'intake'}>
+          <OrderIntakeAssistant {orderId} editable={canEdit} current={intakeCurrent}
+            selectedFileId={intakeFileId} selectedProfileIndex={intakeProfileIndex}
+            profileNames={intakeProfileNames} dirty={formDirty}
+            {orderUpdatedAt} onApply={applyIntakeFields} />
+        </div>
+      {/if}
+      <div class="order-assistant-tool" hidden={toolId !== 'readiness'}>
+        <OrderReadinessAssistant {orderId} {orderUpdatedAt}
+          canRun={!!$currentUser && can($currentUser, 'editOrder') ||
+            (canEdit && !!$currentUser && $currentUser.id === createdBy)} />
+      </div>
+      {#if canEdit}
+        <div class="order-assistant-tool" hidden={toolId !== 'canvas'}>
+          <div class="ai-panel">
+            <p class="zone-intro">{$t('orderAssistant.canvasToolWarning')}</p>
+            <label class="ai-ctx-toggle">
+              <input type="checkbox" bind:checked={useSelectionCtx}/>
+              {$t('orderAssistant.selectionContext')}
+            </label>
+            <div class="ai-chat-history" aria-live="polite">
+              {#if aiResponse}<div class="ai-message">
+                <div class="ai-label">{$t('orderAssistant.assistant')}</div>
+                <p>{aiResponse}</p>
+              </div>{/if}
+            </div>
+            <div class="ai-input-row">
+              <label for="order-canvas-assistant-prompt">{$t('orderAssistant.canvasPlaceholder')}</label>
+              <textarea id="order-canvas-assistant-prompt" bind:value={aiPrompt} rows="3"
+                placeholder={$t('orderAssistant.canvasPlaceholder')} disabled={aiRunning}></textarea>
+              <button type="button" class="ai-send-btn" aria-label={$t('toolkit.canvas.ask')}
+                onclick={runAiPrompt} disabled={aiRunning||!aiPrompt.trim()}>
+                <Icon name="send" size="sm"/>
+              </button>
+            </div>
+          </div>
+        </div>
+      {/if}
+    {/key}
+  {/if}
+{/snippet}
 
 <svelte:head>
   <title>{$t('orderWorkspace.editor.canvasTitle')} — {poNumber || 'Order'} | OMS</title>
@@ -1040,7 +1211,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   </header>
 
   <nav class="workspace-flow" aria-label={$t('orderWorkspace.workflowLabel')}>
-    {#each WORKSPACE_GROUPS as group (group.id)}
+    {#each visibleWorkspaceGroups as group (group.id)}
       <button type="button" class:active={activeGroup===group.id}
         aria-current={activeGroup===group.id?'step':undefined}
         onclick={() => openWorkspaceSection(
@@ -1063,11 +1234,6 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       {:else}{$t('orderWorkspace.savedState')}{/if}
     </span>
   </nav>
-  {#if orderId && !loading}
-    <OrderWorkflowCoach context={orderGuideContext} section={rightTab}
-      onNavigate={navigateWorkflowHelp}
-      onAsk={askWorkflowHelp} />
-  {/if}
   <div class="canvas-body" class:workspace-focused={focusPanel}>
     <!-- ── Left Toolbox ────────────────────────────────────────────────── -->
     <aside class="toolbox">
@@ -1173,7 +1339,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         </button>
       </div>
       <nav class="docker-tabs" aria-label={$t('orderWorkspace.sectionsLabel')}>
-        {#each sectionsForGroup(activeGroup) as section (section)}
+        {#each sectionsForGroup(activeGroup).filter(section => !assistantSections[section]) as section (section)}
           <button type="button" class="dtab" class:active={rightTab===section}
             aria-current={rightTab===section?'page':undefined}
             onclick={() => openWorkspaceSection(section)}>
@@ -1212,15 +1378,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             {#if isRd}
               <label>{$t('orderWorkspace.editor.rdNotes')} <textarea bind:value={rdNotes} rows="3" disabled={!canEdit}></textarea></label>
             {/if}
-            <div class="profile-assistant-entry">
-              <h4 id="order-edit-profiles">{$t('orderWorkspace.editor.profiles',{values:{count:profiles.length}})}</h4>
-              {#if canAskOrderAssistant}
-                <button type="button" class="action-btn"
-                  onclick={()=>askWorkflowHelp($t('orderAssistant.nativeProfileQuestion'),'profiles')}>
-                  {$t('orderAssistant.askAboutProfiles')}
-                </button>
-              {/if}
-            </div>
+            <h4 id="order-edit-profiles">{$t('orderWorkspace.editor.profiles',{values:{count:profiles.length}})}</h4>
             {#if profileChoicesError}
               <p class="zone-intro" role="alert">{profileChoicesError}</p>
             {/if}
@@ -1260,18 +1418,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                   onclick={()=>void openNativeProfile(idx)}>
                   {$t(canEdit?'orderAssistant.editNativeProfile':'orderAssistant.viewNativeProfile')}
                 </button>
-                {#if canAskOrderAssistant}
-                  <button type="button" class="action-btn"
-                    onclick={()=>askWorkflowHelp(
-                      $t('orderAssistant.profileSpecificQuestion',{values:{number:idx+1}}),'profiles')}>
-                    ✦ {$t('orderAssistant.askAboutThisProfile')}
-                  </button>
-                {/if}
                 {#if canEdit}
-                  <button type="button" class="action-btn"
-                    onclick={()=>openProfileIntake(idx)}>
-                    ✦ {$t('orderIntake.openForProfile')}
-                  </button>
                   <button type="button" onclick={() => profiles = profiles.filter((_,i)=>i!==idx)}>Remove profile</button>
                 {/if}
               </div>
@@ -1362,79 +1509,12 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
                 (isAdmin && ['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status))}
               onRequestCreated={loadChangeRequests} />
           {/if}
-        {:else if rightTab === 'readiness'}
-          {#if orderId}
-            <OrderReadinessAssistant {orderId}
-              orderUpdatedAt={orderUpdatedAt}
-              canRun={!!$currentUser && can($currentUser, 'editOrder') ||
-                (canEdit && !!$currentUser && $currentUser.id === createdBy)} />
-          {/if}
-        {:else if rightTab === 'intake'}
-          {#if orderId}
-            <OrderIntakeAssistant {orderId} editable={canEdit} current={intakeCurrent}
-              selectedFileId={intakeFileId} selectedProfileIndex={intakeProfileIndex}
-              profileNames={intakeProfileNames} dirty={formDirty}
-              {orderUpdatedAt} onApply={applyIntakeFields} />
-          {/if}
         {:else if rightTab === 'files'}
           {#if orderId}
-            {#if canAskOrderAssistant}
-              <div class="file-assistant-entry">
-                <span>{$t('orderAssistant.fileIntakeHint')}</span>
-                <button type="button" class="action-btn"
-                  onclick={()=>openWorkspaceSection('intake')}>
-                  {$t('orderAssistant.openFileAnalysis')}
-                </button>
-              </div>
-            {/if}
             <OrderFiles {orderId} compact={true} onChanged={refreshFileCount}
               onAnalyze={canEdit ? openAttachmentIntake : undefined} canUpload={canEdit ||
               (isAdmin && ['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status))} />
           {:else}<p class="zone-intro">Loading attachments…</p>{/if}
-        {:else if rightTab === 'chat'}
-          <p class="zone-intro">{$t('orderAssistant.description')}</p>
-        {/if}
-        <!-- Keep the order conversation mounted across workspace tab changes;
-             do not persist it to a shared user chat or database. -->
-        {#if orderId}
-          <div hidden={rightTab!=='chat'}>
-            {#key orderId}
-              <OrderFlowAssistant {orderId} {orderUpdatedAt} editable={canEdit}
-                canAsk={canAskOrderAssistant}
-                current={intakeCurrent} dirty={hasUnsavedChanges}
-                suggestedPrompt={assistantPrefill} promptRevision={assistantPrefillVersion}
-                onOpenIntake={()=>openWorkspaceSection('intake')}
-                onOpenProfiles={()=>void navigateWorkflowHelp('details','profiles')}
-                onApply={applyIntakeFields}/>
-            {/key}
-            <div class="ai-panel">
-              <button type="button" class="action-btn" onclick={()=>showCanvasAi=!showCanvasAi}>
-                {showCanvasAi?$t('orderAssistant.hideCanvasTools'):$t('orderAssistant.canvasTools')}
-              </button>
-              {#if showCanvasAi}
-                <p class="zone-intro">{$t('orderAssistant.canvasToolWarning')}</p>
-                <label class="ai-ctx-toggle">
-                  <input type="checkbox" bind:checked={useSelectionCtx}/>
-                  {$t('orderAssistant.selectionContext')}
-                </label>
-                <div class="ai-chat-history">
-                  {#if aiResponse}<div class="ai-message">
-                    <div class="ai-label">{$t('orderAssistant.assistant')}</div>
-                    <p>{aiResponse}</p>
-                  </div>{/if}
-                </div>
-                <div class="ai-input-row">
-                  <textarea bind:value={aiPrompt} rows="3"
-                    placeholder={$t('orderAssistant.canvasPlaceholder')}
-                    disabled={aiRunning}></textarea>
-                  <button type="button" class="ai-send-btn"
-                    onclick={runAiPrompt} disabled={aiRunning||!aiPrompt.trim()}>
-                    <Icon name="send" size="sm"/>
-                  </button>
-                </div>
-              {/if}
-            </div>
-          </div>
         {/if}
       </div>
     </aside>
@@ -1496,6 +1576,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 {/if}
 
 <style>
+  .order-assistant-tool { min-width: 0; }
+  .order-assistant-tool[hidden] { display: none; }
+  .assistant-guide { margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+  .assistant-guide summary { cursor: pointer; min-height: 36px; font-size: var(--text-sm); color: var(--ink-secondary); }
+  .assistant-profile-context { display: grid; gap: 8px; margin-bottom: 14px; }
+  .assistant-profile-context label { font-size: var(--text-sm); }
+  .assistant-profile-context select { min-width: 0; max-width: 100%; min-height: 40px; color: var(--text); background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; }
+  .assistant-guide summary:focus-visible, .assistant-profile-context select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
   .order-field-panel{display:grid;gap:12px;padding:13px;overflow-y:auto}
   .order-field-panel>label,.order-profile-edit label{display:grid;gap:5px;font-size:12px}
   .order-field-panel input:not([type="checkbox"]),.order-field-panel textarea,
@@ -1968,12 +2057,16 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   }
 
   .ai-input-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 6px;
     align-items: flex-end;
   }
 
+  .ai-input-row label { grid-column: 1 / -1; font-size: var(--text-sm); }
+
   .ai-input-row textarea {
+    min-width: 0;
     flex: 1;
     padding: 8px 10px;
     border: 1px solid var(--border);
@@ -2102,20 +2195,6 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     margin-top: 4px;
   }
 
-  /* R31: small assistant entry points beside the original workflow, not extra form fields. */
-  .profile-assistant-entry,.file-assistant-entry {
-    display:flex;align-items:center;justify-content:space-between;gap:.65rem;
-    flex-wrap:wrap;
-  }
-  .profile-assistant-entry h4 { margin:0; }
-  .file-assistant-entry {
-    margin:0 0 .75rem;padding:.7rem .8rem;border:1px solid var(--border);
-    border-radius:9px;background:var(--bg-1);
-  }
-  .file-assistant-entry span { flex:1;min-width:190px;color:var(--muted);font-size:.78rem; }
-  .profile-assistant-entry .action-btn,.file-assistant-entry .action-btn {
-    min-height:36px;white-space:normal;text-align:center;
-  }
   .native-profile-dialog{
     position:fixed;inset:0;margin:auto;max-width:min(96vw,1380px);
     width:96vw;max-height:92vh;overflow:auto;padding:1rem;

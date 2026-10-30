@@ -3511,7 +3511,16 @@
       "LED_STRIP": "LED strips",
       "PSU_MEANWELL": "Power supplies",
       "WIRE": "Cables and wires",
-      "LED_ACCESSORY": "LED accessories"
+      "LED_ACCESSORY": "LED accessories",
+      "FDM_PLA": "PLA filament",
+      "FDM_PETG": "PETG filament",
+      "FDM_ABS": "ABS filament",
+      "FDM_ASA": "ASA filament",
+      "FDM_TPU": "TPU filament",
+      "FDM_OTHER": "Other filament",
+      "RESIN_ANYCUBIC": "Anycubic resin",
+      "RESIN_ELEGOO": "ELEGOO resin",
+      "RESIN_OTHER": "Other resin"
     }
   },
   "materialThickness": {
@@ -3528,7 +3537,8 @@
     "materials": {
       "addFace": "Add FACE material",
       "removeFace": "Remove FACE material {number}",
-      "faceNumber": "FACE material {number}"
+      "faceNumber": "FACE material {number}",
+      "print3d": "3D printing material"
     }
   },
   "appBadges": {
@@ -3570,5 +3580,91 @@
     "notification_system": "System",
     "unread": "Unread",
     "read": "Read"
+  },
+  "assistant": {
+    "title": "Assistant",
+    "open": "Open assistant",
+    "close": "Close assistant",
+    "screenTools": "Tools for this screen",
+    "screenHelp": "Screen help",
+    "availableTools": "Available lookups and tools",
+    "loadingTools": "Loading available tools…",
+    "toolsUnavailable": "Tools could not be loaded.",
+    "retry": "Retry",
+    "guidanceOnly": "Guidance for this screen is available. No live lookup tools are enabled here.",
+    "contextHint": "Uses the current screen and the selections you share when you send a question.",
+    "contextTooLarge": "This screen contains too much context. Select a smaller part of the work and try again.",
+    "howCanHelp": "What do you need help with?",
+    "question": "Question for the assistant",
+    "placeholder": "Ask about this screen…",
+    "consent": "Send this screen’s context and my question to OpenRouter.",
+    "send": "Send",
+    "stop": "Stop",
+    "sendShortcut": "Ctrl / ⌘ + Enter to send",
+    "thinking": "Working on your question…",
+    "clear": "Clear conversation",
+    "conversation": "Assistant conversation",
+    "you": "You",
+    "usedTools": "Checked",
+    "modelWithoutTools": "This model answered without live tools.",
+    "rateLimited": "The assistant is busy. Wait a moment and try again.",
+    "unavailable": "The assistant is unavailable. Your question is kept here; try again or continue working.",
+    "screen": {
+      "dashboard": "Dashboard",
+      "orders": "Orders",
+      "draft": "Draft order",
+      "inventory": "Inventory",
+      "materials": "Materials catalog",
+      "calendar": "Calendar",
+      "production": "Production",
+      "station": "Production station",
+      "canvas": "Canvas",
+      "toolkit": "Toolkit",
+      "settings": "Settings",
+      "notifications": "Notifications",
+      "general": "Current screen"
+    },
+    "intro": {
+      "dashboard": "Review pending work, find materials or check recorded stock.",
+      "orders": "Find pending orders and understand the next step in the order workflow.",
+      "draft": "Ask about the current draft, selected profile or missing details. Order review tools work from the saved order.",
+      "inventory": "Find a material or check recorded stock before planning a replenishment.",
+      "materials": "Search exact brands, models and specifications in the material catalog.",
+      "calendar": "Ask about planning and pending orders. Confirm dates in the calendar before changing the schedule.",
+      "production": "Review pending work and recorded material availability.",
+      "station": "Ask about the task at this station and the relevant materials or reference tools.",
+      "canvas": "Discuss the active board and selected items. Use canvas tools to review proposed changes.",
+      "toolkit": "Get help with the current workspace and available engineering tools.",
+      "settings": "Find the right setting and understand its effect. Credentials are not shared with the assistant.",
+      "notifications": "Understand notification preferences and where to continue the related work.",
+      "general": "Get guidance for the screen you are working on."
+    },
+    "prompt": {
+      "dashboard": "What should I review first?",
+      "orders": "Which orders are waiting for attention?",
+      "draft": "What details are missing from this draft?",
+      "inventory": "Which materials are below their stock threshold?",
+      "materials": "Help me find a material by brand and model.",
+      "calendar": "Which pending orders should I consider when planning?",
+      "production": "Which pending work needs attention?",
+      "station": "What should I check before starting this task?",
+      "canvas": "Help me review the selected canvas items.",
+      "toolkit": "Which tools fit this task?",
+      "settings": "Where can I change my notification preferences?",
+      "notifications": "How do I adjust the notifications I receive?",
+      "general": "Help me understand this screen.",
+      "next": "What is the next step here?"
+    },
+    "tool": {
+      "catalog_search": "Material catalog",
+      "data_pending_orders": "Pending orders",
+      "data_low_stock": "Low stock",
+      "signage_lumigrid": "LumiGrid planning",
+      "signage_led_strip": "LED strip planning",
+      "signage_led_matrix": "LED matrix planning",
+      "signage_boxletter": "Channel-letter planning",
+      "cnc_feeds_speeds": "CNC feeds and speeds",
+      "paint_match": "Paint matching"
+    }
   }
 }

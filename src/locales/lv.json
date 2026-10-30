@@ -3511,7 +3511,16 @@
       "LED_STRIP": "LED lentes",
       "PSU_MEANWELL": "Barošanas bloki",
       "WIRE": "Kabeļi un vadi",
-      "LED_ACCESSORY": "LED piederumi"
+      "LED_ACCESSORY": "LED piederumi",
+      "FDM_PLA": "PLA filaments",
+      "FDM_PETG": "PETG filaments",
+      "FDM_ABS": "ABS filaments",
+      "FDM_ASA": "ASA filaments",
+      "FDM_TPU": "TPU filaments",
+      "FDM_OTHER": "Citi filamenti",
+      "RESIN_ANYCUBIC": "Anycubic sveķi",
+      "RESIN_ELEGOO": "ELEGOO sveķi",
+      "RESIN_OTHER": "Citi sveķi"
     }
   },
   "materialThickness": {
@@ -3528,7 +3537,8 @@
     "materials": {
       "addFace": "Pievienot priekšpuses materiālu",
       "removeFace": "Noņemt priekšpuses materiālu {number}",
-      "faceNumber": "Priekšpuses materiāls {number}"
+      "faceNumber": "Priekšpuses materiāls {number}",
+      "print3d": "3D drukas materiāls"
     }
   },
   "appBadges": {
@@ -3570,5 +3580,91 @@
     "notification_system": "Sistēma",
     "unread": "Nelasīts",
     "read": "Izlasīts"
+  },
+  "assistant": {
+    "title": "Asistents",
+    "open": "Atvērt asistentu",
+    "close": "Aizvērt asistentu",
+    "screenTools": "Šī ekrāna rīki",
+    "screenHelp": "Palīdzība ekrānā",
+    "availableTools": "Pieejamie rīki un meklēšana",
+    "loadingTools": "Ielādē pieejamos rīkus…",
+    "toolsUnavailable": "Neizdevās ielādēt rīkus.",
+    "retry": "Mēģināt vēlreiz",
+    "guidanceOnly": "Pieejami skaidrojumi par šo ekrānu. Aktuālo datu meklēšana šeit nav ieslēgta.",
+    "contextHint": "Izmanto pašreizējo ekrānu un atlasītos datus jautājuma nosūtīšanas brīdī.",
+    "contextTooLarge": "Šajā ekrānā ir pārāk daudz datu. Atlasiet mazāku darba daļu un mēģiniet vēlreiz.",
+    "howCanHelp": "Ar ko vajadzīga palīdzība?",
+    "question": "Jautājums asistentam",
+    "placeholder": "Jautājiet par šo ekrānu…",
+    "consent": "Nosūtīt ekrāna kontekstu un manu jautājumu OpenRouter.",
+    "send": "Nosūtīt",
+    "stop": "Apturēt",
+    "sendShortcut": "Ctrl / ⌘ + Enter, lai nosūtītu",
+    "thinking": "Sagatavo atbildi uz jautājumu…",
+    "clear": "Notīrīt sarunu",
+    "conversation": "Saruna ar asistentu",
+    "you": "Jūs",
+    "usedTools": "Pārbaudīts",
+    "modelWithoutTools": "Modelis atbildēja bez aktuālo datu rīkiem.",
+    "rateLimited": "Asistents ir aizņemts. Nedaudz uzgaidiet un mēģiniet vēlreiz.",
+    "unavailable": "Asistents nav pieejams. Jautājums ir saglabāts šeit; mēģiniet vēlreiz vai turpiniet darbu.",
+    "screen": {
+      "dashboard": "Pārskats",
+      "orders": "Pasūtījumi",
+      "draft": "Pasūtījuma melnraksts",
+      "inventory": "Noliktava",
+      "materials": "Materiālu katalogs",
+      "calendar": "Kalendārs",
+      "production": "Ražošana",
+      "station": "Ražošanas iecirknis",
+      "canvas": "Darba laukums",
+      "toolkit": "Rīki",
+      "settings": "Iestatījumi",
+      "notifications": "Paziņojumi",
+      "general": "Pašreizējais ekrāns"
+    },
+    "intro": {
+      "dashboard": "Pārskatiet gaidošos darbus, atrodiet materiālus vai pārbaudiet uzskaitītos atlikumus.",
+      "orders": "Atrodiet gaidošos pasūtījumus un noskaidrojiet nākamo darbplūsmas soli.",
+      "draft": "Jautājiet par melnrakstu, atlasīto profilu vai trūkstošajiem datiem. Pasūtījuma pārbaudes rīki izmanto saglabāto versiju.",
+      "inventory": "Atrodiet materiālu vai pārbaudiet uzskaitīto atlikumu pirms papildināšanas plānošanas.",
+      "materials": "Meklējiet precīzus zīmolus, modeļus un specifikācijas materiālu katalogā.",
+      "calendar": "Jautājiet par plānošanu un gaidošajiem pasūtījumiem. Pirms grafika maiņas pārbaudiet datumus kalendārā.",
+      "production": "Pārskatiet gaidošos darbus un uzskaitīto materiālu pieejamību.",
+      "station": "Jautājiet par šī iecirkņa uzdevumu, materiāliem un piemērotajiem aprēķinu rīkiem.",
+      "canvas": "Apspriediet aktīvo darba laukumu un atlasītos elementus. Izmantojiet rīkus, lai pārskatītu piedāvātās izmaiņas.",
+      "toolkit": "Saņemiet palīdzību par pašreizējo darbvietu un inženiertehniskajiem rīkiem.",
+      "settings": "Atrodiet vajadzīgo iestatījumu un izprotiet tā ietekmi. Piekļuves atslēgas un paroles netiek nosūtītas asistentam.",
+      "notifications": "Izprotiet paziņojumu iestatījumus un pārejiet pie saistītā darba.",
+      "general": "Saņemiet norādījumus par ekrānu, kurā strādājat."
+    },
+    "prompt": {
+      "dashboard": "Kas būtu jāpārbauda vispirms?",
+      "orders": "Kuriem pasūtījumiem jāpievērš uzmanība?",
+      "draft": "Kādu datu trūkst šajā melnrakstā?",
+      "inventory": "Kuru materiālu atlikums ir zem noteiktā sliekšņa?",
+      "materials": "Palīdzi atrast materiālu pēc zīmola un modeļa.",
+      "calendar": "Kuri gaidošie pasūtījumi jāņem vērā plānošanā?",
+      "production": "Kuriem gaidošajiem darbiem jāpievērš uzmanība?",
+      "station": "Kas jāpārbauda pirms šī uzdevuma sākšanas?",
+      "canvas": "Palīdzi pārbaudīt atlasītos darba laukuma elementus.",
+      "toolkit": "Kuri rīki ir piemēroti šim uzdevumam?",
+      "settings": "Kur var mainīt manu paziņojumu iestatījumus?",
+      "notifications": "Kā pielāgot saņemtos paziņojumus?",
+      "general": "Palīdzi izprast šo ekrānu.",
+      "next": "Kāds šeit ir nākamais solis?"
+    },
+    "tool": {
+      "catalog_search": "Materiālu katalogs",
+      "data_pending_orders": "Gaidošie pasūtījumi",
+      "data_low_stock": "Zemi atlikumi",
+      "signage_lumigrid": "LumiGrid plānošana",
+      "signage_led_strip": "LED lentes plānošana",
+      "signage_led_matrix": "LED matricas plānošana",
+      "signage_boxletter": "Telpisko burtu plānošana",
+      "cnc_feeds_speeds": "CNC padeve un apgriezieni",
+      "paint_match": "Krāsas piemeklēšana"
+    }
   }
 }

@@ -2,6 +2,7 @@
   import { materials, move, updateMaterial, removeMaterial, loadMaterialById, type Material } from '$lib/inventory/store';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { onMount,onDestroy } from 'svelte';
+  import { getAssistantContext } from '$lib/assistant/context';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
@@ -20,6 +21,15 @@
 
   // Get id from URL params via page store
   let materialId = $derived(page.params.id);
+  const assistant = getAssistantContext();
+  onMount(() => assistant.register({
+    id: 'inventory-detail', title: () => material?.name_en || material?.code || $t('assistant.screen.inventory'),
+    tools: () => [], context: () => ({ materialId, editing: editMode, loading: detailLoading, unavailable: detailUnavailable,
+      material: material?.id === materialId ? { code: material.code, name: material.name_en, category: material.category,
+        unit: material.unit, displayedStock: material.stock, minimum: material.min_stock, thicknessOptions: material.thickness_options } : null,
+      unsaved: editMode ? { code: editedMaterial.code, name: editedMaterial.name_en, category: editedMaterial.category,
+        minimum: editedMaterial.min_stock, location: editedMaterial.location } : null })
+  }));
 
   let material: Material | undefined = $state(undefined);
   let editMode = $state(false);

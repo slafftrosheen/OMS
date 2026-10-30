@@ -80,6 +80,8 @@ describe('Telegram authoritative runtime generations', () => {
 
   it('fences rotation during slow inference and delivers the prepared answer with the new runtime', async () => {
     const initial = settings(); const config = runtime(initial); const { db, state } = database(initial);
+    // Inference requires the account's explicit consent as well as the company switch.
+    state.payload.personalAiAllowed = true;
     let inference = 0; const sends: string[] = [];
     const complete: any = async () => { inference++; state.settings.botToken = '123456:ZYXWVUTSRQPONMLKJIHGFEDCBA'; return 'One order is due today.'; };
     const fetcher: typeof fetch = async input => { sends.push(String(input)); return Response.json({ ok: true, result: { message_id: 1 } }); };

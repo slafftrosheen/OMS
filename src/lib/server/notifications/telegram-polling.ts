@@ -151,7 +151,7 @@ export async function runTelegramPollingCycle(config: TelegramConfig, db: Telegr
     if (!heartbeat) heartbeat = renew().catch(() => {}).finally(() => { heartbeat = null; });
   }, options.heartbeatMs ?? 5000);
   timer.unref?.();
-  const fetcher: typeof fetch = (input, init = {}) => (options.fetcher ?? fetch)(input, {
+  const fetcher: typeof fetch = (input, init: RequestInit = {}) => (options.fetcher ?? fetch)(input, {
     ...init, signal: init.signal ? AbortSignal.any([signal, init.signal]) : signal
   });
   try {
