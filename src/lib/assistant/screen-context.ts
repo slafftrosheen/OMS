@@ -1,8 +1,10 @@
-export type AssistantScreen = 'dashboard' | 'orders' | 'draft' | 'inventory' | 'materials' | 'calendar' | 'production' | 'station' | 'canvas' | 'toolkit' | 'settings' | 'notifications' | 'general';
+export type AssistantScreen = 'dashboard' | 'cabinet' | 'chat' | 'orders' | 'draft' | 'inventory' | 'materials' | 'calendar' | 'production' | 'station' | 'canvas' | 'toolkit' | 'settings' | 'notifications' | 'general';
 
 export function screenFromPath(path: string): AssistantScreen {
   const clean = path.split(/[?#]/)[0].replace(/\/+$/, '') || '/';
   if (clean === '/') return 'dashboard';
+  if (/^\/cabinet(?:\/|$)/.test(clean)) return 'cabinet';
+  if (/^\/chat(?:\/|$)/.test(clean)) return 'chat';
   if (clean === '/orders/new' || /^\/orders\/[^/]+\/edit$/.test(clean)) return 'draft';
   if (/^\/orders(?:\/|$)/.test(clean)) return 'orders';
   if (/^\/admin\/materials(?:\/|$)/.test(clean) || clean === '/inventory/catalog') return 'materials';

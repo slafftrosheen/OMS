@@ -3,6 +3,8 @@
     import { tick, untrack } from 'svelte';
     import { locale, t } from 'svelte-i18n';
     import Icon from '$lib/ui/Icon.svelte';
+    import ChatAttachments from '$lib/chat/ChatAttachments.svelte';
+    import type { Attachment } from '$lib/chat/types';
 
     interface MessageType {
         id: string;
@@ -13,6 +15,7 @@
         edited?: boolean;
         replyTo?: string;
         attachments?: string[];
+        voiceAttachments?: Attachment[];
     }
 
     let {
@@ -20,13 +23,15 @@
         isOwn = false,
         onreply,
         ondelete,
-        onedit
+        onedit,
+        contextKey = ''
     }: {
         message: MessageType;
         isOwn?: boolean;
         onreply?: (msg: MessageType) => void;
         ondelete?: (id: string) => void;
         onedit?: (data: { id: string; message: string }) => void | boolean | Promise<void | boolean>;
+        contextKey?: string;
     } = $props();
 
     let editingId = $state<string | null>(null);
@@ -117,6 +122,7 @@
 
 <div
     class="chat-message"
+    data-chat-message-id={message.id}
     class:own={isOwn}
 >
     {#if !isOwn}
@@ -160,6 +166,8 @@
                         {/each}
                     </div>
                 {/if}
+
+                <ChatAttachments attachments={message.voiceAttachments} {contextKey} />
 
                 {#if message.edited}
                     <span class="edited-indicator">({$t('chat.composer.edited')})</span>
@@ -219,6 +227,7 @@
 
     .message-content {
         display: flex;
+        min-width: 0;
         flex-direction: column;
         gap: 0.25rem;
         max-width: 70%;
@@ -248,6 +257,8 @@
     }
 
     .message-bubble {
+        min-width: 0;
+        max-width: 100%;
         background: var(--color-gray-100, var(--bg-2));
         padding: 0.75rem 1rem;
         border-radius: 1rem;

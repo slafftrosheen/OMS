@@ -8,7 +8,9 @@ export interface MaterialSpecificationSource {
 }
 
 export const MATERIAL_SPECIFICATION_LABELS = {
+  series: 'Series',
   voltage: 'Voltage',
+  ratedVoltage: 'Voltage rating',
   power: 'Power',
   powerPerMetre: 'Power per metre',
   maxPowerPerMetre: 'Maximum power per metre',
@@ -23,6 +25,9 @@ export const MATERIAL_SPECIFICATION_LABELS = {
   connections: 'Connections',
   material: 'Material',
   diameter: 'Diameter',
+  outerDiameter: 'Outer cable diameter',
+  cableType: 'Cable type',
+  cableApplication: 'Cable application',
   bodyLength: 'Body length',
   package: 'Package contents',
   unit: 'Stock unit'
@@ -63,7 +68,14 @@ export function getMaterialSpecificationFacts(
   const facts: MaterialSpecificationFact[] = [];
   const add = (key: MaterialSpecificationKey, value: string) => { if (value) facts.push({ key, value }); };
 
-  add('voltage', quantity(metadata.voltage_v, 'V') || text(metadata.voltage));
+  add('series', text(metadata.series));
+  const ratedVoltage = text(metadata.rated_voltage) || quantity(metadata.rated_voltage_v, 'V');
+  const voltage = quantity(metadata.voltage_v, 'V') || text(metadata.voltage);
+  // A legacy editable voltage field may mirror the imported rating. Keep the
+  // rating's meaning and omit that duplicate; a separately recorded numeric
+  // supply voltage remains a distinct fact even when it has the same number.
+  if (positive(metadata.voltage_v) || !ratedVoltage || voltage !== ratedVoltage) add('voltage', voltage);
+  add('ratedVoltage', ratedVoltage);
   add('power', quantity(metadata.power_w, 'W'));
   add('powerPerMetre', quantity(metadata.watts_per_m, 'W/m'));
   add('maxPowerPerMetre', quantity(metadata.max_watts_per_m, 'W/m'));
@@ -87,7 +99,11 @@ export function getMaterialSpecificationFacts(
   add('cores', count(metadata.cores));
   add('connections', count(metadata.connections));
   add('material', text(metadata.material));
-  add('diameter', quantity(metadata.diameter_mm, 'mm') || text(metadata.diameter));
+  const outerDiameter = quantity(metadata.outer_diameter_mm, 'mm') || range(metadata.outer_diameter_range_mm, 'mm');
+  if (outerDiameter) add('outerDiameter', outerDiameter);
+  else add('diameter', quantity(metadata.diameter_mm, 'mm') || text(metadata.diameter));
+  add('cableType', text(metadata.cable_type));
+  add('cableApplication', text(metadata.cable_application));
   add('bodyLength', quantity(metadata.body_length_mm, 'mm'));
 
   // Keep recorded spool/refill/bottle context. Add known contents when a label

@@ -2,6 +2,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '../logging/logger';
 import { publishNotifications } from '../notifications/publish';
+import type { Attachment } from '$lib/chat/types';
+import { messageVoices } from './voice-service';
+import { chatCursorFilter, chatPage, type ChatCursor } from './history';
 
 interface ChatMessage {
     id: string;
@@ -10,8 +13,9 @@ interface ChatMessage {
     username: string;
     message: string;
     attachments?: string[];
+    voiceAttachments?: Attachment[];
     replyTo?: string;
-    timestamp: Date;
+    timestamp: Date | string;
     edited?: boolean;
     deleted?: boolean;
 }
@@ -91,7 +95,7 @@ export class ChatService {
             message: chatMessage.content ?? chatMessage.text,
             attachments: chatMessage.attachments,
             replyTo: chatMessage.reply_to_id,
-            timestamp: new Date(chatMessage.created_at),
+            timestamp: chatMessage.created_at,
             edited: false,
             deleted: false
         };
@@ -196,7 +200,11 @@ export class ChatService {
         limit: number = 50,
         before?: string
     ): Promise<ChatMessage[]> {
-        
+        return (await this.getMessagePage(orderId, limit, before)).messages;
+    }
+
+    async getMessagePage(orderId: string, limit = 50, before?: string, cursor?: ChatCursor): Promise<{ messages: ChatMessage[]; hasMore: boolean; nextCursor: string | null }> {
+        limit = Math.max(1, Math.min(100, Math.trunc(limit) || 50));
         let query = this.supabase
             .from('chat_messages')
             .select(`
@@ -215,9 +223,11 @@ export class ChatService {
             .eq('order_id', orderId)
             .eq('is_deleted', false)
             .order('created_at', { ascending: false })
-            .limit(limit);
+            .order('id', { ascending: false })
+            .limit(limit + 1);
 
-        if (before) {
+        if (cursor) query = query.or(chatCursorFilter(cursor));
+        else if (before) {
             query = query.lt('created_at', before);
         }
 
@@ -228,18 +238,22 @@ export class ChatService {
             throw new Error('Could not fetch messages');
         }
 
-        return (data ?? []).map(m => ({
+        const page = chatPage(data ?? [], limit);
+        const voices = await messageVoices(this.supabase, page.rows.map(m => m.id));
+        const messages = page.rows.map(m => ({
             id: m.id,
             orderId: m.order_id,
             userId: m.user_id,
             username: (Array.isArray(m.profiles) ? m.profiles[0] : m.profiles)?.username ?? '',
             message: m.content ?? m.text,
-            attachments: m.attachments,
+            attachments: Array.isArray(m.attachments) ? m.attachments.filter(item => typeof item === 'string') : [],
+            voiceAttachments: voices.get(m.id) || [],
             replyTo: m.reply_to_id,
-            timestamp: new Date(m.created_at),
+            timestamp: m.created_at,
             edited: m.is_edited,
             deleted: m.is_deleted
         })).reverse(); // Return in chronological order
+        return { messages, hasMore: page.hasMore, nextCursor: page.nextCursor };
     }
 
     /**

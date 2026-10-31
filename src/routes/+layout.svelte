@@ -282,6 +282,11 @@
           <Icon name="layout-dashboard" size="sm" />
           <span>{$t('nav.dashboard', { default: 'Dashboard' })}</span>
         </a>
+        <a href="{base}/cabinet" class:active={currentPath === `${base}/cabinet`} onclick={navTo}
+           aria-current={currentPath === `${base}/cabinet` ? 'page' : undefined}>
+          <Icon name="clock" size="sm" />
+          <span>{$t('nav.cabinet')}</span>
+        </a>
         <a href="{base}/orders"    class:active={currentPath.includes('/orders')}    onclick={navTo}>
           <Icon name="clipboard-list" size="sm" />
           <span>{$t('nav.orders',    { default: 'Orders' })}</span>
@@ -335,6 +340,11 @@
         <a href="{base}/"          class:active={currentPath === `${base}/` || currentPath === base}   onclick={navTo}>
           <Icon name="layout-dashboard" size="md" />
           <span>{$t('nav.dashboard',  { default: 'Dashboard' })}</span>
+        </a>
+        <a href="{base}/cabinet" class:active={currentPath === `${base}/cabinet`} onclick={navTo}
+           aria-current={currentPath === `${base}/cabinet` ? 'page' : undefined}>
+          <Icon name="clock" size="md" />
+          <span>{$t('nav.cabinet')}</span>
         </a>
         <a href="{base}/orders"    class:active={currentPath.includes('/orders')}    onclick={navTo}>
           <Icon name="clipboard-list"   size="md" />

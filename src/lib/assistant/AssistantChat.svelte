@@ -6,6 +6,8 @@
   import { safeScreenData, screenFromPath } from './screen-context';
   import { summarizeScreenContext } from './context-summary';
   import { screenWorkflows } from './workflows';
+  import { screenContextSignature, screenGuidance } from './guidance';
+  import { nextActionHalo } from '$lib/ui/next-action-halo';
   import type { AssistantRegistration } from './context';
   import AssistantResponse from './AssistantResponse.svelte';
 
@@ -21,7 +23,8 @@
   let toolsLoading = $state(false);
   let contextExpanded = $state(false);
   let tools = $state<Array<{ id: string; label: string }>>([]);
-  let turns = $state<Array<{ role: 'user' | 'assistant'; content: string; tools?: string[]; toolsUnavailable?: boolean; workflows?: string[] }>>([]);
+  let turns = $state<Array<{ role: 'user' | 'assistant'; content: string; tools?: string[]; toolsUnavailable?: boolean; workflows?: string[]; contextSignature?: string }>>([]);
+  let pendingContextSignature = $state<string | null>(null);
   let messagesElement: HTMLDivElement;
   let input: HTMLTextAreaElement;
   let request: AbortController | null = null;
@@ -30,10 +33,15 @@
   let requestNumber = 0;
   let screen = $derived(screenFromPath(path));
   let workflows = $derived(screenWorkflows(path, registration?.tools() ?? []));
-  let preview = $derived.by(() => {
-    try { return summarizeScreenContext(safeScreenData(registration?.context() ?? {})); }
-    catch { return summarizeScreenContext({ contextUnavailable: true }); }
+  let snapshot = $derived.by(() => {
+    try {
+      const data = safeScreenData(registration?.context() ?? {});
+      return { data, signature: screenContextSignature(path, data, workflows.map(tool => tool.id)), failed: false };
+    } catch { return { data: { contextUnavailable: true }, signature: '', failed: true }; }
   });
+  let preview = $derived(summarizeScreenContext(snapshot.data));
+  let guidance = $derived(screenGuidance(path, snapshot.data));
+  let alternativePromptKey = $derived(guidance.promptKey === `assistant.prompt.${screen}` ? 'assistant.prompt.next' : `assistant.prompt.${screen}`);
 
   function toolLabel(id: string, fallback?: string) {
     return $t(`assistant.tool.${id.replaceAll('.', '_')}`, { default: fallback ?? id });
@@ -59,12 +67,13 @@
   $effect(() => { if (active && path !== loadedPath && !toolsLoading && !toolsProblem) void loadTools(); });
 
   function prepare(text: string) {
+    if (sending) return;
     question = text;
     void tick().then(() => input?.focus());
   }
   function stop() {
     requestNumber++;
-    request?.abort(); request = null; sending = false;
+    request?.abort(); request = null; sending = false; pendingContextSignature = null;
   }
   function clear() { stop(); turns = []; question = ''; problem = ''; }
   function openWorkflow(id: string) {
@@ -75,13 +84,12 @@
     if (sending || !consent || !question.trim()) return;
     const text = question.trim();
     if (text.length > 2500) return;
-    let data: unknown;
-    try { data = safeScreenData(registration?.context() ?? {}); }
-    catch { problem = $t('assistant.contextUnavailable'); return; }
+    if (snapshot.failed) { problem = $t('assistant.contextUnavailable'); return; }
+    const data = snapshot.data, contextSignature = snapshot.signature;
     if (JSON.stringify(data).length > 14000) { problem = $t('assistant.contextTooLarge'); return; }
     const controller = new AbortController();
     const serial = ++requestNumber;
-    request = controller; sending = true; problem = '';
+    request = controller; sending = true; problem = ''; pendingContextSignature = contextSignature;
     const history = turns.slice(-10).map(turn => ({ role: turn.role, content: turn.content.slice(0, 2500) }));
     try {
       const response = await fetch(`${base}/api/ai/assistant`, {
@@ -95,6 +103,7 @@
         throw new Error(response.status === 429 ? $t('assistant.rateLimited') : $t('assistant.unavailable'));
       }
       turns = [...turns, { role: 'user' as const, content: text }, { role: 'assistant' as const, content: result.reply,
+        contextSignature,
         tools: Array.isArray(result.toolsUsed) ? result.toolsUsed.filter((id: unknown) => typeof id === 'string').slice(0, 12) : [],
         workflows: Array.isArray(result.suggestedWorkflows) ? [...new Set<string>(result.suggestedWorkflows.filter((id: unknown) =>
           typeof id === 'string' && workflows.some(tool => tool.id === id)))] : [],
@@ -106,7 +115,7 @@
     } catch (err) {
       if (serial === requestNumber && !controller.signal.aborted) problem = err instanceof Error ? err.message : $t('assistant.unavailable');
     } finally {
-      if (serial === requestNumber) { sending = false; request = null; }
+      if (serial === requestNumber) { sending = false; request = null; pendingContextSignature = null; }
     }
   }
   onDestroy(() => { stop(); toolsRequest?.abort(); });
@@ -118,6 +127,7 @@
       <summary>{$t('assistant.contextAndTools')}{#if preview.unsaved}<span class="context-status">{$t('assistant.unsavedContext')}</span>{/if}</summary>
       <div class="context-details">
         <p>{$t('assistant.contextHint')}</p>
+        {#if screen === 'chat'}<p>{$t('assistant.chatPrivacy')}</p>{/if}
         {#if preview.loading}<p role="status">{$t('assistant.contextLoading')}</p>{/if}
         {#if preview.unavailable && !preview.loading}<p class="context-warning">{$t('assistant.contextUnavailable')}</p>{/if}
         {#if preview.truncated}<p>{$t('assistant.contextTrimmed')}</p>{/if}
@@ -139,10 +149,10 @@
     {#if !turns.length}
       <div class="empty-chat">
         <h3>{$t('assistant.howCanHelp')}</h3>
-        <p>{$t(`assistant.intro.${screen}`)}</p>
+        <p>{$t(guidance.hintKey)}</p>
         <div class="suggestions">
-          <button type="button" onclick={() => prepare($t(`assistant.prompt.${screen}`))}>{$t(`assistant.prompt.${screen}`)}</button>
-          <button type="button" onclick={() => prepare($t('assistant.prompt.next'))}>{$t('assistant.prompt.next')}</button>
+          <button type="button" disabled={sending} onclick={() => prepare($t(guidance.promptKey))}>{$t(guidance.promptKey)}</button>
+          <button type="button" disabled={sending} onclick={() => prepare($t(alternativePromptKey))}>{$t(alternativePromptKey)}</button>
         </div>
       </div>
     {/if}
@@ -159,9 +169,20 @@
         {/if}
         {#if turn.tools?.length}<small>{$t('assistant.usedTools')}: {turn.tools.map(id => toolLabel(id)).join(', ')}</small>{/if}
         {#if turn.toolsUnavailable}<small>{$t('assistant.modelWithoutTools')}</small>{/if}
+        {#if turn.role === 'assistant' && index === turns.length - 1 && turn.contextSignature !== snapshot.signature}
+          <div class="context-change" role="status">
+            <p>{$t('assistant.contextChanged')}</p>
+            <button type="button" disabled={sending} onclick={() => prepare($t('assistant.reviewCurrentPrompt'))}>
+              <RotateCcw size={14} />{$t('assistant.reviewCurrent')}
+            </button>
+          </div>
+        {/if}
       </article>
     {/each}
-    {#if sending}<p class="thinking" role="status">{$t('assistant.thinking')}</p>{/if}
+    {#if sending}
+      <p class="thinking" role="status">{$t('assistant.thinking')}</p>
+      {#if pendingContextSignature !== snapshot.signature}<p class="thinking" role="status">{$t('assistant.contextChangedWhileWaiting')}</p>{/if}
+    {/if}
   </div>
   <form class="composer" onsubmit={event => { event.preventDefault(); void send(); }}>
     {#if problem}<p class="problem" role="alert">{problem}</p>{/if}
@@ -171,7 +192,7 @@
       disabled={sending} onkeydown={event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void send(); } }}></textarea>
     <div class="send-row"><small>{$t('assistant.sendShortcut')}</small>
       {#if sending}<button type="button" class="send" onclick={stop}><Square size={14} />{$t('assistant.stop')}</button>
-      {:else}<button type="submit" class="send" disabled={!consent || !question.trim()}><ArrowUp size={16} />{$t('assistant.send')}</button>{/if}
+      {:else}<button type="submit" class="send" use:nextActionHalo={consent && !!question.trim()} disabled={!consent || !question.trim()}><ArrowUp size={16} />{$t('assistant.send')}</button>{/if}
     </div>
   </form>
 </div>
@@ -180,7 +201,7 @@
   .assistant-chat { display:flex;flex:1;flex-direction:column;gap:12px;min-height:0;min-width:0; }
   .context-bar { display:flex;align-items:flex-start;gap:10px;flex-shrink:0;min-width:0; }
   button { font:inherit;cursor:pointer; }
-  button:disabled { opacity:.55;cursor:default; }
+  button:disabled { opacity:1;cursor:not-allowed;color:var(--ink-secondary);background:var(--bg-1); }
   button:focus-visible,textarea:focus-visible,input:focus-visible,summary:focus-visible { outline:2px solid var(--focus);outline-offset:3px; }
   .quiet { display:grid;place-items:center;min-width:36px;min-height:36px;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--ink-secondary); }
   .available-tools { flex:1;min-width:0;font-size:12px;color:var(--ink-secondary); }
@@ -201,7 +222,7 @@
   .messages { flex:1;min-height:0;overflow-y:auto;overflow-wrap:anywhere;overscroll-behavior:contain;scrollbar-color:var(--border-strong,var(--border)) transparent; }
   .empty-chat { padding:8px 2px 12px; }
   h3 { font-size:18px;margin:0 0 8px;font-weight:650; }
-  .empty-chat p { font-size:13px;line-height:1.6;color:var(--ink-secondary);margin:0 0 14px; }
+  .empty-chat p { font-size:var(--text-sm);line-height:var(--leading-normal);color:var(--ink-secondary);margin:0 0 var(--space-lg); }
   .suggestions { display:flex;flex-direction:column;gap:8px;align-items:flex-start; }
   .suggestions button { text-align:left;background:var(--bg-1);color:var(--ink-primary);border:1px solid var(--border);border-radius:var(--radius-sm);min-height:40px;padding:9px 12px;font-size:13px;line-height:1.45; }
   .suggestions button:hover,.quiet:hover { background:var(--bg-2);border-color:var(--border-strong,var(--border)); }
@@ -214,6 +235,11 @@
   .workflow-suggestions button { display:inline-flex;align-items:center;gap:6px;min-height:38px;max-width:100%;padding:8px 10px;text-align:left;overflow-wrap:anywhere;background:var(--bg-1);color:var(--ink-primary);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px; }
   .workflow-suggestions button:hover { border-color:var(--brand);background:var(--bg-2); }
   .workflow-suggestions :global(svg) { flex-shrink:0; }
+  .context-change { margin-top:var(--space-md);padding:var(--space-md);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-1);color:var(--ink-primary); }
+  .context-change p { margin:0 0 var(--space-sm);font-size:var(--text-xs);line-height:var(--leading-normal);white-space:normal; }
+  .context-change button { display:inline-flex;align-items:center;gap:var(--space-xs);min-height:var(--control-sm);max-width:100%;padding:var(--space-xs) var(--space-sm);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-0);color:var(--ink-primary);font-size:var(--text-xs);text-align:left; }
+  .context-change button:hover:enabled { border-color:var(--brand); }
+  .context-change :global(svg) { flex-shrink:0; }
   .thinking { color:var(--ink-secondary);font-size:13px; }
   .composer { display:flex;flex-shrink:0;flex-direction:column;gap:9px;min-width:0;padding-top:12px;border-top:1px solid var(--border);background:var(--bg-0); }
   .consent { display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;color:var(--ink-secondary); }

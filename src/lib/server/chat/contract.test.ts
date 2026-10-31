@@ -16,6 +16,7 @@ function chatDatabase() {
         insert(value: any) { action = 'insert'; payload = value; return query; },
         update(value: any) { action = 'update'; payload = value; return query; },
         eq(key: string, value: unknown) { filters.push([key,value]); return query; },
+        in() { return query; },
         order() { return query; }, limit() { return query; }, lt() { return query; },
         async single() { const result = execute(); return { ...result, data: Array.isArray(result.data) ? result.data[0] : result.data }; },
         then(resolve: any, reject: any) { return Promise.resolve(execute()).then(resolve,reject); }
@@ -24,6 +25,7 @@ function chatDatabase() {
         if (table === 'profiles') return { data: { username:'Flow operator',role:'Operator' }, error:null };
         if (table === 'draft_orders') return { data: { created_by:'actor-1' }, error:null };
         if (table === 'order_assignees' || table === 'notifications') return { data: [], error:null };
+        if (table === 'chat_attachments') return { data: [], error:null };
         if (table !== 'chat_messages') return { data:null,error:{message:'Unexpected legacy relation'} };
         const keys = payload ? Object.keys(payload) : columns.replace(/profiles![^(]+\([^)]*\)/g,'').split(',').map(s=>s.trim()).filter(Boolean);
         const unknown = keys.find(k=>k!=='*'&&!fields.has(k));

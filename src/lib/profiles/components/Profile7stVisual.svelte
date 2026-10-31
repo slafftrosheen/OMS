@@ -19,6 +19,8 @@
    */
   import MaterialSelect from "./fields/MaterialSelect.svelte";
   import MaterialThicknessSelect from "$lib/components/MaterialThicknessSelect.svelte";
+  import { materialColorVariables } from "$lib/materials/selection-colors";
+  import "$lib/materials/selection-colors.css";
   import { t } from "svelte-i18n";
 
   import {
@@ -33,12 +35,12 @@
     type ColorValue,
     defaultColor,
     extractShortName,
-    getTextColor,
     selectionBadgeLabel,
     paintMaterialValue,
     applyPaintMaterialSelection,
   } from "$lib/profiles/helpers";
   import { frameBadgeLabel, readLegacyFrameThickness, withFrameThickness } from "$lib/profiles/frame-sizing";
+  import { PROFILE_MATERIAL_CATEGORIES } from "$lib/profiles/material-roles";
   import {
     AlertCircle,
     Zap,
@@ -325,29 +327,17 @@
     });
   });
 
-  // Pre-defined material categories for the MaterialSelect component.
-  const faceMaterials = [
-    "ACRYLIC_XT",
-    "ACRYLIC_GS",
-    "ACRYLIC_LED",
-    "ALU_SHEET",
-    "ALU_COMPOSITE",
-    "PVC_FOAM",
-  ];
-  const backMaterials = [
-    "ALU_SHEET",
-    "ALU_COMPOSITE",
-    "ACRYLIC_XT",
-    "PVC_FOAM",
-  ];
-  const sidesMaterials = ["ALU_SHEET", "ALU_PROFILE"];
+  // A role also filters the physical form of legacy materials within a category.
+  const faceMaterials = PROFILE_MATERIAL_CATEGORIES.face;
+  const backMaterials = PROFILE_MATERIAL_CATEGORIES.back;
+  const sidesMaterials = PROFILE_MATERIAL_CATEGORIES.sides;
   const filmCategories = ["VINYL_ORACAL"];
   const paintCategories = ["PAINT_RAL", "PAINT_PANTONE"];
   const ledCategories = ["LED_MODULE", "LED_STRIP", "LED_NEON"];
   const psuCategories = ["PSU_MEANWELL"];
-  const wireCategories = ["WIRE"];
+  const wireCategories = PROFILE_MATERIAL_CATEGORIES.mainCable;
   const connectorCategories = ["LED_ACCESSORY"];
-  const frameMaterials = ["ALU_PROFILE", "ALU_SHEET"];
+  const frameMaterials = PROFILE_MATERIAL_CATEGORIES.frame;
   const print3dMaterials = ["FDM_PLA", "FDM_PETG", "FDM_ABS", "FDM_ASA", "FDM_TPU", "FDM_OTHER", "RESIN_ANYCUBIC", "RESIN_ELEGOO", "RESIN_OTHER"];
 
   let faceEntries = $derived(
@@ -482,33 +472,36 @@
       <input
         type="text"
         bind:value={configuration.profileName}
-        placeholder="Profile Name"
+        aria-label={$t('profiles.materials.profileName')}
+        placeholder={$t('profiles.materials.profileName')}
         disabled={readonly}
         oninput={emit}
       />
     </div>
-    <div class="sign-toggle">
+    <div class="sign-toggle" role="group" aria-label={$t('profiles.materials.signEnvironment')}>
       <button
         type="button"
         class:active={configuration.signType === "EXTERIOR"}
+        aria-pressed={configuration.signType === "EXTERIOR"}
         disabled={readonly}
         onclick={() => {
           configuration.signType = "EXTERIOR";
           emit();
         }}
       >
-        <Sun size={14} /> OUTDOOR
+        <Sun size={14} /> {$t('profiles.materials.outdoor')}
       </button>
       <button
         type="button"
         class:active={configuration.signType === "INTERIOR"}
+        aria-pressed={configuration.signType === "INTERIOR"}
         disabled={readonly}
         onclick={() => {
           configuration.signType = "INTERIOR";
           emit();
         }}
       >
-        <Moon size={14} /> INDOOR
+        <Moon size={14} /> {$t('profiles.materials.indoor')}
       </button>
     </div>
   </div>
@@ -545,15 +538,15 @@
                   selectedCategory={material.category}
                   customColor={material.hex ?? ""}
                   categories={faceMaterials}
+                  materialRole="face"
                   allowCustom={true}
                   {readonly}
                   onchange={(data) => selectFaceMaterial(material, data)}
                 />
               </div>
               {#if material.value}
-                <span class="material-badge-lg"
-                  style:background={material.hex || "#87CEEB"}
-                  style:color={getTextColor(material.hex || "#87CEEB")}>
+                <span class="material-badge-lg material-context material-swatch"
+                  data-material-tone="face" style={materialColorVariables('face', material.hex)}>
                   {selectionBadgeLabel(material.value, material.shortName, material.category || "ACRYLIC")}{#if material.thickness}/{material.thickness}{/if}
                 </span>
                 <MaterialThicknessSelect
@@ -585,6 +578,7 @@
               selectedCategory={configuration.CNC_FREZER.backCategory}
               customColor={configuration.CNC_FREZER.backHex ?? ""}
               categories={backMaterials}
+              materialRole="back"
               allowCustom={true}
               {readonly}
               onchange={selectBackMaterial}
@@ -592,11 +586,8 @@
           </div>
           {#if configuration.CNC_FREZER.back}
             <span
-              class="material-badge-lg"
-              style:background={configuration.CNC_FREZER.backHex || "#A0A0A0"}
-              style:color={getTextColor(
-                configuration.CNC_FREZER.backHex || "#A0A0A0",
-              )}
+              class="material-badge-lg material-context material-swatch"
+              data-material-tone="back" style={materialColorVariables('back', configuration.CNC_FREZER.backHex)}
             >
               {selectionBadgeLabel(configuration.CNC_FREZER.back, configuration.CNC_FREZER.backShort, configuration.CNC_FREZER.backCategory || "ALU")}{#if configuration.CNC_FREZER.backThickness}/{configuration.CNC_FREZER.backThickness}{/if}
             </span>
@@ -652,7 +643,8 @@
               }}
             />
             {#if configuration.CNC_FREZER.print3dMaterial}
-              <span class="material-badge-lg print3d-badge">
+              <span class="material-badge-lg print3d-badge material-context material-swatch"
+                data-material-tone="print3d" style={materialColorVariables('print3d')}>
                 <Layers size={16} />
                 {selectionBadgeLabel(configuration.CNC_FREZER.print3dMaterial, configuration.CNC_FREZER.print3dMaterialShort, "FDM")}
               </span>
@@ -693,6 +685,7 @@
               selectedCategory={configuration.BENDER.sidesCategory}
               customColor={configuration.BENDER.sidesHex ?? ""}
               categories={sidesMaterials}
+              materialRole="sides"
               allowCustom={true}
               {readonly}
               onchange={selectSidesMaterial}
@@ -700,11 +693,8 @@
           </div>
           {#if configuration.BENDER.sides}
             <span
-              class="material-badge-lg"
-              style:background={configuration.BENDER.sidesHex || "#A0A0A0"}
-              style:color={getTextColor(
-                configuration.BENDER.sidesHex || "#A0A0A0",
-              )}
+              class="material-badge-lg material-context material-swatch"
+              data-material-tone="sides" style={materialColorVariables('sides', configuration.BENDER.sidesHex)}
             >
               {selectionBadgeLabel(configuration.BENDER.sides, configuration.BENDER.sidesShort, configuration.BENDER.sidesCategory || "ALU")}{#if configuration.BENDER.sidesThickness}/{configuration.BENDER.sidesThickness}{/if}
             </span>
@@ -793,12 +783,8 @@
                 />
                 {#if configuration.FRONT[`${part}Film`]}
                   <span
-                    class="material-badge-lg"
-                    style:background={configuration.FRONT[`${part}FilmHex`] ||
-                      "var(--bg-2)"}
-                    style:color={getTextColor(
-                      configuration.FRONT[`${part}FilmHex`] || "#f0f0f0",
-                    )}
+                    class="material-badge-lg material-context material-swatch"
+                    data-material-tone="film" style={materialColorVariables('film', configuration.FRONT[`${part}FilmHex`])}
                   >
                     {selectionBadgeLabel(configuration.FRONT[`${part}Film`], configuration.FRONT[`${part}FilmShort`], "ORACAL")}
                   </span>
@@ -872,13 +858,8 @@
                 />
                 {#if configuration.PAINTING[`${item.key}Color`].code}
                   <span
-                    class="ral-badge"
-                    style:background={configuration.PAINTING[`${item.key}Color`]
-                      .hex || "#4A5568"}
-                    style:color={getTextColor(
-                      configuration.PAINTING[`${item.key}Color`].hex ||
-                        "#4A5568",
-                    )}
+                    class="ral-badge material-context material-swatch"
+                    data-material-tone="paint" style={materialColorVariables('paint', configuration.PAINTING[`${item.key}Color`].hex)}
                   >
                     {configuration.PAINTING[`${item.key}Color`].code}
                   </span>
@@ -921,7 +902,9 @@
       <div class="section-content">
         <div class="assembly-grid-2x2">
           <!-- LED -->
-          <div class="assembly-item">
+          <div class="assembly-item material-context"
+            class:configured={Boolean(configuration.ASSEMBLING.led && configuration.ASSEMBLING.ledModule)}
+            data-material-tone="led" style={materialColorVariables('led')}>
             <div class="item-header">
               <label
                 class="toggle-label"
@@ -943,6 +926,7 @@
                   label="LED"
                   selectedCategory={configuration.ASSEMBLING.ledModuleCategory}
                   categories={ledCategories}
+                  summaryKind="led"
                   allowCustom={true}
                   showColor={false}
                   {readonly}
@@ -957,26 +941,15 @@
                   }}
                 />
               </div>
-              {#if configuration.ASSEMBLING.ledModule}
-                <span
-                  class="material-badge-lg"
-                  style:background={configuration.ASSEMBLING.ledModuleHex ||
-                    "#fbbf24"}
-                  style:color={getTextColor(
-                    configuration.ASSEMBLING.ledModuleHex || "#fbbf24",
-                  )}
-                >
-                  <Zap size={16} />
-                  {selectionBadgeLabel(configuration.ASSEMBLING.ledModule, configuration.ASSEMBLING.ledModuleShort, "LED")}
-                </span>
-              {/if}
             {:else}
               <span class="no-badge-lg"><X size={14} /> NO LED</span>
             {/if}
           </div>
 
           <!-- PSU -->
-          <div class="assembly-item">
+          <div class="assembly-item material-context"
+            class:configured={Boolean(configuration.ASSEMBLING.psu && configuration.ASSEMBLING.psuModel)}
+            data-material-tone="psu" style={materialColorVariables('psu')}>
             <div class="item-header">
               <label
                 class="toggle-label"
@@ -1005,7 +978,7 @@
                     disabled={readonly}
                     onchange={emit}
                   />
-                  <Sun size={12} /> Regular
+                  <Sun size={12} /> {$t('profiles.materials.regular')}
                 </label>
                 <label
                   class:active={configuration.ASSEMBLING.psuType === "dimmable"}
@@ -1018,7 +991,7 @@
                     disabled={readonly}
                     onchange={emit}
                   />
-                  <Moon size={12} /> Dimmable
+                  <Moon size={12} /> {$t('profiles.materials.dimmable')}
                 </label>
               </div>
               <div class="picker-row">
@@ -1027,6 +1000,7 @@
                   label="PSU"
                   selectedCategory={configuration.ASSEMBLING.psuModelCategory}
                   categories={psuCategories}
+                  summaryKind="psu"
                   allowCustom={true}
                   showColor={false}
                   {readonly}
@@ -1040,31 +1014,26 @@
                   }}
                 />
               </div>
-              {#if configuration.ASSEMBLING.psuModel}
-                <span
-                  class="material-badge-lg"
-                  style:background="var(--brand-soft)"
-                  style:color="var(--brand)"
-                >
-                  <Power size={16} />
-                  {selectionBadgeLabel(configuration.ASSEMBLING.psuModel, configuration.ASSEMBLING.psuModelShort, "PSU")}
-                </span>
-              {/if}
-              <input
-                type="text"
-                class="custom-input"
-                bind:value={configuration.ASSEMBLING.psuMounting}
-                disabled={readonly}
-                oninput={emit}
-                placeholder="Mounting..."
-              />
+              <div class="field">
+                <label for={`${formId}-psu-mounting`}>{$t('profiles.materials.psuMounting')}</label>
+                <input
+                  id={`${formId}-psu-mounting`}
+                  type="text"
+                  class="custom-input"
+                  bind:value={configuration.ASSEMBLING.psuMounting}
+                  disabled={readonly}
+                  oninput={emit}
+                />
+              </div>
             {:else}
               <span class="no-badge-lg"><X size={14} /> NO PSU</span>
             {/if}
           </div>
 
           <!-- CABLES -->
-          <div class="assembly-item">
+          <div class="assembly-item material-context"
+            class:configured={Boolean(configuration.ASSEMBLING.cables && configuration.ASSEMBLING.cableType)}
+            data-material-tone="cable" style={materialColorVariables('cable')}>
             <div class="item-header">
               <label
                 class="toggle-label"
@@ -1076,24 +1045,19 @@
                   disabled={readonly}
                   onchange={emit}
                 />
-                <Cable size={14} /> CABLES
+                <Cable size={14} /> {$t('profiles.materials.mainCable')}
               </label>
             </div>
             {#if configuration.ASSEMBLING.cables}
               <div class="cable-row">
-                <input
-                  type="text"
-                  class="length-input"
-                  bind:value={configuration.ASSEMBLING.cablesLength}
-                  disabled={readonly}
-                  oninput={emit}
-                  placeholder="2m"
-                />
                 <MaterialSelect
                   bind:value={configuration.ASSEMBLING.cableType}
-                  label="CABLES"
+                  label={$t('profiles.materials.mainCable')}
                   selectedCategory={configuration.ASSEMBLING.cableTypeCategory}
                   categories={wireCategories}
+                  materialRole="mainCable"
+                  summaryKind="cable"
+                  selectionLength={configuration.ASSEMBLING.cablesLength}
                   allowCustom={true}
                   showColor={false}
                   {readonly}
@@ -1106,18 +1070,19 @@
                     emit();
                   }}
                 />
+                <div class="field cable-length">
+                  <label for={`${formId}-cable-length`}>{$t('profiles.materials.cableLength')}</label>
+                  <input
+                    id={`${formId}-cable-length`}
+                    type="text"
+                    class="length-input"
+                    bind:value={configuration.ASSEMBLING.cablesLength}
+                    disabled={readonly}
+                    oninput={emit}
+                    placeholder="2 m"
+                  />
+                </div>
               </div>
-              {#if configuration.ASSEMBLING.cableType || configuration.ASSEMBLING.cablesLength}
-                <span
-                  class="material-badge-lg"
-                  style:background="#374151"
-                  style:color="#fff"
-                >
-                  <Cable size={16} />
-                  {configuration.ASSEMBLING.cablesLength || ""}
-                  {selectionBadgeLabel(configuration.ASSEMBLING.cableType, configuration.ASSEMBLING.cableTypeShort, "WIRE")}
-                </span>
-              {/if}
               <label
                 class="wago-label"
                 class:active={configuration.ASSEMBLING.cablesWago}
@@ -1128,7 +1093,7 @@
                   disabled={readonly}
                   onchange={emit}
                 />
-                <span class="wago-badge"><span aria-hidden="true">{configuration.ASSEMBLING.cablesWago ? "✓" : ""}</span> WAGO</span>
+                <span class="wago-badge material-context" style={materialColorVariables('connector')}><span aria-hidden="true">{configuration.ASSEMBLING.cablesWago ? "✓" : ""}</span> WAGO</span>
               </label>
               {#if configuration.ASSEMBLING.cablesWago}
                 <fieldset class="field connector-material">
@@ -1148,7 +1113,8 @@
                     }}
                   />
                   {#if configuration.ASSEMBLING.cablesConnector}
-                    <span class="material-badge-lg connector-badge">
+                    <span class="material-badge-lg connector-badge material-context material-swatch"
+                      data-material-tone="connector" style={materialColorVariables('connector')}>
                       <Cable size={16} />
                       {selectionBadgeLabel(configuration.ASSEMBLING.cablesConnector, configuration.ASSEMBLING.cablesConnectorShort, 'LED_ACCESSORY')}
                     </span>
@@ -1161,7 +1127,9 @@
           </div>
 
           <!-- FRAME -->
-          <div class="assembly-item">
+          <div class="assembly-item material-context"
+            class:configured={Boolean(configuration.ASSEMBLING.frame && configuration.ASSEMBLING.frameMaterial)}
+            data-material-tone="frame" style={materialColorVariables('frame')}>
             <div class="item-header">
               <label
                 class="toggle-label"
@@ -1182,7 +1150,9 @@
                   bind:value={configuration.ASSEMBLING.frameMaterial}
                   label="FRAME"
                   selectedCategory={configuration.ASSEMBLING.frameMaterialCategory}
+                  customColor={configuration.ASSEMBLING.frameMaterialHex ?? ""}
                   categories={frameMaterials}
+                  materialRole="frame"
                   allowCustom={true}
                   {readonly}
                   onchange={selectFrameMaterial}
@@ -1190,12 +1160,8 @@
               </div>
               {#if configuration.ASSEMBLING.frameMaterial}
                 <span
-                  class="material-badge-lg"
-                  style:background={configuration.ASSEMBLING.frameMaterialHex ||
-                    "#9ca3af"}
-                  style:color={getTextColor(
-                    configuration.ASSEMBLING.frameMaterialHex || "#9ca3af",
-                  )}
+                  class="material-badge-lg material-context material-swatch"
+                  data-material-tone="frame" style={materialColorVariables('frame', configuration.ASSEMBLING.frameMaterialHex)}
                 >
                   <Square size={16} />
                   {frameBadgeLabel(
@@ -1308,10 +1274,9 @@
     overflow: visible;
   }
 
-  .profile-form.readonly {
-    pointer-events: none;
-    opacity: 0.85;
-  }
+  .profile-form.readonly { border-style: dashed; }
+  .profile-form :global(input:disabled), .profile-form :global(textarea:disabled),
+  .profile-form :global(select:disabled) { opacity: 1; -webkit-text-fill-color: currentColor; }
 
   /* HEADER */
   .form-header {
@@ -1326,9 +1291,9 @@
   }
 
   .profile-name input {
-    background: var(--brand);
-    color: var(--bg-0);
-    border: none;
+    background: var(--bg-1);
+    color: var(--ink-primary);
+    border: 1px solid var(--border);
     padding: var(--space-sm, 8px) var(--space-md, 14px);
     border-radius: var(--radius-sm, 6px);
     font-weight: 600;
@@ -1337,7 +1302,8 @@
   }
 
   .profile-name input::placeholder {
-    color: color-mix(in oklab, var(--bg-0) 7%, transparent);
+    color: var(--ink-secondary);
+    opacity: 1;
   }
 
   .sign-toggle {
@@ -1358,12 +1324,19 @@
     color: var(--muted, var(--ink-tertiary));
     cursor: pointer;
     border-radius: var(--radius-sm, 4px);
-    transition: all 0.15s;
+    transition: background 0.15s, color 0.15s;
   }
 
   .sign-toggle button.active {
     background: var(--ink-0, var(--ink-primary));
     color: var(--bg-0);
+  }
+
+  .sign-toggle button:focus-visible,
+  .profile-name input:focus-visible,
+  .length-input:focus-visible {
+    outline: 2px solid var(--focus, var(--brand));
+    outline-offset: 2px;
   }
 
   /* MAIN GRID */
@@ -1398,9 +1371,7 @@
     grid-column: span 2;
   }
 
-  .section.collapsed {
-    opacity: 0.6;
-  }
+  .section.collapsed .section-title { background: var(--bg-2); color: var(--ink-secondary); }
 
   .section-title {
     background: var(--ink-secondary);
@@ -1414,7 +1385,6 @@
 
   .section-title .hint {
     font-weight: 400;
-    opacity: 0.7;
   }
 
   .section-content {
@@ -1582,7 +1552,7 @@
 
   .option.active {
     background: var(--brand-soft);
-    color: color-mix(in oklab, var(--brand) 90%, black);
+    color: var(--ink-primary);
   }
   .option input {
     width: 14px;
@@ -1637,7 +1607,7 @@
   }
 
   .paint-item.inactive {
-    opacity: 0.6;
+    background: var(--bg-1);
   }
 
   .paint-label {
@@ -1664,12 +1634,15 @@
     font-size: 16px;
     font-weight: 900;
     text-align: center;
+    border: 1px solid var(--material-edge, var(--border));
+    overflow-wrap: anywhere;
   }
 
   /* NO BADGE */
   .no-badge {
-    background: var(--error);
-    color: white;
+    background: var(--bg-1);
+    color: var(--ink-secondary);
+    border: 1px dashed var(--border);
     padding: 6px 10px;
     border-radius: 4px;
     font-size: 11px;
@@ -1678,7 +1651,7 @@
   }
 
   .no-badge.small {
-    font-size: 9px;
+    font-size: 11px;
     padding: 4px 6px;
   }
 
@@ -1687,6 +1660,7 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-md, 12px);
+    align-items: start;
   }
 
   .assembly-item {
@@ -1697,7 +1671,11 @@
     padding: var(--space-md, 12px);
     background: var(--bg-2, var(--bg-2));
     border-radius: var(--radius-md, 6px);
+    border: 1px solid transparent;
   }
+
+  .assembly-item.configured { border-color: var(--material-edge); }
+  .assembly-item.configured .item-header .toggle-label { color: var(--material-ink); }
 
   .item-header {
     display: flex;
@@ -1705,7 +1683,7 @@
     align-items: center;
   }
 
-  /* LARGE MATERIAL BADGE - 4x size */
+  /* Material identity and geometry share the actual swatch or role accent. */
   .material-badge-lg {
     display: flex;
     align-items: center;
@@ -1718,7 +1696,7 @@
     white-space: normal;
     overflow-wrap: anywhere;
     line-height: 1.4;
-    border: 2px solid color-mix(in oklab, var(--bg-0) 10%, transparent);
+    border: 1px solid var(--material-edge, var(--border));
     min-height: 48px;
     flex: 1;
     min-width: 0;
@@ -1728,21 +1706,20 @@
 
   .material-badge-lg :global(svg) { flex-shrink: 0; }
 
-  .print3d-badge, .connector-badge { background: var(--bg-3, var(--bg-2)); color: var(--text); }
-
   .no-badge-lg {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: var(--space-xs, 4px);
-    background: var(--error);
-    color: white;
-    padding: var(--space-md, 12px) var(--space-lg, 16px);
+    background: var(--bg-1);
+    color: var(--ink-tertiary);
+    border: 1px dashed var(--border);
+    padding: var(--space-sm, 8px) var(--space-md, 12px);
     border-radius: var(--radius-md, 6px);
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 600;
     text-align: center;
-    height: 48px;
+    min-height: 36px;
     width: 100%;
     box-sizing: border-box;
   }
@@ -1771,9 +1748,9 @@
   }
 
   .psu-type label.active {
-    background: var(--ink-secondary);
-    color: var(--bg-0);
-    border-color: var(--ink-secondary);
+    background: var(--material-surface);
+    color: var(--material-ink);
+    border-color: var(--material-edge);
   }
 
   .psu-type input, .opt input, .extra input, .wago-label input {
@@ -1792,26 +1769,30 @@
 
   /* CABLES */
   .cable-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     min-width: 0;
-    flex-wrap: wrap;
   }
 
+  .cable-length { min-width: 0; }
+
   .length-input {
-    width: 50px;
-    flex: 0 0 64px;
+    width: 100%;
     min-width: 0;
     max-width: 100%;
     padding: 6px;
     border: 1px solid var(--border, var(--border));
     border-radius: 4px;
     font-size: 12px;
-    text-align: center;
+    min-height: 36px;
+    background: var(--bg-1);
+    color: var(--ink-primary);
+    box-sizing: border-box;
   }
 
   .cable-row :global(.material-select) {
-    flex: 1 1 100px;
+    min-width: 0;
   }
 
   .wago-label {
@@ -1822,8 +1803,9 @@
   }
 
   .wago-badge {
-    background: var(--border);
-    color: var(--ink-tertiary);
+    background: var(--bg-1);
+    color: var(--ink-secondary);
+    border: 1px solid var(--border);
     padding: 4px 10px;
     border-radius: 4px;
     font-size: 11px;
@@ -1831,8 +1813,9 @@
   }
 
   .wago-label.active .wago-badge {
-    background: var(--warn);
-    color: var(--bg-0);
+    background: var(--material-surface);
+    color: var(--material-ink);
+    border-color: var(--material-edge);
   }
 
   /* FRAME */
@@ -1858,8 +1841,8 @@
   }
   .opt.waterholes.active {
     background: var(--ok-soft);
-    color: color-mix(in oklab, var(--ok) 85%, black);
-    border-color: color-mix(in oklab, var(--ok) 85%, black);
+    color: var(--ink-primary);
+    border-color: var(--ok);
   }
   .opt.warning.active {
     background: var(--error-soft);
@@ -1896,7 +1879,8 @@
     color: var(--bg-0);
   }
   @media (pointer: coarse) {
-    .psu-type label, .opt, .extra, .wago-label { min-height: 44px; }
+    .psu-type label, .opt, .extra, .wago-label, .length-input,
+    .sign-toggle button, .toggle-label, .option, .paint-label { min-height: 44px; }
   }
 
   /* INPUTS */
@@ -1906,6 +1890,10 @@
     border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-sm, 4px);
     font-size: 12px;
+    min-height: 36px;
+    box-sizing: border-box;
+    color: var(--ink-primary);
+    background: var(--bg-1);
   }
 
   .custom-input:focus {
@@ -1927,7 +1915,6 @@
     top: var(--space-sm, 8px);
     right: var(--space-sm, 8px);
     color: var(--warn);
-    animation: pulse 2s infinite;
   }
 
   .notes-field.has-note .notes {
@@ -1942,16 +1929,6 @@
     color: var(--muted, var(--muted));
     opacity: 0.5;
     pointer-events: none;
-  }
-
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.5;
-    }
   }
 
   .notes {
@@ -1977,6 +1954,13 @@
 
   .notes::placeholder {
     color: var(--muted, var(--muted));
+    opacity: 1;
+  }
+
+  .custom-input::placeholder, .length-input::placeholder { color: var(--ink-secondary); opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sign-toggle button { transition: none; }
   }
 
   /* RESPONSIVE */

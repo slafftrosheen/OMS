@@ -88,6 +88,66 @@ test('one floating launcher stays dormant and opens the native tools for the cur
   expect(observed.posts()).toHaveLength(0);
 });
 
+test('local guidance prepares the relevant question even when tool discovery fails', async ({ page }) => {
+  const observed = await assistantFixture(page, undefined, route => route.fulfill({ status: 503, json: { error: 'Unavailable' } }));
+  await openScreenHelp(page);
+  const suggestion = page.getByRole('button', { name: 'Help me check these unsaved selections before I save the draft.', exact: true });
+  await expect(suggestion).toBeVisible();
+  await suggestion.click();
+  const question = page.getByLabel('Question for the assistant', { exact: true });
+  await expect(question).toHaveValue('Help me check these unsaved selections before I save the draft.');
+  await expect(question).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeDisabled();
+  expect(observed.posts()).toHaveLength(0);
+  await page.getByRole('checkbox').check();
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toHaveAttribute('data-next-action', 'true');
+  await page.getByRole('checkbox').uncheck();
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).not.toHaveAttribute('data-next-action');
+});
+
+test('an answer discloses changes made during its request and a fresh review uses the latest context', async ({ page }) => {
+  let release = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const observed = await assistantFixture(page, async route => {
+    await gate;
+    await route.fulfill({ json: { reply: 'Check the exact selected power supply before saving.', toolsUsed: [] } });
+  });
+  await openScreenHelp(page);
+  await sendQuestion(page, 'Review the selected supply.');
+  await expect.poll(() => observed.posts().length).toBe(1);
+  for (const button of await page.locator('.suggestions button').all()) await expect(button).toBeDisabled();
+  await page.getByLabel('Selected material', { exact: true }).fill('Mean Well XLG-150-24');
+  await expect(page.getByRole('log')).toContainText('This question still uses the details from when you sent it.');
+  release();
+  await expect(page.getByRole('log')).toContainText('Screen details have changed since this question was sent.');
+  await page.getByRole('button', { name: 'Review current screen', exact: true }).click();
+  await expect(page.getByLabel('Question for the assistant', { exact: true })).toHaveValue(/Review the current screen again/);
+  expect(observed.posts()).toHaveLength(1);
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect.poll(() => observed.posts().length).toBe(2);
+  await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
+  expect(observed.posts()[0].body.screen.data.selectedMaterial).toBe('Mean Well LRS-100-12');
+  expect(observed.posts()[1].body.screen.data.selectedMaterial).toBe('Mean Well XLG-150-24');
+  await expect(page.locator('.context-change')).toHaveCount(0);
+});
+
+test('chat help shares interface state without any conversation contents', async ({ page }) => {
+  const observed = await assistantFixture(page, undefined, route => route.fulfill({ json: { tools: [] } }), '/assistant.html?screen=chat');
+  await page.getByRole('button', { name: 'Open assistant', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Assistant', exact: true })).toContainText('Your message has not been sent yet.');
+  await page.locator('.available-tools summary').click();
+  await expect(page.getByRole('dialog', { name: 'Assistant', exact: true })).toContainText('Message text, names, files and recordings stay out');
+  await sendQuestion(page, 'How long can I play a voice message?');
+  await expect.poll(() => observed.posts().length).toBe(1);
+  const data = observed.posts()[0].body.screen.data;
+  expect(data).toMatchObject({ screen: 'chat', visibleMessageCount: 100, draftPresent: true,
+    messageContentsProvided: false, voiceContentsProvided: false, voiceRetentionCalendarMonths: 3 });
+  expect(JSON.stringify(data)).not.toMatch(/Original draft|Mean Well|account-one|fixture-secret|file-bytes/);
+  expect(data.notes).toBeUndefined();
+  expect(data.messages).toBeUndefined();
+  expect(data.roomId).toBeUndefined();
+});
+
 test('native drafts survive hiding, reopening, native-tool switching and general conversation', async ({ page }) => {
   const observed = await assistantFixture(page);
   await page.getByRole('button', { name: 'Open assistant', exact: true }).click();

@@ -3,6 +3,7 @@
   import { getContext, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
+  import { t } from 'svelte-i18n';
   import Icon from '$lib/ui/Icon.svelte';
 
   let open = $state(false);
@@ -99,16 +100,21 @@
 
       <div class="rf-user__divider" role="separator"></div>
 
+      <a href={`${base}/cabinet`} class="rf-user__item" role="menuitem" tabindex="-1" onclick={() => open = false}>
+        <Icon name="clock" size="sm" />
+        <span>{$t('nav.cabinet')}</span>
+      </a>
+
       <a href={`${base}/settings`} class="rf-user__item" role="menuitem" tabindex="-1" onclick={() => open = false}>
         <Icon name="settings" size="sm" />
-        <span>Settings</span>
+        <span>{$t('nav.settings')}</span>
       </a>
 
       <div class="rf-user__divider" role="separator"></div>
 
       <button class="rf-user__item rf-user__item--danger" role="menuitem" tabindex="-1" type="button" onclick={signOut}>
         <Icon name="log-out" size="sm" />
-        Sign out
+        {$t('settings.session.signOut')}
       </button>
     </div>
   {/if}

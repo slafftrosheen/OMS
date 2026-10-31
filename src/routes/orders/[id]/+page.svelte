@@ -861,7 +861,7 @@
 
     .tab-content-full {
         padding: 1.5rem 0;
-        min-height: 600px;
+        height: max(52rem, 75dvh);
     }
 
     .description-text {

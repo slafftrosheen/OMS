@@ -1,7 +1,11 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import MentionInput from '$lib/chat/MentionInput.svelte';
-  import { rooms, messages, sendMessage } from '$lib/chat/chat-store';
+  import { rooms, messages, sendMessage, sendVoiceMessage, loadRooms, loadMessages, loadOlderMessages, roomHistory } from '$lib/chat/chat-store';
+  import VoiceRecorder from '$lib/chat/VoiceRecorder.svelte';
+  import ChatAttachments from '$lib/chat/ChatAttachments.svelte';
+  import { roomDraftSession } from '$lib/chat/room-drafts.svelte';
+  import HistoryControl from '$lib/chat/HistoryControl.svelte';
   import { users, loadUsers } from '$lib/users/user-store';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { t } from 'svelte-i18n';
@@ -11,13 +15,17 @@
 
   let activeRoomId = $state('general');
   let scroller: HTMLDivElement | null = $state(null);
+  let activeRoom = $derived($rooms.find((room) => room.id === activeRoomId) || $rooms[0]);
+  let history = $derived(activeRoom ? $roomHistory[activeRoom.id] : undefined);
+  let activeDraft = $derived(activeRoom ? roomDraftSession.drafts[activeRoom.id] : undefined);
 
   onMount(() => {
     loadUsers();
   });
 
-  let activeRoom = $derived($rooms.find((room) => room.id === activeRoomId) || $rooms[0]);
-  let roomMessages = $derived($messages.filter((message) => message.roomId === activeRoomId));
+  let roomMessages = $derived($messages.filter((message) => message.roomId === activeRoom?.id));
+  $effect(() => { const owner = $currentUser?.id; if (owner) untrack(() => { void loadRooms(); }); });
+  $effect(() => { const owner = $currentUser?.id, room = activeRoom?.id; if (owner && room) untrack(() => { roomDraftSession.ensure(owner, room); void loadMessages(room); }); });
 
   function formatTime(iso: string) {
     const date = new Date(iso);
@@ -53,14 +61,12 @@
       .toUpperCase();
   }
 
-  function commit(text: string, mentions: string[]) {
-    if (!activeRoom) return;
-    sendMessage(activeRoom.id, text, mentions);
-    setTimeout(() => {
-      if (scroller) {
-        scroller.scrollTop = scroller.scrollHeight;
-      }
-    });
+  async function commit(text: string, mentions: string[]) {
+    const room = activeRoom?.id, owner = $currentUser?.id;
+    if (!room) return false;
+    const confirmed = await roomDraftSession.submit(owner ?? '', room, () => sendMessage(room, text, mentions), () => $currentUser?.id ?? '');
+    if (confirmed && activeRoom?.id === room && $currentUser?.id === owner && scroller) scroller.scrollTop = scroller.scrollHeight;
+    return confirmed;
   }
 
   function selectRoom(id: string) {
@@ -101,21 +107,19 @@
         </div>
       {/if}
     </div>
-    <div class="rooms" role="tablist" aria-label={$t('chat.rooms')}>
+    <nav class="rooms" aria-label={$t('chat.rooms')}>
       {#each $rooms as room (room.id)}
         <button
           type="button"
           class="tag"
           class:is-active={room.id === activeRoomId}
-          role="tab"
-          aria-selected={room.id === activeRoomId}
-          tabindex={room.id === activeRoomId ? 0 : -1}
+          aria-current={room.id === activeRoom?.id ? 'page' : undefined}
           onclick={() => selectRoom(room.id)}
         >
           {room.name}
         </button>
       {/each}
-    </div>
+    </nav>
   </header>
 
   <div
@@ -125,11 +129,14 @@
     aria-atomic="false"
     bind:this={scroller}
   >
+    <HistoryControl state={history} {scroller} contextKey={`${$currentUser?.id}:${activeRoom?.id}`} hasMessages={roomMessages.length > 0}
+      onRetry={() => activeRoom ? loadMessages(activeRoom.id) : Promise.resolve()} onOlder={() => activeRoom ? loadOlderMessages(activeRoom.id) : Promise.resolve()} />
     {#each roomMessages as message (message.id)}
       {@const author = authorName(message.authorId)}
       {@const station = message.variant === 'system' ? message.event?.station ?? null : authorStation(message.authorId)}
       <article
         class="card message"
+        data-chat-message-id={message.id}
         class:message--system={message.variant === 'system'}
         data-mention={isMention(message.mentions)}
       >
@@ -188,14 +195,18 @@
         {:else}
           <p class="message-body">{message.text}</p>
         {/if}
+        <ChatAttachments attachments={message.attachments} contextKey={`${$currentUser?.id}:${activeRoom?.id}`} />
       </article>
     {/each}
-    {#if roomMessages.length === 0}
+    {#if roomMessages.length === 0 && !history?.loading && !history?.failed}
       <div class="muted">{$t('chat.empty')}</div>
     {/if}
   </div>
 
-  <MentionInput onCommit={commit} placeholder={$t('chat.message_placeholder')} />
+  {#key `${$currentUser?.id}:${activeRoom?.id}`}{#if activeDraft}<MentionInput managed bind:value={activeDraft.text} bind:mentions={activeDraft.mentions} bind:sending={activeDraft.sending} bind:failed={activeDraft.failed}
+    disabled={!$currentUser || !activeRoom} onCommit={commit} placeholder={$t('chat.message_placeholder')} />{/if}{/key}
+  <VoiceRecorder contextKey={`${$currentUser?.id ?? ''}:${$currentUser?.role ?? ''}:${activeRoom?.id ?? ''}`}
+    disabled={!$currentUser || !activeRoom} onSend={(draft, signal) => activeRoom ? sendVoiceMessage(activeRoom.id, draft, signal) : Promise.resolve(false)} />
 </div>
 
 <style>
@@ -210,7 +221,7 @@
   .rooms .tag{ border-radius:var(--radius-lg); font-size:.8rem }
 
   .messages{ display:grid; gap:var(--space-md); min-height:0 }
-  .message{ display:flex; flex-direction:column; gap:var(--space-snug); background:var(--bg-1); border:1px solid color-mix(in oklab,var(--border) 80%, transparent); padding:var(--space-lg); box-shadow:0 12px 28px rgba(var(--shadow-rgb)/.12) }
+  .message{ min-width:0; display:flex; flex-direction:column; gap:var(--space-snug); background:var(--bg-1); border:1px solid color-mix(in oklab,var(--border) 80%, transparent); padding:var(--space-lg); box-shadow:0 12px 28px rgba(var(--shadow-rgb)/.12) }
   .message[data-mention="true"]{ border-color:color-mix(in oklab,var(--info) 40%, transparent); box-shadow:0 16px 34px rgba(var(--shadow-rgb)/.16) }
   .message--system{ border-left:4px solid var(--accent-1); background:color-mix(in oklab,var(--bg-1) 70%, var(--accent-2) 30%) }
   .message-head{ display:flex; flex-direction:column; gap:var(--space-sm) }
@@ -220,7 +231,7 @@
   .message-author{ display:grid; gap:var(--space-xs); font-size:.85rem }
   .message-time{ font-size:.75rem }
   .message-recipients{ display:flex; flex-wrap:wrap; gap:var(--space-tight); align-items:center }
-  .message-body{ margin:0; background:color-mix(in oklab,var(--bg-2) 80%, transparent); padding:var(--space-md); border-radius:var(--radius-md); line-height:1.45 }
+  .message-body{ white-space:pre-wrap; overflow-wrap:anywhere; min-width:0; margin:0; background:color-mix(in oklab,var(--bg-2) 80%, transparent); padding:var(--space-md); border-radius:var(--radius-md); line-height:1.45 }
   .system-event{ display:grid; gap:var(--space-sm); background:color-mix(in oklab,var(--bg-2) 80%, transparent); padding:var(--space-md); border-radius:var(--radius-md) }
   .system-headline{ display:flex; flex-wrap:wrap; gap:var(--space-tight); align-items:center }
   .system-tags{ display:flex; flex-wrap:wrap; gap:var(--space-tight) }

@@ -24,7 +24,19 @@ export type Attachment = {
   height?: number | null;
   storagePath?: string;
   createdAt?: string;
+  /** Voice bytes expire after three calendar months; message text remains. */
+  expiresAt?: string | null;
+  expired?: boolean;
 };
+
+export type VoiceDraft = {
+  file: File;
+  durationMs: number;
+  /** Stable across retries so an uncertain response cannot duplicate a message. */
+  clientRequestId: string;
+};
+
+export type VoiceTarget = { roomId: string; orderId?: never } | { orderId: string; roomId?: never };
 
 export type MessageAuthor = {
   id: string;

@@ -26,6 +26,7 @@ export const MATERIAL_CATEGORY_LABELS: Record<string, string> = {
   ALU_COMPOSITE: 'Aluminium composite',
   PVC_FOAM: 'Foamed PVC',
   ALU_PROFILE: 'Aluminium profiles',
+  ALU_FLAT_BAR: 'Aluminium flatstock',
   VINYL_ORACAL: 'Oracal film',
   PAINT_RAL: 'RAL paint',
   PAINT_PANTONE: 'Pantone paint',

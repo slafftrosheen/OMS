@@ -28,6 +28,17 @@
     configuration = JSON.parse(JSON.stringify(latest));
     instance += 1;
   }
+
+  function loadLegacyMaterialRoles() {
+    latest = {
+      ...JSON.parse(JSON.stringify(legacy)),
+      CNC_FREZER: { ...legacy.CNC_FREZER, back: 'Aluminium flat bar 20x3', backThickness: '3mm' },
+      BENDER: { sides: 'Aluminium tube 40x40', sidesThickness: '2mm', depth: 100 },
+      ASSEMBLING: { ...legacy.ASSEMBLING, cableType: 'TEST LIYCY 2x0.5 control cable', cablesLength: '6 m' }
+    };
+    changes = 0;
+    reload();
+  }
 </script>
 
 <main>
@@ -45,6 +56,7 @@
     </label>
     <button type="button" onclick={reload}>Reload serialized profile</button>
     <button type="button" onclick={() => editable = !editable}>Toggle read only</button>
+    <button type="button" onclick={loadLegacyMaterialRoles}>Load legacy material roles</button>
   </div>
 
   <section aria-label="Native profile">
