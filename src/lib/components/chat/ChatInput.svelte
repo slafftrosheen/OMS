@@ -3,6 +3,10 @@
     import { onDestroy } from "svelte";
     import { t } from "svelte-i18n";
     import Button from "$lib/components/ui/Button.svelte";
+    import Paperclip from 'lucide-svelte/icons/paperclip';
+    import Send from 'lucide-svelte/icons/send';
+    import VoiceRecorder from '$lib/chat/VoiceRecorder.svelte';
+    import type { VoiceDraft } from '$lib/chat/types';
 
     let {
         placeholder,
@@ -12,6 +16,8 @@
         onsend,
         oncancelReply,
         onfileSelect,
+        voiceContextKey = '',
+        onsendVoice,
     }: {
         placeholder?: string;
         disabled?: boolean;
@@ -23,6 +29,8 @@
         }) => void | boolean | Promise<void | boolean>;
         oncancelReply?: () => void;
         onfileSelect?: (files: File[]) => void;
+        voiceContextKey?: string;
+        onsendVoice?: (draft: VoiceDraft, signal: AbortSignal) => Promise<boolean>;
     } = $props();
 
     let message = $state("");
@@ -128,11 +136,6 @@
 
     <div class="input-wrapper">
         <input bind:this={fileInput} type="file" multiple disabled={disabled || sending} onchange={handleFileSelect} hidden />
-        <button type="button" class="file-button" title={$t('chat.composer.attach_file')} aria-label={$t('chat.composer.attach_file')}
-            disabled={disabled || sending || !onfileSelect} onclick={() => fileInput?.click()}>
-            📎
-        </button>
-
         <textarea
             bind:this={textareaElement}
             bind:value={message}
@@ -145,17 +148,23 @@
             aria-label={$t('chat.composer.message_input')}
         ></textarea>
 
-        <Button
-            variant="primary"
-            size="sm"
-            disabled={!message.trim() || disabled || sending || !onsend}
-            onclick={sendMessage}
-            icon="📤"
-            iconPosition="right"
-        >
-            {$t('chat.composer.send')}
-        </Button>
+        <button type="button" class="file-button" title={$t('chat.composer.attach_file')} aria-label={$t('chat.composer.attach_file')}
+            disabled={disabled || sending || !onfileSelect} onclick={() => fileInput?.click()}>
+            <Paperclip size={18} aria-hidden="true" />
+        </button>
+
+        <div class="text-send">
+            <Button
+                variant="primary"
+                size="sm"
+                disabled={!message.trim() || disabled || sending || !onsend}
+                onclick={sendMessage}
+            >
+                {$t('chat.composer.send')}<Send size={17} aria-hidden="true" />
+            </Button>
+        </div>
     </div>
+    {#if onsendVoice}<VoiceRecorder contextKey={voiceContextKey} {disabled} onSend={onsendVoice} />{/if}
 </div>
 
 <style>
@@ -223,9 +232,11 @@
     }
 
     .input-wrapper {
-        display: flex;
-        align-items: flex-end;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        align-items: end;
         gap: 0.75rem;
+        min-width: 0;
     }
 
     .file-button {
@@ -240,9 +251,32 @@
         justify-content: center;
         transition: background var(--motion-sm) var(--ease-standard), color var(--motion-sm) var(--ease-standard);
         flex-shrink: 0;
+        min-height: var(--control-size);
+        min-width: var(--control-size);
+        color: var(--ink-primary);
     }
 
-    .file-button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .file-button:disabled,
+    .text-send :global(button:disabled) {
+        opacity: 1;
+        cursor: not-allowed;
+        color: var(--ink-secondary);
+        background: var(--bg-2);
+        border-color: var(--border);
+    }
+
+    .text-send :global(button) {
+        min-height: var(--control-size);
+        color: var(--ink-primary);
+        background: var(--brand-soft);
+        border-color: var(--brand);
+        box-shadow: none;
+    }
+
+    .file-button:focus-visible {
+        outline: 2px solid var(--focus);
+        outline-offset: var(--space-xxs);
+    }
 
     .file-button:hover:not(:disabled) {
         background-color: var(--color-gray-50, var(--bg-2));
@@ -250,7 +284,11 @@
     }
 
     .message-input {
-        flex: 1;
+        min-width: 0;
+        width: 100%;
+        box-sizing: border-box;
+        color: var(--ink-primary);
+        background: var(--bg-1);
         padding: 0.625rem 0.75rem;
         border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
@@ -271,8 +309,12 @@
 
     .message-input:disabled {
         background-color: var(--color-gray-100, var(--bg-2));
+        color: var(--ink-secondary);
+        opacity: 1;
         cursor: not-allowed;
     }
+
+    .message-input::placeholder { color: var(--ink-tertiary); opacity: 1; }
 
     @media (max-width: 640px) {
         .input-wrapper {
@@ -282,5 +324,11 @@
         .file-button {
             padding: 0.5rem;
         }
+    }
+
+    @media (max-width: 480px) {
+        .input-wrapper { grid-template-columns: auto minmax(0, 1fr); }
+        .message-input { grid-column: 1 / -1; min-height: calc(var(--control-size) + var(--space-lg)); }
+        .text-send { justify-self: end; }
     }
 </style>

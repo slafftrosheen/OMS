@@ -19,6 +19,8 @@
    */
   import MaterialSelect from "./fields/MaterialSelect.svelte";
   import MaterialThicknessSelect from "$lib/components/MaterialThicknessSelect.svelte";
+  import { materialColorVariables } from "$lib/materials/selection-colors";
+  import "$lib/materials/selection-colors.css";
   import { t } from "svelte-i18n";
 
   import {
@@ -33,7 +35,6 @@
     type ColorValue,
     defaultColor,
     extractShortName,
-    getTextColor,
     selectionBadgeLabel,
     paintMaterialValue,
     applyPaintMaterialSelection,
@@ -544,9 +545,8 @@
                 />
               </div>
               {#if material.value}
-                <span class="material-badge-lg"
-                  style:background={material.hex || "#87CEEB"}
-                  style:color={getTextColor(material.hex || "#87CEEB")}>
+                <span class="material-badge-lg material-context material-swatch"
+                  data-material-tone="face" style={materialColorVariables('face', material.hex)}>
                   {selectionBadgeLabel(material.value, material.shortName, material.category || "ACRYLIC")}{#if material.thickness}/{material.thickness}{/if}
                 </span>
                 <MaterialThicknessSelect
@@ -586,11 +586,8 @@
           </div>
           {#if configuration.CNC_FREZER.back}
             <span
-              class="material-badge-lg"
-              style:background={configuration.CNC_FREZER.backHex || "#A0A0A0"}
-              style:color={getTextColor(
-                configuration.CNC_FREZER.backHex || "#A0A0A0",
-              )}
+              class="material-badge-lg material-context material-swatch"
+              data-material-tone="back" style={materialColorVariables('back', configuration.CNC_FREZER.backHex)}
             >
               {selectionBadgeLabel(configuration.CNC_FREZER.back, configuration.CNC_FREZER.backShort, configuration.CNC_FREZER.backCategory || "ALU")}{#if configuration.CNC_FREZER.backThickness}/{configuration.CNC_FREZER.backThickness}{/if}
             </span>
@@ -646,7 +643,8 @@
               }}
             />
             {#if configuration.CNC_FREZER.print3dMaterial}
-              <span class="material-badge-lg print3d-badge">
+              <span class="material-badge-lg print3d-badge material-context material-swatch"
+                data-material-tone="print3d" style={materialColorVariables('print3d')}>
                 <Layers size={16} />
                 {selectionBadgeLabel(configuration.CNC_FREZER.print3dMaterial, configuration.CNC_FREZER.print3dMaterialShort, "FDM")}
               </span>
@@ -695,11 +693,8 @@
           </div>
           {#if configuration.BENDER.sides}
             <span
-              class="material-badge-lg"
-              style:background={configuration.BENDER.sidesHex || "#A0A0A0"}
-              style:color={getTextColor(
-                configuration.BENDER.sidesHex || "#A0A0A0",
-              )}
+              class="material-badge-lg material-context material-swatch"
+              data-material-tone="sides" style={materialColorVariables('sides', configuration.BENDER.sidesHex)}
             >
               {selectionBadgeLabel(configuration.BENDER.sides, configuration.BENDER.sidesShort, configuration.BENDER.sidesCategory || "ALU")}{#if configuration.BENDER.sidesThickness}/{configuration.BENDER.sidesThickness}{/if}
             </span>
@@ -788,12 +783,8 @@
                 />
                 {#if configuration.FRONT[`${part}Film`]}
                   <span
-                    class="material-badge-lg"
-                    style:background={configuration.FRONT[`${part}FilmHex`] ||
-                      "var(--bg-2)"}
-                    style:color={getTextColor(
-                      configuration.FRONT[`${part}FilmHex`] || "#f0f0f0",
-                    )}
+                    class="material-badge-lg material-context material-swatch"
+                    data-material-tone="film" style={materialColorVariables('film', configuration.FRONT[`${part}FilmHex`])}
                   >
                     {selectionBadgeLabel(configuration.FRONT[`${part}Film`], configuration.FRONT[`${part}FilmShort`], "ORACAL")}
                   </span>
@@ -867,13 +858,8 @@
                 />
                 {#if configuration.PAINTING[`${item.key}Color`].code}
                   <span
-                    class="ral-badge"
-                    style:background={configuration.PAINTING[`${item.key}Color`]
-                      .hex || "#4A5568"}
-                    style:color={getTextColor(
-                      configuration.PAINTING[`${item.key}Color`].hex ||
-                        "#4A5568",
-                    )}
+                    class="ral-badge material-context material-swatch"
+                    data-material-tone="paint" style={materialColorVariables('paint', configuration.PAINTING[`${item.key}Color`].hex)}
                   >
                     {configuration.PAINTING[`${item.key}Color`].code}
                   </span>
@@ -916,7 +902,9 @@
       <div class="section-content">
         <div class="assembly-grid-2x2">
           <!-- LED -->
-          <div class="assembly-item">
+          <div class="assembly-item material-context"
+            class:configured={Boolean(configuration.ASSEMBLING.led && configuration.ASSEMBLING.ledModule)}
+            data-material-tone="led" style={materialColorVariables('led')}>
             <div class="item-header">
               <label
                 class="toggle-label"
@@ -959,7 +947,9 @@
           </div>
 
           <!-- PSU -->
-          <div class="assembly-item">
+          <div class="assembly-item material-context"
+            class:configured={Boolean(configuration.ASSEMBLING.psu && configuration.ASSEMBLING.psuModel)}
+            data-material-tone="psu" style={materialColorVariables('psu')}>
             <div class="item-header">
               <label
                 class="toggle-label"
@@ -1041,7 +1031,9 @@
           </div>
 
           <!-- CABLES -->
-          <div class="assembly-item">
+          <div class="assembly-item material-context"
+            class:configured={Boolean(configuration.ASSEMBLING.cables && configuration.ASSEMBLING.cableType)}
+            data-material-tone="cable" style={materialColorVariables('cable')}>
             <div class="item-header">
               <label
                 class="toggle-label"
@@ -1101,7 +1093,7 @@
                   disabled={readonly}
                   onchange={emit}
                 />
-                <span class="wago-badge"><span aria-hidden="true">{configuration.ASSEMBLING.cablesWago ? "✓" : ""}</span> WAGO</span>
+                <span class="wago-badge material-context" style={materialColorVariables('connector')}><span aria-hidden="true">{configuration.ASSEMBLING.cablesWago ? "✓" : ""}</span> WAGO</span>
               </label>
               {#if configuration.ASSEMBLING.cablesWago}
                 <fieldset class="field connector-material">
@@ -1121,7 +1113,8 @@
                     }}
                   />
                   {#if configuration.ASSEMBLING.cablesConnector}
-                    <span class="material-badge-lg connector-badge">
+                    <span class="material-badge-lg connector-badge material-context material-swatch"
+                      data-material-tone="connector" style={materialColorVariables('connector')}>
                       <Cable size={16} />
                       {selectionBadgeLabel(configuration.ASSEMBLING.cablesConnector, configuration.ASSEMBLING.cablesConnectorShort, 'LED_ACCESSORY')}
                     </span>
@@ -1134,7 +1127,9 @@
           </div>
 
           <!-- FRAME -->
-          <div class="assembly-item">
+          <div class="assembly-item material-context"
+            class:configured={Boolean(configuration.ASSEMBLING.frame && configuration.ASSEMBLING.frameMaterial)}
+            data-material-tone="frame" style={materialColorVariables('frame')}>
             <div class="item-header">
               <label
                 class="toggle-label"
@@ -1155,6 +1150,7 @@
                   bind:value={configuration.ASSEMBLING.frameMaterial}
                   label="FRAME"
                   selectedCategory={configuration.ASSEMBLING.frameMaterialCategory}
+                  customColor={configuration.ASSEMBLING.frameMaterialHex ?? ""}
                   categories={frameMaterials}
                   materialRole="frame"
                   allowCustom={true}
@@ -1164,12 +1160,8 @@
               </div>
               {#if configuration.ASSEMBLING.frameMaterial}
                 <span
-                  class="material-badge-lg"
-                  style:background={configuration.ASSEMBLING.frameMaterialHex ||
-                    "#9ca3af"}
-                  style:color={getTextColor(
-                    configuration.ASSEMBLING.frameMaterialHex || "#9ca3af",
-                  )}
+                  class="material-badge-lg material-context material-swatch"
+                  data-material-tone="frame" style={materialColorVariables('frame', configuration.ASSEMBLING.frameMaterialHex)}
                 >
                   <Square size={16} />
                   {frameBadgeLabel(
@@ -1282,10 +1274,9 @@
     overflow: visible;
   }
 
-  .profile-form.readonly {
-    pointer-events: none;
-    opacity: 0.85;
-  }
+  .profile-form.readonly { border-style: dashed; }
+  .profile-form :global(input:disabled), .profile-form :global(textarea:disabled),
+  .profile-form :global(select:disabled) { opacity: 1; -webkit-text-fill-color: currentColor; }
 
   /* HEADER */
   .form-header {
@@ -1300,9 +1291,9 @@
   }
 
   .profile-name input {
-    background: var(--brand);
-    color: var(--bg-0);
-    border: none;
+    background: var(--bg-1);
+    color: var(--ink-primary);
+    border: 1px solid var(--border);
     padding: var(--space-sm, 8px) var(--space-md, 14px);
     border-radius: var(--radius-sm, 6px);
     font-weight: 600;
@@ -1311,7 +1302,8 @@
   }
 
   .profile-name input::placeholder {
-    color: color-mix(in oklab, var(--bg-0) 7%, transparent);
+    color: var(--ink-secondary);
+    opacity: 1;
   }
 
   .sign-toggle {
@@ -1379,9 +1371,7 @@
     grid-column: span 2;
   }
 
-  .section.collapsed {
-    opacity: 0.6;
-  }
+  .section.collapsed .section-title { background: var(--bg-2); color: var(--ink-secondary); }
 
   .section-title {
     background: var(--ink-secondary);
@@ -1395,7 +1385,6 @@
 
   .section-title .hint {
     font-weight: 400;
-    opacity: 0.7;
   }
 
   .section-content {
@@ -1563,7 +1552,7 @@
 
   .option.active {
     background: var(--brand-soft);
-    color: color-mix(in oklab, var(--brand) 90%, black);
+    color: var(--ink-primary);
   }
   .option input {
     width: 14px;
@@ -1618,7 +1607,7 @@
   }
 
   .paint-item.inactive {
-    opacity: 0.6;
+    background: var(--bg-1);
   }
 
   .paint-label {
@@ -1645,12 +1634,15 @@
     font-size: 16px;
     font-weight: 900;
     text-align: center;
+    border: 1px solid var(--material-edge, var(--border));
+    overflow-wrap: anywhere;
   }
 
   /* NO BADGE */
   .no-badge {
-    background: var(--error);
-    color: white;
+    background: var(--bg-1);
+    color: var(--ink-secondary);
+    border: 1px dashed var(--border);
     padding: 6px 10px;
     border-radius: 4px;
     font-size: 11px;
@@ -1659,7 +1651,7 @@
   }
 
   .no-badge.small {
-    font-size: 9px;
+    font-size: 11px;
     padding: 4px 6px;
   }
 
@@ -1679,7 +1671,11 @@
     padding: var(--space-md, 12px);
     background: var(--bg-2, var(--bg-2));
     border-radius: var(--radius-md, 6px);
+    border: 1px solid transparent;
   }
+
+  .assembly-item.configured { border-color: var(--material-edge); }
+  .assembly-item.configured .item-header .toggle-label { color: var(--material-ink); }
 
   .item-header {
     display: flex;
@@ -1687,7 +1683,7 @@
     align-items: center;
   }
 
-  /* LARGE MATERIAL BADGE - 4x size */
+  /* Material identity and geometry share the actual swatch or role accent. */
   .material-badge-lg {
     display: flex;
     align-items: center;
@@ -1700,7 +1696,7 @@
     white-space: normal;
     overflow-wrap: anywhere;
     line-height: 1.4;
-    border: 2px solid color-mix(in oklab, var(--bg-0) 10%, transparent);
+    border: 1px solid var(--material-edge, var(--border));
     min-height: 48px;
     flex: 1;
     min-width: 0;
@@ -1709,8 +1705,6 @@
   }
 
   .material-badge-lg :global(svg) { flex-shrink: 0; }
-
-  .print3d-badge, .connector-badge { background: var(--bg-3, var(--bg-2)); color: var(--text); }
 
   .no-badge-lg {
     display: flex;
@@ -1754,9 +1748,9 @@
   }
 
   .psu-type label.active {
-    background: var(--ink-secondary);
-    color: var(--bg-0);
-    border-color: var(--ink-secondary);
+    background: var(--material-surface);
+    color: var(--material-ink);
+    border-color: var(--material-edge);
   }
 
   .psu-type input, .opt input, .extra input, .wago-label input {
@@ -1809,8 +1803,9 @@
   }
 
   .wago-badge {
-    background: var(--border);
-    color: var(--ink-tertiary);
+    background: var(--bg-1);
+    color: var(--ink-secondary);
+    border: 1px solid var(--border);
     padding: 4px 10px;
     border-radius: 4px;
     font-size: 11px;
@@ -1818,8 +1813,9 @@
   }
 
   .wago-label.active .wago-badge {
-    background: var(--warn);
-    color: var(--bg-0);
+    background: var(--material-surface);
+    color: var(--material-ink);
+    border-color: var(--material-edge);
   }
 
   /* FRAME */
@@ -1845,8 +1841,8 @@
   }
   .opt.waterholes.active {
     background: var(--ok-soft);
-    color: color-mix(in oklab, var(--ok) 85%, black);
-    border-color: color-mix(in oklab, var(--ok) 85%, black);
+    color: var(--ink-primary);
+    border-color: var(--ok);
   }
   .opt.warning.active {
     background: var(--error-soft);
@@ -1894,6 +1890,10 @@
     border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-sm, 4px);
     font-size: 12px;
+    min-height: 36px;
+    box-sizing: border-box;
+    color: var(--ink-primary);
+    background: var(--bg-1);
   }
 
   .custom-input:focus {
@@ -1915,7 +1915,6 @@
     top: var(--space-sm, 8px);
     right: var(--space-sm, 8px);
     color: var(--warn);
-    animation: pulse 2s infinite;
   }
 
   .notes-field.has-note .notes {
@@ -1930,16 +1929,6 @@
     color: var(--muted, var(--muted));
     opacity: 0.5;
     pointer-events: none;
-  }
-
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.5;
-    }
   }
 
   .notes {
@@ -1965,6 +1954,13 @@
 
   .notes::placeholder {
     color: var(--muted, var(--muted));
+    opacity: 1;
+  }
+
+  .custom-input::placeholder, .length-input::placeholder { color: var(--ink-secondary); opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sign-toggle button { transition: none; }
   }
 
   /* RESPONSIVE */

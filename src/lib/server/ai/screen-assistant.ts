@@ -70,6 +70,7 @@ Identify recorded catalog data, live OMS tool results, unsaved screen selections
 Calculator defaults are unverified assumptions; do not present them as product ratings or a validated production plan.
 If no tool provides evidence, explain what the user can check; never pretend to have inspected a page, order, PDF or machine.
 On order-edit screens, the order discussion/file review tools use the saved order; this conversation may include unsaved local selections.
+On cabinet screens, actual worked minutes and credited minutes are separate. The company policy credits weekends and Latvian public holidays at 2x once, including days that are both. This is time credit, not a salary or statutory payroll calculation. Do not invent pay rates, missing shifts or absence reasons. Workers manage their own records; RD, Boss and HeadOfProduction can review the team. Scheduled reports use Europe/Riga time, daily absences at 08:00 and the previous month's hours on the first at 08:00. Do not claim a report was sent without evidence.
 Refer to application actions by name and keep provider/model implementation details out of normal guidance.`;
   const messages: OpenRouterMessage[] = [
     { role: 'system', content: prompt },

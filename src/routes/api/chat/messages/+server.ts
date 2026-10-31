@@ -2,6 +2,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { ChatService } from '$lib/server/chat/ChatService';
+import { messageVoices, nonVoiceAttachments } from '$lib/server/chat/voice-service';
 
 /**
  * GET /api/chat/messages - Get messages for a room or order
@@ -63,12 +64,13 @@ export const GET: RequestHandler = async ({ url, locals }) => {
             }
 
             // Transform to expected format
+            const voices = await messageVoices(locals.supabase, (messages || []).map(msg => msg.id));
             const transformedMessages = (messages || []).map(msg => ({
                 id: msg.id,
                 roomId: msg.room_id,
                 authorId: msg.user_id || 'system',
                 text: msg.content ?? msg.text,
-                attachments: msg.attachments ?? [],
+                attachments: [...nonVoiceAttachments(msg.attachments), ...(voices.get(msg.id) || [])],
                 ts: msg.created_at,
                 mentions: [],
                 variant: msg.user_id ? 'user' : 'system',
@@ -87,7 +89,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
                 success: true,
                 messages: transformedMessages,
                 hasMore: messages ? messages.length === limit : false
-            });
+            }, { headers: { 'cache-control': 'private, no-store' } });
         } catch (err) {
             console.error('Unexpected error fetching room messages:', err);
             return json({ 
@@ -120,7 +122,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
                 success: true,
                 messages,
                 hasMore: messages.length === limit
-            });
+            }, { headers: { 'cache-control': 'private, no-store' } });
         } catch (err) {
             console.error('Error fetching order messages:', err);
             return json({ 
@@ -227,7 +229,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 orderId,
                 locals.user.id,
                 text,
-                body.attachments,
+                Array.isArray(body.attachments) ? body.attachments.filter((item: unknown) => typeof item === 'string') : undefined,
                 body.replyTo
             );
 

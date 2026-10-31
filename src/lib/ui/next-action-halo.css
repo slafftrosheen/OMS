@@ -1,0 +1,48 @@
+/* A stable, quiet cue. Only the next enabled action gets the halo; focus keeps
+   its own stronger outline. No looping pulse, flashing, or layout movement. */
+[data-next-action="true"]:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]):not([readonly]) {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--focus, var(--brand)) 24%, transparent),
+    0 3px 12px color-mix(in oklab, var(--focus, var(--brand)) 12%, transparent);
+  animation: oms-next-action-arrive 420ms var(--ease-standard, ease-out) 1;
+}
+
+@keyframes oms-next-action-arrive {
+  from {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--focus, var(--brand)) 12%, transparent),
+      0 2px 6px color-mix(in oklab, var(--focus, var(--brand)) 8%, transparent);
+  }
+}
+
+:root[data-theme="HighContrast"] [data-next-action="true"]:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]):not([readonly]),
+:root[data-theme="HighContrastVim"] [data-next-action="true"]:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]):not([readonly]) {
+  outline: 2px dashed var(--focus);
+  outline-offset: 4px;
+  box-shadow: none;
+  animation: none;
+}
+
+:root[data-theme="HighContrast"] [data-next-action="true"]:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]):not([readonly]):focus-visible,
+:root[data-theme="HighContrastVim"] [data-next-action="true"]:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]):not([readonly]):focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-next-action="true"]:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]):not([readonly]) {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  [data-next-action="true"]:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]):not([readonly]) {
+    --focus: Highlight;
+    outline: 2px dashed Highlight;
+    outline-offset: 4px;
+    box-shadow: none;
+    animation: none;
+  }
+  [data-next-action="true"]:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]):not([readonly]):focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+  }
+}

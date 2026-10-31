@@ -2,7 +2,10 @@
   import { tick } from 'svelte';
 
   import MessageSquare from 'lucide-svelte/icons/message-square';
-  import { messages, sendMessage, rooms } from '$lib/chat/chat-store';
+  import { messages, sendMessage, sendVoiceMessage, rooms } from '$lib/chat/chat-store';
+  import { currentUser } from '$lib/auth/authState.svelte';
+  import VoiceRecorder from '$lib/chat/VoiceRecorder.svelte';
+  import ChatAttachments from '$lib/chat/ChatAttachments.svelte';
 
   let open = $state(false);
   let btn: HTMLButtonElement | undefined = $state();
@@ -57,9 +60,11 @@
         <button class="tag ghost" onclick={() => close()}>Close</button>
       </header>
       <div class="log" role="log" aria-live="polite">
-        {#each chat as m}<div class="msg"><div class="msg-header"><b>{m.authorId}</b><span class="muted">{new Date(m.ts).toLocaleTimeString()}</span></div><div>{m.text}</div></div>{/each}
+        {#each chat as m}<div class="msg"><div class="msg-header"><b>{m.authorId}</b><span class="muted">{new Date(m.ts).toLocaleTimeString()}</span></div><div>{m.text}</div><ChatAttachments attachments={m.attachments} contextKey={`${$currentUser?.id}:${activeRoom?.id}`} /></div>{/each}
       </div>
       <form class="row" onsubmit={event => { event.preventDefault(); send(); }}><input aria-label="Message" bind:this={messageInput} bind:value={text}/><button class="tag" disabled={!activeRoom || !text.trim()}>Send</button></form>
+      <VoiceRecorder contextKey={`${$currentUser?.id ?? ''}:${$currentUser?.role ?? ''}:${activeRoom?.id ?? ''}`}
+        disabled={!$currentUser || !activeRoom} onSend={(draft, signal) => activeRoom ? sendVoiceMessage(activeRoom.id, draft, signal) : Promise.resolve(false)} />
     </div>
   </div>
   {/if}

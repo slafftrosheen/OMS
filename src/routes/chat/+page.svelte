@@ -5,6 +5,7 @@
     rooms,
     messages,
     sendMessage,
+    sendVoiceMessage,
     loadRooms,
     loadMessages,
     ensureRoom
@@ -12,6 +13,8 @@
   import { users, loadUsers } from '$lib/users/user-store';
   import Icon from '$lib/ui/Icon.svelte';
   import MentionInput from '$lib/chat/MentionInput.svelte';
+  import VoiceRecorder from '$lib/chat/VoiceRecorder.svelte';
+  import ChatAttachments from '$lib/chat/ChatAttachments.svelte';
   import type { StationTag } from '$lib/order/stages';
   import StationBadge from '$lib/ui/StationBadge.svelte';
   import type { Room } from '$lib/chat/types';
@@ -280,6 +283,7 @@
                 <span class="message-time">{formatTime(message.ts)}</span>
               </div>
               <p class="message-text">{message.text}</p>
+              <ChatAttachments attachments={message.attachments} contextKey={`${accountId}:${activeRoomId}`} />
               {#if message.mentions && message.mentions.length > 0}
                 <div class="message-mentions">
                   {#each message.mentions as mention}
@@ -298,6 +302,8 @@
         onCommit={handleSend}
         placeholder={`Message #${activeRoom?.name || 'general'}…`}
       />
+      <VoiceRecorder contextKey={`${accountId ?? ''}:${$currentUser?.role ?? ''}:${activeRoomId}`}
+        disabled={!accountId || !activeRoom} onSend={(draft, signal) => sendVoiceMessage(activeRoomId, draft, signal)} />
     </div>
   </main>
 </div>
@@ -699,6 +705,9 @@
   }
 
   .message-input-container {
+    display: grid;
+    gap: var(--space-md);
+    min-width: 0;
     padding: var(--space-md) var(--space-lg);
     background: var(--glass-bg);
     backdrop-filter: var(--glass-material-thin);

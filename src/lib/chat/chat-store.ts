@@ -1,5 +1,6 @@
 import { writable, get } from 'svelte/store';
-import type { Room, Message, Attachment, SystemMessageEvent } from './types';
+import type { Room, Message, Attachment, SystemMessageEvent, VoiceDraft } from './types';
+import { postVoiceMessage } from './voice';
 import { currentUser } from '$lib/auth/authState.svelte';
 import { base } from '$app/paths';
 import { notify } from '$lib/notifications/store';
@@ -90,6 +91,9 @@ export function initChatRealtime() {
           if (msgs.some(m => m.id === message.id)) return msgs;
           return [...msgs, message];
         });
+        // Realtime rows do not contain joined attachments. Hydrate through the same
+        // authorized endpoint so a remote voice-only message gains its player.
+        queueMessageHydration(message.roomId);
 
         // Notification logic (only if not sent by me)
         if (me?.id && newMessage.user_id && String(newMessage.user_id) !== String(me.id)) {
@@ -125,7 +129,30 @@ const roomReads = new RequestScope();
 const messageReads = new RequestScope();
 const pendingWrites = new Set<AbortController>();
 const optimisticIds = new Set<string>();
+const historyReads = new Map<string, Promise<void>>();
+const hydrationLanes = new Map<string, { dirty: boolean }>();
 let sessionGeneration = 0;
+
+/** An arrival during a history read needs a read started after that arrival. */
+function queueMessageHydration(roomId: string) {
+  if (!roomId) return;
+  const pending = hydrationLanes.get(roomId);
+  if (pending) { pending.dirty = true; return; }
+  const lane = { dirty: true }, generation = sessionGeneration, owner = get(currentUser)?.id;
+  const current = () => generation === sessionGeneration && !!owner && owner === get(currentUser)?.id && hydrationLanes.get(roomId) === lane;
+  hydrationLanes.set(roomId, lane);
+  void (async () => {
+    try {
+      while (current() && lane.dirty) {
+        lane.dirty = false;
+        const previous = historyReads.get(roomId);
+        if (previous) await previous;
+        if (!current()) return;
+        await loadMessages(roomId);
+      }
+    } finally { if (hydrationLanes.get(roomId) === lane) hydrationLanes.delete(roomId); }
+  })();
+}
 
 function beginWrite(timeoutMs = 20000, parentSignal?: AbortSignal) {
   const ownerId = get(currentUser)?.id;
@@ -168,6 +195,7 @@ export function resetChatState() {
   for (const controller of pendingWrites) controller.abort();
   pendingWrites.clear();
   optimisticIds.clear();
+  historyReads.clear(); hydrationLanes.clear();
   messages.set([]);
   rooms.set([]);
   unreadCount.set(0);
@@ -227,7 +255,9 @@ export function loadMessages(roomId: string, limit = 100): Promise<void> {
       if (isCurrent() && get(currentUser)?.id === ownerId) console.error('Failed to load messages:', error);
     }
   });
-  return request.finally(() => chatLoading.set(messageReads.size > 0));
+  const completion = request.finally(() => chatLoading.set(messageReads.size > 0));
+  historyReads.set(roomId, completion);
+  return completion.finally(() => { if (historyReads.get(roomId) === completion) historyReads.delete(roomId); });
 }
 
 type MessageOptions = {
@@ -237,6 +267,21 @@ type MessageOptions = {
   attachments?: Attachment[];
   replyToId?: string | null;
 };
+
+/** One atomic server request creates the voice attachment and its message. */
+export async function sendVoiceMessage(roomId: string, draft: VoiceDraft, signal: AbortSignal, replyTo?: string): Promise<boolean> {
+  if (!roomId || signal.aborted) return false;
+  const write = beginWrite(60000, signal);
+  if (!write) return false;
+  try {
+    const result = await postVoiceMessage<Message>({ roomId }, draft, write.signal, { replyTo });
+    if (!write.isCurrent() || write.signal.aborted || signal.aborted) return false;
+    if (result.message.roomId !== roomId || result.message.authorId !== write.ownerId || typeof result.message.id !== 'string') throw new Error('Invalid voice message response');
+    const confirmed = { ...result.message, attachments: result.message.attachments?.length ? result.message.attachments : [result.attachment] };
+    messages.update(current => chronological([...current.filter(message => message.id !== confirmed.id), confirmed]));
+    return true;
+  } finally { write.finish(); }
+}
 
 /**
  * Upload a file to a chat room and return the attachment record.

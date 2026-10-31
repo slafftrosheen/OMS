@@ -46,7 +46,8 @@
     "chat": "Čats",
     "ailab": "Rīki",
     "users": "Lietotāji",
-    "materials": "Materiāli"
+    "materials": "Materiāli",
+    "cabinet": "Mans kabinets"
   },
   "header": {
     "actions": "Galvenes darbības",
@@ -3639,7 +3640,8 @@
       "toolkit": "Rīki",
       "settings": "Iestatījumi",
       "notifications": "Paziņojumi",
-      "general": "Pašreizējais ekrāns"
+      "general": "Pašreizējais ekrāns",
+      "cabinet": "Mans kabinets"
     },
     "intro": {
       "dashboard": "Pārskatiet gaidošos darbus, atrodiet materiālus vai pārbaudiet uzskaitītos atlikumus.",
@@ -3654,7 +3656,8 @@
       "toolkit": "Saņemiet palīdzību par pašreizējo darbvietu un inženiertehniskajiem rīkiem.",
       "settings": "Atrodiet vajadzīgo iestatījumu un izprotiet tā ietekmi. Piekļuves atslēgas un paroles netiek nosūtītas asistentam.",
       "notifications": "Izprotiet paziņojumu iestatījumus un pārejiet pie saistītā darba.",
-      "general": "Saņemiet norādījumus par ekrānu, kurā strādājat."
+      "general": "Saņemiet norādījumus par ekrānu, kurā strādājat.",
+      "cabinet": "Ievadiet dienas darba stundas, pārskatiet mēneša kopsummas un atzīmējiet prombūtni. Faktiski nostrādātās stundas un dubultā apmaksas uzskaite ir parādītas atsevišķi."
     },
     "prompt": {
       "dashboard": "Kas būtu jāpārbauda vispirms?",
@@ -3670,7 +3673,8 @@
       "settings": "Kur var mainīt manu paziņojumu iestatījumus?",
       "notifications": "Kā pielāgot saņemtos paziņojumus?",
       "general": "Palīdzi izprast šo ekrānu.",
-      "next": "Kāds šeit ir nākamais solis?"
+      "next": "Kāds šeit ir nākamais solis?",
+      "cabinet": "Kā tiek uzskaitītas nostrādātās un dubulti apmaksātās stundas?"
     },
     "tool": {
       "catalog_search": "Materiālu katalogs",
@@ -3709,7 +3713,8 @@
       "editingProfile": "Rediģējamais profils",
       "code": "Preces kods",
       "group": "Grupa",
-      "stations": "Iekļautās stacijas"
+      "stations": "Iekļautās stacijas",
+      "month": "Mēnesis"
     },
     "codeBlock": "Koda piemērs",
     "comparisonTable": "Salīdzinājuma tabula",

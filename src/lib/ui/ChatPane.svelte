@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import MentionInput from '$lib/chat/MentionInput.svelte';
-  import { rooms, messages, sendMessage } from '$lib/chat/chat-store';
+  import { rooms, messages, sendMessage, sendVoiceMessage, loadRooms, loadMessages } from '$lib/chat/chat-store';
+  import VoiceRecorder from '$lib/chat/VoiceRecorder.svelte';
+  import ChatAttachments from '$lib/chat/ChatAttachments.svelte';
   import { users, loadUsers } from '$lib/users/user-store';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { t } from 'svelte-i18n';
@@ -17,7 +19,9 @@
   });
 
   let activeRoom = $derived($rooms.find((room) => room.id === activeRoomId) || $rooms[0]);
-  let roomMessages = $derived($messages.filter((message) => message.roomId === activeRoomId));
+  let roomMessages = $derived($messages.filter((message) => message.roomId === activeRoom?.id));
+  $effect(() => { const owner = $currentUser?.id; if (owner) untrack(() => { void loadRooms(); }); });
+  $effect(() => { const owner = $currentUser?.id, room = activeRoom?.id; if (owner && room) untrack(() => { void loadMessages(room); }); });
 
   function formatTime(iso: string) {
     const date = new Date(iso);
@@ -188,6 +192,7 @@
         {:else}
           <p class="message-body">{message.text}</p>
         {/if}
+        <ChatAttachments attachments={message.attachments} contextKey={`${$currentUser?.id}:${activeRoom?.id}`} />
       </article>
     {/each}
     {#if roomMessages.length === 0}
@@ -195,7 +200,9 @@
     {/if}
   </div>
 
-  <MentionInput onCommit={commit} placeholder={$t('chat.message_placeholder')} />
+  {#key `${$currentUser?.id}:${activeRoom?.id}`}<MentionInput onCommit={commit} placeholder={$t('chat.message_placeholder')} />{/key}
+  <VoiceRecorder contextKey={`${$currentUser?.id ?? ''}:${$currentUser?.role ?? ''}:${activeRoom?.id ?? ''}`}
+    disabled={!$currentUser || !activeRoom} onSend={(draft, signal) => activeRoom ? sendVoiceMessage(activeRoom.id, draft, signal) : Promise.resolve(false)} />
 </div>
 
 <style>

@@ -2,6 +2,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '../logging/logger';
 import { publishNotifications } from '../notifications/publish';
+import type { Attachment } from '$lib/chat/types';
+import { messageVoices } from './voice-service';
 
 interface ChatMessage {
     id: string;
@@ -10,6 +12,7 @@ interface ChatMessage {
     username: string;
     message: string;
     attachments?: string[];
+    voiceAttachments?: Attachment[];
     replyTo?: string;
     timestamp: Date;
     edited?: boolean;
@@ -228,13 +231,15 @@ export class ChatService {
             throw new Error('Could not fetch messages');
         }
 
+        const voices = await messageVoices(this.supabase, (data ?? []).map(m => m.id));
         return (data ?? []).map(m => ({
             id: m.id,
             orderId: m.order_id,
             userId: m.user_id,
             username: (Array.isArray(m.profiles) ? m.profiles[0] : m.profiles)?.username ?? '',
             message: m.content ?? m.text,
-            attachments: m.attachments,
+            attachments: Array.isArray(m.attachments) ? m.attachments.filter(item => typeof item === 'string') : [],
+            voiceAttachments: voices.get(m.id) || [],
             replyTo: m.reply_to_id,
             timestamp: new Date(m.created_at),
             edited: m.is_edited,

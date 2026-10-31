@@ -46,6 +46,50 @@ async function savedConfiguration(page: Page) {
   return JSON.parse(await page.getByTestId('configuration').innerText());
 }
 
+test('selected parts keep readable contextual color in all themes, read-only mode and phone layout', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 950 });
+  await page.goto('/');
+  await expect(page.locator('[data-selection-summary="led"]')).toContainText('LEMLUX');
+  const selections = '.has-selection .select-trigger .value-text, .has-selection .select-trigger .summary-fact, .material-badge-lg, .ral-badge, .wago-badge';
+  const contrast = async () => page.locator(selections).evaluateAll(nodes => {
+    const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+    const context = canvas.getContext('2d', { willReadFrequently: true })!;
+    const rgba = (value: string) => {
+      context.clearRect(0, 0, 1, 1); context.fillStyle = value; context.fillRect(0, 0, 1, 1);
+      return Array.from(context.getImageData(0, 0, 1, 1).data).map((value, index) => index === 3 ? value / 255 : value);
+    };
+    const over = (front: number[], back: number[]) => front.slice(0, 3).map((value, i) => value * front[3] + back[i] * (1 - front[3]));
+    const luminance = (color: number[]) => color.slice(0, 3).reduce((sum, value, index) => {
+      const channel = value / 255;
+      return sum + (channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4) * [.2126, .7152, .0722][index];
+    }, 0);
+    return nodes.filter(node => (node as HTMLElement).checkVisibility()).map(node => {
+      const chain: Element[] = []; for (let parent: Element | null = node; parent; parent = parent.parentElement) chain.push(parent);
+      let background = [255, 255, 255];
+      for (const parent of chain.reverse()) background = over(rgba(getComputedStyle(parent).backgroundColor), background);
+      const style = getComputedStyle(node), foreground = over(rgba(style.color), background);
+      const a = luminance(foreground), b = luminance(background);
+      return { text: node.textContent?.trim().slice(0, 90), contrast: (Math.max(a, b) + .05) / (Math.min(a, b) + .05),
+        opacity: chain.reduce((alpha, parent) => alpha * Number(getComputedStyle(parent).opacity), 1) };
+    });
+  });
+  for (const theme of ['LightVim', 'DarkVim', 'HighContrast']) {
+    await page.getByLabel('Theme', { exact: true }).selectOption(theme);
+    const values = await contrast();
+    expect(values.length).toBeGreaterThan(7);
+    expect(values.filter(row => row.contrast < 4.5 || row.opacity < 1), `${theme}: selected text contrast/opacity`).toEqual([]);
+    await page.locator('.section').filter({ has: page.locator('.section-title', { hasText: 'ASSEMBLING' }) })
+      .screenshot({ path: test.info().outputPath(`selected-materials-${theme}.png`) });
+  }
+  await page.getByRole('button', { name: 'Toggle read only' }).click();
+  expect((await contrast()).filter(row => row.contrast < 4.5 || row.opacity < 1)).toEqual([]);
+  await page.setViewportSize({ width: 360, height: 850 });
+  await page.getByLabel('Theme', { exact: true }).selectOption('LightVim');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+  await page.locator('.section').filter({ has: page.locator('.section-title', { hasText: 'ASSEMBLING' }) })
+    .screenshot({ path: test.info().outputPath('selected-materials-phone.png') });
+});
+
 test('partial legacy profile opens without edits, and bare thickness stays selected', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.face-material-entry')).toHaveCount(1);

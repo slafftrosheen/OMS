@@ -5,11 +5,16 @@
     import { currentUser } from "$lib/auth/authState.svelte";
     import { realtimeService } from "$lib/realtime/realtime-service";
     import { notifications } from "$lib/notify/store";
-    import { t } from "svelte-i18n";
+    import { t, locale } from "svelte-i18n";
     import Modal from "$lib/components/ui/Modal.svelte";
     import Button from "$lib/components/ui/Button.svelte";
     import ChatMessage from "./ChatMessage.svelte";
     import ChatInput from "./ChatInput.svelte";
+    import type { VoiceDraft } from '$lib/chat/types';
+    import { postVoiceMessage } from '$lib/chat/voice';
+    import { voiceCopy } from '$lib/chat/voice-copy';
+    import { supabase } from '$lib/supabase-client';
+    import { env } from '$env/dynamic/public';
 
     let {
         orderId,
@@ -31,6 +36,10 @@
         ownerId: string;
         controller: AbortController;
         changes: Map<string, OrderChatMessage | null>;
+        changeRevisions: Map<string, number>;
+        revision: number;
+        refreshing?: boolean;
+        refreshAgain?: boolean;
     }
     let conversation: Conversation | null = null;
     let accountId = $derived($currentUser?.id ?? null);
@@ -38,6 +47,7 @@
     let confirmDeleteOpen = $state(false);
     let loading = $state(false);
     let loadFailed = $state(false);
+    let chatCopy = $derived(voiceCopy($locale));
 
     function isCurrent(scope: Conversation | null): scope is Conversation {
         return !!scope && conversation === scope && !scope.controller.signal.aborted
@@ -49,6 +59,7 @@
     }
 
     async function loadMessages(scope: Conversation) {
+        const startedRevision = scope.revision;
         loading = true;
         loadFailed = false;
         try {
@@ -58,12 +69,33 @@
             if (!response.ok || !data.success || !Array.isArray(data.messages)) throw new Error('Messages unavailable');
             const confirmed = data.messages.map(parseOrderChatMessage);
             if (confirmed.some((message: OrderChatMessage | null) => !message)) throw new Error('Invalid message response');
-            messages = reconcileOrderMessages(confirmed, scope.changes);
+            // Only local mutations confirmed after this read started may be newer
+            // than its snapshot. Later authoritative reads can remove or edit them.
+            const laterChanges = new Map([...scope.changes].filter(([id]) => (scope.changeRevisions.get(id) ?? 0) > startedRevision));
+            messages = reconcileOrderMessages(confirmed, laterChanges);
+            for (const [id, revision] of scope.changeRevisions) {
+                if (revision <= startedRevision) { scope.changeRevisions.delete(id); scope.changes.delete(id); }
+            }
         } catch {
             if (isCurrent(scope)) loadFailed = true;
         } finally {
             if (isCurrent(scope)) loading = false;
         }
+    }
+
+    function rememberChange(scope: Conversation, id: string, message: OrderChatMessage | null) {
+        scope.changes.set(id, message);
+        scope.changeRevisions.set(id, ++scope.revision);
+    }
+
+    async function refreshConversation(scope: Conversation) {
+        if (!isCurrent(scope)) return;
+        if (scope.refreshing) { scope.refreshAgain = true; return; }
+        scope.refreshing = true;
+        try {
+            do { scope.refreshAgain = false; await loadMessages(scope); }
+            while (isCurrent(scope) && scope.refreshAgain);
+        } finally { scope.refreshing = false; }
     }
 
     async function sendMessage(data: { message: string; replyTo?: string | null }): Promise<boolean> {
@@ -80,7 +112,7 @@
             if (!isCurrent(scope)) return false;
             const confirmed = parseOrderChatMessage(body.message);
             if (!response.ok || !body.success || !confirmed) throw new Error('Send failed');
-            scope.changes.set(confirmed.id, confirmed);
+            rememberChange(scope, confirmed.id, confirmed);
             messages = reconcileOrderMessages(messages, new Map([[confirmed.id, confirmed]]));
             shouldScrollToBottom = true;
             return true;
@@ -105,7 +137,7 @@
             const existing = messages.find(message => message.id === data.id);
             if (existing) {
                 const changed = { ...existing, message: data.message.trim(), edited: true };
-                scope.changes.set(data.id, changed);
+                rememberChange(scope, data.id, changed);
                 messages = reconcileOrderMessages(messages, new Map([[data.id, changed]]));
             }
             return true;
@@ -113,6 +145,23 @@
             if (isCurrent(scope)) notifications.error($t('chat.composer.edit_failed'));
             return false;
         }
+    }
+
+    async function sendVoice(draft: VoiceDraft, signal: AbortSignal): Promise<boolean> {
+        const scope = conversation;
+        const replyTo = replyingTo?.id;
+        if (!isCurrent(scope) || signal.aborted) return false;
+        const result = await postVoiceMessage<unknown>({ orderId: scope.orderId }, draft,
+            AbortSignal.any([scope.controller.signal, signal]), { replyTo });
+        if (!isCurrent(scope) || signal.aborted) return false;
+        const confirmed = parseOrderChatMessage(result.message);
+        if (!confirmed || confirmed.userId !== scope.ownerId) throw new Error('Invalid voice message response');
+        if (!confirmed.voiceAttachments?.length) confirmed.voiceAttachments = [result.attachment];
+        rememberChange(scope, confirmed.id, confirmed);
+        messages = reconcileOrderMessages(messages, new Map([[confirmed.id, confirmed]]));
+        shouldScrollToBottom = true;
+        if (replyingTo?.id === replyTo) replyingTo = null;
+        return true;
     }
 
     function deleteMessage(messageId: string) {
@@ -132,7 +181,7 @@
             });
             if (!isCurrent(scope)) return;
             if (!response.ok) throw new Error('Delete failed');
-            scope.changes.set(id, null);
+            rememberChange(scope, id, null);
             messages = messages.filter(message => message.id !== id);
         } catch {
             if (isCurrent(scope)) notifications.error($t('chat.composer.delete_failed'));
@@ -193,7 +242,7 @@
         const ownerId = accountId;
         const target = orderId;
         const scope: Conversation = {
-            orderId: target, ownerId: ownerId ?? '', controller: new AbortController(), changes: new Map()
+            orderId: target, ownerId: ownerId ?? '', controller: new AbortController(), changes: new Map(), changeRevisions: new Map(), revision: 0
         };
         conversation = scope;
         messages = [];
@@ -203,12 +252,28 @@
         shouldScrollToBottom = true;
         loading = false;
         loadFailed = false;
-        if (ownerId && target) untrack(() => { void loadMessages(scope); });
+        let channel: ReturnType<typeof supabase.channel> | null = null;
+        let refreshTimer: ReturnType<typeof setInterval> | undefined;
+        const resume = () => { if (!document.hidden && isCurrent(scope)) void refreshConversation(scope); };
+        if (ownerId && target) untrack(() => {
+            void refreshConversation(scope);
+            if (env.PUBLIC_SUPABASE_URL && env.PUBLIC_SUPABASE_ANON_KEY) {
+                channel = supabase.channel(`order-chat:${ownerId}:${target}`)
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages', filter: `order_id=eq.${target}` }, () => {
+                        if (isCurrent(scope)) void refreshConversation(scope);
+                    }).subscribe();
+            }
+            // Resume and polling also cover sessions where realtime is unavailable.
+            document.addEventListener('visibilitychange', resume);
+            refreshTimer = setInterval(resume, 30000);
+        });
         return () => {
             scope.controller.abort();
             if (conversation === scope) conversation = null;
             if (typingThrottle) clearTimeout(typingThrottle);
             typingThrottle = null;
+            clearInterval(refreshTimer); document.removeEventListener('visibilitychange', resume);
+            if (channel) void Promise.resolve(supabase.removeChannel(channel)).catch(() => {});
         };
     });
 
@@ -224,11 +289,7 @@
     <div class="chat-header">
         <h3 class="chat-title">{$t('chat.order_discussion')}</h3>
         {#if messages.length > 0}
-            <span class="message-count"
-                >{messages.length} message{messages.length !== 1
-                    ? "s"
-                    : ""}</span
-            >
+            <span class="message-count">{chatCopy.messages}: {messages.length}</span>
         {/if}
     </div>
 
@@ -240,7 +301,7 @@
         {#if loadFailed}
             <div class="empty-state" role="status">
                 <p>{$t('chat.composer.load_failed')}</p>
-                <button type="button" onclick={() => { if (isCurrent(conversation)) void loadMessages(conversation); }} disabled={loading}>{$t('common.retry')}</button>
+                <button type="button" onclick={() => { if (isCurrent(conversation)) void refreshConversation(conversation); }} disabled={loading}>{$t('common.retry')}</button>
             </div>
         {/if}
         {#if messages.length === 0 && !loadFailed}
@@ -252,6 +313,7 @@
             {#each messages as message (message.id)}
                 <ChatMessage
                     {message}
+                    contextKey={`${accountId}:${orderId}`}
                     isOwn={message.userId === $currentUser?.id}
                     onreply={handleReply}
                     onedit={editMessage}
@@ -282,6 +344,8 @@
         onsend={sendMessage}
         ontyping={handleTyping}
         oncancelReply={() => (replyingTo = null)}
+        voiceContextKey={`${accountId ?? ''}:${$currentUser?.role ?? ''}:${orderId}`}
+        onsendVoice={sendVoice}
     />
     {/key}
 </div>
@@ -317,6 +381,8 @@
         padding: var(--space-md);
         border-bottom: 1px solid var(--border);
         display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-sm);
         justify-content: space-between;
         align-items: center;
         background: var(--bg-2);

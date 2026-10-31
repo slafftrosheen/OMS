@@ -5,6 +5,8 @@
   import { locale, t } from "$lib/i18n";
   import { materialDisplayName } from "$lib/profiles/helpers";
   import { getMaterialSelectionSummary, type MaterialSummaryKind } from "$lib/materials/selection-summary";
+  import { materialColorVariables, materialSelectionTone, materialSwatch } from "$lib/materials/selection-colors";
+  import "$lib/materials/selection-colors.css";
   import { filterProfileMaterials, type ProfileMaterialRole } from "$lib/profiles/material-roles";
   import {
     getMaterialSpecificationFacts,
@@ -82,7 +84,7 @@
   ));
   let catalogView = $derived(getMaterialCatalogView(candidateMaterials, activeCategory, search, localizedCategoryLabels));
   let browsingCategories = $derived(!activeCategory && !search.trim());
-  let hexColor = $derived(selectedMaterial?.metadata?.hex || "");
+  let hexColor = $derived(materialSwatch(selectedMaterial?.metadata?.hex || customColor));
 
   let shortName = $derived(materialDisplayName(selectedMaterial, value));
   let resolvedCategory = $derived(candidateMaterials.find(material => material.code === selectedMaterial?.code)?.category
@@ -90,6 +92,9 @@
   let selectedSummary = $derived(getMaterialSelectionSummary(selectedMaterial, {
     kind: summaryKind, value, length: selectionLength, locale: $locale
   }));
+  let selectionTone = $derived(materialSelectionTone(
+    resolvedCategory || category || categories[0], materialRole, summaryKind
+  ));
 
   $effect(() => {
     const url = catalogUrl;
@@ -314,7 +319,9 @@
 <svelte:window onpointerdown={handleClickOutside} onkeydown={handleKeydown}
   onfocusin={handleFocusIn} onblur={() => { open = false; }} />
 
-<div class="material-select" class:open bind:this={dropdownRef}>
+<div class="material-select material-context" class:open class:has-selection={Boolean(value)}
+  data-material-tone={selectionTone} data-readonly={readonly}
+  style={materialColorVariables(selectionTone)} bind:this={dropdownRef}>
   <div class="selection-control">
   {#if customMode}
     <div class="custom-mode">
@@ -326,6 +333,8 @@
       {/if}
       <input type="text" class="custom-text-input" bind:this={customInputRef}
         {value} oninput={handleCustomInput}
+        style:background={value ? 'var(--material-surface)' : undefined}
+        style:color={value ? 'var(--material-ink)' : undefined}
         aria-label={$t("materialPicker.custom", { default: "Enter custom value" })}
         placeholder={$t("materialPicker.customPlaceholder", { default: "Enter custom material…" })}
         disabled={readonly} />
@@ -445,8 +454,8 @@
                   class:selected={selectedMaterial?.id === material.id}
                   aria-pressed={selectedMaterial?.id === material.id}
                   onclick={() => selectMaterial(material)}>
-                  {#if showColor && material.metadata?.hex}
-                    <span class="color-dot" style:background-color={material.metadata.hex}></span>
+                  {#if showColor && materialSwatch(material.metadata?.hex)}
+                    <span class="color-dot" style:background-color={materialSwatch(material.metadata?.hex)}></span>
                   {/if}
                   <span class="option-details">
                     <span class="option-name">{materialName(material)}</span>
@@ -499,7 +508,21 @@
 
   .select-trigger:hover:not(:disabled) { border-color: var(--border-strong, var(--muted)); }
   .select-trigger.open { border-color: var(--accent-1, var(--brand)); }
-  .select-trigger:disabled, .custom-mode :disabled { cursor: default; opacity: 0.7; }
+  .select-trigger:disabled, .custom-mode :disabled { cursor: default; opacity: 1; }
+  .select-trigger:disabled, .custom-text-input:disabled { border-style: dashed; }
+  .custom-text-input:disabled { -webkit-text-fill-color: currentColor; }
+
+  .has-selection .select-trigger, .has-selection .custom-text-input {
+    background: var(--material-surface);
+    color: var(--material-ink);
+    border-color: var(--material-edge);
+  }
+  .has-selection .select-trigger:hover:not(:disabled) { border-color: var(--material-ink); }
+  .has-selection .select-trigger.open { border-color: var(--focus, var(--brand)); }
+  .has-selection .select-trigger .value-category,
+  .has-selection .select-trigger .specification-summary,
+  .has-selection .select-trigger .summary-separator,
+  .has-selection .select-trigger :global(.chevron) { color: inherit; }
 
   .select-trigger:focus-visible,
   .category-option:focus-visible,
@@ -554,8 +577,8 @@
     overflow: hidden;
   }
 
-  .current-selection { padding: 8px 10px; flex-shrink: 0; min-width: 0; background: var(--bg-2); border-bottom: 1px solid var(--border); }
-  .current-selection-label { color: var(--ink-secondary, var(--muted)); font-size: 11px; }
+  .current-selection { padding: 8px 10px; flex-shrink: 0; min-width: 0; background: var(--material-surface); color: var(--material-ink); border-bottom: 1px solid var(--material-edge); }
+  .current-selection-label { color: inherit; font-size: 11px; }
   .current-selection p { margin: 3px 0 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
   .search-box { padding: 8px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
   .search-input {
@@ -570,7 +593,7 @@
     color: inherit;
     caret-color: var(--brand);
   }
-  .search-input::placeholder, .custom-text-input::placeholder { color: var(--ink-secondary, var(--muted)); }
+  .search-input::placeholder, .custom-text-input::placeholder { color: var(--ink-secondary, var(--muted)); opacity: 1; }
   .search-input:focus, .custom-text-input:focus { outline: 2px solid var(--brand); outline-offset: -2px; }
 
   .options-list {
@@ -629,7 +652,8 @@
   .retry-button { border: 1px solid var(--border); border-radius: 4px; }
   .category-group + .category-group { border-top: 1px solid var(--border); }
   .category-header { padding: 7px; font-size: 11px; font-weight: 600; color: var(--ink-secondary, var(--muted)); background: var(--bg-2); overflow-wrap: anywhere; }
-  .option.selected { background: color-mix(in oklab, var(--brand) 10%, var(--bg-1, white)); }
+  .option.selected { background: var(--material-surface); color: var(--material-ink); box-shadow: inset 0 0 0 1px var(--material-edge); }
+  .option.selected .option-thickness, .option.selected .specification-summary { color: inherit; }
   .option-details { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
   .option-name { font-weight: 500; overflow-wrap: anywhere; }
   .option-thickness { font-size: 11px; color: var(--ink-secondary, var(--muted)); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }

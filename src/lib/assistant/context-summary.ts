@@ -32,6 +32,7 @@ export function summarizeScreenContext(value: unknown): {
   add('section', data.section);
   add('status', data.status, order.status);
   add('date', data.selectedDate);
+  add('month', data.month);
   add('search', data.search, filters.search, filters.query);
   for (const [field, key] of [
     ['visibleOrders', 'orders'], ['recentOrders', 'orders'], ['visibleMaterials', 'materials'], ['profiles', 'profiles'],

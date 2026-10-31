@@ -1,3 +1,5 @@
+import type { Attachment } from '$lib/chat/types';
+
 export interface OrderChatMessage {
   id: string;
   userId: string;
@@ -7,6 +9,7 @@ export interface OrderChatMessage {
   edited?: boolean;
   replyTo?: string;
   attachments?: string[];
+  voiceAttachments?: Attachment[];
 }
 
 export function parseOrderChatMessage(value: unknown): OrderChatMessage | null {
@@ -21,7 +24,9 @@ export function parseOrderChatMessage(value: unknown): OrderChatMessage | null {
     id: item.id, userId: item.userId, username: item.username, message: item.message, timestamp,
     edited: item.edited === true,
     replyTo: typeof item.replyTo === 'string' ? item.replyTo : undefined,
-    attachments: Array.isArray(item.attachments) ? item.attachments.filter((url): url is string => typeof url === 'string') : undefined
+    attachments: Array.isArray(item.attachments) ? item.attachments.filter((url): url is string => typeof url === 'string') : undefined,
+    voiceAttachments: Array.isArray(item.voiceAttachments) ? item.voiceAttachments.filter((value): value is Attachment =>
+      !!value && typeof value === 'object' && typeof value.id === 'string' && value.kind === 'voice') : undefined
   };
 }
 

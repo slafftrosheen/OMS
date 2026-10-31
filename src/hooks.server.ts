@@ -8,6 +8,8 @@ import { enforceEnvironmentSecurity } from '$lib/server/env-validator';
 import { logger } from '$lib/server/logging/logger';
 import { startSwarmHealthLoop } from '$lib/server/ai/swarm';
 import { startTelegramWorker } from '$lib/server/notifications/telegram-worker';
+import { startWorkforceWorker } from '$lib/server/workforce/worker';
+import { startChatVoiceRetentionWorker } from '$lib/server/chat/voice-retention-worker';
 import type { SessionUser } from '$lib/server/auth/session';
 import * as Sentry from '@sentry/node';
 
@@ -26,7 +28,11 @@ enforceEnvironmentSecurity(building);
 
 // Start AI swarm health monitoring
 startSwarmHealthLoop();
-if (!building && !dev && process.env.NODE_ENV !== 'test') startTelegramWorker();
+if (!building && !dev && process.env.NODE_ENV !== 'test') {
+  startTelegramWorker();
+  startWorkforceWorker();
+  startChatVoiceRetentionWorker();
+}
 
 // Get the Supabase URL and Key
 // Prioritize environment variables, fallback to defaults
@@ -131,7 +137,7 @@ const securityHeaders: Handle = async ({ event, resolve }) => {
 	response.headers.set('X-XSS-Protection', '1; mode=block');
 	response.headers.set(
 		'Permissions-Policy',
-		'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
+		'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), payment=(), usb=()'
 	);
 
 	// Remove server information

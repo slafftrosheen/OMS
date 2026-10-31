@@ -12,6 +12,7 @@
     rooms,
     messages,
     sendMessage,
+    sendVoiceMessage,
     loadRooms,
     loadMessages,
     ensureRoom,
@@ -21,6 +22,8 @@
   import { users, loadUsers } from '$lib/users/user-store';
   import Icon from '$lib/ui/Icon.svelte';
   import MentionInput from '$lib/chat/MentionInput.svelte';
+  import VoiceRecorder from '$lib/chat/VoiceRecorder.svelte';
+  import ChatAttachments from '$lib/chat/ChatAttachments.svelte';
   import type { StationTag } from '$lib/order/stages';
   import StationBadge from '$lib/ui/StationBadge.svelte';
 
@@ -327,6 +330,7 @@
 
                     <div class="bubble">
                       <p>{message.text}</p>
+                      <ChatAttachments attachments={message.attachments} contextKey={`${accountId}:${activeRoomId}`} />
                     </div>
 
                     {#if message.authorId === $currentUser?.id}
@@ -349,6 +353,8 @@
                 />
               {/if}
             {/key}
+            <VoiceRecorder contextKey={`${accountId ?? ''}:${$currentUser?.role ?? ''}:${activeRoomId}`}
+              disabled={!accountId || !activeRoom} onSend={(draft, signal) => sendVoiceMessage(activeRoomId, draft, signal)} />
           </div>
         </div>
       {/if}
@@ -684,6 +690,9 @@
   }
 
   .input-area {
+    display: grid;
+    gap: var(--space-md);
+    min-width: 0;
     padding: 12px;
     border-top: 1px solid var(--border);
     background: var(--bg-1);

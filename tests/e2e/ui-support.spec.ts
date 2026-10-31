@@ -384,11 +384,13 @@ test('user menu keyboard navigation and nonmodal chat focus stay usable at phone
   const errors = await mount(page,'menus');
   const trigger=page.getByRole('button',{name:'User menu — account-one',exact:true});
   await trigger.focus(); await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menuitem',{name:'My cabinet',exact:true})).toBeFocused();
+  await page.keyboard.press('ArrowDown');
   await expect(page.getByRole('menuitem',{name:'Settings',exact:true})).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(page.getByRole('menuitem',{name:'Sign out',exact:true})).toBeFocused();
   await page.keyboard.press('Home');
-  await expect(page.getByRole('menuitem',{name:'Settings',exact:true})).toBeFocused();
+  await expect(page.getByRole('menuitem',{name:'My cabinet',exact:true})).toBeFocused();
   await page.keyboard.press('Escape'); await expect(trigger).toBeFocused();
   await expect(page.getByRole('menu')).toHaveCount(0);
   const chatTrigger=page.getByRole('button',{name:'Open chat',exact:true});

@@ -46,7 +46,8 @@
     "chat": "Chat",
     "ailab": "Toolkit",
     "users": "Users",
-    "materials": "Materials"
+    "materials": "Materials",
+    "cabinet": "My cabinet"
   },
   "header": {
     "actions": "Header actions",
@@ -3639,7 +3640,8 @@
       "toolkit": "Toolkit",
       "settings": "Settings",
       "notifications": "Notifications",
-      "general": "Current screen"
+      "general": "Current screen",
+      "cabinet": "My cabinet"
     },
     "intro": {
       "dashboard": "Review pending work, find materials or check recorded stock.",
@@ -3654,7 +3656,8 @@
       "toolkit": "Get help with the current workspace and available engineering tools.",
       "settings": "Find the right setting and understand its effect. Credentials are not shared with the assistant.",
       "notifications": "Understand notification preferences and where to continue the related work.",
-      "general": "Get guidance for the screen you are working on."
+      "general": "Get guidance for the screen you are working on.",
+      "cabinet": "Log daily hours, review monthly totals and mark an absence. Actual hours and doubled pay credit are shown separately."
     },
     "prompt": {
       "dashboard": "What should I review first?",
@@ -3670,7 +3673,8 @@
       "settings": "Where can I change my notification preferences?",
       "notifications": "How do I adjust the notifications I receive?",
       "general": "Help me understand this screen.",
-      "next": "What is the next step here?"
+      "next": "What is the next step here?",
+      "cabinet": "How are my worked hours and doubled hours counted?"
     },
     "tool": {
       "catalog_search": "Material catalog",
@@ -3709,7 +3713,8 @@
       "editingProfile": "Editing profile",
       "code": "Product code",
       "group": "Group",
-      "stations": "Stations included"
+      "stations": "Stations included",
+      "month": "Month"
     },
     "codeBlock": "Code example",
     "comparisonTable": "Comparison table",

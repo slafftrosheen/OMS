@@ -17,5 +17,7 @@ Before applying: confirm the selected `DATABASE_URL` environment without exposin
 - `ordersummary` and `order_summary` are order read views.
 - Order child relations use `draft_order_id` where established by the live schema.
 - `files` stores file metadata and storage details; `order_files` links files to orders.
+- `20261031000003_workforce_cabinet.sql` adds personal work entries, absence notices, calendar overrides, immutable report payloads, audit history and leased report jobs. Authenticated users read their own records; `RD`, `Boss` and `HeadOfProduction` can read the team. Writes use authorized RPCs. See [workforce cabinet operations](../docs/operations/workforce-cabinet.md).
+- `20261031000004_chat_voice_retention.sql` adds authorized voice-message storage, atomic message binding, three-calendar-month audio expiry and durable storage cleanup. Text messages have no retention deadline. See [voice messaging operations](../docs/operations/chat-voice-messages.md).
 
 Use the live database schema and function definitions as the final authority. Do not infer current deployed state solely from old migration comments or documentation.

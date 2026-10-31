@@ -72,6 +72,28 @@ async function browser(run: (context: {
 }
 
 describe('chat history and acknowledgement races', () => {
+  it('hydrates a voice arriving during an older read and reruns when another arrives during hydration', async () => {
+    await browser(async ({ chat, realtime }) => {
+      const first = deferred<Response>(), second = deferred<Response>(), third = deferred<Response>();
+      let calls = 0;
+      globalThis.fetch = async () => { calls++; return calls === 1 ? first.promise : calls === 2 ? second.promise : third.promise; };
+      const initial = chat.loadMessages('general');
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const rt = realtime();
+      rt.emit({ id: 'voice-a', room_id: 'general', user_id: 'user-b', content: '', created_at: '2026-10-31T12:00:00Z' });
+      first.resolve(Response.json({ success: true, messages: [] })); await initial;
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(calls).toBe(2);
+      rt.emit({ id: 'voice-b', room_id: 'general', user_id: 'user-b', content: '', created_at: '2026-10-31T12:00:01Z' });
+      const attached = (id: string) => message(id, { text: '', attachments: [{ id: `${id}-file`, kind: 'voice', fileName: 'voice.webm', fileType: 'audio/webm', fileSize: 500, url: `/api/chat/voice/${id}-file` }] });
+      second.resolve(Response.json({ success: true, messages: [attached('voice-a')] }));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(calls).toBe(3);
+      third.resolve(Response.json({ success: true, messages: [attached('voice-a'), attached('voice-b')] }));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(get(chat.messages).find(row => row.id === 'voice-b')?.attachments?.[0].kind).toBe('voice');
+    });
+  });
   it('refreshes old history while retaining new arrivals, other rooms and one copy of duplicate IDs', async () => {
     await browser(async ({ chat }) => {
       chat.messages.set([message('old'), message('removed'), message('other', { roomId: 'station-cad' })]);
