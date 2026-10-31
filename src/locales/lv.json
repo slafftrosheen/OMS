@@ -3484,6 +3484,8 @@
   },
   "materialPicker": {
     "select": "Izvēlēties…",
+    "editSelection": "Rediģēt",
+    "doneEditing": "Gatavs",
     "search": "Meklēt visos materiālos…",
     "categories": "Materiālu kategorijas",
     "backToCategories": "Visas kategorijas",
@@ -3543,6 +3545,7 @@
       "removeFace": "Noņemt priekšpuses materiālu {number}",
       "faceNumber": "Priekšpuses materiāls {number}",
       "print3d": "3D drukas materiāls",
+      "materialNote": "Materiāla piezīme",
       "connector": "Savienotāja modelis",
       "psuType": "Barošanas bloka veids",
       "profileName": "Profila nosaukums",

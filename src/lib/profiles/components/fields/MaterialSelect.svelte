@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { onDestroy, tick, untrack } from "svelte";
+  import { onDestroy, tick, untrack, type Snippet } from "svelte";
   import { base } from "$app/paths";
   import { ArrowLeft, ChevronDown, ChevronRight, Pencil, RefreshCw, X } from "lucide-svelte";
   import { locale, t } from "$lib/i18n";
   import { materialDisplayName } from "$lib/profiles/helpers";
+  import { getProfileMaterialBadge, type ProfileMaterialBadgeKind } from "$lib/profiles/material-badge";
   import { getMaterialSelectionSummary, type MaterialSummaryKind } from "$lib/materials/selection-summary";
   import { materialColorVariables, materialSelectionTone, materialSwatch } from "$lib/materials/selection-colors";
   import "$lib/materials/selection-colors.css";
@@ -35,6 +36,13 @@
     summaryKind,
     selectionLength = "",
     materialRole,
+    compactSelection = false,
+    badgeKind,
+    badgeThickness = "",
+    badgeShortName = "",
+    badgeDimensions = "",
+    editorDetails,
+    finishOnSelect = true,
     onchange,
   }: {
     value?: string;
@@ -50,6 +58,13 @@
     summaryKind?: MaterialSummaryKind;
     selectionLength?: string;
     materialRole?: ProfileMaterialRole;
+    compactSelection?: boolean;
+    badgeKind?: ProfileMaterialBadgeKind;
+    badgeThickness?: string;
+    badgeShortName?: string;
+    badgeDimensions?: string;
+    editorDetails?: Snippet;
+    finishOnSelect?: boolean;
     onchange?: (data: {
       value: string;
       material: Material | null;
@@ -67,14 +82,18 @@
   let search = $state("");
   let activeCategory = $state("");
   let dropdownRef: HTMLDivElement | undefined = $state();
+  let pickerControlRef: HTMLDivElement | undefined = $state();
   let panelRef: HTMLDivElement | undefined = $state();
   let triggerRef: HTMLButtonElement | undefined = $state();
+  let editRef: HTMLButtonElement | undefined = $state();
   let searchRef: HTMLInputElement | undefined = $state();
   let customInputRef: HTMLInputElement | undefined = $state();
   let customMode = $state(false);
   let customHex = $state("");
+  let editing = $state(false);
   let requestVersion = 0;
   let initialValueResolved = false;
+  let knownValue = untrack(() => value);
 
   let selectedMaterial = $derived(materials.find((material) => material.code === value || material.name_en === value) || null);
   let candidateMaterials = $derived(filterProfileMaterials(materials, materialRole));
@@ -89,12 +108,18 @@
   let shortName = $derived(materialDisplayName(selectedMaterial, value));
   let resolvedCategory = $derived(candidateMaterials.find(material => material.code === selectedMaterial?.code)?.category
     || selectedMaterial?.category || selectedCategory);
+  let selectedBadge = $derived(getProfileMaterialBadge(selectedMaterial, {
+    value, shortName: badgeShortName, category: resolvedCategory,
+    thickness: badgeThickness, hex: customColor, kind: badgeKind, dimensions: badgeDimensions
+  }));
   let selectedSummary = $derived(getMaterialSelectionSummary(selectedMaterial, {
     kind: summaryKind, value, length: selectionLength, locale: $locale
   }));
   let selectionTone = $derived(materialSelectionTone(
     resolvedCategory || category || categories[0], materialRole, summaryKind
   ));
+  let collapsed = $derived(compactSelection && Boolean(value) && (readonly || !editing));
+  let selectionIdentity = $derived(selectedSummary?.identity || selectedMaterial?.name_en || value);
 
   $effect(() => {
     const url = catalogUrl;
@@ -107,6 +132,27 @@
   $effect(() => {
     const color = customColor;
     untrack(() => { customHex = color; });
+  });
+
+  $effect(() => {
+    if (readonly) {
+      open = false;
+      editing = false;
+    }
+  });
+
+  $effect(() => {
+    const nextValue = value;
+    untrack(() => {
+      // Parent resets can reuse this component. A new saved selection must not
+      // inherit the previous editor, while explicit local typing stays open.
+      if (compactSelection && nextValue !== knownValue) {
+        open = false;
+        editing = false;
+        customMode = false;
+      }
+      knownValue = nextValue;
+    });
   });
 
   onDestroy(() => { requestVersion++; });
@@ -160,7 +206,13 @@
       if (!initialValueResolved) {
         initialValueResolved = true;
         if (allowCustom && value && !result.some((material) => material.code === value || material.name_en === value)) {
+          const restoreCustomFocus = compactSelection && editing && triggerRef
+            && triggerRef.ownerDocument.activeElement === triggerRef;
           customMode = true;
+          if (restoreCustomFocus) {
+            await tick();
+            if (version === requestVersion && editing && !readonly) customInputRef?.focus();
+          }
         }
       }
     } catch {
@@ -170,32 +222,56 @@
     }
   }
 
-  function selectMaterial(material: Material) {
+  async function selectMaterial(material: Material) {
     if (readonly) return;
-    value = material.name_en || material.code;
+    setSelectionValue(material.name_en || material.code);
     open = false;
     search = "";
     customMode = false;
+    if (compactSelection) editing = !finishOnSelect;
 
     const short = materialDisplayName(material, value);
+    const hex = compactSelection
+      ? getProfileMaterialBadge(material, { value, kind: badgeKind, category: material.category }).hex || ""
+      : material.metadata?.hex || "";
 
-    onchange?.({ value, material, hex: material.metadata?.hex || "", shortName: short });
-    triggerRef?.focus();
+    onchange?.({ value, material, hex, shortName: short });
+    await tick();
+    if (collapsed) editRef?.focus();
+    else triggerRef?.focus();
   }
 
   async function clearSelection() {
     if (readonly) return;
-    value = "";
+    setSelectionValue("");
     customHex = "";
     customMode = false;
     open = false;
     search = "";
     activeCategory = "";
+    editing = true;
     // An explicit clear is the same event for catalog and custom selections.
     // Parent fields also discard the old swatch/category/thickness metadata.
     onchange?.({ value: "", material: null, hex: "", shortName: "" });
     await tick();
     triggerRef?.focus();
+  }
+
+  async function editSelection() {
+    if (readonly) return;
+    if (!loading && !loadError) customMode = allowCustom && Boolean(value) && !selectedMaterial;
+    editing = true;
+    await tick();
+    if (customMode) customInputRef?.focus();
+    else triggerRef?.focus();
+  }
+
+  async function finishEditing() {
+    if (readonly || !value) return;
+    open = false;
+    editing = false;
+    await tick();
+    editRef?.focus();
   }
 
   async function toggleDropdown() {
@@ -212,7 +288,8 @@
 
   async function enterCustomMode() {
     if (readonly || !allowCustom) return;
-    customHex = selectedMaterial?.metadata?.hex || customHex;
+    customHex = (compactSelection ? selectedBadge.hex : selectedMaterial?.metadata?.hex) || customHex;
+    editing = true;
     customMode = true;
     open = false;
     await tick();
@@ -222,7 +299,7 @@
   function handleCustomInput(e: Event) {
     if (readonly) return;
     const target = e.target as HTMLInputElement;
-    value = target.value;
+    setSelectionValue(target.value);
     // For custom values, call onchange with custom hex if set
     onchange?.({
       value,
@@ -230,6 +307,11 @@
       hex: customHex,
       shortName: value, // Custom value = exact text as entered
     });
+  }
+
+  function setSelectionValue(nextValue: string) {
+    knownValue = nextValue;
+    value = nextValue;
   }
 
   function handleCustomColorChange(e: Event) {
@@ -246,7 +328,7 @@
   }
 
   function handleClickOutside(event: PointerEvent) {
-    if (dropdownRef && !dropdownRef.contains(event.target as Node)) {
+    if (open && pickerControlRef && !pickerControlRef.contains(event.target as Node)) {
       open = false;
     }
   }
@@ -276,6 +358,12 @@
       triggerRef?.focus();
       return;
     }
+    if (event.key === "Escape" && compactSelection && editing && value) {
+      event.preventDefault();
+      event.stopPropagation();
+      void finishEditing();
+      return;
+    }
     if (!open && event.key === "ArrowDown" && event.target === triggerRef) {
       event.preventDefault();
       void toggleDropdown();
@@ -298,8 +386,9 @@
 
   function handleFocusIn(event: FocusEvent) {
     // A focused button disappearing during a render is not an outside focus
-    // destination. Dismiss when focus actually arrives outside the picker.
-    if (open && dropdownRef && !dropdownRef.contains(event.target as Node)) open = false;
+    // destination. Moving into editor details leaves the picker, but keeps the
+    // material editor open so thickness, notes and geometry remain available.
+    if (open && pickerControlRef && !pickerControlRef.contains(event.target as Node)) open = false;
   }
 </script>
 
@@ -322,6 +411,41 @@
 <div class="material-select material-context" class:open class:has-selection={Boolean(value)}
   data-material-tone={selectionTone} data-readonly={readonly}
   style={materialColorVariables(selectionTone)} bind:this={dropdownRef}>
+  {#if collapsed}
+    <div class="material-selection-summary">
+      <span class="material-selection-badge material-context material-swatch"
+        data-material-badge={badgeKind || summaryKind || "material"}
+        data-material-tone={selectionTone}
+        style={materialColorVariables(selectionTone, selectedBadge.hex)}
+        title={selectionIdentity}
+        aria-describedby={`${pickerId}-identity`}>
+        {#if selectedSummary?.facts.length}
+          <span class="selected-summary" data-selection-summary={selectedSummary.kind}>
+            {#each selectedSummary.facts as fact, index (fact.key)}
+              <span class="summary-fact" data-selection-fact={fact.key} title={fact.label}>
+                {#if index}<span class="summary-separator" aria-hidden="true">{' · '}</span>{/if}{fact.value}
+              </span>
+            {/each}
+          </span>
+        {:else}
+          <span class="badge-label">{selectedBadge.label || shortName || value}</span>
+        {/if}
+      </span>
+      <span class="visually-hidden" id={`${pickerId}-identity`}>{selectionIdentity}</span>
+      {#if !readonly}
+        <button type="button" class="edit-selection" bind:this={editRef}
+          aria-label={label ? `${label} · ${$t("materialPicker.editSelection", { default: "Edit" })}`
+            : $t("materialPicker.editSelection", { default: "Edit" })}
+          aria-describedby={`${pickerId}-identity`}
+          onclick={editSelection}>
+          <Pencil size={14} aria-hidden="true" />
+          {$t("materialPicker.editSelection", { default: "Edit" })}
+        </button>
+      {/if}
+    </div>
+  {:else}
+  <div class="selection-editor">
+  <div class="picker-control" bind:this={pickerControlRef}>
   <div class="selection-control">
   {#if customMode}
     <div class="custom-mode">
@@ -474,6 +598,24 @@
       </div>
     </div>
   {/if}
+  </div>
+  {#if compactSelection && editorDetails}
+    <div class="editor-details">
+      {@render editorDetails()}
+    </div>
+  {/if}
+  {#if compactSelection && value && !readonly}
+    <div class="editor-actions">
+      <button type="button" class="done-editing"
+        aria-label={label ? `${label} · ${$t("materialPicker.doneEditing", { default: "Done" })}`
+          : $t("materialPicker.doneEditing", { default: "Done" })}
+        onclick={finishEditing}>
+        {$t("materialPicker.doneEditing", { default: "Done" })}
+      </button>
+    </div>
+  {/if}
+  </div>
+  {/if}
 </div>
 
 <style>
@@ -485,6 +627,58 @@
   }
 
   .material-select.open { z-index: var(--z-overlay, 40); }
+  .material-selection-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
+    gap: var(--space-xs);
+    min-width: 0;
+  }
+  .material-selection-badge {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    min-height: var(--control-sm);
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--material-edge);
+    border-radius: var(--radius-sm);
+    box-sizing: border-box;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: var(--leading-snug);
+    text-align: start;
+  }
+  .badge-label { min-width: 0; overflow-wrap: anywhere; }
+  .material-selection-badge .selected-summary { line-height: inherit; }
+  .material-selection-badge .summary-separator { color: inherit; }
+  .edit-selection,
+  .done-editing {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xs);
+    min-height: var(--control-sm);
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-1);
+    color: var(--ink-primary);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: var(--leading-snug);
+    cursor: pointer;
+  }
+  .edit-selection { align-self: start; }
+  .edit-selection :global(svg) { flex-shrink: 0; }
+  .edit-selection:hover,
+  .done-editing:hover { border-color: var(--border-strong); background: var(--bg-2); }
+  .edit-selection:focus-visible,
+  .done-editing:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .selection-editor,
+  .editor-details { display: grid; gap: var(--space-sm); min-width: 0; }
+  .picker-control { position: relative; min-width: 0; }
+  .editor-actions { display: flex; justify-content: flex-end; }
   .selection-control { display: flex; align-items: stretch; gap: 4px; min-width: 0; }
 
   .select-trigger {
@@ -671,6 +865,7 @@
   .clear-selection:hover { border-color: var(--border-strong, var(--muted)); color: var(--text, var(--ink-primary)); background: var(--bg-2); }
 
   @media (pointer: coarse) {
+    .edit-selection, .done-editing { min-height: var(--control-size); }
     .select-trigger, .category-option, .option, .category-back, .custom-option, .retry-button, .custom-text-input, .btn-switch-mode, .custom-color-picker, .clear-selection { min-height: 44px; }
     .btn-switch-mode, .custom-color-picker, .clear-selection { min-width: 40px; }
   }

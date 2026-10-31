@@ -35,11 +35,10 @@
     type ColorValue,
     defaultColor,
     extractShortName,
-    selectionBadgeLabel,
     paintMaterialValue,
     applyPaintMaterialSelection,
   } from "$lib/profiles/helpers";
-  import { frameBadgeLabel, readLegacyFrameThickness, withFrameThickness } from "$lib/profiles/frame-sizing";
+  import { readLegacyFrameThickness, withFrameThickness } from "$lib/profiles/frame-sizing";
   import { PROFILE_MATERIAL_CATEGORIES } from "$lib/profiles/material-roles";
   import {
     AlertCircle,
@@ -55,7 +54,6 @@
     StickyNote,
     Sun,
     Moon,
-    Check,
     X,
     Plus,
     Trash2,
@@ -90,6 +88,7 @@
       laser?: boolean;
       print3d?: boolean;
       print3dMaterial?: string;
+      print3dMaterialHex?: string;
       print3dMaterialShort?: string;
       print3dMaterialCategory?: string;
       notes?: string;
@@ -539,26 +538,30 @@
                   customColor={material.hex ?? ""}
                   categories={faceMaterials}
                   materialRole="face"
+                  compactSelection
+                  badgeKind="sheet"
+                  badgeThickness={material.thickness}
+                  badgeShortName={material.shortName}
+                  finishOnSelect={false}
                   allowCustom={true}
                   {readonly}
                   onchange={(data) => selectFaceMaterial(material, data)}
-                />
+                >
+                  {#snippet editorDetails()}
+                    {#if material.value}
+                      <MaterialThicknessSelect
+                        bind:value={material.thickness}
+                        materialType={material.category || material.value}
+                        thicknessOptions={material.thicknessOptions}
+                        autoSelectLowest={false}
+                        label={`${$t('profiles.materials.faceNumber', { number: index + 1 })} · ${$t('materialThickness.select')}`}
+                        {readonly}
+                        onchange={emit}
+                      />
+                    {/if}
+                  {/snippet}
+                </MaterialSelect>
               </div>
-              {#if material.value}
-                <span class="material-badge-lg material-context material-swatch"
-                  data-material-tone="face" style={materialColorVariables('face', material.hex)}>
-                  {selectionBadgeLabel(material.value, material.shortName, material.category || "ACRYLIC")}{#if material.thickness}/{material.thickness}{/if}
-                </span>
-                <MaterialThicknessSelect
-                  bind:value={material.thickness}
-                  materialType={material.category || material.value}
-                  thicknessOptions={material.thicknessOptions}
-                  autoSelectLowest={false}
-                  label={`${$t('profiles.materials.faceNumber', { number: index + 1 })} · ${$t('materialThickness.select')}`}
-                  {readonly}
-                  onchange={emit}
-                />
-              {/if}
             </div>
           {/each}
           {#if !readonly}
@@ -579,28 +582,30 @@
               customColor={configuration.CNC_FREZER.backHex ?? ""}
               categories={backMaterials}
               materialRole="back"
+              compactSelection
+              badgeKind="sheet"
+              badgeThickness={configuration.CNC_FREZER.backThickness}
+              badgeShortName={configuration.CNC_FREZER.backShort}
+              finishOnSelect={false}
               allowCustom={true}
               {readonly}
               onchange={selectBackMaterial}
-            />
-          </div>
-          {#if configuration.CNC_FREZER.back}
-            <span
-              class="material-badge-lg material-context material-swatch"
-              data-material-tone="back" style={materialColorVariables('back', configuration.CNC_FREZER.backHex)}
             >
-              {selectionBadgeLabel(configuration.CNC_FREZER.back, configuration.CNC_FREZER.backShort, configuration.CNC_FREZER.backCategory || "ALU")}{#if configuration.CNC_FREZER.backThickness}/{configuration.CNC_FREZER.backThickness}{/if}
-            </span>
-            <MaterialThicknessSelect
-              bind:value={configuration.CNC_FREZER.backThickness}
-              materialType={configuration.CNC_FREZER.backCategory || configuration.CNC_FREZER.back}
-              thicknessOptions={configuration.CNC_FREZER.backThicknessOptions}
-              autoSelectLowest={false}
-              label={`BACK · ${$t('materialThickness.select')}`}
-              {readonly}
-              onchange={emit}
-            />
-          {/if}
+              {#snippet editorDetails()}
+                {#if configuration.CNC_FREZER.back}
+                  <MaterialThicknessSelect
+                    bind:value={configuration.CNC_FREZER.backThickness}
+                    materialType={configuration.CNC_FREZER.backCategory || configuration.CNC_FREZER.back}
+                    thicknessOptions={configuration.CNC_FREZER.backThicknessOptions}
+                    autoSelectLowest={false}
+                    label={`BACK · ${$t('materialThickness.select')}`}
+                    {readonly}
+                    onchange={emit}
+                  />
+                {/if}
+              {/snippet}
+            </MaterialSelect>
+          </div>
         </fieldset>
 
         <!-- Options -->
@@ -632,23 +637,20 @@
               bind:value={configuration.CNC_FREZER.print3dMaterial}
               label={$t('profiles.materials.print3d', { default: '3D printing material' })}
               selectedCategory={configuration.CNC_FREZER.print3dMaterialCategory}
+              customColor={configuration.CNC_FREZER.print3dMaterialHex ?? ""}
               categories={print3dMaterials}
+              compactSelection
+              badgeKind="print3d"
+              badgeShortName={configuration.CNC_FREZER.print3dMaterialShort}
               allowCustom={true}
-              showColor={false}
               {readonly}
               onchange={(data) => {
+                configuration.CNC_FREZER.print3dMaterialHex = data.hex;
                 configuration.CNC_FREZER.print3dMaterialShort = extractShortName(data, "FDM");
                 configuration.CNC_FREZER.print3dMaterialCategory = data.material?.category || "";
                 emit();
               }}
             />
-            {#if configuration.CNC_FREZER.print3dMaterial}
-              <span class="material-badge-lg print3d-badge material-context material-swatch"
-                data-material-tone="print3d" style={materialColorVariables('print3d')}>
-                <Layers size={16} />
-                {selectionBadgeLabel(configuration.CNC_FREZER.print3dMaterial, configuration.CNC_FREZER.print3dMaterialShort, "FDM")}
-              </span>
-            {/if}
           </fieldset>
         {/if}
 
@@ -686,28 +688,30 @@
               customColor={configuration.BENDER.sidesHex ?? ""}
               categories={sidesMaterials}
               materialRole="sides"
+              compactSelection
+              badgeKind="sheet"
+              badgeThickness={configuration.BENDER.sidesThickness}
+              badgeShortName={configuration.BENDER.sidesShort}
+              finishOnSelect={false}
               allowCustom={true}
               {readonly}
               onchange={selectSidesMaterial}
-            />
-          </div>
-          {#if configuration.BENDER.sides}
-            <span
-              class="material-badge-lg material-context material-swatch"
-              data-material-tone="sides" style={materialColorVariables('sides', configuration.BENDER.sidesHex)}
             >
-              {selectionBadgeLabel(configuration.BENDER.sides, configuration.BENDER.sidesShort, configuration.BENDER.sidesCategory || "ALU")}{#if configuration.BENDER.sidesThickness}/{configuration.BENDER.sidesThickness}{/if}
-            </span>
-            <MaterialThicknessSelect
-              bind:value={configuration.BENDER.sidesThickness}
-              materialType={configuration.BENDER.sidesCategory || configuration.BENDER.sides}
-              thicknessOptions={configuration.BENDER.sidesThicknessOptions}
-              autoSelectLowest={false}
-              label={`SIDES · ${$t('materialThickness.select')}`}
-              {readonly}
-              onchange={emit}
-            />
-          {/if}
+              {#snippet editorDetails()}
+                {#if configuration.BENDER.sides}
+                  <MaterialThicknessSelect
+                    bind:value={configuration.BENDER.sidesThickness}
+                    materialType={configuration.BENDER.sidesCategory || configuration.BENDER.sides}
+                    thicknessOptions={configuration.BENDER.sidesThicknessOptions}
+                    autoSelectLowest={false}
+                    label={`SIDES · ${$t('materialThickness.select')}`}
+                    {readonly}
+                    onchange={emit}
+                  />
+                {/if}
+              {/snippet}
+            </MaterialSelect>
+          </div>
         </fieldset>
 
         <div class="depth-box">
@@ -769,6 +773,9 @@
                   customColor={configuration.FRONT[`${part}FilmHex`] ?? ""}
                   selectedCategory={configuration.FRONT[`${part}FilmCategory`]}
                   categories={filmCategories}
+                  compactSelection
+                  badgeKind="film"
+                  badgeShortName={configuration.FRONT[`${part}FilmShort`]}
                   allowCustom={true}
                   {readonly}
                   onchange={(data) => {
@@ -780,24 +787,24 @@
                     );
                     emit();
                   }}
-                />
-                {#if configuration.FRONT[`${part}Film`]}
-                  <span
-                    class="material-badge-lg material-context material-swatch"
-                    data-material-tone="film" style={materialColorVariables('film', configuration.FRONT[`${part}FilmHex`])}
-                  >
-                    {selectionBadgeLabel(configuration.FRONT[`${part}Film`], configuration.FRONT[`${part}FilmShort`], "ORACAL")}
-                  </span>
-                {/if}
+                >
+                  {#snippet editorDetails()}
+                    {#if !readonly}
+                      <input
+                        type="text"
+                        class="custom-input"
+                        bind:value={configuration.FRONT[`${part}Custom`]}
+                        aria-label={`FRONT · ${part.toUpperCase()} · ${$t('profiles.materials.materialNote')}`}
+                        oninput={emit}
+                        placeholder={$t('profiles.materials.materialNote')}
+                      />
+                    {/if}
+                  {/snippet}
+                </MaterialSelect>
               </div>
-              <input
-                type="text"
-                class="custom-input"
-                bind:value={configuration.FRONT[`${part}Custom`]}
-                disabled={readonly}
-                oninput={emit}
-                placeholder="Custom..."
-              />
+              {#if readonly && configuration.FRONT[`${part}Custom`]}
+                <p class="material-note">{configuration.FRONT[`${part}Custom`]}</p>
+              {/if}
             {/if}
           </div>
         {/each}
@@ -849,29 +856,32 @@
                   selectedCategory={configuration.PAINTING[`${item.key}Color`].system?.toUpperCase() === 'PANTONE'
                     ? 'PAINT_PANTONE' : configuration.PAINTING[`${item.key}Color`].system?.toUpperCase() === 'RAL' ? 'PAINT_RAL' : ''}
                   categories={paintCategories}
+                  compactSelection
+                  badgeKind="paint"
+                  badgeShortName={configuration.PAINTING[`${item.key}Color`].code}
                   allowCustom={true}
                   {readonly}
                   onchange={(data) => {
                     configuration.PAINTING[`${item.key}Color`] = applyPaintMaterialSelection(data);
                     emit();
                   }}
-                />
-                {#if configuration.PAINTING[`${item.key}Color`].code}
-                  <span
-                    class="ral-badge material-context material-swatch"
-                    data-material-tone="paint" style={materialColorVariables('paint', configuration.PAINTING[`${item.key}Color`].hex)}
-                  >
-                    {configuration.PAINTING[`${item.key}Color`].code}
-                  </span>
+                >
+                  {#snippet editorDetails()}
+                    {#if !readonly}
+                      <input
+                        type="text"
+                        class="custom-input"
+                        bind:value={configuration.PAINTING[`${item.key}Custom`]}
+                        aria-label={`PAINTING · ${item.label} · ${$t('profiles.materials.materialNote')}`}
+                        oninput={emit}
+                        placeholder={$t('profiles.materials.materialNote')}
+                      />
+                    {/if}
+                  {/snippet}
+                </MaterialSelect>
+                {#if readonly && configuration.PAINTING[`${item.key}Custom`]}
+                  <p class="material-note">{configuration.PAINTING[`${item.key}Custom`]}</p>
                 {/if}
-                <input
-                  type="text"
-                  class="custom-input"
-                  bind:value={configuration.PAINTING[`${item.key}Custom`]}
-                  disabled={readonly}
-                  oninput={emit}
-                  placeholder="Custom..."
-                />
               {:else}
                 <span class="no-badge">NO</span>
               {/if}
@@ -927,6 +937,7 @@
                   selectedCategory={configuration.ASSEMBLING.ledModuleCategory}
                   categories={ledCategories}
                   summaryKind="led"
+                  compactSelection
                   allowCustom={true}
                   showColor={false}
                   {readonly}
@@ -1001,6 +1012,7 @@
                   selectedCategory={configuration.ASSEMBLING.psuModelCategory}
                   categories={psuCategories}
                   summaryKind="psu"
+                  compactSelection
                   allowCustom={true}
                   showColor={false}
                   {readonly}
@@ -1058,6 +1070,8 @@
                   materialRole="mainCable"
                   summaryKind="cable"
                   selectionLength={configuration.ASSEMBLING.cablesLength}
+                  compactSelection
+                  finishOnSelect={false}
                   allowCustom={true}
                   showColor={false}
                   {readonly}
@@ -1069,19 +1083,22 @@
                     );
                     emit();
                   }}
-                />
-                <div class="field cable-length">
-                  <label for={`${formId}-cable-length`}>{$t('profiles.materials.cableLength')}</label>
-                  <input
-                    id={`${formId}-cable-length`}
-                    type="text"
-                    class="length-input"
-                    bind:value={configuration.ASSEMBLING.cablesLength}
-                    disabled={readonly}
-                    oninput={emit}
-                    placeholder="2 m"
-                  />
-                </div>
+                >
+                  {#snippet editorDetails()}
+                    <div class="field cable-length">
+                      <label for={`${formId}-cable-length`}>{$t('profiles.materials.cableLength')}</label>
+                      <input
+                        id={`${formId}-cable-length`}
+                        type="text"
+                        class="length-input"
+                        bind:value={configuration.ASSEMBLING.cablesLength}
+                        disabled={readonly}
+                        oninput={emit}
+                        placeholder="2 m"
+                      />
+                    </div>
+                  {/snippet}
+                </MaterialSelect>
               </div>
               <label
                 class="wago-label"
@@ -1103,6 +1120,9 @@
                     label={$t('profiles.materials.connector', { default: 'Connector model' })}
                     selectedCategory={configuration.ASSEMBLING.cablesConnectorCategory}
                     categories={connectorCategories}
+                    compactSelection
+                    badgeKind="connector"
+                    badgeShortName={configuration.ASSEMBLING.cablesConnectorShort}
                     showColor={false}
                     allowCustom={true}
                     {readonly}
@@ -1112,13 +1132,6 @@
                       emit();
                     }}
                   />
-                  {#if configuration.ASSEMBLING.cablesConnector}
-                    <span class="material-badge-lg connector-badge material-context material-swatch"
-                      data-material-tone="connector" style={materialColorVariables('connector')}>
-                      <Cable size={16} />
-                      {selectionBadgeLabel(configuration.ASSEMBLING.cablesConnector, configuration.ASSEMBLING.cablesConnectorShort, 'LED_ACCESSORY')}
-                    </span>
-                  {/if}
                 </fieldset>
               {/if}
             {:else}
@@ -1153,44 +1166,43 @@
                   customColor={configuration.ASSEMBLING.frameMaterialHex ?? ""}
                   categories={frameMaterials}
                   materialRole="frame"
+                  compactSelection
+                  badgeKind="frame"
+                  badgeThickness={configuration.ASSEMBLING.frameThickness}
+                  badgeShortName={configuration.ASSEMBLING.frameMaterialShort}
+                  badgeDimensions={configuration.ASSEMBLING.frameDimensions}
+                  finishOnSelect={false}
                   allowCustom={true}
                   {readonly}
                   onchange={selectFrameMaterial}
-                />
-              </div>
-              {#if configuration.ASSEMBLING.frameMaterial}
-                <span
-                  class="material-badge-lg material-context material-swatch"
-                  data-material-tone="frame" style={materialColorVariables('frame', configuration.ASSEMBLING.frameMaterialHex)}
                 >
-                  <Square size={16} />
-                  {frameBadgeLabel(
-                    selectionBadgeLabel(configuration.ASSEMBLING.frameMaterial, configuration.ASSEMBLING.frameMaterialShort, configuration.ASSEMBLING.frameMaterialCategory || "ALU"),
-                    configuration.ASSEMBLING.frameDimensions, configuration.ASSEMBLING.frameThickness,
-                  )}
-                </span>
-                <MaterialThicknessSelect
-                  bind:value={configuration.ASSEMBLING.frameThickness}
-                  materialType={configuration.ASSEMBLING.frameMaterialCategory || configuration.ASSEMBLING.frameMaterial}
-                  thicknessOptions={configuration.ASSEMBLING.frameThicknessOptions}
-                  autoSelectLowest={false}
-                  label={`FRAME · ${$t('materialThickness.select')}`}
-                  {readonly}
-                  onchange={changeFrameThickness}
-                />
-                <div class="field">
-                  <label for={`${formId}-frame-size`}>{isRoundFrame ? "DIAMETER (mm)" : "FRAME SIZE"}</label>
-                  <input
-                    id={`${formId}-frame-size`}
-                    type="text"
-                    value={configuration.ASSEMBLING.frameDimensions}
-                    placeholder={isRoundFrame ? "e.g. D20" : "e.g. 40x40"}
-                    disabled={readonly}
-                    oninput={changeFrameDimensions}
-                    class="custom-input"
-                  />
-                </div>
-              {/if}
+                  {#snippet editorDetails()}
+                    {#if configuration.ASSEMBLING.frameMaterial}
+                      <MaterialThicknessSelect
+                        bind:value={configuration.ASSEMBLING.frameThickness}
+                        materialType={configuration.ASSEMBLING.frameMaterialCategory || configuration.ASSEMBLING.frameMaterial}
+                        thicknessOptions={configuration.ASSEMBLING.frameThicknessOptions}
+                        autoSelectLowest={false}
+                        label={`FRAME · ${$t('materialThickness.select')}`}
+                        {readonly}
+                        onchange={changeFrameThickness}
+                      />
+                      <div class="field">
+                        <label for={`${formId}-frame-size`}>{isRoundFrame ? "DIAMETER (mm)" : "FRAME SIZE"}</label>
+                        <input
+                          id={`${formId}-frame-size`}
+                          type="text"
+                          value={configuration.ASSEMBLING.frameDimensions}
+                          placeholder={isRoundFrame ? "e.g. D20" : "e.g. 40x40"}
+                          disabled={readonly}
+                          oninput={changeFrameDimensions}
+                          class="custom-input"
+                        />
+                      </div>
+                    {/if}
+                  {/snippet}
+                </MaterialSelect>
+              </div>
               <div class="frame-options">
                 <label
                   class="opt waterholes"
@@ -1488,14 +1500,19 @@
 
   /* PICKER ROW - consistent layout for all material pickers */
   .picker-row {
-    display: flex;
-    gap: var(--space-sm, 8px);
-    align-items: center;
+    min-width: 0;
   }
 
   .picker-row :global(.material-select) {
-    flex: 1;
-    min-width: 80px;
+    min-width: 0;
+  }
+
+  .material-note {
+    margin: 0;
+    color: var(--ink-primary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+    overflow-wrap: anywhere;
   }
 
   /* DEPTH */
@@ -1628,16 +1645,6 @@
     height: 14px;
   }
 
-  .ral-badge {
-    padding: 8px 12px;
-    border-radius: 4px;
-    font-size: 16px;
-    font-weight: 900;
-    text-align: center;
-    border: 1px solid var(--material-edge, var(--border));
-    overflow-wrap: anywhere;
-  }
-
   /* NO BADGE */
   .no-badge {
     background: var(--bg-1);
@@ -1682,29 +1689,6 @@
     justify-content: space-between;
     align-items: center;
   }
-
-  /* Material identity and geometry share the actual swatch or role accent. */
-  .material-badge-lg {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-sm, 8px);
-    padding: var(--space-md, 12px);
-    border-radius: var(--radius-md, 6px);
-    font-weight: 800;
-    font-size: 14px;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    line-height: 1.4;
-    border: 1px solid var(--material-edge, var(--border));
-    min-height: 48px;
-    flex: 1;
-    min-width: 0;
-    box-sizing: border-box;
-    text-align: center;
-  }
-
-  .material-badge-lg :global(svg) { flex-shrink: 0; }
 
   .no-badge-lg {
     display: flex;

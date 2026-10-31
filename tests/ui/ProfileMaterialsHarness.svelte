@@ -39,6 +39,22 @@
     changes = 0;
     reload();
   }
+
+  function loadConfiguredMaterials() {
+    latest = {
+      ...JSON.parse(JSON.stringify(legacy)),
+      CNC_FREZER: {
+        face: 'PLEXIGLAS_GS_1C33', faceThickness: '3mm',
+        back: 'PLEXIGLAS_GS_0F00', backThickness: '1.5mm',
+        print3d: true, print3dMaterial: '3S-ASA-BLACK-100-175'
+      },
+      BENDER: { sides: 'Aluminium sheet 1500 × 3000 mm', sidesThickness: '1.5mm', depth: 100 },
+      FRONT: { face: true, faceFilm: '005S', faceFilmShort: '005', faceCustom: 'Apply before trimming' },
+      PAINTING: { face: true, faceColor: { system: 'RAL', code: '3024', hex: '#FF2D21' } }
+    };
+    changes = 0;
+    reload();
+  }
 </script>
 
 <main>
@@ -57,6 +73,7 @@
     <button type="button" onclick={reload}>Reload serialized profile</button>
     <button type="button" onclick={() => editable = !editable}>Toggle read only</button>
     <button type="button" onclick={loadLegacyMaterialRoles}>Load legacy material roles</button>
+    <button type="button" onclick={loadConfiguredMaterials}>Load configured materials</button>
   </div>
 
   <section aria-label="Native profile">

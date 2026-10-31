@@ -3484,6 +3484,8 @@
   },
   "materialPicker": {
     "select": "Select…",
+    "editSelection": "Edit",
+    "doneEditing": "Done",
     "search": "Search all materials…",
     "categories": "Material categories",
     "backToCategories": "All categories",
@@ -3543,6 +3545,7 @@
       "removeFace": "Remove FACE material {number}",
       "faceNumber": "FACE material {number}",
       "print3d": "3D printing material",
+      "materialNote": "Material note",
       "connector": "Connector model",
       "psuType": "Power supply type",
       "profileName": "Profile name",

@@ -3484,6 +3484,8 @@
   },
   "materialPicker": {
     "select": "Выбрать…",
+    "editSelection": "Изменить",
+    "doneEditing": "Готово",
     "search": "Поиск по всем материалам…",
     "categories": "Категории материалов",
     "backToCategories": "Все категории",
@@ -3543,6 +3545,7 @@
       "removeFace": "Удалить материал лицевой части {number}",
       "faceNumber": "Материал лицевой части {number}",
       "print3d": "Материал для 3D-печати",
+      "materialNote": "Примечание к материалу",
       "connector": "Модель соединителя",
       "psuType": "Тип блока питания",
       "profileName": "Название профиля",
