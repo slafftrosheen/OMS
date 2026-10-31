@@ -12,7 +12,7 @@ test.beforeEach(({ page }) => {
 });
 test.afterEach(({ page }) => expect(runtimeErrors.get(page)).toEqual([]));
 
-type Options = { manager?: boolean; query?: string; teamResponder?: (route: Route) => Promise<void>; failEntry?: boolean };
+type Options = { manager?: boolean; query?: string; teamResponder?: (route: Route) => Promise<void>; failEntry?: boolean; reportHistory?: boolean };
 async function fixture(page: Page, options: Options = {}) {
   await page.clock.setFixedTime(new Date('2026-10-31T10:00:00Z'));
   let actor = options.manager ? workforceFixtureUsers.manager : workforceFixtureUsers.worker;
@@ -31,6 +31,11 @@ async function fixture(page: Page, options: Options = {}) {
     generatedAt: '2026-10-01T05:00:00Z', isStale: false,
     payload: { month: '2026-09', workers: workers(), totals: sumTotals(workers().map(row => row.totals)), timeZone: 'Europe/Riga', policyVersion: 'lv-company-hours-v1' }
   };
+  const reportRows: WorkforceReport[] = options.reportHistory ? [
+    { ...report, id: 'e8888888-8888-4888-8888-888888888888', version: 2, generatedAt: '2026-10-03T05:00:00Z' }, report,
+    { ...report, id: 'e9999999-9999-4999-8999-999999999999', kind: 'daily_absences', period: '2026-09-30',
+      payload: { date: '2026-09-30', absences: [], totalAbsent: 0, timeZone: 'Europe/Riga', policyVersion: 'lv-company-hours-v1' } }
+  ] : [report];
   await page.route('**/api/**', async route => {
     const request = route.request(), url = new URL(request.url()), path = url.pathname, method = request.method();
     if (path === '/api/auth' && method === 'GET') return route.fulfill({ json: { user: actor } });
@@ -56,7 +61,7 @@ async function fixture(page: Page, options: Options = {}) {
       if (options.teamResponder) return options.teamResponder(route);
       const rows = workers(); return route.fulfill({ json: { month: url.searchParams.get('month'), today: '2026-10-31', workers: rows, totals: sumTotals(rows.map(row => row.totals)) } });
     }
-    if (path === '/api/workforce/reports' && method === 'GET') return route.fulfill({ json: { reports: url.searchParams.get('month') === '2026-09' ? [report] : [] } });
+    if (path === '/api/workforce/reports' && method === 'GET') return route.fulfill({ json: { reports: url.searchParams.get('month') === '2026-09' ? reportRows : [] } });
     if (path === '/api/workforce/reports' && method === 'POST') return route.fulfill({ json: { report } });
     if (path === `/api/workforce/reports/${workforceFixtureReportId}` && method === 'GET') return route.fulfill({ contentType: 'text/csv', body: 'worker,actual_minutes,credited_minutes\nElina,480,480\n' });
     if (path === '/api/workforce/holidays' && method === 'GET') return route.fulfill({ json: { holidays: [], overrides: [] } });
@@ -241,4 +246,154 @@ test('assistant context describes the cabinet without disclosing notes, absence 
   expect(observed.assistantPosts[0].screen.data).toMatchObject({ screen: 'cabinet', pendingEntry: true, pendingAbsence: true, ownActualMinutes: 480, ownCreditedMinutes: 480 });
   const context = JSON.stringify(observed.assistantPosts[0].screen.data);
   expect(context).not.toContain('PRIVATE'); expect(context).not.toContain('sick'); expect(context).not.toContain('Elīna');
+});
+
+test('assistant context follows cabinet filters while search text and worker identities stay private', async ({ page }) => {
+  const observed = await fixture(page, { manager: true, reportHistory: true });
+  async function readContext() {
+    const count = observed.assistantPosts.length;
+    await page.getByRole('button', { name: 'Open assistant', exact: true }).click();
+    const question = page.getByRole('textbox', { name: 'Question for the assistant', exact: true });
+    await question.fill('Explain this view.');
+    await page.getByRole('checkbox', { name: 'Send this screen’s context and my question to OpenRouter.', exact: true }).check();
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect.poll(() => observed.assistantPosts.length).toBe(count + 1);
+    await expect(question).toHaveValue('');
+    await page.getByRole('button', { name: 'Close assistant', exact: true }).click();
+    const context = observed.assistantPosts[count].screen.data;
+    const serialized = JSON.stringify(context);
+    for (const privateText of ['JANIS berzins', 'Jānis', 'Elīna', workforceFixtureUsers.worker.id, workforceFixtureUsers.second.id]) {
+      expect(serialized).not.toContain(privateText);
+    }
+    return context;
+  }
+  await page.getByRole('button', { name: 'Team overview', exact: true }).click();
+  await page.getByLabel('Find a worker', { exact: true }).fill('JANIS berzins');
+  await page.getByLabel('Worker filter', { exact: true }).selectOption('active');
+  await expect(page.locator('.wfc-team-table tbody tr')).toHaveCount(1);
+  expect(await readContext()).toMatchObject({ view: 'team', displayedWorkerCount: 1, workerFilter: 'active', workerSearchActive: true,
+    displayedReportCount: null, reportKind: null, reportVersions: null });
+  await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
+  await page.getByLabel('Worker filter', { exact: true }).selectOption('unrecorded');
+  await expect(page.locator('.wfc-team-table tbody tr')).toHaveCount(2);
+  expect(await readContext()).toMatchObject({ displayedWorkerCount: 2, workerFilter: 'unrecorded', workerSearchActive: false });
+
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/workforce/team?month=2026-09', async route => {
+    await gate;
+    await route.fulfill({ json: { month: '2026-09', today: '2026-10-31', workers: [], totals: emptyTotals() } }).catch(() => {});
+  });
+  await page.getByRole('button', { name: 'Previous month', exact: true }).click();
+  await expect(page.locator('.wfc-team-table')).toHaveCount(0);
+  expect(await readContext()).toMatchObject({ view: 'team', loading: true, displayedWorkerCount: null, workerFilter: null, workerSearchActive: null });
+  release();
+  await expect(page.getByText('No workers found.', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Reports', exact: true }).click();
+  await expect(page.locator('.wfc-report-list > li')).toHaveCount(2);
+  await page.getByLabel('Report type', { exact: true }).selectOption('monthly_hours');
+  await page.getByLabel('Versions', { exact: true }).selectOption('all');
+  expect(await readContext()).toMatchObject({ view: 'reports', displayedReportCount: 2, reportKind: 'monthly_hours', reportVersions: 'all',
+    displayedWorkerCount: null, workerFilter: null, workerSearchActive: null });
+  await page.getByLabel('Versions', { exact: true }).selectOption('latest');
+  expect(await readContext()).toMatchObject({ displayedReportCount: 1, reportKind: 'monthly_hours', reportVersions: 'latest' });
+  await page.getByRole('button', { name: 'My hours', exact: true }).click();
+  expect(await readContext()).toMatchObject({ view: 'personal', displayedReportCount: null, reportKind: null, reportVersions: null,
+    displayedWorkerCount: null, workerFilter: null, workerSearchActive: null });
+});
+
+test('month overview selects days with draft protection and keyboard navigation, and future dates stay read only', async ({ page }) => {
+  const observed = await fixture(page);
+  const calendar = page.locator('.wfc-calendar-table');
+  const savedDay = calendar.locator('[data-work-date="2026-10-30"]');
+  await expect(savedDay).toHaveAccessibleName(/Time recorded.*8 h/);
+  await page.getByLabel('Hours', { exact: true }).fill('4');
+  await savedDay.click();
+  const dialog = page.getByRole('dialog', { name: 'Leave your unsaved changes?' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByLabel('Work date', { exact: true })).toHaveValue('2026-10-31');
+  await expect(page.getByLabel('Hours', { exact: true })).toHaveValue('4');
+  await savedDay.click();
+  await dialog.getByRole('button', { name: 'Discard draft', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByLabel('Work date', { exact: true })).toHaveValue('2026-10-30');
+  await expect(page.getByLabel('Hours', { exact: true })).toHaveValue('8');
+  await expect(savedDay).toHaveAttribute('data-selected', 'true');
+  await savedDay.focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(calendar.locator('[data-work-date="2026-10-29"]')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Work date', { exact: true })).toHaveValue('2026-10-29');
+  await page.getByRole('button', { name: 'Next month', exact: true }).click();
+  await expect(page.getByLabel('Month', { exact: true })).toHaveValue('2026-11');
+  await expect(calendar.locator('button')).toHaveCount(0);
+  await expect(calendar.locator('[data-status="future"]')).toHaveCount(30);
+  await page.getByRole('button', { name: 'This month', exact: true }).click();
+  await expect(page.getByLabel('Month', { exact: true })).toHaveValue('2026-10');
+  expect(observed.writes).toEqual([]);
+});
+
+test('team search respects Latvian names and filters people without changing whole-team totals', async ({ page }) => {
+  await fixture(page, { manager: true });
+  await page.getByRole('button', { name: 'Team overview', exact: true }).click();
+  const table = page.locator('.wfc-team-table');
+  await expect(table.locator('tbody tr')).toHaveCount(3);
+  await page.getByLabel('Find a worker', { exact: true }).fill('JANIS berzins');
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(table).toContainText('Jānis Bērziņš');
+  await expect(page.locator('.wfc-month-totals')).toContainText('8 h');
+  await page.getByLabel('Find a worker', { exact: true }).fill('elina');
+  await page.getByLabel('Worker filter', { exact: true }).selectOption('unrecorded');
+  await expect(page.getByText('No workers match these filters.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
+  await expect(table.locator('tbody tr')).toHaveCount(3);
+  await page.getByLabel('Worker filter', { exact: true }).selectOption('unrecorded');
+  await expect(table.locator('tbody tr')).toHaveCount(2);
+  await expect(table).not.toContainText('Elīna');
+});
+
+test('report archive filters latest versions per period and notification links reveal older snapshots', async ({ page }) => {
+  await fixture(page, { manager: true, reportHistory: true });
+  await page.getByRole('button', { name: 'Reports', exact: true }).click();
+  await page.getByLabel('Report month', { exact: true }).fill('2026-09');
+  const rows = page.locator('.wfc-report-list > li');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText('Monthly hours');
+  await expect(rows.first()).toContainText('Version 2');
+  await page.getByLabel('Report type', { exact: true }).selectOption('monthly_hours');
+  await expect(rows).toHaveCount(1);
+  await page.getByLabel('Versions', { exact: true }).selectOption('all');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.last()).toContainText('Earlier version');
+  await page.getByLabel('Report type', { exact: true }).selectOption('daily_absences');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('Daily absences');
+  await page.goto(`/workforce.html?view=reports&month=2026-09&report=${workforceFixtureReportId}`);
+  await expect(page.locator('#workforce-report-preview')).toBeVisible();
+  await expect(page.getByLabel('Versions', { exact: true })).toHaveValue('all');
+  await expect(rows).toHaveCount(3);
+});
+
+test('calendar and filters remain readable at 320px across languages and themes', async ({ page }, testInfo) => {
+  await fixture(page, { manager: true, reportHistory: true });
+  await page.setViewportSize({ width: 320, height: 800 });
+  for (const language of ['en', 'lv', 'ru']) {
+    await page.getByLabel('Fixture language').selectOption(language);
+    for (const theme of ['LightVim', 'DarkVim', 'HighContrastVim']) {
+      await page.getByLabel('Fixture theme').selectOption(theme);
+      const size = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: innerWidth }));
+      expect(size.scroll, `${language}/${theme}`).toBeLessThanOrEqual(size.width + 1);
+      await expect(page.locator('.wfc-calendar-table')).toBeVisible();
+    }
+  }
+  await page.screenshot({ path: testInfo.outputPath('workforce-calendar-mobile.png'), fullPage: true });
+  await page.getByLabel('Fixture language').selectOption('en');
+  await page.getByRole('button', { name: 'Team overview', exact: true }).click();
+  await page.getByLabel('Fixture language').selectOption('ru');
+  await expect(page.locator('.wfc-filter-row')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(321);
+  await page.screenshot({ path: testInfo.outputPath('workforce-team-mobile.png'), fullPage: true });
 });

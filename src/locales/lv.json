@@ -3641,7 +3641,8 @@
       "settings": "Iestatījumi",
       "notifications": "Paziņojumi",
       "general": "Pašreizējais ekrāns",
-      "cabinet": "Mans kabinets"
+      "cabinet": "Mans kabinets",
+      "chat": "Komandas čats"
     },
     "intro": {
       "dashboard": "Pārskatiet gaidošos darbus, atrodiet materiālus vai pārbaudiet uzskaitītos atlikumus.",
@@ -3657,7 +3658,8 @@
       "settings": "Atrodiet vajadzīgo iestatījumu un izprotiet tā ietekmi. Piekļuves atslēgas un paroles netiek nosūtītas asistentam.",
       "notifications": "Izprotiet paziņojumu iestatījumus un pārejiet pie saistītā darba.",
       "general": "Saņemiet norādījumus par ekrānu, kurā strādājat.",
-      "cabinet": "Ievadiet dienas darba stundas, pārskatiet mēneša kopsummas un atzīmējiet prombūtni. Faktiski nostrādātās stundas un dubultā apmaksas uzskaite ir parādītas atsevišķi."
+      "cabinet": "Ievadiet dienas darba stundas, pārskatiet mēneša kopsummas un atzīmējiet prombūtni. Faktiski nostrādātās stundas un dubultā apmaksas uzskaite ir parādītas atsevišķi.",
+      "chat": "Sūtiet sarunā teksta vai balss ziņas. Teksts paliek līdz dzēšanai; balss ieraksti ir pieejami trīs kalendāros mēnešus."
     },
     "prompt": {
       "dashboard": "Kas būtu jāpārbauda vispirms?",
@@ -3674,7 +3676,8 @@
       "notifications": "Kā pielāgot saņemtos paziņojumus?",
       "general": "Palīdzi izprast šo ekrānu.",
       "next": "Kāds šeit ir nākamais solis?",
-      "cabinet": "Kā tiek uzskaitītas nostrādātās un dubulti apmaksātās stundas?"
+      "cabinet": "Kā tiek uzskaitītas nostrādātās un dubulti apmaksātās stundas?",
+      "chat": "Kā nosūtīt balss ziņu un atrast agrākas ziņas?"
     },
     "tool": {
       "catalog_search": "Materiālu katalogs",
@@ -3714,11 +3717,43 @@
       "code": "Preces kods",
       "group": "Grupa",
       "stations": "Iekļautās stacijas",
-      "month": "Mēnesis"
+      "month": "Mēnesis",
+      "visibleMessages": "Pašlaik ielādētās ziņas"
     },
     "codeBlock": "Koda piemērs",
     "comparisonTable": "Salīdzinājuma tabula",
-    "contextTrimmed": "Iekļauta daļa ekrāna datu. Lai iegūtu sīkāku informāciju, jautājiet par konkrētu vienumu."
+    "contextTrimmed": "Iekļauta daļa ekrāna datu. Lai iegūtu sīkāku informāciju, jautājiet par konkrētu vienumu.",
+    "chatPrivacy": "Tiek kopīgots tikai čata vadīklu stāvoklis un ziņu skaits. Ziņu teksts, vārdi, faili un ieraksti netiek nodoti asistentam.",
+    "contextChanged": "Kopš jautājuma nosūtīšanas ekrāna dati ir mainījušies. Pirms šīs atbildes izmantošanas pārbaudiet pašreizējo ekrānu.",
+    "contextChangedWhileWaiting": "Ekrāna dati ir mainījušies. Šajā jautājumā joprojām tiek izmantoti nosūtīšanas brīža dati.",
+    "reviewCurrent": "Pārskatīt pašreizējo ekrānu",
+    "reviewCurrentPrompt": "Pārskati pašreizējo ekrānu vēlreiz. Izmanto jaunākos kopīgotos datus un paskaidro, ko pārbaudīt tālāk; iepriekšējās izvēles var būt mainījušās.",
+    "guide": {
+      "loading": "Šis skats vēl tiek ielādēts. Pirms pārskatīšanas sagaidiet datus; jau tagad varat jautāt, kā ekrāns darbojas.",
+      "unavailable": "Daļu datu neizdevās ielādēt. Izmantojiet lapas atkārtotas ielādes vadīklu un pirms turpināšanas pārbaudiet aktuālos datus.",
+      "profileDraft": "Atvērtajā profila redaktorā ir izmaiņas. Pirms to piemērošanas pasūtījumam pārbaudiet izvēlēto materiālu, biezumu un krāsu.",
+      "draft": "Melnrakstā ir nesaglabāti dati. Pirms saglabāšanas pārbaudiet materiālus un pielikumus; saglabātā pasūtījuma rīki neredz nepiemērotās izmaiņas.",
+      "catalogSelection": "Sāciet ar precīzu izvēlētā produkta kodu. Pārbaudiet reģistrētās īpašības un avota piezīmi; trūkstošie parametri un saderība ir jāapstiprina.",
+      "cabinetDraft": "Stundu vai prombūtnes veidlapā ir nesaglabātas izmaiņas. Pārbaudiet datumu un vērtības, tad saglabājiet pirms mēneša vai skata maiņas.",
+      "cabinetReports": "Izvēlieties mēneša stundas vai dienas prombūtnes un atveriet pārskatu, lai pirms lejupielādes pārbaudītu periodu un versiju.",
+      "cabinetTeam": "Atrodiet darbinieku un atveriet viņa mēnesi, lai pārskatītu stundas un prombūtnes. Diena bez ieraksta pati par sevi nenozīmē prombūtni vai neierakstītu maiņu.",
+      "chatSelect": "Vispirms izvēlieties kanālu vai privātu sarunu. Pēc tam rakstiet ziņu vai izmantojiet mikrofonu balss ziņas ierakstīšanai.",
+      "chatDraft": "Ziņa vēl nav nosūtīta. Pārbaudiet izvēlēto sarunu un nosūtiet, kad esat gatavs; kļūmes gadījumā melnraksts paliek atkārtotam mēģinājumam.",
+      "chatHistory": "Ir pieejamas agrākas ziņas. Sarunā izmantojiet agrāko ziņu ielādi; teksts paliek pieejams arī pēc balss ieraksta termiņa beigām."
+    },
+    "guidePrompt": {
+      "loading": "Ko varu darīt, kamēr šis ekrāns tiek ielādēts?",
+      "unavailable": "Ko pārbaudīt, ja šī ekrāna datus nevar ielādēt?",
+      "profileDraft": "Palīdzi pārskatīt šī profila vēl nepiemērotās materiāla, biezuma un krāsas izvēles.",
+      "draft": "Palīdzi pārbaudīt nesaglabātās izvēles pirms melnraksta saglabāšanas.",
+      "catalogSelection": "Izskaidro šī precīzā produkta reģistrētās īpašības un to, kas vēl jāapstiprina.",
+      "cabinetDraft": "Ko pārbaudīt pirms stundu vai prombūtnes saglabāšanas?",
+      "cabinetReports": "Kā izvēlēties, pārskatīt un lejupielādēt pareizo mēneša pārskatu?",
+      "cabinetTeam": "Kā pārskatīt darbinieka mēnesi, nejaucot dienas bez ieraksta ar prombūtnēm?",
+      "chatSelect": "Kā izvēlēties sarunu un nosūtīt pirmo ziņu?",
+      "chatDraft": "Kā droši nosūtīt melnrakstu vai atkārtot nosūtīšanu?",
+      "chatHistory": "Kā atrast agrākas teksta ziņas un saprast balss ziņu derīguma termiņu?"
+    }
   },
   "materialSpecifications": {
     "series": "Sērija",

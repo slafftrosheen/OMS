@@ -3641,7 +3641,8 @@
       "settings": "Settings",
       "notifications": "Notifications",
       "general": "Current screen",
-      "cabinet": "My cabinet"
+      "cabinet": "My cabinet",
+      "chat": "Team chat"
     },
     "intro": {
       "dashboard": "Review pending work, find materials or check recorded stock.",
@@ -3657,7 +3658,8 @@
       "settings": "Find the right setting and understand its effect. Credentials are not shared with the assistant.",
       "notifications": "Understand notification preferences and where to continue the related work.",
       "general": "Get guidance for the screen you are working on.",
-      "cabinet": "Log daily hours, review monthly totals and mark an absence. Actual hours and doubled pay credit are shown separately."
+      "cabinet": "Log daily hours, review monthly totals and mark an absence. Actual hours and doubled pay credit are shown separately.",
+      "chat": "Send text or voice messages in a conversation. Text remains until deleted; voice recordings are available for three calendar months."
     },
     "prompt": {
       "dashboard": "What should I review first?",
@@ -3674,7 +3676,8 @@
       "notifications": "How do I adjust the notifications I receive?",
       "general": "Help me understand this screen.",
       "next": "What is the next step here?",
-      "cabinet": "How are my worked hours and doubled hours counted?"
+      "cabinet": "How are my worked hours and doubled hours counted?",
+      "chat": "How do I send a voice message and find older messages?"
     },
     "tool": {
       "catalog_search": "Material catalog",
@@ -3714,11 +3717,43 @@
       "code": "Product code",
       "group": "Group",
       "stations": "Stations included",
-      "month": "Month"
+      "month": "Month",
+      "visibleMessages": "Messages currently loaded"
     },
     "codeBlock": "Code example",
     "comparisonTable": "Comparison table",
-    "contextTrimmed": "This is a selected part of the screen. Ask about a specific item for more detail."
+    "contextTrimmed": "This is a selected part of the screen. Ask about a specific item for more detail.",
+    "chatPrivacy": "Only chat controls and counts are shared. Message text, names, files and recordings stay out of the assistant context.",
+    "contextChanged": "Screen details have changed since this question was sent. Review the current screen before using this answer.",
+    "contextChangedWhileWaiting": "The screen has changed. This question still uses the details from when you sent it.",
+    "reviewCurrent": "Review current screen",
+    "reviewCurrentPrompt": "Review the current screen again. Use the latest shared details and tell me what to check next; earlier selections may have changed.",
+    "guide": {
+      "loading": "This view is still loading. Wait for its details before asking for a review; you can ask how the screen works now.",
+      "unavailable": "Some details could not be loaded. Use the page’s retry or reload control, then check the current information before continuing.",
+      "profileDraft": "You have changes in the open profile editor. Check the selected material, thickness and colour there before applying it to the order.",
+      "draft": "This draft has unsaved details. Check its material selections and attachments before saving; saved-order tools cannot see unapplied edits.",
+      "catalogSelection": "Start with the exact selected product code. Check recorded specifications and the source note; missing ratings or compatibility need confirmation.",
+      "cabinetDraft": "An hours or absence form has unsaved changes. Check its date and values, then save before changing the month or view.",
+      "cabinetReports": "Choose monthly hours or daily absences, then open a report to review its period and version before downloading it.",
+      "cabinetTeam": "Find a worker and open their month to review hours and absence notices. A day without an entry does not establish an absence or a missing shift.",
+      "chatSelect": "Choose a room or direct conversation first. Then type a message or use the microphone to record a voice message.",
+      "chatDraft": "Your message has not been sent yet. Check the selected conversation and send when ready; a failed send keeps the draft for retry.",
+      "chatHistory": "Earlier messages are available. Use Load earlier messages in the conversation; text remains available after a voice recording expires."
+    },
+    "guidePrompt": {
+      "loading": "What can I do while this screen is loading?",
+      "unavailable": "What should I check when this screen cannot load its details?",
+      "profileDraft": "Help me review the unapplied material, thickness and colour choices in this profile.",
+      "draft": "Help me check these unsaved selections before I save the draft.",
+      "catalogSelection": "Explain this exact product’s recorded specifications and what still needs confirmation.",
+      "cabinetDraft": "What should I check before saving my hours or absence?",
+      "cabinetReports": "How do I choose, review and download the correct monthly report?",
+      "cabinetTeam": "How do I review a worker’s month without confusing unrecorded days with absences?",
+      "chatSelect": "How do I choose a conversation and send my first message?",
+      "chatDraft": "How do I send or retry my draft safely?",
+      "chatHistory": "How do I find older text and understand expired voice messages?"
+    }
   },
   "materialSpecifications": {
     "series": "Series",

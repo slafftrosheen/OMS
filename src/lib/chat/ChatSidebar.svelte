@@ -6,7 +6,8 @@
 
   import { modalDialog } from '$lib/ui/modal-dialog';
   import { fade, fly } from 'svelte/transition';
-  import { t } from 'svelte-i18n';
+  import { t, locale } from 'svelte-i18n';
+  import { untrack } from 'svelte';
   import { currentUser } from '$lib/auth/authState.svelte';
   import {
     rooms,
@@ -15,6 +16,8 @@
     sendVoiceMessage,
     loadRooms,
     loadMessages,
+    loadOlderMessages,
+    roomHistory,
     ensureRoom,
     openDirectRoom,
     isChatOpen
@@ -24,11 +27,17 @@
   import MentionInput from '$lib/chat/MentionInput.svelte';
   import VoiceRecorder from '$lib/chat/VoiceRecorder.svelte';
   import ChatAttachments from '$lib/chat/ChatAttachments.svelte';
+  import { roomDraftSession } from '$lib/chat/room-drafts.svelte';
+  import HistoryControl from '$lib/chat/HistoryControl.svelte';
+  import { conversationCopy } from '$lib/chat/conversation-copy';
   import type { StationTag } from '$lib/order/stages';
   import StationBadge from '$lib/ui/StationBadge.svelte';
 
   let activeRoomId = $state('general');
-  let drafts = $state<Record<string, { text: string; mentions: string[] }>>({ general: { text: '', mentions: [] } });
+  let c = $derived(conversationCopy($locale));
+  let history = $derived($roomHistory[activeRoomId]);
+  let followLatest = true;
+  let drafts = $derived(roomDraftSession.drafts);
   let activeDraft = $derived(drafts[activeRoomId]);
   let scroller: HTMLDivElement | null = $state(null);
   let showRoomModal = $state(false);
@@ -61,18 +70,27 @@
   }
 
   function selectRoom(roomId: string) {
-    drafts[roomId] ??= { text: '', mentions: [] };
+    roomDraftSession.ensure(accountId ?? '', roomId);
     activeRoomId = roomId;
-    loadMessages(roomId);
+    followLatest = true;
+    void loadMessages(roomId).then(() => { if (activeRoomId === roomId) scrollToBottom(); });
     view = 'room';
-    scrollToBottom();
   }
 
-  function handleSend(text: string, mentions: string[] = []) {
-    if (!text.trim()) return;
-    sendMessage(activeRoomId, text, mentions);
-    scrollToBottom();
+  async function handleSend(text: string, mentions: string[] = []) {
+    const roomId = activeRoomId, owner = accountId;
+    if (!text.trim() || !activeRoom) return false;
+    const confirmed = await roomDraftSession.submit(owner ?? '', roomId, () => sendMessage(roomId, text, mentions), () => $currentUser?.id ?? '');
+    if (confirmed && activeRoomId === roomId && accountId === owner) { followLatest = true; scrollToBottom(); }
+    return confirmed;
   }
+
+  function handleScroll() {
+    if (scroller) followLatest = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 100;
+  }
+  $effect(() => {
+    if ($rooms.length && !$rooms.some(room => room.id === activeRoomId)) untrack(() => selectRoom($rooms[0].id));
+  });
 
   function closeChat() {
     showRoomModal = false;
@@ -137,15 +155,15 @@
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    if (date.toDateString() === today.toDateString()) return 'Today';
-    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    if (date.toDateString() === today.toDateString()) return c.today;
+    if (date.toDateString() === yesterday.toDateString()) return c.yesterday;
     return date.toLocaleDateString();
   }
 
   function authorName(id: string) {
-    if (id === 'system') return 'System';
+    if (id === 'system') return c.system;
     const user = $users.find(u => String(u.id) === String(id));
-    return user?.displayName || user?.username || 'Unknown';
+    return user?.displayName || user?.username || c.unknown;
   }
 
   function authorInitials(id: string) {
@@ -171,7 +189,7 @@
     const lifetime = new AbortController();
     viewLifetime = lifetime;
     activeRoomId = 'general';
-    drafts = { general: { text: '', mentions: [] } };
+    untrack(() => { roomDraftSession.ensure(ownerId ?? '', 'general'); });
     showRoomModal = false;
     showDmModal = false;
     newRoomName = '';
@@ -193,7 +211,7 @@
   // Scroll whenever messages change or sidebar opens
   $effect(() => {
     if ($isChatOpen && activeRoomId && $messages) {
-      scrollToBottom();
+      if (!history?.loadingOlder) untrack(() => { if (followLatest) scrollToBottom(); });
     }
   });
 </script>
@@ -285,7 +303,7 @@
                 <div class="room-icon"><Hash size={16} /></div>
                 <div class="room-info">
                   <span class="room-name">{room.name}</span>
-                  <span class="room-preview">Join conversation</span>
+                  <span class="room-preview">{c.room}</span>
                 </div>
               </button>
             {/each}
@@ -295,12 +313,14 @@
       <!-- MESSAGES VIEW -->
       {:else}
         <div class="messages-view" in:fade>
-          <div class="messages-scroll" bind:this={scroller}>
-            {#if roomMessages.length === 0}
+          <div class="messages-scroll" bind:this={scroller} onscroll={handleScroll}>
+            <HistoryControl state={history} {scroller} contextKey={`${accountId}:${activeRoomId}`} hasMessages={roomMessages.length > 0}
+              onRetry={() => loadMessages(activeRoomId)} onOlder={() => { followLatest = false; return loadOlderMessages(activeRoomId); }} />
+            {#if roomMessages.length === 0 && !history?.loading && !history?.failed}
               <div class="empty-state">
                 <div class="empty-icon"><Hash size={32} /></div>
                 <h4>#{activeRoom?.name}</h4>
-                <p>Start the conversation!</p>
+                <p>{c.empty}</p>
               </div>
             {:else}
               {#each roomMessages as message, i (message.id)}
@@ -310,7 +330,7 @@
                   </div>
                 {/if}
 
-                <div class="message" class:system={message.variant === 'system'} class:own={message.authorId === $currentUser?.id}>
+                <div class="message" data-chat-message-id={message.id} class:system={message.variant === 'system'} class:own={message.authorId === $currentUser?.id}>
                   {#if message.authorId !== $currentUser?.id}
                     <div class="message-avatar" title={authorName(message.authorId)}>
                       {authorInitials(message.authorId)}
@@ -343,11 +363,14 @@
           </div>
 
           <div class="input-area">
-            {#key activeRoomId}
+            {#key `${accountId}:${activeRoomId}`}
               {#if activeDraft}
-                <MentionInput
+                <MentionInput managed
                   bind:value={activeDraft.text}
                   bind:mentions={activeDraft.mentions}
+                  bind:sending={activeDraft.sending}
+                  bind:failed={activeDraft.failed}
+                  disabled={!accountId || !activeRoom}
                   onCommit={handleSend}
                   placeholder={$t('chat.message_placeholder')}
                 />
@@ -679,12 +702,15 @@
     font-size: 0.95rem;
     line-height: 1.4;
     border-top-left-radius: 2px;
-    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    min-width: 0;
   }
+  .bubble p { white-space: pre-wrap; margin: 0; }
 
   .message.own .bubble {
-    background: var(--primary, var(--brand));
-    color: var(--bg-0);
+    background: var(--brand-soft);
+    color: var(--ink-primary);
+    border: 1px solid var(--brand);
     border-top-left-radius: 12px;
     border-top-right-radius: 2px;
   }

@@ -8,6 +8,8 @@
   import CalendarDays from 'lucide-svelte/icons/calendar-days';
   import Users from 'lucide-svelte/icons/users';
   import ArrowLeft from 'lucide-svelte/icons/arrow-left';
+  import ChevronLeft from 'lucide-svelte/icons/chevron-left';
+  import ChevronRight from 'lucide-svelte/icons/chevron-right';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { STATION_LABELS } from '$lib/auth/types';
   import { getAssistantContext } from '$lib/assistant/context';
@@ -18,7 +20,8 @@
   import { workforceCopy, workforceError } from '$lib/workforce/copy';
   import { formatWorkDate, formatWorkMonth, minutesLabel, workforceLocale } from '$lib/workforce/client';
   import { MIN_WORKFORCE_YEAR, MAX_WORKFORCE_YEAR } from '$lib/workforce/validation';
-  import type { Absence, HolidayOverride, WorkEntry } from '$lib/workforce/types';
+  import { adjacentWorkMonth, type TeamVisibilitySummary, type ReportVisibilitySummary } from '$lib/workforce/overview';
+  import type { Absence, HolidayOverride, TeamWorker, WorkEntry, WorkforceReport } from '$lib/workforce/types';
   import EntryForm from '$lib/workforce/EntryForm.svelte';
   import AbsenceForm from '$lib/workforce/AbsenceForm.svelte';
   import MonthRecords from '$lib/workforce/MonthRecords.svelte';
@@ -34,8 +37,12 @@
   let owner = $derived(screenOwnerKey($currentUser));
   let manager = $derived(['RD', 'Boss', 'HeadOfProduction'].includes($currentUser?.role ?? ''));
   let current = $derived(!!owner && cabinet.owner === owner);
+  let previousMonth = $derived(adjacentWorkMonth(cabinet.month, -1));
+  let nextMonth = $derived(adjacentWorkMonth(cabinet.month, 1));
   let entryDirty = $state(false);
   let absenceDirty = $state(false);
+  let teamVisibility = $state.raw<{ summary: TeamVisibilitySummary; source: TeamWorker[] } | null>(null);
+  let reportVisibility = $state.raw<{ summary: ReportVisibilitySummary; source: WorkforceReport[] } | null>(null);
   let handledQuery = '';
   let workerTrigger: HTMLButtonElement | null = null;
   let confirmState = $state<ConfirmState>(emptyConfirm());
@@ -54,11 +61,17 @@
     const account = owner, canManage = manager;
     return untrack(() => {
       cabinet.setOwner(account, canManage); entryDirty = false; absenceDirty = false; handledQuery = ''; workerTrigger = null; confirmState = emptyConfirm();
+      teamVisibility = null; reportVisibility = null;
       const unregister = assistant.register({
         id: `cabinet:${account}`, title: () => c.title, tools: () => [],
         context: () => {
           const safe = account === screenOwnerKey(get(currentUser)) && cabinet.owner === account;
           const personal = safe && cabinet.view === 'personal' ? cabinet.personal : null;
+          // Source identity prevents a previous month/view's counts from being reused during a reload.
+          const team = safe && canManage && cabinet.view === 'team' && !cabinet.loading.team && !cabinet.errors.team
+            && cabinet.team && teamVisibility?.source === cabinet.team.workers ? teamVisibility.summary : null;
+          const reports = safe && canManage && cabinet.view === 'reports' && !cabinet.loading.reports && !cabinet.errors.reports
+            && reportVisibility?.source === cabinet.reports ? reportVisibility.summary : null;
           // Summaries only: worker identities, absence reasons and free-text notes never leave this page.
           return {
             screen: 'cabinet', month: safe ? cabinet.month : null,
@@ -72,8 +85,10 @@
             pendingEntry: safe && cabinet.view === 'personal' && entryDirty,
             pendingAbsence: safe && cabinet.view === 'personal' && absenceDirty,
             managementView: safe && canManage && cabinet.view !== 'personal',
-            displayedWorkerCount: safe && canManage && cabinet.view === 'team' ? cabinet.team?.workers.length ?? null : null,
-            displayedReportCount: safe && canManage && cabinet.view === 'reports' ? cabinet.reports.length : null,
+            displayedWorkerCount: team?.count ?? null,
+            workerFilter: team?.filter ?? null, workerSearchActive: team?.searchActive ?? null,
+            displayedReportCount: reports?.count ?? null,
+            reportKind: reports?.kind ?? null, reportVersions: reports?.versions ?? null,
             toolsAvailable: [], readOnly: true
           };
         }
@@ -102,6 +117,8 @@
     confirmState = { open: true, title: c.discardTitle, body: c.discardBody, tone: 'default', confirmLabel: c.discard, cancelLabel: c.cancel,
       action: () => { if (account === owner) action(); } };
   }
+  function updateTeamVisibility(summary: TeamVisibilitySummary, source: TeamWorker[]) { teamVisibility = { summary, source }; }
+  function updateReportVisibility(summary: ReportVisibilitySummary, source: WorkforceReport[]) { reportVisibility = { summary, source }; }
   function selectView(view: 'personal' | 'team' | 'reports') {
     if (cabinet.view === view) return;
     guardDraft(() => { entryDirty = false; absenceDirty = false; cabinet.selectView(view); });
@@ -186,19 +203,19 @@
         <div class="wfc-entry-grid"><EntryForm {cabinet} {c} {lang} onDirty={dirty => entryDirty = dirty} onDateChange={selectDate} /><AbsenceForm {cabinet} {c} onDirty={dirty => absenceDirty = dirty} /></div>
       {/if}
 
-      <div class="wfc-month-bar"><div><h2>{cabinet.view === 'personal' ? c.history : cabinet.view === 'team' ? c.team : c.reports}</h2><p>{cabinet.view === 'personal' ? c.historyIntro : cabinet.view === 'team' ? c.teamIntro : c.reportsIntro}</p></div><div class="wfc-field"><label for="cabinet-month">{cabinet.view === 'reports' ? c.reportMonth : c.month}</label><input class="rf-input" id="cabinet-month" type="month" min={`${MIN_WORKFORCE_YEAR}-01`} max={`${MAX_WORKFORCE_YEAR}-12`} value={cabinet.month} onchange={event => cabinet.selectMonth(event.currentTarget.value)} /></div></div>
+      <div class="wfc-month-bar"><div><h2>{cabinet.view === 'personal' ? c.history : cabinet.view === 'team' ? c.team : c.reports}</h2><p>{cabinet.view === 'personal' ? c.historyIntro : cabinet.view === 'team' ? c.teamIntro : c.reportsIntro}</p></div><div class="wfc-month-navigation"><div class="wfc-field"><label for="cabinet-month">{cabinet.view === 'reports' ? c.reportMonth : c.month}</label><div class="wfc-month-input"><button type="button" class="wfc-button" disabled={!previousMonth || !!cabinet.busy} aria-label={c.previousMonth} title={c.previousMonth} onclick={() => previousMonth && cabinet.selectMonth(previousMonth)}><ChevronLeft size={18} aria-hidden="true" /></button><input class="rf-input" id="cabinet-month" type="month" min={`${MIN_WORKFORCE_YEAR}-01`} max={`${MAX_WORKFORCE_YEAR}-12`} value={cabinet.month} disabled={!!cabinet.busy} onchange={event => cabinet.selectMonth(event.currentTarget.value)} /><button type="button" class="wfc-button" disabled={!nextMonth || !!cabinet.busy} aria-label={c.nextMonth} title={c.nextMonth} onclick={() => nextMonth && cabinet.selectMonth(nextMonth)}><ChevronRight size={18} aria-hidden="true" /></button></div></div>{#if cabinet.month !== cabinet.today.slice(0, 7)}<button type="button" class="wfc-button wfc-small" disabled={!!cabinet.busy} onclick={() => cabinet.selectMonth(cabinet.today.slice(0, 7))}>{c.thisMonth}</button>{/if}</div></div>
 
       {#if cabinet.view === 'personal'}
-        {#if cabinet.personal}<section class="wfc-panel" aria-label={`${c.history} ${formatWorkMonth(cabinet.month, lang)}`}><MonthRecords data={cabinet.personal} {c} {lang} busy={!!cabinet.busy} onEdit={editDate} onDelete={askDelete} onCancelAbsence={askCancelAbsence} /></section>{/if}
+        {#if cabinet.personal}<section class="wfc-panel" aria-label={`${c.history} ${formatWorkMonth(cabinet.month, lang)}`}><MonthRecords data={cabinet.personal} {c} {lang} busy={!!cabinet.busy} selectedDate={cabinet.workDate} onEdit={editDate} onDelete={askDelete} onCancelAbsence={askCancelAbsence} /></section>{/if}
       {:else if cabinet.view === 'team' && manager}
         <section class="wfc-panel" aria-label={c.team}>
           {#if cabinet.loading.team}<p class="wfc-loading" role="status">{c.loading}</p>
           {:else if cabinet.errors.team}<div class="wfc-message" data-tone="error" role="alert"><p>{workforceError(cabinet.errors.team, c)}</p><button type="button" class="wfc-button" onclick={() => cabinet.loadTeam()}>{c.retry}</button></div>
-          {:else if cabinet.team}<TeamTable workers={cabinet.team.workers} totals={cabinet.team.totals} {c} {lang} onSelect={viewWorker} />{/if}
+          {:else if cabinet.team}<TeamTable workers={cabinet.team.workers} totals={cabinet.team.totals} {c} {lang} onSelect={viewWorker} onVisibility={updateTeamVisibility} />{/if}
         </section>
         {#if cabinet.workerId}<section class="wfc-panel" aria-label={c.viewWorker}><div class="wfc-panel-top"><div><h2 id="workforce-worker-heading" tabindex="-1">{cabinet.worker?.owner.displayName || cabinet.worker?.owner.username || c.worker}</h2><p class="wfc-hint">{c.workerReadOnly}</p></div><button type="button" class="wfc-button" onclick={closeWorker}><ArrowLeft size={16} aria-hidden="true" />{c.backToTeam}</button></div>{#if cabinet.loading.worker}<p class="wfc-loading" role="status">{c.loading}</p>{:else if cabinet.errors.worker}<div class="wfc-message" data-tone="error" role="alert"><p>{workforceError(cabinet.errors.worker, c)}</p><button type="button" class="wfc-button" onclick={() => cabinet.loadWorker()}>{c.retry}</button></div>{:else if cabinet.worker}<MonthRecords data={cabinet.worker} {c} {lang} />{/if}</section>{/if}
         <HolidaySettings {cabinet} {c} {lang} onRemove={askRemoveHoliday} />
-      {:else if cabinet.view === 'reports' && manager}<ReportArchive {cabinet} {c} {lang} />{/if}
+      {:else if cabinet.view === 'reports' && manager}<ReportArchive {cabinet} {c} {lang} onVisibility={updateReportVisibility} />{/if}
       <ConfirmModal bind:state={confirmState} />
     {/key}
   {/if}

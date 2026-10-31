@@ -53,13 +53,16 @@ export function summarizeScreenContext(value: unknown): {
   if (typeof count === 'number' && Number.isFinite(count) && count > 0) rows.push({ key: 'selected', value: count });
   const fileCount = data.fileCount;
   if (typeof fileCount === 'number' && Number.isFinite(fileCount) && fileCount >= 0) rows.push({ key: 'files', value: fileCount });
+  const messageCount = data.screen === 'chat' ? data.visibleMessageCount : null;
+  if (typeof messageCount === 'number' && Number.isSafeInteger(messageCount) && messageCount >= 0) rows.push({ key: 'visibleMessages', value: messageCount });
   const selectedDay = record(data.selectedDay), oversight = record(data.oversight);
   const samples = [data.visibleOrders, data.recentOrders, data.visibleMaterials, data.visibleAlerts, data.visibleStations,
     data.lowStock, data.specifications, selectedDay.loadingOrders, selectedDay.dueOrders, selectedDay.events,
     oversight.visibleSignals, editor.eligibleOrders];
   return {
     rows: rows.slice(0, 10),
-    unsaved: data.unsaved === true || data.hasUnsavedChanges === true || data.profileEditorUnsaved === true || editor.unsavedChanges === true,
+    unsaved: data.unsaved === true || data.hasUnsavedChanges === true || data.profileEditorUnsaved === true || editor.unsavedChanges === true
+      || data.pendingEntry === true || data.pendingAbsence === true || (data.screen === 'chat' && data.draftPresent === true),
     loading: data.loading === true,
     unavailable: data.unavailable === true || Object.values(record(data.unavailable)).some(value => value === true)
       || data.catalogUnavailable === true || data.contextUnavailable === true,

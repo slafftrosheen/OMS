@@ -17,7 +17,7 @@ async function browser(run: (context: {
   chat: Chat;
   setUser: (id: string) => void;
   notices: () => unknown[];
-  realtime: () => { emit: (row: Record<string, unknown>) => void; stop: () => void };
+  realtime: () => { emit: (row: Record<string, unknown>, eventType?: string) => void; stop: () => void };
 }) => Promise<void>) {
   const oldWindow = globalThis.window;
   const oldAudio = globalThis.Audio;
@@ -43,7 +43,7 @@ async function browser(run: (context: {
       setUser: id => currentUser.set(user(id)),
       notices: () => get(notifications),
       realtime() {
-        let emit!: (payload: { new: Record<string, unknown> }) => void;
+        let emit!: (payload: { new?: Record<string, unknown>; old?: Record<string, unknown>; eventType?: string }) => void;
         const channel: any = {
           on(_event: string, _filter: unknown, callback: typeof emit) { emit = callback; return channel; },
           subscribe() { return channel; }
@@ -53,7 +53,7 @@ async function browser(run: (context: {
         supabase.channel = (() => channel) as any;
         supabase.removeChannel = (async () => 'ok') as any;
         const stop = chat.initChatRealtime(); stops.push(stop);
-        return { emit: row => emit({ new: row }), stop };
+        return { emit: (row, eventType = 'INSERT') => emit(eventType === 'DELETE' ? { old: row, eventType } : { new: row, eventType }), stop };
       }
     });
   } finally {
@@ -245,4 +245,223 @@ describe('chat account-owned writes', () => {
       expect(notices()).toHaveLength(0);
     });
   });
+});
+
+describe('chat earlier history and visible failures', () => {
+  it('retains earlier pages during latest refresh, including edits and deletion in the latest page', async () => {
+    await browser(async ({ chat }) => {
+      const old = message('old', { ts: '2026-10-01T12:00:00Z' });
+      const recent = message('recent', { ts: '2026-10-20T12:00:00Z' });
+      const deleted = message('deleted', { ts: '2026-10-21T12:00:00Z' });
+      globalThis.fetch = async url => String(url).includes('cursor=page-two')
+        ? Response.json({ success: true, messages: [old], hasMore: false, nextCursor: null })
+        : Response.json({ success: true, messages: [recent, deleted], hasMore: true, nextCursor: 'page-two' });
+      await chat.loadMessages('general');
+      await chat.loadOlderMessages('general');
+      expect(get(chat.messages).map(row => row.id)).toEqual(['old', 'recent', 'deleted']);
+      expect(get(chat.roomHistory).general.hasMore).toBe(false);
+      globalThis.fetch = async () => Response.json({ success: true, messages: [{ ...recent, text: 'Edited' }], hasMore: true, nextCursor: 'page-two' });
+      await chat.loadMessages('general');
+      expect(get(chat.messages).map(row => row.id)).toEqual(['old', 'recent']);
+      expect(get(chat.messages).find(row => row.id === 'recent')?.text).toBe('Edited');
+      expect(get(chat.roomHistory).general.hasMore).toBe(false);
+    });
+  });
+  it('coalesces earlier reads, preserves their cursor after a concurrent latest refresh and ignores old-account completion', async () => {
+    await browser(async ({ chat, setUser }) => {
+      const recent = message('recent', { ts: '2026-10-20T12:00:00Z' });
+      globalThis.fetch = async () => Response.json({ success: true, messages: [recent], hasMore: true, nextCursor: 'page-two' });
+      await chat.loadMessages('general');
+      const earlier = deferred<Response>(), latest = deferred<Response>(); let olderCalls = 0;
+      globalThis.fetch = async url => {
+        if (String(url).includes('cursor=')) { olderCalls++; return earlier.promise; }
+        return latest.promise;
+      };
+      const one = chat.loadOlderMessages('general'), two = chat.loadOlderMessages('general');
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const refresh = chat.loadMessages('general');
+      earlier.resolve(Response.json({ success: true, messages: [message('older', { ts: '2026-10-01T12:00:00Z' })], hasMore: true, nextCursor: 'page-three' }));
+      await Promise.all([one, two]);
+      latest.resolve(Response.json({ success: true, messages: [recent], hasMore: true, nextCursor: 'page-two' }));
+      await refresh;
+      expect(olderCalls).toBe(1);
+      expect(get(chat.roomHistory).general.cursor).toBe('page-three');
+      expect(get(chat.messages).map(row => row.id)).toEqual(['older', 'recent']);
+      const stale = deferred<Response>(); globalThis.fetch = async () => stale.promise;
+      const pending = chat.loadOlderMessages('general');
+      await new Promise(resolve => setTimeout(resolve, 0));
+      chat.resetChatState(); setUser('user-b');
+      stale.resolve(Response.json({ success: true, messages: [message('private-old')], hasMore: false }));
+      await pending;
+      expect(get(chat.messages)).toEqual([]);
+      expect(get(chat.roomHistory)).toEqual({});
+    });
+  });
+  it('reports history errors without disguising them as empty success and permits a retry', async () => {
+    await browser(async ({ chat }) => {
+      chat.messages.set([message('retained')]);
+      globalThis.fetch = async () => Response.json({ success: false, messages: [] }, { status: 503 });
+      await chat.loadMessages('general');
+      expect(get(chat.roomHistory).general.failed).toBe(true);
+      expect(get(chat.roomHistory).general.loading).toBe(false);
+      expect(get(chat.messages).map(row => row.id)).toEqual(['retained']);
+      globalThis.fetch = async () => Response.json({ success: true, messages: [message('current')], hasMore: true, nextCursor: 'next' });
+      await chat.loadMessages('general');
+      expect(get(chat.roomHistory).general.failed).toBe(false);
+      globalThis.fetch = async () => Response.json({ error: 'Unavailable' }, { status: 503 });
+      await chat.loadOlderMessages('general');
+      expect(get(chat.roomHistory).general.olderFailed).toBe(true);
+      expect(get(chat.roomHistory).general.cursor).toBe('next');
+      expect(get(chat.messages).map(row => row.id)).toEqual(['current']);
+    });
+  });
+  it('reports send acknowledgement explicitly so a composer can retain an unconfirmed draft', async () => {
+    await browser(async ({ chat }) => {
+      globalThis.fetch = async () => Response.json({ error: 'Unavailable' }, { status: 503 });
+      expect(await chat.sendMessage('general', 'Keep this')).toBe(false);
+      globalThis.fetch = async () => Response.json({ success: true, message: message('confirmed', { text: 'Keep this' }) });
+      expect(await chat.sendMessage('general', 'Keep this')).toBe(true);
+      expect(get(chat.messages).map(row => row.id)).toEqual(['confirmed']);
+    });
+  });
+});
+
+describe('chat continuity after long offline intervals', () => {
+  it('reopens paging when the newest window leaves an unseen middle interval', async () => {
+    await browser(async ({ chat }) => {
+      const row = (n: number) => message(`row-${String(n).padStart(3, '0')}`, { ts: new Date(Date.UTC(2026, 9, 1, 12, 0, n)).toISOString() });
+      const rows = (start: number, end: number) => Array.from({ length: end - start }, (_, n) => row(start + n));
+      globalThis.fetch = async url => String(url).includes('cursor=old-page')
+        ? Response.json({ success: true, messages: rows(0, 100), hasMore: false })
+        : Response.json({ success: true, messages: rows(100, 200), hasMore: true, nextCursor: 'old-page' });
+      await chat.loadMessages('general'); await chat.loadOlderMessages('general');
+      expect(get(chat.messages)).toHaveLength(200);
+      expect(get(chat.roomHistory).general.hasMore).toBe(false);
+      globalThis.fetch = async url => String(url).includes('cursor=middle-page')
+        ? Response.json({ success: true, messages: rows(200, 300), hasMore: true, nextCursor: 'old-page' })
+        : Response.json({ success: true, messages: rows(300, 400), hasMore: true, nextCursor: 'middle-page' });
+      await chat.loadMessages('general');
+      expect(get(chat.messages)).toHaveLength(300);
+      expect(get(chat.roomHistory).general.hasMore).toBe(true);
+      expect(get(chat.roomHistory).general.cursor).toBe('middle-page');
+      await chat.loadOlderMessages('general');
+      expect(get(chat.messages)).toHaveLength(400);
+      expect(get(chat.messages).some(row => row.id === 'row-250')).toBe(true);
+    });
+  });
+  it('does not let an earlier read replace the restarted cursor after a disjoint refresh', async () => {
+    await browser(async ({ chat }) => {
+      globalThis.fetch = async () => Response.json({ success: true, messages: [message('old-head', { ts: '2026-10-01T12:00:00Z' })], hasMore: true, nextCursor: 'old-page' });
+      await chat.loadMessages('general');
+      const delayed = deferred<Response>();
+      globalThis.fetch = async url => String(url).includes('cursor=') ? delayed.promise
+        : Response.json({ success: true, messages: [message('new-head', { ts: '2026-10-31T12:00:00Z' })], hasMore: true, nextCursor: 'gap-page' });
+      const earlier = chat.loadOlderMessages('general');
+      await new Promise(resolve => setTimeout(resolve, 0));
+      await chat.loadMessages('general');
+      delayed.resolve(Response.json({ success: true, messages: [message('obsolete-page')], hasMore: false }));
+      await earlier;
+      expect(get(chat.roomHistory).general.cursor).toBe('gap-page');
+      expect(get(chat.roomHistory).general.hasMore).toBe(true);
+      expect(get(chat.messages).some(row => row.id === 'obsolete-page')).toBe(false);
+    });
+  });
+});
+
+describe('remote changes in earlier chat history', () => {
+  it('updates and removes loaded older messages and fences a pending stale history page', async () => {
+    await browser(async ({ chat, realtime }) => {
+      const older = message('older-edit', { ts: '2026-10-01T10:00:00Z', attachments: [{ id: 'audio', kind: 'voice', fileName: 'voice.webm', fileType: 'audio/webm', fileSize: 1000, url: '/api/chat/voice/audio' }] });
+      const removed = message('older-delete', { ts: '2026-10-01T10:00:01Z' });
+      const recent = message('recent', { ts: '2026-10-20T10:00:00Z' });
+      globalThis.fetch = async () => Response.json({ success: true, messages: [recent], hasMore: true, nextCursor: 'older-page' });
+      await chat.loadMessages('general');
+      chat.messages.update(rows => [...rows, older, removed]);
+      const delayed = deferred<Response>(); globalThis.fetch = async () => delayed.promise;
+      const reading = chat.loadOlderMessages('general');
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const rt = realtime();
+      rt.emit({ id: older.id, room_id: 'general', user_id: 'user-a', content: 'Remote edit', created_at: older.ts }, 'UPDATE');
+      rt.emit({ id: removed.id }, 'DELETE');
+      expect(get(chat.messages).find(row => row.id === older.id)?.text).toBe('Remote edit');
+      expect(get(chat.messages).some(row => row.id === removed.id)).toBe(false);
+      delayed.resolve(Response.json({ success: true, messages: [older, removed], hasMore: false }));
+      await reading;
+      expect(get(chat.messages).find(row => row.id === older.id)?.text).toBe('Remote edit');
+      expect(get(chat.messages).find(row => row.id === older.id)?.attachments?.[0].id).toBe('audio');
+      expect(get(chat.messages).some(row => row.id === removed.id)).toBe(false);
+    });
+  });
+  it('does not resurrect an unseen message deleted while an earlier page is in flight', async () => {
+    await browser(async ({ chat, realtime }) => {
+      globalThis.fetch = async () => Response.json({ success: true, messages: [message('recent')], hasMore: true, nextCursor: 'earlier' });
+      await chat.loadMessages('general');
+      const delayed = deferred<Response>(); globalThis.fetch = async () => delayed.promise;
+      const pending = chat.loadOlderMessages('general');
+      await new Promise(resolve => setTimeout(resolve, 0));
+      realtime().emit({ id: 'deleted-before-display' }, 'DELETE');
+      delayed.resolve(Response.json({ success: true, messages: [message('deleted-before-display')], hasMore: false }));
+      await pending;
+      expect(get(chat.messages).some(row => row.id === 'deleted-before-display')).toBe(false);
+    });
+  });
+});
+
+describe('late chat send acknowledgements', () => {
+  for (const action of ['edit', 'delete'] as const) {
+    it(`confirms text delivery without undoing a newer remote ${action}`, async () => {
+      await browser(async ({ chat, realtime }) => {
+        const original = message('committed', { text: 'Original text', ts: '2026-10-31T12:00:00Z' });
+        let persisted: Message[] = [original];
+        const ack = deferred<Response>();
+        globalThis.fetch = async (_url, init) => init?.method === 'POST' ? ack.promise
+          : Response.json({ success: true, messages: persisted });
+        const pending = chat.sendMessage('general', 'Original text');
+        const rt = realtime();
+        rt.emit({ id: original.id, room_id: 'general', user_id: 'user-a', content: original.text, created_at: original.ts });
+        // Hydration has finished; only the pending write keeps its change fence alive.
+        await new Promise(resolve => setTimeout(resolve, 0));
+        if (action === 'edit') {
+          persisted = [{ ...original, text: 'Newer edit' }];
+          rt.emit({ id: original.id, room_id: 'general', user_id: 'user-a', content: 'Newer edit', created_at: original.ts }, 'UPDATE');
+        } else {
+          persisted = [];
+          rt.emit({ id: original.id }, 'DELETE');
+        }
+        // A completed authoritative read must not discard a pending write's fence.
+        await chat.loadMessages('general');
+        ack.resolve(Response.json({ success: true, message: original }));
+        expect(await pending).toBe(true);
+        if (action === 'edit') expect(get(chat.messages).map(row => row.text)).toEqual(['Newer edit']);
+        else expect(get(chat.messages)).toEqual([]);
+      });
+    });
+    it(`confirms voice delivery without undoing a newer remote ${action}`, async () => {
+      await browser(async ({ chat, realtime }) => {
+        const audio = { id: 'voice-audio', kind: 'voice' as const, fileName: 'voice.webm', fileType: 'audio/webm', fileSize: 100,
+          url: '/api/chat/voice/voice-audio', duration: 1, expiresAt: '2099-01-01T00:00:00Z' };
+        const original = message('voice-committed', { text: '', ts: '2026-10-31T12:00:00Z', attachments: [audio] });
+        let persisted: Message[] = [original];
+        const ack = deferred<Response>();
+        globalThis.fetch = async (_url, init) => init?.method === 'POST' ? ack.promise
+          : Response.json({ success: true, messages: persisted });
+        const pending = chat.sendVoiceMessage('general', { file: new File(['fixture'], 'voice.webm', { type: 'audio/webm' }), durationMs: 1000,
+          clientRequestId: '00000000-0000-4000-8000-000000000001' }, new AbortController().signal);
+        const rt = realtime();
+        rt.emit({ id: original.id, room_id: 'general', user_id: 'user-a', content: '', created_at: original.ts });
+        await new Promise(resolve => setTimeout(resolve, 0));
+        if (action === 'edit') {
+          persisted = [{ ...original, text: 'Newer caption' }];
+          rt.emit({ id: original.id, room_id: 'general', user_id: 'user-a', content: 'Newer caption', created_at: original.ts }, 'UPDATE');
+        } else { persisted = []; rt.emit({ id: original.id }, 'DELETE'); }
+        await chat.loadMessages('general');
+        ack.resolve(Response.json({ success: true, message: original, attachment: audio }));
+        expect(await pending).toBe(true);
+        if (action === 'edit') {
+          expect(get(chat.messages).map(row => row.text)).toEqual(['Newer caption']);
+          expect(get(chat.messages)[0].attachments?.[0].id).toBe(audio.id);
+        } else expect(get(chat.messages)).toEqual([]);
+      });
+    });
+  }
 });

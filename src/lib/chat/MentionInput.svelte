@@ -1,22 +1,32 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { users } from '$lib/users/user-store';
   import { stationAssignments } from '$lib/users/station-assignments';
-  import { t } from 'svelte-i18n';
+  import { t, locale } from 'svelte-i18n';
   import { TERMS } from '$lib/order/names';
+  import Send from 'lucide-svelte/icons/send';
+  import { conversationCopy } from './conversation-copy';
 
   interface Props {
     value?: string;
     mentions?: string[];
-    onCommit?: (text: string, mentions: string[]) => void;
+    onCommit?: (text: string, mentions: string[]) => boolean | void | Promise<boolean | void>;
     placeholder?: string;
+    disabled?: boolean;
+    sending?: boolean;
+    failed?: boolean;
+    managed?: boolean;
   }
 
   let {
     value = $bindable(''),
     mentions = $bindable([]),
     onCommit = () => {},
-    placeholder = 'Message (use @name to mention)'
+    placeholder = 'Message (use @name to mention)',
+    disabled = false,
+    sending = $bindable(false),
+    failed = $bindable(false),
+    managed = false
   }: Props = $props();
 
   let inputEl: HTMLTextAreaElement;
@@ -24,6 +34,30 @@
   let showList = $state(false);
   let query = $state('');
   let suggestionList = $state<HTMLDivElement>();
+  let alive = true;
+  let c = $derived(conversationCopy($locale));
+  const hintId = $props.id();
+  onDestroy(() => { alive = false; });
+
+  async function commit() {
+    const payload = value.trim();
+    if (!payload || disabled || sending) return;
+    const mentionIds = Array.from(new Set([...mentions, ...extractMentionIds(payload)]));
+    const previousText = value, previousMentions = [...mentions];
+    if (!managed) { sending = true; failed = false; }
+    showList = false;
+    try {
+      const confirmed = await onCommit(payload, mentionIds);
+      if (!alive) return;
+      if (confirmed === false) { if (!managed) failed = true; return; }
+      if (!managed && value === previousText && mentions.length === previousMentions.length && mentions.every((id, index) => id === previousMentions[index])) {
+        value = ''; mentions = [];
+      }
+      query = '';
+      await tick(); inputEl?.focus();
+    } catch { if (alive && !managed) failed = true; }
+    finally { if (alive && !managed) sending = false; }
+  }
 
   let suggestions = $derived(showList
     ? $users.filter((user) => {
@@ -83,14 +117,7 @@
     if (event.isComposing || event.keyCode === 229) return;
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      const payload = value.trim();
-      if (!payload) return;
-      const mentionIds = Array.from(new Set([...mentions, ...extractMentionIds(payload)]));
-      onCommit(payload, mentionIds);
-      value = '';
-      mentions = [];
-      showList = false;
-      query = '';
+      void commit();
       return;
     }
     if (event.key === 'ArrowDown' && showList) {
@@ -160,6 +187,7 @@
           onclick={() => applyPreset(preset.userIds)}
           aria-label={$t('chat.quick_mentions_station', { station: $t(TERMS.stations[preset.station]) })}
           title={names}
+          disabled={disabled || sending}
         >
           {$t(TERMS.stations[preset.station])}
           <span class="muted">×{preset.userIds.length}</span>
@@ -180,6 +208,7 @@
           class="chip-remove"
           onclick={() => removeMention(id)}
           aria-label={$t('chat.remove_mention', { name: nameFromId(id) })}
+          disabled={disabled || sending}
         >
           ×
         </button>
@@ -195,6 +224,8 @@
   bind:value
   placeholder={placeholder}
   aria-label={placeholder}
+  aria-describedby={hintId}
+  disabled={disabled || sending}
   oninput={handleInput}
   onclick={() => {
     updateCursor();
@@ -203,6 +234,14 @@
   onkeyup={updateCursor}
   onkeydown={handleKeydown}
 ></textarea>
+
+<div class="composer-actions">
+  <span id={hintId}>{c.keyboardHint}</span>
+  <button type="button" class="send-message" onclick={commit} disabled={disabled || sending || !value.trim()}>
+    {sending ? c.sending : c.send}<Send size={16} aria-hidden="true" />
+  </button>
+</div>
+{#if failed}<p class="send-error" role="alert">{c.sendFailed}</p>{/if}
 
 {#if showList && suggestions.length > 0}
   <div class="mention-list card" role="listbox" tabindex="-1" aria-label={$t('chat.mentions')} bind:this={suggestionList} onkeydown={handleSuggestionKeydown}>
@@ -223,8 +262,17 @@
 <style>
 textarea.rf-input{
   resize:vertical;
-  min-height:72px;
+  min-height:calc(var(--control-sm) * 2);
+  min-width:0;
+  max-width:100%;
+  box-sizing:border-box;
 }
+.composer-actions { display:flex; flex-wrap:wrap; gap:var(--space-sm); align-items:center; justify-content:space-between; color:var(--ink-secondary); font-size:var(--text-xs); }
+.composer-actions span { flex:1 1 160px; overflow-wrap:anywhere; }
+.send-message { display:inline-flex; gap:var(--space-sm); align-items:center; justify-content:center; min-height:var(--control-size); border:1px solid var(--brand); border-radius:var(--radius-sm); padding:var(--space-sm) var(--space-md); background:var(--brand-soft); color:var(--ink-primary); font:inherit; font-size:var(--text-sm); font-weight:600; cursor:pointer; }
+.send-message:disabled, textarea.rf-input:disabled { opacity:1; color:var(--ink-secondary); background:var(--bg-2); border-color:var(--border); cursor:not-allowed; }
+.send-message:focus-visible { outline:2px solid var(--focus); outline-offset:var(--space-xxs); }
+.send-error { margin:0; padding:var(--space-sm); color:var(--ink-primary); background:var(--error-soft); border-radius:var(--radius-sm); font-size:var(--text-sm); }
 .quick-mentions{
   display:grid;
   gap:6px;

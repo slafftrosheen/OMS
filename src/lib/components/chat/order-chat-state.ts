@@ -1,4 +1,5 @@
 import type { Attachment } from '$lib/chat/types';
+import { compareChatPosition } from '$lib/chat/history';
 
 export interface OrderChatMessage {
   id: string;
@@ -6,6 +7,7 @@ export interface OrderChatMessage {
   username: string;
   message: string;
   timestamp: Date;
+  historyTimestamp?: string;
   edited?: boolean;
   replyTo?: string;
   attachments?: string[];
@@ -22,6 +24,7 @@ export function parseOrderChatMessage(value: unknown): OrderChatMessage | null {
   if (!Number.isFinite(timestamp.getTime())) return null;
   return {
     id: item.id, userId: item.userId, username: item.username, message: item.message, timestamp,
+    historyTimestamp: typeof item.timestamp === 'string' ? item.timestamp : timestamp.toISOString(),
     edited: item.edited === true,
     replyTo: typeof item.replyTo === 'string' ? item.replyTo : undefined,
     attachments: Array.isArray(item.attachments) ? item.attachments.filter((url): url is string => typeof url === 'string') : undefined,
@@ -37,5 +40,38 @@ export function reconcileOrderMessages(server: OrderChatMessage[], changes: Map<
     if (message) byId.set(id, message);
     else byId.delete(id);
   }
-  return [...byId.values()].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime() || a.id.localeCompare(b.id));
+  return [...byId.values()].sort(compareOrderChatPosition);
+}
+
+export function compareOrderChatPosition(a: OrderChatMessage, b: OrderChatMessage): number {
+  return compareChatPosition({ id: a.id, ts: a.historyTimestamp ?? a.timestamp.toISOString() }, { id: b.id, ts: b.historyTimestamp ?? b.timestamp.toISOString() });
+}
+
+/** Realtime updates carry table columns, while attachment/player metadata stays in the read DTO. */
+export function orderRealtimePatch(row: Record<string, unknown>): Partial<OrderChatMessage> {
+  const patch: Partial<OrderChatMessage> = {};
+  const text = row.content ?? row.text;
+  if (typeof text === 'string') patch.message = text;
+  if (typeof row.is_edited === 'boolean') patch.edited = row.is_edited;
+  if (typeof row.created_at === 'string' && Number.isFinite(Date.parse(row.created_at))) {
+    patch.timestamp = new Date(row.created_at); patch.historyTimestamp = row.created_at;
+  }
+  return patch;
+}
+
+/** A successful POST/PATCH can acknowledge a version superseded by realtime. */
+export function resolveOrderAcknowledgement(
+  confirmed: OrderChatMessage,
+  startedRevision: number,
+  log: { changes: Map<string, OrderChatMessage | null>; changeRevisions: Map<string, number>; remotePatches: Map<string, Partial<OrderChatMessage>> }
+): OrderChatMessage | null {
+  if ((log.changeRevisions.get(confirmed.id) ?? 0) <= startedRevision) return confirmed;
+  const change = log.changes.get(confirmed.id);
+  if (change === null) return null;
+  return {
+    ...confirmed, ...change,
+    attachments: change?.attachments ?? confirmed.attachments,
+    voiceAttachments: change?.voiceAttachments ?? confirmed.voiceAttachments,
+    ...log.remotePatches.get(confirmed.id)
+  };
 }

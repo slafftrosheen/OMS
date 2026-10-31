@@ -1,6 +1,11 @@
 <script lang="ts">
-  import { t } from 'svelte-i18n';
+  import { t, locale } from 'svelte-i18n';
+  import { untrack } from 'svelte';
+  import { get } from 'svelte/store';
   import { currentUser } from '$lib/auth/authState.svelte';
+  import { getAssistantContext } from '$lib/assistant/context';
+  import { chatScreenContext } from '$lib/assistant/guidance';
+  import { screenOwnerKey } from '$lib/assistant/operational-context';
   import {
     rooms,
     messages,
@@ -8,6 +13,8 @@
     sendVoiceMessage,
     loadRooms,
     loadMessages,
+    loadOlderMessages,
+    roomHistory,
     ensureRoom
   } from '$lib/chat/chat-store';
   import { users, loadUsers } from '$lib/users/user-store';
@@ -15,12 +22,22 @@
   import MentionInput from '$lib/chat/MentionInput.svelte';
   import VoiceRecorder from '$lib/chat/VoiceRecorder.svelte';
   import ChatAttachments from '$lib/chat/ChatAttachments.svelte';
+  import { roomDraftSession } from '$lib/chat/room-drafts.svelte';
+  import HistoryControl from '$lib/chat/HistoryControl.svelte';
+  import { conversationCopy } from '$lib/chat/conversation-copy';
+  import { modalDialog } from '$lib/ui/modal-dialog';
   import type { StationTag } from '$lib/order/stages';
   import StationBadge from '$lib/ui/StationBadge.svelte';
   import type { Room } from '$lib/chat/types';
 
   let activeRoomId = $state('general');
-  let messageText = $state('');
+  const roomPickerId = $props.id();
+  let drafts = $derived(roomDraftSession.drafts);
+  let activeDraft = $derived(drafts[activeRoomId]);
+  let sending = $derived(!!activeDraft?.sending);
+  let followLatest = true;
+  let c = $derived(conversationCopy($locale));
+  let history = $derived($roomHistory[activeRoomId]);
   let scroller: HTMLDivElement | null = $state(null);
   let showRoomModal = $state(false);
   let newRoomName = $state('');
@@ -39,8 +56,11 @@
 
   let channelRooms = $derived(filteredRooms.filter((r: Room) => !r.kind || r.kind === 'channel'));
   let stationRooms = $derived(filteredRooms.filter((r: Room) => r.kind === 'station'));
+  let directRooms = $derived(filteredRooms.filter((r: Room) => r.kind === 'direct'));
 
   let currentUserId = $derived(($currentUser as any)?.id || '');
+  const assistant = getAssistantContext();
+  let assistantOwner = $derived(screenOwnerKey($currentUser));
 
   function scrollToBottom() {
     clearTimeout(scrollTimer);
@@ -50,24 +70,31 @@
   }
 
   function selectRoom(roomId: string) {
+    roomDraftSession.ensure(accountId ?? '', roomId);
     activeRoomId = roomId;
-    loadMessages(roomId);
-    scrollToBottom();
+    followLatest = true;
+    void loadMessages(roomId).then(() => { if (activeRoomId === roomId) scrollToBottom(); });
   }
 
-  function handleSend(text: string, mentions: string[] = []) {
-    if (!text.trim()) return;
-    sendMessage(activeRoomId, text, mentions);
-    messageText = '';
-    scrollToBottom();
+  async function handleSend(text: string, mentions: string[] = []) {
+    const roomId = activeRoomId, owner = accountId;
+    if (!text.trim() || !activeRoom) return false;
+    const confirmed = await roomDraftSession.submit(owner ?? '', roomId, () => sendMessage(roomId, text, mentions), () => $currentUser?.id ?? '');
+    if (confirmed && activeRoomId === roomId && accountId === owner) { followLatest = true; scrollToBottom(); }
+    return confirmed;
   }
 
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend(messageText);
-    }
+  function handleScroll() {
+    if (scroller) followLatest = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 100;
   }
+
+  $effect(() => {
+    if ($rooms.length && !$rooms.some(room => room.id === activeRoomId)) untrack(() => selectRoom($rooms[0].id));
+  });
+  $effect(() => {
+    const count = roomMessages.length;
+    if (count && !history?.loadingOlder) untrack(() => { if (followLatest) scrollToBottom(); });
+  });
 
   async function createRoom() {
     const lifetime = viewLifetime;
@@ -96,15 +123,15 @@
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    if (date.toDateString() === today.toDateString()) return 'Today';
-    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    if (date.toDateString() === today.toDateString()) return c.today;
+    if (date.toDateString() === yesterday.toDateString()) return c.yesterday;
     return date.toLocaleDateString();
   }
 
   function authorName(id: string) {
-    if (id === 'system') return 'System';
+    if (id === 'system') return c.system;
     const user = $users.find((u: any) => String((u as any).id) === String(id));
-    return (user as any)?.displayName || (user as any)?.username || 'Unknown';
+    return (user as any)?.displayName || (user as any)?.username || c.unknown;
   }
 
   function authorInitials(id: string) {
@@ -130,7 +157,8 @@
     const lifetime = new AbortController();
     viewLifetime = lifetime;
     activeRoomId = 'general';
-    messageText = '';
+    untrack(() => { roomDraftSession.ensure(ownerId ?? '', 'general'); });
+    followLatest = true;
     showRoomModal = false;
     newRoomName = '';
     creatingRoom = false;
@@ -144,6 +172,24 @@
       clearTimeout(scrollTimer);
       if (viewLifetime === lifetime) viewLifetime = null;
     };
+  });
+
+  $effect(() => {
+    const owner = assistantOwner;
+    return untrack(() => assistant.register({
+      id: `chat:${owner}`, title: () => $t('assistant.screen.chat'), tools: () => [],
+      context: () => chatScreenContext({
+        current: !!owner && owner === screenOwnerKey(get(currentUser)),
+        loading: !!history?.loading || (!!activeRoom && !history?.initialized && !history?.failed),
+        error: !!history?.failed,
+        selected: !!activeRoom && activeRoom.id === activeRoomId,
+        roomKind: activeRoom?.kind ?? 'channel', visibleMessages: roomMessages.length,
+        hasEarlierMessages: !!history?.hasMore, loadingEarlier: !!history?.loadingOlder,
+        draftPresent: !!activeDraft?.text.trim(), sending,
+        voiceAvailable: typeof window !== 'undefined' && window.isSecureContext
+          && typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
+      })
+    }));
   });
 
 </script>
@@ -160,7 +206,7 @@
 
     <div class="search-box">
       <Icon name="search" size="sm" />
-      <input type="text" placeholder={$t('chat.search_rooms', { default: 'Search rooms…' })} bind:value={searchQuery} />
+      <input type="search" placeholder={$t('chat.search_rooms', { default: 'Search rooms…' })} aria-label={$t('chat.search_rooms')} bind:value={searchQuery} />
     </div>
 
     <div class="rooms-list">
@@ -193,6 +239,16 @@
             >
               <Icon name="cpu" size="sm" />
               <span class="room-name">{room.name}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+      {#if directRooms.length}
+        <div class="rooms-section">
+          <span class="section-label">{c.direct}</span>
+          {#each directRooms as room (room.id)}
+            <button type="button" class="room-item" class:active={room.id === activeRoomId} onclick={() => selectRoom(room.id)}>
+              <Icon name="users" size="sm" /><span class="room-name">{room.peer?.displayName || room.peer?.username || room.name}</span>
             </button>
           {/each}
         </div>
@@ -238,6 +294,13 @@
       </div>
     </header>
 
+    <div class="mobile-room-picker">
+      <label for={roomPickerId}>{c.room}</label><select id={roomPickerId} value={activeRoomId} onchange={event => selectRoom(event.currentTarget.value)} disabled={!$rooms.length}>
+        {#if !$rooms.length}<option value="">{c.noRooms}</option>{/if}
+        {#each $rooms as room (room.id)}<option value={room.id}>{room.peer?.displayName || room.peer?.username || room.name}</option>{/each}
+      </select>
+    </div>
+
     {#if showMembers}
       <aside class="members-panel" aria-label={$t('chat.members_btn', { default: 'Members' })}>
         <header class="members-panel__header">
@@ -257,8 +320,10 @@
       </aside>
     {/if}
 
-    <div class="messages-container" bind:this={scroller}>
-      {#if roomMessages.length === 0}
+    <div class="messages-container" bind:this={scroller} onscroll={handleScroll}>
+      <HistoryControl state={history} {scroller} contextKey={`${accountId}:${activeRoomId}`} hasMessages={roomMessages.length > 0}
+        onRetry={() => loadMessages(activeRoomId)} onOlder={() => { followLatest = false; return loadOlderMessages(activeRoomId); }} />
+      {#if roomMessages.length === 0 && !history?.loading && !history?.failed}
         <div class="empty-state">
           <Icon name="hash" size="sm" />
           <h3>{$t('chat.welcome_room', { default: 'Welcome to #{name}', values: { name: activeRoom?.name ?? '' } })}</h3>
@@ -272,7 +337,7 @@
             </div>
           {/if}
 
-          <article class="message" class:system={message.variant === 'system'}>
+          <article class="message" data-chat-message-id={message.id} class:system={message.variant === 'system'}>
             <div class="message-avatar">{authorInitials(message.authorId)}</div>
             <div class="message-content">
               <div class="message-header">
@@ -298,10 +363,10 @@
     </div>
 
     <div class="message-input-container">
-      <MentionInput
-        onCommit={handleSend}
-        placeholder={`Message #${activeRoom?.name || 'general'}…`}
-      />
+      {#key `${accountId}:${activeRoomId}`}
+        {#if activeDraft}<MentionInput managed bind:value={activeDraft.text} bind:mentions={activeDraft.mentions} bind:sending={activeDraft.sending} bind:failed={activeDraft.failed}
+          disabled={!accountId || !activeRoom} onCommit={handleSend} placeholder={$t('chat.message_placeholder')} />{/if}
+      {/key}
       <VoiceRecorder contextKey={`${accountId ?? ''}:${$currentUser?.role ?? ''}:${activeRoomId}`}
         disabled={!accountId || !activeRoom} onSend={(draft, signal) => sendVoiceMessage(activeRoomId, draft, signal)} />
     </div>
@@ -310,23 +375,7 @@
 
 <!-- Create Room Modal -->
 {#if showRoomModal}
-  <div
-    class="modal-backdrop"
-    onclick={() => showRoomModal = false}
-    onkeydown={(e) => e.key === 'Escape' && (showRoomModal = false)}
-    role="button"
-    tabindex="0"
-  >
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div
-      class="modal"
-      onclick={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-room-title"
-      tabindex="-1"
-    >
+  <dialog class="modal" aria-labelledby="create-room-title" use:modalDialog={{ onClose: () => showRoomModal = false, initialFocus: 'input' }}>
       <div class="modal-header">
         <h3 id="create-room-title">{$t('chat.create_channel_title', { default: 'Create Channel' })}</h3>
         <button class="icon-btn" onclick={() => showRoomModal = false} aria-label="Close">
@@ -350,8 +399,7 @@
           {$t('chat.create_channel_btn', { default: 'Create Channel' })}
         </button>
       </div>
-    </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>
@@ -520,7 +568,7 @@
   }
 
   /* ---------- Main ---------- */
-  .chat-main { display: flex; flex-direction: column; min-width: 0; }
+  .chat-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
   .chat-header {
     display: flex;
@@ -647,7 +695,7 @@
   .message:hover {
     background: color-mix(in oklab, var(--bg-2) 50%, transparent);
   }
-  .message.system { opacity: 0.7; }
+  .message.system { color: var(--ink-secondary); border-left: 2px solid var(--border); }
 
   .message-avatar {
     width: 40px;
@@ -683,6 +731,8 @@
     color: var(--ink-tertiary);
   }
   .message-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
     margin: 0;
     line-height: var(--leading-normal);
     word-wrap: break-word;
@@ -716,20 +766,9 @@
   }
 
   /* ---------- Modal ---------- */
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: color-mix(in oklab, var(--bg-0) 60%, transparent);
-    backdrop-filter: var(--glass-material-thin);
-    -webkit-backdrop-filter: var(--glass-material-thin);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: var(--z-modal);
-    animation: rf-fade-in var(--motion-sm) var(--ease-standard) both;
-  }
-
   .modal {
+    padding: 0;
+    color: var(--ink-primary);
     background: var(--glass-bg-strong);
     backdrop-filter: var(--glass-material-thick);
     -webkit-backdrop-filter: var(--glass-material-thick);
@@ -890,7 +929,17 @@
     white-space: nowrap;
   }
 
+  .mobile-room-picker { display: none; }
+  .mobile-room-picker label { color: var(--ink-secondary); font-size: var(--text-xs); }
+  .mobile-room-picker select { width: 100%; min-width: 0; min-height: var(--control-size); padding: var(--space-sm); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-1); color: var(--ink-primary); font: inherit; font-size: var(--text-sm); }
+  .mobile-room-picker select:focus-visible { outline: 2px solid var(--focus); outline-offset: var(--space-xxs); }
   @media (max-width: 768px) {
+    .mobile-room-picker { display: grid; gap: var(--space-xs); padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--border); }
+    .messages-container { padding: var(--space-sm); }
+    .message { gap: var(--space-sm); }
+    .message-avatar { width: var(--control-xs); height: var(--control-xs); }
+    .message-input-container, .chat-header { padding: var(--space-sm) var(--space-md); }
+
     .chat-page { grid-template-columns: 1fr; }
     .chat-sidebar { display: none; }
     .members-panel { right: var(--space-sm); width: calc(100vw - var(--space-md)); }

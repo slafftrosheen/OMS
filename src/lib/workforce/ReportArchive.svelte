@@ -1,19 +1,34 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import Download from 'lucide-svelte/icons/download';
   import FileText from 'lucide-svelte/icons/file-text';
   import type { CabinetState } from './cabinet-state.svelte';
-  import type { DailyAbsencesPayload, MonthlyHoursPayload } from './types';
+  import type { DailyAbsencesPayload, MonthlyHoursPayload, WorkforceReport } from './types';
   import type { WorkforceCopy } from './copy';
   import { absenceReason, workforceError } from './copy';
   import { formatReportTime, formatWorkDate, formatWorkMonth } from './client';
   import TeamTable from './TeamTable.svelte';
-  let { cabinet, c, lang }: { cabinet: CabinetState; c: WorkforceCopy; lang: string } = $props();
+  import { filterReports, latestReportIds, type ReportKindFilter, type ReportVisibilitySummary } from './overview';
+  let { cabinet, c, lang, onVisibility }: {
+    cabinet: CabinetState; c: WorkforceCopy; lang: string;
+    onVisibility?: (summary: ReportVisibilitySummary, source: WorkforceReport[]) => void;
+  } = $props();
   let selected = $derived(cabinet.selectedReport);
+  let kind = $state<ReportKindFilter>('all');
+  let versions = $state<'latest' | 'all'>('latest');
+  let latestIds = $derived(latestReportIds(cabinet.reports));
+  let visibleReports = $derived(filterReports(cabinet.reports, kind, versions === 'all'));
+  $effect(() => { onVisibility?.({ count: visibleReports.length, kind, versions }, cabinet.reports); });
+  const filterId = $props.id();
   let trigger: HTMLButtonElement | null = null;
   $effect(() => {
     const id = selected?.id, owner = cabinet.owner;
     if (!id) return;
+    // Notification links and regeneration may open a report hidden by the current filters.
+    untrack(() => {
+      if (kind !== 'all' && selected?.kind !== kind) kind = 'all';
+      if (!latestIds.has(id)) versions = 'all';
+    });
     void tick().then(() => {
       if (cabinet.owner !== owner || cabinet.selectedReport?.id !== id) return;
       const heading = document.getElementById('workforce-report-detail-heading');
@@ -24,6 +39,8 @@
     cabinet.selectedReport = null;
     if (trigger?.isConnected) trigger.focus();
   }
+  function changeFilters() { cabinet.selectedReport = null; }
+  function clearFilters() { kind = 'all'; versions = 'all'; }
 </script>
 
 <section class="wfc-panel" aria-labelledby="workforce-reports-heading">
@@ -32,12 +49,21 @@
   <div class="wfc-form-actions"><button type="button" class="rf-btn wfc-primary" disabled={!!cabinet.busy || cabinet.loading.reports || cabinet.month >= cabinet.today.slice(0, 7)} aria-busy={cabinet.busy === 'report'} onclick={() => cabinet.generateReport()}>{cabinet.busy === 'report' ? c.regenerating : c.generate}</button><button type="button" class="wfc-button" disabled={!!cabinet.busy || cabinet.loading.reports} onclick={() => cabinet.loadReports()}>{c.refresh}</button></div>
   {#if cabinet.month >= cabinet.today.slice(0, 7)}<p class="wfc-hint">{c.closedMonthHint}</p>{/if}
   {#if cabinet.reportMissing}<p class="wfc-message" data-tone="warning" role="status">{c.reportMissing}</p>{/if}
+  {#if cabinet.reports.length && !cabinet.loading.reports}
+    <div class="wfc-filter-row">
+      <div class="wfc-field"><label for={`${filterId}-kind`}>{c.reportKind}</label><select class="rf-input" id={`${filterId}-kind`} bind:value={kind} onchange={changeFilters}><option value="all">{c.allReports}</option><option value="monthly_hours">{c.monthlyReport}</option><option value="daily_absences">{c.dailyReport}</option></select></div>
+      <div class="wfc-field"><label for={`${filterId}-versions`}>{c.reportVersions}</label><select class="rf-input" id={`${filterId}-versions`} bind:value={versions} onchange={changeFilters}><option value="latest">{c.latestVersions}</option><option value="all">{c.allVersions}</option></select></div>
+    </div>
+    <div class="wfc-filter-status"><p class="wfc-hint" role="status">{c.reportsShown}: <strong>{visibleReports.length} / {cabinet.reports.length}</strong></p>{#if kind !== 'all' || versions !== 'all'}<button type="button" class="wfc-button wfc-small" onclick={clearFilters}>{c.clearFilters}</button>{/if}</div>
+    {#if versions === 'latest'}<p class="wfc-hint">{c.versionsHint}</p>{/if}
+  {/if}
   {#if cabinet.loading.reports}<p class="wfc-loading" role="status">{c.loading}</p>
   {:else if cabinet.errors.reports}<div class="wfc-message" data-tone="error" role="alert"><p>{workforceError(cabinet.errors.reports, c)}</p><button type="button" class="wfc-button" onclick={() => cabinet.loadReports()}>{c.retry}</button></div>
   {:else if !cabinet.reports.length}<div class="wfc-empty"><h3>{c.reportsEmpty}</h3></div>
+  {:else if !visibleReports.length}<div class="wfc-empty"><h3>{c.noMatchingReports}</h3><button type="button" class="wfc-button" onclick={clearFilters}>{c.clearFilters}</button></div>
   {:else}
-    <ul class="wfc-report-list">{#each cabinet.reports as report (report.id)}<li>
-      <div><h3>{report.kind === 'monthly_hours' ? c.monthlyReport : c.dailyReport}</h3><p><strong>{report.kind === 'monthly_hours' ? formatWorkMonth(report.period.slice(0, 7), lang) : formatWorkDate(report.period, lang)}</strong> · {c.reportVersion} {report.version}</p><p class="wfc-hint">{c.generatedAt}: {formatReportTime(report.generatedAt, lang)} · {c.rigaTime}</p>{#if report.isStale}<span class="wfc-chip" data-tone="premium">{c.stale}</span>{/if}</div>
+    <ul class="wfc-report-list">{#each visibleReports as report (report.id)}<li>
+      <div><h3>{report.kind === 'monthly_hours' ? c.monthlyReport : c.dailyReport}</h3><p><strong>{report.kind === 'monthly_hours' ? formatWorkMonth(report.period.slice(0, 7), lang) : formatWorkDate(report.period, lang)}</strong> · {c.reportVersion} {report.version}</p><p class="wfc-hint">{c.generatedAt}: {formatReportTime(report.generatedAt, lang)} · {c.rigaTime}</p><div class="wfc-chip-row"><span class="wfc-chip" data-tone={latestIds.has(report.id) ? 'time' : 'neutral'}>{latestIds.has(report.id) ? c.latestVersion : c.historicalVersion}</span>{#if report.isStale}<span class="wfc-chip" data-tone="premium">{c.stale}</span>{/if}</div></div>
       <div class="wfc-row-actions"><button type="button" class="wfc-button wfc-small" aria-expanded={selected?.id === report.id} aria-controls={selected?.id === report.id ? 'workforce-report-preview' : undefined} aria-label={`${c.viewReport}: ${report.kind === 'monthly_hours' ? c.monthlyReport : c.dailyReport}, ${report.period}, ${c.reportVersion} ${report.version}`} onclick={event => { trigger = event.currentTarget; cabinet.selectedReport = selected?.id === report.id ? null : report; }}>{c.viewReport}</button><button type="button" class="wfc-button wfc-small" disabled={!!cabinet.busy} aria-label={`${c.exportCSV}: ${report.kind === 'monthly_hours' ? c.monthlyReport : c.dailyReport}, ${report.period}, ${c.reportVersion} ${report.version}`} aria-busy={cabinet.busy === `export:${report.id}`} onclick={() => cabinet.exportReport(report)}><Download size={15} aria-hidden="true" />{cabinet.busy === `export:${report.id}` ? c.exporting : c.exportCSV}</button></div>
     </li>{/each}</ul>
   {/if}

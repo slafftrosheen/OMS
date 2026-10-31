@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { locale } from 'svelte-i18n';
   import { currentUser } from '$lib/auth/authState.svelte';
-  import { isChatOpen, loadMessages, loadRooms, messages, resetChatState, sendVoiceMessage } from '$lib/chat/chat-store';
+  import { isChatOpen, loadMessages, loadRooms, messages, resetChatState, sendVoiceMessage, initChatRealtime } from '$lib/chat/chat-store';
   import VoiceRecorder from '$lib/chat/VoiceRecorder.svelte';
   import ChatAttachments from '$lib/chat/ChatAttachments.svelte';
   import ChatContainer from '$lib/components/chat/ChatContainer.svelte';
@@ -22,6 +22,7 @@
     void loadRooms();
   }
   onMount(() => {
+    const stopRealtime = new URLSearchParams(location.search).has('realtime') && surface !== 'order' ? initChatRealtime() : () => {};
     void loadRooms();
     if (surface !== 'order') void loadMessages(room);
     (window as any).__voiceFixture = {
@@ -34,7 +35,7 @@
         typeof attachment === 'object' && attachment.kind === 'voice' ? { ...attachment, expiresAt: new Date(Date.now() - 1).toISOString() } : attachment) }))),
       refreshOrder: () => document.dispatchEvent(new Event('visibilitychange'))
     };
-    return () => { delete (window as any).__voiceFixture; resetChatState(); };
+    return () => { stopRealtime(); delete (window as any).__voiceFixture; resetChatState(); };
   });
 </script>
 
@@ -46,7 +47,7 @@
   <label>Fixture language<select onchange={event => locale.set(event.currentTarget.value)}><option value="en">English</option><option value="lv">Latviešu</option><option value="ru">Русский</option></select></label>
   <label>Fixture theme<select onchange={event => document.documentElement.dataset.theme = event.currentTarget.value}><option value="LightVim">Light</option><option value="DarkVim">Dark</option><option value="HighContrastVim">High contrast</option></select></label>
 </header>
-<main class:full-chat={surface === 'page'}>
+<main class:full-chat={surface === 'page'} class:order-chat={surface === 'order'}>
   {#if mounted}
     {#if surface === 'order'}<ChatContainer orderId={order} />
     {:else if surface === 'pane'}<ChatPane />
@@ -74,6 +75,8 @@
   .fixture-controls label { display: grid; gap: 4px; color: var(--ink-secondary); }
   main { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); min-width: 0; max-width: 960px; padding: 16px; margin: auto; box-sizing: border-box; }
   main.full-chat { max-width: none; padding: 0; }
+  /* Order discussions run inside a bounded panel in the application. */
+  main.order-chat { height: max(52rem, 75dvh); grid-template-rows: minmax(0, 1fr); }
   .popover-anchor { display: flex; justify-content: flex-end; }
   article { padding: 12px; border: 1px solid var(--border); margin-bottom: 12px; min-width: 0; }
   section { min-width: 0; }

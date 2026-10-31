@@ -122,6 +122,7 @@
 
 <div
     class="chat-message"
+    data-chat-message-id={message.id}
     class:own={isOwn}
 >
     {#if !isOwn}

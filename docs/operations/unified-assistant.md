@@ -12,8 +12,13 @@ Screens can add tools to the same drawer:
 - Toolkit canvas keeps its brainstorming, research and explicit proposal-approval workflow inside the drawer.
 - Dashboard, order lists, inventory and its catalog, material details and administration, calendar, production and workstations supply the visible records, filters and current selection to general screen help.
 - My cabinet supplies a limited personal month/entry summary and time-credit guidance. Worker identities, absence reasons and notes are excluded; the assistant has no workforce mutation or team lookup tool.
+- Team chat supplies interface state and loaded-message counts only. Message bodies, drafts, names, mentions, room IDs, attachments and voice data are excluded; the assistant cannot read or transcribe the conversation.
 
 Screen help keeps its question field and Send control below the scrolling conversation on phone and desktop layouts. A compact **Context and tools** disclosure shows the current selection, included record counts, unsaved changes and available lookups. Counts describe the supplied slice, not an unseen complete dataset. Context is refreshed as the user changes the screen; opening the disclosure does not call the provider.
+
+`guidance.ts` chooses a local next-step hint and question from known view state, including loading failures, unapplied profile choices, cabinet forms/report views and chat draft/history controls. These hints work without provider inference. Clicking a suggestion fills and focuses the existing question field; it does not send, set consent or run a workflow. Suggestion controls are disabled during a request. The existing next-action halo identifies an enabled Send action, and disabled text keeps its opaque theme foreground.
+
+Each successful answer keeps an in-memory signature of the bounded context and offered workflow IDs that were sent. A change to that snapshot while waiting is disclosed; the latest answer gets a **Review current screen** prompt when its context differs. Object key order does not trigger a change, while array order and material values do. The user explicitly sends any fresh review. This comparison is a local freshness cue, not a database revision check, and changes solely to excluded data are not visible to it.
 
 Answers support headings, emphasis, ordered and unordered lists, code blocks and compact comparison tables. Tables and code blocks scroll within the conversation and support keyboard focus. The renderer creates typed text nodes rather than HTML; raw HTML and image syntax remain text, and only explicit HTTP(S) links without embedded credentials become links. No model-generated image or embedded media is fetched.
 
@@ -58,6 +63,7 @@ Native workflow offers use a separate virtual `assistant_suggest_workflow` tool.
 | Workstation | Catalog search/comparison, plus CNC, paint or signage tools for the relevant station |
 | Canvas/Toolkit | Catalog search/comparison, signage calculations; web research uses the existing canvas workflow |
 | My cabinet | General guidance on own hours, absence notices, month history and the separate 2× company credit |
+| Team chat | General guidance on recording, sending, history and retention; no conversation or business-data lookup tools |
 | Settings, notifications and other screens | General guidance |
 
 Model output uses the bounded text renderer described above. Provider/tool failures leave the user's input available for retry. If the configured model explicitly rejects tool support, the service can fall back to guidance from the supplied context and marks that result as lacking live tool access. Cancellation propagates through provider requests and database/tool calls.
@@ -78,7 +84,7 @@ Changing an admin weight/volume or package-length field removes superseded numer
 
 FACE, BACK, SIDES and FRAME share `MaterialThicknessSelect`. Frame wall thickness remains independent of its section dimensions, while legacy dimensions such as `40x40x2` or `D20x2` are read compatibly. Updating thickness explicitly synchronizes an embedded legacy wall value. Missing thickness metadata retains the existing family fallback; an explicit empty array means no sheet-thickness choices.
 
-The optional 3D material selection persists with the profile. Filament diameter is product metadata, not sheet thickness. The LED picker includes neon flex. The existing WAGO option can also retain a selected branded connector model; clearing the model preserves the option itself. The [catalog README](../../supabase/catalogs/README.md) documents the 106 products across four immutable snapshots, provenance, importer behavior, known supplier inconsistencies and the separate migration procedure.
+The optional 3D material selection persists with the profile. Filament diameter is product metadata, not sheet thickness. The LED picker includes neon flex. The existing WAGO option can also retain a selected branded connector model; clearing the model preserves the option itself. The [catalog README](../../supabase/catalogs/README.md) documents the 128 products across five immutable snapshots, provenance, importer behavior, known supplier inconsistencies and the separate migration procedure.
 
 Selected parts use shared role colors while actual catalog/paint swatches retain their physical color. Opaque foreground/background pairs and luminance-based swatch text preserve readability in the three themes. LED, PSU and cable controls keep the compact summary formats. A shared next-action halo appears only on the useful enabled continuation button and respects reduced motion and high-contrast settings.
 
@@ -105,6 +111,7 @@ Build and service restart do not apply database migrations. Apply the reviewed m
 3. `20261030000003_lemona_catalog_batch_3.sql` — 18 additional products; both earlier snapshots remain unchanged.
 4. `20261031000001_lemona_xlg_strips.sql` — 26 additional MEAN WELL XLG, AKTO/LEMLUX and LAPP products.
 5. `20261031000002_workshop_aluminium_sheets.sql` — the 1500 × 3000 mm workshop sheet family, with nine thicknesses.
+6. `20261031000005_lemona_production_catalog.sql` — 22 additional strips, fixed-output supplies, main cables and printing materials. Follow the full migration ordering, including the workforce and voice migrations described in their operational guides.
 
 The [personal cabinet](workforce-cabinet.md) has its own `20261031000003_workforce_cabinet.sql` migration and production reporting worker.
 

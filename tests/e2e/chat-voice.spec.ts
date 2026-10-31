@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 test.use({ serviceWorkers: 'block', viewport: { width: 1180, height: 900 } });
 const tone = readFileSync(new URL('../fixtures/chat/voice-tone.webm', import.meta.url));
 type VoiceFields = { roomId?: string; orderId?: string; durationMs: string; clientRequestId: string; fileType: string; bytes: number };
-type FixtureOptions = { surface?: string; mode?: string; failures?: number; history?: boolean; onVoice?: (route: Route, fields: VoiceFields, result: any) => Promise<boolean> };
+type FixtureOptions = { surface?: string; mode?: string; failures?: number; history?: boolean; paging?: boolean; realtime?: boolean; onVoice?: (route: Route, fields: VoiceFields, result: any) => Promise<boolean> };
 
 async function mediaFixture(page: Page, mode = 'ready') {
   await page.addInitScript(({ bytes, initialMode }) => {
@@ -72,6 +72,11 @@ async function openFixture(page: Page, options: FixtureOptions = {}) {
     roomRows.general = [{ id: 'history-general', roomId: 'general', authorId: 'colleague', text: 'Saved general voice', ts: new Date().toISOString(), attachments: [attachment('saved-general'), '/files/brief.pdf', '/files/artwork.pdf', 'javascript:alert(1)'] }];
     roomRows.other = [{ id: 'history-other', roomId: 'other', authorId: 'colleague', text: 'Saved other voice', ts: new Date().toISOString(), attachments: [attachment('saved-other')] }];
   }
+  if (options.paging) {
+    const rows = Array.from({ length: 120 }, (_, index) => ({ id: `history-${index + 1}`, text: `Saved message ${String(index + 1).padStart(3, '0')}`, ts: new Date(Date.UTC(2026, 9, 1, 12, 0, index)).toISOString() }));
+    roomRows.general = rows.map(row => ({ ...row, roomId: 'general', authorId: 'account-b', attachments: [] }));
+    orderRows['order-a'] = rows.map(row => ({ id: row.id, userId: 'account-b', username: 'Bob', message: row.text, timestamp: row.ts }));
+  }
   let failures = options.failures || 0;
   page.on('pageerror', error => errors.push(error.message));
   await page.route('http://localhost:8000/**', route => route.fulfill({ json: [] }));
@@ -96,7 +101,13 @@ async function openFixture(page: Page, options: FixtureOptions = {}) {
       await route.fulfill({ json: result }); return;
     }
     if (path === '/api/chat/messages') {
-      if (request.method() === 'GET') { await route.fulfill({ json: { success: true, messages: url.searchParams.has('orderId') ? orderRows[url.searchParams.get('orderId')!] || [] : roomRows[url.searchParams.get('roomId')!] || [] } }); return; }
+      if (request.method() === 'GET') {
+        const rows = url.searchParams.has('orderId') ? orderRows[url.searchParams.get('orderId')!] || [] : roomRows[url.searchParams.get('roomId')!] || [];
+        const earlier = url.searchParams.has('cursor');
+        const selected = options.paging ? earlier ? rows.slice(0, -100) : rows.slice(-100) : rows;
+        const hasMore = !!options.paging && !earlier && rows.length > 100;
+        await route.fulfill({ json: { success: true, messages: selected, hasMore, nextCursor: hasMore ? 'earlier-page' : null } }); return;
+      }
       const body = request.postDataJSON(); textWrites.push(body);
       const id = `text-${textWrites.length}`;
       const message = body.orderId
@@ -108,7 +119,7 @@ async function openFixture(page: Page, options: FixtureOptions = {}) {
     }
     await route.fulfill({ status: 404, json: { error: `Unexpected fixture request: ${path}` } });
   });
-  await page.goto(`/voice-chat.html?surface=${options.surface || 'recorder'}`);
+  await page.goto(`/voice-chat.html?surface=${options.surface || 'recorder'}${options.realtime ? '&realtime=1' : ''}`);
   await expect(page.getByLabel('Fixture language')).toBeVisible();
   return { errors, writes, textWrites, roomRows, orderRows };
 }
@@ -265,7 +276,7 @@ test('all human chat surfaces expose recorder and persisted playback; station ro
     await expect(page.getByRole('button', { name: 'Record voice', exact: true })).toBeEnabled();
     await expect(page.locator('audio[aria-label="Voice message"]')).toHaveCount(1);
     if (surface === 'pane') {
-      await page.getByRole('tab', { name: 'Other', exact: true }).click();
+      await page.getByRole('button', { name: 'Other', exact: true }).click();
       await expect(page.getByText('Saved other voice', { exact: true })).toBeVisible();
       await expect(page.getByText('Saved general voice', { exact: true })).toHaveCount(0);
     }
@@ -295,6 +306,11 @@ test('320px order recording and playback retain readable controls in each locale
       expect(layout.width, `${language}/${theme}: ${JSON.stringify(layout.overflowing)}`).toBeLessThanOrEqual(layout.viewport + 1);
       await expect(page.locator('.voice-recorder .voice-send')).toBeVisible();
       await expect(page.locator('.voice-recorder .voice-send')).toBeEnabled();
+      expect(await page.locator('.chat-container .messages-container').evaluate(node => node.clientHeight)).toBeGreaterThanOrEqual(160);
+      for (const speed of await page.locator('.voice-speed select').all()) {
+        await expect(speed).toHaveValue('1');
+        expect(await speed.evaluate((node: HTMLSelectElement) => node.selectedOptions[0]?.textContent)).toBe('1×');
+      }
       const composer = await page.locator('.input-wrapper').evaluate(node => {
         const field = node.querySelector('textarea')!, button = node.querySelector('.text-send button')!;
         const wrapper = node.getBoundingClientRect(), input = field.getBoundingClientRect(), send = button.getBoundingClientRect();
@@ -306,3 +322,256 @@ test('320px order recording and playback retain readable controls in each locale
   await page.screenshot({ path: testInfo.outputPath('voice-order-mobile-high-contrast.png'), fullPage: true });
   expect(observed.errors).toEqual([]);
 });
+
+async function openChatSurface(page: Page, surface: string) {
+  if (surface === 'sidebar') await page.getByRole('button', { name: 'Open chat drawer', exact: true }).click();
+  if (surface === 'popover') await page.getByRole('button', { name: 'Open chat', exact: true }).click();
+  const selector = surface === 'page' ? '.message-input-container textarea' : surface === 'sidebar' ? '.chat-drawer textarea'
+    : surface === 'popover' ? '.sheet textarea' : surface === 'pane' ? '.chat-panel textarea' : '.chat-input-container textarea';
+  await expect(page.locator(selector)).toBeVisible();
+  return page.locator(selector);
+}
+
+for (const surface of ['page', 'sidebar', 'pane', 'popover', 'order']) {
+  test(`confirmed text send keeps a failed draft and retries on ${surface}`, async ({ page }) => {
+    const fixture = await openFixture(page, { surface });
+    const input = await openChatSurface(page, surface);
+    let failed = false;
+    await page.route('**/api/chat/messages', async route => {
+      if (route.request().method() === 'POST' && !failed) {
+        failed = true; await route.fulfill({ status: 503, json: { success: false, error: 'Temporarily unavailable' } });
+      } else await route.fallback();
+    });
+    const draft = 'Keep the sign details\nSecond line is important';
+    await input.fill(draft);
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(input).toBeEnabled();
+    await expect(input).toHaveValue(draft);
+    if (surface !== 'order') await expect(page.getByRole('alert')).toContainText('draft is still here');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(input).toHaveValue('');
+    await expect.poll(() => fixture.textWrites.length).toBe(1);
+    expect(fixture.textWrites[0].text).toBe(draft);
+    expect(fixture.errors).toEqual([]);
+  });
+}
+
+for (const surface of ['page', 'sidebar', 'order']) {
+  test(`earlier chat history is accessible and retry keeps the reading position on ${surface}`, async ({ page }) => {
+    const fixture = await openFixture(page, { surface, paging: true });
+    await openChatSurface(page, surface);
+    await expect(page.getByText('Saved message 021', { exact: true })).toBeAttached();
+    await expect(page.getByText('Saved message 001', { exact: true })).toHaveCount(0);
+    let failOlder = true;
+    await page.route('**/api/chat/messages?**', async route => {
+      if (new URL(route.request().url()).searchParams.has('cursor') && failOlder) {
+        failOlder = false; await route.fulfill({ status: 503, json: { success: false, messages: [] } });
+      } else await route.fallback();
+    });
+    const scroller = page.locator(surface === 'page' ? '.messages-container' : surface === 'sidebar' ? '.messages-scroll' : '.chat-container .messages-container');
+    await scroller.evaluate(node => { node.scrollTop = 0; });
+    await page.getByRole('button', { name: 'Load earlier messages', exact: true }).click();
+    await expect(page.getByText('Earlier messages could not be loaded.', { exact: true })).toBeVisible();
+    await expect(page.getByText('Beginning of this conversation', { exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Try again', exact: true }).click();
+    await expect(page.getByText('Saved message 001', { exact: true })).toBeAttached();
+    await expect(page.getByText('Saved message 120', { exact: true })).toBeAttached();
+    await expect(page.getByRole('button', { name: 'Load earlier messages', exact: true })).toHaveCount(0);
+    await expect.poll(() => scroller.evaluate(node => node.scrollTop)).toBeGreaterThan(100);
+    await expect(page.getByText('Beginning of this conversation', { exact: true })).toBeAttached();
+    expect(fixture.errors).toEqual([]);
+  });
+}
+
+test('mobile full chat switches rooms and preserves separate multiline drafts', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 850 });
+  const fixture = await openFixture(page, { surface: 'page' });
+  const input = await openChatSurface(page, 'page');
+  const picker = page.getByLabel('Conversation', { exact: true });
+  await expect(picker).toBeVisible();
+  await input.fill('General draft\nReady to cut');
+  await picker.selectOption('other');
+  await expect(input).toHaveValue('');
+  await input.fill('Other room draft');
+  await picker.selectOption('general');
+  await expect(input).toHaveValue('General draft\nReady to cut');
+  await page.getByLabel('Fixture language').selectOption('ru');
+  await page.getByLabel('Fixture theme').selectOption('HighContrastVim');
+  await expect(page.getByRole('button', { name: 'Отправить', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('chat-mobile-room-draft-high-contrast.png'), fullPage: true });
+  expect(fixture.errors).toEqual([]);
+});
+
+test('voice playback pauses another recording and exposes speed with exact expiry', async ({ page }) => {
+  const fixture = await openFixture(page, { history: true });
+  fixture.roomRows.general.push({ id: 'second-voice', roomId: 'general', authorId: 'account-b', text: 'Second recording', ts: new Date().toISOString(),
+    attachments: [{ ...fixture.roomRows.general[0].attachments[0], id: 'second-audio', url: '/api/chat/voice/second-audio' }] });
+  await page.getByRole('button', { name: 'Switch fixture room', exact: true }).click();
+  await page.getByRole('button', { name: 'Switch fixture room', exact: true }).click();
+  const players = page.locator('audio');
+  await expect(players).toHaveCount(2);
+  await expect(page.getByLabel('Playback speed', { exact: true }).nth(1)).toHaveValue('1');
+  await players.nth(0).evaluate(async (node: HTMLAudioElement) => { node.loop = true; await node.play(); });
+  await expect.poll(() => players.nth(0).evaluate((node: HTMLAudioElement) => node.paused)).toBe(false);
+  await page.getByLabel('Playback speed', { exact: true }).nth(1).selectOption('1.5');
+  await expect(page.getByLabel('Playback speed', { exact: true }).nth(1)).toHaveValue('1.5');
+  await players.nth(1).evaluate(async (node: HTMLAudioElement) => { node.loop = true; await node.play(); });
+  await expect.poll(() => players.nth(0).evaluate((node: HTMLAudioElement) => node.paused)).toBe(true);
+  expect(await players.nth(1).evaluate((node: HTMLAudioElement) => node.playbackRate)).toBe(1.5);
+  await expect(page.locator('.voice-meta time').first()).toContainText(/\d{2}:\d{2}/);
+  expect(fixture.errors).toEqual([]);
+});
+
+test('order history reopens pagination after a long offline gap', async ({ page }) => {
+  const fixture = await openFixture(page, { surface: 'order' });
+  await openChatSurface(page, 'order');
+  let phase = 'old';
+  const rows = (start: number, end: number) => Array.from({ length: end - start }, (_, index) => {
+    const n = start + index;
+    return { id: `gap-${String(n).padStart(3, '0')}`, userId: 'account-b', username: 'Bob', message: `Historical entry ${String(n).padStart(3, '0')}`, timestamp: new Date(Date.UTC(2026, 9, 1, 12, 0, n)).toISOString() };
+  });
+  await page.route('**/api/chat/messages?**', async route => {
+    const cursor = new URL(route.request().url()).searchParams.get('cursor');
+    const selected = cursor === 'middle-page' ? rows(200, 300) : cursor === 'old-page' ? rows(0, 100) : phase === 'old' ? rows(100, 200) : rows(300, 400);
+    const hasMore = cursor !== 'old-page';
+    await route.fulfill({ json: { success: true, messages: selected, hasMore, nextCursor: hasMore ? cursor === 'middle-page' || phase === 'old' ? 'old-page' : 'middle-page' : null } });
+  });
+  await page.evaluate(() => (window as any).__voiceFixture.refreshOrder());
+  await page.getByRole('button', { name: 'Load earlier messages', exact: true }).click();
+  await expect(page.getByText('Historical entry 000', { exact: true })).toBeAttached();
+  await expect(page.getByRole('button', { name: 'Load earlier messages', exact: true })).toHaveCount(0);
+  phase = 'new';
+  await page.evaluate(() => (window as any).__voiceFixture.refreshOrder());
+  await expect(page.getByText('Historical entry 399', { exact: true })).toBeAttached();
+  await expect(page.getByRole('button', { name: 'Load earlier messages', exact: true })).toBeAttached();
+  await expect(page.getByText('Beginning of this conversation', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Load earlier messages', exact: true }).click();
+  await expect(page.getByText('Historical entry 250', { exact: true })).toBeAttached();
+  expect(fixture.errors).toEqual([]);
+});
+
+for (const readerMoves of [false, true]) {
+  test(`earlier history preserves the reading anchor with a concurrent arrival${readerMoves ? ' and reader scrolling' : ''}`, async ({ page }) => {
+    const fixture = await openFixture(page, { surface: 'order', paging: true });
+    await openChatSurface(page, 'order');
+    await expect(page.getByText('Saved message 021', { exact: true })).toBeAttached();
+    let pending: Route | undefined;
+    await page.route('**/api/chat/messages?**', async route => {
+      if (new URL(route.request().url()).searchParams.has('cursor')) pending = route;
+      else await route.fallback();
+    });
+    const scroller = page.locator('.chat-container .messages-container');
+    // Exercise the explicit fallback even in browsers without native anchoring.
+    await scroller.evaluate(node => { node.style.overflowAnchor = 'none'; node.scrollTop = 0; });
+    await page.getByRole('button', { name: 'Load earlier messages', exact: true }).click();
+    await expect.poll(() => !!pending).toBe(true);
+    if (readerMoves) {
+      await scroller.hover();
+      await page.mouse.wheel(0, 320);
+      await expect.poll(() => scroller.evaluate(node => node.scrollTop)).toBeGreaterThan(200);
+    }
+    const anchor = await scroller.evaluate(node => {
+      const viewport = node.getBoundingClientRect();
+      const message = Array.from(node.querySelectorAll<HTMLElement>('[data-chat-message-id]')).find(element => {
+        const box = element.getBoundingClientRect(); return box.bottom > viewport.top && box.top < viewport.bottom;
+      })!;
+      return { id: message.dataset.chatMessageId!, offset: message.getBoundingClientRect().top - viewport.top };
+    });
+    fixture.orderRows['order-a'].push({ id: 'concurrent-arrival', userId: 'account-b', username: 'Bob',
+      message: 'New delivery information. '.repeat(80), timestamp: '2026-10-02T12:00:00.000Z' });
+    await page.evaluate(() => (window as any).__voiceFixture.refreshOrder());
+    await expect(page.locator('[data-chat-message-id="concurrent-arrival"]')).toBeAttached();
+    await pending!.fulfill({ json: { success: true, messages: fixture.orderRows['order-a'].slice(0, 20), hasMore: false, nextCursor: null } });
+    await expect(page.getByText('Saved message 001', { exact: true })).toBeAttached();
+    await expect.poll(() => scroller.evaluate((node, saved) => {
+      const message = node.querySelector<HTMLElement>(`[data-chat-message-id="${CSS.escape(saved.id)}"]`)!;
+      return Math.abs(message.getBoundingClientRect().top - node.getBoundingClientRect().top - saved.offset);
+    }, anchor)).toBeLessThan(2);
+    expect(fixture.errors).toEqual([]);
+  });
+}
+
+test('room draft stays locked through A to B to A until its acknowledgement', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 850 });
+  const fixture = await openFixture(page, { surface: 'page' });
+  const input = await openChatSurface(page, 'page');
+  let release!: () => void, posts = 0;
+  await page.route('**/api/chat/messages', async route => {
+    if (route.request().method() === 'POST') { posts++; await new Promise<void>(resolve => release = resolve); }
+    await route.fallback();
+  });
+  await input.fill('Message for General');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(input).toBeDisabled();
+  await page.getByLabel('Conversation', { exact: true }).selectOption('other');
+  await expect(input).toBeEnabled(); await input.fill('Keep Other draft');
+  await page.getByLabel('Conversation', { exact: true }).selectOption('general');
+  await expect(input).toHaveValue('Message for General');
+  await expect(input).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Sending…', exact: true })).toBeDisabled();
+  expect(posts).toBe(1); release();
+  await expect(input).toHaveValue(''); await expect(input).toBeEnabled();
+  await page.getByLabel('Conversation', { exact: true }).selectOption('other');
+  await expect(input).toHaveValue('Keep Other draft');
+  expect(fixture.textWrites).toHaveLength(1); expect(fixture.errors).toEqual([]);
+});
+
+for (const surface of ['popover', 'sidebar']) {
+  test(`pending room send survives closing and reopening the ${surface}`, async ({ page }) => {
+    const fixture = await openFixture(page, { surface });
+    let input = await openChatSurface(page, surface);
+    let release!: () => void, posts = 0;
+    await page.route('**/api/chat/messages', async route => {
+      if (route.request().method() === 'POST') { posts++; await new Promise<void>(resolve => release = resolve); }
+      await route.fallback();
+    });
+    await input.fill('Pending while closed');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(input).toBeDisabled();
+    if (surface === 'popover') await page.getByRole('button', { name: 'Close', exact: true }).click();
+    else await page.locator('.chat-drawer .close-btn').click();
+    await expect(input).toHaveCount(0);
+    input = await openChatSurface(page, surface);
+    await expect(input).toHaveValue('Pending while closed'); await expect(input).toBeDisabled();
+    expect(posts).toBe(1); release();
+    await expect(input).toHaveValue(''); await expect(input).toBeEnabled();
+    expect(fixture.textWrites).toHaveLength(1); expect(fixture.errors).toEqual([]);
+  });
+}
+
+test('a failed pending send reports failure after its popover is reopened', async ({ page }) => {
+  const fixture = await openFixture(page, { surface: 'popover' });
+  let input = await openChatSurface(page, 'popover'); let release!: () => void;
+  await page.route('**/api/chat/messages', async route => {
+    if (route.request().method() !== 'POST') { await route.fallback(); return; }
+    await new Promise<void>(resolve => release = resolve);
+    await route.fulfill({ status: 503, json: { success: false, error: 'Unavailable' } });
+  });
+  await input.fill('Retry after reopening'); await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(input).toBeDisabled(); await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(input).toHaveCount(0); release();
+  input = await openChatSurface(page, 'popover');
+  await expect(input).toBeEnabled(); await expect(input).toHaveValue('Retry after reopening');
+  await expect(page.getByRole('alert')).toContainText('draft is still here');
+  expect(fixture.errors).toEqual([]);
+});
+
+for (const surface of ['page', 'order']) {
+  test(`remote edits and deletes update loaded earlier history on ${surface}`, async ({ page }) => {
+    const fixture = await openFixture(page, { surface, paging: true, realtime: true });
+    await openChatSurface(page, surface);
+    await page.getByRole('button', { name: 'Load earlier messages', exact: true }).click();
+    await expect(page.getByText('Saved message 001', { exact: true })).toBeAttached();
+    await page.evaluate(target => {
+      const scope = target === 'order' ? { order_id: 'order-a', room_id: null } : { room_id: 'general' };
+      (window as any).__voiceRealtime.emit({ eventType: 'UPDATE', new: { id: 'history-1', ...scope, user_id: 'account-b', content: 'Edited older message', is_edited: true, created_at: '2026-10-01T12:00:00Z' } });
+      (window as any).__voiceRealtime.emit({ eventType: 'DELETE', old: { id: 'history-2' } });
+    }, surface);
+    await expect(page.getByText('Edited older message', { exact: true })).toBeAttached();
+    await expect(page.getByText('Saved message 001', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Saved message 002', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Saved message 120', { exact: true })).toBeAttached();
+    expect(fixture.errors).toEqual([]);
+  });
+}
