@@ -4,6 +4,8 @@
   import { ArrowLeft, ChevronDown, ChevronRight, Pencil, RefreshCw, X } from "lucide-svelte";
   import { locale, t } from "$lib/i18n";
   import { materialDisplayName } from "$lib/profiles/helpers";
+  import { getMaterialSelectionSummary, type MaterialSummaryKind } from "$lib/materials/selection-summary";
+  import { filterProfileMaterials, type ProfileMaterialRole } from "$lib/profiles/material-roles";
   import {
     getMaterialSpecificationFacts,
     MATERIAL_SPECIFICATION_LABELS,
@@ -28,6 +30,9 @@
     showColor = true,
     customColor = "",
     allowCustom = false,
+    summaryKind,
+    selectionLength = "",
+    materialRole,
     onchange,
   }: {
     value?: string;
@@ -40,6 +45,9 @@
     showColor?: boolean;
     customColor?: string;
     allowCustom?: boolean;
+    summaryKind?: MaterialSummaryKind;
+    selectionLength?: string;
+    materialRole?: ProfileMaterialRole;
     onchange?: (data: {
       value: string;
       material: Material | null;
@@ -67,16 +75,21 @@
   let initialValueResolved = false;
 
   let selectedMaterial = $derived(materials.find((material) => material.code === value || material.name_en === value) || null);
+  let candidateMaterials = $derived(filterProfileMaterials(materials, materialRole));
   let catalogUrl = $derived(buildMaterialCatalogUrl(base, category, categories));
   let localizedCategoryLabels = $derived(Object.fromEntries(
-    [...new Set(materials.map((material) => material.category))].map((category) => [category, categoryLabel(category)])
+    [...new Set(candidateMaterials.map((material) => material.category))].map((category) => [category, categoryLabel(category)])
   ));
-  let catalogView = $derived(getMaterialCatalogView(materials, activeCategory, search, localizedCategoryLabels));
+  let catalogView = $derived(getMaterialCatalogView(candidateMaterials, activeCategory, search, localizedCategoryLabels));
   let browsingCategories = $derived(!activeCategory && !search.trim());
   let hexColor = $derived(selectedMaterial?.metadata?.hex || "");
 
   let shortName = $derived(materialDisplayName(selectedMaterial, value));
-  let resolvedCategory = $derived(selectedMaterial?.category || selectedCategory);
+  let resolvedCategory = $derived(candidateMaterials.find(material => material.code === selectedMaterial?.code)?.category
+    || selectedMaterial?.category || selectedCategory);
+  let selectedSummary = $derived(getMaterialSelectionSummary(selectedMaterial, {
+    kind: summaryKind, value, length: selectionLength, locale: $locale
+  }));
 
   $effect(() => {
     const url = catalogUrl;
@@ -106,12 +119,14 @@
   }
 
   const specificationPriority: MaterialSpecificationKey[] = [
-    "voltage", "power", "powerPerMetre", "maxPowerPerMetre", "ledType",
+    "voltage", "ratedVoltage", "power", "powerPerMetre", "maxPowerPerMetre", "series", "ledType",
     "whiteColorTemperature", "colorTemperature", "material", "diameter",
-    "crossSection", "cores", "connections", "current", "ledDensity", "ipRating", "bodyLength"
+    "outerDiameter", "crossSection", "cores", "connections", "cableType", "cableApplication",
+    "current", "ledDensity", "ipRating", "bodyLength"
   ];
   const visibleSpecificationLabels = new Set<MaterialSpecificationKey>([
-    "maxPowerPerMetre", "whiteColorTemperature", "cores", "connections", "bodyLength", "package", "unit"
+    "ratedVoltage", "maxPowerPerMetre", "whiteColorTemperature", "outerDiameter", "cores", "connections",
+    "cableType", "cableApplication", "bodyLength", "package", "unit"
   ]);
 
   function compactSpecifications(material: Material | null) {
@@ -321,8 +336,9 @@
       </button>
     </div>
   {:else}
-    <button type="button" class="select-trigger" class:open bind:this={triggerRef}
+    <button type="button" class="select-trigger" class:open class:compact-selection={Boolean(selectedSummary?.facts.length)} bind:this={triggerRef}
       disabled={readonly} aria-expanded={open}
+      title={value && selectedSummary?.identity ? selectedSummary.identity : undefined}
       aria-label={label ? `${label} · ${$t("materialPicker.select", { default: "Select…" })}`
         : placeholder || $t("materialPicker.select", { default: "Select…" })}
       aria-describedby={value ? `${pickerId}-selection` : undefined}
@@ -334,11 +350,24 @@
             <span class="color-dot" style:background-color={hexColor}></span>
           {/if}
           <span class="value-details">
-            <span class="value-text" title={selectedMaterial?.name_en || value}>{shortName || value}</span>
-            {#if resolvedCategory}
-              <span class="value-category">{categoryLabel(resolvedCategory)}</span>
+            {#if selectedSummary?.facts.length}
+              <span class="selected-summary" data-selection-summary={selectedSummary.kind}>
+                {#each selectedSummary.facts as fact, index (fact.key)}
+                  <span class="summary-fact" data-selection-fact={fact.key} title={fact.label}>
+                    {#if index}<span class="summary-separator" aria-hidden="true">{' · '}</span>{/if}{fact.value}
+                  </span>
+                {/each}
+              </span>
+              {#if selectedSummary.identity && !selectedSummary.facts.some(fact => fact.key === 'identity')}
+                <span class="visually-hidden">{selectedSummary.identityLabel}: {selectedSummary.identity}</span>
+              {/if}
+            {:else}
+              <span class="value-text" title={selectedMaterial?.name_en || value}>{shortName || value}</span>
+              {#if resolvedCategory}
+                <span class="value-category">{categoryLabel(resolvedCategory)}</span>
+              {/if}
+              {@render specificationSummary(selectedMaterial)}
             {/if}
-            {@render specificationSummary(selectedMaterial)}
           </span>
         </span>
       {:else}
@@ -359,6 +388,12 @@
   {#if open}
     <div class="dropdown" id={`${pickerId}-options`} bind:this={panelRef} role="group"
       aria-label={$t("materialPicker.categories", { default: "Material categories" })}>
+      {#if value && selectedSummary?.identity}
+        <div class="current-selection">
+          <span class="current-selection-label">{selectedSummary.identityLabel}</span>
+          <p>{selectedSummary.identity}</p>
+        </div>
+      {/if}
       <div class="search-box">
         <input type="search" bind:this={searchRef} bind:value={search} autocomplete="off"
           placeholder={$t("materialPicker.search", { default: "Search all materials…" })}
@@ -483,6 +518,11 @@
   .value-details { display: grid; gap: 2px; min-width: 0; }
   .value-text { min-width: 0; overflow-wrap: anywhere; }
   .value-category { color: var(--ink-secondary, var(--muted)); font-size: 11px; overflow-wrap: anywhere; }
+  .compact-selection { min-height: 38px; padding: 8px 10px; }
+  .selected-summary { display: flex; flex-wrap: wrap; align-items: baseline; min-width: 0; line-height: 1.5; font-variant-numeric: tabular-nums; }
+  .summary-fact { min-width: 0; overflow-wrap: anywhere; }
+  .summary-fact:first-child { font-weight: 600; }
+  .summary-separator { color: var(--ink-secondary, var(--muted)); white-space: pre; }
   .placeholder { color: var(--ink-secondary, var(--muted)); font-weight: 400; }
 
   .color-dot {
@@ -514,6 +554,9 @@
     overflow: hidden;
   }
 
+  .current-selection { padding: 8px 10px; flex-shrink: 0; min-width: 0; background: var(--bg-2); border-bottom: 1px solid var(--border); }
+  .current-selection-label { color: var(--ink-secondary, var(--muted)); font-size: 11px; }
+  .current-selection p { margin: 3px 0 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
   .search-box { padding: 8px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
   .search-input {
     width: 100%;

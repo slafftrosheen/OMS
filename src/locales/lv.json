@@ -3504,6 +3504,7 @@
       "ALU_COMPOSITE": "Alumīnija kompozīts",
       "PVC_FOAM": "Putu PVC",
       "ALU_PROFILE": "Alumīnija profili",
+      "ALU_FLAT_BAR": "Alumīnija plakanslieces",
       "VINYL_ORACAL": "Oracal plēves",
       "PAINT_RAL": "RAL krāsas",
       "PAINT_PANTONE": "Pantone krāsas",
@@ -3543,6 +3544,15 @@
       "print3d": "3D drukas materiāls",
       "connector": "Savienotāja modelis",
       "psuType": "Barošanas bloka veids",
+      "profileName": "Profila nosaukums",
+      "signEnvironment": "Izkārtnes novietojums",
+      "outdoor": "ĀRTELPĀS",
+      "indoor": "IEKŠTELPĀS",
+      "mainCable": "Galvenais kabelis",
+      "cableLength": "Garums no izkārtnes",
+      "psuMounting": "Barošanas bloka stiprinājums",
+      "regular": "Parasts",
+      "dimmable": "Dimmējams",
       "frameWaterholes": "Rāmja drenāžas atveres",
       "frameMountingHoles": "Rāmja montāžas atveres",
       "template": "Šablons"
@@ -3706,7 +3716,9 @@
     "contextTrimmed": "Iekļauta daļa ekrāna datu. Lai iegūtu sīkāku informāciju, jautājiet par konkrētu vienumu."
   },
   "materialSpecifications": {
+    "series": "Sērija",
     "voltage": "Spriegums",
+    "ratedVoltage": "Nominālais spriegums",
     "power": "Jauda",
     "powerPerMetre": "Jauda uz metru",
     "maxPowerPerMetre": "Maksimālā jauda uz metru",
@@ -3721,6 +3733,9 @@
     "connections": "Savienojumi",
     "material": "Materiāls",
     "diameter": "Diametrs",
+    "outerDiameter": "Kabeļa ārējais diametrs",
+    "cableType": "Kabeļa tips",
+    "cableApplication": "Kabeļa pielietojums",
     "bodyLength": "Korpusa garums",
     "package": "Iepakojuma saturs",
     "unit": "Uzskaites mērvienība"

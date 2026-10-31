@@ -3504,6 +3504,7 @@
       "ALU_COMPOSITE": "Aluminum composite",
       "PVC_FOAM": "Foamed PVC",
       "ALU_PROFILE": "Aluminum profiles",
+      "ALU_FLAT_BAR": "Aluminium flatstock",
       "VINYL_ORACAL": "Oracal films",
       "PAINT_RAL": "RAL colors",
       "PAINT_PANTONE": "Pantone colors",
@@ -3543,6 +3544,15 @@
       "print3d": "3D printing material",
       "connector": "Connector model",
       "psuType": "Power supply type",
+      "profileName": "Profile name",
+      "signEnvironment": "Sign environment",
+      "outdoor": "OUTDOOR",
+      "indoor": "INDOOR",
+      "mainCable": "Main cable",
+      "cableLength": "Length from sign",
+      "psuMounting": "PSU mounting",
+      "regular": "Regular",
+      "dimmable": "Dimmable",
       "frameWaterholes": "Frame waterholes",
       "frameMountingHoles": "Frame mounting holes",
       "template": "Template"
@@ -3706,7 +3716,9 @@
     "contextTrimmed": "This is a selected part of the screen. Ask about a specific item for more detail."
   },
   "materialSpecifications": {
+    "series": "Series",
     "voltage": "Voltage",
+    "ratedVoltage": "Voltage rating",
     "power": "Power",
     "powerPerMetre": "Power per metre",
     "maxPowerPerMetre": "Maximum power per metre",
@@ -3721,6 +3733,9 @@
     "connections": "Connections",
     "material": "Material",
     "diameter": "Diameter",
+    "outerDiameter": "Outer cable diameter",
+    "cableType": "Cable type",
+    "cableApplication": "Cable application",
     "bodyLength": "Body length",
     "package": "Package contents",
     "unit": "Stock unit"

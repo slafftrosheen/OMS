@@ -7,15 +7,20 @@ const materials = [
   { id: 4, category: 'PVC_FOAM', code: 'PVC_CUSTOM', name_en: 'PVC made to order', thickness_options: [], metadata: {} },
   { id: 5, category: 'ALU_PROFILE', code: 'ALU_TUBE', name_en: 'Aluminium tube 40x40', thickness_options: [1.5, 2, 3], metadata: { short_name: 'ALU' } },
   // Specifications below are isolated test fixtures, never supplier catalog input.
-  { id: 6, category: 'LED_STRIP', code: 'LED_001', name_en: 'Lemlux LP-2835-120-24V LED strip 4000K', unit: 'm', thickness_options: [], metadata: { short_name: 'LED', voltage_v: 24, watts_per_m: 9.6, led_type: 'SMD 2835', leds_per_m: 120, color_temperature_k: 4000, packSize: '5 m reel; sold per metre', length_m: 5 } },
-  { id: 7, category: 'LED_STRIP', code: 'LED_002', name_en: 'Lemlux COB-480-24V LED strip 3000K', unit: 'roll', thickness_options: [], metadata: { short_name: 'LED', voltage_v: 24, watts_per_m: 10, led_type: 'COB', leds_per_m: 480, color_temperature_k: 3000, packSize: '5 m reel', length_m: 5 } },
-  { id: 8, category: 'PSU_MEANWELL', code: 'MW_LRS_100_12', name_en: 'Mean Well LRS-100-12 12V 102W', unit: 'PCS', thickness_options: [], metadata: { short_name: 'PSU', voltage_v: 12, power_w: 102, current_a: 8.5, ip_rating: 'IP20' } },
-  { id: 9, category: 'WIRE', code: 'WIRE_001', name_en: 'LAPP H05VV-F 3G0.75 white', unit: 'm', thickness_options: [], metadata: { short_name: 'CABLE', wire_cross_section_mm2: 0.75, cores: 3 } },
+  { id: 6, category: 'LED_STRIP', code: 'LED_001', name_en: 'Lemlux LP-2835-120-24V LED strip 4000K', unit: 'm', thickness_options: [], metadata: { short_name: 'LED', brand: 'LEMLUX', voltage_v: 24, watts_per_m: 9.6, led_type: 'SMD 2835', leds_per_m: 120, color_temperature_k: 4000, packSize: '5 m reel; sold per metre', length_m: 5 } },
+  { id: 7, category: 'LED_STRIP', code: 'LED_002', name_en: 'Lemlux COB-480-24V LED strip 3000K', unit: 'roll', thickness_options: [], metadata: { short_name: 'LED', brand: 'LEMLUX', voltage_v: 24, watts_per_m: 10, led_type: 'COB', leds_per_m: 480, color_temperature_k: 3000, packSize: '5 m reel', length_m: 5 } },
+  { id: 8, category: 'PSU_MEANWELL', code: 'MW_LRS_100_12', name_en: 'Mean Well LRS-100-12 12V 102W', unit: 'PCS', thickness_options: [], metadata: { short_name: 'PSU', brand: 'MEAN WELL', series: 'LRS', model: 'LRS-100-12', voltage_v: 12, power_w: 102, current_a: 8.5, ip_rating: 'IP20' } },
+  { id: 9, category: 'WIRE', code: 'WIRE_001', name_en: 'LAPP H05VV-F 3G0.75 white', unit: 'm', thickness_options: [], metadata: { short_name: 'CABLE', brand: 'LAPP', cable_application: 'mains', cable_type: 'H05VV-F', rated_voltage: '300/500 V', wire_cross_section_mm2: 0.75, cores: 3, length_m: 100, packSize: '100 m reel' } },
   { id: 10, category: 'FDM_PETG', code: 'PETG_001', name_en: 'Spectrum PET-G Premium 1.75mm Polar White', unit: 'PCS', thickness_options: [], metadata: { short_name: 'PETG', material: 'PET-G', diameter_mm: 1.75, weight_kg: 1, packSize: '1 spool' } },
   { id: 11, category: 'LED_ACCESSORY', code: 'WAGO_221_413', name_en: 'WAGO 221-413 3-conductor connector', unit: 'PCS', thickness_options: [], metadata: { brand: 'WAGO', model: '221-413', short_name: 'WAGO 221-413', connections: 3, wire_cross_section_range_mm2: [0.14, 4] } },
   { id: 12, category: 'PAINT_RAL', code: 'RAL_9005', name_en: 'RAL 9005 Jet black', thickness_options: [], metadata: { hex: '#0a0a0a', short_name: '9005' } },
   { id: 13, category: 'PAINT_PANTONE', code: 'PANTONE_186_C', name_en: 'Pantone 186 C', thickness_options: [], metadata: { hex: '#c8102e', short_name: '186 C' } },
-  { id: 14, category: 'LED_STRIP', code: 'TEST_RGBW', name_en: 'TEST SK6812 RGBW strip', unit: 'm', thickness_options: [], metadata: { voltage_v: 12, max_watts_per_m: 32, led_type: 'SK6812 RGBW', white_channel_temperature_range_k: [2800, 3200], length_m: 5, packSize: '5 m reel; sold per metre' } }
+  { id: 14, category: 'LED_STRIP', code: 'TEST_RGBW', name_en: 'TEST SK6812 RGBW strip', unit: 'm', thickness_options: [], metadata: { brand: 'TEST', voltage_v: 12, max_watts_per_m: 32, led_type: 'SK6812 RGBW', white_channel_temperature_range_k: [2800, 3200], length_m: 5, packSize: '5 m reel; sold per metre' } },
+  { id: 15, category: 'ALU_SHEET', code: 'TEST_SHEET_1500X3000', name_en: 'Aluminium sheet 1500 × 3000 mm', thickness_options: [0.5, 1, 1.5, 2, 3, 5, 8, 10, 15], metadata: { type: 'sheet', product_form: 'sheet', standardSize: '1500x3000mm' } },
+  { id: 16, category: 'ALU_SHEET', code: 'ALU_FLAT_20X3', name_en: 'Aluminium flat bar 20x3', thickness_options: [3], metadata: { type: 'flat', short_name: '20x3' } },
+  { id: 17, category: 'WIRE', code: 'TEST_MAINS_CABLE', name_en: 'TEST H07RN-F 3G1.5 mains cable', unit: 'm', thickness_options: [], metadata: { cable_application: 'mains', cable_type: 'H07RN-F', rated_voltage: '450/750 V', outer_diameter_range_mm: [8.2, 9.8], wire_cross_section_mm2: 1.5, cores: 3, length_m: 100, packSize: '100 m reel' } },
+  { id: 18, category: 'WIRE', code: 'TEST_CONTROL_CABLE', name_en: 'TEST LIYCY 2x0.5 control cable', unit: 'm', thickness_options: [], metadata: { cable_application: 'control', wire_cross_section_mm2: 0.5, cores: 2 } },
+  { id: 19, category: 'WIRE', code: 'TEST_SINGLE_WIRE', name_en: 'TEST red silicone wire', unit: 'm', thickness_options: [], metadata: { cable_application: 'internal', wire_cross_section_mm2: 0.75, cores: 1 } }
 ];
 
 async function catalogResponse(route: Route) {
@@ -64,13 +69,13 @@ test('saved model labels remain visible during catalog loading and after resolut
   try {
     await page.goto('/');
     const led = page.locator('.assembly-item').filter({ has: page.getByLabel('LED', { exact: true }) });
-    await expect(led.locator('.select-trigger .value-text')).toHaveText('Lemlux LP-2835-120-24V LED strip 4000K');
+    await expect(led.locator('.select-trigger [data-selection-fact="identity"]')).toHaveText('Lemlux LP-2835-120-24V LED strip 4000K');
     await expect(led.locator('.specification-summary')).toHaveCount(0);
     await expect(page.getByTestId('change-count')).toHaveText('0');
     releaseCatalog();
-    await expect(led.locator('.select-trigger .value-category')).toHaveText('LED strips');
-    await expect(led.locator('.select-trigger .value-text')).toHaveText('Lemlux LP-2835-120-24V LED strip 4000K');
-    await expect(led.locator('.select-trigger [data-specification="voltage"]')).toContainText('24 V');
+    await expect(led.locator('.select-trigger .selected-summary')).toHaveText('LEMLUX · 4000 K · 9.6 W/m');
+    await expect(led.locator('.select-trigger')).toHaveAttribute('title', /Lemlux LP-2835-120-24V LED strip 4000K/);
+    await expect(led.locator('.select-trigger .value-category')).toHaveCount(0);
     await expect(page.locator('.face-material-entry .select-trigger .value-text')).toHaveText('0F00');
     await expect(page.getByTestId('change-count')).toHaveText('0');
     expect((await savedConfiguration(page)).ASSEMBLING.ledModuleCategory).toBeUndefined();
@@ -79,22 +84,25 @@ test('saved model labels remain visible during catalog loading and after resolut
   }
 });
 
-test('catalog summaries distinguish actual specifications, package contents and stock unit without guessing custom values', async ({ page }) => {
+test('selected electronics stay compact while full specifications remain in catalog choices', async ({ page }) => {
   await page.goto('/');
   const led = page.locator('.assembly-item').filter({ has: page.getByRole('checkbox', { name: 'LED', exact: true }) });
   const psu = page.locator('.assembly-item').filter({ has: page.getByRole('checkbox', { name: 'PSU', exact: true }) });
-  const cables = page.locator('.assembly-item').filter({ has: page.getByRole('checkbox', { name: 'CABLES', exact: true }) });
-  await expect(led.locator('.select-trigger [data-specification="powerPerMetre"]')).toContainText('9.6 W/m');
-  await expect(led.locator('.select-trigger [data-specification="ledType"]')).toContainText('SMD 2835');
-  await expect(led.locator('.select-trigger [data-specification="package"]')).toHaveText('Package contents: 5 m reel; sold per metre');
-  await expect(led.locator('.select-trigger [data-specification="unit"]')).toHaveText('Stock unit: m');
-  await expect(psu.locator('.select-trigger [data-specification="power"]')).toContainText('102 W');
+  const cables = page.locator('.assembly-item').filter({ has: page.getByRole('checkbox', { name: 'Main cable', exact: true }) });
+  await expect(led.locator('.select-trigger .selected-summary')).toHaveText('LEMLUX · 4000 K · 9.6 W/m');
+  await expect(led.locator('.select-trigger [data-selection-fact]')).toHaveCount(3);
+  await expect(led.locator('.select-trigger .specification-summary')).toHaveCount(0);
+  await expect(psu.locator('.select-trigger .selected-summary')).toHaveText('MEAN WELL · 102 W · LRS');
+  await expect(psu.locator('.select-trigger [data-selection-fact]')).toHaveCount(3);
   await expect(psu.locator('[data-specification="powerPerMetre"]')).toHaveCount(0);
-  await expect(cables.locator('.select-trigger [data-specification="crossSection"]')).toContainText('0.75 mm²');
+  await expect(cables.locator('.select-trigger .selected-summary')).toHaveText('3 × 0.75 mm² · 300/500 V · 2m');
+  await expect(cables.locator('.select-trigger [data-selection-fact]')).toHaveCount(3);
+  for (const item of [led, psu, cables]) await expect(item.locator('.material-badge-lg')).toHaveCount(0);
   await expect(page.locator('.face-material-entry .specification-summary')).toHaveCount(0);
   await expect(page.getByTestId('change-count')).toHaveText('0');
 
   await led.locator('.select-trigger').click();
+  await expect(led.locator('.current-selection')).toContainText('Lemlux LP-2835-120-24V LED strip 4000K');
   await led.getByRole('button', { name: /LED strips/ }).click();
   const cob = led.getByRole('button', { name: /Lemlux COB-480-24V/ });
   await expect(cob.locator('[data-specification="ledType"]')).toContainText('COB');
@@ -106,11 +114,11 @@ test('catalog summaries distinguish actual specifications, package contents and 
   await expect(rgbw.locator('[data-specification="colorTemperature"]')).toHaveCount(0);
   await rgbw.click();
   await page.getByRole('button', { name: 'Reload serialized profile' }).click();
-  await expect(led.locator('.select-trigger .value-text')).toHaveText('TEST SK6812 RGBW strip');
-  await expect(led.locator('.select-trigger [data-specification="maxPowerPerMetre"]')).toContainText('32 W/m');
+  await expect(led.locator('.select-trigger')).toHaveAttribute('title', /TEST SK6812 RGBW strip/);
+  await expect(led.locator('.select-trigger [data-selection-fact="maxPowerPerMetre"]')).toContainText('max. 32 W/m');
   await page.getByRole('button', { name: 'Toggle read only' }).click();
   await expect(led.locator('.select-trigger')).toBeDisabled();
-  await expect(led.locator('.select-trigger [data-specification="whiteColorTemperature"]')).toBeVisible();
+  await expect(led.locator('.select-trigger [data-selection-fact="whiteColorTemperature"]')).toContainText('White 2800–3200 K');
   await page.getByRole('button', { name: 'Toggle read only' }).click();
   await led.getByRole('button', { name: 'Clear selection', exact: true }).click();
   await expect(led.locator('.specification-summary')).toHaveCount(0);
@@ -157,12 +165,16 @@ test('PSU type, frame options and template work with the keyboard and retain sav
   for (const control of [regular, dimmable, waterholes, mounting, template]) await expect(control).toBeDisabled();
 });
 
-test('legacy assembly badges identify the selected part and never persist a hydration edit', async ({ page }) => {
+test('legacy assembly selections retain exact accessible identity without persisting a hydration edit', async ({ page }) => {
   await page.goto('/');
-  for (const label of [
-    'Lemlux LP-2835-120-24V LED strip 4000K', 'Mean Well LRS-100-12 12V 102W',
-    'LAPP H05VV-F 3G0.75 white', 'Aluminium tube 40x40'
-  ]) await expect(page.locator('.assembly-item .material-badge-lg').filter({ hasText: label })).toBeVisible();
+  for (const [section, label] of [
+    ['LED', 'Lemlux LP-2835-120-24V LED strip 4000K'], ['PSU', 'Mean Well LRS-100-12 12V 102W'],
+    ['Main cable', 'LAPP H05VV-F 3G0.75 white']
+  ]) {
+    const control = page.locator('.assembly-item').filter({ has: page.getByRole('checkbox', { name: section, exact: true }) }).locator('.select-trigger');
+    await expect(control).toHaveAttribute('title', new RegExp(label));
+    await expect(control).toHaveAccessibleDescription(new RegExp(label));
+  }
   await expect(page.getByLabel('FRAME · Select thickness', { exact: true })).toHaveValue('2mm');
   await expect(page.getByLabel('FRAME SIZE', { exact: true })).toHaveValue('40x40x2');
   await expect(page.getByLabel('DIAMETER (mm)', { exact: true })).toHaveCount(0);
@@ -182,8 +194,8 @@ test('BACK, SIDES and FRAME use independent catalog thickness selectors and surv
 
   const sides = page.locator('fieldset').filter({ has: page.locator('legend', { hasText: /^SIDES$/ }) }).first();
   await sides.locator('.select-trigger').click();
-  await sides.getByRole('button', { name: /Aluminum profiles/ }).click();
-  await sides.getByRole('button', { name: /Aluminium tube/ }).click();
+  await sides.getByRole('button', { name: /Aluminum sheets/ }).click();
+  await sides.getByRole('button', { name: /Aluminium sheet 1500/ }).click();
   await sides.locator('.thickness-select').selectOption('1.5mm');
 
   const frame = page.locator('.assembly-item').filter({ has: page.getByLabel('FRAME', { exact: true }) });
@@ -205,13 +217,95 @@ test('BACK, SIDES and FRAME use independent catalog thickness selectors and surv
   await expect(page.getByTestId('change-count')).toHaveText(edits);
 });
 
-test('selecting a different LED model updates its badge, and 3D catalog material survives serialized reopen', async ({ page }) => {
+test('BACK offers GS and sheet thicknesses while flatstock and profiles belong to FRAME', async ({ page }) => {
+  await page.goto('/');
+  const back = page.locator('fieldset').filter({ has: page.locator('legend', { hasText: /^BACK$/ }) }).first();
+  await back.locator('.select-trigger').click();
+  await back.getByRole('button', { name: /Cast acrylic/ }).click();
+  await back.getByRole('button', { name: /PLEXIGLAS GS Clear/ }).click();
+  await back.locator('.thickness-select').selectOption('5mm');
+  expect((await savedConfiguration(page)).CNC_FREZER).toMatchObject({ backCategory: 'ACRYLIC_GS', backThickness: '5mm' });
+
+  await back.locator('.select-trigger').click();
+  await back.getByRole('button', { name: /Aluminum sheets/ }).click();
+  await expect(back.locator('.option')).toHaveCount(1);
+  await expect(back.locator('.option')).not.toContainText('flat bar');
+  await back.getByRole('button', { name: /Aluminium sheet 1500/ }).click();
+  const standardThicknesses = ['0.5mm', '1mm', '1.5mm', '2mm', '3mm', '5mm', '8mm', '10mm', '15mm'];
+  for (const thickness of standardThicknesses) await expect(back.locator(`option[value="${thickness}"]`)).toHaveCount(1);
+  await back.locator('.thickness-select').selectOption('15mm');
+
+  const frame = page.locator('.assembly-item').filter({ has: page.getByRole('checkbox', { name: 'FRAME', exact: true }) });
+  await frame.locator('.select-trigger').click();
+  await expect(frame.getByRole('button', { name: /Aluminum sheets/ })).toHaveCount(0);
+  await expect(frame.getByRole('button', { name: /Aluminum profiles/ })).toBeVisible();
+  await frame.getByRole('button', { name: /Aluminium flatstock/ }).click();
+  await frame.getByRole('button', { name: /Aluminium flat bar 20x3/ }).click();
+  await frame.locator('.thickness-select').selectOption('3mm');
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await expect(back.locator('.thickness-select')).toHaveValue('15mm');
+  await expect(frame.locator('.select-trigger .value-category')).toHaveText('Aluminium flatstock');
+  await expect(frame.locator('.thickness-select')).toHaveValue('3mm');
+  expect((await savedConfiguration(page)).CNC_FREZER.back).toBe('Aluminium sheet 1500 × 3000 mm');
+});
+
+test('main cable selection excludes internal wiring and uses the entered outgoing length, never the reel', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/');
+  const cable = page.locator('.assembly-item').filter({ has: page.getByRole('checkbox', { name: 'Main cable', exact: true }) });
+  await cable.locator('.select-trigger').click();
+  await cable.getByRole('button', { name: /Cables and wires/ }).click();
+  await expect(cable.locator('.option')).toHaveCount(2);
+  await expect(cable.getByRole('button', { name: /control cable|silicone wire/ })).toHaveCount(0);
+  await cable.getByRole('button', { name: /TEST H07RN-F/ }).click();
+  await page.getByLabel('Length from sign', { exact: true }).fill('5.5 m');
+  await expect(cable.locator('.selected-summary')).toHaveText('Ø 8.2–9.8 mm · 450/750 V · 5.5 m');
+  await expect(cable.locator('.selected-summary')).not.toContainText('100');
+  await expect(cable.locator('.select-trigger [data-selection-fact]')).toHaveCount(3);
+  expect((await savedConfiguration(page)).ASSEMBLING.cablesLength).toBe('5.5 m');
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await expect(cable.locator('.selected-summary')).toHaveText('Ø 8.2–9.8 mm · 450/750 V · 5.5 m');
+  await page.getByRole('checkbox', { name: 'Main cable', exact: true }).uncheck();
+  await expect(cable.locator('.select-trigger')).toHaveCount(0);
+  expect((await savedConfiguration(page)).ASSEMBLING.cablesLength).toBe('5.5 m');
+  await page.getByRole('checkbox', { name: 'Main cable', exact: true }).check();
+  await expect(cable.locator('.selected-summary')).toHaveText('Ø 8.2–9.8 mm · 450/750 V · 5.5 m');
+  await cable.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath('main-cable-compact-phone.png') });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.getByRole('button', { name: 'Toggle read only' }).click();
+  await expect(cable.locator('.select-trigger')).toBeDisabled();
+  await expect(page.getByLabel('Length from sign', { exact: true })).toBeDisabled();
+});
+
+test('previously saved flatstock backs, profile sides and control cables remain readable without being offered as new choices', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Load legacy material roles' }).click();
+  const back = page.locator('fieldset').filter({ has: page.locator('legend', { hasText: /^BACK$/ }) }).first();
+  const sides = page.locator('fieldset').filter({ has: page.locator('legend', { hasText: /^SIDES$/ }) }).first();
+  const cable = page.locator('.assembly-item').filter({ has: page.getByRole('checkbox', { name: 'Main cable', exact: true }) });
+  await expect(back.locator('.select-trigger .value-text')).toHaveText('Aluminium flat bar 20x3');
+  await expect(sides.locator('.select-trigger .value-text')).toContainText('Aluminium tube');
+  await expect(cable.locator('.select-trigger')).toHaveAttribute('title', /TEST LIYCY/);
+  const before = await savedConfiguration(page);
+  for (const [field, search] of [[back, 'flat'], [sides, 'tube'], [cable, 'LIYCY']] as const) {
+    await field.locator('.select-trigger').click();
+    await field.getByRole('searchbox').fill(search);
+    await expect(field.locator('.option')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+  }
+  expect(await savedConfiguration(page)).toEqual(before);
+  await expect(page.getByTestId('change-count')).toHaveText('0');
+});
+
+test('selecting a different LED model updates its compact summary, and 3D catalog material survives serialized reopen', async ({ page }) => {
   await page.goto('/');
   const led = page.locator('.assembly-item').filter({ has: page.getByLabel('LED', { exact: true }) });
   await led.locator('.select-trigger').click();
   await led.getByRole('button', { name: /LED strips/ }).click();
   await led.getByRole('button', { name: /COB-480-24V/ }).click();
-  await expect(led.locator('.material-badge-lg')).toContainText('Lemlux COB-480-24V LED strip 3000K');
+  await expect(led.locator('.select-trigger .selected-summary')).toHaveText('LEMLUX · 3000 K · 10 W/m');
+  await expect(led.locator('.select-trigger')).toHaveAttribute('title', /Lemlux COB-480-24V/);
   await page.getByLabel('3D', { exact: true }).check();
   const printing = page.locator('.print3d-material');
   await printing.locator('.select-trigger').click();
@@ -226,7 +320,8 @@ test('selecting a different LED model updates its badge, and 3D catalog material
   expect(saved.ASSEMBLING.ledModuleShort).toBe('Lemlux COB-480-24V LED strip 3000K');
   expect(saved.ASSEMBLING.ledModuleCategory).toBe('LED_STRIP');
   await page.getByRole('button', { name: 'Reload serialized profile' }).click();
-  await expect(led.locator('.material-badge-lg')).toContainText('COB-480-24V');
+  await expect(led.locator('.select-trigger')).toHaveAttribute('title', /COB-480-24V/);
+  await expect(led.locator('.select-trigger .selected-summary')).toHaveText('LEMLUX · 3000 K · 10 W/m');
   await expect(printing.locator('.material-badge-lg')).toHaveText('Spectrum PET-G Premium 1.75mm Polar White');
   await expect(printing.locator('.select-trigger [data-specification="diameter"]')).toContainText('1.75 mm');
   await page.getByRole('button', { name: 'Toggle read only' }).click();
@@ -339,7 +434,7 @@ test('category browsing, independent FACE rows, removal and serialized reload pr
   await page.goto('/');
   const rows = page.locator('.face-material-entry');
   await rows.first().locator('.select-trigger').click();
-  await expect(rows.first().locator('.category-option')).toHaveCount(3);
+  await expect(rows.first().locator('.category-option')).toHaveCount(4);
   await expect(rows.first().locator('.option')).toHaveCount(0);
   await rows.first().getByRole('button', { name: /Cast acrylic/ }).click();
   await expect(rows.first().locator('.option')).toHaveCount(2);
@@ -431,7 +526,7 @@ test('catalog errors expose retry and do not discard the saved material', async 
   expect((await savedConfiguration(page)).CNC_FREZER.face).toBe('PLEXIGLAS_GS_0F00');
   unavailable = false;
   await row.getByRole('button', { name: 'Retry', exact: true }).click();
-  await expect(row.locator('.category-option')).toHaveCount(3);
+  await expect(row.locator('.category-option')).toHaveCount(4);
   await expect(page.getByTestId('change-count')).toHaveText('0');
 });
 

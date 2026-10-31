@@ -1,13 +1,13 @@
 /** Fields in the admin form are only a view onto the complete catalog metadata. */
 const structuredSpecKeys: Record<string, string[]> = {
-  voltage: ['voltage_v'],
+  voltage: ['voltage_v', 'rated_voltage', 'rated_voltage_v'],
   wattage: ['power_w', 'watts_per_m', 'max_watts_per_m'],
   colorTemp: ['color_temperature_k', 'color_temperature_range_k',
     'white_channel_temperature_k', 'white_channel_temperature_range_k'],
   ledCount: ['leds_per_m'],
   length: ['length_m', 'body_length_mm'],
   ipRating: ['ip_rating'],
-  diameter: ['diameter_mm'],
+  diameter: ['diameter_mm', 'outer_diameter_mm', 'outer_diameter_range_mm'],
   weight: ['weight_kg', 'volume_ml'],
   // These describe package content; body length/width/height describe the product itself.
   packSize: ['length_m', 'weight_kg', 'volume_ml'],

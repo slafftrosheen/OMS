@@ -39,6 +39,7 @@
     applyPaintMaterialSelection,
   } from "$lib/profiles/helpers";
   import { frameBadgeLabel, readLegacyFrameThickness, withFrameThickness } from "$lib/profiles/frame-sizing";
+  import { PROFILE_MATERIAL_CATEGORIES } from "$lib/profiles/material-roles";
   import {
     AlertCircle,
     Zap,
@@ -325,29 +326,17 @@
     });
   });
 
-  // Pre-defined material categories for the MaterialSelect component.
-  const faceMaterials = [
-    "ACRYLIC_XT",
-    "ACRYLIC_GS",
-    "ACRYLIC_LED",
-    "ALU_SHEET",
-    "ALU_COMPOSITE",
-    "PVC_FOAM",
-  ];
-  const backMaterials = [
-    "ALU_SHEET",
-    "ALU_COMPOSITE",
-    "ACRYLIC_XT",
-    "PVC_FOAM",
-  ];
-  const sidesMaterials = ["ALU_SHEET", "ALU_PROFILE"];
+  // A role also filters the physical form of legacy materials within a category.
+  const faceMaterials = PROFILE_MATERIAL_CATEGORIES.face;
+  const backMaterials = PROFILE_MATERIAL_CATEGORIES.back;
+  const sidesMaterials = PROFILE_MATERIAL_CATEGORIES.sides;
   const filmCategories = ["VINYL_ORACAL"];
   const paintCategories = ["PAINT_RAL", "PAINT_PANTONE"];
   const ledCategories = ["LED_MODULE", "LED_STRIP", "LED_NEON"];
   const psuCategories = ["PSU_MEANWELL"];
-  const wireCategories = ["WIRE"];
+  const wireCategories = PROFILE_MATERIAL_CATEGORIES.mainCable;
   const connectorCategories = ["LED_ACCESSORY"];
-  const frameMaterials = ["ALU_PROFILE", "ALU_SHEET"];
+  const frameMaterials = PROFILE_MATERIAL_CATEGORIES.frame;
   const print3dMaterials = ["FDM_PLA", "FDM_PETG", "FDM_ABS", "FDM_ASA", "FDM_TPU", "FDM_OTHER", "RESIN_ANYCUBIC", "RESIN_ELEGOO", "RESIN_OTHER"];
 
   let faceEntries = $derived(
@@ -482,33 +471,36 @@
       <input
         type="text"
         bind:value={configuration.profileName}
-        placeholder="Profile Name"
+        aria-label={$t('profiles.materials.profileName')}
+        placeholder={$t('profiles.materials.profileName')}
         disabled={readonly}
         oninput={emit}
       />
     </div>
-    <div class="sign-toggle">
+    <div class="sign-toggle" role="group" aria-label={$t('profiles.materials.signEnvironment')}>
       <button
         type="button"
         class:active={configuration.signType === "EXTERIOR"}
+        aria-pressed={configuration.signType === "EXTERIOR"}
         disabled={readonly}
         onclick={() => {
           configuration.signType = "EXTERIOR";
           emit();
         }}
       >
-        <Sun size={14} /> OUTDOOR
+        <Sun size={14} /> {$t('profiles.materials.outdoor')}
       </button>
       <button
         type="button"
         class:active={configuration.signType === "INTERIOR"}
+        aria-pressed={configuration.signType === "INTERIOR"}
         disabled={readonly}
         onclick={() => {
           configuration.signType = "INTERIOR";
           emit();
         }}
       >
-        <Moon size={14} /> INDOOR
+        <Moon size={14} /> {$t('profiles.materials.indoor')}
       </button>
     </div>
   </div>
@@ -545,6 +537,7 @@
                   selectedCategory={material.category}
                   customColor={material.hex ?? ""}
                   categories={faceMaterials}
+                  materialRole="face"
                   allowCustom={true}
                   {readonly}
                   onchange={(data) => selectFaceMaterial(material, data)}
@@ -585,6 +578,7 @@
               selectedCategory={configuration.CNC_FREZER.backCategory}
               customColor={configuration.CNC_FREZER.backHex ?? ""}
               categories={backMaterials}
+              materialRole="back"
               allowCustom={true}
               {readonly}
               onchange={selectBackMaterial}
@@ -693,6 +687,7 @@
               selectedCategory={configuration.BENDER.sidesCategory}
               customColor={configuration.BENDER.sidesHex ?? ""}
               categories={sidesMaterials}
+              materialRole="sides"
               allowCustom={true}
               {readonly}
               onchange={selectSidesMaterial}
@@ -943,6 +938,7 @@
                   label="LED"
                   selectedCategory={configuration.ASSEMBLING.ledModuleCategory}
                   categories={ledCategories}
+                  summaryKind="led"
                   allowCustom={true}
                   showColor={false}
                   {readonly}
@@ -957,19 +953,6 @@
                   }}
                 />
               </div>
-              {#if configuration.ASSEMBLING.ledModule}
-                <span
-                  class="material-badge-lg"
-                  style:background={configuration.ASSEMBLING.ledModuleHex ||
-                    "#fbbf24"}
-                  style:color={getTextColor(
-                    configuration.ASSEMBLING.ledModuleHex || "#fbbf24",
-                  )}
-                >
-                  <Zap size={16} />
-                  {selectionBadgeLabel(configuration.ASSEMBLING.ledModule, configuration.ASSEMBLING.ledModuleShort, "LED")}
-                </span>
-              {/if}
             {:else}
               <span class="no-badge-lg"><X size={14} /> NO LED</span>
             {/if}
@@ -1005,7 +988,7 @@
                     disabled={readonly}
                     onchange={emit}
                   />
-                  <Sun size={12} /> Regular
+                  <Sun size={12} /> {$t('profiles.materials.regular')}
                 </label>
                 <label
                   class:active={configuration.ASSEMBLING.psuType === "dimmable"}
@@ -1018,7 +1001,7 @@
                     disabled={readonly}
                     onchange={emit}
                   />
-                  <Moon size={12} /> Dimmable
+                  <Moon size={12} /> {$t('profiles.materials.dimmable')}
                 </label>
               </div>
               <div class="picker-row">
@@ -1027,6 +1010,7 @@
                   label="PSU"
                   selectedCategory={configuration.ASSEMBLING.psuModelCategory}
                   categories={psuCategories}
+                  summaryKind="psu"
                   allowCustom={true}
                   showColor={false}
                   {readonly}
@@ -1040,24 +1024,17 @@
                   }}
                 />
               </div>
-              {#if configuration.ASSEMBLING.psuModel}
-                <span
-                  class="material-badge-lg"
-                  style:background="var(--brand-soft)"
-                  style:color="var(--brand)"
-                >
-                  <Power size={16} />
-                  {selectionBadgeLabel(configuration.ASSEMBLING.psuModel, configuration.ASSEMBLING.psuModelShort, "PSU")}
-                </span>
-              {/if}
-              <input
-                type="text"
-                class="custom-input"
-                bind:value={configuration.ASSEMBLING.psuMounting}
-                disabled={readonly}
-                oninput={emit}
-                placeholder="Mounting..."
-              />
+              <div class="field">
+                <label for={`${formId}-psu-mounting`}>{$t('profiles.materials.psuMounting')}</label>
+                <input
+                  id={`${formId}-psu-mounting`}
+                  type="text"
+                  class="custom-input"
+                  bind:value={configuration.ASSEMBLING.psuMounting}
+                  disabled={readonly}
+                  oninput={emit}
+                />
+              </div>
             {:else}
               <span class="no-badge-lg"><X size={14} /> NO PSU</span>
             {/if}
@@ -1076,24 +1053,19 @@
                   disabled={readonly}
                   onchange={emit}
                 />
-                <Cable size={14} /> CABLES
+                <Cable size={14} /> {$t('profiles.materials.mainCable')}
               </label>
             </div>
             {#if configuration.ASSEMBLING.cables}
               <div class="cable-row">
-                <input
-                  type="text"
-                  class="length-input"
-                  bind:value={configuration.ASSEMBLING.cablesLength}
-                  disabled={readonly}
-                  oninput={emit}
-                  placeholder="2m"
-                />
                 <MaterialSelect
                   bind:value={configuration.ASSEMBLING.cableType}
-                  label="CABLES"
+                  label={$t('profiles.materials.mainCable')}
                   selectedCategory={configuration.ASSEMBLING.cableTypeCategory}
                   categories={wireCategories}
+                  materialRole="mainCable"
+                  summaryKind="cable"
+                  selectionLength={configuration.ASSEMBLING.cablesLength}
                   allowCustom={true}
                   showColor={false}
                   {readonly}
@@ -1106,18 +1078,19 @@
                     emit();
                   }}
                 />
+                <div class="field cable-length">
+                  <label for={`${formId}-cable-length`}>{$t('profiles.materials.cableLength')}</label>
+                  <input
+                    id={`${formId}-cable-length`}
+                    type="text"
+                    class="length-input"
+                    bind:value={configuration.ASSEMBLING.cablesLength}
+                    disabled={readonly}
+                    oninput={emit}
+                    placeholder="2 m"
+                  />
+                </div>
               </div>
-              {#if configuration.ASSEMBLING.cableType || configuration.ASSEMBLING.cablesLength}
-                <span
-                  class="material-badge-lg"
-                  style:background="#374151"
-                  style:color="#fff"
-                >
-                  <Cable size={16} />
-                  {configuration.ASSEMBLING.cablesLength || ""}
-                  {selectionBadgeLabel(configuration.ASSEMBLING.cableType, configuration.ASSEMBLING.cableTypeShort, "WIRE")}
-                </span>
-              {/if}
               <label
                 class="wago-label"
                 class:active={configuration.ASSEMBLING.cablesWago}
@@ -1183,6 +1156,7 @@
                   label="FRAME"
                   selectedCategory={configuration.ASSEMBLING.frameMaterialCategory}
                   categories={frameMaterials}
+                  materialRole="frame"
                   allowCustom={true}
                   {readonly}
                   onchange={selectFrameMaterial}
@@ -1358,12 +1332,19 @@
     color: var(--muted, var(--ink-tertiary));
     cursor: pointer;
     border-radius: var(--radius-sm, 4px);
-    transition: all 0.15s;
+    transition: background 0.15s, color 0.15s;
   }
 
   .sign-toggle button.active {
     background: var(--ink-0, var(--ink-primary));
     color: var(--bg-0);
+  }
+
+  .sign-toggle button:focus-visible,
+  .profile-name input:focus-visible,
+  .length-input:focus-visible {
+    outline: 2px solid var(--focus, var(--brand));
+    outline-offset: 2px;
   }
 
   /* MAIN GRID */
@@ -1687,6 +1668,7 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-md, 12px);
+    align-items: start;
   }
 
   .assembly-item {
@@ -1735,14 +1717,15 @@
     align-items: center;
     justify-content: center;
     gap: var(--space-xs, 4px);
-    background: var(--error);
-    color: white;
-    padding: var(--space-md, 12px) var(--space-lg, 16px);
+    background: var(--bg-1);
+    color: var(--ink-tertiary);
+    border: 1px dashed var(--border);
+    padding: var(--space-sm, 8px) var(--space-md, 12px);
     border-radius: var(--radius-md, 6px);
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 600;
     text-align: center;
-    height: 48px;
+    min-height: 36px;
     width: 100%;
     box-sizing: border-box;
   }
@@ -1792,26 +1775,30 @@
 
   /* CABLES */
   .cable-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     min-width: 0;
-    flex-wrap: wrap;
   }
 
+  .cable-length { min-width: 0; }
+
   .length-input {
-    width: 50px;
-    flex: 0 0 64px;
+    width: 100%;
     min-width: 0;
     max-width: 100%;
     padding: 6px;
     border: 1px solid var(--border, var(--border));
     border-radius: 4px;
     font-size: 12px;
-    text-align: center;
+    min-height: 36px;
+    background: var(--bg-1);
+    color: var(--ink-primary);
+    box-sizing: border-box;
   }
 
   .cable-row :global(.material-select) {
-    flex: 1 1 100px;
+    min-width: 0;
   }
 
   .wago-label {
@@ -1896,7 +1883,8 @@
     color: var(--bg-0);
   }
   @media (pointer: coarse) {
-    .psu-type label, .opt, .extra, .wago-label { min-height: 44px; }
+    .psu-type label, .opt, .extra, .wago-label, .length-input,
+    .sign-toggle button, .toggle-label, .option, .paint-label { min-height: 44px; }
   }
 
   /* INPUTS */

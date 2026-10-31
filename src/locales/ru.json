@@ -3504,6 +3504,7 @@
       "ALU_COMPOSITE": "Алюминиевый композит",
       "PVC_FOAM": "Вспененный ПВХ",
       "ALU_PROFILE": "Алюминиевые профили",
+      "ALU_FLAT_BAR": "Алюминиевая полоса",
       "VINYL_ORACAL": "Плёнки Oracal",
       "PAINT_RAL": "Цвета RAL",
       "PAINT_PANTONE": "Цвета Pantone",
@@ -3543,6 +3544,15 @@
       "print3d": "Материал для 3D-печати",
       "connector": "Модель соединителя",
       "psuType": "Тип блока питания",
+      "profileName": "Название профиля",
+      "signEnvironment": "Размещение вывески",
+      "outdoor": "СНАРУЖИ",
+      "indoor": "ВНУТРИ",
+      "mainCable": "Основной кабель",
+      "cableLength": "Длина от вывески",
+      "psuMounting": "Крепление блока питания",
+      "regular": "Обычный",
+      "dimmable": "Диммируемый",
       "frameWaterholes": "Дренажные отверстия рамы",
       "frameMountingHoles": "Монтажные отверстия рамы",
       "template": "Шаблон"
@@ -3706,7 +3716,9 @@
     "contextTrimmed": "Показана часть данных экрана. Для подробностей спросите о конкретном элементе."
   },
   "materialSpecifications": {
+    "series": "Серия",
     "voltage": "Напряжение",
+    "ratedVoltage": "Номинальное напряжение",
     "power": "Мощность",
     "powerPerMetre": "Мощность на метр",
     "maxPowerPerMetre": "Максимальная мощность на метр",
@@ -3721,6 +3733,9 @@
     "connections": "Соединения",
     "material": "Материал",
     "diameter": "Диаметр",
+    "outerDiameter": "Наружный диаметр кабеля",
+    "cableType": "Тип кабеля",
+    "cableApplication": "Назначение кабеля",
     "bodyLength": "Длина корпуса",
     "package": "Содержимое упаковки",
     "unit": "Единица учёта"
