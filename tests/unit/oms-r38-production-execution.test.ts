@@ -79,8 +79,9 @@ describe('OMS-R38 — safe stage consumption and accurate handoff',()=>{
    expect(packet).toContain('consumptionUnavailable');
    expect(packet).toContain('productionExecution.ledger');
    expect(packet).toContain('productionExecution.ledgerPartial');
-   expect(packet).toContain('fetchOrderFilePage<FileRow>(orderId,0,50)');
-   expect(packet).toContain('editable={false}');
+   expect(packet).toContain('fetchOrderFilePage<FileRow>(requestedId,0,50');
+   expect(packet).toContain('<OrderProfileSheet profiles={order.profiles} />');
+   expect(read('src/lib/order/OrderProfileSheet.svelte')).toContain('editable = false');
  });
  it('has production receipt parity across EN/RU/LV',()=>{
    const keys=['declared','skipped','materialSkipRecorded','ledger','ledgerUnavailable',

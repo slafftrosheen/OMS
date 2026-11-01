@@ -100,7 +100,7 @@ test('configured production materials show one physical-color badge and an adjac
   await film.screenshot({ path: testInfo.outputPath('compact-film-phone.png') });
   await page.getByRole('button', { name: 'Toggle read only' }).click();
   await expect(page.locator('.edit-selection, .done-editing')).toHaveCount(0);
-  await expect(film.getByText('Apply before trimming', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('FRONT · Notes', { exact: true })).toContainText('Apply before trimming');
   await expect(page.getByTestId('change-count')).toHaveText('0');
 });
 
@@ -140,8 +140,8 @@ test('Edit and Done are keyboard operable and expose film notes without duplicat
   await film.getByRole('button', { name: 'Clear selection', exact: true }).click();
   const editsAfterClear = await page.getByTestId('change-count').innerText();
   await page.getByRole('button', { name: 'Toggle read only' }).click();
-  await expect(film.locator('.material-note')).toHaveText('Apply before trimming; keep the liner');
-  await expect(paint.locator('.material-note')).toHaveText('Mask the fixing holes');
+  await expect(page.getByLabel('FRONT · Notes', { exact: true }).locator('.material-note')).toHaveText('FACE: Apply before trimming; keep the liner');
+  await expect(page.getByLabel('PAINTING · Notes', { exact: true }).locator('.material-note')).toHaveText('FRONT: Mask the fixing holes');
   await expect(film.locator('input.custom-input')).toHaveCount(0);
   await expect(paint.locator('input.custom-input')).toHaveCount(0);
   await expect(page.getByTestId('change-count')).toHaveText(editsAfterClear);
@@ -156,18 +156,127 @@ test('resin identity and recorded material color replace FDM cleanly and survive
   await printing.locator('.select-trigger').click();
   await printing.getByRole('searchbox').fill('SCRWH-10-IPO-01');
   await printing.getByRole('button', { name: /Anycubic Tough Resin Ultra/ }).click();
+  await expect(printing.locator('.thickness-field')).toHaveCount(0);
+  await finishSelection(printing);
   await expect(printing.locator('[data-material-badge]')).toHaveText('Anycubic Resin Tough Ultra');
   await expect(printing.locator('[data-material-badge]')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(printing.locator('[data-material-badge]')).toHaveCSS('color', 'rgb(0, 0, 0)');
   await expect(printing.locator('.select-trigger')).toHaveCount(0);
-  expect((await savedConfiguration(page)).CNC_FREZER).toMatchObject({
-    print3dMaterialCategory: 'RESIN_ANYCUBIC', print3dMaterialHex: '#FFFFFF'
+  expect((await savedConfiguration(page)).CNC_FREZER.faceMaterials[1]).toMatchObject({
+    category: 'RESIN_ANYCUBIC', hex: '#FFFFFF', process: '3D_PRINT'
   });
   await page.getByRole('button', { name: 'Reload serialized profile' }).click();
   await page.getByRole('button', { name: 'Toggle read only' }).click();
   await expect(printing.locator('[data-material-badge]')).toHaveText('Anycubic Resin Tough Ultra');
   await expect(printing.locator('[data-material-badge]')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(printing.locator('.edit-selection, .select-trigger')).toHaveCount(0);
+});
+
+test('FACE and BACK offer printed materials without a standalone 3D switch or a filament thickness field', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('checkbox', { name: '3D', exact: true })).toHaveCount(0);
+  const back = page.locator('fieldset').filter({ has: page.locator('legend', { hasText: /^BACK$/ }) }).first();
+  await openEditor(back);
+  await back.locator('.select-trigger').click();
+  await back.getByRole('button', { name: /ASA filament/ }).click();
+  await back.getByRole('button', { name: /Filament Fiberlogy ASA/ }).click();
+  await expect(back.locator('.thickness-field')).toHaveCount(0);
+  await finishSelection(back);
+  await expect(back.locator('[data-material-badge]')).toHaveText('FDM Fiberlogy ASA');
+  expect((await savedConfiguration(page)).CNC_FREZER).toMatchObject({
+    backCategory: 'FDM_ASA', backProcess: '3D_PRINT', backThickness: '', backHex: '#000000'
+  });
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await openEditor(back);
+  await expect(back.locator('.thickness-field')).toHaveCount(0);
+  await back.locator('.select-trigger').click();
+  await back.getByRole('button', { name: /Aluminum sheets/ }).click();
+  await back.getByRole('button', { name: /Aluminium sheet 1500/ }).click();
+  await expect(back.locator('.thickness-select')).toBeVisible();
+  await back.locator('.thickness-select').selectOption('1.5mm');
+  await finishSelection(back);
+  await expect(back.locator('[data-material-badge]')).toHaveText('ALU /1.5mm');
+  expect((await savedConfiguration(page)).CNC_FREZER.backProcess).toBeUndefined();
+});
+
+test('legacy unassigned 3D materials stay visible without edits and are assigned only by an explicit safe action', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Load legacy 3D material', exact: true }).click();
+  const notice = page.locator('.legacy-print-notice');
+  await expect(notice.locator('[data-material-badge]')).toHaveText('FDM Fiberlogy ASA');
+  await expect(notice.getByRole('button', { name: 'Assign to BACK', exact: true })).toBeDisabled();
+  await expect(page.getByTestId('change-count')).toHaveText('0');
+  await page.getByRole('button', { name: 'Toggle read only' }).click();
+  await expect(notice.locator('button')).toHaveCount(0);
+  await expect(notice.locator('[data-material-badge]')).toHaveText('FDM Fiberlogy ASA');
+  await expect(page.getByTestId('change-count')).toHaveText('0');
+  await page.getByRole('button', { name: 'Toggle read only' }).click();
+  await notice.getByRole('button', { name: 'Assign to FACE', exact: true }).click();
+  await expect(notice).toHaveCount(0);
+  const rows = page.locator('.face-material-entry');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.last().locator('[data-material-badge]')).toHaveText('FDM Fiberlogy ASA');
+  await expect(rows.last().locator('.edit-selection')).toBeFocused();
+  const saved = await savedConfiguration(page);
+  expect(saved.CNC_FREZER.faceMaterials[0].value).toBe('PLEXIGLAS_GS_0F00');
+  expect(saved.CNC_FREZER.back).toBe('ALU_COMPOSITE_0A000');
+  expect(saved.CNC_FREZER.print3d).toBe(false);
+  expect(saved.CNC_FREZER.print3dMaterial).toBe('3S-ASA-BLACK-100-175');
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await expect(rows.last().locator('[data-material-badge]')).toHaveText('FDM Fiberlogy ASA');
+  await expect(notice).toHaveCount(0);
+});
+
+test('film PRINT is independent per part, survives reopen and supports instructions without a chosen substrate', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Load configured materials' }).click();
+  const front = page.locator('.section').filter({ has: page.locator('.section-title', { hasText: 'FRONT' }) });
+  const face = front.locator('.inline-field').first();
+  const back = front.locator('.inline-field').nth(1);
+  await face.getByRole('checkbox', { name: 'FRONT · FACE · Print on film', exact: true }).check();
+  await back.getByRole('checkbox', { name: 'BACK', exact: true }).check();
+  await expect(back.getByRole('checkbox', { name: 'FRONT · BACK · Print on film', exact: true })).not.toBeChecked();
+  await openEditor(face);
+  await face.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await face.getByRole('textbox', { name: 'FRONT · FACE · Material note', exact: true }).fill('Order printed translucent film for the lightbox');
+  const saved = await savedConfiguration(page);
+  expect(saved.FRONT.facePrint).toBe(true);
+  expect(saved.FRONT.backPrint).toBe(false);
+  expect(saved.FRONT.faceFilm).toBe('');
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await page.getByRole('button', { name: 'Toggle read only' }).click();
+  await expect(face.getByRole('checkbox', { name: 'FRONT · FACE · Print on film', exact: true })).toBeChecked();
+  await expect(face.getByRole('checkbox', { name: 'FRONT · FACE · Print on film', exact: true })).toBeDisabled();
+  await expect(front.locator('.material-note')).toHaveText('FACE: Order printed translucent film for the lightbox');
+  await front.getByRole('button', { name: 'Show FRONT notes', exact: true }).click();
+  await expect(front.locator('.station-notes')).toBeFocused();
+});
+
+test('every production station exposes a warning badge and full readable notes after locking the form', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/');
+  const stations = ['CNC FREZER', 'BENDER', 'FRONT', 'PAINTING', 'ASSEMBLING'];
+  const note = 'Keep the approved sample beside the machine.\nCheck every edge before assembly.\n' + 'This production instruction must remain fully visible. '.repeat(12);
+  for (const station of stations) {
+    await page.getByRole('textbox', { name: `${station} · Notes`, exact: true }).fill(note);
+    await expect(page.getByRole('button', { name: `Show ${station} notes`, exact: true })).toBeVisible();
+  }
+  const changes = await page.getByTestId('change-count').innerText();
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  await page.getByRole('button', { name: 'Toggle read only' }).click();
+  await expect(page.locator('textarea.notes')).toHaveCount(0);
+  await expect(page.locator('.notes-readonly')).toHaveCount(5);
+  for (const station of stations) {
+    await page.getByRole('button', { name: `Show ${station} notes`, exact: true }).click();
+    const area = page.getByRole('group', { name: `${station} · Notes`, exact: true });
+    await expect(area).toBeFocused();
+    expect(await area.locator('.notes-readonly p').textContent()).toBe(note);
+    expect(await area.locator('.notes-readonly p').evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+  }
+  await expect(page.getByTestId('change-count')).toHaveText(changes);
+  await page.locator('.profile-form').evaluate(node => (node as HTMLElement).style.width = '520px');
+  expect(await page.locator('.form-grid').evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').length)).toBe(1);
+  await page.locator('.profile-form').screenshot({ path: testInfo.outputPath('station-notes-narrow-panel.png') });
 });
 
 test('selected parts keep readable contextual color in all themes, read-only mode and phone layout', async ({ page }) => {
@@ -524,11 +633,14 @@ test('selecting a different LED model updates its compact summary, and 3D catalo
   await led.getByRole('button', { name: /COB-480-24V/ }).click();
   await expect(led.locator('[data-material-badge] .selected-summary')).toHaveText('LEMLUX · 3000 K · 10 W/m');
   await expect(led.locator('[data-material-badge]')).toHaveAttribute('title', /Lemlux COB-480-24V/);
-  await page.getByLabel('3D', { exact: true }).check();
-  const printing = page.locator('.print3d-material');
+  await expect(page.getByRole('checkbox', { name: '3D', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Add FACE material', exact: true }).click();
+  const printing = page.locator('.face-material-entry').last();
   await printing.locator('.select-trigger').click();
   await printing.getByRole('button', { name: /PETG filament/ }).click();
   await printing.getByRole('button', { name: /Spectrum PET-G/ }).click();
+  await expect(printing.locator('.thickness-field')).toHaveCount(0);
+  await finishSelection(printing);
   await expect(printing.locator('[data-material-badge]')).toHaveText('FDM Spectrum PET-G');
   await expect(printing.locator('[data-material-badge]')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(printing.locator('.select-trigger, .specification-summary')).toHaveCount(0);
@@ -538,8 +650,8 @@ test('selecting a different LED model updates its compact summary, and 3D catalo
   await expect(printing.locator('.select-trigger [data-specification="package"]')).toHaveText('Package contents: 1 spool · 1 kg');
   await finishSelection(printing);
   const saved = await savedConfiguration(page);
-  expect(saved.CNC_FREZER.print3dMaterialCategory).toBe('FDM_PETG');
-  expect(saved.CNC_FREZER.print3dMaterialHex).toBe('#FFFFFF');
+  expect(saved.CNC_FREZER.faceMaterials[1].category).toBe('FDM_PETG');
+  expect(saved.CNC_FREZER.faceMaterials[1].hex).toBe('#FFFFFF');
   expect(saved.ASSEMBLING.ledModuleShort).toBe('Lemlux COB-480-24V LED strip 3000K');
   expect(saved.ASSEMBLING.ledModuleCategory).toBe('LED_STRIP');
   await page.getByRole('button', { name: 'Reload serialized profile' }).click();
@@ -667,7 +779,7 @@ test('category browsing, independent FACE rows, removal and serialized reload pr
   const rows = page.locator('.face-material-entry');
   await openEditor(rows.first());
   await rows.first().locator('.select-trigger').click();
-  await expect(rows.first().locator('.category-option')).toHaveCount(4);
+  await expect(rows.first().locator('.category-option')).toHaveCount(7);
   await expect(rows.first().locator('.option')).toHaveCount(0);
   await rows.first().getByRole('button', { name: /Cast acrylic/ }).click();
   await expect(rows.first().locator('.option')).toHaveCount(3);
@@ -779,7 +891,7 @@ test('catalog errors expose retry and do not discard the saved material', async 
   expect((await savedConfiguration(page)).CNC_FREZER.face).toBe('PLEXIGLAS_GS_0F00');
   unavailable = false;
   await row.getByRole('button', { name: 'Retry', exact: true }).click();
-  await expect(row.locator('.category-option')).toHaveCount(4);
+  await expect(row.locator('.category-option')).toHaveCount(7);
   await expect(page.getByTestId('change-count')).toHaveText('0');
 });
 

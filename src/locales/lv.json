@@ -3546,6 +3546,16 @@
       "faceNumber": "Priekšpuses materiāls {number}",
       "print3d": "3D drukas materiāls",
       "materialNote": "Materiāla piezīme",
+      "notes": "Piezīmes",
+      "notesPlaceholder": "Pievienot ražošanas piezīmes…",
+      "showNotes": "Rādīt {section} piezīmes",
+      "print": "DRUKA",
+      "printFilm": "Druka uz plēves",
+      "legacyPrint": "Piešķiriet šo iepriekš izvēlēto 3D materiālu priekšpusei vai aizmugurei.",
+      "legacyPrintUnassigned": "Iepriekš izvēlētais 3D materiāls — detaļa nav norādīta.",
+      "assignPrintFace": "Piešķirt priekšpusei",
+      "assignPrintBack": "Piešķirt aizmugurei",
+      "clearBackBeforeAssigning": "Pirms 3D materiāla piešķiršanas notīriet pašreizējo aizmugures materiālu.",
       "connector": "Savienotāja modelis",
       "psuType": "Barošanas bloka veids",
       "profileName": "Profila nosaukums",
@@ -3789,5 +3799,21 @@
     "supplierSource": "Lemona avots",
     "manufacturerSource": "Ražotāja informācija",
     "sourceChecked": "Avots pārbaudīts: {date}"
+  },
+  "orderSheet": {
+    "title": "Pasūtījuma forma",
+    "locked": "Ražošanas specifikācija šajā skatā ir bloķēta. Faili, darba vietu progress un sarakste ir pieejami zemāk.",
+    "editHint": "Pārskatiet ražošanas formu. Lai mainītu vēl neapstiprinātu melnrakstu, izvēlieties Rediģēt.",
+    "supportTitle": "Papildu darbi",
+    "supportHint": "Rasējumi, faili, darba vietu progress, materiālu uzskaite un pasūtījuma sarakste.",
+    "retry": "Pārlādēt pasūtījuma formu",
+    "quantity": "Daudzums",
+    "quantityNumber": "Daudzums {number}",
+    "profileNotes": "Profila piezīmes",
+    "note": "Piezīme",
+    "focusedEditor": "Šis profils ir atvērts atsevišķā redaktorā. Lietojiet izmaiņas vai aizveriet redaktoru, lai atgrieztos šeit.",
+    "legacyProfile": "Šim profilam ir vecāks formāts. Saglabātā informācija ir redzama zemāk; salīdziniet to ar pasūtījuma rasējumiem.",
+    "accessDenied": "Šim kontam nav pieejama saglabātā pasūtījuma forma. Pārlādējiet to vai lūdziet pasūtījuma vadītājam pārbaudīt piekļuvi.",
+    "loadFailed": "Saglabāto pasūtījuma veidlapu neizdevās ielādēt. Pārlādējiet, lai mēģinātu vēlreiz."
   }
 }

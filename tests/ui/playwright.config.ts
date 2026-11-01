@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   testDir: '../e2e',
-  testMatch: ['profile-controls.spec.ts', 'calendar-chat-state.spec.ts', 'ui-support.spec.ts', 'workflow-dialogs.spec.ts', 'profile-materials.spec.ts', 'theme-contrast.spec.ts', 'calendar-telegram.spec.ts', 'canvas-media.spec.ts', 'canvas-batch.spec.ts', 'canvas-dock.spec.ts', 'canvas-lifecycle.spec.ts', 'app-badges.spec.ts', 'telegram-admin.spec.ts', 'app-shell.spec.ts', 'assistant.spec.ts', 'inventory-detail.spec.ts', 'workforce-cabinet.spec.ts', 'chat-voice.spec.ts'],
+  testMatch: ['profile-controls.spec.ts', 'calendar-chat-state.spec.ts', 'ui-support.spec.ts', 'workflow-dialogs.spec.ts', 'profile-materials.spec.ts', 'theme-contrast.spec.ts', 'calendar-telegram.spec.ts', 'canvas-media.spec.ts', 'canvas-batch.spec.ts', 'canvas-dock.spec.ts', 'canvas-lifecycle.spec.ts', 'app-badges.spec.ts', 'telegram-admin.spec.ts', 'app-shell.spec.ts', 'assistant.spec.ts', 'inventory-detail.spec.ts', 'workforce-cabinet.spec.ts', 'chat-voice.spec.ts', 'order-sheet.spec.ts'],
   timeout: 60000,
   workers: 1,
   use: {

@@ -26,6 +26,12 @@ const resin: ProfileMaterialBadgeSource = {
 };
 
 describe('compact draft-profile material badges', () => {
+  it('uses print identity and physical color when a FACE or BACK sheet position contains filament or resin', () => {
+    expect(getProfileMaterialBadge(filament, { value: filament.name_en!, kind: 'sheet', thickness: '1.75mm' }))
+      .toEqual({ label: 'FDM Fiberlogy ASA', hex: '#000000' });
+    expect(getProfileMaterialBadge(resin, { value: resin.name_en!, kind: 'sheet' }))
+      .toEqual({ label: 'Anycubic Resin Tough Ultra', hex: '#FFFFFF' });
+  });
   it('shows the requested acrylic and sheet identifiers with normalized selected thickness', () => {
     expect(getProfileMaterialBadge(acrylic, { value: acrylic.name_en!, thickness: '3' })).toEqual({ label: 'PLEX 1C33/3mm', hex: '#FFD700' });
     expect(getProfileMaterialBadge(aluminium, { value: aluminium.name_en!, thickness: '1,5 mm' })).toEqual({ label: 'ALU /1.5mm', hex: '#C4C9CE' });

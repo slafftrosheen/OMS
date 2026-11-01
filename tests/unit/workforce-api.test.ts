@@ -40,23 +40,28 @@ describe('workforce API authorization and mutation boundary', () => {
     }
   });
 
-  it('sends exact minutes and caller revision to SQL without trusting browser identity or rate', async () => {
-    const record = { id: ownId, user_id: ownId, work_date: '2026-01-05', actual_minutes: 451, credited_minutes: 451, multiplier: 1, holiday_name: null, note: '', version: 1, created_at: '', updated_at: '' };
-    const request = event({ workDate: '2026-01-05', actualMinutes: 451, expectedVersion: null, userId: otherId, multiplier: 4 }, 'Operator', { data: record });
+  it('sends clock inputs and caller revision to SQL without trusting browser identity or rate', async () => {
+    const record = { id: ownId, user_id: ownId, work_date: '2026-01-05', start_time: '08:00:00', finish_time: '15:31:00', actual_minutes: 451, credited_minutes: 451, multiplier: 1, holiday_name: null, note: '', version: 1, created_at: '', updated_at: '' };
+    const request = event({ workDate: '2026-01-05', startTime: '08:00', finishTime: '15:31', expectedVersion: null, userId: otherId, multiplier: 4 }, 'Operator', { data: record });
     const response = await saveEntry(request as any);
     expect(response.status).toBe(200);
-    expect(request.calls).toEqual([{ name: 'workforce_save_entry', args: { p_work_date: '2026-01-05', p_actual_minutes: 451, p_note: '', p_expected_version: null } }]);
-    expect((await response.json()).entry.actualMinutes).toBe(451);
+    expect(request.calls).toEqual([{ name: 'workforce_save_clock_entry', args: { p_work_date: '2026-01-05', p_start_time: '08:00', p_finish_time: '15:31', p_note: '', p_expected_version: null } }]);
+    expect((await response.json()).entry).toMatchObject({ actualMinutes: 451, startTime: '08:00', finishTime: '15:31' });
     expect(response.headers.get('cache-control')).toBe('private, no-store');
   });
 
-  it('rejects invalid/future dates, combined units and missing revisions before SQL', async () => {
+  it('rejects invalid dates, manual-duration tampering, invalid clocks and missing revisions before SQL', async () => {
     for (const body of [
-      { workDate: '2099-12-01', actualMinutes: 60, expectedVersion: null },
-      { workDate: '2026-02-31', actualMinutes: 60, expectedVersion: null },
-      { workDate: '2026-01-05', actualMinutes: 60, hours: '1', expectedVersion: null },
+      { workDate: '2099-12-01', startTime: '08:00', finishTime: '09:00', expectedVersion: null },
+      { workDate: '2026-02-31', startTime: '08:00', finishTime: '09:00', expectedVersion: null },
+      { workDate: '2026-01-05', startTime: '08:00', finishTime: '09:00', actualMinutes: 600, expectedVersion: null },
       { workDate: '2026-01-05', hours: '1.01', expectedVersion: null },
-      { workDate: '2026-01-05', actualMinutes: 60 }
+      { workDate: '2026-01-05', actualMinutes: 60, expectedVersion: null },
+      { workDate: '2026-01-05', startTime: '08:00', finishTime: '08:00', expectedVersion: null },
+      { workDate: '2026-01-05', startTime: '22:00', finishTime: '06:00', expectedVersion: null },
+      { workDate: '2026-01-05', startTime: '08:00', finishTime: '09:00:30', expectedVersion: null },
+      { workDate: '2026-01-05', startTime: '08:00', finishTime: '09:00' },
+      { workDate: '2026-03-29', startTime: '03:30', finishTime: '05:00', expectedVersion: null }
     ]) {
       const request = event(body);
       expect((await saveEntry(request as any)).status).toBe(400);
@@ -66,7 +71,7 @@ describe('workforce API authorization and mutation boundary', () => {
 
   it('returns actionable revision and setup errors rather than implying a save succeeded', async () => {
     for (const [code, status, expected] of [['40001', 409, 'VERSION_CONFLICT'], ['23P01', 409, 'OVERLAP'], ['PGRST202', 503, 'SETUP_REQUIRED']] as const) {
-      const request = event({ workDate: '2026-01-05', actualMinutes: 60, expectedVersion: 1 }, 'Operator', { error: { code } });
+      const request = event({ workDate: '2026-01-05', startTime: '08:00', finishTime: '09:00', expectedVersion: 1 }, 'Operator', { error: { code } });
       const response = await saveEntry(request as any);
       expect(response.status).toBe(status);
       expect((await response.json()).code).toBe(expected);

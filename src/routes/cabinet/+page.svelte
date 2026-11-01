@@ -177,7 +177,7 @@
 
 <div class="rf-page workforce-cabinet">
   <header class="wfc-header">
-    <div><h1>{c.title}</h1><p>{c.intro}</p></div>
+    <div><h1>{c.title}</h1><p>{manager ? c.intro : c.workerIntro}</p></div>
     {#if $currentUser}<div class="wfc-account" aria-label={c.account}><span class="wfc-avatar" aria-hidden="true">{($currentUser.displayName || $currentUser.username).slice(0, 1).toUpperCase()}</span><div><strong>{$currentUser.displayName || $currentUser.username}</strong><span>{c.roles[$currentUser.role]}</span>{#if $currentUser.stations?.length}<span class="wfc-account-stations">{$currentUser.stations.map(station => $t(`stations.${stationKeys[station.stationId] || station.stationId.toUpperCase()}`, { default: STATION_LABELS[station.stationId] })).join(' · ')}</span>{/if}</div></div>{/if}
   </header>
 
@@ -192,21 +192,23 @@
 
       {#if cabinet.view === 'personal'}
         {#if cabinet.personal}
-          <section class="wfc-summary-grid" aria-label={c.currentMonth}>
-            <article class="wfc-hours-card" data-testid="current-month-hours"><div class="wfc-card-top"><span class="wfc-symbol" data-tone="time"><Clock size={22} aria-hidden="true" /></span><p>{formatWorkMonth(cabinet.personal.currentMonth, lang)}</p></div><h2>{c.currentMonth}</h2><p class="wfc-hours-number">{minutesLabel(cabinet.personal.currentMonthTotals.actualMinutes, c)}</p><p class="wfc-hint">{c.recordedDays}: {cabinet.personal.currentMonthTotals.recordedDays} · {c.daysWorked}: {cabinet.personal.currentMonthTotals.daysWorked}</p></article>
-            <article class="wfc-summary-card"><span class="wfc-chip" data-tone="premium">1× + 2×</span><h2>{c.creditedHours}</h2><p class="wfc-secondary-number">{minutesLabel(cabinet.personal.currentMonthTotals.creditedMinutes, c)}</p><p class="wfc-hint">{c.creditedHint}</p></article>
-            <article class="wfc-summary-card"><span class="wfc-chip" data-tone="premium">2×</span><h2>{c.premiumHours}</h2><p class="wfc-secondary-number">{minutesLabel(cabinet.personal.currentMonthTotals.premiumMinutes, c)}</p><p class="wfc-hint">{c.premiumHint}</p></article>
+          {@const totals = manager ? cabinet.personal.currentMonthTotals : cabinet.personal.totals}
+          {@const summaryMonth = manager ? cabinet.personal.currentMonth : cabinet.personal.month}
+          <section class="wfc-summary-grid" class:compact={!manager} aria-label={`${c.month} · ${formatWorkMonth(summaryMonth, lang)}`}>
+            <article class="wfc-hours-card" data-testid="current-month-hours"><div class="wfc-card-top"><span class="wfc-symbol" data-tone="time"><Clock size={22} aria-hidden="true" /></span><p>{formatWorkMonth(summaryMonth, lang)}</p></div><h2>{manager ? c.currentMonth : c.workerActualHours}</h2><p class="wfc-hours-number">{minutesLabel(totals.actualMinutes, c)}</p>{#if manager}<p class="wfc-hint">{c.recordedDays}: {totals.recordedDays} · {c.daysWorked}: {totals.daysWorked}</p>{/if}</article>
+            <article class="wfc-summary-card"><span class="wfc-chip" data-tone="premium">1× + 2×</span><h2>{manager ? c.creditedHours : c.workerCreditedHours}</h2><p class="wfc-secondary-number">{minutesLabel(totals.creditedMinutes, c)}</p><p class="wfc-hint">{c.creditedHint}</p></article>
+            {#if manager}<article class="wfc-summary-card"><span class="wfc-chip" data-tone="premium">2×</span><h2>{c.premiumHours}</h2><p class="wfc-secondary-number">{minutesLabel(totals.premiumMinutes, c)}</p><p class="wfc-hint">{c.premiumHint}</p></article>{/if}
           </section>
         {:else if cabinet.loading.personal}<div class="wfc-panel wfc-loading" role="status">{c.loading}</div>
         {:else if cabinet.errors.personal}<div class="wfc-message" data-tone="error" role="alert"><p>{workforceError(cabinet.errors.personal, c)}</p><button type="button" class="wfc-button" onclick={() => cabinet.loadPersonal()}>{c.retry}</button></div>{/if}
-        <p class="wfc-policy">{c.policy}</p>
+        {#if manager}<p class="wfc-policy">{c.policy}</p>{/if}
         <div class="wfc-entry-grid"><EntryForm {cabinet} {c} {lang} onDirty={dirty => entryDirty = dirty} onDateChange={selectDate} /><AbsenceForm {cabinet} {c} onDirty={dirty => absenceDirty = dirty} /></div>
       {/if}
 
       <div class="wfc-month-bar"><div><h2>{cabinet.view === 'personal' ? c.history : cabinet.view === 'team' ? c.team : c.reports}</h2><p>{cabinet.view === 'personal' ? c.historyIntro : cabinet.view === 'team' ? c.teamIntro : c.reportsIntro}</p></div><div class="wfc-month-navigation"><div class="wfc-field"><label for="cabinet-month">{cabinet.view === 'reports' ? c.reportMonth : c.month}</label><div class="wfc-month-input"><button type="button" class="wfc-button" disabled={!previousMonth || !!cabinet.busy} aria-label={c.previousMonth} title={c.previousMonth} onclick={() => previousMonth && cabinet.selectMonth(previousMonth)}><ChevronLeft size={18} aria-hidden="true" /></button><input class="rf-input" id="cabinet-month" type="month" min={`${MIN_WORKFORCE_YEAR}-01`} max={`${MAX_WORKFORCE_YEAR}-12`} value={cabinet.month} disabled={!!cabinet.busy} onchange={event => cabinet.selectMonth(event.currentTarget.value)} /><button type="button" class="wfc-button" disabled={!nextMonth || !!cabinet.busy} aria-label={c.nextMonth} title={c.nextMonth} onclick={() => nextMonth && cabinet.selectMonth(nextMonth)}><ChevronRight size={18} aria-hidden="true" /></button></div></div>{#if cabinet.month !== cabinet.today.slice(0, 7)}<button type="button" class="wfc-button wfc-small" disabled={!!cabinet.busy} onclick={() => cabinet.selectMonth(cabinet.today.slice(0, 7))}>{c.thisMonth}</button>{/if}</div></div>
 
       {#if cabinet.view === 'personal'}
-        {#if cabinet.personal}<section class="wfc-panel" aria-label={`${c.history} ${formatWorkMonth(cabinet.month, lang)}`}><MonthRecords data={cabinet.personal} {c} {lang} busy={!!cabinet.busy} selectedDate={cabinet.workDate} onEdit={editDate} onDelete={askDelete} onCancelAbsence={askCancelAbsence} /></section>{/if}
+        {#if cabinet.personal}<section class="wfc-panel" aria-label={`${c.history} ${formatWorkMonth(cabinet.month, lang)}`}><MonthRecords data={cabinet.personal} {c} {lang} compact={!manager} busy={!!cabinet.busy} selectedDate={cabinet.workDate} onEdit={editDate} onDelete={askDelete} onCancelAbsence={askCancelAbsence} /></section>{/if}
       {:else if cabinet.view === 'team' && manager}
         <section class="wfc-panel" aria-label={c.team}>
           {#if cabinet.loading.team}<p class="wfc-loading" role="status">{c.loading}</p>

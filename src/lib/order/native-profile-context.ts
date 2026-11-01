@@ -3,6 +3,7 @@
  * These are saved operator selections, NOT proven engineering specifications.
  */
 import {readFaceMaterials} from '$lib/profiles/face-materials';
+import {isProfilePrintMaterial} from '$lib/profiles/material-roles';
 type RecordValue=Record<string,unknown>;
 const record=(value:unknown):RecordValue=>
   value!==null&&typeof value==='object'&&!Array.isArray(value)
@@ -17,8 +18,8 @@ const scalar=(value:unknown):string|number|boolean|undefined=>{
 const properties={
  CNC_FREZER:['face','back','faceThickness','backThickness','laser','print3d','print3dMaterial','notes'],
  BENDER:['sides','sidesThickness','depth','notes'],
- FRONT:['face','faceFilm','faceCustom','back','backFilm','backCustom',
-   'sides','sidesFilm','sidesCustom','notes'],
+ FRONT:['face','faceFilm','facePrint','faceCustom','back','backFilm','backPrint','backCustom',
+   'sides','sidesFilm','sidesPrint','sidesCustom','notes'],
  PAINTING:['face','faceCustom','sides','sidesCustom','back','backCustom',
    'frame','frameCustom','notes'],
  ASSEMBLING:['led','ledModule','ledCustom','psu','psuModel','psuType','psuMounting',
@@ -40,7 +41,7 @@ function inactiveChoice(section:ProductionSection,key:string,values:RecordValue)
    return !text(values.sides);
  if(section==='FRONT'){
    for(const part of ['face','back','sides']){
-     if((key===part+'Film'||key===part+'Custom')&&values[part]!==true)
+     if((key===part+'Film'||key===part+'Print'||key===part+'Custom')&&values[part]!==true)
        return true;
    }
  }
@@ -94,6 +95,16 @@ export function summarizeNativeProfileConfiguration(raw:unknown):NativeProfileSu
        const thickness=text(row.thickness);
        if(thickness)values[key+'Thickness']=thickness;
      });
+   }
+   if(section==='CNC_FREZER'){
+     const printedFace=readFaceMaterials(rawSection).some(row=>text(row.value)&&
+       (isProfilePrintMaterial(row.category)||row.process==='3D_PRINT'));
+     const printedBack=!!text(rawSection.back)&&
+       (isProfilePrintMaterial(rawSection.backCategory)||rawSection.backProcess==='3D_PRINT');
+     if(printedFace||printedBack){
+       values.print3d=true;
+       values.print3dParts=[printedFace?'FACE':'',printedBack?'BACK':''].filter(Boolean).join(', ');
+     }
    }
    // Color choices are structured objects, not free text for hallucinated RALs.
    if(section==='PAINTING'){

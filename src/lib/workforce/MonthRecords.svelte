@@ -11,8 +11,9 @@
   import { formatWorkDate, formatWorkMonth, minutesLabel } from './client';
   import { monthCalendarRows, monthOverview, type MonthDayOverview, type MonthDayStatus } from './overview';
 
-  let { data, c, lang, busy = false, selectedDate = '', onEdit, onDelete, onCancelAbsence }: {
+  let { data, c, lang, busy = false, compact = false, selectedDate = '', onEdit, onDelete, onCancelAbsence }: {
     data: WorkforceMonth; c: WorkforceCopy; lang: string; busy?: boolean; selectedDate?: string;
+    compact?: boolean;
     onEdit?: (date: string) => void; onDelete?: (entry: WorkEntry) => void; onCancelAbsence?: (absence: Absence) => void;
   } = $props();
   let showMissing = $state(false);
@@ -66,6 +67,7 @@
 {/snippet}
 
 <div class="wfc-records">
+  {#if !compact}
   <dl class="wfc-month-totals">
     <div><dt>{c.actualHours}</dt><dd>{minutesLabel(data.totals.actualMinutes, c)}</dd></div>
     <div><dt>{c.regularHours}</dt><dd>{minutesLabel(data.totals.regularMinutes, c)}</dd></div>
@@ -97,22 +99,23 @@
     <div class="wfc-calendar-legend">{#each statuses as status}{@const Icon = statusIcons[status]}<span data-status={status}><Icon size={14} aria-hidden="true" />{statusLabel(status)}</span>{/each}<span class="wfc-chip" data-tone="premium">2× · {c.rate}</span></div>
     <p class="wfc-hint wfc-calendar-units">{c.calendarUnits}</p>
   </section>
-  <div class="wfc-history-tools"><p class="wfc-hint">{c.recordedDays}: <strong>{data.totals.recordedDays}</strong> · {c.daysWorked}: <strong>{data.totals.daysWorked}</strong></p><label class="wfc-checkbox" for={missingId}><input id={missingId} type="checkbox" bind:checked={showMissing} />{c.showMissing}</label></div>
+  {/if}
+  <div class="wfc-history-tools">{#if !compact}<p class="wfc-hint">{c.recordedDays}: <strong>{data.totals.recordedDays}</strong> · {c.daysWorked}: <strong>{data.totals.daysWorked}</strong></p>{/if}<label class="wfc-checkbox" for={missingId}><input id={missingId} type="checkbox" bind:checked={showMissing} />{c.showMissing}</label></div>
   {#if !visibleDays.length}
     <div class="wfc-empty"><h3>{c.noRecords}</h3>{#if onEdit}<p>{c.recordFirst}</p>{/if}</div>
   {:else}
     <div class="wfc-table-wrap">
       <table class="wfc-table wfc-day-table">
         <caption class="wfc-sr-only">{c.history} · {formatWorkMonth(data.month, lang)}</caption>
-        <thead><tr><th scope="col">{c.date}</th><th scope="col">{c.actualHours}</th><th scope="col">{c.rate}</th><th scope="col">{c.creditedHours}</th>{#if onEdit}<th scope="col">{c.actions}</th>{/if}</tr></thead>
+        <thead><tr><th scope="col">{c.date}</th><th scope="col">{c.actualHours}</th>{#if !compact}<th scope="col">{c.rate}</th>{/if}<th scope="col">{compact ? c.workerCreditedHours : c.creditedHours}</th>{#if onEdit}<th scope="col">{c.actions}</th>{/if}</tr></thead>
         <tbody>{#each visibleDays as day (day.date)}
           {@const entry = byDate.get(day.date)}
           {@const absence = data.absences.find(row => row.status === 'active' && row.startDate <= day.date && row.endDate >= day.date)}
           <tr data-recorded={!!entry}>
-            <th scope="row"><time datetime={day.date}>{formatWorkDate(day.date, lang, true)}</time>{#if day.date === data.today}<span class="wfc-chip" data-tone="time">{c.today}</span>{/if}{#if entry?.note}<p class="wfc-record-note">{entry.note}</p>{/if}{#if absence}<span class="wfc-chip" data-tone="absence">{c.absences} · {absence.partialDay ? c.partial : c.allDay}</span>{/if}</th>
+            <th scope="row"><time datetime={day.date}>{formatWorkDate(day.date, lang, true)}</time>{#if day.date === data.today}<span class="wfc-chip" data-tone="time">{c.today}</span>{/if}{#if entry}<span class="wfc-cell-hint" data-testid="work-interval">{entry.startTime && entry.finishTime ? `${entry.startTime}–${entry.finishTime}` : c.missingTimes}</span>{/if}{#if entry?.note}<p class="wfc-record-note">{entry.note}</p>{/if}{#if absence}<span class="wfc-chip" data-tone="absence">{c.absences} · {absence.partialDay ? c.partial : c.allDay}</span>{/if}</th>
             <td data-label={c.actualHours}>{#if entry}<strong>{minutesLabel(entry.actualMinutes, c)}</strong>{#if entry.actualMinutes === 0}<span class="wfc-cell-hint">{c.zeroEntry}</span>{/if}{:else}<span class="wfc-muted">{day.date > data.today ? c.futureDay : c.noEntry}</span>{/if}</td>
-            <td data-label={c.rate}><span class="wfc-chip" data-tone={day.multiplier === 2 ? 'premium' : 'neutral'}>{day.multiplier}×</span><span class="wfc-cell-hint">{day.holidayName || (day.isWeekend ? c.weekend : c.regularDay)}</span></td>
-            <td data-label={c.creditedHours}>{entry ? minutesLabel(entry.creditedMinutes, c) : '—'}</td>
+            {#if !compact}<td data-label={c.rate}><span class="wfc-chip" data-tone={day.multiplier === 2 ? 'premium' : 'neutral'}>{day.multiplier}×</span><span class="wfc-cell-hint">{day.holidayName || (day.isWeekend ? c.weekend : c.regularDay)}</span></td>{/if}
+            <td data-label={compact ? c.workerCreditedHours : c.creditedHours}>{entry ? minutesLabel(entry.creditedMinutes, c) : '—'}{#if compact && entry && day.multiplier === 2}<span class="wfc-chip" data-tone="premium" title={day.holidayName || c.weekend}>2×</span>{/if}</td>
             {#if onEdit}<td class="wfc-row-actions">{#if day.date <= data.today}<button type="button" class="wfc-button wfc-small" disabled={busy} onclick={() => onEdit?.(day.date)} aria-label={`${c.edit}: ${formatWorkDate(day.date, lang)}`}><Pencil size={14} aria-hidden="true" />{entry ? c.edit : c.entryTitle}</button>{#if entry && onDelete}<button type="button" class="wfc-button wfc-small wfc-danger" disabled={busy} onclick={() => onDelete?.(entry)} aria-label={`${c.delete}: ${formatWorkDate(day.date, lang)}`}>{c.remove}</button>{/if}{/if}</td>{/if}
           </tr>
         {/each}</tbody>

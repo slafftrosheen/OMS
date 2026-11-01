@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { calendarMonth, classifyWorkDay } from '../../src/lib/workforce/calendar';
 import { emptyTotals, sumTotals, totalEntries } from '../../src/lib/workforce/calculations';
+import { parseWorkClockInterval } from '../../src/lib/workforce/clock-times';
 import type { Absence, TeamWorker, WorkEntry, WorkforceReport } from '../../src/lib/workforce/types';
 import { workforceFixtureEntry, workforceFixtureReportId, workforceFixtureUsers } from '../ui/workforce-fixtures';
 
@@ -12,11 +13,11 @@ test.beforeEach(({ page }) => {
 });
 test.afterEach(({ page }) => expect(runtimeErrors.get(page)).toEqual([]));
 
-type Options = { manager?: boolean; query?: string; teamResponder?: (route: Route) => Promise<void>; failEntry?: boolean; reportHistory?: boolean };
+type Options = { manager?: boolean; query?: string; teamResponder?: (route: Route) => Promise<void>; failEntry?: boolean; reportHistory?: boolean; initialEntries?: WorkEntry[] };
 async function fixture(page: Page, options: Options = {}) {
   await page.clock.setFixedTime(new Date('2026-10-31T10:00:00Z'));
   let actor = options.manager ? workforceFixtureUsers.manager : workforceFixtureUsers.worker;
-  const entries: WorkEntry[] = [workforceFixtureEntry()];
+  const entries: WorkEntry[] = options.initialEntries ?? [workforceFixtureEntry({ startTime: '08:00', finishTime: '16:00' })];
   const absences: Absence[] = [];
   const writes: Array<{ path: string; method: string; body: any }> = [];
   const assistantPosts: any[] = [];
@@ -69,8 +70,9 @@ async function fixture(page: Page, options: Options = {}) {
       if (options.failEntry) return route.fulfill({ status: 503, json: { code: 'DATABASE_UNAVAILABLE', error: 'Unavailable' } });
       const input = request.postDataJSON(), existing = entries.find(row => row.userId === actor.id && row.workDate === input.workDate);
       const day = classifyWorkDay(input.workDate);
+      const interval = parseWorkClockInterval(input.workDate, input.startTime, input.finishTime);
       const entry = workforceFixtureEntry({ id: existing?.id ?? 'f6666666-6666-4666-8666-666666666666', userId: actor.id,
-        workDate: input.workDate, actualMinutes: input.actualMinutes, creditedMinutes: input.actualMinutes * day.multiplier,
+        workDate: input.workDate, ...interval, creditedMinutes: interval.actualMinutes * day.multiplier,
         multiplier: day.multiplier, holidayName: day.holidayName, note: input.note ?? '', version: (existing?.version ?? 0) + 1 });
       if (existing) entries[entries.indexOf(existing)] = entry; else entries.push(entry);
       return route.fulfill({ json: { entry } });
@@ -97,31 +99,66 @@ async function fixture(page: Page, options: Options = {}) {
   return { entries, absences, writes, assistantPosts, unexpected, setActor: (value: typeof actor) => { actor = value; } };
 }
 
-test('worker saves exact minutes with weekend credit, edits history and distinguishes a saved zero', async ({ page }) => {
+test('worker enters a shift, sees only two monthly cards, and can revise exact times with weekend credit', async ({ page }) => {
   const observed = await fixture(page);
+  await expect(page.locator('.wfc-summary-grid > article')).toHaveCount(2);
+  await expect(page.locator('.wfc-calendar-table, .wfc-month-totals')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Team overview', exact: true })).toHaveCount(0);
   await expect(page.getByTestId('current-month-hours')).toContainText('8 h');
-  await page.getByLabel('Hours', { exact: true }).fill('3');
-  await page.getByLabel('Minutes', { exact: true }).fill('7');
+  await page.getByLabel('Start time', { exact: true }).fill('08:00');
+  await page.getByLabel('Finish time', { exact: true }).fill('11:07');
+  await expect(page.locator('.wfc-time-preview')).toContainText('3 h 7 min');
+  await expect(page.locator('.wfc-time-preview')).toContainText('6 h 14 min');
   const save = page.getByRole('button', { name: 'Save hours', exact: true });
   await expect(save).toHaveAttribute('data-next-action', 'true');
   await save.click();
   await expect(page.getByText('Working time saved.', { exact: true })).toBeVisible();
   await expect(page.getByTestId('current-month-hours')).toContainText('11 h 7 min');
   await expect(page.locator('.wfc-summary-card').first()).toContainText('14 h 14 min');
-  expect(observed.writes[0].body).toMatchObject({ workDate: '2026-10-31', actualMinutes: 187, expectedVersion: null });
-  await page.getByLabel('Hours', { exact: true }).fill('4');
+  expect(observed.writes[0].body).toMatchObject({ workDate: '2026-10-31', startTime: '08:00', finishTime: '11:07', expectedVersion: null });
+  expect(observed.writes[0].body).not.toHaveProperty('actualMinutes');
+  await expect(page.getByTestId('work-interval').last()).toHaveText('08:00–11:07');
+  await page.getByLabel('Finish time', { exact: true }).fill('12:07');
   page.once('dialog', dialog => dialog.dismiss());
   await page.getByRole('button', { name: 'Leave cabinet fixture', exact: true }).click();
   await expect(page.getByTestId('workforce-navigation')).toHaveText('Blocked');
-  await expect(page.getByLabel('Hours', { exact: true })).toHaveValue('4');
+  await expect(page.getByLabel('Finish time', { exact: true })).toHaveValue('12:07');
   await page.getByRole('button', { name: 'Update hours', exact: true }).click();
   await expect.poll(() => observed.writes.filter(row => row.path === '/api/workforce/entries').length).toBe(2);
-  expect(observed.writes[1].body).toMatchObject({ actualMinutes: 247, expectedVersion: 1 });
+  expect(observed.writes[1].body).toMatchObject({ startTime: '08:00', finishTime: '12:07', expectedVersion: 1 });
+  expect(observed.entries.find(row => row.workDate === '2026-10-31')).toMatchObject({ actualMinutes: 247, creditedMinutes: 494 });
   await expect(page.getByRole('button', { name: 'Update hours', exact: true })).toBeDisabled();
-  await page.getByLabel('Work date', { exact: true }).fill('2026-10-29');
-  await page.getByLabel('Hours', { exact: true }).fill('0');
-  await page.getByRole('button', { name: 'Save hours', exact: true }).click();
+  await page.getByLabel('Month', { exact: true }).fill('2026-09');
+  await expect(page.getByTestId('current-month-hours')).toContainText('September 2026');
+  await expect(page.getByTestId('current-month-hours')).toContainText('0 h');
+  await page.getByRole('button', { name: 'This month', exact: true }).click();
+  await expect(page.getByTestId('current-month-hours')).toContainText('12 h 7 min');
+  await page.getByLabel('Show days without an entry').check();
+  await expect(page.getByText('Not recorded', { exact: true }).first()).toBeVisible();
+  expect(observed.unexpected).toEqual([]);
+});
+
+test('historical duration-only entries stay unchanged until real clocks are entered; zero remains distinct from missing', async ({ page }) => {
+  const observed = await fixture(page, { initialEntries: [workforceFixtureEntry(), workforceFixtureEntry({
+    id: 'd7777777-7777-4777-8777-777777777777', workDate: '2026-10-29', actualMinutes: 0, creditedMinutes: 0, note: ''
+  })] });
+  await expect(page.getByTestId('current-month-hours')).toContainText('8 h');
+  await expect(page.getByTestId('work-interval').first()).toHaveText('Start and finish were not recorded');
   await expect(page.getByText('0 hours recorded', { exact: true })).toBeVisible();
+  await page.getByLabel('Work date', { exact: true }).fill('2026-10-30');
+  await expect(page.getByLabel('Start time', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel('Finish time', { exact: true })).toHaveValue('');
+  await expect(page.getByRole('button', { name: 'Update hours', exact: true })).toBeDisabled();
+  expect(observed.writes).toEqual([]);
+  await page.getByLabel('Start time', { exact: true }).fill('08:15');
+  await page.getByLabel('Finish time', { exact: true }).fill('08:15');
+  await expect(page.getByRole('button', { name: 'Update hours', exact: true })).toBeDisabled();
+  await expect(page.getByRole('alert')).toContainText('after start on the same work date');
+  await page.getByLabel('Finish time', { exact: true }).fill('16:15');
+  await page.getByRole('button', { name: 'Update hours', exact: true }).click();
+  await expect(page.getByText('Working time saved.', { exact: true })).toBeVisible();
+  expect(observed.entries.find(row => row.workDate === '2026-10-30')).toMatchObject({ startTime: '08:15', finishTime: '16:15', actualMinutes: 480 });
+  expect(observed.entries.find(row => row.workDate === '2026-10-29')?.startTime).toBeUndefined();
   await page.getByLabel('Show days without an entry').check();
   await expect(page.getByText('Not recorded', { exact: true }).first()).toBeVisible();
   expect(observed.unexpected).toEqual([]);
@@ -130,7 +167,7 @@ test('worker saves exact minutes with weekend credit, edits history and distingu
 test('unsaved date changes ask once; partial absences can be saved and cancelled with history retained', async ({ page }) => {
   const observed = await fixture(page);
   // Incomplete time still needs protection even though it cannot be saved yet.
-  await page.getByLabel('Minutes', { exact: true }).fill('30');
+  await page.getByLabel('Start time', { exact: true }).fill('08:30');
   await expect(page.getByRole('button', { name: 'Save hours', exact: true })).toBeDisabled();
   await page.getByLabel('Work date', { exact: true }).fill('2026-10-30');
   const incompleteDialog = page.getByRole('dialog', { name: 'Leave your unsaved changes?' });
@@ -138,19 +175,20 @@ test('unsaved date changes ask once; partial absences can be saved and cancelled
   await incompleteDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   // Native dialog keeps the underlying form inert until its outro completes.
   await expect(incompleteDialog).toBeHidden();
-  await expect(page.getByLabel('Minutes', { exact: true })).toHaveValue('30');
-  await page.getByLabel('Hours', { exact: true }).fill('4');
-  await expect(page.getByLabel('Hours', { exact: true })).toHaveValue('4');
+  await expect(page.getByLabel('Start time', { exact: true })).toHaveValue('08:30');
+  await page.getByLabel('Finish time', { exact: true }).fill('12:30');
+  await expect(page.getByLabel('Finish time', { exact: true })).toHaveValue('12:30');
   await page.getByLabel('Work date', { exact: true }).fill('2026-10-30');
   const dialog = page.getByRole('dialog', { name: 'Leave your unsaved changes?' });
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByLabel('Hours', { exact: true })).toHaveValue('4');
+  await expect(page.getByLabel('Finish time', { exact: true })).toHaveValue('12:30');
   await expect(page.getByLabel('Work date', { exact: true })).toHaveValue('2026-10-31');
   await page.getByLabel('Work date', { exact: true }).fill('2026-10-30');
   await dialog.getByRole('button', { name: 'Discard draft', exact: true }).click();
-  await expect(page.getByLabel('Hours', { exact: true })).toHaveValue('8');
+  await expect(page.getByLabel('Start time', { exact: true })).toHaveValue('08:00');
+  await expect(page.getByLabel('Finish time', { exact: true })).toHaveValue('16:00');
   await page.getByLabel('First day away', { exact: true }).fill('2026-10-30');
   await page.getByLabel('Partial day', { exact: true }).check();
   await page.getByRole('button', { name: 'Save absence', exact: true }).click();
@@ -196,11 +234,12 @@ test('late manager responses and private drafts disappear after account or role 
   release();
   await expect(page.getByRole('button', { name: 'Team overview', exact: true })).toHaveCount(0);
   await expect(page.getByText('PRIVATE OLD WORKER')).toHaveCount(0);
-  await page.getByLabel('Hours', { exact: true }).fill('6');
+  await page.getByLabel('Start time', { exact: true }).fill('06:00');
   await page.locator('#work-note').fill('PRIVATE OLD NOTE');
   observed.setActor(workforceFixtureUsers.second);
   await page.getByRole('button', { name: 'Switch account', exact: true }).click();
-  await expect(page.getByLabel('Hours', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel('Start time', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel('Finish time', { exact: true })).toHaveValue('');
   await expect(page.locator('#work-note')).toHaveValue('');
   await expect(page.getByText('PRIVATE OLD NOTE')).toHaveCount(0);
   await expect(page.getByTestId('current-month-hours')).toContainText('0 h');
@@ -209,11 +248,13 @@ test('late manager responses and private drafts disappear after account or role 
 
 test('save errors preserve the draft; mobile localization and all themes keep the page readable', async ({ page }, testInfo) => {
   await fixture(page, { failEntry: true });
-  await page.getByLabel('Hours', { exact: true }).fill('7');
+  await page.getByLabel('Start time', { exact: true }).fill('08:00');
+  await page.getByLabel('Finish time', { exact: true }).fill('15:00');
   await page.locator('#work-note').fill('Keep this draft');
   await page.getByRole('button', { name: 'Save hours', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('not available');
-  await expect(page.getByLabel('Hours', { exact: true })).toHaveValue('7');
+  await expect(page.getByLabel('Start time', { exact: true })).toHaveValue('08:00');
+  await expect(page.getByLabel('Finish time', { exact: true })).toHaveValue('15:00');
   await expect(page.locator('#work-note')).toHaveValue('Keep this draft');
   await page.setViewportSize({ width: 390, height: 844 });
   for (const language of ['lv', 'ru', 'en']) {
@@ -225,7 +266,8 @@ test('save errors preserve the draft; mobile localization and all themes keep th
           const box = node.getBoundingClientRect(); return box.width > 1 && box.right > innerWidth + 1;
         }).slice(0, 8).map(node => ({ tag: node.tagName, class: node.className, text: node.textContent?.trim().slice(0, 100) })) }));
       expect(layout.width, `${language}/${theme}: ${JSON.stringify(layout.overflowing)}`).toBeLessThanOrEqual(layout.viewport + 1);
-      await expect(page.locator('#work-hours')).toBeVisible();
+      await expect(page.locator('#work-start')).toBeVisible();
+      await expect(page.locator('#work-finish')).toBeVisible();
     }
   }
   await page.screenshot({ path: testInfo.outputPath('workforce-mobile-high-contrast.png'), fullPage: true });
@@ -233,7 +275,7 @@ test('save errors preserve the draft; mobile localization and all themes keep th
 
 test('assistant context describes the cabinet without disclosing notes, absence reasons or worker identities', async ({ page }) => {
   const observed = await fixture(page);
-  await page.getByLabel('Hours', { exact: true }).fill('2');
+  await page.getByLabel('Start time', { exact: true }).fill('08:00');
   await page.locator('#work-note').fill('PRIVATE WORK NOTE');
   await page.getByLabel('First day away', { exact: true }).fill('2026-11-02');
   await page.getByLabel('Reason', { exact: true }).selectOption('sick');
@@ -303,24 +345,29 @@ test('assistant context follows cabinet filters while search text and worker ide
     displayedWorkerCount: null, workerFilter: null, workerSearchActive: null });
 });
 
-test('month overview selects days with draft protection and keyboard navigation, and future dates stay read only', async ({ page }) => {
-  const observed = await fixture(page);
+test('management retains month overview, draft protection and keyboard navigation, and future dates stay read only', async ({ page }) => {
+  const observed = await fixture(page, { manager: true, initialEntries: [workforceFixtureEntry({
+    userId: workforceFixtureUsers.manager.id, startTime: '08:00', finishTime: '16:00'
+  })] });
+  await expect(page.locator('.wfc-summary-grid > article')).toHaveCount(3);
+  await expect(page.locator('.wfc-month-totals')).toBeVisible();
   const calendar = page.locator('.wfc-calendar-table');
   const savedDay = calendar.locator('[data-work-date="2026-10-30"]');
   await expect(savedDay).toHaveAccessibleName(/Time recorded.*8 h/);
-  await page.getByLabel('Hours', { exact: true }).fill('4');
+  await page.getByLabel('Start time', { exact: true }).fill('04:00');
   await savedDay.click();
   const dialog = page.getByRole('dialog', { name: 'Leave your unsaved changes?' });
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByLabel('Work date', { exact: true })).toHaveValue('2026-10-31');
-  await expect(page.getByLabel('Hours', { exact: true })).toHaveValue('4');
+  await expect(page.getByLabel('Start time', { exact: true })).toHaveValue('04:00');
   await savedDay.click();
   await dialog.getByRole('button', { name: 'Discard draft', exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByLabel('Work date', { exact: true })).toHaveValue('2026-10-30');
-  await expect(page.getByLabel('Hours', { exact: true })).toHaveValue('8');
+  await expect(page.getByLabel('Start time', { exact: true })).toHaveValue('08:00');
+  await expect(page.getByLabel('Finish time', { exact: true })).toHaveValue('16:00');
   await expect(savedDay).toHaveAttribute('data-selected', 'true');
   await savedDay.focus();
   await page.keyboard.press('ArrowLeft');

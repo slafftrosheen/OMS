@@ -3546,6 +3546,16 @@
       "faceNumber": "FACE material {number}",
       "print3d": "3D printing material",
       "materialNote": "Material note",
+      "notes": "Notes",
+      "notesPlaceholder": "Add production notes…",
+      "showNotes": "Show {section} notes",
+      "print": "PRINT",
+      "printFilm": "Print on film",
+      "legacyPrint": "Assign this earlier 3D material to FACE or BACK.",
+      "legacyPrintUnassigned": "Earlier 3D material — part not recorded.",
+      "assignPrintFace": "Assign to FACE",
+      "assignPrintBack": "Assign to BACK",
+      "clearBackBeforeAssigning": "Clear the current BACK material before assigning this 3D material.",
       "connector": "Connector model",
       "psuType": "Power supply type",
       "profileName": "Profile name",
@@ -3789,5 +3799,21 @@
     "supplierSource": "Lemona source",
     "manufacturerSource": "Manufacturer reference",
     "sourceChecked": "Source checked {date}"
+  },
+  "orderSheet": {
+    "title": "Order form",
+    "locked": "Production specifications are locked in this view. Files, station progress and chat are available below.",
+    "editHint": "Review the production form. Use Edit to change an unapproved draft.",
+    "supportTitle": "Supporting work",
+    "supportHint": "Drawings, files, station progress, material records and order chat.",
+    "retry": "Reload order form",
+    "quantity": "Quantity",
+    "quantityNumber": "Quantity {number}",
+    "profileNotes": "Profile notes",
+    "note": "Note",
+    "focusedEditor": "This profile is open in the focused editor. Apply or close that editor to return here.",
+    "legacyProfile": "This profile uses an older format. Saved details are shown below; verify them against the order drawings.",
+    "accessDenied": "This account cannot read the saved order form. Reload or ask the order manager to check access.",
+    "loadFailed": "The saved order form could not be loaded. Reload to try again."
   }
 }

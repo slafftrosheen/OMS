@@ -23,6 +23,8 @@
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
   import OrderFlowAssistant from '$lib/order/OrderFlowAssistant.svelte';
   import OrderNativeProfileForm from '$lib/order/OrderNativeProfileForm.svelte';
+  import OrderProfileSheet from '$lib/order/OrderProfileSheet.svelte';
+  import { orderSheetAccountKey, readOrderSheetSnapshot, profileSheetKey, type OrderSheetProfile } from '$lib/order/order-sheet';
   import OrderWorkflowCoach from '$lib/order/OrderWorkflowCoach.svelte';
   import type {GuideStepId} from '$lib/order/order-flow-guidance';
   import OrderReadinessAssistant from '$lib/order/OrderReadinessAssistant.svelte';
@@ -38,7 +40,16 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   const assistant = getAssistantContext();
   let routeController = new AbortController();
   let routeDisposed = false;
-  onDestroy(() => { routeDisposed = true; routeController.abort(); });
+  let requestGeneration = $state(0);
+  let ownerKey = $derived(orderSheetAccountKey($currentUser));
+  let loadedOwnerKey = $state('');
+  type OrderRequestScope = { id: string; owner: string; generation: number; signal: AbortSignal; isCurrent: () => boolean };
+  function captureOrderRequest(id: string = orderId ?? data.id): OrderRequestScope {
+    const owner = ownerKey, generation = requestGeneration, signal = routeController.signal;
+    return { id, owner, generation, signal, isCurrent: () => !routeDisposed && !signal.aborted &&
+      generation === requestGeneration && data.id === id && ownerKey === owner && !!owner };
+  }
+  onDestroy(() => { routeDisposed = true; requestGeneration++; routeController.abort(); });
   const assistantSections: Partial<Record<WorkspaceSection, string>> = {
     chat: 'discuss', intake: 'intake', readiness: 'readiness'
   };
@@ -58,6 +69,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let notes = $state('');
   let priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' = $state('NORMAL');
   let status = $state<OrderStatus>('DRAFT');
+  let sourceStatus = $state('');
   let deliveryAddress = $state('');
   let deliveryContact = $state('');
   let deliveryPhone = $state('');
@@ -70,14 +82,18 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let profileChoicesError = $state('');
   let profileChoicesTruncated = $state(false);
   async function loadProfileChoices() {
+    const scope = captureOrderRequest();
+    if (!scope.isCurrent()) return;
     profileChoicesError = '';
     try {
-      const response = await fetch('/api/order/profile-choices', { cache: 'no-store' });
+      const response = await fetch('/api/order/profile-choices', { cache: 'no-store', signal: scope.signal });
       if (!response.ok) throw new Error('Profile catalog unavailable');
       const payload = await response.json();
+      if (!scope.isCurrent()) return;
       profileChoices = Array.isArray(payload.templates) ? payload.templates : [];
       profileChoicesTruncated = payload.truncated === true;
     } catch {
+      if (!scope.isCurrent()) return;
       profileChoices = [];
       profileChoicesError = 'Profile template catalog could not be loaded';
     }
@@ -110,11 +126,12 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   async function reviewChangeRequest(requestId:string, decision:'approved'|'rejected') {
     if(!isAdmin||reviewInProgress||!orderId)return;
     if(!window.confirm($t('orderWorkspace.reviewDecisionWarning')))return;
+    const scope=captureOrderRequest();
     reviewInProgress=true;
     changeRequestError='';
     try{
       const response=await fetch(`/api/change-requests/${encodeURIComponent(requestId)}/review`,{
-        method:'POST',headers:{'Content-Type':'application/json'},
+        method:'POST',signal:scope.signal,headers:{'Content-Type':'application/json'},
         body:JSON.stringify({status:decision})
       });
       if(!response.ok){
@@ -122,24 +139,26 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         throw new Error(responseBody.message||responseBody.error||
           $t('orderWorkspace.changeReviewError'));
       }
+      if(!scope.isCurrent())return;
       await loadChangeRequests();
-      notifySuccess($t('orderWorkspace.reviewRecorded'));
+      if(scope.isCurrent())notifySuccess($t('orderWorkspace.reviewRecorded'));
     }catch(err){
+      if(!scope.isCurrent())return;
       changeRequestError=err instanceof Error?err.message:
         $t('orderWorkspace.changeReviewError');
-    }finally{reviewInProgress=false;}
+    }finally{if(scope.isCurrent())reviewInProgress=false;}
   }
 
   async function loadChangeRequests() {
     if(!orderId)return;
-    const id=orderId;
+    const scope=captureOrderRequest(), id=scope.id;
     changeRequestError='';
     try{
       const res=await fetch(`/api/draft-orders/${encodeURIComponent(id)}/change-requests`,
-        {cache:'no-store'});
+        {cache:'no-store',signal:scope.signal});
       if(!res.ok)throw new Error($t('orderWorkspace.changeListError'));
       const data=await res.json();
-      if(id!==orderId)return;
+      if(!scope.isCurrent())return;
       changeRequests=Array.isArray(data)?data.map((cr:any)=>({
         id:cr.id,title:cr.title||cr.description||'Change request',
         author:cr.proposed_by_user?.display_name ||
@@ -149,7 +168,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         reviewNotes:cr.review_notes??null
       })):[];
     }catch(err){
-      if(id===orderId)changeRequestError=err instanceof Error?err.message:
+      if(scope.isCurrent())changeRequestError=err instanceof Error?err.message:
         $t('orderWorkspace.changeListError');
     }
   }
@@ -203,14 +222,14 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   }
   async function refreshFileCount():Promise<number|null> {
     if(!orderId)return null;
-    const id=orderId;
+    const scope=captureOrderRequest(), id=scope.id;
     try {
-      const count=await fetchOrderFilesCount(id);
-      if(orderId!==id)return null;
+      const count=await fetchOrderFilesCount(id,(input,options)=>fetch(input,{...options,signal:scope.signal}));
+      if(!scope.isCurrent())return null;
       attachedFilesCount=count;filesCountError=false;
       return count;
     }catch{
-      if(orderId===id){attachedFilesCount=null;filesCountError=true;}
+      if(scope.isCurrent()){attachedFilesCount=null;filesCountError=true;}
       return null;
     }
   }
@@ -243,41 +262,53 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let activeNativeProfile = $derived(activeNativeProfileIndex===null ? null : profiles[activeNativeProfileIndex]??null);
   let stagedNativeConfiguration = $state<Record<string,unknown>|null>(null);
   let nativeProfileBaseline = $state('');
+  let nativeProfileScope: OrderRequestScope | null = null;
+  let nativeProfileKey = '';
+  const isCurrentNativeProfile = () => !!nativeProfileScope?.isCurrent() && activeNativeProfileIndex !== null &&
+    !!profiles[activeNativeProfileIndex] && profileSheetKey(profiles[activeNativeProfileIndex], activeNativeProfileIndex) === nativeProfileKey;
   let profileEditorUnsaved = $derived(activeNativeProfileIndex !== null && stagedNativeConfiguration !== null &&
     JSON.stringify(stagedNativeConfiguration) !== nativeProfileBaseline);
   let nativeProfileDialog = $state<HTMLDialogElement|undefined>(undefined);
   async function openNativeProfile(index:number){
     const profile=profiles[index];
-    if(!profile)return;
+    if(!currentOrderVisible || !profile)return;
+    const scope=captureOrderRequest();
+    nativeProfileScope=scope;
+    nativeProfileKey=profileSheetKey(profile,index);
     // Keep staged edits away from the order until Apply is explicitly clicked.
     // The native form merges defaults while mounting; that must not dirty a draft.
     nativeProfileBaseline=JSON.stringify(profile.configuration??{});
     stagedNativeConfiguration=JSON.parse(nativeProfileBaseline);
     activeNativeProfileIndex=index;
     await tick();
-    if(nativeProfileDialog && !nativeProfileDialog.open)nativeProfileDialog.showModal();
+    if(scope.isCurrent() && isCurrentNativeProfile() && nativeProfileDialog && !nativeProfileDialog.open)nativeProfileDialog.showModal();
   }
   function clearNativeProfileDialog(){
     activeNativeProfileIndex=null;
     stagedNativeConfiguration=null;
     nativeProfileBaseline='';
+    nativeProfileScope=null;nativeProfileKey='';
   }
   function closeNativeProfile(){
     nativeProfileDialog?.close();
     clearNativeProfileDialog();
   }
   function stageNativeProfile(configuration:Record<string,unknown>){
-    if(!canEdit||activeNativeProfileIndex===null)return;
+    if(!canEdit||!isCurrentNativeProfile()||activeNativeProfileIndex===null)return;
     stagedNativeConfiguration=configuration;
   }
   function applyNativeProfile(){
-    if(!canEdit||activeNativeProfileIndex===null||!stagedNativeConfiguration)return;
+    if(!canEdit||!isCurrentNativeProfile()||activeNativeProfileIndex===null||!stagedNativeConfiguration)return;
     const index=activeNativeProfileIndex;
     const approved=JSON.parse(JSON.stringify(stagedNativeConfiguration));
     profiles=profiles.map((profile,i)=>i===index
       ?{...profile,configuration:approved}:profile);
     // Normal version-checked Save Draft remains the ONLY persistence action.
     closeNativeProfile();
+  }
+  function updateInlineProfile(index: number, profile: OrderSheetProfile) {
+    if (!canEdit || !profiles[index] || activeNativeProfileIndex === index) return;
+    profiles = profiles.map((current, i) => i === index ? profile : current);
   }
   async function navigateWorkflowHelp(target:WorkspaceSection,step:GuideStepId){
     if (!assistantSections[target]) assistant.close();
@@ -343,12 +374,13 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   let aiResponse = $state('');
 
   // ── Permissions ───────────────────────────────────────────────────────────────
-  let isAdmin = $derived(can($currentUser, 'editOrder'));
-  let canEdit = $derived(['DRAFT','PENDING_REVIEW'].includes(status) &&
+  let currentOrderVisible = $derived(!!orderId && orderId === data.id && !!ownerKey && loadedOwnerKey === ownerKey && !loading && !error);
+  let isAdmin = $derived(currentOrderVisible && can($currentUser, 'editOrder'));
+  let canEdit = $derived(currentOrderVisible && ['DRAFT','draft','PENDING_REVIEW'].includes(sourceStatus) &&
     (isAdmin || !!$currentUser && $currentUser.id === createdBy));
-  let canApprove = $derived(can($currentUser, 'confirmOrder') &&
-    ['DRAFT','PENDING_REVIEW'].includes(status));
-  let canAssignPo = $derived(can($currentUser, 'assignPoNumber'));
+  let canApprove = $derived(currentOrderVisible && can($currentUser, 'confirmOrder') &&
+    ['DRAFT','draft','PENDING_REVIEW'].includes(sourceStatus));
+  let canAssignPo = $derived(currentOrderVisible && can($currentUser, 'assignPoNumber'));
   let canAskOrderAssistant = $derived(canEdit||
     (isAdmin&&['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(status)));
   let orderGuideContext = $derived({
@@ -363,17 +395,18 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
 
   $effect(() => {
-    const id = data.id;
+    const id = data.id, owner = ownerKey;
     return untrack(() => assistant.register({
-      id: `order:${id}`,
-      title: () => poNumber || title || clientName || $t('orderAssistant.title'),
+      id: `order:${id}:${owner}`,
+      title: () => currentOrderVisible ? poNumber || title || clientName || $t('orderAssistant.title') : $t('orderAssistant.title'),
       tools: () => canAskOrderAssistant ? [
         { id: 'discuss', label: $t('orderAssistant.title') },
         ...(canEdit ? [{ id: 'intake', label: $t('orderAssistant.openFileAnalysis') }] : []),
         { id: 'readiness', label: $t('productionReadiness.title') },
         ...(canEdit ? [{ id: 'canvas', label: $t('orderAssistant.canvasTools') }] : [])
       ] : [],
-      context: () => orderScreenContext({
+      context: () => !currentOrderVisible ? { screen: 'order-editor', orderId: data.id,
+        loading, unavailable: !loading, order: null, profiles: [] } : orderScreenContext({
         screen: 'order-editor', orderId, status, section: rightTab,
         orderUpdatedAt, unsaved: hasUnsavedChanges,
         profileEditorUnsaved: validProfileIndex(activeNativeProfileIndex, profiles.length) !== null && profileEditorUnsaved,
@@ -418,36 +451,44 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   // ── Load order ────────────────────────────────────────────────────────────────
   $effect(() => {
     const id = data.id;
+    ownerKey;
     untrack(() => { void initializeOrder(id); });
   });
 
   async function initializeOrder(id: string) {
+    requestGeneration++;
     routeController.abort();
     routeController = new AbortController();
-    unsavedWarningEnabled = false;
-    orderId = null;
-    savedFormFingerprint = null;
-    canvasLoaded = false;
-    canvasDirty = false;
-    canvasSnapshot = null;
-    editorRef = null;
-    assistantPrefill = '';
-    assistantPrefillVersion = 0;
-    intakeProfileIndex = null;
-    intakeFileId = '';
-    aiPrompt = ''; aiResponse = ''; aiRunning = false;
-    attachedFilesCount = null;
-    clearNativeProfileDialog();
+    const scope = captureOrderRequest(id);
+    loading = true; error = ''; unsavedWarningEnabled = false;
+    orderId = null; loadedOwnerKey = ''; createdBy = ''; orderUpdatedAt = null;
+    poNumber = ''; clientName = ''; title = ''; deadline = ''; loadingDate = ''; notes = '';
+    priority = 'NORMAL'; status = 'DRAFT'; sourceStatus = '';
+    deliveryAddress = ''; deliveryContact = ''; deliveryPhone = ''; deliveryEmail = '';
+    isRd = false; rdNotes = ''; deliveryPresetId = null; profiles = [];
+    profileChoices = []; profileChoicesError = ''; profileChoicesTruncated = false;
+    changeRequests = []; changeRequestError = ''; reviewInProgress = false;
+    savedFormFingerprint = null; saving = false; confirming = false;
+    canvasLoaded = false; canvasDirty = false; canvasChangeSerial++;
+    canvasSnapshot = null; editorRef = null; selectedShape = null; multiSelectCount = 0;
+    assistantPrefill = ''; assistantPrefillVersion = 0;
+    intakeProfileIndex = null; intakeFileId = '';
+    aiPrompt = ''; aiResponse = ''; aiRunning = false; useSelectionCtx = false; activeTool = 'select';
+    attachedFilesCount = null; filesCountError = false;
+    confirmOrderModal = false; reworkModal = false; reworking = false; reworkReason = '';
+    pdfMenu = null; pdfMenuRunning = false;
+    closeNativeProfile(); assistant.close();
     const query=new URLSearchParams(window.location.search);
     const initial=sectionFromQuery(query.get('section'));
     rightTab=assistantSections[initial] ? 'details' : initial;
     focusPanel=rightTab!=='layers';
-    await loadOrder(id, routeController.signal);
-    if (routeDisposed || id !== data.id || !orderId) return;
+    if (!scope.owner) { error = $t('orderSheet.accessDenied'); loading = false; return; }
+    await loadOrder(id, scope);
+    if (!scope.isCurrent() || !currentOrderVisible) return;
     void loadProfileChoices();
     canvasLoaded=true;
     await Promise.all([loadChangeRequests(),refreshFileCount()]);
-    if (routeDisposed || id !== data.id) return;
+    if (!scope.isCurrent()) return;
     unsavedWarningEnabled=true;
     if (assistantSections[initial]) openWorkspaceSection(initial);
     // Only a fixed, user-requested shortcut. No consent and no model call.
@@ -455,58 +496,54 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       askWorkflowHelp($t('orderAssistant.nativeProfileQuestion'),'profiles');
   }
 
-  async function loadOrder(id: string, signal: AbortSignal) {
-    loading = true;
-    error = '';
+  async function loadOrder(id: string, scope: OrderRequestScope) {
     try {
-      const response = await fetch(`/api/draft-orders/${id}`, {signal});
-      if (!response.ok) throw new Error('Order not found');
-      const order = await response.json();
-      if (routeDisposed || signal.aborted || id !== data.id) return;
-
-      orderId = String(order.id);
-      createdBy = String(order.createdBy ?? '');
-      orderUpdatedAt = order.updatedAt ?? null;
-      clientName = order.clientName || '';
-      poNumber = order.poNumber || '';
+      const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(id)}`, {signal:scope.signal,cache:'no-store'});
+      if (!response.ok) throw new Error($t(response.status===401 || response.status===403 ? 'orderSheet.accessDenied' : 'orderSheet.loadFailed'));
+      const order = readOrderSheetSnapshot(await response.json(),id);
+      if (!scope.isCurrent()) return;
+      if (!order) throw new Error($t('orderSheet.loadFailed'));
+      orderId = order.id; loadedOwnerKey = scope.owner;
+      createdBy = String(order.createdBy ?? ''); orderUpdatedAt = order.updatedAt;
+      clientName = order.clientName || ''; poNumber = order.poNumber || '';
       title = order.title || order.clientName || '';
       deadline = order.deadline ? order.deadline.split('T')[0] : '';
       loadingDate = order.loadingDate ? order.loadingDate.split('T')[0] : '';
-      notes = order.notes || '';
-      priority = order.priority || 'NORMAL';
-      status = normaliseStatus(order.status);
-      deliveryAddress = order.deliveryAddress || '';
-      deliveryContact = order.deliveryContact || '';
-      deliveryPhone = order.deliveryPhone || '';
-      deliveryEmail = order.deliveryEmail || '';
-      isRd = order.isRd === true;
-      rdNotes = order.rdNotes || '';
-      deliveryPresetId = order.deliveryPresetId ?? null;
-      profiles = order.profiles || [];
-      savedFormFingerprint=formFingerprint();
-
-      // Load canvas snapshot if exists
-      const csRes = await fetch(`/api/draft-orders/${id}/canvas-state`, {signal});
+      notes = order.notes || ''; priority = (order.priority || 'NORMAL') as typeof priority;
+      status = normaliseStatus(order.status); sourceStatus = order.status;
+      deliveryAddress = order.deliveryAddress || ''; deliveryContact = order.deliveryContact || '';
+      deliveryPhone = order.deliveryPhone || ''; deliveryEmail = order.deliveryEmail || '';
+      isRd = order.isRd === true; rdNotes = order.rdNotes || '';
+      deliveryPresetId = typeof order.deliveryPresetId === 'string' ? order.deliveryPresetId : null;
+      profiles = order.profiles; savedFormFingerprint=formFingerprint();
+      const csRes = await fetch(`${base}/api/draft-orders/${encodeURIComponent(id)}/canvas-state`, {signal:scope.signal,cache:'no-store'});
       if (csRes.ok) {
         const cs = await csRes.json();
-        if (routeDisposed || signal.aborted || id !== data.id) return;
+        if (!scope.isCurrent()) return;
         canvasSnapshot = cs.snapshot ?? null;
       }
     } catch (err: any) {
-      if (!routeDisposed && !signal.aborted && id === data.id) error = err.message || 'Failed to load order';
+      if (scope.isCurrent()) {
+        error = err.message || $t('orderSheet.loadFailed');
+        orderId = null; loadedOwnerKey = ''; profiles = []; canvasSnapshot = null;
+      }
     } finally {
-      if (!routeDisposed && !signal.aborted && id === data.id) loading = false;
+      if (scope.isCurrent()) loading = false;
     }
   }
 
   // ── Canvas callbacks ──────────────────────────────────────────────────────────
-  function handleEditorReady(editor: any) {
+  function handleEditorReady(editor: any, scope: OrderRequestScope) {
+    if (!scope.isCurrent() || !currentOrderVisible) return;
     editorRef = editor;
+    editor.updateInstanceState?.({isReadonly:!canEdit});
     editor.store.listen(() => {
+      if (!scope.isCurrent() || editorRef !== editor || !canEdit) return;
       markCanvasDirty();
     }, { scope: 'document' });
     // Selection listener: update Svelte state whenever the user selects shapes
     editor.store.listen(() => {
+      if (!scope.isCurrent() || editorRef !== editor) return;
       try {
         const sel = editor.getSelectedShapes?.() ?? [];
         multiSelectCount = sel.length;
@@ -533,7 +570,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
   // ── Context-bar field updaters (write back to canvas on input) ───────────────
   function updateSelectedGeom(patch: Partial<{ x: number; y: number; w: number; h: number; rotation: number }>) {
-    if (!editorRef || !selectedShape) return;
+    if (!canEdit || !editorRef || !selectedShape) return;
     const s = editorRef.getShape(selectedShape.id);
     if (!s) return;
     const next: any = { id: s.id, type: s.type };
@@ -549,7 +586,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   }
 
   function updateSelectedThickness(thickness: number) {
-    if (!editorRef || !selectedShape) return;
+    if (!canEdit || !editorRef || !selectedShape) return;
     const s = editorRef.getShape(selectedShape.id);
     if (!s) return;
     editorRef.updateShape({
@@ -561,8 +598,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
   // ── Boolean Tool: union / subtract / intersect of selected MakerShapes ──────
   async function applyBooleanOp(op: 'union' | 'subtract' | 'intersect') {
-    if (!editorRef) return;
-    const sel = editorRef.getSelectedShapes?.() ?? [];
+    if (!canEdit || !editorRef) return;
+    const scope=captureOrderRequest(), editor=editorRef;
+    const sel = editor.getSelectedShapes?.() ?? [];
     const makers = sel.filter((s: any) => s.type === 'maker');
     if (makers.length < 2) {
       notifyError('Select 2+ Maker.js shapes to combine');
@@ -570,6 +608,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     }
     try {
       const makerjs = (await import('makerjs')).default;
+      if (!scope.isCurrent() || editorRef !== editor || !canEdit) return;
       // Evaluate each selected maker code and produce a model
       const models: any[] = [];
       for (const m of makers) {
@@ -601,9 +640,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       const code = `module.exports = function() {\n  this.models = ${JSON.stringify(combined.models ?? {})};\n  this.paths = ${JSON.stringify(combined.paths ?? {})};\n};`;
       const center = makers[0];
       // Place the result and remove the originals
-      editorRef.batch(() => {
-        editorRef.deleteShapes(makers.map((m: any) => m.id));
-        editorRef.createShape({
+      editor.batch(() => {
+        editor.deleteShapes(makers.map((m: any) => m.id));
+        editor.createShape({
           type: 'maker',
           x: center.x ?? 0,
           y: center.y ?? 0,
@@ -612,18 +651,21 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       });
       notifySuccess(`Boolean ${op} applied`);
     } catch (err: any) {
+      if (!scope.isCurrent() || editorRef !== editor) return;
       console.error('Boolean op failed', err);
       notifyError(`Boolean ${op} failed: ${err.message ?? 'unknown'}`);
     }
   }
 
-  function handleCanvasSave(snapshot: any) {
+  function handleCanvasSave(snapshot: any, scope: OrderRequestScope) {
+    if (!scope.isCurrent() || !canEdit) return;
     canvasSnapshot = snapshot;
     markCanvasDirty();
   }
 
   /** Called when a form shape field changes on the canvas — syncs back to Svelte state */
-  function handleOrderChange(oid: string, patch: any) {
+  function handleOrderChange(oid: string, patch: any, scope: OrderRequestScope) {
+    if (!scope.isCurrent() || !canEdit || oid !== scope.id) return;
     if (patch.title !== undefined) title = patch.title;
     if (patch.clientName !== undefined) clientName = patch.clientName;
     if (patch.deadline !== undefined) deadline = patch.deadline;
@@ -636,12 +678,14 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     markCanvasDirty();
   }
 
-  function handleProfileChange(oid: string, profileIndex: number, profileData: any) {
+  function handleProfileChange(oid: string, profileIndex: number, profileData: any, scope: OrderRequestScope) {
+    if (!scope.isCurrent() || !canEdit || oid !== scope.id) return;
     profiles = profiles.map((p, i) => i === profileIndex ? { ...p, configuration: profileData } : p);
     markCanvasDirty();
   }
 
-  function handleAssetUploaded(oid: string, asset: { url: string; fileName: string; kind: string }) {
+  function handleAssetUploaded(oid: string, asset: { url: string; fileName: string; kind: string }, scope: OrderRequestScope) {
+    if (!scope.isCurrent() || !canEdit || oid !== scope.id) return;
     markCanvasDirty();
     notifySuccess(`Uploaded ${asset.fileName}`);
   }
@@ -654,14 +698,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       notifyError($t('orderWorkspace.staleSave')); return false;
     }
     if (!clientName.trim() || !deadline) { notifyError('Client and deadline are required'); return false; }
+    const scope = captureOrderRequest();
     saving = true;
     try {
       if (formDirty) {
         // Capture the precise form revision being submitted. New edits during
         // the request remain dirty instead of being reported as saved.
         const sentFingerprint = formFingerprint();
-        const res = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}`, {
-          method: 'PUT',
+        const res = await fetch(`/api/draft-orders/${encodeURIComponent(scope.id)}`, {
+          method: 'PUT', signal: scope.signal,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             clientName, title, deadline, loadingDate: loadingDate || null,
@@ -686,6 +731,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
           throw new Error(payload.error || payload.message || 'Save failed');
         }
         const persisted = await res.json();
+        if (!scope.isCurrent()) return false;
         if (typeof persisted.updatedAt !== 'string' || !persisted.updatedAt)
           throw new Error('Order saved, but its new revision was not returned. Reload before continuing.');
         orderUpdatedAt = persisted.updatedAt;
@@ -701,6 +747,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         let snapshot = canvasSnapshot;
         if (editorRef?.store) {
           const { getSnapshot } = await import('@tldraw/tldraw');
+          if (!scope.isCurrent() || !editorRef?.store) return false;
           snapshot = getSnapshot(editorRef.store);
         }
         if (!snapshot || typeof snapshot !== 'object') {
@@ -708,8 +755,8 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         }
         const serialAtSave = canvasChangeSerial;
         const canvasResponse = await fetch(
-          `/api/draft-orders/${encodeURIComponent(orderId)}/canvas-state`, {
-            method: 'PUT',
+          `/api/draft-orders/${encodeURIComponent(scope.id)}/canvas-state`, {
+            method: 'PUT', signal: scope.signal,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               snapshot,
@@ -725,12 +772,14 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             'Order form was saved, but Canvas failed. Retry before confirming.');
         }
         const savedCanvas = await canvasResponse.json();
+        if (!scope.isCurrent()) return false;
         if (typeof savedCanvas.updatedAt !== 'string' || !savedCanvas.updatedAt)
           throw new Error('Canvas saved, but its order revision was not returned. Reload before continuing.');
         orderUpdatedAt = savedCanvas.updatedAt;
         if (serialAtSave === canvasChangeSerial) canvasDirty = false;
       }
 
+      if (!scope.isCurrent()) return false;
       if (formDirty || canvasDirty) {
         notifyError('New edits were made during Save. Save again before confirming.');
         return false;
@@ -738,29 +787,33 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       notifySuccess('Draft saved');
       return true;
     } catch (err: any) {
-      notifyError(err.message || 'Failed to save');
+      if (scope.isCurrent()) notifyError(err.message || 'Failed to save');
       return false;
     } finally {
-      saving = false;
+      if (scope.isCurrent()) saving = false;
     }
   }
 
   // ── Confirm order ─────────────────────────────────────────────────────────────
   async function confirmOrder() {
-    if(confirming)return;
+    if(confirming || !canApprove)return;
+    const scope=captureOrderRequest();
     confirming = true;
     try {
       if (!canApprove || !orderId) throw new Error('You cannot confirm this order');
       const count=await refreshFileCount();
+      if(!scope.isCurrent())return;
       if(count===null)throw new Error($t('orderWorkspace.confirmFilesUnknown'));
       if(count<1)throw new Error($t('orderWorkspace.confirmFilesMissing'));
       // Only the operator's explicit save is allowed to publish staged AI
       // proposals; confirmation never accepts an AI-written configuration.
-      if (!(await saveDraft())) throw new Error($t('orderWorkspace.confirmSaveFirst'));
+      const saved=await saveDraft();
+      if(!scope.isCurrent())return;
+      if (!saved) throw new Error($t('orderWorkspace.confirmSaveFirst'));
       if (!poNumber.trim()) throw new Error('An externally issued PO number is required');
       if(!orderUpdatedAt)throw new Error($t('orderWorkspace.staleSave'));
-      const res = await fetch(`/api/draft-orders/${encodeURIComponent(orderId)}/confirm`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const res = await fetch(`/api/draft-orders/${encodeURIComponent(scope.id)}/confirm`, {
+        method: 'POST', signal: scope.signal, headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           poNumber:poNumber.trim(),expectedUpdatedAt:orderUpdatedAt
         })
@@ -771,36 +824,40 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
           throw new Error($t('orderWorkspace.staleSave'));
         throw new Error(payload.error || payload.message || 'Confirmation failed');
       }
+      if(!scope.isCurrent())return;
       status = normaliseStatus(payload.status??'CONFIRMED');
+      sourceStatus = status;
       confirmOrderModal = false;
       notifySuccess('Order approved and sent to production');
-      await goto(`${base}/orders/${data.id}`);
+      await goto(`${base}/orders/${scope.id}`);
     } catch (err: any) {
-      notifyError(err.message || 'Failed to confirm order');
+      if(scope.isCurrent())notifyError(err.message || 'Failed to confirm order');
     } finally {
-      confirming = false;
+      if(scope.isCurrent())confirming = false;
     }
   }
 
   // ── Request rework ────────────────────────────────────────────────────────────
   async function submitRework() {
-    if (!reworkReason.trim() || reworking) return;
+    if (!isAdmin || !reworkReason.trim() || reworking) return;
+    const scope=captureOrderRequest();
     reworking = true;
     try {
-      const res = await fetch(`/api/draft-orders/${orderId}/reject`, {
-        method: 'POST',
+      const res = await fetch(`/api/draft-orders/${scope.id}/reject`, {
+        method: 'POST', signal: scope.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: reworkReason.trim() }),
       });
       if (!res.ok) throw new Error((await res.json()).message || 'Rework request failed');
-      status = 'CANCELLED';
+      if(!scope.isCurrent())return;
+      status = 'CANCELLED';sourceStatus = status;
       reworkModal = false;
       reworkReason = '';
       notifySuccess('Rework requested');
     } catch (err: any) {
-      notifyError(err.message || 'Failed to request rework');
+      if(scope.isCurrent())notifyError(err.message || 'Failed to request rework');
     } finally {
-      reworking = false;
+      if(scope.isCurrent())reworking = false;
     }
   }
 
@@ -814,7 +871,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   }
 
   function addShapeToCanvas(type: string) {
-    if (!editorRef) return;
+    if (!canEdit || !editorRef) return;
     const center = editorRef.getViewportPageBounds().center;
     editorRef.createShape({ type, x: center.x - 150, y: center.y - 150 });
   }
@@ -828,10 +885,11 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
   async function replaceSelectionWithMaker(prompt: string) {
     if (!canEdit || aiRunning || routeDisposed) return;
-    const requestOrderId = orderId;
+    const scope = captureOrderRequest();
+    const requestOrderId = scope.id;
     const requestEditor = editorRef;
     const signal = AbortSignal.any([routeController.signal, AbortSignal.timeout(120_000)]);
-    const currentRequest = () => !routeDisposed && !signal.aborted && requestOrderId === orderId && requestEditor === editorRef;
+    const currentRequest = () => scope.isCurrent() && !signal.aborted && requestEditor === editorRef;
     const sel = editorRef?.getSelectedShapes?.() ?? [];
     if (sel.length === 0) {
       notifyError('Select a shape first');
@@ -876,16 +934,17 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       aiResponse = `Replacement failed: ${err.message ?? 'unknown'}`;
       notifyError(aiResponse);
     } finally {
-      if (!routeDisposed && requestOrderId === orderId) aiRunning = false;
+      if (currentRequest()) aiRunning = false;
     }
   }
 
   async function runAiPrompt() {
     if (!canEdit || aiRunning || routeDisposed || !aiPrompt.trim()) return;
     const prompt = aiPrompt;
-    const requestOrderId = orderId;
+    const scope = captureOrderRequest();
+    const requestOrderId = scope.id;
     const signal = AbortSignal.any([routeController.signal, AbortSignal.timeout(120_000)]);
-    const currentRequest = () => !routeDisposed && !signal.aborted && requestOrderId === orderId;
+    const currentRequest = () => scope.isCurrent() && !signal.aborted;
 
     // If the user is asking the AI to clean up the selection, route to the
     // shape-replacement endpoint instead of plain chat.
@@ -951,9 +1010,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       }
       if (!aiResponse) aiResponse = '(no response)';
     } catch {
-      if (!routeDisposed && requestOrderId === orderId) aiResponse = 'Failed to reach AI service.';
+      if (currentRequest()) aiResponse = 'Failed to reach AI service.';
     } finally {
-      if (!routeDisposed && requestOrderId === orderId) aiRunning = false;
+      if (currentRequest()) aiRunning = false;
     }
   }
 
@@ -1110,7 +1169,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 {/snippet}
 
 <svelte:head>
-  <title>{$t('orderWorkspace.editor.canvasTitle')} — {poNumber || 'Order'} | OMS</title>
+  <title>{$t('orderWorkspace.editor.canvasTitle')} — {currentOrderVisible ? poNumber || 'Order' : 'Order'} | OMS</title>
 </svelte:head>
 
 <svelte:window onbeforeunload={(event) => {
@@ -1120,6 +1179,16 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   }
 }} />
 
+{#if !currentOrderVisible}
+  <section class="editor-load-state" aria-label={$t('orderSheet.title')}>
+    {#if loading}<p role="status">{$t('orderDetail.loading')}</p>
+    {:else}
+      <p role="alert">{error || $t('orderSheet.loadFailed')}</p>
+      {#if ownerKey}<button type="button" class="action-btn primary" onclick={() => void initializeOrder(data.id)}>{$t('orderSheet.retry')}</button>{/if}
+      <a href={`${base}/orders`} class="action-btn ghost">{$t('orderDetail.back_to_orders')}</a>
+    {/if}
+  </section>
+{:else}
 <div class="canvas-editor">
   <!-- ── Top Bar ─────────────────────────────────────────────────────────── -->
   <header class="top-bar">
@@ -1210,7 +1279,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         <Icon name="save" size="sm" /> {saving ? $t('orderWorkspace.editor.saving') : $t('orderWorkspace.editor.saveDraft')}
       </button>
       {#if canApprove}
-        <button class="action-btn success" onclick={async()=>{await refreshFileCount();confirmOrderModal=true;}} disabled={confirming}>
+        <button class="action-btn success" onclick={async()=>{const scope=captureOrderRequest();await refreshFileCount();if(scope.isCurrent() && canApprove)confirmOrderModal=true;}} disabled={confirming}>
           <Icon name="check-circle" size="sm" /> {$t(confirming?'orderWorkspace.confirmingAction':'orderWorkspace.confirmAction')}
         </button>
       {/if}
@@ -1297,18 +1366,21 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
           <a href="{base}/orders" class="action-btn primary">{$t('orderWorkspace.editor.backToOrders')}</a>
         </div>
       {:else if canvasLoaded}
-        {#await import('$lib/components/canvas/TldrawWrapper.svelte') then { default: TldrawWrapper }}
-          <TldrawWrapper
-            snapshot={canvasSnapshot}
-            orderSeed={orderSeed}
-            onReady={handleEditorReady}
-            onSave={handleCanvasSave}
-            onOrderChange={handleOrderChange}
-            onProfileChange={handleProfileChange}
-            onAssetUploaded={handleAssetUploaded}
-            hideUI={false}
-          />
-        {/await}
+        {#key `${loadedOwnerKey}:${orderId}:${requestGeneration}`}
+          {@const canvasScope = captureOrderRequest()}
+          {#await import('$lib/components/canvas/TldrawWrapper.svelte') then { default: TldrawWrapper }}
+            <TldrawWrapper
+              snapshot={canvasSnapshot}
+              orderSeed={orderSeed}
+              onReady={editor => handleEditorReady(editor,canvasScope)}
+              onSave={snapshot => handleCanvasSave(snapshot,canvasScope)}
+              onOrderChange={(id,patch) => handleOrderChange(id,patch,canvasScope)}
+              onProfileChange={(id,index,profile) => handleProfileChange(id,index,profile,canvasScope)}
+              onAssetUploaded={(id,asset) => handleAssetUploaded(id,asset,canvasScope)}
+              hideUI={false}
+            />
+          {/await}
+        {/key}
       {/if}
 
       {#if pdfMenu}
@@ -1363,6 +1435,15 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       <!-- Tab content -->
       <div class="docker-content">
         {#if rightTab === 'details'}
+          <div class="inline-order-specification" id="order-edit-profiles">
+            {#if profileChoicesError}<p class="zone-intro" role="alert">{profileChoicesError}</p>{/if}
+            {#if profileChoicesTruncated}<p class="zone-intro">{$t('productionReadiness.profileCatalogTruncated')}</p>{/if}
+            <OrderProfileSheet {profiles} editable={canEdit} focusedProfileIndex={activeNativeProfileIndex}
+              showTemplates={true} templates={profileChoices} templateError={profileChoicesError}
+              onChange={updateInlineProfile}
+              onFocusProfile={index => void openNativeProfile(index)}
+              onRemove={index => { if (canEdit) profiles = profiles.filter((_, i) => i !== index); }} />
+          </div>
           <div class="order-field-panel">
             <label>{$t('orderWorkspace.editor.client')} <input bind:value={clientName} disabled={!canEdit} maxlength="200" required /></label>
             <label>{$t('orderWorkspace.editor.title')} <input bind:value={title} disabled={!canEdit} maxlength="200" /></label>
@@ -1385,51 +1466,6 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             {#if isRd}
               <label>{$t('orderWorkspace.editor.rdNotes')} <textarea bind:value={rdNotes} rows="3" disabled={!canEdit}></textarea></label>
             {/if}
-            <h4 id="order-edit-profiles">{$t('orderWorkspace.editor.profiles',{values:{count:profiles.length}})}</h4>
-            {#if profileChoicesError}
-              <p class="zone-intro" role="alert">{profileChoicesError}</p>
-            {/if}
-            {#if profileChoicesTruncated}
-              <p class="zone-intro">{$t('productionReadiness.profileCatalogTruncated')}</p>
-            {/if}
-            {#each profiles as profile, idx (profile.dbId ?? idx)}
-              <div class="order-profile-edit">
-                <strong>Profile {idx+1}</strong>
-                <label>{$t('productionReadiness.profileSelect')}
-                  <select disabled={!canEdit || !!profileChoicesError}
-                    value={profile.profileTemplateId ?? profile.profile_template_id ?? ''}
-                    onchange={(e) => profiles = profiles.map((p,i) => i===idx ? {
-                      ...p,profileTemplateId:e.currentTarget.value||null
-                    } : p)}>
-                    <option value="">{$t('productionReadiness.profileUnassigned')}</option>
-                    {#each profileChoices as option (option.id)}
-                      <option value={option.id}>{option.code} — {option.name}</option>
-                    {/each}
-                  </select>
-                </label>
-                <label>Quantity
-                  <input type="number" min="1" max="1000" bind:value={profile.quantity} disabled={!canEdit} />
-                </label>
-                {#each [2,3,4] as qty}
-                  <label>Quantity {qty}
-                    <input type="number" min="0" max="1000"
-                      value={profile[`quantity${qty}`] ?? 0}
-                      onchange={(e) => profile[`quantity${qty}`] = Number(e.currentTarget.value)}
-                      disabled={!canEdit} />
-                  </label>
-                {/each}
-                <label>Notes
-                  <textarea bind:value={profile.notes} rows="2" disabled={!canEdit}></textarea>
-                </label>
-                <button type="button" class="action-btn"
-                  onclick={()=>void openNativeProfile(idx)}>
-                  {$t(canEdit?'orderAssistant.editNativeProfile':'orderAssistant.viewNativeProfile')}
-                </button>
-                {#if canEdit}
-                  <button type="button" onclick={() => profiles = profiles.filter((_,i)=>i!==idx)}>Remove profile</button>
-                {/if}
-              </div>
-            {/each}
             {#if canEdit}
               <button type="button" onclick={() => profiles = [...profiles, {
                 clientKey:crypto.randomUUID(),
@@ -1582,7 +1618,11 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   </dialog>
 {/if}
 
+{/if}
+
 <style>
+  .editor-load-state { display: grid; justify-items: start; gap: var(--space-md); padding: var(--space-xl); color: var(--ink-primary); }
+  .inline-order-specification { min-width: 0; padding: var(--space-md); }
   .order-assistant-tool { min-width: 0; }
   .order-assistant-tool[hidden] { display: none; }
   .assistant-guide { margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
@@ -1593,13 +1633,11 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   .assistant-guide summary:focus-visible, .assistant-profile-context select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
   .order-field-panel{display:grid;gap:12px;padding:13px;overflow-y:auto}
-  .order-field-panel>label,.order-profile-edit label{display:grid;gap:5px;font-size:12px}
+  .order-field-panel>label{display:grid;gap:5px;font-size:12px}
   .order-field-panel input:not([type="checkbox"]),.order-field-panel textarea,
   .order-field-panel select{width:100%;box-sizing:border-box;background:var(--bg-1);
     color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px;min-width:0}
   .order-field-panel .checkbox-field{display:flex;gap:8px;align-items:center}
-  .order-field-panel h4{margin:8px 0 0}
-  .order-profile-edit{display:grid;gap:9px;padding:10px;border:1px solid var(--border);border-radius:8px}
 
   /* ── Layout ──────────────────────────────────────────────────────────────── */
   .canvas-editor {
@@ -1849,10 +1887,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   .canvas-body.workspace-focused{grid-template-columns:minmax(0,1fr)}
   .workspace-focused .toolbox,.workspace-focused .canvas-area{display:none}
   .workspace-focused .right-docker{grid-column:1/-1;border-left:0}
-  .workspace-focused .docker-content{width:100%;max-width:1080px;margin:0 auto;box-sizing:border-box}
+  .workspace-focused .docker-content{width:100%;max-width:none;margin:0 auto;box-sizing:border-box}
   .workspace-focused .order-field-panel{grid-template-columns:repeat(2,minmax(0,1fr));
     gap:16px;padding:18px}
-  .workspace-focused .order-profile-edit{min-width:0}
   @media(max-width:980px){
     .top-bar{gap:8px;padding:0 9px}
     .context-bar{display:none}
@@ -2254,7 +2291,6 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   .tool-btn.active {background:var(--brand-soft);color:var(--brand);}
   .order-field-panel input:not([type="checkbox"]),.order-field-panel textarea,
   .order-field-panel select {min-height:42px;border-radius:var(--radius-sm);}
-  .order-profile-edit {background:var(--bg-1);border-color:var(--border);border-radius:var(--radius-md);}
   .native-profile-dialog {background:var(--bg-1);border-color:var(--border);
     border-radius:var(--radius-lg);max-height:92dvh;}
   .native-profile-dialog-footer {background:var(--bg-1);}

@@ -1,0 +1,20 @@
+import { mount } from 'svelte';
+import { addMessages, init } from 'svelte-i18n';
+import en from '../../src/locales/en.json';
+import lv from '../../src/locales/lv.json';
+import ru from '../../src/locales/ru.json';
+import '../../src/app.css';
+import '../../src/lib/styles/a11y.css';
+import '../../src/lib/styles/responsive.css';
+import { authState } from '$lib/auth/authState.svelte';
+import { page } from './app-state';
+import { orderSheetIds } from './order-sheet-fixtures';
+import OrderSheetHarness from './OrderSheetHarness.svelte';
+
+page.params = { id: orderSheetIds.first };
+page.url = new URL(`/orders/${orderSheetIds.first}${window.location.search}`, window.location.origin);
+page.route.id = new URLSearchParams(window.location.search).get('mode') === 'editor' ? '/orders/[id]/edit' : '/orders/[id]';
+addMessages('en', en); addMessages('lv', lv); addMessages('ru', ru);
+await init({ fallbackLocale: 'en', initialLocale: 'en' });
+await authState.load();
+mount(OrderSheetHarness, { target: document.getElementById('app')! });

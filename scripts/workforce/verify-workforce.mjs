@@ -15,6 +15,7 @@ const profiles = read('supabase/migrations/20260204000002_user_profiles.sql').ma
 const notifications = read('supabase/migrations/20260204000008_communications.sql').match(/CREATE TABLE IF NOT EXISTS public\.notifications \([\s\S]*?\n\);/)?.[0];
 assert.ok(profiles && notifications, 'Canonical profile and notification contracts must be available.');
 const migration = read('supabase/migrations/20261031000003_workforce_cabinet.sql');
+const clockMigration = read('supabase/migrations/20261031000006_workforce_clock_times.sql');
 const db = new PGlite();
 const compiled = mkdtempSync(join(tmpdir(), 'oms-workforce-calendar-'));
 const ids = {
@@ -130,12 +131,13 @@ try {
   console.log('PASS: audited calendar exceptions recalculate stored credits without changing actual minutes and invalidate stale editor revisions.');
 
   // Prove every supported TS date matches the real SQL holiday calculation.
-  for (const name of ['types', 'validation', 'calendar']) {
+  for (const name of ['types', 'validation', 'calendar', 'clock-times']) {
     const code = ts.transpileModule(read(`src/lib/workforce/${name}.ts`), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
       .replace(/from '(\.\/(?:types|validation))'/g, "from '$1.mjs'");
     writeFileSync(join(compiled, `${name}.mjs`), code);
   }
   const { classifyWorkDay } = await import(pathToFileURL(join(compiled, 'calendar.mjs')).href);
+  const { parseWorkClockInterval } = await import(pathToFileURL(join(compiled, 'clock-times.mjs')).href);
   const dates = (await db.query("SELECT d::DATE::TEXT AS date, public.workforce_base_holiday(d::DATE) AS holiday FROM generate_series(DATE '2015-01-01', DATE '2099-12-31', INTERVAL '1 day') d")).rows;
   for (const row of dates) assert.equal(classifyWorkDay(row.date).holidayName, row.holiday, `SQL/TS holiday differs on ${row.date}`);
   console.log(`PASS: SQL/TypeScript calendar parity for all ${dates.length} supported dates, including Easter and historical observed festival days.`);
@@ -205,6 +207,56 @@ try {
   await clock('2027-06-01T05:00:00Z');
   assert.ok((await rpc(null, 'workforce_due_report_jobs', [], 'service_role')).some((job) => job.kind === 'monthly_hours' && job.period === '2027-05-01'));
   console.log('PASS: daily snapshot staleness, monthly downtime catch-up, no stale daily spam and summer/winter08:00 offsets.');
+
+  const historical = (await db.query('SELECT id, actual_minutes, credited_minutes, version FROM public.workforce_work_entries ORDER BY id')).rows;
+  await db.exec(clockMigration);
+  assert.deepEqual((await db.query('SELECT id, actual_minutes, credited_minutes, version FROM public.workforce_work_entries ORDER BY id')).rows, historical);
+  assert.equal(await scalar('SELECT count(*)::INTEGER AS value FROM public.workforce_work_entries WHERE start_time IS NOT NULL OR finish_time IS NOT NULL'), 0);
+  await fails(() => rpc(ids.a, 'workforce_save_entry', ['2027-05-10', 60, '', null]), '42501');
+  await fails(() => rpc(ids.a, 'workforce_clock_minutes', ['2027-05-10', '08:00', '09:00']), '42501');
+  console.log('PASS: additive clock migration verifies its predecessor, preserves every historical duration/revision and retires manual-duration writes.');
+
+  let shift = await rpc(ids.a, 'workforce_save_clock_entry', ['2027-05-10', '08:00', '15:31', 'Clock entry', null]);
+  assert.equal(shift.start_time, '08:00:00'); assert.equal(shift.finish_time, '15:31:00');
+  assert.equal(shift.actual_minutes, 451); assert.equal(shift.credited_minutes, 451);
+  assert.equal((await rpc(ids.a, 'workforce_save_clock_entry', ['2027-05-10', '08:00', '15:31', 'Clock entry', null])).version, 1);
+  const shiftedSameDuration = await rpc(ids.a, 'workforce_save_clock_entry', ['2027-05-10', '09:00', '16:31', 'Clock entry', 1]);
+  assert.equal(shiftedSameDuration.version, 2); assert.equal(shiftedSameDuration.actual_minutes, 451);
+  await fails(() => rpc(ids.a, 'workforce_save_clock_entry', ['2027-05-10', '08:00', '16:00', '', 1]), '40001');
+  for (const [start, finish] of [['08:00', '08:00'], ['22:00', '06:00'], ['08:00:30', '16:00'], ['00:00', '24:00']]) {
+    await fails(() => rpc(ids.a, 'workforce_save_clock_entry', ['2027-05-11', start, finish, '', null]), '22023');
+  }
+  await fails(() => rpc(ids.a, 'workforce_save_clock_entry', ['2027-06-02', '08:00', '16:00', '', null]), '22023');
+  await fails(() => rpc(ids.inactive, 'workforce_save_clock_entry', ['2027-05-10', '08:00', '16:00', '', null]), '42501');
+  await fails(() => rpc(null, 'workforce_save_clock_entry', ['2027-05-10', '08:00', '16:00', '', null]), '42501');
+  await fails(() => as(ids.a, 'UPDATE public.workforce_work_entries SET actual_minutes=1 WHERE id=$1', [shift.id]), '42501');
+  await fails(() => db.query('UPDATE public.workforce_work_entries SET actual_minutes=1 WHERE id=$1', [shift.id]), '23514');
+  assert.equal((await as(ids.b, 'SELECT * FROM public.workforce_work_entries WHERE id=$1', [shift.id])).rows.length, 0);
+  for (const manager of [ids.rd, ids.hop, ids.boss]) assert.equal((await as(manager, 'SELECT start_time, finish_time FROM public.workforce_work_entries WHERE id=$1', [shift.id])).rows.length, 1);
+
+  const saturdayShift = await rpc(ids.a, 'workforce_save_clock_entry', ['2027-05-15', '08:00', '09:00', '', null]);
+  const holidayShift = await rpc(ids.a, 'workforce_save_clock_entry', ['2027-05-04', '08:00', '09:00', '', null]);
+  assert.equal(saturdayShift.credited_minutes, 120); assert.equal(holidayShift.credited_minutes, 120);
+  const clockAbsence = await rpc(ids.a, 'workforce_create_absence', ['2027-05-12', '2027-05-12', false, 'leave', '']);
+  await fails(() => rpc(ids.a, 'workforce_save_clock_entry', ['2027-05-12', '08:00', '09:00', '', null]), '23P01');
+  await rpc(ids.a, 'workforce_cancel_absence', [clockAbsence.id, clockAbsence.version]);
+  const clockReport = await rpc(ids.rd, 'workforce_regenerate_monthly_report', ['2027-05-01']);
+  assert.equal(clockReport.payload.totals.actualMinutes, 571); assert.equal(clockReport.payload.totals.creditedMinutes, 691);
+  shift = await rpc(ids.a, 'workforce_save_clock_entry', ['2027-05-10', '08:00', '16:00', 'Corrected clock entry', 2]);
+  assert.equal(await scalar('SELECT is_stale AS value FROM public.workforce_reports WHERE id=$1', [clockReport.id]), true);
+  assert.equal(shift.version, 3);
+  const correctedClockReport = await rpc(ids.rd, 'workforce_regenerate_monthly_report', ['2027-05-01']);
+  assert.equal(correctedClockReport.payload.totals.actualMinutes, 600); assert.equal(correctedClockReport.payload.totals.creditedMinutes, 720);
+  console.log('PASS: clock input persists, server computes credits, exact retries/versioning/absence/RLS guards hold, and monthly reports count corrected clock entries.');
+
+  for (const [date, start, finish] of [['2026-03-29', '01:00', '05:00'], ['2026-10-25', '01:00', '05:00'], ['2026-10-30', '08:00', '17:00']]) {
+    const expected = parseWorkClockInterval(date, start, finish).actualMinutes;
+    assert.equal(await scalar('SELECT public.workforce_clock_minutes($1,$2,$3) AS value', [date, start, finish]), expected);
+  }
+  for (const [date, start, finish] of [['2026-03-29', '03:30', '05:00'], ['2026-10-25', '01:00', '03:30']]) {
+    await fails(() => rpc(ids.a, 'workforce_save_clock_entry', [date, start, finish, '', null]), '22007');
+  }
+  console.log('PASS: SQL and TypeScript agree across Riga clock changes; skipped/repeated boundary times are rejected instead of guessed.');
 } finally {
   await db.close();
   rmSync(compiled, { recursive: true, force: true });

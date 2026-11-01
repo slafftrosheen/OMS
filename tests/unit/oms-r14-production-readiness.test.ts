@@ -119,7 +119,11 @@ describe('OMS-R14 grounded production intelligence',()=>{
     expect(editor).toContain('content: orderAssistantContent');
     expect(editor).toContain("canRun={!!$currentUser && can($currentUser, 'editOrder')");
     expect(editor).toContain("fetch('/api/order/profile-choices'");
-    expect(editor).toContain('profileTemplateId:e.currentTarget.value||null');
+    expect(editor).toContain('showTemplates={true} templates={profileChoices}');
+    const sheet=read('src/lib/order/OrderProfileSheet.svelte');
+    expect(sheet).toContain('profileTemplateId: event.currentTarget.value || null');
+    expect(sheet).toContain('profile_template_id: event.currentTarget.value || null');
+    expect(sheet).toContain('disabled={!editable || !!templateError}');
     const catalog=read('src/routes/api/order/profile-choices/+server.ts');
     expect(catalog).toContain("if(!locals.user)throw error(401");
     expect(catalog).toContain("from('profile_templates')");

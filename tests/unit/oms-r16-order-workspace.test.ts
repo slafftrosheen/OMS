@@ -88,7 +88,7 @@ describe('OMS-R16 consolidated order workspace',()=>{
     expect(files).toContain('onChanged?: () => void');
     expect(files).toContain('onChanged?.()');
     expect(overview).toContain("goto(base + workspaceUrl(orderId,'details'))");
-    expect(overview).toContain("goto(base + workspaceUrl(orderId,'intake'))");
+    expect(overview).toContain("goto(base + workspaceUrl(orderId,'layers'))");
     expect(overview).toContain("goto(base + workspaceUrl(orderId,'revisions'))");
   });
   it('does not offer invalid COMPLETED stage transitions from order overview',()=>{

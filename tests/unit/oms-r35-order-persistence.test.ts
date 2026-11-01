@@ -80,6 +80,9 @@ describe('OMS-R35: form/Canvas revision chain', () => {
     expect(editor).toContain('if (formDirty || canvasDirty)');
     expect(editor).toContain('getSnapshot(editorRef.store)');
     expect(editor).toContain('Save again before confirming');
-    expect(editor).toContain('if (!(await saveDraft()))');
+    expect(editor).toContain('const saved=await saveDraft();');
+    expect(editor).toContain("if (!saved) throw new Error($t('orderWorkspace.confirmSaveFirst'))");
+    expect(editor).toContain('if (!scope.isCurrent()) return false;');
+    expect(editor).toContain('if (scope.isCurrent()) saving = false;');
   });
 });

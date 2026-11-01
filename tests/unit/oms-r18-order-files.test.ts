@@ -45,8 +45,13 @@ describe('OMS-R18 canonical attachment pagination',()=>{
       'src/lib/order/OrderIntakeAssistant.svelte'])
       expect(read(p)).toContain('fetchAllOrderFiles');
     expect(read('src/lib/order/OrderFiles.svelte')).toContain('loadFiles(false)');
-    expect(read('src/routes/orders/[id]/edit/+page.svelte')).toContain('fetchOrderFilesCount(id)');
-    expect(read('src/routes/orders/[id]/+page.svelte')).toContain('fetchOrderFilesCount(requestedId)');
+    const editor=read('src/routes/orders/[id]/edit/+page.svelte');
+    const detail=read('src/routes/orders/[id]/+page.svelte');
+    expect(editor).toContain('fetchOrderFilesCount(id,');
+    expect(editor).toContain('signal:scope.signal');
+    expect(editor).toContain('if(!scope.isCurrent())return null;');
+    expect(detail).toContain('fetchOrderFilesCount(requestedId,');
+    expect(detail).toContain('version === requestVersion');
     expect(read('src/routes/orders/[id]/edit/+page.ts')).not.toContain('const filesRes');
   });
   it('updates local views only after successful mutation and retains error feedback',()=>{

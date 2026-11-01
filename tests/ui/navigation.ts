@@ -1,3 +1,4 @@
+import { page } from './app-state';
 import { onDestroy } from 'svelte';
 
 export * from '../../src/app/navigation.js';
@@ -19,4 +20,9 @@ export function requestFixtureNavigation() {
 
 export function replaceState(url: string | URL, state: Record<string, unknown>) {
   window.history.replaceState(state, '', url);
+}
+
+export function pushState(url: string | URL, state: Record<string, unknown>) {
+  window.history.pushState(state, '', url);
+  page.url = new URL(url, window.location.origin);
 }

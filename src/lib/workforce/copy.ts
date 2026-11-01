@@ -1,6 +1,8 @@
 /** Feature copy follows the account's shared language selection. */
 const en = {
   title: 'My cabinet', intro: 'Record your working time, plan an absence and return to any month.',
+  workerIntro: 'Enter your start and finish times and see your monthly totals.',
+  workerActualHours: 'Hours worked', workerCreditedHours: 'Hours including 2×',
   personal: 'My hours', team: 'Team overview', reports: 'Reports', account: 'Your account',
   signIn: 'Sign in to open your personal cabinet.', currentMonth: 'Worked this month',
   actualHours: 'Actual hours', creditedHours: 'Pay-equivalent hours', premiumHours: 'Hours at 2×',
@@ -9,10 +11,15 @@ const en = {
   policy: 'Weekend and Latvian public-holiday hours count twice for pay. A holiday on a weekend still counts at 2×. Your actual working time stays unchanged.',
   hourUnit: 'h', minuteUnit: 'min', recordedDays: 'Days with an entry', daysWorked: 'Days worked',
   noEntry: 'Not recorded', zeroEntry: '0 hours recorded', futureDay: 'Upcoming day', today: 'Today',
-  entryTitle: 'Record working time', entryIntro: 'Choose the day and enter the time you actually worked.',
+  entryTitle: 'Record working time', entryIntro: 'Choose the day and enter when you started and finished.',
+  startTime: 'Start time', finishTime: 'Finish time', shiftTimes: 'Start and finish',
+  invalidClockTime: 'Enter both times. Finish must be after start on the same work date.',
+  clockChangeHint: 'This local time is skipped or repeated when the clocks change. Choose unambiguous start and finish times.',
+  legacyTimes: 'This earlier entry has hours only. Enter the actual start and finish times to update it.',
+  missingTimes: 'Start and finish were not recorded',
   workDate: 'Work date', hours: 'Hours', minutes: 'Minutes', note: 'Note (optional)',
   entryNoteHint: 'A short work summary is enough. Do not include confidential details.',
-  entryHint: 'Up to 24 hours per day. Enter 0 hours to explicitly record a day with no work.',
+  entryHint: 'Riga local time, within one calendar day. Duration is calculated automatically; breaks are not deducted.',
   save: 'Save hours', update: 'Update hours', saving: 'Saving…', saved: 'Working time saved.',
   savedAs: 'Recorded for this day', nextStep: 'Ready to save this day.', loadingDay: 'Checking this day…',
   editing: 'Editing a saved day', edit: 'Edit day', delete: 'Delete entry', deleted: 'Working-time entry deleted.',
@@ -90,6 +97,8 @@ export type WorkforceCopy = typeof en;
 
 const ru: WorkforceCopy = {
   title: 'Мой кабинет', intro: 'Записывайте рабочее время, отмечайте отсутствие и просматривайте любой месяц.',
+  workerIntro: 'Укажите время начала и окончания работы и смотрите итоги месяца.',
+  workerActualHours: 'Отработано часов', workerCreditedHours: 'Часы с учётом 2×',
   personal: 'Мои часы', team: 'Команда', reports: 'Отчёты', account: 'Ваш профиль',
   signIn: 'Войдите в систему, чтобы открыть личный кабинет.', currentMonth: 'Отработано за этот месяц',
   actualHours: 'Фактические часы', creditedHours: 'Часы для расчёта оплаты', premiumHours: 'Часы с коэффициентом 2×',
@@ -98,10 +107,15 @@ const ru: WorkforceCopy = {
   policy: 'Рабочие часы в выходные и праздничные дни Латвии учитываются для оплаты вдвойне. Если праздник выпал на выходной, коэффициент остаётся 2×. Фактическое время не меняется.',
   hourUnit: 'ч', minuteUnit: 'мин', recordedDays: 'Дней с записью', daysWorked: 'Отработано дней',
   noEntry: 'Нет записи', zeroEntry: 'Записано 0 часов', futureDay: 'Будущий день', today: 'Сегодня',
-  entryTitle: 'Записать рабочее время', entryIntro: 'Выберите день и укажите фактически отработанное время.',
+  entryTitle: 'Записать рабочее время', entryIntro: 'Выберите день и укажите, когда начали и закончили работу.',
+  startTime: 'Начало работы', finishTime: 'Окончание работы', shiftTimes: 'Начало и окончание',
+  invalidClockTime: 'Укажите оба времени. Окончание должно быть позже начала в тот же рабочий день.',
+  clockChangeHint: 'Это местное время пропускается или повторяется при переводе часов. Выберите однозначное время начала и окончания.',
+  legacyTimes: 'В этом старом отчёте сохранены только часы. Для изменения укажите фактическое время начала и окончания.',
+  missingTimes: 'Время начала и окончания не записано',
   workDate: 'Дата работы', hours: 'Часы', minutes: 'Минуты', note: 'Примечание (необязательно)',
   entryNoteHint: 'Достаточно краткого описания работы. Не указывайте конфиденциальные сведения.',
-  entryHint: 'Не более 24 часов в день. Введите 0 часов, чтобы явно отметить день без работы.',
+  entryHint: 'Местное время Риги, в пределах одного календарного дня. Длительность считается автоматически; перерывы не вычитаются.',
   save: 'Сохранить часы', update: 'Обновить часы', saving: 'Сохранение…', saved: 'Рабочее время сохранено.',
   savedAs: 'Записано за этот день', nextStep: 'Всё готово для сохранения дня.', loadingDay: 'Проверяем этот день…',
   editing: 'Изменение записи', edit: 'Изменить день', delete: 'Удалить запись', deleted: 'Запись рабочего времени удалена.',
@@ -177,6 +191,8 @@ const ru: WorkforceCopy = {
 
 const lv: WorkforceCopy = {
   title: 'Mans kabinets', intro: 'Reģistrējiet darba laiku, plānojiet prombūtni un apskatiet jebkuru mēnesi.',
+  workerIntro: 'Ievadiet darba sākuma un beigu laiku un apskatiet mēneša kopsummas.',
+  workerActualHours: 'Nostrādātās stundas', workerCreditedHours: 'Stundas ar 2× aprēķinu',
   personal: 'Manas stundas', team: 'Komandas pārskats', reports: 'Pārskati', account: 'Jūsu profils',
   signIn: 'Pierakstieties, lai atvērtu personīgo kabinetu.', currentMonth: 'Nostrādāts šomēnes',
   actualHours: 'Faktiskās stundas', creditedHours: 'Stundas samaksas aprēķinam', premiumHours: 'Stundas ar koeficientu 2×',
@@ -185,10 +201,15 @@ const lv: WorkforceCopy = {
   policy: 'Darba stundas nedēļas nogalēs un Latvijas svētku dienās samaksai tiek ieskaitītas divkārši. Ja svētki iekrīt nedēļas nogalē, koeficients paliek 2×. Faktiskais darba laiks nemainās.',
   hourUnit: 'st.', minuteUnit: 'min.', recordedDays: 'Dienas ar ierakstu', daysWorked: 'Nostrādātās dienas',
   noEntry: 'Nav ieraksta', zeroEntry: 'Reģistrētas 0 stundas', futureDay: 'Gaidāma diena', today: 'Šodien',
-  entryTitle: 'Reģistrēt darba laiku', entryIntro: 'Izvēlieties dienu un ievadiet faktiski nostrādāto laiku.',
+  entryTitle: 'Reģistrēt darba laiku', entryIntro: 'Izvēlieties dienu un norādiet, kad sākāt un beidzāt darbu.',
+  startTime: 'Darba sākums', finishTime: 'Darba beigas', shiftTimes: 'Sākums un beigas',
+  invalidClockTime: 'Ievadiet abus laikus. Beigām jābūt pēc sākuma tajā pašā darba dienā.',
+  clockChangeHint: 'Šis vietējais laiks tiek izlaists vai atkārtojas pulksteņa maiņas laikā. Izvēlieties nepārprotamu sākuma un beigu laiku.',
+  legacyTimes: 'Šajā agrākajā ierakstā saglabātas tikai stundas. Lai to labotu, ievadiet faktisko sākuma un beigu laiku.',
+  missingTimes: 'Sākuma un beigu laiks nav reģistrēts',
   workDate: 'Darba datums', hours: 'Stundas', minutes: 'Minūtes', note: 'Piezīme (neobligāti)',
   entryNoteHint: 'Pietiek ar īsu darba aprakstu. Neiekļaujiet konfidenciālu informāciju.',
-  entryHint: 'Ne vairāk kā 24 stundas dienā. Ievadiet 0 stundas, lai skaidri atzīmētu dienu bez darba.',
+  entryHint: 'Rīgas vietējais laiks vienā kalendārajā dienā. Ilgumu aprēķina automātiski; pārtraukumus neatņem.',
   save: 'Saglabāt stundas', update: 'Atjaunināt stundas', saving: 'Saglabā…', saved: 'Darba laiks saglabāts.',
   savedAs: 'Reģistrēts šai dienai', nextStep: 'Diena ir gatava saglabāšanai.', loadingDay: 'Pārbauda šo dienu…',
   editing: 'Saglabātās dienas labošana', edit: 'Labot dienu', delete: 'Dzēst ierakstu', deleted: 'Darba laika ieraksts dzēsts.',
@@ -269,6 +290,9 @@ export function absenceReason(reason: string, copy: WorkforceCopy): string {
 }
 
 export function workforceError(error: unknown, copy: WorkforceCopy, saving = false): string {
+  const code = typeof error === 'object' && error && 'code' in error ? error.code : '';
+  if (code === 'CLOCK_CHANGE') return copy.clockChangeHint;
+  if (code === 'INVALID_CLOCK_TIME') return copy.invalidClockTime;
   const status = typeof error === 'object' && error && 'status' in error ? error.status : 0;
   if (status === 401 || status === 403) return copy.forbidden;
   if (status === 409) return copy.conflict;

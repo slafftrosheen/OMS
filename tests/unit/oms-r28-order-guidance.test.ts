@@ -67,10 +67,13 @@ describe('OMS-R28 contextual order guidance UX',()=>{
    expect(coach).toContain('onAsk?.($t(');
    expect(coach).not.toContain("fetch('/api/ai/order-assistant'");
  });
- it('shows status-specific handoff tips without bypassing order roles',()=>{
+ it('shows review and lock guidance without bypassing order roles',()=>{
    const detail=read('src/routes/orders/[id]/+page.svelte');
    expect(detail).toContain("mayAskOrderAssistant");
-   expect(detail).toContain("orderGuide.lifecycle.");
+   expect(detail).toContain("normaliseStatus(order.status) === 'PENDING_REVIEW' && can($currentUser, 'reviewQueue')");
+   expect(detail).toContain("orderDetail.pending_review_msg");
+   expect(detail).toContain("mayEditSpecification ? 'orderSheet.editHint' : 'orderSheet.locked'");
+   expect(detail).toContain('mayEditOrderSheet($currentUser, draftSheet)');
    expect(detail).toContain("goto(base + workspaceUrl(orderId,'chat'))");
    expect(detail).toContain("['RD','Boss','HeadOfProduction']");
  });

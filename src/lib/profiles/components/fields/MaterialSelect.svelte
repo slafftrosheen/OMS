@@ -63,7 +63,7 @@
     badgeThickness?: string;
     badgeShortName?: string;
     badgeDimensions?: string;
-    editorDetails?: Snippet;
+    editorDetails?: Snippet<[Material | null]>;
     finishOnSelect?: boolean;
     onchange?: (data: {
       value: string;
@@ -601,7 +601,7 @@
   </div>
   {#if compactSelection && editorDetails}
     <div class="editor-details">
-      {@render editorDetails()}
+      {@render editorDetails(selectedMaterial)}
     </div>
   {/if}
   {#if compactSelection && value && !readonly}

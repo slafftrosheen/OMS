@@ -3,7 +3,7 @@
     import { page } from "$app/state";
     import { base } from "$app/paths";
     import { goto } from "$app/navigation";
-    import { onMount, untrack } from "svelte";
+    import { onDestroy, untrack } from "svelte";
     import { getAssistantContext, GENERAL_ASSISTANT_TOOL } from '$lib/assistant/context';
     import { t } from "svelte-i18n";
     import Button from "$lib/components/ui/Button.svelte";
@@ -14,9 +14,12 @@
     import Tabs from "$lib/components/ui/Tabs.svelte";
     import ChatContainer from "$lib/components/chat/ChatContainer.svelte";
     import OrderFiles from "$lib/order/OrderFiles.svelte";
+    import OrderProfileSheet from "$lib/order/OrderProfileSheet.svelte";
+    import { mayEditOrderSheet, orderSheetAccountKey, readOrderSheetSnapshot, type OrderSheetSnapshot } from '$lib/order/order-sheet';
+    import { AlertTriangle, LockKeyhole } from 'lucide-svelte';
     import {fetchOrderFilesCount} from "$lib/order/order-files-client";
     import {
-      workspaceUrl, suggestedWorkspaceSection, stageProgressPercent, stageProgressSummary, mayControlStage
+      workspaceUrl, stageProgressPercent, stageProgressSummary, mayControlStage
     } from "$lib/order/workspace-navigation";
 
     import QRCodeDisplay from "$lib/components/qr/QRCodeDisplay.svelte";
@@ -28,11 +31,14 @@
     import { buildStagePatch } from '$lib/order/stage-contract';
 
     let orderId = $derived(page.params.id);
+    let ownerKey = $derived(orderSheetAccountKey($currentUser));
+    const formatTimestamp = (value: unknown) => typeof value === 'string' && !Number.isNaN(Date.parse(value))
+      ? new Date(value).toLocaleString() : '—';
     const assistant = getAssistantContext();
     $effect(() => {
-      const id = orderId;
+      const id = orderId, owner = ownerKey;
       return untrack(() => assistant.register({
-        id: `order-detail:${id}`, title: () => currentOrderVisible
+        id: `order-detail:${id}:${owner}`, title: () => currentOrderVisible
           ? order?.po_number || order?.title || $t('assistant.screen.orders') : $t('assistant.screen.orders'),
         defaultToolId: GENERAL_ASSISTANT_TOOL,
         tools: () => mayAskOrderAssistant ? [{ id: 'review', label: $t('orderWorkspace.title') }] : [],
@@ -48,12 +54,15 @@
     });
 
     let order: any = $state(null);
+    let draftSheet = $state<OrderSheetSnapshot | null>(null);
+    let sheetIssue = $state<'denied' | 'failed' | ''>('');
     let loadedOrderId = $state<string | null>(null);
     let loadedAccountId = $state<string | null>(null);
     let loadFailed = $state(false);
     let currentOrderVisible = $derived(order?.id === orderId && loadedOrderId === orderId &&
-      !!$currentUser?.id && loadedAccountId === $currentUser.id);
+      !!ownerKey && loadedAccountId === ownerKey);
     let stageSummary=$derived(stageProgressSummary(order?.stages));
+    let mayEditSpecification = $derived(currentOrderVisible && !!draftSheet && mayEditOrderSheet($currentUser, draftSheet));
     let mayAskOrderAssistant=$derived(!!$currentUser&&currentOrderVisible&&(
       (['RD','Boss','HeadOfProduction'].includes($currentUser.role??'')&&
         ['DRAFT','PENDING_REVIEW','CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD']
@@ -64,10 +73,9 @@
     let fileCount: number | null = $state(null);
     let loading = $state(true);
     let showQRModal = $state(false);
-    let activeTab = $state("overview");
+    let activeTab = $state("stages");
 
     let tabs = $derived([
-        { id: "overview",     label: $t("orderDetail.tabs.overview") },
         { id: "stages",       label: $t("orderDetail.tabs.stages") },
         { id: "files",        label: $t("orderDetail.tabs.files") },
         { id: "consumption",  label: $t("orderDetail.tabs.consumption", { default: "Consumption" }) },
@@ -87,22 +95,31 @@
     };
     let consumption = $state<ConsumptionRow[]>([]);
     let consumptionLoading = $state(false);
+    let requestVersion = 0;
+    let consumptionVersion = 0;
+    let routeController = new AbortController();
 
     async function loadConsumption() {
-        if (!orderId) return;
+        if (!orderId || !currentOrderVisible) return;
+        const id = orderId;
+        const account = ownerKey;
+        const version = ++consumptionVersion;
+        const isCurrent = () => version === consumptionVersion && orderId === id && ownerKey === account;
         consumptionLoading = true;
+        consumption = [];
         try {
-            const res = await fetch(`/api/orders/${orderId}/consumption`);
-            if (res.ok) consumption = await res.json();
+            const res = await fetch(`${base}/api/orders/${encodeURIComponent(id)}/consumption`, { cache: 'no-store' });
+            const rows = res.ok ? await res.json() : [];
+            if (isCurrent()) consumption = Array.isArray(rows) ? rows : [];
         } catch (err) {
             console.error('Failed to load consumption:', err);
         } finally {
-            consumptionLoading = false;
+            if (isCurrent()) consumptionLoading = false;
         }
     }
 
     $effect(() => {
-        if (activeTab === 'consumption') loadConsumption();
+        if (activeTab === 'consumption' && currentOrderVisible) untrack(() => void loadConsumption());
     });
 
     let lifecycleBusy = $state(false);
@@ -208,24 +225,41 @@
 
     async function loadOrderData() {
         const requestedId = orderId;
-        const requestedAccount = $currentUser?.id ?? null;
-        const isCurrent = () => orderId === requestedId && ($currentUser?.id ?? null) === requestedAccount;
+        const requestedAccount = ownerKey;
+        const version = ++requestVersion;
+        routeController.abort();
+        routeController = new AbortController();
+        const signal = routeController.signal;
+        const isCurrent = () => !signal.aborted && version === requestVersion
+          && orderId === requestedId && ownerKey === requestedAccount;
         loading = true;
         loadFailed = false;
+        sheetIssue = '';
+        draftSheet = null;
+        order = null;
+        fileCount = null;
+        consumption = [];
+        consumptionVersion++;
+        if (!requestedAccount) { loading = false; return; }
 
         try {
-            const [orderRes, count] = await Promise.all([
-                fetch(`/api/orders/${requestedId}`),
-                fetchOrderFilesCount(requestedId).catch(() => null),
+            const [orderRes, sheetRes, count] = await Promise.all([
+                fetch(`${base}/api/orders/${encodeURIComponent(requestedId)}`, { signal, cache: 'no-store' }),
+                fetch(`${base}/api/draft-orders/${encodeURIComponent(requestedId)}`, { signal, cache: 'no-store' }).catch(() => null),
+                fetchOrderFilesCount(requestedId, (input, options) => fetch(input, { ...options, signal })).catch(() => null),
             ]);
             if (!isCurrent()) return;
 
             if (orderRes.ok) {
                 const orderData = await orderRes.json();
+                const sheetData = sheetRes?.ok ? await sheetRes.json().catch(() => null) : null;
                 if (!isCurrent()) return;
                 // API returns the order fields at top level (with stages, materials,
                 // assignees, rework_cycles, revisions, activity_log).
                 order = orderData?.order ?? orderData;
+                if (order?.id !== requestedId) throw new Error('Order response does not match the requested order');
+                draftSheet = readOrderSheetSnapshot(sheetData, requestedId);
+                if (!draftSheet) sheetIssue = sheetRes?.status === 401 || sheetRes?.status === 403 ? 'denied' : 'failed';
                 fileCount = count;
                 loadedOrderId = requestedId;
                 loadedAccountId = requestedAccount;
@@ -238,6 +272,9 @@
         } catch (error) {
             if (!isCurrent()) return;
             loadFailed = true;
+            order = null;
+            draftSheet = null;
+            fileCount = null;
             console.error("Failed to load order:", error);
         } finally {
             if (isCurrent()) loading = false;
@@ -283,12 +320,13 @@
     }
 
     async function refreshFileList() {
-        const id=orderId;
+        const id=orderId, account=ownerKey, version=requestVersion;
+        const isCurrent=()=>orderId===id && ownerKey===account && requestVersion===version;
         try {
             const count=await fetchOrderFilesCount(id);
-            if (orderId===id) fileCount=count;
+            if (isCurrent()) fileCount=count;
         } catch {
-            if (orderId===id) fileCount=null;
+            if (isCurrent()) fileCount=null;
         }
     }
 
@@ -303,9 +341,18 @@
         return colors[status] || "var(--ink-3)";
     }
 
-    onMount(() => {
-        loadOrderData();
+    $effect(() => {
+        orderId;
+        ownerKey;
+        untrack(() => {
+          activeTab = 'stages';
+          showQRModal = false;
+          voidModal = false;
+          confirmModal = { open: false, title: '', body: '', action: async () => {} };
+          void loadOrderData();
+        });
     });
+    onDestroy(() => { requestVersion++; consumptionVersion++; routeController.abort(); });
 </script>
 
 {#snippet orderDetailAssistant(toolId: string)}
@@ -334,7 +381,7 @@
             <div class="rf-spinner"></div>
             <p>{$t("orderDetail.loading")}</p>
         </div>
-    {:else if !order}
+    {:else if !currentOrderVisible}
         <div class="error-state">
             <p class="error-message">{$t("orderDetail.not_found")}</p>
             <Button variant="primary" onclick={() => goto(`${base}/orders`)}>
@@ -369,12 +416,14 @@
                 <Button variant="outline" onclick={() => (showQRModal = true)}>
                     {$t("orderDetail.qr_code")}
                 </Button>
-                <Button
+                {#if mayEditSpecification}
+                  <Button
                     variant="primary"
                     onclick={() => goto(base + workspaceUrl(orderId,'details'))}
-                >
+                  >
                     {$t("common.edit")}
-                </Button>
+                  </Button>
+                {/if}
                 {#if (normaliseStatus(order.status) === 'READY_TO_LOAD' || normaliseStatus(order.status) === 'IN_PRODUCTION' || normaliseStatus(order.status) === 'CONFIRMED') && can($currentUser, 'markDispatched')}
                     <Button variant="primary" onclick={dispatchOrder} disabled={lifecycleBusy}>
                         {$t('orderDetail.mark_dispatched', { default: 'Mark dispatched' })}
@@ -393,130 +442,86 @@
             </div>
         </header>
 
-        <!-- Quick Info Cards -->
-        <div class="info-cards">
-            <Card padding="md">
-                <div class="info-card-content">
-                    <span class="info-label">{$t("common.client")}</span>
-                    <span class="info-value">{order.client}</span>
-                </div>
-            </Card>
-            <Card padding="md">
-                <div class="info-card-content">
-                    <span class="info-label">{$t("common.due_date")}</span>
-                    <span class="info-value"
-                        >{order.due_date && !Number.isNaN(new Date(order.due_date).getTime()) ? new Date(order.due_date).toLocaleDateString() : '—'}</span
-                    >
-                </div>
-            </Card>
-            <Card padding="md">
-                <div class="info-card-content">
-                    <span class="info-label">{$t("common.price")}</span>
-                    <span class="info-value"
-                        >{order.price == null ? '—' : `€${order.price.toLocaleString()}`}</span
-                    >
-                </div>
-            </Card>
-            <Card padding="md">
-                <div class="info-card-content">
-                    <span class="info-label">{$t("common.progress")}</span>
-                    <span class="info-value">
-                        {stageSummary.total > 0 ? `${stageProgressPercent(order.stages)}%` : '—'}
-                    </span>
-                    <span class="stage-progress-context">
-                      {$t('productionPacket.progressSummary',{
-                        values:{completed:stageSummary.completed,total:stageSummary.total}
-                      })}
-                    </span>
-                    {#if stageSummary.blocked>0 || stageSummary.rework>0}
-                      <span class="stage-progress-alert" role="status">
-                        {$t('productionPacket.progressHeld',{
-                          values:{blocked:stageSummary.blocked,rework:stageSummary.rework}
-                        })}
-                      </span>
-                    {/if}
-                </div>
-            </Card>
-        </div>
-
-        <!-- Shared entry points to the exact workspace sections. -->
-        <section class="workspace-entry" aria-label={$t('orderWorkspace.workflowLabel')}>
-          <div class="workspace-entry-intro">
-            <h2>{$t('orderWorkspace.title')}</h2>
-            <p>{$t('orderWorkspace.overviewHint')}</p>
-            <p class="detail-guidance" role="note">
-              {$t(`orderGuide.lifecycle.${normaliseStatus(order.status)}`,{
-                default:$t('orderGuide.lifecycle.default')
-              })}
+        <!-- The original draft production form remains the primary order surface. -->
+        {#if draftSheet}
+          <section class="order-specification" aria-label={$t('orderSheet.title')}>
+            <p class="sheet-status" role="note">
+              {#if !mayEditSpecification}<LockKeyhole size={16} aria-hidden="true" />{/if}
+              {$t(mayEditSpecification ? 'orderSheet.editHint' : 'orderSheet.locked')}
             </p>
-          </div>
-          <div class="workspace-entry-links">
-            <button onclick={() => goto(base + workspaceUrl(orderId,
-              suggestedWorkspaceSection(normaliseStatus(order.status),(fileCount??0)>0,false)))}
-              class="entry-link featured">
-              {$t('orderWorkspace.continue')}
-            </button>
-            <button onclick={() => goto(base + workspaceUrl(orderId,'details'))} class="entry-link">
-              {$t('orderWorkspace.sections.details')}
-            </button>
-            <button onclick={() => goto(base + workspaceUrl(orderId,'files'))} class="entry-link">
-              {$t('orderWorkspace.sections.files')}
-              <span class="entry-count">{fileCount ?? '—'}</span>
-            </button>
-            {#if !!$currentUser && (can($currentUser,'editOrder') ||
-              (order.created_by === $currentUser.id && ['DRAFT','PENDING_REVIEW'].includes(normaliseStatus(order.status))))}
-              <button onclick={() => goto(base + workspaceUrl(orderId,'readiness'))} class="entry-link">
-                {$t('orderWorkspace.sections.readiness')}
-              </button>
-              <button onclick={() => goto(base + workspaceUrl(orderId,'revisions'))} class="entry-link">
-                {$t('orderWorkspace.sections.revisions')}
-              </button>
-            {/if}
-          </div>
-        </section>
+            {#key `${loadedAccountId}:${draftSheet.id}:${draftSheet.updatedAt}`}
+              <OrderProfileSheet profiles={draftSheet.profiles} />
+            {/key}
+          </section>
 
-        <!-- Tabs Content -->
-        <Tabs {tabs} bind:activeTab>
-            {#if activeTab === "overview"}
-                <div class="tab-content">
-                    <Card title={$t("orderDetail.description")} padding="lg">
-                        <p class="description-text">
-                            {order.description || $t("common.no_description")}
-                        </p>
-                    </Card>
-
-                    <Card title={$t("orderDetail.details")} padding="lg">
-                        <dl class="details-list">
-                            <div class="detail-item">
-                                <dt>{$t("orderDetail.order_id")}</dt>
-                                <dd>{order.id}</dd>
-                            </div>
-                            <div class="detail-item">
-                                <dt>{$t("common.created")}</dt>
-                                <dd>
-                                    {new Date(
-                                        order.created_at,
-                                    ).toLocaleString()}
-                                </dd>
-                            </div>
-                            <div class="detail-item">
-                                <dt>{$t("common.last_updated")}</dt>
-                                <dd>
-                                    {new Date(
-                                        order.updated_at,
-                                    ).toLocaleString()}
-                                </dd>
-                            </div>
-                            <div class="detail-item">
-                                <dt>{$t("orderDetail.reworks")}</dt>
-                                <dd>{order.rework_count}</dd>
-                            </div>
-                        </dl>
-                    </Card>
+          <div class="client-delivery-row">
+            <section class="sheet-details-card">
+              <h2>{$t('orders.new.sections.details')}
+                {#if draftSheet.notes?.trim() || draftSheet.rdNotes?.trim()}
+                  <a class="sheet-note-badge" href="#order-sheet-notes"><AlertTriangle size={14} aria-hidden="true" /> {$t('orderSheet.note')}</a>
+                {/if}
+              </h2>
+              <div class="sheet-field-grid">
+                <label>{$t('orders.new.details.po')}<input readonly value={draftSheet.poNumber || draftSheet.internalRef || '—'} /></label>
+                <label>{$t('orders.new.details.priority')}<input readonly value={$t(`orderForm.priority.${draftSheet.priority || 'NORMAL'}`)} /></label>
+                <label>{$t('orders.new.details.client')}<input readonly value={draftSheet.clientName || ''} /></label>
+                <label>{$t('orderWorkspace.editor.title')}<input readonly value={draftSheet.title || ''} /></label>
+                <label>{$t('orders.new.details.deadline')}<input readonly value={draftSheet.deadline?.slice(0, 10) || '—'} /></label>
+                <label>{$t('orders.new.details.loading')}<input readonly value={draftSheet.loadingDate?.slice(0, 10) || '—'} /></label>
+              </div>
+              {#if draftSheet.notes?.trim() || draftSheet.rdNotes?.trim()}
+                <div class="sheet-notes" id="order-sheet-notes" tabindex="-1">
+                  {#if draftSheet.notes?.trim()}<strong>{$t('orders.new.details.notes')}</strong><p>{draftSheet.notes}</p>{/if}
+                  {#if draftSheet.isRd && draftSheet.rdNotes?.trim()}<strong>{$t('orderForm.rdNotes')}</strong><p>{draftSheet.rdNotes}</p>{/if}
                 </div>
-            {:else if activeTab === "stages"}
+              {/if}
+            </section>
+            <section class="sheet-details-card">
+              <h2>{$t('orders.new.sections.delivery')}</h2>
+              <div class="sheet-field-grid">
+                <div class="sheet-field wide-field"><span>{$t('orderWorkspace.editor.deliveryAddress')}</span><div class="readonly-field">{draftSheet.deliveryAddress || '—'}</div></div>
+                <label>{$t('orderWorkspace.editor.deliveryContact')}<input readonly value={draftSheet.deliveryContact || ''} /></label>
+                <label>{$t('orderWorkspace.editor.deliveryPhone')}<input readonly value={draftSheet.deliveryPhone || ''} /></label>
+                <label class="wide-field">{$t('orderWorkspace.editor.deliveryEmail')}<input readonly value={draftSheet.deliveryEmail || ''} /></label>
+              </div>
+            </section>
+          </div>
+        {:else}
+          <section class="sheet-unavailable" role="alert">
+            <h2>{$t('orderSheet.title')}</h2>
+            <p>{$t(sheetIssue === 'denied' ? 'orderSheet.accessDenied' : 'orderSheet.loadFailed')}</p>
+            <Button variant="outline" onclick={() => void loadOrderData()}>{$t('orderSheet.retry')}</Button>
+          </section>
+        {/if}
+
+        <section class="supporting-work" aria-label={$t('orderSheet.supportTitle')}>
+          <header class="supporting-heading">
+            <div><h2>{$t('orderSheet.supportTitle')}</h2><p>{$t('orderSheet.supportHint')}</p></div>
+            <div class="workspace-entry-links">
+              <button type="button" onclick={() => goto(base + workspaceUrl(orderId,'layers'))} class="entry-link">
+                {$t('orderWorkspace.sections.layers')}
+              </button>
+              {#if mayAskOrderAssistant}
+                <button type="button" onclick={() => goto(base + workspaceUrl(orderId,'readiness'))} class="entry-link">
+                  {$t('orderWorkspace.sections.readiness')}
+                </button>
+                <button type="button" onclick={() => goto(base + workspaceUrl(orderId,'revisions'))} class="entry-link">
+                  {$t('orderWorkspace.sections.revisions')}
+                </button>
+              {/if}
+            </div>
+          </header>
+          <Tabs {tabs} bind:activeTab>
+            {#if activeTab === "stages"}
                 <div class="tab-content">
                     <Card title={$t("orderDetail.tabs.stages")} padding="lg">
+                        <p class="stage-progress-context">
+                          {stageSummary.total > 0 ? `${stageProgressPercent(order.stages)}% · ` : ''}
+                          {$t('productionPacket.progressSummary', { values: { completed: stageSummary.completed, total: stageSummary.total } })}
+                        </p>
+                        {#if stageSummary.blocked > 0 || stageSummary.rework > 0}
+                          <p class="stage-progress-alert" role="status">{$t('productionPacket.progressHeld', { values: { blocked: stageSummary.blocked, rework: stageSummary.rework } })}</p>
+                        {/if}
                         <div class="stages-grid">
                             {#each (Array.isArray(order.stages) ? order.stages : []) as stageRow (stageRow.id ?? stageRow.station)}
                                 <div class="stage-card"
@@ -606,12 +611,25 @@
                 </div>
             {:else if activeTab === "timeline"}
                 <div class="tab-content">
+                    <Card title={$t("orderDetail.details")} padding="lg">
+                        {#if order.description && order.description !== draftSheet?.notes}
+                          <p class="saved-description">{order.description}</p>
+                        {/if}
+                        <dl class="order-history-details">
+                          <div><dt>{$t('orderDetail.order_id')}</dt><dd>{order.id}</dd></div>
+                          <div><dt>{$t('common.created')}</dt><dd>{formatTimestamp(order.created_at)}</dd></div>
+                          <div><dt>{$t('common.last_updated')}</dt><dd>{formatTimestamp(order.updated_at)}</dd></div>
+                          <div><dt>{$t('common.price')}</dt><dd>{order.price == null ? '—' : `€${order.price.toLocaleString()}`}</dd></div>
+                          <div><dt>{$t('orderDetail.reworks')}</dt><dd>{order.rework_count ?? '—'}</dd></div>
+                        </dl>
+                    </Card>
                     <Card title={$t("orderDetail.timeline")} padding="lg">
                         <OrderTimeline {order} {consumption} />
                     </Card>
                 </div>
             {/if}
-        </Tabs>
+          </Tabs>
+        </section>
     {/if}
 </div>
 
@@ -660,6 +678,30 @@
 {/if}
 
 <style>
+    .order-specification, .supporting-work { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-md); }
+    .sheet-status { display: flex; align-items: flex-start; gap: var(--space-sm); margin: 0; color: var(--ink-secondary); font-size: var(--text-sm); line-height: var(--leading-normal); }
+    .sheet-status :global(svg) { flex-shrink: 0; }
+    .client-delivery-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-lg); min-width: 0; }
+    .sheet-details-card, .sheet-unavailable { min-width: 0; padding: var(--space-lg); border: 1px solid var(--glass-border); border-radius: var(--radius-lg); background: var(--glass-bg-strong); box-shadow: var(--glass-shadow-sm); }
+    .sheet-details-card h2 { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); font-size: var(--text-lg); margin: 0 0 var(--space-md); }
+    .sheet-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); min-width: 0; }
+    .sheet-field-grid label, .sheet-field { display: grid; gap: var(--space-xs); min-width: 0; font-size: var(--text-sm); color: var(--ink-secondary); }
+    .sheet-field-grid input, .readonly-field { box-sizing: border-box; min-width: 0; width: 100%; min-height: var(--control-sm); padding: var(--space-sm); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-1); color: var(--ink-primary); font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .sheet-field-grid .wide-field { grid-column: 1 / -1; }
+    .sheet-note-badge { display: inline-flex; align-items: center; gap: var(--space-xs); padding: var(--space-xs) var(--space-sm); background: var(--warn-soft); color: var(--ink-primary); border: 1px solid var(--warn); border-radius: var(--radius-sm); font-size: var(--text-sm); text-decoration: none; }
+    .sheet-notes { margin-top: var(--space-md); padding: var(--space-md); border: 1px solid var(--warn); border-radius: var(--radius-sm); color: var(--ink-primary); }
+    .sheet-notes p { margin: var(--space-xs) 0 var(--space-sm); white-space: pre-wrap; overflow-wrap: anywhere; line-height: var(--leading-normal); }
+    .sheet-notes:focus, .sheet-note-badge:focus-visible, .sheet-field-grid input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    .saved-description { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-primary); }
+    .order-history-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--space-md); margin: 0; }
+    .order-history-details div { min-width: 0; }
+    .order-history-details dt { font-size: var(--text-sm); color: var(--ink-secondary); }
+    .order-history-details dd { margin: var(--space-xs) 0 0; overflow-wrap: anywhere; color: var(--ink-primary); }
+    .supporting-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-md); flex-wrap: wrap; }
+    .supporting-heading h2 { font-size: var(--text-lg); margin: 0; }
+    .supporting-heading p { margin: var(--space-xs) 0 0; color: var(--ink-secondary); font-size: var(--text-sm); }
+    @media(max-width:900px) { .client-delivery-row { grid-template-columns: minmax(0, 1fr); } }
+    @media(max-width:600px) { .sheet-field-grid { grid-template-columns: minmax(0, 1fr); } }
   .detail-assistant-tools { display:flex;flex-direction:column;gap:12px;min-width:0; }
   .detail-assistant-tools p { margin:0;font-size:13px;line-height:1.5;color:var(--ink-secondary); }
     .station-control{display:grid;gap:6px;font-size:11px;margin-top:10px}
@@ -667,31 +709,17 @@
     .stage-progress-context{font-size:11px;color:var(--text-muted)}
     .stage-progress-alert{color:var(--error);font-size:12px;overflow-wrap:anywhere}
 
-    .workspace-entry{
-      display:grid;grid-template-columns:minmax(170px,260px) minmax(0,1fr);
-      gap:16px;align-items:center;padding:16px 20px;margin-bottom:18px;
-      border:1px solid var(--border);border-radius:14px;background:var(--bg-1)
-    }
-    .workspace-entry h2{font-size:15px;margin:0 0 5px}
-    .workspace-entry p{font-size:12px;color:var(--text-muted);margin:0}
-    .workspace-entry-links{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
-    .entry-link{display:inline-flex;align-items:center;gap:6px;cursor:pointer;
-      border:1px solid var(--border);border-radius:9px;padding:9px 12px;
-      color:var(--text);background:var(--bg-2);font-weight:600;font-size:12px}
-    .entry-link.featured{background:var(--brand);color:white;border-color:var(--brand)}
-    .entry-link:disabled{opacity:.5;cursor:not-allowed}
-    .entry-count{display:inline-flex;align-items:center;justify-content:center;
-      min-width:20px;padding:1px 5px;border-radius:10px;background:var(--bg-1);
-      color:var(--text-muted);font-size:10px}
-    @media(max-width:680px){
-      .workspace-entry{grid-template-columns:minmax(0,1fr);padding:14px}
-      .workspace-entry-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
-      .entry-link{justify-content:center}
-    }
+    .workspace-entry-links { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
+    .entry-link { display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+      min-height: var(--control-size); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: var(--space-sm) var(--space-md); color: var(--ink-secondary); background: var(--bg-1);
+      font: inherit; font-size: var(--text-sm); font-weight: 600; }
+    .entry-link:hover { background: var(--bg-2); color: var(--ink-primary); }
+    .entry-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
     .order-detail-container {
-        padding: 2rem;
-        max-width: 1400px;
+        padding: var(--space-lg) 0;
+        max-width: 100%;
         margin: 0 auto;
         display: flex;
         flex-direction: column;
@@ -826,32 +854,6 @@
         gap: 0.75rem;
     }
 
-    .info-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-    }
-
-    .info-card-content {
-        display: flex;
-        flex-direction: column;
-        gap: 0.375rem;
-    }
-
-    .info-label {
-        font-size: 0.875rem;
-        font-weight: 500;
-        color: var(--color-gray-600, var(--ink-tertiary));
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    .info-value {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: var(--color-text, var(--ink-primary));
-    }
-
     .tab-content {
         display: flex;
         flex-direction: column;
@@ -862,39 +864,6 @@
     .tab-content-full {
         padding: 1.5rem 0;
         height: max(52rem, 75dvh);
-    }
-
-    .description-text {
-        margin: 0;
-        line-height: 1.6;
-        color: var(--color-gray-700, var(--ink-secondary));
-    }
-
-    .details-list {
-        display: grid;
-        gap: 1rem;
-    }
-
-    .detail-item {
-        display: grid;
-        grid-template-columns: 150px 1fr;
-        gap: 1rem;
-        padding: 0.75rem 0;
-        border-bottom: 1px solid var(--color-border, var(--border));
-    }
-
-    .detail-item:last-child {
-        border-bottom: none;
-    }
-
-    .detail-item dt {
-        font-weight: 600;
-        color: var(--color-gray-700, var(--ink-secondary));
-    }
-
-    .detail-item dd {
-        margin: 0;
-        color: var(--color-gray-600, var(--ink-tertiary));
     }
 
     .stages-grid {
@@ -956,47 +925,25 @@
             width: 100%;
         }
 
-        .info-cards {
-            grid-template-columns: repeat(2, 1fr);
-        }
-
         .stages-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .detail-item {
             grid-template-columns: 1fr;
         }
     }
 
     /* LUMIGRID R03: content first, semantic state and accessible contrast. */
-    .order-detail-container {max-width:1500px;padding:var(--space-lg) 0 var(--space-2xl);gap:var(--space-lg);min-width:0}
+    .order-detail-container {max-width:100%;padding:var(--space-lg) 0 var(--space-2xl);gap:var(--space-lg);min-width:0}
     .order-header {position:relative;padding:var(--space-xl);background:var(--glass-bg-strong);border:1px solid var(--glass-border);border-radius:var(--radius-lg);gap:var(--space-md)}
     .order-header::before {content:'';position:absolute;top:0;left:0;width:92px;height:2px;background:linear-gradient(90deg,var(--brand),var(--brand-2),transparent)}
     .header-info {min-width:0;flex-wrap:wrap;gap:var(--space-sm)}
     .order-title {font-size:clamp(1.5rem,2.7vw,2rem);letter-spacing:var(--tracking-tight);overflow:visible;white-space:normal;overflow-wrap:anywhere;color:var(--ink-primary)}
     .header-actions {flex-wrap:wrap;gap:var(--space-xs)}
     .header-actions :global(button) {min-height:42px;border-radius:var(--radius-sm)}
-    .info-cards {grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-sm)}
-    .info-cards :global(.card) {min-width:0;background:var(--glass-bg-strong);border-color:var(--glass-border);border-radius:var(--radius-md)}
-    .info-cards :global(.card-body) {padding:var(--space-md)}
-    .info-label {font-size:var(--text-xs);color:var(--ink-tertiary)}
-    .info-value {font-size:clamp(1rem,1.8vw,1.35rem);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;color:var(--ink-primary)}
-    .workspace-entry {background:var(--glass-bg-strong);border-color:var(--glass-border);border-radius:var(--radius-lg);margin-bottom:0}
-    .workspace-entry h2 {font-size:var(--text-md);font-weight:750}
-    .workspace-entry p {color:var(--ink-secondary);line-height:1.5}
     .entry-link {min-height:42px;background:var(--bg-1);border-radius:var(--radius-sm);color:var(--ink-secondary)}
     .entry-link:hover {background:var(--bg-2);color:var(--ink-primary)}
-    .entry-link.featured {background:var(--brand);color:var(--on-brand)}
-    .entry-link.featured:hover {background:var(--brand-2);color:var(--on-brand)}
     .entry-link:focus-visible,.stage-status-select:focus-visible {outline:2px solid var(--focus);outline-offset:2px}
-    .entry-count {border-radius:var(--radius-sm);background:var(--bg-2)}
     .stage-card {background:var(--bg-1);border:1px solid var(--border);border-left:3px solid var(--brand);border-radius:var(--radius-md);min-width:0}
     .stage-name {color:var(--ink-primary)}
     .stage-status-select {background:var(--bg-2);color:var(--ink-primary);border-color:var(--border);min-height:44px;border-radius:var(--radius-sm)}
-    .detail-item {border-bottom:1px solid var(--divider)}
-    .detail-item dd {color:var(--ink-primary);overflow-wrap:anywhere}
-    @media(max-width:1050px){.info-cards {grid-template-columns:repeat(2,minmax(0,1fr))}.workspace-entry {grid-template-columns:minmax(0,1fr)}}
-    @media(max-width:670px){.order-detail-container {padding:var(--space-sm) 0 var(--space-xl)}.order-header {padding:var(--space-md)}.workspace-entry {padding:var(--space-md)}.entry-link {min-width:0}.header-actions :global(button) {flex:1 1 auto}}
-    @media(prefers-reduced-transparency:reduce){.order-header,.workspace-entry,.info-cards :global(.card) {background:var(--bg-1)}}
+    @media(max-width:670px){.order-detail-container {padding:var(--space-sm) 0 var(--space-xl)}.order-header {padding:var(--space-md)}.entry-link {min-width:0}.header-actions :global(button) {flex:1 1 auto}}
+    @media(prefers-reduced-transparency:reduce){.order-header {background:var(--bg-1)}}
 </style>

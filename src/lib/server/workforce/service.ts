@@ -52,6 +52,8 @@ export function mapOwner(row: Row): WorkforceOwner {
 export function mapEntry(row: Row): WorkEntry {
   return {
     id: row.id, userId: row.user_id, workDate: row.work_date, actualMinutes: row.actual_minutes,
+    startTime: typeof row.start_time === 'string' ? row.start_time.slice(0, 5) : null,
+    finishTime: typeof row.finish_time === 'string' ? row.finish_time.slice(0, 5) : null,
     creditedMinutes: row.credited_minutes, multiplier: row.multiplier, holidayName: row.holiday_name,
     note: row.note || '', version: row.version, createdAt: row.created_at, updatedAt: row.updated_at
   };

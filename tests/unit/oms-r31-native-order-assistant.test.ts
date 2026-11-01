@@ -6,6 +6,22 @@ import {orderFields,canonicalOrderProfiles}
  from '../../src/lib/server/order/draft-contract';
 const read=(p:string)=>readFileSync(p,'utf8');
 describe('OMS-R31 restore native forms and wire OpenRouter without duplication',()=>{
+ it('recognizes printed FACE/BACK parts and per-part film PRINT without reviving inactive selections',()=>{
+   const view=summarizeNativeProfileConfiguration({
+     CNC_FREZER:{print3d:false,print3dMaterial:'Historic inactive resin',
+       faceMaterials:[{id:'face-a',value:'Fiberlogy ASA',category:'FDM_ASA'}],
+       back:'Anycubic Tough',backCategory:'RESIN_ANYCUBIC'},
+     FRONT:{face:true,facePrint:true,faceCustom:'Lightbox artwork',back:true,backPrint:false,
+       sides:false,sidesPrint:true,sidesCustom:'Inactive print'}
+   });
+   expect(view.sections.CNC_FREZER?.print3d).toBe(true);
+   expect(view.sections.CNC_FREZER?.print3dParts).toBe('FACE, BACK');
+   expect(view.sections.CNC_FREZER).not.toHaveProperty('print3dMaterial');
+   expect(view.sections.FRONT?.facePrint).toBe(true);
+   expect(view.sections.FRONT?.backPrint).toBe(false);
+   expect(view.sections.FRONT).not.toHaveProperty('sidesPrint');
+   expect(view.sections.FRONT).not.toHaveProperty('sidesCustom');
+ });
  it('summarizes only native Profile7st fields, including material selections and options',()=>{
    const view=summarizeNativeProfileConfiguration({
      profileName:'Sign letters',signType:'EXTERIOR',
@@ -146,11 +162,14 @@ describe('OMS-R31 restore native forms and wire OpenRouter without duplication',
    expect(intake).toContain("matchesOrderFileSignature");
    expect(intake).toContain('normalizeIntakeProposals');
  });
- it('opens the original full profile form safely from the narrow saved-order workspace',()=>{
+ it('shares the full inline profile form and isolates the optional focused editor',()=>{
    const editor=read('src/routes/orders/[id]/edit/+page.svelte');
    const wrapper=read('src/lib/order/OrderNativeProfileForm.svelte');
    expect(editor).toContain('OrderNativeProfileForm');
-   expect(editor).toContain('openNativeProfile(idx)');
+   expect(editor).toContain('<OrderProfileSheet');
+   expect(editor).toContain('onChange={updateInlineProfile}');
+   expect(editor).toContain('focusedProfileIndex={activeNativeProfileIndex}');
+   expect(editor).toContain('onFocusProfile={index => void openNativeProfile(index)}');
    expect(editor).toContain('nativeProfileDialog.showModal()');
    expect(editor).toContain('onChange={stageNativeProfile}');
    expect(editor).toContain('onclick={applyNativeProfile}');

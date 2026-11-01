@@ -22,6 +22,9 @@ export interface WorkEntry {
   id: string;
   userId: string;
   workDate: string;
+  /** Null or absent on historical duration-only records. Never infer clock times. */
+  startTime?: string | null;
+  finishTime?: string | null;
   actualMinutes: number;
   creditedMinutes: number;
   multiplier: 1 | 2;
@@ -118,11 +121,13 @@ export interface HolidayOverride {
   updatedAt: string;
 }
 
-export type SaveWorkEntry = {
+export interface SaveWorkEntry {
   workDate: string;
+  startTime: string;
+  finishTime: string;
   note?: string;
   expectedVersion: number | null;
-} & ({ actualMinutes: number; hours?: never } | { hours: string; actualMinutes?: never });
+}
 
 export interface CreateAbsence {
   startDate: string;

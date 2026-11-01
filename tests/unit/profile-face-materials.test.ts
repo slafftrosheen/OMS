@@ -1,10 +1,66 @@
 import { describe, it, expect } from 'vitest';
 import { summarizeNativeProfileConfiguration } from '../../src/lib/order/native-profile-context';
 import { orderFields, canonicalOrderProfiles } from '../../src/lib/server/order/draft-contract';
-import { readFaceMaterials, withFaceMaterials, applyProfileMaterialSelection, nextFaceMaterialId } from '../../src/lib/profiles/face-materials';
+import { readFaceMaterials, withFaceMaterials, applyProfileMaterialSelection, nextFaceMaterialId, readLegacyPrintMaterial, assignLegacyPrintMaterial } from '../../src/lib/profiles/face-materials';
 import { generateProfilePDF } from '../../src/lib/profiles/utils/generateProfilePDF';
 
 describe('native profile multiple FACE materials', () => {
+  it('does not turn filament diameter or former sheet thickness into printed-part thickness', () => {
+    const entry = applyProfileMaterialSelection({ id: 'face-a', value: 'Acrylic', category: 'ACRYLIC_GS', thickness: '3mm' }, {
+      value: 'Filament Fiberlogy ASA', hex: '#000000',
+      material: { category: 'FDM_ASA', thickness_options: [1.75], metadata: { diameter_mm: 1.75 } }
+    });
+    expect(entry.thickness).toBe('');
+    expect(entry.thicknessOptions).toEqual([]);
+    expect(entry.process).toBe('3D_PRINT');
+    const sheet = applyProfileMaterialSelection(entry, {
+      value: 'Acrylic', hex: '#ffffff', material: { category: 'ACRYLIC_GS', thickness_options: [3, 5] }
+    });
+    expect(sheet.thickness).toBe('3mm');
+    expect(sheet.process).toBeUndefined();
+  });
+
+  it('keeps legacy unassigned 3D data unchanged until a safe explicit part assignment', () => {
+    const source = { face: 'Acrylic', back: 'Aluminium', print3d: true,
+      print3dMaterial: 'Earlier custom PA12', print3dMaterialHex: '#445566', notes: 'Keep the sample' };
+    const before = JSON.stringify(source);
+    expect(readLegacyPrintMaterial(source)?.value).toBe('Earlier custom PA12');
+    expect(assignLegacyPrintMaterial(source, 'back')).toBe(source);
+    const assigned = assignLegacyPrintMaterial(source, 'face');
+    const rows = readFaceMaterials(assigned);
+    expect(rows.map(row => row.value)).toEqual(['Acrylic', 'Earlier custom PA12']);
+    expect(rows[1].process).toBe('3D_PRINT');
+    expect(rows[1].hex).toBe('#445566');
+    expect(assigned.print3d).toBe(false);
+    expect(assigned.print3dMaterial).toBe(source.print3dMaterial);
+    expect(readLegacyPrintMaterial(assigned)).toBeNull();
+    expect(JSON.stringify(source)).toBe(before);
+    const summary = summarizeNativeProfileConfiguration({ CNC_FREZER: assigned });
+    expect(summary.sections.CNC_FREZER?.print3d).toBe(true);
+    expect(summary.sections.CNC_FREZER?.print3dParts).toBe('FACE');
+    expect(summary.sections.CNC_FREZER).not.toHaveProperty('print3dMaterial');
+  });
+
+  it('retains a known custom printing process while typing and clears it on explicit removal', () => {
+    const previous = { id: 'a', value: 'Earlier custom PA12', process: '3D_PRINT' };
+    const edited = applyProfileMaterialSelection(previous, { value: 'Earlier custom PA12 black', hex: '#000000', material: null });
+    expect(edited.process).toBe('3D_PRINT');
+    expect(edited.category).toBe('');
+    expect(edited.value).toBe('Earlier custom PA12 black');
+    expect(applyProfileMaterialSelection(edited, { value: '', hex: '', material: null }).process).toBeUndefined();
+  });
+
+  it('assigns legacy printing only to an empty BACK and preserves unrelated fields', () => {
+    const source = { face: 'Acrylic', back: '', print3d: true,
+      print3dMaterial: 'Anycubic Tough Resin', print3dMaterialCategory: 'RESIN_ANYCUBIC', notes: 'Read this' };
+    const assigned = assignLegacyPrintMaterial(source, 'back');
+    expect(assigned.back).toBe(source.print3dMaterial);
+    expect(assigned.face).toBe(source.face);
+    expect(assigned.notes).toBe(source.notes);
+    const summary = summarizeNativeProfileConfiguration({ CNC_FREZER: assigned });
+    expect(summary.sections.CNC_FREZER?.print3dParts).toBe('BACK');
+    expect(readLegacyPrintMaterial({ ...source, print3d: false })).toBeNull();
+  });
   it('includes every selected FACE material with its own thickness in production and AI summaries', () => {
     const summary = summarizeNativeProfileConfiguration({
       CNC_FREZER: {

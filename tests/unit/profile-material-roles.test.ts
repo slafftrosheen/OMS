@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildMaterialCatalogUrl, getMaterialCatalogView, type CatalogMaterial } from '../../src/lib/profiles/material-catalog';
-import { filterProfileMaterials, getAluminiumForm, PROFILE_MATERIAL_CATEGORIES } from '../../src/lib/profiles/material-roles';
+import { filterProfileMaterials, getAluminiumForm, PROFILE_MATERIAL_CATEGORIES, isProfilePrintMaterial } from '../../src/lib/profiles/material-roles';
 import { normalizeMaterialType } from '../../src/lib/materials/thickness-options';
 
 function material(code: string, category: string, metadata: Record<string, unknown> = {}, name = code): CatalogMaterial {
@@ -25,6 +25,21 @@ describe('draft profile material roles', () => {
       .toEqual([sheet.code, gs.code, xt.code, acrylicLed.code, composite.code]);
     expect(filterProfileMaterials(records, 'face').map(row => row.code))
       .toEqual([sheet.code, gs.code, xt.code, acrylicLed.code, composite.code]);
+  });
+
+  it('offers filament and resin for FACE and BACK without adding them to metal frames or sides', () => {
+    const filament = material('FIBERLOGY_ASA', 'FDM_ASA', { diameter_mm: 1.75 });
+    const resin = material('ANYCUBIC_TOUGH', 'RESIN_ANYCUBIC');
+    for (const role of ['face', 'back'] as const) {
+      expect(filterProfileMaterials([sheet, filament, resin], role)).toEqual([sheet, filament, resin]);
+      expect(PROFILE_MATERIAL_CATEGORIES[role].includes('FDM_ASA')).toBe(true);
+      expect(PROFILE_MATERIAL_CATEGORIES[role].includes('RESIN_ANYCUBIC')).toBe(true);
+    }
+    expect(filterProfileMaterials([filament, resin], 'sides')).toEqual([]);
+    expect(filterProfileMaterials([filament, resin], 'frame')).toEqual([]);
+    expect(isProfilePrintMaterial('FDM_ASA')).toBe(true);
+    expect(isProfilePrintMaterial('RESIN_ANYCUBIC')).toBe(true);
+    expect(isProfilePrintMaterial('ACRYLIC_GS')).toBe(false);
   });
 
   it('offers legacy flatstock and tubes only in frame choices and groups their actual form', () => {

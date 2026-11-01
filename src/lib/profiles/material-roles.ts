@@ -2,14 +2,24 @@ import type { CatalogMaterial } from './material-catalog';
 
 export type ProfileMaterialRole = 'face' | 'back' | 'sides' | 'frame' | 'mainCable';
 
+export const PROFILE_PRINT_MATERIAL_CATEGORIES = [
+  'FDM_PLA', 'FDM_PETG', 'FDM_ABS', 'FDM_ASA', 'FDM_TPU', 'FDM_OTHER',
+  'RESIN_ANYCUBIC', 'RESIN_ELEGOO', 'RESIN_OTHER'
+];
+
+/** Catalog process identity; a filament's diameter is never a sheet thickness. */
+export function isProfilePrintMaterial(category: unknown): boolean {
+  return typeof category === 'string' && /^(?:FDM|RESIN)(?:_|$)/i.test(category);
+}
+
 /**
  * Query categories include legacy ALU_SHEET rows because earlier imports placed
  * flat bars and tubes there. Candidate filtering below separates their forms;
  * neither the database nor an already saved selection is rewritten.
  */
 export const PROFILE_MATERIAL_CATEGORIES: Record<ProfileMaterialRole, string[]> = {
-  face: ['ACRYLIC_XT', 'ACRYLIC_GS', 'ACRYLIC_LED', 'ALU_SHEET', 'ALU_COMPOSITE', 'PVC_FOAM'],
-  back: ['ACRYLIC_XT', 'ACRYLIC_GS', 'ACRYLIC_LED', 'ALU_SHEET', 'ALU_COMPOSITE', 'PVC_FOAM'],
+  face: ['ACRYLIC_XT', 'ACRYLIC_GS', 'ACRYLIC_LED', 'ALU_SHEET', 'ALU_COMPOSITE', 'PVC_FOAM', ...PROFILE_PRINT_MATERIAL_CATEGORIES],
+  back: ['ACRYLIC_XT', 'ACRYLIC_GS', 'ACRYLIC_LED', 'ALU_SHEET', 'ALU_COMPOSITE', 'PVC_FOAM', ...PROFILE_PRINT_MATERIAL_CATEGORIES],
   // Keep former side-profile choices available to the selected-value lookup.
   // filterProfileMaterials still excludes them from new side choices.
   sides: ['ALU_SHEET', 'ALU_PROFILE', 'ALU_FLAT_BAR'],

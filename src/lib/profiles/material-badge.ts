@@ -187,7 +187,10 @@ function connectorLabel(source: ProfileMaterialBadgeSource | null | undefined, o
 export function getProfileMaterialBadge(source: ProfileMaterialBadgeSource | null | undefined, options: ProfileMaterialBadgeOptions): ProfileMaterialBadge {
   if (!options.value) return { label: '' };
   const category = (text(source?.category) || text(options.category)).toUpperCase();
-  const kind = options.kind || kindFor(category);
+  // FACE/BACK share sheet controls but may contain a printed part. A resolved
+  // print category determines its identity; spool diameter is not panel depth.
+  const kind = options.kind === 'sheet' && printCategory.test(category)
+    ? 'print3d' : options.kind || kindFor(category);
   const known = !!source || !!category;
   // Older profiles sometimes kept only a generic value and their meaningful
   // short name. Restore that identity without guessing a missing category.

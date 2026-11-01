@@ -27,6 +27,8 @@
     readFaceMaterials,
     withFaceMaterials,
     applyProfileMaterialSelection,
+    readLegacyPrintMaterial,
+    assignLegacyPrintMaterial,
     nextFaceMaterialId,
     type FaceMaterialSelection,
     type ProfileMaterialChange,
@@ -39,7 +41,7 @@
     applyPaintMaterialSelection,
   } from "$lib/profiles/helpers";
   import { readLegacyFrameThickness, withFrameThickness } from "$lib/profiles/frame-sizing";
-  import { PROFILE_MATERIAL_CATEGORIES } from "$lib/profiles/material-roles";
+  import { PROFILE_MATERIAL_CATEGORIES, PROFILE_PRINT_MATERIAL_CATEGORIES, isProfilePrintMaterial } from "$lib/profiles/material-roles";
   import {
     AlertCircle,
     Zap,
@@ -84,6 +86,7 @@
       backShort?: string;
       backThickness?: string;
       backCategory?: string;
+      backProcess?: string;
       backThicknessOptions?: number[];
       laser?: boolean;
       print3d?: boolean;
@@ -112,18 +115,21 @@
       faceFilmShort?: string;
       faceFilmCategory?: string;
       faceCustom?: string;
+      facePrint?: boolean;
       back: boolean;
       backFilm: string;
       backFilmHex?: string;
       backFilmShort?: string;
       backFilmCategory?: string;
       backCustom?: string;
+      backPrint?: boolean;
       sides: boolean;
       sidesFilm: string;
       sidesFilmHex?: string;
       sidesFilmShort?: string;
       sidesFilmCategory?: string;
       sidesCustom?: string;
+      sidesPrint?: boolean;
       notes?: string;
     };
 
@@ -191,18 +197,21 @@
   const defaultConfiguration: ProfileConfiguration = {
     profileName: "New Profile",
     signType: "EXTERIOR",
-    CNC_FREZER: { face: "", back: "", laser: false, print3d: false, print3dMaterial: "", notes: "" },
+    CNC_FREZER: { face: "", back: "", laser: false, notes: "" },
     BENDER: { sides: "", depth: 100, notes: "" },
     FRONT: {
       face: false,
       faceFilm: "",
       faceCustom: "",
+      facePrint: false,
       back: false,
       backFilm: "",
       backCustom: "",
+      backPrint: false,
       sides: false,
       sidesFilm: "",
       sidesCustom: "",
+      sidesPrint: false,
       notes: "",
     },
     PAINTING: {
@@ -258,7 +267,7 @@
     onchange?: (config: ProfileConfiguration) => void;
   } = $props();
 
-  import { onDestroy, untrack } from "svelte";
+  import { onDestroy, tick, untrack } from "svelte";
 
   function normalizeConfiguration(value: Partial<ProfileConfiguration> | null | undefined): ProfileConfiguration {
       const currentConfig = value ?? {};
@@ -268,9 +277,6 @@
         CNC_FREZER: {
           ...defaultConfiguration.CNC_FREZER,
           ...(currentConfig.CNC_FREZER || {}),
-          // MaterialSelect's bindable value has a string fallback. Legacy
-          // profiles must supply a concrete value before mounting this picker.
-          print3dMaterial: currentConfig.CNC_FREZER?.print3dMaterial ?? "",
           backThickness: currentConfig.CNC_FREZER?.backThickness ?? "",
           // Hydration only: legacy scalar selections are untouched until an edit.
           faceMaterials: readFaceMaterials(currentConfig.CNC_FREZER),
@@ -337,11 +343,22 @@
   const wireCategories = PROFILE_MATERIAL_CATEGORIES.mainCable;
   const connectorCategories = ["LED_ACCESSORY"];
   const frameMaterials = PROFILE_MATERIAL_CATEGORIES.frame;
-  const print3dMaterials = ["FDM_PLA", "FDM_PETG", "FDM_ABS", "FDM_ASA", "FDM_TPU", "FDM_OTHER", "RESIN_ANYCUBIC", "RESIN_ELEGOO", "RESIN_OTHER"];
+  const print3dMaterials = PROFILE_PRINT_MATERIAL_CATEGORIES;
 
   let faceEntries = $derived(
     configuration.CNC_FREZER.faceMaterials ?? readFaceMaterials(configuration.CNC_FREZER),
   );
+  let legacyPrint = $derived(readLegacyPrintMaterial(configuration.CNC_FREZER));
+
+  async function assignEarlierPrint(part: 'face' | 'back') {
+    if (readonly || !legacyPrint || (part === 'back' && configuration.CNC_FREZER.back.trim())) return;
+    const faceId = faceEntries.find(row => !row.value.trim())?.id || nextFaceMaterialId(faceEntries);
+    configuration.CNC_FREZER = assignLegacyPrintMaterial(configuration.CNC_FREZER, part);
+    emit();
+    await tick();
+    document.getElementById(part === 'face' ? `${formId}-${faceId}` : `${formId}-back`)
+      ?.querySelector<HTMLButtonElement>('.edit-selection')?.focus();
+  }
 
   function addFaceMaterial() {
     if (readonly) return;
@@ -370,10 +387,12 @@
       id: "back", value: configuration.CNC_FREZER.back,
       thickness: configuration.CNC_FREZER.backThickness,
       category: configuration.CNC_FREZER.backCategory,
+      process: configuration.CNC_FREZER.backProcess,
     }, data, "ALU");
     Object.assign(configuration.CNC_FREZER, {
       back: entry.value, backHex: entry.hex, backShort: entry.shortName,
       backThickness: entry.thickness, backCategory: entry.category,
+      backProcess: entry.process,
       backThicknessOptions: entry.thicknessOptions,
     });
     emit();
@@ -462,7 +481,78 @@
       configuration.ASSEMBLING.frameDimensions,
     ].filter(Boolean).join(" ")),
   );
+
+  type StationSection = 'CNC_FREZER' | 'BENDER' | 'FRONT' | 'PAINTING' | 'ASSEMBLING';
+  const stationNames: Record<StationSection, string> = {
+    CNC_FREZER: 'CNC FREZER', BENDER: 'BENDER', FRONT: 'FRONT', PAINTING: 'PAINTING', ASSEMBLING: 'ASSEMBLING'
+  };
+  const nonblank = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+
+  function stationAnnotations(station: StationSection): { label: string; value: string }[] {
+    if (station === 'FRONT') return ['face', 'back', 'sides'].flatMap(part => {
+      const value = nonblank(configuration.FRONT[`${part}Custom`]);
+      return configuration.FRONT[part] && value ? [{ label: part.toUpperCase(), value }] : [];
+    });
+    if (station === 'PAINTING') return ['face', 'sides', 'back', 'frame'].flatMap(part => {
+      const value = nonblank(configuration.PAINTING[`${part}Custom`]);
+      return configuration.PAINTING[part] && value ? [{ label: part === 'face' ? 'FRONT' : part.toUpperCase(), value }] : [];
+    });
+    if (station === 'ASSEMBLING') return ['led', 'frame'].flatMap(part => {
+      const value = nonblank(configuration.ASSEMBLING[`${part}Custom`]);
+      return configuration.ASSEMBLING[part] && value ? [{ label: part.toUpperCase(), value }] : [];
+    });
+    return [];
+  }
+
+  function hasStationNotes(station: StationSection): boolean {
+    return Boolean(nonblank(configuration[station].notes) || stationAnnotations(station).length);
+  }
+
+  function focusStationNotes(station: StationSection) {
+    const target = document.getElementById(`${formId}-${station}-notes`);
+    target?.scrollIntoView({ block: 'nearest' });
+    target?.focus({ preventScroll: true });
+  }
 </script>
+
+{#snippet noteWarning(station: StationSection)}
+  {#if hasStationNotes(station)}
+    <button type="button" class="section-note-warning"
+      aria-label={$t('profiles.materials.showNotes', { section: stationNames[station] })}
+      onclick={() => focusStationNotes(station)}>
+      <AlertCircle size={14} aria-hidden="true" /> {$t('profiles.materials.notes')}
+    </button>
+  {/if}
+{/snippet}
+
+{#snippet stationNotes(station: StationSection)}
+  {@const section = configuration[station]}
+  {@const annotations = stationAnnotations(station)}
+  {#if !readonly || hasStationNotes(station)}
+    <div class="station-notes" class:has-note={hasStationNotes(station)}
+      id={`${formId}-${station}-notes`} tabindex="-1" role="group"
+      aria-label={`${stationNames[station]} · ${$t('profiles.materials.notes')}`}>
+      {#each annotations as annotation (annotation.label)}
+        <p class="material-note"><strong>{annotation.label}:</strong> {annotation.value}</p>
+      {/each}
+      {#if readonly}
+        {#if nonblank(section.notes)}
+          <div class="notes-readonly" role="note">
+            <strong><StickyNote size={14} aria-hidden="true" /> {$t('profiles.materials.notes')}</strong>
+            <p>{section.notes}</p>
+          </div>
+        {/if}
+      {:else}
+        <div class="notes-field" class:has-note={Boolean(nonblank(section.notes))}>
+          <StickyNote size={12} class="note-placeholder-icon" aria-hidden="true" />
+          <textarea class="notes" bind:value={section.notes} oninput={emit}
+            aria-label={`${stationNames[station]} · ${$t('profiles.materials.notes')}`}
+            placeholder={$t('profiles.materials.notesPlaceholder')} rows="2"></textarea>
+        </div>
+      {/if}
+    </div>
+  {/if}
+{/snippet}
 
 <div class="profile-form" class:readonly>
   <!-- HEADER -->
@@ -509,13 +599,14 @@
   <div class="form-grid">
     <!-- CNC FREZER -->
     <div class="section">
-      <div class="section-title"><Scissors size={12} /> CNC FREZER</div>
+      <div class="section-title"><span><Scissors size={12} /> CNC FREZER</span> {@render noteWarning('CNC_FREZER')}</div>
       <div class="section-content">
         <!-- FACE -->
         <div class="field face-materials">
           <span class="field-label">FACE</span>
           {#each faceEntries as material, index (material.id)}
-            <div class="face-material-entry" role="group"
+            <div class="face-material-entry" id={`${formId}-${material.id}`}
+              class:print3d-material={isProfilePrintMaterial(material.category) || material.process === '3D_PRINT'} role="group"
               aria-label={$t('profiles.materials.faceNumber', { number: index + 1 })}>
               {#if faceEntries.length > 1}
                 <div class="face-material-heading">
@@ -539,7 +630,7 @@
                   categories={faceMaterials}
                   materialRole="face"
                   compactSelection
-                  badgeKind="sheet"
+                  badgeKind={material.process === '3D_PRINT' ? 'print3d' : 'sheet'}
                   badgeThickness={material.thickness}
                   badgeShortName={material.shortName}
                   finishOnSelect={false}
@@ -547,8 +638,8 @@
                   {readonly}
                   onchange={(data) => selectFaceMaterial(material, data)}
                 >
-                  {#snippet editorDetails()}
-                    {#if material.value}
+                  {#snippet editorDetails(selectedMaterial)}
+                    {#if material.value && material.process !== '3D_PRINT' && !isProfilePrintMaterial(selectedMaterial?.category || material.category)}
                       <MaterialThicknessSelect
                         bind:value={material.thickness}
                         materialType={material.category || material.value}
@@ -572,7 +663,7 @@
         </div>
 
         <!-- BACK -->
-        <fieldset class="field">
+        <fieldset class="field" id={`${formId}-back`}>
           <legend class="field-label">BACK</legend>
           <div class="picker-row">
             <MaterialSelect
@@ -583,7 +674,7 @@
               categories={backMaterials}
               materialRole="back"
               compactSelection
-              badgeKind="sheet"
+              badgeKind={configuration.CNC_FREZER.backProcess === '3D_PRINT' ? 'print3d' : 'sheet'}
               badgeThickness={configuration.CNC_FREZER.backThickness}
               badgeShortName={configuration.CNC_FREZER.backShort}
               finishOnSelect={false}
@@ -591,8 +682,8 @@
               {readonly}
               onchange={selectBackMaterial}
             >
-              {#snippet editorDetails()}
-                {#if configuration.CNC_FREZER.back}
+              {#snippet editorDetails(selectedMaterial)}
+                {#if configuration.CNC_FREZER.back && configuration.CNC_FREZER.backProcess !== '3D_PRINT' && !isProfilePrintMaterial(selectedMaterial?.category || configuration.CNC_FREZER.backCategory)}
                   <MaterialThicknessSelect
                     bind:value={configuration.CNC_FREZER.backThickness}
                     materialType={configuration.CNC_FREZER.backCategory || configuration.CNC_FREZER.back}
@@ -619,64 +710,39 @@
             />
             <Scissors size={12} /> LASER
           </label>
-          <label class="option" class:active={configuration.CNC_FREZER.print3d}>
-            <input
-              type="checkbox"
-              bind:checked={configuration.CNC_FREZER.print3d}
-              disabled={readonly}
-              onchange={emit}
-            />
-            <Layers size={12} /> 3D
-          </label>
         </div>
 
-        {#if configuration.CNC_FREZER.print3d}
-          <fieldset class="field print3d-material">
-            <legend class="field-label">{$t('profiles.materials.print3d', { default: '3D printing material' })}</legend>
+        {#if legacyPrint}
+          <div class="legacy-print-notice" role="note">
+            <p>{$t(readonly ? 'profiles.materials.legacyPrintUnassigned' : 'profiles.materials.legacyPrint')}</p>
             <MaterialSelect
-              bind:value={configuration.CNC_FREZER.print3dMaterial}
+              value={legacyPrint.value}
               label={$t('profiles.materials.print3d', { default: '3D printing material' })}
-              selectedCategory={configuration.CNC_FREZER.print3dMaterialCategory}
-              customColor={configuration.CNC_FREZER.print3dMaterialHex ?? ""}
+              selectedCategory={legacyPrint.category}
+              customColor={legacyPrint.hex ?? ""}
               categories={print3dMaterials}
               compactSelection
               badgeKind="print3d"
-              badgeShortName={configuration.CNC_FREZER.print3dMaterialShort}
-              allowCustom={true}
-              {readonly}
-              onchange={(data) => {
-                configuration.CNC_FREZER.print3dMaterialHex = data.hex;
-                configuration.CNC_FREZER.print3dMaterialShort = extractShortName(data, "FDM");
-                configuration.CNC_FREZER.print3dMaterialCategory = data.material?.category || "";
-                emit();
-              }}
+              badgeShortName={legacyPrint.shortName}
+              readonly
             />
-          </fieldset>
+            {#if !readonly}
+              <div class="legacy-print-actions">
+                <button type="button" onclick={() => assignEarlierPrint('face')}>{$t('profiles.materials.assignPrintFace')}</button>
+                <button type="button" disabled={Boolean(configuration.CNC_FREZER.back.trim())}
+                  title={configuration.CNC_FREZER.back.trim() ? $t('profiles.materials.clearBackBeforeAssigning') : undefined}
+                  onclick={() => assignEarlierPrint('back')}>{$t('profiles.materials.assignPrintBack')}</button>
+              </div>
+            {/if}
+          </div>
         {/if}
-
-        <div
-          class="notes-field"
-          class:has-note={configuration.CNC_FREZER.notes}
-        >
-          {#if configuration.CNC_FREZER.notes}
-            <span class="note-icon"><AlertCircle size={14} /></span>
-          {/if}
-          <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.CNC_FREZER.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
-        </div>
+        {@render stationNotes('CNC_FREZER')}
       </div>
     </div>
 
     <!-- BENDER -->
     <div class="section section-sm">
-      <div class="section-title"><Square size={12} /> BENDER</div>
+      <div class="section-title"><span><Square size={12} /> BENDER</span> {@render noteWarning('BENDER')}</div>
       <div class="section-content">
         <fieldset class="field">
           <legend class="field-label">SIDES</legend>
@@ -728,31 +794,20 @@
           />
         </div>
 
-        <div class="notes-field" class:has-note={configuration.BENDER.notes}>
-          {#if configuration.BENDER.notes}
-            <span class="note-icon"><AlertCircle size={14} /></span>
-          {/if}
-          <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.BENDER.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
-        </div>
+        {@render stationNotes('BENDER')}
       </div>
     </div>
 
     <!-- FRONT (Film) -->
     <div class="section" class:collapsed={!hasFront}>
       <div class="section-title">
-        <Layers size={12} /> FRONT <span class="hint">(Film)</span>
+        <span><Layers size={12} /> FRONT <span class="hint">(Film)</span></span>
+        {@render noteWarning('FRONT')}
       </div>
       <div class="section-content">
         {#each ["face", "back", "sides"] as part}
           <div class="inline-field">
+            <div class="film-part-header">
             <label
               class="toggle-label"
               class:active={configuration.FRONT[part]}
@@ -765,6 +820,15 @@
               />
               {part.toUpperCase()}
             </label>
+            {#if configuration.FRONT[part]}
+              <label class="film-print" class:active={configuration.FRONT[`${part}Print`]}>
+                <input type="checkbox" bind:checked={configuration.FRONT[`${part}Print`]}
+                  aria-label={`FRONT · ${part.toUpperCase()} · ${$t('profiles.materials.printFilm')}`}
+                  disabled={readonly} onchange={emit} />
+                {$t('profiles.materials.print')}
+              </label>
+            {/if}
+            </div>
             {#if configuration.FRONT[part]}
               <div class="picker-row">
                 <MaterialSelect
@@ -802,33 +866,17 @@
                   {/snippet}
                 </MaterialSelect>
               </div>
-              {#if readonly && configuration.FRONT[`${part}Custom`]}
-                <p class="material-note">{configuration.FRONT[`${part}Custom`]}</p>
-              {/if}
             {/if}
           </div>
         {/each}
 
-        <div class="notes-field" class:has-note={configuration.FRONT.notes}>
-          {#if configuration.FRONT.notes}
-            <span class="note-icon"><AlertCircle size={14} /></span>
-          {/if}
-          <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.FRONT.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
-        </div>
+        {@render stationNotes('FRONT')}
       </div>
     </div>
 
     <!-- PAINTING -->
     <div class="section section-lg">
-      <div class="section-title"><Paintbrush size={12} /> PAINTING</div>
+      <div class="section-title"><span><Paintbrush size={12} /> PAINTING</span> {@render noteWarning('PAINTING')}</div>
       <div class="section-content">
         <div class="paint-grid">
           {#each [{ key: "face", label: "FRONT" }, { key: "sides", label: "SIDES" }, { key: "back", label: "BACK" }, { key: "frame", label: "FRAME" }] as item}
@@ -879,9 +927,6 @@
                     {/if}
                   {/snippet}
                 </MaterialSelect>
-                {#if readonly && configuration.PAINTING[`${item.key}Custom`]}
-                  <p class="material-note">{configuration.PAINTING[`${item.key}Custom`]}</p>
-                {/if}
               {:else}
                 <span class="no-badge">NO</span>
               {/if}
@@ -889,26 +934,13 @@
           {/each}
         </div>
 
-        <div class="notes-field" class:has-note={configuration.PAINTING.notes}>
-          {#if configuration.PAINTING.notes}
-            <span class="note-icon"><AlertCircle size={14} /></span>
-          {/if}
-          <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.PAINTING.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
-        </div>
+        {@render stationNotes('PAINTING')}
       </div>
     </div>
 
     <!-- ASSEMBLING -->
     <div class="section section-xl">
-      <div class="section-title"><Wrench size={12} /> ASSEMBLING</div>
+      <div class="section-title"><span><Wrench size={12} /> ASSEMBLING</span> {@render noteWarning('ASSEMBLING')}</div>
       <div class="section-content">
         <div class="assembly-grid-2x2">
           <!-- LED -->
@@ -1254,23 +1286,7 @@
           {/if}
         </div>
 
-        <div
-          class="notes-field"
-          class:has-note={configuration.ASSEMBLING.notes}
-        >
-          {#if configuration.ASSEMBLING.notes}
-            <span class="note-icon"><AlertCircle size={14} /></span>
-          {/if}
-          <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.ASSEMBLING.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
-        </div>
+        {@render stationNotes('ASSEMBLING')}
       </div>
     </div>
   </div>
@@ -1278,6 +1294,8 @@
 
 <style>
   .profile-form {
+    container: production-profile / inline-size;
+    min-width: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
       sans-serif;
     background: var(--bg-1, var(--bg-0));
@@ -1386,6 +1404,11 @@
   .section.collapsed .section-title { background: var(--bg-2); color: var(--ink-secondary); }
 
   .section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
     background: var(--ink-secondary);
     color: var(--bg-0);
     padding: var(--space-sm, 8px) var(--space-md, 12px);
@@ -1397,6 +1420,50 @@
 
   .section-title .hint {
     font-weight: 400;
+  }
+
+  .section-title > span { display: inline-flex; align-items: center; gap: var(--space-xs); }
+  .section-note-warning {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    min-height: var(--control-xs);
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--warn-soft);
+    color: var(--ink-primary);
+    border: 1px solid var(--warn);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    line-height: var(--leading-snug);
+    cursor: pointer;
+  }
+  .section-note-warning:focus-visible,
+  .legacy-print-actions button:focus-visible,
+  .station-notes:focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .legacy-print-notice {
+    display: grid;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    border: 1px solid var(--warn);
+    border-radius: var(--radius-sm);
+    background: var(--bg-2);
+    color: var(--ink-primary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+  }
+  .legacy-print-notice p { margin: 0; }
+  .legacy-print-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+  .legacy-print-actions button {
+    min-height: var(--control-sm);
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-1);
+    color: var(--ink-primary);
+    font: inherit;
+    cursor: pointer;
   }
 
   .section-content {
@@ -1513,6 +1580,7 @@
     font-size: var(--text-sm);
     line-height: var(--leading-normal);
     overflow-wrap: anywhere;
+    white-space: pre-wrap;
   }
 
   /* DEPTH */
@@ -1588,6 +1656,23 @@
   .inline-field:last-of-type {
     border-bottom: none;
   }
+
+  .film-part-header { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+  .film-print {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--ink-primary);
+    background: var(--bg-1);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .film-print.active { border-color: var(--brand); background: var(--brand-soft); }
+  .film-print input { accent-color: var(--brand); }
 
   .toggle-label {
     display: flex;
@@ -1864,7 +1949,8 @@
   }
   @media (pointer: coarse) {
     .psu-type label, .opt, .extra, .wago-label, .length-input,
-    .sign-toggle button, .toggle-label, .option, .paint-label { min-height: 44px; }
+    .sign-toggle button, .toggle-label, .option, .paint-label,
+    .section-note-warning, .film-print, .legacy-print-actions button { min-height: 44px; }
   }
 
   /* INPUTS */
@@ -1886,19 +1972,28 @@
   }
 
   /* NOTES FIELD with wrap and alert icon */
+  .station-notes {
+    display: grid;
+    gap: var(--space-sm);
+    min-width: 0;
+    margin-top: auto;
+  }
+  .station-notes.has-note {
+    padding: var(--space-sm);
+    border: 1px solid var(--warn);
+    border-radius: var(--radius-sm);
+    background: var(--warn-soft);
+    color: var(--ink-primary);
+  }
+  .notes-readonly { min-width: 0; font-size: var(--text-sm); line-height: var(--leading-normal); }
+  .notes-readonly strong { display: flex; align-items: center; gap: var(--space-xs); }
+  .notes-readonly p { margin: var(--space-xs) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   .notes-field {
     position: relative;
     display: flex;
     align-items: flex-start;
     gap: var(--space-xs, 4px);
     margin-top: auto;
-  }
-
-  .notes-field .note-icon {
-    position: absolute;
-    top: var(--space-sm, 8px);
-    right: var(--space-sm, 8px);
-    color: var(--warn);
   }
 
   .notes-field.has-note .notes {
@@ -1995,5 +2090,23 @@
     .assembly-grid-2x2 {
       grid-template-columns: minmax(0, 1fr);
     }
+  }
+
+  /* The same production form also lives in station packets and order panels.
+     Respond to that available width, not only to the browser viewport. */
+  @container production-profile (max-width: 1400px) {
+    .form-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .section-xl { grid-column: 1 / -1; }
+  }
+  @container production-profile (max-width: 900px) {
+    .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .assembly-grid-2x2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @container production-profile (max-width: 600px) {
+    .form-grid, .assembly-grid-2x2 { grid-template-columns: minmax(0, 1fr); }
+    .section-sm, .section-lg, .section-xl { min-width: 0; }
+    .form-header { flex-direction: column; align-items: stretch; }
+    .sign-toggle { justify-content: center; }
+    .paint-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 </style>
