@@ -7,6 +7,8 @@
   import { workforceError } from './copy';
   import { formatWorkDate, minutesLabel } from './client';
   import { parseWorkClockInterval } from './clock-times';
+  import { previousShift, canReuseShift, savedShiftDraft, shiftDraftStatus } from './entry-guidance';
+  import { entryGuidanceCopy } from './entry-guidance-copy';
   import { MIN_WORKFORCE_YEAR } from './validation';
   import { untrack } from 'svelte';
 
@@ -34,6 +36,27 @@
   let dirty = $derived(ready && (startTime !== (entry?.startTime ?? '')
     || finishTime !== (entry?.finishTime ?? '') || note !== (entry?.note ?? '')));
   let valid = $derived(ready && actualMinutes !== null && !!cabinet.workDate && !future && !(fullAbsence && actualMinutes > 0) && note.length <= 500);
+
+  let guidance = $derived(entryGuidanceCopy(lang));
+  let suggestion = $derived(ready ? previousShift(cabinet.editor?.entries ?? [], cabinet.workDate, cabinet.editor?.owner.userId ?? '') : null);
+  let reuseAllowed = $derived(canReuseShift({ ready, busy: !!cabinet.busy, dirty, hasEntry: !!entry,
+    future, fullAbsence, hasSuggestion: !!suggestion }));
+  let actionStatus = $derived(shiftDraftStatus({ ready, busy: !!cabinet.busy, future, fullAbsence,
+    startTime, finishTime, actualMinutes, noteLength: note.length, dirty }));
+
+  function reusePreviousShift() {
+    if (!reuseAllowed || !suggestion) return;
+    startTime = suggestion.startTime; finishTime = suggestion.finishTime; touched = true;
+    // Keep notes local to this date. The normal explicit Save calculates its credit.
+    document.getElementById('work-finish')?.focus();
+  }
+
+  function discardChanges() {
+    if (!ready || cabinet.busy || !dirty) return;
+    const saved = savedShiftDraft(entry);
+    startTime = saved.startTime; finishTime = saved.finishTime; note = saved.note; touched = false;
+    document.getElementById('work-start')?.focus();
+  }
 
   $effect(() => {
     const key = `${cabinet.owner}:${cabinet.workDate}:${entry?.id ?? 'new'}:${entry?.version ?? 0}`;
@@ -75,6 +98,12 @@
     {:else if ready}
       <p class="wfc-inline-note">{formatWorkDate(cabinet.workDate, lang)} · {c.noEntry}</p>
     {/if}
+    {#if reuseAllowed && suggestion}
+      <button type="button" class="wfc-button shift-reuse" onclick={reusePreviousShift} aria-describedby="work-entry-action-hint">
+        <span>{guidance.reuse}</span>
+        <span class="shift-reuse-source">{formatWorkDate(suggestion.sourceDate, lang)} · {suggestion.startTime}–{suggestion.finishTime}</span>
+      </button>
+    {/if}
     <fieldset disabled={!ready || !!cabinet.busy} class="wfc-time-fields">
       <legend class="wfc-sr-only">{c.shiftTimes}</legend>
       <div class="wfc-field"><label for="work-start">{c.startTime}</label><input class="rf-input" id="work-start" type="time" step="60" required bind:value={startTime} oninput={() => touched = true} aria-invalid={touched && !!interval.code} aria-describedby={touched && interval.code ? 'work-time-hint work-time-error' : 'work-time-hint'} /></div>
@@ -93,8 +122,16 @@
     <div class="wfc-field"><label for="work-note">{c.note}</label><textarea class="rf-input" id="work-note" rows="2" maxlength="500" bind:value={note} disabled={!ready || !!cabinet.busy} aria-describedby="work-note-hint"></textarea><p class="wfc-hint" id="work-note-hint">{c.entryNoteHint}</p></div>
     <div class="wfc-form-actions">
       <button type="submit" class="rf-btn wfc-primary" use:nextActionHalo={valid && dirty && !cabinet.busy}
-        disabled={!valid || !dirty || !!cabinet.busy} aria-busy={cabinet.busy === 'entry'}>{cabinet.busy === 'entry' ? c.saving : entry ? c.update : c.save}</button>
-      {#if valid && dirty && !cabinet.busy}<span class="wfc-hint">{c.nextStep}</span>{/if}
+        disabled={!valid || !dirty || !!cabinet.busy} aria-describedby="work-entry-action-hint" aria-busy={cabinet.busy === 'entry'}>{cabinet.busy === 'entry' ? c.saving : entry ? c.update : c.save}</button>
+      {#if ready && dirty}
+        <button type="button" class="wfc-button" disabled={!!cabinet.busy} onclick={discardChanges}>{guidance.discard}</button>
+      {/if}
     </div>
+    <p class="wfc-hint" id="work-entry-action-hint" role="status" data-entry-status={actionStatus}>{guidance.hints[actionStatus]}</p>
   </form>
 </section>
+
+<style>
+  .shift-reuse { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-sm); max-width: 100%; margin-bottom: var(--space-sm); text-align: start; white-space: normal; overflow-wrap: anywhere; }
+  .shift-reuse-source { font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+</style>
