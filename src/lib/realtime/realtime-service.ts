@@ -47,6 +47,10 @@ class RealtimeService {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 2000;
   private isReconnecting = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private generation = 0;
+  private activeUserId: string | null = null;
+  private subscribed = new Set<'orders' | 'notifications'>();
 
   /**
    * Initialize real-time subscriptions for a user
@@ -64,19 +68,20 @@ class RealtimeService {
       return;
     }
 
+    if (this.activeUserId === userId && this.orderChannel && this.notificationChannel) return;
+    await this.disconnect(false);
+    this.activeUserId = userId;
+    const generation = this.generation;
     connectionState.set('connecting');
 
     try {
       // Subscribe to order updates
-      await this.subscribeToOrders(userId);
+      await this.subscribeToOrders(userId, generation);
       
       // Subscribe to user notifications
-      await this.subscribeToNotifications(userId);
+      await this.subscribeToNotifications(userId, generation);
       
-      connectionState.set('connected');
-      this.reconnectAttempts = 0;
-      
-      console.log('[Realtime] Connected successfully');
+      // Connection is only healthy after both channel callbacks report SUBSCRIBED.
     } catch (error) {
       console.error('[Realtime] Connection error:', error);
       connectionState.set('error');
@@ -87,7 +92,7 @@ class RealtimeService {
   /**
    * Subscribe to order changes
    */
-  private async subscribeToOrders(userId: string): Promise<void> {
+  private async subscribeToOrders(userId: string, generation: number): Promise<void> {
     this.orderChannel = supabase
       .channel('orders')
       .on(
@@ -102,7 +107,9 @@ class RealtimeService {
         }
       )
       .subscribe((status) => {
+        if (generation !== this.generation) return;
         if (status === 'SUBSCRIBED') {
+          this.markSubscribed('orders');
           console.log('[Realtime] Subscribed to orders');
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.error('[Realtime] Order subscription error:', status);
@@ -114,7 +121,7 @@ class RealtimeService {
   /**
    * Subscribe to user notifications
    */
-  private async subscribeToNotifications(userId: string): Promise<void> {
+  private async subscribeToNotifications(userId: string, generation: number): Promise<void> {
     this.notificationChannel = supabase
       .channel(`notifications:${userId}`)
       .on(
@@ -130,7 +137,9 @@ class RealtimeService {
         }
       )
       .subscribe((status) => {
+        if (generation !== this.generation) return;
         if (status === 'SUBSCRIBED') {
+          this.markSubscribed('notifications');
           console.log('[Realtime] Subscribed to notifications');
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.error('[Realtime] Notification subscription error:', status);
@@ -208,8 +217,17 @@ class RealtimeService {
   /**
    * Handle reconnection logic
    */
+  private markSubscribed(channel: 'orders' | 'notifications'): void {
+    this.subscribed.add(channel);
+    if (this.subscribed.size === 2) {
+      connectionState.set('connected');
+      this.reconnectAttempts = 0;
+      console.log('[Realtime] Both channels subscribed');
+    }
+  }
+
   private handleReconnect(userId: string): void {
-    if (this.isReconnecting) return;
+    if (this.isReconnecting || this.activeUserId !== userId) return;
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('[Realtime] Max reconnection attempts reached');
@@ -223,17 +241,29 @@ class RealtimeService {
 
     console.log(`[Realtime] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
-    setTimeout(async () => {
-      await this.disconnect();
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+      if (this.activeUserId !== userId) return;
+      await this.disconnect(false);
       this.isReconnecting = false;
-      this.connect(userId);
+      this.activeUserId = null;
+      void this.connect(userId);
     }, delay);
   }
 
   /**
    * Disconnect all channels
    */
-  async disconnect(): Promise<void> {
+  async disconnect(cancelReconnect = true): Promise<void> {
+    this.generation++;
+    this.subscribed.clear();
+    if (cancelReconnect) {
+      if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+      this.isReconnecting = false;
+      this.activeUserId = null;
+      this.reconnectAttempts = 0;
+    }
     if (this.orderChannel) {
       await supabase.removeChannel(this.orderChannel);
       this.orderChannel = null;
