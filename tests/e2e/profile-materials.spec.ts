@@ -60,10 +60,39 @@ async function openEditor(field: Locator) {
 }
 
 async function finishSelection(field: Locator) {
-  await field.locator('.done-editing').click();
+  if (await field.locator('.selection-editor').count()) {
+    // Escape commits custom text with no extra Done click.
+    await field.locator('.selection-editor button:visible, .selection-editor input:visible, .selection-editor select:visible').first().press('Escape');
+  }
   await expect(field.locator('[data-material-badge]')).toHaveCount(1);
   await expect(field.locator('.select-trigger')).toHaveCount(0);
 }
+
+test('material editors collapse automatically when thickness selection finishes', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Load configured materials' }).click();
+  const face = page.locator('.face-material-entry').first();
+  const back = page.locator('fieldset').filter({ has: page.locator('legend', { hasText: /^BACK$/ }) }).first();
+  const sides = page.locator('fieldset').filter({ has: page.locator('legend', { hasText: /^SIDES$/ }) }).first();
+  const frame = page.locator('.assembly-item').filter({ has: page.getByLabel('FRAME', { exact: true }) });
+  for (const [field, thickness] of [[face, '5mm'], [back, '4mm'], [sides, '2mm'], [frame, '3mm']] as const) {
+    await openEditor(field);
+    await field.locator('.thickness-select').selectOption(thickness);
+    await expect(field.locator('.selection-editor')).toHaveCount(0);
+    await expect(field.locator('.edit-selection')).toHaveCount(1);
+    await expect(field.locator('[data-material-badge]')).toHaveCount(1);
+  }
+  const saved = await savedConfiguration(page);
+  expect(saved.CNC_FREZER.faceMaterials[0].thickness).toBe('5mm');
+  expect(saved.CNC_FREZER.backThickness).toBe('4mm');
+  expect(saved.BENDER.sidesThickness).toBe('2mm');
+  expect(saved.ASSEMBLING.frameThickness).toBe('3mm');
+  await page.getByRole('button', { name: 'Reload serialized profile' }).click();
+  for (const field of [face, back, sides, frame]) {
+    await expect(field.locator('[data-material-badge]')).toHaveCount(1);
+    await expect(field.locator('.selection-editor')).toHaveCount(0);
+  }
+});
 
 test('configured production materials show one physical-color badge and an adjacent edit action', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1765, height: 1000 });
@@ -99,12 +128,12 @@ test('configured production materials show one physical-color badge and an adjac
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
   await film.screenshot({ path: testInfo.outputPath('compact-film-phone.png') });
   await page.getByRole('button', { name: 'Toggle read only' }).click();
-  await expect(page.locator('.edit-selection, .done-editing')).toHaveCount(0);
+  await expect(page.locator('.edit-selection')).toHaveCount(0);
   await expect(page.getByLabel('FRONT · Notes', { exact: true })).toContainText('Apply before trimming');
   await expect(page.getByTestId('change-count')).toHaveText('0');
 });
 
-test('Edit and Done are keyboard operable and expose film notes without duplicating the selected badge', async ({ page }) => {
+test('Edit and Escape are keyboard operable and expose film notes without duplicating the selected badge', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Load configured materials' }).click();
   const film = page.locator('.inline-field').filter({ has: page.getByRole('checkbox', { name: 'FACE', exact: true }) });
@@ -118,8 +147,7 @@ test('Edit and Done are keyboard operable and expose film notes without duplicat
   await expect(note).toHaveValue('Apply before trimming');
   await note.fill('Apply before trimming; keep the liner');
   const edits = await page.getByTestId('change-count').innerText();
-  await film.locator('.done-editing').focus();
-  await page.keyboard.press('Enter');
+  await note.press('Escape');
   await expect(edit).toBeFocused();
   await expect(film.locator('[data-material-badge]')).toHaveText('ORA 8500/005');
   await expect(film.locator('.select-trigger, .custom-input')).toHaveCount(0);

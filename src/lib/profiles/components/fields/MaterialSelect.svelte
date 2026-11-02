@@ -63,7 +63,7 @@
     badgeThickness?: string;
     badgeShortName?: string;
     badgeDimensions?: string;
-    editorDetails?: Snippet<[Material | null]>;
+    editorDetails?: Snippet<[Material | null, () => void]>;
     finishOnSelect?: boolean;
     onchange?: (data: {
       value: string;
@@ -328,9 +328,9 @@
   }
 
   function handleClickOutside(event: PointerEvent) {
-    if (open && pickerControlRef && !pickerControlRef.contains(event.target as Node)) {
-      open = false;
-    }
+    if (open && pickerControlRef && !pickerControlRef.contains(event.target as Node)) open = false;
+    if (compactSelection && editing && value && dropdownRef &&
+      !dropdownRef.contains(event.target as Node)) editing = false;
   }
 
   async function browseCategory(category: string) {
@@ -389,6 +389,8 @@
     // destination. Moving into editor details leaves the picker, but keeps the
     // material editor open so thickness, notes and geometry remain available.
     if (open && pickerControlRef && !pickerControlRef.contains(event.target as Node)) open = false;
+    if (compactSelection && editing && value && dropdownRef &&
+      !dropdownRef.contains(event.target as Node)) editing = false;
   }
 </script>
 
@@ -601,17 +603,7 @@
   </div>
   {#if compactSelection && editorDetails}
     <div class="editor-details">
-      {@render editorDetails(selectedMaterial)}
-    </div>
-  {/if}
-  {#if compactSelection && value && !readonly}
-    <div class="editor-actions">
-      <button type="button" class="done-editing"
-        aria-label={label ? `${label} · ${$t("materialPicker.doneEditing", { default: "Done" })}`
-          : $t("materialPicker.doneEditing", { default: "Done" })}
-        onclick={finishEditing}>
-        {$t("materialPicker.doneEditing", { default: "Done" })}
-      </button>
+      {@render editorDetails(selectedMaterial, () => { void finishEditing(); })}
     </div>
   {/if}
   </div>
@@ -651,8 +643,7 @@
   .badge-label { min-width: 0; overflow-wrap: anywhere; }
   .material-selection-badge .selected-summary { line-height: inherit; }
   .material-selection-badge .summary-separator { color: inherit; }
-  .edit-selection,
-  .done-editing {
+  .edit-selection {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -671,14 +662,11 @@
   }
   .edit-selection { align-self: start; }
   .edit-selection :global(svg) { flex-shrink: 0; }
-  .edit-selection:hover,
-  .done-editing:hover { border-color: var(--border-strong); background: var(--bg-2); }
-  .edit-selection:focus-visible,
-  .done-editing:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .edit-selection:hover { border-color: var(--border-strong); background: var(--bg-2); }
+  .edit-selection:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .selection-editor,
   .editor-details { display: grid; gap: var(--space-sm); min-width: 0; }
   .picker-control { position: relative; min-width: 0; }
-  .editor-actions { display: flex; justify-content: flex-end; }
   .selection-control { display: flex; align-items: stretch; gap: 4px; min-width: 0; }
 
   .select-trigger {
@@ -865,7 +853,7 @@
   .clear-selection:hover { border-color: var(--border-strong, var(--muted)); color: var(--text, var(--ink-primary)); background: var(--bg-2); }
 
   @media (pointer: coarse) {
-    .edit-selection, .done-editing { min-height: var(--control-size); }
+    .edit-selection { min-height: var(--control-size); }
     .select-trigger, .category-option, .option, .category-back, .custom-option, .retry-button, .custom-text-input, .btn-switch-mode, .custom-color-picker, .clear-selection { min-height: 44px; }
     .btn-switch-mode, .custom-color-picker, .clear-selection { min-width: 40px; }
   }

@@ -638,7 +638,7 @@
                   {readonly}
                   onchange={(data) => selectFaceMaterial(material, data)}
                 >
-                  {#snippet editorDetails(selectedMaterial)}
+                  {#snippet editorDetails(selectedMaterial, complete)}
                     {#if material.value && material.process !== '3D_PRINT' && !isProfilePrintMaterial(selectedMaterial?.category || material.category)}
                       <MaterialThicknessSelect
                         bind:value={material.thickness}
@@ -647,7 +647,7 @@
                         autoSelectLowest={false}
                         label={`${$t('profiles.materials.faceNumber', { number: index + 1 })} · ${$t('materialThickness.select')}`}
                         {readonly}
-                        onchange={emit}
+                        onchange={() => { emit(); complete(); }}
                       />
                     {/if}
                   {/snippet}
@@ -682,7 +682,7 @@
               {readonly}
               onchange={selectBackMaterial}
             >
-              {#snippet editorDetails(selectedMaterial)}
+              {#snippet editorDetails(selectedMaterial, complete)}
                 {#if configuration.CNC_FREZER.back && configuration.CNC_FREZER.backProcess !== '3D_PRINT' && !isProfilePrintMaterial(selectedMaterial?.category || configuration.CNC_FREZER.backCategory)}
                   <MaterialThicknessSelect
                     bind:value={configuration.CNC_FREZER.backThickness}
@@ -691,7 +691,7 @@
                     autoSelectLowest={false}
                     label={`BACK · ${$t('materialThickness.select')}`}
                     {readonly}
-                    onchange={emit}
+                    onchange={() => { emit(); complete(); }}
                   />
                 {/if}
               {/snippet}
@@ -763,7 +763,7 @@
               {readonly}
               onchange={selectSidesMaterial}
             >
-              {#snippet editorDetails()}
+              {#snippet editorDetails(_selectedMaterial, complete)}
                 {#if configuration.BENDER.sides}
                   <MaterialThicknessSelect
                     bind:value={configuration.BENDER.sidesThickness}
@@ -772,7 +772,7 @@
                     autoSelectLowest={false}
                     label={`SIDES · ${$t('materialThickness.select')}`}
                     {readonly}
-                    onchange={emit}
+                    onchange={() => { emit(); complete(); }}
                   />
                 {/if}
               {/snippet}
@@ -852,7 +852,7 @@
                     emit();
                   }}
                 >
-                  {#snippet editorDetails()}
+                  {#snippet editorDetails(_selectedMaterial, complete)}
                     {#if !readonly}
                       <input
                         type="text"
@@ -914,7 +914,7 @@
                     emit();
                   }}
                 >
-                  {#snippet editorDetails()}
+                  {#snippet editorDetails(_selectedMaterial, complete)}
                     {#if !readonly}
                       <input
                         type="text"
@@ -1116,7 +1116,7 @@
                     emit();
                   }}
                 >
-                  {#snippet editorDetails()}
+                  {#snippet editorDetails(_selectedMaterial, complete)}
                     <div class="field cable-length">
                       <label for={`${formId}-cable-length`}>{$t('profiles.materials.cableLength')}</label>
                       <input
@@ -1208,7 +1208,7 @@
                   {readonly}
                   onchange={selectFrameMaterial}
                 >
-                  {#snippet editorDetails()}
+                  {#snippet editorDetails(_selectedMaterial, complete)}
                     {#if configuration.ASSEMBLING.frameMaterial}
                       <MaterialThicknessSelect
                         bind:value={configuration.ASSEMBLING.frameThickness}
@@ -1217,7 +1217,7 @@
                         autoSelectLowest={false}
                         label={`FRAME · ${$t('materialThickness.select')}`}
                         {readonly}
-                        onchange={changeFrameThickness}
+                        onchange={() => { changeFrameThickness(); complete(); }}
                       />
                       <div class="field">
                         <label for={`${formId}-frame-size`}>{isRoundFrame ? "DIAMETER (mm)" : "FRAME SIZE"}</label>
