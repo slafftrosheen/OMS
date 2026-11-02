@@ -157,7 +157,7 @@ describe('OMS-R31 restore native forms and wire OpenRouter without duplication',
    expect(editor).toContain('askWorkflowHelp(');
    expect(assistant).toContain('onOpenIntake?:()=>void');
    expect(assistant).toContain('onOpenProfiles?:()=>void');
-   expect(assistant).toContain('if(busy||!canAsk||!consent||!question.trim()');
+   expect(assistant).toContain('if(busy||!canAsk||!question.trim()');
    expect(intake).toContain('readOrderStoredFile');
    expect(intake).toContain("matchesOrderFileSignature");
    expect(intake).toContain('normalizeIntakeProposals');
@@ -207,7 +207,7 @@ describe('OMS-R31 restore native forms and wire OpenRouter without duplication',
    expect(editor).toContain('orderAssistant.profileSpecificQuestion');
    expect(editor).toContain("query.get('assist')==='profiles'");
    expect(editor).toContain("askWorkflowHelp($t('orderAssistant.nativeProfileQuestion')");
-   expect(assistant).toContain('!consent||!question.trim()');
+   expect(assistant).not.toContain('!consent||!question.trim()');
  });
  it('translates contextual links in EN, RU and LV',()=>{
    for(const locale of ['en','ru','lv']){

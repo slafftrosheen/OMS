@@ -54,6 +54,11 @@ export const OPENROUTER_CONFIG: OpenRouterClientConfig = {
 };
 
 async function configuredClientConfig(): Promise<OpenRouterClientConfig> {
+  // Central authorization boundary: production callers cannot reach the
+  // external AI provider until R&D enables company-wide data sharing.
+  // Read the DB for every request so revocation takes effect immediately.
+  const { assertOpenRouterPolicyEnabled } = await import('$lib/server/ai/provider-policy');
+  await assertOpenRouterPolicyEnabled();
   const { resolveOpenRouterApiKey } = await import('$lib/server/ai/provider-key');
   return { ...OPENROUTER_CONFIG, apiKey: await resolveOpenRouterApiKey() };
 }

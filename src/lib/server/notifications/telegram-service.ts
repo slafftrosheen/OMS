@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   createTelegramLinkToken, hashTelegramLinkToken, readTelegramCommand, readTelegramUpdateIdentity,
-  sendTelegramMessage, telegramApi, telegramRetryAt, type TelegramConfig
+  telegramCallbackQueryId, sendTelegramMessage, telegramApi, telegramRetryAt, type TelegramConfig
 } from './telegram';
 import { dispatchTelegramBotReplies } from './telegram-bot';
 import { checkTelegramRuntimeFence } from './telegram-runtime-fence';
@@ -60,16 +60,23 @@ export async function connectTelegram(config: TelegramConfig, db: Database, user
 export async function handleTelegramUpdate(config: TelegramConfig, db: Database, update: unknown): Promise<void> {
   const command = readTelegramCommand(update, config.botUsername);
   const identity = readTelegramUpdateIdentity(update);
-  if (!command || !identity) return;
+  const callbackId = identity ? telegramCallbackQueryId(update) : null;
+  if (!command || !identity) {
+    if (callbackId) await telegramApi(config, 'answerCallbackQuery', { callback_query_id: callbackId });
+    return;
+  }
   if (command.kind === 'command') {
     const options = config.options;
-    if (options && (!options.commandsEnabled || !options.commands.includes(command.command) || (command.command === 'ask' && !options.aiEnabled))) return;
+    if (options && (!options.commandsEnabled || !options.commands.includes(command.command) || (command.command === 'ask' && !options.aiEnabled))) {
+      if (callbackId) await telegramApi(config, 'answerCallbackQuery', { callback_query_id: callbackId });
+      return;
+    }
     const result = await db.rpc('process_telegram_bot_command', {
       p_update_id: identity.updateId, p_message_at: identity.messageAt, p_command: command.command,
       p_chat_id: command.chatId, p_telegram_user_id: command.telegramUserId, p_argument: command.argument
     });
     if (result.error) throw new TelegramServiceError('webhook_unavailable');
-    if (command.callbackId) await telegramApi(config, 'answerCallbackQuery', { callback_query_id: command.callbackId });
+    if (callbackId) await telegramApi(config, 'answerCallbackQuery', { callback_query_id: callbackId });
     if (typeof result.data === 'string') await dispatchTelegramBotReplies(config, db, { id: result.data });
     return;
   }

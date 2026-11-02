@@ -19,7 +19,7 @@
     onOpenIntake?:()=>void;onOpenProfiles?:()=>void;
     onApply:(patch:Record<string,unknown>)=>void
   }=$props();
-  let consent=$state(false),question=$state('');
+  let question=$state('');
   let mode=$state<'chat'|'propose'>('chat');
   let busy=$state(false),applying=$state(false),problem=$state('');
   let turns=$state<OrderAssistantTurn[]>([]);
@@ -102,7 +102,7 @@
     proposals=[];missing=[];approvals={};applied=false;proposalVersion='';proposalsBase='';
   }
   async function ask(){
-    if(busy||!canAsk||!consent||!question.trim()||!orderId)return;
+    if(busy||!canAsk||!question.trim()||!orderId)return;
     const text=question.trim();
     if(text.length>2500){problem=$t('orderAssistant.tooLong');return;}
     if(mode==='propose' && dirty){problem=$t('orderAssistant.saveBeforePropose');return;}
@@ -203,10 +203,6 @@
   </div>
   <p class="hint">{$t('orderAssistant.fileIntakeHint')}</p>
   {#if dirty}<p class="warning" role="status">{$t('orderAssistant.unsaved')}</p>{/if}
-  <label class="consent">
-    <input type="checkbox" bind:checked={consent} disabled={busy||!canAsk}/>
-    {$t('orderAssistant.consent')}
-  </label>
   {#if !canAsk}<p class="hint">{$t('orderAssistant.readOnly')}</p>{/if}
 
   <section class="technical" aria-label={$t('orderAssistant.technicalTitle')}>
@@ -316,7 +312,7 @@
       onkeydown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();void ask();}}}></textarea>
   </label>
   <button type="button" class="primary" onclick={ask}
-    disabled={busy||!consent||!canAsk||!question.trim()}>
+    disabled={busy||!canAsk||!question.trim()}>
     {busy?$t('orderAssistant.thinking'):$t('orderAssistant.send')}
   </button>
   {#if problem}<p role="alert" class="warning">{problem}</p>{/if}

@@ -16,7 +16,6 @@
     onOpenWorkflow?: (id: string) => void;
   } = $props();
   let question = $state('');
-  let consent = $state(false);
   let sending = $state(false);
   let problem = $state('');
   let toolsProblem = $state(false);
@@ -81,7 +80,7 @@
     if (screenWorkflows(path, registration?.tools() ?? []).some(tool => tool.id === id)) onOpenWorkflow?.(id);
   }
   async function send() {
-    if (sending || !consent || !question.trim()) return;
+    if (sending || !question.trim()) return;
     const text = question.trim();
     if (text.length > 2500) return;
     if (snapshot.failed) { problem = $t('assistant.contextUnavailable'); return; }
@@ -186,13 +185,12 @@
   </div>
   <form class="composer" onsubmit={event => { event.preventDefault(); void send(); }}>
     {#if problem}<p class="problem" role="alert">{problem}</p>{/if}
-    <label class="consent"><input type="checkbox" bind:checked={consent} disabled={sending} /><span>{$t('assistant.consent')}</span></label>
     <label for="oms-assistant-question" class="sr-only">{$t('assistant.question')}</label>
     <textarea id="oms-assistant-question" bind:this={input} bind:value={question} rows="2" maxlength="2500" placeholder={$t('assistant.placeholder')}
       disabled={sending} onkeydown={event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void send(); } }}></textarea>
     <div class="send-row"><small>{$t('assistant.sendShortcut')}</small>
       {#if sending}<button type="button" class="send" onclick={stop}><Square size={14} />{$t('assistant.stop')}</button>
-      {:else}<button type="submit" class="send" use:nextActionHalo={consent && !!question.trim()} disabled={!consent || !question.trim()}><ArrowUp size={16} />{$t('assistant.send')}</button>{/if}
+      {:else}<button type="submit" class="send" use:nextActionHalo={!!question.trim()} disabled={!question.trim()}><ArrowUp size={16} />{$t('assistant.send')}</button>{/if}
     </div>
   </form>
 </div>

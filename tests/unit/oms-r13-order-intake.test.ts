@@ -92,7 +92,7 @@ describe('OMS-R13 OpenRouter Smart Order Intake',()=>{
   it('forces explicit unchecked field approvals, verifies current state, never auto saves',()=>{
     const ui=read('src/lib/order/OrderIntakeAssistant.svelte');
     expect(ui).toContain('approvals={};');
-    expect(ui).toContain('consent');
+    expect(ui).not.toContain('bind:checked={consent}');
     expect(ui).toContain('confirmPaidOcr');
     expect(ui).toContain("fetch('/api/ai/order-intake'");
     expect(ui).toContain('JSON.stringify(current)!==baseState');

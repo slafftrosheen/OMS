@@ -59,7 +59,6 @@ async function openScreenHelp(page: Page) {
 
 async function sendQuestion(page: Page, question: string) {
   await page.getByLabel('Question for the assistant', { exact: true }).fill(question);
-  await page.getByRole('checkbox', { name: 'Send this screen’s context and my question to OpenRouter.' }).check();
   await page.getByRole('button', { name: 'Send', exact: true }).click();
 }
 
@@ -97,12 +96,10 @@ test('local guidance prepares the relevant question even when tool discovery fai
   const question = page.getByLabel('Question for the assistant', { exact: true });
   await expect(question).toHaveValue('Help me check these unsaved selections before I save the draft.');
   await expect(question).toBeFocused();
-  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
   expect(observed.posts()).toHaveLength(0);
-  await page.getByRole('checkbox').check();
   await expect(page.getByRole('button', { name: 'Send', exact: true })).toHaveAttribute('data-next-action', 'true');
-  await page.getByRole('checkbox').uncheck();
-  await expect(page.getByRole('button', { name: 'Send', exact: true })).not.toHaveAttribute('data-next-action');
+  await expect(page.getByRole('checkbox', { name: /OpenRouter/ })).toHaveCount(0);
 });
 
 test('an answer discloses changes made during its request and a fresh review uses the latest context', async ({ page }) => {
@@ -171,13 +168,12 @@ test('native drafts survive hiding, reopening, native-tool switching and general
   expect(observed.posts()).toHaveLength(0);
 });
 
-test('sending requires consent and reads the current unsaved screen context at the moment of send', async ({ page }) => {
+test('sending uses company AI permission and reads current unsaved screen context at send time', async ({ page }) => {
   const observed = await assistantFixture(page);
   await openScreenHelp(page);
   await expect.poll(() => observed.gets().length).toBe(1);
   await page.getByLabel('Question for the assistant', { exact: true }).fill('Check the latest selected supply');
-  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeDisabled();
-  await page.getByRole('checkbox', { name: 'Send this screen’s context and my question to OpenRouter.' }).check();
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
   expect(observed.posts()).toHaveLength(0);
 
   // The drawer is already open. A captured-on-open snapshot would fail this.
@@ -265,7 +261,7 @@ for (const boundary of ['route', 'account'] as const) {
       await expect(page.getByRole('log')).not.toContainText('Private answer from the first screen');
       await expect(page.getByRole('log')).not.toContainText('Obsolete response');
       await expect(page.getByLabel('Question for the assistant', { exact: true })).toBeEmpty();
-      await expect(page.getByRole('checkbox', { name: 'Send this screen’s context and my question to OpenRouter.' })).not.toBeChecked();
+      await expect(page.getByRole('checkbox', { name: /OpenRouter/ })).toHaveCount(0);
       expect(observed.posts()).toHaveLength(2);
       if (boundary === 'route') {
         await expect(page.getByRole('button', { name: 'Stock checks', exact: true })).toBeVisible();
@@ -540,7 +536,6 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 375, height: 812
     await tools.getByRole('button', { name: 'Production readiness', exact: true }).click();
     const readiness = panel.locator('.readiness');
     await expect(readiness).toBeVisible();
-    await readiness.getByRole('checkbox').check();
     await readiness.getByRole('button', { name: 'Run readiness check', exact: true }).click();
     await expect(readiness.getByText('XLG-150-12', { exact: false }).first()).toBeVisible();
     await expect(readiness.getByText('Needs manual review', { exact: true })).toBeVisible();

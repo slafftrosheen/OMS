@@ -121,7 +121,7 @@ describe('OMS-R15 customer file revision intelligence',()=>{
   it('uses separate human review without automatically applying approved CRs',()=>{
     const component=source('src/lib/order/RevisionIntelligence.svelte');
     const editor=source('src/routes/orders/[id]/edit/+page.svelte');
-    expect(component).toContain('bind:checked={consent}');
+    expect(component).not.toContain('bind:checked={consent}');
     expect(component).toContain("checked={checked[i]===true}");
     expect(component).toContain("fetch('/api/ai/order-revisions'");
     expect(component).toContain("fetch('/api/orders/revision-change-request'");

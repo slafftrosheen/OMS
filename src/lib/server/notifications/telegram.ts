@@ -78,6 +78,19 @@ export function readTelegramUpdateIdentity(update: unknown): { updateId: number;
   return Number.isFinite(date.getTime()) ? { updateId: value.update_id, messageAt: date.toISOString() } : null;
 }
 
+/** Acknowledge private-chat callbacks even when a command is disabled or stale.
+ * The authenticated Telegram transport is required before this ID is used. */
+export function telegramCallbackQueryId(update: unknown): string | null {
+  if (!update || typeof update !== 'object') return null;
+  const callback = (update as any).callback_query;
+  if (!callback || typeof callback.id !== 'string'
+    || !/^[A-Za-z0-9_-]{1,128}$/.test(callback.id)
+    || callback.message?.chat?.type !== 'private' || callback.from?.is_bot === true
+    || !Number.isSafeInteger(callback.message.chat.id) || callback.message.chat.id <= 0
+    || callback.from?.id !== callback.message.chat.id) return null;
+  return callback.id;
+}
+
 /** Never bind accounts from groups, forwarded updates, edited messages or bot senders. */
 export function readTelegramCommand(update: unknown, botUsername: string): TelegramCommand | null {
   if (!update || typeof update !== 'object') return null;

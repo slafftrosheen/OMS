@@ -107,7 +107,7 @@ describe('OMS-R14 grounded production intelligence',()=>{
     const panel=read('src/lib/order/OrderReadinessAssistant.svelte');
     const editor=read('src/routes/orders/[id]/edit/+page.svelte');
     expect(panel).toContain("fetch('/api/ai/order-readiness'");
-    expect(panel).toContain('bind:checked={consent}');
+    expect(panel).not.toContain('bind:checked={consent}');
     expect(panel).toContain('consent:true');
     expect(panel).toContain("report.aiWarning");
     expect(panel).toContain("report.materials");
