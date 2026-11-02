@@ -126,25 +126,32 @@ const AI_LIMIT_MAX = 12;           // 12 requests / minute / user
 
 const aiBuckets = new Map<string, AIBucket>();
 
-export function aiRateLimit(identifier: string) {
+/**
+ * Check the shared AI throttle without throwing, so JSON endpoints can tell
+ * callers whether OMS (rather than an upstream AI provider) applied the limit.
+ * Blocked requests do not add to the bucket or extend the cooldown.
+ */
+export function checkAiRateLimit(identifier: string): { allowed: boolean; retryAfter: number } {
     const now = Date.now();
-    const b = aiBuckets.get(identifier);
-
-    if (!b || b.resetAt < now) {
+    const bucket = aiBuckets.get(identifier);
+    if (!bucket || bucket.resetAt <= now) {
         aiBuckets.set(identifier, { count: 1, resetAt: now + AI_LIMIT_WINDOW_MS });
-        return;
+        return { allowed: true, retryAfter: 0 };
     }
+    if (bucket.count >= AI_LIMIT_MAX) {
+        return { allowed: false, retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
+    }
+    bucket.count++;
+    return { allowed: true, retryAfter: 0 };
+}
 
-    b.count += 1;
-    if (b.count > AI_LIMIT_MAX) {
-        const retryAfter = Math.max(1, Math.ceil((b.resetAt - now) / 1000));
-        throw error(
-            429,
-            JSON.stringify({
-                message: 'AI rate limit exceeded',
-                retryAfter
-            })
-        );
+export function aiRateLimit(identifier: string) {
+    const result = checkAiRateLimit(identifier);
+    if (!result.allowed) {
+        throw error(429, JSON.stringify({
+            message: 'AI rate limit exceeded',
+            retryAfter: result.retryAfter
+        }));
     }
 }
 
