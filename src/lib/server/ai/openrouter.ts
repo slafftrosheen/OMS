@@ -179,6 +179,25 @@ export interface OpenRouterCompletionMetadata {
   webSearchRequests: number | null;
 }
 
+/** Provider status metadata only; never include upstream response bodies or private prompts. */
+export function openRouterRetryAfterSeconds(value: string | null, now = Date.now()): number | null {
+  const text = value?.trim();
+  if (!text) return null;
+  const seconds = /^\d+$/.test(text) ? Number(text) : Math.ceil((Date.parse(text) - now) / 1000);
+  return Number.isFinite(seconds) && seconds >= 0 ? Math.max(1, Math.min(86_400, seconds)) : null;
+}
+
+export class OpenRouterHttpError extends Error {
+  readonly statusCode: number;
+  readonly retryAfterSeconds: number | null;
+  constructor(statusCode: number, retryAfter: string | null = null) {
+    super(`OpenRouter completion failed (HTTP ${statusCode})`);
+    this.name = 'OpenRouterHttpError';
+    this.statusCode = statusCode;
+    this.retryAfterSeconds = openRouterRetryAfterSeconds(retryAfter);
+  }
+}
+
 export async function openRouterCompleteWithMetadata(
   messages: OpenRouterMessage[],
   options: Omit<OpenRouterChatOptions, 'messages'> = {},
@@ -188,7 +207,7 @@ export async function openRouterCompleteWithMetadata(
   const { response, model } = await openRouterChat({ ...options, messages, stream: false }, config, fetcher);
   if (!response.ok) {
     // Never surface upstream error bodies that may echo prompts or credentials.
-    throw new Error(`OpenRouter completion failed (HTTP ${response.status})`);
+    throw new OpenRouterHttpError(response.status, response.headers.get('Retry-After'));
   }
   const data = await response.json();
   const choice = data?.choices?.[0];
