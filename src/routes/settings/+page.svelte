@@ -33,6 +33,9 @@
   let aiPolicySaving = $state(false);
   let aiPolicyError = $state('');
   let aiPolicyMessage = $state('');
+  const authState = getContext<AuthState>('authState');
+  const logoutAuthState = authState;
+  let showOpenRouterSettings = $derived(authState?.user?.role === 'RD');
   const tabCopy = $derived(settingsTabsCopy($locale));
   const availableTabs = $derived<SettingsTab[]>(
     showOpenRouterSettings ? ['general','ai','telegram','integrations'] : ['general','integrations']
@@ -79,9 +82,6 @@
       aiPolicyError = tabCopy.sharingSaveFailed;
     } finally { aiPolicySaving = false; }
   }
-  const authState = getContext<AuthState>('authState');
-  const logoutAuthState = authState;
-  let showOpenRouterSettings = $derived(authState?.user?.role === 'RD');
 
   async function loadOpenRouterSettings() {
     if (!showOpenRouterSettings) return;

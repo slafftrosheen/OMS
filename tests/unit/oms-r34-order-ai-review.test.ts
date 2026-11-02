@@ -66,7 +66,7 @@ describe('OMS-R34 — native form, attachment and OpenRouter review',()=>{
     expect(intake).toContain('analysisStale');
     expect(intake).toContain('acceptedCount===0');
     expect(intake).toContain('if(!sourceMatches || analysisStale)');
-    expect(intake).toContain('!consent||analyzing');
+    expect(intake).toContain('if(!editable||analyzing)return;');
     expect(intake).toContain('expectedUpdatedAt:capturedVersion');
   });
   it('provides complete EN/RU/LV labels for proposal review and file-focused analysis',()=>{

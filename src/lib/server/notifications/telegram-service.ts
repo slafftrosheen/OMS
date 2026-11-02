@@ -72,7 +72,7 @@ export async function handleTelegramUpdate(config: TelegramConfig, db: Database,
       return;
     }
     const result = await db.rpc('process_telegram_bot_command', {
-      p_update_id: identity.updateId, p_message_at: identity.messageAt, p_command: command.command,
+      p_update_id: identity.updateId, p_message_at: identity.messageAt, p_command: command.followup ? 'ask_followup' : command.command,
       p_chat_id: command.chatId, p_telegram_user_id: command.telegramUserId, p_argument: command.argument
     });
     if (result.error) throw new TelegramServiceError('webhook_unavailable');

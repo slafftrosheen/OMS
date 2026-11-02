@@ -65,7 +65,7 @@ export function matchesTelegramSecret(actual: string | null | undefined, expecte
 export type TelegramCommand = {
   kind: 'connect'; token: string; chatId: string; telegramUserId: string; username: string | null;
 } | { kind: 'disconnect'; chatId: string; telegramUserId: string }
-  | { kind: 'command'; command: TelegramCommandName; argument: string; chatId: string; telegramUserId: string; callbackId?: string };
+  | { kind: 'command'; command: TelegramCommandName; argument: string; chatId: string; telegramUserId: string; callbackId?: string; followup?: boolean };
 
 export function readTelegramUpdateIdentity(update: unknown): { updateId: number; messageAt: string } | null {
   if (!update || typeof update !== 'object') return null;
@@ -111,7 +111,13 @@ export function readTelegramCommand(update: unknown, botUsername: string): Teleg
   const chatId = message.chat?.id;
   const senderId = message.from?.id;
   if (!Number.isSafeInteger(chatId) || chatId <= 0 || senderId !== chatId) return null;
-  const match = /^\/([a-z]+)(?:@([A-Za-z0-9_]+))?(?:\s+([^\r\n]+))?\s*$/.exec(message.text.trim());
+  const input = message.text.trim();
+  // Ordinary messages are accepted only by a live database-backed /ask session.
+  if (input && !input.startsWith('/') && input.length <= 1000) return {
+    kind: 'command', command: 'ask', argument: input, followup: true,
+    chatId: String(chatId), telegramUserId: String(senderId)
+  };
+  const match = /^\/([a-z]+)(?:@([A-Za-z0-9_]+))?(?:\s+([\s\S]+))?\s*$/.exec(input);
   if (!match || (match[2] && match[2].toLowerCase() !== botUsername.toLowerCase())) return null;
   if (match[1] === 'stop' && !match[3]) {
     return { kind: 'disconnect', chatId: String(chatId), telegramUserId: String(senderId) };
@@ -119,7 +125,7 @@ export function readTelegramCommand(update: unknown, botUsername: string): Teleg
   if (match[1] === 'start' && !match[3]) return { kind: 'command', command: 'help', argument: '', chatId: String(chatId), telegramUserId: String(senderId) };
   if (([...TELEGRAM_COMMANDS, 'ask'] as string[]).includes(match[1])) {
     const argument = (match[3] ?? '').trim();
-    if (argument.length > 1000 || (['order', 'read', 'ask'].includes(match[1]) && !argument)
+    if (argument.length > 1000 || (['order', 'read'].includes(match[1]) && !argument)
       || (!['orders', 'order', 'read', 'ask'].includes(match[1]) && argument)) return null;
     return { kind: 'command', command: match[1] as TelegramCommandName, argument, chatId: String(chatId), telegramUserId: String(senderId) };
   }

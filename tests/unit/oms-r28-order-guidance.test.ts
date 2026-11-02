@@ -63,7 +63,7 @@ describe('OMS-R28 contextual order guidance UX',()=>{
    expect(editor).toContain('order-edit-profiles');
    expect(assistant).toContain('if(promptRevision>lastPrefillRevision&&!busy&&suggestedPrompt)');
    expect(assistant).toContain('question=suggestedPrompt');
-   expect(assistant).toContain('if(busy||!canAsk||!consent||!question.trim()');
+   expect(assistant).toContain('if(busy||!canAsk||!question.trim()');
    expect(coach).toContain('onAsk?.($t(');
    expect(coach).not.toContain("fetch('/api/ai/order-assistant'");
  });

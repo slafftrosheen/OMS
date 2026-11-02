@@ -8,6 +8,13 @@ const config: TelegramConfig = { botToken:'123456:abcdefghijklmnopqrstuvwxyz',bo
 const command=(text:string)=>({update_id:100,message:{date:1792660000,text,chat:{id:1234,type:'private'},from:{id:1234,is_bot:false}}});
 
 describe('Bidirectional Telegram command parsing',()=>{
+  it('accepts menu /ask and marks ordinary private text as a session-only followup',()=>{
+    expect(readTelegramCommand(command('/ask'),config.botUsername)).toEqual({kind:'command',command:'ask',argument:'',chatId:'1234',telegramUserId:'1234'});
+    expect(readTelegramCommand(command('Which orders\nneed review?'),config.botUsername)).toEqual({kind:'command',command:'ask',argument:'Which orders\nneed review?',followup:true,chatId:'1234',telegramUserId:'1234'});
+    expect((readTelegramCommand(command('/ask Which orders\nneed review?'),config.botUsername) as any).argument).toBe('Which orders\nneed review?');
+    expect(readTelegramCommand(command('/unknown'),config.botUsername)).toBe(null);
+  });
+
   it('supports bounded linked-account commands and preserves question text',()=>{
     expect(readTelegramCommand(command('/orders Acme signs'),config.botUsername)).toEqual({kind:'command',command:'orders',argument:'Acme signs',chatId:'1234',telegramUserId:'1234'});
     expect((readTelegramCommand(command('/ask What is due today?'),config.botUsername) as any).argument).toBe('What is due today?');

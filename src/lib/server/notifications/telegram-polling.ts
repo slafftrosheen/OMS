@@ -176,7 +176,7 @@ export async function runTelegramPollingCycle(config: TelegramConfig, db: Telegr
         || (command.command === 'ask' && !config.options.aiEnabled))) command = null;
       const result = await rpc(db, 'process_telegram_polled_update', {
         ...claim, p_update_id: update.update_id, p_message_at: identity?.messageAt ?? null,
-        p_action: command?.kind ?? null, p_command: command?.kind === 'command' ? command.command : null,
+        p_action: command?.kind ?? null, p_command: command?.kind === 'command' ? (command.followup ? 'ask_followup' : command.command) : null,
         p_chat_id: command?.chatId ?? null, p_telegram_user_id: command?.telegramUserId ?? null,
         p_argument: command?.kind === 'command' ? command.argument : '',
         p_token_hash: command?.kind === 'connect' ? hashTelegramLinkToken(command.token) : null,
