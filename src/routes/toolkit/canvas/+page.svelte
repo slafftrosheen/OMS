@@ -681,7 +681,8 @@
           signal: requestSignal(120_000, signal),
           body: JSON.stringify({
             boardId: originalBoard, assetId: fileId, question,
-            language: $locale, ocr: paidOcr
+            language: $locale, ocr: paidOcr,
+            ...(document.props.kind === 'pdf' ? { model: selectedModel || undefined } : {})
           })
         });
         const result = await response.json().catch(() => ({}));
