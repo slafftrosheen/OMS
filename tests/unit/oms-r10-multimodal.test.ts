@@ -95,6 +95,8 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
     expect(route).toContain("kind === 'pdf' ? toolkitPdfEngine(body.ocr, allowPaidOcr)");
     expect(route).toContain('openRouterCompleteWithMetadata(messages');
     expect(route).toContain('responseLanguageInstruction(locale)');
+    expect(route).toContain('resolveToolkitModel(body.model)');
+    expect(route).toContain("kind === 'pdf' && !pdfModel");
     expect(route).toContain("'Cache-Control': 'private, no-store'");
     expect(route).not.toContain('getPublicUrl');
     expect(route).not.toContain('createSignedUrl');
@@ -135,6 +137,7 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
     const canvas = read('src/routes/toolkit/canvas/+page.svelte');
     expect(canvas).toContain("response.status === 429");
     expect(canvas).toContain('analysisCooldown = true');
+    expect(canvas).toContain("model: selectedModel || undefined");
     expect(canvas).not.toContain('setTimeout(() => analyzeSelectedAsset(');
   });
 
