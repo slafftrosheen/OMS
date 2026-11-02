@@ -5,7 +5,8 @@ import { isUuid, signatureMatches, TOOLKIT_ASSET_BUCKET } from '$lib/server/tool
 import { toolkitMediaKind, toolkitMediaLimit, toolkitMediaContent, toolkitPdfEngine, extractedPdfEvidence } from '$lib/server/toolkit/media-analysis';
 import { checkAiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
 import { openRouterCompleteWithMetadata, OpenRouterHttpError } from '$lib/server/ai/openrouter';
-import { OPENROUTER_MODEL, OPENROUTER_VISION_MODEL } from '$lib/server/config';
+import { OPENROUTER_VISION_MODEL } from '$lib/server/config';
+import { resolveToolkitModel } from '$lib/server/toolkit/ai-models';
 import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/ai/response-language';
 
 const noStore = { 'Cache-Control': 'private, no-store' };
@@ -30,7 +31,8 @@ export const POST: RequestHandler = async (event) => {
   const body = await request.json().catch(() => null);
   if (!body || !isUuid(body.boardId) || !isUuid(body.assetId) ||
       (body.question !== undefined && (typeof body.question !== 'string' || body.question.length > 2500)) ||
-      (body.ocr !== undefined && typeof body.ocr !== 'boolean')) {
+      (body.ocr !== undefined && typeof body.ocr !== 'boolean') ||
+      (body.model !== undefined && typeof body.model !== 'string')) {
     throw error(400, 'Select a valid Canvas image/PDF and a bounded question');
   }
   const allowPaidOcr = process.env.OPENROUTER_TOOLKIT_PDF_OCR === 'true';
@@ -53,6 +55,10 @@ export const POST: RequestHandler = async (event) => {
     throw error(413, 'File exceeds the analysis limit (8 MiB images, 12 MiB PDFs)');
   }
   const engine = kind === 'pdf' ? toolkitPdfEngine(body.ocr, allowPaidOcr) : null;
+  // Only the administrator-configured allow-list may select a PDF model.
+  // Never auto-upgrade to a paid model when free quota is exhausted.
+  const pdfModel = kind === 'pdf' ? resolveToolkitModel(body.model) : null;
+  if (kind === 'pdf' && !pdfModel) throw error(400, 'Choose a configured PDF model');
   if (kind === 'pdf' && !engine) throw error(403, 'Paid PDF OCR is not enabled');
 
   const { data: preference } = await locals.supabase.from('user_preferences')
@@ -94,7 +100,7 @@ ${responseLanguageInstruction(locale)}`;
   ];
   try {
     const response = await openRouterCompleteWithMetadata(messages, {
-      model: kind === 'image' ? OPENROUTER_VISION_MODEL : OPENROUTER_MODEL,
+      model: kind === 'image' ? OPENROUTER_VISION_MODEL : pdfModel!,
       maxTokens: 2200, temperature: 0.2, timeoutMs: 120_000, signal: request.signal,
       ...(kind === 'pdf' ? { plugins: [{ id: 'file-parser', pdf: { engine } }] } : {})
     });
