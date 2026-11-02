@@ -2910,7 +2910,7 @@
       "arrangeIdeas": "Arrange ideas",
       "inspectSource": "Inspect web page",
       "inspectAdded": "Page reference node added. Run it to fetch public content.",
-      "model": "Reasoning model",
+      "model": "Reasoning / PDF model",
       "modelHint": "Choose a configured model. Paid models may incur token charges; tool/JSON capabilities vary. AI proposals need approval.",
       "defaultModel": "default",
       "webSource": "Web research provider",
