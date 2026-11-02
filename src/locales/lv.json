@@ -2910,7 +2910,7 @@
       "arrangeIdeas": "Sakārtot idejas",
       "inspectSource": "Izpētīt tīmekļa lapu",
       "inspectAdded": "Lapas atsauces mezgls pievienots. Palaidiet to, lai iegūtu publisko saturu.",
-      "model": "Spriešanas modelis",
+      "model": "Spriešanas / PDF modelis",
       "modelHint": "Izvēlieties konfigurētu modeli. Maksas modeļi var radīt tokenu izmaksas; rīku un JSON atbalsts atšķiras. MI ieteikumi jāapstiprina.",
       "defaultModel": "noklusējuma",
       "webSource": "Tīmekļa izpētes avots",
