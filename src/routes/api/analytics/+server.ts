@@ -103,23 +103,45 @@ async function fetchKPIs(event: any): Promise<any> {
 // Fetch order trends
 async function fetchTrends(event: any, days: number): Promise<any> {
   const supabase = createSupabaseClient(event);
-
+  const safeDays = Number.isFinite(days) ? Math.max(1, Math.min(84, Math.floor(days))) : 30;
+  // The deployed order_trends view exposes week_start/status/order_count,
+  // not date/total_orders/completed_orders. Aggregate status rows by week.
+  const since = new Date();
+  since.setUTCDate(since.getUTCDate() - safeDays);
   const { data, error: dbError } = await supabase
     .from('order_trends')
-    .select('*')
-    .order('date', { ascending: true })
-    .limit(days);
-
+    .select('week_start,status,order_count')
+    .gte('week_start', since.toISOString().slice(0, 10))
+    .order('week_start', { ascending: true })
+    .limit(1000);
   if (dbError) throw dbError;
-
+  const weeks = new Map<string, { total: number; completed: number; inProgress: number; draft: number; onHold: number }>();
+  for (const row of data ?? []) {
+    const key = String(row.week_start);
+    const current = weeks.get(key) ?? { total: 0, completed: 0, inProgress: 0, draft: 0, onHold: 0 };
+    const count = Number(row.order_count) || 0;
+    current.total += count;
+    if (row.status === 'completed') current.completed += count;
+    else if (row.status === 'in-progress' || row.status === 'in_progress' || row.status === 'production') current.inProgress += count;
+    else if (row.status === 'draft') current.draft += count;
+    else if (row.status === 'on-hold' || row.status === 'on_hold') current.onHold += count;
+    weeks.set(key, current);
+  }
+  const dates = [...weeks.keys()].sort();
+  let previous = 0;
   return {
-    dates: data?.map(d => d.date) || [],
-    total: data?.map(d => d.total_orders) || [],
-    completed: data?.map(d => d.completed_orders) || [],
-    inProgress: data?.map(d => d.in_progress_orders) || [],
-    draft: data?.map(d => d.draft_orders) || [],
-    onHold: data?.map(d => d.on_hold_orders) || [],
-    dailyChange: data?.map(d => d.daily_change) || []
+    dates,
+    total: dates.map(d => weeks.get(d)!.total),
+    completed: dates.map(d => weeks.get(d)!.completed),
+    inProgress: dates.map(d => weeks.get(d)!.inProgress),
+    draft: dates.map(d => weeks.get(d)!.draft),
+    onHold: dates.map(d => weeks.get(d)!.onHold),
+    dailyChange: dates.map(d => {
+      const current = weeks.get(d)!.total;
+      const change = current - previous;
+      previous = current;
+      return change;
+    })
   };
 }
 
