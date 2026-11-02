@@ -51,6 +51,8 @@
   let analyzingFile = $state(false);
   let analysisCooldown = $state(false);
   let analysisCooldownTimer: ReturnType<typeof setTimeout> | undefined;
+  // Local-only crash context. Never send button labels or document contents to a server.
+  let lastCanvasClick: { label: string; at: number } | null = null;
   // Short-lived per-project reference notes; never part of shared snapshot.
   let analyzedAssets = $state<Record<string, {kind:string; filename:string; evidence:string; answer:string}>>({});
   let lastAnalyzedAsset = $state<string | null>(null);
@@ -1109,8 +1111,29 @@
       if (dirty || discussionDirty || importing || recovering) { e.preventDefault(); e.returnValue = ''; }
     };
     const onFocus = () => { void checkBoardRevision(); };
+    // Sentry is optional. Until source maps are available, report which
+    // Canvas action caused an otherwise opaque minified ReferenceError.
+    const onClick = (event: MouseEvent) => {
+      const button = event.target instanceof Element ? event.target.closest('button') : null;
+      if (!button) return;
+      const label = button.getAttribute('aria-label') || button.getAttribute('title')
+        || button.getAttribute('data-testid') || button.textContent?.trim() || 'button';
+      lastCanvasClick = { label: label.slice(0, 96), at: Date.now() };
+    };
+    const onCanvasError = (event: ErrorEvent) => {
+      if (!(event.error instanceof ReferenceError) || !lastCanvasClick
+        || Date.now() - lastCanvasClick.at > 3000) return;
+      console.error('[Canvas] Click crash context (local only):', {
+        button: lastCanvasClick.label,
+        error: event.message,
+        source: event.filename?.split('/').pop(),
+        line: event.lineno, column: event.colno
+      });
+    };
     window.addEventListener('beforeunload', onBeforeUnload);
     window.addEventListener('focus', onFocus);
+    window.addEventListener('click', onClick, true);
+    window.addEventListener('error', onCanvasError);
     refreshTimer = setInterval(() => { void checkBoardRevision(); }, 45_000);
     return () => {
       destroyed = true;
@@ -1126,6 +1149,8 @@
       if (refreshTimer) clearInterval(refreshTimer);
       window.removeEventListener('beforeunload', onBeforeUnload);
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener('click', onClick, true);
+      window.removeEventListener('error', onCanvasError);
     };
   });
 </script>
