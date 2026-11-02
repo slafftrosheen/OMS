@@ -104,7 +104,7 @@ ${responseLanguageInstruction(locale)}`;
     const detail = err instanceof Error ? err.message : '';
     // Never expose upstream response bodies, stored filenames, credentials or prompts.
     // The OpenRouter client intentionally reports only the HTTP status.
-    const upstreamStatus = /OpenRouter completion failed \\(HTTP (\\d{3})\\)/.exec(detail)?.[1];
+    const upstreamStatus = /OpenRouter completion failed \(HTTP (\d{3})\)/.exec(detail)?.[1];
     const policyDenied = /policy|data sharing|disabled/i.test(detail);
     const unconfigured = /not configured|API key/i.test(detail);
     const timedOut = /timeout|timed out|TimeoutError/i.test(detail) ||
