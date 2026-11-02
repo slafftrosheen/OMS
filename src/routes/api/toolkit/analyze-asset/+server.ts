@@ -101,8 +101,39 @@ ${responseLanguageInstruction(locale)}`;
     }, { headers: noStore });
   } catch (err) {
     if (request.signal.aborted) return json({ error: 'Request cancelled' }, { status: 499, headers: noStore });
-    console.error('[Toolkit] multimodal analysis unavailable', err instanceof Error ? err.name : 'unknown');
-    return json({ error: 'Could not analyze this file with the configured OpenRouter model. The Canvas is unchanged. Check model modality support and provider configuration.' },
-      { status: 503, headers: noStore });
+    const detail = err instanceof Error ? err.message : '';
+    // Never expose upstream response bodies, stored filenames, credentials or prompts.
+    // The OpenRouter client intentionally reports only the HTTP status.
+    const upstreamStatus = /OpenRouter completion failed \\(HTTP (\\d{3})\\)/.exec(detail)?.[1];
+    const policyDenied = /policy|data sharing|disabled/i.test(detail);
+    const unconfigured = /not configured|API key/i.test(detail);
+    const timedOut = /timeout|timed out|TimeoutError/i.test(detail) ||
+      (err instanceof Error && err.name === 'TimeoutError');
+    const status = policyDenied ? 403 : unconfigured ? 503 : timedOut ? 504 :
+      upstreamStatus === '429' ? 429 : upstreamStatus === '400' || upstreamStatus === '422' ? 422 : 503;
+    const code = policyDenied ? 'PROVIDER_POLICY_DISABLED' :
+      unconfigured ? 'PROVIDER_NOT_CONFIGURED' : timedOut ? 'PROVIDER_TIMEOUT' :
+      upstreamStatus === '429' ? 'PROVIDER_RATE_LIMIT' :
+      upstreamStatus === '400' || upstreamStatus === '422' ? 'PROVIDER_REJECTED_DOCUMENT' :
+      upstreamStatus === '401' || upstreamStatus === '403' ? 'PROVIDER_AUTH_FAILURE' :
+      upstreamStatus ? 'PROVIDER_UPSTREAM_ERROR' : 'PROVIDER_ANALYSIS_FAILED';
+    console.error('[Toolkit] multimodal analysis failed', {
+      code, upstreamStatus: upstreamStatus ?? null, kind,
+      errorType: err instanceof Error ? err.name : 'unknown'
+    });
+    return json({
+      error: code === 'PROVIDER_REJECTED_DOCUMENT'
+        ? 'OpenRouter rejected this document or parser/model combination. Try another configured PDF-capable model.'
+        : code === 'PROVIDER_POLICY_DISABLED'
+          ? 'OpenRouter sharing is disabled in R&D settings.'
+          : code === 'PROVIDER_TIMEOUT'
+            ? 'Document analysis timed out. Try a smaller PDF.'
+            : code === 'PROVIDER_RATE_LIMIT'
+              ? 'OpenRouter rate limit reached. Retry later.'
+              : code === 'PROVIDER_NOT_CONFIGURED' || code === 'PROVIDER_AUTH_FAILURE'
+                ? 'OpenRouter credentials are missing or rejected. Check R&D settings.'
+                : 'Document analysis is unavailable. Check the OpenRouter model and parser configuration.',
+      code, upstreamStatus: upstreamStatus ? Number(upstreamStatus) : null
+    }, { status, headers: noStore });
   }
 };
