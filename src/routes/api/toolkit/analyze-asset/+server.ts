@@ -3,8 +3,8 @@ import type { RequestHandler } from './$types';
 import { requireToolkitManager } from '$lib/server/toolkit/access';
 import { isUuid, signatureMatches, TOOLKIT_ASSET_BUCKET } from '$lib/server/toolkit/assets';
 import { toolkitMediaKind, toolkitMediaLimit, toolkitMediaContent, toolkitPdfEngine, extractedPdfEvidence } from '$lib/server/toolkit/media-analysis';
-import { aiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
-import { openRouterCompleteWithMetadata } from '$lib/server/ai/openrouter';
+import { checkAiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
+import { openRouterCompleteWithMetadata, OpenRouterHttpError } from '$lib/server/ai/openrouter';
 import { OPENROUTER_MODEL, OPENROUTER_VISION_MODEL } from '$lib/server/config';
 import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/ai/response-language';
 
@@ -15,7 +15,18 @@ const noStore = { 'Cache-Control': 'private, no-store' };
 export const POST: RequestHandler = async (event) => {
   const { locals, request } = event;
   const user = requireToolkitManager(locals.user);
-  aiRateLimit(rateLimitIdentifier(event));
+  const limit = checkAiRateLimit(rateLimitIdentifier(event));
+  if (!limit.allowed) {
+    return json({
+      error: 'OMS AI request limit reached. Wait before retrying.',
+      code: 'OMS_AI_RATE_LIMIT',
+      source: 'oms',
+      retryAfter: limit.retryAfter
+    }, {
+      status: 429,
+      headers: { ...noStore, 'Retry-After': String(limit.retryAfter) }
+    });
+  }
   const body = await request.json().catch(() => null);
   if (!body || !isUuid(body.boardId) || !isUuid(body.assetId) ||
       (body.question !== undefined && (typeof body.question !== 'string' || body.question.length > 2500)) ||
@@ -104,7 +115,10 @@ ${responseLanguageInstruction(locale)}`;
     const detail = err instanceof Error ? err.message : '';
     // Never expose upstream response bodies, stored filenames, credentials or prompts.
     // The OpenRouter client intentionally reports only the HTTP status.
-    const upstreamStatus = /OpenRouter completion failed \(HTTP (\d{3})\)/.exec(detail)?.[1];
+    const upstreamStatus = err instanceof OpenRouterHttpError
+      ? String(err.statusCode)
+      : /OpenRouter completion failed \(HTTP (\d{3})\)/.exec(detail)?.[1];
+    const retryAfter = err instanceof OpenRouterHttpError ? err.retryAfterSeconds : null;
     const policyDenied = /policy|data sharing|disabled/i.test(detail);
     const unconfigured = /not configured|API key/i.test(detail);
     const timedOut = /timeout|timed out|TimeoutError/i.test(detail) ||
@@ -118,7 +132,7 @@ ${responseLanguageInstruction(locale)}`;
       upstreamStatus === '401' || upstreamStatus === '403' ? 'PROVIDER_AUTH_FAILURE' :
       upstreamStatus ? 'PROVIDER_UPSTREAM_ERROR' : 'PROVIDER_ANALYSIS_FAILED';
     console.error('[Toolkit] multimodal analysis failed', {
-      code, upstreamStatus: upstreamStatus ?? null, kind,
+      code, upstreamStatus: upstreamStatus ?? null, retryAfter, kind,
       errorType: err instanceof Error ? err.name : 'unknown'
     });
     return json({
@@ -129,11 +143,16 @@ ${responseLanguageInstruction(locale)}`;
           : code === 'PROVIDER_TIMEOUT'
             ? 'Document analysis timed out. Try a smaller PDF.'
             : code === 'PROVIDER_RATE_LIMIT'
-              ? 'OpenRouter rate limit reached. Retry later.'
+              ? 'OpenRouter rate limit or free quota reached. Check account limits; repeated attempts also consume quota.'
               : code === 'PROVIDER_NOT_CONFIGURED' || code === 'PROVIDER_AUTH_FAILURE'
                 ? 'OpenRouter credentials are missing or rejected. Check R&D settings.'
                 : 'Document analysis is unavailable. Check the OpenRouter model and parser configuration.',
-      code, upstreamStatus: upstreamStatus ? Number(upstreamStatus) : null
-    }, { status, headers: noStore });
+      code, source: upstreamStatus ? 'openrouter' : 'oms',
+      upstreamStatus: upstreamStatus ? Number(upstreamStatus) : null,
+      retryAfter
+    }, {
+      status,
+      headers: retryAfter !== null ? { ...noStore, 'Retry-After': String(retryAfter) } : noStore
+    });
   }
 };
