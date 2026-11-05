@@ -11,4 +11,4 @@ Constraints: preserve running services and customer data; run checks sequentiall
 - [x] Check Telegram configuration/outbox/worker health without sending messages; verify analytics queries and dashboard destinations.
 - [x] Run relevant unit suites, type check, production build and available browser journeys sequentially. Record evidence and remaining external limitations.
 
-Evidence and deployment limits: `docs/operations/OMS-browser-order-flow-2026-11-05.md`. Final browser/source reruns passed; no production rollout is included.
+Evidence and deployment limits: `docs/operations/OMS-browser-order-flow-2026-11-05.md`. Final browser/source reruns passed. The subsequently authorized production rebuild, migration application and deployment completed; see the operations report for release verification.
