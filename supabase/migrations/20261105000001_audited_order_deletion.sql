@@ -39,4 +39,6 @@ REVOKE ALL ON FUNCTION public.oms_delete_order(UUID,TIMESTAMPTZ) FROM PUBLIC,ano
 GRANT EXECUTE ON FUNCTION public.oms_delete_order(UUID,TIMESTAMPTZ) TO authenticated;
 -- Physical deletes would bypass the audit path and cascade attachment/history rows.
 REVOKE DELETE ON public.draft_orders FROM authenticated;
+-- Make the new RPC discoverable immediately after the transaction commits.
+NOTIFY pgrst, 'reload schema';
 COMMIT;
