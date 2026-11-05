@@ -3,6 +3,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
+  import { can } from '$lib/auth/permission-utils';
   import { currentUser } from '$lib/auth/authState.svelte';
   import StatCard from '$lib/components/analytics/StatCard.svelte';
   import LineChart from '$lib/components/analytics/LineChart.svelte';
@@ -70,7 +71,7 @@
   const quickActions = [
     { href: '/orders/new',      icon: 'file-plus',   key: 'new_order',  fallbackTitle: 'New Order',       fallbackDesc: 'Create a new production order' },
     { href: '/production',      icon: 'factory',     key: 'production', fallbackTitle: 'Production Board',fallbackDesc: 'View production workflow' },
-    { href: '/admin/materials', icon: 'boxes',       key: 'materials',  fallbackTitle: 'Materials',       fallbackDesc: 'Manage inventory' },
+    { href: '/inventory', icon: 'boxes',       key: 'materials',  fallbackTitle: 'Materials',       fallbackDesc: 'Manage inventory' },
     { href: '/analytics',       icon: 'bar-chart-3', key: 'analytics',  fallbackTitle: 'Analytics',       fallbackDesc: 'View reports' },
     { href: '/calendar',        icon: 'calendar',    key: 'calendar',   fallbackTitle: 'Calendar',        fallbackDesc: 'Plan loading days' },
     { href: '/toolkit',         icon: 'layout-grid', key: 'ai_lab',     fallbackTitle: 'Toolkit',         fallbackDesc: 'Explore ideas and plan projects' }
@@ -226,7 +227,7 @@
     </div>
 
     <div class="dash-actions-grid rf-stagger">
-      {#each quickActions as action, i (action.href)}
+      {#each quickActions.filter(action => action.key !== 'new_order' || can($currentUser, 'createDraftOrder')) as action, i (action.href)}
         {#if action.key !== 'materials' || ['RD', 'Boss', 'HeadOfProduction'].includes($currentUser?.role ?? '')}
         <button
           class="dash-action card"

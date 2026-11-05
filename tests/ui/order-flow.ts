@@ -1,0 +1,10 @@
+import { mount } from 'svelte';
+import { addMessages, init } from 'svelte-i18n';
+import en from '../../src/locales/en.json';
+import '../../src/app.css';
+import OrderFlowHarness from './OrderFlowHarness.svelte';
+import { authState } from '$lib/auth/authState.svelte';
+addMessages('en', en);
+await init({fallbackLocale:'en',initialLocale:'en'});
+await authState.load();
+mount(OrderFlowHarness,{target:document.getElementById('app')!});

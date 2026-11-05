@@ -191,19 +191,5 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
   return json(updated, { headers: { 'Cache-Control': 'private, no-store' } });
 };
 
-/** Cancel, never physically delete, a draft with persisted attachments. */
-export const DELETE: RequestHandler = async ({ params, locals }) => {
-  const user = locals.user;
-  if (!user) throw error(401, 'Unauthorized');
-  const { data: order, error: lookupError } = await locals.supabase.from('draft_orders')
-    .select('id,created_by,status').eq('id',params.id).maybeSingle();
-  if (lookupError) throw error(503, 'Order lookup unavailable');
-  if (!order) throw error(404, 'Order not found');
-  if (!canEditDraft(user.role,order.created_by,user.id,order.status)) throw error(403,'Draft owner or manager required');
-  const { data: cancelled, error: cancelError } = await locals.supabase.from('draft_orders')
-    .update({ status: 'CANCELLED', updated_by: user.id })
-    .eq('id',order.id).eq('status',order.status).select('id,status').maybeSingle();
-  if (cancelError) throw error(503,'Draft cancellation unavailable');
-  if (!cancelled) throw error(409,'Order status changed. Reload first.');
-  return json({ success:true, id:cancelled.id, status:cancelled.status });
-};
+// Keep both public URLs on the same authorized, atomic deletion path.
+export { deleteOrder as DELETE } from '$lib/server/order/delete-order';

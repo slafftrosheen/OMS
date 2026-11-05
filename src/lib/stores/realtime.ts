@@ -27,7 +27,7 @@ function createRealtimeStore() {
         .channel('orders-channel')
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'orders' },
+          { event: '*', schema: 'public', table: 'draft_orders' },
           callback
         )
         .subscribe((status) => {
@@ -63,7 +63,7 @@ function createRealtimeStore() {
           {
             event: '*',
             schema: 'public',
-            table: 'orders',
+            table: 'draft_orders',
             filter: `id=eq.${orderId}`
           },
           callback
@@ -74,7 +74,7 @@ function createRealtimeStore() {
             event: '*',
             schema: 'public',
             table: 'order_stages',
-            filter: `order_id=eq.${orderId}`
+            filter: `draft_order_id=eq.${orderId}`
           },
           callback
         )

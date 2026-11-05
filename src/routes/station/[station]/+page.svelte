@@ -1,5 +1,6 @@
 <script lang="ts">
   import { modalDialog } from '$lib/ui/modal-dialog';
+  import { base } from '$app/paths';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { currentUser } from '$lib/auth/authState.svelte';
@@ -51,6 +52,7 @@
     stage: any;
     priority: string | number;
     due_date: string;
+    status: string;
   }
 
   const orders = writable<StationOrder[]>([]);
@@ -549,42 +551,46 @@
           {/if}
 
           <div class="order-actions">
+            {#if order.status === 'READY_TO_LOAD'}
+              <p role="status">{$t('stationView.readyForDispatch')}</p>
+              <a href={`${base}/calendar`} class="btn btn-sm btn-primary">{$t('stationView.loadingCalendar')}</a>
+            {/if}
             {#if order.stage?.state === 'QUEUED'}
-              <button class="btn btn-sm btn-success" onclick={() => startOrder(order.id)} disabled={!operatorCanAct || workingOnOrderId !== null}>
+              <button class="btn btn-sm btn-success" onclick={() => startOrder(order.id)} disabled={!operatorCanAct || order.status === 'READY_TO_LOAD' || workingOnOrderId !== null}>
                 <Icon name="play" size="sm" />
                 {$t('stationView.start', { default: 'Start' })}
               </button>
             {/if}
 
             {#if order.stage?.state === 'IN_PROGRESS'}
-              <button class="btn btn-sm btn-success" onclick={() => completeOrder(order.id)} disabled={!operatorCanAct || workingOnOrderId !== null}>
+              <button class="btn btn-sm btn-success" onclick={() => completeOrder(order.id)} disabled={!operatorCanAct || order.status === 'READY_TO_LOAD' || workingOnOrderId !== null}>
                 <Icon name="check" size="sm" />
                 {$t('stationView.complete', { default: 'Complete' })}
               </button>
               <button class="btn btn-sm btn-outline" onclick={() => openProgress(order.id)}
-                disabled={!operatorCanAct || workingOnOrderId !== null}>
+                disabled={!operatorCanAct || order.status === 'READY_TO_LOAD' || workingOnOrderId !== null}>
                 <Icon name="clipboard-list" size="sm" />
                 {$t('productionFloor.logProgress')}
               </button>
-              <button class="btn btn-sm btn-warning" onclick={() => openReworkModal(order.id)} disabled={!operatorCanAct || workingOnOrderId !== null}>
+              <button class="btn btn-sm btn-warning" onclick={() => openReworkModal(order.id)} disabled={!operatorCanAct || order.status === 'READY_TO_LOAD' || workingOnOrderId !== null}>
                 <Icon name="rotate-ccw" size="sm" />
                 {$t('stationView.rework', { default: 'Rework' })}
               </button>
-              <button class="btn btn-sm btn-danger" onclick={() => openBlockModal(order.id)} disabled={!operatorCanAct || workingOnOrderId !== null}>
+              <button class="btn btn-sm btn-danger" onclick={() => openBlockModal(order.id)} disabled={!operatorCanAct || order.status === 'READY_TO_LOAD' || workingOnOrderId !== null}>
                 <Icon name="ban" size="sm" />
                 {$t('stationView.block', { default: 'Block' })}
               </button>
             {/if}
 
             {#if order.stage?.state === 'BLOCKED'}
-              <button class="btn btn-sm btn-primary" onclick={() => updateStageState(order.id, 'IN_PROGRESS')} disabled={!operatorCanAct || workingOnOrderId !== null}>
+              <button class="btn btn-sm btn-primary" onclick={() => updateStageState(order.id, 'IN_PROGRESS')} disabled={!operatorCanAct || order.status === 'READY_TO_LOAD' || workingOnOrderId !== null}>
                 <Icon name="play" size="sm" />
                 {$t('stationView.resume', { default: 'Resume' })}
               </button>
             {/if}
 
             {#if order.stage?.state === 'REWORK'}
-              <button class="btn btn-sm btn-warning" onclick={() => openResolveRework(order.id)} disabled={!operatorCanAct || workingOnOrderId !== null}>
+              <button class="btn btn-sm btn-warning" onclick={() => openResolveRework(order.id)} disabled={!operatorCanAct || order.status === 'READY_TO_LOAD' || workingOnOrderId !== null}>
                 <Icon name="check-circle" size="sm" />
                 Resolve rework
               </button>
@@ -595,7 +601,7 @@
               <Icon name="file" size="sm" />
               {$t('productionPacket.open')}
             </button>
-            <a href={`/orders/${encodeURIComponent(order.id)}`} class="btn btn-sm btn-outline">
+            <a href={`${base}/orders/${encodeURIComponent(order.id)}`} class="btn btn-sm btn-outline">
               <Icon name="eye" size="sm" />
               {$t('common.details', { default: 'Details' })}
             </a>

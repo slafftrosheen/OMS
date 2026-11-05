@@ -147,17 +147,5 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
   return json(data);
 };
 
-// DELETE: cancel a draft before confirmation. Production orders are never
-// silently deleted; use managed void/reissue and explicit archive paths.
-export const DELETE: RequestHandler = async ({ params, locals }) => {
-  if (!locals.user) throw error(401, 'Unauthorized');
-  if (!canManageSharedInventory(locals.user.role)) throw error(403, 'Manager role required');
-  const { data: updated, error: updateErr } = await locals.supabase
-    .from('draft_orders')
-    .update({ status: 'CANCELLED', updated_by: locals.user.id })
-    .eq('id', params.id).in('status', ['DRAFT', 'draft', 'PENDING_REVIEW'])
-    .select('id,status').maybeSingle();
-  if (updateErr) throw error(500, 'Failed to cancel order');
-  if (!updated) throw error(409, 'Only draft or review orders can be cancelled');
-  return json({ success: true, status: 'CANCELLED' });
-};
+// Keep both public URLs on the same authorized, atomic deletion path.
+export { deleteOrder as DELETE } from '$lib/server/order/delete-order';

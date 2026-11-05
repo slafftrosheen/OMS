@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { createUuid } from '$lib/utils/id';
+
   import Hash from 'lucide-svelte/icons/hash';
   import Palette from 'lucide-svelte/icons/palette';
   import type { ColorSpec } from './material-types';
@@ -18,7 +20,7 @@
   function handleSubmit() {
     const code = mode === 'RAL' ? ralInput : mode === 'PANTONE' ? pantoneInput : hexInput;
     const color: ColorSpec = {
-      id: crypto.randomUUID(),
+      id: createUuid(),
       name: mode === 'CUSTOM' ? customName : `${mode} ${code}`,
       finishType
     };

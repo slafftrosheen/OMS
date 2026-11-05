@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { base } from '$app/paths';
   import { writable } from 'svelte/store';
   import { t } from 'svelte-i18n';
 
@@ -21,23 +21,26 @@
   const analytics = writable<AnalyticsData | null>(null);
   const loading = writable(true);
   const timeframe = writable('30d');
+  let loadError = $state(false);
+  let requestVersion = 0;
 
   async function loadAnalytics() {
+    const version = ++requestVersion;
     $loading = true;
+    loadError = false;
     try {
-      const response = await fetch(`/api/orders/analytics?timeframe=${$timeframe}`);
+      const response = await fetch(`${base}/api/orders/analytics?timeframe=${$timeframe}`);
       if (!response.ok) throw new Error('Failed to load analytics');
 
       const data = await response.json();
-      $analytics = data;
+      if (version === requestVersion) $analytics = data;
     } catch (err) {
-      console.error('Analytics error:', err);
+      if (version === requestVersion) loadError = true;
     } finally {
-      $loading = false;
+      if (version === requestVersion) $loading = false;
     }
   }
 
-  onMount(loadAnalytics);
 
   $effect(() => {
     if ($timeframe) loadAnalytics();
@@ -87,6 +90,11 @@
     <div class="loading-state">
       <div class="spinner"></div>
       <p>{$t('analytics.loading', { default: 'Loading analytics...' })}</p>
+    </div>
+  {:else if loadError}
+    <div role="alert">
+      <p>{$t('common.error')}</p>
+      <button onclick={loadAnalytics}>{$t('productionPlanning.retry')}</button>
     </div>
   {:else if $analytics}
     <!-- Key Metrics -->

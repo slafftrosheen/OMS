@@ -1,213 +1,59 @@
-/**
- * Analytics API
- * Real-time metrics and KPIs
- */
-
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { createSupabaseClient } from '$lib/server/supabase';
+import { ORDER_METRIC_FIELDS, readMetricRows, summarizeOrders, dailyOrderTrends, shopDate } from '$lib/server/analytics/order-metrics';
+import { normaliseStatus } from '$lib/auth/permission-utils';
+import { ALL_STATIONS } from '$lib/order/workflow';
 
-// GET /api/analytics - Get analytics data
-export const GET: RequestHandler = async (event) => {
-  const { url, locals } = event;
-  const user = locals.user;
-  if (!user) throw error(401, 'Unauthorized');
-
-  const type = url.searchParams.get('type') || 'kpis';
-  const period = url.searchParams.get('period') || '30'; // days
-  const station = url.searchParams.get('station');
-
+export const GET: RequestHandler = async ({ url, locals }) => {
+  if (!locals.user) throw error(401,'Unauthorized');
+  const type=url.searchParams.get('type') || 'kpis';
+  const days=Number(url.searchParams.get('period') || 30);
+  if (!['kpis','trends','stations','loading','clients'].includes(type) || !Number.isInteger(days) || days<1 || days>366)
+    throw error(400,'Invalid analytics type or period');
+  const db=locals.supabase, now=new Date(), today=shopDate(now);
   try {
-    let data: any = {};
-
-    switch (type) {
-      case 'kpis':
-        data = await fetchKPIs(event);
-        break;
-
-      case 'trends':
-        data = await fetchTrends(event, parseInt(period));
-        break;
-
-      case 'stations':
-        data = await fetchStationMetrics(event, station);
-        break;
-
-      case 'loading':
-        data = await fetchLoadingMetrics(event, parseInt(period));
-        break;
-
-      case 'clients':
-        data = await fetchClientMetrics(event, parseInt(period));
-        break;
-
-      default:
-        throw new Error('Invalid analytics type');
+    let data: any;
+    if (type==='loading') {
+      const end=new Date(`${today}T00:00:00Z`); end.setUTCDate(end.getUTCDate()+days);
+      const rows=await readMetricRows(db,'loading_capacity_overview','*',q=>q.gte('date',today).lt('date',end.toISOString().slice(0,10)));
+      data={dates:rows.map(r=>r.date),capacity:rows.map(r=>r.max_capacity),used:rows.map(r=>r.used_count),
+        remaining:rows.map(r=>r.remaining_capacity),status:rows.map(r=>r.state)};
+    } else if (type==='stations') {
+      const requested=url.searchParams.get('station')?.toUpperCase();
+      if (requested && !ALL_STATIONS.includes(requested)) throw error(400,'Unknown station');
+      const orders=await readMetricRows(db,'draft_orders','id,status');
+      const live=new Set(orders.filter(r=>['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD'].includes(r.status)).map(r=>r.id));
+      const stages=await readMetricRows(db,'order_stages','id,draft_order_id,station,state,actual_hours,completed_at');
+      data=ALL_STATIONS.filter(s=>!requested||s===requested).map(station=>{
+        const rows=stages.filter(s=>s.station===station && live.has(s.draft_order_id));
+        const done=stages.filter(s=>s.station===station && s.state==='COMPLETED' && orders.some(o=>o.id===s.draft_order_id && o.status!=='CANCELLED'));
+        const hours=done.filter(s=>s.actual_hours!=null);
+        return {station,total_orders_processed:done.length,in_progress:rows.filter(s=>s.state==='IN_PROGRESS').length,
+          blocked:rows.filter(s=>s.state==='BLOCKED').length,rework:rows.filter(s=>s.state==='REWORK').length,
+          avg_completion_hours:hours.length?hours.reduce((n,s)=>n+Number(s.actual_hours),0)/hours.length:null};
+      });
+    } else {
+      const rows=await readMetricRows(db,'draft_orders',ORDER_METRIC_FIELDS);
+      if(type==='kpis') data={orders:summarizeOrders(rows,now)};
+      else if(type==='trends') data=dailyOrderTrends(rows,days,now);
+      else {
+        const from=new Date(now.getTime()-days*86400000).toISOString();
+        const clients=new Map<string,any>();
+        for(const row of rows.filter(r=>r.status!=='CANCELLED' && r.created_at>=from && r.client)) {
+          const item=clients.get(row.client) ?? {name:row.client,totalOrders:0,completed:0,inProgress:0,draft:0};
+          item.totalOrders++;
+          const status=normaliseStatus(row.status);
+          if(['DISPATCHED','ARCHIVED'].includes(status)) item.completed++;
+          if(status==='IN_PRODUCTION') item.inProgress++;
+          if(status==='DRAFT') item.draft++;
+          clients.set(row.client,item);
+        }
+        data=[...clients.values()].sort((a,b)=>b.totalOrders-a.totalOrders).slice(0,10);
+      }
     }
-
-    return json({ data });
-
-  } catch (err) {
-    console.error('[Analytics API] Error:', err);
-    throw error(500, err instanceof Error ? err.message : 'Failed to fetch analytics');
+    return json({data},{headers:{'Cache-Control':'private, no-store'}});
+  } catch(err) {
+    if ((err as any)?.status) throw err;
+    throw error(503,'Analytics data unavailable');
   }
 };
-
-// Fetch real-time KPIs
-async function fetchKPIs(event: any): Promise<any> {
-  const supabase = createSupabaseClient(event);
-
-  const { data, error: dbError } = await supabase
-    .from('realtime_kpis')
-    .select('*')
-    .single();
-
-  if (dbError) throw dbError;
-
-  // Calculate derived metrics
-  const kpis = data || {};
-
-  return {
-    orders: {
-      total: kpis.total_orders || 0,
-      active: kpis.active_orders || 0,
-      today: kpis.orders_today || 0,
-      thisWeek: kpis.orders_this_week || 0,
-      thisMonth: kpis.orders_this_month || 0,
-      completedToday: kpis.completed_today || 0,
-      avgCompletionHours: kpis.avg_completion_hours_week || 0
-    },
-    stations: {
-      activitiesToday: kpis.station_activities_today || 0,
-      openIssues: kpis.open_issues || 0,
-      qualityScore: kpis.avg_quality_score_week || 0
-    },
-    loading: {
-      upcomingDays: kpis.upcoming_loading_days || 0,
-      capacityUsed: kpis.upcoming_capacity_used || 0,
-      capacityTotal: kpis.upcoming_capacity_total || 0,
-      capacityPercentage: kpis.upcoming_capacity_total > 0
-        ? Math.round((kpis.upcoming_capacity_used / kpis.upcoming_capacity_total) * 100)
-        : 0
-    },
-    clients: {
-      uniqueThisMonth: kpis.unique_clients_month || 0
-    },
-    activity: {
-      photosToday: kpis.photos_uploaded_today || 0,
-      activeUsersToday: kpis.active_users_today || 0
-    }
-  };
-}
-
-// Fetch order trends
-async function fetchTrends(event: any, days: number): Promise<any> {
-  const supabase = createSupabaseClient(event);
-
-  const { data, error: dbError } = await supabase
-    .from('order_trends')
-    .select('*')
-    .order('date', { ascending: true })
-    .limit(days);
-
-  if (dbError) throw dbError;
-
-  return {
-    dates: data?.map(d => d.date) || [],
-    total: data?.map(d => d.total_orders) || [],
-    completed: data?.map(d => d.completed_orders) || [],
-    inProgress: data?.map(d => d.in_progress_orders) || [],
-    draft: data?.map(d => d.draft_orders) || [],
-    onHold: data?.map(d => d.on_hold_orders) || [],
-    dailyChange: data?.map(d => d.daily_change) || []
-  };
-}
-
-// Fetch station metrics
-async function fetchStationMetrics(event: any, station?: string | null): Promise<any> {
-  const supabase = createSupabaseClient(event);
-
-  let query = supabase
-    .from('station_performance')
-    .select('*')
-    .order('total_orders_processed', { ascending: false });
-
-  if (station) {
-    query = query.eq('station', station);
-  }
-
-  const { data, error: dbError } = await query;
-
-  if (dbError) throw dbError;
-
-  return data || [];
-}
-
-// Fetch loading metrics
-async function fetchLoadingMetrics(event: any, days: number): Promise<any> {
-  const supabase = createSupabaseClient(event);
-
-  const startDate = new Date();
-  const endDate = new Date();
-  endDate.setDate(endDate.getDate() + days);
-
-  const { data, error: dbError } = await supabase
-    .from('loading_capacity_overview')
-    .select('*')
-    .gte('date', startDate.toISOString().split('T')[0])
-    .lte('date', endDate.toISOString().split('T')[0])
-    .order('date', { ascending: true });
-
-  if (dbError) throw dbError;
-
-  return {
-    dates: data?.map(d => d.date) || [],
-    capacity: data?.map(d => d.current_capacity) || [],
-    maxCapacity: data?.map(d => d.max_capacity) || [],
-    orderCount: data?.map(d => d.order_count) || [],
-    status: data?.map(d => d.capacity_status) || []
-  };
-}
-
-// Fetch client metrics
-async function fetchClientMetrics(event: any, days: number): Promise<any> {
-  const supabase = createSupabaseClient(event);
-
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-
-  const { data, error: dbError } = await supabase
-    .from('draft_orders')
-    .select('client, status, created_at')
-    .gte('created_at', startDate.toISOString())
-    .order('created_at', { ascending: false });
-
-  if (dbError) throw dbError;
-
-  // Group by client
-  const clientGroups: Record<string, any> = {};
-
-  data?.forEach(order => {
-    if (!order.client) return;
-
-    if (!clientGroups[order.client]) {
-      clientGroups[order.client] = {
-        name: order.client,
-        totalOrders: 0,
-        completed: 0,
-        inProgress: 0,
-        draft: 0
-      };
-    }
-
-    clientGroups[order.client].totalOrders++;
-
-    if (order.status === 'completed') clientGroups[order.client].completed++;
-    else if (order.status === 'in-progress') clientGroups[order.client].inProgress++;
-    else if (order.status === 'draft') clientGroups[order.client].draft++;
-  });
-
-  return Object.values(clientGroups)
-    .sort((a, b) => b.totalOrders - a.totalOrders)
-    .slice(0, 10); // Top 10 clients
-}

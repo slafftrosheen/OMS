@@ -184,9 +184,13 @@ describe('signage-store', () => {
       ordersStore.set([mockTransformedOrder]);
       mockFetch.mockResolvedValue({ ok: true });
 
-      const result = await deleteOrder('PO-123');
+      const revision = '2026-11-05T10:00:00.000Z';
+      const result = await deleteOrder('PO-123', revision);
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/draft-orders/PO-123', { method: 'DELETE' });
+      expect(mockFetch).toHaveBeenCalledWith('/api/draft-orders/PO-123', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expectedUpdatedAt: revision })
+      });
       expect(result).toBe(true);
       expect(get(ordersStore)).toHaveLength(0);
     });

@@ -25,6 +25,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     const { data: orders, count, error: fetchError } = await locals.supabase
       .from('draft_orders')
       .select('*', { count: 'exact' })
+      .neq('status', 'CANCELLED')
       .range(offset, offset + limit - 1)
       .order('created_at', { ascending: false });
 

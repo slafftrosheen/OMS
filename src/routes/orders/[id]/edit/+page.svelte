@@ -1,4 +1,7 @@
 <script lang="ts">
+  import OrderDeleteButton from '$lib/order/OrderDeleteButton.svelte';
+  import { createUuid } from '$lib/utils/id';
+
   import { modalDialog } from '$lib/ui/modal-dialog';
   /**
    * Phase 7: Corel-style canvas layout for Order editing.
@@ -1197,6 +1200,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
     <!-- Primary actions — always visible -->
     <div class="top-bar-actions">
+      {#if orderId}
+        <OrderDeleteButton {orderId} {status} updatedAt={orderUpdatedAt} disabled={saving || confirming}
+          onDeleted={() => unsavedWarningEnabled = false} />
+      {/if}
       <button class="action-btn ghost" onclick={() => goto(`${base}/orders/${data.id}`)}>
         <Icon name="eye" size="sm" /> {$t('orderWorkspace.editor.view')}
       </button>
@@ -1432,7 +1439,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             {/each}
             {#if canEdit}
               <button type="button" onclick={() => profiles = [...profiles, {
-                clientKey:crypto.randomUUID(),
+                clientKey:createUuid(),
                 quantity:1,configuration:{},notes:'',profileTemplateId:null
               }]}>Add profile</button>
               <button class="action-btn primary" onclick={saveDraft} disabled={saving}>

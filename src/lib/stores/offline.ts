@@ -1,3 +1,4 @@
+import { createUuid } from '$lib/utils/id';
 /**
  * Offline Store
  * Manages offline data and sync queue
@@ -45,7 +46,7 @@ function createOfflineStore() {
     addPendingAction: (action: Omit<PendingAction, 'id' | 'timestamp'>) => {
       const pendingAction: PendingAction = {
         ...action,
-        id: crypto.randomUUID(),
+        id: createUuid(),
         timestamp: Date.now()
       };
 

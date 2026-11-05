@@ -27,6 +27,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
     // Apply filters
     if (status) query = query.eq('status', status);
+    else query = query.neq('status', 'CANCELLED');
     if (loadingDate) query = query.eq('loading_date', loadingDate);
     if (priority) query = query.eq('priority', priority);
 

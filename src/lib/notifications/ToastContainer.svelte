@@ -1,5 +1,7 @@
 <!-- src/lib/notifications/ToastContainer.svelte -->
 <script lang="ts">
+  import { createUuid } from '$lib/utils/id';
+
   import AlertCircle from 'lucide-svelte/icons/alert-circle';
   import CheckCircle from 'lucide-svelte/icons/check-circle';
   import Info from 'lucide-svelte/icons/info';
@@ -32,7 +34,7 @@
 	});
 
 	function addToast(message: string, type: Toast['type'], duration: number) {
-		const id = crypto.randomUUID();
+		const id = createUuid();
 		const toast: Toast = { id, message, type, duration };
 
 		toasts = [...toasts, toast];

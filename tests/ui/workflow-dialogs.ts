@@ -10,7 +10,7 @@ import { page } from './app-state';
 
 const surface = page.url.searchParams.get('surface') === 'station' ? 'station' : 'inventory';
 if (surface === 'station') {
-  page.params = { station: 'CNC' };
+  page.params = { station: page.url.searchParams.get('station') || 'CNC' };
   page.route.id = '/station/[station]';
 }
 

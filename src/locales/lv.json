@@ -2806,6 +2806,8 @@
     "station_head_title": "Stacijas vadītājs"
   },
   "stationView": {
+    "readyForDispatch": "Ražošana pabeigta. Norīkojiet iekraušanu un nosūtīšanu pasūtījumā vai kalendārā.",
+    "loadingCalendar": "Iekraušanas kalendārs",
     "workstation": "Darba stacija",
     "refreshAria": "Atjaunot stacijas pasūtījumus",
     "refreshing": "Atjauno staciju…",
@@ -3731,5 +3733,12 @@
     "supplierSource": "Lemona avots",
     "manufacturerSource": "Ražotāja informācija",
     "sourceChecked": "Avots pārbaudīts: {date}"
-  }
+  },
+  "orderDeletion": {
+  "button": "Dzēst pasūtījumu",
+  "title": "Dzēst šo melnrakstu vai pasūtījumu?",
+  "description": "Pasūtījums tiks atcelts un noņemts no aktīvajiem sarakstiem un staciju rindām. Faili, izlietotie materiāli un vēsture tiks saglabāti. Neizmantotās ražošanas rezervācijas un iekraušanas norīkojumi tiks atbrīvoti.",
+  "deleted": "Pasūtījums dzēsts",
+  "failed": "Neizdevās dzēst pasūtījumu"
+}
 }

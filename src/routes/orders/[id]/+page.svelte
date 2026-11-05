@@ -13,6 +13,7 @@
     import { stageBadge } from "$lib/badges/catalog";
     import Tabs from "$lib/components/ui/Tabs.svelte";
     import ChatContainer from "$lib/components/chat/ChatContainer.svelte";
+    import OrderDeleteButton from '$lib/order/OrderDeleteButton.svelte';
     import OrderFiles from "$lib/order/OrderFiles.svelte";
     import {fetchOrderFilesCount} from "$lib/order/order-files-client";
     import {
@@ -366,6 +367,7 @@
                 </div>
             </div>
             <div class="header-actions">
+                <OrderDeleteButton {orderId} status={order.status} updatedAt={order.updated_at ?? order.updatedAt ?? null} disabled={lifecycleBusy} />
                 <Button variant="outline" onclick={() => (showQRModal = true)}>
                     {$t("orderDetail.qr_code")}
                 </Button>
@@ -375,7 +377,7 @@
                 >
                     {$t("common.edit")}
                 </Button>
-                {#if (normaliseStatus(order.status) === 'READY_TO_LOAD' || normaliseStatus(order.status) === 'IN_PRODUCTION' || normaliseStatus(order.status) === 'CONFIRMED') && can($currentUser, 'markDispatched')}
+                {#if normaliseStatus(order.status) === 'READY_TO_LOAD' && can($currentUser, 'markDispatched')}
                     <Button variant="primary" onclick={dispatchOrder} disabled={lifecycleBusy}>
                         {$t('orderDetail.mark_dispatched', { default: 'Mark dispatched' })}
                     </Button>
@@ -531,7 +533,7 @@
                                         {#if stageRow.blocked_reason} — {stageRow.blocked_reason}{/if}
                                       </p>
                                     {/if}
-                                    {#if mayControlStage($currentUser,stageRow.station) &&
+                                    {#if ['CONFIRMED','IN_PRODUCTION'].includes(order.status) && mayControlStage($currentUser,stageRow.station) &&
                                         ['CONFIRMED','IN_PRODUCTION'].includes(normaliseStatus(order.status)) &&
                                         !['COMPLETED','SKIPPED','REWORK'].includes(stageRow.state)}
                                         <label class="station-control">

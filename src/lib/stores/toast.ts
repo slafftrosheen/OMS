@@ -1,3 +1,4 @@
+import { createUuid } from '$lib/utils/id';
 import { writable } from 'svelte/store';
 
 export type Toast = {
@@ -12,7 +13,7 @@ function createToasts() {
   const { subscribe, update } = writable<Toast[]>([]);
 
   function push(t: Omit<Toast, 'id'>) {
-    const id = crypto.randomUUID();
+    const id = createUuid();
     const toast = { id, ttl: 3500, kind: 'info' as const, ...t };
     update((arr) => [...arr, toast]);
     if (toast.ttl) {

@@ -12,6 +12,8 @@
 </script>
 
 <script lang="ts">
+  import { createUuid } from '$lib/utils/id';
+
   interface Props {
     rows?: MaterialRow[];
     onChange?: any;
@@ -20,7 +22,7 @@
   let { rows = $bindable([]), onChange = (r: MaterialRow[]) => {} }: Props = $props();
   
   function add() {
-    rows = [...rows, { id: crypto.randomUUID(), type: 'Acrylic', colorSystem: 'None', qty: 1 }];
+    rows = [...rows, { id: createUuid(), type: 'Acrylic', colorSystem: 'None', qty: 1 }];
     onChange(rows);
   }
   

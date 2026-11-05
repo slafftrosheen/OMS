@@ -2806,6 +2806,8 @@
     "station_head_title": "Station Head for this station"
   },
   "stationView": {
+    "readyForDispatch": "Production is ready. Assign loading and dispatch from the order or calendar.",
+    "loadingCalendar": "Loading calendar",
     "workstation": "Workstation",
     "refreshAria": "Refresh station orders",
     "refreshing": "Refreshing station…",
@@ -3731,5 +3733,12 @@
     "supplierSource": "Lemona source",
     "manufacturerSource": "Manufacturer reference",
     "sourceChecked": "Source checked {date}"
-  }
+  },
+  "orderDeletion": {
+  "button": "Delete order",
+  "title": "Delete this draft or order?",
+  "description": "The order will be cancelled and removed from active lists and station queues. Files, consumed materials and audit history stay available. Unused production reservations and loading assignments will be released.",
+  "deleted": "Order deleted",
+  "failed": "Could not delete order"
+}
 }

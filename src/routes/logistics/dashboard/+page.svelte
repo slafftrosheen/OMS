@@ -20,21 +20,9 @@
   async function loadStats() {
     statsLoading = true;
     try {
-      const [calRes, loadRes] = await Promise.all([
-        fetch(`${base}/api/calendar/capacity`),
-        fetch(`${base}/api/loading-days/capacity`),
-      ]);
-      const cal  = calRes.ok ? await calRes.json() : {};
-      const load = loadRes.ok ? await loadRes.json() : {};
-      // Unavailable aggregates are unknown, not zero. Preserve genuine zero values.
-      const numeric = (value: unknown): number | null =>
-        typeof value === 'number' && Number.isFinite(value) ? value : null;
-      stats = {
-        pending_dispatch: numeric(cal.pending_dispatch),
-        scheduled_today: numeric(cal.scheduled_today),
-        overdue: numeric(cal.overdue),
-        loading_capacity_pct: numeric(load.capacity_pct),
-      };
+      const response = await fetch(`${base}/api/logistics/metrics`, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Logistics metrics unavailable');
+      stats = await response.json();
     } catch {
       stats = null; // Keep the dashboard usable, never fabricate live metrics.
     } finally {

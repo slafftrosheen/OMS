@@ -221,10 +221,12 @@ export async function updateOrder(id: string, updates: Partial<Order>): Promise<
 /**
  * Delete order
  */
-export async function deleteOrder(id: string): Promise<boolean> {
+export async function deleteOrder(id: string, expectedUpdatedAt: string): Promise<boolean> {
   try {
     const response = await fetch(`${base}/api/draft-orders/${encodeURIComponent(id)}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expectedUpdatedAt })
     });
 
     if (response.ok) {

@@ -1,3 +1,4 @@
+import { createUuid } from '$lib/utils/id';
 import { writable } from 'svelte/store';
 
 export type NotificationType = 'success' | 'error' | 'info' | 'warning';
@@ -19,13 +20,14 @@ function createNotificationStore() {
     timeout = 5000,
     sound = true
   ) => {
-    const id = crypto.randomUUID();
+    const id = createUuid();
     const notification: Notification = { id, type, message, timeout, sound };
 
     update((n) => [...n, notification]);
 
     if (sound) {
-      playSound(type);
+      // Audio can be disabled by browser policy; feedback must still succeed.
+      try { playSound(type); } catch { /* Optional sound. */ }
     }
 
     if (timeout > 0) {
@@ -60,6 +62,7 @@ function playSound(type: NotificationType) {
   const ctx = new AudioContext();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
+  osc.onended = () => { void ctx.close().catch(() => {}); };
 
   osc.connect(gain);
   gain.connect(ctx.destination);
