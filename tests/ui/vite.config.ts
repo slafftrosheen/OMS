@@ -10,6 +10,7 @@ export default defineConfig({
   plugins: [svelte({ configFile: false })],
   resolve: {
     alias: {
+      'svelte-i18n': path('../../packages/svelte-i18n/index.js'),
       '$lib': path('../../src/lib'),
       '$app/paths': path('../../src/app/paths.js'),
       '$app/environment': path('../../src/app/environment.js'),

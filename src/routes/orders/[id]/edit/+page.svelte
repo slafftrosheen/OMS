@@ -1271,6 +1271,12 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
 
     <!-- Primary actions — always visible -->
     <div class="top-bar-actions">
+      {#if canEdit}
+        <button type="button" class="action-btn ghost" onclick={()=>openWorkspaceSection('intake')}
+          disabled={saving||confirming}>
+          <Icon name="file-text" size="sm" /> {$t('orderIntake.openUpload')}
+        </button>
+      {/if}
       {#if orderId}
         <OrderDeleteButton {orderId} {status} updatedAt={orderUpdatedAt} disabled={saving || confirming}
           onDeleted={() => unsavedWarningEnabled = false} />
@@ -1416,7 +1422,6 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     <aside class="right-docker">
       <div class="workspace-panel-heading">
         <div>
-          <span class="workspace-eyebrow">{$t(`orderWorkspace.groups.${activeGroup}`)}</span>
           <h2>{$t(`orderWorkspace.sections.${rightTab}`)}</h2>
         </div>
         <button type="button" class="focus-toggle" onclick={() => focusPanel=!focusPanel}
@@ -1483,7 +1488,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
               <button type="button" onclick={() => profiles = [...profiles, {
                 clientKey:createUuid(),
                 quantity:1,configuration:{},notes:'',profileTemplateId:null
-              }]}>Add profile</button>
+              }]}>{$t('orders.new.addProfile')}</button>
               <button class="action-btn primary" onclick={saveDraft} disabled={saving}>
                 {saving ? $t('orderWorkspace.editor.saving') : $t('orderWorkspace.editor.saveAll')}
               </button>
@@ -1888,9 +1893,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   .dirty-mark{width:7px;height:7px;border-radius:50%;background:var(--warn,#e89c2d)}
   .workspace-panel-heading{display:flex;justify-content:space-between;align-items:center;
     gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)}
-  .workspace-eyebrow{display:block;font-size:10px;letter-spacing:.05em;
-    text-transform:uppercase;color:var(--text-muted)}
-  .workspace-panel-heading h2{font-size:18px;margin:4px 0 0;line-height:1.3}
+  .workspace-panel-heading h2{font-size:18px;margin:0;line-height:1.3}
   .focus-toggle{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);
     border-radius:8px;padding:7px 10px;color:var(--text);background:var(--bg-2);
     cursor:pointer;white-space:nowrap;font-size:12px}
@@ -2284,7 +2287,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     background:var(--bg-2);color:var(--ink-primary);}
   .ctx-btn {min-height:36px;border-radius:var(--radius-sm);background:var(--bg-2);}
   .top-bar-actions {gap:var(--space-xs);min-width:0;}
-  .top-bar-actions .action-btn {min-height:40px;border-radius:var(--radius-sm);}
+  .top-bar-actions > :global(button) {min-height:40px;border-radius:var(--radius-sm);}
   .action-btn.primary {background:var(--brand);color:var(--on-brand);border-color:var(--brand);}
   .action-btn.primary:hover:not(:disabled) {background:var(--brand-2);color:var(--on-brand);}
   .workspace-flow {background:var(--bg-1);border-color:var(--divider);gap:var(--space-xs);

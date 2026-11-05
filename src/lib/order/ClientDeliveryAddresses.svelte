@@ -87,7 +87,7 @@
  {/if}
  {#if preview&&patch}
   <div class="address-preview">
-   <div class="comparison"><div><span class="caption">{$t('clientAddresses.current')}</span><p>{current.deliveryAddress||'—'}</p><p class="hint">{current.deliveryContact||'—'} · {current.deliveryPhone||'—'}</p></div>
+   <div class="comparison"><div><span class="caption">{$t('clientAddresses.current')}</span><p>{current.deliveryAddress||'—'}</p><p class="hint">{current.deliveryContact||'—'} · {current.deliveryPhone||'—'}</p><p class="hint">{current.deliveryEmail||'—'}</p></div>
     <div><span class="caption">{$t('clientAddresses.saved')}</span><p>{preview.address}</p><p class="hint">{preview.contact||'—'} · {preview.phone||'—'}</p><p class="hint">{preview.email||'—'}</p></div></div>
    <p class="hint">{$t('clientAddresses.lastUsed',{date:date(preview.last_used_at)})}</p>
    <button type="button" class="text-button" onclick={()=>{if(historyOpen)historyOpen=false;else void loadHistory();}} aria-expanded={historyOpen}>

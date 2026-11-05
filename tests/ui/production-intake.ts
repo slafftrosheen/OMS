@@ -5,6 +5,17 @@ import ru from '../../src/locales/ru.json';
 import lv from '../../src/locales/lv.json';
 import '../../src/app.css';
 import Harness from './ProductionIntakeHarness.svelte';
+import {authState} from '$lib/auth/authState.svelte';
+import {page} from './app-state';
+import {orderSheetIds} from './order-sheet-fixtures';
 addMessages('en',en);addMessages('ru',ru);addMessages('lv',lv);
 await init({fallbackLocale:'en',initialLocale:new URL(location.href).searchParams.get('lang')||'en'});
-mount(Harness,{target:document.getElementById('app')!});
+const mode=new URL(location.href).searchParams.get('mode');
+if(mode==='new'||mode==='editor'||mode==='detail'){
+ page.params={id:orderSheetIds.first};
+ page.url=new URL(mode==='new'?'/orders/new':`/orders/${orderSheetIds.first}${mode==='editor'?'/edit':''}`,location.origin);
+ page.route.id=mode==='new'?'/orders/new':mode==='editor'?'/orders/[id]/edit':'/orders/[id]';
+ await authState.load();
+ const Entry=(await import('./ProductionIntakeEntryHarness.svelte')).default;
+ mount(Entry,{target:document.getElementById('app')!});
+}else mount(Harness,{target:document.getElementById('app')!});

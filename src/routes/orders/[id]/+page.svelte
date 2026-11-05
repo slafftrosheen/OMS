@@ -331,17 +331,6 @@
         }
     }
 
-    function getStatusColor(status: string): string {
-        const colors: Record<string, string> = {
-            NOT_STARTED: "var(--ink-3)",
-            IN_PROGRESS: "var(--brand)",
-            COMPLETED:   "var(--ok)",
-            BLOCKED:     "var(--error)",
-            SKIPPED:     "var(--warn)",
-        };
-        return colors[status] || "var(--ink-3)";
-    }
-
     $effect(() => {
         orderId;
         ownerKey;
@@ -419,6 +408,10 @@
                     {$t("orderDetail.qr_code")}
                 </Button>
                 {#if mayEditSpecification}
+                  <Button variant="outline" disabled={lifecycleBusy}
+                    onclick={() => goto(base + workspaceUrl(orderId,'intake'))}>
+                    {$t('orderIntake.openUpload')}
+                  </Button>
                   <Button
                     variant="primary"
                     onclick={() => goto(base + workspaceUrl(orderId,'details'))}
@@ -526,8 +519,7 @@
                         {/if}
                         <div class="stages-grid">
                             {#each (Array.isArray(order.stages) ? order.stages : []) as stageRow (stageRow.id ?? stageRow.station)}
-                                <div class="stage-card"
-                                    style="border-left-color: {getStatusColor(String(stageRow.state))}">
+                                <div class="stage-card">
                                     <div class="stage-header">
                                         <h4 class="stage-name">{stageRow.station}</h4>
                                         <SemanticBadge badge={stageBadge(stageRow.state)} />
@@ -870,16 +862,15 @@
 
     .stages-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
         gap: 1rem;
     }
 
     .stage-card {
         padding: 1rem;
         border: 1px solid var(--color-border, var(--border));
-        border-left-width: 4px;
         border-radius: 0.375rem;
-        background: white;
+        background: var(--bg-1);
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
@@ -903,7 +894,7 @@
         border: 1px solid var(--color-border, var(--border));
         border-radius: 0.375rem;
         font-size: 0.875rem;
-        background: white;
+        background: var(--bg-2);
         cursor: pointer;
         width: 100%;
     }
@@ -943,7 +934,7 @@
     .entry-link {min-height:42px;background:var(--bg-1);border-radius:var(--radius-sm);color:var(--ink-secondary)}
     .entry-link:hover {background:var(--bg-2);color:var(--ink-primary)}
     .entry-link:focus-visible,.stage-status-select:focus-visible {outline:2px solid var(--focus);outline-offset:2px}
-    .stage-card {background:var(--bg-1);border:1px solid var(--border);border-left:3px solid var(--brand);border-radius:var(--radius-md);min-width:0}
+    .stage-card {background:var(--bg-1);border:1px solid var(--border);border-radius:var(--radius-md);min-width:0}
     .stage-name {color:var(--ink-primary)}
     .stage-status-select {background:var(--bg-2);color:var(--ink-primary);border-color:var(--border);min-height:44px;border-radius:var(--radius-sm)}
     @media(max-width:670px){.order-detail-container {padding:var(--space-sm) 0 var(--space-xl)}.order-header {padding:var(--space-md)}.entry-link {min-width:0}.header-actions :global(button) {flex:1 1 auto}}

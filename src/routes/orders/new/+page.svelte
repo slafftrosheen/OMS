@@ -1,6 +1,7 @@
 <script lang="ts">
   import ClientDeliveryAddresses from '$lib/order/ClientDeliveryAddresses.svelte';
-  import { onMount, tick } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
+  import { modalDialog } from '$lib/ui/modal-dialog';
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
   import OrderWorkflowCoach from '$lib/order/OrderWorkflowCoach.svelte';
@@ -26,6 +27,10 @@
   // Field-level validation errors keyed by input name (the "ali points").
   let fieldErrors = $state<Record<string, string>>({});
   let successMessage = $state('');
+  let presetNotice = $state('');
+  let presetProblem = $state('');
+  let presetsLoading = $state(false);
+  let presetsProblem = $state('');
   // Keep a newly created order available for safe attachment retry after partial failure.
   let savedOrderId: string | null = $state(null);
   let savedOrderUpdatedAt: string | null = $state(null);
@@ -84,6 +89,8 @@
     type: 'pdf' | 'cdr' | 'image' | 'other';
   }
   let uploadedFiles = $state<FileWithPreview[]>([]);
+  let preparingFiles = $state(false);
+  let fileUploadInput: HTMLInputElement | undefined = $state();
   let newGuideStep=$state<GuideStepId>('brief');
   let newGuideSection=$state<WorkspaceSection>('details');
   function jumpToNewStep(_target:WorkspaceSection,step:GuideStepId){
@@ -122,20 +129,27 @@
   let pdfCanvas = $state<HTMLCanvasElement | undefined>(undefined);
   let pdfCurrentPage = $state(1);
   let pdfTotalPages = $state(1);
-  let pdfDoc = $state<any>(null);
   
   function selectFile(index: number) {
+    if (!uploadedFiles[index]) return;
+    pdfRenderSerial++;
+    pdfRenderTask?.cancel();
+    previewProblem = '';
     selectedFileIndex = index;
     previewZoom = 1;
     pdfCurrentPage = 1;
+    pdfTotalPages = 1;
     
     const file = uploadedFiles[index];
     if (file?.type === 'pdf' && file.pdfDataUrl) {
-      renderPdfPage(file.pdfDataUrl, 1);
-    }
+      void renderPdfPage(file.pdfDataUrl, 1);
+    } else pdfRendering = false;
   }
   
   let pdfRendering = $state(false);
+  let previewProblem = $state('');
+  let pdfRenderSerial = 0;
+  let previewDisposed = false;
   let pdfRenderTask = $state<any>(null);
   let pdfPageCache = $state(new Map<string, any>());
   let pdfjsLib: any = null;
@@ -147,6 +161,7 @@
         import('pdfjs-dist'),
         import('pdfjs-dist/build/pdf.worker.min.mjs?url')
       ]).then(([module, {default: workerSrc}]) => {
+        if (previewDisposed) return;
         pdfjsLib = module;
         if (module.GlobalWorkerOptions) {
           module.GlobalWorkerOptions.workerSrc = workerSrc;
@@ -156,63 +171,64 @@
           void renderPdfPage(selected.pdfDataUrl, 1);
         }
       }).catch((err) => {
+        if (!previewDisposed) previewProblem = $t('orders.new.files.previewError');
         console.error('Failed to load pdfjs-dist:', err);
       });
     }
   });
   
   async function renderPdfPage(dataUrl: string, pageNum: number) {
-    if (!pdfjsLib) return;
-    if (pdfRendering) return;
-    
+    if (previewDisposed) return;
+    const serial = ++pdfRenderSerial;
+    const current = () => !previewDisposed && serial === pdfRenderSerial && selectedFileIndex !== null &&
+      uploadedFiles[selectedFileIndex]?.pdfDataUrl === dataUrl;
     pdfRendering = true;
-    
+    previewProblem = '';
+    if (!pdfjsLib) return;
     try {
-      if (pdfRenderTask) {
-        try { pdfRenderTask.cancel(); } catch (error) {
-          console.warn('Error cancelling PDF render task:', error);
-        }
-        pdfRenderTask = null;
+      const previous = pdfRenderTask;
+      pdfRenderTask = null;
+      previous?.cancel();
+      if (previous) await previous.promise.catch(() => {});
+      if (!current()) return;
+      // Different drawings commonly share the same PDF header. Cache the
+      // complete source and its loading promise, never a truncated prefix.
+      let document = pdfPageCache.get(dataUrl);
+      if (!document) {
+        document = pdfjsLib.getDocument({ data: atob(dataUrl.split(',')[1]) }).promise;
+        pdfPageCache.set(dataUrl, document);
       }
-      
-      const cacheKey = dataUrl.substring(0, 100);
-      if (!pdfDoc || !pdfPageCache.has(cacheKey)) {
-        pdfDoc = await pdfjsLib.getDocument({
-          data: atob(dataUrl.split(',')[1]),
-        }).promise;
-        pdfTotalPages = pdfDoc.numPages;
-        pdfPageCache.set(cacheKey, pdfDoc);
-      } else {
-        pdfDoc = pdfPageCache.get(cacheKey);
-        pdfTotalPages = pdfDoc.numPages;
-      }
-      
-      const page = await pdfDoc.getPage(pageNum);
-      const baseScale = 1.0;
-      const scale = baseScale * previewZoom;
-      const viewport = page.getViewport({ scale });
-      
-      if (pdfCanvas) {
-        const context = pdfCanvas.getContext('2d');
-        pdfCanvas.height = viewport.height;
-        pdfCanvas.width = viewport.width;
-        context?.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
-        
-        pdfRenderTask = page.render({
-          canvasContext: context,
-          viewport: viewport
-        });
-        await pdfRenderTask.promise;
-        pdfRenderTask = null;
-      }
+      const loaded = await document;
+      if (!current()) return;
+      pdfTotalPages = loaded.numPages;
+      const page = await loaded.getPage(pageNum);
+      await tick();
+      if (!current() || !pdfCanvas) return;
+      const viewport = page.getViewport({ scale: previewZoom });
+      const context = pdfCanvas.getContext('2d');
+      if (!context) throw new Error('Canvas unavailable');
+      pdfCanvas.height = viewport.height;
+      pdfCanvas.width = viewport.width;
+      const task = page.render({ canvasContext: context, viewport });
+      pdfRenderTask = task;
+      await task.promise;
     } catch (err: any) {
-      if (err?.name !== 'RenderingCancelledException') {
+      if (current() && err?.name !== 'RenderingCancelledException') {
+        pdfPageCache.delete(dataUrl);
+        previewProblem = $t('orders.new.files.previewError');
         console.error('Error rendering PDF:', err);
       }
     } finally {
-      pdfRendering = false;
+      if (current()) { pdfRendering = false; pdfRenderTask = null; }
     }
   }
+  onDestroy(() => {
+    previewDisposed = true;
+    pdfRenderSerial++;
+    pdfRenderTask?.cancel();
+    for (const document of pdfPageCache.values())
+      void document.then((loaded: any) => loaded.destroy()).catch(() => {});
+  });
   
   function nextPdfPage() {
     if (pdfCurrentPage < pdfTotalPages) {
@@ -261,17 +277,21 @@
   }
 
   async function loadProfilePresets() {
+    presetsLoading = true; presetsProblem = '';
     try {
       const response = await fetch('/api/order-profile-presets');
-      if (response.ok) {
-        profilePresets = await response.json();
-      }
+      if (!response.ok) throw new Error('Preset lookup unavailable');
+      const rows = await response.json();
+      if (!Array.isArray(rows)) throw new Error('Invalid preset lookup response');
+      profilePresets = rows;
     } catch (err) {
+      presetsProblem = $t('orders.new.presets.loadError');
       console.error('Failed to load profile presets:', err);
-    }
+    } finally { presetsLoading = false; }
   }
 
   async function saveAsPreset(profileIndex: number) {
+    presetProblem = ''; presetNotice = '';
     const profile = profiles[profileIndex];
     savePresetName = profile.configuration.profileName || '';
     savePresetDescription = '';
@@ -281,9 +301,10 @@
   }
 
   async function confirmSavePreset() {
-    if (!savePresetName.trim() || selectedPresetForLoad === null) return;
+    if (savingPreset || !savePresetName.trim() || selectedPresetForLoad === null) return;
 
     savingPreset = true;
+    presetProblem = ''; presetNotice = '';
     try {
       const profile = profiles[selectedPresetForLoad];
       const response = await fetch('/api/order-profile-presets', {
@@ -299,15 +320,15 @@
       });
 
       if (response.ok) {
-        successMessage = 'Profile preset saved successfully!';
+        presetNotice = $t('orders.new.presets.saved');
         await loadProfilePresets();
         closeSavePresetModal();
       } else {
-        error = 'Failed to save preset';
+        presetProblem = $t('orders.new.presets.saveError');
       }
     } catch (err) {
       console.error('Error saving preset:', err);
-      error = 'An error occurred while saving preset';
+      presetProblem = $t('orders.new.presets.saveError');
     } finally {
       savingPreset = false;
     }
@@ -325,12 +346,11 @@
     };
     profiles = [...profiles, newProfile];
     showPresetModal = false;
-    successMessage = `Loaded preset: ${preset.name}`;
-    setTimeout(() => successMessage = '', 3000);
+    presetNotice = $t('orders.new.presets.loaded',{name:preset.name});
   }
 
   async function deletePreset(presetId: number | string) {
-    if (!confirm('Are you sure you want to delete this preset?')) return;
+    if (!confirm($t('orders.new.presets.deleteConfirm'))) return;
 
     try {
       const response = await fetch(`/api/order-profile-presets/${presetId}`, {
@@ -338,14 +358,14 @@
       });
 
       if (response.ok) {
-        successMessage = 'Preset deleted successfully';
+        presetNotice = $t('orders.new.presets.deleted');
         await loadProfilePresets();
       } else {
-        error = 'Failed to delete preset';
+        presetsProblem = $t('orders.new.presets.deleteError');
       }
     } catch (err) {
       console.error('Error deleting preset:', err);
-      error = 'An error occurred while deleting preset';
+      presetsProblem = $t('orders.new.presets.deleteError');
     }
   }
 
@@ -368,7 +388,7 @@
   };
 
   const defaultConfiguration = {
-    profileName: 'New Profile',
+    profileName: $t('orders.new.defaultProfileName'),
     signType: 'EXTERIOR' as 'INTERIOR' | 'EXTERIOR',
     CNC_FREZER: { face: '', back: '', faceThickness: '', backThickness: '', laser: false, print3d: false, notes: '' },
     BENDER: { sides: '', sidesThickness: '', depth: 100, notes: '' },
@@ -422,7 +442,7 @@
     });
   }
   let canContinueToReview = $derived(
-    !saving && !successMessage && can($currentUser, 'createDraftOrder') &&
+    !saving && !preparingFiles && !successMessage && can($currentUser, 'createDraftOrder') &&
     (uploadedFiles.length > 0 || uploadedFileKeys.size > 0) && validateCurrentOrderForm().ok
   );
 
@@ -571,46 +591,52 @@
   }
 
   async function addFiles(newFiles: File[]) {
-    for (const file of newFiles) {
-      const type = getFileType(file);
-      const fileWithPreview: FileWithPreview = { file, type, uploadId: createId('upload') };
-      
-      if (type === 'image') {
-        fileWithPreview.preview = await createImagePreview(file);
-      } else if (type === 'pdf') {
-        fileWithPreview.pdfDataUrl = await createDataUrl(file);
+    if (saving || preparingFiles || successMessage) return;
+    preparingFiles = true;
+    try {
+      for (const file of newFiles) {
+        const type = getFileType(file);
+        const fileWithPreview: FileWithPreview = { file, type, uploadId: createId('upload') };
+        if (type === 'image') {
+          fileWithPreview.preview = await createImagePreview(file);
+        } else if (type === 'pdf') {
+          fileWithPreview.pdfDataUrl = await createDataUrl(file);
+        }
+        uploadedFiles = [...uploadedFiles, fileWithPreview];
+        if (uploadedFiles.length === 1) selectFile(0);
       }
-      
-      uploadedFiles = [...uploadedFiles, fileWithPreview];
-      
-      if (uploadedFiles.length === 1) {
-        selectFile(0);
-      }
-    }
+    } catch { error = $t('orders.new.files.readError'); }
+    finally { preparingFiles = false; }
   }
 
   function createImagePreview(file: File): Promise<string> {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as string);
-      reader.readAsDataURL(file);
-    });
+    return createDataUrl(file);
   }
 
   function createDataUrl(file: File): Promise<string> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.onabort = () => reject(new Error('File read cancelled'));
       reader.readAsDataURL(file);
     });
   }
 
   function removeFile(index: number) {
+    if (saving || preparingFiles || successMessage) return;
+    const removed = uploadedFiles[index];
     uploadedFiles = uploadedFiles.filter((_, i) => i !== index);
     if (selectedFileIndex === index) {
-      selectedFileIndex = uploadedFiles.length > 0 ? 0 : null;
+      if (uploadedFiles.length) selectFile(0);
+      else { selectedFileIndex = null; pdfRenderSerial++; pdfRenderTask?.cancel(); pdfRendering = false; }
     } else if (selectedFileIndex !== null && selectedFileIndex > index) {
       selectedFileIndex--;
+    }
+    if (removed?.pdfDataUrl && !uploadedFiles.some(item => item.pdfDataUrl === removed.pdfDataUrl)) {
+      const document = pdfPageCache.get(removed.pdfDataUrl);
+      pdfPageCache.delete(removed.pdfDataUrl);
+      void document?.then((loaded: any) => loaded.destroy()).catch(() => {});
     }
   }
 
@@ -637,8 +663,8 @@
     }
   }
 
-  async function saveOrder(destination:'review'|'assistant'='review') {
-    if (saving || successMessage) return;
+  async function saveOrder(destination:'review'|'assistant'|'intake'='review') {
+    if (saving || preparingFiles || successMessage) return;
     if (!can($currentUser, 'createDraftOrder')) { error = 'Manager role required to create orders'; return; }
     error = '';
     fieldErrors = {};
@@ -753,8 +779,13 @@
         return;
       }
 
-      // An explicit Save & ask AI keeps the native form and all attachments
-      // persisted as a DRAFT. It never silently submits for human review.
+      // Both AI actions keep the form and linked attachments saved as a DRAFT.
+      // Review submission remains a separate, explicit action below.
+      if(destination==='intake'){
+        successMessage=$t('orderAssistant.draftSaved');
+        await goto(`${base}/orders/${encodeURIComponent(String(orderId))}/edit?section=intake`);
+        return;
+      }
       if(destination==='assistant'){
         successMessage=$t('orderAssistant.draftSaved');
         await goto(`${base}/orders/${encodeURIComponent(String(orderId))}/edit?section=chat&assist=profiles`);
@@ -798,7 +829,7 @@
     <p>{$t('orderAssistant.saveAndAskHint')}</p>
     <button class="btn-secondary" type="button"
       onclick={()=>void saveOrder('assistant')}
-      disabled={saving || !!successMessage || !can($currentUser, 'createDraftOrder')}>
+      disabled={saving || preparingFiles || !!successMessage || !can($currentUser, 'createDraftOrder')}>
       <Icon name="save" size="sm" /> {$t('orderAssistant.saveAndAsk')}
     </button>
     {#if error}<p class="assistant-form-error" role="alert">{error}</p>{/if}
@@ -830,8 +861,12 @@
       <button class="btn-secondary" onclick={() => goto('/orders')}>
         {$t('actions.cancel')}
       </button>
+      <button type="button" class="btn-secondary" onclick={()=>void saveOrder('intake')}
+        disabled={saving||preparingFiles||!!successMessage||!can($currentUser,'createDraftOrder')}>
+        <Icon name="file-text" size="sm" /> {$t('orderIntake.saveAndAnalyze')}
+      </button>
       <button id="new-order-save" type="button" class="btn-primary" use:nextActionHalo={canContinueToReview}
-        aria-busy={saving} onclick={()=>void saveOrder('review')} disabled={saving || !!successMessage || !can($currentUser, 'createDraftOrder')}>
+        aria-busy={saving} onclick={()=>void saveOrder('review')} disabled={saving || preparingFiles || !!successMessage || !can($currentUser, 'createDraftOrder')}>
         {#if saving}
           <span class="spinner"></span>
           {$t('actions.saving')}
@@ -844,21 +879,22 @@
   </header>
 
   {#if error}
-    <div class="error-banner">
+    <div class="error-banner" role="alert">
       <Icon name="alert-circle" size="sm" />
       {error}
-      <button class="close-btn" onclick={() => error = ''}>
+      <button type="button" class="close-btn" aria-label={$t('common.close')} onclick={() => error = ''}>
         <Icon name="x" size="sm" />
       </button>
     </div>
   {/if}
 
   {#if successMessage}
-    <div class="success-banner">
+    <div class="success-banner" role="status">
       <Icon name="save" size="sm" />
       {successMessage}
     </div>
   {/if}
+  {#if presetNotice}<div class="success-banner" role="status">{presetNotice}</div>{/if}
 
   <!-- 1. PROFILES SECTION (TOP) -->
   <section id="new-order-profiles" class="profiles-section full-width">
@@ -875,7 +911,7 @@
         </button>
         <button class="btn-secondary" onclick={addProfile}>
           <Icon name="plus" size="sm" />
-          {$t('materials.add')}
+          {$t('orders.new.addProfile')}
         </button>
       </div>
     </div>
@@ -887,17 +923,19 @@
             class="collapse-toggle" 
             class:rotated={profile.collapsed}
             onclick={() => toggleProfileCollapse(profile.id)}
-            title={profile.collapsed ? 'Expand' : 'Collapse'}
+            title={$t(profile.collapsed ? 'orders.new.expandProfile' : 'orders.new.collapseProfile')}
+            aria-label={$t(profile.collapsed ? 'orders.new.expandProfile' : 'orders.new.collapseProfile')}
+            aria-expanded={!profile.collapsed}
           >
             <Icon name="chevron-down" size="md" />
           </button>
           <div class="profile-title">
             <span class="profile-number">#{i + 1}</span>
-            <h3>{profile.configuration.profileName || `Profile #${i + 1}`}</h3>
+            <h3>{profile.configuration.profileName || $t('productionPacket.profileNumber',{number:i+1})}</h3>
           </div>
           <div class="profile-actions">
             <div class="quantity-control">
-              <label for="qty-{profile.id}">Qty:</label>
+              <label for="qty-{profile.id}">{$t('orderSheet.quantity')}:</label>
               <input type="number" id="qty-{profile.id}" bind:value={profile.quantity} min="1" max="100" class="qty-input" />
             </div>
             <button class="btn-icon" onclick={() => saveAsPreset(i)} title={$t('orderForm.save_as_preset')} aria-label={$t('orderForm.save_as_preset')}>
@@ -931,6 +969,7 @@
       {$t('orders.new.sections.files')} <span class="required">*</span>
     </h2>
     <p class="help-text">{$t('orders.new.files.hint')}</p>
+    <p class="help-text">{$t('orderIntake.newOrderHint')}</p>
     
     <div class="files-layout">
       <div class="upload-section">
@@ -941,23 +980,26 @@
           ondragleave={handleDragLeave}
           ondragover={handleDragOver}
           ondrop={handleDrop}
-          role="button"
-          tabindex="0"
+          role="presentation"
         >
           <input 
             type="file" 
             id="file-upload" 
+            bind:this={fileUploadInput}
             multiple 
             accept=".pdf,.cdr,.dxf,.jpg,.jpeg,.png,.gif,.webp"
             onchange={handleFileSelect}
-            class="visually-hidden-file"
+            hidden
+            disabled={saving||preparingFiles||!!successMessage}
           />
-          <label for="file-upload" class="upload-label">
+          <button type="button" class="upload-label" aria-label={$t('orders.new.files.upload')}
+            disabled={saving||preparingFiles||!!successMessage} onclick={()=>fileUploadInput?.click()}>
             <Icon name="upload" size="lg" />
             <span class="upload-text">{$t('orders.new.files.drag_drop')}</span>
             <span class="upload-hint">{$t('orders.new.files.formats')}</span>
-          </label>
+          </button>
         </div>
+        {#if preparingFiles}<p class="help-text" role="status">{$t('orders.new.files.preparing')}</p>{/if}
         
         {#if uploadedFiles.length > 0}
           <div class="file-list">
@@ -968,7 +1010,7 @@
                   class="file-list-item" 
                   class:selected={selectedFileIndex === i}
                   onclick={() => selectFile(i)}
-                  onkeydown={(e) => e.key === 'Enter' && selectFile(i)}
+                  onkeydown={(e) => {if(e.target===e.currentTarget&&(e.key==='Enter'||e.key===' ')){e.preventDefault();selectFile(i);}}}
                   role="button"
                   tabindex="0"
                 >
@@ -991,7 +1033,7 @@
                         <Icon name="eye" size="xs" />
                       </button>
                     {/if}
-                    <button class="btn-icon-sm danger" onclick={(e) => { e.stopPropagation(); removeFile(i); }} title={$t('common.remove')} aria-label={$t('common.remove')}>
+                    <button class="btn-icon-sm danger" disabled={saving||preparingFiles||!!successMessage} onclick={(e) => { e.stopPropagation(); removeFile(i); }} title={$t('common.remove')} aria-label={$t('common.remove')}>
                       <Icon name="trash-2" size="xs" />
                     </button>
                   </div>
@@ -1040,7 +1082,9 @@
                 style="transform: scale({previewZoom})"
               />
             {:else if selectedFile.type === 'pdf' && selectedFile.pdfDataUrl}
-              <canvas bind:this={pdfCanvas} class="pdf-canvas"></canvas>
+              {#if previewProblem}<p role="alert">{previewProblem}</p>
+              {:else if pdfRendering}<p role="status">{$t('orders.new.files.loading_pdf')}</p>{/if}
+              <canvas bind:this={pdfCanvas} class="pdf-canvas" class:pdf-pending={pdfRendering||!!previewProblem}></canvas>
             {:else if selectedFile.type === 'pdf'}
               <div class="pdf-preview-placeholder">
                 <Icon name="file-text" size="xl" />
@@ -1240,34 +1284,26 @@
 
   <!-- Load Preset Modal -->
   {#if showPresetModal}
-    <div
+    <dialog
       class="modal-overlay"
-      onclick={() => showPresetModal = false}
-      onkeydown={(e) => e.key === 'Escape' && (showPresetModal = false)}
-      role="button"
-      tabindex="0"
+      aria-labelledby="load-preset-title"
+      use:modalDialog={{onClose:()=>showPresetModal=false,initialFocus:'#load-preset-title'}}
     >
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-      <div
-        class="modal"
-        onclick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        tabindex="-1"
-        aria-labelledby="load-preset-title"
-      >
+      <div class="modal">
         <div class="modal-header">
-          <h3>
+          <h3 id="load-preset-title" tabindex="-1">
             <Icon name="book-open" size="md" />
-            Load Profile Preset
+            {$t('orders.new.presets.loadTitle')}
           </h3>
-          <button class="btn-icon" onclick={() => showPresetModal = false}>
+          <button type="button" class="btn-icon" aria-label={$t('common.close')} onclick={() => showPresetModal = false}>
             <Icon name="x" size="md" />
           </button>
         </div>
         <div class="modal-body">
-          {#if profilePresets.length === 0}
+          {#if presetsLoading}<p role="status">{$t('actions.loading')}</p>{/if}
+          {#if presetsProblem}<p role="alert">{presetsProblem}</p>
+            <button type="button" class="btn-secondary" onclick={loadProfilePresets} disabled={presetsLoading}>{$t('clientAddresses.retry')}</button>{/if}
+          {#if !presetsLoading&&!presetsProblem&&profilePresets.length === 0}
             <p class="empty-state">{$t('orderForm.preset_empty_hint')}</p>
           {:else}
             <div class="preset-list">
@@ -1298,65 +1334,57 @@
           {/if}
         </div>
       </div>
-    </div>
+    </dialog>
   {/if}
 
   <!-- Save Preset Modal -->
   {#if showSavePresetModal}
-    <div
+    <dialog
       class="modal-overlay"
-      onclick={closeSavePresetModal}
-      onkeydown={(e) => e.key === 'Escape' && closeSavePresetModal()}
-      role="button"
-      tabindex="0"
+      aria-labelledby="save-preset-title"
+      use:modalDialog={{onClose:closeSavePresetModal,closeOnEscape:!savingPreset,closeOnBackdrop:!savingPreset,initialFocus:'#preset-name'}}
     >
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-      <div
-        class="modal"
-        onclick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        tabindex="-1"
-        aria-labelledby="save-preset-title"
-      >
+      <div class="modal">
         <div class="modal-header">
           <h3 id="save-preset-title">
             <Icon name="bookmark-plus" size="md" />
-            Save Profile as Preset
+            {$t('orders.new.presets.saveTitle')}
           </h3>
-          <button class="btn-icon" onclick={closeSavePresetModal}>
+          <button type="button" class="btn-icon" disabled={savingPreset} aria-label={$t('common.close')} onclick={closeSavePresetModal}>
             <Icon name="x" size="md" />
           </button>
         </div>
         <div class="modal-body">
+          {#if presetProblem}<p role="alert">{presetProblem}</p>{/if}
           <div class="form-group">
-            <label for="preset-name">Preset Name <span class="required">*</span></label>
+            <label for="preset-name">{$t('orders.new.presets.nameLabel')} <span class="required">*</span></label>
             <input
               type="text"
               id="preset-name"
               bind:value={savePresetName}
-              placeholder="e.g., Standard Exterior Sign"
+              placeholder={$t('orders.new.presets.namePlaceholder')}
+              disabled={savingPreset}
             />
           </div>
           <div class="form-group">
-            <label for="preset-description">Description</label>
+            <label for="preset-description">{$t('orders.new.presets.descriptionLabel')}</label>
             <textarea
               id="preset-description"
               bind:value={savePresetDescription}
               rows="3"
-              placeholder="Optional description of this preset..."
+              placeholder={$t('orders.new.presets.descriptionPlaceholder')}
+              disabled={savingPreset}
             ></textarea>
           </div>
           <div class="form-group">
             <label class="checkbox-label">
-              <input type="checkbox" bind:checked={savePresetPublic} />
-              <span>Make this preset public (visible to all users)</span>
+              <input type="checkbox" bind:checked={savePresetPublic} disabled={savingPreset} />
+              <span>{$t('orders.new.presets.publicLabel')}</span>
             </label>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary" onclick={closeSavePresetModal}>Cancel</button>
+          <button class="btn-secondary" disabled={savingPreset} onclick={closeSavePresetModal}>{$t('common.cancel')}</button>
           <button
             class="btn-primary"
             onclick={confirmSavePreset}
@@ -1364,15 +1392,15 @@
           >
             {#if savingPreset}
               <span class="spinner"></span>
-              Saving...
+              {$t('actions.saving')}
             {:else}
               <Icon name="bookmark-plus" size="sm" />
-              Save Preset
+              {$t('orders.new.presets.saveAction')}
             {/if}
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   {/if}
 </div>
 
@@ -1698,7 +1726,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 12px;
-    background: white;
+    background: var(--bg-1);
     border: 1px solid var(--border, var(--border));
     border-radius: 8px;
     font-size: 14px;
@@ -1716,7 +1744,7 @@
     left: 0;
     right: 0;
     margin-top: 4px;
-    background: white;
+    background: var(--bg-1);
     border: 1px solid var(--border, var(--border));
     border-radius: 8px;
     box-shadow: 0 10px 40px color-mix(in oklab, var(--bg-0) 15%, transparent);
@@ -2404,11 +2432,12 @@
   .btn-icon,.btn-icon-sm,.collapse-toggle { min-width:36px;min-height:36px;
     border-radius:var(--radius-sm); }
   .file-upload-area { position:relative; }
-  .visually-hidden-file { position:absolute;width:1px;height:1px;padding:0;margin:0;
-    overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0; }
   .file-upload-area:focus-within .upload-label { outline:2px solid var(--focus);outline-offset:3px; }
-  .upload-label { background:var(--bg-2);min-height:170px;border:1px dashed var(--border-strong);
+  .upload-label { width:100%;font:inherit;background:var(--bg-2);min-height:170px;border:1px dashed var(--border-strong);
     border-radius:var(--radius-md);justify-content:center; }
+  .upload-label:disabled {opacity:.55;cursor:not-allowed}
+  .pdf-pending {visibility:hidden}
+  dialog.modal-overlay {width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;padding:var(--space-md);color:var(--ink-primary)}
   .upload-label:hover,.file-upload-area.drag-active .upload-label {
     border-color:var(--brand);background:var(--brand-soft);color:var(--ink-primary);
   }

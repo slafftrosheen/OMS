@@ -68,7 +68,10 @@ function resolvePath(target, path) {
 
 function format(message, vars) {
   if (typeof message !== 'string') return message;
-  return message.replace(/\{(\w+)\}/g, (_, key) => (key in (vars || {}) ? String(vars[key]) : ''));
+  const nested = vars?.values;
+  const values = nested && typeof nested === 'object' && !Array.isArray(nested)
+    ? { ...vars, ...nested } : vars || {};
+  return message.replace(/\{(\w+)\}/g, (_, key) => (Object.hasOwn(values, key) ? String(values[key]) : ''));
 }
 
 export const t = derived([locale, dictionaries], ([$locale, $dicts]) => {

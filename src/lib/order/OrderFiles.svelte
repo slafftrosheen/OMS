@@ -7,8 +7,9 @@
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
   import Trash2 from 'lucide-svelte/icons/trash-2';
   import Upload from 'lucide-svelte/icons/upload';
+  import Sparkles from 'lucide-svelte/icons/sparkles';
   import { onMount, untrack } from 'svelte';
-  import { t } from 'svelte-i18n';
+  import { t, locale } from 'svelte-i18n';
   import { base } from '$app/paths';
   import {fetchOrderFilePage,announceOrderFilesChanged,ORDER_FILE_PAGE_SIZE} from './order-files-client';
 
@@ -59,7 +60,7 @@
   };
 
   const formatDate = (ts: string) => {
-    return new Date(ts).toLocaleDateString(undefined, {
+    return new Date(ts).toLocaleDateString($locale || 'en', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -232,7 +233,7 @@
     role="button"
     tabindex="0"
     onclick={() => fileInput?.click()}
-    onkeydown={(e) => e.key === 'Enter' && fileInput?.click()}
+    onkeydown={(e) => {if(!uploading&&!deletingId&&(e.key==='Enter'||e.key===' ')){e.preventDefault();fileInput?.click();}}}
   >
     <input
       type="file"
@@ -282,7 +283,7 @@
               <button type="button" class="btn-icon"
                 onclick={()=>onAnalyze?.(file.id)}
                 title={$t('orderAssistant.openFileAnalysis')}
-                aria-label={$t('orderAssistant.openFileAnalysis')}>✦</button>
+                aria-label={$t('orderAssistant.openFileAnalysis')}><Sparkles size={16} aria-hidden="true" /></button>
             {/if}
             <button class="btn-icon" onclick={() => downloadFile(file)} title={$t("orderFiles.download")}>
               <Download size={16} />

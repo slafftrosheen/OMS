@@ -68,6 +68,7 @@ const config = {
     adapter: adapterNode({ precompress: true }),
 
     alias: {
+      'svelte-i18n': './packages/svelte-i18n/index.js',
       $lib: 'src/lib',
       $components: 'src/lib/components',
       $stores: 'src/lib/stores',

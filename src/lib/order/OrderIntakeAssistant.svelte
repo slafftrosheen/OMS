@@ -2,7 +2,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { t } from 'svelte-i18n';
   import { proposalsToPatch, proposalMatchesCurrent, type IntakeProposal, type IntakeResponse } from './intake-contract';
-  import {fetchAllOrderFiles,watchOrderFilesChanged} from './order-files-client';
+  import {fetchAllOrderFiles,watchOrderFilesChanged,announceOrderFilesChanged} from './order-files-client';
   import MaterialSelect from '$lib/profiles/components/fields/MaterialSelect.svelte';
   import {applyProductionFacts, appendOrderProductionFacts, isOrderProductionFact, recheckProductionSelection, productionCurrentValue, getProductionMaterialPicker, getProductionSelectionConflicts, resolveManualProductionMaterial, ProductionIntakeError, type IntakeMaterial, type ProductionReview} from './production-intake';
 
@@ -48,6 +48,8 @@
   let replacementApproved=$state(false);
   let productionApprovals=$state<Record<number,boolean>>({});
   let loading=$state(false);
+  let uploading=$state(false);
+  let uploadInput:HTMLInputElement|undefined=$state();
   let analyzing=$state(false);
   let applying=$state(false);
   let problem=$state('');
@@ -83,7 +85,7 @@
   onMount(()=>{
     void loadFiles();
     void loadCapabilities();
-    return watchOrderFilesChanged(changedId=>{if(changedId===orderId)void loadFiles();});
+    return watchOrderFilesChanged(changedId=>{if(changedId===orderId&&!uploading)void loadFiles();});
   });
 
   async function loadCapabilities(){
@@ -117,6 +119,37 @@
     const next={...manualSelections};delete next[index];manualSelections=next;approve(index,false,'production');editingMaterial=null;
   }
   function cancelAnalysis(){analysisController?.abort();notice=$t('orderIntake.cancelled');}
+  async function uploadSource(event:Event){
+    const input=event.currentTarget as HTMLInputElement;
+    const file=input.files?.[0];input.value='';
+    if(!file||!editable||uploading||analyzing||applying)return;
+    const mime=file.type||({pdf:'application/pdf',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp'} as Record<string,string>)[file.name.split('.').pop()?.toLowerCase()??''];
+    if(!['application/pdf','image/jpeg','image/png','image/webp'].includes(mime)){
+      problem=$t('orderIntake.uploadFormat');return;
+    }
+    if(!file.size||file.size>(mime==='application/pdf'?12:8)*1024*1024){
+      problem=$t('orderIntake.uploadSize');return;
+    }
+    const id=orderId;
+    uploading=true;problem='';notice='';
+    try{
+      const form=new FormData();form.append('file',file);form.append('order_id',id);
+      const response=await fetch('/api/files',{method:'POST',body:form,signal:requestSignal()});
+      const body=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(body.message||body.error||$t('orderIntake.uploadError'));
+      if(typeof body.id!=='string'||!body.id)throw new Error($t('orderIntake.uploadError'));
+      announceOrderFilesChanged(id);
+      if(disposed||id!==orderId||!editable)return;
+      analysis=null;clearApprovals();manualSelections={};editingMaterial=null;applied=false;
+      await loadFiles();
+      if(disposed||id!==orderId||!editable)return;
+      if(!files.some(f=>f.id===body.id))throw new Error($t('orderIntake.filesError'));
+      fileId=body.id;
+      notice=$t('orderIntake.uploaded');
+    }catch(err){if(!disposed&&id===orderId)
+      problem=err instanceof Error?err.message:$t('orderIntake.uploadError');}
+    finally{if(!disposed&&id===orderId)uploading=false;}
+  }
   async function loadFiles(){
     const id=orderId,version=++filesLoadVersion;
     loading=true;problem='';
@@ -135,6 +168,7 @@
   }
   async function analyze(){
     if(!editable||analyzing||applying)return;
+    if(uploading)return;
     if(dirty||!orderUpdatedAt){problem=$t('orderIntake.saveFirst');return;}
     if(!fileId && !String(current.notes??'').trim()){
       problem=$t('orderIntake.noSource');return;
@@ -180,6 +214,7 @@
   }
   async function apply(){
     if(!analysis||!editable||applying||applied)return;
+    if(uploading)return;
     if(!sourceMatches){
       problem=$t('orderIntake.sourceChanged');return;
     }
@@ -244,25 +279,33 @@
   }
 </script>
 
-<section class="intake" aria-label={$t('orderIntake.title')} aria-busy={analyzing||applying}>
+<section class="intake" aria-label={$t('orderIntake.title')} aria-busy={analyzing||applying||uploading}>
   <header><h3>{$t('orderIntake.title')}</h3><p class="hint">{$t('orderIntake.description')}</p></header>
   {#if dirty}<p class="warning" role="status">{$t('orderIntake.saveFirst')}</p>{/if}
   <div class="source-setup">
+    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" bind:this={uploadInput}
+      onchange={uploadSource} disabled={!editable||uploading||analyzing||applying} hidden />
+    <button type="button" onclick={()=>uploadInput?.click()} disabled={!editable||loading||uploading||analyzing||applying}>
+      {$t(uploading?'orderIntake.uploading':'orderIntake.upload')}
+    </button>
+    <p class="hint">{$t('orderIntake.existingKeyHint')}</p>
     <div class="section-heading"><h4>{$t('orderIntake.prepareSource')}</h4>
-      <button type="button" class="text-button" onclick={loadFiles} disabled={loading||analyzing||applying}>
+      <button type="button" class="text-button" onclick={loadFiles} disabled={loading||uploading||analyzing||applying}>
         {$t(loading?'orderIntake.loading':'orderIntake.refresh')}</button></div>
-    <label>{$t('orderIntake.source')}<select bind:value={fileId} disabled={!editable||loading||analyzing||applying}>
+    <label for={`${sectionId}-source`}>{$t('orderIntake.source')}</label>
+    <select id={`${sectionId}-source`} bind:value={fileId} disabled={!editable||loading||uploading||analyzing||applying}>
       <option value="">{$t('orderIntake.notesOnly')}</option>
       {#each files as f (f.id)}<option value={f.id}>{f.originalName||f.file_name||f.id}</option>{/each}
-    </select></label>
+    </select>
     {#if !loading&&!files.length}<p class="hint">{$t('orderIntake.noAttachments')}</p>{/if}
-    <label>{$t('orderIntake.profileFocus')}<select bind:value={profileChoice} disabled={!editable||analyzing||applying}>
+    <label for={`${sectionId}-profile`}>{$t('orderIntake.profileFocus')}</label>
+    <select id={`${sectionId}-profile`} bind:value={profileChoice} disabled={!editable||uploading||analyzing||applying}>
       <option value="">{$t('orderIntake.wholeOrder')}</option>
       {#each profileNames as name,i (i)}<option value={String(i)}>{i+1}. {name||$t('orderIntake.unnamedProfile')}</option>{/each}
-    </select></label>
+    </select>
     <p class="hint">{$t('orderIntake.profileFocusHint')}</p>
     {#if fileId&&isPdf}
-      <fieldset disabled={!editable||analyzing||applying}>
+      <fieldset disabled={!editable||uploading||analyzing||applying}>
         <legend>{$t('orderIntake.pdfProcessing')}</legend>
         <label class="check"><input type="radio" bind:group={pdfMode} value="text"/>{$t('orderIntake.textPdf')}</label>
         <label class="check"><input type="radio" bind:group={pdfMode} value="native" disabled={!capabilities.nativePdf}/>{$t('orderIntake.nativePdf')}</label>
@@ -273,7 +316,7 @@
       {:else if !capabilities.nativePdf||!capabilities.paidOcr}<p class="hint">{$t('orderIntake.unavailableModes')}</p>{/if}
       {#if capabilitiesProblem}<button type="button" class="text-button" onclick={loadCapabilities}>{$t('orderIntake.retryModes')}</button>{/if}
     {/if}
-    <div class="actions"><button type="button" class="primary" onclick={analyze} disabled={!editable||loading||analyzing||applying||dirty||!orderUpdatedAt}>
+    <div class="actions"><button type="button" class="primary" onclick={analyze} disabled={!editable||loading||uploading||analyzing||applying||dirty||!orderUpdatedAt}>
       {$t(analyzing?'orderIntake.analyzing':'orderIntake.analyze')}</button>
       {#if analyzing}<button type="button" onclick={cancelAnalysis}>{$t('orderIntake.cancel')}</button>{/if}</div>
   </div>
@@ -364,7 +407,7 @@
         {#if acceptedCount>0}<label class="check"><input type="checkbox" bind:checked={replacementApproved} disabled={applying}/>{$t('orderIntake.replaceAcknowledgment')}</label>{/if}
         {#if selectionConflicts.length}<p class="warning" role="status">{$t('orderIntake.conflictingChoices')}</p>{/if}
         <p class="hint">{$t('orderIntake.localApplyHint')}</p>
-        <button type="button" class="primary" onclick={apply} disabled={!editable||analysisStale||applying||acceptedCount===0||selectionConflicts.length>0}>
+        <button type="button" class="primary" onclick={apply} disabled={!editable||uploading||analysisStale||applying||acceptedCount===0||selectionConflicts.length>0}>
           {$t(applying?'orderIntake.checking':'orderIntake.applySelected')}</button>
       {/if}
     </footer>

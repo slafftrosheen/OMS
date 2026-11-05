@@ -10,6 +10,7 @@
 <main style="max-width:480px;margin:auto;padding:16px;box-sizing:border-box">
  <button onclick={()=>{current={...current,notes:'Explicit local edit'};}}>Edit locally</button>
  <button onclick={()=>{current={...current,deliveryAddress:'New user delivery edit'};}}>Edit delivery locally</button>
+ <button onclick={()=>{current={...current,deliveryEmail:'current@example.test'};}}>Edit delivery email locally</button>
  <button onclick={()=>{current={...current,clientName:'Other client'};}}>Change client</button>
  <button onclick={()=>editable=!editable}>Toggle read only</button>
  <Intake orderId="11111111-1111-4111-8111-111111111111" {editable} {current}
