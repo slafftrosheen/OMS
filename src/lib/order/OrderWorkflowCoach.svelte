@@ -1,5 +1,6 @@
 <script lang="ts">
  import {t} from 'svelte-i18n';
+ import {nextActionHalo} from '$lib/ui/next-action-halo';
  import {deriveOrderGuide,ORDER_SECTION_HELP} from './order-flow-guidance';
  import type {OrderGuideInput,GuideStepId} from './order-flow-guidance';
  import type {WorkspaceSection} from './workspace-navigation';
@@ -53,7 +54,8 @@
        {#if context.phase==='new'}<p class="small">{$t('orderGuide.saveBeforeAI')}</p>{/if}
      </div>
      <div class="focus-actions">
-       <button class="go" type="button"
+       <button class="go next-step" type="button"
+         use:nextActionHalo={context.canEdit && guide.isDraft}
          onclick={()=>onNavigate(guide.nextSection,guide.suggested)}>
          {$t('orderGuide.next')}: {$t(`orderGuide.step.${guide.suggested}`)} →
        </button>
@@ -151,8 +153,11 @@
     transition:background var(--motion-sm) var(--ease-standard)}
   .go{background:var(--bg-1);color:var(--ink-primary);border-color:var(--border)}
   .go:hover:not(:disabled){background:var(--bg-2)}
-  .ask{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
-  .ask:hover:not(:disabled){background:var(--brand-2)}
+  .next-step{background:var(--brand-soft);border-color:var(--brand);color:var(--ink-primary)}
+  .next-step:hover:not(:disabled){background:var(--brand-soft);border-color:var(--focus)}
+  .ask{background:var(--bg-1);border-color:var(--border);color:var(--ink-secondary)}
+  .ask:hover:not(:disabled){background:var(--bg-2);color:var(--ink-primary)}
+  .go:disabled,.ask:disabled{opacity:1;color:var(--ink-tertiary);background:var(--bg-2);border-style:dashed;cursor:not-allowed}
   .steps{gap:var(--space-xs)}
   .step{background:var(--bg-1);border-color:var(--border);
     border-radius:var(--radius-sm);min-height:52px;gap:var(--space-xs)}

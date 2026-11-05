@@ -19,12 +19,16 @@
    */
   import MaterialSelect from "./fields/MaterialSelect.svelte";
   import MaterialThicknessSelect from "$lib/components/MaterialThicknessSelect.svelte";
+  import { materialColorVariables } from "$lib/materials/selection-colors";
+  import "$lib/materials/selection-colors.css";
   import { t } from "svelte-i18n";
 
   import {
     readFaceMaterials,
     withFaceMaterials,
     applyProfileMaterialSelection,
+    readLegacyPrintMaterial,
+    assignLegacyPrintMaterial,
     nextFaceMaterialId,
     type FaceMaterialSelection,
     type ProfileMaterialChange,
@@ -33,12 +37,11 @@
     type ColorValue,
     defaultColor,
     extractShortName,
-    getTextColor,
-    selectionBadgeLabel,
     paintMaterialValue,
     applyPaintMaterialSelection,
   } from "$lib/profiles/helpers";
-  import { frameBadgeLabel, readLegacyFrameThickness, withFrameThickness } from "$lib/profiles/frame-sizing";
+  import { readLegacyFrameThickness, withFrameThickness } from "$lib/profiles/frame-sizing";
+  import { PROFILE_MATERIAL_CATEGORIES, PROFILE_PRINT_MATERIAL_CATEGORIES, isProfilePrintMaterial } from "$lib/profiles/material-roles";
   import {
     AlertCircle,
     Zap,
@@ -53,7 +56,6 @@
     StickyNote,
     Sun,
     Moon,
-    Check,
     X,
     Plus,
     Trash2,
@@ -84,10 +86,12 @@
       backShort?: string;
       backThickness?: string;
       backCategory?: string;
+      backProcess?: string;
       backThicknessOptions?: number[];
       laser?: boolean;
       print3d?: boolean;
       print3dMaterial?: string;
+      print3dMaterialHex?: string;
       print3dMaterialShort?: string;
       print3dMaterialCategory?: string;
       notes?: string;
@@ -111,18 +115,21 @@
       faceFilmShort?: string;
       faceFilmCategory?: string;
       faceCustom?: string;
+      facePrint?: boolean;
       back: boolean;
       backFilm: string;
       backFilmHex?: string;
       backFilmShort?: string;
       backFilmCategory?: string;
       backCustom?: string;
+      backPrint?: boolean;
       sides: boolean;
       sidesFilm: string;
       sidesFilmHex?: string;
       sidesFilmShort?: string;
       sidesFilmCategory?: string;
       sidesCustom?: string;
+      sidesPrint?: boolean;
       notes?: string;
     };
 
@@ -190,18 +197,21 @@
   const defaultConfiguration: ProfileConfiguration = {
     profileName: "New Profile",
     signType: "EXTERIOR",
-    CNC_FREZER: { face: "", back: "", laser: false, print3d: false, print3dMaterial: "", notes: "" },
+    CNC_FREZER: { face: "", back: "", laser: false, notes: "" },
     BENDER: { sides: "", depth: 100, notes: "" },
     FRONT: {
       face: false,
       faceFilm: "",
       faceCustom: "",
+      facePrint: false,
       back: false,
       backFilm: "",
       backCustom: "",
+      backPrint: false,
       sides: false,
       sidesFilm: "",
       sidesCustom: "",
+      sidesPrint: false,
       notes: "",
     },
     PAINTING: {
@@ -257,7 +267,7 @@
     onchange?: (config: ProfileConfiguration) => void;
   } = $props();
 
-  import { onDestroy, untrack } from "svelte";
+  import { onDestroy, tick, untrack } from "svelte";
 
   function normalizeConfiguration(value: Partial<ProfileConfiguration> | null | undefined): ProfileConfiguration {
       const currentConfig = value ?? {};
@@ -267,9 +277,6 @@
         CNC_FREZER: {
           ...defaultConfiguration.CNC_FREZER,
           ...(currentConfig.CNC_FREZER || {}),
-          // MaterialSelect's bindable value has a string fallback. Legacy
-          // profiles must supply a concrete value before mounting this picker.
-          print3dMaterial: currentConfig.CNC_FREZER?.print3dMaterial ?? "",
           backThickness: currentConfig.CNC_FREZER?.backThickness ?? "",
           // Hydration only: legacy scalar selections are untouched until an edit.
           faceMaterials: readFaceMaterials(currentConfig.CNC_FREZER),
@@ -325,34 +332,33 @@
     });
   });
 
-  // Pre-defined material categories for the MaterialSelect component.
-  const faceMaterials = [
-    "ACRYLIC_XT",
-    "ACRYLIC_GS",
-    "ACRYLIC_LED",
-    "ALU_SHEET",
-    "ALU_COMPOSITE",
-    "PVC_FOAM",
-  ];
-  const backMaterials = [
-    "ALU_SHEET",
-    "ALU_COMPOSITE",
-    "ACRYLIC_XT",
-    "PVC_FOAM",
-  ];
-  const sidesMaterials = ["ALU_SHEET", "ALU_PROFILE"];
+  // A role also filters the physical form of legacy materials within a category.
+  const faceMaterials = PROFILE_MATERIAL_CATEGORIES.face;
+  const backMaterials = PROFILE_MATERIAL_CATEGORIES.back;
+  const sidesMaterials = PROFILE_MATERIAL_CATEGORIES.sides;
   const filmCategories = ["VINYL_ORACAL"];
   const paintCategories = ["PAINT_RAL", "PAINT_PANTONE"];
   const ledCategories = ["LED_MODULE", "LED_STRIP", "LED_NEON"];
   const psuCategories = ["PSU_MEANWELL"];
-  const wireCategories = ["WIRE"];
+  const wireCategories = PROFILE_MATERIAL_CATEGORIES.mainCable;
   const connectorCategories = ["LED_ACCESSORY"];
-  const frameMaterials = ["ALU_PROFILE", "ALU_SHEET"];
-  const print3dMaterials = ["FDM_PLA", "FDM_PETG", "FDM_ABS", "FDM_ASA", "FDM_TPU", "FDM_OTHER", "RESIN_ANYCUBIC", "RESIN_ELEGOO", "RESIN_OTHER"];
+  const frameMaterials = PROFILE_MATERIAL_CATEGORIES.frame;
+  const print3dMaterials = PROFILE_PRINT_MATERIAL_CATEGORIES;
 
   let faceEntries = $derived(
     configuration.CNC_FREZER.faceMaterials ?? readFaceMaterials(configuration.CNC_FREZER),
   );
+  let legacyPrint = $derived(readLegacyPrintMaterial(configuration.CNC_FREZER));
+
+  async function assignEarlierPrint(part: 'face' | 'back') {
+    if (readonly || !legacyPrint || (part === 'back' && configuration.CNC_FREZER.back.trim())) return;
+    const faceId = faceEntries.find(row => !row.value.trim())?.id || nextFaceMaterialId(faceEntries);
+    configuration.CNC_FREZER = assignLegacyPrintMaterial(configuration.CNC_FREZER, part);
+    emit();
+    await tick();
+    document.getElementById(part === 'face' ? `${formId}-${faceId}` : `${formId}-back`)
+      ?.querySelector<HTMLButtonElement>('.edit-selection')?.focus();
+  }
 
   function addFaceMaterial() {
     if (readonly) return;
@@ -381,10 +387,12 @@
       id: "back", value: configuration.CNC_FREZER.back,
       thickness: configuration.CNC_FREZER.backThickness,
       category: configuration.CNC_FREZER.backCategory,
+      process: configuration.CNC_FREZER.backProcess,
     }, data, "ALU");
     Object.assign(configuration.CNC_FREZER, {
       back: entry.value, backHex: entry.hex, backShort: entry.shortName,
       backThickness: entry.thickness, backCategory: entry.category,
+      backProcess: entry.process,
       backThicknessOptions: entry.thicknessOptions,
     });
     emit();
@@ -473,7 +481,78 @@
       configuration.ASSEMBLING.frameDimensions,
     ].filter(Boolean).join(" ")),
   );
+
+  type StationSection = 'CNC_FREZER' | 'BENDER' | 'FRONT' | 'PAINTING' | 'ASSEMBLING';
+  const stationNames: Record<StationSection, string> = {
+    CNC_FREZER: 'CNC FREZER', BENDER: 'BENDER', FRONT: 'FRONT', PAINTING: 'PAINTING', ASSEMBLING: 'ASSEMBLING'
+  };
+  const nonblank = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+
+  function stationAnnotations(station: StationSection): { label: string; value: string }[] {
+    if (station === 'FRONT') return ['face', 'back', 'sides'].flatMap(part => {
+      const value = nonblank(configuration.FRONT[`${part}Custom`]);
+      return configuration.FRONT[part] && value ? [{ label: part.toUpperCase(), value }] : [];
+    });
+    if (station === 'PAINTING') return ['face', 'sides', 'back', 'frame'].flatMap(part => {
+      const value = nonblank(configuration.PAINTING[`${part}Custom`]);
+      return configuration.PAINTING[part] && value ? [{ label: part === 'face' ? 'FRONT' : part.toUpperCase(), value }] : [];
+    });
+    if (station === 'ASSEMBLING') return ['led', 'frame'].flatMap(part => {
+      const value = nonblank(configuration.ASSEMBLING[`${part}Custom`]);
+      return configuration.ASSEMBLING[part] && value ? [{ label: part.toUpperCase(), value }] : [];
+    });
+    return [];
+  }
+
+  function hasStationNotes(station: StationSection): boolean {
+    return Boolean(nonblank(configuration[station].notes) || stationAnnotations(station).length);
+  }
+
+  function focusStationNotes(station: StationSection) {
+    const target = document.getElementById(`${formId}-${station}-notes`);
+    target?.scrollIntoView({ block: 'nearest' });
+    target?.focus({ preventScroll: true });
+  }
 </script>
+
+{#snippet noteWarning(station: StationSection)}
+  {#if hasStationNotes(station)}
+    <button type="button" class="section-note-warning"
+      aria-label={$t('profiles.materials.showNotes', { section: stationNames[station] })}
+      onclick={() => focusStationNotes(station)}>
+      <AlertCircle size={14} aria-hidden="true" /> {$t('profiles.materials.notes')}
+    </button>
+  {/if}
+{/snippet}
+
+{#snippet stationNotes(station: StationSection)}
+  {@const section = configuration[station]}
+  {@const annotations = stationAnnotations(station)}
+  {#if !readonly || hasStationNotes(station)}
+    <div class="station-notes" class:has-note={hasStationNotes(station)}
+      id={`${formId}-${station}-notes`} tabindex="-1" role="group"
+      aria-label={`${stationNames[station]} · ${$t('profiles.materials.notes')}`}>
+      {#each annotations as annotation (annotation.label)}
+        <p class="material-note"><strong>{annotation.label}:</strong> {annotation.value}</p>
+      {/each}
+      {#if readonly}
+        {#if nonblank(section.notes)}
+          <div class="notes-readonly" role="note">
+            <strong><StickyNote size={14} aria-hidden="true" /> {$t('profiles.materials.notes')}</strong>
+            <p>{section.notes}</p>
+          </div>
+        {/if}
+      {:else}
+        <div class="notes-field" class:has-note={Boolean(nonblank(section.notes))}>
+          <StickyNote size={12} class="note-placeholder-icon" aria-hidden="true" />
+          <textarea class="notes" bind:value={section.notes} oninput={emit}
+            aria-label={`${stationNames[station]} · ${$t('profiles.materials.notes')}`}
+            placeholder={$t('profiles.materials.notesPlaceholder')} rows="2"></textarea>
+        </div>
+      {/if}
+    </div>
+  {/if}
+{/snippet}
 
 <div class="profile-form" class:readonly>
   <!-- HEADER -->
@@ -482,33 +561,36 @@
       <input
         type="text"
         bind:value={configuration.profileName}
-        placeholder="Profile Name"
+        aria-label={$t('profiles.materials.profileName')}
+        placeholder={$t('profiles.materials.profileName')}
         disabled={readonly}
         oninput={emit}
       />
     </div>
-    <div class="sign-toggle">
+    <div class="sign-toggle" role="group" aria-label={$t('profiles.materials.signEnvironment')}>
       <button
         type="button"
         class:active={configuration.signType === "EXTERIOR"}
+        aria-pressed={configuration.signType === "EXTERIOR"}
         disabled={readonly}
         onclick={() => {
           configuration.signType = "EXTERIOR";
           emit();
         }}
       >
-        <Sun size={14} /> OUTDOOR
+        <Sun size={14} /> {$t('profiles.materials.outdoor')}
       </button>
       <button
         type="button"
         class:active={configuration.signType === "INTERIOR"}
+        aria-pressed={configuration.signType === "INTERIOR"}
         disabled={readonly}
         onclick={() => {
           configuration.signType = "INTERIOR";
           emit();
         }}
       >
-        <Moon size={14} /> INDOOR
+        <Moon size={14} /> {$t('profiles.materials.indoor')}
       </button>
     </div>
   </div>
@@ -517,13 +599,14 @@
   <div class="form-grid">
     <!-- CNC FREZER -->
     <div class="section">
-      <div class="section-title"><Scissors size={12} /> CNC FREZER</div>
+      <div class="section-title"><span><Scissors size={12} /> CNC FREZER</span> {@render noteWarning('CNC_FREZER')}</div>
       <div class="section-content">
         <!-- FACE -->
         <div class="field face-materials">
           <span class="field-label">FACE</span>
           {#each faceEntries as material, index (material.id)}
-            <div class="face-material-entry" role="group"
+            <div class="face-material-entry" id={`${formId}-${material.id}`}
+              class:print3d-material={isProfilePrintMaterial(material.category) || material.process === '3D_PRINT'} role="group"
               aria-label={$t('profiles.materials.faceNumber', { number: index + 1 })}>
               {#if faceEntries.length > 1}
                 <div class="face-material-heading">
@@ -545,27 +628,31 @@
                   selectedCategory={material.category}
                   customColor={material.hex ?? ""}
                   categories={faceMaterials}
+                  materialRole="face"
+                  compactSelection
+                  badgeKind={material.process === '3D_PRINT' ? 'print3d' : 'sheet'}
+                  badgeThickness={material.thickness}
+                  badgeShortName={material.shortName}
+                  finishOnSelect={false}
                   allowCustom={true}
                   {readonly}
                   onchange={(data) => selectFaceMaterial(material, data)}
-                />
+                >
+                  {#snippet editorDetails(selectedMaterial, complete)}
+                    {#if material.value && material.process !== '3D_PRINT' && !isProfilePrintMaterial(selectedMaterial?.category || material.category)}
+                      <MaterialThicknessSelect
+                        bind:value={material.thickness}
+                        materialType={material.category || material.value}
+                        thicknessOptions={material.thicknessOptions}
+                        autoSelectLowest={false}
+                        label={`${$t('profiles.materials.faceNumber', { number: index + 1 })} · ${$t('materialThickness.select')}`}
+                        {readonly}
+                        onchange={() => { emit(); complete(); }}
+                      />
+                    {/if}
+                  {/snippet}
+                </MaterialSelect>
               </div>
-              {#if material.value}
-                <span class="material-badge-lg"
-                  style:background={material.hex || "#87CEEB"}
-                  style:color={getTextColor(material.hex || "#87CEEB")}>
-                  {selectionBadgeLabel(material.value, material.shortName, material.category || "ACRYLIC")}{#if material.thickness}/{material.thickness}{/if}
-                </span>
-                <MaterialThicknessSelect
-                  bind:value={material.thickness}
-                  materialType={material.category || material.value}
-                  thicknessOptions={material.thicknessOptions}
-                  autoSelectLowest={false}
-                  label={`${$t('profiles.materials.faceNumber', { number: index + 1 })} · ${$t('materialThickness.select')}`}
-                  {readonly}
-                  onchange={emit}
-                />
-              {/if}
             </div>
           {/each}
           {#if !readonly}
@@ -576,7 +663,7 @@
         </div>
 
         <!-- BACK -->
-        <fieldset class="field">
+        <fieldset class="field" id={`${formId}-back`}>
           <legend class="field-label">BACK</legend>
           <div class="picker-row">
             <MaterialSelect
@@ -585,31 +672,31 @@
               selectedCategory={configuration.CNC_FREZER.backCategory}
               customColor={configuration.CNC_FREZER.backHex ?? ""}
               categories={backMaterials}
+              materialRole="back"
+              compactSelection
+              badgeKind={configuration.CNC_FREZER.backProcess === '3D_PRINT' ? 'print3d' : 'sheet'}
+              badgeThickness={configuration.CNC_FREZER.backThickness}
+              badgeShortName={configuration.CNC_FREZER.backShort}
+              finishOnSelect={false}
               allowCustom={true}
               {readonly}
               onchange={selectBackMaterial}
-            />
-          </div>
-          {#if configuration.CNC_FREZER.back}
-            <span
-              class="material-badge-lg"
-              style:background={configuration.CNC_FREZER.backHex || "#A0A0A0"}
-              style:color={getTextColor(
-                configuration.CNC_FREZER.backHex || "#A0A0A0",
-              )}
             >
-              {selectionBadgeLabel(configuration.CNC_FREZER.back, configuration.CNC_FREZER.backShort, configuration.CNC_FREZER.backCategory || "ALU")}{#if configuration.CNC_FREZER.backThickness}/{configuration.CNC_FREZER.backThickness}{/if}
-            </span>
-            <MaterialThicknessSelect
-              bind:value={configuration.CNC_FREZER.backThickness}
-              materialType={configuration.CNC_FREZER.backCategory || configuration.CNC_FREZER.back}
-              thicknessOptions={configuration.CNC_FREZER.backThicknessOptions}
-              autoSelectLowest={false}
-              label={`BACK · ${$t('materialThickness.select')}`}
-              {readonly}
-              onchange={emit}
-            />
-          {/if}
+              {#snippet editorDetails(selectedMaterial, complete)}
+                {#if configuration.CNC_FREZER.back && configuration.CNC_FREZER.backProcess !== '3D_PRINT' && !isProfilePrintMaterial(selectedMaterial?.category || configuration.CNC_FREZER.backCategory)}
+                  <MaterialThicknessSelect
+                    bind:value={configuration.CNC_FREZER.backThickness}
+                    materialType={configuration.CNC_FREZER.backCategory || configuration.CNC_FREZER.back}
+                    thicknessOptions={configuration.CNC_FREZER.backThicknessOptions}
+                    autoSelectLowest={false}
+                    label={`BACK · ${$t('materialThickness.select')}`}
+                    {readonly}
+                    onchange={() => { emit(); complete(); }}
+                  />
+                {/if}
+              {/snippet}
+            </MaterialSelect>
+          </div>
         </fieldset>
 
         <!-- Options -->
@@ -623,66 +710,39 @@
             />
             <Scissors size={12} /> LASER
           </label>
-          <label class="option" class:active={configuration.CNC_FREZER.print3d}>
-            <input
-              type="checkbox"
-              bind:checked={configuration.CNC_FREZER.print3d}
-              disabled={readonly}
-              onchange={emit}
-            />
-            <Layers size={12} /> 3D
-          </label>
         </div>
 
-        {#if configuration.CNC_FREZER.print3d}
-          <fieldset class="field print3d-material">
-            <legend class="field-label">{$t('profiles.materials.print3d', { default: '3D printing material' })}</legend>
+        {#if legacyPrint}
+          <div class="legacy-print-notice" role="note">
+            <p>{$t(readonly ? 'profiles.materials.legacyPrintUnassigned' : 'profiles.materials.legacyPrint')}</p>
             <MaterialSelect
-              bind:value={configuration.CNC_FREZER.print3dMaterial}
+              value={legacyPrint.value}
               label={$t('profiles.materials.print3d', { default: '3D printing material' })}
-              selectedCategory={configuration.CNC_FREZER.print3dMaterialCategory}
+              selectedCategory={legacyPrint.category}
+              customColor={legacyPrint.hex ?? ""}
               categories={print3dMaterials}
-              allowCustom={true}
-              showColor={false}
-              {readonly}
-              onchange={(data) => {
-                configuration.CNC_FREZER.print3dMaterialShort = extractShortName(data, "FDM");
-                configuration.CNC_FREZER.print3dMaterialCategory = data.material?.category || "";
-                emit();
-              }}
+              compactSelection
+              badgeKind="print3d"
+              badgeShortName={legacyPrint.shortName}
+              readonly
             />
-            {#if configuration.CNC_FREZER.print3dMaterial}
-              <span class="material-badge-lg print3d-badge">
-                <Layers size={16} />
-                {selectionBadgeLabel(configuration.CNC_FREZER.print3dMaterial, configuration.CNC_FREZER.print3dMaterialShort, "FDM")}
-              </span>
+            {#if !readonly}
+              <div class="legacy-print-actions">
+                <button type="button" onclick={() => assignEarlierPrint('face')}>{$t('profiles.materials.assignPrintFace')}</button>
+                <button type="button" disabled={Boolean(configuration.CNC_FREZER.back.trim())}
+                  title={configuration.CNC_FREZER.back.trim() ? $t('profiles.materials.clearBackBeforeAssigning') : undefined}
+                  onclick={() => assignEarlierPrint('back')}>{$t('profiles.materials.assignPrintBack')}</button>
+              </div>
             {/if}
-          </fieldset>
+          </div>
         {/if}
-
-        <div
-          class="notes-field"
-          class:has-note={configuration.CNC_FREZER.notes}
-        >
-          {#if configuration.CNC_FREZER.notes}
-            <span class="note-icon"><AlertCircle size={14} /></span>
-          {/if}
-          <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.CNC_FREZER.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
-        </div>
+        {@render stationNotes('CNC_FREZER')}
       </div>
     </div>
 
     <!-- BENDER -->
     <div class="section section-sm">
-      <div class="section-title"><Square size={12} /> BENDER</div>
+      <div class="section-title"><span><Square size={12} /> BENDER</span> {@render noteWarning('BENDER')}</div>
       <div class="section-content">
         <fieldset class="field">
           <legend class="field-label">SIDES</legend>
@@ -693,31 +753,31 @@
               selectedCategory={configuration.BENDER.sidesCategory}
               customColor={configuration.BENDER.sidesHex ?? ""}
               categories={sidesMaterials}
+              materialRole="sides"
+              compactSelection
+              badgeKind="sheet"
+              badgeThickness={configuration.BENDER.sidesThickness}
+              badgeShortName={configuration.BENDER.sidesShort}
+              finishOnSelect={false}
               allowCustom={true}
               {readonly}
               onchange={selectSidesMaterial}
-            />
-          </div>
-          {#if configuration.BENDER.sides}
-            <span
-              class="material-badge-lg"
-              style:background={configuration.BENDER.sidesHex || "#A0A0A0"}
-              style:color={getTextColor(
-                configuration.BENDER.sidesHex || "#A0A0A0",
-              )}
             >
-              {selectionBadgeLabel(configuration.BENDER.sides, configuration.BENDER.sidesShort, configuration.BENDER.sidesCategory || "ALU")}{#if configuration.BENDER.sidesThickness}/{configuration.BENDER.sidesThickness}{/if}
-            </span>
-            <MaterialThicknessSelect
-              bind:value={configuration.BENDER.sidesThickness}
-              materialType={configuration.BENDER.sidesCategory || configuration.BENDER.sides}
-              thicknessOptions={configuration.BENDER.sidesThicknessOptions}
-              autoSelectLowest={false}
-              label={`SIDES · ${$t('materialThickness.select')}`}
-              {readonly}
-              onchange={emit}
-            />
-          {/if}
+              {#snippet editorDetails(_selectedMaterial, complete)}
+                {#if configuration.BENDER.sides}
+                  <MaterialThicknessSelect
+                    bind:value={configuration.BENDER.sidesThickness}
+                    materialType={configuration.BENDER.sidesCategory || configuration.BENDER.sides}
+                    thicknessOptions={configuration.BENDER.sidesThicknessOptions}
+                    autoSelectLowest={false}
+                    label={`SIDES · ${$t('materialThickness.select')}`}
+                    {readonly}
+                    onchange={() => { emit(); complete(); }}
+                  />
+                {/if}
+              {/snippet}
+            </MaterialSelect>
+          </div>
         </fieldset>
 
         <div class="depth-box">
@@ -734,31 +794,20 @@
           />
         </div>
 
-        <div class="notes-field" class:has-note={configuration.BENDER.notes}>
-          {#if configuration.BENDER.notes}
-            <span class="note-icon"><AlertCircle size={14} /></span>
-          {/if}
-          <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.BENDER.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
-        </div>
+        {@render stationNotes('BENDER')}
       </div>
     </div>
 
     <!-- FRONT (Film) -->
     <div class="section" class:collapsed={!hasFront}>
       <div class="section-title">
-        <Layers size={12} /> FRONT <span class="hint">(Film)</span>
+        <span><Layers size={12} /> FRONT <span class="hint">(Film)</span></span>
+        {@render noteWarning('FRONT')}
       </div>
       <div class="section-content">
         {#each ["face", "back", "sides"] as part}
           <div class="inline-field">
+            <div class="film-part-header">
             <label
               class="toggle-label"
               class:active={configuration.FRONT[part]}
@@ -772,6 +821,15 @@
               {part.toUpperCase()}
             </label>
             {#if configuration.FRONT[part]}
+              <label class="film-print" class:active={configuration.FRONT[`${part}Print`]}>
+                <input type="checkbox" bind:checked={configuration.FRONT[`${part}Print`]}
+                  aria-label={`FRONT · ${part.toUpperCase()} · ${$t('profiles.materials.printFilm')}`}
+                  disabled={readonly} onchange={emit} />
+                {$t('profiles.materials.print')}
+              </label>
+            {/if}
+            </div>
+            {#if configuration.FRONT[part]}
               <div class="picker-row">
                 <MaterialSelect
                   bind:value={configuration.FRONT[`${part}Film`]}
@@ -779,6 +837,9 @@
                   customColor={configuration.FRONT[`${part}FilmHex`] ?? ""}
                   selectedCategory={configuration.FRONT[`${part}FilmCategory`]}
                   categories={filmCategories}
+                  compactSelection
+                  badgeKind="film"
+                  badgeShortName={configuration.FRONT[`${part}FilmShort`]}
                   allowCustom={true}
                   {readonly}
                   onchange={(data) => {
@@ -790,52 +851,32 @@
                     );
                     emit();
                   }}
-                />
-                {#if configuration.FRONT[`${part}Film`]}
-                  <span
-                    class="material-badge-lg"
-                    style:background={configuration.FRONT[`${part}FilmHex`] ||
-                      "var(--bg-2)"}
-                    style:color={getTextColor(
-                      configuration.FRONT[`${part}FilmHex`] || "#f0f0f0",
-                    )}
-                  >
-                    {selectionBadgeLabel(configuration.FRONT[`${part}Film`], configuration.FRONT[`${part}FilmShort`], "ORACAL")}
-                  </span>
-                {/if}
+                >
+                  {#snippet editorDetails(_selectedMaterial, complete)}
+                    {#if !readonly}
+                      <input
+                        type="text"
+                        class="custom-input"
+                        bind:value={configuration.FRONT[`${part}Custom`]}
+                        aria-label={`FRONT · ${part.toUpperCase()} · ${$t('profiles.materials.materialNote')}`}
+                        oninput={emit}
+                        placeholder={$t('profiles.materials.materialNote')}
+                      />
+                    {/if}
+                  {/snippet}
+                </MaterialSelect>
               </div>
-              <input
-                type="text"
-                class="custom-input"
-                bind:value={configuration.FRONT[`${part}Custom`]}
-                disabled={readonly}
-                oninput={emit}
-                placeholder="Custom..."
-              />
             {/if}
           </div>
         {/each}
 
-        <div class="notes-field" class:has-note={configuration.FRONT.notes}>
-          {#if configuration.FRONT.notes}
-            <span class="note-icon"><AlertCircle size={14} /></span>
-          {/if}
-          <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.FRONT.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
-        </div>
+        {@render stationNotes('FRONT')}
       </div>
     </div>
 
     <!-- PAINTING -->
     <div class="section section-lg">
-      <div class="section-title"><Paintbrush size={12} /> PAINTING</div>
+      <div class="section-title"><span><Paintbrush size={12} /> PAINTING</span> {@render noteWarning('PAINTING')}</div>
       <div class="section-content">
         <div class="paint-grid">
           {#each [{ key: "face", label: "FRONT" }, { key: "sides", label: "SIDES" }, { key: "back", label: "BACK" }, { key: "frame", label: "FRAME" }] as item}
@@ -863,34 +904,29 @@
                   selectedCategory={configuration.PAINTING[`${item.key}Color`].system?.toUpperCase() === 'PANTONE'
                     ? 'PAINT_PANTONE' : configuration.PAINTING[`${item.key}Color`].system?.toUpperCase() === 'RAL' ? 'PAINT_RAL' : ''}
                   categories={paintCategories}
+                  compactSelection
+                  badgeKind="paint"
+                  badgeShortName={configuration.PAINTING[`${item.key}Color`].code}
                   allowCustom={true}
                   {readonly}
                   onchange={(data) => {
                     configuration.PAINTING[`${item.key}Color`] = applyPaintMaterialSelection(data);
                     emit();
                   }}
-                />
-                {#if configuration.PAINTING[`${item.key}Color`].code}
-                  <span
-                    class="ral-badge"
-                    style:background={configuration.PAINTING[`${item.key}Color`]
-                      .hex || "#4A5568"}
-                    style:color={getTextColor(
-                      configuration.PAINTING[`${item.key}Color`].hex ||
-                        "#4A5568",
-                    )}
-                  >
-                    {configuration.PAINTING[`${item.key}Color`].code}
-                  </span>
-                {/if}
-                <input
-                  type="text"
-                  class="custom-input"
-                  bind:value={configuration.PAINTING[`${item.key}Custom`]}
-                  disabled={readonly}
-                  oninput={emit}
-                  placeholder="Custom..."
-                />
+                >
+                  {#snippet editorDetails(_selectedMaterial, complete)}
+                    {#if !readonly}
+                      <input
+                        type="text"
+                        class="custom-input"
+                        bind:value={configuration.PAINTING[`${item.key}Custom`]}
+                        aria-label={`PAINTING · ${item.label} · ${$t('profiles.materials.materialNote')}`}
+                        oninput={emit}
+                        placeholder={$t('profiles.materials.materialNote')}
+                      />
+                    {/if}
+                  {/snippet}
+                </MaterialSelect>
               {:else}
                 <span class="no-badge">NO</span>
               {/if}
@@ -898,30 +934,19 @@
           {/each}
         </div>
 
-        <div class="notes-field" class:has-note={configuration.PAINTING.notes}>
-          {#if configuration.PAINTING.notes}
-            <span class="note-icon"><AlertCircle size={14} /></span>
-          {/if}
-          <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.PAINTING.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
-        </div>
+        {@render stationNotes('PAINTING')}
       </div>
     </div>
 
     <!-- ASSEMBLING -->
     <div class="section section-xl">
-      <div class="section-title"><Wrench size={12} /> ASSEMBLING</div>
+      <div class="section-title"><span><Wrench size={12} /> ASSEMBLING</span> {@render noteWarning('ASSEMBLING')}</div>
       <div class="section-content">
         <div class="assembly-grid-2x2">
           <!-- LED -->
-          <div class="assembly-item">
+          <div class="assembly-item material-context"
+            class:configured={Boolean(configuration.ASSEMBLING.led && configuration.ASSEMBLING.ledModule)}
+            data-material-tone="led" style={materialColorVariables('led')}>
             <div class="item-header">
               <label
                 class="toggle-label"
@@ -943,6 +968,8 @@
                   label="LED"
                   selectedCategory={configuration.ASSEMBLING.ledModuleCategory}
                   categories={ledCategories}
+                  summaryKind="led"
+                  compactSelection
                   allowCustom={true}
                   showColor={false}
                   {readonly}
@@ -957,26 +984,15 @@
                   }}
                 />
               </div>
-              {#if configuration.ASSEMBLING.ledModule}
-                <span
-                  class="material-badge-lg"
-                  style:background={configuration.ASSEMBLING.ledModuleHex ||
-                    "#fbbf24"}
-                  style:color={getTextColor(
-                    configuration.ASSEMBLING.ledModuleHex || "#fbbf24",
-                  )}
-                >
-                  <Zap size={16} />
-                  {selectionBadgeLabel(configuration.ASSEMBLING.ledModule, configuration.ASSEMBLING.ledModuleShort, "LED")}
-                </span>
-              {/if}
             {:else}
               <span class="no-badge-lg"><X size={14} /> NO LED</span>
             {/if}
           </div>
 
           <!-- PSU -->
-          <div class="assembly-item">
+          <div class="assembly-item material-context"
+            class:configured={Boolean(configuration.ASSEMBLING.psu && configuration.ASSEMBLING.psuModel)}
+            data-material-tone="psu" style={materialColorVariables('psu')}>
             <div class="item-header">
               <label
                 class="toggle-label"
@@ -1005,7 +1021,7 @@
                     disabled={readonly}
                     onchange={emit}
                   />
-                  <Sun size={12} /> Regular
+                  <Sun size={12} /> {$t('profiles.materials.regular')}
                 </label>
                 <label
                   class:active={configuration.ASSEMBLING.psuType === "dimmable"}
@@ -1018,7 +1034,7 @@
                     disabled={readonly}
                     onchange={emit}
                   />
-                  <Moon size={12} /> Dimmable
+                  <Moon size={12} /> {$t('profiles.materials.dimmable')}
                 </label>
               </div>
               <div class="picker-row">
@@ -1027,6 +1043,8 @@
                   label="PSU"
                   selectedCategory={configuration.ASSEMBLING.psuModelCategory}
                   categories={psuCategories}
+                  summaryKind="psu"
+                  compactSelection
                   allowCustom={true}
                   showColor={false}
                   {readonly}
@@ -1040,31 +1058,26 @@
                   }}
                 />
               </div>
-              {#if configuration.ASSEMBLING.psuModel}
-                <span
-                  class="material-badge-lg"
-                  style:background="var(--brand-soft)"
-                  style:color="var(--brand)"
-                >
-                  <Power size={16} />
-                  {selectionBadgeLabel(configuration.ASSEMBLING.psuModel, configuration.ASSEMBLING.psuModelShort, "PSU")}
-                </span>
-              {/if}
-              <input
-                type="text"
-                class="custom-input"
-                bind:value={configuration.ASSEMBLING.psuMounting}
-                disabled={readonly}
-                oninput={emit}
-                placeholder="Mounting..."
-              />
+              <div class="field">
+                <label for={`${formId}-psu-mounting`}>{$t('profiles.materials.psuMounting')}</label>
+                <input
+                  id={`${formId}-psu-mounting`}
+                  type="text"
+                  class="custom-input"
+                  bind:value={configuration.ASSEMBLING.psuMounting}
+                  disabled={readonly}
+                  oninput={emit}
+                />
+              </div>
             {:else}
               <span class="no-badge-lg"><X size={14} /> NO PSU</span>
             {/if}
           </div>
 
           <!-- CABLES -->
-          <div class="assembly-item">
+          <div class="assembly-item material-context"
+            class:configured={Boolean(configuration.ASSEMBLING.cables && configuration.ASSEMBLING.cableType)}
+            data-material-tone="cable" style={materialColorVariables('cable')}>
             <div class="item-header">
               <label
                 class="toggle-label"
@@ -1076,24 +1089,21 @@
                   disabled={readonly}
                   onchange={emit}
                 />
-                <Cable size={14} /> CABLES
+                <Cable size={14} /> {$t('profiles.materials.mainCable')}
               </label>
             </div>
             {#if configuration.ASSEMBLING.cables}
               <div class="cable-row">
-                <input
-                  type="text"
-                  class="length-input"
-                  bind:value={configuration.ASSEMBLING.cablesLength}
-                  disabled={readonly}
-                  oninput={emit}
-                  placeholder="2m"
-                />
                 <MaterialSelect
                   bind:value={configuration.ASSEMBLING.cableType}
-                  label="CABLES"
+                  label={$t('profiles.materials.mainCable')}
                   selectedCategory={configuration.ASSEMBLING.cableTypeCategory}
                   categories={wireCategories}
+                  materialRole="mainCable"
+                  summaryKind="cable"
+                  selectionLength={configuration.ASSEMBLING.cablesLength}
+                  compactSelection
+                  finishOnSelect={false}
                   allowCustom={true}
                   showColor={false}
                   {readonly}
@@ -1105,19 +1115,23 @@
                     );
                     emit();
                   }}
-                />
-              </div>
-              {#if configuration.ASSEMBLING.cableType || configuration.ASSEMBLING.cablesLength}
-                <span
-                  class="material-badge-lg"
-                  style:background="#374151"
-                  style:color="#fff"
                 >
-                  <Cable size={16} />
-                  {configuration.ASSEMBLING.cablesLength || ""}
-                  {selectionBadgeLabel(configuration.ASSEMBLING.cableType, configuration.ASSEMBLING.cableTypeShort, "WIRE")}
-                </span>
-              {/if}
+                  {#snippet editorDetails(_selectedMaterial, complete)}
+                    <div class="field cable-length">
+                      <label for={`${formId}-cable-length`}>{$t('profiles.materials.cableLength')}</label>
+                      <input
+                        id={`${formId}-cable-length`}
+                        type="text"
+                        class="length-input"
+                        bind:value={configuration.ASSEMBLING.cablesLength}
+                        disabled={readonly}
+                        oninput={emit}
+                        placeholder="2 m"
+                      />
+                    </div>
+                  {/snippet}
+                </MaterialSelect>
+              </div>
               <label
                 class="wago-label"
                 class:active={configuration.ASSEMBLING.cablesWago}
@@ -1128,7 +1142,7 @@
                   disabled={readonly}
                   onchange={emit}
                 />
-                <span class="wago-badge"><span aria-hidden="true">{configuration.ASSEMBLING.cablesWago ? "✓" : ""}</span> WAGO</span>
+                <span class="wago-badge material-context" style={materialColorVariables('connector')}><span aria-hidden="true">{configuration.ASSEMBLING.cablesWago ? "✓" : ""}</span> WAGO</span>
               </label>
               {#if configuration.ASSEMBLING.cablesWago}
                 <fieldset class="field connector-material">
@@ -1138,6 +1152,9 @@
                     label={$t('profiles.materials.connector', { default: 'Connector model' })}
                     selectedCategory={configuration.ASSEMBLING.cablesConnectorCategory}
                     categories={connectorCategories}
+                    compactSelection
+                    badgeKind="connector"
+                    badgeShortName={configuration.ASSEMBLING.cablesConnectorShort}
                     showColor={false}
                     allowCustom={true}
                     {readonly}
@@ -1147,12 +1164,6 @@
                       emit();
                     }}
                   />
-                  {#if configuration.ASSEMBLING.cablesConnector}
-                    <span class="material-badge-lg connector-badge">
-                      <Cable size={16} />
-                      {selectionBadgeLabel(configuration.ASSEMBLING.cablesConnector, configuration.ASSEMBLING.cablesConnectorShort, 'LED_ACCESSORY')}
-                    </span>
-                  {/if}
                 </fieldset>
               {/if}
             {:else}
@@ -1161,7 +1172,9 @@
           </div>
 
           <!-- FRAME -->
-          <div class="assembly-item">
+          <div class="assembly-item material-context"
+            class:configured={Boolean(configuration.ASSEMBLING.frame && configuration.ASSEMBLING.frameMaterial)}
+            data-material-tone="frame" style={materialColorVariables('frame')}>
             <div class="item-header">
               <label
                 class="toggle-label"
@@ -1182,49 +1195,46 @@
                   bind:value={configuration.ASSEMBLING.frameMaterial}
                   label="FRAME"
                   selectedCategory={configuration.ASSEMBLING.frameMaterialCategory}
+                  customColor={configuration.ASSEMBLING.frameMaterialHex ?? ""}
                   categories={frameMaterials}
+                  materialRole="frame"
+                  compactSelection
+                  badgeKind="frame"
+                  badgeThickness={configuration.ASSEMBLING.frameThickness}
+                  badgeShortName={configuration.ASSEMBLING.frameMaterialShort}
+                  badgeDimensions={configuration.ASSEMBLING.frameDimensions}
+                  finishOnSelect={false}
                   allowCustom={true}
                   {readonly}
                   onchange={selectFrameMaterial}
-                />
-              </div>
-              {#if configuration.ASSEMBLING.frameMaterial}
-                <span
-                  class="material-badge-lg"
-                  style:background={configuration.ASSEMBLING.frameMaterialHex ||
-                    "#9ca3af"}
-                  style:color={getTextColor(
-                    configuration.ASSEMBLING.frameMaterialHex || "#9ca3af",
-                  )}
                 >
-                  <Square size={16} />
-                  {frameBadgeLabel(
-                    selectionBadgeLabel(configuration.ASSEMBLING.frameMaterial, configuration.ASSEMBLING.frameMaterialShort, configuration.ASSEMBLING.frameMaterialCategory || "ALU"),
-                    configuration.ASSEMBLING.frameDimensions, configuration.ASSEMBLING.frameThickness,
-                  )}
-                </span>
-                <MaterialThicknessSelect
-                  bind:value={configuration.ASSEMBLING.frameThickness}
-                  materialType={configuration.ASSEMBLING.frameMaterialCategory || configuration.ASSEMBLING.frameMaterial}
-                  thicknessOptions={configuration.ASSEMBLING.frameThicknessOptions}
-                  autoSelectLowest={false}
-                  label={`FRAME · ${$t('materialThickness.select')}`}
-                  {readonly}
-                  onchange={changeFrameThickness}
-                />
-                <div class="field">
-                  <label for={`${formId}-frame-size`}>{isRoundFrame ? "DIAMETER (mm)" : "FRAME SIZE"}</label>
-                  <input
-                    id={`${formId}-frame-size`}
-                    type="text"
-                    value={configuration.ASSEMBLING.frameDimensions}
-                    placeholder={isRoundFrame ? "e.g. D20" : "e.g. 40x40"}
-                    disabled={readonly}
-                    oninput={changeFrameDimensions}
-                    class="custom-input"
-                  />
-                </div>
-              {/if}
+                  {#snippet editorDetails(_selectedMaterial, complete)}
+                    {#if configuration.ASSEMBLING.frameMaterial}
+                      <MaterialThicknessSelect
+                        bind:value={configuration.ASSEMBLING.frameThickness}
+                        materialType={configuration.ASSEMBLING.frameMaterialCategory || configuration.ASSEMBLING.frameMaterial}
+                        thicknessOptions={configuration.ASSEMBLING.frameThicknessOptions}
+                        autoSelectLowest={false}
+                        label={`FRAME · ${$t('materialThickness.select')}`}
+                        {readonly}
+                        onchange={() => { changeFrameThickness(); complete(); }}
+                      />
+                      <div class="field">
+                        <label for={`${formId}-frame-size`}>{isRoundFrame ? "DIAMETER (mm)" : "FRAME SIZE"}</label>
+                        <input
+                          id={`${formId}-frame-size`}
+                          type="text"
+                          value={configuration.ASSEMBLING.frameDimensions}
+                          placeholder={isRoundFrame ? "e.g. D20" : "e.g. 40x40"}
+                          disabled={readonly}
+                          oninput={changeFrameDimensions}
+                          class="custom-input"
+                        />
+                      </div>
+                    {/if}
+                  {/snippet}
+                </MaterialSelect>
+              </div>
               <div class="frame-options">
                 <label
                   class="opt waterholes"
@@ -1276,23 +1286,7 @@
           {/if}
         </div>
 
-        <div
-          class="notes-field"
-          class:has-note={configuration.ASSEMBLING.notes}
-        >
-          {#if configuration.ASSEMBLING.notes}
-            <span class="note-icon"><AlertCircle size={14} /></span>
-          {/if}
-          <StickyNote size={12} class="note-placeholder-icon" />
-          <textarea
-            class="notes"
-            bind:value={configuration.ASSEMBLING.notes}
-            disabled={readonly}
-            oninput={emit}
-            placeholder="Notes..."
-            rows="2"
-          ></textarea>
-        </div>
+        {@render stationNotes('ASSEMBLING')}
       </div>
     </div>
   </div>
@@ -1300,6 +1294,8 @@
 
 <style>
   .profile-form {
+    container: production-profile / inline-size;
+    min-width: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
       sans-serif;
     background: var(--bg-1, var(--bg-0));
@@ -1308,10 +1304,9 @@
     overflow: visible;
   }
 
-  .profile-form.readonly {
-    pointer-events: none;
-    opacity: 0.85;
-  }
+  .profile-form.readonly { border-style: dashed; }
+  .profile-form :global(input:disabled), .profile-form :global(textarea:disabled),
+  .profile-form :global(select:disabled) { opacity: 1; -webkit-text-fill-color: currentColor; }
 
   /* HEADER */
   .form-header {
@@ -1326,9 +1321,9 @@
   }
 
   .profile-name input {
-    background: var(--brand);
-    color: var(--bg-0);
-    border: none;
+    background: var(--bg-1);
+    color: var(--ink-primary);
+    border: 1px solid var(--border);
     padding: var(--space-sm, 8px) var(--space-md, 14px);
     border-radius: var(--radius-sm, 6px);
     font-weight: 600;
@@ -1337,7 +1332,8 @@
   }
 
   .profile-name input::placeholder {
-    color: color-mix(in oklab, var(--bg-0) 7%, transparent);
+    color: var(--ink-secondary);
+    opacity: 1;
   }
 
   .sign-toggle {
@@ -1358,12 +1354,19 @@
     color: var(--muted, var(--ink-tertiary));
     cursor: pointer;
     border-radius: var(--radius-sm, 4px);
-    transition: all 0.15s;
+    transition: background 0.15s, color 0.15s;
   }
 
   .sign-toggle button.active {
     background: var(--ink-0, var(--ink-primary));
     color: var(--bg-0);
+  }
+
+  .sign-toggle button:focus-visible,
+  .profile-name input:focus-visible,
+  .length-input:focus-visible {
+    outline: 2px solid var(--focus, var(--brand));
+    outline-offset: 2px;
   }
 
   /* MAIN GRID */
@@ -1398,11 +1401,14 @@
     grid-column: span 2;
   }
 
-  .section.collapsed {
-    opacity: 0.6;
-  }
+  .section.collapsed .section-title { background: var(--bg-2); color: var(--ink-secondary); }
 
   .section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
     background: var(--ink-secondary);
     color: var(--bg-0);
     padding: var(--space-sm, 8px) var(--space-md, 12px);
@@ -1414,7 +1420,50 @@
 
   .section-title .hint {
     font-weight: 400;
-    opacity: 0.7;
+  }
+
+  .section-title > span { display: inline-flex; align-items: center; gap: var(--space-xs); }
+  .section-note-warning {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    min-height: var(--control-xs);
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--warn-soft);
+    color: var(--ink-primary);
+    border: 1px solid var(--warn);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    line-height: var(--leading-snug);
+    cursor: pointer;
+  }
+  .section-note-warning:focus-visible,
+  .legacy-print-actions button:focus-visible,
+  .station-notes:focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .legacy-print-notice {
+    display: grid;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    border: 1px solid var(--warn);
+    border-radius: var(--radius-sm);
+    background: var(--bg-2);
+    color: var(--ink-primary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+  }
+  .legacy-print-notice p { margin: 0; }
+  .legacy-print-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+  .legacy-print-actions button {
+    min-height: var(--control-sm);
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-1);
+    color: var(--ink-primary);
+    font: inherit;
+    cursor: pointer;
   }
 
   .section-content {
@@ -1518,14 +1567,20 @@
 
   /* PICKER ROW - consistent layout for all material pickers */
   .picker-row {
-    display: flex;
-    gap: var(--space-sm, 8px);
-    align-items: center;
+    min-width: 0;
   }
 
   .picker-row :global(.material-select) {
-    flex: 1;
-    min-width: 80px;
+    min-width: 0;
+  }
+
+  .material-note {
+    margin: 0;
+    color: var(--ink-primary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
   }
 
   /* DEPTH */
@@ -1582,7 +1637,7 @@
 
   .option.active {
     background: var(--brand-soft);
-    color: color-mix(in oklab, var(--brand) 90%, black);
+    color: var(--ink-primary);
   }
   .option input {
     width: 14px;
@@ -1601,6 +1656,23 @@
   .inline-field:last-of-type {
     border-bottom: none;
   }
+
+  .film-part-header { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+  .film-print {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--ink-primary);
+    background: var(--bg-1);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .film-print.active { border-color: var(--brand); background: var(--brand-soft); }
+  .film-print input { accent-color: var(--brand); }
 
   .toggle-label {
     display: flex;
@@ -1637,7 +1709,7 @@
   }
 
   .paint-item.inactive {
-    opacity: 0.6;
+    background: var(--bg-1);
   }
 
   .paint-label {
@@ -1658,18 +1730,11 @@
     height: 14px;
   }
 
-  .ral-badge {
-    padding: 8px 12px;
-    border-radius: 4px;
-    font-size: 16px;
-    font-weight: 900;
-    text-align: center;
-  }
-
   /* NO BADGE */
   .no-badge {
-    background: var(--error);
-    color: white;
+    background: var(--bg-1);
+    color: var(--ink-secondary);
+    border: 1px dashed var(--border);
     padding: 6px 10px;
     border-radius: 4px;
     font-size: 11px;
@@ -1678,7 +1743,7 @@
   }
 
   .no-badge.small {
-    font-size: 9px;
+    font-size: 11px;
     padding: 4px 6px;
   }
 
@@ -1687,6 +1752,7 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-md, 12px);
+    align-items: start;
   }
 
   .assembly-item {
@@ -1697,7 +1763,11 @@
     padding: var(--space-md, 12px);
     background: var(--bg-2, var(--bg-2));
     border-radius: var(--radius-md, 6px);
+    border: 1px solid transparent;
   }
+
+  .assembly-item.configured { border-color: var(--material-edge); }
+  .assembly-item.configured .item-header .toggle-label { color: var(--material-ink); }
 
   .item-header {
     display: flex;
@@ -1705,44 +1775,20 @@
     align-items: center;
   }
 
-  /* LARGE MATERIAL BADGE - 4x size */
-  .material-badge-lg {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-sm, 8px);
-    padding: var(--space-md, 12px);
-    border-radius: var(--radius-md, 6px);
-    font-weight: 800;
-    font-size: 14px;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    line-height: 1.4;
-    border: 2px solid color-mix(in oklab, var(--bg-0) 10%, transparent);
-    min-height: 48px;
-    flex: 1;
-    min-width: 0;
-    box-sizing: border-box;
-    text-align: center;
-  }
-
-  .material-badge-lg :global(svg) { flex-shrink: 0; }
-
-  .print3d-badge, .connector-badge { background: var(--bg-3, var(--bg-2)); color: var(--text); }
-
   .no-badge-lg {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: var(--space-xs, 4px);
-    background: var(--error);
-    color: white;
-    padding: var(--space-md, 12px) var(--space-lg, 16px);
+    background: var(--bg-1);
+    color: var(--ink-tertiary);
+    border: 1px dashed var(--border);
+    padding: var(--space-sm, 8px) var(--space-md, 12px);
     border-radius: var(--radius-md, 6px);
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 600;
     text-align: center;
-    height: 48px;
+    min-height: 36px;
     width: 100%;
     box-sizing: border-box;
   }
@@ -1771,9 +1817,9 @@
   }
 
   .psu-type label.active {
-    background: var(--ink-secondary);
-    color: var(--bg-0);
-    border-color: var(--ink-secondary);
+    background: var(--material-surface);
+    color: var(--material-ink);
+    border-color: var(--material-edge);
   }
 
   .psu-type input, .opt input, .extra input, .wago-label input {
@@ -1792,26 +1838,30 @@
 
   /* CABLES */
   .cable-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     min-width: 0;
-    flex-wrap: wrap;
   }
 
+  .cable-length { min-width: 0; }
+
   .length-input {
-    width: 50px;
-    flex: 0 0 64px;
+    width: 100%;
     min-width: 0;
     max-width: 100%;
     padding: 6px;
     border: 1px solid var(--border, var(--border));
     border-radius: 4px;
     font-size: 12px;
-    text-align: center;
+    min-height: 36px;
+    background: var(--bg-1);
+    color: var(--ink-primary);
+    box-sizing: border-box;
   }
 
   .cable-row :global(.material-select) {
-    flex: 1 1 100px;
+    min-width: 0;
   }
 
   .wago-label {
@@ -1822,8 +1872,9 @@
   }
 
   .wago-badge {
-    background: var(--border);
-    color: var(--ink-tertiary);
+    background: var(--bg-1);
+    color: var(--ink-secondary);
+    border: 1px solid var(--border);
     padding: 4px 10px;
     border-radius: 4px;
     font-size: 11px;
@@ -1831,8 +1882,9 @@
   }
 
   .wago-label.active .wago-badge {
-    background: var(--warn);
-    color: var(--bg-0);
+    background: var(--material-surface);
+    color: var(--material-ink);
+    border-color: var(--material-edge);
   }
 
   /* FRAME */
@@ -1858,8 +1910,8 @@
   }
   .opt.waterholes.active {
     background: var(--ok-soft);
-    color: color-mix(in oklab, var(--ok) 85%, black);
-    border-color: color-mix(in oklab, var(--ok) 85%, black);
+    color: var(--ink-primary);
+    border-color: var(--ok);
   }
   .opt.warning.active {
     background: var(--error-soft);
@@ -1896,7 +1948,9 @@
     color: var(--bg-0);
   }
   @media (pointer: coarse) {
-    .psu-type label, .opt, .extra, .wago-label { min-height: 44px; }
+    .psu-type label, .opt, .extra, .wago-label, .length-input,
+    .sign-toggle button, .toggle-label, .option, .paint-label,
+    .section-note-warning, .film-print, .legacy-print-actions button { min-height: 44px; }
   }
 
   /* INPUTS */
@@ -1906,6 +1960,10 @@
     border: 1px solid var(--border, var(--border));
     border-radius: var(--radius-sm, 4px);
     font-size: 12px;
+    min-height: 36px;
+    box-sizing: border-box;
+    color: var(--ink-primary);
+    background: var(--bg-1);
   }
 
   .custom-input:focus {
@@ -1914,20 +1972,28 @@
   }
 
   /* NOTES FIELD with wrap and alert icon */
+  .station-notes {
+    display: grid;
+    gap: var(--space-sm);
+    min-width: 0;
+    margin-top: auto;
+  }
+  .station-notes.has-note {
+    padding: var(--space-sm);
+    border: 1px solid var(--warn);
+    border-radius: var(--radius-sm);
+    background: var(--warn-soft);
+    color: var(--ink-primary);
+  }
+  .notes-readonly { min-width: 0; font-size: var(--text-sm); line-height: var(--leading-normal); }
+  .notes-readonly strong { display: flex; align-items: center; gap: var(--space-xs); }
+  .notes-readonly p { margin: var(--space-xs) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   .notes-field {
     position: relative;
     display: flex;
     align-items: flex-start;
     gap: var(--space-xs, 4px);
     margin-top: auto;
-  }
-
-  .notes-field .note-icon {
-    position: absolute;
-    top: var(--space-sm, 8px);
-    right: var(--space-sm, 8px);
-    color: var(--warn);
-    animation: pulse 2s infinite;
   }
 
   .notes-field.has-note .notes {
@@ -1942,16 +2008,6 @@
     color: var(--muted, var(--muted));
     opacity: 0.5;
     pointer-events: none;
-  }
-
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.5;
-    }
   }
 
   .notes {
@@ -1977,6 +2033,13 @@
 
   .notes::placeholder {
     color: var(--muted, var(--muted));
+    opacity: 1;
+  }
+
+  .custom-input::placeholder, .length-input::placeholder { color: var(--ink-secondary); opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sign-toggle button { transition: none; }
   }
 
   /* RESPONSIVE */
@@ -2027,5 +2090,23 @@
     .assembly-grid-2x2 {
       grid-template-columns: minmax(0, 1fr);
     }
+  }
+
+  /* The same production form also lives in station packets and order panels.
+     Respond to that available width, not only to the browser viewport. */
+  @container production-profile (max-width: 1400px) {
+    .form-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .section-xl { grid-column: 1 / -1; }
+  }
+  @container production-profile (max-width: 900px) {
+    .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .assembly-grid-2x2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @container production-profile (max-width: 600px) {
+    .form-grid, .assembly-grid-2x2 { grid-template-columns: minmax(0, 1fr); }
+    .section-sm, .section-lg, .section-xl { min-width: 0; }
+    .form-header { flex-direction: column; align-items: stretch; }
+    .sign-toggle { justify-content: center; }
+    .paint-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 </style>

@@ -57,7 +57,14 @@ describe('OMS-R36 — human production release, revision and delivery',()=>{
      editor.indexOf('// ── Request rework'));
    expect(flow).toContain('const count=await refreshFileCount();');
    expect(flow).toContain('if(count<1)');
-   expect(flow).toContain('if (!(await saveDraft()))');
+   const save=flow.indexOf('const saved=await saveDraft();');
+   const ownerGuard=flow.indexOf('if(!scope.isCurrent())return;',save);
+   const savedGuard=flow.indexOf("if (!saved) throw new Error($t('orderWorkspace.confirmSaveFirst'))",save);
+   const confirmation=flow.indexOf('expectedUpdatedAt:orderUpdatedAt',savedGuard);
+   expect(save).toBeGreaterThan(flow.indexOf('if(count<1)'));
+   expect(ownerGuard).toBeGreaterThan(save);
+   expect(savedGuard).toBeGreaterThan(ownerGuard);
+   expect(confirmation).toBeGreaterThan(savedGuard);
    expect(flow).toContain('expectedUpdatedAt:orderUpdatedAt');
    expect(flow).toContain("res.status===409||res.status===428");
    expect(editor).toContain("orderWorkspace.confirmDirectDraft");

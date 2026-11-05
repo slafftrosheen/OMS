@@ -59,3 +59,37 @@ describe('order conversation reconciliation', () => {
     expect(parseOrderChatMessage(null)).toBe(null);
   });
 });
+
+describe('late order chat acknowledgements', () => {
+  it('retains a newer edit and its voice metadata when send acknowledgement arrives later', async () => {
+    const { resolveOrderAcknowledgement } = await import('../../src/lib/components/chat/order-chat-state');
+    const sent = message('late-send', 'Original');
+    sent.voiceAttachments = [{ id: 'voice', kind: 'voice', fileName: 'voice.webm', fileType: 'audio/webm', fileSize: 100, url: '/api/chat/voice/voice' }];
+    const log = { changes: new Map<string, OrderChatMessage | null>(), changeRevisions: new Map<string, number>(), remotePatches: new Map<string, Partial<OrderChatMessage>>() };
+    const startedRevision = 0;
+    log.changes.set(sent.id, { ...message(sent.id, 'Newer remote edit'), edited: true });
+    log.changeRevisions.set(sent.id, 1);
+    const confirmed = resolveOrderAcknowledgement(sent, startedRevision, log);
+    expect(confirmed?.message).toBe('Newer remote edit');
+    expect(confirmed?.voiceAttachments?.[0].id).toBe('voice');
+    const state = reconcileOrderMessages([], new Map([[sent.id, confirmed]]));
+    expect(state.map(row => row.message)).toEqual(['Newer remote edit']);
+  });
+  it('does not resurrect a deleted row when a send or edit is confirmed', async () => {
+    const { resolveOrderAcknowledgement } = await import('../../src/lib/components/chat/order-chat-state');
+    const sent = message('late-delete', 'Original');
+    const log = { changes: new Map<string, OrderChatMessage | null>([[sent.id, null]]), changeRevisions: new Map([[sent.id, 2]]), remotePatches: new Map<string, Partial<OrderChatMessage>>() };
+    expect(resolveOrderAcknowledgement(sent, 0, log)).toBe(null);
+    expect(resolveOrderAcknowledgement({ ...sent, message: 'My pending edit', edited: true }, 1, log)).toBe(null);
+    expect(reconcileOrderMessages([sent], new Map([[sent.id, resolveOrderAcknowledgement(sent, 0, log)]]))).toEqual([]);
+  });
+  it('merges a newer update received before the server-created row became visible', async () => {
+    const { resolveOrderAcknowledgement } = await import('../../src/lib/components/chat/order-chat-state');
+    const sent = message('unseen-send', 'Original');
+    const log = { changes: new Map<string, OrderChatMessage | null>(), changeRevisions: new Map([[sent.id, 1]]),
+      remotePatches: new Map<string, Partial<OrderChatMessage>>([[sent.id, { message: 'Already corrected', edited: true }]]) };
+    expect(resolveOrderAcknowledgement(sent, 0, log)?.message).toBe('Already corrected');
+    // A mutation older than this request does not supersede its confirmed value.
+    expect(resolveOrderAcknowledgement(sent, 1, log)?.message).toBe('Original');
+  });
+});

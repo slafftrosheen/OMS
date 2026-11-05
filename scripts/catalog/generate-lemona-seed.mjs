@@ -23,6 +23,18 @@ export const catalogSources = [
     manifestPath: 'supabase/catalogs/lemona-2026-10-30-batch-3.json',
     migrationPath: 'supabase/migrations/20261030000003_lemona_catalog_batch_3.sql',
     temporaryTable: 'lemona_catalog_20261030_batch_3'
+  },
+  {
+    id: 'lemona-2026-10-31-xlg-strips', verifiedAt: '2026-10-31', immutable: true,
+    manifestPath: 'supabase/catalogs/lemona-2026-10-31-xlg-strips.json',
+    migrationPath: 'supabase/migrations/20261031000001_lemona_xlg_strips.sql',
+    temporaryTable: 'lemona_catalog_20261031_xlg_strips'
+  },
+  {
+    id: 'lemona-2026-10-31-production', verifiedAt: '2026-10-31', immutable: true,
+    manifestPath: 'supabase/catalogs/lemona-2026-10-31-production.json',
+    migrationPath: 'supabase/migrations/20261031000005_lemona_production_catalog.sql',
+    temporaryTable: 'lemona_catalog_20261031_production'
   }
 ];
 // Preserve the original exports for callers that specifically inspect the first seed.
@@ -71,6 +83,10 @@ export function validateCatalog(catalog) {
       || !['product_page', 'catalog_listing'].includes(metadata.source_kind)) {
       throw new Error(`Missing product identity or provenance: ${product.code}`);
     }
+    if ('supplier_sku' in metadata && (typeof metadata.supplier_sku !== 'string'
+      || !metadata.supplier_sku.trim() || metadata.supplier_sku !== metadata.supplier_sku.trim())) {
+      throw new Error(`Invalid supplier SKU: ${product.code}`);
+    }
     const source = new URL(metadata.source_url);
     if (source.protocol !== 'https:' || !['lemona.lv', 'www.lemona.lv'].includes(source.hostname)
       || source.username || source.password || source.port) {
@@ -79,7 +95,7 @@ export function validateCatalog(catalog) {
     for (const field of ['voltage_v', 'power_w', 'current_a', 'color_temperature_k',
       'watts_per_m', 'leds_per_m', 'length_m', 'wire_cross_section_mm2', 'diameter_mm', 'weight_kg',
       'width_mm', 'height_mm', 'body_length_mm', 'cut_interval_mm', 'volume_ml', 'wire_cross_section_max_mm2',
-      'max_watts_per_m', 'white_channel_temperature_k',
+      'max_watts_per_m', 'white_channel_temperature_k', 'outer_diameter_mm',
       'beam_angle_deg', 'beam_angle_horizontal_deg', 'beam_angle_vertical_deg']) {
       if (field in metadata && (typeof metadata[field] !== 'number'
         || !Number.isFinite(metadata[field]) || metadata[field] <= 0)) {
@@ -87,13 +103,19 @@ export function validateCatalog(catalog) {
       }
     }
     for (const field of ['color_temperature_range_k', 'white_channel_temperature_range_k', 'wire_cross_section_range_mm2',
-      'solid_conductor_range_mm2', 'fine_stranded_conductor_range_mm2']) {
+      'solid_conductor_range_mm2', 'fine_stranded_conductor_range_mm2', 'outer_diameter_range_mm']) {
       const range = metadata[field];
       if (field in metadata && (!Array.isArray(range) || range.length !== 2
         || range.some((value) => typeof value !== 'number' || !Number.isFinite(value) || value <= 0)
         || range[0] > range[1])) {
         throw new Error(`Invalid ${field}: ${product.code}`);
       }
+    }
+    if ('cores' in metadata && (!Number.isInteger(metadata.cores) || metadata.cores < 1)) {
+      throw new Error(`Invalid cores: ${product.code}`);
+    }
+    if ('outer_diameter_mm' in metadata && 'outer_diameter_range_mm' in metadata) {
+      throw new Error(`Conflicting outer diameter representations: ${product.code}`);
     }
     if (product.category === 'PSU_MEANWELL') {
       if (['voltage_v', 'current_a', 'power_w'].some((field) => !Number.isFinite(metadata[field]))
@@ -109,6 +131,7 @@ export function validateCatalog(catalog) {
 export function validateCatalogSet(catalogs) {
   const ids = new Set();
   const codes = new Set();
+  const supplierSkus = new Map();
   for (const catalog of catalogs) {
     validateCatalog(catalog);
     if (ids.has(catalog.catalog_id)) throw new Error(`Duplicate catalog: ${catalog.catalog_id}`);
@@ -116,6 +139,11 @@ export function validateCatalogSet(catalogs) {
     for (const product of catalog.products) {
       if (codes.has(product.code)) throw new Error(`Product already exists in an earlier additive catalog: ${product.code}`);
       codes.add(product.code);
+      const supplierSku = product.metadata.supplier_sku;
+      if (supplierSku && supplierSkus.has(supplierSku)) {
+        throw new Error(`Supplier SKU ${supplierSku} already identifies ${supplierSkus.get(supplierSku)}; do not import an alias as ${product.code}`);
+      }
+      if (supplierSku) supplierSkus.set(supplierSku, product.code);
     }
   }
   return catalogs;

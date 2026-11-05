@@ -19,14 +19,13 @@
   let busy=$state(false);
   let error=$state('');
   let report=$state<Report|null>(null);
-  let consent=$state(false);
   // Track the previous order separately so the reset effect detects navigation.
   let lastOrderId=$state(untrack(() => orderId));
   $effect(()=>{
-    if(lastOrderId!==orderId){lastOrderId=orderId;report=null;consent=false;error='';}
+    if(lastOrderId!==orderId){lastOrderId=orderId;report=null;error='';}
   });
   async function analyze(){
-    if(!canRun||busy||!consent)return;
+    if(!canRun||busy)return;
     busy=true;error='';report=null;
     const requestedId=orderId;
     try{
@@ -55,11 +54,7 @@
 <section class="readiness" aria-label={$t('productionReadiness.title')}>
   <h3>{$t('productionReadiness.title')}</h3>
   <p class="description">{$t('productionReadiness.intro')}</p>
-  <label class="consent">
-    <input type="checkbox" bind:checked={consent} disabled={busy||!canRun}/>
-    {$t('productionReadiness.consent')}
-  </label>
-  <button class="analyze" onclick={analyze} disabled={busy||!canRun||!consent}>
+  <button class="analyze" onclick={analyze} disabled={busy||!canRun}>
     {busy?$t('productionReadiness.checking'):$t('productionReadiness.run')}
   </button>
   {#if error}<p class="issue" role="alert">{error}</p>{/if}

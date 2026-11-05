@@ -1,0 +1,55 @@
+/* Explicit opaque pairs keep selection text readable in every theme. */
+.material-context {
+  --material-surface: var(--material-dark-surface);
+  --material-ink: var(--material-dark-ink);
+  --material-edge: color-mix(in oklab, var(--material-ink) 60%, var(--material-surface));
+}
+
+/* Foreground/background pairs must switch themes together. The global reduced-
+   motion duration rule otherwise creates a default `transition: all` even on
+   plain nested text spans. Explicit control border/chevron transitions still
+   take precedence over this low-specificity reset. */
+.material-context,
+.material-context :where(*) {
+  transition-property: none;
+}
+
+/* Override the global input background transition without removing its focus
+   feedback. In particular, a custom material's text cannot change before its
+   paired surface does. */
+.material-context input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+.material-context select,
+.material-context textarea {
+  transition-property: border-color, box-shadow;
+}
+
+:root[data-theme="LightVim"] .material-context {
+  --material-surface: var(--material-light-surface);
+  --material-ink: var(--material-light-ink);
+}
+
+:root[data-theme="HighContrast"] .material-context,
+:root[data-theme="HighContrastVim"] .material-context {
+  --material-surface: var(--bg-1);
+  --material-ink: var(--ink-primary);
+  --material-edge: var(--material-dark-ink);
+}
+
+.material-context.material-swatch {
+  background: var(--material-swatch, var(--material-surface));
+  color: var(--material-swatch-ink, var(--material-ink));
+  border-color: var(--material-edge);
+}
+
+@media (forced-colors: active) {
+  .material-context {
+    --material-surface: Canvas;
+    --material-ink: CanvasText;
+    --material-edge: CanvasText;
+  }
+  .material-context.material-swatch {
+    background: Canvas;
+    color: CanvasText;
+    border-color: CanvasText;
+  }
+}

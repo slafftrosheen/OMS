@@ -19,15 +19,69 @@
   import Plug from 'lucide-svelte/icons/plug';
   import TelegramSettings from '$lib/notifications/TelegramSettings.svelte';
   import TelegramAdminSettings from '$lib/notifications/TelegramAdminSettings.svelte';
+  import { settingsTabsCopy } from '$lib/settings/settings-tabs-copy';
   let aiSettings = $state<{ configured: boolean; masked: string; source?: string } | null>(null);
   let openRouterKey = $state('');
   let aiSettingsLoading = $state(false);
   let aiSettingsSaving = $state(false);
   let aiSettingsError = $state('');
   let aiSettingsMessage = $state('');
+  type SettingsTab = 'general' | 'ai' | 'telegram' | 'integrations';
+  let activeSettingsTab = $state<SettingsTab>('general');
+  let aiPolicy = $state<{ enabled: boolean; updatedAt: string | null; updatedBy: string | null } | null>(null);
+  let aiPolicyLoading = $state(false);
+  let aiPolicySaving = $state(false);
+  let aiPolicyError = $state('');
+  let aiPolicyMessage = $state('');
   const authState = getContext<AuthState>('authState');
   const logoutAuthState = authState;
   let showOpenRouterSettings = $derived(authState?.user?.role === 'RD');
+  const tabCopy = $derived(settingsTabsCopy($locale));
+  const availableTabs = $derived<SettingsTab[]>(
+    showOpenRouterSettings ? ['general','ai','telegram','integrations'] : ['general','integrations']
+  );
+  $effect(() => {
+    if (!availableTabs.includes(activeSettingsTab)) activeSettingsTab = 'general';
+  });
+  function tabKeydown(event: KeyboardEvent) {
+    if (!['ArrowRight','ArrowLeft','Home','End'].includes(event.key)) return;
+    event.preventDefault();
+    const index = availableTabs.indexOf(activeSettingsTab);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? availableTabs.length - 1
+      : (index + (event.key === 'ArrowRight' ? 1 : -1) + availableTabs.length) % availableTabs.length;
+    activeSettingsTab = availableTabs[next];
+    document.getElementById(`settings-tab-${activeSettingsTab}`)?.focus();
+  }
+  async function loadAiPolicy() {
+    if (!showOpenRouterSettings) return;
+    aiPolicyLoading = true; aiPolicyError = '';
+    try {
+      const response = await fetch(`${base}/api/settings/ai-policy`, { cache: 'no-store' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || typeof result.enabled !== 'boolean') throw new Error(tabCopy.sharingUnavailable);
+      aiPolicy = result;
+    } catch {
+      aiPolicy = null;
+      aiPolicyError = tabCopy.sharingUnavailable;
+    } finally { aiPolicyLoading = false; }
+  }
+  async function saveAiPolicy(enabled: boolean) {
+    if (!showOpenRouterSettings || !aiPolicy || aiPolicySaving) return;
+    aiPolicySaving = true; aiPolicyError = ''; aiPolicyMessage = '';
+    try {
+      const response = await fetch(`${base}/api/settings/ai-policy`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.enabled !== enabled) throw new Error(tabCopy.sharingSaveFailed);
+      aiPolicy = result; aiPolicyMessage = enabled ? tabCopy.sharingEnabled : tabCopy.sharingDisabled;
+    } catch {
+      // Force controlled checkbox to revert to last saved server value.
+      if (aiPolicy) aiPolicy = { ...aiPolicy };
+      aiPolicyError = tabCopy.sharingSaveFailed;
+    } finally { aiPolicySaving = false; }
+  }
 
   async function loadOpenRouterSettings() {
     if (!showOpenRouterSettings) return;
@@ -85,7 +139,7 @@
     }
   }
 
-  onMount(() => { void loadOpenRouterSettings(); });
+  onMount(() => { void loadOpenRouterSettings(); void loadAiPolicy(); });
 
   type Theme = 'LightVim' | 'DarkVim' | 'HighContrastVim';
   type Density = 'compact' | 'cozy' | 'comfortable';
@@ -154,7 +208,19 @@
     </p>
   </header>
 
-  <div class="settings-grid">
+  <nav class="settings-tabbar" role="tablist" aria-label={tabCopy.tabsLabel} onkeydown={tabKeydown}>
+    {#each availableTabs as tab (tab)}
+      <button id={`settings-tab-${tab}`} type="button" role="tab"
+        aria-controls={`settings-panel-${tab}`} aria-selected={activeSettingsTab===tab}
+        tabindex={activeSettingsTab===tab ? 0 : -1}
+        class:active={activeSettingsTab===tab}
+        onclick={() => activeSettingsTab=tab}>
+        {tabCopy[tab]}
+      </button>
+    {/each}
+  </nav>
+  <div id="settings-panel-general" class="settings-grid settings-panel" role="tabpanel"
+    aria-labelledby="settings-tab-general" hidden={activeSettingsTab!=='general'}>
     <!-- Appearance Section -->
     <section class="settings-section">
       <div class="section-header">
@@ -269,6 +335,9 @@
       <PasswordChange />
     </section>
 
+  </div>
+  <div id="settings-panel-ai" class="settings-grid settings-panel" role="tabpanel"
+    aria-labelledby="settings-tab-ai" hidden={activeSettingsTab!=='ai'}>
     {#if showOpenRouterSettings}
       <section class="settings-section" aria-labelledby="openrouter-settings-heading">
         <div class="section-header">
@@ -277,6 +346,18 @@
             <h2 id="openrouter-settings-heading">{$t('settings.provider.title')}</h2>
             <p class="muted">{$t('settings.provider.description')}</p>
           </div>
+        </div>
+        <div class="setting-group ai-policy-group">
+          <label class="ai-policy-label">
+            <input type="checkbox" checked={aiPolicy?.enabled===true}
+              disabled={aiPolicyLoading || aiPolicySaving || !aiPolicy}
+              onchange={event => void saveAiPolicy(event.currentTarget.checked)} />
+            <span><strong>{tabCopy.sharingTitle}</strong><small>{tabCopy.sharingHint}</small></span>
+          </label>
+          {#if aiPolicyLoading}<p class="muted">{tabCopy.sharingLoading}</p>{/if}
+          {#if aiPolicySaving}<p class="muted">{tabCopy.sharingSaving}</p>{/if}
+          {#if aiPolicyError}<p role="alert" class="settings-error">{aiPolicyError}</p>{/if}
+          {#if aiPolicyMessage}<p role="status" class="settings-success">{aiPolicyMessage}</p>{/if}
         </div>
         <div class="setting-group">
           {#if aiSettingsLoading}
@@ -312,13 +393,17 @@
         </div>
       </section>
     {/if}
-
+  </div>
+  <div id="settings-panel-telegram" class="settings-grid settings-panel" role="tabpanel"
+    aria-labelledby="settings-tab-telegram" hidden={activeSettingsTab!=='telegram'}>
     {#if showOpenRouterSettings}
       <section class="settings-section telegram-admin-section" aria-label={$t('settings.telegramAdmin.title')}>
         <TelegramAdminSettings />
       </section>
     {/if}
-
+  </div>
+  <div id="settings-panel-integrations" class="settings-grid settings-panel" role="tabpanel"
+    aria-labelledby="settings-tab-integrations" hidden={activeSettingsTab!=='integrations'}>
     <!-- Integrations Section -->
     <section class="settings-section">
       <div class="section-header">
@@ -352,6 +437,21 @@
 </div>
 
 <style>
+  .settings-panel[hidden] { display: none !important; }
+  .settings-tabbar { display:flex; gap:.5rem; overflow-x:auto; overscroll-behavior-x:contain;
+    margin-bottom:var(--space-lg); padding:.25rem 0 .6rem; scrollbar-width:thin; }
+  .settings-tabbar button { flex:0 0 auto; padding:.7rem 1rem; min-height:44px;
+    background:var(--bg-1);color:var(--text);border:1px solid var(--border);
+    border-radius:var(--radius-md);font:inherit;font-weight:600;cursor:pointer; }
+  .settings-tabbar button.active { background:var(--brand-soft);border-color:var(--brand); }
+  .settings-tabbar button:focus-visible,.ai-policy-label input:focus-visible {
+    outline:2px solid var(--brand);outline-offset:3px; }
+  .ai-policy-group { border:1px solid var(--border);border-radius:var(--radius-md);
+    padding:var(--space-md);background:var(--bg-2); }
+  .ai-policy-label { display:flex;gap:.8rem;align-items:flex-start;cursor:pointer; }
+  .ai-policy-label input { width:20px;height:20px;flex-shrink:0;accent-color:var(--brand); }
+  .ai-policy-label span { display:grid;gap:.35rem; }
+  .ai-policy-label small { color:var(--muted);font-size:.83rem;line-height:1.45; }
   .openrouter-key-form { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-sm); }
   .openrouter-key-form label { flex-basis: 100%; font-weight: 600; }
   .openrouter-key-form input { flex: 1 1 280px; min-width: 220px; }

@@ -13,6 +13,16 @@
   // must not replace the user's isolated working copy or merge defaults upstream.
   let localConfiguration=$state<any>(untrack(() => JSON.parse(JSON.stringify(configuration??{}))));
 
+  $effect(() => {
+    const incoming = JSON.stringify(configuration ?? {});
+    untrack(() => {
+      // Inline sheets can receive an explicit assistant/dialog application or a
+      // refreshed saved snapshot. Equal echoes of local typing must not remount
+      // controls, and receiving a snapshot is never an edit callback.
+      if (JSON.stringify(localConfiguration) !== incoming) localConfiguration = JSON.parse(incoming);
+    });
+  });
+
   function forwardExplicitEdit(value:unknown){
     if(!editable||!value||typeof value!=='object'||Array.isArray(value))return;
     // Preserve existing native (and legacy) keys; only a real user action

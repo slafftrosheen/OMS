@@ -176,12 +176,12 @@ test('drawer isolates room drafts and mention recipients and restores focus thro
   await expect(input).toHaveValue('@Ann ');
   await input.fill('General draft @Ann');
   await drawer.getByRole('button', { name: 'Channels', exact: true }).click();
-  await drawer.getByRole('button', { name: 'Other Join conversation', exact: true }).click();
+  await drawer.getByRole('button', { name: 'Other Conversation', exact: true }).click();
   await expect(input).toHaveValue('');
   await expect(drawer.locator('.mention-picked')).toHaveCount(0);
   await input.fill('Other draft');
   await drawer.getByRole('button', { name: 'Channels', exact: true }).click();
-  await drawer.getByRole('button', { name: 'General Join conversation', exact: true }).click();
+  await drawer.getByRole('button', { name: 'General Conversation', exact: true }).click();
   await expect(input).toHaveValue('General draft @Ann');
   await expect(drawer.locator('.mention-picked')).toContainText('@Ann');
   await drawer.getByRole('button', { name: 'Channels', exact: true }).click();

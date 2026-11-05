@@ -11,6 +11,23 @@
   let webhookSecret = $state('');
   let deliverySecret = $state('');
   let reveal = $state(false);
+  type AdminTab = 'connection' | 'delivery' | 'commands';
+  let adminTab = $state<AdminTab>('connection');
+  const adminTabs: AdminTab[] = ['connection', 'delivery', 'commands'];
+  const tabLabels = $derived($locale === 'ru'
+    ? { connection: 'Подключение и ключи', delivery: 'Уведомления', commands: 'Команды бота' }
+    : $locale === 'lv'
+      ? { connection: 'Savienojums un atslēgas', delivery: 'Paziņojumi', commands: 'Bota komandas' }
+      : { connection: 'Connection & keys', delivery: 'Notifications', commands: 'Bot commands' });
+  function adminTabKeydown(event: KeyboardEvent) {
+    if (!['ArrowRight','ArrowLeft','Home','End'].includes(event.key)) return;
+    event.preventDefault();
+    const current = adminTabs.indexOf(adminTab);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? adminTabs.length - 1
+      : (current + (event.key === 'ArrowRight' ? 1 : -1) + adminTabs.length) % adminTabs.length;
+    adminTab = adminTabs[next];
+    document.getElementById(`telegram-admin-tab-${adminTab}`)?.focus();
+  }
   let loading = $state(true);
   let busy = $state('');
   let error = $state('');
@@ -144,7 +161,16 @@
       <div><dt>{$t(prefix + 'queued')}</dt><dd>{status.counts.pending}</dd></div>
       <div><dt>{$t(prefix + 'failed')}</dt><dd>{status.counts.failed}</dd></div>
     </dl>
-    <section class="receiver-health" aria-labelledby="telegram-receiver-heading">
+    <nav class="admin-tabs" role="tablist" aria-label={$t(prefix + 'title')} onkeydown={adminTabKeydown}>
+      {#each adminTabs as tab (tab)}
+        <button type="button" role="tab" id={`telegram-admin-tab-${tab}`}
+          aria-selected={adminTab === tab} aria-controls={`telegram-admin-panel-${tab}`}
+          tabindex={adminTab === tab ? 0 : -1} class:active={adminTab === tab}
+          onclick={() => adminTab = tab}>{tabLabels[tab]}</button>
+      {/each}
+    </nav>
+    <section class="receiver-health" aria-labelledby="telegram-receiver-heading"
+      hidden={adminTab !== 'connection'}>
       <h3 id="telegram-receiver-heading">{copy.health}</h3>
       <p role="status">{copy.states[status.receiver?.state ?? 'unavailable']}</p>
       {#if !status.receiver?.available}<p class="muted">{copy.migration}</p>{/if}
@@ -157,7 +183,9 @@
       <button type="button" disabled={!!busy || loading} onclick={refreshReceiver}>{copy.refresh}</button>
     </section>
     <form onsubmit={(event) => { event.preventDefault(); void save(); }}>
-      <fieldset disabled={disabled}>
+      <fieldset id="telegram-admin-panel-connection" role="tabpanel"
+        aria-labelledby="telegram-admin-tab-connection" disabled={disabled || adminTab !== 'connection'}
+        hidden={adminTab !== 'connection'}>
         <legend>{$t(prefix + 'configuration')}</legend>
         <label class="toggle"><input type="checkbox" bind:checked={options.enabled} /><span><strong>{$t(prefix + 'enableBot')}</strong><small>{$t(prefix + 'enableHint')}</small></span></label>
         <label for="telegram-connection-mode">{copy.mode}<select id="telegram-connection-mode" bind:value={options.connectionMode}><option value="polling">{copy.polling}</option><option value="webhook">{copy.webhook}</option></select></label>
@@ -171,7 +199,7 @@
         </div>
         {#if polling}<p class="muted">{copy.appUrlHint}</p><p class="muted">{copy.timeoutHint}</p>{/if}
       </fieldset>
-      <fieldset disabled={disabled}>
+      <fieldset disabled={disabled || adminTab !== 'connection'} hidden={adminTab !== 'connection'}>
         <legend>{$t(prefix + 'credentials')}</legend>
         <p class="muted">{polling ? copy.secretHint : $t(prefix + 'credentialHint')}</p>
         <div class="secret-field"><label for="telegram-bot-token">{$t(prefix + 'botToken')} <small>{status.credentials.botToken.masked || $t(prefix + 'notSet')}</small></label><input id="telegram-bot-token" type={reveal ? 'text' : 'password'} autocomplete="new-password" spellcheck="false" maxlength="256" bind:value={botToken} placeholder={$t(prefix + 'keepSecret')} /></div>
@@ -180,14 +208,18 @@
         <label class="toggle reveal"><input type="checkbox" bind:checked={reveal} /><span>{$t(prefix + 'revealSecrets')}</span></label>
         <p class="muted">{polling ? copy.rotationHint : $t(prefix + 'rotationHint')}</p>
       </fieldset>
-      <fieldset disabled={disabled}>
+      <fieldset id="telegram-admin-panel-delivery" role="tabpanel"
+        aria-labelledby="telegram-admin-tab-delivery" disabled={disabled || adminTab !== 'delivery'}
+        hidden={adminTab !== 'delivery'}>
         <legend>{$t(prefix + 'notifications')}</legend>
         <div class="choice-grid">{#each TELEGRAM_CATEGORIES as category}<label class="toggle"><input type="checkbox" checked={options.notificationCategories.includes(category)} onchange={(event) => toggleCategory(category, event.currentTarget.checked)} /><span>{$t(prefix + `categories.${category}`)}</span></label>{/each}</div>
         <p class="muted">{$t(prefix + 'categoriesHint')}</p>
         <label class="toggle"><input type="checkbox" bind:checked={options.automaticDelivery} /><span><strong>{$t(prefix + 'automaticDelivery')}</strong><small>{$t(prefix + 'automaticHint')}</small></span></label>
         <div class="field-grid numeric">{#each numericFields as field}<label for={`telegram-${field.key}`}>{$t(prefix + field.key)}<input id={`telegram-${field.key}`} type="number" min={field.min} max={field.max} step="1" required bind:value={options[field.key]} /></label>{/each}</div>
       </fieldset>
-      <fieldset disabled={disabled}>
+      <fieldset id="telegram-admin-panel-commands" role="tabpanel"
+        aria-labelledby="telegram-admin-tab-commands" disabled={disabled || adminTab !== 'commands'}
+        hidden={adminTab !== 'commands'}>
         <legend>{$t(prefix + 'bidirectional')}</legend>
         <label class="toggle"><input type="checkbox" bind:checked={options.commandsEnabled} /><span><strong>{$t(prefix + 'enableCommands')}</strong><small>{$t(prefix + 'commandsHint')}</small></span></label>
         <div class="choice-grid commands">{#each TELEGRAM_COMMANDS as command}<label class="toggle"><input type="checkbox" disabled={!options.commandsEnabled} checked={options.commands.includes(command)} onchange={(event) => toggleCommand(command, event.currentTarget.checked)} /><span><code>/{command}</code><small>{$t(prefix + `commands.${command}`)}</small></span></label>{/each}</div>
@@ -197,7 +229,7 @@
       </fieldset>
       <div class="save-row"><button class="primary" type="submit" disabled={disabled}>{$t(prefix + (busy === 'save' ? 'saving' : 'save'))}</button>{#if dirty}<span class="muted">{$t(prefix + 'unsaved')}</span>{/if}</div>
     </form>
-    <section class="provider-actions" aria-labelledby="telegram-provider-actions">
+    <section class="provider-actions" aria-labelledby="telegram-provider-actions" hidden={adminTab !== 'connection'}>
       <h3 id="telegram-provider-actions">{$t(prefix + 'setup')}</h3>
       <p class="muted">{polling ? copy.setup : $t(prefix + 'setupHint')}</p>
       {#if !polling}<dl class="endpoints"><div><dt>{$t(prefix + 'webhookUrl')}</dt><dd><code>{status.webhookUrl || '—'}</code></dd></div><div><dt>{$t(prefix + 'dispatchUrl')}</dt><dd><code>{status.dispatchUrl || '—'}</code></dd></div></dl>{/if}
@@ -218,6 +250,14 @@
 </div>
 
 <style>
+  [hidden] { display: none !important; }
+  .admin-tabs { display:flex;flex-wrap:wrap;gap:.45rem;margin:1rem 0; }
+  .admin-tabs button { min-height:44px;padding:.6rem .8rem;background:var(--bg-1);
+    color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm,6px);
+    font:inherit;cursor:pointer; }
+  .admin-tabs button.active { background:var(--brand-soft);border-color:var(--brand);font-weight:650; }
+  .admin-tabs button:focus-visible {outline:2px solid var(--brand);outline-offset:3px;}
+
   .telegram-admin { min-width:0; display:grid; gap:var(--space-md,16px); }
   .admin-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
   h2,h3,p { margin:0; } h2 { font-size:1.15rem; } h3 { font-size:1rem; }

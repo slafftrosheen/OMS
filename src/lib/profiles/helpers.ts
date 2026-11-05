@@ -1,3 +1,5 @@
+import { swatchTextColor } from './components/fields/swatch-contrast';
+
 /**
  * Pure helpers extracted from Profile7stVisual.svelte so they can be tested,
  * reused, and grepped without trawling a 2000-line component.
@@ -107,18 +109,10 @@ export function applyPaintMaterialSelection(data: {
 
 /**
  * Pick black or white text for a given hex background using the WCAG 1.4.3
- * relative-luminance heuristic.
+ * relative luminance calculation shared by all actual material swatches.
  */
 export function getTextColor(hex: string): string {
-    if (!hex || hex.length < 4) return '#000';
-    try {
-        const r = parseInt(hex.slice(1, 3), 16);
-        const g = parseInt(hex.slice(3, 5), 16);
-        const b = parseInt(hex.slice(5, 7), 16);
-        return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5 ? '#000' : '#fff';
-    } catch {
-        return '#000';
-    }
+    return swatchTextColor(hex);
 }
 
 // ─── getShortName ───────────────────────────────────────────────────────────

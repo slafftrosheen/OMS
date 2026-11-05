@@ -3,6 +3,7 @@
   import { locale } from 'svelte-i18n';
   import AssistantShell from '$lib/assistant/AssistantShell.svelte';
   import { provideAssistantContext } from '$lib/assistant/context';
+  import { chatScreenContext } from '$lib/assistant/guidance';
   import OrderFlowAssistant from '$lib/order/OrderFlowAssistant.svelte';
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
   import OrderReadinessAssistant from '$lib/order/OrderReadinessAssistant.svelte';
@@ -10,13 +11,14 @@
 
   const controller = provideAssistantContext();
   const realNative = new URL(window.location.href).searchParams.get('native') === 'order';
+  const chatScreen = new URL(window.location.href).searchParams.get('screen') === 'chat';
   const orderId = '11111111-1111-4111-8111-111111111111';
   const orderUpdatedAt = '2026-10-30T10:00:00.000Z';
   let orderCurrent = $state<Record<string, unknown>>({
     clientName: 'Workshop customer', title: 'Outdoor illuminated channel letters',
     deadline: '2026-11-20', priority: 'NORMAL', notes: 'Verify the 12V power supply and attachment before production.'
   });
-  let path = $state(realNative ? `/orders/${orderId}/edit` : '/orders/new');
+  let path = $state(chatScreen ? '/chat' : realNative ? `/orders/${orderId}/edit` : '/orders/new');
   let accountId = $state('account-one');
   let draftNotes = $state('Original draft notes');
   let nativeMounts = $state(0);
@@ -34,15 +36,19 @@
     const route = path;
     return untrack(() => controller.register({
       id: `fixture:${route}`,
-      title: () => route === '/inventory' ? 'Workshop inventory' : 'Window-sign draft',
-      tools: () => realNative ? [
+      title: () => route === '/chat' ? 'Team chat' : route === '/inventory' ? 'Workshop inventory' : 'Window-sign draft',
+      tools: () => route === '/chat' ? [] : realNative ? [
         { id: 'discuss', label: 'Order discussion' },
         ...(intakeAvailable ? [{ id: 'intake', label: 'Drawing intake' }] : []),
         { id: 'readiness', label: 'Production readiness' }
       ] : route === '/inventory'
         ? [{ id: 'stock', label: 'Stock checks' }]
         : [{ id: 'review', label: 'Order checks' }, { id: 'files', label: 'Attachment analysis' }],
-      context: () => ({
+      context: () => route === '/chat' ? chatScreenContext({
+        current: true, loading: false, error: false, selected: true, roomKind: 'channel',
+        visibleMessages: 100, hasEarlierMessages: true, loadingEarlier: false,
+        draftPresent: !!draftNotes, sending: false, voiceAvailable: true
+      }) : ({
         account: accountId,
         notes: draftNotes,
         selectedMaterial,
@@ -51,7 +57,7 @@
         credentials: { apiKey: 'fixture-secret-must-not-leave-browser' },
         fileBytes: 'fixture-file-bytes-must-not-leave-browser'
       }),
-      content: realNative ? orderTools : nativeTools
+      content: route === '/chat' ? undefined : realNative ? orderTools : nativeTools
     }));
   });
 

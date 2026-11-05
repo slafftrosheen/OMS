@@ -148,6 +148,7 @@ describe('screen assistant tool and conversation lifecycle', () => {
   it('restricts tools by actual screen and keeps private context keys out of the model prompt', async () => {
     assert.deepEqual(selectScreenTools([catalog, tool('web.crawl'), tool('maker.save_sketch')], '/orders/new'), [catalog]);
     assert.deepEqual(selectScreenTools([catalog], '/settings'), []);
+    assert.deepEqual(selectScreenTools([catalog, tool('data.pending_orders'), tool('data.low_stock')], '/cabinet'), []);
     assert.deepEqual(selectScreenTools([tool('paint.match')], '/station/paint').map(row => row.slug), ['paint.match']);
     const requests: any[] = [];
     await runScreenAssistant(input({ language: 'ru', screen: { path: '/orders/new', title: 'Current draft', data: {

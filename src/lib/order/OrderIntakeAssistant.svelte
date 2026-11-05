@@ -33,7 +33,6 @@
   let fileId=$state('');
   let profileChoice=$state('');
   let includePaidOcr=$state(false);
-  let consent=$state(false);
   let loading=$state(false);
   let analyzing=$state(false);
   let applying=$state(false);
@@ -83,7 +82,7 @@
     finally{if(!disposed&&id===orderId && version===filesLoadVersion)loading=false;}
   }
   async function analyze(){
-    if(!editable||!consent||analyzing)return;
+    if(!editable||analyzing)return;
     if(dirty||!orderUpdatedAt){problem=$t('orderIntake.saveFirst');return;}
     if(!fileId && !String(current.notes??'').trim()){
       problem=$t('orderIntake.noSource');return;
@@ -198,12 +197,8 @@
     </label>
     {#if includePaidOcr}<p class="hint">{$t('orderIntake.ocrCharge')}</p>{/if}
   {/if}
-  <label class="check">
-    <input type="checkbox" bind:checked={consent} disabled={!editable||analyzing}/>
-    {$t('orderIntake.consent')}
-  </label>
   <button class="primary" onclick={analyze}
-    disabled={!editable||!consent||analyzing||dirty||!orderUpdatedAt}>
+    disabled={!editable||analyzing||dirty||!orderUpdatedAt}>
     {analyzing?$t('orderIntake.analyzing'):$t('orderIntake.analyze')}
   </button>
   {#if problem}<p role="alert" class="problem">{problem}</p>{/if}

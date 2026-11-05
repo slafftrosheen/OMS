@@ -25,6 +25,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Voice uploads are measured and checked server-side before they enter a chat.
+RUN apk add --no-cache ffmpeg
+
 # Run as the unprivileged `node` user that comes baked into node:alpine.
 # Owning /app first lets the user write the runtime caches they need.
 RUN chown -R node:node /app

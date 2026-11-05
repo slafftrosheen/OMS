@@ -2,6 +2,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { ChatService } from '$lib/server/chat/ChatService';
+import { messageVoices, nonVoiceAttachments } from '$lib/server/chat/voice-service';
+import { chatCursorFilter, chatPage, decodeChatCursor, validChatTimestamp } from '$lib/server/chat/history';
 
 /**
  * GET /api/chat/messages - Get messages for a room or order
@@ -12,7 +14,12 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     const roomId = url.searchParams.get('roomId');
     const orderId = url.searchParams.get('orderId');
     const before = url.searchParams.get('before') || undefined;
+    const cursorValue = url.searchParams.get('cursor');
+    const cursor = cursorValue ? decodeChatCursor(cursorValue) : null;
     const limit = Math.max(1, Math.min(100, Number.parseInt(url.searchParams.get('limit') || '100', 10) || 100));
+    if ((cursorValue !== null && !cursor) || (before && !validChatTimestamp(before)) || (cursor && before) || (roomId && orderId)) {
+        return json({ success: false, error: 'Invalid conversation or history cursor', messages: [] }, { status: 400 });
+    }
 
     // Handle room-based chat (general, workstations, logistics)
     if (roomId && !orderId) {
@@ -32,13 +39,15 @@ export const GET: RequestHandler = async ({ url, locals }) => {
                 .eq('room_id', roomId)
                 .eq('is_deleted', false)
                 .order('created_at', { ascending: false })
-                .limit(limit);
+                .order('id', { ascending: false })
+                .limit(limit + 1);
 
-            if (before) {
+            if (cursor) query = query.or(chatCursorFilter(cursor));
+            else if (before) {
                 query = query.lt('created_at', before);
             }
 
-            const { data: messages, error } = await query;
+            const { data, error } = await query;
 
             if (error) {
                 console.error('Error fetching room messages:', error);
@@ -46,6 +55,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
                     success: false, messages: [], hasMore: false, error: 'Failed to fetch messages'
                 }, { status: 500 });
             }
+            const page = chatPage(data || [], limit);
+            const messages = page.rows;
 
             // Get unique user IDs and fetch profiles
             const userIds = [...new Set(messages?.map(m => m.user_id).filter(Boolean))];
@@ -63,12 +74,13 @@ export const GET: RequestHandler = async ({ url, locals }) => {
             }
 
             // Transform to expected format
+            const voices = await messageVoices(locals.supabase, (messages || []).map(msg => msg.id));
             const transformedMessages = (messages || []).map(msg => ({
                 id: msg.id,
                 roomId: msg.room_id,
                 authorId: msg.user_id || 'system',
                 text: msg.content ?? msg.text,
-                attachments: msg.attachments ?? [],
+                attachments: [...nonVoiceAttachments(msg.attachments), ...(voices.get(msg.id) || [])],
                 ts: msg.created_at,
                 mentions: [],
                 variant: msg.user_id ? 'user' : 'system',
@@ -86,8 +98,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
             return json({
                 success: true,
                 messages: transformedMessages,
-                hasMore: messages ? messages.length === limit : false
-            });
+                hasMore: page.hasMore,
+                nextCursor: page.nextCursor
+            }, { headers: { 'cache-control': 'private, no-store' } });
         } catch (err) {
             console.error('Unexpected error fetching room messages:', err);
             return json({ 
@@ -114,13 +127,14 @@ export const GET: RequestHandler = async ({ url, locals }) => {
         const chatService = new ChatService(locals.supabase);
 
         try {
-            const messages = await chatService.getMessages(orderId, limit, before);
+            const page = await chatService.getMessagePage(orderId, limit, before, cursor ?? undefined);
 
             return json({
                 success: true,
-                messages,
-                hasMore: messages.length === limit
-            });
+                messages: page.messages,
+                hasMore: page.hasMore,
+                nextCursor: page.nextCursor
+            }, { headers: { 'cache-control': 'private, no-store' } });
         } catch (err) {
             console.error('Error fetching order messages:', err);
             return json({ 
@@ -227,7 +241,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 orderId,
                 locals.user.id,
                 text,
-                body.attachments,
+                Array.isArray(body.attachments) ? body.attachments.filter((item: unknown) => typeof item === 'string') : undefined,
                 body.replyTo
             );
 

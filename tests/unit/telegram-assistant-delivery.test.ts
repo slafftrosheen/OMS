@@ -12,6 +12,7 @@ function fixture(consent=true){
    else if(name==='claim_telegram_bot_replies')data=state.status==='pending'?[{id:'reply-owner',claim_token:'live-lease',attempts:++state.attempts}]:[];
    else if(name==='telegram_bot_reply_payload')data=state.valid?{chatId:'111',payload:state.payload}:null;
    else if(name==='telegram_bot_search_orders'){state.lookups.push(args);data={orders:[{id:'order-visible',po_number:'PO-42',status:'CONFIRMED'}],truncated:false};}
+   else if(name==='telegram_bot_read_context'){state.lookups.push(args);data={source:args.p_source,count:3,exact:true};}
    else if(name==='prepare_telegram_bot_reply'){state.prepares++;state.payload={kind:'ask',locale:'en',personalAiAllowed:consent,personalAiDisabled:!consent,rendered:args.p_text,keyboard:args.p_keyboard};data=true;}
    else if(name==='finish_telegram_bot_reply'){state.status=args.p_status;data=true;}
    else throw Error('Unexpected RPC '+name);
@@ -27,6 +28,12 @@ describe('Telegram assistant delivery adapter',()=>{
   assert.equal(state.status,'sent');assert.equal(state.prepares,1);assert.equal(state.sent[0].chat_id,'111');
   assert.deepEqual(state.lookups,[{p_id:'reply-owner',p_claim_token:'live-lease',p_query:'PO-42',p_due_from:null,p_due_until:null,p_include_closed:false}]);
   assert.equal(state.payload.question,undefined);assert.equal(state.payload.personalAiAllowed,true);
+ });
+ it('binds live context queries to the current claim and returns exact stock counts',async()=>{
+  const {state,db,fetcher}=fixture();let calls=0;
+  await dispatchTelegramBotReplies(config,db,{fetcher,chat:async()=>++calls===1?{tool_calls:[{id:'inventory1',type:'function',function:{name:'read_oms_context',arguments:'{"source":"inventory","mode":"count"}'}}]}:{content:'There are 3 inventory records.'}});
+  assert.equal(state.status,'sent');assert.equal(state.prepares,1);
+  assert.deepEqual(state.lookups,[{p_id:'reply-owner',p_claim_token:'live-lease',p_source:'inventory',p_mode:'count',p_filters:[],p_group:null,p_offset:0}]);
  });
  it('delivers local opt-in guidance without any inference or lookup',async()=>{
   const {state,db,fetcher}=fixture(false);let calls=0;

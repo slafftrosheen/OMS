@@ -12,6 +12,8 @@
   import TelegramPersonalSettings from './TelegramPersonalSettings.svelte';
   import type { TelegramAccountStatus, TelegramPersonalPreferences } from './telegram-account';
   import { telegramAccountCopy } from './telegram-account-copy';
+  import { telegramOnboardingLinks, copyTelegramCommand, type TelegramOnboardingLinks } from './telegram-onboarding';
+  import { telegramOnboardingCopy } from './telegram-onboarding-copy';
 
   const authState = getContext<AuthState | undefined>('authState');
   type Operation = 'load' | 'connect' | 'confirm' | 'save' | 'disconnect';
@@ -19,18 +21,22 @@
   let busy = $state<Operation | null>(null);
   let error = $state('');
   let feedback = $state('');
-  let link = $state<{ url: string; expiresAt: string } | null>(null);
+  let link = $state<(TelegramOnboardingLinks & { expiresAt: string }) | null>(null);
   let qrData = $state('');
   let qrUnavailable = $state(false);
   let now = $state(Date.now());
   let identityConfirmed = $state(false);
   let openLink: HTMLAnchorElement | undefined = $state();
+  let commandField: HTMLTextAreaElement | undefined = $state();
+  let commandFeedback = $state<'' | 'copied' | 'manualCopy'>('');
+  let copyLinkKey = '';
   let mounted=false, ownerKey='', approvalKey='';
   let controller: AbortController | null = null;
   let finalStatusCheck=false;
   let checkedExpiry: string | null = null;
   const endpoint = `${base}/api/notifications/telegram`;
   const copy = $derived(telegramAccountCopy($locale));
+  const onboardingCopy = $derived(telegramOnboardingCopy($locale));
   const pending = $derived(Boolean(status?.pendingUntil && Date.parse(status.pendingUntil)>now));
   const stateKey = $derived(status?.connected ? (status.enabled ? 'connected':'paused')
     : !status?.configured ? 'notConfigured' : !status.available ? 'unavailable' : pending ? 'pending':'notLinked');
@@ -47,6 +53,10 @@
   $effect(() => {
     const requestId=status?.pendingApproval?.requestId ?? '';
     if (requestId!==approvalKey) { approvalKey=requestId; identityConfirmed=false; }
+  });
+  $effect(() => {
+    const key = link?.url ?? '';
+    if (key !== copyLinkKey) { copyLinkKey = key; commandFeedback = ''; }
   });
   function requestError(code: string) {
     if (code==='confirmation_expired') return copy.approvalExpired;
@@ -94,14 +104,25 @@
     await perform('connect',async signal=>{
       const data=await request('POST',signal,{action:'connect'}); if(!active(signal))return;
       if(ownerKey && data.accountId && data.accountId!==ownerKey)throw new Error($t('settings.telegram.errors.signIn'));
-      let url:URL; try {url=new URL(data.url);}catch{throw new Error($t('settings.telegram.errors.request'));}
-      if(url.origin!=='https://t.me'||url.pathname!==`/${status?.botUsername}`||url.username||url.password||
-        !/^[A-Za-z0-9_-]{20,64}$/.test(url.searchParams.get('start')??'')||!Number.isFinite(Date.parse(data.expiresAt))||Date.parse(data.expiresAt)<=Date.now())throw new Error($t('settings.telegram.errors.request'));
-      link={url:url.href,expiresAt:data.expiresAt};
+      const launch = telegramOnboardingLinks(data.url, status?.botUsername);
+      if(!launch||!Number.isFinite(Date.parse(data.expiresAt))||Date.parse(data.expiresAt)<=Date.now())throw new Error($t('settings.telegram.errors.request'));
+      link={...launch,expiresAt:data.expiresAt};
       if(status)status={...status,pendingUntil:data.expiresAt,pendingApproval:null};
       qrData='';qrUnavailable=false;checkedExpiry=null;finalStatusCheck=false;
-      void createQrCode(url.href); await tick(); if(active(signal))openLink?.focus();
+      void createQrCode(launch.url); await tick(); if(active(signal))openLink?.focus();
     });
+  }
+  async function copyCommand() {
+    const requestedLink = link, requestedOwner = ownerKey;
+    if (!mounted || (authState?.user?.id ?? '') !== requestedOwner || !requestedLink || !pending ||
+      status?.pendingApproval || Date.parse(requestedLink.expiresAt) <= Date.now()) return;
+    commandFeedback = '';
+    const copied = await copyTelegramCommand(requestedLink.command, navigator.clipboard);
+    // Clipboard permission can resolve after logout, cancellation or expiry.
+    if (!mounted || ownerKey !== requestedOwner || (authState?.user?.id ?? '') !== requestedOwner ||
+      link?.url !== requestedLink.url || status?.pendingApproval || Date.parse(requestedLink.expiresAt) <= Date.now()) return;
+    commandFeedback = copied ? 'copied' : 'manualCopy';
+    if (!copied) { commandField?.focus(); commandField?.select(); }
   }
   async function createQrCode(requestedUrl:string) {
     const requestedOwner=ownerKey;
@@ -197,11 +218,26 @@
     {:else if link&&pending}
       <div class="link-instructions">
         {#if qrData}<img class="telegram-qr" src={qrData} width="192" height="192" alt={$t('settings.telegram.qrAlt')}/>{/if}
-        <div class="link-copy"><h4>{$t('settings.telegram.linkTitle')}</h4><p>{$t('settings.telegram.linkInstructions')}</p>
-          <a bind:this={openLink} class="telegram-button primary" href={link.url} target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">{$t('settings.telegram.openTelegram')}<ExternalLink size={15} aria-hidden="true"/></a>
+        <div class="link-copy"><h4>{onboardingCopy.title}</h4><p>{onboardingCopy.instructions}</p>
+          <div class="link-launch-actions">
+            <a bind:this={openLink} class="telegram-button primary" href={link.webUrl} target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">{onboardingCopy.openWeb}<ExternalLink size={15} aria-hidden="true"/></a>
+            <a class="telegram-button" href={link.url} target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">{onboardingCopy.openApp}<ExternalLink size={15} aria-hidden="true"/></a>
+          </div>
+          <p class="hint">{onboardingCopy.launchHint}</p>
           <p class="hint">{$t('settings.telegram.expires',{time:expiryLabel(link.expiresAt)})}</p>{#if qrUnavailable}<p class="hint">{$t('settings.telegram.qrUnavailable')}</p>{/if}
         </div>
       </div>
+      <details class="manual-connect">
+        <summary>{onboardingCopy.manualTitle}</summary>
+        <p class="hint">{onboardingCopy.manualBefore} <strong>@{link.botUsername}</strong> {onboardingCopy.manualAfter}</p>
+        <label for="telegram-pairing-command">{onboardingCopy.commandLabel}</label>
+        <div class="command-row">
+          <textarea id="telegram-pairing-command" class="command-field" bind:this={commandField} value={link.command} readonly rows="2" spellcheck="false" autocomplete="off" aria-describedby="telegram-command-security"></textarea>
+          <button type="button" class="telegram-button" onclick={copyCommand}>{onboardingCopy.copyCommand}</button>
+        </div>
+        <p id="telegram-command-security" class="hint">{onboardingCopy.secretHint}</p>
+        <p class="hint" role="status" aria-live="polite">{commandFeedback ? onboardingCopy[commandFeedback] : ''}</p>
+      </details>
     {:else}<p class="hint">{$t(pending?'settings.telegram.pendingHint':'settings.telegram.connectHint')}</p>{/if}
     <div class="actions">
       {#if (!link||!pending)&&!status.pendingApproval}<button type="button" class="telegram-button primary" onclick={connect} disabled={Boolean(busy)}>{$t(busy==='connect'?'settings.telegram.creatingLink':pending?'settings.telegram.newLink':'settings.telegram.connect')}</button>{/if}
@@ -233,12 +269,18 @@
   .telegram-button { display:inline-flex; align-items:center; justify-content:center; gap:.5rem; padding:.6rem .9rem; min-height:44px; max-width:100%; border:1px solid var(--border); border-radius:var(--radius-sm,6px); background:var(--bg-1); color:var(--text); font:inherit; font-size:.875rem; font-weight:600; line-height:1.3; text-align:center; white-space:normal; text-decoration:none; cursor:pointer; }
   .telegram-button > :global(svg) { flex-shrink:0; }
   .telegram-button:hover:not(:disabled) { background:var(--bg-2); border-color:var(--ink-secondary); }
-  .telegram-button:focus-visible,.identity-check input:focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
+  .telegram-button:focus-visible,.identity-check input:focus-visible,.command-field:focus-visible,.manual-connect summary:focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
   .telegram-button:disabled { opacity:.55; cursor:default; }
   .telegram-button.primary { background:var(--brand); color:var(--on-brand,#fff); border-color:var(--brand); }
   .telegram-button.primary:hover:not(:disabled) { background:var(--brand-hover,var(--brand)); }
   .telegram-button.subtle { background:transparent; }
   .link-instructions { display:grid; grid-template-columns:192px minmax(0,1fr); gap:1.5rem; align-items:center; margin-block:1.25rem; }
+  .link-launch-actions { display:flex; flex-wrap:wrap; gap:.5rem; }
+  .manual-connect { margin-block:1rem; padding:1rem; border:1px solid var(--border); border-radius:var(--radius-sm,6px); background:var(--bg-2); }
+  .manual-connect summary { cursor:pointer; font-weight:600; min-height:44px; align-content:center; }
+  .manual-connect label { display:block; margin-bottom:.5rem; font-size:.875rem; font-weight:600; }
+  .command-row { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+  .command-field { box-sizing:border-box; flex:1 1 230px; min-width:0; width:100%; max-width:100%; padding:.65rem; border:1px solid var(--border); border-radius:var(--radius-sm,6px); background:var(--bg-1); color:var(--text); font-family:monospace; font-size:.875rem; line-height:1.5; overflow-wrap:anywhere; resize:vertical; }
   .telegram-qr { display:block; width:192px; height:192px; max-width:100%; background:white; border-radius:4px; }
   .link-copy h4 { margin:0 0 .5rem; font-size:1rem; } .link-copy p { margin:.5rem 0 1rem; line-height:1.55; }
   .link-copy .hint { margin-bottom:0; font-variant-numeric:tabular-nums; }

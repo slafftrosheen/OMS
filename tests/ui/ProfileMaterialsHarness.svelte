@@ -28,6 +28,45 @@
     configuration = JSON.parse(JSON.stringify(latest));
     instance += 1;
   }
+
+  function loadLegacyMaterialRoles() {
+    latest = {
+      ...JSON.parse(JSON.stringify(legacy)),
+      CNC_FREZER: { ...legacy.CNC_FREZER, back: 'Aluminium flat bar 20x3', backThickness: '3mm' },
+      BENDER: { sides: 'Aluminium tube 40x40', sidesThickness: '2mm', depth: 100 },
+      ASSEMBLING: { ...legacy.ASSEMBLING, cableType: 'TEST LIYCY 2x0.5 control cable', cablesLength: '6 m' }
+    };
+    changes = 0;
+    reload();
+  }
+
+  function loadConfiguredMaterials() {
+    latest = {
+      ...JSON.parse(JSON.stringify(legacy)),
+      CNC_FREZER: {
+        face: 'PLEXIGLAS_GS_1C33', faceThickness: '3mm',
+        back: 'PLEXIGLAS_GS_0F00', backThickness: '1.5mm',
+        faceMaterials: [
+          { id: 'yellow-face', value: 'PLEXIGLAS_GS_1C33', category: 'ACRYLIC_GS', thickness: '3mm' },
+          { id: 'printed-face', value: '3S-ASA-BLACK-100-175', category: 'FDM_ASA', process: '3D_PRINT' }
+        ]
+      },
+      BENDER: { sides: 'Aluminium sheet 1500 × 3000 mm', sidesThickness: '1.5mm', depth: 100 },
+      FRONT: { face: true, faceFilm: '005S', faceFilmShort: '005', faceCustom: 'Apply before trimming' },
+      PAINTING: { face: true, faceColor: { system: 'RAL', code: '3024', hex: '#FF2D21' } }
+    };
+    changes = 0;
+    reload();
+  }
+
+  function loadLegacyPrint() {
+    latest = {
+      ...JSON.parse(JSON.stringify(legacy)),
+      CNC_FREZER: { ...legacy.CNC_FREZER, print3d: true, print3dMaterial: '3S-ASA-BLACK-100-175' }
+    };
+    changes = 0;
+    reload();
+  }
 </script>
 
 <main>
@@ -45,6 +84,9 @@
     </label>
     <button type="button" onclick={reload}>Reload serialized profile</button>
     <button type="button" onclick={() => editable = !editable}>Toggle read only</button>
+    <button type="button" onclick={loadLegacyMaterialRoles}>Load legacy material roles</button>
+    <button type="button" onclick={loadConfiguredMaterials}>Load configured materials</button>
+    <button type="button" onclick={loadLegacyPrint}>Load legacy 3D material</button>
   </div>
 
   <section aria-label="Native profile">

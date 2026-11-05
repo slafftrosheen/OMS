@@ -3,9 +3,10 @@ import type { RequestHandler } from './$types';
 import { requireToolkitManager } from '$lib/server/toolkit/access';
 import { isUuid, signatureMatches, TOOLKIT_ASSET_BUCKET } from '$lib/server/toolkit/assets';
 import { toolkitMediaKind, toolkitMediaLimit, toolkitMediaContent, toolkitPdfEngine, extractedPdfEvidence } from '$lib/server/toolkit/media-analysis';
-import { aiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
-import { openRouterCompleteWithMetadata } from '$lib/server/ai/openrouter';
-import { OPENROUTER_MODEL, OPENROUTER_VISION_MODEL } from '$lib/server/config';
+import { checkAiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
+import { openRouterCompleteWithMetadata, OpenRouterHttpError } from '$lib/server/ai/openrouter';
+import { OPENROUTER_VISION_MODEL } from '$lib/server/config';
+import { resolveToolkitModel } from '$lib/server/toolkit/ai-models';
 import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/ai/response-language';
 
 const noStore = { 'Cache-Control': 'private, no-store' };
@@ -15,11 +16,23 @@ const noStore = { 'Cache-Control': 'private, no-store' };
 export const POST: RequestHandler = async (event) => {
   const { locals, request } = event;
   const user = requireToolkitManager(locals.user);
-  aiRateLimit(rateLimitIdentifier(event));
+  const limit = checkAiRateLimit(rateLimitIdentifier(event));
+  if (!limit.allowed) {
+    return json({
+      error: 'OMS AI request limit reached. Wait before retrying.',
+      code: 'OMS_AI_RATE_LIMIT',
+      source: 'oms',
+      retryAfter: limit.retryAfter
+    }, {
+      status: 429,
+      headers: { ...noStore, 'Retry-After': String(limit.retryAfter) }
+    });
+  }
   const body = await request.json().catch(() => null);
   if (!body || !isUuid(body.boardId) || !isUuid(body.assetId) ||
       (body.question !== undefined && (typeof body.question !== 'string' || body.question.length > 2500)) ||
-      (body.ocr !== undefined && typeof body.ocr !== 'boolean')) {
+      (body.ocr !== undefined && typeof body.ocr !== 'boolean') ||
+      (body.model !== undefined && typeof body.model !== 'string')) {
     throw error(400, 'Select a valid Canvas image/PDF and a bounded question');
   }
   const allowPaidOcr = process.env.OPENROUTER_TOOLKIT_PDF_OCR === 'true';
@@ -42,6 +55,10 @@ export const POST: RequestHandler = async (event) => {
     throw error(413, 'File exceeds the analysis limit (8 MiB images, 12 MiB PDFs)');
   }
   const engine = kind === 'pdf' ? toolkitPdfEngine(body.ocr, allowPaidOcr) : null;
+  // Only the administrator-configured allow-list may select a PDF model.
+  // Never auto-upgrade to a paid model when free quota is exhausted.
+  const pdfModel = kind === 'pdf' ? resolveToolkitModel(body.model) : null;
+  if (kind === 'pdf' && !pdfModel) throw error(400, 'Choose a configured PDF model');
   if (kind === 'pdf' && !engine) throw error(403, 'Paid PDF OCR is not enabled');
 
   const { data: preference } = await locals.supabase.from('user_preferences')
@@ -83,7 +100,7 @@ ${responseLanguageInstruction(locale)}`;
   ];
   try {
     const response = await openRouterCompleteWithMetadata(messages, {
-      model: kind === 'image' ? OPENROUTER_VISION_MODEL : OPENROUTER_MODEL,
+      model: kind === 'image' ? OPENROUTER_VISION_MODEL : pdfModel!,
       maxTokens: 2200, temperature: 0.2, timeoutMs: 120_000, signal: request.signal,
       ...(kind === 'pdf' ? { plugins: [{ id: 'file-parser', pdf: { engine } }] } : {})
     });
@@ -101,8 +118,47 @@ ${responseLanguageInstruction(locale)}`;
     }, { headers: noStore });
   } catch (err) {
     if (request.signal.aborted) return json({ error: 'Request cancelled' }, { status: 499, headers: noStore });
-    console.error('[Toolkit] multimodal analysis unavailable', err instanceof Error ? err.name : 'unknown');
-    return json({ error: 'Could not analyze this file with the configured OpenRouter model. The Canvas is unchanged. Check model modality support and provider configuration.' },
-      { status: 503, headers: noStore });
+    const detail = err instanceof Error ? err.message : '';
+    // Never expose upstream response bodies, stored filenames, credentials or prompts.
+    // The OpenRouter client intentionally reports only the HTTP status.
+    const upstreamStatus = err instanceof OpenRouterHttpError
+      ? String(err.statusCode)
+      : /OpenRouter completion failed \(HTTP (\d{3})\)/.exec(detail)?.[1];
+    const retryAfter = err instanceof OpenRouterHttpError ? err.retryAfterSeconds : null;
+    const policyDenied = /policy|data sharing|disabled/i.test(detail);
+    const unconfigured = /not configured|API key/i.test(detail);
+    const timedOut = /timeout|timed out|TimeoutError/i.test(detail) ||
+      (err instanceof Error && err.name === 'TimeoutError');
+    const status = policyDenied ? 403 : unconfigured ? 503 : timedOut ? 504 :
+      upstreamStatus === '429' ? 429 : upstreamStatus === '400' || upstreamStatus === '422' ? 422 : 503;
+    const code = policyDenied ? 'PROVIDER_POLICY_DISABLED' :
+      unconfigured ? 'PROVIDER_NOT_CONFIGURED' : timedOut ? 'PROVIDER_TIMEOUT' :
+      upstreamStatus === '429' ? 'PROVIDER_RATE_LIMIT' :
+      upstreamStatus === '400' || upstreamStatus === '422' ? 'PROVIDER_REJECTED_DOCUMENT' :
+      upstreamStatus === '401' || upstreamStatus === '403' ? 'PROVIDER_AUTH_FAILURE' :
+      upstreamStatus ? 'PROVIDER_UPSTREAM_ERROR' : 'PROVIDER_ANALYSIS_FAILED';
+    console.error('[Toolkit] multimodal analysis failed', {
+      code, upstreamStatus: upstreamStatus ?? null, retryAfter, kind,
+      errorType: err instanceof Error ? err.name : 'unknown'
+    });
+    return json({
+      error: code === 'PROVIDER_REJECTED_DOCUMENT'
+        ? 'OpenRouter rejected this document or parser/model combination. Try another configured PDF-capable model.'
+        : code === 'PROVIDER_POLICY_DISABLED'
+          ? 'OpenRouter sharing is disabled in R&D settings.'
+          : code === 'PROVIDER_TIMEOUT'
+            ? 'Document analysis timed out. Try a smaller PDF.'
+            : code === 'PROVIDER_RATE_LIMIT'
+              ? 'OpenRouter rate limit or free quota reached. Check account limits; repeated attempts also consume quota.'
+              : code === 'PROVIDER_NOT_CONFIGURED' || code === 'PROVIDER_AUTH_FAILURE'
+                ? 'OpenRouter credentials are missing or rejected. Check R&D settings.'
+                : 'Document analysis is unavailable. Check the OpenRouter model and parser configuration.',
+      code, source: upstreamStatus ? 'openrouter' : 'oms',
+      upstreamStatus: upstreamStatus ? Number(upstreamStatus) : null,
+      retryAfter
+    }, {
+      status,
+      headers: retryAfter !== null ? { ...noStore, 'Retry-After': String(retryAfter) } : noStore
+    });
   }
 };

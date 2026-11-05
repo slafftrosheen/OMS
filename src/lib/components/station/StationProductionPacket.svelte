@@ -1,18 +1,13 @@
 <script lang="ts">
-  import {onMount} from 'svelte';
+  import {onDestroy, untrack} from 'svelte';
   import {t} from 'svelte-i18n';
   import {base} from '$app/paths';
-  import OrderNativeProfileForm from '$lib/order/OrderNativeProfileForm.svelte';
-  import {summarizeNativeProfileConfiguration} from '$lib/order/native-profile-context';
+  import OrderProfileSheet from '$lib/order/OrderProfileSheet.svelte';
+  import {orderSheetAccountKey, readOrderSheetSnapshot, type OrderSheetSnapshot} from '$lib/order/order-sheet';
+  import {currentUser} from '$lib/auth/authState.svelte';
   import {fetchOrderFilePage} from '$lib/order/order-files-client';
   import {stageStateLabel} from '$lib/order/operator-ui';
 
-  type Profile={
-    configuration?:Record<string,unknown>|null;
-    profileTemplateId?:string|null;
-    quantity?:number;quantity2?:number;quantity3?:number;quantity4?:number;
-    notes?:string|null;
-  };
   type FileRow={id:string;originalName?:string;mimeType?:string;size?:number};
   type ConsumptionRow={station:string;sku?:string|null;name?:string|null;
     total_quantity:number|string;last_logged_at?:string|null};
@@ -22,43 +17,51 @@
 
   let busy=$state(true);
   let issue=$state('');
-  let order=$state<{
-    id:string;status:string;poNumber?:string|null;clientName?:string;
-    title?:string|null;deadline?:string|null;updatedAt:string;
-    profiles:Profile[];
-  }|null>(null);
+  let order=$state<OrderSheetSnapshot|null>(null);
+  let loadedAccount=$state<string|null>(null);
+  let loadedStation=$state<string|null>(null);
+  let ownerKey=$derived(orderSheetAccountKey($currentUser));
+  let currentOrderVisible=$derived(order?.id===orderId && loadedStation===station &&
+    !!ownerKey && loadedAccount===ownerKey);
   let files=$state<FileRow[]>([]);
   let fileTotal=$state<number|null>(null);
   let currentStage=$state<{state:string;blocked_reason?:string|null;notes?:string|null;
     consumption_skipped?:boolean;consumption_skipped_reason?:string|null}|null>(null);
   let consumed=$state<ConsumptionRow[]>([]);
   let consumptionUnavailable=$state(false);
-  let expandedProfile=$state<number|null>(null);
   let requestVersion=0;
+  let controller=new AbortController();
   async function refresh(){
     const version=++requestVersion;
+    const requestedId=orderId, requestedStation=station, account=ownerKey;
+    controller.abort();
+    controller=new AbortController();
+    const signal=controller.signal;
+    const isCurrent=()=>version===requestVersion && !signal.aborted && orderId===requestedId &&
+      station===requestedStation && ownerKey===account;
     busy=true;issue='';
+    order=null;files=[];fileTotal=null;currentStage=null;
+    consumed=[];consumptionUnavailable=false;
+    if(!account){busy=false;issue=$t('orderSheet.accessDenied');return;}
     try{
       // These are existing authenticated RLS-backed endpoints, never
       // model-created specifications or caller-supplied profile JSON.
       const [orderResponse,filePage,stagesResponse,consumptionResponse]=await Promise.all([
-        fetch(`${base}/api/draft-orders/${encodeURIComponent(orderId)}`,{cache:'no-store'}),
-        fetchOrderFilePage<FileRow>(orderId,0,50),
-        fetch(`${base}/api/orders/${encodeURIComponent(orderId)}/stages`,{cache:'no-store'}),
-        fetch(`${base}/api/orders/${encodeURIComponent(orderId)}/consumption`,{cache:'no-store'})
+        fetch(`${base}/api/draft-orders/${encodeURIComponent(requestedId)}`,{cache:'no-store',signal}),
+        fetchOrderFilePage<FileRow>(requestedId,0,50,(input,options)=>fetch(input,{...options,signal})),
+        fetch(`${base}/api/orders/${encodeURIComponent(requestedId)}/stages`,{cache:'no-store',signal}),
+        fetch(`${base}/api/orders/${encodeURIComponent(requestedId)}/consumption`,{cache:'no-store',signal})
       ]);
-      if(!orderResponse.ok)throw Error($t('productionPacket.loadFailed'));
-      const snapshot=await orderResponse.json();
-      if(snapshot.id!==orderId ||
-         !['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(snapshot.status)||
-         !Array.isArray(snapshot.profiles) ||
-         typeof snapshot.updatedAt!=='string')
+      if(!orderResponse.ok)throw Error($t(orderResponse.status===401 || orderResponse.status===403
+        ? 'orderSheet.accessDenied' : 'productionPacket.loadFailed'));
+      const snapshot=readOrderSheetSnapshot(await orderResponse.json(),requestedId);
+      if(!snapshot || !['CONFIRMED','IN_PRODUCTION','READY_TO_LOAD','ON_HOLD'].includes(snapshot.status))
         throw Error($t('productionPacket.loadFailed'));
       if(!stagesResponse.ok)throw Error($t('productionPacket.loadFailed'));
       const stages=await stagesResponse.json();
       const found=Array.isArray(stages)?stages.find(
         (row:{station?:string;draft_order_id?:string;state?:string})=>
-          row.station===station && row.draft_order_id===orderId &&
+          row.station===requestedStation && row.draft_order_id===requestedId &&
           typeof row.state==='string'
       ):null;
       if(!found)throw Error($t('productionPacket.loadFailed'));
@@ -73,25 +76,29 @@
             typeof (row as ConsumptionRow).total_quantity==='string'))
           .slice(0,100);
       }
-      if(version!==requestVersion)return;
+      if(!isCurrent())return;
       currentStage={state:found.state,blocked_reason:found.blocked_reason,notes:found.notes,
         consumption_skipped:found.consumption_skipped,
         consumption_skipped_reason:found.consumption_skipped_reason};
       consumed=ledger;consumptionUnavailable=ledgerError;
-      order=snapshot;
+      order=snapshot;loadedAccount=account;loadedStation=requestedStation;
       files=filePage.files;
       fileTotal=filePage.total;
-      expandedProfile=null;
-    }catch{
-      if(version===requestVersion){
+    }catch(error){
+      if(isCurrent()){
         // Never present an old production profile as current after a failed refresh.
         order=null;files=[];fileTotal=null;currentStage=null;
         consumed=[];consumptionUnavailable=false;
-        issue=$t('productionPacket.loadFailed');
+        issue=error instanceof Error && error.message===$t('orderSheet.accessDenied')
+          ? error.message : $t('productionPacket.loadFailed');
       }
-    }finally{if(version===requestVersion)busy=false;}
+    }finally{if(isCurrent())busy=false;}
   }
-  onMount(()=>{void refresh();return ()=>{requestVersion++;};});
+  $effect(()=>{
+    const id=orderId, selectedStation=station, account=ownerKey;
+    untrack(()=>{if(id && selectedStation)void refresh();});
+  });
+  onDestroy(()=>{requestVersion++;controller.abort();});
   const fileSize=(bytes?:number)=>typeof bytes==='number'
     ?(bytes/1024/1024).toFixed(2)+' MiB':'—';
 </script>
@@ -106,7 +113,7 @@
       ×
     </button>
   </header>
-  {#if currentStage && !busy && !issue}
+  {#if currentOrderVisible && currentStage && !busy && !issue}
     <div class="packet-status">
       <strong>{stageStateLabel(currentStage.state)}</strong>
       {#if currentStage.state==='BLOCKED' || currentStage.state==='REWORK'}
@@ -132,56 +139,15 @@
     <p role="status">{$t('productionPacket.loading')}</p>
   {:else if issue}
     <p role="alert" class="alert">{issue}</p>
-  {:else if order}
+  {:else if currentOrderVisible && order}
     <p class="order-meta">
       <strong>{order.poNumber??order.title??order.id}</strong>
       · {order.clientName??'—'}
       · {$t('productionPacket.deadline')}: {order.deadline??'—'}
     </p>
-    <h3>{$t('productionPacket.profiles')} ({order.profiles.length})</h3>
-    {#if !order.profiles.length}
-      <p class="alert" role="alert">{$t('productionPacket.noProfiles')}</p>
-    {:else}
-      {#each order.profiles as profile,i (i)}
-        {@const summary=summarizeNativeProfileConfiguration(profile.configuration)}
-        <article class="profile">
-          <h4>
-            {$t('productionPacket.profileNumber',{values:{number:i+1}})}
-            · {summary.profileName??summary.signType??$t('productionPacket.unnamedProfile')}
-          </h4>
-          <p class="quantities">{$t('productionPacket.quantities')}:
-            {[profile.quantity??1,profile.quantity2??0,
-              profile.quantity3??0,profile.quantity4??0].join(' / ')}
-          </p>
-          {#if profile.notes}<p class="notes">{profile.notes}</p>{/if}
-          {#if Object.keys(summary.sections).length}
-            <div class="profile-sections">
-              {#each Object.entries(summary.sections) as [section,values] (section)}
-                <div class="profile-section">
-                  <strong>{section.replaceAll('_',' ')}</strong>
-                  {#each Object.entries(values??{}) as [key,value] (key)}
-                    <p><span>{key}</span>: {String(value)}</p>
-                  {/each}
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <p class="muted">{$t('productionPacket.noSelections')}</p>
-          {/if}
-          <button type="button" class="refresh" onclick={()=>expandedProfile=expandedProfile===i?null:i}>
-            {expandedProfile===i?$t('productionPacket.hideOriginal'):$t('productionPacket.viewOriginal')}
-          </button>
-          {#if expandedProfile===i}
-            <div class="original-form">
-              {#key i}
-                <OrderNativeProfileForm configuration={profile.configuration??{}}
-                  editable={false} onChange={()=>{}}/>
-              {/key}
-            </div>
-          {/if}
-        </article>
-      {/each}
-    {/if}
+    {#key `${loadedAccount}:${order.id}:${order.updatedAt}`}
+      <OrderProfileSheet profiles={order.profiles} />
+    {/key}
     <h3>{$t('productionPacket.drawings')} ({fileTotal??'—'})</h3>
     {#if fileTotal===0}
       <p class="alert" role="alert">{$t('productionPacket.noFiles')}</p>
@@ -233,30 +199,20 @@
   .packet-heading p,.muted{color:var(--muted);font-size:.81rem;margin:.3rem 0}
   .packet-heading button{min-width:44px;min-height:44px}
   .packet h3{margin:.7rem 0 0;font-size:1rem}
-  .packet h4{margin:0;font-size:.92rem}
-  .packet-status,.profile{border:1px solid var(--border);border-radius:10px;padding:.75rem;
+  .packet-status{border:1px solid var(--border);border-radius:10px;padding:.75rem;
     overflow-wrap:anywhere}
   .packet-status{background:var(--bg-2)}
   .packet-status p{margin:.3rem 0}
   .reason,.alert{color:var(--error)}
-  .order-meta,.quantities,.notes{font-size:.84rem;overflow-wrap:anywhere}
-  .quantities,.notes{margin:.4rem 0}
-  .profile-sections{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));
-    gap:.55rem;margin:.6rem 0}
-  .profile-section{border:1px solid var(--border);padding:.6rem;border-radius:8px}
-  .profile-section strong{font-size:.79rem}
-  .profile-section p{font-size:.78rem;margin:.25rem 0;overflow-wrap:anywhere}
-  .profile-section span{color:var(--muted)}
+  .order-meta{font-size:.84rem;overflow-wrap:anywhere}
   button,.order-link{cursor:pointer;border:1px solid var(--border);
     border-radius:8px;padding:.55rem .75rem;background:var(--bg-2);color:var(--text);
     width:fit-content;min-height:38px;text-decoration:none}
   button:disabled{opacity:.5;cursor:default}
-  .original-form{max-width:100%;overflow:auto}
   .files{display:grid;gap:.4rem;margin:0;padding-left:1.2rem}
   .files li{display:flex;justify-content:space-between;gap:.8rem;
     flex-wrap:wrap;font-size:.84rem;overflow-wrap:anywhere}
   .files a{color:var(--brand);min-width:0}
   .files small{color:var(--muted)}
-  @media(max-width:640px){.packet{min-width:0;width:100%;padding:.65rem}
-    .profile-sections{grid-template-columns:minmax(0,1fr)}}
+  @media(max-width:640px){.packet{min-width:0;width:100%;padding:.65rem}}
 </style>

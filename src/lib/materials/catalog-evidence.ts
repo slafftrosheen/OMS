@@ -5,18 +5,20 @@ const textKeys = [
   'supplier_product_code', 'verified_at', 'ip_rating', 'material', 'conductor', 'color',
   'led_type', 'control_ic', 'source_kind', 'data_notes', 'product_family', 'package_type',
   'mounting', 'voltage', 'wattage', 'colorTemp', 'ledCount', 'length', 'ipRating', 'width',
-  'height', 'diameter', 'weight', 'packSize', 'minOrder'
+  'height', 'diameter', 'weight', 'packSize', 'minOrder', 'series', 'rated_voltage',
+  'cable_type', 'cable_application'
 ] as const;
 const numberKeys = [
   'voltage_v', 'power_w', 'current_a', 'color_temperature_k', 'watts_per_m', 'leds_per_m',
   'length_m', 'wire_cross_section_mm2', 'diameter_mm', 'weight_kg', 'cores', 'connections',
   'wire_cross_section_max_mm2', 'width_mm', 'height_mm', 'cut_interval_mm', 'beam_angle_deg',
   'beam_angle_horizontal_deg', 'beam_angle_vertical_deg', 'volume_ml', 'body_length_mm',
-  'max_watts_per_m', 'white_channel_temperature_k'
+  'max_watts_per_m', 'white_channel_temperature_k', 'outer_diameter_mm', 'rated_voltage_v'
 ] as const;
 const rangeKeys = [
   'wire_cross_section_range_mm2', 'fine_stranded_conductor_range_mm2',
-  'solid_conductor_range_mm2', 'color_temperature_range_k', 'white_channel_temperature_range_k'
+  'solid_conductor_range_mm2', 'color_temperature_range_k', 'white_channel_temperature_range_k',
+  'outer_diameter_range_mm'
 ] as const;
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -40,12 +42,13 @@ export function projectCatalogEvidence(value: unknown) {
   }
   for (const key of numberKeys) {
     const entry = metadata[key];
-    if (typeof entry === 'number' && Number.isFinite(entry) && entry >= 0) specifications[key] = entry;
+    const positiveOnly = key === 'outer_diameter_mm' || key === 'rated_voltage_v';
+    if (typeof entry === 'number' && Number.isFinite(entry) && (positiveOnly ? entry > 0 : entry >= 0)) specifications[key] = entry;
   }
   for (const key of rangeKeys) {
     const entry = metadata[key];
     if (Array.isArray(entry) && entry.length === 2 && entry.every(item =>
-      typeof item === 'number' && Number.isFinite(item) && item >= 0) && entry[0] <= entry[1]) {
+      typeof item === 'number' && Number.isFinite(item) && (key === 'outer_diameter_range_mm' ? item > 0 : item >= 0)) && entry[0] <= entry[1]) {
       specifications[key] = [...entry];
     }
   }

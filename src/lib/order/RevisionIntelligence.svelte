@@ -22,7 +22,6 @@
   let fileLoadVersion=0;
   let baselineId=$state('');
   let revisedId=$state('');
-  let consent=$state(false);
   let analyzing=$state(false);
   let submitting=$state(false);
   let loading=$state(false);
@@ -38,7 +37,7 @@
   $effect(()=>{
     if(lastOrderId!==orderId){
       lastOrderId=orderId;files=[];baselineId='';revisedId='';
-      consent=false;comparison=null;checked={};created=false;history=[];
+      comparison=null;checked={};created=false;history=[];
       void loadFiles();void loadHistory();
     }
   });
@@ -80,7 +79,7 @@
     }catch{/* History is secondary; main comparison remains available. */}
   }
   async function compare(){
-    if(!canCompare||!consent||analyzing||!baselineId||!revisedId||
+    if(!canCompare||analyzing||!baselineId||!revisedId||
       baselineId===revisedId)return;
     const id=orderId,oldFile=baselineId,newFile=revisedId;
     comparison=null;checked={};created=false;errorMessage='';analyzing=true;
@@ -173,12 +172,8 @@
   <button class="secondary" onclick={loadFiles} disabled={loading||analyzing}>
     {loading?$t('revisionIntelligence.loading'):$t('revisionIntelligence.refresh')}
   </button>
-  <label class="consent">
-    <input type="checkbox" bind:checked={consent} disabled={analyzing||!canCompare}/>
-    {$t('revisionIntelligence.consent')}
-  </label>
   <button class="primary" onclick={compare}
-    disabled={!canCompare||!consent||analyzing||!baselineId||!revisedId||baselineId===revisedId}>
+    disabled={!canCompare||analyzing||!baselineId||!revisedId||baselineId===revisedId}>
     {analyzing?$t('revisionIntelligence.comparing'):$t('revisionIntelligence.compare')}
   </button>
   {#if errorMessage}<p role="alert" class="problem">{errorMessage}</p>{/if}

@@ -1,4 +1,4 @@
-# Profile materials and UI stability — 2026-10-22
+# Profile materials and UI stability
 
 ## Changes
 
@@ -17,7 +17,19 @@ The row list is stored as `CNC_FREZER.faceMaterials` inside the existing profile
 
 Production/assistant summaries include every selected FACE material as scalar material/thickness pairs. The existing PDF utility also includes a paginated FACE schedule for multiple rows and excludes picker metadata from the compact field list. That PDF utility is not currently called by an active application route.
 
-## Repeatable verification
+## Material roles and compact selections
+
+The native form uses `material-roles.ts` to filter candidate materials by their intended part. BACK includes cast (GS), extruded (XT) and LED acrylic. FACE, BACK and SIDES reject identifiable aluminium flatstock and profiles; FRAME offers those forms instead of sheets. Explicit material-form metadata takes precedence over narrowly recognized legacy names. Historical flat bars and tubes stored under `ALU_SHEET` are grouped correctly in the picker without changing the source inventory row.
+
+The unfiltered category response still resolves saved selections, including an old flatstock BACK, profile SIDES or control cable. Loading the form never migrates or replaces those values. The workshop's generic 1500 × 3000 mm sheet and nine thickness options are supplied by the separate [workshop seed](../../supabase/catalogs/workshop-materials.md); applying that migration remains a deployment step.
+
+Selected electronics use one compact control: LED brand/temperature/power, PSU brand/rated power/series, and cable size/voltage rating/entered sign-cable length. The exact model remains available in the accessible description, hover title and open picker's selected-material section. Full technical and package facts remain in catalog choices and inventory product details. White-channel temperatures, maximum W/m, rated voltage, conductor cross-section and outer diameter retain their distinct meanings. Missing facts remain absent.
+
+Main-cable choices prioritize recorded mains/power cable applications and suitable catalog families, excluding known signal/control/internal wiring. This is a relevance filter, not electrical compatibility validation. The cable-length input is the outgoing length from the sign; supplier reel length never fills it. The existing saved configuration keys and units remain unchanged.
+
+Browser coverage includes role filtering, all requested sheet thicknesses, compact selected controls, changing outgoing cable length, exact model access, toggle preservation, saved legacy values and serialized reopen/read-only behavior. Cable evidence and admin edits have shared regression coverage to prevent stale imported dimensions or voltage ratings from reappearing after edits.
+
+## Original 2026-10-22 verification
 
 | Check | Result |
 | --- | --- |

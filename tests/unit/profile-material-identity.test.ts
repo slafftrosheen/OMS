@@ -57,7 +57,8 @@ describe('profile material identity', () => {
       legacyNote: 'Keep this instruction'
     };
     expect(applyProfileMaterialSelection(previous, { value: '', hex: '', material: null }, 'ALU')).toEqual({
-      ...previous, value: '', category: '', thickness: '', thicknessOptions: [], hex: '', shortName: ''
+      ...previous, value: '', category: '', process: undefined,
+      thickness: '', thicknessOptions: [], hex: '', shortName: ''
     });
     expect(previous.value).toBe('Aluminium sheet');
   });

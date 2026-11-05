@@ -49,6 +49,10 @@
   let mediaVisionModel = $state('');
   let mediaPdfModel = $state('');
   let analyzingFile = $state(false);
+  let analysisCooldown = $state(false);
+  let analysisCooldownTimer: ReturnType<typeof setTimeout> | undefined;
+  // Local-only crash context. Never send button labels or document contents to a server.
+  let lastCanvasClick: { label: string; at: number } | null = null;
   // Short-lived per-project reference notes; never part of shared snapshot.
   let analyzedAssets = $state<Record<string, {kind:string; filename:string; evidence:string; answer:string}>>({});
   let lastAnalyzedAsset = $state<string | null>(null);
@@ -648,7 +652,7 @@
     });
   }
   async function analyzeSelectedAsset() {
-    if (!editor || !boardId || !ready || analyzingFile || requesting || recovering || deletingId === boardId) return;
+    if (!editor || !boardId || !ready || analyzingFile || analysisCooldown || requesting || recovering || deletingId === boardId) return;
     const selection = editor.getSelectedShapes?.() ?? [];
     const document = selection.find((shape: any) => shape?.type === 'document'
       && ['image', 'pdf'].includes(shape.props?.kind) && typeof shape.props?.fileId === 'string' && shape.props.fileId.length > 0);
@@ -677,12 +681,32 @@
           signal: requestSignal(120_000, signal),
           body: JSON.stringify({
             boardId: originalBoard, assetId: fileId, question,
-            language: $locale, ocr: paidOcr
+            language: $locale, ocr: paidOcr,
+            ...(document.props.kind === 'pdf' ? { model: selectedModel || undefined } : {})
           })
         });
         const result = await response.json().catch(() => ({}));
         if (!stillCurrent()) return;
-        if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : (result.error?.message || result.message || tr('canvas.fileAnalysisFailed')));
+        if (!response.ok) {
+          if (response.status === 429) {
+            const supplied = Number(result.retryAfter ?? response.headers.get('Retry-After'));
+            const hasRetry = Number.isFinite(supplied) && supplied >= 1 && supplied <= 86_400;
+            // Do not automatically re-send private files or repeatedly burn a free account quota.
+            const seconds = hasRetry ? Math.ceil(supplied) : 300;
+            analysisCooldown = true;
+            if (analysisCooldownTimer) clearTimeout(analysisCooldownTimer);
+            analysisCooldownTimer = setTimeout(() => {
+              if (!destroyed) analysisCooldown = false;
+            }, seconds * 1000);
+            const source = result.source === 'openrouter' ? tr('canvas.openRouterLimited')
+              : result.source === 'oms' ? tr('canvas.omsLimited') : tr('canvas.rateLimitUnknown');
+            throw new Error(source + (hasRetry
+              ? ' ' + tr('canvas.rateLimitRetryAfter', { seconds })
+              : ' ' + tr('canvas.rateLimitCheckQuota')));
+          }
+          throw new Error(typeof result.error === 'string' ? result.error
+            : (result.error?.message || result.message || tr('canvas.fileAnalysisFailed')));
+        }
         const reply = typeof result.reply === 'string' ? result.reply.slice(0, 5000) : '';
         if (!reply) throw new Error(tr('canvas.fileAnalysisFailed'));
         // This is a private user-session cache only. Sharing an insight onto
@@ -1088,8 +1112,29 @@
       if (dirty || discussionDirty || importing || recovering) { e.preventDefault(); e.returnValue = ''; }
     };
     const onFocus = () => { void checkBoardRevision(); };
+    // Sentry is optional. Until source maps are available, report which
+    // Canvas action caused an otherwise opaque minified ReferenceError.
+    const onClick = (event: MouseEvent) => {
+      const button = event.target instanceof Element ? event.target.closest('button') : null;
+      if (!button) return;
+      const label = button.getAttribute('aria-label') || button.getAttribute('title')
+        || button.getAttribute('data-testid') || button.textContent?.trim() || 'button';
+      lastCanvasClick = { label: label.slice(0, 96), at: Date.now() };
+    };
+    const onCanvasError = (event: ErrorEvent) => {
+      if (!(event.error instanceof ReferenceError) || !lastCanvasClick
+        || Date.now() - lastCanvasClick.at > 3000) return;
+      console.error('[Canvas] Click crash context (local only):', {
+        button: lastCanvasClick.label,
+        error: event.message,
+        source: event.filename?.split('/').pop(),
+        line: event.lineno, column: event.colno
+      });
+    };
     window.addEventListener('beforeunload', onBeforeUnload);
     window.addEventListener('focus', onFocus);
+    window.addEventListener('click', onClick, true);
+    window.addEventListener('error', onCanvasError);
     refreshTimer = setInterval(() => { void checkBoardRevision(); }, 45_000);
     return () => {
       destroyed = true;
@@ -1101,9 +1146,12 @@
       boardController.abort();
       if (saveTimer) clearTimeout(saveTimer);
       if (chatTimer) clearTimeout(chatTimer);
+      if (analysisCooldownTimer) clearTimeout(analysisCooldownTimer);
       if (refreshTimer) clearInterval(refreshTimer);
       window.removeEventListener('beforeunload', onBeforeUnload);
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener('click', onClick, true);
+      window.removeEventListener('error', onCanvasError);
     };
   });
 </script>
@@ -1292,8 +1340,8 @@
             {#if usePaidPdfOcr}<small>{$t('toolkit.canvas.ocrCostWarning')}</small>{/if}
           {/if}
           <button class="analyze-button" onclick={analyzeSelectedAsset}
-            disabled={!boardId || !canvasControls.analyzableFile || analyzingFile || requesting || recovering}>
-            {analyzingFile ? $t('toolkit.canvas.analyzingFile') : $t('toolkit.canvas.askSelectedFile')}
+            disabled={!boardId || !canvasControls.analyzableFile || analyzingFile || analysisCooldown || requesting || recovering}>
+            {analyzingFile ? $t('toolkit.canvas.analyzingFile') : analysisCooldown ? $t('toolkit.canvas.rateLimitedButton') : $t('toolkit.canvas.askSelectedFile')}
           </button>
           {#if canvasControls.analyzableFile}<small>{canvasControls.analyzableFile.title}</small>
           {:else}<small>{$t('toolkit.canvas.selectFileForAi')}</small>{/if}

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   hashTelegramLinkToken, readTelegramCommand, readTelegramUpdateIdentity,
-  telegramApi, type TelegramConfig
+  telegramCallbackQueryId, telegramApi, type TelegramConfig
 } from './telegram';
 
 /** Compatible with Supabase's thenable RPC builder; no service key crosses this boundary. */
@@ -169,21 +169,24 @@ export async function runTelegramPollingCycle(config: TelegramConfig, db: Telegr
     for (const update of updates) {
       if (signal.aborted) throw new TelegramReceiverError('cancelled');
       const identity = readTelegramUpdateIdentity(update);
+      // Even disabled/unsupported inline actions must clear Telegram's spinner.
+      const callbackId = identity ? telegramCallbackQueryId(update) : null;
       let command = identity ? readTelegramCommand(update, config.botUsername) : null;
       if (command?.kind === 'command' && (!config.options.commandsEnabled || !config.options.commands.includes(command.command)
         || (command.command === 'ask' && !config.options.aiEnabled))) command = null;
       const result = await rpc(db, 'process_telegram_polled_update', {
         ...claim, p_update_id: update.update_id, p_message_at: identity?.messageAt ?? null,
-        p_action: command?.kind ?? null, p_command: command?.kind === 'command' ? command.command : null,
+        p_action: command?.kind ?? null, p_command: command?.kind === 'command' ? (command.followup ? 'ask_followup' : command.command) : null,
         p_chat_id: command?.chatId ?? null, p_telegram_user_id: command?.telegramUserId ?? null,
         p_argument: command?.kind === 'command' ? command.argument : '',
         p_token_hash: command?.kind === 'connect' ? hashTelegramLinkToken(command.token) : null,
         p_username: command?.kind === 'connect' ? command.username : null
       });
       if (result?.accepted !== true) throw new TelegramReceiverError('runtime_changed');
-      if (command?.kind === 'command' && command.callbackId && !signal.aborted) {
-        // Button acknowledgement is best-effort, after the durable command/cursor commit.
-        await telegramApi(config, 'answerCallbackQuery', { callback_query_id: command.callbackId }, fetcher);
+      if (callbackId && !signal.aborted) {
+        // Best-effort acknowledgement after durable cursor commit, including
+        // disabled, stale or unknown callback actions.
+        await telegramApi(config, 'answerCallbackQuery', { callback_query_id: callbackId }, fetcher);
       }
     }
     if (await rpc(db, 'record_telegram_receiver_poll', { ...claim, p_error: null, p_retry_seconds: 0 }) !== true) throw new TelegramReceiverError('runtime_changed');

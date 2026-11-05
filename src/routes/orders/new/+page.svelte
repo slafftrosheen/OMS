@@ -14,6 +14,7 @@
   import { validateOrderForm } from '$lib/validation/orderSchema';
   import { getAssistantContext } from '$lib/assistant/context';
   import { orderScreenContext } from '$lib/assistant/visible-context';
+  import { nextActionHalo } from '$lib/ui/next-action-halo';
 
   const assistant = getAssistantContext();
 
@@ -91,7 +92,10 @@
     const anchor=step==='brief'?'new-order-details':
       step==='profiles'?'new-order-profiles':
       step==='files'?'new-order-files':'new-order-save';
-    document.getElementById(anchor)?.scrollIntoView({behavior:'smooth',block:'start'});
+    document.getElementById(anchor)?.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+      block: 'start'
+    });
   }
   let dragActive = $state(false);
 
@@ -394,6 +398,33 @@
     { id: createId(), quantity: 1, configuration: JSON.parse(JSON.stringify(defaultConfiguration)), collapsed: false }
   ]);
 
+  // Guidance and the explicit save action share exactly the same form checks.
+  // The halo is a next-action cue, never a production-readiness approval.
+  function validateCurrentOrderForm() {
+    return validateOrderForm({
+      clientName,
+      deadline,
+      loadingDate,
+      priority,
+      deliveryAddress,
+      deliveryContact,
+      deliveryPhone,
+      deliveryEmail,
+      notes,
+      hasFiles: uploadedFiles.length > 0,
+      selectedPresetId,
+      profiles: profiles.map((p) => ({
+        profileTemplateId: p.profileTemplateId ?? null,
+        quantity: p.quantity,
+        configuration: p.configuration
+      }))
+    });
+  }
+  let canContinueToReview = $derived(
+    !saving && !successMessage && can($currentUser, 'createDraftOrder') &&
+    (uploadedFiles.length > 0 || uploadedFileKeys.size > 0) && validateCurrentOrderForm().ok
+  );
+
   let newGuideContext=$derived({
     phase:'new' as const,status:'DRAFT',
     clientName,deadline,title:'',
@@ -620,24 +651,7 @@
     }
 
     // Validate the rest of the form with the shared schema ("ali points").
-    const { ok, errors } = validateOrderForm({
-      clientName,
-      deadline,
-      loadingDate,
-      priority,
-      deliveryAddress,
-      deliveryContact,
-      deliveryPhone,
-      deliveryEmail,
-      notes,
-      hasFiles: uploadedFiles.length > 0,
-      selectedPresetId,
-      profiles: profiles.map((p) => ({
-        profileTemplateId: p.profileTemplateId ?? null,
-        quantity: p.quantity,
-        configuration: p.configuration
-      }))
-    });
+    const { ok, errors } = validateCurrentOrderForm();
 
     if (!ok) {
       fieldErrors = { ...fieldErrors, ...errors };
@@ -815,7 +829,8 @@
       <button class="btn-secondary" onclick={() => goto('/orders')}>
         {$t('actions.cancel')}
       </button>
-      <button id="new-order-save" class="btn-primary" onclick={()=>void saveOrder('review')} disabled={saving || !!successMessage || !can($currentUser, 'createDraftOrder')}>
+      <button id="new-order-save" type="button" class="btn-primary" use:nextActionHalo={canContinueToReview}
+        aria-busy={saving} onclick={()=>void saveOrder('review')} disabled={saving || !!successMessage || !can($currentUser, 'createDraftOrder')}>
         {#if saving}
           <span class="spinner"></span>
           {$t('actions.saving')}

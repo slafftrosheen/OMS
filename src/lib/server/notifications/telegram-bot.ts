@@ -61,6 +61,10 @@ export function formatTelegramBotReply(payload: Record<string, any>, config: Tel
     case 'read': text = payload.result === 'read' ? l.read : payload.result === 'invalid' ? l.invalid : l.missing; break;
     case 'pause': text = l.pause; break;
     case 'resume': text = l.resume; break;
+    case 'ask_prompt': text = lang === 'ru'
+      ? 'Напишите вопрос следующим сообщением в течение 5 минут. Другие команды отменяют ожидание.'
+      : lang === 'lv' ? 'Nosūtiet jautājumu nākamajā ziņojumā 5 minūšu laikā. Cita komanda atceļ gaidīšanu.'
+      : 'Send your question in the next message within 5 minutes. Another command cancels this prompt.'; break;
     case 'ask': text = l.aiUnavailable; break;
     default: text = l.empty;
   }
@@ -97,6 +101,15 @@ async function answerClaimQuestion(payload: Record<string, any>, config: Telegra
       const found = await query.abortSignal(signal);
       if (found.error || !found.data) throw new Error('Account lookup unavailable');
       return found.data;
+    },
+    readContext: async (query, signal) => {
+      const request = db.rpc('telegram_bot_read_context', {
+        ...claim, p_source: query.source, p_mode: query.mode, p_filters: query.filters,
+        p_group: query.groupBy, p_offset: query.offset
+      });
+      const result = await request.abortSignal(signal);
+      if (result.error || !result.data) throw new Error('Business context unavailable');
+      return result.data;
     },
     chat: chat ?? (async (messages, options) => {
       const { response } = await openRouterChat({ ...options, messages, stream: false });

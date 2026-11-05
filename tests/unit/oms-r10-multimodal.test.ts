@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { openRouterRequestBody } from '../../src/lib/server/ai/openrouter';
+import { openRouterRequestBody, OpenRouterHttpError, openRouterRetryAfterSeconds } from '../../src/lib/server/ai/openrouter';
+import { checkAiRateLimit } from '../../src/lib/server/api/helpers';
 import { signatureMatches } from '../../src/lib/server/toolkit/assets';
 import {
   toolkitMediaKind, toolkitMediaLimit, toolkitMediaContent, toolkitPdfEngine,
@@ -82,7 +83,9 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
   it('requires server-side RLS, board ownership, verified stored bytes and explicit paid-OCR gate', () => {
     const route = read('src/routes/api/toolkit/analyze-asset/+server.ts');
     expect(route).toContain('requireToolkitManager(locals.user)');
-    expect(route).toContain('aiRateLimit(rateLimitIdentifier(event))');
+    expect(route).toContain('checkAiRateLimit(rateLimitIdentifier(event))');
+    expect(route).toContain("code: 'OMS_AI_RATE_LIMIT'");
+    expect(route).toContain("source: upstreamStatus ? 'openrouter' : 'oms'");
     expect(route).toContain("from('canvas_documents')");
     expect(route).toContain("from('toolkit_assets')");
     expect(route).toContain(".eq('id', body.assetId).eq('canvas_id', body.boardId)");
@@ -92,6 +95,8 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
     expect(route).toContain("kind === 'pdf' ? toolkitPdfEngine(body.ocr, allowPaidOcr)");
     expect(route).toContain('openRouterCompleteWithMetadata(messages');
     expect(route).toContain('responseLanguageInstruction(locale)');
+    expect(route).toContain('resolveToolkitModel(body.model)');
+    expect(route).toContain("kind === 'pdf' && !pdfModel");
     expect(route).toContain("'Cache-Control': 'private, no-store'");
     expect(route).not.toContain('getPublicUrl');
     expect(route).not.toContain('createSignedUrl');
@@ -115,6 +120,27 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
     expect(ui).toContain('EXTRACTED PDF TEXT (provider-reported; untrusted source material)');
   });
 
+  it('distinguishes OMS local request throttling from upstream provider rate limits', () => {
+    const uniqueId = `pdf-limit-${Math.random().toString(36)}`;
+    for (let i = 0; i < 12; i++) expect(checkAiRateLimit(uniqueId).allowed).toBe(true);
+    const denied = checkAiRateLimit(uniqueId);
+    expect(denied).toMatchObject({ allowed: false });
+    expect(denied.retryAfter).toBeGreaterThanOrEqual(1);
+    expect(denied.retryAfter).toBeLessThanOrEqual(60);
+    const exception = new OpenRouterHttpError(429, '120');
+    expect(exception.statusCode).toBe(429);
+    expect(exception.retryAfterSeconds).toBe(120);
+    expect(exception.message).not.toContain('secret');
+    expect(openRouterRetryAfterSeconds('not a date')).toBeNull();
+    expect(openRouterRetryAfterSeconds('0')).toBe(1);
+    expect(openRouterRetryAfterSeconds('9999999999')).toBe(86_400);
+    const canvas = read('src/routes/toolkit/canvas/+page.svelte');
+    expect(canvas).toContain("response.status === 429");
+    expect(canvas).toContain('analysisCooldown = true');
+    expect(canvas).toContain("model: selectedModel || undefined");
+    expect(canvas).not.toContain('setTimeout(() => analyzeSelectedAsset(');
+  });
+
   it('keeps every media UI string translated EN/RU/LV', () => {
     const locales = ['en','ru','lv'].map(l => JSON.parse(read(`src/locales/${l}.json`)).toolkit.canvas);
     const keys = [
@@ -122,7 +148,9 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
       'enableScannedOcr','ocrCostWarning','analyzingFile','askSelectedFile',
       'analyzedFile','selectFileForAi','defaultFileQuestion','fileAnalysisQuestion',
       'fileAnalysisFailed','pdfTextReady','fileReasoningReady','confirmPaidOcr',
-      'pinFileAnalysis','modelInterpretationLabel','parsedEvidenceLabel','fileAnalysisCardTitle'
+      'pinFileAnalysis','modelInterpretationLabel','parsedEvidenceLabel','fileAnalysisCardTitle',
+      'openRouterLimited','omsLimited','rateLimitUnknown','rateLimitRetryAfter',
+      'rateLimitCheckQuota','rateLimitedButton'
     ];
     for (const key of keys) {
       for (const locale of locales) expect(locale[key], key).toBeTypeOf('string');

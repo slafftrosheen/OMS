@@ -46,7 +46,8 @@
     "chat": "Chat",
     "ailab": "Toolkit",
     "users": "Users",
-    "materials": "Materials"
+    "materials": "Materials",
+    "cabinet": "My cabinet"
   },
   "header": {
     "actions": "Header actions",
@@ -2895,6 +2896,12 @@
       "selectFileForAi": "Select an uploaded image or PDF on the Canvas first.",
       "defaultFileQuestion": "Describe the visible content and extract relevant details without guessing.",
       "fileAnalysisQuestion": "Analyze {name}: {question}",
+      "openRouterLimited": "OpenRouter rate limit or free quota reached.",
+      "omsLimited": "OMS AI request limit reached.",
+      "rateLimitUnknown": "The service returned HTTP 429; source not identified.",
+      "rateLimitRetryAfter": "Try again no sooner than {seconds} seconds.",
+      "rateLimitCheckQuota": "No reset time was given. Check your OpenRouter quota before retrying.",
+      "rateLimitedButton": "Rate limited — see message",
       "fileAnalysisFailed": "File analysis failed. Check the model, size and provider.",
       "pdfTextReady": "PDF analysis complete. Extracted text is available for follow-up Canvas questions.",
       "fileReasoningReady": "File analysis complete. Model observations are available for follow-up Canvas questions.",
@@ -2905,7 +2912,7 @@
       "arrangeIdeas": "Arrange ideas",
       "inspectSource": "Inspect web page",
       "inspectAdded": "Page reference node added. Run it to fetch public content.",
-      "model": "Reasoning model",
+      "model": "Reasoning / PDF model",
       "modelHint": "Choose a configured model. Paid models may incur token charges; tool/JSON capabilities vary. AI proposals need approval.",
       "defaultModel": "default",
       "webSource": "Web research provider",
@@ -3485,6 +3492,8 @@
   },
   "materialPicker": {
     "select": "Select…",
+    "editSelection": "Edit",
+    "doneEditing": "Done",
     "search": "Search all materials…",
     "categories": "Material categories",
     "backToCategories": "All categories",
@@ -3506,6 +3515,7 @@
       "ALU_COMPOSITE": "Aluminum composite",
       "PVC_FOAM": "Foamed PVC",
       "ALU_PROFILE": "Aluminum profiles",
+      "ALU_FLAT_BAR": "Aluminium flatstock",
       "VINYL_ORACAL": "Oracal films",
       "PAINT_RAL": "RAL colors",
       "PAINT_PANTONE": "Pantone colors",
@@ -3543,8 +3553,28 @@
       "removeFace": "Remove FACE material {number}",
       "faceNumber": "FACE material {number}",
       "print3d": "3D printing material",
+      "materialNote": "Material note",
+      "notes": "Notes",
+      "notesPlaceholder": "Add production notes…",
+      "showNotes": "Show {section} notes",
+      "print": "PRINT",
+      "printFilm": "Print on film",
+      "legacyPrint": "Assign this earlier 3D material to FACE or BACK.",
+      "legacyPrintUnassigned": "Earlier 3D material — part not recorded.",
+      "assignPrintFace": "Assign to FACE",
+      "assignPrintBack": "Assign to BACK",
+      "clearBackBeforeAssigning": "Clear the current BACK material before assigning this 3D material.",
       "connector": "Connector model",
       "psuType": "Power supply type",
+      "profileName": "Profile name",
+      "signEnvironment": "Sign environment",
+      "outdoor": "OUTDOOR",
+      "indoor": "INDOOR",
+      "mainCable": "Main cable",
+      "cableLength": "Length from sign",
+      "psuMounting": "PSU mounting",
+      "regular": "Regular",
+      "dimmable": "Dimmable",
       "frameWaterholes": "Frame waterholes",
       "frameMountingHoles": "Frame mounting holes",
       "template": "Template"
@@ -3631,7 +3661,9 @@
       "toolkit": "Toolkit",
       "settings": "Settings",
       "notifications": "Notifications",
-      "general": "Current screen"
+      "general": "Current screen",
+      "cabinet": "My cabinet",
+      "chat": "Team chat"
     },
     "intro": {
       "dashboard": "Review pending work, find materials or check recorded stock.",
@@ -3646,7 +3678,9 @@
       "toolkit": "Get help with the current workspace and available engineering tools.",
       "settings": "Find the right setting and understand its effect. Credentials are not shared with the assistant.",
       "notifications": "Understand notification preferences and where to continue the related work.",
-      "general": "Get guidance for the screen you are working on."
+      "general": "Get guidance for the screen you are working on.",
+      "cabinet": "Log daily hours, review monthly totals and mark an absence. Actual hours and doubled pay credit are shown separately.",
+      "chat": "Send text or voice messages in a conversation. Text remains until deleted; voice recordings are available for three calendar months."
     },
     "prompt": {
       "dashboard": "What should I review first?",
@@ -3662,7 +3696,9 @@
       "settings": "Where can I change my notification preferences?",
       "notifications": "How do I adjust the notifications I receive?",
       "general": "Help me understand this screen.",
-      "next": "What is the next step here?"
+      "next": "What is the next step here?",
+      "cabinet": "How are my worked hours and doubled hours counted?",
+      "chat": "How do I send a voice message and find older messages?"
     },
     "tool": {
       "catalog_search": "Material catalog",
@@ -3701,14 +3737,49 @@
       "editingProfile": "Editing profile",
       "code": "Product code",
       "group": "Group",
-      "stations": "Stations included"
+      "stations": "Stations included",
+      "month": "Month",
+      "visibleMessages": "Messages currently loaded"
     },
     "codeBlock": "Code example",
     "comparisonTable": "Comparison table",
-    "contextTrimmed": "This is a selected part of the screen. Ask about a specific item for more detail."
+    "contextTrimmed": "This is a selected part of the screen. Ask about a specific item for more detail.",
+    "chatPrivacy": "Only chat controls and counts are shared. Message text, names, files and recordings stay out of the assistant context.",
+    "contextChanged": "Screen details have changed since this question was sent. Review the current screen before using this answer.",
+    "contextChangedWhileWaiting": "The screen has changed. This question still uses the details from when you sent it.",
+    "reviewCurrent": "Review current screen",
+    "reviewCurrentPrompt": "Review the current screen again. Use the latest shared details and tell me what to check next; earlier selections may have changed.",
+    "guide": {
+      "loading": "This view is still loading. Wait for its details before asking for a review; you can ask how the screen works now.",
+      "unavailable": "Some details could not be loaded. Use the page’s retry or reload control, then check the current information before continuing.",
+      "profileDraft": "You have changes in the open profile editor. Check the selected material, thickness and colour there before applying it to the order.",
+      "draft": "This draft has unsaved details. Check its material selections and attachments before saving; saved-order tools cannot see unapplied edits.",
+      "catalogSelection": "Start with the exact selected product code. Check recorded specifications and the source note; missing ratings or compatibility need confirmation.",
+      "cabinetDraft": "An hours or absence form has unsaved changes. Check its date and values, then save before changing the month or view.",
+      "cabinetReports": "Choose monthly hours or daily absences, then open a report to review its period and version before downloading it.",
+      "cabinetTeam": "Find a worker and open their month to review hours and absence notices. A day without an entry does not establish an absence or a missing shift.",
+      "chatSelect": "Choose a room or direct conversation first. Then type a message or use the microphone to record a voice message.",
+      "chatDraft": "Your message has not been sent yet. Check the selected conversation and send when ready; a failed send keeps the draft for retry.",
+      "chatHistory": "Earlier messages are available. Use Load earlier messages in the conversation; text remains available after a voice recording expires."
+    },
+    "guidePrompt": {
+      "loading": "What can I do while this screen is loading?",
+      "unavailable": "What should I check when this screen cannot load its details?",
+      "profileDraft": "Help me review the unapplied material, thickness and colour choices in this profile.",
+      "draft": "Help me check these unsaved selections before I save the draft.",
+      "catalogSelection": "Explain this exact product’s recorded specifications and what still needs confirmation.",
+      "cabinetDraft": "What should I check before saving my hours or absence?",
+      "cabinetReports": "How do I choose, review and download the correct monthly report?",
+      "cabinetTeam": "How do I review a worker’s month without confusing unrecorded days with absences?",
+      "chatSelect": "How do I choose a conversation and send my first message?",
+      "chatDraft": "How do I send or retry my draft safely?",
+      "chatHistory": "How do I find older text and understand expired voice messages?"
+    }
   },
   "materialSpecifications": {
+    "series": "Series",
     "voltage": "Voltage",
+    "ratedVoltage": "Voltage rating",
     "power": "Power",
     "powerPerMetre": "Power per metre",
     "maxPowerPerMetre": "Maximum power per metre",
@@ -3723,6 +3794,9 @@
     "connections": "Connections",
     "material": "Material",
     "diameter": "Diameter",
+    "outerDiameter": "Outer cable diameter",
+    "cableType": "Cable type",
+    "cableApplication": "Cable application",
     "bodyLength": "Body length",
     "package": "Package contents",
     "unit": "Stock unit"
@@ -3734,11 +3808,27 @@
     "manufacturerSource": "Manufacturer reference",
     "sourceChecked": "Source checked {date}"
   },
+  "orderSheet": {
+    "title": "Order form",
+    "locked": "Production specifications are locked in this view. Files, station progress and chat are available below.",
+    "editHint": "Review the production form. Use Edit to change an unapproved draft.",
+    "supportTitle": "Supporting work",
+    "supportHint": "Drawings, files, station progress, material records and order chat.",
+    "retry": "Reload order form",
+    "quantity": "Quantity",
+    "quantityNumber": "Quantity {number}",
+    "profileNotes": "Profile notes",
+    "note": "Note",
+    "focusedEditor": "This profile is open in the focused editor. Apply or close that editor to return here.",
+    "legacyProfile": "This profile uses an older format. Saved details are shown below; verify them against the order drawings.",
+    "accessDenied": "This account cannot read the saved order form. Reload or ask the order manager to check access.",
+    "loadFailed": "The saved order form could not be loaded. Reload to try again."
+  },
   "orderDeletion": {
-  "button": "Delete order",
-  "title": "Delete this draft or order?",
-  "description": "The order will be cancelled and removed from active lists and station queues. Files, consumed materials and audit history stay available. Unused production reservations and loading assignments will be released.",
-  "deleted": "Order deleted",
-  "failed": "Could not delete order"
-}
+    "button": "Delete order",
+    "title": "Delete this draft or order?",
+    "description": "The order will be cancelled and removed from active lists and station queues. Files, consumed materials and audit history stay available. Unused production reservations and loading assignments will be released.",
+    "deleted": "Order deleted",
+    "failed": "Could not delete order"
+  }
 }
