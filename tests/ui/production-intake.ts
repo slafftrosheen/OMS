@@ -1,8 +1,10 @@
 import {mount} from 'svelte';
 import {addMessages,init} from 'svelte-i18n';
 import en from '../../src/locales/en.json';
+import ru from '../../src/locales/ru.json';
+import lv from '../../src/locales/lv.json';
 import '../../src/app.css';
 import Harness from './ProductionIntakeHarness.svelte';
-addMessages('en',en);
-await init({fallbackLocale:'en',initialLocale:'en'});
+addMessages('en',en);addMessages('ru',ru);addMessages('lv',lv);
+await init({fallbackLocale:'en',initialLocale:new URL(location.href).searchParams.get('lang')||'en'});
 mount(Harness,{target:document.getElementById('app')!});

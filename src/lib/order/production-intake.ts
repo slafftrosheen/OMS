@@ -2,7 +2,7 @@
  * only individually reviewed facts may reach the local native form. */
 import {z} from 'zod';
 import {INTAKE_JSON_SCHEMA, intakeModelSchema, type IntakeProposal, type IntakeField} from './intake-contract';
-import {filterProfileMaterials,isProfilePrintMaterial} from '$lib/profiles/material-roles';
+import {filterProfileMaterials,isProfilePrintMaterial,PROFILE_MATERIAL_CATEGORIES,type ProfileMaterialRole} from '$lib/profiles/material-roles';
 import type {CatalogMaterial} from '$lib/profiles/material-catalog';
 import {readFaceMaterials, withFaceMaterials} from '$lib/profiles/face-materials';
 import {applyPaintMaterialSelection} from '$lib/profiles/helpers';
@@ -38,7 +38,7 @@ export const PRODUCTION_INTAKE_JSON_SCHEMA={
 export type IntakeMaterial=Omit<CatalogMaterial,'id'> & {id:string|number};
 export type ProductionReview=ProductionFact & {
   status:'ready'|'unresolved';
-  reason:'exact-match'|'source-value'|'no-exact-match'|'ambiguous-match'|'conflicting-values'|'invalid-value';
+  reason:'exact-match'|'source-value'|'no-exact-match'|'ambiguous-match'|'conflicting-values'|'invalid-value'|'manual-selection';
   material:IntakeMaterial|null;
 };
 export function sameIntakeMaterial(a:IntakeMaterial|null,b:IntakeMaterial|null):boolean{
@@ -83,11 +83,10 @@ export function productionCurrentValue(f:ProductionFact,current:RecordValue,inde
   return value===null||value===undefined?'':String(value);
 }
 function candidates(target:ProductionFact['target'],catalog:IntakeMaterial[]):IntakeMaterial[]{
-  const roles={faceMaterial:'face',backMaterial:'back',sidesMaterial:'sides',frameMaterial:'frame',cableType:'mainCable'} as const;
-  if(target in roles) return filterProfileMaterials(catalog as CatalogMaterial[],roles[target as keyof typeof roles]) as IntakeMaterial[];
-  const categories=target.endsWith('Paint')?['PAINT_RAL','PAINT_PANTONE']:target.endsWith('Film')?['VINYL_ORACAL']:target==='ledModule'
-    ?['LED_MODULE','LED_STRIP','LED_NEON']:target==='psuModel'?['PSU_MEANWELL']:[];
-  return catalog.filter(m=>categories.includes(m.category));
+  const picker=getProductionMaterialPicker(target);
+  if(!picker)return [];
+  return picker.role?filterProfileMaterials(catalog as CatalogMaterial[],picker.role) as IntakeMaterial[]
+    :catalog.filter(m=>picker.categories.includes(m.category));
 }
 /** No fuzzy ranking or color/voltage equivalence. Only complete recorded
  * identities (or explicit catalog aliases) count as a match. */
@@ -134,21 +133,22 @@ function normalizedValue(f:ProductionFact):string|number|boolean|null{
 function append(values:RecordValue,field:string,line:string){
   const old=typeof values[field]==='string'?values[field]:'';
   if(!old.split('\n').includes(line))values[field]=old?`${old}\n${line}`:line;
-  if(values[field].length>4000)throw new Error('Notes exceed the form limit');
+  if(values[field].length>4000)throw new ProductionIntakeError('notesTooLong');
 }
 function set(values:RecordValue,field:string,value:unknown,replace:boolean){
   const old=values[field];
   if(old!==undefined&&old!==null&&old!==''&&old!==value&&!replace)
-    throw new Error('Existing values require replacement acknowledgment');
+    throw new ProductionIntakeError('replaceRequired');
   values[field]=value;
 }
 /** All-or-nothing local merge. Never persists; unchanged baseline is mandatory. */
 export function applyProductionFacts<T extends RecordValue>(
   current:T[],baseline:T[],index:number,selected:ProductionReview[],replace:boolean,catalog?:IntakeMaterial[]
 ):T[]{
-  if(JSON.stringify(current)!==JSON.stringify(baseline))throw new Error('Profiles changed during review');
-  if(!Number.isInteger(index)||!current[index])throw new Error('Choose a saved profile');
-  if(selected.some(f=>f.status!=='ready'||isOrderProductionFact(f)))throw new Error('Unresolved production choices');
+  if(JSON.stringify(current)!==JSON.stringify(baseline))throw new ProductionIntakeError('changedLocally');
+  if(!Number.isInteger(index)||!current[index])throw new ProductionIntakeError('chooseSavedProfile');
+  if(getProductionSelectionConflicts(selected).length)throw new ProductionIntakeError('conflictingChoices');
+  if(selected.some(f=>f.status!=='ready'||isOrderProductionFact(f)))throw new ProductionIntakeError('invalidChoice');
   // Persisted profile configuration is JSON. Svelte proxies cannot be passed
   // to structuredClone; serialize the same contract used by Save Draft.
   const next=JSON.parse(JSON.stringify(current)) as T[],profile=next[index] as RecordValue;
@@ -159,7 +159,7 @@ export function applyProductionFacts<T extends RecordValue>(
   // Material selection happens before thickness regardless of checkbox order.
   for(const f of selected.filter(f=>materialTargets.has(f.target))){
     const m=f.material;
-    if(!m || !m.id || !m.code || !candidates(f.target,[m]).length)throw new Error('Invalid catalog choice');
+    if(!m || !m.id || !m.code || !candidates(f.target,[m]).length)throw new ProductionIntakeError('catalogChanged');
     const target=f.target;
     if(target.endsWith('Paint')){
       const part=target.replace('Paint','');
@@ -167,15 +167,15 @@ export function applyProductionFacts<T extends RecordValue>(
       const values=section('PAINTING');
       if(JSON.stringify(values[part+'Color']??{})!==JSON.stringify(color)){
         const old=record(values[part+'Color']);
-        if((old.code||old.hex)&&!replace)throw new Error('Existing paint requires acknowledgment');
+        if((old.code||old.hex)&&!replace)throw new ProductionIntakeError('replaceRequired');
         values[part+'Color']=color;
       }
       write('PAINTING',part,true);
       values[part+'MaterialId']=m.id;
     }else if(target==='faceMaterial'){
       const cnc=section('CNC_FREZER'),rows=readFaceMaterials(cnc);
-      if(rows.some(r=>r.value && r.value!==m.code)&&!replace)throw new Error('Existing face requires acknowledgment');
-      if(rows.filter(r=>r.value).length>1)throw new Error('Edit multiple face materials in the native form');
+      if(rows.some(r=>r.value && r.value!==m.code)&&!replace)throw new ProductionIntakeError('replaceRequired');
+      if(rows.filter(r=>r.value).length>1)throw new ProductionIntakeError('multipleFaceMaterials');
       const old=rows[0]??{id:'face-material-1',value:''};
       Object.assign(cnc,withFaceMaterials(cnc,[{...old,value:m.code,materialId:m.id,
         category:m.category,hex:m.metadata?.hex??'',shortName:m.name_en,
@@ -209,7 +209,7 @@ export function applyProductionFacts<T extends RecordValue>(
   }
   for(const f of selected.filter(f=>!materialTargets.has(f.target))){
     const value=normalizedValue(f);
-    if(value===null)throw new Error('Invalid production value');
+    if(value===null)throw new ProductionIntakeError('invalidChoice');
     if(f.target==='depth')write('BENDER','depth',value);
     else if(f.target==='signType')set(config,'signType',value,replace);
     else if(f.target==='quantity'){
@@ -223,20 +223,20 @@ export function applyProductionFacts<T extends RecordValue>(
         const target=(part+'Material') as ProductionFact['target'];
         const approved=selected.find(p=>p.target===target)?.material;
         const matches=approved?[approved]:candidates(target,catalog??[])
-          .filter(m=>m.code===code&&(!id||m.id===id));
+          .filter(m=>(m.code===code||m.name_en===code)&&(!id||m.id===id));
         if(matches.length!==1||!matches[0].thickness_options?.includes(Number(value)))
-          throw new Error('Thickness is not a current catalog option for this material');
+          throw new ProductionIntakeError('thicknessUnavailable');
         return matches[0];
       };
       if(part==='face'){
         const rows=readFaceMaterials(values);
-        if(rows.length!==1||!rows[0].value)throw new Error('Thickness needs one exact catalog material');
+        if(rows.length!==1||!rows[0].value)throw new ProductionIntakeError('materialRequired');
         const material=materialFor(rows[0].value,rows[0].materialId);
         rows[0].thicknessOptions=material.thickness_options;
         set(rows[0],'thickness',`${value}mm`,replace);
         Object.assign(values,withFaceMaterials(values,rows));
       }else{
-        if(!values[part])throw new Error('Select the material before thickness');
+        if(!values[part])throw new ProductionIntakeError('materialRequired');
         const material=materialFor(values[part],values[part+'MaterialId']);
         values[part+'ThicknessOptions']=material.thickness_options;
         write(name,f.target,`${value}mm`);
@@ -261,7 +261,7 @@ export function resolveIntakePdfEngine(ocr:boolean,native:boolean,paid:boolean,m
 export function appendOrderProductionFacts(notes:string,facts:ProductionReview[]):string{
   const values={notes};
   for(const f of facts){
-    if(!isOrderProductionFact(f)||f.status!=='ready')throw new Error('Invalid order reference');
+    if(!isOrderProductionFact(f)||f.status!=='ready')throw new ProductionIntakeError('invalidChoice');
     append(values,'notes',`${f.target}: ${f.value}`);
   }
   return values.notes;
@@ -272,4 +272,52 @@ export function findOrderIntakeConflicts(proposals:IntakeProposal[]):Array<{fiel
   for(const proposal of proposals)groups.set(proposal.field,[...(groups.get(proposal.field)??[]),proposal]);
   return [...groups].filter(([,items])=>new Set(items.map(p=>p.value.trim())).size>1)
     .map(([field,alternatives])=>({field,alternatives}));
+}
+
+export function getProductionMaterialPicker(target:ProductionFact['target']):{categories:string[];role?:ProfileMaterialRole}|null{
+  const roles={faceMaterial:'face',backMaterial:'back',sidesMaterial:'sides',frameMaterial:'frame',cableType:'mainCable'} as const;
+  if(target in roles){const role=roles[target as keyof typeof roles];return {categories:PROFILE_MATERIAL_CATEGORIES[role],role};}
+  if(target.endsWith('Film'))return {categories:['VINYL_ORACAL']};
+  if(target.endsWith('Paint'))return {categories:['PAINT_RAL','PAINT_PANTONE']};
+  if(target==='ledModule')return {categories:['LED_MODULE','LED_STRIP','LED_NEON']};
+  if(target==='psuModel')return {categories:['PSU_MEANWELL']};
+  return null;
+}
+export type ProductionIntakeErrorCode='replaceRequired'|'chooseSavedProfile'|'changedLocally'|'catalogChanged'|
+  'materialRequired'|'thicknessUnavailable'|'multipleFaceMaterials'|'notesTooLong'|'invalidChoice'|'conflictingChoices';
+export class ProductionIntakeError extends Error{
+  constructor(public code:ProductionIntakeErrorCode){super(code);this.name='ProductionIntakeError';}
+}
+const sourceFact=(r:ProductionReview):ProductionFact=>({target:r.target,value:r.value,evidence:r.evidence,page:r.page,part:r.part,confidence:r.confidence});
+/** A staff choice never claims that the source named this catalog product. */
+export function resolveManualProductionMaterial(review:ProductionReview,catalog:IntakeMaterial[],id:string|number):ProductionReview{
+  if(!getProductionMaterialPicker(review.target)||['conflicting-values','invalid-value'].includes(review.reason))
+    throw new ProductionIntakeError('invalidChoice');
+  const matches=candidates(review.target,catalog).filter(m=>m.id===id&&!!m.code);
+  if(matches.length!==1)throw new ProductionIntakeError('catalogChanged');
+  return {...sourceFact(review),status:'ready',reason:'manual-selection',material:matches[0]};
+}
+export function recheckProductionSelection(reviews:ProductionReview[],catalog:IntakeMaterial[]):ProductionReview[]{
+  if(getProductionSelectionConflicts(reviews).length)throw new ProductionIntakeError('conflictingChoices');
+  const automatic=reviewProductionFacts(reviews.map(sourceFact),catalog);
+  return reviews.map((review,index)=>{
+    const fresh=review.reason==='manual-selection'
+      ?resolveManualProductionMaterial(review,catalog,review.material?.id??''):automatic[index];
+    if(fresh.status!=='ready'||!sameIntakeMaterial(review.material,fresh.material))
+      throw new ProductionIntakeError('catalogChanged');
+    return fresh;
+  });
+}
+export function productionIntakeErrorKey(error:unknown):string{
+  return error instanceof ProductionIntakeError?error.code:'applyError';
+}
+
+/** One saved profile cannot hold two different choices in one native field. */
+export function getProductionSelectionConflicts(reviews:ProductionReview[]):ProductionFact['target'][] {
+  const values=new Map<ProductionFact['target'],Set<string>>();
+  for(const review of reviews){
+    const identity=review.material?`material:${review.material.id}`:JSON.stringify(normalizedValue(review));
+    const choices=values.get(review.target)??new Set<string>();choices.add(identity);values.set(review.target,choices);
+  }
+  return [...values].filter(([,choices])=>choices.size>1).map(([target])=>target);
 }
