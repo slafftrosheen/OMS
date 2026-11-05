@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ClientDeliveryAddresses from '$lib/order/ClientDeliveryAddresses.svelte';
   import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { t } from 'svelte-i18n';
@@ -1175,6 +1176,9 @@
           </div>
         {/if}
 
+        <ClientDeliveryAddresses {clientName} current={{deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail}}
+          onSelect={patch=>{deliveryAddress=patch.deliveryAddress;deliveryContact=patch.deliveryContact;
+            deliveryPhone=patch.deliveryPhone;deliveryEmail=patch.deliveryEmail;selectedPresetId=null;useManualAddress=true;}}/>
         <div class="manual-address-toggle">
           <label class="toggle-label">
             <input type="checkbox" bind:checked={useManualAddress} onchange={clearPreset} />

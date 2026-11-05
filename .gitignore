@@ -52,3 +52,6 @@ supabase/.temp
 backups/*.tar
 backups/*.tar.gz
 backups/*.gz.enc
+
+# Private customer production drawings used for local intake acceptance
+.local/

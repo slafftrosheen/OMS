@@ -1,12 +1,18 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { canManageSharedInventory, validateMaterialInput } from '$lib/server/authz/shared-data';
+import {readCompleteIntakeCatalog} from '$lib/server/order/intake-catalog';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
   
   try {
+    if(url.searchParams.get('intake')==='true'){
+      if(!locals.user)return json({error:'Unauthorized'},{status:401});
+      return json(await readCompleteIntakeCatalog(locals.supabase,controller.signal),
+        {headers:{'Cache-Control':'private, no-store'}});
+    }
     let query = locals.supabase
       .from('materials')
       .select('*')

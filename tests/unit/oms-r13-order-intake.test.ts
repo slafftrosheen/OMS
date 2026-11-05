@@ -56,7 +56,7 @@ describe('OMS-R13 OpenRouter Smart Order Intake',()=>{
     expect(b.messages[0].content).toBe('Read actual order source');
   });
   it('requires a linked private order file, editor role, rate limiting and bounded real bytes',()=>{
-    const api=read('src/routes/api/ai/order-intake/+server.ts');
+    const api=read('src/lib/server/order/intake.ts');
     expect(api).toContain('aiRateLimit(rateLimitIdentifier(event))');
     expect(api).toContain('canEditDraft(user.role');
     expect(api).toContain("from('order_files')");
@@ -68,7 +68,7 @@ describe('OMS-R13 OpenRouter Smart Order Intake',()=>{
     expect(api).toContain('jsonSchema:{name:');
     expect(api).toContain("process.env.OPENROUTER_ORDER_INTAKE_STRICT==='false'");
     expect(api).toContain('{jsonMode:true}');
-    expect(api).toContain('normalizeIntakeProposals(modelJson)');
+    expect(api).toContain('normalizeIntakeProposals(basic)');
     expect(api).toContain("process.env.OPENROUTER_TOOLKIT_PDF_OCR==='true'");
     expect(api).toContain("provenance:'model-reported'");
     expect(api).toContain("'Cache-Control':'private, no-store'");

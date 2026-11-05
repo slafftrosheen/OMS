@@ -1,5 +1,7 @@
 # OMS-R13 — OpenRouter-assisted Order Intake
 
+Production field extraction and saved client-address history extend this flow as of 2026-11-05; see [the current production intake guide](draft-production-intake.md).
+
 **Committed source feature, not yet production-validated.** AI prepares proposed fields; staff members decide. Neither model responses nor the proposal endpoint may directly create, confirm, dispatch, delete or edit an order.
 
 ## What changed

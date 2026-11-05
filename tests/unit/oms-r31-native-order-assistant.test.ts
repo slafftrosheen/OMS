@@ -149,7 +149,7 @@ describe('OMS-R31 restore native forms and wire OpenRouter without duplication',
  it('has explicit file-analysis navigation without any background model calls',()=>{
    const editor=read('src/routes/orders/[id]/edit/+page.svelte');
    const assistant=read('src/lib/order/OrderFlowAssistant.svelte');
-   const intake=read('src/routes/api/ai/order-intake/+server.ts');
+   const intake=read('src/lib/server/order/intake.ts');
    expect(editor).toContain("assistant.open(tool)");
    expect(editor).toContain("content: orderAssistantContent");
    expect(editor).not.toContain('class="file-assistant-entry"');

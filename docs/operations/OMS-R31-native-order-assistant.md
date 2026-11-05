@@ -1,5 +1,7 @@
 # OMS-R31 — Native order forms, OpenRouter assistance and file intake
 
+Production field extraction and saved client-address history extend this flow as of 2026-11-05; see [the current production intake guide](draft-production-intake.md).
+
 **This batch supersedes the R30 form expansion.** The screenshot-reported
 "Технические характеристики" fieldset duplicated information already captured
 by OMS's original Profile7stVisual. It is no longer displayed on New Order

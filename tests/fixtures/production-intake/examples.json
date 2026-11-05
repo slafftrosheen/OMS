@@ -1,0 +1,468 @@
+{
+  "notice": "Hand-reviewed technical observations from the five supplied PDFs, not live model outputs. Contact details are deliberately excluded from this public fixture. Evidence strings normalize spacing from rendered pixels. Original files remain private.",
+  "cases": [
+    {
+      "id": "avans",
+      "fileName": "NL Vizio AVANS P-5 Work Nov 19 !!!.pdf",
+      "sha256": "076872ad2cf8c8a17729feb2d6f18fe927a16b52e0b9e7f16d86b798c68e9479",
+      "imageOnly": true,
+      "printedDeliveryDate": "2026-11-27",
+      "production": [
+        {
+          "target": "width",
+          "value": "3725 mm",
+          "evidence": "3725 mm",
+          "page": 1,
+          "part": "Front",
+          "confidence": "medium"
+        },
+        {
+          "target": "height",
+          "value": "900 mm",
+          "evidence": "900 mm",
+          "page": 1,
+          "part": "Front",
+          "confidence": "medium"
+        },
+        {
+          "target": "width",
+          "value": "2180 mm",
+          "evidence": "2180 mm",
+          "page": 1,
+          "part": "College",
+          "confidence": "medium"
+        },
+        {
+          "target": "height",
+          "value": "360 mm",
+          "evidence": "360 mm",
+          "page": 1,
+          "part": "College",
+          "confidence": "medium"
+        },
+        {
+          "target": "depth",
+          "value": "120 mm",
+          "evidence": "120 mm",
+          "page": 1,
+          "part": "Letters",
+          "confidence": "medium"
+        },
+        {
+          "target": "depth",
+          "value": "60 mm",
+          "evidence": "60 mm",
+          "page": 1,
+          "part": "Subtext",
+          "confidence": "medium"
+        },
+        {
+          "target": "ledSpec",
+          "value": "RED LED",
+          "evidence": "RED LED",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "psuSpec",
+          "value": "REGULAR",
+          "evidence": "REGULAR",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "cableSpec",
+          "value": "12V CABLE 3m",
+          "evidence": "12V CABLE 3m",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        }
+      ],
+      "reviewQuestions": [
+        "Nov 19 ACE is separate from printed delivery date",
+        "Multiple part dimensions and depths; do not collapse into one profile",
+        "Client identity is not established by a logo"
+      ]
+    },
+    {
+      "id": "intertoys",
+      "fileName": "NL LEVANTO Intertoys XL P-7-3 2000 x 545 mm PO-41011 Nov 2-17.pdf",
+      "sha256": "90273a4a4b01baa6b21f32fd9406b6f639c53fa7fa54118dd6d484eb08c4bf84",
+      "imageOnly": true,
+      "printedDeliveryDate": "2026-11-24",
+      "production": [
+        {
+          "target": "customerReference",
+          "value": "PO-41011",
+          "evidence": "PO-41011",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "width",
+          "value": "2000 mm",
+          "evidence": "2000 mm",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "height",
+          "value": "545 mm",
+          "evidence": "545 mm",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "depth",
+          "value": "40-50 mm",
+          "evidence": "40-50 mm",
+          "page": 1,
+          "part": "Main letters",
+          "confidence": "medium"
+        },
+        {
+          "target": "depth",
+          "value": "60-80 mm",
+          "evidence": "60-80 mm",
+          "page": 1,
+          "part": "XL",
+          "confidence": "medium"
+        },
+        {
+          "target": "faceThickness",
+          "value": "3 mm",
+          "evidence": "3 mm",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "ledSpec",
+          "value": "Balt LED 6500K",
+          "evidence": "Balt LED 6500K",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "psuSpec",
+          "value": "REGULAR",
+          "evidence": "REGULAR",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "faceFilm",
+          "value": "8500-070 BLACK",
+          "evidence": "8500-070 BLACK",
+          "page": 1,
+          "part": "XL",
+          "confidence": "medium"
+        },
+        {
+          "target": "cableSpec",
+          "value": "BLACK CABLE 12V 3m",
+          "evidence": "BLACK CABLE 12V 3m",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "cableLength",
+          "value": "3 m",
+          "evidence": "3 m",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        }
+      ],
+      "reviewQuestions": [
+        "Nov 2 Fura and Nov 17 ACE are transport annotations",
+        "XL is a separate sidelit part",
+        "230V main cable and 12V cable must stay separate"
+      ]
+    },
+    {
+      "id": "lowen",
+      "fileName": "DE Lichtundshop LOWEN SPIELHALLE 2920 mm SAARBRUCKEN PO-xxxx Nov 12.pdf",
+      "sha256": "b80c195520dbbc02e24dcdb9f83fa437f2f7ccb2f1d3a3dbb445a97352b0c28e",
+      "imageOnly": true,
+      "printedDeliveryDate": null,
+      "production": [
+        {
+          "target": "customerReference",
+          "value": "PO-XXXX",
+          "evidence": "PO-XXXX",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "width",
+          "value": "292 cm",
+          "evidence": "292 cm",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "height",
+          "value": "58 cm",
+          "evidence": "58 cm",
+          "page": 1,
+          "part": "Logo",
+          "confidence": "medium"
+        },
+        {
+          "target": "depth",
+          "value": "60 mm",
+          "evidence": "60 mm",
+          "page": 1,
+          "part": "Letters",
+          "confidence": "medium"
+        },
+        {
+          "target": "depth",
+          "value": "80 mm",
+          "evidence": "80 mm",
+          "page": 1,
+          "part": "LEO LOGO",
+          "confidence": "medium"
+        },
+        {
+          "target": "facePrint",
+          "value": "true",
+          "evidence": "true",
+          "page": 1,
+          "part": "Logo",
+          "confidence": "medium"
+        },
+        {
+          "target": "faceMaterial",
+          "value": "BLUE 5N870",
+          "evidence": "BLUE 5N870",
+          "page": 1,
+          "part": "Letters",
+          "confidence": "medium"
+        },
+        {
+          "target": "ledSpec",
+          "value": "BaltLED 6500K",
+          "evidence": "BaltLED 6500K",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "psuSpec",
+          "value": "MW; ALL TRAFOS INSIDE LEO HEAD",
+          "evidence": "MW; ALL TRAFOS INSIDE LEO HEAD",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "cableLength",
+          "value": "3 m",
+          "evidence": "3 m",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        }
+      ],
+      "reviewQuestions": [
+        "Placeholder PO is not a real reference",
+        "Profile 7st heading conflicts with legacy profil 5s text",
+        "No printed delivery year; do not infer from other files",
+        "Delivery recipient is not necessarily the ordering client"
+      ]
+    },
+    {
+      "id": "speldspit",
+      "fileName": "NL ObjektReclame SPELDSPIT Logo P-7st WORK Nov 12.pdf",
+      "sha256": "58bb32e0b7c76374be0b3701492dce361205d72cb37c30296a2583e0c8ce5727",
+      "imageOnly": true,
+      "printedDeliveryDate": "2026-11-20",
+      "production": [
+        {
+          "target": "height",
+          "value": "1500 mm",
+          "evidence": "1500 mm",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "depth",
+          "value": "120 mm",
+          "evidence": "120 mm",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "faceMaterial",
+          "value": "ORANGE 2N170",
+          "evidence": "ORANGE 2N170",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "backMaterial",
+          "value": "ALU 1.5",
+          "evidence": "ALU 1.5",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "sidesMaterial",
+          "value": "ALU 1.2",
+          "evidence": "ALU 1.2",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "sidesPaint",
+          "value": "RAL 6016",
+          "evidence": "RAL 6016",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "ledSpec",
+          "value": "6500K",
+          "evidence": "6500K",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "psuSpec",
+          "value": "REGULAR; INSIDE LOGO",
+          "evidence": "REGULAR; INSIDE LOGO",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "cableLength",
+          "value": "3 m",
+          "evidence": "3 m",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "frameSpec",
+          "value": "ALU 6-8mm base",
+          "evidence": "ALU 6-8mm base",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        }
+      ],
+      "reviewQuestions": [
+        "700 mm label measures the base, not the overall logo width",
+        "Nov 12 ACE is not the printed delivery date",
+        "Colored acrylic is not adhesive film"
+      ]
+    },
+    {
+      "id": "ip-handlers",
+      "fileName": "NL Vormenletters - IP HANDLERS P-3 PO-411368 Dec 1.pdf",
+      "sha256": "ab24a8fea2335e60a0b03377fd2eba95d092b146b8092da576072e37652b3259",
+      "imageOnly": true,
+      "printedDeliveryDate": "2026-12-04",
+      "production": [
+        {
+          "target": "customerReference",
+          "value": "PO-411368",
+          "evidence": "PO-411368",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "width",
+          "value": "2966 mm",
+          "evidence": "2966 mm",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "height",
+          "value": "700 mm",
+          "evidence": "700 mm",
+          "page": 1,
+          "part": "Logo",
+          "confidence": "medium"
+        },
+        {
+          "target": "height",
+          "value": "122 mm",
+          "evidence": "122 mm",
+          "page": 1,
+          "part": "Subtext",
+          "confidence": "medium"
+        },
+        {
+          "target": "depth",
+          "value": "50 mm",
+          "evidence": "50 mm",
+          "page": 1,
+          "part": "Profile 3",
+          "confidence": "medium"
+        },
+        {
+          "target": "ledSpec",
+          "value": "6500K",
+          "evidence": "6500K",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "psuSpec",
+          "value": "REGULAR",
+          "evidence": "REGULAR",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "cableSpec",
+          "value": "BLACK CABLE 12V 2m EACH LETTER",
+          "evidence": "BLACK CABLE 12V 2m EACH LETTER",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        },
+        {
+          "target": "frameSpec",
+          "value": "NO FRAME",
+          "evidence": "NO FRAME",
+          "page": 1,
+          "part": null,
+          "confidence": "medium"
+        }
+      ],
+      "reviewQuestions": [
+        "Dec 1 Fura is separate from delivery",
+        "8 mm acrylic subtext is a separate profile",
+        "Do not convert per-letter DC cable into a main cable model"
+      ]
+    }
+  ]
+}

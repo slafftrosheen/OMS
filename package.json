@@ -32,7 +32,10 @@
     "docker:stop": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "supabase:preflight": "bash scripts/supabase-migrate.sh preflight",
-    "oms:staging-smoke": "node scripts/ops/oms-r26-staging-smoke.mjs"
+    "oms:staging-smoke": "node scripts/ops/oms-r26-staging-smoke.mjs",
+    "test:db": "node --test tests/db/*.test.mjs",
+    "test:intake:pdf": "node --test tests/acceptance/production-pdfs.test.mjs",
+    "test:ui:intake": "playwright test --config tests/ui/playwright.production-intake.config.ts"
   },
   "dependencies": {
     "@ericblade/quagga2": "^1.12.1",
@@ -68,6 +71,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.15",
     "@eslint/js": "^9.39.2",
     "@playwright/test": "^1.57.0",
     "@sveltejs/adapter-node": "^5.5.2",

@@ -3,8 +3,9 @@
   import { t } from 'svelte-i18n';
   import { proposalsToPatch, proposalMatchesCurrent, type IntakeProposal, type IntakeResponse } from './intake-contract';
   import {fetchAllOrderFiles,watchOrderFilesChanged} from './order-files-client';
+  import {applyProductionFacts, appendOrderProductionFacts, isOrderProductionFact, reviewProductionFacts, sameIntakeMaterial, productionCurrentValue, type ProductionReview} from './production-intake';
 
-  type Analysis = IntakeResponse & { orderUpdatedAt:string; engine:string|null;profileIndex?:number|null };
+  type Analysis = IntakeResponse & { orderUpdatedAt:string; engine:string|null;profileIndex?:number|null;profileId?:string|null;production?:ProductionReview[];orderConflicts?:Array<{field:string;alternatives:IntakeProposal[]}> };
   type OrderFile = {id:string; originalName?:string; file_name?:string;
     mimeType?:string; mime_type?:string; size?:number};
   let {orderId,editable,current,selectedFileId='',selectedProfileIndex=null,
@@ -33,6 +34,9 @@
   let fileId=$state('');
   let profileChoice=$state('');
   let includePaidOcr=$state(false);
+  let nativePdf=$state(false);
+  let replacementApproved=$state(false);
+  let productionApprovals=$state<Record<number,boolean>>({});
   let loading=$state(false);
   let analyzing=$state(false);
   let applying=$state(false);
@@ -47,6 +51,7 @@
       ? String(selectedProfileIndex) : '';
   });
   let profileIndex=$derived(profileChoice===''?null:Number(profileChoice));
+  let isPdf=$derived((files.find(f=>f.id===fileId)?.mimeType??files.find(f=>f.id===fileId)?.mime_type)==='application/pdf');
   function isUnchanged(p:IntakeProposal){
     return proposalMatchesCurrent(p,current);
   }
@@ -54,8 +59,9 @@
     dirty || !orderUpdatedAt || analysis.orderUpdatedAt!==orderUpdatedAt ||
     JSON.stringify(current)!==baseState
   ));
-  let acceptedCount=$derived(analysis?.proposals.filter((p,i)=>
-    approvals[i]===true && !isUnchanged(p)).length??0);
+  let acceptedCount=$derived((analysis?.proposals.filter((p,i)=>
+    approvals[i]===true && !isUnchanged(p)).length??0)+
+    (analysis?.production?.filter((p,i)=>productionApprovals[i]===true&&p.status==='ready').length??0));
   let sourceMatches=$derived(!analysis || (
     (analysis.fileId??'')===fileId &&
     (analysis.profileIndex??null)===profileIndex
@@ -87,9 +93,8 @@
     if(!fileId && !String(current.notes??'').trim()){
       problem=$t('orderIntake.noSource');return;
     }
-    problem='';analysis=null;approvals={};applied=false;
-    const ocr=includePaidOcr && !!fileId &&
-      files.find(f=>f.id===fileId)?.mimeType==='application/pdf';
+    problem='';analysis=null;approvals={};productionApprovals={};replacementApproved=false;applied=false;
+    const ocr=includePaidOcr && !!fileId && isPdf;
     if(ocr && !confirm($t('orderIntake.confirmPaidOcr')))return;
     analyzing=true;
     const capturedOrderId=orderId;
@@ -103,7 +108,7 @@
         method:'POST',headers:{'Content-Type':'application/json'},signal:requestSignal(),
         body:JSON.stringify({orderId:capturedOrderId,
           fileId:capturedFileId||null,profileIndex:capturedProfileIndex,
-          expectedUpdatedAt:capturedVersion,ocr:!!ocr,language:$t('orderIntake.locale')})
+          expectedUpdatedAt:capturedVersion,ocr:!!ocr,nativePdf:nativePdf&&isPdf&&!ocr,language:$t('orderIntake.locale')})
       });
       const body=await res.json().catch(()=>({}));
       if(disposed||orderId!==capturedOrderId)return;
@@ -130,10 +135,15 @@
       problem=$t('orderIntake.saveFirst');return;
     }
     const accepted=analysis.proposals.filter((p:IntakeProposal,i:number)=>approvals[i]&&!isUnchanged(p));
-    if(!accepted.length){problem=$t('orderIntake.selectOne');return;}
+    const selectedProduction=(analysis.production??[]).filter((p,i)=>productionApprovals[i]&&p.status==='ready');
+    if(!accepted.length&&!selectedProduction.length){problem=$t('orderIntake.selectOne');return;}
     if(JSON.stringify(current)!==baseState){
       problem=$t('orderIntake.changedLocally');return;
     }
+    if(!replacementApproved&&accepted.some(p=>current[p.field]!==null&&current[p.field]!==undefined&&current[p.field]!=='')){
+      problem=$t('orderIntake.replaceRequired');return;
+    }
+    const replace=replacementApproved;
     applying=true;problem='';
     try{
       // A parallel reviewer could have modified/confirmed the draft while the
@@ -154,8 +164,31 @@
           throw new Error($t('orderIntake.sourceChanged'));
       }
       if(disposed)return;
+      const profileFacts=selectedProduction.filter(p=>!isOrderProductionFact(p));
+      const orderFacts=selectedProduction.filter(isOrderProductionFact);
+      let nextProfiles:Record<string,unknown>[]|null=null;
+      if(profileFacts.length){
+        const index=analysis.profileIndex;
+        if(index===null||index===undefined||!analysis.profileId||fresh.profiles?.[index]?.dbId!==analysis.profileId)
+          throw new Error($t('orderIntake.chooseSavedProfile'));
+        const catalogResponse=await scopedFetch('/api/materials?intake=true',{cache:'no-store'});
+        if(!catalogResponse.ok)throw new Error($t('orderIntake.catalogChanged'));
+        const catalog=await catalogResponse.json();
+        const rechecked=reviewProductionFacts(profileFacts.map(({target,value,evidence,page,part,confidence})=>
+          ({target,value,evidence,page,part,confidence})),catalog);
+        if(rechecked.some((p,i)=>p.status!=='ready'||!sameIntakeMaterial(p.material,profileFacts[i].material)))
+          throw new Error($t('orderIntake.catalogChanged'));
+        const baseline=JSON.parse(baseState).profiles??[];
+        nextProfiles=applyProductionFacts((current.profiles??[]) as Record<string,unknown>[],baseline,index,rechecked,replace,catalog);
+      }
+      if(disposed)return;
       if(!sourceMatches || analysisStale)throw new Error($t('orderIntake.changedLocally'));
-      onApply(proposalsToPatch(accepted));
+      if(nextProfiles||orderFacts.length){
+        const patch:Record<string,unknown>=proposalsToPatch(accepted);
+        if(nextProfiles)patch.profiles=nextProfiles;
+        if(orderFacts.length)patch.notes=appendOrderProductionFacts(String(patch.notes??current.notes??''),orderFacts);
+        onApply(patch);
+      }else onApply(proposalsToPatch(accepted));
       applied=true;
     }catch(err){if(!disposed)problem=err instanceof Error?err.message:$t('orderIntake.applyError');}
     finally{if(!disposed)applying=false;}
@@ -169,7 +202,7 @@
     <p class="problem" role="status">{$t('orderIntake.saveFirst')}</p>
   {/if}
   <label>{$t('orderIntake.source')}
-    <select bind:value={fileId} disabled={!editable||analyzing}>
+    <select bind:value={fileId} disabled={!editable||analyzing||applying}>
       <option value="">{$t('orderIntake.notesOnly')}</option>
       {#each files as f (f.id)}
         <option value={f.id}>{f.originalName||f.file_name||f.id}</option>
@@ -177,7 +210,7 @@
     </select>
   </label>
   <label>{$t('orderIntake.profileFocus')}
-    <select bind:value={profileChoice} disabled={!editable||analyzing}>
+    <select bind:value={profileChoice} disabled={!editable||analyzing||applying}>
       <option value="">{$t('orderIntake.wholeOrder')}</option>
       {#each profileNames as name,i (i)}
         <option value={String(i)}>
@@ -190,9 +223,13 @@
   <button class="minor" onclick={loadFiles} disabled={loading||analyzing}>
     {loading?$t('orderIntake.loading'):$t('orderIntake.refresh')}
   </button>
-  {#if fileId && (files.find(f=>f.id===fileId)?.mimeType==='application/pdf')}
+  {#if fileId && isPdf}
+    <label class="check"><input type="checkbox" bind:checked={nativePdf}
+      onchange={()=>{if(nativePdf)includePaidOcr=false;}} disabled={!editable||analyzing||applying}/>
+      {$t('orderIntake.nativePdf')}</label>
+    <p class="hint">{$t('orderIntake.nativePdfHint')}</p>
     <label class="check">
-      <input type="checkbox" bind:checked={includePaidOcr} disabled={!editable||analyzing}/>
+      <input type="checkbox" bind:checked={includePaidOcr} onchange={()=>{if(includePaidOcr)nativePdf=false;}} disabled={!editable||analyzing||applying}/>
       {$t('orderIntake.ocrLabel')}
     </label>
     {#if includePaidOcr}<p class="hint">{$t('orderIntake.ocrCharge')}</p>{/if}
@@ -215,6 +252,17 @@
     {/if}
     <p class="hint">{$t('orderIntake.source')}: {analysis.fileName??$t('orderIntake.notesOnly')}</p>
     <p class="hint">{$t('orderIntake.provenance')}</p>
+    {#if analysis.orderConflicts?.length}
+      <h4>{$t('orderIntake.orderConflict')}</h4>
+      {#each analysis.orderConflicts as conflict (conflict.field)}
+        <div class="proposal"><strong>{$t('orderAssistant.fieldNames.'+conflict.field)}</strong>
+          {#each conflict.alternatives as alternative,i (i)}
+            <span>{alternative.value} · {$t('orderAssistant.confidence.'+alternative.confidence)}</span>
+            <span class="evidence">{alternative.evidence}</span>
+          {/each}
+        </div>
+      {/each}
+    {/if}
     {#if analysis.proposals.length}
       <h4>{$t('orderIntake.proposals')} ({analysis.proposals.length})</h4>
       <div class="proposals">
@@ -222,7 +270,7 @@
           <label class="proposal">
             <span class="choice"><input type="checkbox" checked={approvals[i]===true}
               onchange={e=>approvals={...approvals,[i]:e.currentTarget.checked}}
-              disabled={applied||!editable||analysisStale||isUnchanged(p)}/>
+              disabled={applying||applied||!editable||analysisStale||isUnchanged(p)}/>
               <strong>{$t('orderAssistant.fieldNames.'+p.field)}</strong>
               <small>{$t('orderAssistant.confidence.'+p.confidence)}</small>
             </span>
@@ -238,15 +286,37 @@
           </label>
         {/each}
       </div>
-      {#if applied}
-        <p role="status" class="success">{$t('orderIntake.applied')}</p>
-      {:else}
-        <button class="primary" onclick={apply}
-          disabled={!editable||analysisStale||applying||acceptedCount===0}>
-          {applying?$t('orderIntake.checking'):$t('orderIntake.applySelected')}
-        </button>
-      {/if}
     {:else}<p class="hint">{$t('orderIntake.noProposals')}</p>{/if}
+    {#if analysis.production?.length}
+      <h4>{$t('orderIntake.production')}</h4>
+      <p class="hint">{$t('orderIntake.productionHint')}</p>
+      {#each analysis.production as p,i (`${p.target}-${i}`)}
+        <label class="proposal">
+          <span class="choice"><input type="checkbox" checked={productionApprovals[i]===true}
+            onchange={e=>productionApprovals={...productionApprovals,[i]:e.currentTarget.checked}}
+            disabled={applying||applied||!editable||analysisStale||p.status!=='ready'||(!isOrderProductionFact(p)&&profileIndex===null)}/>
+            <strong>{$t('productionIntake.targets.'+p.target)}</strong>
+            <small>{$t('orderAssistant.confidence.'+p.confidence)}</small></span>
+          <span class="previous">{$t('orderIntake.current')}: {productionCurrentValue(p,current,profileIndex)||'—'}</span>
+          <span class="proposed">{$t('orderIntake.proposed')}: {p.value}{p.part?' — '+p.part:''}</span>
+          {#if p.material}<span class="hint">{p.material.name_en} · {p.material.code} · ID {p.material.id}</span>{/if}
+          <span class="evidence">{$t('orderIntake.evidence')}: {p.evidence}{p.page?' · p. '+p.page:''}</span>
+          <span class="hint">{$t('productionIntake.reasons.'+p.reason)}</span>
+        </label>
+      {/each}
+    {/if}
+    {#if acceptedCount>0 && !applied}
+      <label class="check"><input type="checkbox" bind:checked={replacementApproved} disabled={applying}/>
+        {$t('orderIntake.replaceAcknowledgment')}</label>
+    {/if}
+    {#if applied}
+      <p role="status" class="success">{$t('orderIntake.applied')}</p>
+    {:else}
+      <button class="primary" onclick={apply}
+        disabled={!editable||analysisStale||applying||acceptedCount===0}>
+        {applying?$t('orderIntake.checking'):$t('orderIntake.applySelected')}
+      </button>
+    {/if}
     {#if analysis.profileSuggestions.length}
       <h4>{$t('orderIntake.profiles')}</h4>
       {#each analysis.profileSuggestions as p,i (i)}

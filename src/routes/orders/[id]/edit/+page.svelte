@@ -24,6 +24,7 @@
   import ChangeRequestList from '$lib/order/ChangeRequestList.svelte';
   import OrderFiles from '$lib/order/OrderFiles.svelte';
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
+  import ClientDeliveryAddresses from '$lib/order/ClientDeliveryAddresses.svelte';
   import OrderFlowAssistant from '$lib/order/OrderFlowAssistant.svelte';
   import OrderNativeProfileForm from '$lib/order/OrderNativeProfileForm.svelte';
   import OrderProfileSheet from '$lib/order/OrderProfileSheet.svelte';
@@ -365,6 +366,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     if(typeof patch.deliveryEmail==='string') deliveryEmail=patch.deliveryEmail;
     if(typeof patch.isRd==='boolean') isRd=patch.isRd;
     if(typeof patch.rdNotes==='string') rdNotes=patch.rdNotes;
+    if(Array.isArray(patch.profiles)) profiles=patch.profiles as typeof profiles;
     // These are order-form fields, not Canvas edits. formFingerprint tracks them.
     notifySuccess($t('orderIntake.applied'));
     assistant.close();
@@ -1130,7 +1132,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
       </div>
       {#if canEdit}
         <div class="order-assistant-tool" hidden={toolId !== 'intake'}>
-          <OrderIntakeAssistant {orderId} editable={canEdit} current={intakeCurrent}
+          <OrderIntakeAssistant {orderId} editable={canEdit} current={{...intakeCurrent,profiles}}
             selectedFileId={intakeFileId} selectedProfileIndex={intakeProfileIndex}
             profileNames={intakeProfileNames} dirty={formDirty}
             {orderUpdatedAt} onApply={applyIntakeFields} />
@@ -1467,6 +1469,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
             <label>{$t('orderWorkspace.editor.deliveryContact')} <input bind:value={deliveryContact} disabled={!canEdit} /></label>
             <label>{$t('orderWorkspace.editor.deliveryPhone')} <input bind:value={deliveryPhone} disabled={!canEdit} /></label>
             <label>{$t('orderWorkspace.editor.deliveryEmail')} <input type="email" bind:value={deliveryEmail} disabled={!canEdit} /></label>
+            <ClientDeliveryAddresses {clientName} editable={canEdit}
+              current={{deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail}}
+              onSelect={patch=>{deliveryAddress=patch.deliveryAddress;deliveryContact=patch.deliveryContact;
+                deliveryPhone=patch.deliveryPhone;deliveryEmail=patch.deliveryEmail;deliveryPresetId=null;}}/>
             <label class="checkbox-field">
               <input type="checkbox" bind:checked={isRd} disabled={!canEdit} /> {$t('orderWorkspace.editor.rdOrder')}
             </label>

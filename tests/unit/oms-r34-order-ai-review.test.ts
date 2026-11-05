@@ -37,7 +37,7 @@ describe('OMS-R34 — native form, attachment and OpenRouter review',()=>{
     expect(summary.sections.PAINTING).not.toHaveProperty('sidesColorcode');
   });
   it('binds selected file and profile to saved, authorized order data only',()=>{
-    const intake=read('src/routes/api/ai/order-intake/+server.ts');
+    const intake=read('src/lib/server/order/intake.ts');
     const files=read('src/lib/order/OrderFiles.svelte');
     const edit=read('src/routes/orders/[id]/edit/+page.svelte');
     expect(intake).toContain('profileIndex:z.number().int().min(0).max(99)');
