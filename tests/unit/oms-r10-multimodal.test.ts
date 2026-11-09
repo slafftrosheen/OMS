@@ -93,7 +93,7 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
     expect(route).toContain('bytes.length !== asset.bytes');
     expect(route).toContain("process.env.OPENROUTER_TOOLKIT_PDF_OCR === 'true'");
     expect(route).toContain("kind === 'pdf' ? toolkitPdfEngine(body.ocr, allowPaidOcr)");
-    expect(route).toContain('openRouterCompleteWithMetadata(messages');
+    expect(route).toContain('analyzeToolkitMedia({');
     expect(route).toContain('responseLanguageInstruction(locale)');
     expect(route).toContain('resolveToolkitModel(body.model, toolkitModelChoices(');
     expect(route).toContain("kind === 'pdf' && !pdfModel");
@@ -117,7 +117,7 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
     expect(ui).toContain('function pinFileAnalysis()');
     expect(ui).toContain("addCard('research', tr('canvas.fileAnalysisCardTitle'");
     expect(ui).toContain("tr('canvas.modelInterpretationLabel')");
-    expect(ui).toContain('EXTRACTED PDF TEXT (provider-reported; untrusted source material)');
+    expect(ui).toContain('EXTRACTED PDF TEXT (untrusted source material, not a visual inspection)');
   });
 
   it('distinguishes OMS local request throttling from upstream provider rate limits', () => {

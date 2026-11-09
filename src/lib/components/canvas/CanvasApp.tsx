@@ -1,4 +1,4 @@
-import {OrderCanvasTools} from './OrderCanvasTools';
+import { DrawingWorkspace, DrawingChrome } from './DrawingWorkspace';
 import {OrderAnnotationShapeUtil} from './shapes/OrderAnnotationShape';
 import canvasAssetUrls from './tldraw-asset-urls.json';
 import React, { useEffect, useRef } from 'react';
@@ -27,7 +27,6 @@ import { wireAssetDropHandler, uploadOrderCanvasFiles, cancelOrderCanvasUploads 
 import { CanvasModeContext } from './canvas-mode';
 import { getRunnableShapeIds } from './node-runner';
 import { captureToolkitControls, type ToolkitControlsState } from './toolkit-controls';
-import { ToolkitStyleHostContext, ToolkitStyleTranslateContext, ToolkitStylePortal, ToolkitDesktopStylePanel } from './ToolkitStylePanel';
 
 const customShapeUtils = [
     IdeaShapeUtil,
@@ -48,13 +47,14 @@ const customShapeUtils = [
     BoxLetterShapeUtil
 ];
 
-// Toolkit has one app-owned bottom toolbar. The order editor retains its
-// native chrome; no global CSS hides tools in unrelated canvas surfaces.
-const toolkitUi = {
-    Toolbar: ToolkitStylePortal, StylePanel: ToolkitDesktopStylePanel,
+// Both editors use the same application chrome. Native keyboard, clipboard and
+// selection handles remain inside tldraw's providers. Object menus go through
+// OMS guards, including locked descendants of a selected group.
+const drawingUi = {
+    Toolbar: null, StylePanel: null,
     ActionsMenu: null, QuickActions: null, MenuPanel: null,
-    NavigationPanel: null, HelperButtons: null, ContextMenu: null,
-    DebugPanel: null, DebugMenu: null,
+    NavigationPanel: null, HelperButtons: null, HelpMenu: null, ContextMenu: null,
+    DebugPanel: null, DebugMenu: null, PageMenu: null,
 };
 
 export interface CanvasAppProps {
@@ -79,9 +79,7 @@ export interface CanvasAppProps {
     onToolkitFilesDrop?: (files: File[], position: { x: number; y: number }) => void;
     onToolkitLinkDrop?: (url: string, position?: { x: number; y: number }) => void;
     onToolkitControlsChange?: (state: ToolkitControlsState) => void;
-    toolkitStyleHost?: HTMLElement | null;
     toolkitReadOnly?: boolean;
-    toolkitStyleTranslate?: (key: string) => string;
 }
 
 export function CanvasApp({
@@ -98,9 +96,7 @@ export function CanvasApp({
     onToolkitFilesDrop,
     onToolkitLinkDrop,
     onToolkitControlsChange,
-    toolkitStyleHost = null,
     toolkitReadOnly = false,
-    toolkitStyleTranslate,
 }: CanvasAppProps) {
     const spawnedRef = useRef<SpawnedShapes | null>(null);
     const editorRef = useRef<Editor | null>(null);
@@ -182,7 +178,7 @@ export function CanvasApp({
         cleanupStoreRef.current = unlisten;
         // Register listener before templates / callbacks create new shapes.
         if (onEditorReady) onEditorReady(editor);
-        if (toolkitBoardId) {
+        {
             const syncAppearance = () => {
                 const colorScheme = document.documentElement.dataset.theme === 'LightVim' ? 'light' : 'dark';
                 if (editor.user.getUserPreferences().colorScheme !== colorScheme) {
@@ -194,6 +190,8 @@ export function CanvasApp({
             appearance.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
             cleanupAppearanceRef.current?.();
             cleanupAppearanceRef.current = () => appearance.disconnect();
+        }
+        if (toolkitBoardId) {
             cleanupControlsRef.current?.();
             cleanupControlsRef.current = trackEditor('Toolkit controls', () => {
                 callbacksRef.current.onToolkitControlsChange?.(captureToolkitControls(
@@ -271,18 +269,22 @@ export function CanvasApp({
     return (
         <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
             <CanvasModeContext.Provider value={toolkitBoardId ? 'toolkit' : 'order'}>
-              <ToolkitStyleHostContext.Provider value={toolkitBoardId ? toolkitStyleHost : null}>
-              <ToolkitStyleTranslateContext.Provider value={toolkitStyleTranslate}>
+                <DrawingWorkspace order={!toolkitBoardId && !!orderSeed} hidden={hideUI}
+                  onImport={async (files, point) => {
+                    const editor = editorRef.current;
+                    if (!editor || editor.getInstanceState().isReadonly) return;
+                    if (toolkitBoardId) await callbacksRef.current.onToolkitFilesDrop?.(files, point);
+                    else if (seedRef.current?.orderId) await uploadOrderCanvasFiles(editor, files, seedRef.current.orderId, point);
+                  }}>
                 <Tldraw
                     assetUrls={canvasAssetUrls}
                     snapshot={initialSnapshot as any}
                     shapeUtils={customShapeUtils}
                     onMount={handleMount}
                     hideUi={hideUI}
-                    components={toolkitBoardId ? toolkitUi : orderSeed ? {InFrontOfTheCanvas:OrderCanvasTools} : undefined}
-                />
-              </ToolkitStyleTranslateContext.Provider>
-              </ToolkitStyleHostContext.Provider>
+                    components={drawingUi}
+                >{!hideUI && <DrawingChrome />}</Tldraw>
+                </DrawingWorkspace>
             </CanvasModeContext.Provider>
         </div>
     );

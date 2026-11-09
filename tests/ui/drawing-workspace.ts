@@ -1,0 +1,10 @@
+import { mount } from 'svelte';
+import { addMessages, init } from 'svelte-i18n';
+import en from '../../src/locales/en.json';
+import ru from '../../src/locales/ru.json';
+import lv from '../../src/locales/lv.json';
+import '../../src/app.css';
+import DrawingWorkspaceHarness from './DrawingWorkspaceHarness.svelte';
+addMessages('en', en); addMessages('ru', ru); addMessages('lv', lv);
+await init({ fallbackLocale: 'en', initialLocale: 'en' });
+mount(DrawingWorkspaceHarness, { target: document.getElementById('app')! });

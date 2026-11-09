@@ -72,7 +72,7 @@ describe('OMS-R06 visual file import security', () => {
     expect(pdf).toContain("tn('pdfNext')");
     expect(pdf).toContain('renderTask?.cancel?.()');
   });
-  it('exposes material surface studies and core drawing modes without altering order canvas', () => {
+  it('exposes material studies beside a shared drawing workspace for both canvases', () => {
     const app = source('src/lib/components/canvas/CanvasApp.tsx');
     expect(app).toContain('MaterialSwatchShapeUtil');
     expect(app).toContain('OrderDetailsShapeUtil');
@@ -81,8 +81,9 @@ describe('OMS-R06 visual file import security', () => {
     expect(source('src/lib/components/canvas/shapes/ChatShape.tsx')).toContain("tn('archivedChat')");
     const canvas = source('src/routes/toolkit/canvas/+page.svelte');
     const toolbar = source('src/lib/components/canvas/CanvasToolbar.svelte');
+    const sharedDrawing = source('src/lib/components/canvas/DrawingWorkspace.tsx');
     for (const action of ["'draw'","'highlight'","'rectangle'","'text'","'eraser'"]) {
-      expect(toolbar).toContain(action);
+      expect(sharedDrawing).toContain(action);
     }
     expect(canvas).toContain('CanvasToolbar');
     expect(canvas).not.toContain('class="node-toolbar"');

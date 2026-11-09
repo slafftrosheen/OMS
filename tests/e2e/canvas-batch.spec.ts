@@ -48,16 +48,15 @@ test('a linked AI diagram groups from Draw, uses real bindings and remains one n
   });
 
   await page.goto('/canvas-media.html');
-  await expect(page.getByTestId('canvas-dock')).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByRole('button', { name: 'Select / move', exact: true })).toBeEnabled({ timeout: 45_000 });
+  await expect(page.getByTestId('canvas-content-bar')).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByTestId('drawing-tool-select')).toBeEnabled({ timeout: 45_000 });
   const allRecords = () => Object.values(saved.at(-1)?.payload?.snapshot?.document?.store ?? {}) as any[];
   const shapes = () => allRecords().filter(record => record.typeName === 'shape');
-  const draw = page.getByRole('button', { name: 'Freehand drawing', exact: true });
-  const select = page.getByRole('button', { name: 'Select / move', exact: true });
+  const draw = page.getByTestId('drawing-tool-draw');
+  const select = page.getByTestId('drawing-tool-select');
   const applyAll = page.getByRole('button', { name: 'Apply all edits', exact: true });
   const historyAction = async (name: string) => {
-    await page.getByRole('button', { name: 'More tools', exact: true }).click();
-    await page.getByRole('button', { name, exact: true }).click();
+    await page.getByTestId(name.startsWith('Undo') ? 'drawing-undo' : 'drawing-redo').click();
   };
 
   await page.locator('#toolkit-prompt').fill('Create a connected two-step diagram, align it and group it');

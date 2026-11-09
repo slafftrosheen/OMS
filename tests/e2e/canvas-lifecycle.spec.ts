@@ -104,8 +104,8 @@ async function mountCanvas(page: Page, hooks: Hooks = {}, initialMessages: Json[
     return reply({ error: `Unmocked ${method} ${path}` }, 404);
   });
   await page.goto('/canvas-media.html');
-  await expect(page.getByTestId('canvas-dock')).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByRole('button', { name: 'Select / move', exact: true })).toBeEnabled({ timeout: 45_000 });
+  await expect(page.getByTestId('canvas-content-bar')).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByTestId('drawing-tool-select')).toBeEnabled({ timeout: 45_000 });
   await expect(page.getByLabel('Project title', { exact: true })).toHaveValue('Project A');
   return {
     boards, discussions, reads, patches, privateWrites, recoveries, questions, failedRequests,
@@ -298,14 +298,14 @@ test('canceling navigation preserves dirty edits; leaving aborts AI and clears p
     page.once('dialog', dialog => { expect(dialog.type()).toBe('confirm'); void dialog.dismiss(); });
     await leave.click();
     await expect(title(page)).toHaveValue('Unsaved title stays here');
-    await expect(page.getByTestId('canvas-dock')).toBeVisible();
+    await expect(page.getByTestId('canvas-content-bar')).toBeVisible();
     await expect(page.getByText('Keep working until I leave', { exact: true })).toBeVisible();
 
     page.once('dialog', dialog => { expect(dialog.type()).toBe('confirm'); void dialog.accept(); });
     await leave.click();
     await expect(page.getByText('Canvas closed', { exact: true })).toBeVisible();
     await expect(title(page)).toHaveCount(0);
-    await expect(page.getByTestId('canvas-dock')).toHaveCount(0);
+    await expect(page.getByTestId('canvas-content-bar')).toHaveCount(0);
     answer.resolve();
     await answerReleased.promise;
     await expect.poll(() => fixture.failedRequests.includes('/api/toolkit/brainstorm')).toBe(true);

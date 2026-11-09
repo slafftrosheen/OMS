@@ -109,7 +109,7 @@ describe('OMS-R06 shared-board stability and interaction', () => {
   });
   it('restores editor affordances without dropping old shapes', () => {
     const controls = file('src/lib/components/canvas/toolkit-controls.ts');
-    expect(workspace).toContain('applyToolkitToolbarAction(editor, action)');
+    expect(file('src/lib/components/canvas/drawing-commands.ts')).toContain('applyToolkitToolbarAction(editor, command)');
     expect(controls).toContain('editor.undo()');
     expect(controls).toContain('editor.redo()');
     expect(controls).toContain('editor.zoomToFit()');

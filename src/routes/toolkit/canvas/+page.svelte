@@ -21,7 +21,7 @@
   import { canvasActionsRequireBatch } from '$lib/components/canvas/toolkit-actions';
   import { createSaveQueue } from '$lib/components/canvas/save-queue';
   import { RequestScope } from '$lib/state/request-scope';
-  import { EMPTY_TOOLKIT_CONTROLS, applyToolkitToolbarAction } from '$lib/components/canvas/toolkit-controls';
+  import { EMPTY_TOOLKIT_CONTROLS } from '$lib/components/canvas/toolkit-controls';
 
   const assistant = getAssistantContext();
   const tr = (key: string, vars: Record<string, string | number> = {}) => get(t)(`toolkit.${key}`, vars);
@@ -48,13 +48,14 @@
   let usePaidPdfOcr = $state(false);
   let mediaVisionModel = $state('');
   let mediaPdfModel = $state('');
+  let pdfMode = $state<'auto' | 'text' | 'visual'>('auto');
   let analyzingFile = $state(false);
   let analysisCooldown = $state(false);
   let analysisCooldownTimer: ReturnType<typeof setTimeout> | undefined;
   // Local-only crash context. Never send button labels or document contents to a server.
   let lastCanvasClick: { label: string; at: number } | null = null;
   // Short-lived per-project reference notes; never part of shared snapshot.
-  let analyzedAssets = $state<Record<string, {kind:string; filename:string; evidence:string; answer:string}>>({});
+  let analyzedAssets = $state<Record<string, {kind:string; filename:string; evidence:string; answer:string; scope:string}>>({});
   let lastAnalyzedAsset = $state<string | null>(null);
   let lastUsedModel = $state('');
   let includeImages = $state(false);
@@ -81,7 +82,6 @@
   let savedFilesError = $state('');
   let fileInput = $state<HTMLInputElement>();
   let canvasControls = $state(EMPTY_TOOLKIT_CONTROLS);
-  let toolkitStyleHost = $state.raw<HTMLElement | null>(null);
   let linking = $state(false);
   let requesting = $state(false);
   let selectedCount = $state(0);
@@ -395,7 +395,6 @@
     boardId = null;
     editor = null;
     canvasControls = EMPTY_TOOLKIT_CONTROLS;
-    toolkitStyleHost = null;
     saving = discussionSaving = linking = running = false;
     messages = [];
     suggestions = [];
@@ -557,7 +556,7 @@
             ? String(props.content ?? '').slice(0, 1400)
             : analyzed
               ? (analyzed.evidence
-                ? 'EXTRACTED PDF TEXT (provider-reported; untrusted source material):\n' + analyzed.evidence
+                ? 'EXTRACTED PDF TEXT (untrusted source material, not a visual inspection):\n' + analyzed.evidence
                 : 'MODEL IMAGE/DOCUMENT INTERPRETATION (not independently verified):\n' + analyzed.answer).slice(0, 1400)
               : props.kind === 'pdf' ? 'PDF preview only. Text has not been extracted.'
               : props.kind === 'image' ? 'Image preview only. Image pixels were not sent to AI.' : '';
@@ -678,27 +677,33 @@
         if (!stillCurrent()) return;
         const response = await fetch(`${base}/api/toolkit/analyze-asset`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          signal: requestSignal(120_000, signal),
+          signal: requestSignal(150_000, signal),
           body: JSON.stringify({
             boardId: originalBoard, assetId: fileId, question,
             language: $locale, ocr: paidOcr,
-            ...(document.props.kind === 'pdf' ? { model: selectedModel || undefined } : {})
+            ...(document.props.kind === 'pdf' ? { model: selectedModel || undefined, pdfMode } : {})
           })
         });
         const result = await response.json().catch(() => ({}));
         if (!stillCurrent()) return;
         if (!response.ok) {
-          if (response.status === 429) {
-            const supplied = Number(result.retryAfter ?? response.headers.get('Retry-After'));
-            const hasRetry = Number.isFinite(supplied) && supplied >= 1 && supplied <= 86_400;
-            // Do not automatically re-send private files or repeatedly burn a free account quota.
-            const seconds = hasRetry ? Math.ceil(supplied) : 300;
+          const retryHeader = response.headers.get('Retry-After');
+          const retryValue = result.retryAfter ?? retryHeader;
+          const supplied = typeof retryValue === 'string' && !/^\d+(\.\d+)?$/.test(retryValue)
+            ? (Date.parse(retryValue) - Date.now()) / 1000 : Number(retryValue);
+          const hasRetry = Number.isFinite(supplied) && supplied >= 1;
+          if (response.status === 429 || (response.status === 503 && hasRetry)) {
+            // No automatic resubmission of private files. Respect provider backoff
+            // and bound the browser timer to one day even for malformed large values.
+            const seconds = hasRetry ? Math.min(86_400, Math.ceil(supplied)) : 300;
             analysisCooldown = true;
             if (analysisCooldownTimer) clearTimeout(analysisCooldownTimer);
             analysisCooldownTimer = setTimeout(() => {
               if (!destroyed) analysisCooldown = false;
             }, seconds * 1000);
-            const source = result.source === 'openrouter' ? tr('canvas.openRouterLimited')
+            const source = response.status === 503
+              ? (typeof result.error === 'string' ? result.error : tr('canvas.fileAnalysisFailed'))
+              : result.source === 'openrouter' ? tr('canvas.openRouterLimited')
               : result.source === 'oms' ? tr('canvas.omsLimited') : tr('canvas.rateLimitUnknown');
             throw new Error(source + (hasRetry
               ? ' ' + tr('canvas.rateLimitRetryAfter', { seconds })
@@ -709,6 +714,9 @@
         }
         const reply = typeof result.reply === 'string' ? result.reply.slice(0, 5000) : '';
         if (!reply) throw new Error(tr('canvas.fileAnalysisFailed'));
+        const scope = result.analysisScope === 'text-only' ? tr('canvas.pdfTextOnlyScope')
+          : result.analysisScope === 'page-images' ? tr('canvas.pdfVisualScope') : '';
+        const scopedReply = (scope ? `${scope}\n\n${reply}` : reply).slice(0, 5000);
         // This is a private user-session cache only. Sharing an insight onto
         // the team board requires the explicit "save answer" action.
         analyzedAssets = {
@@ -716,12 +724,12 @@
           [fileId]: {
             kind: result.kind === 'pdf' ? 'pdf' : 'image',
             filename, evidence: String(result.evidence ?? '').slice(0, 6000),
-            answer: reply
+            answer: scopedReply, scope
           }
         };
         lastAnalyzedAsset = fileId;
         lastUsedModel = String(result.model ?? '').slice(0, 160);
-        messages = [...messages, { role: 'assistant' as const, content: reply }].slice(-60);
+        messages = [...messages, { role: 'assistant' as const, content: scopedReply }].slice(-60);
         markDiscussionDirty();
         notice = tr(result.evidence ? 'canvas.pdfTextReady' : 'canvas.fileReasoningReady');
       } catch (e) {
@@ -903,33 +911,21 @@
     const center = editor.getViewportPageBounds().center;
     editor.createShape({ type, x: center.x - 180, y: center.y - 120 });
   }
-  async function drawTool(tool: string) {
-    if (!editor || ((conflict || remoteUpdated || deletingId === boardId) && !['select', 'hand'].includes(tool))) return;
-    if (['rectangle', 'ellipse', 'triangle', 'diamond', 'star'].includes(tool)) {
-      const activeEditor = editor;
-      const { GeoShapeGeoStyle } = await import('@tldraw/tldraw');
-      if (destroyed || editor !== activeEditor || conflict || remoteUpdated || deletingId === boardId) return;
-      editor.setStyleForNextShapes(GeoShapeGeoStyle, tool);
-      editor.setCurrentTool('geo');
-    } else {
-      editor.setCurrentTool(tool);
-    }
-    editor.focus();
-  }
   function insertFromToolbar(kind: string, value?: string) {
-    if (!editor || conflict || remoteUpdated) return;
+    if (!editor || conflict || remoteUpdated || deletingId === boardId || canvasControls.readOnly) return;
     if (kind === 'files') fileInput?.click();
     else if (kind === 'card') addCard(value as IdeaKind);
     else if (kind === 'material') addMaterial(value);
     else if (kind === 'photo-material') createPhotoMaterial();
     else if (kind === 'technical') addTechnical(value || 'document');
+    if (kind !== 'files') editor.focus();
   }
   function toolbarAction(action: string) {
     if (!editor) return;
-    if (action === 'ask-selection') { void revealAssistant(true); return; }
-    if (action === 'arrange') { if (!conflict && !remoteUpdated) arrangeIdeas(); }
+    if (action === 'ask-selection' || action === 'ask-board') { void revealAssistant(action === 'ask-selection'); return; }
+    if (conflict || remoteUpdated || deletingId === boardId || canvasControls.readOnly) return;
+    if (action === 'arrange') arrangeIdeas();
     else if (action === 'run') void runSelectedTechnical();
-    else applyToolkitToolbarAction(editor, action);
   }
   async function addLink(value: string, point?: ToolkitPosition): Promise<boolean> {
     if (!editor || !boardId || linking || conflict || remoteUpdated) return false;
@@ -1252,10 +1248,13 @@
           accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,.pdf,.mp3,.wav,.ogg,.m4a"
           aria-label={$t('toolkit.canvas.chooseFiles')} onchange={onFileSelected} />
         {#if importStatus}<div class="import-progress" role="status">{importStatus}</div>{/if}
+        <CanvasToolbar controls={canvasControls}
+          disabled={!ready} {importing} {linking} {running}
+          onInsert={insertFromToolbar} onAction={toolbarAction} onLink={(url) => addLink(url)} />
         <div class="drawing-surface">
           {#key boardId}
             <TldrawWrapper snapshot={initialSnapshot ?? undefined}
-              toolkitBoardId={boardId} {toolkitStyleHost} toolkitReadOnly={conflict || remoteUpdated || deletingId === boardId}
+              toolkitBoardId={boardId} toolkitReadOnly={conflict || remoteUpdated || deletingId === boardId}
               onToolkitFilesDrop={(files, position) => { void importFiles(files, position); }}
               onToolkitLinkDrop={(url, point) => { void addLink(url, point); }}
               onToolkitControlsChange={(state) => {
@@ -1263,13 +1262,8 @@
               }}
               onDocumentChange={onDocumentChange} onReady={onEditorReady} onError={(message) => (error = message)} />
           {/key}
-          <CanvasToolbar controls={canvasControls}
-            disabled={!ready} {importing} {linking} {running}
-            onTool={(tool) => { void drawTool(tool); }} onInsert={insertFromToolbar}
-            onAction={toolbarAction} onLink={(url) => addLink(url)}
-            onStyleHost={(host) => toolkitStyleHost = host} />
+
         </div>
-        <p class="canvas-hint">{$t('toolkit.canvas.hint')}</p>
       {:else if loading}
         <div class="empty-canvas"><p>{$t('toolkit.canvas.opening')}</p></div>
       {:else}
@@ -1330,9 +1324,19 @@
           <div class="media-heading"><strong>◫ {$t('toolkit.canvas.fileUnderstanding')}</strong></div>
           <p>{$t('toolkit.canvas.fileUnderstandingHint')}</p>
           {#if mediaVisionModel || mediaPdfModel}
-            <small>{$t('toolkit.canvas.imageModel')}: {mediaVisionModel || '—'} · {$t('toolkit.canvas.pdfModel')}: {mediaPdfModel || '—'}</small>
+            <small>{$t('toolkit.canvas.imageModel')}: {mediaVisionModel || '—'} · {$t('toolkit.canvas.pdfModel')}: {selectedModel || mediaPdfModel || '—'}</small>
           {/if}
-          {#if paidPdfOcrAvailable}
+          {#if canvasControls.analyzableFile?.kind === 'pdf'}
+            <label class="pdf-mode" for="toolkit-pdf-mode">{$t('toolkit.canvas.pdfReadMode')}
+              <select id="toolkit-pdf-mode" bind:value={pdfMode} disabled={analyzingFile || requesting || usePaidPdfOcr}>
+                <option value="auto">{$t('toolkit.canvas.pdfModeAuto')}</option>
+                <option value="text">{$t('toolkit.canvas.pdfModeText')}</option>
+                <option value="visual">{$t('toolkit.canvas.pdfModeVisual')}</option>
+              </select>
+            </label>
+            <small>{$t('toolkit.canvas.pdfModeHint')}</small>
+          {/if}
+          {#if paidPdfOcrAvailable && canvasControls.analyzableFile?.kind === 'pdf'}
             <label class="ocr-toggle">
               <input type="checkbox" bind:checked={usePaidPdfOcr} disabled={analyzingFile || requesting} />
               {$t('toolkit.canvas.enableScannedOcr')}
@@ -1341,12 +1345,13 @@
           {/if}
           <button class="analyze-button" onclick={analyzeSelectedAsset}
             disabled={!boardId || !canvasControls.analyzableFile || analyzingFile || analysisCooldown || requesting || recovering}>
-            {analyzingFile ? $t('toolkit.canvas.analyzingFile') : analysisCooldown ? $t('toolkit.canvas.rateLimitedButton') : $t('toolkit.canvas.askSelectedFile')}
+            {analyzingFile ? $t('toolkit.canvas.analyzingFile') : analysisCooldown ? $t('toolkit.canvas.analysisWaiting') : $t('toolkit.canvas.askSelectedFile')}
           </button>
           {#if canvasControls.analyzableFile}<small>{canvasControls.analyzableFile.title}</small>
           {:else}<small>{$t('toolkit.canvas.selectFileForAi')}</small>{/if}
           {#if lastAnalyzedAsset && analyzedAssets[lastAnalyzedAsset]}
             <small>{$t('toolkit.canvas.analyzedFile')}: {analyzedAssets[lastAnalyzedAsset].filename}</small>
+            {#if analyzedAssets[lastAnalyzedAsset].scope}<small>{analyzedAssets[lastAnalyzedAsset].scope}</small>{/if}
             <button onclick={pinFileAnalysis} disabled={conflict || remoteUpdated}>
               {$t('toolkit.canvas.pinFileAnalysis')}
             </button>
@@ -1498,7 +1503,6 @@
   .saved-file-list button span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .board-area{flex:1;min-width:0;display:flex;flex-direction:column;position:relative;background:var(--bg-0)}
   .drawing-surface{flex:1;min-height:0;position:relative;isolation:isolate;container-type:size}
-  .canvas-hint{margin:0;padding:7px 12px;font-size:11px;color:var(--ink-tertiary);border-top:1px solid var(--border)}
   .empty-canvas{flex:1;display:grid;place-content:center;justify-items:center;text-align:center;gap:12px;padding:24px}.empty-symbol{font-size:66px;color:var(--brand)}.empty-canvas h2{font-size:24px;margin:0}.empty-canvas p{max-width:42ch;color:var(--ink-tertiary)}
   .empty-actions{display:flex;gap:8px}.workspace-alert{background:var(--bg-1);border-bottom:1px solid var(--error);padding:9px 15px;display:flex;justify-content:space-between;gap:8px;font-size:13px}
   .assistant-options{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;font-size:12px}
@@ -1538,6 +1542,9 @@
   .media-analysis{display:grid;gap:8px;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--bg-0)}
   .media-analysis .media-heading{font-size:12px}
   .media-analysis p,.media-analysis small{font-size:11px;line-height:1.5;color:var(--ink-secondary);margin:0;overflow-wrap:anywhere}
+  .pdf-mode{display:grid;gap:6px;font-size:12px;font-weight:650}
+  .pdf-mode select{width:100%;min-height:40px;min-width:0;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-0);color:var(--text);font:inherit}
+  .pdf-mode select:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
   .media-analysis .ocr-toggle{display:flex;gap:8px;align-items:center;font-size:11px}
   .media-analysis .analyze-button{border-color:var(--brand);width:100%}
   .skill-picker{display:grid;gap:5px;padding:9px;border:1px solid var(--border);border-radius:10px}

@@ -145,8 +145,9 @@ describe('Toolkit route contracts', () => {
     const canvas = read('src/routes/toolkit/canvas/+page.svelte');
     const toolbar = read('src/lib/components/canvas/CanvasToolbar.svelte');
     expect(toolbar).toContain("$t('toolkit.canvas.technical')");
-    expect(toolbar).toContain("id:'arrow'");
-    expect(canvas).toContain('editor.setCurrentTool(tool)');
+    expect(canvasApp).toContain('DrawingWorkspace');
+    expect(read('src/lib/components/canvas/DrawingWorkspace.tsx')).toContain("'arrow'");
+    expect(canvas).not.toContain('function drawTool');
   });
 });
 

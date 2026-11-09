@@ -35,8 +35,8 @@ async function mountCanvas(page: Page) {
     return reply({error:`Unmocked request ${path}`},404);
   });
   await page.goto('/canvas-media.html');
-  await expect(page.getByTestId('canvas-dock')).toBeVisible({timeout:45_000});
-  await expect(page.getByRole('button',{name:'Select / move',exact:true})).toBeEnabled({timeout:45_000});
+  await expect(page.getByTestId('canvas-content-bar')).toBeVisible({timeout:45_000});
+  await expect(page.getByTestId('drawing-tool-select')).toBeEnabled({timeout:45_000});
   return {saved,board};
 }
 
@@ -117,7 +117,6 @@ test('technical node buttons and the toolbar share one request without erasing p
   await page.getByRole('button',{name:'Run',exact:true}).click();
   await expect.poll(() => requests.length).toBe(1);
   await query.fill('Edited while waiting');
-  await page.getByRole('button',{name:'More tools',exact:true}).click();
   await page.getByRole('button',{name:'Run selected tool',exact:true}).click();
   expect(requests).toHaveLength(1);
   release();
@@ -195,21 +194,20 @@ test('Toolkit conversation switches keep drafts and late reads or replies in the
 
 test('canvas has one compact tool selector and native drawing remains operational', async ({page}) => {
   const {saved} = await mountCanvas(page);
-  await expect(page.getByRole('toolbar',{name:'Canvas tools'})).toHaveCount(1);
+  await expect(page.getByRole('toolbar',{name:'Drawing tools'})).toHaveCount(1);
   await expect(page.locator('.node-toolbar')).toHaveCount(0);
   await expect(page.locator('.tlui-toolbar')).toHaveCount(0);
-  await expect(page.getByRole('button',{name:'Freehand drawing',exact:true})).toHaveCount(1);
+  await expect(page.getByTestId('drawing-tool-draw')).toHaveCount(1);
   await page.getByRole('button',{name:'Hide assistant',exact:true}).click();
   await page.getByRole('button',{name:'Projects',exact:true}).click();
-  await page.getByRole('button',{name:'Freehand drawing',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Freehand drawing',exact:true})).toHaveAttribute('aria-pressed','true');
+  await page.getByTestId('drawing-tool-draw').click();
+  await expect(page.getByTestId('drawing-tool-draw')).toHaveAttribute('aria-pressed','true');
   const canvas = await page.getByTestId('canvas').boundingBox();
   if (!canvas) throw new Error('Canvas not rendered');
   await page.mouse.move(canvas.x + 100, canvas.y + 140); await page.mouse.down();
   await page.mouse.move(canvas.x + 230, canvas.y + 210,{steps:8}); await page.mouse.up();
   await expect.poll(() => JSON.stringify(saved)).toContain('"type":"draw"');
-  await page.getByRole('button',{name:'More tools',exact:true}).click();
-  await page.getByRole('button',{name:'Rectangle',exact:true}).click();
+  await page.getByTestId('drawing-tool-rectangle').click();
   await page.mouse.move(canvas.x + 300, canvas.y + 120); await page.mouse.down();
   await page.mouse.move(canvas.x + 420, canvas.y + 210,{steps:5}); await page.mouse.up();
   await expect.poll(() => JSON.stringify(saved)).toContain('"type":"geo"');
@@ -238,7 +236,7 @@ test('canvas links, embedded video and uploaded clips persist then native text r
   await waitForCanvasPaint(page,page.locator('video'));
   await page.screenshot({path:'/tmp/oms-canvas-media-playing.png'});
   await expect.poll(() => JSON.stringify(saved)).toContain('"kind":"video"');
-  await page.getByRole('button',{name:'Canvas text',exact:true}).click();
+  await page.getByTestId('drawing-tool-text').click();
   const canvas = await page.getByTestId('canvas').boundingBox();
   if (!canvas) throw new Error('Canvas not rendered');
   await page.mouse.click(canvas.x + 80,canvas.y + 120);
@@ -266,12 +264,12 @@ for (const width of [320,1440]) {
     await mountCanvas(page);
     await insertLink(page,'https://example.com/reference');
     await expect(page.getByRole('link',{name:/Open original.*example\.com/})).toBeVisible();
-    await page.getByRole('button',{name:'More tools',exact:true}).click();
+    await page.locator('.drawing-menu > summary').filter({hasText:/^View$/}).click();
     await page.getByRole('button',{name:'Fit',exact:true}).click();
     for (const theme of ['LightVim','DarkVim','HighContrastVim']) {
       await page.getByLabel('Theme',{exact:true}).selectOption(theme);
       await expect(page.locator('.tl-container')).toHaveClass(theme === 'LightVim' ? /tl-theme__light/ : /tl-theme__dark/);
-      const dock = page.getByTestId('canvas-dock');
+      const dock = page.getByTestId('canvas-content-bar');
       await dock.scrollIntoViewIfNeeded();
       const bounds = await dock.boundingBox();
       expect(bounds?.x).toBeGreaterThanOrEqual(0);
@@ -290,9 +288,9 @@ for (const width of [320,1440]) {
       await page.getByRole('button',{name:'Close tools',exact:true}).click();
     }
     await page.getByLabel('Language',{exact:true}).selectOption('ru');
-    await expect(page.getByRole('toolbar',{name:'Инструменты холста'})).toBeVisible();
+    await expect(page.getByRole('toolbar',{name:'Содержимое и автоматизация холста'})).toBeVisible();
     await page.getByLabel('Language',{exact:true}).selectOption('lv');
-    await expect(page.getByRole('toolbar',{name:'Audekla rīki'})).toBeVisible();
+    await expect(page.getByRole('toolbar',{name:'Audekla saturs un automatizācija'})).toBeVisible();
   });
 }
 
@@ -343,8 +341,7 @@ test('canvas OpenRouter edits native shapes atomically, reads real drawing pixel
   expect(records().find(shape=>shape.type==='arrow')?.props.text).toBe('Next');
   expect(records().find(shape=>shape.type==='geo'&&shape.props.text==='Ready')?.props.color).toBe('violet');
   expect(records().find(shape=>shape.type==='geo'&&shape.props.text==='Finish')?.props.w).toBe(300);
-  await page.getByRole('button',{name:'More tools',exact:true}).click();
-  await page.getByRole('button',{name:'Undo last canvas edit',exact:true}).click();
+  await page.getByTestId('drawing-undo').click();
   await expect.poll(()=>records().filter(shape=>shape.type==='group'||shape.type==='arrow').length).toBe(0);
   expect(records().map(shape=>({id:shape.id,type:shape.type,x:shape.x,y:shape.y,props:shape.props}))).toEqual(originals);
   expect(errors).toEqual([]);
@@ -366,7 +363,7 @@ test('native order canvas edits real production configuration and preserves cust
  await expect.poll(()=>page.evaluate(()=>(window as any).__orderCanvasBridge.inspect().shapes.find((s:any)=>s.type==='order-details').props.clientName)).toBe('Canvas client');
  await expect(page.getByTestId('callback-events')).toContainText('original:order:fixture-order');
  await page.route('**/api/files/upload',r=>r.fulfill({json:{file:{id:'saved-image',mimeType:'image/png'}}}));
- await page.locator('section[aria-label="Order canvas tools"] input[type=file]').setInputFiles({name:'Reference.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=','base64')});
+ await page.locator('.drawing-commands input[type=file]').setInputFiles({name:'Reference.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=','base64')});
  await expect.poll(()=>page.evaluate(()=>(window as any).__orderCanvasBridge.inspect().shapes.find((s:any)=>s.type==='document')?.props.url)).toBe('/api/files/saved-image/download');
  await page.getByRole('button',{name:'Warning',exact:true}).click();
  await page.getByRole('textbox',{name:'Badge icon'}).fill('★');
@@ -376,7 +373,7 @@ test('native order canvas edits real production configuration and preserves cust
  await expect.poll(()=>page.evaluate(()=>(window as any).__orderCanvasBridge.inspect().shapes.find((s:any)=>s.type==='order-annotation').props)).toMatchObject({icon:'★',kind:'warning',text:'Confirm mounting location'});
  await expect.poll(()=>page.evaluate(()=>(window as any).__orderCanvasBridge.inspect().shapes.find((s:any)=>s.type==='document').props.fileId)).toBe('saved-image');
  await page.getByRole('button',{name:'Toggle read only canvas'}).click();
- await expect(page.getByRole('button',{name:'Upload files',exact:true})).toBeDisabled();
+ await expect(page.getByTestId('drawing-import')).toBeDisabled();
  await page.evaluate(()=>(window as any).__orderCanvasBridge.focusDetails());
  await expect(page.getByLabel('Client',{exact:true})).toBeDisabled();
 

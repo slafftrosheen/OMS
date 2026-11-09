@@ -1,11 +1,11 @@
-import { json, error } from '@sveltejs/kit';
+import { json, error, isHttpError } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { requireToolkitManager } from '$lib/server/toolkit/access';
 import { isUuid, signatureMatches, TOOLKIT_ASSET_BUCKET } from '$lib/server/toolkit/assets';
-import { toolkitMediaKind, toolkitMediaLimit, toolkitMediaContent, toolkitPdfEngine, extractedPdfEvidence } from '$lib/server/toolkit/media-analysis';
+import { toolkitMediaKind, toolkitMediaLimit, toolkitPdfEngine } from '$lib/server/toolkit/media-analysis';
 import { checkAiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
-import { openRouterCompleteWithMetadata, OpenRouterHttpError } from '$lib/server/ai/openrouter';
-import { OPENROUTER_VISION_MODEL } from '$lib/server/config';
+import { OpenRouterHttpError } from '$lib/server/ai/openrouter';
+import { analyzeToolkitMedia, PdfSourceError } from '$lib/server/toolkit/analyze-media';
 import { resolveToolkitModel, toolkitModelChoices } from '$lib/server/toolkit/ai-models';
 import {readOpenRouterModels} from '$lib/server/ai/provider-models';
 import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/ai/response-language';
@@ -33,7 +33,8 @@ export const POST: RequestHandler = async (event) => {
   if (!body || !isUuid(body.boardId) || !isUuid(body.assetId) ||
       (body.question !== undefined && (typeof body.question !== 'string' || body.question.length > 2500)) ||
       (body.ocr !== undefined && typeof body.ocr !== 'boolean') ||
-      (body.model !== undefined && typeof body.model !== 'string')) {
+      (body.model !== undefined && typeof body.model !== 'string') ||
+      (body.pdfMode !== undefined && !['auto', 'text', 'visual'].includes(body.pdfMode))) {
     throw error(400, 'Select a valid Canvas image/PDF and a bounded question');
   }
   const allowPaidOcr = process.env.OPENROUTER_TOOLKIT_PDF_OCR === 'true';
@@ -58,8 +59,6 @@ export const POST: RequestHandler = async (event) => {
   const engine = kind === 'pdf' ? toolkitPdfEngine(body.ocr, allowPaidOcr) : null;
   // Only the administrator-configured allow-list may select a PDF model.
   // Never auto-upgrade to a paid model when free quota is exhausted.
-  const pdfModel = kind === 'pdf' ? resolveToolkitModel(body.model, toolkitModelChoices((await readOpenRouterModels()).textModel)) : null;
-  if (kind === 'pdf' && !pdfModel) throw error(400, 'Choose a configured PDF model');
   if (kind === 'pdf' && !engine) throw error(403, 'Paid PDF OCR is not enabled');
 
   const { data: preference } = await locals.supabase.from('user_preferences')
@@ -89,36 +88,27 @@ dimensions, dates, page numbers, or visual features. Separate observations from 
 When referring to a page, use a page number ONLY if the source material gives it explicitly.
 For charts and tables, state labels and units if legible. If text is unreadable, say so.
 This is analysis ONLY: never claim you edited Canvas, saved anything or verified an external source.
-If the PDF parser extracts no readable text, say so and suggest optional scanned-document OCR.
+If any content is unreadable, state the limitation instead of filling gaps with guesses.
 ${responseLanguageInstruction(locale)}`;
-  const attachment = toolkitMediaContent(asset.file_name, asset.mime_type, bytes);
-  const messages = [
-    { role: 'system' as const, content: system },
-    { role: 'user' as const, content: [
-      { type: 'text', text: `File: ${asset.file_name.slice(0, 180)}. User question: ${question}` },
-      attachment
-    ] }
-  ];
   try {
-    const response = await openRouterCompleteWithMetadata(messages, {
-      model: kind === 'image' ? OPENROUTER_VISION_MODEL : pdfModel!,
-      maxTokens: 2200, temperature: 0.2, timeoutMs: 120_000, signal: request.signal,
-      ...(kind === 'pdf' ? { plugins: [{ id: 'file-parser', pdf: { engine } }] } : {})
+    const models = await readOpenRouterModels();
+    const pdfModel = kind === 'pdf' ? resolveToolkitModel(body.model, toolkitModelChoices(models.textModel)) : null;
+    if (kind === 'pdf' && !pdfModel) throw error(400, 'Choose a configured PDF model');
+    const result = await analyzeToolkitMedia({
+      kind, filename: asset.file_name, mime: asset.mime_type, bytes, system, question,
+      textModel: pdfModel ?? models.textModel, visionModel: models.visionModel,
+      pdfMode: body.pdfMode ?? 'auto', paidOcr: engine === 'mistral-ocr',
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(140_000)])
     });
-    if (!response.text.trim()) throw new Error('Empty model response');
-    // For PDF, only provider-parsed text can be labeled evidence. The answer
-    // itself (including image observations) is model interpretation, not OCR.
-    const evidence = kind === 'pdf'
-      ? extractedPdfEvidence(response.annotations, 6000) : '';
-    return json({
-      assetId: asset.id,
-      kind, fileName: asset.file_name,
-      reply: response.text.slice(0, 8500),
-      evidence, evidenceType: evidence ? 'provider-extracted-text' : 'model-interpretation',
-      model: response.model, engine
-    }, { headers: noStore });
+    return json({ assetId: asset.id, kind, fileName: asset.file_name, ...result }, { headers: noStore });
   } catch (err) {
     if (request.signal.aborted) return json({ error: 'Request cancelled' }, { status: 499, headers: noStore });
+    if (err instanceof PdfSourceError || isHttpError(err, 422) || isHttpError(err, 400)) {
+      return json({ error: err instanceof PdfSourceError ? err.message : err.body.message,
+        code: 'PDF_SOURCE_UNREADABLE', source: 'oms' }, {
+        status: isHttpError(err, 400) ? 400 : 422, headers: noStore
+      });
+    }
     const detail = err instanceof Error ? err.message : '';
     // Never expose upstream response bodies, stored filenames, credentials or prompts.
     // The OpenRouter client intentionally reports only the HTTP status.
@@ -127,16 +117,18 @@ ${responseLanguageInstruction(locale)}`;
       : /OpenRouter completion failed \(HTTP (\d{3})\)/.exec(detail)?.[1];
     const retryAfter = err instanceof OpenRouterHttpError ? err.retryAfterSeconds : null;
     const policyDenied = /policy|data sharing|disabled/i.test(detail);
+    const settingsUnavailable = /model settings unavailable/i.test(detail);
     const unconfigured = /not configured|API key/i.test(detail);
     const timedOut = /timeout|timed out|TimeoutError/i.test(detail) ||
       (err instanceof Error && err.name === 'TimeoutError');
     const status = policyDenied ? 403 : unconfigured ? 503 : timedOut ? 504 :
       upstreamStatus === '429' ? 429 : upstreamStatus === '400' || upstreamStatus === '422' ? 422 : 503;
-    const code = policyDenied ? 'PROVIDER_POLICY_DISABLED' :
+    const code = settingsUnavailable ? 'PROVIDER_SETTINGS_UNAVAILABLE' : policyDenied ? 'PROVIDER_POLICY_DISABLED' :
       unconfigured ? 'PROVIDER_NOT_CONFIGURED' : timedOut ? 'PROVIDER_TIMEOUT' :
       upstreamStatus === '429' ? 'PROVIDER_RATE_LIMIT' :
       upstreamStatus === '400' || upstreamStatus === '422' ? 'PROVIDER_REJECTED_DOCUMENT' :
       upstreamStatus === '401' || upstreamStatus === '403' ? 'PROVIDER_AUTH_FAILURE' :
+      upstreamStatus === '503' ? 'PROVIDER_UNAVAILABLE' :
       upstreamStatus ? 'PROVIDER_UPSTREAM_ERROR' : 'PROVIDER_ANALYSIS_FAILED';
     console.error('[Toolkit] multimodal analysis failed', {
       code, upstreamStatus: upstreamStatus ?? null, retryAfter, kind,
@@ -145,6 +137,10 @@ ${responseLanguageInstruction(locale)}`;
     return json({
       error: code === 'PROVIDER_REJECTED_DOCUMENT'
         ? 'OpenRouter rejected this document or parser/model combination. Try another configured PDF-capable model.'
+        : code === 'PROVIDER_SETTINGS_UNAVAILABLE'
+          ? 'OpenRouter model settings could not be loaded. Check the database connection and apply the model-settings migration before choosing models in R&D settings.'
+        : code === 'PROVIDER_UNAVAILABLE'
+          ? 'No OpenRouter provider is available for the configured model. Choose another available model in R&D settings; free model capacity can be exhausted.'
         : code === 'PROVIDER_POLICY_DISABLED'
           ? 'OpenRouter sharing is disabled in R&D settings.'
           : code === 'PROVIDER_TIMEOUT'

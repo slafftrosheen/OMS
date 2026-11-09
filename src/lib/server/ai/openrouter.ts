@@ -102,7 +102,9 @@ export interface OpenRouterRequestBody {
   provider?: {require_parameters: boolean};
 }
 export function openRouterRequestBody(options: OpenRouterChatOptions, config = OPENROUTER_CONFIG): OpenRouterRequestBody {
-  const vision = options.messages.some((message) => !!message.images?.length || Array.isArray(message.content));
+  const vision = options.messages.some((message) => !!message.images?.length ||
+    (Array.isArray(message.content) && message.content.some(part =>
+      ['image_url', 'input_audio', 'video_url', 'file'].includes(String(part.type)))));
   const defaults = config.modelDefaults;
   const requested = options.model;
   const selected = requested && defaults
@@ -215,12 +217,37 @@ export async function openRouterCompleteWithMetadata(
   config?: OpenRouterClientConfig,
   fetcher: typeof fetch = fetch
 ): Promise<OpenRouterCompletionMetadata> {
-  const { response, model } = await openRouterChat({ ...options, messages, stream: false }, config, fetcher);
-  if (!response.ok) {
-    // Never surface upstream error bodies that may echo prompts or credentials.
-    throw new OpenRouterHttpError(response.status, response.headers.get('Retry-After'));
+  // One retry for transient failures, with a single deadline covering both attempts.
+  // Never retry quota/auth/payment errors, change model, or enable paid routing.
+  const requestedTimeout = options.timeoutMs ?? config?.timeoutMs ?? OPENROUTER_TIMEOUT_MS;
+  const deadline = AbortSignal.timeout(Number.isFinite(requestedTimeout)
+    ? Math.max(5_000, Math.min(requestedTimeout, 180_000)) : 120_000);
+  const signal = options.signal ? AbortSignal.any([options.signal, deadline]) : deadline;
+  let data: any;
+  let model = '';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await openRouterChat({ ...options, messages, stream: false, signal }, config, fetcher);
+    model = result.model;
+    const response = result.response;
+    // Providers can also report a failed completion inside an HTTP 200 envelope.
+    data = response.ok ? await response.json() : null;
+    const embedded = Number(data?.error?.code);
+    const status = response.ok && data?.error
+      ? Number.isInteger(embedded) && embedded >= 400 && embedded <= 599 ? embedded : 502
+      : response.status;
+    if (response.ok && !data?.error) break;
+    const failure = new OpenRouterHttpError(status, response.headers.get('Retry-After'));
+    await response.body?.cancel().catch(() => {});
+    const waitMs = (failure.retryAfterSeconds ?? 1) * 1000;
+    // Long cooldowns belong in the UI; do not keep a PDF request hanging for minutes.
+    if (attempt || ![408, 502, 503, 504].includes(status) || waitMs > 5000) throw failure;
+    await new Promise<void>((resolve, reject) => {
+      const abort = () => { clearTimeout(timer); signal.removeEventListener('abort', abort); reject(signal.reason); };
+      const timer = setTimeout(() => { signal.removeEventListener('abort', abort); resolve(); }, waitMs);
+      signal.addEventListener('abort', abort, { once: true });
+      if (signal.aborted) abort();
+    });
   }
-  const data = await response.json();
   const choice = data?.choices?.[0];
   const reported = data?.usage?.server_tool_use?.web_search_requests;
   return {
