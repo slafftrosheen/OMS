@@ -95,7 +95,7 @@ describe('OMS-R10 genuine Canvas image and PDF reasoning', () => {
     expect(route).toContain("kind === 'pdf' ? toolkitPdfEngine(body.ocr, allowPaidOcr)");
     expect(route).toContain('openRouterCompleteWithMetadata(messages');
     expect(route).toContain('responseLanguageInstruction(locale)');
-    expect(route).toContain('resolveToolkitModel(body.model)');
+    expect(route).toContain('resolveToolkitModel(body.model, toolkitModelChoices(');
     expect(route).toContain("kind === 'pdf' && !pdfModel");
     expect(route).toContain("'Cache-Control': 'private, no-store'");
     expect(route).not.toContain('getPublicUrl');

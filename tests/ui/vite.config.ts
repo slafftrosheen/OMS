@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const path = (relative: string) => fileURLToPath(new URL(relative, import.meta.url));
 
 export default defineConfig({
+  define: {__OMS_BUILD_REVISION__: JSON.stringify('browser-fixture'), __OMS_BUILD_TIME__: JSON.stringify('2026-11-09T00:00:00.000Z')},
   root: path('./'),
   publicDir: path('../../static'),
   plugins: [svelte({ configFile: false })],

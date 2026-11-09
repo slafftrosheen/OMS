@@ -74,7 +74,7 @@ export const STORAGE_BUCKET_FILES = readString('STORAGE_BUCKET_FILES', 'files');
 export const STORAGE_BUCKET_STATION = readString('STORAGE_BUCKET_STATION', 'station-attachments');
 export const OPENROUTER_BASE_URL = trimSlash(readString('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'));
 export const OPENROUTER_MODEL = readString('OPENROUTER_MODEL', 'openrouter/free');
-export const OPENROUTER_VISION_MODEL = readString('OPENROUTER_VISION_MODEL', 'google/gemma-4-31b-it:free');
+export const OPENROUTER_VISION_MODEL = readString('OPENROUTER_VISION_MODEL', 'nvidia/nemotron-3.5-super-vl:free');
 export const OPENROUTER_TIMEOUT_MS = readNumber('OPENROUTER_TIMEOUT_MS', 120_000);
 
 // ─── Legacy node metadata (unused for inference) ────────────────────────────

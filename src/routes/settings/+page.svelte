@@ -20,6 +20,7 @@
   import TelegramSettings from '$lib/notifications/TelegramSettings.svelte';
   import TelegramAdminSettings from '$lib/notifications/TelegramAdminSettings.svelte';
   import { settingsTabsCopy } from '$lib/settings/settings-tabs-copy';
+  import OpenRouterModels from '$lib/settings/OpenRouterModels.svelte';
   let aiSettings = $state<{ configured: boolean; masked: string; source?: string } | null>(null);
   let openRouterKey = $state('');
   let aiSettingsLoading = $state(false);
@@ -364,7 +365,7 @@
             <p class="muted">{$t('settings.provider.loading')}</p>
           {:else}
             <p>{$t('settings.provider.keyStatus')}: <strong>{aiSettings?.configured ? $t('settings.provider.configured') : $t('settings.provider.notConfigured')}</strong>{#if aiSettings?.masked} <code>{aiSettings.masked}</code>{/if}</p>
-            <p class="muted">{$t('settings.provider.textModel')}: <code>openrouter/free</code>. {$t('settings.provider.keyHidden')}</p>
+            <p class="muted">{$t('settings.provider.keyHidden')}</p>
           {/if}
           <form class="openrouter-key-form" onsubmit={(event) => { event.preventDefault(); void saveOpenRouterKey(); }}>
             <label for="openrouter-api-key">{$t('settings.provider.replaceKey')}</label>
@@ -391,6 +392,7 @@
           {#if aiSettingsMessage}<p class="settings-success" role="status">{aiSettingsMessage}</p>{/if}
           <p class="muted security-hint">{$t('settings.provider.securityHint')}</p>
         </div>
+        <OpenRouterModels />
       </section>
     {/if}
   </div>

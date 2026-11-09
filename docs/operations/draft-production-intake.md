@@ -32,6 +32,8 @@ Profile preset dialogs use the same native focus, Escape and recovery behavior a
 
 ## Scanned PDFs
 
+R&D manages the saved **Text & assistant** and **Vision / order OCR** models in **Settings → AI & OpenRouter → Models**. Vision choices require image input and structured JSON output in the current public OpenRouter catalog; accepting images alone is insufficient. The selectors list free models first and label paid choices. Saving validates capabilities without sending an inference request. Saved choices take effect on new requests without restarting the server; explicit task-specific model overrides remain separate. Apply `20261109000001_openrouter_model_settings.sql` before deploying this settings UI. Until a selection is saved, the server environment/defaults apply; the default vision model is a free, structured-output-capable route. Provider availability and free quotas can still change.
+
 All five supplied examples are one-page, predominantly image-only production drawings. Text extraction alone does not recover their specifications. The default now renders the drawing pages and uses the existing vision model. There is no silent fallback to paid OCR. As an optional alternative on saved drafts, configure a model with native PDF **and strict structured-output** support:
 
 ```dotenv

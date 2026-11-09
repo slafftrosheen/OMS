@@ -30,8 +30,10 @@ export const PRODUCTION_INTAKE_JSON_SCHEMA={
   properties:{...INTAKE_JSON_SCHEMA.properties,production:{type:'array',maxItems:50,items:{
     type:'object',additionalProperties:false,
     properties:{target:{type:'string',enum:[...PRODUCTION_TARGETS]},
-      value:{type:'string'},evidence:{type:'string'},page:{type:['integer','null']},
-      part:{type:['string','null']},confidence:{type:'string',enum:['high','medium','low']}},
+      value:{type:'string',minLength:1,maxLength:500},
+      evidence:{type:'string',minLength:2,maxLength:500},
+      page:{type:['integer','null'],minimum:1,maximum:1000},
+      part:{type:['string','null'],maxLength:120},confidence:{type:'string',enum:['high','medium','low']}},
     required:['target','value','evidence','page','part','confidence']
   }}},required:[...INTAKE_JSON_SCHEMA.required,'production']
 };

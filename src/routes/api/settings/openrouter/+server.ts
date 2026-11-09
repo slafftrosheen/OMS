@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createClient } from '@supabase/supabase-js';
-import { OPENROUTER_MODEL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from '$lib/server/config';
+import { SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from '$lib/server/config';
+import { readOpenRouterModels } from '$lib/server/ai/provider-models';
 import { resolveOpenRouterApiKey } from '$lib/server/ai/provider-key';
 import { canManageOpenRouterKey, maskSecret, normalizeOpenRouterKey, redactCredential } from '$lib/server/ai/provider-settings';
 
@@ -24,7 +25,8 @@ export const GET: RequestHandler = async ({ locals }) => {
   if (accessError) return accessError;
   try {
     const key = await resolveOpenRouterApiKey();
-    return json({ provider: 'openrouter', model: OPENROUTER_MODEL, ...maskSecret(key), source: key ? (process.env.OPENROUTER_API_KEY?.trim() ? 'environment-or-vault' : 'vault') : 'none' }, { headers: { 'Cache-Control': 'no-store' } });
+    const models = await readOpenRouterModels();
+    return json({ provider: 'openrouter', model: models.textModel, visionModel: models.visionModel, ...maskSecret(key), source: key ? (process.env.OPENROUTER_API_KEY?.trim() ? 'environment-or-vault' : 'vault') : 'none' }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
     console.error('[settings/openrouter] read failed:', safeError(err));
     return json({ error: safeError(err) }, { status: 503, headers: { 'Cache-Control': 'no-store' } });

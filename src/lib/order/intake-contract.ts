@@ -87,26 +87,27 @@ export function proposalsToPatch(selected:IntakeProposal[]):Record<IntakeField,u
 /** A schema compatible with OpenRouter's response_format: json_schema.
  * The client should always validate the response again with Zod.
  */
-const shortString={type:'string'} as const;
 export const INTAKE_JSON_SCHEMA={
   type:'object',additionalProperties:false,
   properties:{
-    proposals:{type:'array',items:{
+    proposals:{type:'array',maxItems:18,items:{
       type:'object',additionalProperties:false,
       properties:{
         field:{type:'string',enum:[...INTAKE_FIELDS]},
-        value:shortString,evidence:shortString,
+        value:{type:'string',minLength:1,maxLength:2000},
+        evidence:{type:'string',minLength:2,maxLength:500},
         confidence:{type:'string',enum:['high','medium','low']}
       },
       required:['field','value','evidence','confidence']
     }},
-    profileSuggestions:{type:'array',items:{
+    profileSuggestions:{type:'array',maxItems:8,items:{
       type:'object',additionalProperties:false,
       properties:{
-        name:shortString,quantity:{type:['integer','null']},details:shortString
+        name:{type:'string',minLength:1,maxLength:120},
+        quantity:{type:['integer','null'],minimum:1,maximum:1000},details:{type:'string',maxLength:500}
       },required:['name','quantity','details']
     }},
-    missing:{type:'array',items:shortString}
+    missing:{type:'array',maxItems:12,items:{type:'string',minLength:1,maxLength:250}}
   },
   required:['proposals','profileSuggestions','missing']
 } as const;

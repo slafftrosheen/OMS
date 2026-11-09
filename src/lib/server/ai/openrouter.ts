@@ -40,6 +40,8 @@ export interface OpenRouterClientConfig {
   baseUrl: string;
   defaultModel: string;
   visionModel: string;
+  /** Defaults supplied by legacy callers; saved settings replace these aliases. */
+  modelDefaults?: {textModel: string; visionModel: string};
   timeoutMs: number;
 }
 
@@ -60,7 +62,10 @@ async function configuredClientConfig(): Promise<OpenRouterClientConfig> {
   const { assertOpenRouterPolicyEnabled } = await import('$lib/server/ai/provider-policy');
   await assertOpenRouterPolicyEnabled();
   const { resolveOpenRouterApiKey } = await import('$lib/server/ai/provider-key');
-  return { ...OPENROUTER_CONFIG, apiKey: await resolveOpenRouterApiKey() };
+  const {readOpenRouterModels, environmentModelDefaults} = await import('./provider-models');
+  const models = await readOpenRouterModels();
+  return { ...OPENROUTER_CONFIG, defaultModel: models.textModel, visionModel: models.visionModel,
+    modelDefaults: environmentModelDefaults, apiKey: await resolveOpenRouterApiKey() };
 }
 
 export function normalizeImageDataUrl(image: string): string {
@@ -98,8 +103,14 @@ export interface OpenRouterRequestBody {
 }
 export function openRouterRequestBody(options: OpenRouterChatOptions, config = OPENROUTER_CONFIG): OpenRouterRequestBody {
   const vision = options.messages.some((message) => !!message.images?.length || Array.isArray(message.content));
+  const defaults = config.modelDefaults;
+  const requested = options.model;
+  const selected = requested && defaults
+    ? requested === defaults.visionModel && (vision || requested !== defaults.textModel) ? config.visionModel
+      : requested === defaults.textModel ? config.defaultModel : requested
+    : requested;
   return {
-    model: options.model || (vision ? config.visionModel : config.defaultModel),
+    model: selected || (vision ? config.visionModel : config.defaultModel),
     messages: openRouterMessages(options.messages),
     ...(options.tools?.length ? { tools: options.tools, tool_choice: options.toolChoice ?? 'auto' } : {}),
     ...(options.plugins?.length ? { plugins: options.plugins } : {}),
@@ -263,6 +274,8 @@ export async function isOpenRouterConfigured(): Promise<boolean> {
   return Boolean((await resolveOpenRouterApiKey()).trim());
 }
 export async function openRouterStatus() {
-  return { provider: 'openrouter', configured: await isOpenRouterConfigured(), model: OPENROUTER_MODEL, visionModel: OPENROUTER_VISION_MODEL };
+  const {readOpenRouterModels} = await import('./provider-models');
+  const models = await readOpenRouterModels();
+  return { provider: 'openrouter', configured: await isOpenRouterConfigured(), model: models.textModel, visionModel: models.visionModel };
 }
 export { OPENROUTER_MODEL, OPENROUTER_VISION_MODEL };

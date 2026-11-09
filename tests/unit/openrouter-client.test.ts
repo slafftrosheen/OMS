@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { openRouterChat, openRouterMessages, extractAssistantMessage, parseToolArguments, openRouterError, type OpenRouterClientConfig } from '../../src/lib/server/ai/openrouter';
+import { openRouterChat, openRouterRequestBody, openRouterMessages, extractAssistantMessage, parseToolArguments, openRouterError, type OpenRouterClientConfig } from '../../src/lib/server/ai/openrouter';
 
 const config: OpenRouterClientConfig = {
   apiKey: 'test-key-for-unit-only',
@@ -10,6 +10,13 @@ const config: OpenRouterClientConfig = {
 };
 
 describe('OpenRouter chat client', () => {
+  it('uses saved model selections for default callers while preserving explicit task models', () => {
+    const selected = { ...config, defaultModel: 'chosen/text', visionModel: 'chosen/vision',
+      modelDefaults: { textModel: 'previous/text', visionModel: 'previous/vision' } };
+    expect(openRouterRequestBody({ messages: [{ role: 'user', content: 'Hello' }], model: 'previous/text' }, selected).model).toBe('chosen/text');
+    expect(openRouterRequestBody({ messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,fixture' } }] }], model: 'previous/vision' }, selected).model).toBe('chosen/vision');
+    expect(openRouterRequestBody({ messages: [{ role: 'user', content: 'Hello' }], model: 'specialist/explicit' }, selected).model).toBe('specialist/explicit');
+  });
   it('posts OpenAI-compatible messages and native function tools to the configured OpenRouter URL', async () => {
     let requestedUrl = '';
     let requested: any;

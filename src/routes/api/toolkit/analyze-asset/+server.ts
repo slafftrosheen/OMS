@@ -6,7 +6,8 @@ import { toolkitMediaKind, toolkitMediaLimit, toolkitMediaContent, toolkitPdfEng
 import { checkAiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
 import { openRouterCompleteWithMetadata, OpenRouterHttpError } from '$lib/server/ai/openrouter';
 import { OPENROUTER_VISION_MODEL } from '$lib/server/config';
-import { resolveToolkitModel } from '$lib/server/toolkit/ai-models';
+import { resolveToolkitModel, toolkitModelChoices } from '$lib/server/toolkit/ai-models';
+import {readOpenRouterModels} from '$lib/server/ai/provider-models';
 import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/ai/response-language';
 
 const noStore = { 'Cache-Control': 'private, no-store' };
@@ -57,7 +58,7 @@ export const POST: RequestHandler = async (event) => {
   const engine = kind === 'pdf' ? toolkitPdfEngine(body.ocr, allowPaidOcr) : null;
   // Only the administrator-configured allow-list may select a PDF model.
   // Never auto-upgrade to a paid model when free quota is exhausted.
-  const pdfModel = kind === 'pdf' ? resolveToolkitModel(body.model) : null;
+  const pdfModel = kind === 'pdf' ? resolveToolkitModel(body.model, toolkitModelChoices((await readOpenRouterModels()).textModel)) : null;
   if (kind === 'pdf' && !pdfModel) throw error(400, 'Choose a configured PDF model');
   if (kind === 'pdf' && !engine) throw error(403, 'Paid PDF OCR is not enabled');
 

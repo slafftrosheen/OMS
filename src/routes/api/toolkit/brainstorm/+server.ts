@@ -4,6 +4,7 @@ import { aiRateLimit, rateLimitIdentifier } from '$lib/server/api/helpers';
 import { requireToolkitManager } from '$lib/server/toolkit/access';
 import { openRouterCompleteWithMetadata } from '$lib/server/ai/openrouter';
 import { toolkitModelChoices, resolveToolkitModel, allowOpenRouterWebSearch } from '$lib/server/toolkit/ai-models';
+import {readOpenRouterModels} from '$lib/server/ai/provider-models';
 import { parseToolkitModelResponse, normalizeToolkitVisualAssets, normalizeProviderWebSources } from '$lib/server/toolkit/ai-response';
 import { normalizeCards, normalizeLinks } from '$lib/components/canvas/toolkit-context';
 import { boardInsights, normalizeToolkitSkill, TOOLKIT_SKILLS } from '$lib/components/canvas/toolkit-skills';
@@ -36,7 +37,7 @@ export const POST: RequestHandler = async (event) => {
   const responseLocale = resolveResponseLocale(
     body.language, preference?.locale, request.headers.get('accept-language')
   );
-  const model = resolveToolkitModel(body.model, toolkitModelChoices());
+  const model = resolveToolkitModel(body.model, toolkitModelChoices((await readOpenRouterModels()).textModel));
   if (!model) return json({ error: 'Model is not enabled for Toolkit' }, { status: 400 });
   const skill = normalizeToolkitSkill(body.skill);
   const webMode = body.webMode === 'openrouter' ? 'openrouter' : 'searxng';

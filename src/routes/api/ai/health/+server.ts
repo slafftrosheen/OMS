@@ -1,7 +1,7 @@
 // AI diagnostics are independent of core /api/health readiness.
 // GET never sends a paid inference request; RD may explicitly POST to probe.
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { OPENROUTER_MODEL } from '$lib/server/config';
+import { readOpenRouterModels } from '$lib/server/ai/provider-models';
 import { isOpenRouterConfigured, openRouterChat } from '$lib/server/ai/openrouter';
 
 const noStore = { 'Cache-Control': 'private, no-store' };
@@ -9,10 +9,14 @@ const noStore = { 'Cache-Control': 'private, no-store' };
 export const GET: RequestHandler = async ({ locals }) => {
     if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401, headers: noStore });
     const configured = await isOpenRouterConfigured().catch(() => false);
+    let models;
+    try { models = await readOpenRouterModels(); }
+    catch { return json({error: 'OpenRouter model settings unavailable'}, {status: 503, headers: noStore}); }
     return json({
         service: 'openrouter',
         configured,
-        model: OPENROUTER_MODEL,
+        model: models.textModel,
+        visionModel: models.visionModel,
         connectivity: 'not_tested',
         note: 'Configured only: availability requires an explicit administrator probe.'
     }, { headers: noStore });

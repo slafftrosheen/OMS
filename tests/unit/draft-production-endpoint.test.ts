@@ -27,6 +27,7 @@ describe('production intake API boundary',()=>{
 });
 
 import {createOrderIntakeHandler} from '../../src/lib/server/order/intake';
+import {OpenRouterHttpError} from '../../src/lib/server/ai/openrouter';
 import {GET as addressGET} from '../../src/routes/api/client-delivery-addresses/+server';
 const emptyModel={proposals:[],profileSuggestions:[],missing:[],production:[]};
 let sequence=0;
@@ -59,6 +60,15 @@ function intakeEvent({output=emptyModel,change=false,unlink=false,malformed=fals
  return {e,handler,sent:()=>sent};
 }
 describe('production intake actual handler with a provider boundary double',()=>{
+ it('preserves provider rate limits and identifies incompatible model routing without exposing provider bodies',async()=>{
+  for(const upstream of [429,404]){
+   const sample=intakeEvent();
+   const handler=createOrderIntakeHandler(async()=>{throw new OpenRouterHttpError(upstream,'15');});
+   let caught:any;try{await handler(sample.e);}catch(err){caught=err;}
+   expect(caught.status).toBe(upstream===429?429:503);
+   expect(caught.body.message).toContain(upstream===429?'rate limit':'Settings');
+  }
+ });
  it('reads linked bytes, validates structured facts and returns a real catalog identity without writing',async()=>{
   const sample=intakeEvent({output:{...emptyModel,production:[{
    target:'faceMaterial',value:'5N870',evidence:'BLUE 5N870',page:1,part:null,confidence:'medium'
