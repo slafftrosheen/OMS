@@ -124,3 +124,35 @@ describe('explicit native PDF routing',()=>{
   }
  });
 });
+
+describe('upload before saving a draft',()=>{
+ it('analyzes an uploaded image with the existing vision client without requiring order fields or writing a draft',async()=>{
+  const sample=intakeEvent({output:{...emptyModel,proposals:[{field:'clientName',value:'Example client',evidence:'Client: Example client',confidence:'high'}]}});
+  const form=new FormData();
+  form.set('file',new Blob([Buffer.from('89504e470d0a1a0a0000000d49484452','hex')],{type:'image/png'}),'drawing.png');
+  form.set('metadata',JSON.stringify({sourceId:id,profileIndex:0,language:'en'}));
+  sample.e.request=new Request('http://localhost/api/ai/order-intake',{method:'POST',body:form});
+  const readTables:string[]=[];
+  const original=sample.e.locals.supabase.from;
+  sample.e.locals.supabase.from=(table:string)=>{readTables.push(table);return original(table);};
+  const response=await sample.handler(sample.e);
+  const result=await response.json();
+  expect(result.proposals[0].value).toBe('Example client');
+  expect(result.fileId).toBe(id);
+  expect(result.orderUpdatedAt).toBe(null);
+  expect(result.profileIndex).toBe(0);
+  expect(readTables).not.toContain('draft_orders');
+  expect(sample.sent().messages[1].content[1].image_url.url).toContain('data:image/png;base64,');
+ });
+ it('rejects an upload from a role that cannot create drafts and rejects disguised files',async()=>{
+  for(const role of ['Operator','RD']){
+   const sample=intakeEvent();sample.e.locals.user.role=role;
+   const form=new FormData();form.set('file',new Blob(['not a PDF'],{type:'application/pdf'}),'drawing.pdf');
+   form.set('metadata',JSON.stringify({sourceId:id}));
+   sample.e.request=new Request('http://localhost/api/ai/order-intake',{method:'POST',body:form});
+   let received=0;try{await sample.handler(sample.e);}catch(err:any){received=err.status;}
+   expect(received).toBe(role==='Operator'?403:422);
+   expect(sample.sent()).toBe(undefined);
+  }
+ });
+});

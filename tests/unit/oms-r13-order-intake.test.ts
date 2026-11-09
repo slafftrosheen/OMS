@@ -94,7 +94,7 @@ describe('OMS-R13 OpenRouter Smart Order Intake',()=>{
     expect(ui).toContain('approvals={};');
     expect(ui).not.toContain('bind:checked={consent}');
     expect(ui).toContain('confirmPaidOcr');
-    expect(ui).toContain("fetch('/api/ai/order-intake'");
+    expect(ui).toContain("fetch(`${base}/api/ai/order-intake`");
     expect(ui).toContain('JSON.stringify(current)!==baseState');
     expect(ui).toContain('fresh.updatedAt!==analysis.orderUpdatedAt');
     expect(ui).toContain('onApply(proposalsToPatch(accepted))');

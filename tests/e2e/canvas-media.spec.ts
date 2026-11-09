@@ -89,7 +89,7 @@ test('order form updates reuse the editor, preserve saved shapes and refresh cal
   await expect.poll(async () => (await inspect()).shapes.find((shape: any) => shape.type === 'order-details').props.title).toBe('Updated restored order');
   const restored = await inspect();
   expect(restored.shapes.map((shape: any) => shape.id).sort()).toEqual(current.shapes.map((shape: any) => shape.id).sort());
-  expect(restored.shapes.find((shape: any) => shape.type === 'profile-7st').props.data.quantity).toBe(2);
+  expect(restored.shapes.find((shape: any) => shape.type === 'profile-7st').props.quantity).toBe(2);
   expect(restored.firstBridgePresent).toBe(false);
   expect(restored.bridgePresent).toBe(true);
 });
@@ -348,4 +348,36 @@ test('canvas OpenRouter edits native shapes atomically, reads real drawing pixel
   await expect.poll(()=>records().filter(shape=>shape.type==='group'||shape.type==='arrow').length).toBe(0);
   expect(records().map(shape=>({id:shape.id,type:shape.type,x:shape.x,y:shape.y,props:shape.props}))).toEqual(originals);
   expect(errors).toEqual([]);
+});
+
+test('native order canvas edits real production configuration and preserves custom warning badges on restore',async({page})=>{
+ await page.route('**/api/materials?**',route=>route.fulfill({json:[]}));
+ await page.goto('/order-canvas-bridge.html');
+ await expect(page.getByTestId('editor-mounts')).toHaveText('1',{timeout:45000});
+ await expect.poll(()=>page.evaluate(()=>(window as any).__orderCanvasBridge.inspect().shapes.filter((s:any)=>s.type==='profile-7st').length)).toBe(1);
+ await page.evaluate(()=>(window as any).__orderCanvasBridge.focusProfile());
+ const depth=page.getByLabel('DEPTH',{exact:true});
+ await expect(depth).toHaveValue('120');await depth.fill('85');await depth.press('Tab');
+ await expect.poll(()=>page.evaluate(()=>(window as any).__orderCanvasBridge.inspect().shapes.find((s:any)=>s.type==='profile-7st').props.data.BENDER.depth)).toBe(85);
+ await expect(page.getByTestId('callback-events')).toContainText('original:profile:fixture-order');
+ await page.evaluate(()=>(window as any).__orderCanvasBridge.focusDetails());
+ const client=page.getByLabel('Client',{exact:true});
+ await client.fill('Canvas client');
+ await expect.poll(()=>page.evaluate(()=>(window as any).__orderCanvasBridge.inspect().shapes.find((s:any)=>s.type==='order-details').props.clientName)).toBe('Canvas client');
+ await expect(page.getByTestId('callback-events')).toContainText('original:order:fixture-order');
+ await page.route('**/api/files/upload',r=>r.fulfill({json:{file:{id:'saved-image',mimeType:'image/png'}}}));
+ await page.locator('section[aria-label="Order canvas tools"] input[type=file]').setInputFiles({name:'Reference.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=','base64')});
+ await expect.poll(()=>page.evaluate(()=>(window as any).__orderCanvasBridge.inspect().shapes.find((s:any)=>s.type==='document')?.props.url)).toBe('/api/files/saved-image/download');
+ await page.getByRole('button',{name:'Warning',exact:true}).click();
+ await page.getByRole('textbox',{name:'Badge icon'}).fill('★');
+ await page.getByRole('textbox',{name:'Annotation',exact:true}).fill('Confirm mounting location');
+ await page.getByRole('button',{name:'Restore saved canvas'}).click();
+ await expect(page.getByTestId('editor-mounts')).toHaveText('2');
+ await expect.poll(()=>page.evaluate(()=>(window as any).__orderCanvasBridge.inspect().shapes.find((s:any)=>s.type==='order-annotation').props)).toMatchObject({icon:'★',kind:'warning',text:'Confirm mounting location'});
+ await expect.poll(()=>page.evaluate(()=>(window as any).__orderCanvasBridge.inspect().shapes.find((s:any)=>s.type==='document').props.fileId)).toBe('saved-image');
+ await page.getByRole('button',{name:'Toggle read only canvas'}).click();
+ await expect(page.getByRole('button',{name:'Upload files',exact:true})).toBeDisabled();
+ await page.evaluate(()=>(window as any).__orderCanvasBridge.focusDetails());
+ await expect(page.getByLabel('Client',{exact:true})).toBeDisabled();
+
 });

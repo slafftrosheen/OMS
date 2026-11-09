@@ -17,6 +17,35 @@ const id='22222222-2222-4222-8222-222222222222';
 const material={id:'33333333-3333-4333-8333-333333333333',code:'REAL_PLEXI',category:'ACRYLIC_XT',name_en:'Blue acrylic',metadata:{model:'5N870'}};
 const fact=(target:string,value:string,extra={})=>({target,value,evidence:value,page:1,part:null,
  confidence:'medium',status:'ready',reason:'source-value',material:null,...extra});
+test('New Order exposes upload and analysis before entering required fields, then applies only reviewed choices',async({page})=>{
+ const writes:string[]=[];
+ page.on('pageerror',e=>console.error('New Order runtime:',e.message));
+ await page.route('**/api/**',async route=>{
+  const request=route.request();
+  if(request.method()!=='GET')writes.push(new URL(request.url()).pathname);
+  if(request.url().endsWith('/api/ai/order-intake')&&request.method()==='POST'){
+   const data=await new Response(new Uint8Array(request.postDataBuffer()!),{headers:{'content-type':request.headers()['content-type']}}).formData();
+   expect((data.get('file') as File).name).toBe('Production.pdf');
+   const metadata=JSON.parse(String(data.get('metadata')));
+   return route.fulfill({json:{proposals:[{field:'clientName',value:'Extracted client',confidence:'high',evidence:'Client: Extracted client'}],
+    production:[],profileSuggestions:[],missing:[],fileId:metadata.sourceId,fileName:'Production.pdf',profileIndex:metadata.profileIndex,
+    profileId:null,orderUpdatedAt:null,evidenceVerified:[false],engine:'page-images',model:'fixture/vision',provenance:'model-reported'}});
+  }
+  return route.fulfill({json:request.url().endsWith('/api/ai/order-intake')?{nativePdf:false,paidOcr:false}:[]});
+ });
+ await page.goto('/production-intake.html?new');
+ const button=page.getByRole('button',{name:'Upload & analyze PDF',exact:true});
+ await expect(button).toBeVisible({timeout:10000});await expect(button).toBeEnabled();
+ const chooser=page.waitForEvent('filechooser');await button.click();
+ await (await chooser).setFiles({name:'Production.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.7\nfixture')});
+ await expect(page.getByRole('heading',{name:'Review extracted choices'})).toBeVisible();
+ await expect(page.locator('#clientName')).toHaveValue('');
+ await page.getByRole('checkbox',{name:'Client',exact:true}).check();
+ await page.getByRole('button',{name:'Apply selected fields to form',exact:true}).click();
+ await expect(page.locator('#clientName')).toHaveValue('Extracted client');
+ expect(writes).toEqual(['/api/ai/order-intake']);
+ await expect(page.locator('.file-list-name')).toContainText('Production.pdf');
+});
 async function setup(page:Page,production:any[],url='/production-intake.html'){
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/api/files?**',route=>route.fulfill({headers:{'X-Total-Count':'1'},json:[{id,originalName:'Drawing.pdf',mimeType:'application/pdf'}]}));
@@ -115,7 +144,7 @@ async function setupOrderEntry(page:Page,mode:'new'|'editor'|'detail',status='DR
   if(req.method()!=='GET'){
    writes.push({path,body:req.postData()});
    if(path==='/api/draft-orders')return r.fulfill({status:201,json:{order:{id:orderSheetIds.first,updated_at:'2026-10-31T10:00:00Z'}}});
-   if(path==='/api/files/upload')return r.fulfill({status:201,json:{id}});
+   if(path==='/api/files/upload')return r.fulfill({status:201,json:{success:true,file:{id}}});
    return r.fulfill({status:405,json:{message:'Unexpected write'}});
   }
   if(path==='/api/auth')return r.fulfill({json:{user:orderSheetUsers.manager}});
@@ -203,7 +232,7 @@ test('new-order PDF preview renders the selected drawing even when PDF headers a
  await expect(page.locator('.pdf-canvas')).toHaveAttribute('width','300');
  await expect(page.locator('.pdf-canvas')).toHaveAttribute('height','200');
  await expect(page.locator('.pdf-canvas')).toBeVisible();
- await page.locator('.file-list-item').filter({hasText:'Second.pdf'}).click();
+ await page.locator('.file-list-item').filter({hasText:'Second.pdf'}).locator('.file-list-name').click();
  await expect(page.locator('.pdf-canvas')).toHaveAttribute('width','500');
  await expect(page.locator('.pdf-canvas')).toHaveAttribute('height','350');
 });
@@ -215,7 +244,7 @@ test('switching PDFs while the worker loads only renders the latest selected sou
   {name:'First.pdf',mimeType:'application/pdf',buffer:drawingPdf(300,200)},
   {name:'Second.pdf',mimeType:'application/pdf',buffer:drawingPdf(500,350)}]);
  await expect.poll(()=>workerRequested).toBe(true);
- await page.locator('.file-list-item').filter({hasText:'Second.pdf'}).click();release();
+ await page.locator('.file-list-item').filter({hasText:'Second.pdf'}).locator('.file-list-name').click();release();
  await expect(page.locator('.pdf-canvas')).toHaveAttribute('width','500');
  await expect(page.locator('.pdf-canvas')).toHaveAttribute('height','350');
  await page.locator('.file-list-item').filter({hasText:'Second.pdf'}).getByRole('button',{name:'Remove',exact:true}).click();
@@ -459,5 +488,21 @@ test('read-only orders can retry and inspect address history without applying it
  await expect(page.getByRole('button',{name:'Use this address'})).toBeDisabled();
  await page.getByRole('button',{name:'View use history'}).click();await expect(page.getByRole('alert')).toBeVisible();
  await page.getByRole('button',{name:'Try again',exact:true}).click();await expect(page.getByText(/Earlier contact/)).toBeVisible();
+ await expect(page.getByTestId('applied')).toHaveText('0');
+});
+
+test('saved draft upload uses canonical attachment storage then analyzes that linked PDF',async({page})=>{
+ await setup(page,[fact('depth','60 mm')]);
+ const uploaded='99999999-9999-4999-8999-999999999999';let stored=false;let analyzed:any;
+ await page.route('**/api/files/upload',r=>{stored=true;return r.fulfill({status:201,json:{success:true,file:{id:uploaded}}});});
+ await page.route('**/api/files?**',r=>r.fulfill({headers:{'X-Total-Count':stored?'2':'1'},json:[{id,originalName:'Drawing.pdf',mimeType:'application/pdf'},...(stored?[{id:uploaded,originalName:'Added.pdf',mimeType:'application/pdf'}]:[])]}));
+ await page.route('**/api/ai/order-intake',r=>{
+  if(r.request().method()==='GET')return r.fulfill({json:{nativePdf:false,paidOcr:false}});
+  analyzed=r.request().postDataJSON();return r.fulfill({json:{proposals:[],production:[fact('depth','60 mm')],profileSuggestions:[],missing:[],fileId:uploaded,fileName:'Added.pdf',profileIndex:0,profileId:'p1',orderUpdatedAt:'2026-11-05T12:00:00Z',model:'fixture/vision',evidenceVerified:[],engine:'page-images'}});
+ });
+ const chooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Upload & analyze PDF',exact:true}).click();
+ await (await chooser).setFiles({name:'Added.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.7\nfixture')});
+ await expect(page.getByRole('heading',{name:'Review extracted choices'})).toBeVisible();
+ expect(stored).toBe(true);expect(analyzed.fileId).toBe(uploaded);expect(analyzed.visualPdf).toBe(true);
  await expect(page.getByTestId('applied')).toHaveText('0');
 });

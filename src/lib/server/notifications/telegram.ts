@@ -99,7 +99,7 @@ export function readTelegramCommand(update: unknown, botUsername: string): Teleg
     const message = callback.message;
     if (!message || message.chat?.type !== 'private' || callback.from?.is_bot === true || !Number.isSafeInteger(message.chat.id)
       || message.chat.id <= 0 || callback.from?.id !== message.chat.id || typeof callback.id !== 'string' || callback.id.length > 128) return null;
-    const match = /^oms:(read):([0-9a-f-]{36})$|^oms:(today|notifications|pause|resume)$/.exec(String(callback.data ?? ''));
+    const match = /^oms:(read|order):([0-9a-f-]{36})$|^oms:(help|today|orders|notifications|pause|resume|ask)$/.exec(String(callback.data ?? ''));
     if (!match) return null;
     return { kind: 'command', command: (match[1] || match[3]) as TelegramCommandName, argument: match[2] ?? '',
       chatId: String(message.chat.id), telegramUserId: String(callback.from.id), callbackId: callback.id };
@@ -153,7 +153,7 @@ export function formatTelegramMessage(notification: TelegramNotification, appUrl
   }
   let url: string | null = null;
   const link = notification.link;
-  if (appUrl && link?.startsWith('/') && !link.startsWith('//') && !/[\\\u0000-\u001f]/.test(link)) {
+  if (appUrl && link?.startsWith('/') && !link.startsWith('//') && !link.includes('\\') && !Array.from(link).some(char=>char.charCodeAt(0)<32)) {
     try {
       const base = new URL(appUrl);
       const destination = new URL(`${appUrl.replace(/\/$/, '')}${link}`);
@@ -184,8 +184,9 @@ export async function sendTelegramMessage(
       body: JSON.stringify({
         chat_id: chatId, text: formatted.text,
         link_preview_options: { is_disabled: true },
-        ...((options.keyboard?.length || formatted.url || (notification.id && config.options?.commandsEnabled !== false && config.options?.commands.includes('read'))) ? { reply_markup: { inline_keyboard: options.keyboard ?? [
+        ...((options.keyboard?.length || config.appUrl || formatted.url || (notification.id && config.options?.commandsEnabled !== false && config.options?.commands.includes('read'))) ? { reply_markup: { inline_keyboard: options.keyboard ?? [
           ...(formatted.url ? [[{ text: 'Open OMS', url: formatted.url }]] : []),
+          ...(telegramAppButton(config,'Open OMS app') ? [[telegramAppButton(config,'Open OMS app')!]] : []),
           ...(notification.id && /^[0-9a-f-]{36}$/i.test(notification.id) && config.options?.commandsEnabled !== false && config.options?.commands.includes('read')
             ? [[{ text: '✓ Read', callback_data: `oms:read:${notification.id}` }]] : [])
         ] } } : {})
@@ -218,11 +219,22 @@ export function telegramRetryAt(attempts: number, retryAfterSeconds?: number, no
   return new Date(now.getTime() + delay * 1000).toISOString();
 }
 
-export interface TelegramInlineButton { text: string; url?: string; callback_data?: string }
+export interface TelegramInlineButton { text: string; url?: string; callback_data?: string; web_app?:{url:string} }
+
+/** Mini Apps require HTTPS. Plain HTTP deployments retain ordinary navigation. */
+export function telegramAppButton(config:Pick<TelegramConfig,'appUrl'>,text:string,path='/telegram'):TelegramInlineButton|null{
+  if(!config.appUrl)return null;
+  try{
+    const root=new URL(config.appUrl);
+    if(!['http:','https:'].includes(root.protocol)||root.username||root.password)return null;
+    const url=config.appUrl.replace(/\/$/,'')+path;
+    return root.protocol==='https:'?{text,web_app:{url}}:{text,url};
+  }catch{return null;}
+}
 
 /** Fixed Telegram origin and method allowlist; never returns token-bearing errors. */
 export async function telegramApi(config: Pick<TelegramConfig, 'botToken'>,
-  method: 'getMe' | 'getWebhookInfo' | 'setWebhook' | 'deleteWebhook' | 'setMyCommands' | 'answerCallbackQuery',
+  method: 'getMe' | 'getWebhookInfo' | 'setWebhook' | 'deleteWebhook' | 'setMyCommands' | 'setChatMenuButton' | 'answerCallbackQuery',
   body: Record<string, unknown> = {}, fetcher: typeof fetch = fetch): Promise<{ ok: boolean; result?: any; code?: number }> {
   try {
     const response = await fetcher(`https://api.telegram.org/bot${config.botToken}/${method}`, {

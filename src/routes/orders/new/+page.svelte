@@ -1,5 +1,7 @@
 <script lang="ts">
-  import ClientDeliveryAddresses from '$lib/order/ClientDeliveryAddresses.svelte';
+  import {prepareCreationCanvas} from '$lib/order/creation-canvas';
+  import OrderDraftFields from '$lib/order/OrderDraftFields.svelte';
+  import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
   import { onMount, onDestroy, tick } from 'svelte';
   import { modalDialog } from '$lib/ui/modal-dialog';
   import { goto } from '$app/navigation';
@@ -38,6 +40,8 @@
   
   // Order Details
   let clientName = $state('');
+  let title = $state('');
+  let intakeFileId=$state('');
   let poNumber = $state('');
   let deadline = $state('');
   let loadingDate = $state('');
@@ -419,6 +423,67 @@
     { id: createId(), quantity: 1, configuration: JSON.parse(JSON.stringify(defaultConfiguration)), collapsed: false }
   ]);
 
+  function applyIntakeFields(patch:Record<string,unknown>){
+    if(saving||!can($currentUser,'createDraftOrder'))return;
+    if(typeof patch.clientName==='string')clientName=patch.clientName;
+    if(typeof patch.title==='string')title=patch.title;
+    if(typeof patch.deadline==='string')deadline=patch.deadline;
+    if(typeof patch.loadingDate==='string')loadingDate=patch.loadingDate;
+    if(['LOW','NORMAL','HIGH','URGENT'].includes(String(patch.priority)))priority=patch.priority as typeof priority;
+    if(typeof patch.notes==='string')notes=patch.notes;
+    if(typeof patch.deliveryAddress==='string')deliveryAddress=patch.deliveryAddress;
+    if(typeof patch.deliveryContact==='string')deliveryContact=patch.deliveryContact;
+    if(typeof patch.deliveryPhone==='string')deliveryPhone=patch.deliveryPhone;
+    if(typeof patch.deliveryEmail==='string')deliveryEmail=patch.deliveryEmail;
+    if(['deliveryAddress','deliveryContact','deliveryPhone','deliveryEmail'].some(key=>key in patch)){
+      selectedPresetId=null;useManualAddress=true;
+    }
+    if(typeof patch.isRd==='boolean')isRd=patch.isRd;
+    if(typeof patch.rdNotes==='string')rdNotes=patch.rdNotes;
+    if(Array.isArray(patch.profiles))profiles=patch.profiles as ProfileItem[];
+  }
+  function analyzeAttachment(index:number){
+    intakeFileId=uploadedFiles[index]?.uploadId??'';
+    document.getElementById('new-order-intake')?.scrollIntoView({block:'start'});
+  }
+
+  let canvasMode=$state(false);
+  let creationEditor:any=null;
+  let creationSnapshot:unknown=$state(null);
+  const creationId=createId();
+  const localUrls:string[]=[];
+  onDestroy(()=>localUrls.forEach(url=>URL.revokeObjectURL(url)));
+  async function toggleCanvas(){
+    if(canvasMode&&creationEditor){const {getSnapshot}=await import('@tldraw/tldraw');creationSnapshot=getSnapshot(creationEditor.store);}
+    canvasMode=!canvasMode;creationEditor=null;
+  }
+  async function addCanvasFiles(files:File[],position:{x:number;y:number}){
+    const editor=creationEditor;if(!editor||saving)return;
+    const entries=await addFiles(files);
+    if(editor!==creationEditor)return;
+    const {createShapeId}=await import('@tldraw/tldraw');
+    entries.forEach((entry,index)=>{
+      const url=URL.createObjectURL(entry.file);localUrls.push(url);
+      editor.createShape({id:createShapeId(),type:'document',x:position.x+index*28,y:position.y+index*28,
+        props:{w:360,h:360,title:entry.file.name,content:'',status:'ready',url,mime:entry.file.type,
+          kind:entry.type==='pdf'?'pdf':entry.type==='image'?'image':'file',fileId:entry.uploadId}});
+    });
+  }
+  async function persistCreationCanvas(orderId:string){
+    if(!creationEditor&&!creationSnapshot)return;
+    const {getSnapshot}=await import('@tldraw/tldraw');
+    const snapshot=creationEditor?getSnapshot(creationEditor.store):creationSnapshot;
+    // Replace local attachment references only after every original is saved.
+    const canonical=prepareCreationCanvas(snapshot,creationId,orderId,canvasFileLinks,removedCanvasFiles,base);
+    const response=await fetch(`${base}/api/draft-orders/${orderId}/canvas-state`,{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({snapshot:canonical,expectedUpdatedAt:savedOrderUpdatedAt})});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.message||result.error||'Draft saved, but Canvas could not be saved. Retry Save.');
+    savedOrderUpdatedAt=result.updatedAt;
+  }
+  const canvasFileLinks:Record<string,string>={};
+  const removedCanvasFiles=new Set<string>();
+
   // Guidance and the explicit save action share exactly the same form checks.
   // The halo is a next-action cue, never a production-readiness approval.
   function validateCurrentOrderForm() {
@@ -591,7 +656,8 @@
   }
 
   async function addFiles(newFiles: File[]) {
-    if (saving || preparingFiles || successMessage) return;
+    if (saving || preparingFiles || successMessage) return [];
+    const added:FileWithPreview[]=[];
     preparingFiles = true;
     try {
       for (const file of newFiles) {
@@ -602,11 +668,12 @@
         } else if (type === 'pdf') {
           fileWithPreview.pdfDataUrl = await createDataUrl(file);
         }
-        uploadedFiles = [...uploadedFiles, fileWithPreview];
+        uploadedFiles = [...uploadedFiles, fileWithPreview];added.push(fileWithPreview);
         if (uploadedFiles.length === 1) selectFile(0);
       }
     } catch { error = $t('orders.new.files.readError'); }
     finally { preparingFiles = false; }
+    return added;
   }
 
   function createImagePreview(file: File): Promise<string> {
@@ -626,6 +693,7 @@
   function removeFile(index: number) {
     if (saving || preparingFiles || successMessage) return;
     const removed = uploadedFiles[index];
+    if(removed){removedCanvasFiles.add(removed.uploadId);if(creationEditor)creationEditor.deleteShapes(creationEditor.getCurrentPageShapes().filter((shape:any)=>shape.props?.fileId===removed.uploadId).map((shape:any)=>shape.id));}
     uploadedFiles = uploadedFiles.filter((_, i) => i !== index);
     if (selectedFileIndex === index) {
       if (uploadedFiles.length) selectFile(0);
@@ -663,7 +731,7 @@
     }
   }
 
-  async function saveOrder(destination:'review'|'assistant'|'intake'='review') {
+  async function saveOrder(destination:'review'|'assistant'|'intake'|'draft'='review') {
     if (saving || preparingFiles || successMessage) return;
     if (!can($currentUser, 'createDraftOrder')) { error = 'Manager role required to create orders'; return; }
     error = '';
@@ -696,7 +764,7 @@
     try {
       let orderId = savedOrderId;
       const orderData = {
-        clientName, deadline, loadingDate: loadingDate || null,
+        clientName, title, deadline, loadingDate: loadingDate || null,
         notes, priority, deliveryPresetId: typeof selectedPresetId === 'string' ? selectedPresetId : null,
         deliveryAddress, deliveryContact, deliveryPhone,
         deliveryEmail: deliveryEmail || null, isRd, rdNotes,
@@ -765,6 +833,9 @@
             failedUploads.push(`${fileItem.file.name}: ${reason}`);
           } else {
             // Successfully linked files are excluded from subsequent manual retries.
+            const uploaded=await uploadResponse.json();
+            if(typeof uploaded.file?.id!=='string')throw new Error('Uploaded file ID missing');
+            canvasFileLinks[fileKey]=uploaded.file.id;
             uploadedFileKeys = new Set(uploadedFileKeys).add(fileKey);
           }
         } catch {
@@ -779,8 +850,10 @@
         return;
       }
 
+      await persistCreationCanvas(String(orderId));
       // Both AI actions keep the form and linked attachments saved as a DRAFT.
       // Review submission remains a separate, explicit action below.
+      if(destination==='draft'){await goto(`${base}/orders/${encodeURIComponent(String(orderId))}/edit?section=details`);return;}
       if(destination==='intake'){
         successMessage=$t('orderAssistant.draftSaved');
         await goto(`${base}/orders/${encodeURIComponent(String(orderId))}/edit?section=intake`);
@@ -808,7 +881,7 @@
       setTimeout(() => goto(`/orders`), 1500);
     } catch (err) {
       console.error('Error saving order:', err);
-      error = $t('admin.users.messages.save_error');
+      error = err instanceof Error?err.message:$t('admin.users.messages.save_error');
     } finally {
       saving = false;
     }
@@ -858,6 +931,8 @@
       {/if}
     </div>
     <div class="header-actions">
+      <button type="button" class="btn-secondary" onclick={toggleCanvas} disabled={saving}>{canvasMode?'Form view':'Canvas view'}</button>
+      {#if canvasMode}<button type="button" class="btn-secondary" onclick={()=>void saveOrder('draft')} disabled={saving||preparingFiles}>{$t('orderWorkspace.editor.saveAll')}</button>{/if}
       <button class="btn-secondary" onclick={() => goto('/orders')}>
         {$t('actions.cancel')}
       </button>
@@ -896,6 +971,29 @@
   {/if}
   {#if presetNotice}<div class="success-banner" role="status">{presetNotice}</div>{/if}
 
+  <section id="new-order-intake" class="form-section full-width">
+    <OrderIntakeAssistant editable={!saving&&can($currentUser,'createDraftOrder')}
+      current={{clientName,title,deadline,loadingDate,priority,notes,deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail,isRd,rdNotes,profiles}}
+      localFiles={uploadedFiles.map(entry=>({id:entry.uploadId,file:entry.file}))}
+      onAddFiles={async files=>(await addFiles(files)).map(entry=>({id:entry.uploadId,file:entry.file}))}
+      selectedFileId={intakeFileId} selectedProfileIndex={0}
+      profileNames={profiles.map(profile=>profile.configuration?.profileName??'')}
+      onApply={applyIntakeFields}/>
+  </section>
+
+  {#if canvasMode}
+    <section aria-label="Draft canvas" style="height:75vh;min-height:600px;position:relative;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden">
+      {#await import('$lib/components/canvas/TldrawWrapper.svelte') then module}
+        <module.default snapshot={creationSnapshot} onReady={editor=>creationEditor=editor} onSave={snapshot=>creationSnapshot=snapshot}
+          onError={message=>error=message} onFilesUpload={addCanvasFiles} toolkitReadOnly={saving}
+          orderSeed={{orderId:creationId,isRd,rdNotes,title,clientName,deadline,loadingDate,priority,notes,deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail,profiles}}
+          onOrderChange={(_id,patch)=>applyIntakeFields(patch)}
+          onProfileQuantityChange={(_id,index,quantity)=>{if(!saving)profiles=profiles.map((profile,i)=>i===index?{...profile,quantity}:profile);}}
+          onProfileChange={(_id,index,configuration)=>{if(!saving)profiles=profiles.map((profile,i)=>i===index?{...profile,configuration}:profile);}}/>
+      {/await}
+    </section>
+  {/if}
+  <div hidden={canvasMode}>
   <!-- 1. PROFILES SECTION (TOP) -->
   <section id="new-order-profiles" class="profiles-section full-width">
     <div class="profiles-header">
@@ -1028,6 +1126,9 @@
                     <span class="file-list-size">{formatFileSize(fileItem.file.size)}</span>
                   </div>
                   <div class="file-list-actions">
+                    {#if ['application/pdf','image/jpeg','image/png','image/webp'].includes(fileItem.file.type)}
+                      <button type="button" class="btn-secondary" onclick={e=>{e.stopPropagation();analyzeAttachment(i);}}>{$t('orderIntake.analyzeFile')}</button>
+                    {/if}
                     {#if fileItem.type === 'pdf' || fileItem.type === 'image'}
                       <button class="btn-icon-sm" onclick={(e) => { e.stopPropagation(); selectFile(i); }} title={$t('common.preview')} aria-label={$t('common.preview')}>
                         <Icon name="eye" size="xs" />
@@ -1115,61 +1216,7 @@
         <Icon name="file-text" size="md" />
         {$t('orders.new.sections.details')}
       </h2>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="poNumber">{$t('orders.new.details.po')}</label>
-          <div class="po-pending" id="poNumber" aria-live="polite">
-            <Icon name="info" size="xs" />
-            <span>{$t('orders.new.details.po_pending', { default: 'Will be assigned by Boss at confirmation' })}</span>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="priority">{$t('orders.new.details.priority')}</label>
-          <select id="priority" bind:value={priority}>
-            <option value="LOW">{$t('orderForm.priority.LOW')}</option>
-            <option value="NORMAL">{$t('orderForm.priority.NORMAL')}</option>
-            <option value="HIGH">{$t('orderForm.priority.HIGH')}</option>
-            <option value="URGENT">{$t('orderForm.priority.URGENT')}</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-group">
-        <label for="clientName">{$t('orders.new.details.client')} <span class="required">*</span></label>
-        <input type="text" id="clientName" bind:value={clientName} placeholder={$t('orders.new.details.client_placeholder')} class:invalid={fieldErrors.clientName} aria-invalid={!!fieldErrors.clientName} />
-        {#if fieldErrors.clientName}<p class="field-error">{fieldErrors.clientName}</p>{/if}
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="deadline">
-            <Icon name="calendar" size="xs" />
-            {$t('orders.new.details.deadline')}
-          </label>
-          <input type="date" id="deadline" bind:value={deadline} class:invalid={fieldErrors.deadline} aria-invalid={!!fieldErrors.deadline} />
-          {#if fieldErrors.deadline}<p class="field-error">{fieldErrors.deadline}</p>{/if}
-        </div>
-        <div class="form-group">
-          <label for="loadingDate">
-            <Icon name="calendar" size="xs" />
-            {$t('orders.new.details.loading')}
-          </label>
-          <input type="date" id="loadingDate" bind:value={loadingDate} placeholder={$t('orders.new.details.loading_hint')} />
-          <span class="help-text">{$t('orders.new.details.loading_hint')}</span>
-        </div>
-      </div>
-      <div class="form-group">
-        <label for="order-is-rd">
-          <input type="checkbox" id="order-is-rd" bind:checked={isRd} />
-          {$t('orderForm.isRd')}
-        </label>
-        {#if isRd}
-          <label for="order-rd-notes">{$t('orderForm.rdNotes')}</label>
-          <textarea id="order-rd-notes" bind:value={rdNotes} rows="2" maxlength="8000"></textarea>
-        {/if}
-      </div>
-      <div class="form-group">
-        <label for="notes">{$t('orders.new.details.notes')}</label>
-        <textarea id="notes" bind:value={notes} rows="2" placeholder={$t('orders.new.details.notes_placeholder')}></textarea>
-      </div>
+      <OrderDraftFields section="details" data={{poNumber,clientName,title,deadline,loadingDate,priority,notes,isRd,rdNotes}} errors={fieldErrors} editable={!saving} onChange={applyIntakeFields}/>
     </section>
 
     <!-- Delivery Address Card -->
@@ -1220,68 +1267,11 @@
           </div>
         {/if}
 
-        <ClientDeliveryAddresses {clientName} current={{deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail}}
-          onSelect={patch=>{deliveryAddress=patch.deliveryAddress;deliveryContact=patch.deliveryContact;
-            deliveryPhone=patch.deliveryPhone;deliveryEmail=patch.deliveryEmail;selectedPresetId=null;useManualAddress=true;}}/>
-        <div class="manual-address-toggle">
-          <label class="toggle-label">
-            <input type="checkbox" bind:checked={useManualAddress} onchange={clearPreset} />
-            <span>{$t('orders.new.delivery.manual')}</span>
-          </label>
-        </div>
-
-        <div class="form-group">
-          <label for="deliveryAddress">{$t('orders.new.delivery.address')} <span class="required">*</span></label>
-          <textarea 
-            id="deliveryAddress" 
-            bind:value={deliveryAddress} 
-            rows="3" 
-            placeholder={$t('orders.new.delivery.address_placeholder')}
-            disabled={!useManualAddress && selectedPresetId !== null}
-          ></textarea>
-          {#if fieldErrors.deliveryAddress}<p class="field-error">{fieldErrors.deliveryAddress}</p>{/if}
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="deliveryContact">
-              <Icon name="user" size="xs" />
-              {$t('orders.new.delivery.contact')}
-            </label>
-            <input 
-              type="text" 
-              id="deliveryContact" 
-              bind:value={deliveryContact} 
-              placeholder={$t('orders.new.delivery.contact')}
-              disabled={!useManualAddress && selectedPresetId !== null}
-            />
-            {#if fieldErrors.deliveryContact}<p class="field-error">{fieldErrors.deliveryContact}</p>{/if}
-          </div>
-          <div class="form-group">
-            <label for="deliveryPhone">
-              <Icon name="phone" size="xs" />
-              {$t('orders.new.delivery.phone')}
-            </label>
-            <input 
-              type="tel" 
-              id="deliveryPhone" 
-              bind:value={deliveryPhone} 
-              placeholder="+371..."
-              class:invalid={fieldErrors.deliveryPhone}
-              disabled={!useManualAddress && selectedPresetId !== null}
-            />
-            {#if fieldErrors.deliveryPhone}<p class="field-error">{fieldErrors.deliveryPhone}</p>{/if}
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="order-delivery-email">{$t('orderForm.deliveryEmail')}</label>
-          <input id="order-delivery-email" type="email" bind:value={deliveryEmail}
-            maxlength="200" placeholder="contact@example.com" />
-          {#if fieldErrors.deliveryEmail}<p class="field-error">{fieldErrors.deliveryEmail}</p>{/if}
-        </div>
+        <OrderDraftFields section="delivery" data={{clientName,deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail}} errors={fieldErrors} editable={!saving} onChange={applyIntakeFields}/>
       </section>
     </div>
 
+  </div>
   <!-- Load Preset Modal -->
   {#if showPresetModal}
     <dialog
@@ -1410,19 +1400,6 @@
   .draft-assistant-tools p { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-secondary); }
   .draft-assistant-tools .assistant-form-error { color: var(--danger); }
 
-  /* Native order form contracts remain unchanged; visual/keyboard refinements below. */
-  .po-pending {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    border: 1px dashed var(--border-color, color-mix(in oklab, var(--ink-primary) 20%, transparent));
-    border-radius: var(--radius-sm, 8px);
-    background: var(--surface-soft, color-mix(in oklab, var(--ink-primary) 4%, transparent));
-    color: var(--text-secondary, var(--ink-tertiary));
-    font-size: 13px;
-    line-height: 1.3;
-  }
   .page-container {
     padding: var(--space-sm, 8px) var(--space-xs, 4px);
     max-width: 100%;
@@ -1636,19 +1613,8 @@
     color: var(--muted, var(--ink-tertiary));
   }
 
-  .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-
   .form-group {
     margin-bottom: 16px;
-  }
-
-  .form-row .form-group {
-    margin-bottom: 0;
   }
 
   .form-group label {
@@ -1669,24 +1635,13 @@
     color: var(--error);
   }
 
-  .field-error {
-    color: var(--error);
-    font-size: 12px;
-    margin-top: 4px;
-  }
-
-  input.invalid {
-    border-color: var(--error);
-    box-shadow: 0 0 0 2px color-mix(in oklab, var(--error) 25%, transparent);
-  }
-
   .help-text {
     font-size: 12px;
     color: var(--text-muted, var(--muted));
     margin-top: 4px;
   }
 
-  input, textarea, select {
+  input, textarea{
     width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--border, var(--border));
@@ -1698,7 +1653,7 @@
     transition: all 0.2s;
   }
 
-  input:focus, textarea:focus, select:focus {
+  input:focus, textarea:focus{
     outline: none;
     border-color: var(--brand);
     box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 10%, transparent);
@@ -1708,11 +1663,6 @@
     background: var(--bg-disabled, var(--bg-2));
     color: var(--text-muted, var(--muted));
     cursor: not-allowed;
-  }
-
-
-  select {
-    cursor: pointer;
   }
 
   .preset-selector {
@@ -1811,24 +1761,6 @@
     color: var(--brand);
     border-radius: 4px;
     margin-top: 4px;
-  }
-
-  .manual-address-toggle {
-    margin-bottom: 12px;
-  }
-
-  .toggle-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    cursor: pointer;
-    color: var(--text-secondary, var(--ink-secondary));
-  }
-
-  .toggle-label input {
-    width: auto;
-    cursor: pointer;
   }
 
   .file-upload-area {
@@ -2251,10 +2183,6 @@
       padding: var(--space-sm, 8px);
     }
 
-    .form-row {
-      grid-template-columns: 1fr;
-    }
-
     .profiles-header {
       flex-direction: column;
       align-items: flex-start;
@@ -2449,11 +2377,10 @@
   .file-list-actions { opacity:1; }
   .file-list-item:focus-within .file-list-actions { opacity:1; }
   .preview-section { background:var(--bg-2);border-radius:var(--radius-md); }
-  .preview-container { padding:var(--space-lg);min-height:260px; }
-  .form-row,.client-delivery-row { min-width:0; }
-  .form-group input,.form-group select,.form-group textarea { color:var(--ink-primary);background:var(--bg-1);
+  .preview-container { padding:var(--space-lg);min-height:260px; }.client-delivery-row { min-width:0; }
+  .form-group input,.form-group textarea { color:var(--ink-primary);background:var(--bg-1);
     border:1px solid var(--border);min-height:42px;max-width:100%;border-radius:var(--radius-sm); }
-  .form-group input:focus-visible,.form-group select:focus-visible,.form-group textarea:focus-visible {
+  .form-group input:focus-visible,.form-group textarea:focus-visible {
     outline:2px solid var(--focus);outline-offset:1px;border-color:var(--focus); }
   .modal { background:var(--bg-1);border:1px solid var(--border);border-radius:var(--radius-lg); }
   @media(max-width:1200px) {

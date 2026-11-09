@@ -1,3 +1,5 @@
+import {OrderCanvasTools} from './OrderCanvasTools';
+import {OrderAnnotationShapeUtil} from './shapes/OrderAnnotationShape';
 import canvasAssetUrls from './tldraw-asset-urls.json';
 import React, { useEffect, useRef } from 'react';
 import { Tldraw, getSnapshot, GeoShapeGeoStyle, react as trackEditor, type Editor } from '@tldraw/tldraw';
@@ -21,7 +23,7 @@ import {
 } from './shapes/SignageShapes';
 import { spawnDraftOrderTemplate, syncOrderDataToCanvas, type OrderSeed, type SpawnedShapes } from './templates/DraftOrderTemplate';
 import { setOrderBridge, clearOrderBridge } from './state-bridge';
-import { wireAssetDropHandler } from './asset-uploader';
+import { wireAssetDropHandler, uploadOrderCanvasFiles, cancelOrderCanvasUploads } from './asset-uploader';
 import { CanvasModeContext } from './canvas-mode';
 import { getRunnableShapeIds } from './node-runner';
 import { captureToolkitControls, type ToolkitControlsState } from './toolkit-controls';
@@ -37,6 +39,7 @@ const customShapeUtils = [
     OrderDetailsShapeUtil,
     OrderAddressShapeUtil,
     Profile7stShapeUtil,
+    OrderAnnotationShapeUtil,
     WebSearchShapeUtil,
     CrawlShapeUtil,
     LumiGridShapeUtil,
@@ -61,6 +64,8 @@ export interface CanvasAppProps {
     onEditorReady?: (editor: Editor) => void;
     /** When set, auto-spawns the DraftOrderTemplate on first mount */
     orderSeed?: OrderSeed | null;
+    onProfileQuantityChange?: (orderId:string,index:number,quantity:number)=>void;
+    onFilesUpload?: (files:File[],position:{x:number;y:number})=>Promise<void>;
     /** Called when a form shape field changes, bridges data back to Svelte */
     onOrderChange?: (orderId: string, patch: Partial<OrderSeed>) => void;
     /** Called when a profile shape changes */
@@ -84,7 +89,7 @@ export function CanvasApp({
     onSave,
     onDocumentChange,
     onEditorReady,
-    orderSeed,
+    orderSeed, onFilesUpload, onProfileQuantityChange,
     onOrderChange,
     onProfileChange,
     onAssetUploaded,
@@ -116,7 +121,7 @@ export function CanvasApp({
     }, [orderSeed]);
 
     useEffect(() => {
-        if (toolkitBoardId && editorRef.current) {
+        if (editorRef.current) {
             editorRef.current.updateInstanceState({ isReadonly: toolkitReadOnly });
         }
     }, [toolkitBoardId, toolkitReadOnly]);
@@ -126,9 +131,9 @@ export function CanvasApp({
     useEffect(() => {
         const editor = editorRef.current;
         if (!editor) return;
-        setOrderBridge(editor, { onOrderChange, onProfileChange, onAssetUploaded });
+        setOrderBridge(editor, {orderId:seedRef.current?.orderId, onOrderChange, onProfileChange, onAssetUploaded, onFilesUpload, onProfileQuantityChange });
         return () => clearOrderBridge(editor);
-    }, [onOrderChange, onProfileChange, onAssetUploaded]);
+    }, [orderSeed?.orderId,onOrderChange, onProfileChange, onAssetUploaded, onFilesUpload, onProfileQuantityChange]);
 
     const syncSeed = (editor: Editor, seed: OrderSeed) => {
         // Restored snapshots already contain the forms, so no template was
@@ -149,10 +154,10 @@ export function CanvasApp({
 
     const handleMount = (editor: Editor) => {
         editorRef.current = editor;
-        if (toolkitBoardId) editor.updateInstanceState({ isReadonly: toolkitReadOnly });
+        editor.updateInstanceState({ isReadonly: toolkitReadOnly });
 
         // Register the bridge immediately so any shape created during spawn can fire callbacks
-        setOrderBridge(editor, { onOrderChange, onProfileChange, onAssetUploaded });
+        setOrderBridge(editor, {orderId:seedRef.current?.orderId, onOrderChange, onProfileChange, onAssetUploaded, onFilesUpload, onProfileQuantityChange });
 
         // Toolkit captures its document only when saving. The order editor
         // still requests debounced full snapshots via onSave.
@@ -205,6 +210,8 @@ export function CanvasApp({
             });
         }
 
+        if(!toolkitBoardId)editor.registerExternalContentHandler('files',async({files,point})=>{const id=seedRef.current?.orderId;if(id)await uploadOrderCanvasFiles(editor,files,id,point??editor.getViewportPageBounds().center);});
+
         // Separate order-document uploads from Toolkit shared-board imports.
         if (containerRef.current) {
             dropCleanupRef.current?.();
@@ -255,7 +262,7 @@ export function CanvasApp({
         cleanupControlsRef.current?.();
         cleanupAppearanceRef.current?.();
         if (spawnFrameRef.current !== null) cancelAnimationFrame(spawnFrameRef.current);
-        if (editorRef.current) clearOrderBridge(editorRef.current);
+        if (editorRef.current) {cancelOrderCanvasUploads(editorRef.current);clearOrderBridge(editorRef.current);}
         editorRef.current = null;
         if (captureTimerRef.current) clearTimeout(captureTimerRef.current);
         captureTimerRef.current = null;
@@ -272,7 +279,7 @@ export function CanvasApp({
                     shapeUtils={customShapeUtils}
                     onMount={handleMount}
                     hideUi={hideUI}
-                    components={toolkitBoardId ? toolkitUi : undefined}
+                    components={toolkitBoardId ? toolkitUi : orderSeed ? {InFrontOfTheCanvas:OrderCanvasTools} : undefined}
                 />
               </ToolkitStyleTranslateContext.Provider>
               </ToolkitStyleHostContext.Provider>

@@ -1,6 +1,8 @@
 # Production PDF assistance and saved client addresses
 
-The saved-order toolbar's **Upload & analyze PDF** button opens Assistant → Attachment analysis. Use **Upload PDF or image** there to attach and select a private source directly, or select a file already uploaded through Files. Save any order edits, select a source and saved profile, then request analysis. On a new order, upload the source, enter the client and deadline, and choose **Save & analyze PDF** to save a draft and open attachment analysis without submitting for review. Uploading alone never requests AI analysis. The workflow uses the existing company OpenRouter API key from Settings/Vault (or its existing server environment fallback); no separate key is needed. The server reads the actual private linked file under the current user's permissions and uses the company sharing policy. It never sends a private download URL or the material catalog to the model.
+**New Order → Upload & analyze PDF** accepts PDFs and images before the client, dates or other required fields are filled. Pick one or several documents, review them one at a time, and apply only approved choices to the form. The originals remain in the form's attachment queue until Save. Saved drafts expose **Upload & analyze PDF** in the editor header and **Upload & analyze PDF** inside the assistant; uploading links the original through the normal order file endpoint before analysis.
+
+The default PDF route renders all pages (up to ten) in a bounded server worker and sends page images to the **existing OMS OpenRouter vision model and key**. No additional AI key, PDF model variable or paid OCR service is needed for scanned drawings. The existing company sharing policy remains enforced. Server rendering uses PDF.js and the pinned canvas runtime, with cancellation, a 30-second render limit and a 24 MiB total rendered-image bound. Larger documents must be split; pages are never silently omitted.
 
 Each choice starts unchecked. Review the source excerpt, page/part, confidence, current value and proposed value. Unknown material identities, multiple matches, conflicting order-field alternatives or part values, dimensions without explicit units, ranges and placeholder references cannot apply. Low-confidence facts still need deliberate approval. Generic “6500K”, “regular PSU” or “230V black cable” specifications do not identify an electrical product; use the normal catalog picker to resolve them. Exact catalog matches prove identity only, not compatibility, stock, electrical sizing or drawing accuracy.
 
@@ -12,7 +14,7 @@ Existing filled controls require the additional replacement acknowledgment. Loca
 
 ## Reviewing and resolving choices
 
-The source setup shows available PDF processing options. Unavailable options are disabled; retry configuration lookup if it failed. The default remains text processing without OCR. Staff can cancel a pending analysis; canceled or late responses cannot apply changes to the draft.
+The source setup shows available PDF processing options. Unavailable options are disabled; retry configuration lookup if it failed. The default reads rendered drawing pages through the existing vision model. Text-only, configured native-PDF and explicitly enabled paid OCR remain optional alternatives on saved drafts. Staff can cancel a pending analysis; canceled or late responses cannot apply changes to the draft.
 
 The review summary shows extracted, attention and selected counts. **Needs attention** isolates uncertain, unresolved and manually selected material decisions; **Selected** shows the choices being prepared. Each row compares the current and suggested values. Expand its source excerpt for the original text, page and catalog ID; source details include a private download of the original file. Keyboard focus moves to the review heading when analysis finishes.
 
@@ -30,13 +32,13 @@ Profile preset dialogs use the same native focus, Escape and recovery behavior a
 
 ## Scanned PDFs
 
-All five supplied examples are one-page, predominantly image-only production drawings. Text extraction alone does not recover their specifications. The free text parser remains the default, and there is no silent fallback to paid OCR. For scanned drawings, configure a model with native PDF **and strict structured-output** support:
+All five supplied examples are one-page, predominantly image-only production drawings. Text extraction alone does not recover their specifications. The default now renders the drawing pages and uses the existing vision model. There is no silent fallback to paid OCR. As an optional alternative on saved drafts, configure a model with native PDF **and strict structured-output** support:
 
 ```dotenv
 OPENROUTER_ORDER_INTAKE_PDF_MODEL=your-provider/your-native-pdf-model
 ```
 
-Then select “Read scanned artwork with the configured PDF model”. Native PDF input may incur model charges. Alternatively, an administrator can enable the existing `OPENROUTER_TOOLKIT_PDF_OCR=true`; staff must select and confirm the paid OCR option for each request. Configure `OPENROUTER_ORDER_INTAKE_MODEL` for ordinary PDF/text requests and `OPENROUTER_VISION_MODEL` for images. Strict structured JSON remains the default; the existing explicit `OPENROUTER_ORDER_INTAKE_STRICT=false` compatibility option still validates all output with Zod. Incompatible models fail without applying anything.
+To use that optional route, select “Read scanned artwork with the configured PDF model”. Native PDF input may incur model charges. Alternatively, an administrator can enable the existing `OPENROUTER_TOOLKIT_PDF_OCR=true`; staff must select and confirm the paid OCR option for each request. Configure `OPENROUTER_ORDER_INTAKE_MODEL` for ordinary PDF/text requests and `OPENROUTER_VISION_MODEL` for images. Strict structured JSON remains the default; the existing explicit `OPENROUTER_ORDER_INTAKE_STRICT=false` compatibility option still validates all output with Zod. Incompatible models fail without applying anything.
 
 OpenRouter documents the explicit `native`, `cloudflare-ai` and `mistral-ocr` engines and their differing input/cost behavior in its [PDF input guide](https://openrouter.ai/docs/guides/overview/multimodal/pdfs). Provider annotations are optional. A matching parsed-text excerpt is labelled only as such, not independent engineering verification; native/image facts remain model-reported.
 

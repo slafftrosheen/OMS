@@ -13,6 +13,8 @@
     onError?: (message: string) => void;
     /** Seed data → triggers DraftOrderTemplate auto-spawn */
     orderSeed?: OrderSeed | null;
+    onProfileQuantityChange?: (orderId:string,index:number,quantity:number)=>void;
+    onFilesUpload?: (files:File[],position:{x:number;y:number})=>Promise<void>;
     /** Called when any order-details or order-address field changes on canvas */
     onOrderChange?: (orderId: string, patch: Partial<OrderSeed>) => void;
     /** Called when a profile-7st field changes on canvas */
@@ -36,6 +38,8 @@
     onReady = () => {},
     onError = () => {},
     orderSeed = null,
+    onFilesUpload=undefined,
+    onProfileQuantityChange=undefined,
     onOrderChange = undefined,
     onProfileChange = undefined,
     onAssetUploaded = undefined,
@@ -58,7 +62,7 @@
   $effect(() => {
     const translate = $t;
     renderCanvas?.({
-      onSave, onDocumentChange, orderSeed, onOrderChange, onProfileChange,
+      onSave, onDocumentChange, orderSeed, onOrderChange, onProfileChange, onFilesUpload, onProfileQuantityChange,
       onAssetUploaded, hideUI, toolkitBoardId, onToolkitFilesDrop,
       onToolkitLinkDrop, onToolkitControlsChange, toolkitStyleHost, toolkitReadOnly,
       toolkitStyleTranslate: toolkitBoardId ? (key) => translate(key) : undefined,

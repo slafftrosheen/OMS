@@ -8,6 +8,7 @@
   import User from 'lucide-svelte/icons/user';
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
+  import { safeLoginDestination } from '$lib/auth/login-destination';
   import { goto } from '$app/navigation';
   import { currentUser } from '$lib/auth/authState.svelte';
   import { logAction } from '$lib/auth/audit-log';
@@ -42,7 +43,7 @@
   onMount(() => {
     const unsub = currentUser.subscribe(user => {
       if (user && !isLoading) {
-        goto(`${base}/orders`);
+        goto(safeLoginDestination(new URLSearchParams(location.search).get('next'),base));
       }
     });
     return unsub;
@@ -124,7 +125,7 @@
     
     currentUser.set(user);
     logAction(user.username, user.primarySection, 'login', 'User logged in');
-    goto(`${base}/orders`);
+    goto(safeLoginDestination(new URLSearchParams(location.search).get('next'),base));
   }
 
   async function signup() {

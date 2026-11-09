@@ -144,6 +144,9 @@ export const POST: RequestHandler = async ({ locals, request }) => {
       const synced = await telegramApi(config, 'setMyCommands', { commands: telegramCommandMenu(config, locale || 'en'), language_code: locale, scope: { type: 'all_private_chats' } });
       if (!synced.ok) commandsSynced = false;
     }
-    return json({ ok: true, commandsSynced }, { headers: telegramPrivateHeaders });
+    const menu=await telegramApi(config,'setChatMenuButton',{menu_button:config.appUrl?.startsWith('https://')?
+      {type:'web_app',text:'Open OMS',web_app:{url:config.appUrl.replace(/\/$/,'')+'/telegram'}}:{type:'commands'}});
+    commandsSynced=commandsSynced&&menu.ok;
+    return json({ ok: true, commandsSynced, appMenuSynced:menu.ok }, { headers: telegramPrivateHeaders });
   } catch (error) { return adminError(error); }
 };

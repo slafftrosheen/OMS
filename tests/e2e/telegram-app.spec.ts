@@ -1,0 +1,53 @@
+import {test,expect} from '@playwright/test';
+test.use({serviceWorkers:'block'});
+test('Telegram tabs open real notifications, chat sending and role-aware controls',async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ let enabled=true;let read=false;
+ const errors:string[]=[];const writes:any[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('https://telegram.org/**',r=>r.fulfill({contentType:'text/javascript',body:'window.Telegram={WebApp:{ready(){},expand(){}}}'}));
+ await page.route('http://localhost:8000/**',r=>{
+  if(!new URL(r.request().url()).pathname.includes('/notifications'))return r.fulfill({json:[]});
+  if(r.request().method()==='PATCH'){read=true;writes.push({path:'notification-read',body:r.request().postDataJSON()});return r.fulfill({status:204});}
+  return r.fulfill({json:[{id:'notification-a',user_id:'account-a',title:'Drawing needs review',message:'Check the delivery date',is_read:read,is_dismissed:false,created_at:'2026-11-09T10:00:00Z',notification_type:'order_updated',link:'/orders/fixture'}]});
+ });
+ await page.route('**/api/**',r=>{
+  const request=r.request(),path=new URL(request.url()).pathname;
+  if(request.method()!=='GET')writes.push({path,body:request.postDataJSON()});
+  if(path==='/api/auth')return r.fulfill({json:{user:{id:'account-a',username:'manager',displayName:'Manager',role:'RD',stations:[]}}});
+  if(path==='/api/preferences')return r.fulfill({json:{theme:'LightVim',locale:'en',density:'cozy'}});
+  if(path==='/api/chat')return r.fulfill({json:[{id:'general',name:'General',kind:'channel'}]});
+  if(path==='/api/users')return r.fulfill({json:[{id:'account-a',name:'Manager',displayName:'Manager'}]});
+  if(path==='/api/chat/messages')return r.fulfill({json:request.method()==='POST'?{success:true,message:{id:'sent',roomId:'general',authorId:'account-a',text:'Drawing reviewed',ts:new Date().toISOString()}}:{success:true,messages:[{id:'existing',roomId:'general',authorId:'account-a',text:'Production discussion',ts:new Date().toISOString()}],hasMore:false}});
+  if(path==='/api/notifications/telegram'&&request.method()==='PATCH')enabled=request.postDataJSON().enabled;
+  if(path==='/api/notifications/telegram')return r.fulfill({json:{configured:true,available:true,connected:true,enabled,accountId:'account-a',username:'manager',botUsername:'oms_bot',preferences:{notificationCategories:['ORDER','CHAT'],previewMode:'full',aiEnabled:false},aiAvailable:false}});
+  return r.fulfill({json:[]});
+ });
+ await page.goto('/telegram-app.html');
+ await expect(page.getByRole('heading',{name:'Your work, in one place'})).toBeVisible();
+ await expect(page.locator('.rf-topbar')).toHaveCount(0);
+ const nav=page.locator('.app-tabs');
+ await expect(nav.locator('svg')).toHaveCount(4);
+ await expect(page.getByText('Drawing needs review',{exact:true})).toBeVisible();
+ await expect(nav.locator('.count')).toHaveText('1');
+ await page.screenshot({path:'.local/qa/telegram-home.png',fullPage:true});
+ await page.getByRole('button',{name:'Mark read',exact:true}).click();
+ await expect.poll(()=>writes.some(w=>w.path==='notification-read'&&w.body.is_read===true)).toBe(true);
+ await expect(nav.locator('.count')).toHaveCount(0);
+ await nav.getByRole('link',{name:'Notifications'}).click();
+ await expect(page.getByRole('heading',{name:'Notifications',exact:true})).toBeVisible();
+ await nav.getByRole('link',{name:'Chats'}).click();
+ await expect(page.getByText('Production discussion',{exact:true})).toBeVisible();
+ const composer=page.locator('[contenteditable="true"],textarea').filter({visible:true}).first();
+ await composer.fill('Drawing reviewed');
+ await page.getByRole('button',{name:/Send message|^Send$/}).click();
+ await expect.poll(()=>writes.some(w=>w.path==='/api/chat/messages')).toBe(true);
+ await nav.getByRole('link',{name:'Controls'}).click();
+ await expect(page.getByRole('link',{name:'Create draft from PDF'})).toHaveAttribute('href','/orders/new');
+ await expect(page.getByRole('link',{name:'Review orders'})).toHaveAttribute('href','/orders/review');
+ await expect(page.getByRole('heading',{name:'Telegram preferences',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Pause notifications',exact:true}).click();
+ await expect.poll(()=>writes.some(w=>w.path==='/api/notifications/telegram'&&w.body.enabled===false)).toBe(true);
+ await expect(page.getByRole('button',{name:'Resume notifications',exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ expect(errors).toEqual([]);
+});

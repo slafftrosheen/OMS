@@ -8,6 +8,9 @@
 import type { Editor } from '@tldraw/tldraw';
 
 export interface OrderBridge {
+    orderId?:string;
+    onProfileQuantityChange?: (orderId:string,index:number,quantity:number)=>void;
+    onFilesUpload?: (files:File[],position:{x:number;y:number})=>Promise<void>;
     onOrderChange?: (orderId: string, patch: Record<string, unknown>) => void;
     onProfileChange?: (orderId: string, profileIndex: number, profileData: Record<string, unknown>) => void;
     onAssetUploaded?: (orderId: string, asset: { url: string; fileName: string; kind: string }) => void;

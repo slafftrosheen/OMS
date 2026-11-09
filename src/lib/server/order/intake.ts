@@ -11,6 +11,7 @@ import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/
 import { z } from 'zod';
 import { PRODUCTION_INTAKE_JSON_SCHEMA, productionIntakeSchema, reviewProductionFacts, resolveIntakePdfEngine, findOrderIntakeConflicts } from '$lib/order/production-intake';
 import {readCompleteIntakeCatalog} from './intake-catalog';
+import {renderIntakePdf} from './intake-pdf';
 import { summarizeNativeProfileConfiguration } from '$lib/order/native-profile-context';
 
 const inputSchema=z.object({
@@ -18,6 +19,7 @@ const inputSchema=z.object({
   fileId:z.string().uuid().nullable().optional(),
   ocr:z.boolean().optional(),
   nativePdf:z.boolean().optional(),
+  visualPdf:z.boolean().optional(),
   profileIndex:z.number().int().min(0).max(99).nullable().optional(),
   expectedUpdatedAt:z.string().datetime({offset:true}).optional(),
   language:z.string().max(20).optional()
@@ -68,6 +70,8 @@ export function createOrderIntakeHandler(complete:typeof openRouterCompleteWithM
   const {request,locals}=event;
   if(!locals.user) throw error(401,'Unauthorized');
   aiRateLimit(rateLimitIdentifier(event));
+  if(request.headers.get('content-type')?.startsWith('multipart/form-data'))
+    return analyzeUploadedSource(event,complete);
   const parsed=inputSchema.safeParse(await request.json().catch(()=>null));
   if(!parsed.success) throw error(400,'Invalid order intake request');
   const {orderId,fileId,ocr,profileIndex}=parsed.data;
@@ -107,6 +111,9 @@ export function createOrderIntakeHandler(complete:typeof openRouterCompleteWithM
   let filename:string|null=null;
   let attachment:Record<string,unknown>|null=null;
   let parserEngine:string|null=null;
+  let pages:Array<Record<string,unknown>>|null=null;
+  const visualPdf=parsed.data.visualPdf===true;
+  if(visualPdf&&(ocr||parsed.data.nativePdf))throw error(400,'Choose one PDF mode');
   const nativePdf=parsed.data.nativePdf===true;
   const pdfModel=process.env.OPENROUTER_ORDER_INTAKE_PDF_MODEL?.trim()||'';
   if(nativePdf && !fileId)throw error(400,'Native PDF analysis requires a PDF');
@@ -133,12 +140,13 @@ export function createOrderIntakeHandler(complete:typeof openRouterCompleteWithM
       !matchesOrderFileSignature(kind==='pdf'?'pdf':
         file.mimetype==='image/png'?'png':file.mimetype==='image/webp'?'webp':'jpg',
         bytes.subarray(0,16))) throw error(422,'Stored order file failed integrity validation');
-    attachment=toolkitMediaContent(filename,file.mimetype,bytes);
-    try {parserEngine=kind==='pdf'?resolveIntakePdfEngine(!!ocr,nativePdf,paidOcrEnabled,pdfModel):null;}
+    if(visualPdf&&kind==='pdf')pages=await renderIntakePdf(bytes,request.signal);
+    else attachment=toolkitMediaContent(filename,file.mimetype,bytes);
+    try {parserEngine=pages?'page-images':kind==='pdf'?resolveIntakePdfEngine(!!ocr,nativePdf,paidOcrEnabled,pdfModel):null;}
     catch(err){throw error(400,err instanceof Error?err.message:'Invalid PDF mode');}
   }
   const note=String(order.notes??'').trim().slice(0,5000);
-  if(!attachment && !note) throw error(422,'Add an order note or upload a PDF/image first');
+  if(!attachment && !pages && !note) throw error(422,'Add an order note or upload a PDF/image first');
   const {data:preference}=await locals.supabase.from('user_preferences')
     .select('locale').eq('user_id',user.id).maybeSingle();
   const language=resolveResponseLocale(parsed.data.language,preference?.locale,
@@ -156,37 +164,14 @@ ${selectedProfile
   :'No specific saved profile selected.'}
 Only propose values supported by the selected attachment or actual notes.
 Do not merely repeat current order values without source evidence.`;
-  const content: string|Array<Record<string,unknown>>=attachment
+  const content: string|Array<Record<string,unknown>>=pages
+    ? [{type:'text',text:sourceText},...pages] : attachment
     ? [{type:'text',text:sourceText},attachment] : sourceText;
-  const model=kind==='image' ? OPENROUTER_VISION_MODEL
+  const model=kind==='image'||pages ? OPENROUTER_VISION_MODEL
     : nativePdf ? pdfModel : process.env.OPENROUTER_ORDER_INTAKE_MODEL?.trim()||OPENROUTER_MODEL;
   if(!/^[a-z0-9_./:+-]{3,150}$/i.test(model)) throw error(503,'Invalid configured intake model');
   try{
-    const response=await complete([
-      {role:'system',content:PROMPT+'\n'+responseLanguageInstruction(language)},
-      {role:'user',content}
-    ],{
-      model,temperature:0.1,maxTokens:6500,timeoutMs:120_000,signal:request.signal,
-      // Explicit operator downgrade for legacy models, never automatic.
-      // Zod validates every field regardless of the provider mode.
-      ...(process.env.OPENROUTER_ORDER_INTAKE_STRICT==='false'
-        ? {jsonMode:true}
-        : {jsonSchema:{name:'oms_order_intake_v2',
-          schema:PRODUCTION_INTAKE_JSON_SCHEMA as unknown as Record<string,unknown>}}),
-      ...(parserEngine?{plugins:[{id:'file-parser',pdf:{engine:parserEngine}}]}:{})
-    });
-    let modelJson:unknown;
-    try {modelJson=JSON.parse(response.text);}
-    catch {throw new Error('Model returned invalid structured output');}
-    const extracted=productionIntakeSchema.parse(modelJson);
-    const {production,...basic}=extracted;
-    const orderConflicts=findOrderIntakeConflicts(basic.proposals);
-    basic.proposals=basic.proposals.filter(p=>!orderConflicts.some(c=>c.field===p.field));
-    const suggestions=normalizeIntakeProposals(basic);
-    // The model never receives or invents database IDs. Resolve against the
-    // complete caller-visible catalog; refuse to guess if the scan is truncated.
-    const catalog=await readCompleteIntakeCatalog(locals.supabase,request.signal);
-    const productionReviews=reviewProductionFacts(production,catalog);
+    const result=await extractSource(event,complete,content,model,parserEngine,language);
     // Provider latency must not bind evidence to a changed draft/file/profile.
     const {data:fresh,error:freshError}=await locals.supabase.from('draft_orders')
       .select('updated_at,status,created_by').eq('id',orderId).maybeSingle();
@@ -199,15 +184,8 @@ Do not merely repeat current order values without source evidence.`;
         .select('file_id').eq('draft_order_id',order.id).eq('file_id',fileId).maybeSingle();
       if(linkError||!linked)throw error(409,'Source file changed during analysis');
     }
-    // Provider text is only evidence if it appears in provider-reported parsed
-    // PDF text. For images or absent annotations do not imply verification.
-    const parsedText=kind==='pdf' ? extractedPdfEvidence(response.annotations,12000).toLowerCase() : '';
-    const evidenceVerified=suggestions.proposals.map(p =>
-      !!parsedText && parsedText.includes(p.evidence.trim().toLowerCase()));
-    return json({...suggestions,orderConflicts,production:productionReviews,profileId,fileId:fileId??null,fileName:filename,
-      profileIndex:profileIndex??null,
-      model:response.model,orderUpdatedAt:order.updated_at,
-      provenance:'model-reported',evidenceVerified,
+    return json({...result,profileId,fileId:fileId??null,fileName:filename,
+      profileIndex:profileIndex??null,orderUpdatedAt:order.updated_at,
       engine:parserEngine
     },{headers});
   }catch(err){
@@ -216,4 +194,80 @@ Do not merely repeat current order values without source evidence.`;
     throw error(503,'AI intake failed. Verify the configured OpenRouter model supports the requested output format and file modality.');
   }
 };
+}
+
+/** Shared provider boundary. Uses the same Vault/environment key and sharing policy as OMS chat. */
+async function extractSource(event:Parameters<RequestHandler>[0],complete:typeof openRouterCompleteWithMetadata,
+ content:string|Array<Record<string,unknown>>,model:string,parserEngine:string|null,language:Parameters<typeof responseLanguageInstruction>[0]){
+    const response=await complete([
+      {role:'system',content:PROMPT+'\n'+responseLanguageInstruction(language)},
+      {role:'user',content}
+    ],{
+      model,temperature:0.1,maxTokens:6500,timeoutMs:120_000,signal:event.request.signal,
+      // Explicit operator downgrade for legacy models, never automatic.
+      // Zod validates every field regardless of the provider mode.
+      ...(process.env.OPENROUTER_ORDER_INTAKE_STRICT==='false'
+        ? {jsonMode:true}
+        : {jsonSchema:{name:'oms_order_intake_v2',
+          schema:PRODUCTION_INTAKE_JSON_SCHEMA as unknown as Record<string,unknown>}}),
+      ...(parserEngine&&parserEngine!=='page-images'?{plugins:[{id:'file-parser',pdf:{engine:parserEngine}}]}:{})
+    });
+    let modelJson:unknown;
+    try {modelJson=JSON.parse(response.text);}
+    catch {throw new Error('Model returned invalid structured output');}
+    const extracted=productionIntakeSchema.parse(modelJson);
+    const {production,...basic}=extracted;
+    const orderConflicts=findOrderIntakeConflicts(basic.proposals);
+    basic.proposals=basic.proposals.filter(p=>!orderConflicts.some(c=>c.field===p.field));
+    const suggestions=normalizeIntakeProposals(basic);
+    // The model never receives or invents database IDs. Resolve against the
+    // complete caller-visible catalog; refuse to guess if the scan is truncated.
+    const catalog=await readCompleteIntakeCatalog(event.locals.supabase,event.request.signal);
+    const productionReviews=reviewProductionFacts(production,catalog);
+
+    const parsedText=extractedPdfEvidence(response.annotations,12000).toLowerCase();
+    const evidenceVerified=suggestions.proposals.map(p=>!!parsedText&&parsedText.includes(p.evidence.trim().toLowerCase()));
+    return {...suggestions,orderConflicts,production:productionReviews,model:response.model,
+      provenance:'model-reported',evidenceVerified};
+}
+
+const uploadMetadata=z.object({
+ sourceId:z.string().uuid(),profileIndex:z.number().int().min(0).max(99).nullable().optional(),
+ notes:z.string().max(5000).optional(),language:z.string().max(20).optional()
+}).strict();
+/** A source can be reviewed before required order fields exist. No storage or draft writes. */
+async function analyzeUploadedSource(event:Parameters<RequestHandler>[0],complete:typeof openRouterCompleteWithMetadata){
+ const {request,locals}=event;
+ if(!['RD','Boss','HeadOfProduction'].includes(locals.user!.role))throw error(403,'Only manufacturing management can create orders');
+ const length=Number(request.headers.get('content-length'));
+ if(length>13*1024*1024)throw error(413,'Source exceeds the upload analysis limit');
+ const form=await request.formData().catch(()=>null);
+ if(!form)throw error(400,'Invalid source upload');
+ const file=form.get('file');
+ const raw=form.get('metadata');
+ let metadata:unknown;try{metadata=JSON.parse(typeof raw==='string'?raw:'');}catch{throw error(400,'Invalid source metadata');}
+ const parsed=uploadMetadata.safeParse(metadata);
+ if(!parsed.success||!file||typeof file==='string'||form.getAll('file').length!==1)throw error(400,'Choose one source to analyze');
+ const kind=toolkitMediaKind(file.type);
+ if(!kind)throw error(415,'Choose a PDF, JPEG, PNG or WebP');
+ if(file.size<1||file.size>toolkitMediaLimit(kind))throw error(413,'File exceeds the AI analysis limit (8 MiB images, 12 MiB PDFs)');
+ const bytes=new Uint8Array(await file.arrayBuffer());
+ if(!matchesOrderFileSignature(kind==='pdf'?'pdf':file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg',bytes.subarray(0,16)))
+   throw error(422,'Source file failed integrity validation');
+ const filename=file.name.slice(0,180);
+ const pages=kind==='pdf'?await renderIntakePdf(bytes,request.signal):[toolkitMediaContent(filename,file.type,bytes)];
+ const {data:preference}=await locals.supabase.from('user_preferences').select('locale').eq('user_id',locals.user!.id).maybeSingle();
+ const language=resolveResponseLocale(parsed.data.language,preference?.locale,request.headers.get('accept-language'));
+ try{
+   const result=await extractSource(event,complete,[{type:'text',text:
+    `Analyze this uploaded production source for a new unsaved draft. Source: ${filename}.\n`+
+    `Operator notes (untrusted): ${parsed.data.notes||'(none)'}.\n`+
+    'Only the attached source is evidence. The draft may have no client, dates or saved profiles yet.'},...pages],
+    OPENROUTER_VISION_MODEL,kind==='pdf'?'page-images':null,language);
+   return json({...result,fileId:parsed.data.sourceId,fileName:filename,profileIndex:parsed.data.profileIndex??null,
+    profileId:null,orderUpdatedAt:null,engine:kind==='pdf'?'page-images':null},{headers});
+ }catch(err){
+   console.error('[Orders] Uploaded source analysis unavailable',err instanceof Error?err.name:'unknown');
+   throw error(503,'AI analysis failed. Check the existing OpenRouter key and vision model in OMS settings, then retry.');
+ }
 }

@@ -44,6 +44,20 @@ describe('Bidirectional Telegram command parsing',()=>{
 });
 
 describe('Telegram replies and read-only OpenRouter questions',()=>{
+  it('offers an app launcher and button navigation without requiring typed commands',()=>{
+    const reply=formatTelegramBotReply({kind:'help',locale:'en'},config);
+    expect(reply.text.includes('/orders')).toBe(false);
+    const buttons=reply.keyboard.flat();
+    expect(buttons.some((b:any)=>b.web_app?.url===config.appUrl+'/telegram')).toBe(true);
+    expect(buttons.some(b=>b.callback_data==='oms:orders')).toBe(true);
+    expect(buttons.some(b=>b.callback_data==='oms:notifications')).toBe(true);
+  });
+  it('routes navigation buttons through the same authenticated command boundary',()=>{
+    const callback=(data:string)=>({callback_query:{id:'button',data,from:{id:1234},message:{chat:{id:1234,type:'private'}}}});
+    expect((readTelegramCommand(callback('oms:orders'),config.botUsername) as any)?.command).toBe('orders');
+    expect((readTelegramCommand(callback('oms:help'),config.botUsername) as any)?.command).toBe('help');
+    expect((readTelegramCommand(callback('oms:ask'),config.botUsername) as any)?.command).toBe('ask');
+  });
   it('formats account-language notifications with owner action buttons',()=>{
     const id='12345678-0000-0000-0000-000000000001';
     const reply=formatTelegramBotReply({kind:'notifications',locale:'ru',notifications:[{id,title:'Заказ готов',message:'Доступен к погрузке'}]},config);

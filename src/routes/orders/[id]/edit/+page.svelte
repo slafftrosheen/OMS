@@ -1,4 +1,5 @@
 <script lang="ts">
+  import OrderDraftFields from '$lib/order/OrderDraftFields.svelte';
   import OrderDeleteButton from '$lib/order/OrderDeleteButton.svelte';
   import { createUuid } from '$lib/utils/id';
 
@@ -24,7 +25,6 @@
   import ChangeRequestList from '$lib/order/ChangeRequestList.svelte';
   import OrderFiles from '$lib/order/OrderFiles.svelte';
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
-  import ClientDeliveryAddresses from '$lib/order/ClientDeliveryAddresses.svelte';
   import OrderFlowAssistant from '$lib/order/OrderFlowAssistant.svelte';
   import OrderNativeProfileForm from '$lib/order/OrderNativeProfileForm.svelte';
   import OrderProfileSheet from '$lib/order/OrderProfileSheet.svelte';
@@ -364,6 +364,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     if(typeof patch.deliveryContact==='string') deliveryContact=patch.deliveryContact;
     if(typeof patch.deliveryPhone==='string') deliveryPhone=patch.deliveryPhone;
     if(typeof patch.deliveryEmail==='string') deliveryEmail=patch.deliveryEmail;
+    if(['deliveryAddress','deliveryContact','deliveryPhone','deliveryEmail'].some(key=>key in patch))deliveryPresetId=null;
     if(typeof patch.isRd==='boolean') isRd=patch.isRd;
     if(typeof patch.rdNotes==='string') rdNotes=patch.rdNotes;
     if(Array.isArray(patch.profiles)) profiles=patch.profiles as typeof profiles;
@@ -434,7 +435,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         orderId: String(orderId),
         title,
         clientName,
-        poNumber,
+        poNumber,isRd,rdNotes,
         deadline,
         loadingDate,
         priority,
@@ -680,6 +681,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
     if (patch.deliveryAddress !== undefined) deliveryAddress = patch.deliveryAddress;
     if (patch.deliveryContact !== undefined) deliveryContact = patch.deliveryContact;
     if (patch.deliveryPhone !== undefined) deliveryPhone = patch.deliveryPhone;
+    if (patch.deliveryEmail !== undefined) deliveryEmail = patch.deliveryEmail;
+    if(['deliveryAddress','deliveryContact','deliveryPhone','deliveryEmail'].some(key=>key in patch))deliveryPresetId=null;
+    if(typeof patch.isRd==='boolean')isRd=patch.isRd;
+    if(typeof patch.rdNotes==='string')rdNotes=patch.rdNotes;
     markCanvasDirty();
   }
 
@@ -1390,8 +1395,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
               onReady={editor => handleEditorReady(editor,canvasScope)}
               onSave={snapshot => handleCanvasSave(snapshot,canvasScope)}
               onOrderChange={(id,patch) => handleOrderChange(id,patch,canvasScope)}
+              onProfileQuantityChange={(id,index,quantity)=>{if(canvasScope.isCurrent()&&canEdit&&id===orderId)profiles=profiles.map((profile,i)=>i===index?{...profile,quantity}:profile);}}
               onProfileChange={(id,index,profile) => handleProfileChange(id,index,profile,canvasScope)}
               onAssetUploaded={(id,asset) => handleAssetUploaded(id,asset,canvasScope)}
+              toolkitReadOnly={!canEdit}
               hideUI={false}
             />
           {/await}
@@ -1459,31 +1466,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
               onRemove={index => { if (canEdit) profiles = profiles.filter((_, i) => i !== index); }} />
           </div>
           <div class="order-field-panel">
-            <label>{$t('orderWorkspace.editor.client')} <input bind:value={clientName} disabled={!canEdit} maxlength="200" required /></label>
-            <label>{$t('orderWorkspace.editor.title')} <input bind:value={title} disabled={!canEdit} maxlength="200" /></label>
-            <label>{$t('orderWorkspace.editor.deadline')} <input type="date" bind:value={deadline} disabled={!canEdit} required /></label>
-            <label>{$t('orderWorkspace.editor.loadingDate')} <input type="date" bind:value={loadingDate} disabled={!canEdit} /></label>
-            <label>{$t('orderWorkspace.editor.priority')}
-              <select bind:value={priority} disabled={!canEdit}>
-                <option value="LOW">{$t('orderWorkspace.editor.priorityLow')}</option><option value="NORMAL">{$t('orderWorkspace.editor.priorityNormal')}</option>
-                <option value="HIGH">{$t('orderWorkspace.editor.priorityHigh')}</option><option value="URGENT">{$t('orderWorkspace.editor.priorityUrgent')}</option>
-              </select>
-            </label>
-            <label>{$t('orderWorkspace.editor.notes')} <textarea bind:value={notes} rows="3" disabled={!canEdit}></textarea></label>
-            <label>{$t('orderWorkspace.editor.deliveryAddress')} <textarea bind:value={deliveryAddress} rows="3" disabled={!canEdit}></textarea></label>
-            <label>{$t('orderWorkspace.editor.deliveryContact')} <input bind:value={deliveryContact} disabled={!canEdit} /></label>
-            <label>{$t('orderWorkspace.editor.deliveryPhone')} <input bind:value={deliveryPhone} disabled={!canEdit} /></label>
-            <label>{$t('orderWorkspace.editor.deliveryEmail')} <input type="email" bind:value={deliveryEmail} disabled={!canEdit} /></label>
-            <ClientDeliveryAddresses {clientName} editable={canEdit}
-              current={{deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail}}
-              onSelect={patch=>{deliveryAddress=patch.deliveryAddress;deliveryContact=patch.deliveryContact;
-                deliveryPhone=patch.deliveryPhone;deliveryEmail=patch.deliveryEmail;deliveryPresetId=null;}}/>
-            <label class="checkbox-field">
-              <input type="checkbox" bind:checked={isRd} disabled={!canEdit} /> {$t('orderWorkspace.editor.rdOrder')}
-            </label>
-            {#if isRd}
-              <label>{$t('orderWorkspace.editor.rdNotes')} <textarea bind:value={rdNotes} rows="3" disabled={!canEdit}></textarea></label>
-            {/if}
+            <OrderDraftFields data={{poNumber,clientName,title,deadline,loadingDate,priority,notes,deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail,isRd,rdNotes}} editable={canEdit} idPrefix="saved-" onChange={patch=>{if(orderId)handleOrderChange(orderId,patch,captureOrderRequest());}}/>
             {#if canEdit}
               <button type="button" onclick={() => profiles = [...profiles, {
                 clientKey:createUuid(),
@@ -1651,11 +1634,9 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
   .assistant-guide summary:focus-visible, .assistant-profile-context select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
   .order-field-panel{display:grid;gap:12px;padding:13px;overflow-y:auto}
-  .order-field-panel>label{display:grid;gap:5px;font-size:12px}
   .order-field-panel input:not([type="checkbox"]),.order-field-panel textarea,
   .order-field-panel select{width:100%;box-sizing:border-box;background:var(--bg-1);
     color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px;min-width:0}
-  .order-field-panel .checkbox-field{display:flex;gap:8px;align-items:center}
 
   /* ── Layout ──────────────────────────────────────────────────────────────── */
   .canvas-editor {

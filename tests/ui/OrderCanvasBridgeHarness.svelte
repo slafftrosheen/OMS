@@ -7,10 +7,11 @@
   let seed = $state<OrderSeed>({
     orderId: 'fixture-order', title: 'Initial order', clientName: 'Initial client',
     poNumber: 'PO-100', notes: 'Keep these notes', deliveryAddress: 'First address',
-    deliveryEmail: 'initial@example.com', profiles: [{ name: 'Existing profile', quantity: 2 }]
+    deliveryEmail: 'initial@example.com', profiles: [{ name: 'Existing profile', quantity: 2,configuration:{profileName:'Real native form',BENDER:{depth:120}} }]
   });
   let snapshot = $state<unknown>();
   let generation = $state(0);
+  let readonly=$state(false);
   let mounts = $state(0);
   let saves = $state(0);
   let callbackVersion = $state('original');
@@ -53,6 +54,8 @@
         shapes: editor?.getCurrentPageShapes(), initialIds,
         bridgePresent: !!getOrderBridge(editor), firstBridgePresent: !!getOrderBridge(firstEditor)
       }),
+      focusDetails:()=>{const shape=editor.getCurrentPageShapes().find((s:any)=>s.type==='order-details');editor.select(shape.id);editor.zoomToSelection();},
+      focusProfile:()=>{const shape=editor.getCurrentPageShapes().find((s:any)=>s.type==='profile-7st');editor.select(shape.id);editor.zoomToSelection();},
       annotate: () => {
         initialIds = editor.getCurrentPageShapes().map((shape: any) => shape.id);
         editor.createShape({ id: 'shape:fixture-note', type: 'geo', x: 900, y: 40, props: { text: 'Keep annotation' } });
@@ -68,6 +71,7 @@
   <button onclick={replaceCallbacks}>Replace callbacks</button>
   <button onclick={useCallbacks}>Use callbacks</button>
   <button onclick={restore}>Restore saved canvas</button>
+  <button onclick={()=>readonly=!readonly}>Toggle read only canvas</button>
   <output data-testid="editor-mounts">{mounts}</output>
   <output data-testid="snapshot-saves">{saves}</output>
   <output data-testid="callback-version">{callbackVersion}</output>
@@ -76,7 +80,7 @@
 <main>
   {#key generation}
     <TldrawWrapper {snapshot} orderSeed={seed} onReady={ready} onSave={saved}
-      {onOrderChange} {onProfileChange} {onAssetUploaded} />
+      {onOrderChange} {onProfileChange} {onAssetUploaded} toolkitReadOnly={readonly} />
   {/key}
 </main>
 

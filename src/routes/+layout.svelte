@@ -1,5 +1,6 @@
 <script lang="ts">
   import '../app.css';
+  import TelegramAppShell from '$lib/telegram/TelegramAppShell.svelte';
   import '$lib/styles/a11y.css';
   import '$lib/styles/responsive.css';
   import { base } from '$app/paths';
@@ -40,6 +41,10 @@
   const orderStateInstance = orderState;
   setContext('authState', authStateInstance);
   setContext('orderState', orderStateInstance);
+
+  let telegramMode=$state(false);
+  $effect(()=>{if(page.url.pathname===`${base}/telegram`){telegramMode=true;try{sessionStorage.setItem('oms-telegram-app','1');}catch{}}});
+  function exitTelegram(){telegramMode=false;try{sessionStorage.removeItem('oms-telegram-app');}catch{}void goto(`${base}/orders`);}
 
   let searchOpen     = $state(false);
   let showKb         = $state(false);
@@ -97,6 +102,7 @@
   function handleDismissUpdate() { showUpdatePrompt = false; }
 
   onMount(() => {
+    try{telegramMode=page.url.pathname===`${base}/telegram`||sessionStorage.getItem('oms-telegram-app')==='1';}catch{}
     let disposed = false;
     const events = new AbortController();
     let scrollFrame: number | null = null;
@@ -122,7 +128,7 @@
       if (!authChecked) authChecked = true;
 
       if (!user && !isPublicRoute) {
-        goto(`${base}/login`);
+        goto(`${base}/login?next=${encodeURIComponent(page.url.pathname+page.url.search)}`);
         return;
       }
 
@@ -268,7 +274,7 @@
     {$t('a11y.skip')}
   </a>
 
-  {#if $currentUser}
+  {#if $currentUser&&!telegramMode}
     <header class="rf-topbar" class:rf-topbar--scrolled={topbarScrolled}>
       <!-- Brand -->
       <a href="{base}/" class="rf-topbar__brand" aria-label={$t('app.brand.label', { default: 'OMS' })}>
@@ -397,11 +403,12 @@
     <OfflineIndicator />
   {/if}
 
-  <main id="main" class="rf-page">{@render children?.()}</main>
+  {#if telegramMode&&$currentUser}<TelegramAppShell onExit={exitTelegram}>{@render children?.()}</TelegramAppShell>
+  {:else}<main id="main" class="rf-page">{@render children?.()}</main>{/if}
 
   {#if $currentUser}
-    <MobileNav />
-    <BottomBar />
+    {#if !telegramMode}<MobileNav />
+    <BottomBar />{/if}
     <AssistantShell controller={assistant} path={page.url.pathname.slice(base.length) || '/'} accountId={$currentUser.id} />
     {#if $isChatOpen}<ChatSidebar />{/if}
   {/if}

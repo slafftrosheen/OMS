@@ -31,7 +31,7 @@ async function runtime(run: (calls: Array<{url:string;body:any}>, setRecord: (va
     if (url.includes('/audit_log')) return Response.json(null);
     if (url.endsWith('/getMe')) return Response.json({ ok: true, result: { id: 123456, is_bot: true, username: 'OMS_notify_bot' } });
     if (url.endsWith('/getWebhookInfo')) return Response.json({ ok: true, result: { url: 'https://oms.example.test/api/telegram/webhook', pending_update_count: 0, last_error_message: env.TELEGRAM_BOT_TOKEN } });
-    if (url.endsWith('/setWebhook') || url.endsWith('/setMyCommands') || url.endsWith('/deleteWebhook')) return Response.json({ ok: true, result: true });
+    if (url.endsWith('/setWebhook') || url.endsWith('/setMyCommands') || url.endsWith('/setChatMenuButton') || url.endsWith('/deleteWebhook')) return Response.json({ ok: true, result: true });
     throw new Error('Unexpected test request');
   };
   try { await run(calls, value => { saved = value; }); } finally {
@@ -142,6 +142,7 @@ describe('Telegram R&D settings HTTP authorization and provider actions', () => 
       expect(transport.map(call=>call.url.split('/').pop())).toEqual(['claim_telegram_receiver','renew_telegram_receiver','setWebhook','release_telegram_receiver']);
       expect(transport[0].body.p_revision).toBe(revision);
       const menus=calls.filter(call=>call.url.endsWith('/setMyCommands'));
+      expect(calls.find(call=>call.url.endsWith('/setChatMenuButton'))?.body).toEqual({menu_button:{type:'web_app',text:'Open OMS',web_app:{url:'https://oms.example.test/telegram'}}});
       expect(menus.length).toBe(4); expect(menus.every(call=>call.body.scope.type==='all_private_chats')).toBe(true);
       expect(menus[0].body.commands.some((command:any)=>command.command==='ask')).toBe(false);
     });

@@ -1,178 +1,46 @@
-/**
- * Drag-drop asset pipeline for the order canvas.
- *
- * Listens for native drag/drop on the tldraw container, uploads each file via
- * /api/files/upload, and creates a DocumentShape (or auto-positions it inside
- * the Visuals frame when the drop point is outside any frame).
- */
-
-import type { Editor, TLShapeId } from '@tldraw/tldraw';
-import { createShapeId } from '@tldraw/tldraw';
-import { getOrderBridge } from './state-bridge';
-
-export interface UploadedAsset {
-    id: string;
-    url: string;
-    fileName: string;
-    mime: string;
-    kind: 'image' | 'pdf' | 'file';
+/** Canonical order uploads shared by the visible picker and drag/drop. */
+import {createShapeId,type Editor} from '@tldraw/tldraw';
+import {getOrderBridge} from './state-bridge';
+import {announceOrderFilesChanged} from '$lib/order/order-files-client';
+import {base} from '$app/paths';
+export interface UploadedAsset{id:string;url:string;fileName:string;mime:string;kind:'image'|'pdf'|'file'}
+const pending=new WeakSet<Editor>();
+const lifetimes=new WeakMap<Editor,AbortController>();
+export function cancelOrderCanvasUploads(editor:Editor){lifetimes.get(editor)?.abort();lifetimes.delete(editor);}
+export async function uploadOrderCanvasFiles(editor:Editor,files:File[],orderId:string,position:{x:number;y:number},signal?:AbortSignal){
+ if(editor.getInstanceState().isReadonly||pending.has(editor)||!files.length)return;
+ let lifetime=lifetimes.get(editor);if(!lifetime){lifetime=new AbortController();lifetimes.set(editor,lifetime);}
+ signal=signal?AbortSignal.any([signal,lifetime.signal]):lifetime.signal;
+ const local=getOrderBridge(editor)?.onFilesUpload;
+ pending.add(editor);
+ const report=(message:string,busy:boolean)=>editor.getContainer().dispatchEvent(new CustomEvent('oms:canvas-upload',{detail:{message,busy}}));
+ const failures:string[]=[];let completed=0;
+ try{
+  if(local){report(`Preparing ${files.length} file(s)…`,true);try{await local(files,position);completed=files.length;}catch(err){failures.push(err instanceof Error?err.message:'Could not attach files');}return;}
+  for(const [index,file] of files.entries()){
+   if(signal?.aborted||editor.getInstanceState().isReadonly)break;
+   report(`Uploading ${index+1}/${files.length}: ${file.name}`,true);
+   try{
+    const body=new FormData();body.set('file',file);body.set('order_id',orderId);body.set('file_type','canvas-asset');
+    const res=await fetch(base+'/api/files/upload',{method:'POST',body,signal:signal?AbortSignal.any([signal,AbortSignal.timeout(60_000)]):AbortSignal.timeout(60_000)});
+    const result=await res.json().catch(()=>({}));
+    if(!res.ok||typeof result.file?.id!=='string')throw new Error(result.message||result.error||'Upload failed');
+    announceOrderFilesChanged(orderId);
+    if(signal?.aborted||editor.getInstanceState().isReadonly)break;
+    const f=result.file,mime=f.mimeType||f.mime_type||file.type;
+    const kind=mime==='application/pdf'?'pdf':mime.startsWith('image/')?'image':'file';
+    const url=`${base}/api/files/${encodeURIComponent(f.id)}/download`;
+    editor.createShape({id:createShapeId(),type:'document',x:position.x+index*28,y:position.y+index*28,
+     props:{w:kind==='image'?420:320,h:360,title:file.name,content:'',status:'ready',url,mime,kind,fileId:f.id}} as any);
+    getOrderBridge(editor)?.onAssetUploaded?.(orderId,{url,fileName:file.name,kind});completed++;
+   }catch(err){if(!signal?.aborted)failures.push(`${file.name}: ${err instanceof Error?err.message:'Upload failed'}`);}
+  }
+ }finally{pending.delete(editor);if(!signal?.aborted)report(failures.length?failures.join(' · '):`${completed} file(s) attached. Save Draft to keep their canvas placement.`,false);}
 }
-
-function classify(mime: string): 'image' | 'pdf' | 'file' {
-    if (mime.startsWith('image/')) return 'image';
-    if (mime === 'application/pdf') return 'pdf';
-    return 'file';
-}
-
-async function uploadFile(file: File, orderId: string): Promise<UploadedAsset | null> {
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('order_id', orderId);
-    fd.append('file_type', 'canvas-asset');
-
-    try {
-        const res = await fetch('/api/files/upload', { method: 'POST', body: fd });
-        if (!res.ok) {
-            console.error('File upload failed', await res.text().catch(() => ''));
-            return null;
-        }
-        const data = await res.json();
-        const f = data.file ?? data;
-        return {
-            id: String(f.id),
-            url: f.url || `/api/files/${f.id}/download`,
-            fileName: f.file_name || file.name,
-            mime: f.mime_type || file.type,
-            kind: classify(f.mime_type || file.type),
-        };
-    } catch (err) {
-        console.error('File upload error:', err);
-        return null;
-    }
-}
-
-/**
- * Find the visuals frame on the canvas (auto-spawned by DraftOrderTemplate).
- * Falls back to any frame named "Visuals…" or returns null.
- */
-function findVisualsFrame(editor: Editor): TLShapeId | null {
-    const allShapes = editor.getCurrentPageShapes();
-    const frames = allShapes.filter((s: any) => s.type === 'frame');
-    const visuals = frames.find((s: any) =>
-        typeof s.props?.name === 'string' && /visuals/i.test(s.props.name)
-    );
-    return visuals ? (visuals.id as TLShapeId) : null;
-}
-
-/**
- * Returns true if the page point is inside the bounds of the given frame.
- */
-function pointInFrame(editor: Editor, frameId: TLShapeId, point: { x: number; y: number }): boolean {
-    const bounds = editor.getShapePageBounds(frameId);
-    if (!bounds) return false;
-    return point.x >= bounds.minX && point.x <= bounds.maxX
-        && point.y >= bounds.minY && point.y <= bounds.maxY;
-}
-
-/**
- * Convert a screen-space pointer event to canvas page coordinates.
- */
-function screenToPage(editor: Editor, clientX: number, clientY: number, container: HTMLElement) {
-    const rect = container.getBoundingClientRect();
-    const screenPoint = { x: clientX - rect.left, y: clientY - rect.top };
-    return editor.screenToPage(screenPoint);
-}
-
-/**
- * Wire up the drag-drop pipeline. Returns an unsubscribe.
- */
-export function wireAssetDropHandler(
-    container: HTMLElement,
-    editor: Editor,
-    getOrderId: () => string | null,
-): () => void {
-    const onDragOver = (e: DragEvent) => {
-        if (!e.dataTransfer) return;
-        // Only handle external file drops
-        const hasFiles = Array.from(e.dataTransfer.items).some(it => it.kind === 'file');
-        if (!hasFiles) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'copy';
-    };
-
-    const onDrop = async (e: DragEvent) => {
-        if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
-        const orderId = getOrderId();
-        if (!orderId) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        const files = Array.from(e.dataTransfer.files);
-        const dropPage = screenToPage(editor, e.clientX, e.clientY, container);
-
-        // Determine fallback frame (Visuals)
-        const visualsFrameId = findVisualsFrame(editor);
-        const targetFrameId = visualsFrameId && !pointInFrame(editor, visualsFrameId, dropPage)
-            ? null  // user dropped elsewhere — keep at drop point
-            : visualsFrameId;
-
-        // Compute a base position: if user dropped outside frames, use drop point.
-        // Otherwise stagger inside the visuals frame from its top-left.
-        const visualsBounds = visualsFrameId ? editor.getShapePageBounds(visualsFrameId) : null;
-        let cursorX = dropPage.x;
-        let cursorY = dropPage.y;
-        if (targetFrameId && visualsBounds) {
-            cursorX = visualsBounds.minX + 16;
-            cursorY = visualsBounds.minY + 40;
-        }
-
-        for (const file of files) {
-            const asset = await uploadFile(file, orderId);
-            if (!asset) continue;
-
-            const id = createShapeId();
-            const isImage = asset.kind === 'image';
-            const w = isImage ? 360 : 280;
-            const h = isImage ? 280 : 340;
-
-            editor.createShape({
-                id,
-                type: 'document',
-                x: cursorX,
-                y: cursorY,
-                ...(targetFrameId ? { parentId: targetFrameId } : {}),
-                props: {
-                    w,
-                    h,
-                    title: asset.fileName,
-                    content: '',
-                    status: 'ready',
-                    url: asset.url,
-                    mime: asset.mime,
-                    kind: asset.kind,
-                    fileId: asset.id,
-                },
-            } as any);
-
-            // Stagger next drop
-            cursorX += 24;
-            cursorY += 24;
-
-            // Notify Svelte
-            getOrderBridge(editor)?.onAssetUploaded?.(orderId, {
-                url: asset.url,
-                fileName: asset.fileName,
-                kind: asset.kind,
-            });
-        }
-    };
-
-    container.addEventListener('dragover', onDragOver);
-    container.addEventListener('drop', onDrop);
-
-    return () => {
-        container.removeEventListener('dragover', onDragOver);
-        container.removeEventListener('drop', onDrop);
-    };
+export function wireAssetDropHandler(container:HTMLElement,editor:Editor,getOrderId:()=>string|null){
+ const controller=new AbortController();
+ const drag=(event:DragEvent)=>{if(event.dataTransfer?.types.includes('Files')){event.preventDefault();event.dataTransfer.dropEffect=editor.getInstanceState().isReadonly?'none':'copy';}};
+ const drop=(event:DragEvent)=>{if(!event.dataTransfer?.files.length)return;event.preventDefault();event.stopPropagation();const id=getOrderId();if(id)void uploadOrderCanvasFiles(editor,Array.from(event.dataTransfer.files),id,editor.screenToPage({x:event.clientX,y:event.clientY}),controller.signal);};
+ container.addEventListener('dragover',drag,true);container.addEventListener('drop',drop,true);
+ return ()=>{controller.abort();container.removeEventListener('dragover',drag,true);container.removeEventListener('drop',drop,true);};
 }

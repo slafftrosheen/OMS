@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DEFAULT_TELEGRAM_OPTIONS, type TelegramCommandName } from '$lib/notifications/telegram-options';
-import { formatTelegramMessage, sendTelegramMessage, telegramRetryAt, type TelegramConfig, type TelegramInlineButton } from './telegram';
+import { formatTelegramMessage, sendTelegramMessage, telegramAppButton, telegramRetryAt, type TelegramConfig, type TelegramInlineButton } from './telegram';
 import { openRouterChat, openRouterComplete } from '$lib/server/ai/openrouter';
 import { checkTelegramRuntimeFence } from './telegram-runtime-fence';
 import { runTelegramAssistant, TelegramToolsUnsupportedError, type TelegramAssistantDependencies } from './telegram-assistant';
@@ -27,6 +27,26 @@ export function telegramCommandMenu(config: TelegramConfig, locale: Language = '
   return [...enabled.map(command => ({ command, description: descriptions[locale][command] })), { command: 'stop', description: labels[locale].stop }];
 }
 
+export function telegramHomeKeyboard(config:TelegramConfig,lang:Language='en'):TelegramInlineButton[][]{
+ const options=config.options??DEFAULT_TELEGRAM_OPTIONS,l=labels[lang];
+ const result:TelegramInlineButton[][]=[];
+ const app=telegramAppButton(config,l.open);if(app)result.push([app]);
+ const chats=telegramAppButton(config,lang==='ru'?'Чаты':lang==='lv'?'Sarunas':'Chats','/telegram?view=chat');
+ const controls=telegramAppButton(config,lang==='ru'?'Управление':lang==='lv'?'Vadība':'Controls','/telegram?tab=control');
+ if(chats&&controls)result.push([chats,controls]);
+ if(options.commandsEnabled){
+   const available:TelegramInlineButton[]=[];
+   for(const command of ['today','orders','notifications','ask','pause','resume'] as const){
+     if(!options.commands.includes(command)||(command==='ask'&&!options.aiEnabled))continue;
+     const text=command==='ask'?l.ai:command==='pause'?(lang==='ru'?'Пауза уведомлений':lang==='lv'?'Apturēt paziņojumus':'Pause alerts'):
+       command==='resume'?(lang==='ru'?'Включить уведомления':lang==='lv'?'Atsākt paziņojumus':'Resume alerts'):l[command];
+     available.push({text,callback_data:'oms:'+command});
+   }
+   for(let i=0;i<available.length;i+=2)result.push(available.slice(i,i+2));
+ }
+ return result;
+}
+
 export function formatTelegramBotReply(payload: Record<string, any>, config: TelegramConfig): { text: string; keyboard: TelegramInlineButton[][] } {
   const lang = language(payload.locale); const l = labels[lang];
   const options = config.options ?? DEFAULT_TELEGRAM_OPTIONS;
@@ -37,7 +57,8 @@ export function formatTelegramBotReply(payload: Record<string, any>, config: Tel
   const rows = orders.map(order => `${value(order.po_number) || value(order.id)} · ${value(order.title)}\n${value(order.status)} · ${value(order.client)}\n${l.due}: ${value(order.due_date) || '—'} · ${l.loading}: ${value(order.loading_date) || '—'}`);
   switch (payload.kind) {
     case 'help':
-      text = `${l.help}\n\n${l.commandHelp}\n${telegramCommandMenu(config, lang).map(item => `/${item.command} — ${item.description}`).join('\n')}`;
+      text = `${l.help}\n\n${lang==='ru'?'Откройте приложение для уведомлений, чатов и управления заказами. Или выберите действие ниже.':lang==='lv'?'Atveriet lietotni paziņojumiem, sarunām un pasūtījumu vadībai. Vai izvēlieties darbību zemāk.':'Open the app for notifications, chats and order controls, or choose an action below.'}`;
+      keyboard.push(...telegramHomeKeyboard(config,lang));
       if (options.aiEnabled) text += `\n\n${l.askScope}`;
       break;
     case 'today': {
@@ -48,6 +69,7 @@ export function formatTelegramBotReply(payload: Record<string, any>, config: Tel
     }
     case 'orders': case 'order':
       text = `${l.orders}\n\n${rows.length ? rows.join('\n\n') : l.empty}${payload.kind === 'orders' ? `\n\n${l.limited}` : ''}`;
+      if (options.commandsEnabled&&options.commands.includes('order'))orders.forEach(order=>{if(/^[0-9a-f-]{36}$/i.test(order.id))keyboard.push([{text:(value(order.po_number)||value(order.title)||l.orders).slice(0,60),callback_data:`oms:order:${order.id}`}]);});
       if (orders.length === 1 && config.appUrl && /^[0-9a-f-]{36}$/i.test(orders[0].id)) keyboard.push([{ text: l.open, url: `${config.appUrl}/orders/${orders[0].id}` }]);
       break;
     case 'notifications': {
@@ -68,7 +90,10 @@ export function formatTelegramBotReply(payload: Record<string, any>, config: Tel
     case 'ask': text = l.aiUnavailable; break;
     default: text = l.empty;
   }
-  if (!keyboard.length && config.appUrl) keyboard.push([{ text: l.open, url: config.appUrl }]);
+  if(payload.kind!=='help'){
+    const app=telegramAppButton(config,l.open);if(app)keyboard.push([app]);
+    if(options.commandsEnabled&&options.commands.includes('help'))keyboard.push([{text:l.help,callback_data:'oms:help'}]);
+  }
   return { text: formatTelegramMessage({ title: text }, null).text, keyboard };
 }
 

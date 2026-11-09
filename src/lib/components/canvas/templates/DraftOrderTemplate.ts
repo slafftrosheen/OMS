@@ -19,6 +19,8 @@ export interface OrderSeed {
     loadingDate?: string;
     priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
     notes?: string;
+    isRd?: boolean;
+    rdNotes?: string;
     status?: string;
     deliveryAddress?: string;
     deliveryContact?: string;
@@ -47,7 +49,7 @@ export interface SpawnedShapes {
 /** Column origin for the forms panel (left rail). */
 const LEFT_X = 24;
 /** Column origin for the production frames (right side). */
-const FRAMES_X = 460;
+const FRAMES_X = 1080;
 const FRAME_W = 700;
 const FRAME_H = 500;
 const FRAME_GAP = 40;
@@ -77,8 +79,8 @@ export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): Spawne
             y: 0,
             isLocked: false,
             props: {
-                w: 380,
-                h: 420,
+                w: 480,
+                h: 760,
                 orderId: seed.orderId,
                 title: seed.title ?? '',
                 clientName: seed.clientName ?? '',
@@ -88,19 +90,21 @@ export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): Spawne
                 priority: seed.priority ?? 'NORMAL',
                 notes: seed.notes ?? '',
                 status: seed.status ?? 'draft',
+                isRd: seed.isRd??false,rdNotes:seed.rdNotes??'',
             },
         });
 
         editor.createShape({
             id: addressId,
             type: 'order-address',
-            x: LEFT_X,
-            y: 440,
+            x: LEFT_X+500,
+            y: 0,
             isLocked: false,
             props: {
-                w: 380,
-                h: 340,
+                w: 480,
+                h: 640,
                 orderId: seed.orderId,
+                clientName:seed.clientName??'',
                 deliveryAddress: seed.deliveryAddress ?? '',
                 deliveryContact: seed.deliveryContact ?? '',
                 deliveryPhone: seed.deliveryPhone ?? '',
@@ -121,31 +125,16 @@ export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): Spawne
                 y: profileY,
                 isLocked: false,
                 props: {
-                    w: 380,
-                    h: 620,
+                    w: 1000,
+                    h: 1200,
                     orderId: seed.orderId,
                     profileIndex: index,
-                    data: {
-                        profileName: profile.name ?? `Profile ${index + 1}`,
-                        quantity: profile.quantity ?? 1,
-                        lineFreezer: profile.configuration?.lineFreezer ?? {
-                            alu13: false, alu15: false, thickness: '', size: '', opalMaterial: '',
-                        },
-                        benderSides: profile.configuration?.benderSides ?? {
-                            opalMaterial: '', frontMaterial: '', sidesMaterial: '', color: '', print: false,
-                        },
-                        painting: profile.configuration?.painting ?? {
-                            frameType: '', backMaterial: '', color: '', noLed: false, print: false,
-                        },
-                        assembling: profile.configuration?.assembling ?? {
-                            ledType: '', waterproof: [], frameOptions: [], specialRequirements: [],
-                        },
-                        delivery: profile.configuration?.delivery ?? { deliveryDate: '' },
-                    },
+                    quantity:profile.quantity??1,
+                    data: JSON.parse(JSON.stringify(profile.configuration??{})),
                 },
             });
 
-            profileY += 640;
+            profileY += 1240;
         });
 
         // ── Right side: production zone frames ─────────────────────────────
@@ -209,10 +198,27 @@ export function syncOrderDataToCanvas(
     };
     editor.batch(() => {
         sync(detailsId, 'order-details', [
-            'title', 'clientName', 'poNumber', 'deadline', 'loadingDate', 'priority', 'notes', 'status'
+            'title', 'clientName', 'poNumber', 'deadline', 'loadingDate', 'priority', 'notes', 'status','isRd','rdNotes'
         ]);
         sync(addressId, 'order-address', [
-            'deliveryAddress', 'deliveryContact', 'deliveryPhone', 'deliveryEmail', 'shippingMethod'
+            'clientName','deliveryAddress', 'deliveryContact', 'deliveryPhone', 'deliveryEmail', 'shippingMethod'
         ]);
+        if(data.profiles&&data.orderId){
+            const forms=editor.getCurrentPageShapes().filter(shape=>shape.type==='profile-7st'&&(shape.props as any).orderId===data.orderId);
+            data.profiles.forEach((profile,index)=>{
+                if(forms.some(shape=>(shape.props as any).profileIndex===index))return;
+                editor.createShape({id:createShapeId(),type:'profile-7st',x:LEFT_X,y:800+1240*index,props:{w:1000,h:1200,orderId:data.orderId,profileIndex:index,quantity:profile.quantity??1,data:JSON.parse(JSON.stringify(profile.configuration??{}))}} as any);
+            });
+            for(const shape of forms){
+                const index=(shape.props as any).profileIndex;
+                const profile=data.profiles[index];
+                if(!profile){editor.deleteShape(shape.id);continue;}
+                const legacy=(shape.props as any).quantity===undefined;
+                const configuration=JSON.parse(JSON.stringify(profile.configuration??{}));
+                if(JSON.stringify((shape.props as any).data)!==JSON.stringify(configuration)||(shape.props as any).quantity!==(profile.quantity??1))
+                    editor.updateShape({id:shape.id,type:shape.type,...(legacy?{y:800+1240*index}:{}),props:{data:configuration,quantity:profile.quantity??1,...(legacy?{w:1000,h:1200}:{})}} as any);
+            }
+        }
+
     });
 }
