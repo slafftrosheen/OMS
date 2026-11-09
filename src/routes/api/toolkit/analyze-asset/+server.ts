@@ -9,6 +9,7 @@ import { analyzeToolkitMedia, PdfSourceError } from '$lib/server/toolkit/analyze
 import { resolveToolkitModel, toolkitModelChoices } from '$lib/server/toolkit/ai-models';
 import {readOpenRouterModels} from '$lib/server/ai/provider-models';
 import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/ai/response-language';
+import { parsePdfPageRange, type PdfPageRange } from '$lib/pdf/page-range';
 
 const noStore = { 'Cache-Control': 'private, no-store' };
 
@@ -39,6 +40,10 @@ export const POST: RequestHandler = async (event) => {
   }
   const allowPaidOcr = process.env.OPENROUTER_TOOLKIT_PDF_OCR === 'true';
   if (body.ocr === true && !allowPaidOcr) throw error(403, 'Paid PDF OCR is disabled by the OMS administrator');
+  let pdfPages: PdfPageRange | undefined;
+  try { pdfPages = parsePdfPageRange(body.pdfPages, body.pdfMode === 'visual' ? 10 : 40); }
+  catch (err) { throw error(400, err instanceof Error ? err.message : 'Invalid PDF page range'); }
+  if (pdfPages && body.ocr === true) throw error(400, 'Page ranges cannot be combined with whole-document paid OCR.');
 
   const { data: board, error: boardError } = await locals.supabase.from('canvas_documents')
     .select('id').eq('id', body.boardId).maybeSingle();
@@ -53,6 +58,7 @@ export const POST: RequestHandler = async (event) => {
   if (!asset) throw error(404, 'Canvas file not found');
   const kind = toolkitMediaKind(asset.mime_type);
   if (!kind) throw error(415, 'Only JPEG, PNG, WebP and PDF files can be analyzed');
+  if (pdfPages && kind !== 'pdf') throw error(400, 'Page ranges apply only to PDFs.');
   if (!Number.isSafeInteger(asset.bytes) || asset.bytes < 1 || asset.bytes > toolkitMediaLimit(kind)) {
     throw error(413, 'File exceeds the analysis limit (8 MiB images, 12 MiB PDFs)');
   }
@@ -97,7 +103,7 @@ ${responseLanguageInstruction(locale)}`;
     const result = await analyzeToolkitMedia({
       kind, filename: asset.file_name, mime: asset.mime_type, bytes, system, question,
       textModel: pdfModel ?? models.textModel, visionModel: models.visionModel,
-      pdfMode: body.pdfMode ?? 'auto', paidOcr: engine === 'mistral-ocr',
+      pdfMode: body.pdfMode ?? 'auto', pdfPages, paidOcr: engine === 'mistral-ocr',
       signal: AbortSignal.any([request.signal, AbortSignal.timeout(140_000)])
     });
     return json({ assetId: asset.id, kind, fileName: asset.file_name, ...result }, { headers: noStore });

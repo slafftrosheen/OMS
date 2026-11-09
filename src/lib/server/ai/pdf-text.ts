@@ -2,18 +2,22 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
+import { parsePdfPageRange, type PdfPageRange, type PdfPageScope } from '$lib/pdf/page-range';
 
 export interface PdfTextSource {
   text: string;
   pageCount: number;
-  /** True only when every page has a usable text layer. Never treats a scan as text. */
+  pages: PdfPageScope;
+  /** True only when every selected page has a usable text layer. Never treats a scan as text. */
   allPagesReadable: boolean;
 }
 
 export class PdfSourceError extends Error {
-  constructor(reason: 'unreadable' | 'no-text' = 'unreadable') {
+  constructor(reason: 'unreadable' | 'no-text' | 'range' | 'limit' = 'unreadable') {
     super(reason === 'no-text'
       ? 'Some PDF pages have no usable text layer. Choose Automatic or Visual mode to read scanned pages and drawings.'
+      : reason === 'range' ? 'The selected page range is outside this PDF. Check its page count and choose an existing range.'
+      : reason === 'limit' ? 'Text analysis supports at most 40 pages at a time. Choose a page range to analyze a larger PDF.'
       : 'Could not read the PDF within the analysis limits (40 pages, 60,000 characters). Use an unlocked PDF or split a larger document.');
     this.name = 'PdfSourceError';
   }
@@ -30,11 +34,14 @@ async function extractInWorker() {
     standardFontDataUrl: workerData.root + '/standard_fonts/' });
   try {
     const pdf = await task.promise;
-    if (pdf.numPages > 40) throw new Error('Page limit');
+    const start = workerData.range?.start ?? 1;
+    const end = workerData.range?.end ?? pdf.numPages;
+    if (end > pdf.numPages) throw new Error('PDF_PAGE_RANGE');
+    if (end - start + 1 > 40) throw new Error('PDF_PAGE_LIMIT');
     const pages: string[] = [];
     let allPagesReadable = true;
     let length = 0;
-    for (let number = 1; number <= pdf.numPages; number++) {
+    for (let number = start; number <= end; number++) {
       const page = await pdf.getPage(number);
       try {
         const content = await page.getTextContent();
@@ -47,16 +54,18 @@ async function extractInWorker() {
         pages.push(`Source PDF page ${number} of ${pdf.numPages}\n${text || '(No embedded text on this page)'}`);
       } finally { page.cleanup(); }
     }
-    parentPort!.postMessage({ text: pages.join('\n\n'), pageCount: pdf.numPages, allPagesReadable });
+    parentPort!.postMessage({ text: pages.join('\n\n'), pageCount: pdf.numPages,
+      pages: { start, end, total: pdf.numPages }, allPagesReadable });
   } finally { await task.destroy(); }
 }
 
-export async function extractPdfText(bytes: Uint8Array, signal: AbortSignal): Promise<PdfTextSource> {
+export async function extractPdfText(bytes: Uint8Array, signal: AbortSignal, requestedPages?: PdfPageRange): Promise<PdfTextSource> {
   signal.throwIfAborted();
+  const range = parsePdfPageRange(requestedPages);
   const require = createRequire(import.meta.url);
   const root = dirname(require.resolve('pdfjs-dist/package.json', { paths: [process.cwd()] }));
   const worker = new Worker(`(${extractInWorker.toString()})()`, { eval: true,
-    workerData: { bytes, root, pdfModule: pathToFileURL(join(root, 'legacy/build/pdf.mjs')).href },
+    workerData: { bytes, root, range, pdfModule: pathToFileURL(join(root, 'legacy/build/pdf.mjs')).href },
     resourceLimits: { maxOldGenerationSizeMb: 256 } });
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -71,7 +80,8 @@ export async function extractPdfText(bytes: Uint8Array, signal: AbortSignal): Pr
     const abort = () => finish(signal.reason ?? new DOMException('Cancelled', 'AbortError'));
     const timer = setTimeout(() => finish(new PdfSourceError()), 20_000);
     worker.once('message', source => finish(undefined, source));
-    worker.once('error', () => finish(new PdfSourceError()));
+    worker.once('error', error => finish(new PdfSourceError(error instanceof Error && error.message === 'PDF_PAGE_RANGE'
+      ? 'range' : error instanceof Error && error.message === 'PDF_PAGE_LIMIT' ? 'limit' : 'unreadable')));
     worker.once('exit', () => { if (!settled) finish(new PdfSourceError()); });
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) abort();

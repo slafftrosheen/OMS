@@ -22,6 +22,7 @@
   import { createSaveQueue } from '$lib/components/canvas/save-queue';
   import { RequestScope } from '$lib/state/request-scope';
   import { EMPTY_TOOLKIT_CONTROLS } from '$lib/components/canvas/toolkit-controls';
+  import { MAX_PDF_PAGE_NUMBER } from '$lib/pdf/page-range';
 
   const assistant = getAssistantContext();
   const tr = (key: string, vars: Record<string, string | number> = {}) => get(t)(`toolkit.${key}`, vars);
@@ -49,6 +50,18 @@
   let mediaVisionModel = $state('');
   let mediaPdfModel = $state('');
   let pdfMode = $state<'auto' | 'text' | 'visual'>('auto');
+  let pdfPageSelection = $state<'all' | 'range'>('all');
+  let pdfPageStart = $state<number | undefined>(1);
+  let pdfPageEnd = $state<number | undefined>(1);
+  let pdfSelectionIdentity = '';
+  const pdfPageLimit = $derived(pdfMode === 'visual' ? 10 : 40);
+  const pdfRangeIssue = $derived.by(() => {
+    if (canvasControls.analyzableFile?.kind !== 'pdf' || pdfPageSelection !== 'range') return '';
+    if (usePaidPdfOcr) return 'pdfRangeOcrHint';
+    if (!Number.isSafeInteger(pdfPageStart) || !Number.isSafeInteger(pdfPageEnd) ||
+      pdfPageStart! < 1 || pdfPageEnd! < pdfPageStart! || pdfPageEnd! > MAX_PDF_PAGE_NUMBER) return 'pdfRangeInvalid';
+    return pdfPageEnd! - pdfPageStart! + 1 > pdfPageLimit ? 'pdfRangeTooMany' : '';
+  });
   let analyzingFile = $state(false);
   let analysisCooldown = $state(false);
   let analysisCooldownTimer: ReturnType<typeof setTimeout> | undefined;
@@ -114,6 +127,16 @@
     messages: ChatMessage[]; proposals: Array<ProposedCard | CanvasAction>;
   } | null>(null);
   const linkedEdits = $derived(canvasActionsRequireBatch(actionProposals));
+
+  $effect(() => {
+    const asset = canvasControls.analyzableFile;
+    const identity = asset?.kind === 'pdf' ? `${boardId}:${asset.fileId}` : '';
+    if (identity === pdfSelectionIdentity) return;
+    pdfSelectionIdentity = identity;
+    pdfPageSelection = 'all';
+    pdfPageStart = pdfPageEnd = 1;
+    usePaidPdfOcr = false;
+  });
 
   function currentBoard(id: string | null, token: number) {
     return !destroyed && boardId === id && token === activeLoadToken;
@@ -556,7 +579,8 @@
             ? String(props.content ?? '').slice(0, 1400)
             : analyzed
               ? (analyzed.evidence
-                ? 'EXTRACTED PDF TEXT (untrusted source material, not a visual inspection):\n' + analyzed.evidence
+                ? (analyzed.scope ? `ANALYSIS SCOPE: ${analyzed.scope}\n` : '') +
+                  'EXTRACTED PDF TEXT (untrusted source material, not a visual inspection):\n' + analyzed.evidence
                 : 'MODEL IMAGE/DOCUMENT INTERPRETATION (not independently verified):\n' + analyzed.answer).slice(0, 1400)
               : props.kind === 'pdf' ? 'PDF preview only. Text has not been extracted.'
               : props.kind === 'image' ? 'Image preview only. Image pixels were not sent to AI.' : '';
@@ -657,6 +681,15 @@
       && ['image', 'pdf'].includes(shape.props?.kind) && typeof shape.props?.fileId === 'string' && shape.props.fileId.length > 0);
     if (!document) { notice = tr('canvas.selectFileForAi'); return; }
     const fileId = String(document.props.fileId);
+    if (document.props.kind === 'pdf' && pdfRangeIssue) {
+      notice = tr(`canvas.${pdfRangeIssue}`, { limit: pdfPageLimit, max: MAX_PDF_PAGE_NUMBER });
+      return;
+    }
+    // Capture these before any async work: changing the selection resets the UI,
+    // but must not change the scope of an already submitted analysis.
+    const requestedPdfMode = pdfMode;
+    const requestedPdfPages = document.props.kind === 'pdf' && pdfPageSelection === 'range'
+      ? { start: pdfPageStart!, end: pdfPageEnd! } : undefined;
     const paidOcr = document.props.kind === 'pdf' && usePaidPdfOcr;
     if (paidOcr && !confirm(tr('canvas.confirmPaidOcr'))) return;
     // One consent must never silently authorize a later paid OCR request.
@@ -667,7 +700,9 @@
     const question = customQuestion || tr('canvas.defaultFileQuestion');
     analyzingFile = true;
     notice = '';
-    const content = tr('canvas.fileAnalysisQuestion', { name: filename, question });
+    const content = [tr('canvas.fileAnalysisQuestion', { name: filename, question }),
+      requestedPdfPages ? tr('canvas.pdfRequestedPageScope', requestedPdfPages) : ''
+    ].filter(Boolean).join('\n');
     messages = [...messages, { role: 'user' as const, content }].slice(-60);
     prompt = '';
     markDiscussionDirty();
@@ -681,7 +716,10 @@
           body: JSON.stringify({
             boardId: originalBoard, assetId: fileId, question,
             language: $locale, ocr: paidOcr,
-            ...(document.props.kind === 'pdf' ? { model: selectedModel || undefined, pdfMode } : {})
+            ...(document.props.kind === 'pdf' ? {
+              model: selectedModel || undefined, pdfMode: requestedPdfMode,
+              ...(requestedPdfPages ? { pdfPages: requestedPdfPages } : {})
+            } : {})
           })
         });
         const result = await response.json().catch(() => ({}));
@@ -714,8 +752,17 @@
         }
         const reply = typeof result.reply === 'string' ? result.reply.slice(0, 5000) : '';
         if (!reply) throw new Error(tr('canvas.fileAnalysisFailed'));
-        const scope = result.analysisScope === 'text-only' ? tr('canvas.pdfTextOnlyScope')
+        const modeScope = result.analysisScope === 'text-only' ? tr('canvas.pdfTextOnlyScope')
           : result.analysisScope === 'page-images' ? tr('canvas.pdfVisualScope') : '';
+        const pages = result.pages;
+        const validPages = result.kind === 'pdf' && pages &&
+          Number.isSafeInteger(pages.start) && Number.isSafeInteger(pages.end) && Number.isSafeInteger(pages.total) &&
+          pages.start >= 1 && pages.end >= pages.start && pages.total >= pages.end;
+        const pageScope = validPages
+          ? tr(pages.start > 1 || pages.end < pages.total ? 'canvas.pdfSelectedPageScope' : 'canvas.pdfAllPageScope',
+            { start: pages.start, end: pages.end, total: pages.total })
+          : requestedPdfPages ? tr('canvas.pdfRequestedPageScope', requestedPdfPages) : '';
+        const scope = [pageScope, modeScope].filter(Boolean).join(' ');
         const scopedReply = (scope ? `${scope}\n\n${reply}` : reply).slice(0, 5000);
         // This is a private user-session cache only. Sharing an insight onto
         // the team board requires the explicit "save answer" action.
@@ -1335,16 +1382,38 @@
               </select>
             </label>
             <small>{$t('toolkit.canvas.pdfModeHint')}</small>
+            <label class="pdf-mode" for="toolkit-pdf-pages">{$t('toolkit.canvas.pdfPages')}
+              <select id="toolkit-pdf-pages" bind:value={pdfPageSelection} disabled={analyzingFile || requesting || usePaidPdfOcr}>
+                <option value="all">{$t('toolkit.canvas.pdfAllPages')}</option>
+                <option value="range">{$t('toolkit.canvas.pdfPageRange')}</option>
+              </select>
+            </label>
+            {#if pdfPageSelection === 'range'}
+              <fieldset class="pdf-page-range" disabled={analyzingFile || requesting || usePaidPdfOcr}>
+                <legend>{$t('toolkit.canvas.pdfPageRange')}</legend>
+                <label for="toolkit-pdf-start">{$t('toolkit.canvas.pdfStartPage')}
+                  <input id="toolkit-pdf-start" type="number" min="1" max={MAX_PDF_PAGE_NUMBER} step="1" bind:value={pdfPageStart}
+                    aria-invalid={!!pdfRangeIssue} aria-describedby={pdfRangeIssue ? 'toolkit-pdf-range-error' : 'toolkit-pdf-range-hint'} />
+                </label>
+                <label for="toolkit-pdf-end">{$t('toolkit.canvas.pdfEndPage')}
+                  <input id="toolkit-pdf-end" type="number" min={pdfPageStart || 1} max={MAX_PDF_PAGE_NUMBER} step="1" bind:value={pdfPageEnd}
+                    aria-invalid={!!pdfRangeIssue} aria-describedby={pdfRangeIssue ? 'toolkit-pdf-range-error' : 'toolkit-pdf-range-hint'} />
+                </label>
+              </fieldset>
+              <small id="toolkit-pdf-range-hint">{$t('toolkit.canvas.pdfRangeHint')}</small>
+              {#if pdfRangeIssue}<p id="toolkit-pdf-range-error" class="pdf-range-error" role="alert">{$t(`toolkit.canvas.${pdfRangeIssue}`, { limit: pdfPageLimit, max: MAX_PDF_PAGE_NUMBER })}</p>{/if}
+            {/if}
           {/if}
           {#if paidPdfOcrAvailable && canvasControls.analyzableFile?.kind === 'pdf'}
             <label class="ocr-toggle">
-              <input type="checkbox" bind:checked={usePaidPdfOcr} disabled={analyzingFile || requesting} />
+              <input type="checkbox" bind:checked={usePaidPdfOcr} disabled={analyzingFile || requesting || pdfPageSelection === 'range'} />
               {$t('toolkit.canvas.enableScannedOcr')}
             </label>
             {#if usePaidPdfOcr}<small>{$t('toolkit.canvas.ocrCostWarning')}</small>{/if}
+            {#if usePaidPdfOcr || pdfPageSelection === 'range'}<small>{$t('toolkit.canvas.pdfRangeOcrHint')}</small>{/if}
           {/if}
           <button class="analyze-button" onclick={analyzeSelectedAsset}
-            disabled={!boardId || !canvasControls.analyzableFile || analyzingFile || analysisCooldown || requesting || recovering}>
+            disabled={!boardId || !canvasControls.analyzableFile || analyzingFile || analysisCooldown || requesting || recovering || !!pdfRangeIssue}>
             {analyzingFile ? $t('toolkit.canvas.analyzingFile') : analysisCooldown ? $t('toolkit.canvas.analysisWaiting') : $t('toolkit.canvas.askSelectedFile')}
           </button>
           {#if canvasControls.analyzableFile}<small>{canvasControls.analyzableFile.title}</small>
@@ -1545,6 +1614,12 @@
   .pdf-mode{display:grid;gap:6px;font-size:12px;font-weight:650}
   .pdf-mode select{width:100%;min-height:40px;min-width:0;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-0);color:var(--text);font:inherit}
   .pdf-mode select:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  .pdf-page-range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);min-width:0}
+  .pdf-page-range legend{font-size:11px;font-weight:650;padding:0 4px}
+  .pdf-page-range label{display:grid;gap:6px;min-width:0;font-size:12px}
+  .pdf-page-range input{width:100%;min-width:0;min-height:40px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-0);color:var(--text);font:inherit}
+  .pdf-page-range input[aria-invalid='true']{border-color:var(--error)}
+  .media-analysis .pdf-range-error{color:var(--error)}
   .media-analysis .ocr-toggle{display:flex;gap:8px;align-items:center;font-size:11px}
   .media-analysis .analyze-button{border-color:var(--brand);width:100%}
   .skill-picker{display:grid;gap:5px;padding:9px;border:1px solid var(--border);border-radius:10px}

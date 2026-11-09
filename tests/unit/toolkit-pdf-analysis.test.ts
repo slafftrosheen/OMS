@@ -16,11 +16,11 @@ function dependencies(readable = true) {
   const calls: any[] = [];
   const renders: Uint8Array[] = [];
   return { calls, renders,
-    extractText: async () => ({ text: source, pageCount: 1, allPagesReadable: readable }),
-    renderPages: async (bytes: Uint8Array) => { renders.push(bytes); return [
+    extractText: async () => ({ text: source, pageCount: 1, pages: { start: 1, end: 1, total: 1 }, allPagesReadable: readable }),
+    renderPages: async (bytes: Uint8Array) => { renders.push(bytes); return { pages: { start: 1, end: 1, total: 1 }, parts: [
       { type: 'text', text: 'Source PDF page 1 of 1' },
       { type: 'image_url', image_url: { url: 'data:image/png;base64,fixture' } }
-    ]; },
+    ] }; },
     complete: async (messages: any, options: any) => { calls.push({ messages, options }); return {
       text: 'Three panels.', model: options.model, annotations: [], webSearchRequests: null
     }; }

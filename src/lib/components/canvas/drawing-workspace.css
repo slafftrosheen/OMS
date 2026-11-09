@@ -82,6 +82,19 @@
 .drawing-object-select { flex: 1; display: flex; align-items: center; min-width: 0; gap: 8px; min-height: 36px; padding: 4px; border: 0; background: transparent; text-align: left; }
 .drawing-object-select svg { flex: none; }
 .drawing-object-select span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.drawing-object-search, .drawing-object-name label { display: grid; gap: 4px; margin-bottom: 8px; font-size: 11px; }
+.drawing-object-search input, .drawing-object-name input, .drawing-style-fields input, .drawing-export-options input, .drawing-export-options select {
+  width: 100%; min-width: 0; min-height: 32px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg-0); color: var(--ink-primary);
+}
+.drawing-object-name { border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 8px; }
+.drawing-object-name > button, .drawing-repeat button, .drawing-selection-actions button { border: 1px solid var(--border); background: var(--bg-2); padding: 4px 8px; min-height: 32px; border-radius: 3px; }
+.drawing-object-name .drawing-help { margin-top: 8px; margin-bottom: 0; }
+.drawing-selection-actions { display: grid; gap: 4px; margin-top: 12px; }
+.drawing-repeat { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+.drawing-repeat summary { min-height: 32px; cursor: pointer; }
+.drawing-repeat .drawing-style-fields { margin-top: 8px; }
+.drawing-export-options { border: 0; border-top: 1px solid var(--border); margin: 4px 0; padding: 8px; display: grid; gap: 8px; }
+.drawing-export-options label { display: grid; gap: 4px; font-size: 11px; }
 .drawing-palette { grid-column: 4; grid-row: 3; background: var(--bg-1); border-left: 1px solid var(--border); overflow-y: auto; scrollbar-width: none; }
 .drawing-swatches { display: flex; flex-direction: column; align-items: center; padding: 4px; gap: 2px; }
 .drawing-swatches button { width: 20px; height: 24px; min-height: 24px; flex: none; border: 1px solid var(--border); border-radius: 1px; padding: 0; }

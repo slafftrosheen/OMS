@@ -1,15 +1,16 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowShapeArrowheadEndStyle, ArrowShapeArrowheadStartStyle, DefaultColorStyle, DefaultDashStyle,
   DefaultFillStyle, DefaultFontStyle, DefaultHorizontalAlignStyle, DefaultSizeStyle, DefaultTextAlignStyle,
   DefaultVerticalAlignStyle, GeoShapeGeoStyle, LineShapeSplineStyle, createShapeId, exportToBlob,
-  getDefaultColorTheme, useEditor, useIsDarkMode, useRelevantStyles, useValue,
-  type EnumStyleProp, type TLShapeId,
+  Box, getDefaultColorTheme, useEditor, useIsDarkMode, useRelevantStyles, useValue,
+  type EnumStyleProp, type TLShapeId, type TLShape,
 } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
 import { applyDrawingCommand, drawingTransaction, toggleDrawingObjectLock, transformDrawingSelection, type DrawingTransformField } from './drawing-commands';
 import { useDrawingText, type DrawingLabel } from './drawing-copy';
+import { drawingObjectAlias, drawingObjectName, drawingPngSize, renameDrawingObject, repeatDrawingSelection, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
 import './drawing-workspace.css';
 
 type Slot = 'commands' | 'properties' | 'tools' | 'docker' | 'palette' | 'status' | 'rulerX' | 'rulerY';
@@ -130,6 +131,45 @@ function NumberField({ field, value, disabled, label }: { field: DrawingTransfor
   </label>;
 }
 
+function ObjectNameField({ shape, disabled }: { shape: TLShape; disabled: boolean }) {
+  const editor = useEditor(); const { label } = useDrawingText();
+  const alias = drawingObjectAlias(shape);
+  const [draft, setDraft] = useState(alias);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setDraft(alias); setFailed(false); }, [shape.id, alias]);
+  return <form className="drawing-object-name" onSubmit={event => {
+    event.preventDefault(); setFailed(!renameDrawingObject(editor, shape.id, draft));
+  }}>
+    <label><span>{label('objectName')}</span><input value={draft} maxLength={80} disabled={disabled}
+      placeholder={drawingObjectName(shape)} onChange={event => { setDraft(event.target.value); setFailed(false); }} /></label>
+    <button type="submit" disabled={disabled}>{label('rename')}</button>
+    <p className="drawing-help">{label('renameHint')}</p>
+    {failed && <p role="alert" className="drawing-help">{label('changedFailed')}</p>}
+  </form>;
+}
+
+function RepeatGrid({ selected, disabled }: { selected: readonly TLShapeId[]; disabled: boolean }) {
+  const editor = useEditor(); const { label } = useDrawingText();
+  const [values, setValues] = useState({ rows: '2', columns: '2', gapX: '24', gapY: '24' });
+  const [message, setMessage] = useState('');
+  return <details className="drawing-repeat"><summary>{label('repeatGrid')}</summary>
+    <form onSubmit={event => {
+      event.preventDefault();
+      const result = repeatDrawingSelection(editor, { rows: Number(values.rows), columns: Number(values.columns), gapX: values.gapX.trim() ? Number(values.gapX) : NaN, gapY: values.gapY.trim() ? Number(values.gapY) : NaN }, [...selected]);
+      setMessage(result.ok === true ? `${label('copiesCreated')}: ${result.value}` : label(result.error));
+    }}>
+      <fieldset className="drawing-style-fields" disabled={disabled}>
+        {(['rows', 'columns', 'gapX', 'gapY'] as const).map(key => <label key={key}><span>{label(key)}</span><input type="number" step="1" value={values[key]}
+          min={key === 'rows' || key === 'columns' ? 1 : -10000} max={key === 'rows' || key === 'columns' ? 20 : 10000} required
+          onChange={event => { setValues(previous => ({ ...previous, [key]: event.target.value })); setMessage(''); }} /></label>)}
+        <button type="submit">{label('createCopies')}</button>
+      </fieldset>
+      <p className="drawing-help">{label('repeatHint')}</p>
+      {message && <p className="drawing-help" role="status">{message}</p>}
+    </form>
+  </details>;
+}
+
 function Ruler({ vertical = false }: { vertical?: boolean }) {
   const editor = useEditor();
   const bounds = useValue('drawing ruler', () => editor.getViewportPageBounds(), [editor]);
@@ -171,6 +211,11 @@ export function DrawingChrome() {
     opacity: editor.getSharedOpacity(), single: editor.getOnlySelectedShape() }), [editor]);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState('');
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [exportOptions, setExportOptions] = useState<DrawingExportOptions>({ scope: 'selected', scale: 1, background: false, padding: 24 });
+  const [exportError, setExportError] = useState('');
+  const tabsId = useId();
   const input = useRef<HTMLInputElement>(null);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -190,15 +235,25 @@ export function DrawingChrome() {
     editor.focus();
   }
   function command(action: string) { if (!applyDrawingCommand(editor, action)) setNotice(label('changedFailed')); else setNotice(''); }
-  function closeMenus() { context?.root.current?.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(menu => { menu.open = false; }); }
+  function closeMenus(restoreFocus = false) {
+    const trigger = restoreFocus && openMenu ? context?.root.current?.querySelector<HTMLElement>(`[data-drawing-menu="${openMenu}"] > summary`) : null;
+    setOpenMenu(null); trigger?.focus();
+  }
+  function menuSummary(name: string, text: string) {
+    return <summary aria-expanded={openMenu === name} onClick={event => { event.preventDefault(); setOpenMenu(openMenu === name ? null : name); }}
+      onKeyDown={event => {
+        if (event.key === 'ArrowDown') { event.preventDefault(); setOpenMenu(name); const menu = event.currentTarget.parentElement; queueMicrotask(() => menu?.querySelector<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled)')?.focus()); }
+      }}>{text}</summary>;
+  }
   useEffect(() => {
     const root = context?.root.current;
     if (!root) return;
     const keys = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && openMenu) { event.preventDefault(); event.stopPropagation(); closeMenus(true); return; }
       if (!(event.target instanceof Element) || event.target.closest('input,textarea,select,[contenteditable="true"]')) return;
       const lockedSelection = captureToolkitControls(editor).selectionLocked;
       const modifier = event.ctrlKey || event.metaKey;
-      if (lockedSelection && (['Delete', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) ||
+      if (lockedSelection && event.target.closest('.drawing-viewport') && (['Delete', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) ||
           modifier && ['x', 'd', 'g', '[', ']'].includes(event.key.toLowerCase()))) {
         // Native group shortcuts do not inspect locked descendants. Keep their
         // behaviour consistent with the disabled OMS object commands.
@@ -209,13 +264,13 @@ export function DrawingChrome() {
       else if (event.key === 'F4') { event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'fit'); }
       else if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'd') {
         event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'duplicate');
-      } else if (event.key === 'Escape') closeMenus();
+      }
     };
     const outside = (event: PointerEvent) => { if (event.target instanceof Element && !event.target.closest('.drawing-menu')) closeMenus(); };
     root.addEventListener('keydown', keys, true);
     document.addEventListener('pointerdown', outside);
     return () => { root.removeEventListener('keydown', keys, true); document.removeEventListener('pointerdown', outside); };
-  }, [context?.root, editor]);
+  }, [context?.root, editor, openMenu]);
   if (!context) return null;
   const { hosts, panel, setPanel, order, onImport } = context;
   function portal(slot: Slot, children: ReactNode) { const host = hosts[slot]; return host ? createPortal(children, host, slot) : null; }
@@ -241,19 +296,25 @@ export function DrawingChrome() {
     finally { if (alive.current) setBusy(false); }
   }
   async function exportDrawing(format: 'svg' | 'png') {
-    closeMenus();
-    const allowed = new Set(['geo', 'draw', 'highlight', 'line', 'arrow', 'text', 'note', 'image']);
-    const candidates = state.selected.length ? [...editor.getShapeAndDescendantIds(state.selected)] : state.shapes.map(shape => shape.id);
-    const ids = candidates.filter(id => allowed.has(editor.getShape(id)?.type ?? ''));
-    if (!ids.length) { setNotice(label('exportHint')); return; }
-    setBusy(true);
+    if (busy) return;
+    const result = planDrawingExport(editor, format, exportOptions);
+    if (result.ok === false) { setExportError(label(result.error)); return; }
+    const plan = result.value;
+    setBusy(true); setExportError('');
     try {
-      const blob = await exportToBlob({ editor, ids, format, opts: { background: true, padding: 24 } });
+      const blob = await exportToBlob({ editor, ids: plan.ids, format, opts: {
+        background: exportOptions.background, padding: exportOptions.padding, scale: plan.nativeScale,
+        bounds: new Box(plan.bounds.x, plan.bounds.y, plan.bounds.w, plan.bounds.h)
+      } });
+      const output = format === 'png' ? await drawingPngSize(blob) : plan;
+      const reduced = format === 'png' && (output.width < plan.width - 1 || output.height < plan.height - 1);
       if (!alive.current) return;
       const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
       anchor.href = url; anchor.download = `oms-drawing.${format}`; anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 30_000); setNotice(label('exportHint'));
-    } catch { if (alive.current) setNotice(label('exportFailed')); }
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      setNotice(`${label('exportSize')}: ${output.width} × ${output.height}. ${label('exportOmitted')}: ${plan.omitted}.${reduced ? ` ${label('exportReduced')}` : ''}`);
+      closeMenus();
+    } catch { if (alive.current) setExportError(label('exportFailed')); }
     finally { if (alive.current) setBusy(false); }
   }
   function annotation(kind: 'comment' | 'warning' | 'explanation') {
@@ -289,17 +350,31 @@ export function DrawingChrome() {
     {portal('commands', <>
       <strong className="drawing-title">OMS<span> DRAW</span></strong>
       <nav className="drawing-menus" aria-label={label('workspace')}>
-        <details className="drawing-menu"><summary>{label('file')}</summary><div className="drawing-menu-popover">
+        <details className="drawing-menu" data-drawing-menu="file" open={openMenu === 'file'}>{menuSummary('file', label('file'))}<div className="drawing-menu-popover">
           <button type="button" disabled={controls.readOnly || busy || !onImport} onClick={() => { closeMenus(); input.current?.click(); }}>{label('import')}</button>
+          <fieldset className="drawing-export-options" disabled={busy}>
+            <label><span>{label('exportScope')}</span><select value={exportOptions.scope} onChange={event => { setExportOptions(previous => ({ ...previous, scope: event.target.value as 'selected' | 'all' })); setExportError(''); }}>
+              <option value="selected">{label('selectedOnly')}</option><option value="all">{label('allArtwork')}</option>
+            </select></label>
+            <label><span>{label('pngScale')}</span><select value={exportOptions.scale} onChange={event => { setExportOptions(previous => ({ ...previous, scale: Number(event.target.value) as 1 | 2 | 4 })); setExportError(''); }}>
+              {[1, 2, 4].map(scale => <option key={scale} value={scale}>{scale}×</option>)}
+            </select></label>
+            <label><span>{label('background')}</span><select value={exportOptions.background ? 'solid' : 'transparent'} onChange={event => setExportOptions(previous => ({ ...previous, background: event.target.value === 'solid' }))}>
+              <option value="transparent">{label('transparent')}</option><option value="solid">{label('solidBackground')}</option>
+            </select></label>
+            <label><span>{label('padding')}</span><input type="number" min="0" max="1000" step="1" value={Number.isNaN(exportOptions.padding) ? '' : exportOptions.padding}
+              onChange={event => { setExportOptions(previous => ({ ...previous, padding: event.target.value.trim() ? Number(event.target.value) : NaN })); setExportError(''); }} /></label>
+          </fieldset>
           <button type="button" disabled={busy || !controls.hasShapes} onClick={() => void exportDrawing('svg')}>{label('exportSvg')}</button>
           <button type="button" disabled={busy || !controls.hasShapes} onClick={() => void exportDrawing('png')}>{label('exportPng')}</button>
+          {exportError && <p role="alert">{exportError}</p>}
           <p>{label('exportHint')}</p>
         </div></details>
-        <details className="drawing-menu"><summary>{label('edit')}</summary><div className="drawing-menu-popover">{menuActions(['undo', 'redo', 'select-all', 'duplicate', 'delete'])}</div></details>
-        <details className="drawing-menu"><summary>{label('object')}</summary><div className="drawing-menu-popover drawing-menu-popover--wide">{menuActions(['group', 'ungroup', 'front', 'back', 'forward', 'backward', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical', 'lock'])}
+        <details className="drawing-menu" data-drawing-menu="edit" open={openMenu === 'edit'}>{menuSummary('edit', label('edit'))}<div className="drawing-menu-popover">{menuActions(['undo', 'redo', 'select-all', 'duplicate', 'delete'])}</div></details>
+        <details className="drawing-menu" data-drawing-menu="object" open={openMenu === 'object'}>{menuSummary('object', label('object'))}<div className="drawing-menu-popover drawing-menu-popover--wide">{menuActions(['group', 'ungroup', 'front', 'back', 'forward', 'backward', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical', 'lock'])}
           <hr />{menuActions(['align-left', 'align-center', 'align-right', 'align-top', 'align-middle', 'align-bottom', 'distribute-horizontal', 'distribute-vertical'])}
         </div></details>
-        <details className="drawing-menu"><summary>{label('view')}</summary><div className="drawing-menu-popover">{menuActions(['fit', 'fit-selection', 'zoom-reset'])}
+        <details className="drawing-menu" data-drawing-menu="view" open={openMenu === 'view'}>{menuSummary('view', label('view'))}<div className="drawing-menu-popover">{menuActions(['fit', 'fit-selection', 'zoom-reset'])}
           <button type="button" aria-pressed={state.grid} onClick={() => command('grid')}>{state.grid ? '✓ ' : ''}{label('grid')}</button>
           <button type="button" aria-pressed={state.snap} onClick={() => command('snap')}>{state.snap ? '✓ ' : ''}{label('snap')}</button>
         </div></details>
@@ -331,16 +406,23 @@ export function DrawingChrome() {
     </div>)}
     {portal('rulerX', <Ruler />)}{portal('rulerY', <Ruler vertical />)}
     {portal('docker', <>
-      <div className="drawing-docker-title"><div role="tablist" aria-label={label('properties')}>
-        <button type="button" role="tab" aria-selected={panel === 'properties'} onClick={() => setPanel('properties')}>{label('properties')}</button>
-        <button type="button" role="tab" aria-selected={panel === 'objects'} onClick={() => setPanel('objects')}>{label('objects')}</button>
+      <div className="drawing-docker-title"><div role="tablist" aria-label={label('properties')} onKeyDown={event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const next = event.key === 'Home' ? 'properties' : event.key === 'End' ? 'objects' : panel === 'properties' ? 'objects' : 'properties';
+        setPanel(next); document.getElementById(`${tabsId}-${next}`)?.focus();
+      }}>
+        <button type="button" role="tab" id={`${tabsId}-properties`} aria-controls={`${tabsId}-panel`} tabIndex={panel === 'properties' ? 0 : -1} aria-selected={panel === 'properties'} onClick={() => setPanel('properties')}>{label('properties')}</button>
+        <button type="button" role="tab" id={`${tabsId}-objects`} aria-controls={`${tabsId}-panel`} tabIndex={panel === 'objects' ? 0 : -1} aria-selected={panel === 'objects'} onClick={() => setPanel('objects')}>{label('objects')}</button>
       </div><ToolButton icon="close" label={label('closePanel')} onClick={() => setPanel(null)} /></div>
-      <div className="drawing-docker-content" role="tabpanel" aria-label={label(panel === 'objects' ? 'objects' : 'properties')}>
+      <div className="drawing-docker-content" role="tabpanel" id={`${tabsId}-panel`} aria-labelledby={`${tabsId}-${panel === 'objects' ? 'objects' : 'properties'}`}>
         {panel === 'objects' ? <>
           <p className="drawing-help">{state.shapes.length} {label('items')} · {controls.selected} {label('selected')}</p>
-          <div className="drawing-object-list">{[...state.shapes].reverse().map(shape => {
+          <label className="drawing-object-search"><span>{label('searchObjects')}</span><input type="search" value={search} maxLength={100} onChange={event => setSearch(event.target.value)} /></label>
+          {state.single && <ObjectNameField key={state.single.id} shape={state.single} disabled={!controls.canEditSelection} />}
+          <div className="drawing-object-list">{[...state.shapes].reverse().filter(shape => drawingObjectName(shape).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).map(shape => {
             const props = shape.props as Record<string, unknown>;
-            const name = String(props.title || props.name || props.text || (shape.type === 'geo' ? props.geo : shape.type)).slice(0, 90);
+            const name = drawingObjectName(shape);
             const locked = editor.isShapeOrAncestorLocked(shape);
             const parent = editor.getShape(shape.parentId as TLShapeId);
             return <div key={shape.id} className={`drawing-object-row ${state.selected.includes(shape.id) ? 'is-selected' : ''}`} data-testid="drawing-object-row">
@@ -351,6 +433,8 @@ export function DrawingChrome() {
                 onClick={() => { if (!toggleDrawingObjectLock(editor, shape.id)) setNotice(label('lockedParent')); }} />
             </div>;
           })}</div>{!state.shapes.length && <p className="drawing-help">{label('empty')}</p>}
+          {state.shapes.length > 0 && !state.shapes.some(shape => drawingObjectName(shape).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())) && <p className="drawing-help">{label('noMatches')}</p>}
+          <section className="drawing-selection-actions" aria-label={label('selectionActions')}>{menuActions(['fit-selection', 'duplicate', 'delete'])}</section>
         </> : <>
           <p className="drawing-help">{label(controls.readOnly ? 'readOnly' : controls.selectionLocked ? 'locked' : controls.selected && controls.tool === 'select' ? 'selectionStyle' : 'nextObject')}</p>
           <fieldset className="drawing-style-fields" disabled={!controls.canStyle}>
@@ -372,6 +456,7 @@ export function DrawingChrome() {
           {!styles?.size && <p className="drawing-help">{label('noStyles')}</p>}
           <p className="drawing-help">{label('colourHint')}</p>
           <details className="drawing-shortcuts"><summary>{tr('toolkit.toolbar.selection')}</summary><div className="drawing-arrange">{menuActions(['group', 'ungroup', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical'])}</div></details>
+          <RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} />
         </>}
       </div>
     </>)}

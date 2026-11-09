@@ -55,6 +55,8 @@ Voice access follows the existing conversation permissions. Playback uses an aut
 
 ## Toolkit — idea and project canvas
 
+Idea and order canvases share the [drawing workspace](docs/operations/unified-drawing-workspace.md): toolbox, properties, searchable objects, repeat grids, and SVG/PNG export. Toolkit PDF analysis supports local text extraction, visual analysis, and bounded page ranges with the original page numbers preserved in findings.
+
 Toolkit is the shared visual thinking workspace at `/toolkit/canvas`. It features editable idea/research/decision/task/note cards, saved projects and starter layouts, connections, a contextual Brainstorm assistant that proposes cards for **explicit approval**, and secondary engineering tools. Old `/ai-lab` bookmarks redirect. Shared canvas edit rights belong to **RD, Boss and HeadOfProduction**; per-user brainstorming and conversations remain private. Toolkit now also supports authenticated team-shared PNG/JPEG/WebP/GIF/PDF imports, PDF page previews, drawing/annotation controls, and material surface-study cards; see [visual asset testing](docs/operations/OMS-R06-toolkit-visual-assets.md). Shared saves use revision checks, with a recovery-copy option on conflict. See [R07 upload repair, Canvas skills and deployment checks](docs/operations/OMS-R07-toolkit-stability-and-skills.md) and [R06 sharing/stability runbook](docs/operations/OMS-R06-toolkit-sharing-stability.md) and [initial Toolkit design notes](docs/operations/OMS-R05-toolkit-canvas.md).
 
 ## OpenRouter tools and LumiGrid planning (OMS-R04)
@@ -122,7 +124,8 @@ Confirm the selected database/environment before applying a migration. RLS, role
 - `CLAUDE.md` and `GEMINI.md`: current agent/developer conventions.
 - `MIGRATION_GUIDE.md`: materials/inventory migration background (historical; verify live schema before acting).
 - `SVELTE5_MIGRATION_AUDIT.md`: historical Svelte migration notes; treat findings as leads, not current status.
-- `docs/draft-order-canvas-roadmap.md`: canvas feature parked; form-based order creation remains canonical.
+- `docs/operations/unified-drawing-workspace.md`: current shared idea/order drawing controls, PDF analysis limits and verification. Native order forms retain their existing data contracts.
+- `docs/draft-order-canvas-roadmap.md`: historical draft-order canvas roadmap; verify against the current workspace above.
 - `scripts/dev/README.md`: developer-only scripts.
 - `supabase/README.md`: migration pointers.
 
