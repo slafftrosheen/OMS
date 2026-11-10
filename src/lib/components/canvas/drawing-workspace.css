@@ -33,7 +33,7 @@
 .drawing-menu { position: relative; }
 .drawing-menu summary { list-style: none; cursor: pointer; padding: 6px 8px; border-radius: 3px; }
 .drawing-menu summary::-webkit-details-marker { display: none; }
-.drawing-menu[open] summary { background: var(--brand-soft); color: var(--brand); }
+.drawing-menu[open] > summary { background: var(--brand-soft); color: var(--brand); }
 .drawing-menu-popover { position: absolute; top: calc(100% + 4px); left: 0; width: 244px; max-height: min(520px, 60dvh); overflow: auto; background: var(--bg-1); border: 1px solid var(--border); box-shadow: var(--glass-shadow-lg); padding: 4px; border-radius: 4px; display: flex; flex-direction: column; gap: 2px; }
 .drawing-menu-popover button, .drawing-arrange button { text-align: left; background: transparent; border: 0; border-radius: 3px; padding: 8px; min-height: 32px; }
 .drawing-menu-popover hr { border: 0; border-top: 1px solid var(--border); width: 100%; }
@@ -205,3 +205,10 @@
 .drawing-cad input[type="file"] { padding: 4px; font-size: 11px; }
 .drawing-cad input[type="file"]::file-selector-button { min-height: 24px; margin-right: 8px; border: 1px solid var(--border); border-radius: 3px; padding: 4px 8px; background: var(--bg-2); color: var(--ink-primary); }
 .drawing-cad :is(button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* Task switching preserves form drafts while keeping inactive controls out of focus order. */
+.drawing-cad [hidden] { display: none !important; }
+.drawing-cad-task { display: grid; gap: 6px; margin-bottom: 16px; font-size: 12px; font-weight: 600; }
+.drawing-cad-task select { width: 100%; min-width: 0; min-height: 36px; }
+
+.drawing-submenu > div { display: grid; padding-left: 8px; border-left: 1px solid var(--border); }

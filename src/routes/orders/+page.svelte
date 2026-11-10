@@ -1,16 +1,11 @@
 <script lang="ts">
   import { scrollRegion } from '$lib/a11y/scroll-region';
-  import Activity from 'lucide-svelte/icons/activity';
-  import AlertCircle from 'lucide-svelte/icons/alert-circle';
-  import FilePlus from 'lucide-svelte/icons/file-plus';
-  import Package from 'lucide-svelte/icons/package';
   import { onMount, getContext } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
 
   import Input from '$lib/ui/Input.svelte';
-  import Tooltip from '$lib/ui/Tooltip.svelte';
   import ErrorBoundary from '$lib/ui/ErrorBoundary.svelte';
   import type { Order, Station, Badge as BadgeCode } from '$lib/order/types';
   import type { OrderState } from '$lib/order/orderState.svelte';
@@ -18,7 +13,10 @@
 
   const orderState = getContext<OrderState>('orderState');
   import { TERMS } from '$lib/order/names';
-  import { t } from 'svelte-i18n';
+  import { t, locale } from 'svelte-i18n';
+  import { orderListCopy } from '$lib/order/list-copy';
+  import { toCSV, downloadCSV } from '$lib/export/csv';
+  const listCopy = $derived(orderListCopy($locale));
   import OrderBadges from '$lib/badges/OrderBadges.svelte';
   import SemanticBadge from '$lib/badges/SemanticBadge.svelte';
   import { buildOrderBadges, isTerminalOrderStatus, stageBadge } from '$lib/badges/catalog';
@@ -27,7 +25,6 @@
   import { can } from '$lib/auth/permission-utils';
   import { dragging } from '$lib/dnd';
   import Icon from '$lib/ui/Icon.svelte';
-  import KpiCard from '$lib/ui/KpiCard.svelte';
   import { getAssistantContext } from '$lib/assistant/context';
   import { orderListScreenContext } from '$lib/assistant/visible-context';
 
@@ -91,7 +88,7 @@
   let q = $state('');
   let sortKey = $state<'id' | 'client' | 'title' | 'due' | 'loadingDate'>('due');
   let sortAsc = $state(true);
-  let statusFilter = $state<'all' | 'draft' | 'active' | 'completed'>('all');
+  let statusFilter = $state<'all' | 'draft' | 'active' | 'completed' | 'urgent'>('all');
   let refreshing = $state(false);
   let currentPage = $state(1);
   let itemsPerPage = $state(20);
@@ -128,6 +125,8 @@
       filtered = filtered.filter(r => r?.isDraft);
     } else if (statusFilter === 'active') {
       filtered = filtered.filter(r => !r?.isDraft && !isTerminalOrderStatus(r.order?.status));
+    } else if (statusFilter === 'urgent') {
+      filtered = filtered.filter(r => needsAttention(r));
     } else if (statusFilter === 'completed') {
       filtered = filtered.filter(r => ['DISPATCHED', 'ARCHIVED', 'DONE', 'COMPLETED'].includes(r.order?.status ?? ''));
     }
@@ -163,8 +162,9 @@
 
   let totalOrders = $derived(rows?.length || 0);
   let draftOrders = $derived((rows || []).filter(r => r?.isDraft).length);
-  let urgentOrders = $derived(rows.filter(r => buildOrderBadges(r.order, $currentDay)
-    .some(b => ['urgent', 'overdue', 'due_today', 'due_soon'].includes(b.id))).length);
+  const needsAttention = (row: OrderRow) => buildOrderBadges(row.order, $currentDay).some(b => ['urgent', 'overdue', 'due_today', 'due_soon'].includes(b.id));
+  let urgentOrders = $derived(rows.filter(needsAttention).length);
+  let completedOrders = $derived(rows.filter(r => ['DISPATCHED', 'ARCHIVED', 'DONE', 'COMPLETED'].includes(r.order?.status ?? '')).length);
   let activeOrders = $derived(rows.filter(r => !r.isDraft && !isTerminalOrderStatus(r.order?.status)).length);
 
   async function refresh() {
@@ -199,17 +199,9 @@
 
   const stationLabel = (code: Station) => $t(TERMS.stations[code]);
 
-  function exportToPDF() {
-    const csvContent = visible.map(row =>
-      `${row.poNumber},${row.client},${row.title},${row.due},${row.loadingDate || 'N/A'}`
-    ).join('\n');
-    const blob = new Blob([`PO,Client,Title,Due Date,Loading Date\n${csvContent}`], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `orders-export-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  function exportToCSV() {
+    const rows = visible.map(row => ({ PO: row.poNumber, Client: row.client, Title: row.title, 'Due Date': row.due, 'Loading Date': row.loadingDate }));
+    downloadCSV(`orders-export-${new Date().toISOString().split('T')[0]}.csv`, toCSV(rows, ['PO', 'Client', 'Title', 'Due Date', 'Loading Date']));
   }
 
   // Load orders on mount (Svelte 5 correct pattern for initialization)
@@ -272,40 +264,18 @@
         {$t('orderLists.review_queue', { default: 'Review queue' })}
       </a>
     {/if}
-    <button class="btn btn-secondary" onclick={refresh} disabled={refreshing}>
-      <span class:spinning={refreshing}><Icon name="refresh-cw" size="sm" /></span>
-      {$t('common.refresh')}
-    </button>
-    <button class="btn btn-ghost" onclick={exportToPDF}>
-      <Icon name="download" size="sm" />
-      {$t('orderLists.export', { default: 'Export' })}
-    </button>
+    <details class="list-actions">
+      <summary class="btn btn-secondary">{listCopy.actions}</summary>
+      <div class="list-actions-menu">
+        <button type="button" class="btn btn-ghost" onclick={refresh} disabled={refreshing}>
+          <span class:spinning={refreshing}><Icon name="refresh-cw" size="sm" /></span>{$t('common.refresh')}
+        </button>
+        <button type="button" class="btn btn-ghost" onclick={exportToCSV} disabled={!visible.length}>
+          <Icon name="download" size="sm" />{listCopy.exportCsv}
+        </button>
+      </div>
+    </details>
   </div>
-</div>
-
-<div class="kpi-section">
-  <KpiCard
-    title={$t('ordersList.total_orders')}
-    value={totalOrders.toString()}
-    icon="package"
-  />
-  <KpiCard
-    title={$t('ordersList.active_orders')}
-    value={activeOrders.toString()}
-    icon="activity"
-  />
-  {#if isAdmin}
-    <KpiCard
-      title={$t('ordersList.draft_orders')}
-      value={draftOrders.toString()}
-      icon="file-plus"
-    />
-  {/if}
-  <KpiCard
-    title={$t('orderLists.urgent_3d', { default: 'Urgent (≤3 days)' })}
-    value={urgentOrders.toString()}
-    icon="alert-circle"
-  />
 </div>
 
 <section class="card orders-card">
@@ -316,21 +286,16 @@
         <Input bind:value={q} placeholder={$t('orderLists.filter_placeholder')} ariaLabel={$t('orderLists.filter_label')} />
       </div>
       <div class="status-filters" role="group" aria-label={$t('orderLists.status_filter', { default: 'Filter by status' })}>
-        <button type="button" class="filter-btn" class:active={statusFilter === 'all'} aria-pressed={statusFilter === 'all'} onclick={() => { statusFilter = 'all'; currentPage = 1; }}>
-          {$t('orderLists.filters.all', { default: 'All' })} ({rows.length})
-        </button>
-        <button type="button" class="filter-btn" class:active={statusFilter === 'active'} aria-pressed={statusFilter === 'active'} onclick={() => { statusFilter = 'active'; currentPage = 1; }}>
-          {$t('orderLists.filters.active', { default: 'Active' })} ({activeOrders})
-        </button>
-        {#if isAdmin}
-          <button type="button" class="filter-btn" class:active={statusFilter === 'draft'} aria-pressed={statusFilter === 'draft'} onclick={() => { statusFilter = 'draft'; currentPage = 1; }}>
-            {$t('orderLists.filters.drafts', { default: 'Drafts' })} ({draftOrders})
+        {#each [{id: 'all', count: totalOrders}, {id: 'active', count: activeOrders}, ...(isAdmin ? [{id: 'draft', count: draftOrders}] : []), {id: 'urgent', count: urgentOrders}, {id: 'completed', count: completedOrders}] as filter}
+          <button type="button" class="filter-btn" class:active={statusFilter === filter.id} aria-pressed={statusFilter === filter.id}
+            onclick={() => { statusFilter = filter.id as typeof statusFilter; currentPage = 1; }}>
+            {listCopy[filter.id as 'all' | 'active' | 'draft' | 'urgent' | 'completed']} <span class="filter-count">{filter.count}</span>
           </button>
-        {/if}
+        {/each}
       </div>
-    </div>
-    <div class="filter-right">
-      <Tooltip text={$t('ordersList.sort_hint')} />
+      {#if qLower || statusFilter !== 'all'}
+        <button type="button" class="filter-reset" onclick={() => { q = ''; statusFilter = 'all'; }}>{listCopy.reset}</button>
+      {/if}
     </div>
   </div>
 
@@ -654,12 +619,6 @@
     to { transform: rotate(360deg); }
   }
 
-  .kpi-section {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: var(--space-md);
-    margin-bottom: var(--space-lg);
-  }
 
   .orders-card {
     padding: 0;
@@ -683,6 +642,7 @@
     gap: var(--space-md);
     flex-wrap: wrap;
     flex: 1;
+    min-width: 0;
   }
 
   .search-box {
@@ -709,6 +669,7 @@
 
   .status-filters {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
     background: var(--bg-1);
     border-radius: 8px;
@@ -717,6 +678,7 @@
   }
 
   .filter-btn {
+    min-height: 40px;
     padding: 6px 12px;
     border: none;
     background: transparent;
@@ -738,10 +700,6 @@
     color: var(--bg-0);
   }
 
-  .filter-right {
-    display: flex;
-    align-items: center;
-  }
 
   .table-wrapper {
     overflow-x: auto;
@@ -1012,8 +970,7 @@
   @media (max-width: 480px) {
     .header-actions .btn { min-height: 40px; }
     .header-actions .btn span { display: inline; }
-    .kpi-section { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
+    }
 
   .error-banner {
     position: fixed;
@@ -1124,7 +1081,6 @@
   .btn { min-height:40px; border-radius:var(--radius-md); line-height:1.2; }
   .btn-primary { background:var(--brand); color:var(--on-brand); box-shadow:var(--elevation-1); }
   .btn-primary:hover:not(:disabled) { background:var(--brand-2); box-shadow:var(--elevation-2); }
-  .kpi-section { gap:var(--space-sm); }
   .orders-card { background:var(--glass-bg-strong); border-color:var(--glass-border); }
   .filter-bar { background:var(--glass-bg-strong); padding:var(--space-lg); }
   .search-box { border-radius:var(--radius-md); min-height:42px; }
@@ -1153,4 +1109,12 @@
     color:var(--ink-tertiary); border-bottom:1px solid var(--divider); }
   .pagination-btn { min-height:40px; min-width:40px; border-radius:var(--radius-sm); }
   @media (prefers-reduced-motion:reduce) { .order-row,.btn { transition:none; } }
+  .filter-count { font-variant-numeric: tabular-nums; margin-left: 4px; }
+  .filter-reset { border: 0; background: transparent; color: var(--ink-secondary); min-height: 40px; padding: 8px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .list-actions { position: relative; }
+  .list-actions > summary { list-style: none; }
+  .list-actions > summary::-webkit-details-marker { display: none; }
+  .list-actions-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: var(--z-dropdown, 30); min-width: 240px; max-width: min(320px, 85vw); display: grid; padding: 8px; background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--elevation-2); }
+  .list-actions-menu .btn { justify-content: flex-start; text-align: left; }
+  .list-actions summary:focus-visible, .filter-reset:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 </style>

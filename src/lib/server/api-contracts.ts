@@ -1,3 +1,5 @@
+import { shopDate } from './analytics/order-metrics';
+
 export function globalSearchArgs(query: string, limit: number) {
   return { p_query: query, p_limit: limit };
 }
@@ -73,14 +75,17 @@ export function mapAnalyticsWorkload(rows: Array<Record<string, any>>, stations:
 }
 
 export function dateRangeForTimeframe(timeframe: string, now = new Date()) {
-  const from = new Date(now);
+  // Rows are bucketed by Riga calendar date. UTC instants can still be on the
+  // previous date after local midnight. Do calendar arithmetic on that same key.
+  const to = shopDate(now);
+  const from = new Date(`${to}T00:00:00Z`);
   switch (timeframe) {
-    case '7d': from.setDate(from.getDate() - 7); break;
-    case '90d': from.setDate(from.getDate() - 90); break;
-    case '1y': from.setFullYear(from.getFullYear() - 1); break;
-    default: from.setDate(from.getDate() - 30); break;
+    case '7d': from.setUTCDate(from.getUTCDate() - 7); break;
+    case '90d': from.setUTCDate(from.getUTCDate() - 90); break;
+    case '1y': from.setUTCFullYear(from.getUTCFullYear() - 1); break;
+    default: from.setUTCDate(from.getUTCDate() - 30); break;
   }
-  return { from: from.toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) };
+  return { from: from.toISOString().slice(0, 10), to };
 }
 
 export function isValidQrSize(size: unknown): size is number {

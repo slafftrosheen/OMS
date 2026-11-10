@@ -19,7 +19,7 @@ The layout follows CorelDRAW's menu/property bar, left toolbox, central drawing 
 PNG completion reports dimensions read from the saved file header. If the browser reduces a large export below the requested scale, the workspace reports that reduction; exporting a smaller selection can preserve the requested resolution.
 - Idea-only content and assistant actions remain in a compact content bar. Order-only notes, warnings and explanations remain beside the common property controls.
 
-The [CAD drafting guide](cad-drafting.md) covers exact geometry, physical units, scale, calibration, dimensions and DXF export. This is an OMS drawing workspace built on tldraw, with a CorelDRAW-inspired working layout. CDR import/editing, font-to-outline conversion, vector boolean operations, CMYK colour management and a full Bézier editor remain outside the current implementation. Native tldraw colours share one value for outline and fill; the UI states this instead of presenting independent colour controls that do not work.
+The [CAD drafting guide](cad-drafting.md) covers exact geometry, physical units, scale, calibration, dimensions and DXF export. This is an OMS drawing workspace built on tldraw, with a CorelDRAW-inspired working layout. Text outlines, Bézier nodes, compound curves, weld/trim/intersect, offsets and DXF import/export are implemented in the shared CAD docker. Its task selector groups creation, editing, document measurements and file interchange. Native CDR/DWG editing, CMYK colour management and the complete CorelDRAW feature set remain outside this implementation. Native tldraw colours share one value for outline and fill; the UI states this instead of presenting independent colour controls that do not work.
 
 ## PDF analysis
 

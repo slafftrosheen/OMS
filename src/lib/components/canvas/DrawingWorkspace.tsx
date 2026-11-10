@@ -11,6 +11,7 @@ import { captureToolkitControls } from './toolkit-controls';
 import { applyDrawingCommand, drawingTransaction, toggleDrawingObjectLock, transformDrawingSelection, type DrawingTransformField } from './drawing-commands';
 import { useDrawingText, type DrawingLabel } from './drawing-copy';
 import { drawingObjectAlias, drawingObjectName, drawingPngSize, renameDrawingObject, repeatDrawingSelection, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
+import { applyCadCompound, type CadCompoundOperation } from './cad-compound';
 import { CadPanel } from './CadPanel';
 import { useCadAdvancedText } from './cad-advanced-copy';
 import type { CadFocusRequest } from './CadAdvancedPanel';
@@ -321,6 +322,15 @@ export function DrawingChrome() {
     editor.focus();
   }
   function command(action: string) { if (!applyDrawingCommand(editor, action)) setNotice(label('changedFailed')); else setNotice(''); }
+  function focusCad(section: CadFocusRequest['section']) {
+    context?.setPanel('cad'); closeMenus();
+    setCadFocus(previous => ({ section, sequence: (previous?.sequence ?? 0) + 1 }));
+  }
+  function compound(operation: CadCompoundOperation) {
+    const settings = readCadSettings(editor);
+    setNotice(settings && applyCadCompound(editor, settings, operation) ? advancedLabel('applied') : advancedLabel(settings ? 'compoundFailed' : 'settingsRequired'));
+    closeMenus();
+  }
   function closeMenus(restoreFocus = false) {
     const trigger = restoreFocus && openMenu ? context?.root.current?.querySelector<HTMLElement>(`[data-drawing-menu="${openMenu}"] > summary`) : null;
     setOpenMenu(null); trigger?.focus();
@@ -341,8 +351,7 @@ export function DrawingChrome() {
       const modifier = event.ctrlKey || event.metaKey;
       if ((!modifier && !event.altKey && event.key === 'F10') || (modifier && !event.altKey && event.key.toLowerCase() === 'q')) {
         event.preventDefault(); event.stopPropagation();
-        context?.setPanel('cad'); closeMenus();
-        setCadFocus(previous => ({ section: event.key === 'F10' ? 'nodes' : 'convert', sequence: (previous?.sequence ?? 0) + 1 }));
+        focusCad(event.key === 'F10' ? 'nodes' : 'convert');
         return;
       }
       if (lockedSelection && event.target.closest('.drawing-viewport') && (['Delete', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) ||
@@ -350,6 +359,11 @@ export function DrawingChrome() {
         // Native group shortcuts do not inspect locked descendants. Keep their
         // behaviour consistent with the disabled OMS object commands.
         event.preventDefault(); event.stopPropagation(); return;
+      }
+      if (modifier && !event.altKey && !event.shiftKey && ['k', 'l'].includes(event.key.toLowerCase()) && event.target.closest('.drawing-viewport') && editor.isIn('select.idle')) {
+        event.preventDefault(); event.stopPropagation();
+        compound(event.key.toLowerCase() === 'l' ? 'combine' : 'breakApart');
+        return;
       }
       const cad = readCadSettings(editor);
       if (cad && editor.isIn('select.idle') && editor.getSelectedShapeIds().length && event.target.closest('.drawing-viewport') &&
@@ -372,7 +386,7 @@ export function DrawingChrome() {
     root.addEventListener('keydown', keys, true);
     document.addEventListener('pointerdown', outside);
     return () => { root.removeEventListener('keydown', keys, true); document.removeEventListener('pointerdown', outside); };
-  }, [context?.root, editor, openMenu, cadLabel]);
+  }, [context?.root, editor, openMenu, cadLabel, advancedLabel]);
   if (!context) return null;
   const { hosts, panel, setPanel, order, onImport } = context;
   function portal(slot: Slot, children: ReactNode) { const host = hosts[slot]; return host ? createPortal(children, host, slot) : null; }
@@ -470,16 +484,26 @@ export function DrawingChrome() {
           </fieldset>
           <button type="button" disabled={busy || !controls.hasShapes} onClick={() => void exportDrawing('svg')}>{label('exportSvg')}</button>
           <button type="button" disabled={busy || !controls.hasShapes} onClick={() => void exportDrawing('png')}>{label('exportPng')}</button>
-          <button type="button" onClick={() => { setPanel('cad'); closeMenus(); }}>{cadLabel('dxf')}</button>
+          <button type="button" onClick={() => focusCad('files')}>{cadLabel('dxf')}</button>
           {exportError && <p role="alert">{exportError}</p>}
           <p>{label('exportHint')}</p>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="edit" open={openMenu === 'edit'}>{menuSummary('edit', label('edit'))}<div className="drawing-menu-popover">{menuActions(['undo', 'redo', 'select-all', 'duplicate', 'delete'])}</div></details>
-        <details className="drawing-menu" data-drawing-menu="object" open={openMenu === 'object'}>{menuSummary('object', label('object'))}<div className="drawing-menu-popover drawing-menu-popover--wide">{menuActions(['group', 'ungroup', 'front', 'back', 'forward', 'backward', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical', 'lock'])}
-          <hr />{menuActions(['align-left', 'align-center', 'align-right', 'align-top', 'align-middle', 'align-bottom', 'distribute-horizontal', 'distribute-vertical'])}
+        <details className="drawing-menu" data-drawing-menu="object" open={openMenu === 'object'}>{menuSummary('object', label('object'))}<div className="drawing-menu-popover drawing-menu-popover--wide">{menuActions(['group', 'ungroup', 'lock'])}
+          <hr />
+          <button type="button" disabled={!controls.canEditSelection || !settings} onClick={() => compound('combine')}>{advancedLabel('combine')}</button>
+          <button type="button" disabled={!controls.canEditSelection || !settings} onClick={() => compound('breakApart')}>{advancedLabel('breakApart')}</button>
+          <button type="button" onClick={() => focusCad('nodes')}>{advancedLabel('nodes')}</button>
+          <button type="button" onClick={() => focusCad('convert')}>{advancedLabel('convert')}</button>
+          <button type="button" onClick={() => focusCad('shaping')}>{advancedLabel('shaping')}</button>
+          <details className="drawing-submenu"><summary>{advancedLabel('arrange')}</summary><div>
+          {menuActions(['front', 'back', 'forward', 'backward'])}<hr />
+          {menuActions(['rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical'])}<hr />
+          {menuActions(['align-left', 'align-center', 'align-right', 'align-top', 'align-middle', 'align-bottom', 'distribute-horizontal', 'distribute-vertical'])}
+          </div></details>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="layout" open={openMenu === 'layout'}>{menuSummary('layout', cadLabel('layout'))}<div className="drawing-menu-popover">
-          <button type="button" onClick={() => { setPanel('cad'); closeMenus(); }}>{cadLabel('document')}</button>
+          <button type="button" onClick={() => focusCad('document')}>{cadLabel('document')}</button>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="view" open={openMenu === 'view'}>{menuSummary('view', label('view'))}<div className="drawing-menu-popover">{menuActions(['fit', 'fit-selection', 'zoom-reset'])}
           <button type="button" aria-pressed={state.grid} onClick={() => command('grid')}>{state.grid ? '✓ ' : ''}{label('grid')}</button>

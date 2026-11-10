@@ -2,6 +2,18 @@
 
 Idea boards and order canvases use the same CAD tools and document format. CAD shapes and page settings are included in the existing canvas snapshot, autosave and revision flows. No database migration or external CAD service is required.
 
+## Finding the tools
+
+The shared CAD docker has a **CAD task** selector: **Create geometry & text**, **Edit curves & shapes**, **Document & measurements**, and **Import / export DXF**. Only the selected task is visible; switching tasks retains drafts and prepared previews. File → DXF opens interchange, Layout → Document opens settings, F10 opens nodes, and Ctrl/Command+Q opens selected-text conversion or geometry conversion. Object → Arrange contains stacking, rotation, mirror, alignment and distribution commands.
+
+## Compound curves and cutting direction
+
+**Object → Combine** (Ctrl/Command+L in the idle canvas) replaces selected supported shapes with one compound curve. **Break apart** (Ctrl/Command+K) separates a compound into individual contour objects. The same buttons appear in Edit curves & shapes. Some browsers reserve Ctrl/Command+L or K; the Object menu and CAD buttons remain available. These commands are separate from Group/Ungroup and Weld: Combine retains every original path and cubic control; Weld computes a merged region. Even-odd nested paths become holes. Break apart also separates hole contours, which then act as independent solid regions if welded or offset separately.
+
+Combine preserves a common fill rule, uses the last source's outline colour, and refuses a mixed selection of winding-based font outlines and even-odd CAD paths. Convert editable text to outlines first. Combining analytic circles/arcs uses the existing explicit 0.005 mm curve conversion. Existing Bézier controls are retained exactly. Both commands are one undo operation, retain physical coordinates through rotated parent groups, refuse bound/locked/read-only/protected sources, and obey the existing contour and allocation limits.
+
+In the node editor, **Reverse contour direction** swaps incoming/outgoing handles and reverses traversal without moving the cut geometry. Closed contours keep their original seam. **Set node as start** rotates the node order of a closed contour to the chosen node, preserving all segments. Reversing a single font contour can change non-zero winding holes in subsequent shaping; review that result. These controls set geometry traversal only, not CAM lead-ins or machine cut order.
+
 ## Operator flow
 
 1. Open **Layout → Document units & scale**, or the **CAD** docker. Select mm, cm, m or inches; set drawing scale and decimal places, then **Apply settings**. An old drawing stays in pixels until explicitly configured.
@@ -56,14 +68,14 @@ Limits: 2–256 vertices per simple CAD path, at least three for closed paths; B
 | INSERT | Nested blocks with base-point, rotation, equal-magnitude X/Y scale and reflection; recursion is bounded |
 | Text, HATCH, dimensions, 3D/tilted entities, non-unit rational weights, periodic/higher-degree/unclamped splines, variable-width polylines, nonuniform/array INSERT, paper-space/invisible entities | Explicit omission report; no silent fallback to a bounding box or centerline |
 
-`$INSUNITS` recognizes mm, cm, m, inches, feet, kilometres, mils, yards and micrometres. The override can specify mm/cm/m/in. Binary DXF, CDR and DWG are not parsed. Hidden/frozen layers are omitted. Import does not preserve the complete original CAD document, layouts, constraints, text or layer structure; it creates editable production geometry in the existing OMS snapshot. Separate DXF contours remain separate objects: for a part with nested holes, select its contours and use **Convert selected geometry to curves** to combine them before offsetting; welding separate objects intentionally unions them as solids.
+`$INSUNITS` recognizes mm, cm, m, inches, feet, kilometres, mils, yards and micrometres. The override can specify mm/cm/m/in. Binary DXF, CDR and DWG are not parsed. Hidden/frozen layers are omitted. Import does not preserve the complete original CAD document, layouts, constraints, text or layer structure; it creates editable production geometry in the existing OMS snapshot. Separate DXF contours remain separate objects: for a part with nested holes, select its contours and use **Combine** to make a compound before offsetting; welding separate objects intentionally unions them as solids.
 
 ## Verification and remaining work
 
-The CAD unit suite exercises the native schema store round trip and native resize/mirror implementations, including rotated parents, unit conversion, calibration, reference points, exact small geometry, endpoint snapping, drawing history, permissions, mixed-case native point ordering and DXF omission/limit handling. Browser cases are provided for both hosts: interactive contours, physical unit changes, text outlines, node splitting, import/offset previews, DXF downloads and stale-review guards. They have not run successfully in this hosted environment.
+The CAD unit suite exercises the native schema store round trip and native resize/mirror implementations, including rotated parents, unit conversion, calibration, reference points, exact small geometry, endpoint snapping, drawing history, permissions, mixed-case native point ordering and DXF omission/limit handling. Compound tests independently parse DXF before and after splitting, compare cubic controls under rotated parents, and check traversal reversal, closed seams, undo and rejected mutations. Browser cases are provided for both hosts: task draft retention, compound operations, interactive contours, physical unit changes, text outlines, node splitting, import/offset previews, DXF downloads and stale-review guards. They have not run successfully in this hosted environment.
 
 ```sh
-node packages/vitest/bin.js tests/unit/cad-drawing.test.ts tests/unit/cad-advanced.test.ts
+node packages/vitest/bin.js tests/unit/cad-drawing.test.ts tests/unit/cad-advanced.test.ts tests/unit/cad-compound.test.ts
 npx playwright test --config tests/ui/playwright.drawing-workspace.config.ts
 node --import tsx scripts/qa/export-cad-fixture.ts
 # Optional independent QA dependency, not needed by OMS at runtime:
@@ -80,3 +92,5 @@ References: [CorelDRAW drawing scale](https://product.corel.com/help/CorelDRAW/D
 Runtime dependencies: pinned `fontkit@2.0.4` (lazy-loaded for local outlines) and `clipper-lib@6.4.2`; `dxf-parser@1.1.2` is a development-only independent reader. After pulling, run `npm ci`, the validation gates and the normal OMS rebuild/restart procedure. No DB migration or server AI configuration change is required.
 
 Geometry references: [fontkit](https://github.com/foliojs/fontkit), [Clipper](https://sourceforge.net/p/jsclipper/wiki/documentation/), [Autodesk SPLINE](https://help.autodesk.com/cloudhelp/2023/ENU/AutoCAD-DXF/files/GUID-E1F884F8-AA90-4864-A215-3182D47A9C74.htm).
+
+Compound workflow references: [CorelDRAW Combine objects](https://product.corel.com/help/CorelDRAW/540111137/Main/EN/Documentation/CorelDRAW-Combine-objects.html), [CorelDRAW shortcut reference](https://product.corel.com/help/CorelDRAW/540111137/Main/EN/Quick-Reference-Card/CorelDRAW-Graphics-Suite-2020-shortcuts.pdf).

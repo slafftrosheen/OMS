@@ -3,6 +3,11 @@ import { get } from 'svelte/store';
 import { locale, t } from 'svelte-i18n';
 
 const en = {
+  arrange: 'Arrange', task: 'CAD task', drawTask: 'Create geometry & text', editTask: 'Edit curves & shapes', documentTask: 'Document & measurements', filesTask: 'Import / export DXF',
+  compound: 'Combine & break apart', combine: 'Combine · Ctrl/⌘ L', breakApart: 'Break apart · Ctrl/⌘ K',
+  compoundHelp: 'Combine keeps the original paths in one curve. With even-odd paths, nested and overlapping areas become holes. Weld merges areas. Break apart separates every contour, including holes. Combining circles or arcs converts them within 0.005 mm.',
+  compoundFailed: 'Select supported editable curves or geometry. Break apart needs a curve with multiple contours. Outline text first; combine font outlines separately from even-odd paths. Check locks and connections.',
+  reverse: 'Reverse contour direction', startNode: 'Set node as start', directionHelp: 'Reverse changes traversal direction. Set start moves the seam of a closed contour to the chosen node. Both preserve the curve geometry. Reversing one font contour can change holes in winding-based shaping.',
   bezierTool: 'CAD Bézier', bezierKeys: 'Click: corner node · Drag: curve handles · Enter: finish · first node: close · Backspace: undo node · Escape: cancel',
   nodes: 'Bézier nodes · F10', noCurve: 'Select one CAD curve to edit its nodes. Convert supported geometry below, or draw a Bézier curve.',
   convert: 'Convert selected geometry to curves', convertHelp: 'Replaces supported geometry with editable curves in one undo step. Text uses the outline preview below.',
@@ -26,7 +31,7 @@ const en = {
   result: 'Result preview', contours: 'Contours', closedContours: 'Closed contours', openContours: 'Open contours', nodeCount: 'Nodes', bounds: 'Result bounds (mm)', removed: 'Source objects to remove',
   stale: 'The drawing, selection or inputs changed. Prepare a new preview.', empty: 'The operation produced no contours. Nothing will be applied.',
   failed: 'Could not apply this change. Check the values, selection and locks.', invalid: 'Enter finite coordinates and positive dimensions.',
-  blocked: 'Read-only, locked and order-form objects cannot be changed.', settingsRequired: 'Apply document units and scale above to enable CAD operations.',
+  blocked: 'Read-only, locked and order-form objects cannot be changed.', settingsRequired: 'Apply units and scale in Document & measurements to enable CAD operations.',
   limit: 'The result exceeds drawing limits. Use fewer characters, nodes or objects, or simpler geometry.', bound: 'Objects connected to other objects cannot be replaced. Disconnect them or keep the source objects.',
   fileTooLarge: 'Choose a file no larger than 8 MiB.', invalidFont: 'This font could not be read. Choose a valid TTF, OTF, WOFF or WOFF2 file.', invalidDxf: 'This file could not be read as supported ASCII DXF.',
   unsupported: 'Unsupported entity or geometry', unitRequired: 'Choose the source unit before applying this import.',
@@ -37,6 +42,11 @@ const en = {
 } as const;
 type Dictionary = { [K in keyof typeof en]: string };
 const ru: Dictionary = {
+  arrange: 'Упорядочить', task: 'Задача CAD', drawTask: 'Создание фигур и текста', editTask: 'Редактирование кривых и фигур', documentTask: 'Документ и измерения', filesTask: 'Импорт / экспорт DXF',
+  compound: 'Объединение и разъединение', combine: 'Объединить · Ctrl/⌘ L', breakApart: 'Разъединить · Ctrl/⌘ K',
+  compoundHelp: 'Объединение сохраняет исходные пути в одной кривой. В контурах с правилом чётности вложенные и перекрывающиеся области становятся отверстиями. Weld сливает области. Разъединение отделяет каждый контур, включая отверстия. Окружности и дуги преобразуются с допуском 0,005 мм.',
+  compoundFailed: 'Выберите поддерживаемые редактируемые кривые или фигуры. Для разъединения нужна кривая с несколькими контурами. Сначала переведите текст в контуры; объединяйте контуры шрифта отдельно от путей с правилом чётности. Проверьте блокировки и связи.',
+  reverse: 'Обратить направление контура', startNode: 'Сделать узел начальным', directionHelp: 'Обращение меняет направление обхода. Начальный узел задаёт стык замкнутого контура. Геометрия кривой сохраняется. Обращение одного контура шрифта может изменить отверстия при обработке по направлению обхода.',
   bezierTool: 'CAD-кривая Безье', bezierKeys: 'Клик: угловой узел · Перетаскивание: направляющие · Enter: завершить · первый узел: замкнуть · Backspace: убрать узел · Escape: отменить',
   nodes: 'Узлы Безье · F10', noCurve: 'Выберите одну CAD-кривую для редактирования узлов. Преобразуйте геометрию ниже или нарисуйте кривую Безье.',
   convert: 'Преобразовать геометрию в кривые', convertHelp: 'Заменяет поддерживаемую геометрию редактируемыми кривыми за один шаг отмены. Для текста используйте просмотр контуров ниже.',
@@ -60,7 +70,7 @@ const ru: Dictionary = {
   result: 'Просмотр результата', contours: 'Контуры', closedContours: 'Замкнутые контуры', openContours: 'Открытые контуры', nodeCount: 'Узлы', bounds: 'Габариты результата (мм)', removed: 'Исходных объектов к удалению',
   stale: 'Чертёж, выбор или параметры изменились. Подготовьте просмотр снова.', empty: 'Операция не создала контуров. Изменения не будут применены.',
   failed: 'Не удалось применить изменение. Проверьте значения, выбор и блокировки.', invalid: 'Введите конечные координаты и положительные размеры.',
-  blocked: 'Нельзя менять объекты только для чтения, заблокированные объекты и формы заказа.', settingsRequired: 'Примените единицы и масштаб документа выше, чтобы включить CAD-операции.',
+  blocked: 'Нельзя менять объекты только для чтения, заблокированные объекты и формы заказа.', settingsRequired: 'Примените единицы и масштаб в разделе «Документ и измерения», чтобы включить CAD-операции.',
   limit: 'Результат превышает ограничения чертежа. Уменьшите количество символов, узлов или объектов либо упростите геометрию.', bound: 'Нельзя заменить объекты, связанные с другими объектами. Уберите связи или сохраните исходные объекты.',
   fileTooLarge: 'Выберите файл размером не более 8 МиБ.', invalidFont: 'Не удалось прочитать шрифт. Выберите корректный TTF, OTF, WOFF или WOFF2.', invalidDxf: 'Не удалось прочитать файл как поддерживаемый ASCII DXF.',
   unsupported: 'Неподдерживаемый элемент или геометрия', unitRequired: 'Выберите исходную единицу перед применением импорта.',
@@ -70,6 +80,11 @@ const ru: Dictionary = {
   unrecognizedWarning: 'При подготовке результата возникло предупреждение. Проверьте геометрию перед применением.',
 };
 const lv: Dictionary = {
+  arrange: 'Sakārtot', task: 'CAD uzdevums', drawTask: 'Figūru un teksta izveide', editTask: 'Līkņu un figūru rediģēšana', documentTask: 'Dokuments un mērījumi', filesTask: 'DXF imports / eksports',
+  compound: 'Kontūru apvienošana un sadalīšana', combine: 'Apvienot kontūras · Ctrl/⌘ L', breakApart: 'Sadalīt kontūras · Ctrl/⌘ K',
+  compoundHelp: 'Apvienošana saglabā sākotnējos ceļus vienā līknē. Ar pāra-nepāra aizpildījumu ligzdoti un pārklāti laukumi kļūst par atverēm. Weld sapludina laukumus. Sadalīšana atdala katru kontūru, arī atveres. Apļi un loki tiek pārveidoti ar 0,005 mm pielaidi.',
+  compoundFailed: 'Atlasiet atbalstītas rediģējamas līknes vai figūras. Sadalīšanai vajag līkni ar vairākām kontūrām. Vispirms pārveidojiet tekstu kontūrās; fonta kontūras apvienojiet atsevišķi no pāra-nepāra ceļiem. Pārbaudiet bloķēšanu un saites.',
+  reverse: 'Apgriezt kontūras virzienu', startNode: 'Iestatīt sākuma mezglu', directionHelp: 'Apgriešana maina kontūras virzienu. Sākuma mezgls pārvieto slēgtās kontūras savienojumu. Līknes ģeometrija saglabājas. Vienas fonta kontūras apgriešana var mainīt atveres apstrādē ar virziena aizpildījumu.',
   bezierTool: 'CAD Bezjē līkne', bezierKeys: 'Klikšķis: stūra mezgls · Vilkšana: vadotnes · Enter: pabeigt · pirmais mezgls: aizvērt · Backspace: noņemt mezglu · Escape: atcelt',
   nodes: 'Bezjē mezgli · F10', noCurve: 'Atlasiet vienu CAD līkni mezglu rediģēšanai. Pārveidojiet ģeometriju zemāk vai zīmējiet Bezjē līkni.',
   convert: 'Pārveidot atlasīto ģeometriju par līknēm', convertHelp: 'Aizstāj atbalstītu ģeometriju ar rediģējamām līknēm vienā atsaukšanas solī. Tekstam izmantojiet kontūru priekšskatījumu zemāk.',
@@ -93,7 +108,7 @@ const lv: Dictionary = {
   result: 'Rezultāta priekšskatījums', contours: 'Kontūras', closedContours: 'Slēgtas kontūras', openContours: 'Atvērtas kontūras', nodeCount: 'Mezgli', bounds: 'Rezultāta izmēri (mm)', removed: 'Dzēšamie avota objekti',
   stale: 'Rasējums, atlase vai ievade mainījās. Sagatavojiet jaunu priekšskatījumu.', empty: 'Darbība neradīja kontūras. Nekas netiks lietots.',
   failed: 'Izmaiņu nevarēja piemērot. Pārbaudiet vērtības, atlasi un bloķēšanu.', invalid: 'Ievadiet galīgas koordinātas un pozitīvus izmērus.',
-  blocked: 'Tikai lasāmus, bloķētus objektus un pasūtījuma veidlapas nevar mainīt.', settingsRequired: 'Lietojiet dokumenta vienības un mērogu augstāk, lai iespējotu CAD darbības.',
+  blocked: 'Tikai lasāmus, bloķētus objektus un pasūtījuma veidlapas nevar mainīt.', settingsRequired: 'Lai iespējotu CAD darbības, iestatiet vienības un mērogu sadaļā Dokuments un mērījumi.',
   limit: 'Rezultāts pārsniedz rasējuma ierobežojumus. Samaziniet rakstzīmju, mezglu vai objektu skaitu vai vienkāršojiet ģeometriju.', bound: 'Ar citiem objektiem saistītus objektus nevar aizstāt. Noņemiet saites vai saglabājiet avota objektus.',
   fileTooLarge: 'Izvēlieties failu, kas nav lielāks par 8 MiB.', invalidFont: 'Fontu neizdevās nolasīt. Izvēlieties derīgu TTF, OTF, WOFF vai WOFF2 failu.', invalidDxf: 'Failu neizdevās nolasīt kā atbalstītu ASCII DXF.',
   unsupported: 'Neatbalstīts elements vai ģeometrija', unitRequired: 'Pirms importa lietošanas izvēlieties avota vienību.',

@@ -1244,12 +1244,12 @@
       <aside class="library">
         <div class="pane-heading"><h3>{$t('toolkit.canvas.projects')}</h3><span>{boards.length}</span></div>
         <button class="new-project" disabled={loading || creating || recovering || importing} onclick={() => createBoard('blank')}>{$t('toolkit.canvas.blankProject')}</button>
-        <div class="templates">
-          <span class="small-heading">{$t('toolkit.canvas.quickStart')}</span>
+        <details class="templates">
+          <summary>{$t('toolkit.canvas.quickStart')}</summary>
           <button disabled={loading || creating || recovering || importing} onclick={() => createBoard('project')}>{$t('toolkit.canvas.projectConcept')}</button>
           <button disabled={loading || creating || recovering || importing} onclick={() => createBoard('options')}>{$t('toolkit.canvas.compareOptions')}</button>
           <button disabled={loading || creating || recovering || importing} onclick={() => createBoard('workshop')}>{$t('toolkit.canvas.workshopConcept')}</button>
-        </div>
+        </details>
         <div class="project-list">
           {#if loading && !boards.length}<p class="muted">{$t('toolkit.canvas.loadingProjects')}</p>{/if}
           {#each boards as b (b.id)}
@@ -1557,7 +1557,6 @@
   .library{display:flex;flex-direction:column;flex:0 0 230px;min-width:0;background:var(--bg-1);border-right:1px solid var(--border);padding:12px;gap:12px;overflow:auto}
   .pane-heading{display:flex;justify-content:space-between;align-items:center;gap:10px}
   .pane-heading h3{margin:2px 0;font-size:16px}.pane-heading>span{font-size:12px;color:var(--ink-tertiary)}
-  .small-heading{display:block;font-size:10px;color:var(--ink-tertiary);text-transform:uppercase;letter-spacing:.09em;font-weight:800}
   .templates{display:grid;gap:6px;border-top:1px solid var(--border);padding-top:12px}.templates button{text-align:left}
   .project-list{display:grid;align-content:start;gap:6px;min-height:80px}
   .project-entry{display:flex;align-items:center;border-radius:9px;border:1px solid transparent;min-width:0}.project-entry.active{background:var(--brand-soft);border-color:var(--brand)}
@@ -1694,4 +1693,7 @@
   .toolkit-assistant .composer { position: static; }
   .toolkit-assistant .quick-prompts button { min-height: 40px; }
   .toolkit-assistant select, .toolkit-assistant textarea { max-width: 100%; min-width: 0; }
+  .templates > summary { cursor: pointer; padding: 8px 0; font-weight: 600; }
+  .templates:not([open]) > :not(summary) { display: none; }
+  .templates > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 </style>

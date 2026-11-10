@@ -7,6 +7,16 @@ remaining Svelte diagnostics, obsolete UI code, and defects discovered while
 checking the affected interactions. It preserves native order profile payloads,
 inventory adjustment rules, station permissions, and the existing server APIs.
 
+## Everyday navigation and drawing tasks
+
+The order list uses one row of counted status filters instead of repeating the same values in KPI cards. All, Active, Drafts (authorized roles), Needs attention and Completed are reachable; Needs attention uses the existing urgency/due-date badge rules. Search and filters can be cleared together. Refresh and explicitly labelled filtered CSV export live in List actions. CSV serialization uses the shared escaping helper. Existing draft visibility, review authorization and table expansion are unchanged. The full regression run also exposed an analytics boundary mismatch after Riga midnight: reporting periods now use the same Riga calendar dates as order buckets, with UTC calendar arithmetic to avoid DST drift. Fixed-date regressions cover winter/summer midnight and both clock changes.
+
+Settings separates General, Account & security, and Integrations. R&D retains its AI/OpenRouter and Telegram administration sections. Password and sign-out controls now share the account section; optional display tuning is collapsed under Accessibility, and version diagnostics are under Version information. The unused n8n coming-soon placeholder is removed. Appearance preference subscriptions are disposed on navigation. New navigation and CAD labels are localized in EN/RU/LV.
+
+Idea-board quick-start templates are behind a named disclosure in the project library. The shared drawing CAD docker groups tools by task and keeps inactive forms mounted but hidden, preserving entered parameters while removing them from the focus order. Object operations link directly to their CAD task; Arrange is a disclosure inside Object, keeping the top menu compact. See [CAD drafting](cad-drafting.md) for Combine/Break apart, direction and seam editing.
+
+Verification: the changed Svelte pages compile without local accessibility warnings. CAD regression tests cover precision, permissions, history and independent DXF parsing. Browser regression cases are maintained for both canvas hosts, but the hosted Chromium launch fails before rendering with `socket() Operation not permitted`. The committed screenshot placeholders predate this UI and are not visual verification of the changed pages. Run the existing desktop/mobile browser suite locally before production acceptance. This pass does not change database schemas or deployment services.
+
 ## Dialog and keyboard behavior
 
 `src/lib/ui/modal-dialog.ts` is the shared action for native modal dialogs.

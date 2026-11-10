@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useEditor, useValue } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
+import { useCadAdvancedText } from './cad-advanced-copy';
 import { useCadText, type CadLabel } from './cad-copy';
 import {
   DEFAULT_CAD_SETTINGS, unitMm, validateCadSettings, validCadPoints, writeCadSettings,
@@ -36,6 +37,15 @@ function Message({ text, error = false }: { text: string; error?: boolean }) {
 /** CAD is part of the shared docker, so order and idea editors have identical controls. */
 export function CadPanel({ settings, focusRequest }: { settings: CadSettings | null; focusRequest?: CadFocusRequest }) {
   const editor = useEditor(); const { label } = useCadText();
+  const { label: advancedLabel } = useCadAdvancedText();
+  const [task, setTask] = useState<'draw' | 'edit' | 'document' | 'files'>(settings ? 'edit' : 'document');
+  const sourceIsText = useValue('cad focus text', () => editor.getOnlySelectedShape()?.type === 'text', [editor]);
+  const consumedFocus = useRef<number>();
+  useEffect(() => {
+    if (!focusRequest || consumedFocus.current === focusRequest.sequence) return;
+    consumedFocus.current = focusRequest.sequence;
+    setTask(focusRequest.section === 'files' ? 'files' : focusRequest.section === 'document' ? 'document' : focusRequest.section === 'convert' && sourceIsText ? 'draw' : 'edit');
+  }, [focusRequest, sourceIsText]);
   const controls = useValue('cad panel permissions', () => captureToolkitControls(editor), [editor]);
   const protectedSelection = useValue('cad protected selection', () => [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].some(id => ['order-details', 'order-address', 'profile-7st'].includes(editor.getShape(id)?.type ?? '')), [editor]);
   const selected = useValue('cad selected measurement', () => settings ? getCadSelection(editor, settings, 'bottom-left') : null, [editor, settings]);
@@ -61,7 +71,13 @@ export function CadPanel({ settings, focusRequest }: { settings: CadSettings | n
   const precision = settings?.precision ?? 2;
   function perform(success: boolean, successLabel: CadLabel) { setMessage(success ? successLabel : 'failed'); }
   return <div className="drawing-cad" data-testid="drawing-cad-panel">
+    <label className="drawing-cad-task"><span>{advancedLabel('task')}</span>
+      <select data-testid="drawing-cad-task" value={task} onChange={event => setTask(event.target.value as typeof task)}>
+        {(['draw', 'edit', 'document', 'files'] as const).map(value => <option key={value} value={value}>{advancedLabel(`${value}Task`)}</option>)}
+      </select>
+    </label>
     {controls.readOnly && <p className="drawing-help">{label('readOnly')}</p>}
+    <div hidden={task !== 'document'}>
     <details className="drawing-cad-section" open>
       <summary>{label('document')}</summary>
       <form onSubmit={event => { event.preventDefault(); if (proposed) perform(writeCadSettings(editor, proposed), 'settingsSaved'); }}>
@@ -92,9 +108,6 @@ export function CadPanel({ settings, focusRequest }: { settings: CadSettings | n
       </div>}
     </details>
     {message && <Message text={label(message)} error={message === 'failed'} />}
-    <GeometryForm settings={settings} disabled={controls.readOnly} />
-    <PathVertices settings={settings} disabled={!controls.canEditSelection} />
-    <ArcFields settings={settings} disabled={!controls.canEditSelection} />
     <details className="drawing-cad-section">
       <summary>{label('measure')}</summary>
       {selected ? <dl className="drawing-cad-values" aria-label={label('selectionSize')}>
@@ -120,8 +133,14 @@ export function CadPanel({ settings, focusRequest }: { settings: CadSettings | n
       {knownInvalid && <p id={knownErrorId} className="drawing-help is-error" role="alert">{label('invalidLength')}</p>}
       <p className="drawing-help">{label('calibrateHelp')}</p>
     </details>
-    <CadAdvancedPanel settings={settings} focusRequest={focusRequest} />
-    <DxfExport settings={settings} />
+    </div>
+    <div hidden={task !== 'draw'}><GeometryForm settings={settings} disabled={controls.readOnly} /></div>
+    <div hidden={task !== 'edit'}>
+      <PathVertices settings={settings} disabled={!controls.canEditSelection} />
+      <ArcFields settings={settings} disabled={!controls.canEditSelection} />
+    </div>
+    <CadAdvancedPanel settings={settings} focusRequest={focusRequest} task={task} />
+    <div hidden={task !== 'files'}><DxfExport settings={settings} /></div>
   </div>;
 }
 

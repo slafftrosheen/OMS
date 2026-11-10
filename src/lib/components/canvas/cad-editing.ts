@@ -159,6 +159,26 @@ export function setCadCurveClosed(editor: Editor, ci: number, closed: boolean): 
     contours[ci].closed = closed;
   });
 }
+/** Reverse the traversal without changing any cubic segment or the closed seam. */
+export function reverseCadContour(editor: Editor, ci: number): boolean {
+  return editCurve(editor, contours => {
+    const contour = contours[ci];
+    if (!contour) throw new Error('contour');
+    const nodes = contour.nodes.map(node => ({ ...node,
+      inX: node.outX, inY: node.outY, outX: node.inX, outY: node.inY
+    })).reverse();
+    if (contour.closed) nodes.unshift(nodes.pop()!);
+    contour.nodes = nodes;
+  });
+}
+/** Move the seam of a closed contour to an existing node; no geometric changes. */
+export function setCadContourStart(editor: Editor, ci: number, ni: number): boolean {
+  return editCurve(editor, contours => {
+    const contour = contours[ci];
+    if (!contour?.closed || !Number.isInteger(ni) || !contour.nodes[ni] || ni === 0) throw new Error('node');
+    contour.nodes = [...contour.nodes.slice(ni), ...contour.nodes.slice(0, ni)];
+  });
+}
 export function convertSelectionToCurves(editor: Editor, settings: CadSettings): boolean {
   try {
     const shapes = cadSelectedShapes(editor),

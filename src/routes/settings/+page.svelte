@@ -27,7 +27,7 @@
   let aiSettingsSaving = $state(false);
   let aiSettingsError = $state('');
   let aiSettingsMessage = $state('');
-  type SettingsTab = 'general' | 'ai' | 'telegram' | 'integrations';
+  type SettingsTab = 'general' | 'account' | 'ai' | 'telegram' | 'integrations';
   let activeSettingsTab = $state<SettingsTab>('general');
   let aiPolicy = $state<{ enabled: boolean; updatedAt: string | null; updatedBy: string | null } | null>(null);
   let aiPolicyLoading = $state(false);
@@ -39,7 +39,7 @@
   let showOpenRouterSettings = $derived(authState?.user?.role === 'RD');
   const tabCopy = $derived(settingsTabsCopy($locale));
   const availableTabs = $derived<SettingsTab[]>(
-    showOpenRouterSettings ? ['general','ai','telegram','integrations'] : ['general','integrations']
+    showOpenRouterSettings ? ['general','account','integrations','ai','telegram'] : ['general','account','integrations']
   );
   $effect(() => {
     if (!availableTabs.includes(activeSettingsTab)) activeSettingsTab = 'general';
@@ -149,11 +149,11 @@
   let currentDensity: Density = $state('cozy');
   let currentFontScale: number = $state(1.0);
 
-  ui.subscribe(p => {
+  onMount(() => ui.subscribe(p => {
     currentTheme = p.theme as Theme;
     currentDensity = p.density;
     currentFontScale = p.fontScale;
-  });
+  }));
 
   const themes: { id: Theme; icon: any }[] = [
     { id: 'LightVim', icon: Sun },
@@ -202,14 +202,10 @@
   <header class="settings-header">
     <h1>{$t('settings.title', { default: 'Settings' })}</h1>
     <p class="muted">{$t('settings.description', { default: 'Customize your experience' })}</p>
-    <p class="build-fingerprint" title={buildInfo.builtAt}>
-      OMS UI · <code>{buildInfo.revision}</code>
-      <span aria-hidden="true">·</span>
-      <time datetime={buildInfo.builtAt}>{buildInfo.builtAt.slice(0,16).replace('T',' ')} UTC</time>
-    </p>
+
   </header>
 
-  <nav class="settings-tabbar" role="tablist" aria-label={tabCopy.tabsLabel} onkeydown={tabKeydown}>
+  <div class="settings-tabbar" role="tablist" tabindex="-1" aria-label={tabCopy.tabsLabel} onkeydown={tabKeydown}>
     {#each availableTabs as tab (tab)}
       <button id={`settings-tab-${tab}`} type="button" role="tab"
         aria-controls={`settings-panel-${tab}`} aria-selected={activeSettingsTab===tab}
@@ -219,7 +215,7 @@
         {tabCopy[tab]}
       </button>
     {/each}
-  </nav>
+  </div>
   <div id="settings-panel-general" class="settings-grid settings-panel" role="tabpanel"
     aria-labelledby="settings-tab-general" hidden={activeSettingsTab!=='general'}>
     <!-- Appearance Section -->
@@ -255,11 +251,11 @@
     </section>
 
     <!-- Accessibility Section -->
-    <section class="settings-section">
-      <div class="section-header">
+    <details class="settings-section display-options">
+      <summary class="section-header">
         <Type size={20} />
         <h2>{$t('settings.accessibility', { default: 'Accessibility' })}</h2>
-      </div>
+      </summary>
 
       <div class="setting-group">
         <div class="setting-label">
@@ -306,7 +302,7 @@
           {/each}
         </div>
       </div>
-    </section>
+    </details>
 
     <!-- Language Section -->
     <section class="settings-section">
@@ -327,6 +323,10 @@
       </div>
     </section>
 
+
+  </div>
+  <div id="settings-panel-account" class="settings-grid settings-panel" role="tabpanel"
+    aria-labelledby="settings-tab-account" hidden={activeSettingsTab!=='account'}>
     <!-- Security Section -->
     <section class="settings-section">
       <div class="section-header">
@@ -336,6 +336,17 @@
       <PasswordChange />
     </section>
 
+    <!-- Session Section -->
+    <section class="settings-section danger-zone">
+      <div class="section-header">
+        <Icon name="log-out" size={20} />
+        <h2>{$t('settings.session.title')}</h2>
+      </div>
+      <p class="muted">{$t('settings.session.description')}</p>
+      <button class="rf-btn btn-danger" onclick={handleLogout}>
+        {$t('settings.session.signOut')}
+      </button>
+    </section>
   </div>
   <div id="settings-panel-ai" class="settings-grid settings-panel" role="tabpanel"
     aria-labelledby="settings-tab-ai" hidden={activeSettingsTab!=='ai'}>
@@ -414,31 +425,31 @@
       </div>
       <div class="integrations-list">
         <TelegramSettings />
-        <div class="integration-item">
-          <div class="integration-info">
-            <strong>n8n</strong>
-            <span class="muted">{$t('settings.integrations.n8n', { default: 'Workflow automation' })}</span>
-          </div>
-          <span class="status-badge">{$t('common.coming_soon')}</span>
-        </div>
+
       </div>
     </section>
 
-    <!-- Session Section -->
-    <section class="settings-section danger-zone">
-      <div class="section-header">
-        <Icon name="log-out" size={20} />
-        <h2>{$t('settings.session.title')}</h2>
-      </div>
-      <p class="muted">{$t('settings.session.description')}</p>
-      <button class="rf-btn btn-danger" onclick={handleLogout}>
-        {$t('settings.session.signOut')}
-      </button>
-    </section>
+
   </div>
+  <details class="version-info"><summary>{tabCopy.technical}</summary>
+    <p class="build-fingerprint" title={buildInfo.builtAt}>
+      OMS UI · <code>{buildInfo.revision}</code>
+      <span aria-hidden="true">·</span>
+      <time datetime={buildInfo.builtAt}>{buildInfo.builtAt.slice(0,16).replace('T',' ')} UTC</time>
+    </p>
+  </details>
 </div>
 
 <style>
+  .display-options > summary { cursor: pointer; margin-bottom: 0; }
+  .display-options[open] > summary { margin-bottom: var(--space-lg); }
+  .display-options > summary h2 { display: inline; }
+  .display-options > summary::after { content: '+'; margin-left: auto; font-size: 1.25rem; }
+  .display-options[open] > summary::after { content: '−'; }
+  .version-info { margin-top: var(--space-xl); color: var(--ink-secondary); font-size: var(--text-sm); }
+  .version-info > summary { cursor: pointer; padding: 8px 0; }
+  .version-info > summary:focus-visible, .display-options > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+
   .settings-panel[hidden] { display: none !important; }
   .settings-tabbar { display:flex; gap:.5rem; overflow-x:auto; overscroll-behavior-x:contain;
     margin-bottom:var(--space-lg); padding:.25rem 0 .6rem; scrollbar-width:thin; }
@@ -684,34 +695,6 @@
   gap: var(--space-sm);
 }
 
-.integration-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--space-md);
-  background: var(--bg-0);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-}
-
-.integration-info {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xxs);
-}
-
-.integration-info strong {
-  color: var(--text);
-}
-
-.status-badge {
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--bg-2);
-  border-radius: var(--radius-full);
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
 @media (max-width: 600px) {
   .settings-page {
     padding: var(--space-md);
@@ -759,8 +742,7 @@
   .scale-options {flex-wrap:wrap;}
   .scale-option {min-width:48px;min-height:44px;}
   .rf-select {min-height:44px;background:var(--bg-1);}
-  .preview-text,.integration-item {background:var(--bg-2);border:1px solid var(--border);}
-  .status-badge {border:1px solid var(--border);border-radius:var(--radius-sm);}
+  .preview-text {background:var(--bg-2);border:1px solid var(--border);}
   .openrouter-key-form {align-items:stretch;gap:var(--space-sm);}
   .openrouter-key-form input {background:var(--bg-1);color:var(--ink-primary);border:1px solid var(--border);
     border-radius:var(--radius-sm);min-height:44px;padding:10px 12px;}

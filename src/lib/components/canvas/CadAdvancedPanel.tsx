@@ -6,12 +6,13 @@ import { useCadAdvancedText, type CadAdvancedLabel } from './cad-advanced-copy';
 import { unitMm, type CadSettings, type CadUnit } from './cad-settings';
 import { curveBounds, curvePathData, type CadBezierNode } from './cad-curves';
 import { applyCadPlan, cadRevision, type CadPlan } from './cad-plans';
-import { getCadCurveSelection, updateCadCurveNode, splitCadCurveSegment, deleteCadCurveNode, setCadCurveClosed, convertSelectionToCurves } from './cad-editing';
+import { getCadCurveSelection, updateCadCurveNode, splitCadCurveSegment, deleteCadCurveNode, setCadCurveClosed, convertSelectionToCurves, reverseCadContour, setCadContourStart } from './cad-editing';
+import { applyCadCompound } from './cad-compound';
 import { prepareCadShaping } from './cad-shaping';
 import { prepareCadText } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert'; sequence: number };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'document' | 'files' | 'shaping'; sequence: number };
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
 const FILE_LIMIT = 8 * 1024 * 1024;
@@ -52,9 +53,8 @@ function useUnitDraft(settings: CadSettings | null, initial: Record<string, stri
 function useFocusSection(ref: React.RefObject<HTMLDetailsElement>, active: boolean, sequence?: number) {
   const consumed = useRef<number>();
   useEffect(() => {
-    if (sequence === consumed.current) return;
+    if (sequence === consumed.current || !active || !ref.current) return;
     consumed.current = sequence;
-    if (!active || !ref.current) return;
     ref.current.open = true;
     ref.current.querySelector<HTMLElement>('summary')?.focus();
     ref.current.scrollIntoView({ block: 'nearest' });
@@ -62,7 +62,7 @@ function useFocusSection(ref: React.RefObject<HTMLDetailsElement>, active: boole
 }
 
 /** Shared advanced CAD controls for the order and idea workspace docker. */
-export function CadAdvancedPanel({ settings, focusRequest }: { settings: CadSettings | null; focusRequest?: CadFocusRequest }) {
+export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: CadSettings | null; focusRequest?: CadFocusRequest; task: 'draw' | 'edit' | 'document' | 'files' }) {
   const editor = useEditor();
   const state = useValue('advanced cad permissions', () => ({ controls: captureToolkitControls(editor), protected: protectedSelection(editor), text: editor.getOnlySelectedShape()?.type === 'text' }), [editor]);
   const revision = useValue('advanced cad revision', () => cadRevision(editor), [editor]);
@@ -70,11 +70,28 @@ export function CadAdvancedPanel({ settings, focusRequest }: { settings: CadSett
   return <>
     {!settings && <Message value="settingsRequired" />}
     {(state.controls.readOnly || state.controls.selectionLocked || state.protected) && <Message value="blocked" />}
-    <CurveNodes settings={settings} revision={revision} disabled={disabled} focus={focusRequest?.section === 'nodes' || focusRequest?.section === 'convert' && !state.text} sequence={focusRequest?.sequence} />
-    <TextOutlines settings={settings} revision={revision} disabled={state.controls.readOnly} focus={focusRequest?.section === 'convert' && state.text} sequence={focusRequest?.sequence} />
-    <Shaping settings={settings} revision={revision} disabled={disabled} />
+    <div hidden={task !== 'edit'}>
+    <CompoundControls disabled={disabled || !settings} settings={settings} />
+    <CurveNodes settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && (focusRequest?.section === 'nodes' || focusRequest?.section === 'convert' && !state.text)} sequence={focusRequest?.sequence} />
+    <Shaping settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'shaping'} sequence={focusRequest?.sequence} />
+    </div><div hidden={task !== 'draw'}>
+    <TextOutlines settings={settings} revision={revision} disabled={state.controls.readOnly} focus={task === 'draw' && focusRequest?.section === 'convert' && state.text} sequence={focusRequest?.sequence} />
+    </div><div hidden={task !== 'files'}>
     <DxfImport settings={settings} revision={revision} disabled={state.controls.readOnly} />
+    </div>
   </>;
+}
+
+function CompoundControls({ settings, disabled }: { settings: CadSettings | null; disabled: boolean }) {
+  const editor = useEditor(); const { label } = useCadAdvancedText();
+  const [failed, setFailed] = useState(false);
+  return <section className="drawing-cad-section" aria-label={label('compound')}>
+    <div className="drawing-cad-actions">{(['combine', 'breakApart'] as const).map(operation =>
+      <button key={operation} type="button" disabled={disabled} data-testid={`drawing-cad-${operation}`}
+        onClick={() => setFailed(!settings || !applyCadCompound(editor, settings, operation))}>{label(operation)}</button>)}</div>
+    <p className="drawing-help">{label('compoundHelp')}</p>
+    {failed && <Message value="compoundFailed" error />}
+  </section>;
 }
 
 function PlanReview({ review, inputKey, revision, disabled, onApplied, blocked = false, children }: {
@@ -158,6 +175,11 @@ function CurveNodes({ settings, disabled, focus, sequence }: SharedProps & { foc
           <button type="button" disabled={!contour.closed && nodeIndex === contour.nodes.length - 1} onClick={() => { if (canChange(editor)) result(splitCadCurveSegment(editor, contourIndex, nodeIndex)); }}>{label('split')}</button>
           <button type="button" disabled={contour.nodes.length <= 2} onClick={() => { if (canChange(editor)) result(deleteCadCurveNode(editor, contourIndex, nodeIndex)); }}>{label('deleteNode')}</button>
         </div>
+        <div className="drawing-cad-actions">
+          <button type="button" onClick={() => { if (canChange(editor)) { result(reverseCadContour(editor, contourIndex)); setNodeIndex(0); } }}>{label('reverse')}</button>
+          <button type="button" disabled={!contour.closed || nodeIndex === 0} onClick={() => { if (canChange(editor)) { result(setCadContourStart(editor, contourIndex, nodeIndex)); setNodeIndex(0); } }}>{label('startNode')}</button>
+        </div>
+        <p className="drawing-help">{label('directionHelp')}</p>
         <label className="drawing-cad-check"><input type="checkbox" checked={contour.closed} disabled={!contour.closed && contour.nodes.length < 2} onChange={event => { if (canChange(editor)) result(setCadCurveClosed(editor, contourIndex, event.target.checked)); }} /><span>{label('closed')}</span></label>
       </fieldset>
       <p id={errorId} className={`drawing-help${!valid ? ' is-error' : ''}`} role={!valid ? 'alert' : undefined}>{label(valid ? 'nodeHelp' : 'invalid')}</p>
@@ -235,8 +257,9 @@ function TextOutlines({ settings, revision, disabled, focus, sequence }: SharedP
   </details>;
 }
 
-function Shaping({ settings, revision, disabled }: SharedProps) {
+function Shaping({ settings, revision, disabled, focus, sequence }: SharedProps & { focus: boolean; sequence?: number }) {
   const editor = useEditor(); const { label } = useCadAdvancedText();
+  const section = useRef<HTMLDetailsElement>(null); useFocusSection(section, focus, sequence);
   const selected = useValue('shaping sources', () => [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].flatMap(id => {
     const shape = editor.getShape(id); return shape && shape.type !== 'group' ? [{ id: shape.id, name: drawingObjectName(shape) }] : [];
   }), [editor]);
@@ -247,7 +270,7 @@ function Shaping({ settings, revision, disabled }: SharedProps) {
   const inputKey = JSON.stringify([operation, tolerance, values.offset, join, keepSources, targetId, settings]);
   const valid = Number.isFinite(number(tolerance)) && number(tolerance) >= 0.001 && number(tolerance) <= 1 && selected.length >= (operation === 'offset' ? 1 : 2) &&
     (operation !== 'offset' || Number.isFinite(number(values.offset)) && number(values.offset) !== 0 && Math.abs(number(values.offset)) <= 1_000_000) && (operation !== 'trim' || selected.some(shape => shape.id === targetId));
-  return <details className="drawing-cad-section" data-testid="drawing-cad-shaping">
+  return <details ref={section} className="drawing-cad-section" data-testid="drawing-cad-shaping">
     <summary>{label('shaping')}</summary>
     <p className="drawing-help">{label('selectionHelp')}</p>
     <form onSubmit={event => {
