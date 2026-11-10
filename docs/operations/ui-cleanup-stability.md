@@ -17,6 +17,12 @@ Idea-board quick-start templates are behind a named disclosure in the project li
 
 Verification: the changed Svelte pages compile without local accessibility warnings. CAD regression tests cover precision, permissions, history and independent DXF parsing. Browser regression cases are maintained for both canvas hosts, but the hosted Chromium launch fails before rendering with `socket() Operation not permitted`. The committed screenshot placeholders predate this UI and are not visual verification of the changed pages. Run the existing desktop/mobile browser suite locally before production acceptance. This pass does not change database schemas or deployment services.
 
+## New-order form and drawing navigation
+
+The creation header exposes Save draft and Submit for review, with Save & analyze and Cancel in More actions. Save draft is available in both form and drawing views; validation and backend permissions are unchanged. Form/Drawing is a labelled selection rather than an English-only toggle. Section links reach profiles, files, details and delivery, preserving the canvas snapshot before leaving Drawing. Switching is serialized; a snapshot failure leaves the drawing open with an error. Validation failures reveal the form and focus its invalid control instead of leaving errors in a hidden view.
+
+AI Order Intake is a disclosure that keeps the assistant mounted, retaining pending analysis and choices. Choosing Analyze on an attachment opens and focuses it. The parent disclosure owns the title, avoiding a repeated heading. In the shared intake assistant, PDF processing modes are under a disclosure whose summary names the current mode; charge/mode hints and the existing paid-OCR confirmation remain visible and enforced. New-order browser cases cover the collapsed entry, preserved fields, section navigation and invalid saves from Drawing at mobile and desktop widths. Browser execution is still blocked by the hosted Chromium socket restriction.
+
 ## Dialog and keyboard behavior
 
 `src/lib/ui/modal-dialog.ts` is the shared action for native modal dialogs.

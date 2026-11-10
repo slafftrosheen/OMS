@@ -6,13 +6,14 @@ import { useCadAdvancedText, type CadAdvancedLabel } from './cad-advanced-copy';
 import { unitMm, type CadSettings, type CadUnit } from './cad-settings';
 import { curveBounds, curvePathData, type CadBezierNode } from './cad-curves';
 import { applyCadPlan, cadRevision, type CadPlan } from './cad-plans';
-import { getCadCurveSelection, updateCadCurveNode, splitCadCurveSegment, deleteCadCurveNode, setCadCurveClosed, convertSelectionToCurves, reverseCadContour, setCadContourStart } from './cad-editing';
+import { getCadCurveSelection, updateCadCurveNode, splitCadCurveSegment, deleteCadCurveNode, setCadCurveClosed, convertSelectionToCurves, reverseCadContour, setCadContourStart, breakCadCurveAtNode, setCadSegmentKind } from './cad-editing';
+import { prepareCadJoin, type CadJoinOptions, type CadJoinPlan } from './cad-join';
 import { applyCadCompound } from './cad-compound';
 import { prepareCadShaping } from './cad-shaping';
 import { prepareCadText } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'document' | 'files' | 'shaping'; sequence: number };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'document' | 'files' | 'shaping' | 'join'; sequence: number };
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
 const FILE_LIMIT = 8 * 1024 * 1024;
@@ -28,10 +29,10 @@ function canChange(editor: Editor, selection = true) {
 }
 function errorLabel(error: unknown, fallback: CadAdvancedLabel = 'failed'): CadAdvancedLabel {
   const code = (error as { code?: string })?.code;
-  return ({ empty: 'empty', readonly: 'blocked', locked: 'blocked', font: 'invalidFont', 'missing-glyph': 'unsupportedFont', unit: 'unitRequired', format: 'invalidDxf', unsupported: 'unsupported', stale: 'stale', geometry: 'invalid', selection: 'selectionHelp', open: 'selectionHelp', limit: 'limit', capacity: 'limit', bound: 'bound' } as Record<string, CadAdvancedLabel>)[code ?? ''] ?? fallback;
+  return ({ 'join-selection': 'joinHelp', 'join-gap': 'joinGapError', 'fill-rule': 'compoundFailed', empty: 'empty', readonly: 'blocked', locked: 'blocked', font: 'invalidFont', 'missing-glyph': 'unsupportedFont', unit: 'unitRequired', format: 'invalidDxf', unsupported: 'unsupported', stale: 'stale', geometry: 'invalid', selection: 'selectionHelp', open: 'selectionHelp', limit: 'limit', capacity: 'limit', bound: 'bound' } as Record<string, CadAdvancedLabel>)[code ?? ''] ?? fallback;
 }
 function warningLabel(code: string): CadAdvancedLabel {
-  return ({ 'curves-approximated': 'approximated', 'import-curves-approximated': 'importApproximation', 'sources-overlap': 'sourcesOverlap', 'text-layout-review': 'textLayoutReview', 'font-outline-only': 'fontOutlineOnly' } as Record<string, CadAdvancedLabel>)[code] ?? 'unrecognizedWarning';
+  return ({ 'join-arc-approximation': 'joinApproximation', 'curves-approximated': 'approximated', 'import-curves-approximated': 'importApproximation', 'sources-overlap': 'sourcesOverlap', 'text-layout-review': 'textLayoutReview', 'font-outline-only': 'fontOutlineOnly' } as Record<string, CadAdvancedLabel>)[code] ?? 'unrecognizedWarning';
 }
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="drawing-cad-field"><span>{label}</span>{children}</label>;
@@ -73,6 +74,7 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
     <div hidden={task !== 'edit'}>
     <CompoundControls disabled={disabled || !settings} settings={settings} />
     <CurveNodes settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && (focusRequest?.section === 'nodes' || focusRequest?.section === 'convert' && !state.text)} sequence={focusRequest?.sequence} />
+    <JoinCurves settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'join'} sequence={focusRequest?.sequence} />
     <Shaping settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'shaping'} sequence={focusRequest?.sequence} />
     </div><div hidden={task !== 'draw'}>
     <TextOutlines settings={settings} revision={revision} disabled={state.controls.readOnly} focus={task === 'draw' && focusRequest?.section === 'convert' && state.text} sequence={focusRequest?.sequence} />
@@ -147,6 +149,9 @@ function CurveNodes({ settings, disabled, focus, sequence }: SharedProps & { foc
   }, [signature]);
   const valid = nodeFields.every(key => Number.isFinite(number(values[key])) && Math.abs(number(values[key])) <= 1_000_000);
   function result(success: boolean, key: CadAdvancedLabel = 'updated') { setFailed(!success); setMessage(success ? key : 'failed'); }
+  const hasNext = !!contour && (contour.closed || nodeIndex < contour.nodes.length - 1);
+  const next = hasNext ? contour?.nodes[(nodeIndex + 1) % contour.nodes.length] : undefined;
+  const isStraight = !!node && !!next && !node.outX && !node.outY && !next.inX && !next.inY;
   const canConvert = !selected && selectedType !== 'text';
   return <details ref={section} className="drawing-cad-section" data-testid="drawing-cad-nodes">
     <summary>{label('nodes')}</summary>
@@ -171,16 +176,23 @@ function CurveNodes({ settings, disabled, focus, sequence }: SharedProps & { foc
         </select></Field>
         {nodeFields.map(key => <Field key={key} label={`${label(key)} (${settings?.unit ?? 'mm'})`}><input type="number" step="any" required value={values[key]} aria-invalid={!Number.isFinite(number(values[key])) || Math.abs(number(values[key])) > 1_000_000} onChange={event => { setValues(current => ({ ...current, [key]: event.target.value })); setMessage(''); }} /></Field>)}
         <button type="submit" disabled={!valid}>{label('updateNode')}</button>
+        <details className="drawing-node-tools" open><summary>{label('segmentTools')}</summary>
         <div className="drawing-cad-actions">
+          <button type="button" disabled={!hasNext || isStraight} onClick={() => { if (canChange(editor)) result(setCadSegmentKind(editor, contourIndex, nodeIndex, 'line')); }}>{label('toLine')}</button>
+          <button type="button" disabled={!hasNext || !isStraight} onClick={() => { if (canChange(editor)) result(setCadSegmentKind(editor, contourIndex, nodeIndex, 'curve')); }}>{label('toCurve')}</button>
           <button type="button" disabled={!contour.closed && nodeIndex === contour.nodes.length - 1} onClick={() => { if (canChange(editor)) result(splitCadCurveSegment(editor, contourIndex, nodeIndex)); }}>{label('split')}</button>
           <button type="button" disabled={contour.nodes.length <= 2} onClick={() => { if (canChange(editor)) result(deleteCadCurveNode(editor, contourIndex, nodeIndex)); }}>{label('deleteNode')}</button>
-        </div>
+        </div></details>
+        <details className="drawing-node-tools"><summary>{label('contourTools')}</summary>
         <div className="drawing-cad-actions">
+          <button type="button" disabled={!contour.closed && (nodeIndex === 0 || nodeIndex === contour.nodes.length - 1)} onClick={() => { if (canChange(editor)) { result(breakCadCurveAtNode(editor, contourIndex, nodeIndex)); setNodeIndex(0); } }}>{label('breakNode')}</button>
           <button type="button" onClick={() => { if (canChange(editor)) { result(reverseCadContour(editor, contourIndex)); setNodeIndex(0); } }}>{label('reverse')}</button>
           <button type="button" disabled={!contour.closed || nodeIndex === 0} onClick={() => { if (canChange(editor)) { result(setCadContourStart(editor, contourIndex, nodeIndex)); setNodeIndex(0); } }}>{label('startNode')}</button>
         </div>
+        <p className="drawing-help">{label('breakNodeHelp')}</p>
         <p className="drawing-help">{label('directionHelp')}</p>
         <label className="drawing-cad-check"><input type="checkbox" checked={contour.closed} disabled={!contour.closed && contour.nodes.length < 2} onChange={event => { if (canChange(editor)) result(setCadCurveClosed(editor, contourIndex, event.target.checked)); }} /><span>{label('closed')}</span></label>
+        </details>
       </fieldset>
       <p id={errorId} className={`drawing-help${!valid ? ' is-error' : ''}`} role={!valid ? 'alert' : undefined}>{label(valid ? 'nodeHelp' : 'invalid')}</p>
     </form>}
@@ -253,6 +265,43 @@ function TextOutlines({ settings, revision, disabled, focus, sequence }: SharedP
     <p className="drawing-help">{label('textHelp')}</p>
     {(busy || fontBusy) && <Message value="preparing" />}
     {review && <PlanReview review={review} inputKey={inputKey} revision={revision} disabled={disabled || !settings || busy || fontBusy || mode === 'selected' && !source?.editable} onApplied={success => { setFailed(!success); setMessage(success ? 'applied' : 'failed'); if (success) setReview(null); }} />}
+    <Message value={message} error={failed} />
+  </details>;
+}
+
+function JoinCurves({ settings, revision, disabled, focus, sequence }: SharedProps & { focus: boolean; sequence?: number }) {
+  const editor = useEditor(); const { label } = useCadAdvancedText();
+  const section = useRef<HTMLDetailsElement>(null); useFocusSection(section, focus, sequence);
+  const [mode, setMode] = useState<CadJoinOptions['mode']>('bridge');
+  const [pairing, setPairing] = useState<CadJoinOptions['pairing']>('nearest');
+  const [tolerance, setTolerance] = useState('0.01');
+  const [review, setReview] = useState<Review<CadJoinPlan> | null>(null);
+  const [message, setMessage] = useState<CadAdvancedLabel | ''>(''); const [failed, setFailed] = useState(false);
+  const inputKey = JSON.stringify([mode, pairing, tolerance, settings]);
+  const valid = mode !== 'merge' || Number.isFinite(number(tolerance)) && number(tolerance) >= 0.001 && number(tolerance) <= 1;
+  return <details ref={section} className="drawing-cad-section" data-testid="drawing-cad-join">
+    <summary>{label('joinCurves')}</summary><p className="drawing-help">{label('joinHelp')}</p>
+    <form onSubmit={event => {
+      event.preventDefault(); if (!settings || disabled || !valid || !canChange(editor)) return;
+      setMessage(''); setReview(null);
+      try { setReview({ plan: prepareCadJoin(editor, settings, { mode, pairing, toleranceMm: number(tolerance) }), inputKey }); }
+      catch (error) { setFailed(true); setMessage(errorLabel(error)); }
+    }}>
+      <fieldset className="drawing-cad-fields" disabled={disabled || !settings}>
+        <Field label={label('joinMode')}><select value={mode} onChange={event => setMode(event.target.value as typeof mode)}>
+          <option value="bridge">{label('bridge')}</option><option value="merge">{label('merge')}</option>
+        </select></Field>
+        <Field label={label('pairing')}><select value={pairing} onChange={event => setPairing(event.target.value as typeof pairing)}>
+          {(['nearest', 'end-start', 'start-start', 'end-end', 'start-end'] as const).map(value => <option key={value} value={value}>{label(value)}</option>)}
+        </select></Field>
+        {mode === 'merge' && <Field label={label('joinTolerance')}><input type="number" min="0.001" max="1" step="any" required value={tolerance} aria-invalid={!valid} onChange={event => setTolerance(event.target.value)} /></Field>}
+        <p className="drawing-help">{label(mode === 'merge' ? 'joinMergeHelp' : 'joinBridgeHelp')}</p>
+        <button type="submit" disabled={!valid}>{label('preview')}</button>
+      </fieldset>
+    </form>
+    {review && <PlanReview review={review} inputKey={inputKey} revision={revision} disabled={disabled || !settings} onApplied={success => { setFailed(!success); setMessage(success ? 'applied' : 'failed'); if (success) setReview(null); }}>
+      <dl className="drawing-cad-values"><dt>{label('joinGap')}</dt><dd>{format(review.plan.gapMm)}</dd><dt>{label('pairing')}</dt><dd>{label(review.plan.pairing)}</dd></dl>
+    </PlanReview>}
     <Message value={message} error={failed} />
   </details>;
 }

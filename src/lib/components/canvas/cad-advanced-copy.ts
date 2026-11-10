@@ -3,6 +3,15 @@ import { get } from 'svelte/store';
 import { locale, t } from 'svelte-i18n';
 
 const en = {
+  joinCurves: 'Join open curves', joinHelp: 'Select two open curves, or one compound containing exactly two open contours. Source order follows the selection. Preview the connection before replacing the sources.',
+  joinMode: 'Connection', bridge: 'Add straight bridge', merge: 'Merge endpoints', pairing: 'Endpoints', nearest: 'Nearest pair',
+  'end-start': 'First end → second start', 'start-start': 'First start → second start', 'end-end': 'First end → second end', 'start-end': 'First start → second end',
+  joinGap: 'Endpoint gap (mm)', joinTolerance: 'Maximum merge gap (mm)', joinGapError: 'The gap exceeds the merge tolerance. Choose a straight bridge or closer endpoints.',
+  joinMergeHelp: 'Merge moves each endpoint to their midpoint by half the gap; adjacent control points stay in place. Maximum gap: 0.001–1 mm. The preview replaces the source curves in one undo step.',
+  joinBridgeHelp: 'A straight bridge keeps all existing curve segments unchanged. Coincident endpoints are merged. The result stays open; close it explicitly if needed.',
+  joinApproximation: 'Circular arcs were converted to Bézier curves within 0.005 mm.',
+  breakNode: 'Break curve at node', toLine: 'To straight segment', toCurve: 'To Bézier segment', segmentTools: 'Segment editing', contourTools: 'Contour editing',
+  breakNodeHelp: 'Break opens a closed contour at this node, or splits an open contour into two paths. All existing segments are retained. Break apart makes the paths separate objects.',
   arrange: 'Arrange', task: 'CAD task', drawTask: 'Create geometry & text', editTask: 'Edit curves & shapes', documentTask: 'Document & measurements', filesTask: 'Import / export DXF',
   compound: 'Combine & break apart', combine: 'Combine · Ctrl/⌘ L', breakApart: 'Break apart · Ctrl/⌘ K',
   compoundHelp: 'Combine keeps the original paths in one curve. With even-odd paths, nested and overlapping areas become holes. Weld merges areas. Break apart separates every contour, including holes. Combining circles or arcs converts them within 0.005 mm.',
@@ -42,6 +51,15 @@ const en = {
 } as const;
 type Dictionary = { [K in keyof typeof en]: string };
 const ru: Dictionary = {
+  joinCurves: 'Соединить открытые кривые', joinHelp: 'Выберите две открытые кривые или один объект ровно с двумя открытыми контурами. Порядок соответствует выбору объектов. Проверьте соединение перед заменой исходников.',
+  joinMode: 'Соединение', bridge: 'Добавить прямой отрезок', merge: 'Слить конечные узлы', pairing: 'Концы контуров', nearest: 'Ближайшая пара',
+  'end-start': 'Конец первого → начало второго', 'start-start': 'Начало первого → начало второго', 'end-end': 'Конец первого → конец второго', 'start-end': 'Начало первого → конец второго',
+  joinGap: 'Зазор между концами (мм)', joinTolerance: 'Максимальный зазор слияния (мм)', joinGapError: 'Зазор превышает допуск слияния. Выберите прямое соединение или более близкие концы.',
+  joinMergeHelp: 'При слиянии оба конца сдвигаются в середину зазора; соседние контрольные точки остаются на месте. Максимальный зазор: 0,001–1 мм. Замена исходников отменяется одним действием.',
+  joinBridgeHelp: 'Прямой отрезок сохраняет все существующие сегменты кривых. Совпадающие концы сливаются. Результат остаётся открытым; замкните его отдельно при необходимости.',
+  joinApproximation: 'Дуги окружностей преобразованы в кривые Безье с допуском 0,005 мм.',
+  breakNode: 'Разорвать кривую в узле', toLine: 'Преобразовать сегмент в прямую', toCurve: 'Преобразовать сегмент в Безье', segmentTools: 'Редактирование сегмента', contourTools: 'Редактирование контура',
+  breakNodeHelp: 'Разрыв открывает замкнутый контур в этом узле или делит открытый на два пути. Все сегменты сохраняются. Разъединение превращает пути в отдельные объекты.',
   arrange: 'Упорядочить', task: 'Задача CAD', drawTask: 'Создание фигур и текста', editTask: 'Редактирование кривых и фигур', documentTask: 'Документ и измерения', filesTask: 'Импорт / экспорт DXF',
   compound: 'Объединение и разъединение', combine: 'Объединить · Ctrl/⌘ L', breakApart: 'Разъединить · Ctrl/⌘ K',
   compoundHelp: 'Объединение сохраняет исходные пути в одной кривой. В контурах с правилом чётности вложенные и перекрывающиеся области становятся отверстиями. Weld сливает области. Разъединение отделяет каждый контур, включая отверстия. Окружности и дуги преобразуются с допуском 0,005 мм.',
@@ -80,6 +98,15 @@ const ru: Dictionary = {
   unrecognizedWarning: 'При подготовке результата возникло предупреждение. Проверьте геометрию перед применением.',
 };
 const lv: Dictionary = {
+  joinCurves: 'Savienot atvērtas līknes', joinHelp: 'Atlasiet divas atvērtas līknes vai vienu objektu ar tieši divām atvērtām kontūrām. Avotu secība atbilst atlasei. Pirms avotu aizstāšanas pārbaudiet savienojumu.',
+  joinMode: 'Savienojums', bridge: 'Pievienot taisnu posmu', merge: 'Sapludināt galapunktus', pairing: 'Galapunkti', nearest: 'Tuvākais pāris',
+  'end-start': 'Pirmās beigas → otrās sākums', 'start-start': 'Pirmās sākums → otrās sākums', 'end-end': 'Pirmās beigas → otrās beigas', 'start-end': 'Pirmās sākums → otrās beigas',
+  joinGap: 'Attālums starp galapunktiem (mm)', joinTolerance: 'Maksimālais sapludināšanas attālums (mm)', joinGapError: 'Attālums pārsniedz sapludināšanas pielaidi. Izvēlieties taisnu savienojumu vai tuvākus galapunktus.',
+  joinMergeHelp: 'Abi galapunkti pārvietojas uz atstarpes vidu; blakus esošie kontrolpunkti paliek vietā. Maksimālais attālums: 0,001–1 mm. Avotu aizstāšanu var atsaukt vienā solī.',
+  joinBridgeHelp: 'Taisns posms saglabā visus esošos līkņu segmentus. Sakrītoši galapunkti tiek sapludināti. Rezultāts paliek atvērts; vajadzības gadījumā aizveriet to atsevišķi.',
+  joinApproximation: 'Riņķa loki pārveidoti par Bezjē līknēm ar 0,005 mm pielaidi.',
+  breakNode: 'Pārraut līkni mezglā', toLine: 'Pārveidot par taisnu posmu', toCurve: 'Pārveidot par Bezjē posmu', segmentTools: 'Segmenta rediģēšana', contourTools: 'Kontūras rediģēšana',
+  breakNodeHelp: 'Pārraušana atver slēgtu kontūru šajā mezglā vai sadala atvērtu kontūru divos ceļos. Visi segmenti saglabājas. Kontūru sadalīšana izveido atsevišķus objektus.',
   arrange: 'Sakārtot', task: 'CAD uzdevums', drawTask: 'Figūru un teksta izveide', editTask: 'Līkņu un figūru rediģēšana', documentTask: 'Dokuments un mērījumi', filesTask: 'DXF imports / eksports',
   compound: 'Kontūru apvienošana un sadalīšana', combine: 'Apvienot kontūras · Ctrl/⌘ L', breakApart: 'Sadalīt kontūras · Ctrl/⌘ K',
   compoundHelp: 'Apvienošana saglabā sākotnējos ceļus vienā līknē. Ar pāra-nepāra aizpildījumu ligzdoti un pārklāti laukumi kļūst par atverēm. Weld sapludina laukumus. Sadalīšana atdala katru kontūru, arī atveres. Apļi un loki tiek pārveidoti ar 0,005 mm pielaidi.',

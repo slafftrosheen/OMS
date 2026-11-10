@@ -212,3 +212,6 @@
 .drawing-cad-task select { width: 100%; min-width: 0; min-height: 36px; }
 
 .drawing-submenu > div { display: grid; padding-left: 8px; border-left: 1px solid var(--border); }
+
+.drawing-node-tools > summary { cursor: pointer; font-weight: 600; min-height: 32px; padding: 8px 0; }
+.drawing-node-tools { border-top: 1px solid var(--border); }

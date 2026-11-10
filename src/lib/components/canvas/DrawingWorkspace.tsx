@@ -495,6 +495,7 @@ export function DrawingChrome() {
           <button type="button" disabled={!controls.canEditSelection || !settings} onClick={() => compound('breakApart')}>{advancedLabel('breakApart')}</button>
           <button type="button" onClick={() => focusCad('nodes')}>{advancedLabel('nodes')}</button>
           <button type="button" onClick={() => focusCad('convert')}>{advancedLabel('convert')}</button>
+          <button type="button" onClick={() => focusCad('join')}>{advancedLabel('joinCurves')}</button>
           <button type="button" onClick={() => focusCad('shaping')}>{advancedLabel('shaping')}</button>
           <details className="drawing-submenu"><summary>{advancedLabel('arrange')}</summary><div>
           {menuActions(['front', 'back', 'forward', 'backward'])}<hr />

@@ -16,6 +16,42 @@ async function drawRectangle(page: Page) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} breaks and rejoins open curves with a stale-preview guard`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await page.getByTestId('drawing-cad-toggle').click();
+    await page.getByTestId('drawing-cad-apply').click();
+    await page.getByTestId('drawing-cad-task').selectOption('draw');
+    const panel = page.getByTestId('drawing-cad-panel');
+    await panel.locator('summary').filter({ hasText: /^Exact geometry$/ }).click();
+    await panel.getByLabel('Object type', { exact: true }).selectOption('polyline');
+    await panel.getByLabel('Vertices: X,Y (mm)', { exact: true }).fill('0,0\n100,0\n100,50');
+    await page.getByTestId('drawing-cad-create').click();
+    await page.getByTestId('drawing-cad-task').selectOption('edit');
+    const nodes = page.getByTestId('drawing-cad-nodes');
+    await nodes.locator('summary').filter({ hasText: /^Bézier nodes/ }).click();
+    await nodes.getByRole('button', { name: 'Convert selected geometry to curves', exact: true }).click();
+    const original = (await scene(page)).shapes.find((s: any) => s.type === 'cad-bezier');
+    await nodes.getByLabel('Node', { exact: true }).selectOption('1');
+    await nodes.locator('summary').filter({ hasText: /^Contour editing$/ }).click();
+    await nodes.getByRole('button', { name: 'Break curve at node', exact: true }).click();
+    await expect.poll(async () => (await scene(page)).shapes.find((s: any) => s.id === original.id).props.contours.length).toBe(2);
+    const join = page.getByTestId('drawing-cad-join');
+    await join.locator('summary').click();
+    await join.getByRole('button', { name: 'Prepare preview', exact: true }).click();
+    await expect(join.getByTestId('drawing-cad-plan').locator('dl').last().locator('dd').first()).toHaveText('0');
+    await join.getByLabel('Endpoints', { exact: true }).selectOption('start-end');
+    await expect(join.getByTestId('drawing-cad-apply-plan')).toBeDisabled();
+    await join.getByLabel('Endpoints', { exact: true }).selectOption('nearest');
+    await join.getByRole('button', { name: 'Prepare preview', exact: true }).click();
+    await join.getByTestId('drawing-cad-apply-plan').click();
+    const joined = (await scene(page)).shapes.find((s: any) => s.type === 'cad-bezier');
+    expect(joined.props.contours).toEqual(original.props.contours);
+    await page.getByTestId('drawing-undo').click();
+    await expect.poll(async () => (await scene(page)).shapes.find((s: any) => s.id === original.id).props.contours.length).toBe(2);
+    await page.getByRole('button', { name: 'Toggle read only' }).click();
+    await expect(join.getByRole('button', { name: 'Prepare preview', exact: true })).toBeDisabled();
+  });
   test(`${mode} keeps task drafts and edits compound curves through the Object menu`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);
@@ -72,7 +108,7 @@ for (const mode of ['idea', 'order']) {
     expect((await scene(page)).shapes.find((s: any) => s.id === original.id)).toEqual(original);
     await page.getByTestId('drawing-cad-task').selectOption('edit');
     const nodes = page.getByTestId('drawing-cad-nodes');
-    await nodes.locator('summary').click();
+    await nodes.locator(':scope > summary').click();
     await nodes.getByRole('button', { name: 'Split next segment', exact: true }).click();
     await expect.poll(async () => (await scene(page)).shapes.find((s: any) => s.id === original.id).props.contours[0].nodes.length).toBe(original.props.contours[0].nodes.length + 1);
     await page.getByTestId('drawing-cad-task').selectOption('files');

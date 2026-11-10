@@ -10,9 +10,9 @@
   type Analysis = IntakeResponse & { orderUpdatedAt:string|null; engine:string|null;profileIndex?:number|null;profileId?:string|null;production?:ProductionReview[];orderConflicts?:Array<{field:string;alternatives:IntakeProposal[]}> };
   type OrderFile = {id:string; originalName?:string; file_name?:string;
     mimeType?:string; mime_type?:string; size?:number};
-  let {orderId='',editable,current,selectedFileId='',selectedProfileIndex=null,
+  let {orderId='',editable,current,showHeading=true,selectedFileId='',selectedProfileIndex=null,
     profileNames=[],dirty=false,orderUpdatedAt=null,localFiles=[],onAddFiles,onApply}:{
-    orderId?:string; editable:boolean; current:Record<string,unknown>;
+    orderId?:string; showHeading?:boolean; editable:boolean; current:Record<string,unknown>;
     selectedFileId?:string; selectedProfileIndex?:number|null;
     profileNames?:string[]; dirty?:boolean; orderUpdatedAt?:string|null;
     localFiles?:Array<{id:string;file:File}>;
@@ -338,7 +338,7 @@
 </script>
 
 <section class="intake" aria-label={$t('orderIntake.title')} aria-busy={uploading||analyzing||applying}>
-  <header><h3>{$t('orderIntake.title')}</h3><p class="hint">{$t('orderIntake.description')}</p></header>
+  <header>{#if showHeading}<h3>{$t('orderIntake.title')}</h3>{/if}<p class="hint">{$t('orderIntake.description')}</p></header>
   <div class="upload-entry">
     <input bind:this={uploadInput} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple hidden onchange={uploadAndAnalyze}/>
     <button type="button" class="primary" onclick={()=>uploadInput?.click()} disabled={!editable||uploading||analyzing||applying||(!!orderId&&(dirty||!orderUpdatedAt))}>
@@ -366,13 +366,14 @@
     </select>
     <p class="hint">{$t(orderId?'orderIntake.profileFocusHint':'orderIntake.newProfileFocusHint')}</p>
     {#if orderId&&fileId&&isPdf}
+      <details class="pdf-options"><summary>{$t('orderIntake.pdfProcessing')} · {$t(pdfMode==='ocr'?'orderIntake.ocrLabel':pdfMode==='native'?'orderIntake.nativePdf':pdfMode==='visual'?'orderIntake.visualPdf':'orderIntake.textPdf')}</summary>
       <fieldset disabled={!editable||uploading||analyzing||applying}>
         <legend>{$t('orderIntake.pdfProcessing')}</legend>
         <label class="check"><input type="radio" bind:group={pdfMode} value="visual"/>{$t('orderIntake.visualPdf')}</label>
         <label class="check"><input type="radio" bind:group={pdfMode} value="text"/>{$t('orderIntake.textPdf')}</label>
         <label class="check"><input type="radio" bind:group={pdfMode} value="native" disabled={!capabilities.nativePdf}/>{$t('orderIntake.nativePdf')}</label>
         <label class="check"><input type="radio" bind:group={pdfMode} value="ocr" disabled={!capabilities.paidOcr}/>{$t('orderIntake.ocrLabel')}</label>
-      </fieldset>
+      </fieldset></details>
       <p class="hint">{$t(pdfMode==='ocr'?'orderIntake.ocrCharge':pdfMode==='native'?'orderIntake.nativePdfHint':pdfMode==='visual'?'orderIntake.visualPdfHint':'orderIntake.textPdfHint')}</p>
       {#if capabilitiesProblem}<p class="hint">{$t('orderIntake.processingSettingsError')}</p>
       {:else if !capabilities.nativePdf||!capabilities.paidOcr}<p class="hint">{$t('orderIntake.unavailableModes')}</p>{/if}
@@ -501,4 +502,5 @@
  .warning,.problem,.empty{padding:var(--space-sm);border:1px solid var(--border);border-radius:var(--radius-sm)}.problem{color:var(--error)}.warning{background:var(--bg-2)}.empty{color:var(--ink-secondary)}.success{font-weight:600}
  a{color:var(--link);font-size:var(--text-xs);text-underline-offset:3px}
  :is(button,select,input,summary,a):focus-visible{outline:2px solid var(--focus,var(--brand));outline-offset:3px}
+ .pdf-options > summary { cursor:pointer; padding:8px 0; font-weight:550; }
 </style>

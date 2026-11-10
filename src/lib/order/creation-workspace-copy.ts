@@ -1,0 +1,4 @@
+const en = { view: 'Order workspace', form: 'Form', drawing: 'Drawing', saveDraft: 'Save draft', more: 'More actions', sections: 'Go to order section', viewFailed: 'Could not preserve the drawing. Keep this view open and retry.' };
+const ru: typeof en = { view: 'Рабочее поле заказа', form: 'Форма', drawing: 'Чертёж', saveDraft: 'Сохранить черновик', more: 'Другие действия', sections: 'Перейти к разделу заказа', viewFailed: 'Не удалось сохранить состояние чертежа. Оставьте этот вид открытым и повторите попытку.' };
+const lv: typeof en = { view: 'Pasūtījuma darbvieta', form: 'Veidlapa', drawing: 'Rasējums', saveDraft: 'Saglabāt melnrakstu', more: 'Citas darbības', sections: 'Pāriet uz pasūtījuma sadaļu', viewFailed: 'Neizdevās saglabāt rasējuma stāvokli. Atstājiet šo skatu atvērtu un mēģiniet vēlreiz.' };
+export function creationWorkspaceCopy(locale: unknown) { return locale === 'ru' ? ru : locale === 'lv' ? lv : en; }

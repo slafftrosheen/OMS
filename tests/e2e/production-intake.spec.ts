@@ -34,6 +34,8 @@ test('New Order exposes upload and analysis before entering required fields, the
   return route.fulfill({json:request.url().endsWith('/api/ai/order-intake')?{nativePdf:false,paidOcr:false}:[]});
  });
  await page.goto('/production-intake.html?new');
+ await expect(page.locator('#new-order-intake')).not.toHaveAttribute('open', '');
+ await page.locator('#new-order-intake > summary').click();
  const button=page.getByRole('button',{name:'Upload & analyze PDF',exact:true});
  await expect(button).toBeVisible({timeout:10000});await expect(button).toBeEnabled();
  const chooser=page.waitForEvent('filechooser');await button.click();
@@ -505,4 +507,24 @@ test('saved draft upload uses canonical attachment storage then analyzes that li
  await expect(page.getByRole('heading',{name:'Review extracted choices'})).toBeVisible();
  expect(stored).toBe(true);expect(analyzed.fileId).toBe(uploaded);expect(analyzed.visualPdf).toBe(true);
  await expect(page.getByTestId('applied')).toHaveText('0');
+});
+
+for (const width of [390, 1440]) test(`new order workspace keeps fields while changing views at ${width}px`, async ({ page }) => {
+ await page.setViewportSize({width,height:950});
+ await page.route('**/api/**', route => route.fulfill({json:route.request().url().endsWith('/api/ai/order-intake') ? {nativePdf:false,paidOcr:false} : []}));
+ await page.goto('/production-intake.html?new');
+ await expect(page.locator('#new-order-intake')).not.toHaveAttribute('open', '');
+ await page.locator('#clientName').fill('TEST ONLY view retention');
+ await page.getByRole('button',{name:'Drawing',exact:true}).click();
+ await expect(page.getByTestId('drawing-workspace')).toBeVisible();
+ await expect(page.locator('#new-order-form')).toBeHidden();
+ await page.locator('.creation-sections').getByRole('button').nth(2).click();
+ await expect(page.locator('#new-order-form')).toBeVisible();
+ await expect(page.locator('#clientName')).toHaveValue('TEST ONLY view retention');
+ await expect(page.getByRole('button',{name:'Form',exact:true})).toHaveAttribute('aria-pressed','true');
+ await page.getByRole('button',{name:'Drawing',exact:true}).click();
+ await expect(page.getByTestId('drawing-workspace')).toBeVisible();
+ await page.getByRole('button',{name:'Save draft',exact:true}).click();
+ await expect(page.locator('#new-order-form')).toBeVisible();
+ await expect(page.locator('.error-banner')).toBeVisible();
 });

@@ -159,6 +159,41 @@ export function setCadCurveClosed(editor: Editor, ci: number, closed: boolean): 
     contours[ci].closed = closed;
   });
 }
+/** Open a closed seam, or split an open contour at an interior node. */
+export function breakCadCurveAtNode(editor: Editor, ci: number, ni: number): boolean {
+  return editCurve(editor, contours => {
+    const contour = contours[ci];
+    if (!contour || !Number.isInteger(ni) || !contour.nodes[ni]) throw new Error('node');
+    const endpoint = (node: CadBezierNode, start: boolean): CadBezierNode => ({ ...node, mode: 'corner',
+      ...(start ? { inX: 0, inY: 0 } : { outX: 0, outY: 0 }) });
+    if (contour.closed) {
+      const nodes = [...contour.nodes.slice(ni), ...contour.nodes.slice(0, ni)];
+      contour.nodes = [endpoint(nodes[0], true), ...nodes.slice(1), endpoint(nodes[0], false)];
+      contour.closed = false;
+    } else {
+      if (ni === 0 || ni === contour.nodes.length - 1) throw new Error('endpoint');
+      contours.splice(ci, 1,
+        { closed: false, nodes: [...contour.nodes.slice(0, ni), endpoint(contour.nodes[ni], false)] },
+        { closed: false, nodes: [endpoint(contour.nodes[ni], true), ...contour.nodes.slice(ni + 1)] });
+    }
+  });
+}
+/** Only the selected outgoing segment changes; its neighbours keep their controls. */
+export function setCadSegmentKind(editor: Editor, ci: number, ni: number, kind: 'line' | 'curve'): boolean {
+  return editCurve(editor, contours => {
+    const contour = contours[ci];
+    if (!contour || !Number.isInteger(ni) || !contour.nodes[ni] || !contour.closed && ni === contour.nodes.length - 1 ||
+        !['line', 'curve'].includes(kind)) throw new Error('segment');
+    const a = contour.nodes[ni], b = contour.nodes[(ni + 1) % contour.nodes.length];
+    // A cubic segment is already editable: never straighten it via To curve.
+    if (kind === 'curve' && (a.outX || a.outY || b.inX || b.inY)) throw new Error('already-curve');
+    const dx = (b.x - a.x) / 3, dy = (b.y - a.y) / 3;
+    if (kind === 'curve' && dx === 0 && dy === 0) throw new Error('zero-length');
+    a.outX = kind === 'line' ? 0 : dx; a.outY = kind === 'line' ? 0 : dy;
+    b.inX = kind === 'line' ? 0 : -dx; b.inY = kind === 'line' ? 0 : -dy;
+    a.mode = b.mode = 'corner';
+  });
+}
 /** Reverse the traversal without changing any cubic segment or the closed seam. */
 export function reverseCadContour(editor: Editor, ci: number): boolean {
   return editCurve(editor, contours => {

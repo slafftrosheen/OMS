@@ -14,6 +14,19 @@ Combine preserves a common fill rule, uses the last source's outline colour, and
 
 In the node editor, **Reverse contour direction** swaps incoming/outgoing handles and reverses traversal without moving the cut geometry. Closed contours keep their original seam. **Set node as start** rotates the node order of a closed contour to the chosen node, preserving all segments. Reversing a single font contour can change non-zero winding holes in subsequent shaping; review that result. These controls set geometry traversal only, not CAM lead-ins or machine cut order.
 
+## Joining, breaking and changing segments
+
+**Object → Join open curves** opens the connection review in Edit curves & shapes. Select two supported open curves, or one compound containing exactly two open contours. Closed contours and mixed font/even-odd fill rules are refused. The endpoint selector offers the nearest pair or an explicit start/end combination in source selection order. Preview reports the actual endpoint gap in millimetres, independently of document display units and scale.
+
+- **Add straight bridge** retains every original cubic segment. It adds a straight connection between the chosen endpoints; exactly coincident endpoints are merged without an extra zero-length segment.
+- **Merge endpoints** requires a user-set maximum gap of 0.001–1 mm. Each endpoint moves to the midpoint by half the gap. Adjacent absolute control points stay fixed; the two neighbouring curves can change within that endpoint movement. Gaps above tolerance are refused.
+
+Applying replaces the source objects in one undo operation. Selection/document/input changes invalidate the preview; locked, read-only, bound and protected form objects cannot be replaced. Source arcs use the existing 0.005 mm cubic conversion and disclose it. The output is always an open curve; joining does not auto-close coincident outer endpoints or generate CAM lead-ins.
+
+The F10 node editor separates **Segment editing** from **Contour editing**. **Break curve at node** opens a closed contour at the chosen node while retaining its closing cubic, or splits an open contour at an interior node into two paths within the same object. Use Break apart for independent objects, or Join to reconnect the two paths. This adds one node and obeys the existing node/contour limits.
+
+**To straight segment** removes only the outgoing/incoming controls of the selected segment; adjacent segments retain their controls. **To Bézier segment** adds one-third/two-thirds controls to a straight segment, preserving its line geometry and making its handles draggable. It does not straighten an existing Bézier curve. For an open contour, the last node has no outgoing segment. Node operations are undoable and respect locks/read-only state.
+
 ## Operator flow
 
 1. Open **Layout → Document units & scale**, or the **CAD** docker. Select mm, cm, m or inches; set drawing scale and decimal places, then **Apply settings**. An old drawing stays in pixels until explicitly configured.
@@ -72,10 +85,10 @@ Limits: 2–256 vertices per simple CAD path, at least three for closed paths; B
 
 ## Verification and remaining work
 
-The CAD unit suite exercises the native schema store round trip and native resize/mirror implementations, including rotated parents, unit conversion, calibration, reference points, exact small geometry, endpoint snapping, drawing history, permissions, mixed-case native point ordering and DXF omission/limit handling. Compound tests independently parse DXF before and after splitting, compare cubic controls under rotated parents, and check traversal reversal, closed seams, undo and rejected mutations. Browser cases are provided for both hosts: task draft retention, compound operations, interactive contours, physical unit changes, text outlines, node splitting, import/offset previews, DXF downloads and stale-review guards. They have not run successfully in this hosted environment.
+The CAD unit suite exercises the native schema store round trip and native resize/mirror implementations, including rotated parents, unit conversion, calibration, reference points, exact small geometry, endpoint snapping, drawing history, permissions, mixed-case native point ordering and DXF omission/limit handling. Join tests check all endpoint orientations, transformed control points, physical gap limits, exact break/rejoin round trips, open-seam DXF output and protected mutations. Compound tests independently parse DXF before and after splitting, compare cubic controls under rotated parents, and check traversal reversal, closed seams, undo and rejected mutations. Browser cases are provided for both hosts: task draft retention, compound operations, break/join previews, interactive contours, physical unit changes, text outlines, node splitting, import/offset previews, DXF downloads and stale-review guards. They have not run successfully in this hosted environment.
 
 ```sh
-node packages/vitest/bin.js tests/unit/cad-drawing.test.ts tests/unit/cad-advanced.test.ts tests/unit/cad-compound.test.ts
+node packages/vitest/bin.js tests/unit/cad-drawing.test.ts tests/unit/cad-advanced.test.ts tests/unit/cad-compound.test.ts tests/unit/cad-join.test.ts
 npx playwright test --config tests/ui/playwright.drawing-workspace.config.ts
 node --import tsx scripts/qa/export-cad-fixture.ts
 # Optional independent QA dependency, not needed by OMS at runtime:

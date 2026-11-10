@@ -5,7 +5,9 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { modalDialog } from '$lib/ui/modal-dialog';
   import { goto } from '$app/navigation';
-  import { t } from 'svelte-i18n';
+  import { t, locale } from 'svelte-i18n';
+  import { creationWorkspaceCopy } from '$lib/order/creation-workspace-copy';
+  const workspaceCopy = $derived(creationWorkspaceCopy($locale));
   import OrderWorkflowCoach from '$lib/order/OrderWorkflowCoach.svelte';
   import type {GuideStepId} from '$lib/order/order-flow-guidance';
   import type {WorkspaceSection} from '$lib/order/workspace-navigation';
@@ -42,6 +44,8 @@
   let clientName = $state('');
   let title = $state('');
   let intakeFileId=$state('');
+  let intakeOpen=$state(false);
+  let switchingView=$state(false);
   let poNumber = $state('');
   let deadline = $state('');
   let loadingDate = $state('');
@@ -97,13 +101,15 @@
   let fileUploadInput: HTMLInputElement | undefined = $state();
   let newGuideStep=$state<GuideStepId>('brief');
   let newGuideSection=$state<WorkspaceSection>('details');
-  function jumpToNewStep(_target:WorkspaceSection,step:GuideStepId){
+  async function jumpToNewStep(_target:WorkspaceSection,step:GuideStepId){
     assistant.close();
     newGuideStep=step;
     newGuideSection=step==='files'?'files':step==='review'?'readiness':'details';
     const anchor=step==='brief'?'new-order-details':
       step==='profiles'?'new-order-profiles':
       step==='files'?'new-order-files':'new-order-save';
+    if (canvasMode && step !== 'review') await toggleCanvas();
+    await tick();
     document.getElementById(anchor)?.scrollIntoView({
       behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
       block: 'start'
@@ -442,9 +448,12 @@
     if(typeof patch.rdNotes==='string')rdNotes=patch.rdNotes;
     if(Array.isArray(patch.profiles))profiles=patch.profiles as ProfileItem[];
   }
-  function analyzeAttachment(index:number){
+  async function analyzeAttachment(index:number){
     intakeFileId=uploadedFiles[index]?.uploadId??'';
+    intakeOpen=true;
+    await tick();
     document.getElementById('new-order-intake')?.scrollIntoView({block:'start'});
+    document.querySelector<HTMLElement>('#new-order-intake > summary')?.focus();
   }
 
   let canvasMode=$state(false);
@@ -454,8 +463,20 @@
   const localUrls:string[]=[];
   onDestroy(()=>localUrls.forEach(url=>URL.revokeObjectURL(url)));
   async function toggleCanvas(){
-    if(canvasMode&&creationEditor){const {getSnapshot}=await import('@tldraw/tldraw');creationSnapshot=getSnapshot(creationEditor.store);}
-    canvasMode=!canvasMode;creationEditor=null;
+    if (saving || switchingView) return;
+    switchingView=true;
+    try {
+      if(canvasMode&&creationEditor){const {getSnapshot}=await import('@tldraw/tldraw');creationSnapshot=getSnapshot(creationEditor.store);}
+      canvasMode=!canvasMode;creationEditor=null;
+    } catch { error=workspaceCopy.viewFailed; }
+    finally { switchingView=false; }
+  }
+  async function revealOrderSection(id:string){
+    if (canvasMode) await toggleCanvas();
+    if (canvasMode) return;
+    await tick();
+    const target=document.getElementById(id);
+    target?.scrollIntoView({block:'start'});target?.focus({preventScroll:true});
   }
   async function addCanvasFiles(files:File[],position:{x:number;y:number}){
     const editor=creationEditor;if(!editor||saving)return;
@@ -536,13 +557,6 @@
     }, profiles),
     content: draftAssistantContent
   }));
-
-  let isAdmin = $derived(
-    $currentUser?.role === 'RD' || 
-    $currentUser?.role === 'Boss' || 
-    $currentUser?.role === 'HeadOfProduction'
-  );
-  let isSuperAdmin = $derived($currentUser?.role === 'RD' || $currentUser?.role === 'Boss');
 
   onMount(() => {
     Promise.all([
@@ -691,7 +705,7 @@
   }
 
   function removeFile(index: number) {
-    if (saving || preparingFiles || successMessage) return;
+    if (saving || switchingView || preparingFiles || successMessage) return;
     const removed = uploadedFiles[index];
     if(removed){removedCanvasFiles.add(removed.uploadId);if(creationEditor)creationEditor.deleteShapes(creationEditor.getCurrentPageShapes().filter((shape:any)=>shape.props?.fileId===removed.uploadId).map((shape:any)=>shape.id));}
     uploadedFiles = uploadedFiles.filter((_, i) => i !== index);
@@ -732,7 +746,7 @@
   }
 
   async function saveOrder(destination:'review'|'assistant'|'intake'|'draft'='review') {
-    if (saving || preparingFiles || successMessage) return;
+    if (saving || switchingView || preparingFiles || successMessage) return;
     if (!can($currentUser, 'createDraftOrder')) { error = 'Manager role required to create orders'; return; }
     error = '';
     fieldErrors = {};
@@ -755,6 +769,8 @@
     // If any validation failed, surface the first message as the banner error.
     if (Object.keys(fieldErrors).length > 0) {
       error = $t('orders.new.messages.validation.summary') || 'Please fix the highlighted fields.';
+      await revealOrderSection(fieldErrors.files ? 'new-order-files' : 'new-order-details');
+      document.querySelector<HTMLElement>('#new-order-form [aria-invalid="true"]')?.focus();
       return;
     }
 
@@ -902,7 +918,7 @@
     <p>{$t('orderAssistant.saveAndAskHint')}</p>
     <button class="btn-secondary" type="button"
       onclick={()=>void saveOrder('assistant')}
-      disabled={saving || preparingFiles || !!successMessage || !can($currentUser, 'createDraftOrder')}>
+      disabled={saving || switchingView || preparingFiles || !!successMessage || !can($currentUser, 'createDraftOrder')}>
       <Icon name="save" size="sm" /> {$t('orderAssistant.saveAndAsk')}
     </button>
     {#if error}<p class="assistant-form-error" role="alert">{error}</p>{/if}
@@ -919,29 +935,30 @@
 <div class="page-container">
   <header class="page-header">
     <div class="header-left">
-      <a href="/orders" class="back-link">
+      <a href="{base}/orders" class="back-link">
         <Icon name="arrow-left" size="md" />
         {$t('orders.new.back')}
       </a>
       <h1>{$t('orders.new.title')}</h1>
-      {#if isSuperAdmin}
-        <span class="role-badge superadmin">{$t('roles.superadmin')}</span>
-      {:else if isAdmin}
-        <span class="role-badge admin">{$t('roles.admin')}</span>
-      {/if}
+
     </div>
     <div class="header-actions">
-      <button type="button" class="btn-secondary" onclick={toggleCanvas} disabled={saving}>{canvasMode?'Form view':'Canvas view'}</button>
-      {#if canvasMode}<button type="button" class="btn-secondary" onclick={()=>void saveOrder('draft')} disabled={saving||preparingFiles}>{$t('orderWorkspace.editor.saveAll')}</button>{/if}
-      <button class="btn-secondary" onclick={() => goto('/orders')}>
-        {$t('actions.cancel')}
+      <button type="button" class="btn-secondary" onclick={()=>void saveOrder('draft')}
+        disabled={saving||switchingView||preparingFiles||!!successMessage||!can($currentUser,'createDraftOrder')}>
+        <Icon name="save" size="sm" /> {workspaceCopy.saveDraft}
       </button>
-      <button type="button" class="btn-secondary" onclick={()=>void saveOrder('intake')}
-        disabled={saving||preparingFiles||!!successMessage||!can($currentUser,'createDraftOrder')}>
-        <Icon name="file-text" size="sm" /> {$t('orderIntake.saveAndAnalyze')}
-      </button>
+      <details class="creation-more">
+        <summary class="btn-secondary">{workspaceCopy.more}</summary>
+        <div>
+          <button type="button" class="btn-secondary" onclick={()=>void saveOrder('intake')}
+            disabled={saving||switchingView||preparingFiles||!!successMessage||!can($currentUser,'createDraftOrder')}>
+            <Icon name="file-text" size="sm" /> {$t('orderIntake.saveAndAnalyze')}
+          </button>
+          <button type="button" class="btn-secondary" disabled={saving||switchingView} onclick={() => goto(`${base}/orders`)}>{$t('actions.cancel')}</button>
+        </div>
+      </details>
       <button id="new-order-save" type="button" class="btn-primary" use:nextActionHalo={canContinueToReview}
-        aria-busy={saving} onclick={()=>void saveOrder('review')} disabled={saving || preparingFiles || !!successMessage || !can($currentUser, 'createDraftOrder')}>
+        aria-busy={saving} onclick={()=>void saveOrder('review')} disabled={saving || switchingView || preparingFiles || !!successMessage || !can($currentUser, 'createDraftOrder')}>
         {#if saving}
           <span class="spinner"></span>
           {$t('actions.saving')}
@@ -952,6 +969,17 @@
       </button>
     </div>
   </header>
+  <div class="creation-workspace-bar">
+    <div class="creation-view" role="group" aria-label={workspaceCopy.view}>
+      <button type="button" aria-pressed={!canvasMode} disabled={saving||switchingView} onclick={() => { if(canvasMode) void toggleCanvas(); }}>{workspaceCopy.form}</button>
+      <button type="button" aria-pressed={canvasMode} disabled={saving||switchingView} onclick={() => { if(!canvasMode) void toggleCanvas(); }}>{workspaceCopy.drawing}</button>
+    </div>
+    <nav class="creation-sections" aria-label={workspaceCopy.sections}>
+      {#each ['profiles','files','details','delivery'] as section}
+        <button type="button" disabled={saving||switchingView} onclick={() => void revealOrderSection(`new-order-${section}`)}>{$t(`orders.new.sections.${section}`)}</button>
+      {/each}
+    </nav>
+  </div>
 
   {#if error}
     <div class="error-banner" role="alert">
@@ -971,18 +999,19 @@
   {/if}
   {#if presetNotice}<div class="success-banner" role="status">{presetNotice}</div>{/if}
 
-  <section id="new-order-intake" class="form-section full-width">
-    <OrderIntakeAssistant editable={!saving&&can($currentUser,'createDraftOrder')}
+  <details id="new-order-intake" class="intake-disclosure full-width" bind:open={intakeOpen}>
+    <summary>{$t('orderIntake.title')}</summary>
+    <OrderIntakeAssistant showHeading={false} editable={!saving&&can($currentUser,'createDraftOrder')}
       current={{clientName,title,deadline,loadingDate,priority,notes,deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail,isRd,rdNotes,profiles}}
       localFiles={uploadedFiles.map(entry=>({id:entry.uploadId,file:entry.file}))}
       onAddFiles={async files=>(await addFiles(files)).map(entry=>({id:entry.uploadId,file:entry.file}))}
       selectedFileId={intakeFileId} selectedProfileIndex={0}
       profileNames={profiles.map(profile=>profile.configuration?.profileName??'')}
       onApply={applyIntakeFields}/>
-  </section>
+  </details>
 
   {#if canvasMode}
-    <section aria-label="Draft canvas" style="height:75vh;min-height:600px;position:relative;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden">
+    <section aria-label={workspaceCopy.drawing} style="height:75vh;min-height:600px;position:relative;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden">
       {#await import('$lib/components/canvas/TldrawWrapper.svelte') then module}
         <module.default snapshot={creationSnapshot} onReady={editor=>creationEditor=editor} onSave={snapshot=>creationSnapshot=snapshot}
           onError={message=>error=message} onFilesUpload={addCanvasFiles} toolkitReadOnly={saving}
@@ -993,9 +1022,9 @@
       {/await}
     </section>
   {/if}
-  <div hidden={canvasMode}>
+  <div id="new-order-form" hidden={canvasMode}>
   <!-- 1. PROFILES SECTION (TOP) -->
-  <section id="new-order-profiles" class="profiles-section full-width">
+  <section id="new-order-profiles" tabindex="-1" class="profiles-section full-width">
     <div class="profiles-header">
       <h2>
         <Icon name="file-text" size="md" />
@@ -1061,7 +1090,7 @@
   </section>
 
   <!-- 2. FILES SECTION (MIDDLE) -->
-  <section id="new-order-files" class="card files-card full-width">
+  <section id="new-order-files" tabindex="-1" class="card files-card full-width">
     <h2>
       <Icon name="upload" size="md" />
       {$t('orders.new.sections.files')} <span class="required">*</span>
@@ -1211,7 +1240,7 @@
   <!-- 3. CLIENT & DELIVERY SECTION (BOTTOM) -->
   <div class="client-delivery-row">
     <!-- Order Details Card -->
-    <section id="new-order-details" class="card details-card">
+    <section id="new-order-details" tabindex="-1" class="card details-card">
       <h2>
         <Icon name="file-text" size="md" />
         {$t('orders.new.sections.details')}
@@ -1220,7 +1249,7 @@
     </section>
 
     <!-- Delivery Address Card -->
-    <section class="card delivery-card">
+    <section id="new-order-delivery" tabindex="-1" class="card delivery-card">
       <h2>
           <Icon name="map-pin" size="md" />
           {$t('orders.new.sections.delivery')}
@@ -1452,24 +1481,8 @@
     gap: 12px;
   }
 
-  .role-badge {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 4px 8px;
-    border-radius: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
 
-  .role-badge.superadmin {
-    background: var(--brand);
-    color: var(--bg-0);
-  }
 
-  .role-badge.admin {
-    background: linear-gradient(135deg, var(--brand), color-mix(in oklab, var(--brand) 70%, var(--bg-0)));
-    color: var(--bg-0);
-  }
 
   .header-actions {
     display: flex;
@@ -2338,7 +2351,7 @@
   .header-actions { flex-wrap:wrap;align-items:center;gap:var(--space-sm); }
   .btn-primary,.btn-secondary { min-height:42px;border-radius:var(--radius-md);
     font:inherit;font-weight:650;padding:10px 16px; }
-  .btn-primary,.role-badge.superadmin,.role-badge.admin { color:var(--on-brand); }
+  .btn-primary { color:var(--on-brand); }
   .btn-primary { background:var(--brand);box-shadow:var(--elevation-1); }
   .btn-primary:hover:not(:disabled) { background:var(--brand-2);box-shadow:var(--elevation-2); }
   .btn-secondary { background:var(--bg-1);color:var(--ink-secondary);
@@ -2397,4 +2410,22 @@
     .profile-actions { width:100%; }
     .preview-controls { flex-wrap:wrap; }
   }
+  .creation-workspace-bar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--space-md); margin-bottom:var(--space-lg); }
+  .creation-view { display:flex; padding:4px; gap:4px; background:var(--bg-2); border:1px solid var(--border); border-radius:var(--radius-md); }
+  .creation-view button, .creation-sections button { min-height:40px; padding:8px 12px; border:1px solid transparent; border-radius:var(--radius-sm); background:transparent; color:var(--ink-primary); font:inherit; cursor:pointer; }
+  .creation-view button[aria-pressed="true"] { background:var(--bg-1); border-color:var(--border); font-weight:600; }
+  .creation-sections { display:flex; flex-wrap:wrap; gap:4px; }
+  .creation-sections button { color:var(--link); text-decoration:underline; text-underline-offset:3px; }
+  .creation-more { position:relative; }
+  .creation-more > summary { cursor:pointer; list-style:none; min-height:40px; }
+  .creation-more > summary::-webkit-details-marker { display:none; }
+  .creation-more > div { position:absolute; right:0; top:calc(100% + 6px); z-index:var(--z-dropdown,30); display:grid; gap:4px; width:280px; max-width:85vw; padding:8px; background:var(--bg-1); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:var(--elevation-2); }
+  .creation-more > div button { text-align:left; }
+  .intake-disclosure { margin-bottom:var(--space-lg); border:1px solid var(--border); border-radius:var(--radius-md); background:var(--bg-1); }
+  .intake-disclosure :global(.intake) { padding:0 var(--space-md) var(--space-md); }
+  .intake-disclosure > summary { padding:var(--space-md); cursor:pointer; font-weight:600; }
+  .creation-workspace-bar button:focus-visible, .creation-more summary:focus-visible, .intake-disclosure > summary:focus-visible { outline:2px solid var(--focus,var(--brand)); outline-offset:2px; }
+  .creation-workspace-bar button:hover:not(:disabled) { background:var(--bg-2); }
+  .creation-workspace-bar button:disabled { opacity:.5; cursor:not-allowed; }
+  #new-order-form [tabindex="-1"] { scroll-margin-top:var(--space-lg); }
 </style>
