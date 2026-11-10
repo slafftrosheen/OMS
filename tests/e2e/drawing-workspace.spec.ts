@@ -16,6 +16,66 @@ async function drawRectangle(page: Page) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} CAD uses physical units, retains saved geometry and exports exact DXF`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await page.getByTestId('drawing-cad-toggle').click();
+    const panel = page.getByTestId('drawing-cad-panel');
+    await panel.getByLabel('Drawing scale 1 :', { exact: true }).fill('10');
+    await page.getByTestId('drawing-cad-apply').click();
+    await expect.poll(async () => (await scene(page)).page.meta.omsCad.scale).toBe(10);
+    await panel.locator('summary').filter({ hasText: /^Exact geometry$/ }).click();
+    await panel.getByLabel('Width (mm)', { exact: true }).fill('1200');
+    await panel.getByLabel('Height (mm)', { exact: true }).fill('600');
+    await page.getByTestId('drawing-cad-create').click();
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'cad-path').length).toBe(1);
+    const saved = await scene(page), panelShape = saved.shapes.find((s: any) => s.type === 'cad-path');
+    expect(panelShape.props.points[1].x * 25.4 / 96 * 10).toBeCloseTo(1200, 8);
+    await page.evaluate(() => (window as any).__drawingFixture.roundTrip());
+    expect((await scene(page)).shapes.find((s: any) => s.id === panelShape.id)).toEqual(panelShape);
+    await panel.getByLabel('Drawing unit', { exact: true }).selectOption('in');
+    await page.getByTestId('drawing-cad-apply').click();
+    await expect.poll(async () => (await scene(page)).page.meta.omsCad.nudge).toBeCloseTo(1 / 25.4, 8);
+    expect((await scene(page)).shapes.find((s: any) => s.id === panelShape.id)).toEqual(panelShape);
+    await page.getByTestId('drawing-cad-review').click();
+    await expect(page.getByTestId('drawing-cad-report')).toContainText('1200 × 600');
+    const downloading = page.waitForEvent('download');
+    await page.getByTestId('drawing-cad-download').click();
+    const download = await downloading, path = await download.path();
+    if (!path) throw new Error('DXF download unavailable');
+    const dxf = await readFile(path, 'utf8');
+    expect(dxf).toMatch(/\$INSUNITS\r\n70\r\n4/);
+    expect(dxf).toContain('LWPOLYLINE'); expect(dxf).toContain('OMS_CLOSED');
+    // Settings invalidate the report; no stale file is offered.
+    await panel.getByLabel('Drawing scale 1 :', { exact: true }).fill('1');
+    await page.getByTestId('drawing-cad-apply').click();
+    await expect(page.getByTestId('drawing-cad-download')).toBeDisabled();
+    if (mode === 'order') {
+      await panel.getByLabel('Export scope', { exact: true }).selectOption('all');
+      await page.getByTestId('drawing-cad-review').click();
+      await expect(page.getByTestId('drawing-cad-download')).toBeDisabled();
+      await panel.getByRole('checkbox', { name: 'I have reviewed and accept the listed omissions.' }).check();
+      await expect(page.getByTestId('drawing-cad-download')).toBeEnabled();
+      expect((await scene(page)).shapes.filter((s: any) => s.type === 'order-details')).toEqual(saved.shapes.filter((s: any) => s.type === 'order-details'));
+    }
+    await page.getByRole('button', { name: 'Toggle read only' }).click();
+    await expect(page.getByTestId('drawing-cad-create')).toBeDisabled();
+    await expect(page.getByTestId('drawing-cad-apply')).toBeDisabled();
+  });
+  test(`${mode} CAD polyline closes through pointer input and undoes as one drawing`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await expect(page.getByTestId('drawing-tool-select')).toBeVisible();
+    await page.evaluate(() => (window as any).__drawingFixture.emptyArea());
+    await page.getByTestId('drawing-tool-cad-polyline').click();
+    const viewport = await page.locator('.drawing-viewport').boundingBox();
+    if (!viewport) throw new Error('Drawing viewport missing');
+    for (const [x, y] of [[80, 100], [280, 100], [280, 250], [80, 100]]) await page.mouse.click(viewport.x + x, viewport.y + y, { delay: 60 });
+    await expect.poll(async () => (await scene(page)).shapes.find((s: any) => s.type === 'cad-path')?.props.closed).toBe(true);
+    expect((await scene(page)).shapes.find((s: any) => s.type === 'cad-path').props.points).toHaveLength(3);
+    await page.getByTestId('drawing-undo').click();
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'cad-path').length).toBe(0);
+  });
   test(`${mode} uses shared drawing controls, numeric history and readonly guards`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);

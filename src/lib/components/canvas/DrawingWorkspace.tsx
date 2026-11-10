@@ -11,10 +11,14 @@ import { captureToolkitControls } from './toolkit-controls';
 import { applyDrawingCommand, drawingTransaction, toggleDrawingObjectLock, transformDrawingSelection, type DrawingTransformField } from './drawing-commands';
 import { useDrawingText, type DrawingLabel } from './drawing-copy';
 import { drawingObjectAlias, drawingObjectName, drawingPngSize, renameDrawingObject, repeatDrawingSelection, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
+import { CadPanel } from './CadPanel';
+import { useCadText, type CadLabel } from './cad-copy';
+import { canvasLengthToUnit, canvasPointToCad, readCadSettings, unitLengthToCanvas, type CadSettings } from './cad-settings';
+import { getCadSelection, nudgeCadSelection, transformCadSelection, type CadAnchor } from './cad-geometry';
 import './drawing-workspace.css';
 
-type Slot = 'commands' | 'properties' | 'tools' | 'docker' | 'palette' | 'status' | 'rulerX' | 'rulerY';
-type Panel = 'properties' | 'objects' | null;
+type Slot = 'commands' | 'properties' | 'tools' | 'docker' | 'palette' | 'status' | 'rulerX' | 'rulerY' | 'rulerOrigin';
+type Panel = 'properties' | 'objects' | 'cad' | null;
 interface WorkspaceContext {
   hosts: Partial<Record<Slot, HTMLElement>>;
   panel: Panel;
@@ -35,7 +39,7 @@ export function DrawingWorkspace({ children, order, hidden, onImport }: {
   const [panel, setPanel] = useState<Panel>('properties');
   const [compact, setCompact] = useState(false);
   const refs = useMemo(() => Object.fromEntries(
-    ['commands', 'properties', 'tools', 'docker', 'palette', 'status', 'rulerX', 'rulerY'].map(name => [name,
+    ['commands', 'properties', 'tools', 'docker', 'palette', 'status', 'rulerX', 'rulerY', 'rulerOrigin'].map(name => [name,
       (node: HTMLElement | null) => setHosts(previous => previous[name] === node ? previous : { ...previous, [name]: node })])
   ) as Record<Slot, (node: HTMLElement | null) => void>, []);
   useEffect(() => {
@@ -59,7 +63,7 @@ export function DrawingWorkspace({ children, order, hidden, onImport }: {
         <div className="drawing-toolbox" ref={refs.tools} />
       </>}
       <div className="drawing-page">
-        {!hidden && <><span className="drawing-ruler-origin">px</span>
+        {!hidden && <><span className="drawing-ruler-origin" ref={refs.rulerOrigin} />
           <div className="drawing-ruler drawing-ruler-x" ref={refs.rulerX} />
           <div className="drawing-ruler drawing-ruler-y" ref={refs.rulerY} />
         </>}
@@ -78,6 +82,7 @@ const iconPaths: Record<string, ReactNode> = {
   hand: <><path d="M7 11V6a2 2 0 0 1 4 0v5-7a2 2 0 0 1 4 0v7-5a2 2 0 0 1 4 0v9c0 5-3 7-6 7s-5-2-7-5l-3-5c-1-2 1-3 3-1l3 3" /></>,
   draw: <><path d="m4 17 12-13 4 4L8 21H4Zm10-11 4 4M3 5c4-4 8 2 3 5s-5 4-2 5" /></>,
   line: <><path d="m4 20 16-16" /><circle cx="4" cy="20" r="1.5" /><circle cx="20" cy="4" r="1.5" /></>,
+  'cad-polyline': <><path d="M4 19 9 5l10 7-6 7Z" /><rect x="2" y="17" width="4" height="4" /><rect x="7" y="3" width="4" height="4" /><rect x="17" y="10" width="4" height="4" /></>,
   arrow: <path d="M4 20 20 4M10 4h10v10" />,
   rectangle: <rect x="4" y="5" width="16" height="14" rx="1" />,
   ellipse: <ellipse cx="12" cy="12" rx="9" ry="7" />,
@@ -109,7 +114,7 @@ function ToolButton({ label, icon, active, disabled, onClick, children, testId }
 }
 
 const geometryTools = ['rectangle', 'ellipse', 'triangle', 'diamond', 'pentagon', 'star'] as const;
-const tools = ['select', 'hand', 'draw', 'line', 'arrow', ...geometryTools, 'text', 'highlight', 'eraser', 'frame'];
+const tools = ['select', 'hand', 'draw', 'line', 'cad-polyline', 'arrow', ...geometryTools, 'text', 'highlight', 'eraser', 'frame'];
 const toolKeys: Record<string, string> = { select: 'toolkit.draw.selectTitle', draw: 'toolkit.draw.drawTitle', text: 'toolkit.draw.textTitle', arrow: 'toolkit.draw.arrowTitle' };
 const shortcut: Record<string, string> = { rectangle: 'F6', ellipse: 'F7', text: 'F8', select: 'V', draw: 'D', line: 'L', arrow: 'A', hand: 'H', eraser: 'E' };
 
@@ -131,6 +136,48 @@ function NumberField({ field, value, disabled, label }: { field: DrawingTransfor
   </label>;
 }
 
+function CadNumberField({ field, value, disabled, label, settings, anchor, proportional }: {
+  field: DrawingTransformField; value: number | undefined; disabled: boolean; label: string;
+  settings: CadSettings; anchor: CadAnchor; proportional: boolean;
+}) {
+  const editor = useEditor(); const { label: cadLabel } = useCadText(); const errorId = useId();
+  const displayed = value === undefined ? '' : String(Number(value.toFixed(settings.precision)));
+  const [draft, setDraft] = useState(displayed); const [failed, setFailed] = useState(false);
+  const cancelBlur = useRef(false);
+  useEffect(() => { setDraft(displayed); setFailed(false); }, [value, settings.precision, settings.unit, settings.scale, anchor]);
+  const valid = !!draft.trim() && Number.isFinite(Number(draft)) && Math.abs(Number(draft)) <= 1_000_000 && (!['w', 'h'].includes(field) || Number(draft) > 0);
+  function commit() {
+    if (cancelBlur.current) { cancelBlur.current = false; return; }
+    if (draft === displayed) return;
+    if (!valid || !transformCadSelection(editor, field, Number(draft), settings, anchor, proportional)) { setFailed(true); return; }
+    setFailed(false);
+  }
+  return <label className="drawing-number"><span>{field === 'rotation' ? '∠' : field.toUpperCase()}</span>
+    <input type="number" aria-label={`${label} (${field === 'rotation' ? '°' : settings.unit})`} aria-invalid={value !== undefined && (!valid || failed)}
+      aria-describedby={value !== undefined && (!valid || failed) ? errorId : undefined} title={failed ? cadLabel('failed') : label}
+      value={draft} disabled={disabled || value === undefined} step={field === 'rotation' ? 1 : settings.nudge}
+      onChange={event => { setDraft(event.target.value); setFailed(false); }} onBlur={commit}
+      onKeyDown={event => { event.stopPropagation(); if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { cancelBlur.current = true; setDraft(displayed); setFailed(false); event.currentTarget.blur(); } }} />
+    {value !== undefined && (!valid || failed) && <span className="drawing-sr-only" id={errorId} role="alert">{cadLabel(failed ? 'failed' : 'invalidNumber')}</span>}
+  </label>;
+}
+
+const cadAnchors: Array<[CadAnchor, CadLabel]> = [
+  ['top-left', 'anchorTopLeft'], ['top', 'anchorTop'], ['top-right', 'anchorTopRight'],
+  ['left', 'anchorLeft'], ['center', 'anchorCenter'], ['right', 'anchorRight'],
+  ['bottom-left', 'anchorBottomLeft'], ['bottom', 'anchorBottom'], ['bottom-right', 'anchorBottomRight'],
+];
+function CadAnchorControl({ value, onChange }: { value: CadAnchor; onChange: (anchor: CadAnchor) => void }) {
+  const { label } = useCadText();
+  return <label className="drawing-cad-anchor" title={label('anchor')}>
+    <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">{cadAnchors.map(([anchor], index) =>
+      <rect key={anchor} x={4 + index % 3 * 8} y={4 + Math.floor(index / 3) * 8} width="4" height="4" fill={anchor === value ? 'var(--brand)' : 'currentColor'} opacity={anchor === value ? 1 : .35} />)}</svg>
+    <select value={value} aria-label={label('anchor')} onChange={event => onChange(event.target.value as CadAnchor)}>
+      {cadAnchors.map(([anchor, key]) => <option key={anchor} value={anchor}>{label(key)}</option>)}
+    </select>
+  </label>;
+}
+
 function ObjectNameField({ shape, disabled }: { shape: TLShape; disabled: boolean }) {
   const editor = useEditor(); const { label } = useDrawingText();
   const alias = drawingObjectAlias(shape);
@@ -148,42 +195,67 @@ function ObjectNameField({ shape, disabled }: { shape: TLShape; disabled: boolea
   </form>;
 }
 
-function RepeatGrid({ selected, disabled }: { selected: readonly TLShapeId[]; disabled: boolean }) {
-  const editor = useEditor(); const { label } = useDrawingText();
-  const [values, setValues] = useState({ rows: '2', columns: '2', gapX: '24', gapY: '24' });
+function RepeatGrid({ selected, disabled, settings }: { selected: readonly TLShapeId[]; disabled: boolean; settings: CadSettings | null }) {
+  const editor = useEditor(); const { label } = useDrawingText(); const { label: cadLabel } = useCadText();
+  const initialGap = settings ? String(Number(canvasLengthToUnit(24, settings).toFixed(settings.precision))) : '24';
+  const [values, setValues] = useState({ rows: '2', columns: '2', gapX: initialGap, gapY: initialGap });
+  const previousSettings = useRef(settings);
   const [message, setMessage] = useState('');
+  const errorId = useId();
+  useEffect(() => {
+    const previous = previousSettings.current;
+    const convert = (value: string) => {
+      if (!value.trim() || !Number.isFinite(Number(value))) return value;
+      const px = previous ? unitLengthToCanvas(Number(value), previous) : Number(value);
+      return String(Number((settings ? canvasLengthToUnit(px, settings) : px).toFixed(settings?.precision ?? 2)));
+    };
+    setValues(current => ({ ...current, gapX: convert(current.gapX), gapY: convert(current.gapY) }));
+    previousSettings.current = settings;
+  }, [settings?.unit, settings?.scale, settings?.precision]);
+  const gap = (value: string) => value.trim() ? settings ? unitLengthToCanvas(Number(value), settings) : Number(value) : NaN;
+  const rows = Number(values.rows), columns = Number(values.columns), gapX = gap(values.gapX), gapY = gap(values.gapY);
+  const valid = Number.isInteger(rows) && Number.isInteger(columns) && rows >= 1 && columns >= 1 && rows <= 20 && columns <= 20 && rows * columns >= 2 &&
+    [gapX, gapY].every(value => Number.isFinite(value) && Math.abs(value) <= 10000);
+  const gapLimit = settings ? canvasLengthToUnit(10000, settings) : 10000;
   return <details className="drawing-repeat"><summary>{label('repeatGrid')}</summary>
     <form onSubmit={event => {
-      event.preventDefault();
-      const result = repeatDrawingSelection(editor, { rows: Number(values.rows), columns: Number(values.columns), gapX: values.gapX.trim() ? Number(values.gapX) : NaN, gapY: values.gapY.trim() ? Number(values.gapY) : NaN }, [...selected]);
+      event.preventDefault(); if (!valid) return;
+      const result = repeatDrawingSelection(editor, { rows, columns, gapX, gapY }, [...selected]);
       setMessage(result.ok === true ? `${label('copiesCreated')}: ${result.value}` : label(result.error));
     }}>
-      <fieldset className="drawing-style-fields" disabled={disabled}>
-        {(['rows', 'columns', 'gapX', 'gapY'] as const).map(key => <label key={key}><span>{label(key)}</span><input type="number" step="1" value={values[key]}
-          min={key === 'rows' || key === 'columns' ? 1 : -10000} max={key === 'rows' || key === 'columns' ? 20 : 10000} required
+      <fieldset className="drawing-style-fields" disabled={disabled} aria-describedby={!valid ? errorId : undefined}>
+        {(['rows', 'columns', 'gapX', 'gapY'] as const).map(key => <label key={key}><span>{key === 'gapX' || key === 'gapY' ? `${cadLabel(key)} (${settings?.unit ?? 'px'})` : label(key)}</span><input type="number" step={key === 'rows' || key === 'columns' ? 1 : 'any'} value={values[key]}
+          min={key === 'rows' || key === 'columns' ? 1 : -gapLimit} max={key === 'rows' || key === 'columns' ? 20 : gapLimit} required
           onChange={event => { setValues(previous => ({ ...previous, [key]: event.target.value })); setMessage(''); }} /></label>)}
-        <button type="submit">{label('createCopies')}</button>
+        <button type="submit" disabled={!valid}>{label('createCopies')}</button>
       </fieldset>
-      <p className="drawing-help">{label('repeatHint')}</p>
+      <p className="drawing-help">{settings ? cadLabel('repeatHint') : label('repeatHint')}</p>
+      {!valid && <p id={errorId} className="drawing-help is-error" role="alert">{label('invalidOptions')}</p>}
       {message && <p className="drawing-help" role="status">{message}</p>}
     </form>
   </details>;
 }
 
-function Ruler({ vertical = false }: { vertical?: boolean }) {
+function Ruler({ vertical = false, settings }: { vertical?: boolean; settings: CadSettings | null }) {
   const editor = useEditor();
   const bounds = useValue('drawing ruler', () => editor.getViewportPageBounds(), [editor]);
   const zoom = useValue('drawing ruler zoom', () => editor.getZoomLevel(), [editor]);
-  const origin = vertical ? bounds.y : bounds.x;
+  const canvasOrigin = vertical ? bounds.y : bounds.x;
   const length = vertical ? bounds.h : bounds.w;
-  const magnitude = Math.pow(10, Math.floor(Math.log10(70 / zoom)));
-  const step = [1, 2, 5, 10].map(n => n * magnitude).find(n => n * zoom >= 60) ?? magnitude * 10;
-  const first = Math.ceil(origin / step) * step;
+  const unitsPerCanvas = settings ? canvasLengthToUnit(1, settings) : 1;
+  const unitPixels = zoom / unitsPerCanvas;
+  const start = settings ? canvasPointToCad({ x: bounds.x, y: bounds.y }, settings)[vertical ? 'y' : 'x'] : canvasOrigin;
+  const end = start + length * unitsPerCanvas * (vertical && settings ? -1 : 1);
+  const magnitude = Math.pow(10, Math.floor(Math.log10(70 / unitPixels)));
+  const step = [1, 2, 5, 10].map(n => n * magnitude).find(n => n * unitPixels >= 60) ?? magnitude * 10;
+  const first = Math.ceil(Math.min(start, end) / step) * step;
   const ticks: ReactNode[] = [];
-  for (let value = first, count = 0; value <= origin + length && count < 100; value += step, count++) {
-    const point = (value - origin) * zoom;
-    ticks.push(<g key={count}>{vertical ? <><path d={`M13 ${point}h7`} /><text x="9" y={point + 3} transform={`rotate(-90 9 ${point + 3})`}>{Math.round(value * 100) / 100}</text></> :
-      <><path d={`M${point} 13v7`} /><text x={point + 3} y="10">{Math.round(value * 100) / 100}</text></>}</g>);
+  const precision = Math.min(6, Math.max(settings?.precision ?? 2, -Math.floor(Math.log10(step))));
+  for (let value = first, count = 0; value <= Math.max(start, end) && count < 100; value += step, count++) {
+    const point = (value - start) * unitPixels * (vertical && settings ? -1 : 1);
+    const text = Number(value.toFixed(precision));
+    ticks.push(<g key={count}>{vertical ? <><path d={`M13 ${point}h7`} /><text x="9" y={point + 3} transform={`rotate(-90 9 ${point + 3})`}>{text}</text></> :
+      <><path d={`M${point} 13v7`} /><text x={point + 3} y="10">{text}</text></>}</g>);
   }
   return <svg width={vertical ? '20' : '100%'} height={vertical ? '100%' : '20'} aria-hidden="true">{ticks}</svg>;
 }
@@ -203,6 +275,11 @@ export function DrawingChrome() {
   const context = useContext(Context);
   const editor = useEditor();
   const { label, tr } = useDrawingText();
+  const { label: cadLabel } = useCadText();
+  const settings = useValue('drawing cad settings', () => readCadSettings(editor), [editor]);
+  const [cadAnchor, setCadAnchor] = useState<CadAnchor>('bottom-left');
+  const [proportional, setProportional] = useState(false);
+  const cadSelection = useValue('drawing cad transform', () => settings ? getCadSelection(editor, settings, cadAnchor) : null, [editor, settings, cadAnchor]);
   const isDarkMode = useIsDarkMode();
   const styles = useRelevantStyles();
   const controls = useValue('drawing controls', () => captureToolkitControls(editor, editor.getStyleForNextShape(GeoShapeGeoStyle)), [editor]);
@@ -226,10 +303,14 @@ export function DrawingChrome() {
     return () => container.removeEventListener('oms:canvas-upload', listen);
   }, [editor]);
 
-  const toolLabel = (tool: string) => tr(toolKeys[tool] ?? (tool === 'pentagon' ? 'toolkit.toolbar.styleValues.geo.pentagon' : `toolkit.toolbar.${tool}`));
+  const toolLabel = (tool: string) => tool === 'cad-polyline' ? cadLabel('drawPolyline') : tr(toolKeys[tool] ?? (tool === 'pentagon' ? 'toolkit.toolbar.styleValues.geo.pentagon' : `toolkit.toolbar.${tool}`));
   function chooseTool(tool: string) {
     if (editor.getInstanceState().isReadonly && !['hand', 'select'].includes(tool)) return;
     editor.complete();
+    if (readCadSettings(editor) && (geometryTools.includes(tool as any) || tool === 'line')) {
+      editor.setStyleForNextShapes(DefaultDashStyle, 'solid'); editor.setStyleForNextShapes(DefaultFillStyle, 'none');
+      if (tool === 'line') editor.setStyleForNextShapes(LineShapeSplineStyle, 'line');
+    }
     if (geometryTools.includes(tool as any)) { editor.setStyleForNextShapes(GeoShapeGeoStyle, tool as any); editor.setCurrentTool('geo'); }
     else editor.setCurrentTool(tool);
     editor.focus();
@@ -259,6 +340,16 @@ export function DrawingChrome() {
         // behaviour consistent with the disabled OMS object commands.
         event.preventDefault(); event.stopPropagation(); return;
       }
+      const cad = readCadSettings(editor);
+      if (cad && editor.isIn('select.idle') && editor.getSelectedShapeIds().length && event.target.closest('.drawing-viewport') &&
+          ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && !event.altKey) {
+        const amount = cad.nudge * (event.shiftKey ? 10 : modifier ? 0.1 : 1);
+        const dx = event.key === 'ArrowLeft' ? -amount : event.key === 'ArrowRight' ? amount : 0;
+        const dy = event.key === 'ArrowDown' ? -amount : event.key === 'ArrowUp' ? amount : 0;
+        event.preventDefault(); event.stopPropagation();
+        if (!nudgeCadSelection(editor, dx, dy, cad)) setNotice(cadLabel('failed'));
+        return;
+      }
       const tool = ({ F6: 'rectangle', F7: 'ellipse', F8: 'text' } as Record<string, string>)[event.key];
       if (tool && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); event.stopPropagation(); chooseTool(tool); }
       else if (event.key === 'F4') { event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'fit'); }
@@ -270,7 +361,7 @@ export function DrawingChrome() {
     root.addEventListener('keydown', keys, true);
     document.addEventListener('pointerdown', outside);
     return () => { root.removeEventListener('keydown', keys, true); document.removeEventListener('pointerdown', outside); };
-  }, [context?.root, editor, openMenu]);
+  }, [context?.root, editor, openMenu, cadLabel]);
   if (!context) return null;
   const { hosts, panel, setPanel, order, onImport } = context;
   function portal(slot: Slot, children: ReactNode) { const host = hosts[slot]; return host ? createPortal(children, host, slot) : null; }
@@ -278,6 +369,7 @@ export function DrawingChrome() {
   const bounds = state.single ? editor.getShapeGeometry(state.single).bounds : undefined;
   const canResize = !!state.single && state.single.type !== 'group' && controls.canEditSelection && editor.getShapeUtil(state.single).canResize(state.single);
   const canRotate = !!state.single && controls.canEditSelection && !editor.getShapeUtil(state.single).hideRotateHandle(state.single);
+  const protectedForm = !!state.single && ['order-details', 'order-address', 'profile-7st'].includes(state.single.type);
   const theme = getDefaultColorTheme({ isDarkMode });
   const color = styles?.get(DefaultColorStyle);
 
@@ -367,12 +459,16 @@ export function DrawingChrome() {
           </fieldset>
           <button type="button" disabled={busy || !controls.hasShapes} onClick={() => void exportDrawing('svg')}>{label('exportSvg')}</button>
           <button type="button" disabled={busy || !controls.hasShapes} onClick={() => void exportDrawing('png')}>{label('exportPng')}</button>
+          <button type="button" onClick={() => { setPanel('cad'); closeMenus(); }}>{cadLabel('dxf')}</button>
           {exportError && <p role="alert">{exportError}</p>}
           <p>{label('exportHint')}</p>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="edit" open={openMenu === 'edit'}>{menuSummary('edit', label('edit'))}<div className="drawing-menu-popover">{menuActions(['undo', 'redo', 'select-all', 'duplicate', 'delete'])}</div></details>
         <details className="drawing-menu" data-drawing-menu="object" open={openMenu === 'object'}>{menuSummary('object', label('object'))}<div className="drawing-menu-popover drawing-menu-popover--wide">{menuActions(['group', 'ungroup', 'front', 'back', 'forward', 'backward', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical', 'lock'])}
           <hr />{menuActions(['align-left', 'align-center', 'align-right', 'align-top', 'align-middle', 'align-bottom', 'distribute-horizontal', 'distribute-vertical'])}
+        </div></details>
+        <details className="drawing-menu" data-drawing-menu="layout" open={openMenu === 'layout'}>{menuSummary('layout', cadLabel('layout'))}<div className="drawing-menu-popover">
+          <button type="button" onClick={() => { setPanel('cad'); closeMenus(); }}>{cadLabel('document')}</button>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="view" open={openMenu === 'view'}>{menuSummary('view', label('view'))}<div className="drawing-menu-popover">{menuActions(['fit', 'fit-selection', 'zoom-reset'])}
           <button type="button" aria-pressed={state.grid} onClick={() => command('grid')}>{state.grid ? '✓ ' : ''}{label('grid')}</button>
@@ -390,13 +486,18 @@ export function DrawingChrome() {
       <span className="drawing-spacer" />
       <ToolButton icon="properties" label={label('properties')} active={panel === 'properties'} onClick={() => setPanel(panel === 'properties' ? null : 'properties')} testId="drawing-properties-toggle" />
       <ToolButton icon="objects" label={label('objects')} active={panel === 'objects'} onClick={() => setPanel(panel === 'objects' ? null : 'objects')} testId="drawing-objects-toggle" />
+      <ToolButton label={cadLabel('cad')} active={panel === 'cad'} onClick={() => setPanel(panel === 'cad' ? null : 'cad')} testId="drawing-cad-toggle">CAD</ToolButton>
     </>)}
     {portal('properties', <>
       <span className="drawing-tool-name">{toolLabel(controls.tool)}</span><span className="drawing-divider" />
-      {(['x', 'y', 'w', 'h', 'rotation'] as const).map(field => <NumberField key={field} field={field} label={label(fieldNames[field])}
+      {settings && <><CadAnchorControl value={cadAnchor} onChange={setCadAnchor} />
+        <ToolButton icon={proportional ? 'lock' : 'unlock'} label={cadLabel('proportional')} active={proportional} onClick={() => setProportional(value => !value)} testId="drawing-cad-proportional" /></>}
+      {(['x', 'y', 'w', 'h', 'rotation'] as const).map(field => settings ? <CadNumberField key={`cad-${field}`} field={field} label={label(fieldNames[field])}
+        value={cadSelection?.[field]} settings={settings} anchor={cadAnchor} proportional={proportional}
+        disabled={protectedForm || (field === 'w' || field === 'h' ? !canResize : field === 'rotation' ? !canRotate : !controls.canEditSelection)} /> : <NumberField key={field} field={field} label={label(fieldNames[field])}
         value={field === 'x' ? position?.x : field === 'y' ? position?.y : field === 'w' ? bounds?.w : field === 'h' ? bounds?.h : state.single ? editor.getShapePageTransform(state.single).rotation() * 180 / Math.PI : undefined}
         disabled={field === 'w' || field === 'h' ? !canResize : field === 'rotation' ? !canRotate : !controls.canEditSelection} />)}
-      <span className="drawing-unit">{label('units')}</span>
+      <span className="drawing-unit">{settings ? `${settings.unit} · 1:${settings.scale}` : label('units')}</span>
       {order && <div className="drawing-annotations">{(['comment', 'warning', 'explanation'] as const).map((kind, index) =>
         <button type="button" key={kind} aria-label={label((['orderNote', 'orderWarning', 'orderExplain'] as const)[index])} disabled={controls.readOnly} onClick={() => annotation(kind)}>{['✎', '⚠', 'ℹ'][index]} {label((['orderNote', 'orderWarning', 'orderExplain'] as const)[index])}</button>)}</div>}
     </>)}
@@ -404,19 +505,23 @@ export function DrawingChrome() {
       {tools.map(tool => <ToolButton key={tool} icon={tool} label={`${toolLabel(tool)}${shortcut[tool] ? ` (${shortcut[tool]})` : ''}`}
         active={controls.tool === tool} disabled={controls.readOnly && !['select', 'hand'].includes(tool)} onClick={() => chooseTool(tool)} testId={`drawing-tool-${tool}`} />)}
     </div>)}
-    {portal('rulerX', <Ruler />)}{portal('rulerY', <Ruler vertical />)}
+    {portal('rulerOrigin', settings?.unit ?? 'px')}
+    {portal('rulerX', <Ruler settings={settings} />)}{portal('rulerY', <Ruler vertical settings={settings} />)}
     {portal('docker', <>
       <div className="drawing-docker-title"><div role="tablist" aria-label={label('properties')} onKeyDown={event => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
         event.preventDefault();
-        const next = event.key === 'Home' ? 'properties' : event.key === 'End' ? 'objects' : panel === 'properties' ? 'objects' : 'properties';
+        const panels = ['properties', 'objects', 'cad'] as const;
+        const index = panels.indexOf(panel ?? 'properties');
+        const next = event.key === 'Home' ? 'properties' : event.key === 'End' ? 'cad' : panels[(index + (event.key === 'ArrowRight' ? 1 : 2)) % 3];
         setPanel(next); document.getElementById(`${tabsId}-${next}`)?.focus();
       }}>
         <button type="button" role="tab" id={`${tabsId}-properties`} aria-controls={`${tabsId}-panel`} tabIndex={panel === 'properties' ? 0 : -1} aria-selected={panel === 'properties'} onClick={() => setPanel('properties')}>{label('properties')}</button>
         <button type="button" role="tab" id={`${tabsId}-objects`} aria-controls={`${tabsId}-panel`} tabIndex={panel === 'objects' ? 0 : -1} aria-selected={panel === 'objects'} onClick={() => setPanel('objects')}>{label('objects')}</button>
+        <button type="button" role="tab" id={`${tabsId}-cad`} aria-controls={`${tabsId}-panel`} tabIndex={panel === 'cad' ? 0 : -1} aria-selected={panel === 'cad'} onClick={() => setPanel('cad')}>{cadLabel('cad')}</button>
       </div><ToolButton icon="close" label={label('closePanel')} onClick={() => setPanel(null)} /></div>
-      <div className="drawing-docker-content" role="tabpanel" id={`${tabsId}-panel`} aria-labelledby={`${tabsId}-${panel === 'objects' ? 'objects' : 'properties'}`}>
-        {panel === 'objects' ? <>
+      <div className="drawing-docker-content" role="tabpanel" id={`${tabsId}-panel`} aria-labelledby={`${tabsId}-${panel ?? 'properties'}`}>
+        {panel === 'cad' ? <CadPanel settings={settings} /> : panel === 'objects' ? <>
           <p className="drawing-help">{state.shapes.length} {label('items')} · {controls.selected} {label('selected')}</p>
           <label className="drawing-object-search"><span>{label('searchObjects')}</span><input type="search" value={search} maxLength={100} onChange={event => setSearch(event.target.value)} /></label>
           {state.single && <ObjectNameField key={state.single.id} shape={state.single} disabled={!controls.canEditSelection} />}
@@ -456,7 +561,7 @@ export function DrawingChrome() {
           {!styles?.size && <p className="drawing-help">{label('noStyles')}</p>}
           <p className="drawing-help">{label('colourHint')}</p>
           <details className="drawing-shortcuts"><summary>{tr('toolkit.toolbar.selection')}</summary><div className="drawing-arrange">{menuActions(['group', 'ungroup', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical'])}</div></details>
-          <RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} />
+          <RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings} />
         </>}
       </div>
     </>)}
@@ -466,8 +571,8 @@ export function DrawingChrome() {
         onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
     </div>)}
     {portal('status', <>
-      <span className="drawing-status-text" role="status">{notice || (controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
-      <span className="drawing-keyboard-hint" title={label('keyboard')}>{label('units')}</span>
+      <span className="drawing-status-text" role="status" title={controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : undefined}>{notice || (controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
+      <span className={`drawing-keyboard-hint${settings ? ' drawing-cad-status-unit' : ''}`} title={settings ? cadLabel('nudgeHelp') : label('keyboard')}>{settings ? <>{settings.unit} · 1:{settings.scale}<span className="drawing-cad-status-nudge"> · {cadLabel('nudge')}: {settings.nudge} {settings.unit}</span></> : label('units')}</span>
       <button type="button" onClick={() => command('grid')} aria-pressed={state.grid}>{label('grid')}</button>
       <button type="button" onClick={() => command('snap')} aria-pressed={state.snap}>{label('snap')}</button>
       <div className="drawing-zoom" aria-label={label('zoom')}>

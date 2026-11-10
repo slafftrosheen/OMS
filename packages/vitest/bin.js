@@ -8,6 +8,10 @@ import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
+// Native editor imports must use their test lifecycle (no cross-tab BroadcastChannel).
+// Match Vitest's normal environment while respecting an explicitly supplied value.
+process.env.NODE_ENV ??= 'test';
+
 const argv = process.argv.slice(2).filter((arg) => arg !== 'run');
 const root = process.cwd();
 const targets = argv.length ? argv : ['src'];

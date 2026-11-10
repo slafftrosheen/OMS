@@ -3,7 +3,7 @@ import { drawingTransaction } from './drawing-commands';
 
 const NAME_KEY = 'omsObjectName';
 const ORDER_FORMS = new Set(['order-details', 'order-address', 'profile-7st']);
-const ARTWORK_TYPES = new Set(['geo', 'draw', 'highlight', 'line', 'arrow', 'text', 'note', 'image']);
+const ARTWORK_TYPES = new Set(['geo', 'draw', 'highlight', 'line', 'arrow', 'text', 'note', 'image', 'cad-path', 'cad-ellipse', 'cad-arc', 'cad-dimension']);
 export const MAX_REPEAT_SHAPES = 500;
 export const MAX_EXPORT_PIXELS = 32_000_000;
 export const MAX_EXPORT_SIDE = 8192;

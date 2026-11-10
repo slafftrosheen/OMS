@@ -2,7 +2,7 @@
  * structured context; private project images are authorized separately server-side. */
 export const MAX_CANVAS_SNAPSHOT_BYTES = 800 * 1024;
 export const MAX_CANVAS_SNAPSHOT_EDGE = 1600;
-const DRAWING_TYPES = new Set(['geo','text','note','arrow','line','draw','highlight']);
+const DRAWING_TYPES = new Set(['geo','text','note','arrow','line','draw','highlight','cad-path','cad-ellipse','cad-arc','cad-dimension']);
 export type CanvasDrawingSnapshot = {
   dataUrl: string; width: number; height: number; shapeIds: string[];
   scope: 'selection' | 'page'; omitted: number;

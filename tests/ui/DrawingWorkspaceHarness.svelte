@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { locale } from 'svelte-i18n';
+  import { getSnapshot, loadSnapshot } from '@tldraw/tldraw';
   import TldrawWrapper from '../../src/lib/components/canvas/TldrawWrapper.svelte';
   import type { OrderSeed } from '../../src/lib/components/canvas/templates/DraftOrderTemplate';
   const order = new URLSearchParams(location.search).get('mode') === 'order';
@@ -12,7 +13,8 @@
   $effect(() => { document.documentElement.dataset.theme = theme; });
   onMount(() => {
     (window as any).__drawingFixture = {
-      inspect: () => ({ shapes: editor?.getCurrentPageShapes(), selected: editor?.getSelectedShapeIds(), readonly, saves }),
+      inspect: () => ({ shapes: editor?.getCurrentPageShapes(), selected: editor?.getSelectedShapeIds(), page: editor?.getCurrentPage(), readonly, saves }),
+      roundTrip: () => { const snapshot = JSON.parse(JSON.stringify(getSnapshot(editor.store))); loadSnapshot(editor.store, snapshot); },
       emptyArea: () => { editor.setCamera({ x: -2400, y: 0, z: 1 }); },
     };
     return () => { delete (window as any).__drawingFixture; };

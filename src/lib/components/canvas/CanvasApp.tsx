@@ -1,4 +1,7 @@
 import { DrawingWorkspace, DrawingChrome } from './DrawingWorkspace';
+import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from './shapes/CadShapes';
+import { CadPolylineTool } from './CadPolylineTool';
+import { installCadTransforms } from './cad-transforms';
 import {OrderAnnotationShapeUtil} from './shapes/OrderAnnotationShape';
 import canvasAssetUrls from './tldraw-asset-urls.json';
 import React, { useEffect, useRef } from 'react';
@@ -29,6 +32,7 @@ import { getRunnableShapeIds } from './node-runner';
 import { captureToolkitControls, type ToolkitControlsState } from './toolkit-controls';
 
 const customShapeUtils = [
+    CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil,
     IdeaShapeUtil,
     MaterialSwatchShapeUtil,
     MakerShapeUtil,
@@ -106,6 +110,7 @@ export function CanvasApp({
     const cleanupStoreRef = useRef<(() => void) | null>(null);
     const cleanupControlsRef = useRef<(() => void) | null>(null);
     const cleanupAppearanceRef = useRef<(() => void) | null>(null);
+    const cleanupCadTransformsRef = useRef<(() => void) | null>(null);
     const captureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const spawnFrameRef = useRef<number | null>(null);
     const callbacksRef = useRef({ onSave, onDocumentChange, onToolkitFilesDrop, onToolkitLinkDrop, onToolkitControlsChange });
@@ -149,6 +154,8 @@ export function CanvasApp({
     }, [orderSeed]);
 
     const handleMount = (editor: Editor) => {
+        cleanupCadTransformsRef.current?.();
+        cleanupCadTransformsRef.current = installCadTransforms(editor);
         editorRef.current = editor;
         editor.updateInstanceState({ isReadonly: toolkitReadOnly });
 
@@ -259,6 +266,7 @@ export function CanvasApp({
         cleanupStoreRef.current?.();
         cleanupControlsRef.current?.();
         cleanupAppearanceRef.current?.();
+        cleanupCadTransformsRef.current?.();
         if (spawnFrameRef.current !== null) cancelAnimationFrame(spawnFrameRef.current);
         if (editorRef.current) {cancelOrderCanvasUploads(editorRef.current);clearOrderBridge(editorRef.current);}
         editorRef.current = null;
@@ -280,6 +288,7 @@ export function CanvasApp({
                     assetUrls={canvasAssetUrls}
                     snapshot={initialSnapshot as any}
                     shapeUtils={customShapeUtils}
+                    tools={[CadPolylineTool]}
                     onMount={handleMount}
                     hideUi={hideUI}
                     components={drawingUi}

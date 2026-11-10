@@ -129,3 +129,67 @@
   .drawing-workspace .drawing-tools .drawing-button { min-height: 44px; }
   .drawing-menu-popover button { min-height: 44px; }
 }
+
+/* Measured drawing controls share the same chrome in order and idea documents. */
+.drawing-workspace.has-docker { grid-template-columns: var(--drawing-rail) minmax(0, 1fr) 280px var(--drawing-palette); }
+.drawing-number input { height: 32px; }
+.drawing-workspace textarea { font: inherit; }
+.drawing-workspace textarea:focus-visible { outline: 2px solid var(--focus, var(--brand)); outline-offset: -2px; }
+.drawing-workspace textarea:disabled { opacity: .42; cursor: not-allowed; }
+.drawing-workspace [aria-invalid="true"] { border-color: var(--error); }
+.drawing-workspace .is-error { color: var(--error); }
+.drawing-workspace .drawing-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.drawing-cad-anchor { display: flex; align-items: center; flex: none; gap: 4px; }
+.drawing-cad-anchor svg { flex: none; color: var(--ink-primary); }
+.drawing-cad-anchor select { width: 112px; height: 32px; min-width: 0; border: 1px solid var(--border); background: var(--bg-0); border-radius: 3px; padding: 4px; font-size: 11px; }
+.drawing-cad { min-width: 0; }
+.drawing-cad-section { border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 8px; }
+.drawing-cad-section:last-child { border-bottom: 0; margin-bottom: 0; }
+.drawing-cad-section > summary { min-height: 32px; padding: 8px 0; cursor: pointer; font-weight: 600; }
+.drawing-cad-section[open] > summary { margin-bottom: 4px; }
+.drawing-cad-fields { display: grid; gap: 8px; border: 0; padding: 0; margin: 0 0 8px; min-width: 0; }
+.drawing-cad-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(76px, 1fr); align-items: center; gap: 8px; font-size: 11px; }
+.drawing-cad-field > span { overflow-wrap: anywhere; }
+.drawing-cad input:not([type="checkbox"]), .drawing-cad select, .drawing-cad textarea {
+  width: 100%; min-width: 0; min-height: 32px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg-0); color: var(--ink-primary); font-variant-numeric: tabular-nums;
+}
+.drawing-cad input[aria-invalid="true"], .drawing-cad textarea[aria-invalid="true"] { border-color: var(--error); }
+.drawing-cad button { min-height: 32px; border: 1px solid var(--border); border-radius: 3px; padding: 4px 8px; background: var(--bg-2); overflow-wrap: anywhere; }
+.drawing-cad-origin { display: grid; gap: 8px; }
+.drawing-cad-origin .drawing-help { margin-bottom: 0; }
+.drawing-cad-points { display: grid; gap: 4px; font-size: 11px; }
+.drawing-cad-points textarea { resize: vertical; min-height: 96px; font-family: var(--font-mono, monospace); }
+.drawing-cad-check { display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: 11px; cursor: pointer; }
+.drawing-cad-check input { width: 16px; height: 16px; flex: none; margin: 8px 0; accent-color: var(--brand); }
+.drawing-cad-values { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; margin: 0 0 12px; font-size: 11px; }
+.drawing-cad-values dt { color: var(--ink-secondary); }
+.drawing-cad-values dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.drawing-cad-message { margin: 8px 0; }
+.drawing-cad-report { border: 1px solid var(--border); background: var(--bg-0); padding: 8px; border-radius: 4px; }
+.drawing-cad-report > button { width: 100%; margin-top: 8px; }
+.drawing-cad-omissions { max-height: 176px; overflow: auto; padding-left: 16px; margin: 0 0 8px; font-size: 11px; }
+.drawing-cad-omissions li { margin-bottom: 8px; overflow-wrap: anywhere; }
+.drawing-cad-omissions strong, .drawing-cad-omissions span { display: block; }
+.drawing-cad-omissions span { color: var(--ink-secondary); }
+
+/* A narrow embedded host uses a docked lower row, never a form over the artwork. */
+.drawing-workspace.is-compact.has-docker { grid-template-columns: var(--drawing-rail) minmax(0, 1fr) 0 var(--drawing-palette); grid-template-rows: 40px 44px minmax(0, 1fr) minmax(0, 40%) 36px; }
+.drawing-workspace.is-compact .drawing-docker { position: static; width: auto; max-width: none; box-shadow: none; grid-column: 1 / -1; grid-row: 4; border-left: 0; border-top: 1px solid var(--border); z-index: auto; }
+.drawing-workspace.is-compact.has-docker .drawing-status { grid-row: 5; }
+@container (max-width: 880px) {
+  .drawing-workspace.has-docker { grid-template-columns: var(--drawing-rail) minmax(0, 1fr) 0 var(--drawing-palette); grid-template-rows: 40px 44px minmax(0, 1fr) minmax(0, 40%) 36px; }
+  .drawing-docker { position: static; width: auto; max-width: none; box-shadow: none; grid-column: 1 / -1; grid-row: 4; border-left: 0; border-top: 1px solid var(--border); z-index: auto; }
+  .drawing-workspace.has-docker .drawing-status { grid-row: 5; }
+  .drawing-cad-field { grid-template-columns: minmax(100px, 1fr) minmax(100px, 1fr); }
+}
+@container (max-width: 520px) {
+  .drawing-workspace .drawing-commands .drawing-button { width: 32px; }
+  .drawing-commands [data-testid="drawing-undo"], .drawing-commands [data-testid="drawing-redo"], .drawing-commands [data-testid="drawing-import"] { display: none; }
+  .drawing-cad-anchor select { width: 96px; }
+  .drawing-menu summary { padding: 8px 4px; }
+  .drawing-docker-title [role="tab"] { min-height: 32px; }
+}
+@container (max-width: 880px) {
+  .drawing-keyboard-hint.drawing-cad-status-unit { display: inline; }
+  .drawing-cad-status-nudge { display: none; }
+}
