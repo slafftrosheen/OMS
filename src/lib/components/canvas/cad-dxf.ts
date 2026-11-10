@@ -2,6 +2,8 @@ import type { Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
 import { drawingObjectName } from './drawing-operations';
 import { CAD_MAX_COORDINATE, cadMmPerPixel, validateCadSettings, type CadPoint, type CadSettings } from './cad-settings';
 
+import { contourSegments, curveBounds, flattenContours, mapContours, validContours, type CadContour } from './cad-curves';
+
 export class CadDxfError extends Error {
   constructor(public code: 'empty' | 'invalid' | 'limit' | 'settings') { super(code); this.name = 'CadDxfError'; }
 }
@@ -12,6 +14,7 @@ export interface CadDxfResult {
   widthMm: number; heightMm: number;
 }
 export type DxfEntity =
+  { type: 'spline'; contour: CadContour } |
   { type: 'polyline'; points: CadPoint[]; closed: boolean } |
   { type: 'circle'; center: CadPoint; radius: number } |
   { type: 'ellipse'; center: CadPoint; major: CadPoint; ratio: number } |
@@ -52,7 +55,7 @@ function clipped(editor: Editor, shape: TLShape): boolean {
   return [{ x: b.x, y: b.y }, { x: b.x + b.w, y: b.y }, { x: b.x, y: b.y + b.h }, { x: b.x + b.w, y: b.y + b.h }]
     .some(p => !pointInPolygon(matrix.applyToPoint(p), mask));
 }
-function shapeEntity(editor: Editor, shape: TLShape, settings: CadSettings): { entity?: DxfEntity; reason?: CadDxfOmission } {
+function shapeEntity(editor: Editor, shape: TLShape, settings: CadSettings): { entity?: DxfEntity; entities?: DxfEntity[]; reason?: CadDxfOmission } {
   const p = shape.props as Record<string, any>;
   const matrix = editor.getShapePageTransform(shape);
   const factor = cadMmPerPixel(settings);
@@ -62,6 +65,11 @@ function shapeEntity(editor: Editor, shape: TLShape, settings: CadSettings): { e
     return { x: finite((world.x - settings.originX) * factor), y: finite((settings.originY - world.y) * factor) };
   };
   if (clipped(editor, shape)) return { reason: 'clipped' };
+  if (shape.type === 'cad-bezier') {
+    if (!validContours(p.contours)) return { reason: 'invalid' };
+    return { entities: mapContours(p.contours, convert).map(contour => contour.nodes.every(n => !n.inX && !n.inY && !n.outX && !n.outY)
+      ? checkedPolyline(contour.nodes, contour.closed) : { type: 'spline', contour }) };
+  }
   if (shape.type === 'cad-path') return { entity: checkedPolyline(p.points.map(convert), p.closed) };
   if (shape.type === 'line') {
     if (p.spline !== 'line') return { reason: 'curved' };
@@ -97,7 +105,7 @@ function shapeEntity(editor: Editor, shape: TLShape, settings: CadSettings): { e
 }
 
 /** Full model-space millimetres, Cartesian Y-up, no padding or view/zoom rescaling. */
-export function buildCadDxf(editor: Editor, scope: 'selected' | 'all', settings: CadSettings): CadDxfResult {
+export function buildCadDxf(editor: Editor, scope: 'selected' | 'all', settings: CadSettings, options: { curves?: 'spline' | 'polyline'; toleranceMm?: number } = {}): CadDxfResult {
   if (!validateCadSettings(settings)) throw new CadDxfError('settings');
   if (!['selected', 'all'].includes(scope)) throw new CadDxfError('invalid');
   const ids = scope === 'all' ? [...editor.getCurrentPageShapeIds()] : [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])];
@@ -110,7 +118,17 @@ export function buildCadDxf(editor: Editor, scope: 'selected' | 'all', settings:
     let result: ReturnType<typeof shapeEntity>;
     try { result = shapeEntity(editor, shape, settings); }
     catch { result = { reason: 'invalid' }; }
-    if (result.entity) { entities.push(result.entity); vertices += result.entity.type === 'polyline' ? result.entity.points.length : 1; }
+    if (result.entity || result.entities) {
+      for (const original of result.entities ?? [result.entity!]) {
+        let entity = original;
+        if (original.type === 'spline' && options.curves === 'polyline') {
+          const tolerance = options.toleranceMm ?? 0.01;
+          if (!Number.isFinite(tolerance) || tolerance < 0.001 || tolerance > 1) throw new CadDxfError('invalid');
+          entity = checkedPolyline(flattenContours([original.contour], tolerance)[0], original.contour.closed);
+        }
+        entities.push(entity); vertices += entity.type === 'polyline' ? entity.points.length : entity.type === 'spline' ? entity.contour.nodes.length * 3 + 1 : 1;
+      }
+    }
     else omitted.push({ id: shape.id, name: drawingObjectName(shape), reason: result.reason ?? 'unsupported' });
     if (entities.length > MAX_ENTITIES || vertices > MAX_VERTICES) throw new CadDxfError('limit');
   }
@@ -119,7 +137,7 @@ export function buildCadDxf(editor: Editor, scope: 'selected' | 'all', settings:
     return { text: '', widthMm: 0, heightMm: 0, entities: 0, closedContours: 0, openContours: 0, omitted };
   }
   const { text, widthMm, heightMm } = serializeCadDxf(entities);
-  const closedContours = entities.filter(e => e.type === 'circle' || e.type === 'ellipse' || e.type === 'polyline' && e.closed).length;
+  const closedContours = entities.filter(e => e.type === 'circle' || e.type === 'ellipse' || e.type === 'polyline' && e.closed || e.type === 'spline' && e.contour.closed).length;
   return { text, widthMm, heightMm, entities: entities.length, closedContours, openContours: entities.length - closedContours, omitted };
 }
 
@@ -137,7 +155,21 @@ export function serializeCadDxf(entities: DxfEntity[]): { text: string; widthMm:
   const startEntity = (type: string, subclass: string, closed: boolean) => add(body, 0, type, 5, (nextHandle++).toString(16).toUpperCase(), 330, '1F', 100, 'AcDbEntity', 8, closed ? 'OMS_CLOSED' : 'OMS_OPEN', 100, subclass);
   for (const original of entities) {
     const e = original.type === 'polyline' ? checkedPolyline(original.points, original.closed) : original;
-    if (e.type === 'polyline') {
+    if (e.type === 'spline') {
+      const contour = e.contour;
+      if (!validContours([contour])) throw new CadDxfError('invalid');
+      const segments = [...contourSegments(contour)], controls = [contour.nodes[0], ...segments.flatMap(p => p.slice(1))];
+      vertexCount += controls.length;
+      if (vertexCount > MAX_VERTICES) throw new CadDxfError('limit');
+      const knots = [0, 0, 0, 0];
+      for (let i = 1; i < segments.length; i++) knots.push(i, i, i);
+      knots.push(segments.length, segments.length, segments.length, segments.length);
+      startEntity('SPLINE', 'AcDbSpline', contour.closed);
+      add(body, 210, 0, 220, 0, 230, 1, 70, contour.closed ? 9 : 8, 71, 3, 72, knots.length, 73, controls.length, 74, 0);
+      for (const knot of knots) add(body, 40, knot);
+      for (const p of controls) add(body, 10, p.x, 20, p.y, 30, 0);
+      const b = curveBounds([contour]); bound(b.x, b.y); bound(b.x + b.w, b.y + b.h);
+    } else if (e.type === 'polyline') {
       vertexCount += e.points.length;
       if (vertexCount > MAX_VERTICES) throw new CadDxfError('limit');
       if (e.points.length === 2 && !e.closed) {

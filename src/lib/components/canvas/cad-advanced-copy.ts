@@ -1,0 +1,115 @@
+import { useSyncExternalStore } from 'react';
+import { get } from 'svelte/store';
+import { locale, t } from 'svelte-i18n';
+
+const en = {
+  bezierTool: 'CAD Bézier', bezierKeys: 'Click: corner node · Drag: curve handles · Enter: finish · first node: close · Backspace: undo node · Escape: cancel',
+  nodes: 'Bézier nodes · F10', noCurve: 'Select one CAD curve to edit its nodes. Convert supported geometry below, or draw a Bézier curve.',
+  convert: 'Convert selected geometry to curves', convertHelp: 'Replaces supported geometry with editable curves in one undo step. Text uses the outline preview below.',
+  converted: 'Geometry converted to curves.', contour: 'Contour', node: 'Node', mode: 'Node type', corner: 'Corner', smooth: 'Smooth', symmetric: 'Symmetric',
+  nodeHelp: 'X/Y are document coordinates. Handle ΔX/ΔY are offsets from the node in world axes; Y points up. Smooth and symmetric nodes align to the outgoing handle.',
+  x: 'X', y: 'Y', inX: 'Incoming ΔX', inY: 'Incoming ΔY', outX: 'Outgoing ΔX', outY: 'Outgoing ΔY',
+  updateNode: 'Update node', split: 'Split next segment', deleteNode: 'Delete node', closed: 'Closed contour', updated: 'Curve updated.',
+  textOutlines: 'Text to outlines · Ctrl/⌘ Q', textMode: 'Text source', newText: 'New text', selectedText: 'Selected text',
+  noText: 'Select one editable text object to use its font and layout.', text: 'Text', font: 'Font', sans: 'Sans', serif: 'Serif', mono: 'Monospace', draw: 'Handwritten', custom: 'Local font file',
+  fontFile: 'Font file', fontHelp: 'TTF, OTF, WOFF or WOFF2, up to 8 MiB. Font files are read locally.', height: 'Outline height',
+  textHelp: 'Up to 500 characters and 20 lines. Height is the actual outline height; X/Y is the lower-left corner. Review counters, spacing and bounds before applying.', selectedTextHelp: 'Uses the selected text’s current font and layout. Review the outlines before replacing editable text.',
+  keepSource: 'Keep source text', keepSources: 'Keep source objects', preview: 'Prepare preview', preparing: 'Preparing preview…', apply: 'Apply result', applied: 'Result applied.',
+  shaping: 'Weld, trim, intersect & offset', operation: 'Operation', weld: 'Weld', trim: 'Trim', intersect: 'Intersect', offset: 'Offset',
+  shapingHelp: 'Curves are flattened within the tolerance for these operations. Results are polygonal contours.',
+  selectionHelp: 'Select at least two editable closed objects for weld, trim or intersect; one for offset.', target: 'Trim target', chooseTarget: 'Choose the object to trim', targetHelp: 'The selected target is trimmed by every other selected object.',
+  distance: 'Offset distance', offsetHelp: 'Positive distances expand; negative distances inset. Small features can disappear.', join: 'Corner join', round: 'Round', miter: 'Miter', square: 'Square', tolerance: 'Tolerance (mm)',
+  import: 'Import CAD · DXF', importHelp: 'ASCII DXF up to 8 MiB. CDR and DWG are not supported; export them to DXF first. Files are read locally.',
+  dxfFile: 'DXF file', sourceUnit: 'Source unit', automatic: 'Use DXF units', chooseUnit: 'This file has no supported unit declaration. Choose its source unit and prepare the preview again.',
+  keepCoordinates: 'Keep source coordinates', coordinatesHelp: 'Turn off to place the drawing’s lower-left corner at the document origin without changing its size.',
+  omitted: 'Omitted entities', acceptOmissions: 'I have reviewed and accept the listed omissions.', noOmissions: 'No entities omitted.',
+  result: 'Result preview', contours: 'Contours', closedContours: 'Closed contours', openContours: 'Open contours', nodeCount: 'Nodes', bounds: 'Result bounds (mm)', removed: 'Source objects to remove',
+  stale: 'The drawing, selection or inputs changed. Prepare a new preview.', empty: 'The operation produced no contours. Nothing will be applied.',
+  failed: 'Could not apply this change. Check the values, selection and locks.', invalid: 'Enter finite coordinates and positive dimensions.',
+  blocked: 'Read-only, locked and order-form objects cannot be changed.', settingsRequired: 'Apply document units and scale above to enable CAD operations.',
+  limit: 'The result exceeds drawing limits. Use fewer characters, nodes or objects, or simpler geometry.', bound: 'Objects connected to other objects cannot be replaced. Disconnect them or keep the source objects.',
+  fileTooLarge: 'Choose a file no larger than 8 MiB.', invalidFont: 'This font could not be read. Choose a valid TTF, OTF, WOFF or WOFF2 file.', invalidDxf: 'This file could not be read as supported ASCII DXF.',
+  unsupported: 'Unsupported entity or geometry', unitRequired: 'Choose the source unit before applying this import.',
+  sourcesOverlap: 'Source objects overlap the result while they are preserved.', textLayoutReview: 'Review the text layout and spacing before applying the outlines.', fontOutlineOnly: 'The result contains font outlines; it will no longer be editable text.',
+  importApproximation: 'Polyline bulges and partial ellipses were converted to Bézier curves within 0.002 mm.',
+  warning: 'Review required', approximated: 'Curves were approximated within the chosen tolerance.', unsupportedFont: 'The selected font or text layout cannot be outlined.',
+  unrecognizedWarning: 'This result has a preparation warning. Inspect the geometry before applying.',
+} as const;
+type Dictionary = { [K in keyof typeof en]: string };
+const ru: Dictionary = {
+  bezierTool: 'CAD-кривая Безье', bezierKeys: 'Клик: угловой узел · Перетаскивание: направляющие · Enter: завершить · первый узел: замкнуть · Backspace: убрать узел · Escape: отменить',
+  nodes: 'Узлы Безье · F10', noCurve: 'Выберите одну CAD-кривую для редактирования узлов. Преобразуйте геометрию ниже или нарисуйте кривую Безье.',
+  convert: 'Преобразовать геометрию в кривые', convertHelp: 'Заменяет поддерживаемую геометрию редактируемыми кривыми за один шаг отмены. Для текста используйте просмотр контуров ниже.',
+  converted: 'Геометрия преобразована в кривые.', contour: 'Контур', node: 'Узел', mode: 'Тип узла', corner: 'Угловой', smooth: 'Сглаженный', symmetric: 'Симметричный',
+  nodeHelp: 'X/Y — координаты документа. ΔX/ΔY направляющих — смещения от узла по осям документа; Y направлен вверх. Сглаженные и симметричные узлы выравниваются по исходящей направляющей.',
+  x: 'X', y: 'Y', inX: 'Входящая ΔX', inY: 'Входящая ΔY', outX: 'Исходящая ΔX', outY: 'Исходящая ΔY',
+  updateNode: 'Обновить узел', split: 'Разделить следующий сегмент', deleteNode: 'Удалить узел', closed: 'Замкнутый контур', updated: 'Кривая обновлена.',
+  textOutlines: 'Текст в контуры · Ctrl/⌘ Q', textMode: 'Источник текста', newText: 'Новый текст', selectedText: 'Выбранный текст',
+  noText: 'Выберите один доступный для редактирования текстовый объект, чтобы использовать его шрифт и размещение.', text: 'Текст', font: 'Шрифт', sans: 'Без засечек', serif: 'С засечками', mono: 'Моноширинный', draw: 'Рукописный', custom: 'Локальный файл шрифта',
+  fontFile: 'Файл шрифта', fontHelp: 'TTF, OTF, WOFF или WOFF2, до 8 МиБ. Файлы шрифтов обрабатываются локально.', height: 'Высота контуров',
+  textHelp: 'До 500 символов и 20 строк. Высота — фактическая высота контуров; X/Y — левый нижний угол. Проверьте просветы, интервалы и габариты перед применением.', selectedTextHelp: 'Использует текущий шрифт и размещение выбранного текста. Проверьте контуры перед заменой редактируемого текста.',
+  keepSource: 'Сохранить исходный текст', keepSources: 'Сохранить исходные объекты', preview: 'Подготовить просмотр', preparing: 'Подготовка просмотра…', apply: 'Применить результат', applied: 'Результат применён.',
+  shaping: 'Объединение, обрезка, пересечение и смещение', operation: 'Операция', weld: 'Объединение', trim: 'Обрезка', intersect: 'Пересечение', offset: 'Смещение',
+  shapingHelp: 'Для этих операций кривые аппроксимируются с заданным допуском. Результат — многоугольные контуры.',
+  selectionHelp: 'Выберите минимум два доступных замкнутых объекта для объединения, обрезки или пересечения; один для смещения.', target: 'Обрезаемый объект', chooseTarget: 'Выберите объект для обрезки', targetHelp: 'Остальные выбранные объекты обрезают указанный объект.',
+  distance: 'Расстояние смещения', offsetHelp: 'Положительное значение расширяет, отрицательное сужает. Мелкие элементы могут исчезнуть.', join: 'Соединение углов', round: 'Скруглённое', miter: 'Острое', square: 'Срезанное', tolerance: 'Допуск (мм)',
+  import: 'Импорт CAD · DXF', importHelp: 'ASCII DXF до 8 МиБ. CDR и DWG не поддерживаются; сначала экспортируйте их в DXF. Файлы обрабатываются локально.',
+  dxfFile: 'Файл DXF', sourceUnit: 'Исходная единица', automatic: 'Использовать единицы DXF', chooseUnit: 'В файле нет поддерживаемой единицы измерения. Выберите исходную единицу и повторите подготовку.',
+  keepCoordinates: 'Сохранить исходные координаты', coordinatesHelp: 'Отключите, чтобы поместить левый нижний угол чертежа в начало координат документа без изменения размера.',
+  omitted: 'Пропущенные элементы', acceptOmissions: 'Я проверил(а) и принимаю перечисленные пропуски.', noOmissions: 'Пропущенных элементов нет.',
+  result: 'Просмотр результата', contours: 'Контуры', closedContours: 'Замкнутые контуры', openContours: 'Открытые контуры', nodeCount: 'Узлы', bounds: 'Габариты результата (мм)', removed: 'Исходных объектов к удалению',
+  stale: 'Чертёж, выбор или параметры изменились. Подготовьте просмотр снова.', empty: 'Операция не создала контуров. Изменения не будут применены.',
+  failed: 'Не удалось применить изменение. Проверьте значения, выбор и блокировки.', invalid: 'Введите конечные координаты и положительные размеры.',
+  blocked: 'Нельзя менять объекты только для чтения, заблокированные объекты и формы заказа.', settingsRequired: 'Примените единицы и масштаб документа выше, чтобы включить CAD-операции.',
+  limit: 'Результат превышает ограничения чертежа. Уменьшите количество символов, узлов или объектов либо упростите геометрию.', bound: 'Нельзя заменить объекты, связанные с другими объектами. Уберите связи или сохраните исходные объекты.',
+  fileTooLarge: 'Выберите файл размером не более 8 МиБ.', invalidFont: 'Не удалось прочитать шрифт. Выберите корректный TTF, OTF, WOFF или WOFF2.', invalidDxf: 'Не удалось прочитать файл как поддерживаемый ASCII DXF.',
+  unsupported: 'Неподдерживаемый элемент или геометрия', unitRequired: 'Выберите исходную единицу перед применением импорта.',
+  sourcesOverlap: 'Сохранённые исходные объекты перекрывают результат.', textLayoutReview: 'Проверьте размещение и интервалы текста перед применением контуров.', fontOutlineOnly: 'Результат содержит контуры шрифта и не будет редактируемым текстом.',
+  importApproximation: 'Дуги полилиний и части эллипсов преобразованы в кривые Безье с допуском 0,002 мм.',
+  warning: 'Требуется проверка', approximated: 'Кривые аппроксимированы с выбранным допуском.', unsupportedFont: 'Шрифт или размещение выбранного текста нельзя преобразовать в контуры.',
+  unrecognizedWarning: 'При подготовке результата возникло предупреждение. Проверьте геометрию перед применением.',
+};
+const lv: Dictionary = {
+  bezierTool: 'CAD Bezjē līkne', bezierKeys: 'Klikšķis: stūra mezgls · Vilkšana: vadotnes · Enter: pabeigt · pirmais mezgls: aizvērt · Backspace: noņemt mezglu · Escape: atcelt',
+  nodes: 'Bezjē mezgli · F10', noCurve: 'Atlasiet vienu CAD līkni mezglu rediģēšanai. Pārveidojiet ģeometriju zemāk vai zīmējiet Bezjē līkni.',
+  convert: 'Pārveidot atlasīto ģeometriju par līknēm', convertHelp: 'Aizstāj atbalstītu ģeometriju ar rediģējamām līknēm vienā atsaukšanas solī. Tekstam izmantojiet kontūru priekšskatījumu zemāk.',
+  converted: 'Ģeometrija pārveidota par līknēm.', contour: 'Kontūrs', node: 'Mezgls', mode: 'Mezgla veids', corner: 'Stūra', smooth: 'Gluds', symmetric: 'Simetrisks',
+  nodeHelp: 'X/Y ir dokumenta koordinātas. Vadotņu ΔX/ΔY ir nobīdes no mezgla dokumenta asīs; Y ir vērsts uz augšu. Gludi un simetriski mezgli līdzinās izejošajai vadotnei.',
+  x: 'X', y: 'Y', inX: 'Ienākošais ΔX', inY: 'Ienākošais ΔY', outX: 'Izejošais ΔX', outY: 'Izejošais ΔY',
+  updateNode: 'Atjaunināt mezglu', split: 'Sadalīt nākamo segmentu', deleteNode: 'Dzēst mezglu', closed: 'Slēgts kontūrs', updated: 'Līkne atjaunināta.',
+  textOutlines: 'Teksts kontūrās · Ctrl/⌘ Q', textMode: 'Teksta avots', newText: 'Jauns teksts', selectedText: 'Atlasītais teksts',
+  noText: 'Atlasiet vienu rediģējamu teksta objektu tā fonta un izkārtojuma izmantošanai.', text: 'Teksts', font: 'Fonts', sans: 'Bez serifiem', serif: 'Ar serifiem', mono: 'Vienplatuma', draw: 'Rokraksta', custom: 'Lokāls fonta fails',
+  fontFile: 'Fonta fails', fontHelp: 'TTF, OTF, WOFF vai WOFF2, līdz 8 MiB. Fonta faili tiek apstrādāti lokāli.', height: 'Kontūru augstums',
+  textHelp: 'Līdz 500 rakstzīmēm un 20 rindām. Augstums ir faktiskais kontūru augstums; X/Y ir apakšējais kreisais stūris. Pārbaudiet iekšējās atveres, atstarpes un izmērus.', selectedTextHelp: 'Izmanto atlasītā teksta pašreizējo fontu un izkārtojumu. Pirms rediģējamā teksta aizstāšanas pārbaudiet kontūras.',
+  keepSource: 'Saglabāt sākotnējo tekstu', keepSources: 'Saglabāt sākotnējos objektus', preview: 'Sagatavot priekšskatījumu', preparing: 'Sagatavo priekšskatījumu…', apply: 'Lietot rezultātu', applied: 'Rezultāts lietots.',
+  shaping: 'Apvienošana, apgriešana, šķēlums un nobīde', operation: 'Darbība', weld: 'Apvienot', trim: 'Apgriezt', intersect: 'Šķēlums', offset: 'Nobīde',
+  shapingHelp: 'Šīm darbībām līknes tiek aproksimētas norādītās pielaides robežās. Rezultāts ir daudzstūru kontūras.',
+  selectionHelp: 'Atlasiet vismaz divus rediģējamus slēgtus objektus apvienošanai, apgriešanai vai šķēlumam; vienu nobīdei.', target: 'Apgriežamais objekts', chooseTarget: 'Izvēlieties apgriežamo objektu', targetHelp: 'Visi pārējie atlasītie objekti apgriež norādīto objektu.',
+  distance: 'Nobīdes attālums', offsetHelp: 'Pozitīvas vērtības paplašina, negatīvas sašaurina. Sīkas detaļas var pazust.', join: 'Stūru savienojums', round: 'Noapaļots', miter: 'Ass', square: 'Nogriezts', tolerance: 'Pielaide (mm)',
+  import: 'CAD imports · DXF', importHelp: 'ASCII DXF līdz 8 MiB. CDR un DWG netiek atbalstīti; vispirms eksportējiet tos uz DXF. Faili tiek apstrādāti lokāli.',
+  dxfFile: 'DXF fails', sourceUnit: 'Avota vienība', automatic: 'Izmantot DXF vienības', chooseUnit: 'Failā nav atbalstītas mērvienības. Izvēlieties avota vienību un sagatavojiet priekšskatījumu vēlreiz.',
+  keepCoordinates: 'Saglabāt avota koordinātas', coordinatesHelp: 'Izslēdziet, lai novietotu rasējuma apakšējo kreiso stūri dokumenta koordinātu sākumpunktā, nemainot izmēru.',
+  omitted: 'Izlaistie elementi', acceptOmissions: 'Esmu pārbaudījis un piekrītu norādītajiem izlaidumiem.', noOmissions: 'Nav izlaistu elementu.',
+  result: 'Rezultāta priekšskatījums', contours: 'Kontūras', closedContours: 'Slēgtas kontūras', openContours: 'Atvērtas kontūras', nodeCount: 'Mezgli', bounds: 'Rezultāta izmēri (mm)', removed: 'Dzēšamie avota objekti',
+  stale: 'Rasējums, atlase vai ievade mainījās. Sagatavojiet jaunu priekšskatījumu.', empty: 'Darbība neradīja kontūras. Nekas netiks lietots.',
+  failed: 'Izmaiņu nevarēja piemērot. Pārbaudiet vērtības, atlasi un bloķēšanu.', invalid: 'Ievadiet galīgas koordinātas un pozitīvus izmērus.',
+  blocked: 'Tikai lasāmus, bloķētus objektus un pasūtījuma veidlapas nevar mainīt.', settingsRequired: 'Lietojiet dokumenta vienības un mērogu augstāk, lai iespējotu CAD darbības.',
+  limit: 'Rezultāts pārsniedz rasējuma ierobežojumus. Samaziniet rakstzīmju, mezglu vai objektu skaitu vai vienkāršojiet ģeometriju.', bound: 'Ar citiem objektiem saistītus objektus nevar aizstāt. Noņemiet saites vai saglabājiet avota objektus.',
+  fileTooLarge: 'Izvēlieties failu, kas nav lielāks par 8 MiB.', invalidFont: 'Fontu neizdevās nolasīt. Izvēlieties derīgu TTF, OTF, WOFF vai WOFF2 failu.', invalidDxf: 'Failu neizdevās nolasīt kā atbalstītu ASCII DXF.',
+  unsupported: 'Neatbalstīts elements vai ģeometrija', unitRequired: 'Pirms importa lietošanas izvēlieties avota vienību.',
+  sourcesOverlap: 'Saglabātie avota objekti pārklāj rezultātu.', textLayoutReview: 'Pirms kontūru lietošanas pārbaudiet teksta izkārtojumu un atstarpes.', fontOutlineOnly: 'Rezultāts satur fonta kontūras un vairs nebūs rediģējams teksts.',
+  importApproximation: 'Polilīniju loki un daļējas elipses pārveidotas par Bezjē līknēm ar 0,002 mm pielaidi.',
+  warning: 'Nepieciešama pārbaude', approximated: 'Līknes aproksimētas izvēlētās pielaides robežās.', unsupportedFont: 'Atlasītā teksta fontu vai izkārtojumu nevar pārveidot kontūrās.',
+  unrecognizedWarning: 'Rezultāta sagatavošanā radās brīdinājums. Pirms lietošanas pārbaudiet ģeometriju.',
+};
+export type CadAdvancedLabel = keyof typeof en;
+const subscribe = (notify: () => void) => {
+  const stopLocale = locale.subscribe(notify); const stopText = t.subscribe(notify);
+  return () => { stopLocale(); stopText(); };
+};
+export function useCadAdvancedText() {
+  useSyncExternalStore(subscribe, () => get(t), () => get(t));
+  const language = useSyncExternalStore(subscribe, () => get(locale), () => 'en');
+  const dictionary = language?.startsWith('ru') ? ru : language?.startsWith('lv') ? lv : en;
+  return { label: (key: CadAdvancedLabel) => dictionary[key] };
+}

@@ -11,6 +11,7 @@ import {
   setCadOriginToSelection, updateCadArc, updateCadPathPoints, type CadGeometryInput,
 } from './cad-geometry';
 import { buildCadDxf } from './cad-dxf';
+import { CadAdvancedPanel, type CadFocusRequest } from './CadAdvancedPanel';
 
 function numeric(value: string): number { return value.trim() ? Number(value) : NaN; }
 function format(value: number, precision: number): string { return Number(value.toFixed(precision)).toString(); }
@@ -33,7 +34,7 @@ function Message({ text, error = false }: { text: string; error?: boolean }) {
 }
 
 /** CAD is part of the shared docker, so order and idea editors have identical controls. */
-export function CadPanel({ settings }: { settings: CadSettings | null }) {
+export function CadPanel({ settings, focusRequest }: { settings: CadSettings | null; focusRequest?: CadFocusRequest }) {
   const editor = useEditor(); const { label } = useCadText();
   const controls = useValue('cad panel permissions', () => captureToolkitControls(editor), [editor]);
   const protectedSelection = useValue('cad protected selection', () => [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].some(id => ['order-details', 'order-address', 'profile-7st'].includes(editor.getShape(id)?.type ?? '')), [editor]);
@@ -119,6 +120,7 @@ export function CadPanel({ settings }: { settings: CadSettings | null }) {
       {knownInvalid && <p id={knownErrorId} className="drawing-help is-error" role="alert">{label('invalidLength')}</p>}
       <p className="drawing-help">{label('calibrateHelp')}</p>
     </details>
+    <CadAdvancedPanel settings={settings} focusRequest={focusRequest} />
     <DxfExport settings={settings} />
   </div>;
 }
@@ -246,17 +248,24 @@ function ArcFields({ settings, disabled }: { settings: CadSettings | null; disab
 function DxfExport({ settings }: { settings: CadSettings | null }) {
   const editor = useEditor(); const { label } = useCadText();
   const [scope, setScope] = useState<'selected' | 'all'>('selected');
-  const [report, setReport] = useState<{ data: ReturnType<typeof buildCadDxf>; revision: string; scope: 'selected' | 'all' } | null>(null);
+  const [curves, setCurves] = useState<'spline' | 'polyline'>('spline');
+  const [tolerance, setTolerance] = useState('0.01');
+  const toleranceErrorId = useId();
+  const validTolerance = Number.isFinite(numeric(tolerance)) && numeric(tolerance) >= 0.001 && numeric(tolerance) <= 1;
+  const validOptions = curves === 'spline' || validTolerance;
+  const optionsKey = JSON.stringify([curves, tolerance]);
+  const [report, setReport] = useState<{ data: ReturnType<typeof buildCadDxf>; revision: string; scope: 'selected' | 'all'; optionsKey: string; curves: 'spline' | 'polyline'; toleranceMm: number } | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [message, setMessage] = useState<CadLabel | ''>('');
   const revision = useValue('cad dxf source revision', () => JSON.stringify([editor.getCurrentPage().id, editor.getCurrentPageShapesSorted(), editor.getSelectedShapeIds(), settings]), [editor, settings]);
   const hasObjects = useValue('cad dxf scope availability', () => scope === 'selected' ? !!editor.getSelectedShapeIds().length : !!editor.getCurrentPageShapeIds().size, [editor, scope]);
-  const stale = !!report && (report.revision !== revision || report.scope !== scope);
+  const stale = !!report && (report.revision !== revision || report.scope !== scope || report.optionsKey !== optionsKey);
   const reasonLabels: Record<string, CadLabel> = { unsupported: 'unsupported', text: 'annotation', annotation: 'annotation', form: 'form', invalid: 'invalid', curved: 'curved', clipped: 'clipped', empty: 'empty' };
   function prepare() {
-    if (!settings) return;
+    if (!settings || !validOptions) return;
     setAcknowledged(false); setMessage('');
-    try { setReport({ data: buildCadDxf(editor, scope, settings), revision, scope }); }
+    const toleranceMm = validTolerance ? numeric(tolerance) : 0.01;
+    try { setReport({ data: buildCadDxf(editor, scope, settings, { curves, toleranceMm }), revision, scope, optionsKey, curves, toleranceMm }); }
     catch (error) { setReport(null); setMessage((error as { code?: string })?.code === 'empty' ? 'noEntities' : 'exportFailed'); }
   }
   function download() {
@@ -274,10 +283,18 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
       <Field label={label('exportScope')}><select value={scope} onChange={event => { setScope(event.target.value as typeof scope); setAcknowledged(false); setMessage(''); }}>
         <option value="selected">{label('selected')}</option><option value="all">{label('all')}</option>
       </select></Field>
-      <button type="button" disabled={!settings || !hasObjects} onClick={prepare} data-testid="drawing-cad-review">{label('review')}</button>
+      <Field label={label('curveExport')}><select value={curves} onChange={event => { setCurves(event.target.value as typeof curves); setAcknowledged(false); setMessage(''); }}>
+        <option value="spline">{label('splineExport')}</option><option value="polyline">{label('polylineExport')}</option>
+      </select></Field>
+      <Field label={label('exportTolerance')}><input type="number" min="0.001" max="1" step="any" value={tolerance} disabled={curves === 'spline'} aria-invalid={curves === 'polyline' && !validTolerance} aria-describedby={curves === 'polyline' && !validTolerance ? toleranceErrorId : undefined} onChange={event => { setTolerance(event.target.value); setAcknowledged(false); setMessage(''); }} /></Field>
+      <p className="drawing-help">{label(curves === 'spline' ? 'splineExportHelp' : 'polylineExportHelp')}</p>
+      {curves === 'polyline' && !validTolerance && <p id={toleranceErrorId} className="drawing-help is-error" role="alert">{label('exportToleranceInvalid')}</p>}
+      <button type="button" disabled={!settings || !hasObjects || !validOptions} onClick={prepare} data-testid="drawing-cad-review">{label('review')}</button>
     </div>
     {report && <div className="drawing-cad-report" data-testid="drawing-cad-report">
       <dl className="drawing-cad-values">
+        <dt>{label('curveExport')}</dt><dd>{label(report.curves === 'spline' ? 'splineExport' : 'polylineExport')}</dd>
+        {report.curves === 'polyline' && <><dt>{label('exportTolerance')}</dt><dd>{format(report.toleranceMm, 4)}</dd></>}
         <dt>{label('entities')}</dt><dd>{report.data.entities}</dd>
         <dt>{label('closedContours')}</dt><dd>{report.data.closedContours}</dd>
         <dt>{label('openContours')}</dt><dd>{report.data.openContours}</dd>

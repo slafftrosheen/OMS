@@ -1,11 +1,14 @@
 import { Box, type Editor, type TLShape } from '@tldraw/tldraw';
 
+import { curveBounds, mapContours } from './cad-curves';
+
 const normalize = (angle: number) => ((angle % 360) + 360) % 360;
 
 /** Physical extents must not depend on the editor's sampled hit-test vertices. */
 export function getCadShapePageBounds(editor: Editor, shape: TLShape): Box | undefined {
   const p = shape.props as Record<string, any>;
   const matrix = editor.getShapePageTransform(shape);
+  if (shape.type === 'cad-bezier') { const b = curveBounds(mapContours(p.contours, point => matrix.applyToPoint(point))); return new Box(b.x, b.y, b.w, b.h); }
   if (shape.type === 'cad-path') return Box.FromPoints(p.points.map((point: { x: number; y: number }) => matrix.applyToPoint(point)));
   if (shape.type === 'cad-ellipse' || shape.type === 'geo' && p.geo === 'ellipse') {
     const { w, h } = editor.getShapeGeometry(shape).bounds;

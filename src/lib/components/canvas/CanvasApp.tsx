@@ -1,5 +1,7 @@
 import { DrawingWorkspace, DrawingChrome } from './DrawingWorkspace';
 import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from './shapes/CadShapes';
+import { CadBezierShapeUtil } from './shapes/CadBezierShape';
+import { CadBezierTool } from './CadBezierTool';
 import { CadPolylineTool } from './CadPolylineTool';
 import { installCadTransforms } from './cad-transforms';
 import {OrderAnnotationShapeUtil} from './shapes/OrderAnnotationShape';
@@ -32,7 +34,7 @@ import { getRunnableShapeIds } from './node-runner';
 import { captureToolkitControls, type ToolkitControlsState } from './toolkit-controls';
 
 const customShapeUtils = [
-    CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil,
+    CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil, CadBezierShapeUtil,
     IdeaShapeUtil,
     MaterialSwatchShapeUtil,
     MakerShapeUtil,
@@ -288,7 +290,7 @@ export function CanvasApp({
                     assetUrls={canvasAssetUrls}
                     snapshot={initialSnapshot as any}
                     shapeUtils={customShapeUtils}
-                    tools={[CadPolylineTool]}
+                    tools={[CadPolylineTool, CadBezierTool]}
                     onMount={handleMount}
                     hideUi={hideUI}
                     components={drawingUi}

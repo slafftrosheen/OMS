@@ -16,6 +16,66 @@ async function drawRectangle(page: Page) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} outlines text, edits nodes and reviews DXF curve options`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await page.getByTestId('drawing-cad-toggle').click();
+    await page.getByTestId('drawing-cad-apply').click();
+    const text = page.getByTestId('drawing-cad-text');
+    await text.locator('summary').click();
+    await text.getByLabel('Text', { exact: true }).fill('BŪVE');
+    await text.getByLabel('Outline height (mm)', { exact: true }).fill('40');
+    await text.getByRole('button', { name: 'Prepare preview', exact: true }).click();
+    await expect(text.getByTestId('drawing-cad-plan')).toBeVisible();
+    await text.getByLabel('Outline height (mm)', { exact: true }).fill('50');
+    await expect(text.getByTestId('drawing-cad-apply-plan')).toBeDisabled();
+    await text.getByRole('button', { name: 'Prepare preview', exact: true }).click();
+    await text.getByTestId('drawing-cad-apply-plan').click();
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'cad-bezier').length).toBe(1);
+    const original = (await scene(page)).shapes.find((s: any) => s.type === 'cad-bezier');
+    await page.evaluate(() => (window as any).__drawingFixture.roundTrip());
+    expect((await scene(page)).shapes.find((s: any) => s.id === original.id)).toEqual(original);
+    const nodes = page.getByTestId('drawing-cad-nodes');
+    await nodes.locator('summary').click();
+    await nodes.getByRole('button', { name: 'Split next segment', exact: true }).click();
+    await expect.poll(async () => (await scene(page)).shapes.find((s: any) => s.id === original.id).props.contours[0].nodes.length).toBe(original.props.contours[0].nodes.length + 1);
+    await page.getByTestId('drawing-cad-review').click();
+    await expect(page.getByTestId('drawing-cad-download')).toBeEnabled();
+    await page.getByTestId('drawing-cad-panel').getByLabel('Bézier output', { exact: true }).selectOption('polyline');
+    await expect(page.getByTestId('drawing-cad-download')).toBeDisabled();
+    await page.getByTestId('drawing-cad-review').click();
+    await expect(page.getByTestId('drawing-cad-download')).toBeEnabled();
+    await page.getByRole('button', { name: 'Toggle read only' }).click();
+    await expect(nodes.getByRole('button', { name: 'Update node', exact: true })).toBeDisabled();
+    await expect(page.getByTestId('drawing-tool-cad-bezier')).toBeDisabled();
+  });
+  test(`${mode} imports CAD with units and omission review then shapes the selected contours`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 950 });
+    await page.goto(`/drawing-workspace.html?mode=${mode}`);
+    await page.getByTestId('drawing-cad-toggle').click();
+    await page.getByTestId('drawing-cad-apply').click();
+    const source = '0\nSECTION\n2\nENTITIES\n0\nLWPOLYLINE\n90\n4\n70\n1\n10\n0\n20\n0\n10\n100\n20\n0\n10\n100\n20\n100\n10\n0\n20\n100\n0\nTEXT\n1\nReview omitted annotation\n0\nENDSEC\n0\nEOF\n';
+    const intake = page.getByTestId('drawing-cad-import');
+    await intake.locator('summary').click();
+    await intake.getByLabel('DXF file', { exact: true }).setInputFiles({ name: 'part.dxf', mimeType: 'application/dxf', buffer: Buffer.from(source) });
+    await intake.getByRole('button', { name: 'Prepare preview', exact: true }).click();
+    await expect(intake.getByTestId('drawing-cad-apply-plan')).toBeDisabled();
+    await intake.getByLabel('Source unit', { exact: true }).selectOption('mm');
+    await intake.getByRole('button', { name: 'Prepare preview', exact: true }).click();
+    await expect(intake.getByTestId('drawing-cad-apply-plan')).toBeDisabled();
+    await intake.getByRole('checkbox', { name: 'I have reviewed and accept the listed omissions.' }).check();
+    await intake.getByTestId('drawing-cad-apply-plan').click();
+    const shaping = page.getByTestId('drawing-cad-shaping');
+    await shaping.locator('summary').click();
+    await shaping.getByLabel('Operation', { exact: true }).selectOption('offset');
+    await shaping.getByLabel('Offset distance (mm)', { exact: true }).fill('5');
+    await shaping.getByLabel('Keep source objects', { exact: true }).uncheck();
+    await shaping.getByRole('button', { name: 'Prepare preview', exact: true }).click();
+    await expect(shaping.getByTestId('drawing-cad-plan')).toContainText('110 × 110');
+    await shaping.getByTestId('drawing-cad-apply-plan').click();
+    await expect.poll(async () => (await scene(page)).shapes.filter((s: any) => s.type === 'cad-bezier').length).toBe(1);
+    if (mode === 'order') expect((await scene(page)).shapes.some((s: any) => s.type === 'order-details')).toBe(true);
+  });
   test(`${mode} CAD uses physical units, retains saved geometry and exports exact DXF`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);

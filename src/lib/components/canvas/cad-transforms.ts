@@ -1,6 +1,6 @@
 import { Mat, areAnglesCompatible, type Editor } from '@tldraw/tldraw';
 
-const CAD_TYPES = new Set(['cad-path', 'cad-ellipse', 'cad-arc', 'cad-dimension']);
+const CAD_TYPES = new Set(['cad-bezier', 'cad-path', 'cad-ellipse', 'cad-arc', 'cad-dimension']);
 
 /** tldraw 2.4's unaligned mirror writes a page rotation as a local rotation,
  * ignoring the resize axes and rotated parents. Correct the public resize

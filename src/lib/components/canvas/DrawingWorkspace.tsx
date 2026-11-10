@@ -12,6 +12,8 @@ import { applyDrawingCommand, drawingTransaction, toggleDrawingObjectLock, trans
 import { useDrawingText, type DrawingLabel } from './drawing-copy';
 import { drawingObjectAlias, drawingObjectName, drawingPngSize, renameDrawingObject, repeatDrawingSelection, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
 import { CadPanel } from './CadPanel';
+import { useCadAdvancedText } from './cad-advanced-copy';
+import type { CadFocusRequest } from './CadAdvancedPanel';
 import { useCadText, type CadLabel } from './cad-copy';
 import { canvasLengthToUnit, canvasPointToCad, readCadSettings, unitLengthToCanvas, type CadSettings } from './cad-settings';
 import { getCadSelection, nudgeCadSelection, transformCadSelection, type CadAnchor } from './cad-geometry';
@@ -83,6 +85,7 @@ const iconPaths: Record<string, ReactNode> = {
   draw: <><path d="m4 17 12-13 4 4L8 21H4Zm10-11 4 4M3 5c4-4 8 2 3 5s-5 4-2 5" /></>,
   line: <><path d="m4 20 16-16" /><circle cx="4" cy="20" r="1.5" /><circle cx="20" cy="4" r="1.5" /></>,
   'cad-polyline': <><path d="M4 19 9 5l10 7-6 7Z" /><rect x="2" y="17" width="4" height="4" /><rect x="7" y="3" width="4" height="4" /><rect x="17" y="10" width="4" height="4" /></>,
+  'cad-bezier': <><path d="M4 18C5 3 19 21 20 6M4 18 6 7M18 17 20 6" /><rect x="2" y="16" width="4" height="4" /><rect x="18" y="4" width="4" height="4" /><circle cx="6" cy="7" r="1.5" /><circle cx="18" cy="17" r="1.5" /></>,
   arrow: <path d="M4 20 20 4M10 4h10v10" />,
   rectangle: <rect x="4" y="5" width="16" height="14" rx="1" />,
   ellipse: <ellipse cx="12" cy="12" rx="9" ry="7" />,
@@ -114,7 +117,7 @@ function ToolButton({ label, icon, active, disabled, onClick, children, testId }
 }
 
 const geometryTools = ['rectangle', 'ellipse', 'triangle', 'diamond', 'pentagon', 'star'] as const;
-const tools = ['select', 'hand', 'draw', 'line', 'cad-polyline', 'arrow', ...geometryTools, 'text', 'highlight', 'eraser', 'frame'];
+const tools = ['select', 'hand', 'draw', 'line', 'cad-polyline', 'cad-bezier', 'arrow', ...geometryTools, 'text', 'highlight', 'eraser', 'frame'];
 const toolKeys: Record<string, string> = { select: 'toolkit.draw.selectTitle', draw: 'toolkit.draw.drawTitle', text: 'toolkit.draw.textTitle', arrow: 'toolkit.draw.arrowTitle' };
 const shortcut: Record<string, string> = { rectangle: 'F6', ellipse: 'F7', text: 'F8', select: 'V', draw: 'D', line: 'L', arrow: 'A', hand: 'H', eraser: 'E' };
 
@@ -276,6 +279,8 @@ export function DrawingChrome() {
   const editor = useEditor();
   const { label, tr } = useDrawingText();
   const { label: cadLabel } = useCadText();
+  const { label: advancedLabel } = useCadAdvancedText();
+  const [cadFocus, setCadFocus] = useState<CadFocusRequest>();
   const settings = useValue('drawing cad settings', () => readCadSettings(editor), [editor]);
   const [cadAnchor, setCadAnchor] = useState<CadAnchor>('bottom-left');
   const [proportional, setProportional] = useState(false);
@@ -303,7 +308,7 @@ export function DrawingChrome() {
     return () => container.removeEventListener('oms:canvas-upload', listen);
   }, [editor]);
 
-  const toolLabel = (tool: string) => tool === 'cad-polyline' ? cadLabel('drawPolyline') : tr(toolKeys[tool] ?? (tool === 'pentagon' ? 'toolkit.toolbar.styleValues.geo.pentagon' : `toolkit.toolbar.${tool}`));
+  const toolLabel = (tool: string) => tool === 'cad-polyline' ? cadLabel('drawPolyline') : tool === 'cad-bezier' ? advancedLabel('bezierTool') : tr(toolKeys[tool] ?? (tool === 'pentagon' ? 'toolkit.toolbar.styleValues.geo.pentagon' : `toolkit.toolbar.${tool}`));
   function chooseTool(tool: string) {
     if (editor.getInstanceState().isReadonly && !['hand', 'select'].includes(tool)) return;
     editor.complete();
@@ -334,6 +339,12 @@ export function DrawingChrome() {
       if (!(event.target instanceof Element) || event.target.closest('input,textarea,select,[contenteditable="true"]')) return;
       const lockedSelection = captureToolkitControls(editor).selectionLocked;
       const modifier = event.ctrlKey || event.metaKey;
+      if ((!modifier && !event.altKey && event.key === 'F10') || (modifier && !event.altKey && event.key.toLowerCase() === 'q')) {
+        event.preventDefault(); event.stopPropagation();
+        context?.setPanel('cad'); closeMenus();
+        setCadFocus(previous => ({ section: event.key === 'F10' ? 'nodes' : 'convert', sequence: (previous?.sequence ?? 0) + 1 }));
+        return;
+      }
       if (lockedSelection && event.target.closest('.drawing-viewport') && (['Delete', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) ||
           modifier && ['x', 'd', 'g', '[', ']'].includes(event.key.toLowerCase()))) {
         // Native group shortcuts do not inspect locked descendants. Keep their
@@ -521,7 +532,7 @@ export function DrawingChrome() {
         <button type="button" role="tab" id={`${tabsId}-cad`} aria-controls={`${tabsId}-panel`} tabIndex={panel === 'cad' ? 0 : -1} aria-selected={panel === 'cad'} onClick={() => setPanel('cad')}>{cadLabel('cad')}</button>
       </div><ToolButton icon="close" label={label('closePanel')} onClick={() => setPanel(null)} /></div>
       <div className="drawing-docker-content" role="tabpanel" id={`${tabsId}-panel`} aria-labelledby={`${tabsId}-${panel ?? 'properties'}`}>
-        {panel === 'cad' ? <CadPanel settings={settings} /> : panel === 'objects' ? <>
+        {panel === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : panel === 'objects' ? <>
           <p className="drawing-help">{state.shapes.length} {label('items')} · {controls.selected} {label('selected')}</p>
           <label className="drawing-object-search"><span>{label('searchObjects')}</span><input type="search" value={search} maxLength={100} onChange={event => setSearch(event.target.value)} /></label>
           {state.single && <ObjectNameField key={state.single.id} shape={state.single} disabled={!controls.canEditSelection} />}
@@ -571,7 +582,7 @@ export function DrawingChrome() {
         onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
     </div>)}
     {portal('status', <>
-      <span className="drawing-status-text" role="status" title={controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : undefined}>{notice || (controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
+      <span className="drawing-status-text" role="status" title={controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{notice || (controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
       <span className={`drawing-keyboard-hint${settings ? ' drawing-cad-status-unit' : ''}`} title={settings ? cadLabel('nudgeHelp') : label('keyboard')}>{settings ? <>{settings.unit} · 1:{settings.scale}<span className="drawing-cad-status-nudge"> · {cadLabel('nudge')}: {settings.nudge} {settings.unit}</span></> : label('units')}</span>
       <button type="button" onClick={() => command('grid')} aria-pressed={state.grid}>{label('grid')}</button>
       <button type="button" onClick={() => command('snap')} aria-pressed={state.snap}>{label('snap')}</button>

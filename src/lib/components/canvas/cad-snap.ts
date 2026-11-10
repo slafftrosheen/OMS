@@ -11,7 +11,8 @@ export function snapCadPoint(editor: Editor, point: CadPoint, exclude: TLShapeId
     if (shape.id === exclude) continue;
     const p = shape.props as Record<string, any>;
     let points: CadPoint[];
-    if (shape.type === 'cad-path') points = p.points;
+    if (shape.type === 'cad-bezier') points = p.contours.flatMap(c => c.nodes);
+    else if (shape.type === 'cad-path') points = p.points;
     else if (shape.type === 'line' && p.spline === 'line') points = Object.values(p.points);
     else if (shape.type === 'cad-ellipse') points = [{ x: p.w / 2, y: p.h / 2 }, { x: 0, y: p.h / 2 }, { x: p.w, y: p.h / 2 }, { x: p.w / 2, y: 0 }, { x: p.w / 2, y: p.h }];
     else if (shape.type === 'cad-arc') points = [{ x: 0, y: 0 }, ...[p.startAngle, p.endAngle].map(a => ({ x: p.radius * Math.cos(a * Math.PI / 180), y: -p.radius * Math.sin(a * Math.PI / 180) }))];
