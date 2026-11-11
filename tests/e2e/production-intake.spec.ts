@@ -516,6 +516,8 @@ for (const width of [390, 1440]) test(`new order workspace keeps fields while ch
  await page.goto('/production-intake.html?new');
  await expect(page.locator('#new-order-intake')).not.toHaveAttribute('open', '');
  await page.locator('#clientName').fill('TEST ONLY view retention');
+ // Trigger an explicit validation error; Save Draft permits missing attachments.
+ await page.locator('.qty-input').fill('0');
  await page.getByRole('button',{name:'Drawing',exact:true}).click();
  await expect(page.getByTestId('drawing-workspace')).toBeVisible();
  await expect(page.locator('#new-order-form')).toBeHidden();

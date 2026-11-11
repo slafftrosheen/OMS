@@ -7,7 +7,7 @@
   const order = new URLSearchParams(location.search).get('mode') === 'order';
   const seed: OrderSeed = { orderId: 'drawing-order', title: 'Production form', clientName: 'Test client', profiles: [] };
   let editor: any;
-  let readonly = $state(false);
+  let readonly = $state(new URLSearchParams(location.search).has('readonly'));
   let theme = $state('LightVim');
   let saves = $state(0);
   $effect(() => { document.documentElement.dataset.theme = theme; });

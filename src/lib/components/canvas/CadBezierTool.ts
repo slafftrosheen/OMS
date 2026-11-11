@@ -134,9 +134,9 @@ export class CadBezierTool extends StateNode {
     this.mark = null;
     this.nodes = [];
     this.dragging = false;
-    if (mark) this.editor.mark(`${mark}-complete`);
     if (select) this.editor.setCurrentTool('select');
     if (id) this.editor.setSelectedShapes([id]);
+    if (mark) this.editor.mark(`${mark}-complete`);
   }
   private cancel(select = true) {
     const mark = this.mark;

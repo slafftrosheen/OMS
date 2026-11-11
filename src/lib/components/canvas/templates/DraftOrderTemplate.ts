@@ -9,8 +9,10 @@
 
 import type { Editor, TLShapeId } from '@tldraw/tldraw';
 import { createShapeId } from '@tldraw/tldraw';
+import type {CanvasOrderAttachment} from '$lib/order/file-pockets';
 
 export interface OrderSeed {
+    attachments?: CanvasOrderAttachment[];
     orderId: string;
     title?: string;
     clientName?: string;
@@ -139,16 +141,17 @@ export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): Spawne
 
         // ── Right side: production zone frames ─────────────────────────────
         const frameLabels = [
-            { id: laserFrameId, label: 'Laser (DXF)', color: '#ff453a', y: 0 },
-            { id: cncFrameId, label: 'CNC Routing', color: '#ff9500', y: FRAME_H + FRAME_GAP },
-            { id: benderFrameId, label: 'Bender', color: '#34c759', y: (FRAME_H + FRAME_GAP) * 2 },
-            { id: visualsFrameId, label: 'Visuals (PDF/Rasters)', color: '#007aff', y: (FRAME_H + FRAME_GAP) * 3 },
+            { id: laserFrameId, pocket: 'laser', label: 'Laser (DXF)', color: '#ff453a', y: 0 },
+            { id: cncFrameId, pocket: 'cnc', label: 'CNC Routing', color: '#ff9500', y: FRAME_H + FRAME_GAP },
+            { id: benderFrameId, pocket: 'bender', label: 'Bender', color: '#34c759', y: (FRAME_H + FRAME_GAP) * 2 },
+            { id: visualsFrameId, pocket: 'visuals', label: 'Visuals (PDF/Rasters)', color: '#007aff', y: (FRAME_H + FRAME_GAP) * 3 },
         ];
 
-        frameLabels.forEach(({ id, label, y }) => {
+        frameLabels.forEach(({ id, label, y, pocket }) => {
             editor.createShape({
                 id,
                 type: 'frame',
+                meta: {omsFilePocket:pocket},
                 x: FRAMES_X,
                 y,
                 props: {

@@ -74,9 +74,9 @@ export class CadPolylineTool extends StateNode {
     this.render();
     if (id) this.editor.updateShape({ id, type: 'cad-path', props: { closed } });
     this.mark = null; this.shapeId = null; this.points = [];
-    if (mark) this.editor.mark(`${mark}-complete`);
     if (select) this.editor.setCurrentTool('select');
     if (id) this.editor.setSelectedShapes([id]);
+    if (mark) this.editor.mark(`${mark}-complete`);
   }
   private cancel(select = true) {
     const mark = this.mark;

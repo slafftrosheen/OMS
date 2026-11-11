@@ -1,4 +1,6 @@
 import { DrawingWorkspace, DrawingChrome } from './DrawingWorkspace';
+import {OrderFilePocketOverlays, OrderFilePocketFallback, OrderFilePocketsProvider} from './OrderFilePockets';
+import {syncCreationFileDocuments} from './order-file-documents';
 import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from './shapes/CadShapes';
 import { CadBezierShapeUtil } from './shapes/CadBezierShape';
 import { CadBezierTool } from './CadBezierTool';
@@ -57,6 +59,8 @@ const customShapeUtils = [
 // selection handles remain inside tldraw's providers. Object menus go through
 // OMS guards, including locked descendants of a selected group.
 const drawingUi = {
+    OnTheCanvas: OrderFilePocketOverlays,
+    InFrontOfTheCanvas: OrderFilePocketFallback,
     Toolbar: null, StylePanel: null,
     ActionsMenu: null, QuickActions: null, MenuPanel: null,
     NavigationPanel: null, HelperButtons: null, HelpMenu: null, ContextMenu: null,
@@ -139,6 +143,7 @@ export function CanvasApp({
     }, [orderSeed?.orderId,onOrderChange, onProfileChange, onAssetUploaded, onFilesUpload, onProfileQuantityChange]);
 
     const syncSeed = (editor: Editor, seed: OrderSeed) => {
+        if(seed.attachments)syncCreationFileDocuments(editor,seed.attachments);
         // Restored snapshots already contain the forms, so no template was
         // spawned this mount. Find only this order's existing form records.
         const forms = editor.getCurrentPageShapes().filter((shape) =>
@@ -257,6 +262,7 @@ export function CanvasApp({
             spawnFrameRef.current = requestAnimationFrame(() => {
                 spawnFrameRef.current = null;
                 spawnedRef.current = spawnDraftOrderTemplate(editor, seedRef.current ?? seed);
+                syncSeed(editor,seedRef.current ?? seed);
             });
         } else if (seed) {
             syncSeed(editor, seed);
@@ -286,6 +292,8 @@ export function CanvasApp({
                     if (toolkitBoardId) await callbacksRef.current.onToolkitFilesDrop?.(files, point);
                     else if (seedRef.current?.orderId) await uploadOrderCanvasFiles(editor, files, seedRef.current.orderId, point);
                   }}>
+                <OrderFilePocketsProvider key={orderSeed?.orderId ?? 'toolkit'} orderId={toolkitBoardId ? undefined : orderSeed?.orderId}
+                  local={!!onFilesUpload} attachments={orderSeed?.attachments}>
                 <Tldraw
                     assetUrls={canvasAssetUrls}
                     snapshot={initialSnapshot as any}
@@ -295,6 +303,7 @@ export function CanvasApp({
                     hideUi={hideUI}
                     components={drawingUi}
                 >{!hideUI && <DrawingChrome />}</Tldraw>
+                </OrderFilePocketsProvider>
                 </DrawingWorkspace>
             </CanvasModeContext.Provider>
         </div>

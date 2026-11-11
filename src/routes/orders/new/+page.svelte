@@ -1,5 +1,9 @@
 <script lang="ts">
-  import {prepareCreationCanvas} from '$lib/order/creation-canvas';
+  import {prepareCreationCanvas,creationCanvasFilePockets,updateCreationCanvasPockets} from '$lib/order/creation-canvas';
+  import DxfPreview from '$lib/order/DxfPreview.svelte';
+  import {filePreviewCopy} from '$lib/order/file-preview-copy';
+  import {PRODUCTION_FILE_POCKETS,type ProductionFilePocket} from '$lib/order/file-pockets';
+  const fileCopy = $derived(filePreviewCopy($locale));
   import {creationFormFingerprint, deleteCreationUpload} from '$lib/order/creation-state';
   import OrderDraftFields from '$lib/order/OrderDraftFields.svelte';
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
@@ -95,7 +99,9 @@
     file: File;
     preview?: string;
     pdfDataUrl?: string;
-    type: 'pdf' | 'cdr' | 'image' | 'other';
+    type: 'pdf' | 'cdr' | 'dxf' | 'image' | 'other';
+    url: string;
+    pocket: ProductionFilePocket;
   }
   let uploadedFiles = $state<FileWithPreview[]>([]);
   let preparingFiles = $state(false);
@@ -436,7 +442,7 @@
   const contentFingerprint = $derived(JSON.stringify([
     creationFormFingerprint({clientName,title,deadline,loadingDate,notes,priority,isRd,rdNotes,
       selectedPresetId,deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail}, profiles),
-    uploadedFiles.map(file => file.uploadId), canvasRevision
+    uploadedFiles.map(file => [file.uploadId,file.pocket]), canvasRevision
   ]));
   let savedContentFingerprint = $state(untrack(() => contentFingerprint));
   const hasPendingWork = $derived(saving || preparingFiles || !!removingFileId || contentFingerprint !== savedContentFingerprint);
@@ -486,11 +492,20 @@
   const creationId=createId();
   const localUrls:string[]=[];
   onDestroy(()=>localUrls.forEach(url=>URL.revokeObjectURL(url)));
+  function acceptCreationSnapshot(snapshot:unknown){
+    const pockets=creationCanvasFilePockets(snapshot);
+    uploadedFiles=uploadedFiles.map(entry=>pockets[entry.uploadId]&&pockets[entry.uploadId]!==entry.pocket?{...entry,pocket:pockets[entry.uploadId]}:entry);
+    creationSnapshot=snapshot;
+  }
+  function changeFilePocket(id:string,pocket:ProductionFilePocket){
+    uploadedFiles=uploadedFiles.map(entry=>entry.uploadId===id?{...entry,pocket}:entry);
+    if(creationSnapshot)creationSnapshot=updateCreationCanvasPockets(creationSnapshot,{[id]:pocket});
+  }
   async function toggleCanvas(){
     if (saving || switchingView) return;
     switchingView=true;
     try {
-      if(canvasMode&&creationEditor){const {getSnapshot}=await import('@tldraw/tldraw');creationEditor.complete();creationSnapshot=getSnapshot(creationEditor.store);}
+      if(canvasMode&&creationEditor){const {getSnapshot}=await import('@tldraw/tldraw');creationEditor.complete();acceptCreationSnapshot(getSnapshot(creationEditor.store));}
       canvasMode=!canvasMode;creationEditor=null;
     } catch { error=workspaceCopy.viewFailed; }
     finally { switchingView=false; }
@@ -504,15 +519,18 @@
   }
   async function addCanvasFiles(files:File[],position:{x:number;y:number}){
     const editor=creationEditor;if(!editor||saving)return;
+    const {orderPocketAtPoint,addOrderFileDocument}=await import('$lib/components/canvas/order-file-documents');
+    const {frameFilePocket}=await import('$lib/order/file-pockets');
+    const frame=orderPocketAtPoint(editor,position),pocket=frame ? frameFilePocket(frame)! : 'visuals';
     const entries=await addFiles(files);
     if(editor!==creationEditor)return;
-    const {createShapeId}=await import('@tldraw/tldraw');
     entries.forEach((entry,index)=>{
-      const url=URL.createObjectURL(entry.file);localUrls.push(url);
-      editor.createShape({id:createShapeId(),type:'document',x:position.x+index*28,y:position.y+index*28,
-        props:{w:360,h:360,title:entry.file.name,content:'',status:'ready',url,mime:entry.file.type,
-          kind:entry.type==='pdf'?'pdf':entry.type==='image'?'image':'file',fileId:entry.uploadId}});
+      entry.pocket=pocket;
+      if(!editor.getCurrentPageShapesSorted().some((shape:any)=>shape.type==='document'&&shape.props.fileId===entry.uploadId))
+        addOrderFileDocument(editor,{id:entry.uploadId,url:entry.url,originalName:entry.file.name,mimeType:entry.file.type},
+          {x:position.x+index*28,y:position.y+index*28},pocket);
     });
+    uploadedFiles=[...uploadedFiles];
   }
   async function persistCreationCanvas(orderId:string){
     if(!creationEditor&&!creationSnapshot)return;
@@ -591,6 +609,7 @@
     const date = new Date();
     date.setDate(date.getDate() + 14);
     deadline = date.toISOString().split('T')[0];
+    savedContentFingerprint = contentFingerprint;
   });
 
   async function loadDeliveryPresets() {
@@ -681,10 +700,11 @@
     }
   }
 
-  function getFileType(file: File): 'pdf' | 'cdr' | 'image' | 'other' {
+  function getFileType(file: File): FileWithPreview['type'] {
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (ext === 'pdf') return 'pdf';
     if (ext === 'cdr') return 'cdr';
+    if (ext === 'dxf') return 'dxf';
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return 'image';
     return 'other';
   }
@@ -704,7 +724,8 @@
     try {
       for (const file of newFiles) {
         const type = getFileType(file);
-        const fileWithPreview: FileWithPreview = { file, type, uploadId: createId('upload') };
+        const url=URL.createObjectURL(file);localUrls.push(url);
+        const fileWithPreview: FileWithPreview = { file, type, uploadId: createId('upload'),url,pocket:'visuals' };
         if (type === 'image') {
           fileWithPreview.preview = await createImagePreview(file);
         } else if (type === 'pdf') {
@@ -749,6 +770,7 @@
     }
     if(removed){removedCanvasFiles.add(removed.uploadId);if(creationEditor)creationEditor.deleteShapes(creationEditor.getCurrentPageShapes().filter((shape:any)=>shape.props?.fileId===removed.uploadId).map((shape:any)=>shape.id));}
     uploadedFiles = uploadedFiles.filter((_, i) => i !== index);
+    URL.revokeObjectURL(removed.url);
     if (selectedFileIndex === index) {
       if (uploadedFiles.length) selectFile(0);
       else { selectedFileIndex = null; pdfRenderSerial++; pdfRenderTask?.cancel(); pdfRendering = false; }
@@ -816,7 +838,7 @@
 
     // Finish the active pen/polyline gesture before the editor becomes read-only;
     // completing a CAD tool after that transition cancels its unfinished path.
-    try { creationEditor?.complete(); }
+    try { if(creationEditor){creationEditor.complete();const {getSnapshot}=await import('@tldraw/tldraw');acceptCreationSnapshot(getSnapshot(creationEditor.store));} }
     catch { error=workspaceCopy.viewFailed; return; }
     saving = true;
     successMessage = '';
@@ -878,7 +900,7 @@
         const formData = new FormData();
         formData.append('file', fileItem.file);
         formData.append('order_id', String(orderId));
-        formData.append('file_type', 'sketch');
+        formData.append('file_type', fileItem.pocket);
 
         try {
           const uploadResponse = await fetch(`${base}/api/files/upload`, { method: 'POST', body: formData });
@@ -1063,7 +1085,8 @@
       {#await import('$lib/components/canvas/TldrawWrapper.svelte') then module}
         <module.default snapshot={creationSnapshot} onReady={editor=>creationEditor=editor} onSave={snapshot=>creationSnapshot=snapshot} onDocumentChange={()=>canvasRevision++}
           onError={message=>error=message} onFilesUpload={addCanvasFiles} toolkitReadOnly={saving||!!successMessage}
-          orderSeed={{orderId:creationId,isRd,rdNotes,title,clientName,deadline,loadingDate,priority,notes,deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail,profiles}}
+          orderSeed={{orderId:creationId,isRd,rdNotes,title,clientName,deadline,loadingDate,priority,notes,deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail,profiles,
+            attachments:uploadedFiles.map(entry=>({id:entry.uploadId,originalName:entry.file.name,mimeType:entry.file.type,url:entry.url,file_type:entry.pocket}))}}
           onOrderChange={(_id,patch)=>applyIntakeFields(patch)}
           onProfileQuantityChange={(_id,index,quantity)=>{if(!saving&&!successMessage)profiles=profiles.map((profile,i)=>i===index?{...profile,quantity}:profile);}}
           onProfileChange={(_id,index,configuration)=>{if(!saving&&!successMessage)profiles=profiles.map((profile,i)=>i===index?{...profile,configuration}:profile);}}/>
@@ -1209,10 +1232,15 @@
                     {#if uploadedFileKeys.has(fileItem.uploadId)}<span class="file-list-size">{workspaceCopy.attached}</span>{/if}
                   </div>
                   <div class="file-list-actions">
+                    <select aria-label={`${fileCopy.pocket}: ${fileItem.file.name}`} value={fileItem.pocket}
+                      onchange={event=>changeFilePocket(fileItem.uploadId,event.currentTarget.value as ProductionFilePocket)}
+                      disabled={saving||preparingFiles||!!removingFileId||uploadedFileKeys.has(fileItem.uploadId)} onclick={event=>event.stopPropagation()}>
+                      {#each PRODUCTION_FILE_POCKETS as pocket}<option value={pocket}>{fileCopy[pocket]}</option>{/each}
+                    </select>
                     {#if ['application/pdf','image/jpeg','image/png','image/webp'].includes(fileItem.file.type)}
                       <button type="button" class="btn-secondary" onclick={e=>{e.stopPropagation();analyzeAttachment(i);}}>{$t('orderIntake.analyzeFile')}</button>
                     {/if}
-                    {#if fileItem.type === 'pdf' || fileItem.type === 'image'}
+                    {#if fileItem.type === 'pdf' || fileItem.type === 'image' || fileItem.type === 'dxf'}
                       <button class="btn-icon-sm" onclick={(e) => { e.stopPropagation(); selectFile(i); }} title={$t('common.preview')} aria-label={$t('common.preview')}>
                         <Icon name="eye" size="xs" />
                       </button>
@@ -1269,6 +1297,8 @@
               {#if previewProblem}<p role="alert">{previewProblem}</p>
               {:else if pdfRendering}<p role="status">{$t('orders.new.files.loading_pdf')}</p>{/if}
               <canvas bind:this={pdfCanvas} class="pdf-canvas" class:pdf-pending={pdfRendering||!!previewProblem}></canvas>
+            {:else if selectedFile.type === 'dxf'}
+              <DxfPreview source={selectedFile.file} title={selectedFile.file.name} zoom={previewZoom}/>
             {:else if selectedFile.type === 'pdf'}
               <div class="pdf-preview-placeholder">
                 <Icon name="file-text" size="xl" />
@@ -2076,10 +2106,13 @@
 
   .file-list-actions {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 4px;
     opacity: 0;
     transition: opacity 0.15s;
   }
+  .file-list-actions select { width:auto;max-width:140px;min-height:32px;padding:4px;color:var(--ink-primary);background:var(--bg-1);border:1px solid var(--border);border-radius:var(--radius-sm); }
 
   .file-list-item:hover .file-list-actions {
     opacity: 1;
@@ -2438,10 +2471,10 @@
   }
   .files-layout { grid-template-columns:minmax(220px, 340px) minmax(0,1fr);min-height:380px; }
   .upload-section,.preview-section { min-width:0; }
-  .file-list-item { background:var(--bg-1);border-radius:var(--radius-md); }
+  .file-list-item { display:grid;grid-template-columns:32px minmax(0,1fr);background:var(--bg-1);border-radius:var(--radius-md); }
   .file-list-item:focus-visible { outline:2px solid var(--focus);outline-offset:2px; }
   /* Delete/preview cannot be hover-only on touch or keyboard. */
-  .file-list-actions { opacity:1; }
+  .file-list-actions { grid-column:1 / -1;width:100%;justify-content:flex-end;opacity:1; }
   .file-list-item:focus-within .file-list-actions { opacity:1; }
   .preview-section { background:var(--bg-2);border-radius:var(--radius-md); }
   .preview-container { padding:var(--space-lg);min-height:260px; }.client-delivery-row { min-width:0; }

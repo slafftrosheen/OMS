@@ -4,7 +4,7 @@ import type { CadPoint } from './cad-settings';
 /** Drafting snaps use stored endpoints/centres, never sampled curve vertices. */
 export function snapCadPoint(editor: Editor, point: CadPoint, exclude: TLShapeId | null): CadPoint {
   const enabled = editor.user.getIsSnapMode() !== !!editor.inputs.ctrlKey;
-  if (!enabled) return point;
+  if (!enabled) return { x: point.x, y: point.y };
   const tolerance = 8 / editor.getZoomLevel();
   let nearest = point, distance = tolerance;
   for (const shape of editor.getCurrentPageShapesSorted()) {
@@ -29,5 +29,5 @@ export function snapCadPoint(editor: Editor, point: CadPoint, exclude: TLShapeId
       if (delta < distance) { nearest = world; distance = delta; }
     }
   }
-  return nearest;
+  return { x: nearest.x, y: nearest.y };
 }

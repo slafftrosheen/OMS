@@ -14,7 +14,8 @@ export interface CadContour {
 }
 export const CAD_CURVE_NODE_LIMIT = 4096,
   CAD_FLATTEN_LIMIT = 50000;
-export const nodeAt = (p: CadPoint): CadBezierNode => ({ ...p, inX: 0, inY: 0, outX: 0, outY: 0, mode: 'corner' });
+// Editor vectors also carry pressure (z). Saved CAD nodes have a strict 2D schema.
+export const nodeAt = (p: CadPoint): CadBezierNode => ({ x: p.x, y: p.y, inX: 0, inY: 0, outX: 0, outY: 0, mode: 'corner' });
 export const mix = (a: CadPoint, b: CadPoint, t: number): CadPoint => ({
   x: a.x + (b.x - a.x) * t,
   y: a.y + (b.y - a.y) * t
@@ -145,7 +146,7 @@ export function mapContours(contours: CadContour[], transform: (p: CadPoint) => 
       const p = transform(n),
         a = transform({ x: n.x + n.inX, y: n.y + n.inY }),
         b = transform({ x: n.x + n.outX, y: n.y + n.outY });
-      return { ...p, inX: a.x - p.x, inY: a.y - p.y, outX: b.x - p.x, outY: b.y - p.y, mode: n.mode };
+      return { x: p.x, y: p.y, inX: a.x - p.x, inY: a.y - p.y, outX: b.x - p.x, outY: b.y - p.y, mode: n.mode };
     })
   }));
 }

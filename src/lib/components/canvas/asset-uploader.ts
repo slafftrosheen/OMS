@@ -1,8 +1,10 @@
 /** Canonical order uploads shared by the visible picker and drag/drop. */
-import {createShapeId,type Editor} from '@tldraw/tldraw';
+import {type Editor} from '@tldraw/tldraw';
 import {getOrderBridge} from './state-bridge';
 import {announceOrderFilesChanged} from '$lib/order/order-files-client';
 import {base} from '$app/paths';
+import {addOrderFileDocument,orderPocketAtPoint} from './order-file-documents';
+import {frameFilePocket} from '$lib/order/file-pockets';
 export interface UploadedAsset{id:string;url:string;fileName:string;mime:string;kind:'image'|'pdf'|'file'}
 const pending=new WeakSet<Editor>();
 const lifetimes=new WeakMap<Editor,AbortController>();
@@ -21,7 +23,8 @@ export async function uploadOrderCanvasFiles(editor:Editor,files:File[],orderId:
    if(signal?.aborted||editor.getInstanceState().isReadonly)break;
    report(`Uploading ${index+1}/${files.length}: ${file.name}`,true);
    try{
-    const body=new FormData();body.set('file',file);body.set('order_id',orderId);body.set('file_type','canvas-asset');
+    const frame=orderPocketAtPoint(editor,position);
+    const body=new FormData();body.set('file',file);body.set('order_id',orderId);body.set('file_type',frame ? frameFilePocket(frame)! : 'visuals');
     const res=await fetch(base+'/api/files/upload',{method:'POST',body,signal:signal?AbortSignal.any([signal,AbortSignal.timeout(60_000)]):AbortSignal.timeout(60_000)});
     const result=await res.json().catch(()=>({}));
     if(!res.ok||typeof result.file?.id!=='string')throw new Error(result.message||result.error||'Upload failed');
@@ -30,8 +33,7 @@ export async function uploadOrderCanvasFiles(editor:Editor,files:File[],orderId:
     const f=result.file,mime=f.mimeType||f.mime_type||file.type;
     const kind=mime==='application/pdf'?'pdf':mime.startsWith('image/')?'image':'file';
     const url=`${base}/api/files/${encodeURIComponent(f.id)}/download`;
-    editor.createShape({id:createShapeId(),type:'document',x:position.x+index*28,y:position.y+index*28,
-     props:{w:kind==='image'?420:320,h:360,title:file.name,content:'',status:'ready',url,mime,kind,fileId:f.id}} as any);
+    addOrderFileDocument(editor,{id:f.id,url,originalName:file.name,mimeType:mime},{x:position.x+index*28,y:position.y+index*28},frame ? frameFilePocket(frame)! : undefined);
     getOrderBridge(editor)?.onAssetUploaded?.(orderId,{url,fileName:file.name,kind});completed++;
    }catch(err){if(!signal?.aborted)failures.push(`${file.name}: ${err instanceof Error?err.message:'Upload failed'}`);}
   }

@@ -24,15 +24,15 @@ for (const mode of ['idea', 'order']) {
     await page.getByTestId('drawing-cad-task').selectOption('draw');
     const panel = page.getByTestId('drawing-cad-panel');
     await panel.locator('summary').filter({ hasText: /^Exact geometry$/ }).click();
-    await panel.getByLabel('Object type', { exact: true }).selectOption('polyline');
-    await panel.getByLabel('Vertices: X,Y (mm)', { exact: true }).fill('0,0\n100,0\n100,50');
+    await panel.getByRole('combobox', { name: 'Object type', exact: true }).selectOption('polyline');
+    await panel.getByRole('textbox', { name: 'Vertices: X,Y (mm)', exact: true }).fill('0,0\n100,0\n100,50');
     await page.getByTestId('drawing-cad-create').click();
     await page.getByTestId('drawing-cad-task').selectOption('edit');
     const nodes = page.getByTestId('drawing-cad-nodes');
     await nodes.locator('summary').filter({ hasText: /^Bézier nodes/ }).click();
     await nodes.getByRole('button', { name: 'Convert selected geometry to curves', exact: true }).click();
     const original = (await scene(page)).shapes.find((s: any) => s.type === 'cad-bezier');
-    await nodes.getByLabel('Node', { exact: true }).selectOption('1');
+    await nodes.getByRole('combobox', { name: 'Node', exact: true }).selectOption('1');
     await nodes.locator('summary').filter({ hasText: /^Contour editing$/ }).click();
     await nodes.getByRole('button', { name: 'Break curve at node', exact: true }).click();
     await expect.poll(async () => (await scene(page)).shapes.find((s: any) => s.id === original.id).props.contours.length).toBe(2);
@@ -40,9 +40,9 @@ for (const mode of ['idea', 'order']) {
     await join.locator('summary').click();
     await join.getByRole('button', { name: 'Prepare preview', exact: true }).click();
     await expect(join.getByTestId('drawing-cad-plan').locator('dl').last().locator('dd').first()).toHaveText('0');
-    await join.getByLabel('Endpoints', { exact: true }).selectOption('start-end');
+    await join.getByRole('combobox', { name: 'Endpoints', exact: true }).selectOption('start-end');
     await expect(join.getByTestId('drawing-cad-apply-plan')).toBeDisabled();
-    await join.getByLabel('Endpoints', { exact: true }).selectOption('nearest');
+    await join.getByRole('combobox', { name: 'Endpoints', exact: true }).selectOption('nearest');
     await join.getByRole('button', { name: 'Prepare preview', exact: true }).click();
     await join.getByTestId('drawing-cad-apply-plan').click();
     const joined = (await scene(page)).shapes.find((s: any) => s.type === 'cad-bezier');
@@ -114,7 +114,7 @@ for (const mode of ['idea', 'order']) {
     await page.getByTestId('drawing-cad-task').selectOption('files');
     await page.getByTestId('drawing-cad-review').click();
     await expect(page.getByTestId('drawing-cad-download')).toBeEnabled();
-    await page.getByTestId('drawing-cad-panel').getByLabel('Bézier output', { exact: true }).selectOption('polyline');
+    await page.getByTestId('drawing-cad-panel').getByRole('combobox', { name: 'Bézier output', exact: true }).selectOption('polyline');
     await expect(page.getByTestId('drawing-cad-download')).toBeDisabled();
     await page.getByTestId('drawing-cad-task').selectOption('files');
     await page.getByTestId('drawing-cad-review').click();
@@ -136,7 +136,7 @@ for (const mode of ['idea', 'order']) {
     await intake.getByLabel('DXF file', { exact: true }).setInputFiles({ name: 'part.dxf', mimeType: 'application/dxf', buffer: Buffer.from(source) });
     await intake.getByRole('button', { name: 'Prepare preview', exact: true }).click();
     await expect(intake.getByTestId('drawing-cad-apply-plan')).toBeDisabled();
-    await intake.getByLabel('Source unit', { exact: true }).selectOption('mm');
+    await intake.getByRole('combobox', { name: 'Source unit', exact: true }).selectOption('mm');
     await intake.getByRole('button', { name: 'Prepare preview', exact: true }).click();
     await expect(intake.getByTestId('drawing-cad-apply-plan')).toBeDisabled();
     await intake.getByRole('checkbox', { name: 'I have reviewed and accept the listed omissions.' }).check();
@@ -144,7 +144,7 @@ for (const mode of ['idea', 'order']) {
     await page.getByTestId('drawing-cad-task').selectOption('edit');
     const shaping = page.getByTestId('drawing-cad-shaping');
     await shaping.locator('summary').click();
-    await shaping.getByLabel('Operation', { exact: true }).selectOption('offset');
+    await shaping.getByRole('combobox', { name: 'Operation', exact: true }).selectOption('offset');
     await shaping.getByLabel('Offset distance (mm)', { exact: true }).fill('5');
     await shaping.getByLabel('Keep source objects', { exact: true }).uncheck();
     await shaping.getByRole('button', { name: 'Prepare preview', exact: true }).click();
@@ -172,7 +172,7 @@ for (const mode of ['idea', 'order']) {
     await page.evaluate(() => (window as any).__drawingFixture.roundTrip());
     expect((await scene(page)).shapes.find((s: any) => s.id === panelShape.id)).toEqual(panelShape);
     await page.getByTestId('drawing-cad-task').selectOption('document');
-    await panel.getByLabel('Drawing unit', { exact: true }).selectOption('in');
+    await panel.getByRole('combobox', { name: 'Drawing unit', exact: true }).selectOption('in');
     await page.getByTestId('drawing-cad-apply').click();
     await expect.poll(async () => (await scene(page)).page.meta.omsCad.nudge).toBeCloseTo(1 / 25.4, 8);
     expect((await scene(page)).shapes.find((s: any) => s.id === panelShape.id)).toEqual(panelShape);
@@ -193,7 +193,7 @@ for (const mode of ['idea', 'order']) {
     await expect(page.getByTestId('drawing-cad-download')).toBeDisabled();
     await page.getByTestId('drawing-cad-task').selectOption('files');
     if (mode === 'order') {
-      await panel.getByLabel('Export scope', { exact: true }).selectOption('all');
+      await panel.getByRole('combobox', { name: 'Export scope', exact: true }).selectOption('all');
       await page.getByTestId('drawing-cad-task').selectOption('files');
     await page.getByTestId('drawing-cad-review').click();
       await expect(page.getByTestId('drawing-cad-download')).toBeDisabled();
@@ -263,10 +263,10 @@ for (const mode of ['idea', 'order']) {
     const after = await page.locator('.drawing-viewport').boundingBox();
     expect(after?.width).toBe(before?.width);
     await page.getByRole('button', { name: 'Close panel' }).click();
-    await page.getByLabel('Language', { exact: true }).selectOption('ru');
+    await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('ru');
     await expect(page.getByTestId('drawing-properties-toggle')).toHaveAttribute('aria-label', 'Свойства');
     await expect(page.getByTestId('drawing-colour-red')).toHaveAttribute('aria-label', 'Цвет объекта: Красный');
-    await page.getByLabel('Theme', { exact: true }).selectOption('DarkVim');
+    await page.getByRole('combobox', { name: 'Theme', exact: true }).selectOption('DarkVim');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
   test(`${mode} object aliases and repeat grids preserve artwork and undo as one command`, async ({ page }) => {
@@ -316,8 +316,8 @@ test('drawing menus retain options on export failure, restore keyboard focus, an
   await expect(page.getByLabel('Padding (px)', { exact: true })).toHaveValue('1001');
   await expect(page.getByRole('alert')).toContainText('Check the values');
   await page.getByLabel('Padding (px)', { exact: true }).fill('8');
-  await page.getByLabel('PNG scale', { exact: true }).selectOption('2');
-  await page.getByLabel('Background', { exact: true }).selectOption('transparent');
+  await page.getByRole('combobox', { name: 'PNG scale', exact: true }).selectOption('2');
+  await page.getByRole('combobox', { name: 'Background', exact: true }).selectOption('transparent');
   const downloading = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export drawing as PNG', exact: true }).click();
   const download = await downloading;

@@ -223,6 +223,15 @@ export function prepareCadImport(
   options: { unit?: CadUnit; keepCoordinates: boolean }
 ): CadImportPlan {
   assertCadEditable(editor);
+  return { ...readCadDxf(settings, text, options), revision: cadRevision(editor) };
+}
+
+/** Read geometry without creating an editor or changing a saved drawing. */
+export function readCadDxf(
+  settings: CadSettings,
+  text: string,
+  options: { unit?: CadUnit; keepCoordinates: boolean }
+): Omit<CadImportPlan, 'revision'> {
   if (!validateCadSettings(settings)) throw new CadOperationError('geometry');
   const parsed = parse(text),
     known: { [key: number]: [string, number] } = {
@@ -280,7 +289,6 @@ export function prepareCadImport(
             ancestors.length >= 8 ||
             !sx ||
             !sy ||
-            Math.abs(Math.abs(sx) - Math.abs(sy)) > 1e-9 ||
             get(r, 70, 1) !== 1 ||
             get(r, 71, 1) !== 1
           )
@@ -301,7 +309,7 @@ export function prepareCadImport(
           continue;
         }
         if (r.type === 'LWPOLYLINE' || r.type === 'POLYLINE') {
-          if (get(r, 70) & ~129 || r.pairs.some(([code, value]) => [40, 41, 43].includes(code) && Number(value) !== 0))
+          if (get(r, 70) & ~(r.type === 'POLYLINE' ? 137 : 129) || r.pairs.some(([code, value]) => [40, 41, 43].includes(code) && Number(value) !== 0))
             throw new CadOperationError('unsupported');
           const closed = !!(get(r, 70) & 1);
           let points = vertices(r);
@@ -310,7 +318,7 @@ export function prepareCadImport(
             while (records[index + 1]?.type === 'VERTEX') {
               const vertex = records[++index];
               require2d(vertex);
-              if (get(vertex, 70) || get(vertex, 40) || get(vertex, 41)) throw new CadOperationError('unsupported');
+              if (get(vertex, 70) & ~32 || get(vertex, 40) || get(vertex, 41)) throw new CadOperationError('unsupported');
               points.push({ ...point(vertex), bulge: get(vertex, 42) });
             }
             if (records[index + 1]?.type !== 'SEQEND') throw new CadOperationError('geometry');
@@ -340,7 +348,7 @@ export function prepareCadImport(
                 radius = (length * (1 + bulge * bulge)) / (4 * Math.abs(bulge));
               const step = Math.min(
                 Math.PI / 2,
-                Math.pow((0.002 / cadMmPerPixel(settings) / (radius * Math.hypot(m[0], m[1]))) * 10000, 1 / 6)
+                Math.pow((0.002 / cadMmPerPixel(settings) / (radius * Math.hypot(m[0], m[1], m[2], m[3]))) * 10000, 1 / 6)
               );
               const arc = arcContour(
                 cx,
@@ -376,6 +384,10 @@ export function prepareCadImport(
           continue;
         }
         if (['CIRCLE', 'ARC', 'ELLIPSE'].includes(r.type)) {
+          // A non-uniform block transform must not turn a circle into another circle.
+          // Convert its outline using the same bounded cubic approximation as bulges.
+          const scaleX = Math.hypot(m[0], m[1]), scaleY = Math.hypot(m[2], m[3]);
+          const nonUniform = Math.abs(scaleX - scaleY) > 1e-9 || Math.abs(m[0] * m[2] + m[1] * m[3]) > 1e-9;
           const center = point(r),
             origin = transform(m, center),
             isEllipse = r.type === 'ELLIPSE',
@@ -395,13 +407,17 @@ export function prepareCadImport(
           const rotation = Math.atan2(major.y, major.x),
             c = Math.cos(rotation),
             s = Math.sin(rotation);
-          const step = Math.min(Math.PI / 2, Math.pow((0.002 / cadMmPerPixel(settings) / rx) * 10000, 1 / 6));
+          const stretch = nonUniform ? radius * Math.hypot(m[0],m[1],m[2],m[3]) : rx;
+          const step = Math.min(Math.PI / 2, Math.pow((0.002 / cadMmPerPixel(settings) / stretch) * 10000, 1 / 6));
           const curve = arcContour(0, 0, radius, radius * ratio, start, sweep, step),
             mapped = mapContours([curve], (p) =>
               transform(m, { x: center.x + c * p.x - s * p.y, y: center.y + s * p.x + c * p.y })
             );
           if (!validContours(mapped)) throw new CadOperationError('geometry');
-          if (full) {
+          if (nonUniform) {
+            appendCurve(curve, multiply(m, [c, s, -s, c, center.x, center.y]), r);
+            approximated = true;
+          } else if (full) {
             contours.push(...mapped);
             shapes.push({
               type: 'cad-ellipse',
@@ -457,7 +473,6 @@ export function prepareCadImport(
   }
   if (finalContours.length && !validContours(finalContours)) throw new CadOperationError('geometry');
   return {
-    revision: cadRevision(editor),
     contours: finalContours,
     sourceIds: [],
     removeIds: [],

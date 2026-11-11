@@ -1,6 +1,29 @@
 import {describe,it,expect} from 'vitest';
-import {prepareCreationCanvas} from '../../src/lib/order/creation-canvas';
+import {prepareCreationCanvas,creationCanvasFilePockets,updateCreationCanvasPockets} from '../../src/lib/order/creation-canvas';
 describe('new draft canvas persistence',()=>{
+ it('reconciles a pocket chosen in Form after capturing and hiding the canvas',()=>{
+  const snapshot={document:{store:{
+   'shape:visuals':{id:'shape:visuals',type:'frame',props:{name:'Visuals (PDF/Rasters)'},meta:{omsFilePocket:'visuals'}},
+   'shape:cnc':{id:'shape:cnc',type:'frame',props:{name:'CNC Routing'},meta:{omsFilePocket:'cnc'}},
+   'shape:file':{id:'shape:file',type:'document',parentId:'shape:visuals',x:50,y:190,props:{fileId:'queued',url:'blob:preview'},meta:{omsFilePocket:'visuals'}}
+  }}};
+  const changed=updateCreationCanvasPockets(snapshot,{queued:'cnc'});
+  const saved=prepareCreationCanvas(changed,'local','saved',{queued:'stored'},new Set());
+  expect(saved.document.store['shape:file'].parentId).toBe('shape:cnc');
+  expect(saved.document.store['shape:file'].meta.omsFilePocket).toBe('cnc');
+  expect(saved.document.store['shape:file'].props.fileId).toBe('stored');
+  expect(snapshot.document.store['shape:file'].parentId).toBe('shape:visuals');
+ });
+ it('keeps the latest canvas move and exact position when persisting file references',()=>{
+  const snapshot={document:{store:{
+   'shape:cnc':{id:'shape:cnc',type:'frame',props:{name:'CNC Routing'},meta:{omsFilePocket:'cnc'}},
+   'shape:file':{id:'shape:file',type:'document',parentId:'shape:cnc',x:91,y:217,props:{fileId:'queued',url:'blob:preview'},meta:{omsFilePocket:'visuals'}}
+  }}};
+  expect(creationCanvasFilePockets(snapshot)).toEqual({queued:'cnc'});
+  const saved=prepareCreationCanvas(snapshot,'local','saved',{queued:'stored'},new Set());
+  expect(saved.document.store['shape:file'].parentId).toBe('shape:cnc');
+  expect(saved.document.store['shape:file'].x).toBe(91);expect(saved.document.store['shape:file'].y).toBe(217);
+ });
  it('uses canonical private attachments, removes deleted files and leaves the local snapshot untouched',()=>{
   const snapshot={document:{store:{form:{props:{orderId:'local'}},file:{props:{fileId:'queued',url:'blob:preview'}},removed:{props:{fileId:'removed',url:'blob:removed'}},note:{props:{text:'Review dimensions'}}}}};
   const saved=prepareCreationCanvas(snapshot,'local','saved',{queued:'stored'},new Set(['removed']),'/oms');
