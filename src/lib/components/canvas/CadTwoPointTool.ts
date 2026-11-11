@@ -39,7 +39,7 @@ class CadTwoPointTool extends StateNode{
   this.start=point;this.shapeId=createShapeId();this.mark=`cad-two-point-${this.shapeId}`;this.editor.mark(this.mark);
  };
  override onPointerMove=()=>{if(this.editor.getInstanceState().isReadonly)this.cancel();else this.preview();};
- override onKeyDown:TLEventHandlers['onKeyDown']=info=>{if(info.key==='Escape')this.cancel();else if(info.key==='Enter'&&this.preview())this.finish();};
+ override onKeyDown:TLEventHandlers['onKeyDown']=info=>{if(this.editor.getInstanceState().isReadonly){this.cancel();return;}if(info.key==='Escape')this.cancel();else if(info.key==='Enter'&&this.preview())this.finish();};
  override onCancel=()=>this.cancel();
  override onComplete=()=>this.cancel();
  override onInterrupt=()=>this.cancel();

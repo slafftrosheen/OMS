@@ -47,7 +47,7 @@ function pointInPolygon(point: CadPoint, polygon: CadPoint[]): boolean {
   }
   return true;
 }
-function clipped(editor: Editor, shape: TLShape): boolean {
+export function cadShapeIsClipped(editor: Editor, shape: TLShape): boolean {
   const mask = editor.getShapeMask(shape.id);
   if (!mask) return false;
   if (!mask.length) return true;
@@ -64,7 +64,7 @@ function shapeEntity(editor: Editor, shape: TLShape, settings: CadSettings): { e
     const world = matrix.applyToPoint(point);
     return { x: finite((world.x - settings.originX) * factor), y: finite((settings.originY - world.y) * factor) };
   };
-  if (clipped(editor, shape) || (shape.meta.omsVectorPaint as any)?.clips?.length) return { reason: 'clipped' };
+  if (cadShapeIsClipped(editor, shape) || (shape.meta.omsVectorPaint as any)?.clips?.length) return { reason: 'clipped' };
   if ((shape.meta.omsVectorPaint as any)?.raster) return { reason: 'unsupported' };
   if (shape.type === 'cad-bezier') {
     if (!validContours(p.contours)) return { reason: 'invalid' };

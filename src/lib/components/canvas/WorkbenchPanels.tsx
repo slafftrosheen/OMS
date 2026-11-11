@@ -5,7 +5,9 @@ import {editDrawingText,scaleCanvasForm,spaceDrawingSelection,textPointSize} fro
 import {FORM_WIDTHS} from './shapes/form-shapes/form-layout';
 import {canvasLengthToUnit,unitLengthToCanvas,type CadSettings} from './cad-settings';
 import {captureToolkitControls} from './toolkit-controls';
-import {getCadShapePageBounds} from './cad-bounds';
+import {getCadSelectionPageBounds} from './cad-bounds';
+import {cadConstruction} from './cad-construction';
+import {measureCadSelection} from './cad-measurements';
 
 export function TextPanel({onOutlines}:{onOutlines:()=>void}){
  const editor=useEditor(),t=useWorkbenchText();
@@ -38,14 +40,22 @@ export function ArrangePanel({settings,children}:{settings:CadSettings|null;chil
 }
 export function MeasurePanel({settings,onTool,onDocument}:{settings:CadSettings|null;onTool:(tool:string)=>void;onDocument:()=>void}){
  const editor=useEditor(),t=useWorkbenchText();
- const state=useValue('measure selection',()=>{const shape=editor.getOnlySelectedShape();return {shape,bounds:shape?getCadShapePageBounds(editor,shape):editor.getSelectionPageBounds(),readonly:editor.getInstanceState().isReadonly};},[editor]);
+ const construction=useValue('measure construction',()=>cadConstruction(editor).get(),[editor]);
+ const activeTool=useValue('measure tool',()=>editor.getCurrentToolId(),[editor]);
+ const hint=construction?t(construction.points.length===0?'pickFirst':construction.points.length===1?'pickThrough':construction.kind==='arc'?'pickArcEnd':'pickThird'):t(activeTool==='cad-dimension'?'measureHint':'measureSelection');
+ const measurement=useValue('CAD curve measurements',()=>measureCadSelection(editor,settings),[editor,settings]);
+ const state=useValue('measure selection',()=>{const shape=editor.getOnlySelectedShape();return {shape,bounds:getCadSelectionPageBounds(editor),readonly:editor.getInstanceState().isReadonly};},[editor]);
  const length=(n:number)=>`${(settings?canvasLengthToUnit(n,settings):n).toFixed(settings?.precision??2)} ${settings?.unit??'px'}`;
  const dimension=state.shape?.type==='cad-dimension'?state.shape:null;
  const p=dimension?.props as {endX:number;endY:number}|undefined;
- return <><p className="drawing-help">{t('measureHint')}</p><dl className="drawing-cad-values">
+ return <><p className="drawing-help">{hint}</p><dl className="drawing-cad-values">
   <dt>{t('width')}</dt><dd>{state.bounds?length(state.bounds.w):'—'}</dd><dt>{t('height')}</dt><dd>{state.bounds?length(state.bounds.h):'—'}</dd>
+  {measurement.measured>0&&<><dt>{t('curveLength')}</dt><dd>{measurement.approximate?'≈ ':''}{length(measurement.length)}</dd><dt>{t('openPaths')}</dt><dd>{measurement.open}</dd><dt>{t('closedPaths')}</dt><dd>{measurement.closed}</dd></>}
+  {measurement.radius!==undefined&&<><dt>{t('radius')}</dt><dd>{length(measurement.radius)}</dd><dt>{t('diameter')}</dt><dd>{length(measurement.radius*2)}</dd></>}
+  {measurement.sweep!==undefined&&<><dt>{t('sweep')}</dt><dd>{measurement.sweep.toFixed(settings?.precision??2)}°</dd></>}
+  {measurement.omitted>0&&<><dt>{t('omittedMeasure')}</dt><dd>{measurement.omitted}</dd></>}
   {p&&dimension&&<><dt>{t('distance')}</dt><dd>{length(Math.hypot(p.endX,p.endY))}</dd><dt>{t('angle')}</dt><dd>{((-Math.atan2(p.endY,p.endX)*180/Math.PI-editor.getShapePageTransform(dimension).rotation()*180/Math.PI+720)%360).toFixed(2)}°</dd></>}
- </dl><div className="drawing-workbench-fields"><button type="button" onClick={onDocument}>{t('document')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-dimension')}>{t('drawDimension')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-circle')}>{t('drawCircle')}</button></div></>;
+ </dl><p className="drawing-help">{t('lengthHint')}</p>{state.shape?.type==='cad-arc'&&<p className="drawing-help">{t('arcHandles')}</p>}<div className="drawing-workbench-fields"><button type="button" onClick={onDocument}>{t('document')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-dimension')}>{t('drawDimension')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-circle')}>{t('drawCircle')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-arc-three')}>{t('arcThree')}</button><button type="button" disabled={state.readonly} onClick={()=>onTool('cad-circle-three')}>{t('circleThree')}</button></div></>;
 }
 export function FormScaleControl(){
  const editor=useEditor(),t=useWorkbenchText();

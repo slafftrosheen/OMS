@@ -4,6 +4,12 @@ Idea boards and order canvases use the same CAD tools and document format. CAD s
 
 ## Finding the tools
 
+The left toolbox groups curves and shapes into flyouts. **Arc · three points** is in Curves; **Circle · three points** is in Shapes. Both are also available from the **Measure** docker. For an arc, click its start, a point along the desired arc, and its end. The middle point chooses the short or long arc. For a circle, click three points on its circumference. Numbered construction guides follow object snapping; Backspace removes the last point and Escape cancels the whole gesture. Coincident, collinear and out-of-range points cannot complete a shape. Guides are transient and never saved/exported. The resulting native arcs/circles remain analytic in DXF output.
+
+Selected arcs have endpoint-angle handles and a middle radius handle. Dragging an endpoint retains the centre and radius; Shift snaps its angle to 15° steps. Dragging the middle handle changes radius. Bounding-box resize/rotation targets are hidden for a single arc so they cannot intercept those handles. Numeric width/height/rotation in the property bar and Arrange commands remain available.
+
+**Measure** reports selection extents, total supported curve length, open/closed contour counts, and radius/diameter/sweep for a single circle or arc. Group descendants are counted once, including hole contours. Circles, arcs and straight segments use analytic lengths; Bézier/ellipse lengths show **≈** and target a total numerical error of 0.001 mm (0.001 px on uncalibrated pages). This does not include the fitting error of imported/traced curves. A work limit bounds calculation time; objects exceeding it are excluded and counted alongside unsupported objects. Partially clipped artwork, rasters, live text, forms and annotations are excluded. Fully contained frame children can be measured. Length is a geometry measurement, not CAM travel, kerf compensation or automatic bend allowance.
+
 The shared CAD docker has a **CAD task** selector: **Create geometry & text**, **Edit curves & shapes**, **Document & measurements**, and **Import / export DXF**. Only the selected task is visible; switching tasks retains drafts and prepared previews. File → DXF opens interchange, Layout → Document opens settings, F10 opens nodes, and Ctrl/Command+Q opens selected-text conversion or geometry conversion. Object → Arrange contains stacking, rotation, mirror, alignment and distribution commands.
 
 ## Compound curves and cutting direction

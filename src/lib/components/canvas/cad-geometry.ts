@@ -36,7 +36,8 @@ export function transformCadSelection(editor: Editor, field: 'x' | 'y' | 'w' | '
   if (!shape || !permitted(editor)) return false;
   const util = editor.getShapeUtil(shape);
   if ((field === 'w' || field === 'h') && (value <= 0 || shape.type === 'group' || !util.canResize(shape))) return false;
-  if (field === 'rotation' && util.hideRotateHandle(shape)) return false;
+  // Arcs hide corner rotation targets to expose their endpoint handles; numeric rotation remains available.
+  if (field === 'rotation' && shape.type !== 'cad-arc' && util.hideRotateHandle(shape)) return false;
   const origin = anchorPoint(editor, shape, anchor);
   return drawingTransaction(editor, () => {
     if (field === 'x' || field === 'y') {

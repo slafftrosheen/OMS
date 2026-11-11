@@ -93,6 +93,32 @@ export class CadArcShapeUtil extends ShapeUtil<CadArcShape> {
   static override props = { radius: positive, startAngle: bounded, endAngle: bounded, color: DefaultColorStyle };
   override getDefaultProps(): CadArcShape['props'] { return { radius: 100, startAngle: 0, endAngle: 90, color: 'black' }; }
   override isAspectRatioLocked = () => true;
+  // Endpoint handles can coincide with the bounding-box corners. Radius controls
+  // and the numeric property bar provide scaling without intercepting endpoints.
+  override hideResizeHandles = () => true;
+  override hideRotateHandle = () => true;
+  override hideSelectionBoundsFg = () => true;
+  override getHandles(shape: CadArcShape): TLHandle[] {
+    const { radius, startAngle, endAngle } = shape.props, indices = getIndices(3);
+    return [startAngle, endAngle, (startAngle + endAngle) / 2].map((a, i) => ({
+      id: ['start', 'end', 'radius'][i], type: 'vertex', index: indices[i], canSnap: false,
+      x: radius * Math.cos(a * Math.PI / 180), y: -radius * Math.sin(a * Math.PI / 180)
+    }));
+  }
+  override onHandleDrag: TLOnHandleDragHandler<CadArcShape> = (shape, { handle }) => {
+    if (this.editor.getInstanceState().isReadonly || this.editor.isShapeOrAncestorLocked(shape)) return;
+    const radius = Math.hypot(handle.x, handle.y);
+    if (!Number.isFinite(radius) || radius < 1e-6 || radius > CAD_MAX_COORDINATE) return;
+    if (handle.id === 'radius') return { id: shape.id, type: shape.type, props: { radius } };
+    if (!['start', 'end'].includes(handle.id)) return;
+    const norm = (a: number) => ((a % 360) + 360) % 360;
+    let angle = norm(Math.atan2(-handle.y, handle.x) * 180 / Math.PI);
+    if (this.editor.inputs.shiftKey) angle = norm(Math.round(angle / 15) * 15);
+    const startAngle = handle.id === 'start' ? angle : norm(shape.props.startAngle);
+    const sweep = norm((handle.id === 'end' ? angle : shape.props.endAngle) - startAngle);
+    if (sweep < 1e-6 || sweep > 360 - 1e-6) return;
+    return { id: shape.id, type: shape.type, props: { startAngle, endAngle: startAngle + sweep } };
+  };
   override onResize: TLOnResizeHandler<CadArcShape> = (shape, { scaleX, scaleY }) => {
     const angle = scaleX * scaleY < 0 ? shape.props.endAngle : shape.props.startAngle;
     const radians = angle * Math.PI / 180;

@@ -1,3 +1,4 @@
+import {cadConstruction} from './cad-construction';
 import {TextPanel,ArrangePanel,MeasurePanel,FormScaleControl} from './WorkbenchPanels';
 import {useWorkbenchText} from './workbench-copy';
 import {ProductionSaveButton} from './ProductionSaveButton';
@@ -110,6 +111,8 @@ const iconPaths: Record<string, ReactNode> = {
   objects: <><path d="m12 3 10 5-10 5L2 8Zm-10 9 10 5 10-5M2 17l10 5 10-5" /></>,
   lock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V6a4 4 0 0 1 8 0v4" /></>,
   unlock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V6a4 4 0 0 1 8-1" /></>,
+  'cad-arc-three': <><path d="M4 18A9 9 0 1 1 20 7"/><circle cx="4" cy="18" r="1.5"/><circle cx="6" cy="5" r="1.5"/><circle cx="20" cy="7" r="1.5"/></>,
+  'cad-circle-three': <><circle cx="12" cy="12" r="8"/><circle cx="12" cy="4" r="2"/><circle cx="5" cy="16" r="2"/><circle cx="19" cy="16" r="2"/></>,
   'cad-circle': <><circle cx="12" cy="12" r="8"/><path d="M12 12h8M10 12h4m-2-2v4"/></>,
   'cad-dimension': <><path d="M3 4v16M21 4v16M3 12h18m-14-3-4 3 4 3m10-6 4 3-4 3"/></>,
   nodes: <><path d="M4 18C4 4 20 20 20 6"/><rect x="2" y="16" width="4" height="4"/><rect x="18" y="4" width="4" height="4"/></>,
@@ -127,7 +130,7 @@ function ToolButton({ label, icon, active, disabled, onClick, children, testId }
 }
 
 const geometryTools = ['rectangle', 'ellipse', 'triangle', 'diamond', 'pentagon', 'star'] as const;
-const toolGroups = [['select'], ['nodes'], ['hand'], ['cad-polyline','cad-bezier','line','draw'], ['rectangle','ellipse','cad-circle','triangle','diamond','pentagon','star'], ['text'], ['cad-dimension'], ['arrow','highlight','eraser','frame']];
+const toolGroups = [['select'], ['nodes'], ['hand'], ['cad-polyline','cad-bezier','cad-arc-three','line','draw'], ['rectangle','ellipse','cad-circle','cad-circle-three','triangle','diamond','pentagon','star'], ['text'], ['cad-dimension'], ['arrow','highlight','eraser','frame']];
 const toolKeys: Record<string, string> = { select: 'toolkit.draw.selectTitle', draw: 'toolkit.draw.drawTitle', text: 'toolkit.draw.textTitle', arrow: 'toolkit.draw.arrowTitle' };
 const shortcut: Record<string, string> = { rectangle: 'F6', ellipse: 'F7', text: 'F8', select: 'V', draw: 'D', line: 'L', arrow: 'A', hand: 'H', eraser: 'E' };
 
@@ -292,6 +295,8 @@ export function DrawingChrome() {
   const { label: advancedLabel } = useCadAdvancedText();
   const vectorLabel = useVectorText();
   const workbenchLabel = useWorkbenchText();
+  const construction = useValue('CAD construction status', () => cadConstruction(editor).get(), [editor]);
+  const constructionHint = construction ? workbenchLabel(construction.points.length === 0 ? 'pickFirst' : construction.points.length === 1 ? 'pickThrough' : construction.kind === 'arc' ? 'pickArcEnd' : 'pickThird') : '';
   const [toolGroup,setToolGroup]=useState<number|null>(null);
   const [groupTools,setGroupTools]=useState<Record<number,string>>({});
   const [saveFormat,setSaveFormat]=useState<'svg'|'png'>('png');
@@ -322,14 +327,14 @@ export function DrawingChrome() {
     return () => container.removeEventListener('oms:canvas-upload', listen);
   }, [editor]);
 
-  const toolLabel = (tool: string) => tool === 'cad-circle' ? workbenchLabel('circle') : tool === 'cad-dimension' ? workbenchLabel('dimension') : tool === 'nodes' ? workbenchLabel('nodes') : tool === 'cad-polyline' ? cadLabel('drawPolyline') : tool === 'cad-bezier' ? advancedLabel('bezierTool') : tr(toolKeys[tool] ?? (tool === 'pentagon' ? 'toolkit.toolbar.styleValues.geo.pentagon' : `toolkit.toolbar.${tool}`));
+  const toolLabel = (tool: string) => tool === 'cad-arc-three' ? workbenchLabel('arcThree') : tool === 'cad-circle-three' ? workbenchLabel('circleThree') : tool === 'cad-circle' ? workbenchLabel('circle') : tool === 'cad-dimension' ? workbenchLabel('dimension') : tool === 'nodes' ? workbenchLabel('nodes') : tool === 'cad-polyline' ? cadLabel('drawPolyline') : tool === 'cad-bezier' ? advancedLabel('bezierTool') : tr(toolKeys[tool] ?? (tool === 'pentagon' ? 'toolkit.toolbar.styleValues.geo.pentagon' : `toolkit.toolbar.${tool}`));
   function chooseTool(tool: string) {
     if (editor.getInstanceState().isReadonly && !['hand', 'select', 'nodes'].includes(tool)) return;
     if(tool==='nodes'){focusCad('nodes');setToolGroup(null);return;}
     setToolGroup(null);
     const group=toolGroups.findIndex(items=>items.includes(tool));if(group>=0)setGroupTools(previous=>({...previous,[group]:tool}));
     if(tool==='text')context?.setPanel('text');
-    if(tool==='cad-dimension')context?.setPanel('measure');
+    if(['cad-dimension','cad-arc-three','cad-circle-three','cad-circle'].includes(tool))context?.setPanel('measure');
     editor.complete();
     if (readCadSettings(editor) && (geometryTools.includes(tool as any) || tool === 'line')) {
       editor.setStyleForNextShapes(DefaultDashStyle, 'solid'); editor.setStyleForNextShapes(DefaultFillStyle, 'none');
@@ -416,7 +421,7 @@ export function DrawingChrome() {
   const position = state.single ? editor.getShapePageTransform(state.single).point() : undefined;
   const bounds = state.single ? editor.getShapeGeometry(state.single).bounds : undefined;
   const canResize = !!state.single && state.single.type !== 'group' && controls.canEditSelection && editor.getShapeUtil(state.single).canResize(state.single);
-  const canRotate = !!state.single && controls.canEditSelection && !editor.getShapeUtil(state.single).hideRotateHandle(state.single);
+  const canRotate = !!state.single && controls.canEditSelection && (state.single.type === 'cad-arc' || !editor.getShapeUtil(state.single).hideRotateHandle(state.single));
   const protectedForm = !!state.single && ['order-details', 'order-address', 'profile-7st'].includes(state.single.type);
   const theme = getDefaultColorTheme({ isDarkMode });
   const color = styles?.get(DefaultColorStyle);
@@ -647,7 +652,7 @@ export function DrawingChrome() {
         }} onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
     </div>)}
     {portal('status', <>
-      <span className="drawing-status-text" role="status" title={controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{notice || (controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
+      <span className="drawing-status-text" role="status" title={controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{notice || (controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
       <span className={`drawing-keyboard-hint${settings ? ' drawing-cad-status-unit' : ''}`} title={settings ? cadLabel('nudgeHelp') : label('keyboard')}>{settings ? <>{settings.unit} · 1:{settings.scale}<span className="drawing-cad-status-nudge"> · {cadLabel('nudge')}: {settings.nudge} {settings.unit}</span></> : label('units')}</span>
       <button type="button" onClick={() => command('grid')} aria-pressed={state.grid}>{label('grid')}</button>
       <button type="button" onClick={() => command('snap')} aria-pressed={state.snap}>{label('snap')}</button>

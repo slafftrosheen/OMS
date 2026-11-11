@@ -72,7 +72,8 @@ export function transformDrawingSelection(editor: Editor, field: DrawingTransfor
   // Group handles resize descendants. resizeShape(group) alone only moves its
   // origin, so numeric size editing is restricted to actual resizable shapes.
   if ((field === 'w' || field === 'h') && (shape.type === 'group' || !editor.getShapeUtil(shape).canResize(shape) || value <= 0)) return false;
-  if (field === 'rotation' && editor.getShapeUtil(shape).hideRotateHandle(shape)) return false;
+  // Arcs hide corner rotation targets to expose their endpoint handles; numeric rotation remains available.
+  if (field === 'rotation' && shape.type !== 'cad-arc' && editor.getShapeUtil(shape).hideRotateHandle(shape)) return false;
   return drawingTransaction(editor, () => {
     if (field === 'rotation') {
       editor.rotateShapesBy([shape.id], value * Math.PI / 180 - editor.getShapePageTransform(shape).rotation());
