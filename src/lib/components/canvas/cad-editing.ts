@@ -67,7 +67,7 @@ export function cadSelectedShapes(editor: Editor): TLShape[] {
     .filter((s) => s && s.type !== 'group');
   if (!shapes.length || shapes.length > 200) throw new CadOperationError('selection');
   // Refuse potentially clipped CAD rather than applying operations to invisible areas.
-  if (shapes.some((s) => editor.getShapeMask(s.id))) throw new CadOperationError('unsupported');
+  if (shapes.some((s) => editor.getShapeMask(s.id) || (s.meta.omsVectorPaint as any)?.clips?.length || (s.meta.omsVectorPaint as any)?.gradient || (s.meta.omsVectorPaint as any)?.raster)) throw new CadOperationError('unsupported');
   return shapes;
 }
 export function getCadCurveSelection(

@@ -309,7 +309,7 @@ describe("PDF and EPS interchange through independent PDF.js and Ghostscript", (
     near(curveBounds(result.paths.flatMap((p) => p.contours)).w, 72);
     assert.equal(result.paths[0].paint.fill, "#e32636");
   });
-  it("omits clipping and images with explicit warnings and does not change graphics state outside save/restore", async () => {
+  it("retains clipping and reports unavailable images and does not change graphics state outside save/restore", async () => {
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs"),
       O = pdfjs.OPS;
     const list = {
@@ -343,8 +343,10 @@ describe("PDF and EPS interchange through independent PDF.js and Ghostscript", (
       height: 100,
       transform: [1, 0, 0, 1, 0, 0],
     });
-    assert.equal(doc.paths.length, 1);
-    assert.deepEqual(doc.warnings, ["pdf-clipping", "pdf-images"]);
+    assert.equal(doc.paths.length, 2);
+    assert.equal(doc.paths[0].paint.clips?.length,1);
+    assert.equal(doc.paths[1].paint.clips,undefined);
+    assert.deepEqual(doc.warnings, ["pdf-images"]);
   });
 });
 describe("painted curves in the native editor store", () => {

@@ -1,3 +1,4 @@
+import { vectorPaint } from '../cad-vector';
 import React from 'react';
 import { ShapeUtil, SVGContainer, Polyline2d, Polygon2d, Ellipse2d, Group2d, Box, Vec, T,
   DefaultColorStyle, getDefaultColorTheme, getIndices, resizeBox, useValue, type Editor, type TLBaseShape,
@@ -42,9 +43,9 @@ export class CadPathShapeUtil extends ShapeUtil<CadPathShape> {
   override getGeometry(shape: CadPathShape) {
     return new CadTransformGeometry({ children: [shape.props.closed ? new Polygon2d({ points: vectors(shape.props.points), isFilled: false }) : new Polyline2d({ points: vectors(shape.props.points) })] });
   }
-  override component(shape: CadPathShape) { return <SVGContainer><path d={pathData(shape.props.points, shape.props.closed)} fill="none" stroke={color(this.editor, shape.props.color)} strokeWidth={1} /></SVGContainer>; }
+  override component(shape: CadPathShape) { return <SVGContainer><path d={pathData(shape.props.points, shape.props.closed)} fill="none" stroke={shape.meta.omsVectorPaint ? vectorPaint(shape.meta).stroke : color(this.editor, shape.props.color)} strokeWidth={1} /></SVGContainer>; }
   override indicator(shape: CadPathShape) { return <path d={pathData(shape.props.points, shape.props.closed)} />; }
-  override toSvg(shape: CadPathShape) { return <path d={pathData(shape.props.points, shape.props.closed)} fill="none" stroke={color(this.editor, shape.props.color)} strokeWidth={1} />; }
+  override toSvg(shape: CadPathShape) { return <path d={pathData(shape.props.points, shape.props.closed)} fill="none" stroke={shape.meta.omsVectorPaint ? vectorPaint(shape.meta).stroke : color(this.editor, shape.props.color)} strokeWidth={1} />; }
   override getHandles(shape: CadPathShape): TLHandle[] {
     const indices = getIndices(shape.props.points.length);
     return shape.props.points.map((p, i) => ({ ...p, id: String(i), type: 'vertex', index: indices[i], canSnap: true }));
@@ -65,7 +66,7 @@ export class CadEllipseShapeUtil extends ShapeUtil<CadEllipseShape> {
   override getDefaultProps(): CadEllipseShape['props'] { return { w: 100, h: 100, color: 'black' }; }
   override getGeometry(shape: CadEllipseShape) { return new CadEllipseGeometry(shape.props.w, shape.props.h, this.editor.getShapePageTransform(shape).rotation()); }
   private ellipse(shape: CadEllipseShape, indicator = false) { return <ellipse cx={shape.props.w / 2} cy={shape.props.h / 2} rx={shape.props.w / 2} ry={shape.props.h / 2}
-    {...(indicator ? {} : { fill: 'none', stroke: color(this.editor, shape.props.color), strokeWidth: 1 })} />; }
+    {...(indicator ? {} : { fill: 'none', stroke: shape.meta.omsVectorPaint ? vectorPaint(shape.meta).stroke : color(this.editor, shape.props.color), strokeWidth: 1 })} />; }
   override component(shape: CadEllipseShape) { return <SVGContainer>{this.ellipse(shape)}</SVGContainer>; }
   override indicator(shape: CadEllipseShape) { return this.ellipse(shape, true); }
   override toSvg(shape: CadEllipseShape) { return this.ellipse(shape); }
@@ -99,9 +100,9 @@ export class CadArcShapeUtil extends ShapeUtil<CadArcShape> {
     return { props: { radius: shape.props.radius * Math.abs(scaleX), startAngle, endAngle: startAngle + shape.props.endAngle - shape.props.startAngle } };
   };
   override getGeometry(shape: CadArcShape) { return new CadTransformGeometry({ children: [new Polyline2d({ points: vectors(cadArcPoints(shape.props)) })] }); }
-  override component(shape: CadArcShape) { return <SVGContainer><path d={cadArcPath(shape.props)} fill="none" stroke={color(this.editor, shape.props.color)} strokeWidth={1} /></SVGContainer>; }
+  override component(shape: CadArcShape) { return <SVGContainer><path d={cadArcPath(shape.props)} fill="none" stroke={shape.meta.omsVectorPaint ? vectorPaint(shape.meta).stroke : color(this.editor, shape.props.color)} strokeWidth={1} /></SVGContainer>; }
   override indicator(shape: CadArcShape) { return <path d={cadArcPath(shape.props)} />; }
-  override toSvg(shape: CadArcShape) { return <path d={cadArcPath(shape.props)} fill="none" stroke={color(this.editor, shape.props.color)} strokeWidth={1} />; }
+  override toSvg(shape: CadArcShape) { return <path d={cadArcPath(shape.props)} fill="none" stroke={shape.meta.omsVectorPaint ? vectorPaint(shape.meta).stroke : color(this.editor, shape.props.color)} strokeWidth={1} />; }
 }
 
 function dimensionLines(shape: CadDimensionShape): CadPoint[][] {

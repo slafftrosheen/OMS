@@ -1,6 +1,11 @@
+import {
+  validAppearance,
+  transformAppearance,
+  type VectorAppearance,
+} from "./cad-appearance";
 import type { CadContour } from "./cad-curves";
 /** Plain data only: never persist imported SVG, CSS, URLs or executable markup. */
-export interface VectorPaint {
+export interface VectorPaint extends VectorAppearance {
   fill: string;
   stroke: string;
   strokeWidth: number;
@@ -39,6 +44,7 @@ export function validVectorPaint(value: unknown): value is VectorPaint {
   const p = value as VectorPaint;
   return (
     !!p &&
+    validAppearance(p) &&
     [p.fill, p.stroke].every(
       (c) => typeof c === "string" && /^(none|#[0-9a-f]{6})$/i.test(c),
     ) &&
@@ -63,7 +69,7 @@ export function validVectorPaint(value: unknown): value is VectorPaint {
 }
 export function scalePaint(paint: VectorPaint, scale: number): VectorPaint {
   return {
-    ...paint,
+    ...transformAppearance(paint, [scale, 0, 0, scale, 0, 0]),
     strokeWidth: paint.strokeWidth * scale,
     dash: paint.dash.map((n) => n * scale),
     dashOffset: paint.dashOffset * scale,

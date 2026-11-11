@@ -1,4 +1,11 @@
 import {
+  validAppearance,
+  multiplyMatrix,
+  type VectorClip,
+  type VectorGradient,
+  type VectorRaster,
+} from "./cad-appearance";
+import {
   nodeAt,
   curveBounds,
   validContours,
@@ -24,9 +31,24 @@ const transform = (m: Matrix, x: number, y: number): Point => ({
   x: m[0] * x + m[2] * y + m[4],
   y: m[1] * x + m[3] * y + m[5],
 });
-type Clip = { x: number; y: number; w: number; h: number } | null;
+type Clip = VectorClip;
+const rectangle = (x: number, y: number, w: number, h: number): CadContour => ({
+  closed: true,
+  nodes: [
+    { x, y },
+    { x: x + w, y },
+    { x: x + w, y: y + h },
+    { x, y: y + h },
+  ].map(nodeAt),
+});
+export interface PdfVectorResources {
+  get: (id: string) => any;
+  images?: Map<any, Omit<VectorRaster, "matrix">>;
+}
+
 type State = {
   matrix: Matrix;
+  baseMatrix: Matrix;
   paint: VectorPaint;
   clips: Clip[];
   effect: boolean;
@@ -39,6 +61,7 @@ export function pdfOperatorsToVectors(
   list: { fnArray: number[]; argsArray: any[] },
   ops: Record<string, number>,
   viewport: { width: number; height: number; transform: number[] },
+  resources?: PdfVectorResources,
 ): VectorDocument {
   if (list.fnArray.length > 150000) throw new Error("limit");
   const rgb = (a: number[]) =>
@@ -52,8 +75,14 @@ export function pdfOperatorsToVectors(
   );
   let state: State = {
     matrix: viewport.transform as Matrix,
+    baseMatrix: viewport.transform as Matrix,
     paint: { ...VECTOR_DEFAULT_PAINT, fill: "#000000", dash: [] },
-    clips: [{ x: 0, y: 0, w: viewport.width, h: viewport.height }],
+    clips: [
+      {
+        contours: [rectangle(0, 0, viewport.width, viewport.height)],
+        fillRule: "nonzero",
+      },
+    ],
     effect: false,
     fillUnsupported: false,
     strokeUnsupported: false,
@@ -63,7 +92,7 @@ export function pdfOperatorsToVectors(
     warnings = new Set<string>();
   let contours: CadContour[] = [],
     current: CadContour | undefined,
-    pendingClip = false,
+    pendingClip: "evenodd" | "nonzero" | null = null,
     total = 0;
   const point = (x: number, y: number) => transform(state.matrix, x, y);
   const move = (p: Point) => {
@@ -98,31 +127,116 @@ export function pdfOperatorsToVectors(
       current.nodes.pop();
     }
   };
-  const clipRect = (): Clip => {
-    if (
-      contours.length !== 1 ||
-      !current?.closed ||
-      current.nodes.length !== 4 ||
-      current.nodes.some((n) => n.inX || n.inY || n.outX || n.outY)
-    )
-      return null;
-    const b = curveBounds(contours);
-    return current.nodes.every((n, i) => {
-      const next = current!.nodes[(i + 1) % 4];
-      return (
-        (Math.abs(n.x - next.x) < 1e-8 || Math.abs(n.y - next.y) < 1e-8) &&
-        (Math.abs(n.x - b.x) < 1e-8 || Math.abs(n.x - b.x - b.w) < 1e-8) &&
-        (Math.abs(n.y - b.y) < 1e-8 || Math.abs(n.y - b.y - b.h) < 1e-8)
-      );
-    })
-      ? b
-      : null;
+  const containsRect = (clip: Clip, cs: CadContour[], padding = 0) => {
+    if (clip.contours.length !== 1) return false;
+    const ns = clip.contours[0].nodes,
+      b = curveBounds(clip.contours),
+      q = curveBounds(cs);
+    return (
+      ns.length === 4 &&
+      ns.every(
+        (n, i) =>
+          !n.inX &&
+          !n.inY &&
+          !n.outX &&
+          !n.outY &&
+          (n.x === ns[(i + 1) % 4].x || n.y === ns[(i + 1) % 4].y) &&
+          (n.x === b.x || n.x === b.x + b.w) &&
+          (n.y === b.y || n.y === b.y + b.h),
+      ) &&
+      q.x - padding >= b.x - 1e-6 &&
+      q.y - padding >= b.y - 1e-6 &&
+      q.x + q.w + padding <= b.x + b.w + 1e-6 &&
+      q.y + q.h + padding <= b.y + b.h + 1e-6
+    );
   };
   const end = () => {
-    if (pendingClip) state.clips.push(clipRect());
-    pendingClip = false;
+    if (pendingClip) {
+      // PDF implicitly closes open subpaths when clipping.
+      state.clips.push({
+        contours: structuredClone(contours)
+          .filter((c) => c.nodes.length >= 2)
+          .map((c) => ({ ...c, closed: true })),
+        fillRule: pendingClip,
+      });
+      if (state.clips.length > 32) throw new Error("limit");
+    }
+    pendingClip = null;
     contours = [];
     current = undefined;
+  };
+  const gradient = (id: string, matrix: Matrix): VectorGradient | undefined => {
+    const ir = resources?.get(id);
+    if (!Array.isArray(ir) || ir[0] !== "RadialAxial") return;
+    const g: VectorGradient = {
+      type: ir[1] === "axial" ? "linear" : "radial",
+      matrix: [...matrix],
+      start: ir[4],
+      end: ir[5],
+      r0: ir[6] ?? 0,
+      r1: ir[7] ?? 0,
+      ...(ir[2] ? { bounds: ir[2] } : {}),
+      stops: ir[3]?.map(([offset, color]: [number, string]) => ({
+        offset,
+        color,
+      })),
+    };
+    return validAppearance({ gradient: g }) ? g : undefined;
+  };
+  const append = (
+    cs: CadContour[],
+    paint: VectorPaint,
+    rule: "nonzero" | "evenodd",
+  ) => {
+    if (state.clips.some((c) => !c.contours.length)) return;
+    paint.clips = state.clips
+      .filter(
+        (c) =>
+          !containsRect(
+            c,
+            cs,
+            paint.stroke === "none"
+              ? 0
+              : (paint.strokeWidth * paint.miterLimit) / 2,
+          ),
+      )
+      .map((c) => structuredClone(c));
+    if (!paint.clips.length) delete paint.clips;
+    if (!validAppearance(paint)) throw new Error("limit");
+    total += cs.reduce((n, c) => n + c.nodes.length, 0);
+    if (total > 4096 || paths.length >= 512 || !validContours(cs))
+      throw new Error("limit");
+    paths.push({ contours: structuredClone(cs), fillRule: rule, paint });
+  };
+  const image = (key: any, matrix = state.matrix) => {
+    const raster = resources?.images?.get(key);
+    if (!raster || state.effect) {
+      warnings.add("pdf-images");
+      return;
+    }
+    const m = multiplyMatrix(matrix, [1, 0, 0, -1, 0, 1]);
+    const cs = [
+      {
+        closed: true,
+        nodes: [
+          [0, 0],
+          [1, 0],
+          [1, 1],
+          [0, 1],
+        ].map(([x, y]) => nodeAt(transform(m, x, y))),
+      },
+    ];
+    append(
+      cs,
+      {
+        ...VECTOR_DEFAULT_PAINT,
+        fill: "none",
+        stroke: "none",
+        fillOpacity: state.paint.fillOpacity,
+        raster: { ...raster, matrix: m },
+      },
+      "nonzero",
+    );
   };
   const paint = (fill: boolean, stroke: boolean, evenodd: boolean) => {
     const useful = contours.filter((c) => c.nodes.length >= 2);
@@ -133,39 +247,27 @@ export function pdfOperatorsToVectors(
         sy = Math.hypot(m[2], m[3]);
       const skew =
         Math.abs(m[0] * m[2] + m[1] * m[3]) > 1e-7 || Math.abs(sx - sy) > 1e-7;
-      const clipped = state.clips.some(
-        (c) =>
-          !c ||
-          b.x < c.x - 1e-6 ||
-          b.y < c.y - 1e-6 ||
-          b.x + b.w > c.x + c.w + 1e-6 ||
-          b.y + b.h > c.y + c.h + 1e-6,
-      );
-      if (clipped) warnings.add("pdf-clipping");
-      else if (
+      if (
         state.effect ||
         (fill && state.fillUnsupported) ||
         (stroke && state.strokeUnsupported) ||
         (stroke && skew)
       )
         warnings.add("pdf-effects");
-      else {
-        total += useful.reduce((n, c) => n + c.nodes.length, 0);
-        if (total > 4096 || paths.length >= 512 || !validContours(useful))
-          throw new Error("limit");
-        paths.push({
-          contours: structuredClone(useful),
-          fillRule: evenodd ? "evenodd" : "nonzero",
-          paint: {
+      else
+        append(
+          useful,
+          {
             ...state.paint,
             fill: fill ? state.paint.fill : "none",
             stroke: stroke ? state.paint.stroke : "none",
+            gradient: fill ? state.paint.gradient : undefined,
             strokeWidth: state.paint.strokeWidth * sx,
             dash: state.paint.dash.map((n) => n * sx),
             dashOffset: state.paint.dashOffset * sx,
           },
-        });
-      }
+          evenodd ? "evenodd" : "nonzero",
+        );
     }
     end();
   };
@@ -188,21 +290,24 @@ export function pdfOperatorsToVectors(
         stack.push(structuredClone(state));
         if (stack.length > 100) throw new Error("limit");
         if (a[0]) state.matrix = multiply(state.matrix, a[0]);
+        state.baseMatrix = [...state.matrix];
         if (a[1]) {
           const [x, y, r, b] = a[1],
             m = state.matrix;
-          if (Math.abs(m[1] * m[3]) > 1e-8 || Math.abs(m[0] * m[2]) > 1e-8)
-            state.clips.push(null);
-          else {
-            const p = point(x, y),
-              q = point(r, b);
-            state.clips.push({
-              x: Math.min(p.x, q.x),
-              y: Math.min(p.y, q.y),
-              w: Math.abs(p.x - q.x),
-              h: Math.abs(p.y - q.y),
-            });
-          }
+          state.clips.push({
+            contours: [
+              {
+                closed: true,
+                nodes: [
+                  [x, y],
+                  [r, y],
+                  [r, b],
+                  [x, b],
+                ].map(([x, y]) => nodeAt(point(x, y))),
+              },
+            ],
+            fillRule: "nonzero",
+          });
         }
         break;
       }
@@ -252,7 +357,7 @@ export function pdfOperatorsToVectors(
         break;
       case "clip":
       case "eoClip":
-        pendingClip = true;
+        pendingClip = name === "eoClip" ? "evenodd" : "nonzero";
         break;
       case "endPath":
         end();
@@ -286,6 +391,7 @@ export function pdfOperatorsToVectors(
         break;
       case "setFillRGBColor":
         state.paint.fill = rgb(a);
+        delete state.paint.gradient;
         state.fillUnsupported = false;
         break;
       case "setStrokeRGBColor":
@@ -294,6 +400,7 @@ export function pdfOperatorsToVectors(
         break;
       case "setFillTransparent":
         state.paint.fill = "none";
+        delete state.paint.gradient;
         break;
       case "setStrokeTransparent":
         state.paint.stroke = "none";
@@ -352,7 +459,19 @@ export function pdfOperatorsToVectors(
         if (!stack.length) throw new Error("format");
         state = stack.pop()!;
         break;
-      case "setFillColorN":
+      case "setFillColorN": {
+        // Shading patterns use the page base transform, plus their pattern matrix.
+        const g =
+          a[0] === "TilingPattern"
+            ? undefined
+            : gradient(
+                a[1],
+                multiplyMatrix(state.baseMatrix, a[2] ?? [1, 0, 0, 1, 0, 0]),
+              );
+        state.paint.gradient = g;
+        state.fillUnsupported = !g;
+        break;
+      }
       case "setFillColor":
         state.fillUnsupported = true;
         break;
@@ -360,9 +479,39 @@ export function pdfOperatorsToVectors(
       case "setStrokeColor":
         state.strokeUnsupported = true;
         break;
-      case "shadingFill":
-        warnings.add("pdf-effects");
+      case "shadingFill": {
+        const g = gradient(a[0], state.matrix);
+        if (!g || state.effect) warnings.add("pdf-effects");
+        else
+          append(
+            [rectangle(0, 0, viewport.width, viewport.height)],
+            { ...state.paint, stroke: "none", gradient: g },
+            "nonzero",
+          );
         break;
+      }
+      case "paintImageXObject":
+        image(a[0]);
+        break;
+      case "paintInlineImageXObject":
+        image(a[0]);
+        break;
+      case "paintImageXObjectRepeat": {
+        if (a[3].length > 4000) throw new Error("limit");
+        for (let j = 0; j < a[3].length; j += 2)
+          image(
+            a[0],
+            multiplyMatrix(state.matrix, [
+              a[1],
+              0,
+              0,
+              a[2],
+              a[3][j],
+              a[3][j + 1],
+            ]),
+          );
+        break;
+      }
       case "showText":
       case "showSpacedText":
       case "nextLineShowText":

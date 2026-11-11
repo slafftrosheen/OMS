@@ -19,7 +19,7 @@ import { useCadText, type CadLabel } from './cad-copy';
 import { canvasLengthToUnit, canvasPointToCad, readCadSettings, unitLengthToCanvas, type CadSettings } from './cad-settings';
 import { getCadSelection, nudgeCadSelection, transformCadSelection, type CadAnchor } from './cad-geometry';
 import { useVectorText } from './cad-vector-copy';
-import { vectorPaint } from './cad-vector';
+import { paintMetadata, vectorPaint } from './cad-vector';
 import './drawing-workspace.css';
 
 type Slot = 'commands' | 'properties' | 'tools' | 'docker' | 'palette' | 'status' | 'rulerX' | 'rulerY' | 'rulerOrigin';
@@ -408,9 +408,9 @@ export function DrawingChrome() {
     if (!style.values.includes(value) || !captureToolkitControls(editor).canStyle) return;
     drawingTransaction(editor, () => {
       if (style === DefaultColorStyle) {
-        for (const shape of [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].map(id => editor.getShape(id))) if (shape?.type === 'cad-bezier' && !editor.isShapeOrAncestorLocked(shape)) {
+        for (const shape of [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].map(id => editor.getShape(id))) if (shape && ['cad-bezier','cad-ellipse','cad-arc'].includes(shape.type) && !editor.isShapeOrAncestorLocked(shape)) {
           const paint = vectorPaint(shape.meta, (shape.props as any).color);
-          editor.updateShape({ id: shape.id, type: shape.type, meta: { ...shape.meta, omsVectorPaint: { ...paint, fill: getDefaultColorTheme({ isDarkMode: false })[value].solid } } });
+          editor.updateShape({ id: shape.id, type: shape.type, meta: { ...shape.meta, omsVectorPaint: paintMetadata({ ...paint, gradient: undefined, raster: undefined, [shape.type === 'cad-bezier' ? 'fill' : 'stroke']: getDefaultColorTheme({ isDarkMode: false })[value].solid }) } });
         }
       }
       if (editor.isIn('select')) editor.setStyleForSelectedShapes(style, value);
@@ -620,8 +620,8 @@ export function DrawingChrome() {
         aria-label={`${label('palette')}: ${label(value)}`} aria-pressed={color?.type === 'shared' && color.value === value} disabled={!controls.canStyle || !color}
         onContextMenu={event => {
           event.preventDefault(); if (!controls.canStyle) return;
-          drawingTransaction(editor, () => { for (const shape of [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].map(id => editor.getShape(id))) if (shape?.type === 'cad-bezier' && !editor.isShapeOrAncestorLocked(shape)) {
-            const paint = vectorPaint(shape.meta, (shape.props as any).color); editor.updateShape({ id: shape.id, type: shape.type, meta: { ...shape.meta, omsVectorPaint: { ...paint, stroke: getDefaultColorTheme({ isDarkMode: false })[value].solid } } });
+          drawingTransaction(editor, () => { for (const shape of [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].map(id => editor.getShape(id))) if (shape && ['cad-bezier','cad-ellipse','cad-arc'].includes(shape.type) && !editor.isShapeOrAncestorLocked(shape)) {
+            const paint = vectorPaint(shape.meta, (shape.props as any).color); editor.updateShape({ id: shape.id, type: shape.type, meta: { ...shape.meta, omsVectorPaint: paintMetadata({ ...paint, stroke: getDefaultColorTheme({ isDarkMode: false })[value].solid }) } });
           } });
         }} onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
     </div>)}

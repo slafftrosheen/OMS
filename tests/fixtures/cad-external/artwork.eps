@@ -1,0 +1,19 @@
+%!PS-Adobe-3.0 EPSF-3.0
+%%BoundingBox: 0 0 100 100
+%%LanguageLevel: 3
+%%EndComments
+% Independent PostScript fixture: a cubic clip, a hole, an axial gradient, and an image.
+gsave
+newpath 0 0 moveto 100 0 lineto 100 100 lineto 50 110 0 100 0 75 curveto closepath
+35 35 moveto 65 35 lineto 65 65 lineto 35 65 lineto closepath
+eoclip newpath
+<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0]
+/Function << /FunctionType 2 /Domain [0 1] /C0 [1 0 0] /C1 [0 0 1] /N 1 >> /Extend [true true] >> shfill
+grestore
+gsave 5 5 translate 20 20 scale
+/DeviceRGB setcolorspace
+<< /ImageType 1 /Width 2 /Height 2 /BitsPerComponent 8 /ImageMatrix [2 0 0 -2 0 2]
+/Decode [0 1 0 1 0 1] /DataSource <ff000000ff000000ffffff00> >> image
+grestore
+showpage
+%%EOF

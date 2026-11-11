@@ -1,3 +1,4 @@
+import { VectorArtwork } from "./VectorArtwork";
 import React, { useEffect, useRef, useState } from "react";
 import { useEditor, useValue, type Editor } from "@tldraw/tldraw";
 import { curveBounds, curvePathData, mapContours } from "./cad-curves";
@@ -12,6 +13,7 @@ import { cadMmPerPixel, type CadSettings } from "./cad-settings";
 import {
   prepareVectorImport,
   vectorPaint,
+  paintMetadata,
   validVectorPaint,
   type VectorDocument,
 } from "./cad-vector";
@@ -141,15 +143,12 @@ function Preview({
               if (s.type !== "cad-bezier") return null;
               const p = vectorPaint(s.meta ?? {});
               return (
-                <path
+                <VectorArtwork
                   key={i}
-                  d={curvePathData(s.props.contours as any)}
-                  fill={p.fill}
-                  stroke={p.stroke}
-                  strokeWidth={p.strokeWidth}
+                  id={`preview-${i}`}
+                  contours={s.props.contours as any}
                   fillRule={s.props.fillRule as any}
-                  fillOpacity={p.fillOpacity}
-                  strokeOpacity={p.strokeOpacity}
+                  paint={p}
                 />
               );
             }) ?? (
@@ -237,18 +236,55 @@ function selectedTracePlan(
   replace: boolean,
 ) {
   const source = editor.getOnlySelectedShape();
+  const rasterPaint =
+    source?.type === "cad-bezier" ? vectorPaint(source.meta) : undefined;
   if (
-    source?.type !== "image" ||
+    !source ||
+    (source.type !== "image" && !rasterPaint?.raster) ||
     (source.props as any).crop ||
     editor.getShapeMask(source.id)
   )
     throw new Error("image");
   assertCadEditable(editor, [source.id]);
   const transform = editor.getShapePageTransform(source);
+  const raster = rasterPaint?.raster;
+  const boundary = (source.props as any).contours;
+  const corners = raster
+    ? [
+        [0, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+      ].map(([x, y]) => ({
+        x: raster.matrix[0] * x + raster.matrix[2] * y + raster.matrix[4],
+        y: raster.matrix[1] * x + raster.matrix[3] * y + raster.matrix[5],
+      }))
+    : [];
+  const originalBoundary =
+    raster &&
+    boundary?.length === 1 &&
+    boundary[0].nodes.length === 4 &&
+    boundary[0].nodes.every(
+      (n: any) =>
+        !n.inX &&
+        !n.inY &&
+        !n.outX &&
+        !n.outY &&
+        corners.some((p) => Math.hypot(p.x - n.x, p.y - n.y) < 1e-8),
+    );
   const paths = doc.paths.map((p) => ({
     ...p,
-    contours: mapContours(p.contours, (q) =>
-      transform.applyToPoint({
+    contours: mapContours(p.contours, (q) => {
+      if (rasterPaint?.raster) {
+        const m = rasterPaint.raster.matrix,
+          x = q.x / doc.width,
+          y = q.y / doc.height;
+        return transform.applyToPoint({
+          x: m[0] * x + m[2] * y + m[4],
+          y: m[1] * x + m[3] * y + m[5],
+        });
+      }
+      return transform.applyToPoint({
         x:
           (((source.props as any).flipX ? doc.width - q.x : q.x) / doc.width) *
           (source.props as any).w,
@@ -256,9 +292,30 @@ function selectedTracePlan(
           (((source.props as any).flipY ? doc.height - q.y : q.y) /
             doc.height) *
           (source.props as any).h,
-      }),
-    ),
+      });
+    }),
+    paint: rasterPaint
+      ? {
+          ...p.paint,
+          fillOpacity: p.paint.fillOpacity * rasterPaint.fillOpacity,
+          clips: [
+            ...(rasterPaint.clips ?? []),
+            ...(originalBoundary
+              ? []
+              : [
+                  {
+                    contours: boundary,
+                    fillRule: (source!.props as any).fillRule,
+                  },
+                ]),
+          ].map((c) => ({
+            ...c,
+            contours: mapContours(c.contours, (q) => transform.applyToPoint(q)),
+          })),
+        }
+      : p.paint,
   }));
+  if (paths.some((p) => !validVectorPaint(p.paint))) throw new Error("limit");
   return makeCadPlan(
     editor,
     settings,
@@ -299,7 +356,13 @@ export function RasterTrace({ settings, revision, disabled }: Props) {
   ]);
   const selected = useValue(
     "trace image",
-    () => editor.getOnlySelectedShape()?.type === "image",
+    () => {
+      const s = editor.getOnlySelectedShape();
+      return (
+        s?.type === "image" ||
+        (s?.type === "cad-bezier" && !!vectorPaint(s.meta).raster)
+      );
+    },
     [editor],
   );
   async function prepare(signal: AbortSignal) {
@@ -308,12 +371,22 @@ export function RasterTrace({ settings, revision, disabled }: Props) {
     let blob: Blob | undefined = file;
     if (useSelected) {
       const shape = editor.getOnlySelectedShape();
-      if (shape?.type !== "image" || (shape.props as any).crop)
+      const raster =
+        shape?.type === "cad-bezier"
+          ? vectorPaint(shape.meta).raster
+          : undefined;
+      if (
+        !shape ||
+        (shape.type !== "image" && !raster) ||
+        (shape.props as any).crop
+      )
         throw new Error("image");
       assertCadEditable(editor, [shape.id]);
-      const url = await editor.resolveAssetUrl((shape.props as any).assetId, {
-        shouldResolveToOriginal: true,
-      });
+      const url =
+        raster?.png ??
+        (await editor.resolveAssetUrl((shape.props as any).assetId, {
+          shouldResolveToOriginal: true,
+        }));
       if (!url) throw new Error("image");
       const response = await fetch(url, { signal });
       if (!response.ok) throw new Error("image");
@@ -823,7 +896,15 @@ export function VectorPaintControls({
                 type="color"
                 aria-label={t(key)}
                 value={paint[key] === "none" ? "#000000" : paint[key]}
-                onChange={(e) => setPaint({ ...paint, [key]: e.target.value })}
+                onChange={(e) =>
+                  setPaint({
+                    ...paint,
+                    ...(key === "fill"
+                      ? { gradient: undefined, raster: undefined }
+                      : {}),
+                    [key]: e.target.value,
+                  })
+                }
               />
               <label>
                 <input
@@ -833,6 +914,9 @@ export function VectorPaintControls({
                   onChange={(e) =>
                     setPaint({
                       ...paint,
+                      ...(key === "fill"
+                        ? { gradient: undefined, raster: undefined }
+                        : {}),
                       [key]: e.target.checked ? "none" : "#000000",
                     })
                   }
@@ -868,7 +952,10 @@ export function VectorPaintControls({
                   editor.updateShape({
                     id: shape.id,
                     type: shape.type,
-                    meta: { ...shape.meta, omsVectorPaint: next },
+                    meta: {
+                      ...shape.meta,
+                      omsVectorPaint: paintMetadata(next),
+                    },
                   }),
                 )
               )

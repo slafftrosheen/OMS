@@ -5,7 +5,7 @@ type HPoint = [number, number, number];
 const blend = (a: HPoint, b: HPoint, t: number): HPoint =>
   a.map((v, i) => v * (1 - t) + b[i] * t) as HPoint;
 const point = (p: HPoint): CadPoint => ({ x: p[0] / p[2], y: p[1] / p[2] });
-/** Positive-weight, clamped rational B-splines. Convex-hull subdivision bounds
+/** Positive-weight rational B-splines over their active knot interval, including periodic curves. Convex-hull subdivision bounds
  * each polyline segment's geometric deviation, rather than guessing from samples. */
 export function rationalSplineContour(
   controls: CadPoint[],
@@ -38,15 +38,23 @@ export function rationalSplineContour(
     u = [...knots];
   const low = u[degree],
     high = u[p.length];
-  if (
-    !(high > low) ||
-    u.slice(0, degree + 1).some((k) => k !== low) ||
-    u.slice(-degree - 1).some((k) => k !== high)
-  )
-    throw new CadOperationError("unsupported");
-  for (const value of [...new Set(u.filter((k) => k > low && k < high))]) {
+  if (!(high > low)) throw new CadOperationError("unsupported");
+  // Pad outside the active interval so its endpoints become interior knots.
+  // These dummy controls cannot affect any span inside [low, high].
+  const step = Math.max(1, high - low);
+  for (let i = 0; i < degree + 1; i++) {
+    p.unshift([...p[0]]);
+    u.unshift(u[0] - step);
+    p.push([...p.at(-1)!]);
+    u.push(u.at(-1)! + step);
+  }
+  for (const value of [...new Set(u.filter((k) => k >= low && k <= high))]) {
     let multiplicity = u.filter((k) => k === value).length;
-    if (multiplicity > degree) throw new CadOperationError("unsupported");
+    if (
+      multiplicity > degree + 1 ||
+      (value > low && value < high && multiplicity > degree)
+    )
+      throw new CadOperationError("unsupported");
     while (multiplicity < degree) {
       const k = u.findIndex((v) => v > value) - 1,
         q: HPoint[] = [];
@@ -60,7 +68,12 @@ export function rationalSplineContour(
       if (p.length > 16000) throw new CadOperationError("limit");
     }
   }
-  const nodes = [nodeAt(point(p[0]))];
+  const segments: HPoint[][] = [];
+  for (let k = degree; k < p.length; k++)
+    if (u[k] >= low && u[k + 1] <= high && u[k] < u[k + 1])
+      segments.push(p.slice(k - degree, k + 1));
+  if (!segments.length) throw new CadOperationError("geometry");
+  const nodes = [nodeAt(point(segments[0][0]))];
   const distance = (p: CadPoint, a: CadPoint, b: CadPoint) => {
     const dx = b.x - a.x,
       dy = b.y - a.y,
@@ -92,8 +105,7 @@ export function rationalSplineContour(
     subdivide(left, depth + 1);
     subdivide(right, depth + 1);
   };
-  for (let i = 0; i < p.length - 1; i += degree)
-    subdivide(p.slice(i, i + degree + 1), 0);
+  for (const segment of segments) subdivide(segment, 0);
   if (closed) {
     if (
       Math.hypot(nodes[0].x - nodes.at(-1)!.x, nodes[0].y - nodes.at(-1)!.y) >

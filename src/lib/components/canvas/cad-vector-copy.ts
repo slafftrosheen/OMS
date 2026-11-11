@@ -37,8 +37,7 @@ const en = {
   file: "Source file",
   page: "Page number",
   outline: "Outline text on the OMS server",
-  importHelp:
-    "Choose one PDF page or an EPS. PDF paths can be read locally; EPS and text outlining use Ghostscript on your OMS server. Embedded images, clipped paths and unsupported effects are reported and omitted. Compare the original and result before applying.",
+  importHelp: "Choose one PDF page or EPS. Curves, clipping paths, linear/radial gradients and bounded embedded images are retained. EPS and text outlining use Ghostscript. Images stay bitmaps until traced. Compare the source and result before applying.",
   omissions: "I reviewed the omitted content / warnings",
   export: "Export vector PDF / EPS",
   format: "Format",
@@ -46,8 +45,7 @@ const en = {
   selected: "Selection",
   all: "All drawing objects",
   download: "Download",
-  exportHelp:
-    "Full-size vector output with fills and outlines; artboard fits the drawing. Convert text to curves first. Images, form cards and unsupported objects are listed. EPS cannot retain transparency. Circles/arcs are approximated within 0.005 mm.",
+  exportHelp: "Full-size PDF/EPS with curves, clipping and gradients. Imported PDF bitmaps are embedded; other unsupported objects are listed. Convert live text to curves first. EPS omits transparency. Circles/arcs are approximated within 0.005 mm.",
   paths: "Paths",
   nodes: "Nodes",
   bounds: "Geometry (mm)",
@@ -66,12 +64,11 @@ const en = {
     "Select one unlocked, uncropped bitmap. The original image must be accessible.",
   "trace-approximation":
     "Bitmap tracing approximates the source. Check holes, edges and fine details.",
-  "pdf-images":
-    "Embedded raster images are omitted. Import and trace the original bitmap separately.",
-  "pdf-clipping":
-    "Paths crossing a clipping boundary or using a complex clip are omitted.",
-  "pdf-effects":
-    "Unsupported gradients, patterns, transparency groups or transformed strokes are omitted.",
+  "save-limit": "This import would exceed the 2 MB canvas save limit. Use a separate canvas or a smaller image. Nothing was added.",
+  "pdf-image-resolution": "Embedded images were reduced to 1024 px on the longest side. Check resolution before printing.",
+  "pdf-images": "Some images or image masks could not be imported, or exceeded the embedded-image budget (750 KB total, 16 images). They are omitted; compare the preview.",
+  "pdf-clipping": "Clipping is retained as editable artwork masks. Node edits keep the clip; shaping and DXF export require unclipped geometry.",
+  "pdf-effects": "Unsupported mesh gradients, patterns, transparency groups or nonuniform strokes are omitted. Standard opaque linear/radial gradients are supported.",
   "pdf-text":
     "Live text is omitted. Enable server text outlining to import glyph curves.",
   "pdf-annotations":
@@ -135,8 +132,7 @@ const ru: Record<Key, string> = {
   file: "Исходный файл",
   page: "Номер страницы",
   outline: "Преобразовать текст в кривые на сервере OMS",
-  importHelp:
-    "Одна страница PDF или EPS. Контуры PDF читаются локально; EPS и текст в кривые — через Ghostscript на сервере OMS. Встроенный растр, обрезанные пути и неподдерживаемые эффекты пропускаются с предупреждением. Сравните оригинал и результат.",
+  importHelp: "Выберите страницу PDF или EPS. Сохраняются кривые, маски обрезки, линейные/радиальные градиенты и встроенные изображения в пределах лимита. EPS и контуры текста обрабатывает Ghostscript. Растр остаётся растром до трассировки. Сравните оригинал и результат.",
   omissions: "Пропуски и предупреждения проверены",
   export: "Экспорт векторного PDF / EPS",
   format: "Формат",
@@ -144,8 +140,7 @@ const ru: Record<Key, string> = {
   selected: "Выделение",
   all: "Все объекты чертежа",
   download: "Скачать",
-  exportHelp:
-    "Вектор в натуральном размере с заливкой и обводкой; страница по габаритам. Текст сначала преобразуйте в кривые. Растр, формы и неподдерживаемые объекты перечислены. EPS не сохраняет прозрачность. Дуги аппроксимируются с допуском 0,005 мм.",
+  exportHelp: "PDF/EPS в натуральном размере с кривыми, обрезкой и градиентами. Импортированные из PDF растры встраиваются; остальные неподдерживаемые объекты перечислены. Текст сначала преобразуйте в кривые. EPS не сохраняет прозрачность. Допуск дуг — 0,005 мм.",
   paths: "Контуров",
   nodes: "Узлов",
   bounds: "Геометрия (мм)",
@@ -164,12 +159,11 @@ const ru: Record<Key, string> = {
     "Выберите один незаблокированный растр без обрезки. Оригинал должен быть доступен.",
   "trace-approximation":
     "Трассировка приближённая. Проверьте отверстия, границы и мелкие детали.",
-  "pdf-images":
-    "Встроенный растр пропущен. Импортируйте и трассируйте оригинал отдельно.",
-  "pdf-clipping":
-    "Пропущены пути, пересекающие границу обрезки или использующие сложную маску.",
-  "pdf-effects":
-    "Пропущены градиенты, узоры, группы прозрачности или обводки со сложной трансформацией.",
+  "save-limit": "Импорт превысит лимит сохранения холста 2 МБ. Используйте отдельный холст или уменьшите изображение. Ничего не добавлено.",
+  "pdf-image-resolution": "Встроенные изображения уменьшены до 1024 пикселей по длинной стороне. Проверьте разрешение перед печатью.",
+  "pdf-images": "Некоторые изображения или маски не прочитаны либо превысили лимит (750 КБ суммарно, 16 изображений). Они пропущены; проверьте просмотр.",
+  "pdf-clipping": "Обрезка сохранена как маска. При правке узлов маска остаётся; для логических операций и DXF нужны контуры без маски.",
+  "pdf-effects": "Пропущены неподдерживаемые сеточные градиенты, узоры, группы прозрачности или неравномерные обводки. Обычные непрозрачные линейные/радиальные градиенты поддерживаются.",
   "pdf-text":
     "Редактируемый текст пропущен. Включите серверное преобразование текста в кривые.",
   "pdf-annotations":
@@ -232,8 +226,7 @@ const lv: Record<Key, string> = {
   file: "Avota fails",
   page: "Lapas numurs",
   outline: "Pārvērst tekstu līknēs OMS serverī",
-  importHelp:
-    "Viena PDF lapa vai EPS. PDF līknes nolasa lokāli; EPS un teksta kontūras izmanto Ghostscript OMS serverī. Iegultie attēli, apgriezti ceļi un neatbalstīti efekti tiek izlaisti ar brīdinājumu. Salīdziniet oriģinālu un rezultātu.",
+  importHelp: "Izvēlieties PDF lapu vai EPS. Saglabā līknes, apgriešanas ceļus, lineārus/radiālus gradientus un ierobežota izmēra iegultos attēlus. EPS un teksta kontūras apstrādā Ghostscript. Attēli paliek rastri līdz vektorizēšanai. Salīdziniet avotu un rezultātu.",
   omissions: "Izlaistais saturs un brīdinājumi pārbaudīti",
   export: "Eksportēt vektoru PDF / EPS",
   format: "Formāts",
@@ -241,8 +234,7 @@ const lv: Record<Key, string> = {
   selected: "Atlasītais",
   all: "Visi rasējuma objekti",
   download: "Lejupielādēt",
-  exportHelp:
-    "Pilna izmēra vektori ar aizpildījumu un kontūru; lapa atbilst rasējumam. Vispirms pārvērtiet tekstu līknēs. Attēli, veidlapas un neatbalstīti objekti tiek uzskaitīti. EPS nesaglabā caurspīdīgumu. Loki aproksimēti ar 0,005 mm pielaidi.",
+  exportHelp: "Pilna izmēra PDF/EPS ar līknēm, apgriešanu un gradientiem. No PDF importētos rastrus iegulst; citi neatbalstīti objekti ir uzskaitīti. Tekstu vispirms pārvērtiet līknēs. EPS nesaglabā caurspīdīgumu. Loku pielaide — 0,005 mm.",
   paths: "Kontūras",
   nodes: "Mezgli",
   bounds: "Ģeometrija (mm)",
@@ -260,12 +252,11 @@ const lv: Record<Key, string> = {
     "Atlasiet vienu nebloķētu, neapgrieztu rastra attēlu. Oriģinālam jābūt pieejamam.",
   "trace-approximation":
     "Vektorizēšana ir aptuvena. Pārbaudiet caurumus, malas un sīkās detaļas.",
-  "pdf-images":
-    "Iegultie rastra attēli izlaisti. Importējiet un vektorizējiet oriģinālu atsevišķi.",
-  "pdf-clipping":
-    "Izlaisti ceļi, kas šķērso apgriešanas robežu vai izmanto sarežģītu masku.",
-  "pdf-effects":
-    "Izlaisti neatbalstīti gradienti, raksti, caurspīdīguma grupas vai transformētas kontūras.",
+  "save-limit": "Imports pārsniegtu audekla saglabāšanas 2 MB limitu. Izmantojiet atsevišķu audeklu vai mazāku attēlu. Nekas netika pievienots.",
+  "pdf-image-resolution": "Iegultie attēli samazināti līdz 1024 pikseļiem garākajā malā. Pirms drukāšanas pārbaudiet izšķirtspēju.",
+  "pdf-images": "Dažus attēlus vai maskas nevarēja importēt, vai tie pārsniedza ierobežojumu (kopā 750 KB, 16 attēli). Tie izlaisti; pārbaudiet priekšskatījumu.",
+  "pdf-clipping": "Apgriešana saglabāta kā maska. Mezglu rediģēšana saglabā masku; formu operācijām un DXF vajag neapgrieztu ģeometriju.",
+  "pdf-effects": "Izlaisti neatbalstīti tīkla gradienti, raksti, caurspīdīguma grupas vai nevienmērīgas kontūras. Standarta necaurspīdīgi lineārie/radiālie gradienti ir atbalstīti.",
   "pdf-text": "Teksts izlaists. Ieslēdziet teksta kontūru izveidi serverī.",
   "pdf-annotations":
     "Anotācijas un izvēles saturs var atšķirties no oriģināla.",
@@ -319,7 +310,7 @@ export function vectorError(error: unknown): string {
         "eps-opacity": "exportHelp",
       } as Record<string, string>
     )[code] ??
-    (["empty", "limit", "cancelled", "busy", "timeout", "stale"].includes(code)
+    (["empty", "limit", "save-limit", "cancelled", "busy", "timeout", "stale"].includes(code)
       ? code
       : "failed")
   );

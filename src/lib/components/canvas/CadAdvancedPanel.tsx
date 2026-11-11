@@ -33,7 +33,7 @@ function errorLabel(error: unknown, fallback: CadAdvancedLabel = 'failed'): CadA
   return ({ 'join-selection': 'joinHelp', 'join-gap': 'joinGapError', 'fill-rule': 'compoundFailed', empty: 'empty', readonly: 'blocked', locked: 'blocked', font: 'invalidFont', 'missing-glyph': 'unsupportedFont', unit: 'unitRequired', format: 'invalidDxf', unsupported: 'unsupported', stale: 'stale', geometry: 'invalid', selection: 'selectionHelp', open: 'selectionHelp', limit: 'limit', capacity: 'limit', bound: 'bound' } as Record<string, CadAdvancedLabel>)[code ?? ''] ?? fallback;
 }
 function warningLabel(code: string): CadAdvancedLabel {
-  return ({ 'join-arc-approximation': 'joinApproximation', 'curves-approximated': 'approximated', 'import-curves-approximated': 'importApproximation', 'sources-overlap': 'sourcesOverlap', 'text-layout-review': 'textLayoutReview', 'font-outline-only': 'fontOutlineOnly' } as Record<string, CadAdvancedLabel>)[code] ?? 'unrecognizedWarning';
+  return ({ 'join-arc-approximation': 'joinApproximation', 'curves-approximated': 'approximated', 'import-curves-approximated': 'importApproximation', 'import-elevation': 'importElevation', 'import-dimension': 'importDimension', 'import-hatch-boundary': 'importHatchBoundary', 'sources-overlap': 'sourcesOverlap', 'text-layout-review': 'textLayoutReview', 'font-outline-only': 'fontOutlineOnly' } as Record<string, CadAdvancedLabel>)[code] ?? 'unrecognizedWarning';
 }
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="drawing-cad-field"><span>{label}</span>{children}</label>;

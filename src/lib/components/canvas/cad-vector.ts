@@ -1,3 +1,4 @@
+import { transformAppearance } from "./cad-appearance";
 import type { Editor } from "@tldraw/tldraw";
 import { getDefaultColorTheme } from "@tldraw/tldraw";
 import { mapContours, validContours, type CadContour } from "./cad-curves";
@@ -57,13 +58,20 @@ export function prepareVectorImport(
       x: point.x + q.x * scale,
       y: point.y + q.y * scale,
     })),
-    paint: scalePaint(p.paint, scale),
+    paint: transformAppearance(scalePaint(p.paint, scale), [
+      1,
+      0,
+      0,
+      1,
+      point.x,
+      point.y,
+    ]),
   }));
   if (
     paths.some((p) => !validContours(p.contours) || !validVectorPaint(p.paint))
   )
     throw new CadOperationError("limit");
-  return makeCadPlan(
+  const plan = makeCadPlan(
     editor,
     settings,
     paths.flatMap((p) => p.contours),
@@ -81,4 +89,20 @@ export function prepareVectorImport(
       })),
     },
   );
+  if (
+    editor.store &&
+    JSON.stringify(editor.store.getStoreSnapshot()).length +
+      JSON.stringify(plan.shapes).length >
+      1_900_000
+  )
+    throw new CadOperationError("save-limit");
+  return plan;
+}
+
+/** JSON-normalized metadata removes absent optional fields before persistence. */
+export function paintMetadata(
+  paint: VectorPaint,
+): import("@tldraw/tldraw").JsonObject {
+  if (!validVectorPaint(paint)) throw new CadOperationError("geometry");
+  return JSON.parse(JSON.stringify(paint));
 }
