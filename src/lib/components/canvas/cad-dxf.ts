@@ -64,7 +64,8 @@ function shapeEntity(editor: Editor, shape: TLShape, settings: CadSettings): { e
     const world = matrix.applyToPoint(point);
     return { x: finite((world.x - settings.originX) * factor), y: finite((settings.originY - world.y) * factor) };
   };
-  if (clipped(editor, shape)) return { reason: 'clipped' };
+  if (clipped(editor, shape) || (shape.meta.omsVectorPaint as any)?.clips?.length) return { reason: 'clipped' };
+  if ((shape.meta.omsVectorPaint as any)?.raster) return { reason: 'unsupported' };
   if (shape.type === 'cad-bezier') {
     if (!validContours(p.contours)) return { reason: 'invalid' };
     return { entities: mapContours(p.contours, convert).map(contour => contour.nodes.every(n => !n.inX && !n.inY && !n.outX && !n.outY)

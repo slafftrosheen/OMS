@@ -18,6 +18,8 @@ import type { CadFocusRequest } from './CadAdvancedPanel';
 import { useCadText, type CadLabel } from './cad-copy';
 import { canvasLengthToUnit, canvasPointToCad, readCadSettings, unitLengthToCanvas, type CadSettings } from './cad-settings';
 import { getCadSelection, nudgeCadSelection, transformCadSelection, type CadAnchor } from './cad-geometry';
+import { useVectorText } from './cad-vector-copy';
+import { paintMetadata, vectorPaint } from './cad-vector';
 import './drawing-workspace.css';
 
 type Slot = 'commands' | 'properties' | 'tools' | 'docker' | 'palette' | 'status' | 'rulerX' | 'rulerY' | 'rulerOrigin';
@@ -281,6 +283,7 @@ export function DrawingChrome() {
   const { label, tr } = useDrawingText();
   const { label: cadLabel } = useCadText();
   const { label: advancedLabel } = useCadAdvancedText();
+  const vectorLabel = useVectorText();
   const [cadFocus, setCadFocus] = useState<CadFocusRequest>();
   const settings = useValue('drawing cad settings', () => readCadSettings(editor), [editor]);
   const [cadAnchor, setCadAnchor] = useState<CadAnchor>('bottom-left');
@@ -347,6 +350,8 @@ export function DrawingChrome() {
     const keys = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && openMenu) { event.preventDefault(); event.stopPropagation(); closeMenus(true); return; }
       if (!(event.target instanceof Element) || event.target.closest('input,textarea,select,[contenteditable="true"]')) return;
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'F12') { event.preventDefault(); event.stopPropagation(); focusCad('paint'); return; }
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.shiftKey && event.key === 'F2') { event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'fit-selection'); return; }
       const lockedSelection = captureToolkitControls(editor).selectionLocked;
       const modifier = event.ctrlKey || event.metaKey;
       if ((!modifier && !event.altKey && event.key === 'F10') || (modifier && !event.altKey && event.key.toLowerCase() === 'q')) {
@@ -375,8 +380,9 @@ export function DrawingChrome() {
         if (!nudgeCadSelection(editor, dx, dy, cad)) setNotice(cadLabel('failed'));
         return;
       }
-      const tool = ({ F6: 'rectangle', F7: 'ellipse', F8: 'text' } as Record<string, string>)[event.key];
+      const tool = ({ F5: 'draw', F6: 'rectangle', F7: 'ellipse', F8: 'text' } as Record<string, string>)[event.key];
       if (tool && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); event.stopPropagation(); chooseTool(tool); }
+      else if (event.key === 'F3') { event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'zoom-out'); }
       else if (event.key === 'F4') { event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'fit'); }
       else if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'd') {
         event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'duplicate');
@@ -401,6 +407,12 @@ export function DrawingChrome() {
   function styleChange(style: EnumStyleProp<string>, value: string) {
     if (!style.values.includes(value) || !captureToolkitControls(editor).canStyle) return;
     drawingTransaction(editor, () => {
+      if (style === DefaultColorStyle) {
+        for (const shape of [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].map(id => editor.getShape(id))) if (shape && ['cad-bezier','cad-ellipse','cad-arc'].includes(shape.type) && !editor.isShapeOrAncestorLocked(shape)) {
+          const paint = vectorPaint(shape.meta, (shape.props as any).color);
+          editor.updateShape({ id: shape.id, type: shape.type, meta: { ...shape.meta, omsVectorPaint: paintMetadata({ ...paint, gradient: undefined, raster: undefined, [shape.type === 'cad-bezier' ? 'fill' : 'stroke']: getDefaultColorTheme({ isDarkMode: false })[value].solid }) } });
+        }
+      }
       if (editor.isIn('select')) editor.setStyleForSelectedShapes(style, value);
       editor.setStyleForNextShapes(style, value);
     });
@@ -484,7 +496,7 @@ export function DrawingChrome() {
           </fieldset>
           <button type="button" disabled={busy || !controls.hasShapes} onClick={() => void exportDrawing('svg')}>{label('exportSvg')}</button>
           <button type="button" disabled={busy || !controls.hasShapes} onClick={() => void exportDrawing('png')}>{label('exportPng')}</button>
-          <button type="button" onClick={() => focusCad('files')}>{cadLabel('dxf')}</button>
+          <button type="button" onClick={() => focusCad('files')}>{vectorLabel('files')}</button>
           {exportError && <p role="alert">{exportError}</p>}
           <p>{label('exportHint')}</p>
         </div></details>
@@ -493,6 +505,7 @@ export function DrawingChrome() {
           <hr />
           <button type="button" disabled={!controls.canEditSelection || !settings} onClick={() => compound('combine')}>{advancedLabel('combine')}</button>
           <button type="button" disabled={!controls.canEditSelection || !settings} onClick={() => compound('breakApart')}>{advancedLabel('breakApart')}</button>
+          <button type="button" onClick={() => focusCad('paint')}>{vectorLabel('paint')} · F12</button>
           <button type="button" onClick={() => focusCad('nodes')}>{advancedLabel('nodes')}</button>
           <button type="button" onClick={() => focusCad('convert')}>{advancedLabel('convert')}</button>
           <button type="button" onClick={() => focusCad('join')}>{advancedLabel('joinCurves')}</button>
@@ -503,6 +516,7 @@ export function DrawingChrome() {
           {menuActions(['align-left', 'align-center', 'align-right', 'align-top', 'align-middle', 'align-bottom', 'distribute-horizontal', 'distribute-vertical'])}
           </div></details>
         </div></details>
+        <details className="drawing-menu" data-drawing-menu="bitmaps" open={openMenu === 'bitmaps'}>{menuSummary('bitmaps', vectorLabel('bitmaps'))}<div className="drawing-menu-popover"><button type="button" disabled={controls.readOnly} onClick={() => focusCad('trace')}>{vectorLabel('trace')}</button></div></details>
         <details className="drawing-menu" data-drawing-menu="layout" open={openMenu === 'layout'}>{menuSummary('layout', cadLabel('layout'))}<div className="drawing-menu-popover">
           <button type="button" onClick={() => focusCad('document')}>{cadLabel('document')}</button>
         </div></details>
@@ -604,7 +618,12 @@ export function DrawingChrome() {
     {portal('palette', <div className="drawing-swatches" role="toolbar" aria-label={label('palette')}>
       {DefaultColorStyle.values.map(value => <button key={value} type="button" title={`${label('palette')}: ${label(value)}`}
         aria-label={`${label('palette')}: ${label(value)}`} aria-pressed={color?.type === 'shared' && color.value === value} disabled={!controls.canStyle || !color}
-        onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
+        onContextMenu={event => {
+          event.preventDefault(); if (!controls.canStyle) return;
+          drawingTransaction(editor, () => { for (const shape of [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].map(id => editor.getShape(id))) if (shape && ['cad-bezier','cad-ellipse','cad-arc'].includes(shape.type) && !editor.isShapeOrAncestorLocked(shape)) {
+            const paint = vectorPaint(shape.meta, (shape.props as any).color); editor.updateShape({ id: shape.id, type: shape.type, meta: { ...shape.meta, omsVectorPaint: paintMetadata({ ...paint, stroke: getDefaultColorTheme({ isDarkMode: false })[value].solid }) } });
+          } });
+        }} onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
     </div>)}
     {portal('status', <>
       <span className="drawing-status-text" role="status" title={controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{notice || (controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>

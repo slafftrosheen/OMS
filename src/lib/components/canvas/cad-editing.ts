@@ -67,7 +67,7 @@ export function cadSelectedShapes(editor: Editor): TLShape[] {
     .filter((s) => s && s.type !== 'group');
   if (!shapes.length || shapes.length > 200) throw new CadOperationError('selection');
   // Refuse potentially clipped CAD rather than applying operations to invisible areas.
-  if (shapes.some((s) => editor.getShapeMask(s.id))) throw new CadOperationError('unsupported');
+  if (shapes.some((s) => editor.getShapeMask(s.id) || (s.meta.omsVectorPaint as any)?.clips?.length || (s.meta.omsVectorPaint as any)?.gradient || (s.meta.omsVectorPaint as any)?.raster)) throw new CadOperationError('unsupported');
   return shapes;
 }
 export function getCadCurveSelection(
@@ -241,7 +241,7 @@ export function convertSelectionToCurves(editor: Editor, settings: CadSettings):
         name: 'CAD curves',
         // Winding-based font regions must not become an even-odd compound when
         // converting a selected group. Keep those source regions separate.
-        shapes: shapes.some((s) => (s.props as any).fillRule === 'nonzero')
+        shapes: shapes.some((s) => (s.props as any).fillRule === 'nonzero' || s.meta.omsVectorPaint)
           ? shapes.map((shape, i) => ({
               type: 'cad-bezier' as const,
               x: 0,

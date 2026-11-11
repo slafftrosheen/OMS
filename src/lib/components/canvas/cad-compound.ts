@@ -23,7 +23,8 @@ export function prepareCadCompound(editor: Editor, settings: CadSettings, operat
     name: operation === 'combine' ? 'Combined curve' : 'Curve contour',
     shapes: operation === 'combine' ? [{
       type: 'cad-bezier', x: 0, y: 0,
-      props: { contours, color: (last.props as any).color ?? 'black', fillRule: rules[0] }
+      props: { contours, color: (last.props as any).color ?? 'black', fillRule: rules[0] },
+      meta: { ...last.meta }
     }] : shapes.flatMap((shape, index) => sources[index].map((contour, part) => ({
       type: 'cad-bezier' as const, x: 0, y: 0,
       props: { contours: [contour], color: (shape.props as any).color ?? 'black', fillRule: rules[index] },

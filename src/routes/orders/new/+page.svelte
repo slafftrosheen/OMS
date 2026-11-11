@@ -517,6 +517,11 @@
     const target=document.getElementById(id);
     target?.scrollIntoView({block:'start'});target?.focus({preventScroll:true});
   }
+  async function storeCanvasFile(file:File){
+    if(saving)throw new Error('asset-upload');
+    const entries=await addFiles([file]),entry=entries[0];if(!entry)throw new Error('asset-upload');
+    const url=URL.createObjectURL(entry.file);localUrls.push(url);return {id:entry.uploadId,url};
+  }
   async function addCanvasFiles(files:File[],position:{x:number;y:number}){
     const editor=creationEditor;if(!editor||saving)return;
     const {orderPocketAtPoint,addOrderFileDocument}=await import('$lib/components/canvas/order-file-documents');
@@ -768,7 +773,7 @@
       delete canvasFileLinks[removed.uploadId];
       uploadedFileKeys=new Set([...uploadedFileKeys].filter(id=>id!==removed.uploadId));
     }
-    if(removed){removedCanvasFiles.add(removed.uploadId);if(creationEditor)creationEditor.deleteShapes(creationEditor.getCurrentPageShapes().filter((shape:any)=>shape.props?.fileId===removed.uploadId).map((shape:any)=>shape.id));}
+    if(removed){removedCanvasFiles.add(removed.uploadId);if(creationEditor)creationEditor.deleteShapes(creationEditor.getCurrentPageShapes().filter((shape:any)=>shape.props?.fileId===removed.uploadId||shape.meta?.omsVectorPaint?.raster?.fileId===removed.uploadId).map((shape:any)=>shape.id));}
     uploadedFiles = uploadedFiles.filter((_, i) => i !== index);
     URL.revokeObjectURL(removed.url);
     if (selectedFileIndex === index) {
@@ -1084,7 +1089,7 @@
     <section aria-label={workspaceCopy.drawing} style="height:75vh;min-height:600px;position:relative;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden">
       {#await import('$lib/components/canvas/TldrawWrapper.svelte') then module}
         <module.default snapshot={creationSnapshot} onReady={editor=>creationEditor=editor} onSave={snapshot=>creationSnapshot=snapshot} onDocumentChange={()=>canvasRevision++}
-          onError={message=>error=message} onFilesUpload={addCanvasFiles} toolkitReadOnly={saving||!!successMessage}
+          onError={message=>error=message} onFilesUpload={addCanvasFiles} onStoreCanvasFile={storeCanvasFile} toolkitReadOnly={saving||!!successMessage}
           orderSeed={{orderId:creationId,isRd,rdNotes,title,clientName,deadline,loadingDate,priority,notes,deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail,profiles,
             attachments:uploadedFiles.map(entry=>({id:entry.uploadId,originalName:entry.file.name,mimeType:entry.file.type,url:entry.url,file_type:entry.pocket}))}}
           onOrderChange={(_id,patch)=>applyIntakeFields(patch)}

@@ -1,3 +1,4 @@
+import { useVectorText } from './cad-vector-copy';
 import React, { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useEditor, useValue } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
@@ -37,14 +38,14 @@ function Message({ text, error = false }: { text: string; error?: boolean }) {
 /** CAD is part of the shared docker, so order and idea editors have identical controls. */
 export function CadPanel({ settings, focusRequest }: { settings: CadSettings | null; focusRequest?: CadFocusRequest }) {
   const editor = useEditor(); const { label } = useCadText();
-  const { label: advancedLabel } = useCadAdvancedText();
-  const [task, setTask] = useState<'draw' | 'edit' | 'document' | 'files'>(settings ? 'edit' : 'document');
+  const { label: advancedLabel } = useCadAdvancedText(); const vectorLabel = useVectorText();
+  const [task, setTask] = useState<'draw' | 'edit' | 'document' | 'files' | 'trace'>(settings ? 'edit' : 'document');
   const sourceIsText = useValue('cad focus text', () => editor.getOnlySelectedShape()?.type === 'text', [editor]);
   const consumedFocus = useRef<number>();
   useEffect(() => {
     if (!focusRequest || consumedFocus.current === focusRequest.sequence) return;
     consumedFocus.current = focusRequest.sequence;
-    setTask(focusRequest.section === 'files' ? 'files' : focusRequest.section === 'document' ? 'document' : focusRequest.section === 'convert' && sourceIsText ? 'draw' : 'edit');
+    setTask(focusRequest.section === 'trace' ? 'trace' : focusRequest.section === 'files' ? 'files' : focusRequest.section === 'document' ? 'document' : focusRequest.section === 'convert' && sourceIsText ? 'draw' : 'edit');
   }, [focusRequest, sourceIsText]);
   const controls = useValue('cad panel permissions', () => captureToolkitControls(editor), [editor]);
   const protectedSelection = useValue('cad protected selection', () => [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].some(id => ['order-details', 'order-address', 'profile-7st'].includes(editor.getShape(id)?.type ?? '')), [editor]);
@@ -73,7 +74,7 @@ export function CadPanel({ settings, focusRequest }: { settings: CadSettings | n
   return <div className="drawing-cad" data-testid="drawing-cad-panel">
     <label className="drawing-cad-task"><span>{advancedLabel('task')}</span>
       <select data-testid="drawing-cad-task" value={task} onChange={event => setTask(event.target.value as typeof task)}>
-        {(['draw', 'edit', 'document', 'files'] as const).map(value => <option key={value} value={value}>{advancedLabel(`${value}Task`)}</option>)}
+        {(['draw', 'edit', 'document', 'files', 'trace'] as const).map(value => <option key={value} value={value}>{value === 'trace' ? vectorLabel('trace') : value === 'files' ? vectorLabel('files') : advancedLabel(`${value}Task`)}</option>)}
       </select>
     </label>
     {controls.readOnly && <p className="drawing-help">{label('readOnly')}</p>}

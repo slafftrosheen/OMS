@@ -34,10 +34,16 @@ export function prepareCreationCanvas(snapshot:unknown,localOrderId:string,order
  const visit=(value:any)=>{
   if(!value||typeof value!=='object')return;
   for(const [key,child] of Object.entries(value)){
-   if(child&&typeof child==='object'&&removedIds.has((child as any).props?.fileId)){
+   if(child&&typeof child==='object'&&(removedIds.has((child as any).props?.fileId)||removedIds.has((child as any).meta?.omsVectorPaint?.raster?.fileId))){
     removedShapes.add((child as any).id??key);delete value[key];continue;
    }
    visit(child);
+  }
+  const raster=value.meta?.omsVectorPaint?.raster;
+  if(raster?.external){
+   const id=fileLinks[raster.fileId];
+   if(id){raster.fileId=id;raster.png=`${base}/api/files/${encodeURIComponent(id)}/download`;}
+   else if(typeof raster.png==='string'&&raster.png.startsWith('blob:'))throw new Error('A canvas image has not finished uploading. Retry Save.');
   }
   if(value.props){
    if(value.props.orderId===localOrderId)value.props.orderId=orderId;

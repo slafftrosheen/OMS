@@ -1,4 +1,5 @@
-import { CAD_MAX_COORDINATE, type CadPoint } from './cad-settings';
+import { CAD_MAX_COORDINATE } from './cad-limits';
+import type { CadPoint } from './cad-settings';
 
 export type CadNodeMode = 'corner' | 'smooth' | 'symmetric';
 export interface CadBezierNode extends CadPoint {

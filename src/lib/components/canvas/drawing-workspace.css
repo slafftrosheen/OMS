@@ -215,3 +215,14 @@
 
 .drawing-node-tools > summary { cursor: pointer; font-weight: 600; min-height: 32px; padding: 8px 0; }
 .drawing-node-tools { border-top: 1px solid var(--border); }
+
+/* Vector workflows use the same docker in order and idea canvases. */
+.drawing-vector-comparison { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; }
+.drawing-vector-comparison figure { min-width:0; margin:0; }
+.drawing-vector-comparison figcaption { font-size:11px; margin-bottom:5px; }
+.drawing-vector-comparison img,.drawing-vector-comparison svg { width:100%; height:150px; object-fit:contain; background:#fff; border:1px solid var(--border); border-radius:4px; }
+.drawing-vector-check { display:flex; align-items:flex-start; gap:7px; font-size:12px; padding:6px 0; }
+.drawing-vector-check input { flex:0 0 auto; margin-top:2px; }
+.drawing-vector-paint-row { display:flex; align-items:center; gap:8px; }
+.drawing-vector-paint-row input[type=color] { width:46px; height:30px; padding:2px; }
+.drawing-cad-section h3 { margin:8px 0; font-size:13px; }

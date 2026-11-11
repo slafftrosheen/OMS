@@ -35,7 +35,7 @@ export async function readCadFont(bytes: ArrayBuffer): Promise<any> {
     throw new CadOperationError('font');
   }
 }
-async function getFont(name: string, bytes?: ArrayBuffer) {
+export async function getCadFont(name: string, bytes?: ArrayBuffer) {
   if (name === 'custom') {
     if (!bytes) throw new CadOperationError('font');
     return readCadFont(bytes);
@@ -134,7 +134,7 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
   const p = source?.props as any,
     text = String(source ? p.text : options.text).normalize('NFC');
   if (!text.trim() || [...text].length > 500 || text.split('\n').length > 20) throw new CadOperationError('limit');
-  const font = await getFont(source ? p.font : options.font, options.fontData);
+  const font = await getCadFont(source ? p.font : options.font, options.fontData);
   let contours: CadContour[] = [];
   if (source) {
     const fontSize = FONT_SIZES[p.size],

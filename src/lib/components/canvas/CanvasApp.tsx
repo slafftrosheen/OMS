@@ -75,6 +75,7 @@ export interface CanvasAppProps {
     /** When set, auto-spawns the DraftOrderTemplate on first mount */
     orderSeed?: OrderSeed | null;
     onProfileQuantityChange?: (orderId:string,index:number,quantity:number)=>void;
+    onStoreCanvasFile?: (file:File)=>Promise<{id:string;url:string}>;
     onFilesUpload?: (files:File[],position:{x:number;y:number})=>Promise<void>;
     /** Called when a form shape field changes, bridges data back to Svelte */
     onOrderChange?: (orderId: string, patch: Partial<OrderSeed>) => void;
@@ -97,7 +98,7 @@ export function CanvasApp({
     onSave,
     onDocumentChange,
     onEditorReady,
-    orderSeed, onFilesUpload, onProfileQuantityChange,
+    orderSeed, onFilesUpload, onStoreCanvasFile, onProfileQuantityChange,
     onOrderChange,
     onProfileChange,
     onAssetUploaded,
@@ -138,9 +139,9 @@ export function CanvasApp({
     useEffect(() => {
         const editor = editorRef.current;
         if (!editor) return;
-        setOrderBridge(editor, {orderId:seedRef.current?.orderId, onOrderChange, onProfileChange, onAssetUploaded, onFilesUpload, onProfileQuantityChange });
+        setOrderBridge(editor, {toolkitBoardId, onStoreCanvasFile, orderId:seedRef.current?.orderId, onOrderChange, onProfileChange, onAssetUploaded, onFilesUpload, onProfileQuantityChange });
         return () => clearOrderBridge(editor);
-    }, [orderSeed?.orderId,onOrderChange, onProfileChange, onAssetUploaded, onFilesUpload, onProfileQuantityChange]);
+    }, [toolkitBoardId,onStoreCanvasFile,orderSeed?.orderId,onOrderChange, onProfileChange, onAssetUploaded, onFilesUpload, onProfileQuantityChange]);
 
     const syncSeed = (editor: Editor, seed: OrderSeed) => {
         if(seed.attachments)syncCreationFileDocuments(editor,seed.attachments);
@@ -167,7 +168,7 @@ export function CanvasApp({
         editor.updateInstanceState({ isReadonly: toolkitReadOnly });
 
         // Register the bridge immediately so any shape created during spawn can fire callbacks
-        setOrderBridge(editor, {orderId:seedRef.current?.orderId, onOrderChange, onProfileChange, onAssetUploaded, onFilesUpload, onProfileQuantityChange });
+        setOrderBridge(editor, {toolkitBoardId, onStoreCanvasFile, orderId:seedRef.current?.orderId, onOrderChange, onProfileChange, onAssetUploaded, onFilesUpload, onProfileQuantityChange });
 
         // Toolkit captures its document only when saving. The order editor
         // still requests debounced full snapshots via onSave.

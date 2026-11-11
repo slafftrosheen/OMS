@@ -13,6 +13,7 @@
     /** Seed data → triggers DraftOrderTemplate auto-spawn */
     orderSeed?: OrderSeed | null;
     onProfileQuantityChange?: (orderId:string,index:number,quantity:number)=>void;
+    onStoreCanvasFile?: (file:File)=>Promise<{id:string;url:string}>;
     onFilesUpload?: (files:File[],position:{x:number;y:number})=>Promise<void>;
     /** Called when any order-details or order-address field changes on canvas */
     onOrderChange?: (orderId: string, patch: Partial<OrderSeed>) => void;
@@ -37,6 +38,7 @@
     onError = () => {},
     orderSeed = null,
     onFilesUpload=undefined,
+    onStoreCanvasFile=undefined,
     onProfileQuantityChange=undefined,
     onOrderChange = undefined,
     onProfileChange = undefined,
@@ -58,7 +60,7 @@
   // tldraw would recreate the store and reset selection/history each edit.
   $effect(() => {
     renderCanvas?.({
-      onSave, onDocumentChange, orderSeed, onOrderChange, onProfileChange, onFilesUpload, onProfileQuantityChange,
+      onSave, onDocumentChange, orderSeed, onOrderChange, onProfileChange, onFilesUpload, onStoreCanvasFile, onProfileQuantityChange,
       onAssetUploaded, hideUI, toolkitBoardId, onToolkitFilesDrop,
       onToolkitLinkDrop, onToolkitControlsChange, toolkitReadOnly,
     });

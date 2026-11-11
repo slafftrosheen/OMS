@@ -1,3 +1,4 @@
+import { validVectorPaint } from './cad-paint';
 import { createShapeId, type Editor, type TLShapeId } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
 import { cadMmPerPixel, validateCadSettings, type CadSettings } from './cad-settings';
@@ -79,12 +80,14 @@ export function applyCadPlan(editor: Editor, plan: CadPlan): boolean {
       )
     )
       return false;
+    const source = plan.sourceIds.length ? editor.getShape(plan.sourceIds.at(-1) as TLShapeId) : undefined;
     const shapes = plan.shapes ?? [
       {
         type: 'cad-bezier' as const,
         x: 0,
         y: 0,
-        props: { contours: plan.contours, fillRule: plan.fillRule ?? 'evenodd' }
+        props: { contours: plan.contours, fillRule: plan.fillRule ?? 'evenodd', color: (source?.props as any)?.color ?? 'black' },
+        meta: source?.meta.omsVectorPaint ? { omsVectorPaint: source.meta.omsVectorPaint } : undefined
       }
     ];
     if (
@@ -93,6 +96,10 @@ export function applyCadPlan(editor: Editor, plan: CadPlan): boolean {
       editor.getCurrentPageShapeIds().size + shapes.length > editor.options.maxShapesPerPage
     )
       return false;
+    if(shapes.some(s=>s.meta?.omsVectorPaint && !validVectorPaint(s.meta.omsVectorPaint)))return false;
+    // Shared order/idea documents have a 2 MB persistence limit. Embedded PDF
+    // bitmaps must fail before mutation, rather than create an unsaveable board.
+    if (editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length + JSON.stringify(shapes).length > 1_900_000) return false;
     return drawingTransaction(editor, () => {
       const ids = shapes.map((s) => {
         const id = createShapeId();

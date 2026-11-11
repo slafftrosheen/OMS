@@ -64,6 +64,6 @@ export function prepareCadJoin(editor: Editor, settings: CadSettings, options: C
     warnings: shapes.some(s => s.type === 'cad-arc') ? ['join-arc-approximation'] : [],
     shapes: [{ type: 'cad-bezier', x: 0, y: 0, props: {
       contours: [joined], color: (shapes[0].props as any).color ?? 'black', fillRule: rules[0]
-    } }]
+    }, meta: { ...shapes[0].meta } }]
   }), gapMm, pairing: choice.pair };
 }
