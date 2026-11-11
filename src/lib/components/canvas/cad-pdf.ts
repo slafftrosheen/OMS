@@ -181,7 +181,12 @@ export function pdfOperatorsToVectors(
         color,
       })),
     };
-    return validAppearance({ gradient: g }) ? g : undefined;
+    if(g.type==='radial'&&g.r0>g.r1){[g.r0,g.r1]=[g.r1,g.r0];[g.start,g.end]=[g.end,g.start];g.stops=g.stops.slice().reverse().map(s=>({...s,offset:1-s.offset}));}
+    if (!validAppearance({ gradient: g })) return;
+    // SVG constrains focal circles to the outer circle. Crossing PDF cones
+    // require the appearance renderer rather than a silently clamped gradient.
+    if(g.type==='radial' && Math.hypot(g.start[0]-g.end[0],g.start[1]-g.end[1])+g.r0>g.r1+1e-8)return;
+    return g;
   };
   const append = (
     cs: CadContour[],

@@ -1,2 +1,6 @@
 # Preserve the exact CRLF output of the DXF writer for downstream CAD tests.
 tests/fixtures/cad/*.dxf -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+# Keep independently generated exchange fixtures and upstream legal notices exact.
+tests/fixtures/cad-external/*.dxf -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+tests/fixtures/cad-external/*.pdf binary
+static/pdfjs-notices/* -text whitespace=-blank-at-eol,-blank-at-eof

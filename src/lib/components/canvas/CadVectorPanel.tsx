@@ -1,3 +1,5 @@
+import { storeCanvasImage } from "./cad-asset-store";
+import { prepareVectorExportWithAssets } from "./cad-vector-export-client";
 import { VectorArtwork } from "./VectorArtwork";
 import React, { useEffect, useRef, useState } from "react";
 import { useEditor, useValue, type Editor } from "@tldraw/tldraw";
@@ -537,12 +539,14 @@ export function VectorImport({ settings, revision, disabled }: Props) {
   const [file, setFile] = useState<File>(),
     [page, setPage] = useState("1"),
     [outline, setOutline] = useState(false),
+    [mode,setMode]=useState<"auto"|"editable"|"appearance">("auto"),
+    [dpi,setDpi]=useState(300),
     [review, setReview] = useState<Review>();
   const key = JSON.stringify([
     file?.name,
     file?.lastModified,
     page,
-    outline,
+    outline, mode, dpi,
     settings,
   ]);
   return (
@@ -575,6 +579,8 @@ export function VectorImport({ settings, revision, disabled }: Props) {
             onChange={(e) => setPage(e.target.value)}
           />
         </Field>
+        <Field label={t('pdfMode')}><select value={mode} onChange={event=>setMode(event.target.value as typeof mode)}><option value="auto">{t('pdfAuto')}</option><option value="editable">{t('pdfEditable')}</option><option value="appearance">{t('pdfAppearance')}</option></select></Field>
+        {mode!=='editable'&&<Field label={t('renderDpi')}><select value={dpi} onChange={event=>setDpi(Number(event.target.value))}>{[72,150,300,600].map(value=><option key={value} value={value}>{value} DPI</option>)}</select></Field>}
         <label className="drawing-vector-check">
           <input
             type="checkbox"
@@ -617,7 +623,7 @@ export function VectorImport({ settings, revision, disabled }: Props) {
                 selectedPage = 1;
               }
               const { readVectorPdf } = await import("./cad-pdf-client");
-              const result = await readVectorPdf(bytes, selectedPage, signal);
+              const result = await readVectorPdf(bytes, selectedPage, signal, {mode,dpi,name:file.name,store:resource=>storeCanvasImage(editor,resource,signal)});
               if (signal.aborted) throw new Error("cancelled");
               if (before !== cadRevision(editor)) throw new Error("stale");
               if (!result.document.paths.length) {
@@ -661,7 +667,7 @@ export function VectorImport({ settings, revision, disabled }: Props) {
 }
 export function VectorExport({ settings, revision }: Props) {
   const editor = useEditor(),
-    t = useVectorText();
+    t = useVectorText(), work=useWork();
   const [format, setFormat] = useState<"pdf" | "eps">("pdf"),
     [scope, setScope] = useState<"selected" | "all">("selected"),
     [message, setMessage] = useState(""),
@@ -698,21 +704,14 @@ export function VectorExport({ settings, revision }: Props) {
         </Field>
         <button
           type="button"
-          disabled={!settings}
-          onClick={() => {
-            try {
-              setMessage("");
-              setAck(false);
-              if (settings)
-                setReview({
-                  result: prepareVectorExport(editor, settings, scope, format),
-                  key,
-                });
-            } catch (e) {
-              setReview(undefined);
-              setMessage(vectorError(e));
-            }
-          }}
+          disabled={!settings || work.busy}
+          onClick={()=>void work.run(async signal=>{
+            setMessage('');setAck(false);setReview(undefined);
+            if(!settings)return;
+            const result=await prepareVectorExportWithAssets(editor,settings,scope,format,signal);
+            setReview({result,key});
+          })}
+
         >
           {t("preview")}
         </button>
@@ -772,6 +771,7 @@ export function VectorExport({ settings, revision }: Props) {
           </button>
         </div>
       )}
+      <WorkStatus work={work}/>
       {message && <p role="alert">{t(message)}</p>}
     </details>
   );

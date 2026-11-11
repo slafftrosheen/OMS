@@ -11,7 +11,8 @@ import { getCadCurveSelection, updateCadCurveNode, splitCadCurveSegment, deleteC
 import { prepareCadJoin, type CadJoinOptions, type CadJoinPlan } from './cad-join';
 import { applyCadCompound } from './cad-compound';
 import { prepareCadShaping } from './cad-shaping';
-import { prepareCadText } from './cad-text';
+import { decodeDxf } from './cad-dxf-decode';
+import { prepareCadText, getCadFont } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
 export type CadFocusRequest = { section: 'nodes' | 'convert' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint'; sequence: number };
@@ -29,11 +30,11 @@ function canChange(editor: Editor, selection = true) {
   return !controls.readOnly && (!selection || controls.canEditSelection && !protectedSelection(editor));
 }
 function errorLabel(error: unknown, fallback: CadAdvancedLabel = 'failed'): CadAdvancedLabel {
-  const code = (error as { code?: string })?.code;
+  const code = (error as { code?: string })?.code ?? (error as Error)?.message;
   return ({ 'join-selection': 'joinHelp', 'join-gap': 'joinGapError', 'fill-rule': 'compoundFailed', empty: 'empty', readonly: 'blocked', locked: 'blocked', font: 'invalidFont', 'missing-glyph': 'unsupportedFont', unit: 'unitRequired', format: 'invalidDxf', unsupported: 'unsupported', stale: 'stale', geometry: 'invalid', selection: 'selectionHelp', open: 'selectionHelp', limit: 'limit', capacity: 'limit', bound: 'bound' } as Record<string, CadAdvancedLabel>)[code ?? ''] ?? fallback;
 }
 function warningLabel(code: string): CadAdvancedLabel {
-  return ({ 'join-arc-approximation': 'joinApproximation', 'curves-approximated': 'approximated', 'import-curves-approximated': 'importApproximation', 'import-elevation': 'importElevation', 'import-dimension': 'importDimension', 'import-hatch-boundary': 'importHatchBoundary', 'sources-overlap': 'sourcesOverlap', 'text-layout-review': 'textLayoutReview', 'font-outline-only': 'fontOutlineOnly' } as Record<string, CadAdvancedLabel>)[code] ?? 'unrecognizedWarning';
+  return ({ 'join-arc-approximation': 'joinApproximation', 'curves-approximated': 'approximated', 'import-curves-approximated': 'importApproximation', 'import-font-substitution':'importFontSubstitution', 'import-3d-projection':'import3dProjection', 'import-elevation': 'importElevation', 'import-dimension': 'importDimension', 'import-hatch-boundary': 'importHatchBoundary', 'sources-overlap': 'sourcesOverlap', 'text-layout-review': 'textLayoutReview', 'font-outline-only': 'fontOutlineOnly' } as Record<string, CadAdvancedLabel>)[code] ?? 'unrecognizedWarning';
 }
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="drawing-cad-field"><span>{label}</span>{children}</label>;
@@ -356,10 +357,12 @@ function Shaping({ settings, revision, disabled, focus, sequence }: SharedProps 
 function DxfImport({ settings, revision, disabled }: SharedProps) {
   const editor = useEditor(); const { label } = useCadAdvancedText();
   const [file, setFile] = useState<File>(); const [unit, setUnit] = useState<CadUnit | ''>(''); const [keepCoordinates, setKeepCoordinates] = useState(true);
+  const [projection,setProjection]=useState<'strict'|'xy'|'xz'|'yz'>('strict');
+  const [font,setFont]=useState<'sans'|'serif'|'mono'|'custom'>('sans');const [fontFile,setFontFile]=useState<File>();
   const [review, setReview] = useState<Review<CadImportPlan> | null>(null); const [acknowledged, setAcknowledged] = useState(false);
   const [message, setMessage] = useState<CadAdvancedLabel | ''>(''); const [failed, setFailed] = useState(false); const [busy, setBusy] = useState(false);
   const request = useRef(0); const alive = useRef(true);
-  const inputKey = JSON.stringify([file?.name, file?.size, file?.lastModified, unit, keepCoordinates, settings]);
+  const inputKey = JSON.stringify([file?.name, file?.size, file?.lastModified, unit, keepCoordinates, projection, font, fontFile?.name, fontFile?.lastModified, settings]);
   const currentKey = useRef(inputKey); currentKey.current = inputKey;
   useEffect(() => { alive.current = true; return () => { alive.current = false; request.current++; }; }, []);
   useEffect(() => { request.current++; setBusy(false); setAcknowledged(false); }, [revision, inputKey]);
@@ -368,10 +371,11 @@ function DxfImport({ settings, revision, disabled }: SharedProps) {
     if (file.size > FILE_LIMIT || !/\.dxf$/i.test(file.name)) { setFailed(true); setMessage(file.size > FILE_LIMIT ? 'fileTooLarge' : 'invalidDxf'); return; }
     const id = ++request.current; const key = inputKey; const before = cadRevision(editor); setBusy(true); setReview(null); setAcknowledged(false); setMessage('');
     try {
-      const content = await file.text();
+      const [bytes,fontData]=await Promise.all([file.arrayBuffer(),font==='custom'?fontFile?.arrayBuffer():Promise.resolve(undefined)]);
+      const content = decodeDxf(new Uint8Array(bytes)), selectedFont=await getCadFont(font,fontData);
       if (!alive.current || id !== request.current) return;
       if (currentKey.current !== key || cadRevision(editor) !== before || !canChange(editor, false)) { setFailed(true); setMessage('stale'); return; }
-      const plan = prepareCadImport(editor, settings, content, { unit: unit || undefined, keepCoordinates });
+      const plan = prepareCadImport(editor, settings, content, { unit: unit || undefined, keepCoordinates, font:selectedFont, projection });
       if (currentKey.current !== key || cadRevision(editor) !== before || !canChange(editor, false)) { setFailed(true); setMessage('stale'); return; }
       setReview({ plan, inputKey: key });
     } catch (error) { if (alive.current && id === request.current) { setFailed(true); setMessage(errorLabel(error, 'invalidDxf')); } }
@@ -384,16 +388,19 @@ function DxfImport({ settings, revision, disabled }: SharedProps) {
       <fieldset className="drawing-cad-fields" disabled={disabled || !settings || busy}>
         <label className="drawing-cad-points"><span>{label('dxfFile')}</span><input type="file" accept=".dxf,application/dxf" onChange={event => { request.current++; setFile(event.target.files?.[0]); setReview(null); setMessage(''); setAcknowledged(false); }} /></label>
         <Field label={label('sourceUnit')}><select value={unit} onChange={event => { setUnit(event.target.value as typeof unit); setMessage(''); }}><option value="">{label('automatic')}</option>{(['mm', 'cm', 'm', 'in'] as const).map(value => <option key={value} value={value}>{value}</option>)}</select></Field>
+        <Field label={label('projection')}><select value={projection} onChange={event=>setProjection(event.target.value as typeof projection)}>{(['strict','xy','xz','yz'] as const).map(value=><option key={value} value={value}>{label(value==='strict'?'projection2d':value==='xy'?'projectionTop':value==='xz'?'projectionFront':'projectionSide')}</option>)}</select></Field>
+        <Field label={label('importFont')}><select value={font} onChange={event=>setFont(event.target.value as typeof font)}>{(['sans','serif','mono','custom'] as const).map(value=><option key={value} value={value}>{label(value==='custom'?'custom':value)}</option>)}</select></Field>
+        {font==='custom'&&<Field label={label('fontFile')}><input type="file" accept=".ttf,.otf,.woff,.woff2" onChange={event=>setFontFile(event.target.files?.[0])}/></Field>}
         <label className="drawing-cad-check"><input type="checkbox" checked={keepCoordinates} onChange={event => setKeepCoordinates(event.target.checked)} /><span>{label('keepCoordinates')}</span></label>
         <button type="submit" disabled={!file}>{label('preview')}</button>
       </fieldset>
     </form>
     <p className="drawing-help">{label('coordinatesHelp')}</p>
     {busy && <Message value="preparing" />}
-    {review && <PlanReview review={review} inputKey={inputKey} revision={revision} disabled={disabled || !settings || busy} blocked={review.plan.requiresUnit || review.plan.omitted.length > 0 && !acknowledged} onApplied={success => { setFailed(!success); setMessage(success ? 'applied' : 'failed'); if (success) setReview(null); }}>
+    {review && <PlanReview review={review} inputKey={inputKey} revision={revision} disabled={disabled || !settings || busy} blocked={review.plan.requiresUnit || (review.plan.omitted.length > 0 || review.plan.warnings.length > 0) && !acknowledged} onApplied={success => { setFailed(!success); setMessage(success ? 'applied' : 'failed'); if (success) setReview(null); }}>
       <dl className="drawing-cad-values"><dt>{label('sourceUnit')}</dt><dd>{review.plan.sourceUnit || '—'}</dd><dt>{label('omitted')}</dt><dd>{review.plan.omitted.length}</dd></dl>
       {review.plan.requiresUnit && <Message value="chooseUnit" error />}
-      {review.plan.omitted.length ? <>
+      {review.plan.omitted.length || review.plan.warnings.length ? <>
         <ul className="drawing-cad-omissions">{review.plan.omitted.map((item, index) => <li key={`${item.type}-${index}`}><strong>{item.type}</strong><span>{label(errorLabel({ code: item.reason }, 'unsupported'))}</span></li>)}</ul>
         <label className="drawing-cad-check"><input type="checkbox" checked={acknowledged} disabled={disabled || busy || review.plan.revision !== revision || review.inputKey !== inputKey} onChange={event => setAcknowledged(event.target.checked)} /><span>{label('acceptOmissions')}</span></label>
       </> : <p className="drawing-help">{label('noOmissions')}</p>}

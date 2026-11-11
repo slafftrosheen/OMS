@@ -43,6 +43,7 @@ export function serializeVectorDocument(
     paths.some((p) => !validContours(p.contours) || !validVectorPaint(p.paint))
   )
     throw new Error("geometry");
+  if(paths.some(p=>p.paint.raster?.external))throw new Error("asset-fetch");
   const bounds = curveBounds(paths.flatMap((p) => p.contours));
   const padding = Math.max(
     0.01,
@@ -102,7 +103,7 @@ export function serializeVectorDocument(
     gray: boolean,
     mask?: number,
   ) => {
-    const data = hex(gray ? r.alpha! : r.rgb),
+    const data = hex(gray ? r.alpha! : r.rgb!),
       ref = 5 + extraObjects.length;
     extraObjects.push(
       `<< /Type /XObject /Subtype /Image /Width ${r.width} /Height ${r.height} /ColorSpace /${gray ? "DeviceGray" : "DeviceRGB"} /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] ${mask ? `/SMask ${mask} 0 R` : ""} /Length ${data.length} >>\nstream\n${data}\nendstream`,
@@ -117,7 +118,7 @@ export function serializeVectorDocument(
       !pdf &&
       ((fill && p.fillOpacity !== 1) ||
         (stroke && p.strokeOpacity !== 1) ||
-        p.raster?.alpha)
+        (p.raster?.alpha || p.raster?.hasAlpha))
     )
       throw new Error("eps-opacity");
     body.push(pdf ? "q" : "gsave");
@@ -200,7 +201,7 @@ export function serializeVectorDocument(
             `[${matrix}] concat`,
             "/DeviceRGB setcolorspace",
             `<< /ImageType 1 /Width ${r.width} /Height ${r.height} /BitsPerComponent 8 /ImageMatrix [${r.width} 0 0 -${r.height} 0 ${r.height}] /Decode [0 1 0 1 0 1] /DataSource currentfile /ASCIIHexDecode filter /FlateDecode filter >> image`,
-            hex(r.rgb),
+            hex(r.rgb!),
           );
       }
       body.push(pdf ? "Q" : "grestore");
@@ -235,7 +236,7 @@ export function serializeVectorDocument(
     body.push(pdf ? "Q" : "grestore");
   }
   const stream = body.join("\n") + "\n";
-  if (stream.length + extraObjects.join("").length > 16e6)
+  if (stream.length + extraObjects.join("").length > 128 * 1024 * 1024)
     throw new Error("limit");
   if (!pdf)
     return `%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 ${Math.ceil(width)} ${Math.ceil(height)}\n%%HiResBoundingBox: 0 0 ${num(width)} ${num(height)}\n%%LanguageLevel: 3\n%%Pages: 1\n%%EndComments\n${stream}showpage\n%%EOF\n`;
@@ -273,6 +274,7 @@ export function prepareVectorExport(
   settings: CadSettings,
   scope: "selected" | "all",
   format: "pdf" | "eps",
+  deferRaster = false,
 ) {
   if (!validateCadSettings(settings)) throw new Error("settings");
   const selected = editor.getShapeAndDescendantIds([
@@ -321,7 +323,7 @@ export function prepareVectorExport(
         (((paint.fill !== "none" || paint.gradient || paint.raster) &&
           paint.fillOpacity !== 1) ||
           (paint.stroke !== "none" && paint.strokeOpacity !== 1) ||
-          paint.raster?.alpha)
+          (paint.raster?.alpha || paint.raster?.hasAlpha))
       )
         throw new Error("opacity");
       if (shape.type === "geo" && (shape.props as any).fill !== "none")
@@ -339,7 +341,7 @@ export function prepareVectorExport(
     }
   }
   return {
-    text: paths.length ? serializeVectorDocument(paths, format) : "",
+    text: paths.length && !deferRaster ? serializeVectorDocument(paths, format) : "",
     paths,
     omitted,
     revision: cadRevision(editor),

@@ -18,7 +18,10 @@ export type VectorRaster = {
   width: number;
   height: number;
   png: string;
-  rgb: string;
+  rgb?: string;
+  external?: boolean;
+  fileId?: string;
+  hasAlpha?: boolean;
   alpha?: string;
   matrix: VectorMatrix;
 };
@@ -47,8 +50,23 @@ const pair = (p: unknown) =>
 const base64 = (s: unknown) =>
   typeof s === "string" &&
   s.length > 0 &&
-  s.length <= 750000 &&
+  s.length <= 48 * 1024 * 1024 &&
   /^[A-Za-z0-9+/]+={0,2}$/.test(s);
+export function validRasterReference(url: unknown, id: unknown): boolean {
+  if (
+    typeof url !== "string" ||
+    typeof id !== "string" ||
+    !id.length ||
+    id.length > 100
+  )
+    return false;
+  if (/^blob:https?:\/\/[a-z0-9:._/-]+$/i.test(url)) return true;
+  const match =
+    /^(?:\/[a-z0-9_-]+)*\/api\/(?:files\/([0-9a-f-]{36})\/download|toolkit\/assets\/[0-9a-f-]{36}\/([0-9a-f-]{36}))$/i.exec(
+      url,
+    );
+  return !!match && (match[1] ?? match[2]) === id;
+}
 export function validAppearance(p: VectorAppearance) {
   if (
     p.clips !== undefined &&
@@ -102,15 +120,20 @@ export function validAppearance(p: VectorAppearance) {
   if (
     r &&
     (![r.width, r.height].every(
-      (n) => Number.isSafeInteger(n) && n > 0 && n <= 2048,
+      (n) => Number.isSafeInteger(n) && n > 0 && n <= 16384,
     ) ||
-      r.width * r.height > 1048576 ||
+      r.width * r.height > 32 * 1024 * 1024 ||
       !matrix(r.matrix) ||
-      typeof r.png !== "string" ||
-      !r.png.startsWith("data:image/png;base64,iVBORw0KGgo") ||
-      !base64(r.png.slice(22)) ||
-      !base64(r.rgb) ||
-      (r.alpha !== undefined && !base64(r.alpha)))
+      (r.external
+        ? !validRasterReference(r.png, r.fileId) ||
+          r.rgb !== undefined ||
+          r.alpha !== undefined ||
+          typeof r.hasAlpha !== "boolean"
+        : typeof r.png !== "string" ||
+          !r.png.startsWith("data:image/png;base64,iVBORw0KGgo") ||
+          !base64(r.png.slice(22)) ||
+          !base64(r.rgb) ||
+          (r.alpha !== undefined && !base64(r.alpha))))
   )
     return false;
   return !(g && r);

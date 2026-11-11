@@ -1,3 +1,5 @@
+import { projectDxfRecords, type ProjectableDxfRecord } from "./cad-dxf-projection";
+import { dxfTextContours } from "./cad-dxf-text";
 import { VECTOR_DEFAULT_PAINT } from "./cad-paint";
 import {
   hatchContours,
@@ -38,7 +40,7 @@ export interface CadImportPlan extends CadPlan {
   requiresUnit: boolean;
 }
 type Pair = [number, string];
-type Record = { type: string; pairs: Pair[] };
+type Record = ProjectableDxfRecord;
 type Matrix = [number, number, number, number, number, number];
 const TAU = Math.PI * 2;
 const get = (r: Record, code: number, fallback = 0) => {
@@ -230,7 +232,7 @@ function parse(text: string) {
     const code = Number(lines[i].trim());
     if (!lines[i].trim() || !Number.isInteger(code) || code < 0 || code > 1071)
       throw new CadOperationError("format");
-    pairs.push([code, lines[i + 1].trim()]);
+    pairs.push([code, [1,3].includes(code)?lines[i+1]:lines[i + 1].trim()]);
   }
   if (pairs.at(-1)?.[0] !== 0 || pairs.at(-1)?.[1] !== "EOF")
     throw new CadOperationError("format");
@@ -243,10 +245,11 @@ function parse(text: string) {
   if (records.length > 20000) throw new CadOperationError("limit");
   const hiddenLayers = new Set<string>();
   const layers = new Map<string, Record>();
+  const styles = new Map<string, Record>();
   const entities: Record[] = [],
-    blocks = new Map<string, { base: CadPoint; records: Record[] }>();
+    blocks = new Map<string, { base: CadPoint & {z?:number}; records: Record[] }>();
   let section = "",
-    block: { base: CadPoint; records: Record[] } | null = null,
+    block: { base: CadPoint & {z?:number}; records: Record[] } | null = null,
     units = 0;
   for (const r of records) {
     if (r.type === "SECTION") {
@@ -265,6 +268,7 @@ function parse(text: string) {
       block = null;
       continue;
     }
+    if(section === "TABLES" && r.type === "STYLE") styles.set(word(r,2),r);
     if (section === "TABLES" && r.type === "LAYER") {
       layers.set(word(r, 2), r);
       if (get(r, 70) & 1 || get(r, 62, 7) < 0) hiddenLayers.add(word(r, 2));
@@ -272,7 +276,7 @@ function parse(text: string) {
     if (section === "ENTITIES") entities.push(r);
     else if (section === "BLOCKS") {
       if (r.type === "BLOCK") {
-        block = { base: point(r), records: [] };
+        block = { base: {...point(r),z:get(r,30)}, records: [] };
         blocks.set(word(r, 2), block);
       } else if (r.type === "ENDBLK") block = null;
       else block?.records.push(r);
@@ -280,14 +284,14 @@ function parse(text: string) {
   }
   if (section || !pairs.some((p) => p[0] === 2 && p[1] === "ENTITIES"))
     throw new CadOperationError("format");
-  return { entities, blocks, units, hiddenLayers, layers };
+  return { entities, blocks, units, hiddenLayers, layers, styles };
 }
 /** Bounded ASCII DXF intake. Unsupported entities remain visible in the review report. */
 export function prepareCadImport(
   editor: Editor,
   settings: CadSettings,
   text: string,
-  options: { unit?: CadUnit; keepCoordinates: boolean },
+  options: { unit?: CadUnit; keepCoordinates: boolean; font?:any; projection?:"strict"|"xy"|"xz"|"yz" },
 ): CadImportPlan {
   assertCadEditable(editor);
   if (!validateCadSettings(settings)) throw new CadOperationError("geometry");
@@ -329,6 +333,7 @@ export function prepareCadImport(
     m: Matrix,
     r: Record,
     filled = false,
+    fillRule: "evenodd"|"nonzero" = "evenodd",
   ) => {
     const mapped = mapContours(curves, (p) => transform(m, p));
     if (!validContours(mapped)) throw new CadOperationError("geometry");
@@ -338,7 +343,7 @@ export function prepareCadImport(
       type: "cad-bezier",
       x: 0,
       y: 0,
-      props: { contours: mapped, fillRule: "evenodd" },
+      props: { contours: mapped, fillRule },
       meta: {
         omsObjectName: word(r, 8) || r.type,
         omsVectorPaint: {
@@ -400,15 +405,15 @@ export function prepareCadImport(
         "POLYLINE",
         "SOLID",
         "TRACE",
-        "HATCH",
+        "HATCH", "TEXT", "ATTRIB", "ATTDEF",
       ].includes(r.type);
       const m =
-        ocs && get(r, 230, 1) < 0
+        r.projectedMatrix ? multiply(root,r.projectedMatrix) : ocs && get(r, 230, 1) < 0
           ? multiply(parent, [-1, 0, 0, 1, 0, 0])
           : parent;
       if (++seen > 4000) throw new CadOperationError("limit");
       try {
-        require2d(r);
+        if(!r.projectedMatrix)require2d(r);
         if (
           r.pairs.some(
             ([c, v]) => [30, 31, 32, 33, 38].includes(c) && Number(v) !== 0,
@@ -417,7 +422,8 @@ export function prepareCadImport(
           extraWarnings.add("import-elevation");
         if (parsed.hiddenLayers.has(layerName))
           throw new CadOperationError("unsupported");
-        if (r.type === "SEQEND" || (r.type === "ATTDEF" && get(r, 70) & 1))
+        if(r.projectedContours){appendCurves(r.projectedContours,m,r);approximated ||= r.type === "ELLIPSE";continue;}
+        if (r.type === "SEQEND" || (r.type === "ATTDEF" && (!(get(r,70)&2)||!!(get(r,70)&1))))
           continue;
         if (r.type === "INSERT" || r.type === "DIMENSION") {
           const name = word(r, 2),
@@ -471,6 +477,16 @@ export function prepareCadImport(
               ];
               walk(block.records, multiply(m, local), [...ancestors, name], r);
             }
+          continue;
+        }
+        if (["TEXT","MTEXT","ATTRIB","ATTDEF"].includes(r.type)) {
+          const text=dxfTextContours(r,options.font,parsed.styles.get(word(r,7)||'STANDARD'));
+          if(text.contours.length){
+            appendCurves(text.contours,m,r,true,'nonzero');
+            shapes.at(-1)!.meta={...shapes.at(-1)!.meta,omsSourceText:text.text,omsFontName:options.font.fullName??'Selected font'};
+            extraWarnings.add('import-font-substitution');
+            if(text.formatting)extraWarnings.add('text-layout-review');
+          }
           continue;
         }
         if (["SOLID", "TRACE", "3DFACE"].includes(r.type)) {
@@ -535,7 +551,7 @@ export function prepareCadImport(
             let elevation: number | undefined;
             while (records[index + 1]?.type === "VERTEX") {
               const vertex = records[++index];
-              require2d(vertex);
+              if(!r.projectedMatrix)require2d(vertex);
               if (
                 elevation !== undefined &&
                 Math.abs(get(vertex, 30) - elevation) > 1e-8
@@ -753,7 +769,10 @@ export function prepareCadImport(
       }
     }
   };
-  walk(parsed.entities, root, []);
+  if(options.projection && options.projection !== 'strict') {
+    const projected=projectDxfRecords(parsed.entities,parsed.blocks,options.projection,0.002/(options.unit?unitMm(options.unit):(known[parsed.units]?.[1]??1)),parsed.hiddenLayers,parsed.layers);
+    omitted.push(...projected.omitted);walk(projected.records,root,[]);extraWarnings.add('import-3d-projection');
+  } else walk(parsed.entities, root, []);
   if (shapes.length > 2000 || (contours.length && !validContours(contours)))
     throw new CadOperationError("limit");
   let finalContours = contours;
