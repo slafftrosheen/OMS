@@ -32,6 +32,8 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Install vector conversion test dependency
+        run: sudo apt-get update && sudo apt-get install -y ghostscript
       - run: npm ci --no-audit --no-fund
       - name: Archive compiler tools for offline diagnostics
         run: tar -czf oms-compiler.tar.gz node_modules/svelte node_modules/typescript node_modules/esbuild node_modules/@esbuild

@@ -1,3 +1,4 @@
+import { RasterTrace, VectorImport, VectorExport, CornerControls, VectorPaintControls, PolygonControls } from './CadVectorPanel';
 import React, { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useEditor, useValue, type Editor } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
@@ -13,7 +14,7 @@ import { prepareCadShaping } from './cad-shaping';
 import { prepareCadText } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'document' | 'files' | 'shaping' | 'join'; sequence: number };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint'; sequence: number };
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
 const FILE_LIMIT = 8 * 1024 * 1024;
@@ -63,7 +64,7 @@ function useFocusSection(ref: React.RefObject<HTMLDetailsElement>, active: boole
 }
 
 /** Shared advanced CAD controls for the order and idea workspace docker. */
-export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: CadSettings | null; focusRequest?: CadFocusRequest; task: 'draw' | 'edit' | 'document' | 'files' }) {
+export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: CadSettings | null; focusRequest?: CadFocusRequest; task: 'draw' | 'edit' | 'document' | 'files' | 'trace' }) {
   const editor = useEditor();
   const state = useValue('advanced cad permissions', () => ({ controls: captureToolkitControls(editor), protected: protectedSelection(editor), text: editor.getOnlySelectedShape()?.type === 'text' }), [editor]);
   const revision = useValue('advanced cad revision', () => cadRevision(editor), [editor]);
@@ -72,15 +73,20 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
     {!settings && <Message value="settingsRequired" />}
     {(state.controls.readOnly || state.controls.selectionLocked || state.protected) && <Message value="blocked" />}
     <div hidden={task !== 'edit'}>
+    <VectorPaintControls settings={settings} revision={revision} disabled={disabled} focusSequence={focusRequest?.section === 'paint' ? focusRequest.sequence : undefined} />
+    <CornerControls settings={settings} revision={revision} disabled={disabled} />
     <CompoundControls disabled={disabled || !settings} settings={settings} />
     <CurveNodes settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && (focusRequest?.section === 'nodes' || focusRequest?.section === 'convert' && !state.text)} sequence={focusRequest?.sequence} />
     <JoinCurves settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'join'} sequence={focusRequest?.sequence} />
     <Shaping settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'shaping'} sequence={focusRequest?.sequence} />
     </div><div hidden={task !== 'draw'}>
+    <PolygonControls settings={settings} revision={revision} disabled={state.controls.readOnly} />
     <TextOutlines settings={settings} revision={revision} disabled={state.controls.readOnly} focus={task === 'draw' && focusRequest?.section === 'convert' && state.text} sequence={focusRequest?.sequence} />
     </div><div hidden={task !== 'files'}>
+    <VectorImport settings={settings} revision={revision} disabled={state.controls.readOnly} />
+    <VectorExport settings={settings} revision={revision} disabled={state.controls.readOnly} />
     <DxfImport settings={settings} revision={revision} disabled={state.controls.readOnly} />
-    </div>
+    </div><div hidden={task !== 'trace'}><RasterTrace settings={settings} revision={revision} disabled={state.controls.readOnly} /></div>
   </>;
 }
 

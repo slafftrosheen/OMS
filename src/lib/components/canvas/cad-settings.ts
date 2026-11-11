@@ -8,7 +8,8 @@ export interface CadSettings {
 }
 export interface CadPoint { x: number; y: number }
 export const CAD_META_KEY = 'omsCad';
-export const CAD_MAX_COORDINATE = 1_000_000;
+import { CAD_MAX_COORDINATE } from './cad-limits';
+export { CAD_MAX_COORDINATE } from './cad-limits';
 export const CAD_MAX_POINTS = 256;
 export const DEFAULT_CAD_SETTINGS: CadSettings = {
   version: 1, unit: 'mm', scale: 1, precision: 2, originX: 0, originY: 0, nudge: 1

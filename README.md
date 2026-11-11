@@ -136,3 +136,6 @@ Do not store credentials, `.env` values, session notes, generated audit snapshot
 This application is designed for internal deployment. Consult deployment configuration and `.env.example` for environment-specific values; never publish secrets from `.env`.
 
 More detailed AI node/model deployment notes are intentionally omitted here because node addresses and service capabilities change independently of the application code.
+
+
+Canvas raster tracing, editable PDF/EPS import/export and drawing tools: [operator workflow, supported formats and Ghostscript setup](docs/operations/canvas-vector-exchange.md).

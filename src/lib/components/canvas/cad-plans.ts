@@ -79,12 +79,14 @@ export function applyCadPlan(editor: Editor, plan: CadPlan): boolean {
       )
     )
       return false;
+    const source = plan.sourceIds.length ? editor.getShape(plan.sourceIds.at(-1) as TLShapeId) : undefined;
     const shapes = plan.shapes ?? [
       {
         type: 'cad-bezier' as const,
         x: 0,
         y: 0,
-        props: { contours: plan.contours, fillRule: plan.fillRule ?? 'evenodd' }
+        props: { contours: plan.contours, fillRule: plan.fillRule ?? 'evenodd', color: (source?.props as any)?.color ?? 'black' },
+        meta: source?.meta.omsVectorPaint ? { omsVectorPaint: source.meta.omsVectorPaint } : undefined
       }
     ];
     if (

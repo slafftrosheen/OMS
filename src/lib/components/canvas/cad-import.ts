@@ -1,3 +1,4 @@
+import { rationalSplineContour } from './cad-nurbs';
 import type { Editor } from '@tldraw/tldraw';
 import {
   cadMmPerPixel,
@@ -366,13 +367,18 @@ export function prepareCadImport(
           continue;
         }
         if (r.type === 'SPLINE') {
-          if (get(r, 70) & 2 || r.pairs.some(([code, v]) => code === 41 && Number(v) !== 1))
+          if (get(r, 70) & 2)
             throw new CadOperationError('unsupported');
           const controls = vertices(r),
             knots = r.pairs.filter((p) => p[0] === 40).map((p) => Number(p[1]));
           if (get(r, 72, knots.length) !== knots.length || get(r, 73, controls.length) !== controls.length)
             throw new CadOperationError('geometry');
-          appendCurve(splineContour(controls, knots, get(r, 71), !!(get(r, 70) & 1)), m, r);
+          const weights = r.pairs.filter(p => p[0] === 41).map(p => Number(p[1]));
+          const rational = weights.some(w => w !== 1) || get(r, 71) > 3;
+          if (weights.length && weights.length !== controls.length) throw new CadOperationError('geometry');
+          const contour = rational ? rationalSplineContour(controls, weights.length ? weights : controls.map(() => 1), knots, get(r, 71), !!(get(r, 70) & 1), 0.002 / cadMmPerPixel(settings) / Math.hypot(m[0], m[1])) : splineContour(controls, knots, get(r, 71), !!(get(r, 70) & 1));
+          if (rational) approximated = true;
+          appendCurve(contour, m, r);
           continue;
         }
         if (['CIRCLE', 'ARC', 'ELLIPSE'].includes(r.type)) {

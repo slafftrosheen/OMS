@@ -1,4 +1,5 @@
 import React from 'react';
+import { vectorPaint } from '../cad-vector';
 import {
   ShapeUtil,
   SVGContainer,
@@ -42,9 +43,12 @@ const contours = T.arrayOf(
 class CurveGeometry extends Group2d {
   constructor(
     private contourBounds: ReturnType<typeof curveBounds>,
-    children: Polyline2d[]
+    children: Polyline2d[],
+    private fillRule: 'evenodd' | 'nonzero',
+    private filled: boolean
   ) {
     super({ children });
+    this.isFilled = filled;
   }
   override getBounds() {
     const b = this.contourBounds;
@@ -52,6 +56,26 @@ class CurveGeometry extends Group2d {
   }
   override getVertices() {
     return this.getBounds().corners;
+  }
+  private contains(point: Vec) {
+    let winding = 0;
+    for (const child of this.children) {
+      const vertices = child.vertices;
+      for (let i = 0; i < vertices.length; i++) {
+        const a = vertices[i], b = vertices[(i + 1) % vertices.length];
+        const side = (b.x-a.x)*(point.y-a.y)-(point.x-a.x)*(b.y-a.y);
+        if (a.y <= point.y && b.y > point.y && side > 0) winding++;
+        if (a.y > point.y && b.y <= point.y && side < 0) winding--;
+      }
+    }
+    return this.fillRule === 'evenodd' ? Math.abs(winding) % 2 === 1 : winding !== 0;
+  }
+  override hitTestPoint(point: Vec, margin = 0, hitInside = false) {
+    return super.hitTestPoint(point, margin, false) || (this.filled || hitInside) && this.contains(point);
+  }
+  override distanceToPoint(point: Vec, hitInside = false) {
+    const distance = Math.abs(super.distanceToPoint(point, false));
+    return (this.filled || hitInside) && this.contains(point) ? -distance : distance;
   }
 }
 export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
@@ -81,16 +105,27 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
       points.map(
         (p, i) =>
           new Polyline2d({ points: (shape.props.contours[i].closed ? [...p, p[0]] : p).map((q) => new Vec(q.x, q.y)) })
-      )
+      ),
+      shape.props.fillRule,
+      vectorPaint(shape.meta, shape.props.color).fill !== 'none'
     );
   }
   private path(shape: CadBezierShape) {
+    const paint = vectorPaint(shape.meta, shape.props.color);
     return (
       <path
         d={curvePathData(shape.props.contours)}
-        fill="none"
-        stroke={getDefaultColorTheme({ isDarkMode: this.editor.user.getIsDarkMode() })[shape.props.color].solid}
-        strokeWidth={1}
+        fill={paint.fill}
+        fillRule={shape.props.fillRule}
+        stroke={shape.meta.omsVectorPaint ? paint.stroke : getDefaultColorTheme({ isDarkMode: this.editor.user.getIsDarkMode() })[shape.props.color].solid}
+        strokeWidth={paint.strokeWidth}
+        fillOpacity={paint.fillOpacity}
+        strokeOpacity={paint.strokeOpacity}
+        strokeLinecap={paint.lineCap}
+        strokeLinejoin={paint.lineJoin}
+        strokeMiterlimit={paint.miterLimit}
+        strokeDasharray={paint.dash.length ? paint.dash.join(' ') : undefined}
+        strokeDashoffset={paint.dashOffset}
       />
     );
   }

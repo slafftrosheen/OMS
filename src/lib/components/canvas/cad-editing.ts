@@ -241,7 +241,7 @@ export function convertSelectionToCurves(editor: Editor, settings: CadSettings):
         name: 'CAD curves',
         // Winding-based font regions must not become an even-odd compound when
         // converting a selected group. Keep those source regions separate.
-        shapes: shapes.some((s) => (s.props as any).fillRule === 'nonzero')
+        shapes: shapes.some((s) => (s.props as any).fillRule === 'nonzero' || s.meta.omsVectorPaint)
           ? shapes.map((shape, i) => ({
               type: 'cad-bezier' as const,
               x: 0,

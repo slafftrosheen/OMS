@@ -45,7 +45,7 @@ const en = {
   fileTooLarge: 'Choose a file no larger than 8 MiB.', invalidFont: 'This font could not be read. Choose a valid TTF, OTF, WOFF or WOFF2 file.', invalidDxf: 'This file could not be read as supported ASCII DXF.',
   unsupported: 'Unsupported entity or geometry', unitRequired: 'Choose the source unit before applying this import.',
   sourcesOverlap: 'Source objects overlap the result while they are preserved.', textLayoutReview: 'Review the text layout and spacing before applying the outlines.', fontOutlineOnly: 'The result contains font outlines; it will no longer be editable text.',
-  importApproximation: 'Polyline bulges and partial ellipses were converted to Bézier curves within 0.002 mm.',
+  importApproximation: 'Polyline bulges, partial ellipses and rational splines were converted to Bézier curves within 0.002 mm.',
   warning: 'Review required', approximated: 'Curves were approximated within the chosen tolerance.', unsupportedFont: 'The selected font or text layout cannot be outlined.',
   unrecognizedWarning: 'This result has a preparation warning. Inspect the geometry before applying.',
 } as const;
@@ -93,7 +93,7 @@ const ru: Dictionary = {
   fileTooLarge: 'Выберите файл размером не более 8 МиБ.', invalidFont: 'Не удалось прочитать шрифт. Выберите корректный TTF, OTF, WOFF или WOFF2.', invalidDxf: 'Не удалось прочитать файл как поддерживаемый ASCII DXF.',
   unsupported: 'Неподдерживаемый элемент или геометрия', unitRequired: 'Выберите исходную единицу перед применением импорта.',
   sourcesOverlap: 'Сохранённые исходные объекты перекрывают результат.', textLayoutReview: 'Проверьте размещение и интервалы текста перед применением контуров.', fontOutlineOnly: 'Результат содержит контуры шрифта и не будет редактируемым текстом.',
-  importApproximation: 'Дуги полилиний и части эллипсов преобразованы в кривые Безье с допуском 0,002 мм.',
+  importApproximation: 'Дуги полилиний, части эллипсов и рациональные сплайны преобразованы в кривые Безье с допуском 0,002 мм.',
   warning: 'Требуется проверка', approximated: 'Кривые аппроксимированы с выбранным допуском.', unsupportedFont: 'Шрифт или размещение выбранного текста нельзя преобразовать в контуры.',
   unrecognizedWarning: 'При подготовке результата возникло предупреждение. Проверьте геометрию перед применением.',
 };
@@ -140,7 +140,7 @@ const lv: Dictionary = {
   fileTooLarge: 'Izvēlieties failu, kas nav lielāks par 8 MiB.', invalidFont: 'Fontu neizdevās nolasīt. Izvēlieties derīgu TTF, OTF, WOFF vai WOFF2 failu.', invalidDxf: 'Failu neizdevās nolasīt kā atbalstītu ASCII DXF.',
   unsupported: 'Neatbalstīts elements vai ģeometrija', unitRequired: 'Pirms importa lietošanas izvēlieties avota vienību.',
   sourcesOverlap: 'Saglabātie avota objekti pārklāj rezultātu.', textLayoutReview: 'Pirms kontūru lietošanas pārbaudiet teksta izkārtojumu un atstarpes.', fontOutlineOnly: 'Rezultāts satur fonta kontūras un vairs nebūs rediģējams teksts.',
-  importApproximation: 'Polilīniju loki un daļējas elipses pārveidotas par Bezjē līknēm ar 0,002 mm pielaidi.',
+  importApproximation: 'Polilīniju loki, daļējas elipses un racionāli splaini pārveidotas par Bezjē līknēm ar 0,002 mm pielaidi.',
   warning: 'Nepieciešama pārbaude', approximated: 'Līknes aproksimētas izvēlētās pielaides robežās.', unsupportedFont: 'Atlasītā teksta fontu vai izkārtojumu nevar pārveidot kontūrās.',
   unrecognizedWarning: 'Rezultāta sagatavošanā radās brīdinājums. Pirms lietošanas pārbaudiet ģeometriju.',
 };

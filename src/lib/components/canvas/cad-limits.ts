@@ -1,0 +1,1 @@
+export const CAD_MAX_COORDINATE = 1_000_000;
