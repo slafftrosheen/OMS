@@ -1,4 +1,5 @@
 import {cadConstruction} from './cad-construction';
+import {CadPointEntry} from './CadPointEntry';
 import {TextPanel,ArrangePanel,MeasurePanel,FormScaleControl} from './WorkbenchPanels';
 import {useWorkbenchText} from './workbench-copy';
 import {ProductionSaveButton} from './ProductionSaveButton';
@@ -563,6 +564,7 @@ export function DrawingChrome() {
     </>)}
     {portal('properties', <>
       <span className="drawing-tool-name">{toolLabel(controls.tool)}</span><span className="drawing-divider" />
+      {controls.tool === 'cad-polyline' ? <CadPointEntry settings={settings}/> : <>
       {settings && <><CadAnchorControl value={cadAnchor} onChange={setCadAnchor} />
         <ToolButton icon={proportional ? 'lock' : 'unlock'} label={cadLabel('proportional')} active={proportional} onClick={() => setProportional(value => !value)} testId="drawing-cad-proportional" /></>}
       {(['x', 'y', 'w', 'h', 'rotation'] as const).map(field => settings ? <CadNumberField key={`cad-${field}`} field={field} label={label(fieldNames[field])}
@@ -573,6 +575,7 @@ export function DrawingChrome() {
       <span className="drawing-unit">{settings ? `${settings.unit} · 1:${settings.scale}` : label('units')}</span>
       {order && <div className="drawing-annotations">{(['comment', 'warning', 'explanation'] as const).map((kind, index) =>
         <button type="button" key={kind} aria-label={label((['orderNote', 'orderWarning', 'orderExplain'] as const)[index])} disabled={controls.readOnly} onClick={() => annotation(kind)}>{['✎', '⚠', 'ℹ'][index]} {label((['orderNote', 'orderWarning', 'orderExplain'] as const)[index])}</button>)}</div>}
+      </>}
     </>)}
     {portal('tools', <div role="toolbar" aria-label={label('toolbox')} className="drawing-tools">
       {toolGroups.map((group,index)=>{
@@ -596,7 +599,7 @@ export function DrawingChrome() {
         {(['properties','text','arrange','measure','objects','cad'] as const).map(mode=><ToolButton key={mode} testId={mode==='cad'?'drawing-cad-toggle':mode==='objects'?'drawing-objects-toggle':undefined} icon={mode==='measure'?'cad-dimension':mode==='cad'?'cad-polyline':mode} label={mode==='cad'?cadLabel('cad'):['text','arrange','measure'].includes(mode)?workbenchLabel(mode as 'text'|'arrange'|'measure'):label(mode as 'properties'|'objects')} active={panel===mode} onClick={()=>setPanel(mode)}/>)}
       </div>
       <div className="drawing-docker-content" role="region" aria-label={panel??label('properties')}>
-        {panel === 'text' ? <TextPanel onOutlines={()=>focusCad('convert')}/> : panel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : panel === 'arrange' ? <><ArrangePanel settings={settings}><div className="drawing-align-grid">{menuActions(['align-left','align-center','align-right','align-top','align-middle','align-bottom','distribute-horizontal','distribute-vertical'])}</div><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings}/></> : panel === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : panel === 'objects' ? <>
+        {panel === 'text' ? <TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')}/> : panel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : panel === 'arrange' ? <><ArrangePanel settings={settings}><div className="drawing-align-grid">{menuActions(['align-left','align-center','align-right','align-top','align-middle','align-bottom','distribute-horizontal','distribute-vertical'])}</div><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings}/></> : panel === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : panel === 'objects' ? <>
           <p className="drawing-help">{state.shapes.length} {label('items')} · {controls.selected} {label('selected')}</p>
           <label className="drawing-object-search"><span>{label('searchObjects')}</span><input type="search" value={search} maxLength={100} onChange={event => setSearch(event.target.value)} /></label>
           {state.single && <ObjectNameField key={state.single.id} shape={state.single} disabled={!controls.canEditSelection} />}

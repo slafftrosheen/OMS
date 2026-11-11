@@ -46,9 +46,10 @@ export function CadPanel({ settings, focusRequest }: { settings: CadSettings | n
   const consumedFocus = useRef<number>();
   useEffect(() => {
     if (!focusRequest || consumedFocus.current === focusRequest.sequence) return;
+    if (!settings && (focusRequest.section === 'lettering' || focusRequest.section === 'convert' && sourceIsText)) { setTask('document'); return; }
     consumedFocus.current = focusRequest.sequence;
-    setTask(focusRequest.section === 'trace' ? 'trace' : focusRequest.section === 'files' ? 'files' : focusRequest.section === 'document' ? 'document' : focusRequest.section === 'convert' && sourceIsText ? 'draw' : 'edit');
-  }, [focusRequest, sourceIsText]);
+    setTask(focusRequest.section === 'trace' ? 'trace' : focusRequest.section === 'files' ? 'files' : focusRequest.section === 'document' ? 'document' : (focusRequest.section === 'lettering' || focusRequest.section === 'convert' && sourceIsText) ? 'draw' : 'edit');
+  }, [focusRequest, sourceIsText, settings]);
   const controls = useValue('cad panel permissions', () => captureToolkitControls(editor), [editor]);
   const protectedSelection = useValue('cad protected selection', () => [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].some(id => ['order-details', 'order-address', 'profile-7st'].includes(editor.getShape(id)?.type ?? '')), [editor]);
   const selected = useValue('cad selected measurement', () => settings ? getCadSelection(editor, settings, 'bottom-left') : null, [editor, settings]);

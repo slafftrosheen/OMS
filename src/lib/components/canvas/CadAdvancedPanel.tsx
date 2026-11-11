@@ -12,10 +12,10 @@ import { prepareCadJoin, type CadJoinOptions, type CadJoinPlan } from './cad-joi
 import { applyCadCompound } from './cad-compound';
 import { prepareCadShaping } from './cad-shaping';
 import { decodeDxf } from './cad-dxf-decode';
-import { prepareCadText, getCadFont } from './cad-text';
+import { prepareCadText, getCadFont, DEFAULT_TEXT_LAYOUT, type CadTextLayout } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint'; sequence: number };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint'; sequence: number };
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
 const FILE_LIMIT = 8 * 1024 * 1024;
@@ -82,7 +82,7 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
     <Shaping settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'shaping'} sequence={focusRequest?.sequence} />
     </div><div hidden={task !== 'draw'}>
     <PolygonControls settings={settings} revision={revision} disabled={state.controls.readOnly} />
-    <TextOutlines settings={settings} revision={revision} disabled={state.controls.readOnly} focus={task === 'draw' && focusRequest?.section === 'convert' && state.text} sequence={focusRequest?.sequence} />
+    <TextOutlines settings={settings} revision={revision} disabled={state.controls.readOnly} focus={task === 'draw' && (focusRequest?.section === 'lettering' || focusRequest?.section === 'convert' && state.text)} newText={focusRequest?.section === 'lettering'} sequence={focusRequest?.sequence} />
     </div><div hidden={task !== 'files'}>
     <VectorImport settings={settings} revision={revision} disabled={state.controls.readOnly} />
     <VectorExport settings={settings} revision={revision} disabled={state.controls.readOnly} />
@@ -207,7 +207,7 @@ function CurveNodes({ settings, disabled, focus, sequence }: SharedProps & { foc
   </details>;
 }
 
-function TextOutlines({ settings, revision, disabled, focus, sequence }: SharedProps & { focus: boolean; sequence?: number }) {
+function TextOutlines({ settings, revision, disabled, focus, newText, sequence }: SharedProps & { focus: boolean; newText: boolean; sequence?: number }) {
   const editor = useEditor(); const { label } = useCadAdvancedText();
   const section = useRef<HTMLDetailsElement>(null); useFocusSection(section, focus, sequence);
   const source = useValue('outline text source', () => { const shape = editor.getOnlySelectedShape(); return shape?.type === 'text' ? { id: shape.id, editable: canChange(editor) } : null; }, [editor]);
@@ -215,20 +215,22 @@ function TextOutlines({ settings, revision, disabled, focus, sequence }: SharedP
   const [font, setFont] = useState<'sans' | 'serif' | 'mono' | 'draw' | 'custom'>('sans');
   const [fontData, setFontData] = useState<ArrayBuffer>(); const [fontName, setFontName] = useState('');
   const [values, setValues] = useUnitDraft(settings, { height: '20', x: '0', y: '0' });
+  const [alignment, setAlignment] = useState<CadTextLayout['align']>('start');
+  const [tracking, setTracking] = useState(String(DEFAULT_TEXT_LAYOUT.letterSpacing)), [lineHeight, setLineHeight] = useState(String(DEFAULT_TEXT_LAYOUT.lineHeight));
   const [keepSource, setKeepSource] = useState(true); const [review, setReview] = useState<Review | null>(null);
   const [message, setMessage] = useState<CadAdvancedLabel | ''>(''); const [failed, setFailed] = useState(false); const [busy, setBusy] = useState(false);
   const request = useRef(0); const fontRequest = useRef(0); const alive = useRef(true); const fontVersion = useRef(0);
   const [fontBusy, setFontBusy] = useState(false); const consumedFocus = useRef<number>();
-  const inputKey = JSON.stringify([mode, source?.id, text, font, fontName, fontVersion.current, values, keepSource, settings]);
+  const inputKey = JSON.stringify([mode, source?.id, text, font, fontName, fontVersion.current, values, alignment, tracking, lineHeight, keepSource, settings]);
   const currentKey = useRef(inputKey); currentKey.current = inputKey;
   useEffect(() => { alive.current = true; return () => { alive.current = false; request.current++; }; }, []);
   useEffect(() => {
-    if (sequence === consumedFocus.current) return;
+    if (!focus || sequence === consumedFocus.current) return;
     consumedFocus.current = sequence;
-    if (focus) setMode('selected');
-  }, [focus, sequence]);
+    setMode(newText ? 'new' : 'selected');
+  }, [focus, newText, sequence]);
   useEffect(() => { request.current++; setBusy(false); }, [revision, inputKey]);
-  const valid = mode === 'selected' ? !!source?.editable : text.trim().length > 0 && [...text].length <= 500 && text.split('\n').length <= 20 && Object.values(values).every(value => Number.isFinite(number(value)) && Math.abs(number(value)) <= 1_000_000) && number(values.height) > 0 && (font !== 'custom' || !!fontData);
+  const valid = mode === 'selected' ? !!source?.editable : text.trim().length > 0 && [...text].length <= 500 && text.split('\n').length <= 20 && Object.values(values).every(value => Number.isFinite(number(value)) && Math.abs(number(value)) <= 1_000_000) && number(values.height) > 0 && (font !== 'custom' || !!fontData) && number(tracking) >= -50 && number(tracking) <= 200 && number(lineHeight) >= 0.5 && number(lineHeight) <= 5;
   async function readFont(file?: File) {
     const id = ++fontRequest.current; setFontData(undefined); setFontName(''); setReview(null); setMessage('');
     if (!file) return;
@@ -245,7 +247,7 @@ function TextOutlines({ settings, revision, disabled, focus, sequence }: SharedP
     if (!settings || !valid || disabled || !canChange(editor, mode === 'selected')) return;
     const id = ++request.current; const key = inputKey; const before = cadRevision(editor); setBusy(true); setReview(null); setMessage('');
     try {
-      const plan = await prepareCadText(editor, settings, { text, font, fontData: font === 'custom' ? fontData : undefined, height: number(values.height), x: number(values.x), y: number(values.y), keepSource, sourceId: mode === 'selected' ? source?.id : undefined });
+      const plan = await prepareCadText(editor, settings, { text, font, fontData: font === 'custom' ? fontData : undefined, height: number(values.height), x: number(values.x), y: number(values.y), keepSource, sourceId: mode === 'selected' ? source?.id : undefined, layout: { align: alignment, letterSpacing: number(tracking), lineHeight: number(lineHeight) } });
       if (!alive.current || id !== request.current) return;
       if (currentKey.current !== key || cadRevision(editor) !== before || !canChange(editor, mode === 'selected')) { setFailed(true); setMessage('stale'); return; }
       setReview({ plan, inputKey: key });
@@ -264,6 +266,10 @@ function TextOutlines({ settings, revision, disabled, focus, sequence }: SharedP
           </select></Field>
           {font === 'custom' && <><label className="drawing-cad-points"><span>{label('fontFile')}</span><input type="file" accept=".ttf,.otf,.woff,.woff2" onChange={event => { void readFont(event.target.files?.[0]); }} /></label><p className="drawing-help">{label('fontHelp')}</p></>}
           {(['height', 'x', 'y'] as const).map(key => <Field key={key} label={`${label(key)} (${settings?.unit ?? 'mm'})`}><input type="number" step="any" required min={key === 'height' ? 0.000001 : undefined} value={values[key]} aria-invalid={!Number.isFinite(number(values[key])) || key === 'height' && number(values.height) <= 0} onChange={event => { setValues(current => ({ ...current, [key]: event.target.value })); setMessage(''); }} /></Field>)}
+          <Field label={label('textAlignment')}><select value={alignment} onChange={event => setAlignment(event.target.value as CadTextLayout['align'])}>{(['start','middle','end'] as const).map(value => <option key={value} value={value}>{label(value === 'start' ? 'textLeft' : value === 'middle' ? 'textCenter' : 'textRight')}</option>)}</select></Field>
+          <Field label={label('letterSpacing')}><input type="number" min={-50} max={200} step="any" value={tracking} onChange={event => setTracking(event.target.value)}/></Field>
+          <Field label={label('lineSpacing')}><input type="number" min={0.5} max={5} step="any" value={lineHeight} onChange={event => setLineHeight(event.target.value)}/></Field>
+          <p className="drawing-help">{label('textSpacingHelp')}</p>
         </> : <><p className="drawing-help">{label(source?.editable ? 'selectedTextHelp' : 'noText')}</p>
           <label className="drawing-cad-check"><input type="checkbox" checked={keepSource} onChange={event => setKeepSource(event.target.checked)} /><span>{label('keepSource')}</span></label></>}
         <button type="submit" disabled={!valid}>{label('preview')}</button>

@@ -164,6 +164,13 @@
 .drawing-cad-values { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; margin: 0 0 12px; font-size: 11px; }
 .drawing-cad-values dt { color: var(--ink-secondary); }
 .drawing-cad-values dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.drawing-point-entry, .drawing-point-entry fieldset { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; margin: 0; padding: 0; border: 0; }
+.drawing-point-entry label { display: flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 11px; }
+.drawing-workspace .drawing-properties .drawing-point-entry input[type=number][aria-label] { width: 76px; min-width: 0; height: 30px; padding: 4px; }
+.drawing-point-entry select { max-width: 156px; }
+.drawing-point-entry button { white-space: nowrap; }
+.drawing-point-live, .drawing-point-error { white-space: nowrap; font-size: 11px; }
+.drawing-point-error { color: var(--danger, #b91c1c); }
 .drawing-cad-message { margin: 8px 0; }
 .drawing-cad-report { border: 1px solid var(--border); background: var(--bg-0); padding: 8px; border-radius: 4px; }
 .drawing-cad-report > button { width: 100%; margin-top: 8px; }
@@ -261,3 +268,5 @@
 .drawing-arrange details > summary { padding: 8px 0; cursor: pointer; }
 .drawing-workspace.is-compact.has-docker .drawing-toolbox { grid-row: 3 / 5; }
 .drawing-workspace.is-compact .drawing-docker { grid-column: 2 / -1; }
+
+.drawing-lettering-button { width: 100%; margin-top: 12px; }

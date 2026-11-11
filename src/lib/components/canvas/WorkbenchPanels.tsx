@@ -9,24 +9,27 @@ import {getCadSelectionPageBounds} from './cad-bounds';
 import {cadConstruction} from './cad-construction';
 import {measureCadSelection} from './cad-measurements';
 
-export function TextPanel({onOutlines}:{onOutlines:()=>void}){
+export function TextPanel({onOutlines,onLettering}:{onOutlines:()=>void;onLettering:()=>void}){
  const editor=useEditor(),t=useWorkbenchText();
+ const readonly=useValue('lettering permission',()=>editor.getInstanceState().isReadonly,[editor]);
  const shape=useValue('editable text',()=>{const s=editor.getOnlySelectedShape();return s?.type==='text'?s as TLTextShape:null;},[editor]);
  const disabled=useValue('text permission',()=>!shape||editor.getInstanceState().isReadonly||editor.isShapeOrAncestorLocked(shape),[editor,shape]);
  const [text,setText]=useState(''),[font,setFont]=useState<TLTextShape['props']['font']>('sans'),[align,setAlign]=useState<TLTextShape['props']['textAlign']>('start'),[points,setPoints]=useState('18'),[auto,setAuto]=useState(true),[failed,setFailed]=useState(false);
  useEffect(()=>{if(shape){setText(shape.props.text);setFont(shape.props.font);setAlign(shape.props.textAlign);setPoints(String(Number(textPointSize(shape).toFixed(3))));setAuto(shape.props.autoSize);}setFailed(false);},[shape]);
- if(!shape)return <p className="drawing-help">{t('textHint')}</p>;
- return <fieldset className="drawing-workbench-fields" disabled={disabled}>
+ const lettering=<button type="button" className="drawing-lettering-button" disabled={readonly} onClick={onLettering}>{t('newLettering')}</button>;
+ if(!shape)return <><p className="drawing-help">{t('textHint')}</p>{lettering}</>;
+ const apply=()=>{const success=editDrawingText(editor,shape.id,{text,font,textAlign:align,autoSize:auto,pointSize:points.trim()?Number(points):NaN});setFailed(!success);return success;};
+ return <><fieldset className="drawing-workbench-fields" disabled={disabled}>
   <label><span>{t('content')}</span><textarea rows={6} value={text} maxLength={10000} onChange={e=>setText(e.target.value)}/></label>
   <label><span>{t('font')}</span><select value={font} onChange={e=>setFont(e.target.value as typeof font)}>{['sans','serif','mono','draw'].map(f=><option key={f} value={f}>{f==='sans'?'Sans serif':f==='serif'?'Serif':f==='mono'?'Monospace':'Handwriting'}</option>)}</select></label>
   <label><span>{t('fontSize')}</span><input type="number" min={1} max={3000} step="any" value={points} onChange={e=>setPoints(e.target.value)}/></label>
   <label><span>{t('align')}</span><select value={align} onChange={e=>setAlign(e.target.value as typeof align)}><option value="start">←</option><option value="middle">↔</option><option value="end">→</option></select></label>
   <label className="drawing-cad-check"><input type="checkbox" checked={auto} onChange={e=>setAuto(e.target.checked)}/><span>{t('autoWidth')}</span></label>
   <div className="drawing-workbench-actions"><button type="button" onClick={()=>setText(text.toLocaleUpperCase())}>{t('upper')}</button><button type="button" onClick={()=>setText(text.toLocaleLowerCase())}>{t('lower')}</button></div>
-  <button type="button" onClick={()=>setFailed(!editDrawingText(editor,shape.id,{text,font,textAlign:align,autoSize:auto,pointSize:Number(points)}))}>{t('apply')}</button>
-  <button type="button" onClick={onOutlines}>{t('outlines')}</button>
+  <button type="button" onClick={apply}>{t('apply')}</button>
+  <button type="button" onClick={()=>{if(apply())onOutlines();}}>{t('outlines')}</button>
   {failed&&<p role="alert">{t('invalid')}</p>}
- </fieldset>;
+ </fieldset>{lettering}</>;
 }
 export function ArrangePanel({settings,children}:{settings:CadSettings|null;children:ReactNode}){
  const editor=useEditor(),t=useWorkbenchText(),[gap,setGap]=useState('10'),[failed,setFailed]=useState(false);

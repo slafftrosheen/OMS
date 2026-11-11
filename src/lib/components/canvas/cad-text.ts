@@ -13,6 +13,14 @@ export interface CadTextOptions {
   y: number;
   keepSource: boolean;
   sourceId?: string;
+  layout?: Partial<CadTextLayout>;
+}
+export interface CadTextLayout { align: 'start' | 'middle' | 'end'; letterSpacing: number; lineHeight: number }
+export const DEFAULT_TEXT_LAYOUT: CadTextLayout = { align: 'start', letterSpacing: 0, lineHeight: 1.35 };
+export function validateCadTextLayout(value: Partial<CadTextLayout> = {}): CadTextLayout {
+  const layout = { ...DEFAULT_TEXT_LAYOUT, ...value };
+  if (!['start', 'middle', 'end'].includes(layout.align) || !Number.isFinite(layout.letterSpacing) || layout.letterSpacing < -50 || layout.letterSpacing > 200 || !Number.isFinite(layout.lineHeight) || layout.lineHeight < 0.5 || layout.lineHeight > 5) throw new CadOperationError('geometry');
+  return layout;
 }
 // tldraw 2.4 text sizes; not exported by its public runtime barrel.
 const FONT_SIZES = { s: 18, m: 24, l: 36, xl: 44 };
@@ -55,7 +63,7 @@ export async function getCadFont(name: string, bytes?: ArrayBuffer) {
     );
   return cache.get(name)!;
 }
-export function glyphRunContours(font: any, text: string, x = 0, baseline = 0, size = 100): CadContour[] {
+function layoutGlyphRun(font: any, text: string, x = 0, baseline = 0, size = 100, letterSpacing = 0): { contours: CadContour[]; advance: number } {
   if ([...text].length > 500 || !Number.isFinite(size) || size <= 0) throw new CadOperationError('limit');
   for (const char of text)
     if (!/\s/u.test(char) && !font.hasGlyphForCodePoint(char.codePointAt(0)))
@@ -65,10 +73,13 @@ export function glyphRunContours(font: any, text: string, x = 0, baseline = 0, s
   const result: CadContour[] = [];
   let advanceX = 0,
     advanceY = 0,
-    total = 0;
+    total = 0, advancing = 0;
   for (let i = 0; i < run.glyphs.length; i++) {
     const glyph = run.glyphs[i],
       position = run.positions[i];
+    // Keep shaped ligatures intact and avoid inserting space before zero-advance
+    // combining marks. Tracking is added at the next advancing glyph instead.
+    if (position.xAdvance !== 0 && advancing++ > 0) advanceX += letterSpacing / 100 * font.unitsPerEm;
     if (!glyph.id && text.trim()) throw new CadOperationError('missing-glyph');
     let contour: CadContour | null = null;
     const point = (a: number, b: number) => ({
@@ -124,7 +135,21 @@ export function glyphRunContours(font: any, text: string, x = 0, baseline = 0, s
     advanceX += position.xAdvance;
     advanceY += position.yAdvance;
   }
-  return result.filter((c) => c.nodes.length >= 2);
+  return { contours: result.filter((c) => c.nodes.length >= 2), advance: advanceX * scale };
+}
+export function glyphRunContours(font: any, text: string, x = 0, baseline = 0, size = 100): CadContour[] {
+  return layoutGlyphRun(font, text, x, baseline, size).contours;
+}
+/** New outline text uses shaped line advances for alignment, including whitespace. */
+export function layoutCadText(font: any, text: string, options: Partial<CadTextLayout> = {}): CadContour[] {
+  const layout = validateCadTextLayout(options);
+  if ([...text].length > 500 || text.split('\n').length > 20) throw new CadOperationError('limit');
+  const lines = text.split('\n').map((line, i) => layoutGlyphRun(font, line, 0, i * 100 * layout.lineHeight, 100, layout.letterSpacing));
+  const width = Math.max(0, ...lines.map(line => line.advance));
+  return lines.flatMap(line => {
+    const dx = (width - line.advance) * (layout.align === 'end' ? 1 : layout.align === 'middle' ? 0.5 : 0);
+    return mapContours(line.contours, point => ({ x: point.x + dx, y: point.y }));
+  });
 }
 export async function prepareCadText(editor: Editor, settings: CadSettings, options: CadTextOptions): Promise<CadPlan> {
   const revision = cadRevision(editor),
@@ -132,8 +157,9 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
   assertCadEditable(editor, source ? [source.id] : []);
   if (options.sourceId && source?.type !== 'text') throw new CadOperationError('selection');
   const p = source?.props as any,
-    text = String(source ? p.text : options.text).normalize('NFC');
+    text = String(source ? p.text : options.text).replace(/\r\n?/g, '\n').normalize('NFC');
   if (!text.trim() || [...text].length > 500 || text.split('\n').length > 20) throw new CadOperationError('limit');
+  const layout = source ? null : validateCadTextLayout(options.layout);
   const font = await getCadFont(source ? p.font : options.font, options.fontData);
   let contours: CadContour[] = [];
   if (source) {
@@ -159,7 +185,7 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
     const matrix = editor.getShapePageTransform(source);
     contours = mapContours(contours, (point) => matrix.applyToPoint({ x: point.x * p.scale, y: point.y * p.scale }));
   } else {
-    text.split('\n').forEach((line, i) => contours.push(...glyphRunContours(font, line, 0, i * 135, 100)));
+    contours = layoutCadText(font, text, layout!);
     const bounds = curveBounds(contours),
       wanted = unitLengthToCanvas(options.height, settings),
       origin = cadPointToCanvas(options, settings);
@@ -187,7 +213,7 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
         x: 0,
         y: 0,
         props: { contours, color: p?.color ?? 'black', fillRule: 'nonzero' },
-        meta: { omsSourceText: text, omsFontName: font.fullName ?? options.font }
+        meta: { omsSourceText: text, omsFontName: font.fullName ?? options.font, ...(layout ? { omsTextLayout: { ...layout } } : {}) }
       }
     ]
   });
