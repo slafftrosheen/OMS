@@ -4,11 +4,11 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// ─── CSP allow-list — every entry comes from .env ─────────────────────────
+// ─── CSP network origins come from .env ──────────────────────────────────
 // Operators add / remove origins by editing .env, not this file.
 //
 // CSP_CONNECT_SRC takes precedence: a comma-separated list of explicit origins
-// added on top of "'self'".
+// added on top of same-origin requests and local Blob previews.
 //
 // When CSP_CONNECT_SRC is unset, we synthesise an allow-list from the host
 // variables that the rest of the app already reads (OLLAMA_HOST, OLLAMA_PORT,
@@ -58,7 +58,8 @@ function defaultConnectSrc() {
 }
 
 const explicit = fromList('CSP_CONNECT_SRC');
-const connectSrc = ["'self'", ...(explicit.length ? explicit : defaultConnectSrc())];
+// Local canvas previews read Blob URLs before their originals are uploaded.
+const connectSrc = ["'self'", 'blob:', ...(explicit.length ? explicit : defaultConnectSrc())];
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {

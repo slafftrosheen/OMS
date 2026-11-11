@@ -50,6 +50,7 @@ test('native Bézier pointer gestures survive validation and snapshot reload',as
  expect((await curves())[0].props.contours).toEqual(curve.props.contours);expect(errors).toEqual([]);
 });
 test('new draft keeps the selected pocket and canonical download reference after saving',async({page})=>{
+ const {default:appConfig}=await import(new URL('../../svelte.config.js',import.meta.url).href);
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  const orderId='11111111-1111-4111-8111-111111111111';let uploadPocket='',saved:any=null;
  await page.route('**/api/**',async route=>{
@@ -62,6 +63,12 @@ test('new draft keeps the selected pocket and canonical download reference after
   }
   if(path.endsWith('/canvas-state')){saved=request.postDataJSON();return route.fulfill({json:{updatedAt:'2026-11-11T12:00:01Z'}});}
   return route.fulfill({status:405,json:{message:'Unexpected test write'}});
+ });
+ // Match the production policy: local canvas cards fetch their Blob source.
+ await page.route('**/production-intake.html?new',async route=>{
+  const response=await route.fetch();
+  const connect=appConfig.kit?.csp?.directives?.['connect-src']??[];
+  return route.fulfill({response,headers:{...response.headers(),'content-security-policy':`connect-src ${connect.join(' ')}`}});
  });
  await page.goto('/production-intake.html?new');
  await page.locator('#clientName').fill('TEST ONLY CAD pocket');await page.locator('#deadline').fill('2099-11-25');
