@@ -22,13 +22,16 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
   try {
     // Authenticated binary proxy; never issue long-lived signed URLs.
     const buffer = await readOrderStoredFile(locals,file);
-    const disposition = inline ? 'inline' : 'attachment';
+    const safeInline = ['application/pdf','image/png','image/jpeg','image/gif','image/webp'].includes(file.mimetype);
+    const disposition = inline && safeInline ? 'inline' : 'attachment';
     return new Response(new Uint8Array(buffer), {
       headers: {
         'Content-Type': file.mimetype || 'application/octet-stream',
         'Content-Length': String(buffer.length),
         'Content-Disposition': `${disposition}; filename="${safeDownloadFilename(file.original_name || file.filename)}"`,
-        'Cache-Control': 'private, no-store'
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "sandbox; default-src 'none'"
       }
     });
   } catch (err) {

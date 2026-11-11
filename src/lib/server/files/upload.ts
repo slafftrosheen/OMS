@@ -51,7 +51,7 @@ export async function uploadOrderFile(request: Request, locals: App.Locals) {
   const id=randomUUID();
   const storageKey=storedOrderFileKey(order.id,user.id,id,metadata.fileName);
   const buffer=Buffer.from(await candidate.arrayBuffer());
-  if (!matchesOrderFileSignature(metadata.extension,buffer.subarray(0,16))) {
+  if (!matchesOrderFileSignature(metadata.extension,buffer.subarray(0,4096))) {
     throw kitError(415,'File contents do not match the declared image/PDF/archive format');
   }
   const { error: storageError }=await locals.supabase.storage.from(ORDER_FILE_BUCKET)

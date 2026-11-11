@@ -18,7 +18,8 @@ export type OrderAddressShape = TLBaseShape<'order-address', OrderAddressShapePr
 
 export class OrderAddressShapeUtil extends BaseBoxShapeUtil<OrderAddressShape>{
  static override type='order-address' as const;
- override getDefaultProps():OrderAddressShapeProps{return {w:480,h:640,orderId:'',clientName:'',deliveryAddress:'',deliveryContact:'',deliveryPhone:'',deliveryEmail:'',shippingMethod:'courier'};}
+ override isAspectRatioLocked=()=>true;
+ override getDefaultProps():OrderAddressShapeProps{return {w:880,h:460,orderId:'',clientName:'',deliveryAddress:'',deliveryContact:'',deliveryPhone:'',deliveryEmail:'',shippingMethod:'courier'};}
  override component(shape:OrderAddressShape){return <NativeDraftFields shape={shape} editor={this.editor} section="delivery"/>;}
  override indicator(shape:OrderAddressShape){return <rect width={shape.props.w} height={shape.props.h}/>;}
 }

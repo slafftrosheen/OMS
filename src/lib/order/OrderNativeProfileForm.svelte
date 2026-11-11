@@ -4,9 +4,10 @@
 
   // An isolated editing copy prevents the native form's default-merging effect
   // from silently changing stored order JSON just by opening the editor.
-  let {configuration,editable,onChange}:{
+  let {configuration,editable,onChange,canvasLayout=false}:{
     configuration:Record<string,unknown>|null|undefined;
     editable:boolean;
+    canvasLayout?:boolean;
     onChange:(configuration:Record<string,unknown>)=>void;
   }=$props();
   // The parent keys this editor by the opened profile. Later onChange echoes
@@ -31,5 +32,5 @@
   }
 </script>
 
-<Profile7stVisual bind:configuration={localConfiguration}
+<Profile7stVisual {canvasLayout} bind:configuration={localConfiguration}
   readonly={!editable} onchange={forwardExplicitEdit}/>

@@ -51,8 +51,8 @@ export interface SpawnedShapes {
 /** Column origin for the forms panel (left rail). */
 const LEFT_X = 24;
 /** Column origin for the production frames (right side). */
-const FRAMES_X = 1080;
-const FRAME_W = 700;
+const FRAMES_X = 1880;
+const FRAME_W = 800;
 const FRAME_H = 500;
 const FRAME_GAP = 40;
 
@@ -81,8 +81,8 @@ export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): Spawne
             y: 0,
             isLocked: false,
             props: {
-                w: 480,
-                h: 760,
+                w: 880,
+                h: 460,
                 orderId: seed.orderId,
                 title: seed.title ?? '',
                 clientName: seed.clientName ?? '',
@@ -99,12 +99,12 @@ export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): Spawne
         editor.createShape({
             id: addressId,
             type: 'order-address',
-            x: LEFT_X+500,
+            x: LEFT_X+920,
             y: 0,
             isLocked: false,
             props: {
-                w: 480,
-                h: 640,
+                w: 880,
+                h: 460,
                 orderId: seed.orderId,
                 clientName:seed.clientName??'',
                 deliveryAddress: seed.deliveryAddress ?? '',
@@ -115,7 +115,7 @@ export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): Spawne
             },
         });
 
-        let profileY = 800;
+        let profileY = 520;
         profiles.forEach((profile, index) => {
             const profileId = createShapeId();
             profileIds.push(profileId);
@@ -127,8 +127,8 @@ export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): Spawne
                 y: profileY,
                 isLocked: false,
                 props: {
-                    w: 1000,
-                    h: 1200,
+                    w: 1800,
+                    h: 900,
                     orderId: seed.orderId,
                     profileIndex: index,
                     quantity:profile.quantity??1,
@@ -136,7 +136,7 @@ export function spawnDraftOrderTemplate(editor: Editor, seed: OrderSeed): Spawne
                 },
             });
 
-            profileY += 1240;
+            profileY += 940;
         });
 
         // ── Right side: production zone frames ─────────────────────────────
@@ -210,7 +210,13 @@ export function syncOrderDataToCanvas(
             const forms=editor.getCurrentPageShapes().filter(shape=>shape.type==='profile-7st'&&(shape.props as any).orderId===data.orderId);
             data.profiles.forEach((profile,index)=>{
                 if(forms.some(shape=>(shape.props as any).profileIndex===index))return;
-                editor.createShape({id:createShapeId(),type:'profile-7st',x:LEFT_X,y:800+1240*index,props:{w:1000,h:1200,orderId:data.orderId,profileIndex:index,quantity:profile.quantity??1,data:JSON.parse(JSON.stringify(profile.configuration??{}))}} as any);
+                // Continue the existing sheet layout, including older narrow templates.
+                const current=editor.getCurrentPageShapes().filter(s=>s.type==='profile-7st'&&(s.props as any).orderId===data.orderId);
+                const reference=current[0];
+                const details=editor.getCurrentPageShapes().find(s=>s.type==='order-details'&&(s.props as any).orderId===data.orderId);
+                const w=reference?(reference.props as any).w:details&&(details.props as any).w<600?1000:1800;
+                const y=current.length?Math.max(...current.map(s=>s.y+(s.props as any).h))+40:details?details.y+(details.props as any).h+40:520;
+                editor.createShape({id:createShapeId(),type:'profile-7st',x:reference?.x??LEFT_X,y,props:{w,h:w/2,orderId:data.orderId,profileIndex:index,quantity:profile.quantity??1,data:JSON.parse(JSON.stringify(profile.configuration??{}))}} as any);
             });
             for(const shape of forms){
                 const index=(shape.props as any).profileIndex;

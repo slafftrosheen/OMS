@@ -226,3 +226,38 @@
 .drawing-vector-paint-row { display:flex; align-items:center; gap:8px; }
 .drawing-vector-paint-row input[type=color] { width:46px; height:30px; padding:2px; }
 .drawing-cad-section h3 { margin:8px 0; font-size:13px; }
+
+/* Familiar drawing workspace: grouped tools at left, one task docker at right. */
+.drawing-toolbox { overflow: visible; z-index: 55; }
+.drawing-tools { overflow: visible; gap: 8px; padding: 8px 3px; }
+.drawing-tool-group { position: relative; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.drawing-tool-group:last-child { border: 0; }
+.drawing-tool-expand { position: absolute; right: -2px; bottom: 5px; width: 14px; height: 16px; min-height: 0; padding: 0; border: 0; background: var(--bg-1); color: var(--ink-secondary); font-size: 11px; cursor: pointer; }
+.drawing-tool-flyout { position: absolute; left: 40px; top: 0; min-width: 220px; padding: 5px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-1); box-shadow: 0 8px 28px #0003; z-index: 100; }
+.drawing-tool-flyout button { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; min-height: 36px; border: 0; background: transparent; color: var(--ink-primary); padding: 6px 10px; }
+.drawing-tool-flyout button:hover,.drawing-tool-flyout button[aria-pressed=true] { background: var(--bg-2); }
+.drawing-docker-picker { flex: 1; min-width: 0; }
+.drawing-docker-picker select { width: 100%; min-height: 32px; padding: 4px 8px; background: var(--bg-1); color: var(--ink-primary); border: 1px solid var(--border); border-radius: 4px; }
+.drawing-docker-modes { display: flex; gap: 4px; padding: 4px 10px; border-bottom: 1px solid var(--border); }
+.drawing-workbench-fields,.drawing-production-save { display: grid; gap: 10px; border: 0; padding: 10px 0; margin: 0; min-width: 0; }
+.drawing-production-save { border-top: 1px solid var(--border); margin-top: 10px; }
+.drawing-workbench-fields label,.drawing-production-save label,.drawing-form-scale label { display: grid; gap: 5px; font-size: 12px; }
+.drawing-workbench-fields input:not([type=checkbox]),.drawing-workbench-fields select,.drawing-workbench-fields textarea,.drawing-production-save input,.drawing-production-save select,.drawing-form-scale input { box-sizing: border-box; width: 100%; min-width: 0; padding: 7px; border: 1px solid var(--border); border-radius: 4px; color: var(--ink-primary); background: var(--bg-0); font: inherit; }
+.drawing-workbench-fields textarea { resize: vertical; }
+.drawing-workbench-actions { display: flex; gap: 6px; }
+.drawing-workbench-fields button,.drawing-production-save button { min-height: 34px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; color: var(--ink-primary); background: var(--bg-1); font: inherit; cursor: pointer; }
+.drawing-workbench-fields button:disabled,.drawing-production-save button:disabled { opacity: .45; cursor: default; }
+.drawing-workbench-fields .drawing-cad-check { display: flex; }
+.drawing-export-format { display: flex; justify-content: space-between; align-items: center; padding: 8px; }
+@media(max-height:650px) { .drawing-tools { gap: 2px; padding-top: 3px; } .drawing-tool-group { padding-bottom: 1px; } }
+
+/* The app-wide input selector contains five :not() attributes. Keep the
+   drafting property bar compact without changing production form fields. */
+.drawing-workspace .drawing-properties .drawing-number input[type=number][aria-label] { width: 72px; height: 30px; min-height: 30px; padding: 2px 4px; font-size: 12px; border-radius: 3px; }
+.drawing-workspace .drawing-properties .drawing-number { width: 90px; }
+.drawing-docker-modes .drawing-button { width: 36px; }
+.drawing-align-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; }
+.drawing-align-grid button { border: 1px solid var(--border); padding: 6px; }
+.drawing-arrange details > summary { padding: 8px 0; cursor: pointer; }
+.drawing-workspace.is-compact.has-docker .drawing-toolbox { grid-row: 3 / 5; }
+.drawing-workspace.is-compact .drawing-docker { grid-column: 2 / -1; }

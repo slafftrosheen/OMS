@@ -1,3 +1,4 @@
+import {ProductionSaveButton} from './ProductionSaveButton';
 import { storeCanvasImage } from "./cad-asset-store";
 import { prepareVectorExportWithAssets } from "./cad-vector-export-client";
 import { VectorArtwork } from "./VectorArtwork";
@@ -769,6 +770,7 @@ export function VectorExport({ settings, revision }: Props) {
           >
             {t("download")}
           </button>
+          <ProductionSaveButton extension={format} disabled={stale||!review.result.text||!!review.result.omitted.length&&!ack} createFile={()=>{if(review.result.revision!==cadRevision(editor))throw new Error("changed");return new Blob([review.result.text],{type:format==="pdf"?"application/pdf":"application/postscript"});}}/>
         </div>
       )}
       <WorkStatus work={work}/>

@@ -1,3 +1,5 @@
+import {readCadSettings} from './cad-settings';
+import {ProductionSaveButton} from './ProductionSaveButton';
 import { useVectorText } from './cad-vector-copy';
 import React, { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useEditor, useValue } from '@tldraw/tldraw';
@@ -328,6 +330,7 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
       {stale && <Message text={label('stale')} error />}
       {!report.data.entities && <Message text={label('noEntities')} error />}
       <button type="button" disabled={stale || !report.data.entities || !!report.data.omitted.length && !acknowledged} onClick={download} data-testid="drawing-cad-download">{label('download')}</button>
+      <ProductionSaveButton extension="dxf" disabled={stale || !report.data.entities || !!report.data.omitted.length && !acknowledged} createFile={()=>{if(report.revision!==JSON.stringify([editor.getCurrentPage().id,editor.getCurrentPageShapesSorted(),editor.getSelectedShapeIds(),readCadSettings(editor)]))throw new Error("changed");return new Blob([report.data.text],{type:"application/dxf"});}}/>
     </div>}
     <Message text={message ? label(message) : ''} error={message === 'exportFailed' || message === 'noEntities'} />
   </details>;

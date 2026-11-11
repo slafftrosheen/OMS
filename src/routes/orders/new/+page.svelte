@@ -517,17 +517,17 @@
     const target=document.getElementById(id);
     target?.scrollIntoView({block:'start'});target?.focus({preventScroll:true});
   }
-  async function storeCanvasFile(file:File){
+  async function storeCanvasFile(file:File,pocket:ProductionFilePocket='visuals'){
     if(saving)throw new Error('asset-upload');
-    const entries=await addFiles([file]),entry=entries[0];if(!entry)throw new Error('asset-upload');
-    const url=URL.createObjectURL(entry.file);localUrls.push(url);return {id:entry.uploadId,url};
+    const entries=await addFiles([file],pocket),entry=entries[0];if(!entry)throw new Error('asset-upload');
+    return {id:entry.uploadId,url:entry.url};
   }
   async function addCanvasFiles(files:File[],position:{x:number;y:number}){
     const editor=creationEditor;if(!editor||saving)return;
     const {orderPocketAtPoint,addOrderFileDocument}=await import('$lib/components/canvas/order-file-documents');
     const {frameFilePocket}=await import('$lib/order/file-pockets');
     const frame=orderPocketAtPoint(editor,position),pocket=frame ? frameFilePocket(frame)! : 'visuals';
-    const entries=await addFiles(files);
+    const entries=await addFiles(files,pocket);
     if(editor!==creationEditor)return;
     entries.forEach((entry,index)=>{
       entry.pocket=pocket;
@@ -722,7 +722,7 @@
     input.value = '';
   }
 
-  async function addFiles(newFiles: File[]) {
+  async function addFiles(newFiles: File[],pocket:ProductionFilePocket='visuals') {
     if (saving || preparingFiles || removingFileId || successMessage) return [];
     const added:FileWithPreview[]=[];
     preparingFiles = true;
@@ -730,7 +730,7 @@
       for (const file of newFiles) {
         const type = getFileType(file);
         const url=URL.createObjectURL(file);localUrls.push(url);
-        const fileWithPreview: FileWithPreview = { file, type, uploadId: createId('upload'),url,pocket:'visuals' };
+        const fileWithPreview: FileWithPreview = { file, type, uploadId: createId('upload'),url,pocket };
         if (type === 'image') {
           fileWithPreview.preview = await createImagePreview(file);
         } else if (type === 'pdf') {

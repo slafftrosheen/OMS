@@ -13,7 +13,7 @@
     /** Seed data → triggers DraftOrderTemplate auto-spawn */
     orderSeed?: OrderSeed | null;
     onProfileQuantityChange?: (orderId:string,index:number,quantity:number)=>void;
-    onStoreCanvasFile?: (file:File)=>Promise<{id:string;url:string}>;
+    onStoreCanvasFile?: (file:File,pocket?:import('$lib/order/file-pockets').ProductionFilePocket)=>Promise<{id:string;url:string}>;
     onFilesUpload?: (files:File[],position:{x:number;y:number})=>Promise<void>;
     /** Called when any order-details or order-address field changes on canvas */
     onOrderChange?: (orderId: string, patch: Partial<OrderSeed>) => void;

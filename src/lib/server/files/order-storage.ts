@@ -6,7 +6,7 @@ export const ORDER_FILE_BUCKET = 'files';
 export const MAX_ORDER_FILE_BYTES = 25 * 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MIME: Record<string,string> = {
- pdf:'application/pdf', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg',
+ pdf:'application/pdf', eps:'application/postscript', svg:'image/svg+xml', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg',
  gif:'image/gif', webp:'image/webp', dxf:'application/dxf',
  cdr:'application/octet-stream', zip:'application/zip',
  docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -39,6 +39,8 @@ export function matchesOrderFileSignature(extension: string, bytes: Uint8Array) 
   const prefix=(t:string)=>t.split('').every((ch,i)=>b[i]===ch.charCodeAt(0));
   switch(extension) {
     case 'pdf': return prefix('%PDF-');
+    case 'eps': return prefix('%!PS-Adobe-') || [0xc5,0xd0,0xd3,0xc6].every((v,i)=>b[i]===v);
+    case 'svg': return /<svg[\s>]/i.test(new TextDecoder().decode(b.slice(0,4096)));
     case 'png': return b.length>=8 && [137,80,78,71,13,10,26,10].every((v,i)=>b[i]===v);
     case 'jpg': case 'jpeg': return b[0]===255 && b[1]===216 && b[2]===255;
     case 'gif': return prefix('GIF87a') || prefix('GIF89a');

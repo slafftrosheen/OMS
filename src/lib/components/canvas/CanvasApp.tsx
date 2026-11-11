@@ -1,3 +1,4 @@
+import {CadCircleTool,CadDimensionTool} from './CadTwoPointTool';
 import { DrawingWorkspace, DrawingChrome } from './DrawingWorkspace';
 import {OrderFilePocketOverlays, OrderFilePocketFallback, OrderFilePocketsProvider} from './OrderFilePockets';
 import {syncCreationFileDocuments} from './order-file-documents';
@@ -75,7 +76,7 @@ export interface CanvasAppProps {
     /** When set, auto-spawns the DraftOrderTemplate on first mount */
     orderSeed?: OrderSeed | null;
     onProfileQuantityChange?: (orderId:string,index:number,quantity:number)=>void;
-    onStoreCanvasFile?: (file:File)=>Promise<{id:string;url:string}>;
+    onStoreCanvasFile?: (file:File,pocket?:import('$lib/order/file-pockets').ProductionFilePocket)=>Promise<{id:string;url:string}>;
     onFilesUpload?: (files:File[],position:{x:number;y:number})=>Promise<void>;
     /** Called when a form shape field changes, bridges data back to Svelte */
     onOrderChange?: (orderId: string, patch: Partial<OrderSeed>) => void;
@@ -299,7 +300,7 @@ export function CanvasApp({
                     assetUrls={canvasAssetUrls}
                     snapshot={initialSnapshot as any}
                     shapeUtils={customShapeUtils}
-                    tools={[CadPolylineTool, CadBezierTool]}
+                    tools={[CadPolylineTool, CadBezierTool, CadCircleTool, CadDimensionTool]}
                     onMount={handleMount}
                     hideUi={hideUI}
                     components={drawingUi}

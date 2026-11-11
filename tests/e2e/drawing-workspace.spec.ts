@@ -122,7 +122,8 @@ for (const mode of ['idea', 'order']) {
     await page.getByTestId('drawing-cad-task').selectOption('edit');
     await page.getByRole('button', { name: 'Toggle read only' }).click();
     await expect(nodes.getByRole('button', { name: 'Update node', exact: true })).toBeDisabled();
-    await expect(page.getByTestId('drawing-tool-cad-bezier')).toBeDisabled();
+    await page.getByRole('button',{name:'More tools: CAD polyline',exact:true}).click();
+    await expect(page.getByTestId('drawing-flyout-cad-bezier')).toBeDisabled();
   });
   test(`${mode} imports CAD with units and omission review then shapes the selected contours`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });

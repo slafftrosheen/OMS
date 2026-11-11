@@ -1,14 +1,14 @@
 <script lang="ts">
  import {t} from 'svelte-i18n';
  import ClientDeliveryAddresses from './ClientDeliveryAddresses.svelte';
- let {data,section='all',editable=true,addressLocked=false,errors={},idPrefix='',onChange}:{data:Record<string,any>;section?:'all'|'details'|'delivery';editable?:boolean;addressLocked?:boolean;errors?:Record<string,string>;idPrefix?:string;onChange:(patch:Record<string,unknown>)=>void}=$props();
+ let {data,canvasLayout=false,section='all',editable=true,addressLocked=false,errors={},idPrefix='',onChange}:{data:Record<string,any>;canvasLayout?:boolean;section?:'all'|'details'|'delivery';editable?:boolean;addressLocked?:boolean;errors?:Record<string,string>;idPrefix?:string;onChange:(patch:Record<string,unknown>)=>void}=$props();
  const details=['clientName','title','deadline','loadingDate','priority','notes'];
  const delivery=['deliveryAddress','deliveryContact','deliveryPhone','deliveryEmail'];
  const labels:Record<string,string>={clientName:'client',title:'title',deadline:'deadline',loadingDate:'loadingDate',priority:'priority',notes:'notes',deliveryAddress:'deliveryAddress',deliveryContact:'deliveryContact',deliveryPhone:'deliveryPhone',deliveryEmail:'deliveryEmail'};
  let fields=$derived(section==='details'?details:section==='delivery'?delivery:[...details,...delivery]);
 </script>
-<div class="draft-fields">
- {#if section!=='delivery'}<p class="po-reference">{$t('orders.new.details.po')}: {data.poNumber||$t('orders.new.details.po_pending')}</p>{/if}
+<div class="draft-fields" class:canvas-sheet={canvasLayout}>
+ {#if section!=='delivery'}<p class="po-reference">{$t('orders.new.details.po')}: {data.poNumber||'—'}</p>{/if}
  {#each fields as field}
   <div class="draft-field">
    <label for={idPrefix+field}>{$t('orderWorkspace.editor.'+labels[field])}</label>
@@ -32,4 +32,5 @@
 </div>
 <style>
  .draft-fields{display:grid;gap:var(--space-md);font-family:inherit;color:var(--ink-primary);font-size:var(--text-sm)}.draft-field{display:grid;gap:6px;min-width:0}label{font-weight:550}input,select,textarea{box-sizing:border-box;width:100%;min-height:40px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-0);color:var(--ink-primary);font:inherit}textarea{resize:vertical}input:disabled,select:disabled,textarea:disabled{opacity:.65}input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.check{display:flex;align-items:center;gap:8px}.check input{width:18px;min-height:18px}.po-reference{margin:0;font-size:var(--text-xs);color:var(--ink-secondary)}.field-error{margin:0;color:var(--danger);font-size:var(--text-xs)}[aria-invalid=true]{border-color:var(--danger)}
+.draft-fields.canvas-sheet{grid-template-columns:repeat(2,minmax(0,1fr))}.canvas-sheet .po-reference,.canvas-sheet .check{grid-column:1/-1}
 </style>

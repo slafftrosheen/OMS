@@ -259,11 +259,13 @@
     configuration: incomingConfiguration = $bindable({}),
     /** If true, disables all inputs, making the form read-only. */
     readonly = false,
+    canvasLayout = false,
     /** Callback for configuration changes. */
     onchange,
   }: {
     configuration?: Partial<ProfileConfiguration> | null;
     readonly?: boolean;
+    canvasLayout?: boolean;
     onchange?: (config: ProfileConfiguration) => void;
   } = $props();
 
@@ -554,7 +556,7 @@
   {/if}
 {/snippet}
 
-<div class="profile-form" class:readonly>
+<div class="profile-form" class:readonly class:canvas-sheet={canvasLayout}>
   <!-- HEADER -->
   <div class="form-header">
     <div class="profile-name">
@@ -2109,4 +2111,11 @@
     .sign-toggle { justify-content: center; }
     .paint-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
+  .profile-form.canvas-sheet .form-header { flex-direction: row; align-items: center; }
+  /* A drawing sheet scales as a whole; viewport/container queries must never
+     stack its five production sections when the user zooms or resizes it. */
+  .profile-form.canvas-sheet .form-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .profile-form.canvas-sheet .section-xl { grid-column: span 2; }
+  .profile-form.canvas-sheet .section-sm, .profile-form.canvas-sheet .section-lg, .profile-form.canvas-sheet .section-xl { min-width: 0; }
+  .profile-form.canvas-sheet .assembly-grid-2x2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 </style>

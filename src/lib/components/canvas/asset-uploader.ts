@@ -11,6 +11,7 @@ const lifetimes=new WeakMap<Editor,AbortController>();
 export function cancelOrderCanvasUploads(editor:Editor){lifetimes.get(editor)?.abort();lifetimes.delete(editor);}
 export async function uploadOrderCanvasFiles(editor:Editor,files:File[],orderId:string,position:{x:number;y:number},signal?:AbortSignal){
  if(editor.getInstanceState().isReadonly||pending.has(editor)||!files.length)return;
+ const destination=orderPocketAtPoint(editor,position);if(destination&&editor.isShapeOrAncestorLocked(destination))return;
  let lifetime=lifetimes.get(editor);if(!lifetime){lifetime=new AbortController();lifetimes.set(editor,lifetime);}
  signal=signal?AbortSignal.any([signal,lifetime.signal]):lifetime.signal;
  const local=getOrderBridge(editor)?.onFilesUpload;
