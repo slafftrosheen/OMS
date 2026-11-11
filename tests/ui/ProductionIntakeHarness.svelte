@@ -3,6 +3,7 @@
  import Addresses from '../../src/lib/order/ClientDeliveryAddresses.svelte';
  import NewOrder from '../../src/routes/orders/new/+page.svelte';
  import {currentUser} from '../../src/lib/auth/authState.svelte';
+ import {requestFixtureNavigation} from './navigation';
  const newOrder=new URLSearchParams(location.search).has('new');
  if(newOrder)currentUser.set({id:'11111111-1111-4111-8111-111111111111',username:'manager',displayName:'Manager',role:'RD',stations:[]});
  let current=$state<Record<string,any>>({clientName:'Client BV',notes:'',deliveryAddress:'User address',
@@ -10,8 +11,13 @@
   configuration:{CNC_FREZER:{},BENDER:{depth:100},ASSEMBLING:{}}}]});
  let applied=$state(0);
  let editable=$state(true);
+ let navigationAllowed=$state('');
 </script>
-{#if newOrder}<NewOrder/>{:else}
+{#if newOrder}
+ <button onclick={()=>navigationAllowed=String(requestFixtureNavigation())}>Try leaving new order</button>
+ <output data-testid="new-order-navigation">{navigationAllowed}</output>
+ <NewOrder/>
+{:else}
 <main style="max-width:480px;margin:auto;padding:16px;box-sizing:border-box">
  <button onclick={()=>{current={...current,notes:'Explicit local edit'};}}>Edit locally</button>
  <button onclick={()=>{current={...current,deliveryAddress:'New user delivery edit'};}}>Edit delivery locally</button>

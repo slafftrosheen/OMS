@@ -156,7 +156,19 @@ export function deleteCadCurveNode(editor: Editor, ci: number, ni: number): bool
 }
 export function setCadCurveClosed(editor: Editor, ci: number, closed: boolean): boolean {
   return editCurve(editor, (contours) => {
-    contours[ci].closed = closed;
+    const contour = contours[ci];
+    if (!contour || typeof closed !== 'boolean') throw new Error('contour');
+    if (closed && !contour.closed && contour.nodes.length > 2) {
+      const first = contour.nodes[0], last = contour.nodes.at(-1)!;
+      // Break at node duplicates the seam to retain the closing cubic. Restore
+      // that seam exactly; do not append a zero-length closing segment or snap
+      // endpoints that are merely near each other.
+      if (first.x === last.x && first.y === last.y) {
+        first.inX = last.inX; first.inY = last.inY; first.mode = 'corner';
+        contour.nodes.pop();
+      }
+    }
+    contour.closed = closed;
   });
 }
 /** Open a closed seam, or split an open contour at an interior node. */

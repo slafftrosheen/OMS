@@ -23,6 +23,10 @@ The creation header exposes Save draft and Submit for review, with Save & analyz
 
 AI Order Intake is a disclosure that keeps the assistant mounted, retaining pending analysis and choices. Choosing Analyze on an attachment opens and focuses it. The parent disclosure owns the title, avoiding a repeated heading. In the shared intake assistant, PDF processing modes are under a disclosure whose summary names the current mode; charge/mode hints and the existing paid-OCR confirmation remain visible and enforced. New-order browser cases cover the collapsed entry, preserved fields, section navigation and invalid saves from Drawing at mobile and desktop widths. Browser execution is still blocked by the hosted Chromium socket restriction.
 
+Before operator acceptance, new-order navigation now guards form, profile, file and canvas changes, with the existing native unload warning for reload/closing. Profile expansion and view navigation alone do not count as form edits. Saving/file operations block internal navigation until completion; successful persistence allows the intended redirect. The active drawing gesture completes before the editor becomes read-only, so a pending CAD stroke is not cancelled by the save transition. All form controls become inert during saving, and the profile editor receives its read-only prop. Invalid profile quantities reveal and focus their own field.
+
+After a partial upload, successful files are labelled as attached. Removing one uses the existing confirmed canonical file-delete endpoint and waits for success before removing the local entry or upload checkpoint. Permission, network and revision-evidence errors retain the entry for retry. Other saves/uploads/deletions cannot race that deletion. Snapshot preparation also removes bindings and saved selection for deleted viewers, including when the drawing is hidden. No DB/API authorization contract changes. Operator tests and remaining live verification are recorded in [canvas acceptance](canvas-acceptance.md).
+
 ## Dialog and keyboard behavior
 
 `src/lib/ui/modal-dialog.ts` is the shared action for native modal dialogs.

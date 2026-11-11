@@ -119,6 +119,7 @@ for (const mode of ['idea', 'order']) {
     await page.getByTestId('drawing-cad-task').selectOption('files');
     await page.getByTestId('drawing-cad-review').click();
     await expect(page.getByTestId('drawing-cad-download')).toBeEnabled();
+    await page.getByTestId('drawing-cad-task').selectOption('edit');
     await page.getByRole('button', { name: 'Toggle read only' }).click();
     await expect(nodes.getByRole('button', { name: 'Update node', exact: true })).toBeDisabled();
     await expect(page.getByTestId('drawing-tool-cad-bezier')).toBeDisabled();

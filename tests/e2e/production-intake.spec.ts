@@ -179,6 +179,7 @@ test('new orders save and link an uploaded source before opening analysis withou
  await page.locator('#clientName').fill('Drawing customer');
  await page.locator('#deadline').fill('2099-11-25');
  await page.locator('#file-upload').setInputFiles({name:'Artwork.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6S8AAAAASUVORK5CYII=','base64')});
+ await page.locator('.creation-more > summary').click();
  await page.getByRole('button',{name:'Save & analyze PDF',exact:true}).click();
  await expect.poll(()=>observed.navigation).toContain(`/orders/${orderSheetIds.first}/edit?section=intake`);
  expect(observed.writes.map(w=>w.path)).toEqual(['/api/draft-orders','/api/files/upload']);
@@ -527,4 +528,68 @@ for (const width of [390, 1440]) test(`new order workspace keeps fields while ch
  await page.getByRole('button',{name:'Save draft',exact:true}).click();
  await expect(page.locator('#new-order-form')).toBeVisible();
  await expect(page.locator('.error-banner')).toBeVisible();
+});
+
+test('new-order recovery preserves partial uploads, serializes deletion and protects unsaved work',async({page})=>{
+ const writes:Array<{method:string;path:string;body:string}>=[],navigation:string[]=[],errors:string[]=[];
+ let releaseCreate!:()=>void,releaseDelete!:()=>void;
+ const createGate=new Promise<void>(resolve=>releaseCreate=resolve);
+ let retryUploads=false,allowDelete=false,deletePending=false;
+ page.on('pageerror',error=>errors.push(error.message));
+ page.on('console',message=>{if(message.text().startsWith('[Mock navigation] goto: '))navigation.push(message.text());});
+ await page.route('**/api/**',async route=>{
+  const request=route.request(),path=new URL(request.url()).pathname,method=request.method(),body=request.postData()??'';
+  if(method==='GET')return route.fulfill({json:path==='/api/ai/order-intake'?{nativePdf:false,paidOcr:false}:[]});
+  writes.push({method,path,body});
+  if(path==='/api/draft-orders'){
+   await createGate;
+   return route.fulfill({status:201,json:{order:{id,updated_at:'2026-11-11T10:00:00Z'}}});
+  }
+  if(path===`/api/draft-orders/${id}`)return route.fulfill({json:{updatedAt:'2026-11-11T10:01:00Z'}});
+  if(path==='/api/files/upload'){
+   const attached=body.includes('filename="Attached.png"');
+   if(!attached&&!retryUploads)return route.fulfill({status:503,json:{message:'TEST ONLY upload unavailable'}});
+   return route.fulfill({status:201,json:{file:{id:attached?'33333333-3333-4333-8333-333333333333':'44444444-4444-4444-8444-444444444444'}}});
+  }
+  if(method==='DELETE'){
+   if(!allowDelete)return route.fulfill({status:503,json:{message:'TEST ONLY attachment retained'}});
+   deletePending=true;await new Promise<void>(resolve=>releaseDelete=resolve);
+   return route.fulfill({json:{success:true}});
+  }
+  return route.fulfill({status:405,json:{message:'Unexpected write'}});
+ });
+ await page.goto('/production-intake.html?new');
+ const leave=page.getByRole('button',{name:'Try leaving new order'});
+ await leave.click();await expect(page.getByTestId('new-order-navigation')).toHaveText('true');
+ await page.locator('#clientName').fill('TEST ONLY recovery');await page.locator('#deadline').fill('2099-11-25');
+ await page.locator('.qty-input').fill('0');
+ await page.getByRole('button',{name:'Save draft',exact:true}).click();
+ await expect(page.locator('.qty-input')).toBeFocused();
+ await expect(page.locator('.qty-input')).toHaveAttribute('aria-invalid','true');
+ await page.locator('.qty-input').fill('1');
+ page.once('dialog',dialog=>dialog.dismiss());await leave.click();
+ await expect(page.getByTestId('new-order-navigation')).toHaveText('false');
+ expect(await page.evaluate(()=>!window.dispatchEvent(new Event('beforeunload',{cancelable:true})))).toBe(true);
+ await page.locator('#file-upload').setInputFiles([{...pngFile,name:'Attached.png'},{...pngFile,name:'Queued.png'}]);
+ const save=page.getByRole('button',{name:'Save draft',exact:true});await save.click();
+ await expect(page.locator('#new-order-form')).toHaveAttribute('inert','');
+ await expect(page.locator('.profile-form input').first()).toBeDisabled();
+ await leave.click();await expect(page.getByTestId('new-order-navigation')).toHaveText('false');
+ releaseCreate();
+ await expect(page.locator('.error-banner')).toContainText('TEST ONLY upload unavailable');
+ const attached=page.locator('.file-list-item').filter({hasText:'Attached.png'});
+ await expect(attached).toContainText('Attached to draft');
+ page.once('dialog',dialog=>dialog.accept());await attached.getByRole('button',{name:'Remove',exact:true}).click();
+ await expect(page.locator('.error-banner')).toContainText('TEST ONLY attachment retained');
+ await expect(attached).toBeVisible();
+ allowDelete=true;page.once('dialog',dialog=>dialog.accept());await attached.getByRole('button',{name:'Remove',exact:true}).click();
+ await expect.poll(()=>deletePending).toBe(true);await expect(save).toBeDisabled();await expect(attached).toBeVisible();
+ releaseDelete();await expect(attached).toHaveCount(0);
+ retryUploads=true;await save.click();
+ await expect.poll(()=>navigation.length).toBe(1);
+ expect(writes.filter(write=>write.path==='/api/draft-orders').length).toBe(1);
+ expect(writes.filter(write=>write.path===`/api/draft-orders/${id}`&&write.method==='PUT').length).toBe(1);
+ expect(writes.filter(write=>write.path==='/api/files/upload'&&write.body.includes('filename="Attached.png"')).length).toBe(1);
+ await leave.click();await expect(page.getByTestId('new-order-navigation')).toHaveText('true');
+ expect(errors).toEqual([]);
 });

@@ -1,0 +1,2 @@
+# Preserve the exact CRLF output of the DXF writer for downstream CAD tests.
+tests/fixtures/cad/*.dxf -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

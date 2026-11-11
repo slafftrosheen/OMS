@@ -1,10 +1,11 @@
 <script lang="ts">
   import {prepareCreationCanvas} from '$lib/order/creation-canvas';
+  import {creationFormFingerprint, deleteCreationUpload} from '$lib/order/creation-state';
   import OrderDraftFields from '$lib/order/OrderDraftFields.svelte';
   import OrderIntakeAssistant from '$lib/order/OrderIntakeAssistant.svelte';
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onMount, onDestroy, tick, untrack } from 'svelte';
   import { modalDialog } from '$lib/ui/modal-dialog';
-  import { goto } from '$app/navigation';
+  import { goto, beforeNavigate } from '$app/navigation';
   import { t, locale } from 'svelte-i18n';
   import { creationWorkspaceCopy } from '$lib/order/creation-workspace-copy';
   const workspaceCopy = $derived(creationWorkspaceCopy($locale));
@@ -98,6 +99,7 @@
   }
   let uploadedFiles = $state<FileWithPreview[]>([]);
   let preparingFiles = $state(false);
+  let removingFileId = $state('');
   let fileUploadInput: HTMLInputElement | undefined = $state();
   let newGuideStep=$state<GuideStepId>('brief');
   let newGuideSection=$state<WorkspaceSection>('details');
@@ -345,6 +347,7 @@
   }
 
   function loadPreset(presetId: number | string) {
+    if(saving||successMessage)return;
     const preset = profilePresets.find(p => p.id === presetId);
     if (!preset) return;
 
@@ -429,8 +432,29 @@
     { id: createId(), quantity: 1, configuration: JSON.parse(JSON.stringify(defaultConfiguration)), collapsed: false }
   ]);
 
+  let canvasRevision = $state(0);
+  const contentFingerprint = $derived(JSON.stringify([
+    creationFormFingerprint({clientName,title,deadline,loadingDate,notes,priority,isRd,rdNotes,
+      selectedPresetId,deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail}, profiles),
+    uploadedFiles.map(file => file.uploadId), canvasRevision
+  ]));
+  let savedContentFingerprint = $state(untrack(() => contentFingerprint));
+  const hasPendingWork = $derived(saving || preparingFiles || !!removingFileId || contentFingerprint !== savedContentFingerprint);
+  let navigatingSavedOrder = false;
+  beforeNavigate(({cancel,willUnload}) => {
+    if (willUnload || navigatingSavedOrder || !hasPendingWork) return;
+    if (saving || preparingFiles || removingFileId) { cancel(); error=workspaceCopy.waitForFiles; return; }
+    if (!window.confirm($t('orderWorkspace.leaveWarning'))) cancel();
+  });
+  async function navigateSavedOrder(url:string) {
+    savedContentFingerprint=contentFingerprint;
+    navigatingSavedOrder=true;
+    try { await goto(url); }
+    finally { navigatingSavedOrder=false; }
+  }
+
   function applyIntakeFields(patch:Record<string,unknown>){
-    if(saving||!can($currentUser,'createDraftOrder'))return;
+    if(saving||successMessage||!can($currentUser,'createDraftOrder'))return;
     if(typeof patch.clientName==='string')clientName=patch.clientName;
     if(typeof patch.title==='string')title=patch.title;
     if(typeof patch.deadline==='string')deadline=patch.deadline;
@@ -466,7 +490,7 @@
     if (saving || switchingView) return;
     switchingView=true;
     try {
-      if(canvasMode&&creationEditor){const {getSnapshot}=await import('@tldraw/tldraw');creationSnapshot=getSnapshot(creationEditor.store);}
+      if(canvasMode&&creationEditor){const {getSnapshot}=await import('@tldraw/tldraw');creationEditor.complete();creationSnapshot=getSnapshot(creationEditor.store);}
       canvasMode=!canvasMode;creationEditor=null;
     } catch { error=workspaceCopy.viewFailed; }
     finally { switchingView=false; }
@@ -581,6 +605,7 @@
   }
 
   function selectPreset(preset: DeliveryPreset) {
+    if(saving||successMessage)return;
     selectedPresetId = preset.id;
     clientName = preset.clientName || preset.name || '';
     
@@ -616,6 +641,7 @@
   }, {} as Record<string, DeliveryPreset[]>));
 
   function addProfile() {
+    if(saving||successMessage)return;
     const newProfile = {
       id: createId(),
       quantity: 1,
@@ -627,6 +653,7 @@
   }
 
   function removeProfile(id: string) {
+    if(saving||successMessage)return;
     if (profiles.length > 1) {
       profiles = profiles.filter(p => p.id !== id);
     }
@@ -639,6 +666,7 @@
   }
 
   function duplicateProfile(id: string) {
+    if(saving||successMessage)return;
     const sourceProfile = profiles.find(p => p.id === id);
     if (sourceProfile) {
       const newProfile = {
@@ -670,7 +698,7 @@
   }
 
   async function addFiles(newFiles: File[]) {
-    if (saving || preparingFiles || successMessage) return [];
+    if (saving || preparingFiles || removingFileId || successMessage) return [];
     const added:FileWithPreview[]=[];
     preparingFiles = true;
     try {
@@ -704,9 +732,21 @@
     });
   }
 
-  function removeFile(index: number) {
-    if (saving || switchingView || preparingFiles || successMessage) return;
+  async function removeFile(index: number) {
+    if (saving || switchingView || preparingFiles || removingFileId || successMessage) return;
     const removed = uploadedFiles[index];
+    if (!removed) return;
+    const storedId=canvasFileLinks[removed.uploadId];
+    if (storedId) {
+      if (!confirm($t('orderFiles.deleteConfirm',{values:{name:removed.file.name}}))) return;
+      removingFileId=removed.uploadId;
+      error='';
+      try { await deleteCreationUpload(storedId,base); }
+      catch (failure) { error=(failure instanceof Error && failure.message)||$t('orderFiles.deleteError'); return; }
+      finally { removingFileId=''; }
+      delete canvasFileLinks[removed.uploadId];
+      uploadedFileKeys=new Set([...uploadedFileKeys].filter(id=>id!==removed.uploadId));
+    }
     if(removed){removedCanvasFiles.add(removed.uploadId);if(creationEditor)creationEditor.deleteShapes(creationEditor.getCurrentPageShapes().filter((shape:any)=>shape.props?.fileId===removed.uploadId).map((shape:any)=>shape.id));}
     uploadedFiles = uploadedFiles.filter((_, i) => i !== index);
     if (selectedFileIndex === index) {
@@ -746,7 +786,7 @@
   }
 
   async function saveOrder(destination:'review'|'assistant'|'intake'|'draft'='review') {
-    if (saving || switchingView || preparingFiles || successMessage) return;
+    if (saving || switchingView || preparingFiles || removingFileId || successMessage) return;
     if (!can($currentUser, 'createDraftOrder')) { error = 'Manager role required to create orders'; return; }
     error = '';
     fieldErrors = {};
@@ -769,11 +809,15 @@
     // If any validation failed, surface the first message as the banner error.
     if (Object.keys(fieldErrors).length > 0) {
       error = $t('orders.new.messages.validation.summary') || 'Please fix the highlighted fields.';
-      await revealOrderSection(fieldErrors.files ? 'new-order-files' : 'new-order-details');
+      await revealOrderSection(fieldErrors.files ? 'new-order-files' : Object.keys(fieldErrors).some(key=>key.startsWith('profiles.')) ? 'new-order-profiles' : 'new-order-details');
       document.querySelector<HTMLElement>('#new-order-form [aria-invalid="true"]')?.focus();
       return;
     }
 
+    // Finish the active pen/polyline gesture before the editor becomes read-only;
+    // completing a CAD tool after that transition cancels its unfinished path.
+    try { creationEditor?.complete(); }
+    catch { error=workspaceCopy.viewFailed; return; }
     saving = true;
     successMessage = '';
 
@@ -793,7 +837,7 @@
       if (!orderId) {
         const createData = { ...orderData, status: 'DRAFT' as const };
 
-        const orderResponse = await fetch('/api/draft-orders', {
+        const orderResponse = await fetch(`${base}/api/draft-orders`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(createData)
@@ -814,7 +858,7 @@
         savedOrderId = String(orderId);
         savedOrderUpdatedAt = orderResult.order?.updated_at ?? orderResult.order?.updatedAt ?? null;
       } else {
-        const updated = await fetch(`/api/draft-orders/${orderId}`, {
+        const updated = await fetch(`${base}/api/draft-orders/${orderId}`, {
           method:'PUT',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({...orderData,expectedUpdatedAt:savedOrderUpdatedAt})
         });
@@ -869,21 +913,21 @@
       await persistCreationCanvas(String(orderId));
       // Both AI actions keep the form and linked attachments saved as a DRAFT.
       // Review submission remains a separate, explicit action below.
-      if(destination==='draft'){await goto(`${base}/orders/${encodeURIComponent(String(orderId))}/edit?section=details`);return;}
+      if(destination==='draft'){await navigateSavedOrder(`${base}/orders/${encodeURIComponent(String(orderId))}/edit?section=details`);return;}
       if(destination==='intake'){
         successMessage=$t('orderAssistant.draftSaved');
-        await goto(`${base}/orders/${encodeURIComponent(String(orderId))}/edit?section=intake`);
+        await navigateSavedOrder(`${base}/orders/${encodeURIComponent(String(orderId))}/edit?section=intake`);
         return;
       }
       if(destination==='assistant'){
         successMessage=$t('orderAssistant.draftSaved');
-        await goto(`${base}/orders/${encodeURIComponent(String(orderId))}/edit?section=chat&assist=profiles`);
+        await navigateSavedOrder(`${base}/orders/${encodeURIComponent(String(orderId))}/edit?section=chat&assist=profiles`);
         return;
       }
 
       // Review publication occurs only after all uploaded files are linked
       // to this draft. On failure retain savedOrderId for safe retry.
-      const submitResponse = await fetch(`/api/draft-orders/${orderId}/submit`, {
+      const submitResponse = await fetch(`${base}/api/draft-orders/${orderId}/submit`, {
         method: 'POST'
       });
       if (!submitResponse.ok) {
@@ -894,7 +938,7 @@
       savedOrderId = null;
       savedOrderUpdatedAt = null;
       successMessage = $t('orders.new.messages.success');
-      setTimeout(() => goto(`/orders`), 1500);
+      await navigateSavedOrder(`${base}/orders`);
     } catch (err) {
       console.error('Error saving order:', err);
       error = err instanceof Error?err.message:$t('admin.users.messages.save_error');
@@ -918,12 +962,16 @@
     <p>{$t('orderAssistant.saveAndAskHint')}</p>
     <button class="btn-secondary" type="button"
       onclick={()=>void saveOrder('assistant')}
-      disabled={saving || switchingView || preparingFiles || !!successMessage || !can($currentUser, 'createDraftOrder')}>
+      disabled={saving || switchingView || preparingFiles || !!removingFileId || !!successMessage || !can($currentUser, 'createDraftOrder')}>
       <Icon name="save" size="sm" /> {$t('orderAssistant.saveAndAsk')}
     </button>
     {#if error}<p class="assistant-form-error" role="alert">{error}</p>{/if}
   </div>
 {/snippet}
+
+<svelte:window onbeforeunload={event => {
+  if (hasPendingWork && !navigatingSavedOrder) { event.preventDefault(); event.returnValue=''; }
+}} />
 
 <svelte:head>
   <!-- PDF.js loaded locally via runes import to avoid external CDN dependency -->
@@ -944,21 +992,21 @@
     </div>
     <div class="header-actions">
       <button type="button" class="btn-secondary" onclick={()=>void saveOrder('draft')}
-        disabled={saving||switchingView||preparingFiles||!!successMessage||!can($currentUser,'createDraftOrder')}>
+        disabled={saving||switchingView||preparingFiles||!!removingFileId||!!successMessage||!can($currentUser,'createDraftOrder')}>
         <Icon name="save" size="sm" /> {workspaceCopy.saveDraft}
       </button>
       <details class="creation-more">
         <summary class="btn-secondary">{workspaceCopy.more}</summary>
         <div>
           <button type="button" class="btn-secondary" onclick={()=>void saveOrder('intake')}
-            disabled={saving||switchingView||preparingFiles||!!successMessage||!can($currentUser,'createDraftOrder')}>
+            disabled={saving||switchingView||preparingFiles||!!removingFileId||!!successMessage||!can($currentUser,'createDraftOrder')}>
             <Icon name="file-text" size="sm" /> {$t('orderIntake.saveAndAnalyze')}
           </button>
           <button type="button" class="btn-secondary" disabled={saving||switchingView} onclick={() => goto(`${base}/orders`)}>{$t('actions.cancel')}</button>
         </div>
       </details>
       <button id="new-order-save" type="button" class="btn-primary" use:nextActionHalo={canContinueToReview}
-        aria-busy={saving} onclick={()=>void saveOrder('review')} disabled={saving || switchingView || preparingFiles || !!successMessage || !can($currentUser, 'createDraftOrder')}>
+        aria-busy={saving} onclick={()=>void saveOrder('review')} disabled={saving || switchingView || preparingFiles || !!removingFileId || !!successMessage || !can($currentUser, 'createDraftOrder')}>
         {#if saving}
           <span class="spinner"></span>
           {$t('actions.saving')}
@@ -1001,7 +1049,7 @@
 
   <details id="new-order-intake" class="intake-disclosure full-width" bind:open={intakeOpen}>
     <summary>{$t('orderIntake.title')}</summary>
-    <OrderIntakeAssistant showHeading={false} editable={!saving&&can($currentUser,'createDraftOrder')}
+    <OrderIntakeAssistant showHeading={false} editable={!saving&&!removingFileId&&!successMessage&&can($currentUser,'createDraftOrder')}
       current={{clientName,title,deadline,loadingDate,priority,notes,deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail,isRd,rdNotes,profiles}}
       localFiles={uploadedFiles.map(entry=>({id:entry.uploadId,file:entry.file}))}
       onAddFiles={async files=>(await addFiles(files)).map(entry=>({id:entry.uploadId,file:entry.file}))}
@@ -1013,16 +1061,16 @@
   {#if canvasMode}
     <section aria-label={workspaceCopy.drawing} style="height:75vh;min-height:600px;position:relative;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden">
       {#await import('$lib/components/canvas/TldrawWrapper.svelte') then module}
-        <module.default snapshot={creationSnapshot} onReady={editor=>creationEditor=editor} onSave={snapshot=>creationSnapshot=snapshot}
-          onError={message=>error=message} onFilesUpload={addCanvasFiles} toolkitReadOnly={saving}
+        <module.default snapshot={creationSnapshot} onReady={editor=>creationEditor=editor} onSave={snapshot=>creationSnapshot=snapshot} onDocumentChange={()=>canvasRevision++}
+          onError={message=>error=message} onFilesUpload={addCanvasFiles} toolkitReadOnly={saving||!!successMessage}
           orderSeed={{orderId:creationId,isRd,rdNotes,title,clientName,deadline,loadingDate,priority,notes,deliveryAddress,deliveryContact,deliveryPhone,deliveryEmail,profiles}}
           onOrderChange={(_id,patch)=>applyIntakeFields(patch)}
-          onProfileQuantityChange={(_id,index,quantity)=>{if(!saving)profiles=profiles.map((profile,i)=>i===index?{...profile,quantity}:profile);}}
-          onProfileChange={(_id,index,configuration)=>{if(!saving)profiles=profiles.map((profile,i)=>i===index?{...profile,configuration}:profile);}}/>
+          onProfileQuantityChange={(_id,index,quantity)=>{if(!saving&&!successMessage)profiles=profiles.map((profile,i)=>i===index?{...profile,quantity}:profile);}}
+          onProfileChange={(_id,index,configuration)=>{if(!saving&&!successMessage)profiles=profiles.map((profile,i)=>i===index?{...profile,configuration}:profile);}}/>
       {/await}
     </section>
   {/if}
-  <div id="new-order-form" hidden={canvasMode}>
+  <div id="new-order-form" hidden={canvasMode} inert={saving||!!successMessage} aria-busy={saving}>
   <!-- 1. PROFILES SECTION (TOP) -->
   <section id="new-order-profiles" tabindex="-1" class="profiles-section full-width">
     <div class="profiles-header">
@@ -1063,7 +1111,9 @@
           <div class="profile-actions">
             <div class="quantity-control">
               <label for="qty-{profile.id}">{$t('orderSheet.quantity')}:</label>
-              <input type="number" id="qty-{profile.id}" bind:value={profile.quantity} min="1" max="100" class="qty-input" />
+              <input type="number" id="qty-{profile.id}" bind:value={profile.quantity} min="1" max="100" class="qty-input"
+                disabled={saving||!!successMessage} aria-invalid={!!fieldErrors[`profiles.${i}.quantity`]}
+                aria-describedby={fieldErrors[`profiles.${i}.quantity`]?`qty-error-${profile.id}`:undefined}/>
             </div>
             <button class="btn-icon" onclick={() => saveAsPreset(i)} title={$t('orderForm.save_as_preset')} aria-label={$t('orderForm.save_as_preset')}>
               <Icon name="bookmark-plus" size="sm" />
@@ -1078,10 +1128,12 @@
             {/if}
           </div>
         </div>
+        {#if fieldErrors[`profiles.${i}.quantity`]}<p id="qty-error-{profile.id}" class="field-error" role="alert">{fieldErrors[`profiles.${i}.quantity`]}</p>{/if}
         {#if !profile.collapsed}
           <div class="visual-wrapper">
             <Profile7stVisual
               bind:configuration={profile.configuration}
+              readonly={saving||!!successMessage}
             />
           </div>
         {/if}
@@ -1117,16 +1169,17 @@
             accept=".pdf,.cdr,.dxf,.jpg,.jpeg,.png,.gif,.webp"
             onchange={handleFileSelect}
             hidden
-            disabled={saving||preparingFiles||!!successMessage}
+            disabled={saving||preparingFiles||!!removingFileId||!!successMessage}
           />
           <button type="button" class="upload-label" aria-label={$t('orders.new.files.upload')}
-            disabled={saving||preparingFiles||!!successMessage} onclick={()=>fileUploadInput?.click()}>
+            disabled={saving||preparingFiles||!!removingFileId||!!successMessage} onclick={()=>fileUploadInput?.click()}>
             <Icon name="upload" size="lg" />
             <span class="upload-text">{$t('orders.new.files.drag_drop')}</span>
             <span class="upload-hint">{$t('orders.new.files.formats')}</span>
           </button>
         </div>
         {#if preparingFiles}<p class="help-text" role="status">{$t('orders.new.files.preparing')}</p>{/if}
+        {#if removingFileId}<p class="help-text" role="status">{workspaceCopy.deleting}</p>{/if}
         
         {#if uploadedFiles.length > 0}
           <div class="file-list">
@@ -1153,6 +1206,7 @@
                   <div class="file-list-info">
                     <span class="file-list-name" title={fileItem.file.name}>{fileItem.file.name}</span>
                     <span class="file-list-size">{formatFileSize(fileItem.file.size)}</span>
+                    {#if uploadedFileKeys.has(fileItem.uploadId)}<span class="file-list-size">{workspaceCopy.attached}</span>{/if}
                   </div>
                   <div class="file-list-actions">
                     {#if ['application/pdf','image/jpeg','image/png','image/webp'].includes(fileItem.file.type)}
@@ -1163,7 +1217,7 @@
                         <Icon name="eye" size="xs" />
                       </button>
                     {/if}
-                    <button class="btn-icon-sm danger" disabled={saving||preparingFiles||!!successMessage} onclick={(e) => { e.stopPropagation(); removeFile(i); }} title={$t('common.remove')} aria-label={$t('common.remove')}>
+                    <button class="btn-icon-sm danger" disabled={saving||preparingFiles||!!removingFileId||!!successMessage} onclick={(e) => { e.stopPropagation(); removeFile(i); }} title={$t('common.remove')} aria-label={$t('common.remove')}>
                       <Icon name="trash-2" size="xs" />
                     </button>
                   </div>
@@ -2427,5 +2481,6 @@
   .creation-workspace-bar button:focus-visible, .creation-more summary:focus-visible, .intake-disclosure > summary:focus-visible { outline:2px solid var(--focus,var(--brand)); outline-offset:2px; }
   .creation-workspace-bar button:hover:not(:disabled) { background:var(--bg-2); }
   .creation-workspace-bar button:disabled { opacity:.5; cursor:not-allowed; }
+  .field-error { color:var(--error); margin:var(--space-sm) 0; }
   #new-order-form [tabindex="-1"] { scroll-margin-top:var(--space-lg); }
 </style>

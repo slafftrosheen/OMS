@@ -25,6 +25,8 @@ Applying replaces the source objects in one undo operation. Selection/document/i
 
 The F10 node editor separates **Segment editing** from **Contour editing**. **Break curve at node** opens a closed contour at the chosen node while retaining its closing cubic, or splits an open contour at an interior node into two paths within the same object. Use Break apart for independent objects, or Join to reconnect the two paths. This adds one node and obeys the existing node/contour limits.
 
+Closing a broken contour merges its exactly coincident seam endpoints and retains the incoming/outgoing cubic controls, without adding a zero-length closing segment. Merely nearby endpoints are not snapped. Closing other open contours adds a closing segment; it does not apply the Join merge tolerance.
+
 **To straight segment** removes only the outgoing/incoming controls of the selected segment; adjacent segments retain their controls. **To Bézier segment** adds one-third/two-thirds controls to a straight segment, preserving its line geometry and making its handles draggable. It does not straighten an existing Bézier curve. For an open contour, the last node has no outgoing segment. Node operations are undoable and respect locks/read-only state.
 
 ## Operator flow
@@ -84,6 +86,8 @@ Limits: 2–256 vertices per simple CAD path, at least three for closed paths; B
 `$INSUNITS` recognizes mm, cm, m, inches, feet, kilometres, mils, yards and micrometres. The override can specify mm/cm/m/in. Binary DXF, CDR and DWG are not parsed. Hidden/frozen layers are omitted. Import does not preserve the complete original CAD document, layouts, constraints, text or layer structure; it creates editable production geometry in the existing OMS snapshot. Separate DXF contours remain separate objects: for a part with nested holes, select its contours and use **Combine** to make a compound before offsetting; welding separate objects intentionally unions them as solids.
 
 ## Verification and remaining work
+
+Start operator acceptance with [the test sequence](canvas-acceptance.md) and the committed [production reference DXF](../../tests/fixtures/cad/production-reference.dxf). The round-trip regression imports that file at mm 1:1, mm 1:10 and inch display 1:10, saves through the order snapshot preparation and native serialized tldraw store, then independently compares every exported entity's geometry. It checks seven entities, four closed/three open contours and 1220 × 600 mm overall extents. This complements the independent ezdxf audit; it does not validate a physical machine.
 
 The CAD unit suite exercises the native schema store round trip and native resize/mirror implementations, including rotated parents, unit conversion, calibration, reference points, exact small geometry, endpoint snapping, drawing history, permissions, mixed-case native point ordering and DXF omission/limit handling. Join tests check all endpoint orientations, transformed control points, physical gap limits, exact break/rejoin round trips, open-seam DXF output and protected mutations. Compound tests independently parse DXF before and after splitting, compare cubic controls under rotated parents, and check traversal reversal, closed seams, undo and rejected mutations. Browser cases are provided for both hosts: task draft retention, compound operations, break/join previews, interactive contours, physical unit changes, text outlines, node splitting, import/offset previews, DXF downloads and stale-review guards. They have not run successfully in this hosted environment.
 
