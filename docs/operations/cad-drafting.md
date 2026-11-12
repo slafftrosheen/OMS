@@ -62,6 +62,16 @@ Closing a broken contour merges its exactly coincident seam endpoints and retain
 11. **Import CAD · DXF** reads an ASCII DXF locally, reviews units, physical size and unsupported entities, then applies one undoable import. A unitless or unknown-unit file requires an explicit source unit. Keep source coordinates or align the drawing’s lower-left to the document origin. Review and acknowledge any omissions. Editing the document or import inputs invalidates the preview. CDR/DWG must first be exported as DXF in a compatible application.
 12. Open **DXF export**, choose selected objects or the entire page, select exact SPLINE or flattened Bézier polylines, and **Review export**. Flattened output has an explicit 0.001–1 mm tolerance for downstream software that cannot read SPLINE; circles/ellipses/arcs retain their own analytic DXF types. Check the entity count, open/closed contour counts, physical extents and omissions. Any omitted objects require explicit acknowledgment before download. An empty export is blocked. Editing the drawing, selection or settings invalidates the report until reviewed again.
 
+## Node and segment inspection
+
+**F10 → Bézier nodes** follows a node or control handle clicked on the canvas. A ring and `contour:node` label identify the current node and a highlight marks its outgoing segment. The contour/node selectors work in both directions, including compounds above the 128-node direct-handle limit. Collapsed control handles no longer cover the anchor; use **To Bézier segment** or numeric handle offsets to add controls to a straight segment. Inspection state is editor-local and is neither saved nor exported.
+
+**Shape / nodes (F10)** switches Bézier shapes from their bounding-box resize/rotation targets to node handles, avoiding overlapping hit targets at corners. **Select / move (V)** or Escape returns to normal object selection. Focusing the numeric node editor also enables node inspection. Normal object selection hides the control guides.
+
+For a straight outgoing segment, **Segment length / Direction → Move segment end** fixes the selected node and moves the next node in document units, including inside rotated groups. Positive angles turn counterclockwise: 0° right, 90° up. The next node's relative controls move with it, so its adjoining segment changes too. The closing segment moves the first node. Enter in these fields applies the segment edit; each change is one undo step.
+
+**Split position (%)** accepts values strictly between 0 and 100. Straight segments split by length fraction and remain straight. Bézier segments use exact De Casteljau subdivision at parameter `t = percentage / 100`, not arc-length percentage. Geometry is preserved and the inserted node is selected. Existing symmetric endpoints become smooth because subdivision shortens only one of their handles. Enter in the split field applies the split. Invalid inputs, node limits, locks, read-only state and protected order-form ancestry block mutation.
+
 ## Units and accuracy
 
 Settings are stored in the current page's `meta.omsCad` (`version: 1`). At scale 1:1, 96 document pixels represent 25.4 mm. At scale 1:N, one document pixel represents `25.4 / 96 × N` mm. Screen DPI, zoom and PNG export settings do not enter this conversion. Changing the display unit preserves physical geometry and nudge distance; changing scale deliberately recalibrates physical size. Display precision does not round the stored geometry or DXF.
@@ -112,6 +122,7 @@ The CAD unit suite exercises the native schema store round trip and native resiz
 ```sh
 node packages/vitest/bin.js tests/unit/cad-drawing.test.ts tests/unit/cad-advanced.test.ts tests/unit/cad-compound.test.ts tests/unit/cad-join.test.ts
 node packages/vitest/bin.js tests/unit/cad-precision-entry.test.ts
+node packages/vitest/bin.js tests/unit/cad-node-editing.test.ts
 node packages/vitest/bin.js tests/unit/drawing-radial.test.ts
 npx playwright test --config tests/ui/playwright.drawing-workspace.config.ts
 node --import tsx scripts/qa/export-cad-fixture.ts

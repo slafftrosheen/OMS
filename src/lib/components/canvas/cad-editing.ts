@@ -1,6 +1,7 @@
 import { type Editor, type TLShape } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
-import { cadMmPerPixel, cadPointToCanvas, canvasPointToCad, type CadSettings } from './cad-settings';
+import { cadMmPerPixel, cadPointToCanvas, canvasPointToCad, validateCadSettings, type CadSettings } from './cad-settings';
+import { resolveCadDraftPoint } from './cad-polyline-draft';
 import {
   arcContour,
   cubicPoints,
@@ -126,18 +127,28 @@ export function updateCadCurveNode(
     contours[ci].nodes[ni] = local;
   });
 }
-export function splitCadCurveSegment(editor: Editor, ci: number, ni: number): boolean {
+/** Lines split by length fraction; cubics split exactly at parameter t. */
+export function splitCadCurveSegment(editor: Editor, ci: number, ni: number, t = 0.5): boolean {
+  if (!Number.isFinite(t) || t <= 0 || t >= 1 || !Number.isInteger(ci) || !Number.isInteger(ni)) return false;
   return editCurve(editor, (contours) => {
     const c = contours[ci],
       a = c.nodes[ni],
       next = (ni + 1) % c.nodes.length,
       b = c.nodes[next];
     if (!c.closed && ni === c.nodes.length - 1) throw new Error('segment');
-    const [left, right] = splitCubic(cubicPoints(a, b));
+    if (!a.outX && !a.outY && !b.inX && !b.inY) {
+      c.nodes.splice(ni + 1, 0, nodeAt({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }));
+      return;
+    }
+    const [left, right] = splitCubic(cubicPoints(a, b), t);
     a.outX = left[1].x - a.x;
     a.outY = left[1].y - a.y;
     b.inX = right[2].x - b.x;
     b.inY = right[2].y - b.y;
+    // Splitting shortens one handle at each existing endpoint. Collinearity
+    // survives, but equal handle lengths (symmetric mode) generally do not.
+    if (a.mode === 'symmetric') a.mode = 'smooth';
+    if (b.mode === 'symmetric') b.mode = 'smooth';
     c.nodes.splice(ni + 1, 0, {
       ...nodeAt(left[3]),
       inX: left[2].x - left[3].x,
@@ -146,6 +157,25 @@ export function splitCadCurveSegment(editor: Editor, ci: number, ni: number): bo
       outY: right[1].y - right[0].y,
       mode: 'smooth'
     });
+  });
+}
+/** Keep the start fixed; move the following anchor in physical document axes. */
+export function setCadStraightSegment(editor: Editor, settings: CadSettings, ci: number, ni: number, length: number, angle: number): boolean {
+  if (!validateCadSettings(settings) || !Number.isInteger(ci) || !Number.isInteger(ni)) return false;
+  const shape = editor.getOnlySelectedShape();
+  if (shape?.type !== 'cad-bezier') return false;
+  return editCurve(editor, contours => {
+    const contour = contours[ci], a = contour?.nodes[ni];
+    if (!a || !contour.closed && ni === contour.nodes.length - 1) throw new Error('segment');
+    const b = contour.nodes[(ni + 1) % contour.nodes.length];
+    if (a.outX || a.outY || b.inX || b.inY) throw new Error('curved-segment');
+    const start = editor.getShapePageTransform(shape).applyToPoint(a);
+    const end = resolveCadDraftPoint('polar', length, angle, start, settings);
+    if (!end) throw new Error('dimensions');
+    const local = editor.getPointInShapeSpace(shape, end);
+    b.x = local.x; b.y = local.y;
+    // Relative controls on adjoining segments travel with their anchors.
+    a.mode = b.mode = 'corner';
   });
 }
 export function deleteCadCurveNode(editor: Editor, ci: number, ni: number): boolean {

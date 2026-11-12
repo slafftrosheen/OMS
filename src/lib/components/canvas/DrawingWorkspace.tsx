@@ -1,4 +1,5 @@
 import {cadConstruction} from './cad-construction';
+import {isCadNodeEditing, setCadNodeEditing} from './cad-node-selection';
 import {CadPointEntry} from './CadPointEntry';
 import {TextPanel,ArrangePanel,MeasurePanel,FormScaleControl} from './WorkbenchPanels';
 import {useWorkbenchText} from './workbench-copy';
@@ -297,6 +298,7 @@ export function DrawingChrome() {
   const vectorLabel = useVectorText();
   const workbenchLabel = useWorkbenchText();
   const construction = useValue('CAD construction status', () => cadConstruction(editor).get(), [editor]);
+  const nodeEditing = useValue('CAD node editing mode', () => isCadNodeEditing(editor), [editor]);
   const constructionHint = construction ? workbenchLabel(construction.points.length === 0 ? 'pickFirst' : construction.points.length === 1 ? 'pickThrough' : construction.kind === 'arc' ? 'pickArcEnd' : 'pickThird') : '';
   const [toolGroup,setToolGroup]=useState<number|null>(null);
   const [groupTools,setGroupTools]=useState<Record<number,string>>({});
@@ -332,6 +334,7 @@ export function DrawingChrome() {
   function chooseTool(tool: string) {
     if (editor.getInstanceState().isReadonly && !['hand', 'select', 'nodes'].includes(tool)) return;
     if(tool==='nodes'){focusCad('nodes');setToolGroup(null);return;}
+    setCadNodeEditing(editor, false);
     setToolGroup(null);
     const group=toolGroups.findIndex(items=>items.includes(tool));if(group>=0)setGroupTools(previous=>({...previous,[group]:tool}));
     if(tool==='text')context?.setPanel('text');
@@ -348,6 +351,9 @@ export function DrawingChrome() {
   useEffect(()=>{if(toolGroup===null)return;const close=(event:PointerEvent)=>{if(!(event.target instanceof Element)||!event.target.closest('.drawing-toolbox'))setToolGroup(null);};document.addEventListener('pointerdown',close);return ()=>document.removeEventListener('pointerdown',close);},[toolGroup]);
   function command(action: string) { if (!applyDrawingCommand(editor, action)) setNotice(label('changedFailed')); else setNotice(''); }
   function focusCad(section: CadFocusRequest['section']) {
+    if (section === 'nodes' || section === 'convert') {
+      editor.complete(); editor.setCurrentTool('select'); setCadNodeEditing(editor, true);
+    }
     context?.setPanel('cad'); closeMenus();
     setCadFocus(previous => ({ section, sequence: (previous?.sequence ?? 0) + 1 }));
   }
@@ -563,7 +569,7 @@ export function DrawingChrome() {
       <ToolButton icon="properties" label={label('properties')} active={panel === 'properties'} onClick={() => setPanel(panel === 'properties' ? null : 'properties')} testId="drawing-properties-toggle" />
     </>)}
     {portal('properties', <>
-      <span className="drawing-tool-name">{toolLabel(controls.tool)}</span><span className="drawing-divider" />
+      <span className="drawing-tool-name">{toolLabel(nodeEditing ? 'nodes' : controls.tool)}</span><span className="drawing-divider" />
       {controls.tool === 'cad-polyline' ? <CadPointEntry settings={settings}/> : <>
       {settings && <><CadAnchorControl value={cadAnchor} onChange={setCadAnchor} />
         <ToolButton icon={proportional ? 'lock' : 'unlock'} label={cadLabel('proportional')} active={proportional} onClick={() => setProportional(value => !value)} testId="drawing-cad-proportional" /></>}
@@ -581,7 +587,7 @@ export function DrawingChrome() {
       {toolGroups.map((group,index)=>{
         const current=group.includes(controls.tool)?controls.tool:(groupTools[index]??group[0]);
         return <div className="drawing-tool-group" key={index}>
-          <ToolButton icon={current} label={`${toolLabel(current)}${shortcut[current]?` (${shortcut[current]})`:''}`} active={group.includes(controls.tool)} disabled={controls.readOnly&&!['select','hand','nodes'].includes(current)} onClick={()=>chooseTool(current)} testId={`drawing-tool-${current}`}/>
+          <ToolButton icon={current} label={`${toolLabel(current)}${shortcut[current]?` (${shortcut[current]})`:''}`} active={current === 'nodes' ? nodeEditing : current === 'select' ? controls.tool === 'select' && !nodeEditing : group.includes(controls.tool)} disabled={controls.readOnly&&!['select','hand','nodes'].includes(current)} onClick={()=>chooseTool(current)} testId={`drawing-tool-${current}`}/>
           {group.length>1&&<button type="button" className="drawing-tool-expand" aria-label={`${workbenchLabel('more')}: ${toolLabel(current)}`} aria-expanded={toolGroup===index} onClick={()=>setToolGroup(toolGroup===index?null:index)}>▸</button>}
           {group.length>1&&toolGroup===index&&<div className="drawing-tool-flyout" role="group" aria-label={workbenchLabel(index===3?'curves':index===4?'shapes':'annotations')}>
             {group.map(tool=><button type="button" key={tool} disabled={controls.readOnly} aria-pressed={controls.tool===tool} onClick={()=>chooseTool(tool)} data-testid={`drawing-flyout-${tool}`}><Icon name={tool}/><span>{toolLabel(tool)}</span></button>)}

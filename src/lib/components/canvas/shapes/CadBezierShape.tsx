@@ -1,5 +1,7 @@
 import React from "react";
 import { VectorArtwork } from "../VectorArtwork";
+import { isCadNodeEditing } from "../cad-node-selection";
+import { assertCadEditable } from "../cad-plans";
 import { transformAppearance } from "../cad-appearance";
 import { vectorPaint, paintMetadata } from "../cad-vector";
 import {
@@ -128,6 +130,9 @@ class CurveGeometry extends Group2d {
 }
 export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
   static override type = "cad-bezier" as const;
+  override hideResizeHandles = () => isCadNodeEditing(this.editor);
+  override hideRotateHandle = () => isCadNodeEditing(this.editor);
+  override hideSelectionBoundsFg = () => isCadNodeEditing(this.editor);
   static override props = {
     contours,
     color: DefaultColorStyle,
@@ -205,6 +210,7 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
   }
   override indicator(shape: CadBezierShape) {
     const showHandles =
+      isCadNodeEditing(this.editor) &&
       this.editor.getSelectedShapeIds().includes(shape.id) &&
       shape.props.contours.reduce((n, c) => n + c.nodes.length, 0) <= 128;
     const guides = showHandles
@@ -251,6 +257,7 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
     },
   });
   override getHandles(shape: CadBezierShape): TLHandle[] {
+    if (!isCadNodeEditing(this.editor)) return [];
     // Large text compounds are edited one contour/node at a time in the docker.
     if (shape.props.contours.reduce((n, c) => n + c.nodes.length, 0) > 128)
       return [];
@@ -264,7 +271,8 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
           type: "vertex",
           canSnap: true,
         });
-        if (c.closed || ni > 0)
+        // Collapsed control handles otherwise cover the node and steal its drag.
+        if ((c.closed || ni > 0) && (n.inX || n.inY))
           handles.push({
             id: `${ci}:${ni}:in`,
             x: n.x + n.inX,
@@ -272,7 +280,7 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
             type: "virtual",
             canSnap: false,
           });
-        if (c.closed || ni < c.nodes.length - 1)
+        if ((c.closed || ni < c.nodes.length - 1) && (n.outX || n.outY))
           handles.push({
             id: `${ci}:${ni}:out`,
             x: n.x + n.outX,
@@ -289,11 +297,7 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
     shape,
     { handle },
   ) => {
-    if (
-      this.editor.getInstanceState().isReadonly ||
-      this.editor.isShapeOrAncestorLocked(shape)
-    )
-      return;
+    try { assertCadEditable(this.editor, [shape.id]); } catch { return; }
     const [ci, ni, kind] = handle.id.split(":"),
       list = structuredClone(shape.props.contours),
       node = list[Number(ci)]?.nodes[Number(ni)];

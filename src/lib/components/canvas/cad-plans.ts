@@ -43,6 +43,13 @@ export function assertCadEditable(editor: Editor, ids: string[] = []): void {
       ['order-details', 'order-address', 'profile-7st'].includes(shape.type)
     )
       throw new CadOperationError('locked');
+    const seen = new Set<string>();
+    let ancestor = editor.getShape(shape.parentId as TLShapeId);
+    while (ancestor && !seen.has(ancestor.id)) {
+      if (['order-details', 'order-address', 'profile-7st'].includes(ancestor.type)) throw new CadOperationError('locked');
+      seen.add(ancestor.id);
+      ancestor = editor.getShape(ancestor.parentId as TLShapeId);
+    }
   }
 }
 export function makeCadPlan(

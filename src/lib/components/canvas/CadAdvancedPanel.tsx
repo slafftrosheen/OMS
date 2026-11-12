@@ -7,7 +7,8 @@ import { useCadAdvancedText, type CadAdvancedLabel } from './cad-advanced-copy';
 import { unitMm, type CadSettings, type CadUnit } from './cad-settings';
 import { curveBounds, curvePathData, type CadBezierNode } from './cad-curves';
 import { applyCadPlan, cadRevision, type CadPlan } from './cad-plans';
-import { getCadCurveSelection, updateCadCurveNode, splitCadCurveSegment, deleteCadCurveNode, setCadCurveClosed, convertSelectionToCurves, reverseCadContour, setCadContourStart, breakCadCurveAtNode, setCadSegmentKind } from './cad-editing';
+import { getCadCurveSelection, updateCadCurveNode, splitCadCurveSegment, deleteCadCurveNode, setCadCurveClosed, convertSelectionToCurves, reverseCadContour, setCadContourStart, breakCadCurveAtNode, setCadSegmentKind, setCadStraightSegment } from './cad-editing';
+import { getSelectedCadNode, selectCadNode, setCadNodeEditing } from './cad-node-selection';
 import { prepareCadJoin, type CadJoinOptions, type CadJoinPlan } from './cad-join';
 import { applyCadCompound } from './cad-compound';
 import { prepareCadShaping } from './cad-shaping';
@@ -142,15 +143,17 @@ function CurveNodes({ settings, disabled, focus, sequence }: SharedProps & { foc
   const section = useRef<HTMLDetailsElement>(null); useFocusSection(section, focus, sequence);
   const selected = useValue('advanced curve nodes', () => settings ? getCadCurveSelection(editor, settings) : null, [editor, settings]);
   const selectedType = useValue('advanced curve conversion type', () => editor.getOnlySelectedShape()?.type, [editor]);
-  const [contourIndex, setContourIndex] = useState(0); const [nodeIndex, setNodeIndex] = useState(0);
+  const activeNode = useValue('CAD node inspection', () => getSelectedCadNode(editor), [editor]);
+  const contourIndex = activeNode?.contourIndex ?? 0, nodeIndex = activeNode?.nodeIndex ?? 0;
+  const setNodeIndex = (index: number) => selectCadNode(editor, contourIndex, index);
   const [values, setValues] = useState<Record<(typeof nodeFields)[number], string>>({ x: '', y: '', inX: '', inY: '', outX: '', outY: '' });
   const [mode, setMode] = useState<CadBezierNode['mode']>('corner'); const [message, setMessage] = useState<CadAdvancedLabel | ''>('');
   const [failed, setFailed] = useState(false); const errorId = useId();
+  const [segmentLength, setSegmentLength] = useState(''); const [segmentAngle, setSegmentAngle] = useState('');
+  const [splitPosition, setSplitPosition] = useState('50');
   const contour = selected?.contours[Math.min(contourIndex, selected.contours.length - 1)];
   const node = contour?.nodes[Math.min(nodeIndex, contour.nodes.length - 1)];
-  const signature = JSON.stringify([selected?.id, node, settings?.unit]);
-  useEffect(() => { setContourIndex(0); setNodeIndex(0); }, [selected?.id]);
-  useEffect(() => { if (selected && contourIndex >= selected.contours.length) setContourIndex(0); if (contour && nodeIndex >= contour.nodes.length) setNodeIndex(0); }, [selected, contour, contourIndex, nodeIndex]);
+  const signature = JSON.stringify([selected?.id, contourIndex, nodeIndex, node, settings]);
   useEffect(() => {
     if (node) { setValues(Object.fromEntries(nodeFields.map(key => [key, String(Number(node[key].toPrecision(14)))])) as typeof values); setMode(node.mode); }
   }, [signature]);
@@ -159,8 +162,31 @@ function CurveNodes({ settings, disabled, focus, sequence }: SharedProps & { foc
   const hasNext = !!contour && (contour.closed || nodeIndex < contour.nodes.length - 1);
   const next = hasNext ? contour?.nodes[(nodeIndex + 1) % contour.nodes.length] : undefined;
   const isStraight = !!node && !!next && !node.outX && !node.outY && !next.inX && !next.inY;
+  const segmentSignature = JSON.stringify([signature, next]);
+  useEffect(() => {
+    if (node && next) {
+      setSegmentLength(String(Number(Math.hypot(next.x - node.x, next.y - node.y).toPrecision(14))));
+      setSegmentAngle(String(Number((Math.atan2(next.y - node.y, next.x - node.x) * 180 / Math.PI).toPrecision(14))));
+    }
+  }, [segmentSignature]);
+  const validSegment = Number.isFinite(number(segmentLength)) && number(segmentLength) > 0 &&
+    Number.isFinite(number(segmentAngle)) && Math.abs(number(segmentAngle)) <= 360;
+  const validSplit = Number.isFinite(number(splitPosition)) && number(splitPosition) > 0 && number(splitPosition) < 100;
+  function applySegment() {
+    if (settings && !disabled && isStraight && validSegment && canChange(editor))
+      result(setCadStraightSegment(editor, settings, contourIndex, nodeIndex, number(segmentLength), number(segmentAngle)));
+  }
+  function applySplit() {
+    if (disabled || !hasNext || !validSplit || !canChange(editor)) return;
+    const success = splitCadCurveSegment(editor, contourIndex, nodeIndex, number(splitPosition) / 100);
+    if (success) setNodeIndex(nodeIndex + 1);
+    result(success);
+  }
+  function inputEnter(event: React.KeyboardEvent, apply: () => void) {
+    if (event.key === 'Enter' && (event.target as HTMLElement).tagName === 'INPUT') { event.preventDefault(); apply(); }
+  }
   const canConvert = !selected && selectedType !== 'text';
-  return <details ref={section} className="drawing-cad-section" data-testid="drawing-cad-nodes">
+  return <details ref={section} className="drawing-cad-section" data-testid="drawing-cad-nodes" onFocusCapture={() => setCadNodeEditing(editor, true)}>
     <summary>{label('nodes')}</summary>
     {!selected || !contour || !node ? <>
       <p className="drawing-help">{label('noCurve')}</p>
@@ -172,7 +198,8 @@ function CurveNodes({ settings, disabled, focus, sequence }: SharedProps & { foc
       result(updateCadCurveNode(editor, settings, contourIndex, nodeIndex, next));
     }}>
       <fieldset className="drawing-cad-fields" disabled={disabled || !settings} aria-describedby={errorId}>
-        <Field label={label('contour')}><select value={contourIndex} onChange={event => { setContourIndex(Number(event.target.value)); setNodeIndex(0); setMessage(''); }}>
+        <p className="drawing-help">{label('pickNodeHelp')}</p>
+        <Field label={label('contour')}><select value={contourIndex} onChange={event => { selectCadNode(editor, Number(event.target.value), 0); setMessage(''); }}>
           {selected.contours.map((_, index) => <option key={index} value={index}>{index + 1}</option>)}
         </select></Field>
         <Field label={label('node')}><select value={nodeIndex} onChange={event => { setNodeIndex(Number(event.target.value)); setMessage(''); }}>
@@ -187,9 +214,20 @@ function CurveNodes({ settings, disabled, focus, sequence }: SharedProps & { foc
         <div className="drawing-cad-actions">
           <button type="button" disabled={!hasNext || isStraight} onClick={() => { if (canChange(editor)) result(setCadSegmentKind(editor, contourIndex, nodeIndex, 'line')); }}>{label('toLine')}</button>
           <button type="button" disabled={!hasNext || !isStraight} onClick={() => { if (canChange(editor)) result(setCadSegmentKind(editor, contourIndex, nodeIndex, 'curve')); }}>{label('toCurve')}</button>
-          <button type="button" disabled={!contour.closed && nodeIndex === contour.nodes.length - 1} onClick={() => { if (canChange(editor)) result(splitCadCurveSegment(editor, contourIndex, nodeIndex)); }}>{label('split')}</button>
-          <button type="button" disabled={contour.nodes.length <= 2} onClick={() => { if (canChange(editor)) result(deleteCadCurveNode(editor, contourIndex, nodeIndex)); }}>{label('deleteNode')}</button>
-        </div></details>
+          <button type="button" disabled={contour.nodes.length <= 2} onClick={() => { if (canChange(editor)) { const success = deleteCadCurveNode(editor, contourIndex, nodeIndex); if (success) setNodeIndex(Math.min(nodeIndex, contour.nodes.length - 2)); result(success); } }}>{label('deleteNode')}</button>
+        </div>
+        {isStraight && <div className="drawing-cad-fields" onKeyDown={event => inputEnter(event, applySegment)}>
+          <Field label={`${label('segmentLength')} (${settings?.unit ?? 'mm'})`}><input type="number" step="any" value={segmentLength} aria-invalid={!Number.isFinite(number(segmentLength)) || number(segmentLength) <= 0} onChange={event => { setSegmentLength(event.target.value); setMessage(''); }} /></Field>
+          <Field label={`${label('segmentAngle')} (°)`}><input type="number" step="any" min={-360} max={360} value={segmentAngle} aria-invalid={!Number.isFinite(number(segmentAngle)) || Math.abs(number(segmentAngle)) > 360} onChange={event => { setSegmentAngle(event.target.value); setMessage(''); }} /></Field>
+          <button type="button" disabled={!validSegment} onClick={applySegment}>{label('updateSegment')}</button>
+          <p className="drawing-help">{label('segmentHelp')}</p>
+        </div>}
+        {hasNext && <div className="drawing-cad-fields" onKeyDown={event => inputEnter(event, applySplit)}>
+          <Field label={label('splitPosition')}><input type="number" step="any" value={splitPosition} aria-invalid={!validSplit} onChange={event => { setSplitPosition(event.target.value); setMessage(''); }} /></Field>
+          <button type="button" disabled={!validSplit} onClick={applySplit}>{label('split')}</button>
+          <p className="drawing-help">{label('splitPositionHelp')}</p>
+        </div>}
+        </details>
         <details className="drawing-node-tools"><summary>{label('contourTools')}</summary>
         <div className="drawing-cad-actions">
           <button type="button" disabled={!contour.closed && (nodeIndex === 0 || nodeIndex === contour.nodes.length - 1)} onClick={() => { if (canChange(editor)) { result(breakCadCurveAtNode(editor, contourIndex, nodeIndex)); setNodeIndex(0); } }}>{label('breakNode')}</button>
