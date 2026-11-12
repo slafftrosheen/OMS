@@ -12,7 +12,7 @@ import {
   makeCadPlan,
   type CadPlan,
 } from "./cad-plans";
-import { cadMmPerPixel, type CadSettings } from "./cad-settings";
+import { cadMmPerPixel, unitMm, type CadSettings } from "./cad-settings";
 import {
   prepareVectorImport,
   vectorPaint,
@@ -24,6 +24,8 @@ import { DEFAULT_TRACE_OPTIONS } from "./cad-trace";
 import { runRasterTrace } from "./cad-trace-client";
 import { prepareVectorExport } from "./cad-vector-export";
 import { prepareCorners, regularPolygon } from "./cad-corners";
+import { prepareNodeCorner, applyNodeCorner, type CadNodeCornerPlan } from './cad-node-corners';
+import { getSelectedCadNode, setCadNodeEditing } from './cad-node-selection';
 import { drawingTransaction } from "./drawing-commands";
 import { useVectorText, vectorError } from "./cad-vector-copy";
 
@@ -33,7 +35,7 @@ type Props = {
   disabled: boolean;
   focusSequence?: number;
 };
-type Review = { plan: CadPlan; key: string; original?: string };
+type Review = { plan: CadPlan; key: string; original?: string; originalContours?: CadPlan['contours']; previewBounds?: ReturnType<typeof curveBounds> };
 const limit = 12 * 1024 * 1024;
 function Field({
   label,
@@ -107,12 +109,14 @@ function Preview({
   revision,
   disabled,
   onApplied,
+  onApply,
 }: {
   review: Review;
   inputKey: string;
   revision: string;
   disabled: boolean;
   onApplied: () => void;
+  onApply?: () => boolean;
 }) {
   const editor = useEditor(),
     t = useVectorText();
@@ -123,8 +127,9 @@ function Preview({
     setFailed(false);
   }, [review]);
   const { plan } = review,
-    bounds = curveBounds(plan.contours),
-    padding = Math.max(bounds.w, bounds.h, 1) * 0.05;
+    bounds = review.previewBounds ?? curveBounds(plan.contours),
+    minimumSpan = review.previewBounds ? 1e-6 : 1,
+    padding = Math.max(bounds.w, bounds.h, minimumSpan) * 0.05;
   const stale = review.key !== inputKey || plan.revision !== revision;
   return (
     <div className="drawing-cad-report" data-testid="vector-review">
@@ -140,8 +145,9 @@ function Preview({
           <svg
             role="img"
             aria-label={t("result")}
-            viewBox={`${bounds.x - padding} ${bounds.y - padding} ${Math.max(bounds.w, 1) + 2 * padding} ${Math.max(bounds.h, 1) + 2 * padding}`}
+            viewBox={`${bounds.x - padding} ${bounds.y - padding} ${Math.max(bounds.w, minimumSpan) + 2 * padding} ${Math.max(bounds.h, minimumSpan) + 2 * padding}`}
           >
+            {review.originalContours && <path d={curvePathData(review.originalContours)} fill="none" stroke="#6b7280" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" opacity={0.7} />}
             {plan.shapes?.map((s, i) => {
               if (s.type !== "cad-bezier") return null;
               const p = vectorPaint(s.meta ?? {});
@@ -158,13 +164,14 @@ function Preview({
               <path
                 d={curvePathData(plan.contours)}
                 fill="none"
-                stroke="currentColor"
+                stroke={review.originalContours ? '#1d4ed8' : 'currentColor'}
                 vectorEffect="non-scaling-stroke"
               />
             )}
           </svg>
         </figure>
       </div>
+      {review.originalContours && <p className="drawing-help">{t('cornerCompare')}</p>}
       <dl className="drawing-cad-values">
         <dt>{t("paths")}</dt>
         <dd>{plan.contours.length}</dd>
@@ -198,7 +205,8 @@ function Preview({
         data-testid="vector-apply"
         disabled={disabled || stale || (!!plan.warnings.length && !ack)}
         onClick={() => {
-          if (applyCadPlan(editor, plan)) onApplied();
+          if (disabled || stale || plan.warnings.length && !ack) return;
+          if (onApply ? onApply() : applyCadPlan(editor, plan)) onApplied();
           else setFailed(true);
         }}
       >
@@ -778,44 +786,69 @@ export function VectorExport({ settings, revision }: Props) {
     </details>
   );
 }
-export function CornerControls({ settings, revision, disabled }: Props) {
+export function CornerControls({ settings, revision, disabled, focusSequence }: Props) {
   const editor = useEditor(),
     t = useVectorText();
+  const section = useRef<HTMLDetailsElement>(null);
+  const selectedNode = useValue('corner node target', () => getSelectedCadNode(editor), [editor]);
+  const [scope, setScope] = useState<'all' | 'node'>('all');
   const [kind, setKind] = useState<"fillet" | "chamfer">("fillet"),
-    [amount, setAmount] = useState("2"),
+    [amount, setAmount] = useState(() => String(2 / unitMm(settings?.unit ?? 'mm'))),
     [review, setReview] = useState<Review>(),
     [message, setMessage] = useState("");
-  const key = JSON.stringify([settings, kind, amount]);
+  const previousUnit = useRef(settings?.unit ?? 'mm');
+  useEffect(() => {
+    const unit = settings?.unit ?? 'mm', factor = unitMm(previousUnit.current) / unitMm(unit);
+    previousUnit.current = unit;
+    if (factor !== 1) setAmount(value => value.trim() && Number.isFinite(Number(value)) ? String(Number((Number(value) * factor).toPrecision(14))) : value);
+  }, [settings?.unit]);
+  useEffect(() => {
+    if (focusSequence === undefined || !section.current) return;
+    setScope('node'); setCadNodeEditing(editor, true);
+    section.current.open = true;
+    section.current.querySelector<HTMLElement>('summary')?.focus();
+    section.current.scrollIntoView({ block: 'nearest' });
+  }, [editor, focusSequence]);
+  const key = JSON.stringify([settings, kind, amount, scope, scope === 'node' ? selectedNode : null]);
+  const valid = amount.trim() !== '' && Number.isFinite(Number(amount)) && Number(amount) > 0;
   return (
-    <details className="drawing-cad-section" data-testid="vector-corners">
+    <details ref={section} className="drawing-cad-section" data-testid="vector-corners">
       <summary>{t("corners")}</summary>
-      <p className="drawing-help">{t("cornerHelp")}</p>
+      <p className="drawing-help">{t(scope === 'node' ? 'nodeCornerHelp' : 'cornerHelp')}</p>
       <fieldset className="drawing-cad-fields" disabled={disabled || !settings}>
-        <Field label={t("mode")}>
-          <select value={kind} onChange={(e) => setKind(e.target.value as any)}>
+        <Field label={t('cornerScope')}>
+          <select aria-label={t('cornerScope')} value={scope} onChange={event => { const scope = event.target.value as 'all' | 'node'; setScope(scope); setMessage(''); if (scope === 'node') setCadNodeEditing(editor, true); }}>
+            <option value="all">{t('allCorners')}</option><option value="node">{t('selectedCorner')}</option>
+          </select>
+        </Field>
+        {scope === 'node' && <p className="drawing-help" role="status">{selectedNode ? `${t('cornerTarget')}: ${selectedNode.contourIndex + 1}:${selectedNode.nodeIndex + 1}` : t('cornerNodeRequired')}</p>}
+        <Field label={t("cornerMode")}>
+          <select aria-label={t('cornerMode')} value={kind} onChange={(e) => setKind(e.target.value as any)}>
             <option value="fillet">{t("fillet")}</option>
             <option value="chamfer">{t("chamfer")}</option>
           </select>
         </Field>
-        <Field label={t("amount")}>
+        <Field label={`${t(kind === 'fillet' ? 'cornerRadius' : 'cornerSetback')} (${settings?.unit ?? 'mm'})`}>
           <input
             type="number"
-            min="0.001"
             step="any"
             value={amount}
+            aria-invalid={!valid}
             onChange={(e) => setAmount(e.target.value)}
           />
         </Field>
         <button
           type="button"
+          disabled={!valid || scope === 'node' && !selectedNode}
           onClick={() => {
             try {
               setMessage("");
-              if (settings)
-                setReview({
-                  plan: prepareCorners(editor, settings, Number(amount), kind),
-                  key,
-                });
+              if (!settings || disabled || !valid) return;
+              const amountMm = Number(amount) * unitMm(settings.unit);
+              if (scope === 'node') {
+                const plan = prepareNodeCorner(editor, settings, amountMm, kind);
+                setReview({ plan, key, originalContours: plan.originalContours, previewBounds: plan.previewBounds });
+              } else setReview({ plan: prepareCorners(editor, settings, amountMm, kind), key });
             } catch (e) {
               setReview(undefined);
               setMessage(vectorError(e));
@@ -832,6 +865,7 @@ export function CornerControls({ settings, revision, disabled }: Props) {
           inputKey={key}
           revision={revision}
           disabled={disabled || !settings}
+          onApply={scope === 'node' ? () => applyNodeCorner(editor, review.plan as CadNodeCornerPlan) : undefined}
           onApplied={() => {
             setReview(undefined);
             setMessage("done");

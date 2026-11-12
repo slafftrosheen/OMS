@@ -72,6 +72,16 @@ For a straight outgoing segment, **Segment length / Direction → Move segment e
 
 **Split position (%)** accepts values strictly between 0 and 100. Straight segments split by length fraction and remain straight. Bézier segments use exact De Casteljau subdivision at parameter `t = percentage / 100`, not arc-length percentage. Geometry is preserved and the inserted node is selected. Existing symmetric endpoints become smooth because subdivision shortens only one of their handles. Enter in the split field applies the split. Invalid inputs, node limits, locks, read-only state and protected order-form ancestry block mutation.
 
+## Selected-node fillets and chamfers
+
+In **Shape / nodes (F10)** choose a corner, then **Fillet / chamfer this node…**. The corner panel switches to **Selected node** and displays its `contour:node` target. Enter the radius, or the equal setback along each adjoining edge, in the current document unit. Unit changes preserve the physical amount. Preview shows a close-up: dashed grey is the original, blue is the result. Reported bounds describe the complete object. Changing the amount, mode, selected node, document or selection invalidates the review.
+
+The selected corner must join two straight segments. Open-path interior nodes, convex and concave vertices, closed seams and compound contours are supported; distant Bézier segments remain unchanged. Applying edits the same object in place, retaining its group, rotation, opacity, paint, name, fill rule and contour order, in one undo step. Existing fillets survive subsequent edits at other eligible corners. The incoming tangent node becomes the active node after application.
+
+Circular fillets use tangent cubic Bézier segments with a maximum nominal radial deviation of **0.005 mm**, disclosed in review. Segment count increases for large radii and sharp turns. Oversized radii/setbacks are rejected without clamping. The entire corner edit triangle must be clear of other segments in the same compound; bounded flattening includes a clearance margin for curved neighbours. This conservative check can reject a close feature even when the final arc alone might fit. Separate objects are not collision-checked.
+
+Endpoints, straight-through/reversing nodes, curved adjacent segments, bound objects, clips, gradients and raster fills remain unsupported for this operation. Locks, read-only state, protected order-form ancestry, node limits and the save budget block mutation. **All corners** retains the existing convex closed polygon operation; it does not apply the selected-node workflow to every vertex of a concave or curved contour.
+
 ## Units and accuracy
 
 Settings are stored in the current page's `meta.omsCad` (`version: 1`). At scale 1:1, 96 document pixels represent 25.4 mm. At scale 1:N, one document pixel represents `25.4 / 96 × N` mm. Screen DPI, zoom and PNG export settings do not enter this conversion. Changing the display unit preserves physical geometry and nudge distance; changing scale deliberately recalibrates physical size. Display precision does not round the stored geometry or DXF.
@@ -123,6 +133,7 @@ The CAD unit suite exercises the native schema store round trip and native resiz
 node packages/vitest/bin.js tests/unit/cad-drawing.test.ts tests/unit/cad-advanced.test.ts tests/unit/cad-compound.test.ts tests/unit/cad-join.test.ts
 node packages/vitest/bin.js tests/unit/cad-precision-entry.test.ts
 node packages/vitest/bin.js tests/unit/cad-node-editing.test.ts
+node packages/vitest/bin.js tests/unit/cad-node-corners.test.ts
 node packages/vitest/bin.js tests/unit/drawing-radial.test.ts
 npx playwright test --config tests/ui/playwright.drawing-workspace.config.ts
 node --import tsx scripts/qa/export-cad-fixture.ts
@@ -133,7 +144,7 @@ python scripts/qa/verify-cad-fixture.py
 
 The independent ezdxf reader accepted the reference file with zero audit errors or repairs and verified its panel size, units, circle, rotated ellipse, arc, and open/closed cubic SPLINE evaluation. Unit tests also parse exported curves with the independent dxf-parser library, read real bundled WOFF2 glyphs (Latvian and Cyrillic), preserve counters, verify boolean areas and positive/negative offsets, and exercise import omissions, unit overrides, stale plans and native transformed handles. Browser execution in the hosted workspace remains blocked before page load by Chromium's `socket() Operation not permitted`; run the included cases locally. No production cutter/router or the team's actual downstream CAD/CAM application was available for validation.
 
-This release adds text outlines, Bézier editing, weld/trim/intersect, offsets and DXF import to measured drafting. It does not yet replace the complete CorelDRAW workflow: native CDR/DWG intake, arbitrary rational/periodic NURBS, full layer/layout interchange, fillet/chamfer tools, text-on-path, associative dimensions and cutter-specific CAM remain outside this implementation. Before retiring CorelDRAW, validate representative production files in the team's actual CAD/CAM and machine workflow.
+This release adds text outlines, Bézier editing, weld/trim/intersect, offsets and DXF import to measured drafting. It does not yet replace the complete CorelDRAW workflow: native CDR/DWG intake, arbitrary rational/periodic NURBS, full layer/layout interchange, fillets between curved segments, text-on-path, associative dimensions and cutter-specific CAM remain outside this implementation. Before retiring CorelDRAW, validate representative production files in the team's actual CAD/CAM and machine workflow.
 
 References: [CorelDRAW drawing scale](https://product.corel.com/help/CorelDRAW/Documentation-Windows/CorelDRAW-en/CorelDRAW-Drawing-scale.html), [CorelDRAW object positioning](https://help.coreldraw.com/CorelDRAW/540111192/Documentation-Mac/CorelDRAW-en/CorelDRAW-Position-objects.html), [Autodesk DXF header variables](https://help.autodesk.com/cloudhelp/2026/ENU/AutoCAD-DXF/files/GUID-A85E8E67-27CD-4C59-BE61-4DC9FADBE74A.htm), [LWPOLYLINE](https://help.autodesk.com/cloudhelp/2020/ENU/AutoCAD-DXF/files/GUID-748FC305-F3F2-4F74-825A-61F04D757A50.htm), [ELLIPSE](https://help.autodesk.com/cloudhelp/2020/ENU/AutoCAD-DXF/files/GUID-107CB04F-AD4D-4D2F-8EC9-AC90888063AB.htm).
 

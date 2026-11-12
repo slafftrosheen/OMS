@@ -70,15 +70,16 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
   const editor = useEditor();
   const state = useValue('advanced cad permissions', () => ({ controls: captureToolkitControls(editor), protected: protectedSelection(editor), text: editor.getOnlySelectedShape()?.type === 'text' }), [editor]);
   const revision = useValue('advanced cad revision', () => cadRevision(editor), [editor]);
+  const [cornerFocus, setCornerFocus] = useState(0);
   const disabled = !state.controls.canEditSelection || state.protected;
   return <>
     {!settings && <Message value="settingsRequired" />}
     {(state.controls.readOnly || state.controls.selectionLocked || state.protected) && <Message value="blocked" />}
     <div hidden={task !== 'edit'}>
     <VectorPaintControls settings={settings} revision={revision} disabled={disabled} focusSequence={focusRequest?.section === 'paint' ? focusRequest.sequence : undefined} />
-    <CornerControls settings={settings} revision={revision} disabled={disabled} />
+    <CornerControls settings={settings} revision={revision} disabled={disabled} focusSequence={cornerFocus || undefined} />
     <CompoundControls disabled={disabled || !settings} settings={settings} />
-    <CurveNodes settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && (focusRequest?.section === 'nodes' || focusRequest?.section === 'convert' && !state.text)} sequence={focusRequest?.sequence} />
+    <CurveNodes settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && (focusRequest?.section === 'nodes' || focusRequest?.section === 'convert' && !state.text)} sequence={focusRequest?.sequence} onCorner={() => setCornerFocus(value => value + 1)} />
     <JoinCurves settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'join'} sequence={focusRequest?.sequence} />
     <Shaping settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'shaping'} sequence={focusRequest?.sequence} />
     </div><div hidden={task !== 'draw'}>
@@ -138,7 +139,7 @@ function PlanReview({ review, inputKey, revision, disabled, onApplied, blocked =
   </div>;
 }
 
-function CurveNodes({ settings, disabled, focus, sequence }: SharedProps & { focus: boolean; sequence?: number }) {
+function CurveNodes({ settings, disabled, focus, sequence, onCorner }: SharedProps & { focus: boolean; sequence?: number; onCorner: () => void }) {
   const editor = useEditor(); const { label } = useCadAdvancedText();
   const section = useRef<HTMLDetailsElement>(null); useFocusSection(section, focus, sequence);
   const selected = useValue('advanced curve nodes', () => settings ? getCadCurveSelection(editor, settings) : null, [editor, settings]);
@@ -210,6 +211,7 @@ function CurveNodes({ settings, disabled, focus, sequence }: SharedProps & { foc
         </select></Field>
         {nodeFields.map(key => <Field key={key} label={`${label(key)} (${settings?.unit ?? 'mm'})`}><input type="number" step="any" required value={values[key]} aria-invalid={!Number.isFinite(number(values[key])) || Math.abs(number(values[key])) > 1_000_000} onChange={event => { setValues(current => ({ ...current, [key]: event.target.value })); setMessage(''); }} /></Field>)}
         <button type="submit" disabled={!valid}>{label('updateNode')}</button>
+        <button type="button" onClick={onCorner}>{label('editNodeCorner')}</button>
         <details className="drawing-node-tools" open><summary>{label('segmentTools')}</summary>
         <div className="drawing-cad-actions">
           <button type="button" disabled={!hasNext || isStraight} onClick={() => { if (canChange(editor)) result(setCadSegmentKind(editor, contourIndex, nodeIndex, 'line')); }}>{label('toLine')}</button>
