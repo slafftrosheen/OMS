@@ -5,6 +5,8 @@
   import TldrawWrapper from '../../src/lib/components/canvas/TldrawWrapper.svelte';
   import type { OrderSeed } from '../../src/lib/components/canvas/templates/DraftOrderTemplate';
   const order = new URLSearchParams(location.search).get('mode') === 'order';
+  // Existing orders read authenticated attachments; new drafts keep local files.
+  const persisted = new URLSearchParams(location.search).has('persisted');
   let seed = $state<OrderSeed>({ orderId: 'drawing-order', title: 'Production form', clientName: 'Test client', profiles: [{name:'Production profile',quantity:1,configuration:{profileName:'Test production profile'}}],attachments:[] });
   async function storeFile(file:File,pocket:import('../../src/lib/order/file-pockets').ProductionFilePocket='visuals'){
     const id=crypto.randomUUID(),url=URL.createObjectURL(file);
@@ -31,7 +33,7 @@
   <label>Language <select aria-label="Language" value={$locale} onchange={event => locale.set(event.currentTarget.value)}><option value="en">English</option><option value="ru">Русский</option><option value="lv">Latviešu</option></select></label>
 </header>
 <main><TldrawWrapper orderSeed={order ? seed : null} toolkitBoardId={order ? null : 'fixture-board'}
-  onFilesUpload={order?async()=>{}:undefined} onStoreCanvasFile={order?storeFile:undefined}
+  onFilesUpload={order&&!persisted?async()=>{}:undefined} onStoreCanvasFile={order&&!persisted?storeFile:undefined}
   onReady={value => editor = value} toolkitReadOnly={readonly} onDocumentChange={() => saves++} /></main>
 <style>
   header { display:flex;align-items:center;gap:12px;padding:8px;height:48px;box-sizing:border-box;background:var(--bg-1);color:var(--text); }

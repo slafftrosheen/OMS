@@ -15,7 +15,7 @@ test('new draft previews a DXF with geometry and retains its source file',async(
 test('production pocket lists permitted files and downloads through the authenticated endpoint',async({page})=>{
  await page.route('**/api/files?**',r=>r.fulfill({headers:{'X-Total-Count':'1'},json:[{id:fileId,originalName:'laser-part.dxf',mimeType:'application/dxf',file_type:'laser'}]}));
  await page.route(`**/api/files/${fileId}/download*`,r=>r.fulfill({body:dxf,contentType:'application/dxf',headers:{'Content-Disposition':'attachment; filename="laser-part.dxf"'}}));
- await page.goto('/drawing-workspace.html?mode=order');
+ await page.goto('/drawing-workspace.html?mode=order&persisted');
  const pocket=page.getByTestId('production-pocket-laser');
  await expect(pocket.getByRole('link',{name:/laser-part.dxf/})).toBeAttached({timeout:20000});
  await expect(pocket.getByRole('link',{name:/laser-part.dxf/})).toHaveAttribute('href',`/api/files/${fileId}/download`);
@@ -34,7 +34,8 @@ test('native Bézier pointer gestures survive validation and snapshot reload',as
  await page.goto('/drawing-workspace.html?mode=idea');
  await page.getByTestId('drawing-cad-toggle').click();
  await page.getByTestId('drawing-cad-apply').click();
- await page.getByTestId('drawing-tool-cad-bezier').click();
+ await page.getByRole('button',{name:'More tools: CAD polyline',exact:true}).click();
+ await page.getByTestId('drawing-flyout-cad-bezier').click();
  const area=await page.locator('.drawing-viewport').boundingBox();if(!area)throw Error('Canvas missing');
  await page.mouse.click(area.x+100,area.y+120);
  await page.mouse.move(area.x+230,area.y+180);await page.mouse.down();
@@ -90,7 +91,7 @@ test('new draft keeps the selected pocket and canonical download reference after
 });
 test('initially readonly orders without a saved canvas still list permitted files',async({page})=>{
  await page.route('**/api/files?**',r=>r.fulfill({headers:{'X-Total-Count':'1'},json:[{id:fileId,originalName:'reader-part.dxf',mimeType:'application/dxf',file_type:'bender'}]}));
- await page.goto('/drawing-workspace.html?mode=order&readonly');
+ await page.goto('/drawing-workspace.html?mode=order&readonly&persisted');
  const pocket=page.getByTestId('production-pocket-bender');
  await expect(pocket.getByRole('link',{name:/reader-part.dxf/})).toBeVisible({timeout:15000});
  await expect(pocket.getByRole('button',{name:'Add files'})).toBeDisabled();
