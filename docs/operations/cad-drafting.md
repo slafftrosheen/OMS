@@ -24,6 +24,20 @@ Choose **Circular copies** for additional copies of the complete selection. **Ev
 
 **Review placement** shows the original and result selection bounds, the pivot, angle step and generated object count (including group children). It is a placement preview, not a cut-path or collision review. Any input, selection, document or settings change invalidates the review. Apply is one undo step; partial duplication, rejected updates or payload overflow roll back. Up to 200 additional motifs and 500 generated shapes are allowed, within the existing page, coordinate and document-size limits. Forms, production containers, locked descendants, bound objects and children with frame clipping are rejected. No machine toolpaths, nesting or overlap removal are generated.
 
+## Aligning and distributing artwork
+
+The shared **Arrange** docker starts with **Align objects**. Choose the selection bounds or a named selected object as the reference, then align left/centre/right or top/middle/bottom. A named reference stays fixed. Alignment uses actual page-axis CAD geometry bounds, including analytic curve and ellipse extrema; outline thickness is excluded. Groups count as one item, with bounds taken from their descendants. Selecting a group and one of its descendants does not move that descendant twice.
+
+**Distribute objects** offers three modes:
+
+- **Equal gaps** spaces edges evenly between the outside objects, retaining those objects. At least three items are required. If there is insufficient room, the command refuses rather than creating negative gaps.
+- **Equal centres** spaces centres evenly and retains the two extreme centres. Different object widths/heights can still overlap; this is not nesting or collision checking.
+- **Exact gap** accepts a nonnegative distance in document units, or px before calibration. Keep the left/top item, right/bottom item, or a named selected item fixed. The other items are spaced outward on either side of that anchor in their existing order. Zero creates touching bounds. The input retains its canvas distance when document units/scale change, consistently with the existing repeat-grid controls.
+
+Horizontal and vertical operations only translate objects. Geometry, rotation, groups, text and appearance remain intact, and the edit is one undo step. Coincident positions sort by stable object ID. An already correct arrangement does not create an empty history entry. No automatic scaling, kerf allowance, glyph kerning or overlap removal is performed.
+
+Locks, read-only mode, protected forms and their descendants block mutation. Frames, production containers, frame children, bound objects and clipped artwork are excluded. Supported groups cannot contain these excluded objects. Coordinate, object-count and persistence limits are checked; refused or partially applied native movements roll back together. Changing selection removes an unavailable reference/anchor from the controls.
+
 ## Compound curves and cutting direction
 
 **Object → Combine** (Ctrl/Command+L in the idle canvas) replaces selected supported shapes with one compound curve. **Break apart** (Ctrl/Command+K) separates a compound into individual contour objects. The same buttons appear in Edit curves & shapes. Some browsers reserve Ctrl/Command+L or K; the Object menu and CAD buttons remain available. These commands are separate from Group/Ungroup and Weld: Combine retains every original path and cubic control; Weld computes a merged region. Even-odd nested paths become holes. Break apart also separates hole contours, which then act as independent solid regions if welded or offset separately.
