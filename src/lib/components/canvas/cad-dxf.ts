@@ -1,3 +1,4 @@
+import { validVectorPaint } from './cad-paint';
 import type { Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
 import { drawingObjectName } from './drawing-operations';
 import { CAD_MAX_COORDINATE, cadMmPerPixel, validateCadSettings, type CadPoint, type CadSettings } from './cad-settings';
@@ -65,7 +66,8 @@ function shapeEntity(editor: Editor, shape: TLShape, settings: CadSettings): { e
     return { x: finite((world.x - settings.originX) * factor), y: finite((settings.originY - world.y) * factor) };
   };
   if (cadShapeIsClipped(editor, shape) || (shape.meta.omsVectorPaint as any)?.clips?.length) return { reason: 'clipped' };
-  if ((shape.meta.omsVectorPaint as any)?.raster) return { reason: 'unsupported' };
+  const paint = shape.meta.omsVectorPaint as any;
+  if (paint?.raster && !(shape.type === 'cad-bezier' && paint.raster.usage === 'material' && validVectorPaint(paint))) return { reason: 'unsupported' };
   if (shape.type === 'cad-bezier') {
     if (!validContours(p.contours)) return { reason: 'invalid' };
     return { entities: mapContours(p.contours, convert).map(contour => contour.nodes.every(n => !n.inX && !n.inY && !n.outX && !n.outY)

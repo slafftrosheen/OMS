@@ -28,6 +28,7 @@ import { prepareNodeCorner, applyNodeCorner, type CadNodeCornerPlan } from './ca
 import { getSelectedCadNode, setCadNodeEditing } from './cad-node-selection';
 import { drawingTransaction } from "./drawing-commands";
 import { useVectorText, vectorError } from "./cad-vector-copy";
+import { MaterialTexturePanel } from './MaterialTexturePanel';
 
 type Props = {
   settings: CadSettings | null;
@@ -877,6 +878,7 @@ export function CornerControls({ settings, revision, disabled, focusSequence }: 
 }
 export function VectorPaintControls({
   settings,
+  revision,
   disabled,
   focusSequence,
 }: Props) {
@@ -946,7 +948,7 @@ export function VectorPaintControls({
                 <input
                   type="checkbox"
                   aria-label={`${t(key)} · ${t("none")}`}
-                  checked={paint[key] === "none"}
+                  checked={paint[key] === "none" && (key !== "fill" || !paint.raster && !paint.gradient)}
                   onChange={(e) =>
                     setPaint({
                       ...paint,
@@ -1006,6 +1008,7 @@ export function VectorPaintControls({
         </button>
       </fieldset>
       {message && <p role="status">{t(message)}</p>}
+      <MaterialTexturePanel revision={revision} disabled={disabled || !settings} />
     </details>
   );
 }

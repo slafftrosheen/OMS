@@ -1,3 +1,4 @@
+import { validVectorPaint } from './cad-paint';
 import type { Editor, TLShape } from '@tldraw/tldraw';
 import { contourSegments, splitCubic } from './cad-curves';
 import { cadShapeIsClipped } from './cad-dxf';
@@ -40,7 +41,7 @@ interface ShapeMeasurement { length: number; open: number; closed: number; appro
 function measureShape(editor: Editor, shape: TLShape, tolerance: number, budget: Budget): ShapeMeasurement {
   const p = shape.props as Record<string, any>, paint = shape.meta.omsVectorPaint as any;
   // A clipped object's full path is not its visible/cutting perimeter.
-  if (cadShapeIsClipped(editor, shape) || paint?.clips?.length || paint?.raster) throw new Error('measurement-unsupported');
+  if (cadShapeIsClipped(editor, shape) || paint?.clips?.length || paint?.raster && !(shape.type === 'cad-bezier' && paint.raster.usage === 'material' && validVectorPaint(paint))) throw new Error('measurement-unsupported');
   if (shape.type === 'cad-arc') {
     const sweep = p.endAngle - p.startAngle;
     if (!(p.radius > 0 && sweep > 0 && sweep < 360)) throw new Error('measurement-invalid');
