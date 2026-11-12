@@ -1,6 +1,6 @@
 import { DefaultFontFamilies, type Editor, type TLShapeId } from '@tldraw/tldraw';
 import assetUrls from './tldraw-asset-urls.json';
-import { cadPointToCanvas, unitLengthToCanvas, type CadSettings } from './cad-settings';
+import { cadPointToCanvas, unitLengthToCanvas, cadMmPerPixel, type CadSettings } from './cad-settings';
 import { curveBounds, mapContours, nodeAt, type CadContour } from './cad-curves';
 import { assertCadEditable, cadRevision, makeCadPlan, CadOperationError, type CadPlan } from './cad-plans';
 
@@ -14,7 +14,14 @@ export interface CadTextOptions {
   keepSource: boolean;
   sourceId?: string;
   layout?: Partial<CadTextLayout>;
+  arc?: CadTextArc;
 }
+export interface CadTextArc { radius: number; angle: number; direction: 'clockwise' | 'counterclockwise' }
+export interface CadTextPlan extends CadPlan {
+  arcText?: { radiusMm: number; advanceMm: number; sweepDegrees: number; angle: number; direction: CadTextArc['direction'] };
+}
+interface GlyphPlacement { contours: CadContour[]; center: number }
+interface GlyphRun { contours: CadContour[]; advance: number; glyphs: GlyphPlacement[]; horizontal: boolean }
 export interface CadTextLayout { align: 'start' | 'middle' | 'end'; letterSpacing: number; lineHeight: number }
 export const DEFAULT_TEXT_LAYOUT: CadTextLayout = { align: 'start', letterSpacing: 0, lineHeight: 1.35 };
 export function validateCadTextLayout(value: Partial<CadTextLayout> = {}): CadTextLayout {
@@ -63,14 +70,15 @@ export async function getCadFont(name: string, bytes?: ArrayBuffer) {
     );
   return cache.get(name)!;
 }
-function layoutGlyphRun(font: any, text: string, x = 0, baseline = 0, size = 100, letterSpacing = 0): { contours: CadContour[]; advance: number } {
+function layoutGlyphRun(font: any, text: string, x = 0, baseline = 0, size = 100, letterSpacing = 0): GlyphRun {
   if ([...text].length > 500 || !Number.isFinite(size) || size <= 0) throw new CadOperationError('limit');
   for (const char of text)
     if (!/\s/u.test(char) && !font.hasGlyphForCodePoint(char.codePointAt(0)))
       throw new CadOperationError('missing-glyph');
   const run = font.layout(text),
     scale = size / font.unitsPerEm;
-  const result: CadContour[] = [];
+  const result: CadContour[] = [], glyphs: GlyphPlacement[] = [];
+  let clusterCenter = 0, horizontal = true;
   let advanceX = 0,
     advanceY = 0,
     total = 0, advancing = 0;
@@ -81,6 +89,10 @@ function layoutGlyphRun(font: any, text: string, x = 0, baseline = 0, size = 100
     // combining marks. Tracking is added at the next advancing glyph instead.
     if (position.xAdvance !== 0 && advancing++ > 0) advanceX += letterSpacing / 100 * font.unitsPerEm;
     if (!glyph.id && text.trim()) throw new CadOperationError('missing-glyph');
+    const firstContour = result.length;
+    if (![position.xAdvance, position.yAdvance, position.xOffset, position.yOffset].every(Number.isFinite)) throw new CadOperationError('font');
+    if (position.xAdvance !== 0 || !glyphs.length) clusterCenter = (advanceX + position.xAdvance / 2) * scale;
+    if (position.yAdvance !== 0 || position.xAdvance < 0) horizontal = false;
     let contour: CadContour | null = null;
     const point = (a: number, b: number) => ({
       x: x + (advanceX + position.xOffset + a) * scale,
@@ -132,10 +144,11 @@ function layoutGlyphRun(font: any, text: string, x = 0, baseline = 0, size = 100
       }
       contour.nodes.push(node);
     }
+    glyphs.push({ contours: result.slice(firstContour).filter(c => c.nodes.length >= 2), center: clusterCenter });
     advanceX += position.xAdvance;
     advanceY += position.yAdvance;
   }
-  return { contours: result.filter((c) => c.nodes.length >= 2), advance: advanceX * scale };
+  return { contours: result.filter((c) => c.nodes.length >= 2), advance: advanceX * scale, glyphs, horizontal };
 }
 export function glyphRunContours(font: any, text: string, x = 0, baseline = 0, size = 100): CadContour[] {
   return layoutGlyphRun(font, text, x, baseline, size).contours;
@@ -151,10 +164,45 @@ export function layoutCadText(font: any, text: string, options: Partial<CadTextL
     return mapContours(line.contours, point => ({ x: point.x + dx, y: point.y }));
   });
 }
-export async function prepareCadText(editor: Editor, settings: CadSettings, options: CadTextOptions): Promise<CadPlan> {
+/** Place shaped glyphs rigidly on a circular baseline. Zero-advance marks use
+ * their preceding glyph's rotation; Bézier handles undergo the same rigid map.
+ * Height measures the straight ink run, before bending, so radius is never
+ * silently recalibrated to force the curved result into a target bounding box. */
+export function layoutCadArcText(font: any, text: string, options: CadTextArc & {
+  height: number; x: number; y: number; layout?: Partial<CadTextLayout>;
+}): { contours: CadContour[]; advance: number; sweepDegrees: number } {
+  if (/[\r\n\u2028\u2029]/u.test(text)) throw new CadOperationError('arc-text-line');
+  if (![options.radius, options.height, options.x, options.y, options.angle].every(Number.isFinite) ||
+      options.radius <= 0 || options.height <= 0 || Math.abs(options.angle) > 360 ||
+      !['clockwise', 'counterclockwise'].includes(options.direction)) throw new CadOperationError('geometry');
+  const layout = validateCadTextLayout(options.layout);
+  const run = layoutGlyphRun(font, text, 0, 0, 100, layout.letterSpacing);
+  if (!run.horizontal) throw new CadOperationError('arc-text-layout');
+  const bounds = curveBounds(run.contours);
+  if (!run.contours.length || !bounds.h) throw new CadOperationError('geometry');
+  const scale = options.height / bounds.h, advance = run.advance * scale;
+  const sweep = advance / options.radius;
+  if (advance <= 0) throw new CadOperationError('arc-text-advance');
+  if (!Number.isFinite(sweep) || sweep > 2 * Math.PI + 1e-12) throw new CadOperationError('arc-text-fit');
+  const anchor = advance * (layout.align === 'middle' ? 0.5 : layout.align === 'end' ? 1 : 0);
+  const direction = options.direction === 'clockwise' ? -1 : 1;
+  const contours = run.glyphs.flatMap(glyph => {
+    const center = glyph.center * scale;
+    const angle = options.angle * Math.PI / 180 + direction * (center - anchor) / options.radius;
+    const x = options.x + options.radius * Math.cos(angle), y = options.y - options.radius * Math.sin(angle);
+    const cos = -direction * Math.sin(angle), sin = -direction * Math.cos(angle);
+    return mapContours(glyph.contours, point => {
+      const dx = point.x * scale - center, dy = point.y * scale;
+      return { x: x + cos * dx - sin * dy, y: y + sin * dx + cos * dy };
+    });
+  });
+  return { contours, advance, sweepDegrees: sweep * 180 / Math.PI };
+}
+export async function prepareCadText(editor: Editor, settings: CadSettings, options: CadTextOptions): Promise<CadTextPlan> {
   const revision = cadRevision(editor),
     source = options.sourceId ? editor.getShape(options.sourceId as TLShapeId) : null;
   assertCadEditable(editor, source ? [source.id] : []);
+  if (options.sourceId && options.arc) throw new CadOperationError('selection');
   if (options.sourceId && source?.type !== 'text') throw new CadOperationError('selection');
   const p = source?.props as any,
     text = String(source ? p.text : options.text).replace(/\r\n?/g, '\n').normalize('NFC');
@@ -162,6 +210,7 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
   const layout = source ? null : validateCadTextLayout(options.layout);
   const font = await getCadFont(source ? p.font : options.font, options.fontData);
   let contours: CadContour[] = [];
+  let arcText: CadTextPlan['arcText'];
   if (source) {
     const fontSize = FONT_SIZES[p.size],
       bounds = editor.getShapeGeometry(source).bounds;
@@ -184,6 +233,13 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
       contours.push(...glyphRunContours(font, span.text, span.box.x, span.box.y + baseline, fontSize));
     const matrix = editor.getShapePageTransform(source);
     contours = mapContours(contours, (point) => matrix.applyToPoint({ x: point.x * p.scale, y: point.y * p.scale }));
+  } else if (options.arc) {
+    const radius = unitLengthToCanvas(options.arc.radius, settings), origin = cadPointToCanvas(options, settings);
+    const result = layoutCadArcText(font, text, { ...options.arc, radius, height: unitLengthToCanvas(options.height, settings),
+      x: origin.x, y: origin.y, layout: layout! });
+    contours = result.contours;
+    arcText = { radiusMm: radius * cadMmPerPixel(settings), advanceMm: result.advance * cadMmPerPixel(settings),
+      sweepDegrees: result.sweepDegrees, angle: options.arc.angle, direction: options.arc.direction };
   } else {
     contours = layoutCadText(font, text, layout!);
     const bounds = curveBounds(contours),
@@ -197,7 +253,7 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
     }));
   }
   if (cadRevision(editor) !== revision) throw new CadOperationError('stale');
-  return makeCadPlan(editor, settings, contours, {
+  const plan = makeCadPlan(editor, settings, contours, {
     sourceIds: source ? [source.id] : [],
     removeIds: source && !options.keepSource ? [source.id] : [],
     name: 'Text outlines',
@@ -205,6 +261,7 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
     warnings: [
       'font-outline-only',
       ...(source ? ['text-layout-review'] : []),
+      ...(arcText ? ['arc-text-review'] : []),
       ...(source && options.keepSource ? ['sources-overlap'] : [])
     ],
     shapes: [
@@ -213,8 +270,9 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
         x: 0,
         y: 0,
         props: { contours, color: p?.color ?? 'black', fillRule: 'nonzero' },
-        meta: { omsSourceText: text, omsFontName: font.fullName ?? options.font, ...(layout ? { omsTextLayout: { ...layout } } : {}) }
+        meta: { omsSourceText: text, omsFontName: font.fullName ?? options.font, ...(layout ? { omsTextLayout: { ...layout } } : {}), ...(arcText ? { omsTextArc: { ...arcText } } : {}) }
       }
     ]
   });
+  return arcText ? { ...plan, arcText } : plan;
 }
