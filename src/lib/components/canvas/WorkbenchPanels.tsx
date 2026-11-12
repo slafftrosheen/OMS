@@ -8,6 +8,7 @@ import {captureToolkitControls} from './toolkit-controls';
 import {getCadSelectionPageBounds} from './cad-bounds';
 import {cadConstruction} from './cad-construction';
 import {measureCadSelection} from './cad-measurements';
+import {RadialArrange} from './RadialArrange';
 
 export function TextPanel({onOutlines,onLettering}:{onOutlines:()=>void;onLettering:()=>void}){
  const editor=useEditor(),t=useWorkbenchText();
@@ -39,7 +40,7 @@ export function ArrangePanel({settings,children}:{settings:CadSettings|null;chil
    <label><span>{t('gap')} ({settings?.unit??'px'})</span><input type="number" min={0} step="any" value={gap} onChange={e=>setGap(e.target.value)}/></label>
    {(['x','y'] as const).map(axis=><button type="button" key={axis} onClick={()=>{const value=gap.trim()?Number(gap):NaN;setFailed(!spaceDrawingSelection(editor,axis,settings?unitLengthToCanvas(value,settings):value));}}>{t(axis==='x'?'horizontal':'vertical')}</button>)}
    {failed&&<p role="alert">{t('invalid')}</p>}
-  </fieldset></>;
+  </fieldset><RadialArrange settings={settings}/></>;
 }
 export function MeasurePanel({settings,onTool,onDocument}:{settings:CadSettings|null;onTool:(tool:string)=>void;onDocument:()=>void}){
  const editor=useEditor(),t=useWorkbenchText();

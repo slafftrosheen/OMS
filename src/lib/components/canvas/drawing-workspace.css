@@ -270,3 +270,10 @@
 .drawing-workspace.is-compact .drawing-docker { grid-column: 2 / -1; }
 
 .drawing-lettering-button { width: 100%; margin-top: 12px; }
+.drawing-radial-preview { width: 100%; height: 180px; display: block; background: var(--bg-0); }
+.drawing-radial-preview polygon { fill: none; stroke: var(--brand); stroke-width: 1.5px; }
+.drawing-radial-preview .is-original { stroke: var(--ink-secondary); stroke-dasharray: 4 3; }
+.drawing-radial-preview .is-pivot { stroke: var(--ink-primary); stroke-width: 2px; }
+.drawing-radial-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: var(--brand); }
+.drawing-radial-legend .is-original { color: var(--ink-secondary); }
+.drawing-radial-legend .is-pivot { color: var(--ink-primary); }

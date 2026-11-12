@@ -16,6 +16,14 @@ The **Text** docker offers **New outline lettering…**, including when no text 
 
 The shared CAD docker has a **CAD task** selector: **Create geometry & text**, **Edit curves & shapes**, **Document & measurements**, and **Import / export DXF**. Only the selected task is visible; switching tasks retains drafts and prepared previews. File → DXF opens interchange, Layout → Document opens settings, F10 opens nodes, and Ctrl/Command+Q opens selected-text conversion or geometry conversion. Object → Arrange contains stacking, rotation, mirror, alignment and distribution commands.
 
+## Precise rotation and circular copies
+
+**Arrange → Rotate / circular copies** rotates a selection around its centre, the document origin, or a custom X/Y point. Coordinates follow the saved drawing unit, origin and scale; uncalibrated documents explicitly use px with Y up. Positive angles turn counterclockwise. The operation preserves native geometry, text, images, curve controls and group ancestry rather than flattening them.
+
+Choose **Circular copies** for additional copies of the complete selection. **Evenly around a full circle** uses `360 / (copies + 1)` so the original is included once, with no extra copy at 360°. **Fixed angle step** supports clockwise or counterclockwise patterns spanning less than one turn. **Rotate copies with the pattern** rotates each motif; turning it off translates the complete selection by the movement of its centre, preserving every member's orientation and relative spacing. Upright copies with a coincident pivot are rejected because they would all occupy the original position.
+
+**Review placement** shows the original and result selection bounds, the pivot, angle step and generated object count (including group children). It is a placement preview, not a cut-path or collision review. Any input, selection, document or settings change invalidates the review. Apply is one undo step; partial duplication, rejected updates or payload overflow roll back. Up to 200 additional motifs and 500 generated shapes are allowed, within the existing page, coordinate and document-size limits. Forms, production containers, locked descendants, bound objects and children with frame clipping are rejected. No machine toolpaths, nesting or overlap removal are generated.
+
 ## Compound curves and cutting direction
 
 **Object → Combine** (Ctrl/Command+L in the idle canvas) replaces selected supported shapes with one compound curve. **Break apart** (Ctrl/Command+K) separates a compound into individual contour objects. The same buttons appear in Edit curves & shapes. Some browsers reserve Ctrl/Command+L or K; the Object menu and CAD buttons remain available. These commands are separate from Group/Ungroup and Weld: Combine retains every original path and cubic control; Weld computes a merged region. Even-odd nested paths become holes. Break apart also separates hole contours, which then act as independent solid regions if welded or offset separately.
@@ -104,6 +112,7 @@ The CAD unit suite exercises the native schema store round trip and native resiz
 ```sh
 node packages/vitest/bin.js tests/unit/cad-drawing.test.ts tests/unit/cad-advanced.test.ts tests/unit/cad-compound.test.ts tests/unit/cad-join.test.ts
 node packages/vitest/bin.js tests/unit/cad-precision-entry.test.ts
+node packages/vitest/bin.js tests/unit/drawing-radial.test.ts
 npx playwright test --config tests/ui/playwright.drawing-workspace.config.ts
 node --import tsx scripts/qa/export-cad-fixture.ts
 # Optional independent QA dependency, not needed by OMS at runtime:
