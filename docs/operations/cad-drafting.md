@@ -32,6 +32,16 @@ Select one polyline, single-contour Bézier curve, or straight native line. Open
 
 Glyphs rotate rigidly onto the original curve tangent. Guide length and distance sampling target 0.001 mm numerical accuracy under a work limit; outlines are not flattened. The guide stays unchanged, and Apply adds editable letter curves in one undo step. This is a placement operation: editing the guide later does not reflow existing letters. Review spacing at sharp corners, tight bends and joined scripts; the tool does not prevent overlaps. Convert circles/arcs to curves first. Multiple contours, clipped/bound objects and form/frame children are refused.
 
+## Gradient fills
+
+Select one closed curve, including compound lettering with holes, then open **CAD → Edit curves & shapes → Fill & outline → Gradient fill**. The section starts collapsed in both drawing hosts. Choose **Linear** or **Radial**, edit the colours and stop positions, then **Review gradient → Apply gradient**. Review leaves the drawing unchanged; Apply and Clear are single undo steps.
+
+Linear direction uses local object coordinates: 0° points right and 90° up. Its colour axis spans the current curve bounds projected onto that direction. Radial fills use a centred ellipse fitted to the bounds; the last colour extends beyond the ellipse. Fills support 2–256 opaque RGB stops plus overall fill opacity. First/last positions remain 0%/100%; interior positions must increase strictly. **Add colour** inserts the interpolated midpoint of the largest gap. **Reverse colours** reverses both the colours and their positions. Interior stops can be removed.
+
+Existing gradient colours, type, opacity and transformed linear direction are loaded for editing. Applying refits the gradient to the current bounds: arbitrary imported focal points, gradient boxes, skew and off-centre mappings are replaced. Applying also replaces any material image fill. **Clear gradient** restores the underlying plain fill with the current fill opacity; Undo restores the replaced gradient or image. Native resizing continues to transform the fill with the curve.
+
+The contours, holes, outline settings, groups, object opacity, measurements and DXF geometry remain unchanged. SVG/PDF and opaque EPS retain vector gradient shading rather than a raster preview. EPS transparency is explicitly reported. Locked/read-only objects, protected form children, clipped or linked curves, open contours and imported raster-page boundaries are refused. Selection, geometry, units or option changes invalidate a prepared review; the existing save budget and atomic rollback checks apply.
+
 ## Material image textures
 
 Select a closed curve (including compound lettering with holes), then open **CAD → Edit curves & shapes → Fill & outline → Material texture**. Convert native shapes to curves first. Choose a PNG, JPEG or WebP, or choose **Material source → Load material**. Loading prepares an editable draft; only **Review material → Apply material** changes the object.

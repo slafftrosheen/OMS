@@ -1,10 +1,10 @@
 import type { Editor, TLShapeId } from '@tldraw/tldraw';
 import { type VectorRaster } from './cad-appearance';
 import { type VectorPaint, validVectorPaint } from './cad-paint';
-import { vectorPaint, paintMetadata } from './cad-vector';
+import { vectorPaint } from './cad-vector';
 import { curveBounds, validContours, type CadContour } from './cad-curves';
-import { assertCadEditable, cadRevision } from './cad-plans';
-import { drawingTransaction } from './drawing-commands';
+import { cadRevision } from './cad-plans';
+import { curveFillSource, updateCurveFill } from './curve-fill';
 import { drawingObjectName } from './drawing-operations';
 import { encodePdfRaster } from './cad-raster';
 import { storeCanvasImage } from './cad-asset-store';
@@ -22,18 +22,7 @@ export interface MaterialTexturePlan {
   tileCount?: number;
 }
 export function materialTextureSource(editor: Editor, id?: TLShapeId) {
-  const shape=id ? editor.getShape(id) : editor.getOnlySelectedShape();
-  if(shape?.type!=='cad-bezier')throw new Error('material-selection');
-  assertCadEditable(editor,[shape.id]);
-  const p=shape.props as any,paint=vectorPaint(shape.meta,p.color);
-  if(!validContours(p.contours)||shape.meta.omsVectorPaint&&!validVectorPaint(shape.meta.omsVectorPaint)||editor.getShapeMask(shape.id)||paint.clips?.length||
-     paint.raster&&paint.raster.usage!=='material'||editor.getBindingsInvolvingShape(shape.id).length)throw new Error('material-selection');
-  let parent=editor.getShape(shape.parentId as TLShapeId);const seen=new Set<string>();
-  while(parent&&!seen.has(parent.id)){
-    if(parent.type!=='group')throw new Error('material-selection');
-    seen.add(parent.id);parent=editor.getShape(parent.parentId as TLShapeId);
-  }
-  return {shape,paint,contours:p.contours as CadContour[],fillRule:p.fillRule as 'evenodd'|'nonzero'};
+  return curveFillSource(editor,id,'material-selection');
 }
 export function materialTextureSelection(editor: Editor) {
   try {
@@ -110,19 +99,7 @@ export function prepareMaterialTexture(editor: Editor,draft:MaterialTextureDraft
   return {revision:cadRevision(editor),shapeId:shape.id,paint:next,contours:structuredClone(contours),fillRule,settings:{...settings},...(tileCount?{tileCount}:{})};
 }
 function updatePaint(editor:Editor,id:TLShapeId,paint:VectorPaint,settings?:MaterialTextureSettings) {
-  const shape=editor.getShape(id)!;
-  const meta={...shape.meta,omsVectorPaint:paintMetadata(paint)} as Record<string,any>;
-  // tldraw merges top-level metadata keys: omission does not remove a key.
-  meta.omsMaterialTexture=settings?{...settings}:null;
-  const encoded=JSON.stringify(meta),props=JSON.stringify(shape.props);
-  const current=editor.store?JSON.stringify(editor.store.getStoreSnapshot()).length:JSON.stringify(shape.meta).length;
-  const next=current-JSON.stringify(shape.meta).length+encoded.length;
-  if(next>1_900_000&&next>=current)return false;
-  return drawingTransaction(editor,()=>{
-    editor.updateShape({id,type:shape.type,meta});
-    const changed=editor.getShape(id);
-    if(!changed||JSON.stringify(changed.meta)!==encoded||JSON.stringify(changed.props)!==props)throw new Error('material-failed');
-  });
+  return updateCurveFill(editor,id,paint,{omsMaterialTexture:settings?{...settings}:null});
 }
 export function applyMaterialTexture(editor:Editor,plan:MaterialTexturePlan):boolean {
   try {

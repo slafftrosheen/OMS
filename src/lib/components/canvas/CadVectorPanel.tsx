@@ -29,6 +29,7 @@ import { getSelectedCadNode, setCadNodeEditing } from './cad-node-selection';
 import { drawingTransaction } from "./drawing-commands";
 import { useVectorText, vectorError } from "./cad-vector-copy";
 import { MaterialTexturePanel } from './MaterialTexturePanel';
+import { GradientFillPanel } from './GradientFillPanel';
 
 type Props = {
   settings: CadSettings | null;
@@ -1008,6 +1009,7 @@ export function VectorPaintControls({
         </button>
       </fieldset>
       {message && <p role="status">{t(message)}</p>}
+      <GradientFillPanel settings={settings} revision={revision} disabled={disabled || !settings} />
       <MaterialTexturePanel settings={settings} revision={revision} disabled={disabled || !settings} />
     </details>
   );
