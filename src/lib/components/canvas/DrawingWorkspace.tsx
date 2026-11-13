@@ -28,7 +28,7 @@ import { useVectorText } from './cad-vector-copy';
 import { paintMetadata, vectorPaint } from './cad-vector';
 import './drawing-workspace.css';
 
-type Slot = 'commands' | 'properties' | 'tools' | 'docker' | 'palette' | 'status' | 'rulerX' | 'rulerY' | 'rulerOrigin';
+type Slot = 'commands' | 'standard' | 'properties' | 'tools' | 'docker' | 'dockerTabs' | 'palette' | 'status' | 'rulerX' | 'rulerY' | 'rulerOrigin';
 type Panel = 'properties' | 'objects' | 'cad' | 'text' | 'arrange' | 'measure' | null;
 interface WorkspaceContext {
   hosts: Partial<Record<Slot, HTMLElement>>;
@@ -50,7 +50,7 @@ export function DrawingWorkspace({ children, order, hidden, onImport }: {
   const [panel, setPanel] = useState<Panel>('properties');
   const [compact, setCompact] = useState(false);
   const refs = useMemo(() => Object.fromEntries(
-    ['commands', 'properties', 'tools', 'docker', 'palette', 'status', 'rulerX', 'rulerY', 'rulerOrigin'].map(name => [name,
+    ['commands', 'standard', 'properties', 'tools', 'docker', 'dockerTabs', 'palette', 'status', 'rulerX', 'rulerY', 'rulerOrigin'].map(name => [name,
       (node: HTMLElement | null) => setHosts(previous => previous[name] === node ? previous : { ...previous, [name]: node })])
   ) as Record<Slot, (node: HTMLElement | null) => void>, []);
   useEffect(() => {
@@ -70,6 +70,7 @@ export function DrawingWorkspace({ children, order, hidden, onImport }: {
     <div ref={root} className={`drawing-workspace ${hidden ? 'drawing-workspace--hidden' : ''} ${panel ? 'has-docker' : ''} ${compact ? 'is-compact' : ''}`}
       data-testid="drawing-workspace" data-mode={order ? 'order' : 'idea'} aria-label={label('workspace')}>
       {!hidden && <><div className="drawing-commands" ref={refs.commands} />
+        <div className="drawing-standard" role="toolbar" aria-label={label('standardToolbar')} ref={refs.standard} />
         <div className="drawing-properties" ref={refs.properties} />
         <div className="drawing-toolbox" ref={refs.tools} />
       </>}
@@ -81,6 +82,7 @@ export function DrawingWorkspace({ children, order, hidden, onImport }: {
         <div className="drawing-viewport">{children}</div>
       </div>
       {!hidden && <><aside className="drawing-docker" hidden={!panel} ref={refs.docker} />
+        <div className="drawing-docker-rail" ref={refs.dockerTabs} />
         <div className="drawing-palette" ref={refs.palette} />
         <div className="drawing-status" ref={refs.status} />
       </>}
@@ -109,6 +111,11 @@ const iconPaths: Record<string, ReactNode> = {
   undo: <path d="M8 4 3 9l5 5M3 9h11c9 0 8 12 0 12" />,
   redo: <path d="m16 4 5 5-5 5m5-5H10c-9 0-8 12 0 12" />,
   import: <path d="M12 16V2M7 7l5-5 5 5M3 15v6h18v-6" />,
+  duplicate: <><rect x="8" y="8" width="12" height="12" /><path d="M16 5V3H3v13h2" /></>,
+  fit: <><path d="M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5" /><rect x="7" y="8" width="10" height="8" /></>,
+  'fit-selection': <><path d="M3 8V3h5m8 0h5v5M3 16v5h5m8 0h5v-5M9 12h6m-3-3v6" /></>,
+  files: <><path d="M3 7V4h7l3 3h8v13H3Z" /><path d="M3 10h18" /></>,
+  paint: <><path d="m4 11 7-7 8 8-7 7-8-8Zm0 0h15M7 3l5 5m-9 13h18" /><path d="M20 14s-2 3-2 4a2 2 0 0 0 4 0c0-1-2-4-2-4Z" /></>,
   properties: <><path d="M3 5h18M3 12h18M3 19h18" /><circle cx="8" cy="5" r="2" /><circle cx="16" cy="12" r="2" /><circle cx="8" cy="19" r="2" /></>,
   objects: <><path d="m12 3 10 5-10 5L2 8Zm-10 9 10 5 10-5M2 17l10 5 10-5" /></>,
   lock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V6a4 4 0 0 1 8 0v4" /></>,
@@ -132,7 +139,15 @@ function ToolButton({ label, icon, active, disabled, onClick, children, testId }
 }
 
 const geometryTools = ['rectangle', 'ellipse', 'triangle', 'diamond', 'pentagon', 'star'] as const;
-const toolGroups = [['select'], ['nodes'], ['hand'], ['cad-polyline','cad-bezier','cad-arc-three','line','draw'], ['rectangle','ellipse','cad-circle','cad-circle-three','triangle','diamond','pentagon','star'], ['text'], ['cad-dimension'], ['arrow','highlight','eraser','frame']];
+const toolGroups = [
+  { id: 'select', tools: ['select'] }, { id: 'nodes', tools: ['nodes'] }, { id: 'hand', tools: ['hand'] },
+  { id: 'curves', tools: ['cad-polyline', 'cad-bezier', 'cad-arc-three', 'line', 'draw'] },
+  { id: 'rectangle', tools: ['rectangle'] },
+  { id: 'ellipse', tools: ['ellipse', 'cad-circle', 'cad-circle-three'] },
+  { id: 'shapes', tools: ['pentagon', 'triangle', 'diamond', 'star'] },
+  { id: 'text', tools: ['text'] }, { id: 'dimension', tools: ['cad-dimension'] },
+  { id: 'annotations', tools: ['arrow', 'highlight', 'eraser', 'frame'] },
+];
 const toolKeys: Record<string, string> = { select: 'toolkit.draw.selectTitle', draw: 'toolkit.draw.drawTitle', text: 'toolkit.draw.textTitle', arrow: 'toolkit.draw.arrowTitle' };
 const shortcut: Record<string, string> = { rectangle: 'F6', ellipse: 'F7', text: 'F8', select: 'V', draw: 'D', line: 'L', arrow: 'A', hand: 'H', eraser: 'E' };
 
@@ -300,9 +315,13 @@ export function DrawingChrome() {
   const construction = useValue('CAD construction status', () => cadConstruction(editor).get(), [editor]);
   const nodeEditing = useValue('CAD node editing mode', () => isCadNodeEditing(editor), [editor]);
   const constructionHint = construction ? workbenchLabel(construction.points.length === 0 ? 'pickFirst' : construction.points.length === 1 ? 'pickThrough' : construction.kind === 'arc' ? 'pickArcEnd' : 'pickThird') : '';
-  const [toolGroup,setToolGroup]=useState<number|null>(null);
-  const [groupTools,setGroupTools]=useState<Record<number,string>>({});
+  const [toolGroup, setToolGroup] = useState<string | null>(null);
+  const [groupTools, setGroupTools] = useState<Record<string, string>>({});
+  const [flyoutPosition, setFlyoutPosition] = useState({ left: 0, top: 0, maxHeight: 0 });
+  const flyoutTrigger = useRef<HTMLButtonElement | null>(null);
   const [saveFormat,setSaveFormat]=useState<'svg'|'png'>('png');
+  const [lastPanel, setLastPanel] = useState<Exclude<Panel, null>>('properties');
+  useEffect(() => { if (context?.panel) setLastPanel(context.panel); }, [context?.panel]);
   const [cadFocus, setCadFocus] = useState<CadFocusRequest>();
   const settings = useValue('drawing cad settings', () => readCadSettings(editor), [editor]);
   const [cadAnchor, setCadAnchor] = useState<CadAnchor>('bottom-left');
@@ -336,7 +355,8 @@ export function DrawingChrome() {
     if(tool==='nodes'){focusCad('nodes');setToolGroup(null);return;}
     setCadNodeEditing(editor, false);
     setToolGroup(null);
-    const group=toolGroups.findIndex(items=>items.includes(tool));if(group>=0)setGroupTools(previous=>({...previous,[group]:tool}));
+    const group = toolGroups.find(group => group.tools.includes(tool));
+    if (group) setGroupTools(previous => ({ ...previous, [group.id]: tool }));
     if(tool==='text')context?.setPanel('text');
     if(['cad-dimension','cad-arc-three','cad-circle-three','cad-circle'].includes(tool))context?.setPanel('measure');
     editor.complete();
@@ -348,7 +368,35 @@ export function DrawingChrome() {
     else editor.setCurrentTool(tool);
     editor.focus();
   }
-  useEffect(()=>{if(toolGroup===null)return;const close=(event:PointerEvent)=>{if(!(event.target instanceof Element)||!event.target.closest('.drawing-toolbox'))setToolGroup(null);};document.addEventListener('pointerdown',close);return ()=>document.removeEventListener('pointerdown',close);},[toolGroup]);
+  function toggleToolGroup(group: typeof toolGroups[number], trigger: HTMLButtonElement, focusFirst = false) {
+    const focus = () => context?.root.current?.querySelector<HTMLButtonElement>('.drawing-tool-flyout button:not(:disabled)')?.focus();
+    if (toolGroup === group.id) { if (focusFirst) focus(); else setToolGroup(null); return; }
+    const rootBounds = context?.root.current?.getBoundingClientRect();
+    const toolboxBounds = context?.hosts.tools?.getBoundingClientRect();
+    if (!rootBounds || !toolboxBounds) return;
+    const maxHeight = Math.max(0, toolboxBounds.height - 8);
+    const flyoutHeight = Math.min(maxHeight, group.tools.length * 40 + 8);
+    const top = Math.max(toolboxBounds.top + 4, Math.min(trigger.getBoundingClientRect().top, toolboxBounds.bottom - flyoutHeight - 4));
+    flyoutTrigger.current = trigger;
+    setFlyoutPosition({ left: toolboxBounds.right - rootBounds.left, top: top - rootBounds.top, maxHeight: Math.max(0, toolboxBounds.bottom - top - 4) });
+    setToolGroup(group.id);
+    if (focusFirst) requestAnimationFrame(focus);
+  }
+  useEffect(() => {
+    if (toolGroup === null) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest('.drawing-toolbox, .drawing-tool-flyout')) setToolGroup(null);
+    };
+    const close = () => setToolGroup(null);
+    document.addEventListener('pointerdown', closeOutside);
+    context?.hosts.tools?.addEventListener('scroll', close);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      context?.hosts.tools?.removeEventListener('scroll', close);
+      window.removeEventListener('resize', close);
+    };
+  }, [toolGroup, context?.hosts.tools]);
   function command(action: string) { if (!applyDrawingCommand(editor, action)) setNotice(label('changedFailed')); else setNotice(''); }
   function focusCad(section: CadFocusRequest['section']) {
     if (section === 'nodes' || section === 'convert') {
@@ -376,7 +424,7 @@ export function DrawingChrome() {
     const root = context?.root.current;
     if (!root) return;
     const keys = (event: KeyboardEvent) => {
-      if(event.key==='Escape' && toolGroup!==null){event.preventDefault();setToolGroup(null);return;}
+      if(event.key==='Escape' && toolGroup!==null){event.preventDefault();event.stopPropagation();setToolGroup(null);flyoutTrigger.current?.focus();return;}
       if (event.key === 'Escape' && openMenu) { event.preventDefault(); event.stopPropagation(); closeMenus(true); return; }
       if (!(event.target instanceof Element) || event.target.closest('input,textarea,select,[contenteditable="true"]')) return;
       if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'F12') { event.preventDefault(); event.stopPropagation(); focusCad('paint'); return; }
@@ -424,6 +472,7 @@ export function DrawingChrome() {
   }, [context?.root, editor, openMenu, toolGroup, cadLabel, advancedLabel]);
   if (!context) return null;
   const { hosts, panel, setPanel, order, onImport } = context;
+  const activePanel = panel ?? lastPanel;
   function portal(slot: Slot, children: ReactNode) { const host = hosts[slot]; return host ? createPortal(children, host, slot) : null; }
   const position = state.single ? editor.getShapePageTransform(state.single).point() : undefined;
   const bounds = state.single ? editor.getShapeGeometry(state.single).bounds : undefined;
@@ -503,6 +552,15 @@ export function DrawingChrome() {
   const menuActions = (actions: string[]) => actions.map(action => <button type="button" key={action} disabled={!actionEnabled(action)}
     onClick={() => { command(action); closeMenus(); }} data-testid={`drawing-action-${action}`}>{actionLabel(action)}</button>);
   const fieldNames = { x: 'positionX', y: 'positionY', w: 'width', h: 'height', rotation: 'rotation' } as const;
+  const transformField = (field: DrawingTransformField) => settings ? <CadNumberField key={`cad-${field}`} field={field} label={label(fieldNames[field])}
+    value={cadSelection?.[field]} settings={settings} anchor={cadAnchor} proportional={proportional}
+    disabled={protectedForm || (field === 'w' || field === 'h' ? !canResize : field === 'rotation' ? !canRotate : !controls.canEditSelection)} /> : <NumberField key={field} field={field} label={label(fieldNames[field])}
+    value={field === 'x' ? position?.x : field === 'y' ? position?.y : field === 'w' ? bounds?.w : field === 'h' ? bounds?.h : state.single ? editor.getShapePageTransform(state.single).rotation() * 180 / Math.PI : undefined}
+    disabled={field === 'w' || field === 'h' ? !canResize : field === 'rotation' ? !canRotate : !controls.canEditSelection} />;
+  const panelModes = ['properties', 'text', 'arrange', 'measure', 'objects', 'cad'] as const;
+  const panelLabel = (mode: Exclude<Panel, null>) => mode === 'cad' ? cadLabel('cad') : mode === 'properties' || mode === 'objects' ? label(mode) : workbenchLabel(mode);
+  const groupLabel = (group: typeof toolGroups[number]) => group.id === 'curves' || group.id === 'shapes' || group.id === 'annotations' ? workbenchLabel(group.id) : toolLabel(group.tools[0]);
+  const activeToolGroup = toolGroups.find(group => group.id === toolGroup);
 
   return <>
     {portal('commands', <>
@@ -557,55 +615,64 @@ export function DrawingChrome() {
           <button type="button" aria-pressed={state.snap} onClick={() => command('snap')}>{state.snap ? '✓ ' : ''}{label('snap')}</button>
         </div></details>
       </nav>
-      <span className="drawing-divider" />
-      <ToolButton icon="undo" testId="drawing-undo" label={actionLabel('undo')} disabled={!controls.canUndo} onClick={() => command('undo')} />
-      <ToolButton icon="redo" testId="drawing-redo" label={actionLabel('redo')} disabled={!controls.canRedo} onClick={() => command('redo')} />
+    </>)}
+    {portal('standard', <>
       <ToolButton icon="import" testId="drawing-import" label={label('import')} disabled={controls.readOnly || busy || !onImport} onClick={() => input.current?.click()} />
+      <span className="drawing-divider" />
+      <ToolButton icon="undo" testId="drawing-undo" label={`${actionLabel('undo')} (Ctrl+Z)`} disabled={!controls.canUndo} onClick={() => command('undo')} />
+      <ToolButton icon="redo" testId="drawing-redo" label={`${actionLabel('redo')} (Ctrl+Shift+Z)`} disabled={!controls.canRedo} onClick={() => command('redo')} />
+      <ToolButton icon="duplicate" testId="drawing-duplicate" label={`${actionLabel('duplicate')} (Ctrl+D)`} disabled={!actionEnabled('duplicate')} onClick={() => command('duplicate')} />
+      <span className="drawing-divider" />
+      <ToolButton icon="fit" testId="drawing-fit" label={`${actionLabel('fit')} (F4)`} disabled={!actionEnabled('fit')} onClick={() => command('fit')} />
+      <ToolButton icon="fit-selection" testId="drawing-fit-selection" label={`${actionLabel('fit-selection')} (Shift+F2)`} disabled={!actionEnabled('fit-selection')} onClick={() => command('fit-selection')} />
+      <span className="drawing-divider" />
+      <ToolButton icon="files" testId="drawing-files" label={vectorLabel('files')} onClick={() => focusCad('files')} />
       <input ref={input} type="file" hidden multiple accept={order
           ? '.pdf,.png,.jpg,.jpeg,.webp,.gif,.cdr,.dxf'
           : 'image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,.pdf,.mp3,.wav,.ogg,.m4a'}
         onChange={event => { void importFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
-      <span className="drawing-spacer" />
-      <ToolButton icon="properties" label={label('properties')} active={panel === 'properties'} onClick={() => setPanel(panel === 'properties' ? null : 'properties')} testId="drawing-properties-toggle" />
     </>)}
     {portal('properties', <>
       <span className="drawing-tool-name">{toolLabel(nodeEditing ? 'nodes' : controls.tool)}</span><span className="drawing-divider" />
       {controls.tool === 'cad-polyline' ? <CadPointEntry settings={settings}/> : <>
-      {settings && <><CadAnchorControl value={cadAnchor} onChange={setCadAnchor} />
-        <ToolButton icon={proportional ? 'lock' : 'unlock'} label={cadLabel('proportional')} active={proportional} onClick={() => setProportional(value => !value)} testId="drawing-cad-proportional" /></>}
-      {(['x', 'y', 'w', 'h', 'rotation'] as const).map(field => settings ? <CadNumberField key={`cad-${field}`} field={field} label={label(fieldNames[field])}
-        value={cadSelection?.[field]} settings={settings} anchor={cadAnchor} proportional={proportional}
-        disabled={protectedForm || (field === 'w' || field === 'h' ? !canResize : field === 'rotation' ? !canRotate : !controls.canEditSelection)} /> : <NumberField key={field} field={field} label={label(fieldNames[field])}
-        value={field === 'x' ? position?.x : field === 'y' ? position?.y : field === 'w' ? bounds?.w : field === 'h' ? bounds?.h : state.single ? editor.getShapePageTransform(state.single).rotation() * 180 / Math.PI : undefined}
-        disabled={field === 'w' || field === 'h' ? !canResize : field === 'rotation' ? !canRotate : !controls.canEditSelection} />)}
+      {settings && <CadAnchorControl value={cadAnchor} onChange={setCadAnchor} />}
+      <div className="drawing-property-pair">{transformField('x')}{transformField('y')}</div>
+      <span className="drawing-divider" />
+      <div className="drawing-property-pair">{transformField('w')}{transformField('h')}</div>
+      {settings && <ToolButton icon={proportional ? 'lock' : 'unlock'} label={cadLabel('proportional')} active={proportional} onClick={() => setProportional(value => !value)} testId="drawing-cad-proportional" />}
+      <span className="drawing-divider" />
+      {transformField('rotation')}
       <span className="drawing-unit">{settings ? `${settings.unit} · 1:${settings.scale}` : label('units')}</span>
       {order && <div className="drawing-annotations">{(['comment', 'warning', 'explanation'] as const).map((kind, index) =>
         <button type="button" key={kind} aria-label={label((['orderNote', 'orderWarning', 'orderExplain'] as const)[index])} disabled={controls.readOnly} onClick={() => annotation(kind)}>{['✎', '⚠', 'ℹ'][index]} {label((['orderNote', 'orderWarning', 'orderExplain'] as const)[index])}</button>)}</div>}
       </>}
     </>)}
-    {portal('tools', <div role="toolbar" aria-label={label('toolbox')} className="drawing-tools">
-      {toolGroups.map((group,index)=>{
-        const current=group.includes(controls.tool)?controls.tool:(groupTools[index]??group[0]);
-        return <div className="drawing-tool-group" key={index}>
-          <ToolButton icon={current} label={`${toolLabel(current)}${shortcut[current]?` (${shortcut[current]})`:''}`} active={current === 'nodes' ? nodeEditing : current === 'select' ? controls.tool === 'select' && !nodeEditing : group.includes(controls.tool)} disabled={controls.readOnly&&!['select','hand','nodes'].includes(current)} onClick={()=>chooseTool(current)} testId={`drawing-tool-${current}`}/>
-          {group.length>1&&<button type="button" className="drawing-tool-expand" aria-label={`${workbenchLabel('more')}: ${toolLabel(current)}`} aria-expanded={toolGroup===index} onClick={()=>setToolGroup(toolGroup===index?null:index)}>▸</button>}
-          {group.length>1&&toolGroup===index&&<div className="drawing-tool-flyout" role="group" aria-label={workbenchLabel(index===3?'curves':index===4?'shapes':'annotations')}>
-            {group.map(tool=><button type="button" key={tool} disabled={controls.readOnly} aria-pressed={controls.tool===tool} onClick={()=>chooseTool(tool)} data-testid={`drawing-flyout-${tool}`}><Icon name={tool}/><span>{toolLabel(tool)}</span></button>)}
-          </div>}
+    {portal('tools', <div role="toolbar" aria-label={label('toolbox')} aria-orientation="vertical" className="drawing-tools">
+      {toolGroups.map(group => {
+        const current = group.tools.includes(controls.tool) ? controls.tool : (groupTools[group.id] ?? group.tools[0]);
+        return <div className="drawing-tool-group" key={group.id}>
+          <ToolButton icon={current} label={`${toolLabel(current)}${shortcut[current] ? ` (${shortcut[current]})` : ''}`} active={current === 'nodes' ? nodeEditing : current === 'select' ? controls.tool === 'select' && !nodeEditing : group.tools.includes(controls.tool)} disabled={controls.readOnly && !['select', 'hand', 'nodes'].includes(current)} onClick={() => chooseTool(current)} testId={`drawing-tool-${current}`} />
+          {group.tools.length > 1 && <button type="button" className="drawing-tool-expand" title={`${workbenchLabel('more')}: ${groupLabel(group)}`} aria-label={`${workbenchLabel('more')}: ${groupLabel(group)}`} aria-expanded={toolGroup === group.id} onClick={event => toggleToolGroup(group, event.currentTarget, event.detail === 0)}
+            onKeyDown={event => { if (event.key === 'ArrowRight' || event.key === 'ArrowDown') { event.preventDefault(); event.stopPropagation(); toggleToolGroup(group, event.currentTarget, true); } }} data-testid={`drawing-tools-${group.id}`}>▸</button>}
         </div>;
       })}
+      <div className="drawing-tool-paint"><ToolButton icon="paint" label={`${vectorLabel('paint')} (F12)`} onClick={() => { setToolGroup(null); focusCad('paint'); }} testId="drawing-paint" /></div>
     </div>)}
+    {activeToolGroup && hosts.tools && context.root.current && createPortal(<div className="drawing-tool-flyout" role="group" aria-label={groupLabel(activeToolGroup)} style={flyoutPosition}>
+      {activeToolGroup.tools.map(tool => <button type="button" key={tool} disabled={controls.readOnly} aria-pressed={controls.tool === tool} title={`${toolLabel(tool)}${shortcut[tool] ? ` (${shortcut[tool]})` : ''}`} onClick={() => chooseTool(tool)} data-testid={`drawing-flyout-${tool}`}><Icon name={tool} /><span>{toolLabel(tool)}</span>{shortcut[tool] && <kbd>{shortcut[tool]}</kbd>}</button>)}
+    </div>, context.root.current, 'tool-flyout')}
     {portal('rulerOrigin', settings?.unit ?? 'px')}
     {portal('rulerX', <Ruler settings={settings} />)}{portal('rulerY', <Ruler vertical settings={settings} />)}
     {portal('docker', <>
-      <div className="drawing-docker-title"><label className="drawing-docker-picker"><select aria-label={label('properties')} value={panel??'properties'} onChange={e=>setPanel(e.target.value as Panel)}>
-        <option value="properties">{label('properties')}</option><option value="text">{workbenchLabel('text')}</option><option value="arrange">{workbenchLabel('arrange')}</option><option value="measure">{workbenchLabel('measure')}</option><option value="objects">{label('objects')}</option><option value="cad">{cadLabel('cad')}</option>
-      </select></label><ToolButton icon="close" label={label('closePanel')} onClick={()=>setPanel(null)}/></div>
-      <div className="drawing-docker-modes" role="toolbar" aria-label={label('properties')}>
-        {(['properties','text','arrange','measure','objects','cad'] as const).map(mode=><ToolButton key={mode} testId={mode==='cad'?'drawing-cad-toggle':mode==='objects'?'drawing-objects-toggle':undefined} icon={mode==='measure'?'cad-dimension':mode==='cad'?'cad-polyline':mode} label={mode==='cad'?cadLabel('cad'):['text','arrange','measure'].includes(mode)?workbenchLabel(mode as 'text'|'arrange'|'measure'):label(mode as 'properties'|'objects')} active={panel===mode} onClick={()=>setPanel(mode)}/>)}
+      <div className="drawing-docker-title"><strong>{panelLabel(activePanel)}</strong>
+        <ToolButton icon="close" label={label('closePanel')} onClick={() => {
+          const current = panel;
+          setPanel(null);
+          if (current) context.root.current?.querySelector<HTMLElement>(`[data-testid="drawing-${current}-toggle"]`)?.focus();
+        }} />
       </div>
-      <div className="drawing-docker-content" role="region" aria-label={panel??label('properties')}>
-        {panel === 'text' ? <TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')}/> : panel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : panel === 'arrange' ? <><ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings}/></> : panel === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : panel === 'objects' ? <>
+      <div className="drawing-docker-content" role="region" aria-label={panelLabel(activePanel)}>
+        {activePanel === 'text' ? <TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')}/> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <><ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings}/></> : activePanel === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : activePanel === 'objects' ? <>
           <p className="drawing-help">{state.shapes.length} {label('items')} · {controls.selected} {label('selected')}</p>
           <label className="drawing-object-search"><span>{label('searchObjects')}</span><input type="search" value={search} maxLength={100} onChange={event => setSearch(event.target.value)} /></label>
           {state.single && <ObjectNameField key={state.single.id} shape={state.single} disabled={!controls.canEditSelection} />}
@@ -650,6 +717,18 @@ export function DrawingChrome() {
         </>}
       </div>
     </>)}
+    {portal('dockerTabs', <div className="drawing-docker-tabs" role="toolbar" aria-label={label('panels')} aria-orientation="vertical" onKeyDown={event => {
+      if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+      const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button'));
+      const index = buttons.indexOf(event.target as HTMLButtonElement);
+      if (index < 0) return;
+      event.preventDefault(); event.stopPropagation();
+      buttons[event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]?.focus();
+    }}>
+      {panelModes.map(mode => <button key={mode} type="button" className="drawing-docker-tab" data-testid={`drawing-${mode}-toggle`} title={panelLabel(mode)} aria-label={panelLabel(mode)} aria-pressed={panel === mode} onClick={() => { setToolGroup(null); setPanel(panel === mode ? null : mode); }}>
+        <Icon name={mode === 'measure' ? 'cad-dimension' : mode === 'cad' ? 'cad-polyline' : mode} /><span>{panelLabel(mode)}</span>
+      </button>)}
+    </div>)}
     {portal('palette', <div className="drawing-swatches" role="toolbar" aria-label={label('palette')}>
       {DefaultColorStyle.values.map(value => <button key={value} type="button" title={`${label('palette')}: ${label(value)}`}
         aria-label={`${label('palette')}: ${label(value)}`} aria-pressed={color?.type === 'shared' && color.value === value} disabled={!controls.canStyle || !color}

@@ -4,7 +4,11 @@ Idea boards and draft-order canvases use the same `DrawingWorkspace` around the 
 
 ## Workspace
 
-The layout follows CorelDRAW's menu/property bar, left toolbox, central drawing area, right properties/object docker and palette, and bottom status/zoom arrangement. It uses OMS theme colours and EN/RU/LV labels. Chrome is outside the editor viewport, so fit-to-content and file-drop coordinates use the actual drawing area.
+The layout follows CorelDRAW's separate menu, standard toolbar and property bar, left toolbox, central drawing area, right docker and vertical colour palette, and bottom status/zoom arrangement. It uses OMS theme colours, original icons and EN/RU/LV labels. Chrome is outside the editor viewport, so fit-to-content and file-drop coordinates use the actual drawing area.
+
+Rectangle, Ellipse/circles and polygon shapes have separate toolbox positions. The small arrow opens the alternatives for a tool group. **Fill & outline (F12)** opens the existing vector paint controls, including gradient and material sections. The toolbox scrolls on short screens; flyouts are positioned outside that scrolling area.
+
+The labelled vertical rail beside the colour palette opens **Properties**, **Text**, **Arrange**, **Measure**, **Objects** or **CAD**. The active docker has one title and close control; its rail stays available when closed. On narrow embedded canvases, the docker overlays the drawing instead of reducing the viewport to a sliver. Position/size controls remain horizontally scrollable when space is limited. These changes apply to both drawing hosts without changing embedded order-form styling or document data.
 
 - Pick, pan, freehand, line, arrow, rectangle, ellipse, triangle, diamond, pentagon, star, text, highlight, eraser, and frame tools.
 - Object X/Y, width/height and rotation; grouping, alignment, distribution, stacking, mirroring, quarter-turn rotation, duplication, and deletion.
@@ -14,7 +18,7 @@ The layout follows CorelDRAW's menu/property bar, left toolbox, central drawing 
 - Camera-aware physical rulers on calibrated pages, grid and object snapping, fit/selection zoom, undo and redo. F6/F7/F8 select rectangle/ellipse/text; F4 fits the drawing; Ctrl/Cmd+D duplicates. Form fields retain their own typing behaviour.
 - Import uses the existing authorized upload path. SVG/PNG export covers supported drawn objects; embedded order forms and document viewers are excluded with an explanation.
 - Export selected artwork or the whole drawing, choose background or transparency and padding, and set PNG scale to 1×, 2× or 4×. Preflight limits raster output to 8,192 pixels per side and 32 million pixels total before allocating an image; completion status reports the number of omitted unsupported objects. SVG remains vector output.
-- Menus open one at a time and Escape restores focus to their trigger. Properties/Objects/CAD tabs support arrow, Home and End keys. On compact screens the docker sits below the drawing viewport.
+- Menus open one at a time and Escape restores focus to their trigger. Docker rail controls expose the active panel; Up/Down/Home/End move focus, and Enter/Space opens the focused panel. Closing a docker returns focus to its rail control and retains that docker's current draft. Tool flyouts support keyboard entry and Escape returns focus to their expand button.
 
 PNG completion reports dimensions read from the saved file header. If the browser reduces a large export below the requested scale, the workspace reports that reduction; exporting a smaller selection can preserve the requested resolution.
 - Idea-only content and assistant actions remain in a compact content bar. Order-only notes, warnings and explanations remain beside the common property controls.
@@ -50,7 +54,7 @@ Pull `main`, install dependencies if needed, build, and restart `reclame-oms.ser
 
 Regression coverage includes real multi-page PDF extraction and rendering, original-page selection and out-of-range failures, incomplete text layers, PDF mode/model selection, paid-OCR isolation, provider backoff/exhaustion/cancellation, object permissions/transforms, saved canvas/form bridges, and content-bar behaviour. Drawing-operation tests cover metadata-only names, repeat limits and rollback, and export bounds.
 
-Run source/unit tests, Svelte/TypeScript checking, focused linting, whitespace checks and the production build before publishing changes. Run check and build sequentially because both write `.svelte-kit`. Browser cases cover both drawing hosts and PDF analysis. Their execution in the hosted workspace was blocked before page load by Chromium's `socket() Operation not permitted`; the alternate browser could not reach the test server. No live OpenRouter account or production server was used for verification.
+Run source/unit tests, Svelte/TypeScript checking, focused linting, whitespace checks and the production build before publishing changes. Run check and build sequentially because both write `.svelte-kit`. The drawing fixture includes width and height selectors for embedded-layout checks. The current chrome pass was exercised through the browser in both drawing hosts: toolbar edits/undo, numeric sizing, tool flyouts, paint access, rail/menu keyboard focus, closed-docker draft retention, read-only guards, EN/RU/LV and Light/Dark/HighContrast themes, including a 390 × 420 embedded workspace. The full historical Playwright suite was not executed in this pass; earlier cases retain legacy tab-role assumptions and need updating before they can certify the current rail. No live OpenRouter account or production server was used for verification.
 
 Run the browser regressions in an environment with Chromium available:
 

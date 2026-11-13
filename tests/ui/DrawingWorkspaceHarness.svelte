@@ -21,6 +21,8 @@
   let editor: any;
   let readonly = $state(new URLSearchParams(location.search).has('readonly'));
   let theme = $state('LightVim');
+  let workspaceWidth = $state('100%');
+  let workspaceHeight = $state('calc(100dvh - 48px)');
   let saves = $state(0);
   let exampleStatus = $state('');
   async function loadMaterials() {
@@ -64,13 +66,15 @@
   {#if materialExample}<button onclick={loadMaterials}>Load material example</button><button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
   <label>Theme <select aria-label="Theme" bind:value={theme}><option>LightVim</option><option>DarkVim</option><option>HighContrastVim</option></select></label>
   <label>Language <select aria-label="Language" value={$locale} onchange={event => locale.set(event.currentTarget.value)}><option value="en">English</option><option value="ru">Русский</option><option value="lv">Latviešu</option></select></label>
+  <label>Workspace <select aria-label="Workspace width" bind:value={workspaceWidth}><option value="100%">Full width</option><option value="880px">880 px</option><option value="520px">520 px</option><option value="390px">390 px</option></select></label>
+  <label>Height <select aria-label="Workspace height" bind:value={workspaceHeight}><option value="calc(100dvh - 48px)">Full height</option><option value="420px">420 px</option></select></label>
 </header>
-<main><TldrawWrapper orderSeed={order ? seed : null} toolkitBoardId={order ? null : 'fixture-board'}
+<main style:width={workspaceWidth} style:height={workspaceHeight}><TldrawWrapper orderSeed={order ? seed : null} toolkitBoardId={order ? null : 'fixture-board'}
   onFilesUpload={order&&!persisted?async()=>{}:undefined} onStoreCanvasFile={order&&!persisted?storeFile:undefined}
   onReady={value => editor = value} toolkitReadOnly={readonly} onDocumentChange={() => saves++} /></main>
 <style>
-  header { display:flex;align-items:center;gap:12px;padding:8px;height:48px;box-sizing:border-box;background:var(--bg-1);color:var(--text); }
+  header { display:flex;align-items:center;gap:12px;padding:8px;height:48px;box-sizing:border-box;background:var(--bg-1);color:var(--text);overflow-x:auto;white-space:nowrap; }
   header label { display:flex;align-items:center;gap:4px;font-size:12px; }
   header select { min-width:0;width:auto; }
-  main { height:calc(100dvh - 48px); }
+  main { height:calc(100dvh - 48px);max-width:100%; }
 </style>
