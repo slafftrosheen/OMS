@@ -285,6 +285,9 @@
 .drawing-font-manager h3 { margin: 0; font-size: 12px; font-weight: 600; }
 .drawing-font-manager .drawing-help { margin: 0; overflow-wrap: anywhere; }
 .drawing-font-manager label { gap: 4px; font-size: 11px; }
+.drawing-font-actions { flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.drawing-workspace .drawing-font-actions .drawing-button { width: auto; max-width: 100%; min-width: 0; min-height: 32px; padding: 4px 8px; border-color: var(--border); background: var(--bg-1); white-space: normal; overflow-wrap: anywhere; }
+.drawing-font-actions .drawing-help { flex: 1 1 auto; }
 .drawing-workspace .drawing-font-manager input[type="file"] { min-height: 32px; width: 100%; padding: 4px; font-size: 11px; }
 .drawing-font-manager input[type="file"]::file-selector-button { min-height: 24px; margin-right: 8px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 2px; background: var(--bg-2); color: var(--ink-primary); font: inherit; }
 .drawing-font-error { color: var(--error); }

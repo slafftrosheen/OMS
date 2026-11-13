@@ -1,20 +1,23 @@
-import {createTLStore, defaultShapeUtils, createShapeId, type TLShapeId} from '@tldraw/tldraw';
+import {createTLStore, defaultShapeUtils, createShapeId, HistoryManager, type TLShapeId} from '@tldraw/tldraw';
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fixture } from '../helpers/cad-editor';
-import { prepareDrawingFont, loadDrawingFont, drawingFontBytes, validDrawingFont, applySelectedDrawingFont, drawingFontValue, drawingFontInUse, removeDrawingFont, readDrawingFonts, uploadDrawingFont, setNextDrawingFont, getNextDrawingFont, preloadSnapshotDrawingFonts, getLoadedDrawingFont } from '../../src/lib/components/canvas/drawing-fonts';
+import { prepareDrawingFont, loadDrawingFont, drawingFontBytes, validDrawingFont, applySelectedDrawingFont, drawingFontValue, drawingFontInUse, removeDrawingFont, readDrawingFonts, uploadDrawingFont, uploadDrawingFonts, exportDrawingFontSet, DrawingFontUploadError, setNextDrawingFont, getNextDrawingFont, preloadSnapshotDrawingFonts, getLoadedDrawingFont } from '../../src/lib/components/canvas/drawing-fonts';
 import { DrawingTextShapeUtil, installDrawingTextUtil } from '../../src/lib/components/canvas/shapes/DrawingTextShape';
 import { editDrawingText } from '../../src/lib/components/canvas/workbench-operations';
 const textId='shape:text' as TLShapeId;
 const raw = readFileSync('static/tldraw/2.4.6/fonts/IBMPlexSans-Medium.woff2');
 const file = { name: 'Custom.woff2', size: raw.length, arrayBuffer: async () => Uint8Array.from(raw).buffer } as File;
+const monoRaw = readFileSync('static/tldraw/2.4.6/fonts/IBMPlexMono-Medium.woff2');
+const monoFile = { name: 'Mono.woff2', size: monoRaw.length, arrayBuffer: async () => Uint8Array.from(monoRaw).buffer } as File;
+const fontSet = (content: string) => new File([content], 'Client-fonts.omsfonts', {type:'application/json'});
 function setup() {
-  const f=fixture(); let doc:any={meta:{keep:'yes'}},next='draw';
+  const f=fixture(); let doc:any={id:'document:document',typeName:'document',meta:{keep:'yes'}},next='draw';
   f.editor.getDocumentSettings=()=>doc;
   f.editor.updateDocumentSettings=(patch:any)=>doc={...doc,...patch};
-  f.editor.store={allRecords:()=>[...f.shapes.values()].map(s=>({...s,typeName:'shape'})),getStoreSnapshot:()=>({store:{doc,...Object.fromEntries(f.shapes)}})};
+  f.editor.store={allRecords:()=>[...f.shapes.values()].map(s=>({...s,typeName:'shape'})),getStoreSnapshot:()=>({store:{doc,...Object.fromEntries(f.shapes)}}),put:(records:any[])=>{for(const record of records)f.editor.updateDocumentSettings(record);}};
   f.editor.getStyleForNextShape=()=>next;
   f.editor.setStyleForNextShapes=(_:any,value:string)=>next=value;
   f.editor.updateInstanceState=(patch:any)=>Object.assign(f.state,patch);
@@ -112,5 +115,95 @@ describe('portable drawing fonts',()=>{
     assert.deepEqual(util.getMinDimensions(shape),{width:121,height:32});assert.match(family,/^OMS_[a-f0-9]+$/);
     const svg=util.toSvg(shape,{isDarkMode:false} as any);assert.equal(svg.type,'path');assert.match(svg.props.d,/M/);
     f.editor.updateDocumentSettings({meta:{}});assert.throws(()=>util.toSvg(shape,{isDarkMode:false} as any),/font-missing/);
+  });
+  it('adds a font family in one change, deduplicating repeated input without touching text',async()=>{
+    const f=setup(), before=JSON.stringify([...f.shapes.values()]);let writes=0;
+    const update=f.editor.updateDocumentSettings;
+    f.editor.updateDocumentSettings=(patch:any)=>{writes++;update(patch);};
+    const result=await uploadDrawingFonts(f.editor,[file,monoFile,file]);
+    assert.equal(result.added,2);assert.equal(result.reused,0);assert.equal(result.fonts.length,2);
+    assert.equal(writes,1);assert.equal(f.marks.length,2);assert.equal(JSON.stringify([...f.shapes.values()]),before);
+    assert.deepEqual(f.editor.getSelectedShapeIds(),[textId]);assert.equal(getNextDrawingFont(f.editor),'draw');
+    assert.equal(f.editor.getDocumentSettings().meta.keep,'yes');
+    f.editor.store.getStoreSnapshot=()=>({large:'x'.repeat(1_950_000)});
+    const again=await uploadDrawingFonts(f.editor,[monoFile,file]);
+    assert.equal(again.added,0);assert.equal(again.reused,2);assert.equal(writes,1);
+  });
+  it('rejects an entire batch with the failing filename, leaving document and undo history untouched',async()=>{
+    const f=setup(), bad=new File(['not a font'],'Broken.ttf');
+    await assert.rejects(()=>uploadDrawingFonts(f.editor,[file,bad,monoFile]),(error:any)=>{
+      assert.ok(error instanceof DrawingFontUploadError);assert.equal(error.fileName,'Broken.ttf');assert.equal(error.message,'font-invalid');return true;
+    });
+    assert.equal(readDrawingFonts(f.editor).length,0);assert.equal(f.marks.length,0);
+    await assert.rejects(()=>uploadDrawingFonts(f.editor,[]),/font-empty/);
+    await assert.rejects(()=>uploadDrawingFonts(f.editor,Array(17).fill(file)),/font-files-limit/);
+  });
+  it('exports only font bytes and imports a reusable set into a different drawing',async()=>{
+    const source=setup(),destination=setup();
+    await uploadDrawingFonts(source.editor,[file,monoFile]);
+    source.editor.updateDocumentSettings({meta:{...source.editor.getDocumentSettings().meta,orderSecret:'private client details'}});
+    source.state.isReadonly=true;
+    const content=await exportDrawingFontSet(source.editor), parsed=JSON.parse(content);
+    assert.deepEqual(Object.keys(parsed),['format','version','fonts']);assert.equal(content.includes('private client details'),false);assert.equal(content.includes('Rīga 123'),false);
+    assert.deepEqual(Object.keys(parsed.fonts[0]).sort(),['id','name','family','subfamily','data','bytes'].sort());
+    const imported=await uploadDrawingFonts(destination.editor,[fontSet(content),file]);
+    assert.equal(imported.added,2);assert.equal(imported.reused,0);
+    assert.equal(readDrawingFonts(destination.editor).find(f=>f.id===parsed.fonts[0].id)!.data,parsed.fonts[0].data);
+    assert.equal(applySelectedDrawingFont(destination.editor,[textId],parsed.fonts[0].id),true);
+    const again=await uploadDrawingFonts(destination.editor,[fontSet(content)]);assert.equal(again.added,0);assert.equal(again.reused,2);
+  });
+  it('validates font-set schema, content identity, size and names rather than trusting imported metadata',async()=>{
+    const f=setup();await uploadDrawingFont(f.editor,file);
+    const exported=JSON.parse(await exportDrawingFontSet(f.editor));
+    for(const bad of [{...exported,version:2},{...exported,format:'other'},{...exported,fonts:[]},{...exported,fonts:[...exported.fonts,...exported.fonts]}]) {
+      await assert.rejects(()=>uploadDrawingFonts(setup().editor,[fontSet(JSON.stringify(bad))]),/font-set-invalid/);
+    }
+    await assert.rejects(()=>uploadDrawingFonts(setup().editor,[fontSet('x'.repeat(1_500_001))]),/font-set-invalid/);
+    const corrupt=structuredClone(exported);corrupt.fonts[0].data=(corrupt.fonts[0].data[0]==='A'?'B':'A')+corrupt.fonts[0].data.slice(1);
+    const target=setup();await assert.rejects(()=>uploadDrawingFonts(target.editor,[monoFile,fontSet(JSON.stringify(corrupt))]),/font-invalid/);
+    assert.equal(readDrawingFonts(target.editor).length,0);
+    exported.fonts[0].name='Fake font title';exported.fonts[0].clientSecret='not a font field';
+    await uploadDrawingFonts(target.editor,[fontSet(JSON.stringify(exported))]);
+    assert.match(readDrawingFonts(target.editor)[0].name,/IBM Plex Sans/);assert.equal((readDrawingFonts(target.editor)[0] as any).clientSecret,undefined);
+    f.editor.updateDocumentSettings({meta:{omsFonts:corrupt.fonts}});
+    await assert.rejects(()=>exportDrawingFontSet(f.editor),/font-invalid/);
+    await assert.rejects(()=>exportDrawingFontSet(setup().editor),/font-empty/);
+  });
+  it('rechecks live permissions and total UTF-8 save size after async preparation',async()=>{
+    const f=setup();
+    const changesPermission={...file,arrayBuffer:async()=>{f.state.isReadonly=true;return file.arrayBuffer();}} as File;
+    await assert.rejects(()=>uploadDrawingFonts(f.editor,[changesPermission,monoFile]),/font-readonly/);
+    assert.equal(readDrawingFonts(f.editor).length,0);
+    const oversized=setup();oversized.editor.store.getStoreSnapshot=()=>({text:'ā'.repeat(950000)});
+    await assert.rejects(()=>uploadDrawingFonts(oversized.editor,[file,monoFile]),/font-save-limit/);
+    assert.equal(readDrawingFonts(oversized.editor).length,0);assert.equal(oversized.marks.length,0);
+  });
+  it('merges concurrent imports against the live document without losing either face',async()=>{
+    const f=setup();await Promise.all([uploadDrawingFonts(f.editor,[file]),uploadDrawingFonts(f.editor,[monoFile])]);
+    assert.equal(readDrawingFonts(f.editor).length,2);assert.equal(new Set(readDrawingFonts(f.editor).map(font=>font.id)).size,2);
+  });
+  it('reuses a face added by a concurrent import instead of creating a second undo entry',async()=>{
+    const f=setup();let writes=0;const update=f.editor.updateDocumentSettings;
+    f.editor.updateDocumentSettings=(patch:any)=>{writes++;update(patch);};
+    const results=await Promise.all([uploadDrawingFonts(f.editor,[file]),uploadDrawingFonts(f.editor,[file])]);
+    assert.deepEqual(results.map(result=>result.added).sort(),[0,1]);
+    assert.deepEqual(results.map(result=>result.reused).sort(),[0,1]);
+    assert.equal(writes,1);assert.equal(readDrawingFonts(f.editor).length,1);
+  });
+  it('records batch import and removal in the real tldraw undo history',async()=>{
+    const store=createTLStore({shapeUtils:defaultShapeUtils});
+    store.put([{id:'document:document',typeName:'document',name:'Font test',gridSize:10,meta:{keep:'yes'}} as any]);
+    const history=new HistoryManager({store}),state={isReadonly:false,meta:{}};
+    const editor:any={store,getDocumentSettings:()=>store.get('document:document' as any),getInstanceState:()=>state,
+      getStyleForNextShape:()=> 'draw',mark:history.mark.bind(history),run:history.batch,bailToMark:history.bailToMark,
+      updateDocumentSettings:(patch:any)=>history.batch(()=>store.put([{...editor.getDocumentSettings(),...patch}]),{history:'ignore'})};
+    try {
+      const result=await uploadDrawingFonts(editor,[file,monoFile]);assert.equal(readDrawingFonts(editor).length,2);
+      history.undo();assert.equal(readDrawingFonts(editor).length,0);assert.equal(editor.getDocumentSettings().meta.keep,'yes');
+      history.redo();assert.equal(readDrawingFonts(editor).length,2);
+      assert.equal(removeDrawingFont(editor,result.fonts[0].id),true);assert.equal(readDrawingFonts(editor).length,1);
+      history.undo();assert.equal(readDrawingFonts(editor).length,2);
+      history.redo();assert.equal(readDrawingFonts(editor).length,1);
+    } finally {history.dispose();}
   });
 });

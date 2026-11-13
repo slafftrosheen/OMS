@@ -4,7 +4,12 @@ import { drawingTransaction } from './drawing-commands';
 export const MAX_DRAWING_FONT_BYTES = 1024 * 1024;
 export const MAX_DRAWING_FONTS_BYTES = 1024 * 1024;
 export const MAX_DRAWING_FONTS = 16;
+export const MAX_DRAWING_FONT_SET_BYTES = 1_500_000;
 export interface DrawingFont { id: string; name: string; family: string; subfamily: string; data: string; bytes: number }
+export interface DrawingFontUploadResult { fonts: DrawingFont[]; added: number; reused: number }
+export class DrawingFontUploadError extends Error {
+  constructor(code: string, readonly fileName: string) { super(code); this.name = 'DrawingFontUploadError'; }
+}
 const builtin = new Set(['draw', 'sans', 'serif', 'mono']);
 const loaded = new Map<string, { font: any; face?: FontFace; data: string }>();
 const loading = new Map<string, Promise<void>>();
@@ -98,26 +103,94 @@ export async function preloadSnapshotDrawingFonts(snapshot: any): Promise<void> 
   // A damaged/unloadable face remains explicit on its shapes; never silently export fallback lettering.
   await Promise.allSettled(records(doc?.meta).map(loadDrawingFont));
 }
-export async function uploadDrawingFont(editor: Editor, file: File): Promise<DrawingFont> {
-  if (editor.getInstanceState().isReadonly) return fail('font-readonly');
-  const font = await prepareDrawingFont(file);
-  const wasReady = getLoadedDrawingFont(editor, font.id);
-  await loadDrawingFont(font);
-  if (editor.getInstanceState().isReadonly || editor.isDisposed) return fail('font-readonly');
-  const current = readDrawingFonts(editor), existing = current.find(f => f.id === font.id);
-  if (existing && existing.data === font.data && wasReady) return existing;
-  if (!existing && current.length >= MAX_DRAWING_FONTS || current.reduce((n, f) => n + f.bytes, 0) - (existing?.bytes ?? 0) + font.bytes > MAX_DRAWING_FONTS_BYTES) return fail('font-limit');
-  const payloadBytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
-  if (payloadBytes(editor.store.getStoreSnapshot()) + payloadBytes(font) - (existing ? payloadBytes(existing) : 0) + 64 > 1_900_000) return fail('font-save-limit');
-  if (!drawingTransaction(editor, () => editor.updateDocumentSettings({ meta: { ...editor.getDocumentSettings().meta, omsFonts: [...current.filter(f => f.id !== font.id), font] as any, omsFontsRevision: Number(editor.getDocumentSettings().meta.omsFontsRevision ?? 0) + 1 } }))) return fail('font-invalid');
+/** Verify bytes and recover names from the font itself, not from imported JSON. */
+async function canonicalFont(record: DrawingFont): Promise<DrawingFont> {
+  const bytes = drawingFontBytes(record);
+  const font = await prepareDrawingFont({ name: 'Imported font.ttf', size: bytes.byteLength, arrayBuffer: async () => bytes });
+  if (font.id !== record.id) return fail('font-invalid');
   return font;
+}
+async function readFontSet(file: File): Promise<DrawingFont[]> {
+  if (!file.size || file.size > MAX_DRAWING_FONT_SET_BYTES) return fail('font-set-invalid');
+  let value: any;
+  try {
+    const bytes = await file.arrayBuffer();
+    if (bytes.byteLength !== file.size) return fail('font-set-invalid');
+    value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  } catch { return fail('font-set-invalid'); }
+  if (value?.format !== 'oms-font-set' || value.version !== 1 || !Array.isArray(value.fonts) || !value.fonts.length || records({ omsFonts: value.fonts }).length !== value.fonts.length) return fail('font-set-invalid');
+  const fonts: DrawingFont[] = [];
+  for (const record of value.fonts) fonts.push(await canonicalFont(record));
+  return fonts;
+}
+function mergeFontBatch(editor: Editor, fonts: DrawingFont[]): DrawingFont[] {
+  const current = readDrawingFonts(editor), byId = new Map(current.map(font => [font.id, font]));
+  for (const font of fonts) byId.set(font.id, font);
+  const merged = [...byId.values()];
+  if (merged.length > MAX_DRAWING_FONTS || merged.reduce((n, f) => n + f.bytes, 0) > MAX_DRAWING_FONTS_BYTES) return fail('font-limit');
+  const payloadBytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  if (payloadBytes(editor.store.getStoreSnapshot()) + payloadBytes(merged) - payloadBytes(current) + 128 > 1_900_000) return fail('font-save-limit');
+  return merged;
+}
+/** Validate the entire batch before one document mutation. A bad file never
+ * leaves a half-imported family. Recheck live permissions and budgets after IO. */
+export async function uploadDrawingFonts(editor: Editor, files: readonly File[]): Promise<DrawingFontUploadResult> {
+  if (editor.getInstanceState().isReadonly || editor.isDisposed) return fail('font-readonly');
+  if (!files.length) return fail('font-empty');
+  if (files.length > MAX_DRAWING_FONTS) return fail('font-files-limit');
+  const byId = new Map<string, DrawingFont>(), sources = new Map<string, string>();
+  for (const file of files) {
+    try {
+      const prepared = /\.omsfonts$/i.test(file.name) ? await readFontSet(file) : [await prepareDrawingFont(file)];
+      for (const font of prepared) { byId.set(font.id, font); sources.set(font.id, file.name); }
+    } catch (error) { throw new DrawingFontUploadError(error instanceof Error ? error.message : 'font-invalid', file.name); }
+  }
+  const fonts = [...byId.values()];
+  if (editor.getInstanceState().isReadonly || editor.isDisposed) return fail('font-readonly');
+  const beforeLoad = new Map(readDrawingFonts(editor).map(font => [font.id, font]));
+  const readyBeforeLoad = new Set(fonts.filter(font => getLoadedDrawingFont(editor, font.id)).map(font => font.id));
+  if (readyBeforeLoad.size === fonts.length) return { fonts, added: 0, reused: fonts.length };
+  mergeFontBatch(editor, fonts);
+  for (const font of fonts) {
+    try { await loadDrawingFont(font); }
+    catch (error) { throw new DrawingFontUploadError(error instanceof Error ? error.message : 'font-invalid', sources.get(font.id)!); }
+  }
+  if (editor.getInstanceState().isReadonly || editor.isDisposed) return fail('font-readonly');
+  const current = readDrawingFonts(editor), merged = mergeFontBatch(editor, fonts);
+  const reused = fonts.filter(font => current.some(existing => existing.id === font.id && existing.data === font.data &&
+    (readyBeforeLoad.has(font.id) || beforeLoad.get(font.id) !== existing))).length;
+  const added = fonts.length - reused;
+  if (added && !drawingTransaction(editor, () => {
+    const document = editor.getDocumentSettings();
+    // updateDocumentSettings explicitly ignores history in tldraw 2.4.
+    // Fonts are user content, so record the document change with the same undo mark.
+    editor.store.put([{ ...document, meta: { ...document.meta, omsFonts: merged as any,
+      omsFontsRevision: Number(document.meta.omsFontsRevision ?? 0) + 1 } }]);
+  })) return fail('font-invalid');
+  return { fonts, added, reused };
+}
+export async function uploadDrawingFont(editor: Editor, file: File): Promise<DrawingFont> {
+  return (await uploadDrawingFonts(editor, [file])).fonts[0];
+}
+/** A portable set contains fonts only: never artwork, order data or next-tool state. */
+export async function exportDrawingFontSet(editor: Editor): Promise<string> {
+  const records = readDrawingFonts(editor);
+  if (!records.length) return fail('font-empty');
+  const fonts: DrawingFont[] = [];
+  for (const record of records) fonts.push(await canonicalFont(record));
+  const content = JSON.stringify({ format: 'oms-font-set', version: 1, fonts });
+  if (new TextEncoder().encode(content).byteLength > MAX_DRAWING_FONT_SET_BYTES) return fail('font-limit');
+  return content;
 }
 export function drawingFontInUse(editor: Editor, id: string): boolean {
   return editor.store.allRecords().some(r => r.typeName === 'shape' && getShapeDrawingFontId(r) === id) || getNextDrawingFont(editor) === id;
 }
 export function removeDrawingFont(editor: Editor, id: string): boolean {
   if (editor.getInstanceState().isReadonly || drawingFontInUse(editor, id)) return false;
-  return drawingTransaction(editor, () => editor.updateDocumentSettings({ meta: { ...editor.getDocumentSettings().meta, omsFonts: readDrawingFonts(editor).filter(f => f.id !== id) as any } }));
+  return drawingTransaction(editor, () => {
+    const document = editor.getDocumentSettings();
+    editor.store.put([{ ...document, meta: { ...document.meta, omsFonts: readDrawingFonts(editor).filter(f => f.id !== id) as any } }]);
+  });
 }
 export function fontSupportsText(font: any, text: string): boolean {
   return [...text.normalize('NFC')].every(c => /\s/u.test(c) || font.hasGlyphForCodePoint(c.codePointAt(0)));
