@@ -1,3 +1,4 @@
+import {getShapeDrawingFontId} from './drawing-fonts';
 import type { Editor, TLShapeId, TLTextShape } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
 import { TEXT_PIXELS } from './workbench-operations';
@@ -33,7 +34,7 @@ export function applySelectedDrawingTextStyle(
   const expected = new Set(expectedIds);
   if (!selected.length || expected.size !== expectedIds.length || selected.length !== expected.size || selected.some(id => !expected.has(id))) return false;
 
-  const updates: Array<{ id: TLShapeId; type: 'text'; props: Partial<TLTextShape['props']> }> = [];
+  const updates: Array<{ id: TLShapeId; type: 'text'; props: Partial<TLTextShape['props']>; meta?: TLTextShape['meta'] }> = [];
   for (const id of selected) {
     const shape = editor.getShape(id);
     if (!shape || shape.type !== 'text' || editor.isShapeOrAncestorLocked(shape)) return false;
@@ -47,7 +48,8 @@ export function applySelectedDrawingTextStyle(
       if (!Number.isFinite(scale) || scale <= 0) return false;
       if (scale !== text.props.scale) props.scale = scale;
     }
-    if (Object.keys(props).length) updates.push({ id, type: 'text', props });
+    const meta = 'font' in patch && getShapeDrawingFontId(text) ? { ...text.meta, omsFontId: null } : undefined;
+    if (Object.keys(props).length || meta) updates.push({ id, type: 'text', props, ...(meta ? { meta } : {}) });
   }
   if (!updates.length) return true;
   return drawingTransaction(editor, () => {

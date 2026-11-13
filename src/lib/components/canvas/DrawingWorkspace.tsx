@@ -5,6 +5,9 @@ import {TextPanel,ArrangePanel,MeasurePanel,FormScaleControl} from './WorkbenchP
 import {useWorkbenchText} from './workbench-copy';
 import {textPointSize} from './workbench-operations';
 import {applySelectedDrawingTextStyle, drawingTextPointSizeDisplay, type DrawingTextStylePatch} from './drawing-text-style';
+import {DrawingFontPicker, NextDrawingFontPicker} from './DrawingFonts';
+import {applySelectedDrawingFont, clearSelectedDrawingFontOverrides, drawingFontValue, setNextDrawingFont} from './drawing-fonts';
+import {useDrawingFontText} from './font-copy';
 import {ProductionSaveButton} from './ProductionSaveButton';
 import React, { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -209,30 +212,27 @@ function TextPointSizeField({ selected, value, disabled }: { selected: readonly 
   </>;
 }
 
-function SelectedTextProperties({ shapes, disabled, onEdit, onOutlines }: {
-  shapes: TLTextShape[]; disabled: boolean; onEdit: () => void; onOutlines: () => void;
+function SelectedTextProperties({ shapes, disabled, onEdit, onOutlines, onFonts }: {
+  shapes: TLTextShape[]; disabled: boolean; onEdit: () => void; onOutlines: () => void; onFonts: () => void;
 }) {
   const editor = useEditor();
   const { label, tr } = useDrawingText();
   const workbenchLabel = useWorkbenchText();
+  const fontLabel = useDrawingFontText();
   const [failed, setFailed] = useState(false);
+  const [fontFailed, setFontFailed] = useState(false);
   const selected = shapes.map(shape => shape.id);
   const shared = <T,>(read: (shape: TLTextShape) => T): T | undefined => {
     const value = read(shapes[0]);
     return shapes.every(shape => read(shape) === value) ? value : undefined;
   };
-  const font = shared(shape => shape.props.font), align = shared(shape => shape.props.textAlign);
+  const font = shared(drawingFontValue), align = shared(shape => shape.props.textAlign);
   const points = shared(shape => drawingTextPointSizeDisplay(textPointSize(shape))), autoWidth = shared(shape => shape.props.autoSize);
   const mixed = tr('toolkit.toolbar.styleFields.mixed');
   const apply = (patch: DrawingTextStylePatch) => setFailed(!applySelectedDrawingTextStyle(editor, selected, patch));
   return <div className="drawing-context-properties" role="group" aria-label={label('selectedText')} data-testid="drawing-selected-text-properties">
-    <label className="drawing-property-field drawing-property-font"><span>{workbenchLabel('font')}</span>
-      <select aria-label={workbenchLabel('font')} disabled={disabled} value={font ?? ''} data-testid="drawing-text-font"
-        onChange={event => apply({ font: event.target.value as TLTextShape['props']['font'] })}>
-        {font === undefined && <option value="" disabled>{mixed}</option>}
-        {DefaultFontStyle.values.map(value => <option key={value} value={value}>{tr(`toolkit.toolbar.styleValues.font.${value}`)}</option>)}
-      </select>
-    </label>
+    <DrawingFontPicker compact value={font} disabled={disabled} testId="drawing-text-font" onManage={onFonts}
+      onChange={value => { setFailed(false); setFontFailed(!applySelectedDrawingFont(editor, selected, value)); }} />
     <TextPointSizeField selected={selected} value={points} disabled={disabled} />
     <label className="drawing-property-field"><span>{workbenchLabel('align')}</span>
       <select aria-label={workbenchLabel('align')} disabled={disabled} value={align ?? ''} data-testid="drawing-text-align"
@@ -254,6 +254,7 @@ function SelectedTextProperties({ shapes, disabled, onEdit, onOutlines }: {
       <ToolButton icon="text-curves" label={workbenchLabel('outlines')} disabled={disabled || shapes.length !== 1} onClick={onOutlines} testId="drawing-text-outlines">{workbenchLabel('outlines')}</ToolButton>
     </div>
     {failed && <span className="drawing-property-error" role="alert">{label('changedFailed')}</span>}
+    {fontFailed && <span className="drawing-property-error" role="alert">{fontLabel('applyFailed')}</span>}
   </div>;
 }
 
@@ -409,6 +410,7 @@ export function DrawingChrome() {
   const flyoutTrigger = useRef<HTMLButtonElement | null>(null);
   const [saveFormat,setSaveFormat]=useState<'svg'|'png'>('png');
   const [lastPanel, setLastPanel] = useState<Exclude<Panel, null>>('properties');
+  const [fontFocusRequest, setFontFocusRequest] = useState(0);
   useEffect(() => { if (context?.panel) setLastPanel(context.panel); }, [context?.panel]);
   const [cadFocus, setCadFocus] = useState<CadFocusRequest>();
   const settings = useValue('drawing cad settings', () => readCadSettings(editor), [editor]);
@@ -561,6 +563,7 @@ export function DrawingChrome() {
   if (!context) return null;
   const { hosts, panel, setPanel, order, onImport } = context;
   const activePanel = panel ?? lastPanel;
+  function focusFonts() { setPanel('text'); setFontFocusRequest(value => value + 1); }
   function portal(slot: Slot, children: ReactNode) { const host = hosts[slot]; return host ? createPortal(children, host, slot) : null; }
   const position = state.single ? editor.getShapePageTransform(state.single).point() : undefined;
   const bounds = state.single ? editor.getShapeGeometry(state.single).bounds : undefined;
@@ -581,6 +584,7 @@ export function DrawingChrome() {
   function styleChange(style: EnumStyleProp<string>, value: string) {
     if (!style.values.includes(value) || !captureToolkitControls(editor).canStyle) return;
     drawingTransaction(editor, () => {
+      if (style === DefaultFontStyle && editor.isIn('select')) clearSelectedDrawingFontOverrides(editor);
       if (style === DefaultColorStyle) {
         for (const shape of [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].map(id => editor.getShape(id))) if (shape && ['cad-bezier','cad-ellipse','cad-arc'].includes(shape.type) && !editor.isShapeOrAncestorLocked(shape)) {
           const paint = vectorPaint(shape.meta, (shape.props as any).color);
@@ -588,10 +592,18 @@ export function DrawingChrome() {
         }
       }
       if (editor.isIn('select')) editor.setStyleForSelectedShapes(style, value);
-      editor.setStyleForNextShapes(style, value);
+      if (style === DefaultFontStyle) setNextDrawingFont(editor, value);
+      else editor.setStyleForNextShapes(style, value);
     });
   }
   function renderStyleSelect(field: typeof styleFields[number], compact = false) {
+    if (field.id === 'font' && nextText) return <NextDrawingFontPicker key={field.id} compact={compact} disabled={!controls.canStyle} onManage={focusFonts} />;
+    if (field.id === 'font' && selectedText) {
+      const first = drawingFontValue(selectedText[0]);
+      const value = selectedText.every(shape => drawingFontValue(shape) === first) ? first : undefined;
+      return <DrawingFontPicker key={field.id} value={value} compact={compact} disabled={!controls.canStyle} testId={`drawing-${compact ? 'property' : 'style'}-font`}
+        onChange={font => { if (!applySelectedDrawingFont(editor, state.selected, font)) setNotice(label('changedFailed')); }} />;
+    }
     const shared = styles?.get(field.style);
     if (!shared) return null;
     const value = shared.type === 'shared' ? shared.value.replace(/-legacy$/, '') : '';
@@ -748,9 +760,10 @@ export function DrawingChrome() {
       {textProperties ? <span className="drawing-property-caption">{label(nextText ? 'nextText' : 'selectedText')}{selectedText && selectedText.length > 1 ? ` · ${selectedText.length}` : ''}</span>
         : <span className="drawing-tool-name">{toolLabel(nodeEditing ? 'nodes' : controls.tool)}</span>}<span className="drawing-divider" />
       {selectedText ? <SelectedTextProperties key={state.selected.join('|')} shapes={selectedText} disabled={!controls.canEditSelection}
-        onEdit={() => setPanel('text')} onOutlines={() => focusCad('convert')} />
+        onEdit={() => setPanel('text')} onOutlines={() => focusCad('convert')} onFonts={focusFonts} />
       : nextText ? <fieldset className="drawing-context-properties" disabled={!controls.canStyle} aria-label={label('nextText')} data-testid="drawing-next-text-properties">
-        {['font', 'size', 'textAlign'].map(id => renderStyleSelect(styleFields.find(field => field.id === id)!, true))}
+        <NextDrawingFontPicker disabled={!controls.canStyle} onManage={focusFonts} />
+        {['size', 'textAlign'].map(id => renderStyleSelect(styleFields.find(field => field.id === id)!, true))}
       </fieldset>
       : controls.tool === 'cad-polyline' ? <CadPointEntry settings={settings}/> : <>
       {settings && <CadAnchorControl value={cadAnchor} onChange={setCadAnchor} />}
@@ -795,7 +808,7 @@ export function DrawingChrome() {
         }} />
       </div>
       <div className="drawing-docker-content" role="region" aria-label={panelLabel(activePanel)}>
-        {activePanel === 'text' ? <TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')}/> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <>
+        {activePanel === 'text' ? <TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <>
           {selectedText && <fieldset className="drawing-workbench-fields drawing-arrange-section drawing-arrange-geometry" data-testid="drawing-text-geometry">
             <legend>{label('positionAndSize')}</legend>
             {(['x', 'y', 'w', 'h', 'rotation'] as const).map(transformField)}

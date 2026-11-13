@@ -1,3 +1,4 @@
+import {getShapeDrawingFontId, getLoadedDrawingFont, drawingFontFamily} from './drawing-fonts';
 import { selectedTextGuide, type CadTextGuide, type TextGuide } from './cad-text-guide';
 import { DefaultFontFamilies, type Editor, type TLShapeId } from '@tldraw/tldraw';
 import assetUrls from './tldraw-asset-urls.json';
@@ -7,7 +8,7 @@ import { assertCadEditable, cadRevision, makeCadPlan, CadOperationError, type Ca
 
 export interface CadTextOptions {
   text: string;
-  font: 'sans' | 'serif' | 'mono' | 'draw' | 'custom';
+  font: string;
   fontData?: ArrayBuffer;
   height: number;
   x: number;
@@ -240,14 +241,17 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
   if (!text.trim() || [...text].length > 500 || text.split('\n').length > 20) throw new CadOperationError('limit');
   const layout = source ? null : validateCadTextLayout(options.layout);
   const guide = options.guide ? selectedTextGuide(editor, settings, options.guide.shapeId) : undefined;
-  const font = await getCadFont(source ? p.font : options.font, options.fontData);
+  const uploadedId = source ? getShapeDrawingFontId(source) : options.font.startsWith('omsfont-') ? options.font : null;
+  const uploaded = uploadedId ? getLoadedDrawingFont(editor, uploadedId) : undefined;
+  if (uploadedId && !uploaded) throw new CadOperationError('font');
+  const font = uploaded?.font ?? await getCadFont(source ? p.font : options.font, options.fontData);
   let contours: CadContour[] = [];
   let arcText: CadTextPlan['arcText'], guideText: CadTextPlan['guideText'];
   if (source) {
     const fontSize = FONT_SIZES[p.size],
       bounds = editor.getShapeGeometry(source).bounds;
     const spans = editor.textMeasure.measureTextSpans(text, {
-      fontFamily: DefaultFontFamilies[p.font],
+      fontFamily: uploaded ? drawingFontFamily(uploaded.record) : DefaultFontFamilies[p.font],
       fontSize,
       lineHeight: 1.35,
       fontStyle: 'normal',

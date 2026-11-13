@@ -1,3 +1,5 @@
+import {drawingFontErrorLabel, useDrawingFontText, type DrawingFontLabel} from './font-copy';
+import {readDrawingFonts, uploadDrawingFont, MAX_DRAWING_FONT_BYTES, MAX_DRAWING_FONTS_BYTES, MAX_DRAWING_FONTS} from './drawing-fonts';
 import { RasterTrace, VectorImport, VectorExport, CornerControls, VectorPaintControls, PolygonControls } from './CadVectorPanel';
 import React, { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useEditor, useValue, type Editor } from '@tldraw/tldraw';
@@ -248,7 +250,9 @@ function CurveNodes({ settings, disabled, focus, sequence, onCorner }: SharedPro
 }
 
 function TextOutlines({ settings, revision, disabled, focus, newText, sequence }: SharedProps & { focus: boolean; newText: boolean; sequence?: number }) {
-  const editor = useEditor(); const { label } = useCadAdvancedText();
+  const editor = useEditor(); const { label } = useCadAdvancedText(); const fontText=useDrawingFontText();
+  const [fontError,setFontError]=useState<DrawingFontLabel|null>(null);
+  const fontMessage=(key:DrawingFontLabel)=>fontText(key).replace('{file}',String(MAX_DRAWING_FONT_BYTES/1024/1024)).replace('{total}',String(MAX_DRAWING_FONTS_BYTES/1024/1024)).replace('{count}',String(MAX_DRAWING_FONTS));
   const section = useRef<HTMLDetailsElement>(null); useFocusSection(section, focus, sequence);
   const source = useValue('outline text source', () => { const shape = editor.getOnlySelectedShape(); return shape?.type === 'text' ? { id: shape.id, editable: canChange(editor) } : null; }, [editor]);
   const guide = useValue('outline text guide', () => {
@@ -256,7 +260,8 @@ function TextOutlines({ settings, revision, disabled, focus, newText, sequence }
     return shape ? { id: shape.id, name: drawingObjectName(shape), eligible: ['cad-bezier', 'cad-path', 'line'].includes(shape.type), editable: canChange(editor) } : null;
   }, [editor]);
   const [mode, setMode] = useState<'new' | 'selected'>('new'); const [text, setText] = useState('');
-  const [font, setFont] = useState<'sans' | 'serif' | 'mono' | 'draw' | 'custom'>('sans');
+  const [font, setFont] = useState<string>('sans');
+  const documentFonts = useValue('outline document fonts', () => readDrawingFonts(editor), [editor]);
   const [fontData, setFontData] = useState<ArrayBuffer>(); const [fontName, setFontName] = useState('');
   const [values, setValues] = useUnitDraft(settings, { height: '20', x: '0', y: '0', radius: '100', guideOffset: '0', guideDistance: '0' });
   const [baseline, setBaseline] = useState<'straight' | 'arc' | 'guide'>('straight');
@@ -293,15 +298,16 @@ function TextOutlines({ settings, revision, disabled, focus, newText, sequence }
   const validLine = isCadTextSingleLine(text);
   const valid = mode === 'selected' ? !!source?.editable : text.trim().length > 0 && [...text].length <= 500 && text.split('\n').length <= 20 && validHeight && (isGuide || ['x', 'y'].every(key => Number.isFinite(number(values[key])) && Math.abs(number(values[key])) <= 1_000_000)) && (font !== 'custom' || !!fontData) && number(tracking) >= -50 && number(tracking) <= 200 && (isGuide ? !!guide?.eligible && guide.editable && validGuideOffset && validGuideDistance && validLine : isArc ? validRadius && validAngle && validLine : number(lineHeight) >= 0.5 && number(lineHeight) <= 5);
   async function readFont(file?: File) {
-    const id = ++fontRequest.current; setFontData(undefined); setFontName(''); setReview(null); setMessage('');
+    const id = ++fontRequest.current; setFontData(undefined); setFontName(''); setReview(null); setMessage(''); setFontError(null);
     if (!file) return;
-    if (file.size > FILE_LIMIT || !/\.(ttf|otf|woff2?)$/i.test(file.name)) { setFailed(true); setMessage(file.size > FILE_LIMIT ? 'fileTooLarge' : 'invalidFont'); return; }
+    if (file.size > MAX_DRAWING_FONT_BYTES || !/\.(ttf|otf|woff2?)$/i.test(file.name)) { setFontError(file.size > MAX_DRAWING_FONT_BYTES ? 'font-too-large' : 'font-invalid'); return; }
     setFontBusy(true);
     try {
+      const uploaded = await uploadDrawingFont(editor, file);
       const data = await file.arrayBuffer();
       if (!alive.current || id !== fontRequest.current || !canChange(editor, false)) return;
-      fontVersion.current++; setFontData(data); setFontName(file.name);
-    } catch { if (alive.current && id === fontRequest.current) { setFailed(true); setMessage('invalidFont'); } }
+      fontVersion.current++; setFontData(data); setFontName(uploaded.name); setFont(uploaded.id);
+    } catch (error) { if (alive.current && id === fontRequest.current) setFontError(drawingFontErrorLabel(error)); }
     finally { if (alive.current && id === fontRequest.current) setFontBusy(false); }
   }
   async function prepare() {
@@ -327,8 +333,9 @@ function TextOutlines({ settings, revision, disabled, focus, newText, sequence }
           {isCurved && !validLine && <Message id={arcLineErrorId} value="arcTextLine" error />}
           <Field label={label('font')}><select value={font} onChange={event => { setFont(event.target.value as typeof font); setMessage(''); }}>
             {(['sans', 'serif', 'mono', 'draw', 'custom'] as const).map(value => <option key={value} value={value}>{label(value)}</option>)}
+            {documentFonts.map(face => <option key={face.id} value={face.id}>{face.name}</option>)}
           </select></Field>
-          {font === 'custom' && <><label className="drawing-cad-points"><span>{label('fontFile')}</span><input type="file" accept=".ttf,.otf,.woff,.woff2" onChange={event => { void readFont(event.target.files?.[0]); }} /></label><p className="drawing-help">{label('fontHelp')}</p></>}
+          {font === 'custom' && <><label className="drawing-cad-points"><span>{label('fontFile')}</span><input type="file" accept=".ttf,.otf,.woff,.woff2" onChange={event => { void readFont(event.target.files?.[0]); }} /></label><p className="drawing-help">{fontMessage('limits')} {fontText('embedded')}</p></>}
           {(isGuide ? ['height'] as const : ['height', 'x', 'y'] as const).map(key => <Field key={key} label={`${label(isCurved ? key === 'height' ? 'arcTextHeight' : key === 'x' ? 'centreX' : 'centreY' : key)} (${settings?.unit ?? 'mm'})`}><input type="number" step="any" required min={key === 'height' ? 0 : undefined} max={1_000_000} value={values[key]} aria-invalid={key === 'height' ? !validHeight : !Number.isFinite(number(values[key])) || Math.abs(number(values[key])) > 1_000_000} aria-describedby={isGuide && !validHeight ? guideHeightErrorId : undefined} onChange={event => { setValues(current => ({ ...current, [key]: event.target.value })); setMessage(''); }} /></Field>)}
           {isGuide && !validHeight && <Message id={guideHeightErrorId} value="guideHeightInvalid" error />}
           {isArc && <>
@@ -360,6 +367,7 @@ function TextOutlines({ settings, revision, disabled, focus, newText, sequence }
       {review.plan.arcText && <dl className="drawing-cad-values"><dt>{label('arcBaselineRadius')}</dt><dd>{format(review.plan.arcText.radiusMm)}</dd><dt>{label('arcOccupiedSweep')}</dt><dd>{format(review.plan.arcText.sweepDegrees)}</dd></dl>}
       {review.plan.guideText && <dl className="drawing-cad-values" aria-label={label('guideCurve')}><dt>{label('guidePathLength')}</dt><dd>{format(review.plan.guideText.lengthMm)}</dd><dt>{label('guideTextAdvance')}</dt><dd>{format(review.plan.guideText.advanceMm)}</dd><dt>{label('guideCurve')} · {label(review.plan.guideText.closed ? 'closedContours' : 'openContours')}</dt><dd>1</dd></dl>}
     </PlanReview>}
+    {fontError && <p className="drawing-help drawing-font-error" role="alert">{fontMessage(fontError)}</p>}
     <Message value={message} error={failed} />
   </details>;
 }

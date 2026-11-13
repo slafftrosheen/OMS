@@ -1,3 +1,5 @@
+import {installDrawingTextUtil} from './shapes/DrawingTextShape';
+import {installDrawingFonts} from './drawing-fonts';
 import {CadCircleTool,CadDimensionTool} from './CadTwoPointTool';
 import {CadArcThreePointTool,CadCircleThreePointTool} from './CadThreePointTool';
 import {CadConstructionOverlay} from './CadConstructionOverlay';
@@ -166,8 +168,10 @@ export function CanvasApp({
     }, [orderSeed]);
 
     const handleMount = (editor: Editor) => {
+        installDrawingTextUtil(editor);
         cleanupCadTransformsRef.current?.();
-        cleanupCadTransformsRef.current = installCadTransforms(editor);
+        const stopTransforms = installCadTransforms(editor), stopFonts = installDrawingFonts(editor);
+        cleanupCadTransformsRef.current = () => { stopTransforms(); stopFonts(); };
         editorRef.current = editor;
         editor.updateInstanceState({ isReadonly: toolkitReadOnly });
 

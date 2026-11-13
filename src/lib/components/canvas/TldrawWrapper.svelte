@@ -72,12 +72,14 @@
     const initialSnapshot = $state.snapshot(snapshot);
     (async () => {
       try {
-        const [React, { createRoot }, { CanvasApp }] = await Promise.all([
+        const [React, { createRoot }, { CanvasApp }, { preloadSnapshotDrawingFonts }] = await Promise.all([
           import('react'),
           import('react-dom/client'),
           import('./CanvasApp'),
+          import('./drawing-fonts'),
         ]);
 
+        await preloadSnapshotDrawingFonts(initialSnapshot);
         if (disposed) return;
         const root = createRoot(containerEl);
         reactRoot = root;
