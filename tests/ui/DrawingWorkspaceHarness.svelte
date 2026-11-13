@@ -10,6 +10,7 @@
   import { readMaterialTexture, prepareMaterialTexture, applyMaterialTexture } from '../../src/lib/components/canvas/material-texture';
   const materialExample = new URLSearchParams(location.search).has('materials');
   const textExample = new URLSearchParams(location.search).has('text');
+  const intersectionExample = new URLSearchParams(location.search).has('intersections');
   const order = new URLSearchParams(location.search).get('mode') === 'order';
   // Existing orders read authenticated attachments; new drafts keep local files.
   const persisted = new URLSearchParams(location.search).has('persisted');
@@ -52,6 +53,21 @@
     for(const shape of samples){if(editor.getShape(shape.id))editor.deleteShapes([shape.id]);editor.createShape(shape);}
     editor.setSelectedShapes(samples.map(shape=>shape.id));editor.zoomToSelection();editor.selectNone();exampleStatus='Snapping example ready';
   }
+  function loadIntersections() {
+    if (!editor || readonly) return;
+    editor.updatePage({id:editor.getCurrentPageId(),meta:{omsCad:DEFAULT_CAD_SETTINGS,omsCadSnap:{endpoints:false,midpoints:false,centers:false,quadrants:false,intersections:true,nearest:false,grid:false,tolerance:8}}});
+    editor.user.updateUserPreferences({isSnapMode:true});
+    const samples = [
+      {id:'shape:intersection-a',type:'cad-ellipse',x:0,y:0,props:{w:200,h:200,color:'blue'},meta:{omsObjectName:'Circle A'}},
+      {id:'shape:intersection-b',type:'cad-ellipse',x:120,y:0,props:{w:200,h:200,color:'blue'},meta:{omsObjectName:'Circle B'}},
+      {id:'shape:intersection-ellipse',type:'cad-ellipse',x:360,y:40,props:{w:240,h:120,color:'blue'},meta:{omsObjectName:'Ellipse'}},
+      {id:'shape:intersection-vertical',type:'cad-path',x:540,y:0,props:{points:[{x:0,y:0},{x:0,y:220}],closed:false,color:'black'},meta:{omsObjectName:'Ellipse crossing'}},
+      {id:'shape:intersection-arc',type:'cad-arc',x:100,y:340,props:{radius:100,startAngle:0,endAngle:180,color:'blue'},meta:{omsObjectName:'Upper arc'}},
+      {id:'shape:intersection-horizontal',type:'cad-path',x:0,y:280,props:{points:[{x:0,y:0},{x:220,y:0}],closed:false,color:'black'},meta:{omsObjectName:'Arc crossing'}}
+    ];
+    for(const shape of samples){if(editor.getShape(shape.id))editor.deleteShapes([shape.id]);editor.createShape(shape);}
+    editor.setCurrentTool('select');editor.setSelectedShapes(samples.map(shape=>shape.id));editor.zoomToSelection();editor.selectNone();exampleStatus='Intersection example ready';
+  }
   async function loadMaterials() {
     if (!editor || readonly) return;
     const rect = (x: number, y: number, w: number, h: number) => ({ closed: true, nodes: [{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}].map(nodeAt) });
@@ -93,7 +109,8 @@
   {#if materialExample}<button onclick={loadMaterials}>Load material example</button>{/if}
   {#if textExample}<button onclick={loadSnapping} disabled={readonly}>Load snapping example</button>
     <button onclick={loadText}>Load text example</button>{/if}
-  {#if materialExample || textExample}<button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
+  {#if intersectionExample}<button onclick={loadIntersections} disabled={readonly}>Load intersection example</button>{/if}
+  {#if materialExample || textExample || intersectionExample}<button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
   <label>Theme <select aria-label="Theme" bind:value={theme}><option>LightVim</option><option>DarkVim</option><option>HighContrastVim</option></select></label>
   <label>Language <select aria-label="Language" value={$locale} onchange={event => locale.set(event.currentTarget.value)}><option value="en">English</option><option value="ru">Русский</option><option value="lv">Latviešu</option></select></label>
   <label>Workspace <select aria-label="Workspace width" bind:value={workspaceWidth}><option value="100%">Full width</option><option value="880px">880 px</option><option value="580px">580 px</option><option value="520px">520 px</option><option value="390px">390 px</option></select></label>
