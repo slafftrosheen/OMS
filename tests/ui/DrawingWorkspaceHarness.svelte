@@ -11,6 +11,7 @@
   const materialExample = new URLSearchParams(location.search).has('materials');
   const textExample = new URLSearchParams(location.search).has('text');
   const intersectionExample = new URLSearchParams(location.search).has('intersections');
+  const bezierIntersectionExample = new URLSearchParams(location.search).has('bezier-intersections');
   const order = new URLSearchParams(location.search).get('mode') === 'order';
   // Existing orders read authenticated attachments; new drafts keep local files.
   const persisted = new URLSearchParams(location.search).has('persisted');
@@ -89,6 +90,19 @@
     editor.setSelectedShapes(['shape:material-0','shape:material-1','shape:material-2']);
     editor.zoomToSelection();exampleStatus='Material example ready';
   }
+  function loadBezierIntersections() {
+    if (!editor || readonly) return;
+    editor.updatePage({id:editor.getCurrentPageId(),meta:{omsCad:DEFAULT_CAD_SETTINGS,omsCadSnap:{endpoints:false,midpoints:false,centers:false,quadrants:false,intersections:true,nearest:false,grid:false,tolerance:8}}});
+    editor.user.updateUserPreferences({isSnapMode:true});
+    const samples = [
+      {id:'shape:bezier-crossings',type:'cad-bezier',x:0,y:80,props:{contours:[{closed:false,nodes:[{...nodeAt({x:0,y:-80}),outX:100,outY:220},{...nodeAt({x:300,y:80}),inX:-100,inY:-220}]}],color:'blue'},meta:{omsObjectName:'Three Bézier crossings'}},
+      {id:'shape:bezier-guide',type:'cad-path',x:-20,y:80,props:{points:[{x:0,y:0},{x:340,y:0}],closed:false,color:'black'},meta:{omsObjectName:'Crossing guide'}},
+      {id:'shape:bezier-contact',type:'cad-bezier',x:400,y:100,props:{contours:[{closed:false,nodes:[{...nodeAt({x:0,y:100}),outX:100,outY:-400/3},{...nodeAt({x:300,y:100}),inX:-100,inY:-400/3}]}],color:'blue'},meta:{omsObjectName:'Bézier tangent contact'}},
+      {id:'shape:bezier-tangent',type:'cad-path',x:380,y:100,props:{points:[{x:0,y:0},{x:340,y:0}],closed:false,color:'black'},meta:{omsObjectName:'Tangent guide'}}
+    ];
+    for(const shape of samples){if(editor.getShape(shape.id))editor.deleteShapes([shape.id]);editor.createShape(shape);}
+    editor.setCurrentTool('select');editor.setSelectedShapes(samples.map(shape=>shape.id));editor.zoomToSelection();editor.selectNone();exampleStatus='Bézier intersections ready';
+  }
   function reloadDrawing() {
     if (!editor) return;
     const snapshot=JSON.parse(JSON.stringify(getSnapshot(editor.store)));
@@ -110,7 +124,8 @@
   {#if textExample}<button onclick={loadSnapping} disabled={readonly}>Load snapping example</button>
     <button onclick={loadText}>Load text example</button>{/if}
   {#if intersectionExample}<button onclick={loadIntersections} disabled={readonly}>Load intersection example</button>{/if}
-  {#if materialExample || textExample || intersectionExample}<button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
+  {#if bezierIntersectionExample}<button onclick={loadBezierIntersections} disabled={readonly}>Load Bézier intersections</button>{/if}
+  {#if materialExample || textExample || intersectionExample || bezierIntersectionExample}<button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
   <label>Theme <select aria-label="Theme" bind:value={theme}><option>LightVim</option><option>DarkVim</option><option>HighContrastVim</option></select></label>
   <label>Language <select aria-label="Language" value={$locale} onchange={event => locale.set(event.currentTarget.value)}><option value="en">English</option><option value="ru">Русский</option><option value="lv">Latviešu</option></select></label>
   <label>Workspace <select aria-label="Workspace width" bind:value={workspaceWidth}><option value="100%">Full width</option><option value="880px">880 px</option><option value="580px">580 px</option><option value="520px">520 px</option><option value="390px">390 px</option></select></label>

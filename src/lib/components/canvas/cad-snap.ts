@@ -112,6 +112,7 @@ export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId 
           const key = index++, points = local.map(world);
           if (!nearby(point, points, tolerance)) continue;
           if (distance(local[0], local[1]) < 1e-9 && distance(local[2], local[3]) < 1e-9) { segment(local[0], local[3]); continue; }
+          if (settings.intersections && intersections.length < MAX_SNAP_INTERSECTION_SOURCES) intersections.push({ kind: 'cubic', points });
           if (settings.midpoints) {
             try { if (!cache.has(key)) cache.set(key, cubicMidpoint(local)); offerLocal(cache.get(key)!, 'midpoints'); } catch { /* Bounded integration refuses pathological curves. */ }
           }

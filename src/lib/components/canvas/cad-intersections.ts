@@ -1,4 +1,5 @@
 import { validCadPoint, type CadPoint } from './cad-settings';
+import { lineCubicIntersections } from './cad-bezier-intersections';
 
 /** World-space analytic ellipse. Rotation follows the canvas (Y down); arc
  * angles follow CAD (Y up) in the ellipse's own axes. */
@@ -12,6 +13,7 @@ export interface SnapEllipse {
 }
 export type SnapIntersectionSource =
   | { kind: 'line'; a: CadPoint; b: CadPoint }
+  | { kind: 'cubic'; points: CadPoint[] }
   | { kind: 'ellipse'; ellipse: SnapEllipse };
 export const MAX_SNAP_INTERSECTION_SOURCES = 256;
 const ROUNDING = 64 * Number.EPSILON;
@@ -92,6 +94,8 @@ export function snapIntersections(a: SnapIntersectionSource, b: SnapIntersection
   }
   if (a.kind === 'line' && b.kind === 'ellipse') return lineEllipseIntersections(a.a, a.b, b.ellipse);
   if (a.kind === 'ellipse' && b.kind === 'line') return lineEllipseIntersections(b.a, b.b, a.ellipse);
+  if (a.kind === 'line' && b.kind === 'cubic') return lineCubicIntersections(a.a, a.b, b.points);
+  if (a.kind === 'cubic' && b.kind === 'line') return lineCubicIntersections(b.a, b.b, a.points);
   if (a.kind === 'ellipse' && b.kind === 'ellipse') return circleIntersections(a.ellipse, b.ellipse);
   return [];
 }
