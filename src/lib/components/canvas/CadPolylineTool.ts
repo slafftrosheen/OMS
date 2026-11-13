@@ -1,6 +1,6 @@
 import { StateNode, createShapeId, DefaultColorStyle, type TLEventHandlers, type TLShapeId } from '@tldraw/tldraw';
 import { CAD_MAX_POINTS, validCadPoint, type CadPoint } from './cad-settings';
-import { snapCadPoint } from './cad-snap';
+import { clearCadSnap, snapCadPoint } from './cad-snap';
 import { polylineSession } from './cad-polyline-draft';
 
 /** Click-based drafting: no freehand smoothing and no hidden coordinate quantization. */
@@ -10,18 +10,19 @@ export class CadPolylineTool extends StateNode {
   private shapeId: TLShapeId | null = null;
   private mark: string | null = null;
   override onEnter = () => {
-    this.points = []; this.shapeId = null; this.mark = null;
+    clearCadSnap(this.editor); this.points = []; this.shapeId = null; this.mark = null;
     this.editor.selectNone(); this.editor.setCursor({ type: 'cross', rotation: 0 });
     polylineSession(this.editor).controller = { add: point => this.addPoint(point), finish: closed => this.finish(closed), back: () => this.back(), cancel: () => this.cancel() };
     this.publish();
   };
   private publish(pointer: CadPoint | null = null) { polylineSession(this.editor).state.set({ points: this.points.map(p => ({ ...p })), pointer }); }
-  private clearSession() { const session = polylineSession(this.editor); session.state.set(null); session.controller = null; }
+  private clearSession() { clearCadSnap(this.editor); const session = polylineSession(this.editor); session.state.set(null); session.controller = null; }
   private pointer(): CadPoint {
     const raw = this.editor.inputs.currentPagePoint;
     let point = { x: raw.x, y: raw.y };
     const previous = this.points.at(-1);
     if (previous && this.editor.inputs.shiftKey) {
+      clearCadSnap(this.editor);
       const dx = point.x - previous.x, dy = point.y - previous.y;
       const angle = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * Math.PI / 4;
       const length = Math.hypot(dx, dy);

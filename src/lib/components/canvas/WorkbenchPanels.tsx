@@ -3,6 +3,7 @@ import {useEditor,useValue,type Editor,type TLShapeId,type TLTextShape} from '@t
 import {useWorkbenchText} from './workbench-copy';
 import {useDrawingText} from './drawing-copy';
 import {drawingTextPointSizeDisplay} from './drawing-text-style';
+import {DEFAULT_DRAWING_TEXT_SPACING,getDrawingTextSpacing} from './drawing-text-spacing';
 import {DrawingFontManager, DrawingFontPicker} from './DrawingFonts';
 import {drawingFontValue} from './drawing-fonts';
 import {editDrawingText,scaleCanvasForm,textPointSize} from './workbench-operations';
@@ -30,23 +31,50 @@ export function TextPanel({onOutlines,onLettering,fontFocusRequest=0}:{onOutline
  const shape=useValue('editable text',()=>{const s=editor.getOnlySelectedShape();return s?.type==='text'?s as TLTextShape:null;},[editor]);
  const disabled=useValue('text permission',()=>!shape||editor.getInstanceState().isReadonly||editor.isShapeOrAncestorLocked(shape),[editor,shape]);
  const [text,setText]=useState(''),[font,setFont]=useState('sans'),[align,setAlign]=useState<TLTextShape['props']['textAlign']>('start'),[points,setPoints]=useState('18'),[auto,setAuto]=useState(true),[failed,setFailed]=useState(false);
+ const [letters,setLetters]=useState(String(DEFAULT_DRAWING_TEXT_SPACING.letterSpacing)),[lines,setLines]=useState(String(DEFAULT_DRAWING_TEXT_SPACING.lineHeight*100));
+ const [letterError,setLetterError]=useState(false),[lineError,setLineError]=useState(false);
+ const letterErrorId=useId(),lineErrorId=useId();
  const pointSize=shape?textPointSize(shape):undefined;
  const storedFont=shape?drawingFontValue(shape):undefined;
+ const spacing=shape?getDrawingTextSpacing(shape):undefined;
  // A property-bar edit only refreshes its corresponding draft. In particular,
- // changing font or size must not discard content waiting for Apply.
+ // changing font, size or spacing must not discard content waiting for Apply.
  useEffect(()=>{if(shape)setText(shape.props.text);},[shape?.id,shape?.props.text]);
  useEffect(()=>{if(storedFont!==undefined)setFont(storedFont);},[shape?.id,storedFont]);
  useEffect(()=>{if(shape)setAlign(shape.props.textAlign);},[shape?.id,shape?.props.textAlign]);
  useEffect(()=>{if(pointSize!==undefined)setPoints(String(drawingTextPointSizeDisplay(pointSize)));},[shape?.id,pointSize]);
+ useEffect(()=>{if(spacing)setLetters(String(drawingTextPointSizeDisplay(spacing.letterSpacing)));setLetterError(false);},[shape?.id,spacing?.letterSpacing]);
+ useEffect(()=>{if(spacing)setLines(String(drawingTextPointSizeDisplay(spacing.lineHeight*100)));setLineError(false);},[shape?.id,spacing?.lineHeight]);
  useEffect(()=>{if(shape)setAuto(shape.props.autoSize);},[shape?.id,shape?.props.autoSize]);
  useEffect(()=>setFailed(false),[shape?.id]);
  const lettering=<button type="button" className="drawing-lettering-button" disabled={readonly} onClick={onLettering}>{t('newLettering')}</button>;
  if(!shape)return <><p className="drawing-help">{t('textHint')}</p><DrawingFontManager focusRequest={fontFocusRequest}/>{lettering}</>;
- const apply=()=>{const success=editDrawingText(editor,shape.id,{text,font,textAlign:align,autoSize:auto,pointSize:points.trim()?Number(points):NaN});setFailed(!success);return success;};
+ const apply=()=>{
+  const letterSpacing=letters.trim()?Number(letters):NaN,lineSpacing=lines.trim()?Number(lines):NaN;
+  const validLetters=Number.isFinite(letterSpacing)&&letterSpacing>=-50&&letterSpacing<=200,validLines=Number.isFinite(lineSpacing)&&lineSpacing>=50&&lineSpacing<=500;
+  setLetterError(!validLetters);setLineError(!validLines);
+  if(!validLetters||!validLines){setFailed(false);return false;}
+  const success=editDrawingText(editor,shape.id,{text,font,textAlign:align,autoSize:auto,pointSize:points.trim()?Number(points):NaN,letterSpacing,lineHeight:lineSpacing/100});setFailed(!success);return success;
+ };
+ const spacingKey=(event:React.KeyboardEvent<HTMLInputElement>,field:'letters'|'lines')=>{
+  event.stopPropagation();
+  if(event.key==='Enter'){event.preventDefault();apply();}
+  if(event.key==='Escape'){
+   event.preventDefault();
+   const saved=getDrawingTextSpacing(shape);
+   if(field==='letters'){setLetters(String(drawingTextPointSizeDisplay(saved.letterSpacing)));setLetterError(false);}
+   else{setLines(String(drawingTextPointSizeDisplay(saved.lineHeight*100)));setLineError(false);}
+   setFailed(false);event.currentTarget.blur();
+  }
+ };
  return <><fieldset className="drawing-workbench-fields" disabled={disabled}>
   <label><span>{t('content')}</span><textarea rows={6} value={text} maxLength={10000} onChange={e=>setText(e.target.value)}/></label>
   <DrawingFontPicker value={font} disabled={disabled} onChange={setFont} testId="drawing-text-docker-font"/>
   <label><span>{t('fontSize')}</span><input type="number" min={1} max={3000} step="any" value={points} onChange={e=>setPoints(e.target.value)}/></label>
+  <label><span>{t('letterSpacing')}</span><input type="number" min={-50} max={200} step="any" value={letters} aria-invalid={letterError} aria-describedby={letterError?letterErrorId:undefined} data-testid="drawing-text-docker-letter-spacing" onChange={e=>{setLetters(e.target.value);setLetterError(false);}} onKeyDown={e=>spacingKey(e,'letters')}/></label>
+  {letterError&&<p id={letterErrorId} className="drawing-help is-error" role="alert">{t('letterSpacingInvalid')}</p>}
+  <label><span>{t('lineSpacing')}</span><input type="number" min={50} max={500} step="any" value={lines} aria-invalid={lineError} aria-describedby={lineError?lineErrorId:undefined} data-testid="drawing-text-docker-line-spacing" onChange={e=>{setLines(e.target.value);setLineError(false);}} onKeyDown={e=>spacingKey(e,'lines')}/></label>
+  {lineError&&<p id={lineErrorId} className="drawing-help is-error" role="alert">{t('lineSpacingInvalid')}</p>}
   <label><span>{t('align')}</span><select value={align} onChange={e=>setAlign(e.target.value as typeof align)}>{['start','middle','end'].map(value=><option key={value} value={value}>{tr(`toolkit.toolbar.styleValues.horizontal.${value}`)}</option>)}</select></label>
   <label className="drawing-cad-check"><input type="checkbox" checked={auto} onChange={e=>setAuto(e.target.checked)}/><span>{t('autoWidth')}</span></label>
   <div className="drawing-workbench-actions"><button type="button" onClick={()=>setText(text.toLocaleUpperCase())}>{t('upper')}</button><button type="button" onClick={()=>setText(text.toLocaleLowerCase())}>{t('lower')}</button></div>

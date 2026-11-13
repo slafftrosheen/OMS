@@ -1,3 +1,4 @@
+import {snapCadHandle} from '../cad-snap';
 import React from "react";
 import { VectorArtwork } from "../VectorArtwork";
 import { isCadNodeEditing } from "../cad-node-selection";
@@ -269,7 +270,7 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
           x: n.x,
           y: n.y,
           type: "vertex",
-          canSnap: true,
+          canSnap: false,
         });
         // Collapsed control handles otherwise cover the node and steal its drag.
         if ((c.closed || ni > 0) && (n.inX || n.inY))
@@ -303,8 +304,9 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
       node = list[Number(ci)]?.nodes[Number(ni)];
     if (!node) return;
     if (kind === "node") {
-      node.x = handle.x;
-      node.y = handle.y;
+      const point = this.editor.inputs.shiftKey ? handle : snapCadHandle(this.editor, shape, handle);
+      node.x = point.x;
+      node.y = point.y;
     } else {
       const incoming = kind === "in",
         x = handle.x - node.x,

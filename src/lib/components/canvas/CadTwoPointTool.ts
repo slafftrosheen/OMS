@@ -1,6 +1,6 @@
 import {StateNode,createShapeId,DefaultColorStyle,type TLEventHandlers,type TLShapeId} from '@tldraw/tldraw';
 import {validCadPoint,type CadPoint} from './cad-settings';
-import {snapCadPoint} from './cad-snap';
+import {clearCadSnap,snapCadPoint} from './cad-snap';
 
 export function twoPointGeometry(kind:'circle'|'dimension',start:CadPoint,end:CadPoint,zoom=1){
  const dx=end.x-start.x,dy=end.y-start.y,length=Math.hypot(dx,dy);
@@ -17,10 +17,10 @@ class CadTwoPointTool extends StateNode{
  private start:CadPoint|null=null;
  private shapeId:TLShapeId|null=null;
  private mark:string|null=null;
- override onEnter=()=>{this.start=null;this.shapeId=null;this.mark=null;this.editor.selectNone();this.editor.setCursor({type:'cross',rotation:0});};
+ override onEnter=()=>{clearCadSnap(this.editor);this.start=null;this.shapeId=null;this.mark=null;this.editor.selectNone();this.editor.setCursor({type:'cross',rotation:0});};
  private point(){
   const raw=this.editor.inputs.currentPagePoint;let point={x:raw.x,y:raw.y};
-  if(this.start&&this.editor.inputs.shiftKey){const dx=point.x-this.start.x,dy=point.y-this.start.y,angle=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*Math.PI/4,length=Math.hypot(dx,dy);point={x:this.start.x+length*Math.cos(angle),y:this.start.y+length*Math.sin(angle)};}
+  if(this.start&&this.editor.inputs.shiftKey){clearCadSnap(this.editor);const dx=point.x-this.start.x,dy=point.y-this.start.y,angle=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*Math.PI/4,length=Math.hypot(dx,dy);point={x:this.start.x+length*Math.cos(angle),y:this.start.y+length*Math.sin(angle)};}
   else point=snapCadPoint(this.editor,point,this.shapeId);
   return point;
  }
@@ -38,14 +38,14 @@ class CadTwoPointTool extends StateNode{
   const point=this.point();if(!validCadPoint(point)||this.editor.getCurrentPageShapeIds().size>=this.editor.options.maxShapesPerPage)return;
   this.start=point;this.shapeId=createShapeId();this.mark=`cad-two-point-${this.shapeId}`;this.editor.mark(this.mark);
  };
- override onPointerMove=()=>{if(this.editor.getInstanceState().isReadonly)this.cancel();else this.preview();};
+ override onPointerMove=()=>{if(this.editor.getInstanceState().isReadonly)this.cancel();else if(this.start)this.preview();else this.point();};
  override onKeyDown:TLEventHandlers['onKeyDown']=info=>{if(this.editor.getInstanceState().isReadonly){this.cancel();return;}if(info.key==='Escape')this.cancel();else if(info.key==='Enter'&&this.preview())this.finish();};
  override onCancel=()=>this.cancel();
  override onComplete=()=>this.cancel();
  override onInterrupt=()=>this.cancel();
  override onExit=()=>this.cancel(false);
- private finish(){const id=this.shapeId,mark=this.mark;this.shapeId=null;this.start=null;this.mark=null;this.editor.setCurrentTool('select');if(id)this.editor.setSelectedShapes([id]);if(mark)this.editor.mark(mark+'-complete');}
- private cancel(select=true){const mark=this.mark;this.mark=null;this.shapeId=null;this.start=null;if(mark)this.editor.bailToMark(mark);if(select)this.editor.setCurrentTool('select');}
+ private finish(){clearCadSnap(this.editor);const id=this.shapeId,mark=this.mark;this.shapeId=null;this.start=null;this.mark=null;this.editor.setCurrentTool('select');if(id)this.editor.setSelectedShapes([id]);if(mark)this.editor.mark(mark+'-complete');}
+ private cancel(select=true){clearCadSnap(this.editor);const mark=this.mark;this.mark=null;this.shapeId=null;this.start=null;if(mark)this.editor.bailToMark(mark);if(select)this.editor.setCurrentTool('select');}
 }
 export class CadCircleTool extends CadTwoPointTool{static override id='cad-circle';protected override kind='circle' as const;}
 export class CadDimensionTool extends CadTwoPointTool{static override id='cad-dimension';protected override kind='dimension' as const;}

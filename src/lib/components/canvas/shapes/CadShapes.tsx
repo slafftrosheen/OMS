@@ -1,3 +1,4 @@
+import {snapCadHandle} from '../cad-snap';
 import { vectorPaint } from '../cad-vector';
 import React from 'react';
 import { ShapeUtil, SVGContainer, Polyline2d, Polygon2d, Ellipse2d, Group2d, Box, Vec, T,
@@ -48,13 +49,14 @@ export class CadPathShapeUtil extends ShapeUtil<CadPathShape> {
   override toSvg(shape: CadPathShape) { return <path d={pathData(shape.props.points, shape.props.closed)} fill="none" stroke={shape.meta.omsVectorPaint ? vectorPaint(shape.meta).stroke : color(this.editor, shape.props.color)} strokeWidth={1} />; }
   override getHandles(shape: CadPathShape): TLHandle[] {
     const indices = getIndices(shape.props.points.length);
-    return shape.props.points.map((p, i) => ({ ...p, id: String(i), type: 'vertex', index: indices[i], canSnap: true }));
+    return shape.props.points.map((p, i) => ({ ...p, id: String(i), type: 'vertex', index: indices[i], canSnap: false }));
   }
   override onHandleDrag: TLOnHandleDragHandler<CadPathShape> = (shape, { handle }) => {
     if (this.editor.getInstanceState().isReadonly || this.editor.isShapeOrAncestorLocked(shape)) return;
     const index = Number(handle.id);
     if (!Number.isInteger(index) || !shape.props.points[index]) return;
-    return { id: shape.id, type: shape.type, props: { points: shape.props.points.map((p, i) => i === index ? { x: handle.x, y: handle.y } : p) } };
+    const point = this.editor.inputs.shiftKey ? handle : snapCadHandle(this.editor, shape, handle);
+    return { id: shape.id, type: shape.type, props: { points: shape.props.points.map((p, i) => i === index ? { x: point.x, y: point.y } : p) } };
   };
   override onResize: TLOnResizeHandler<CadPathShape> = (shape, { scaleX, scaleY }) => ({ props: {
     points: shape.props.points.map(p => ({ x: p.x * scaleX, y: p.y * scaleY }))
@@ -167,12 +169,13 @@ export class CadDimensionShapeUtil extends ShapeUtil<CadDimensionShape> {
   override toSvg(shape: CadDimensionShape) { return <DimensionSvg shape={shape} editor={this.editor} />; }
   override getHandles(shape: CadDimensionShape): TLHandle[] {
     const indices = getIndices(3), { endX, endY, offset } = shape.props, length = Math.hypot(endX, endY) || 1;
-    return [{ id: 'start', x: 0, y: 0, index: indices[0], type: 'vertex', canSnap: true },
-      { id: 'end', x: endX, y: endY, index: indices[1], type: 'vertex', canSnap: true },
+    return [{ id: 'start', x: 0, y: 0, index: indices[0], type: 'vertex', canSnap: false },
+      { id: 'end', x: endX, y: endY, index: indices[1], type: 'vertex', canSnap: false },
       { id: 'offset', x: endX / 2 - endY / length * offset, y: endY / 2 + endX / length * offset, index: indices[2], type: 'vertex', canSnap: false }];
   }
   override onHandleDrag: TLOnHandleDragHandler<CadDimensionShape> = (shape, { handle }) => {
     if (this.editor.getInstanceState().isReadonly || this.editor.isShapeOrAncestorLocked(shape)) return;
+    if (handle.id !== 'offset' && !this.editor.inputs.shiftKey) handle = { ...handle, ...snapCadHandle(this.editor, shape, handle) };
     if (handle.id === 'end') return { id: shape.id, type: shape.type, props: { endX: handle.x, endY: handle.y } };
     if (handle.id === 'offset') {
       const { endX, endY } = shape.props, length = Math.hypot(endX, endY) || 1;

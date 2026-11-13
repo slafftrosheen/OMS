@@ -1,33 +1,165 @@
-import type { Editor, TLShapeId } from '@tldraw/tldraw';
-import type { CadPoint } from './cad-settings';
+import { atom, type Editor, type TLShape, type TLShapeId } from '@tldraw/tldraw';
+import { validCadPoint, type CadPoint } from './cad-settings';
+import { readCadSnapSettings } from './cad-snap-settings';
+import { contourSegments, cubicAt, splitCubic, type CadContour } from './cad-curves';
+import { cubicLength } from './cad-measurements';
 
-/** Drafting snaps use stored endpoints/centres, never sampled curve vertices. */
-export function snapCadPoint(editor: Editor, point: CadPoint, exclude: TLShapeId | null): CadPoint {
-  const enabled = editor.user.getIsSnapMode() !== !!editor.inputs.ctrlKey;
-  if (!enabled) return { x: point.x, y: point.y };
-  const tolerance = 8 / editor.getZoomLevel();
-  let nearest = point, distance = tolerance;
+export type CadSnapKind = 'endpoints' | 'midpoints' | 'centers' | 'quadrants' | 'intersections' | 'nearest' | 'grid';
+export interface CadSnapResult { point: CadPoint; kind: CadSnapKind }
+const indicators = new WeakMap<Editor, ReturnType<typeof atom<CadSnapResult | null>>>();
+export function cadSnapIndicator(editor: Editor) {
+  let value = indicators.get(editor);
+  if (!value) { value = atom<CadSnapResult | null>('CAD snap target', null); indicators.set(editor, value); }
+  return value;
+}
+export function clearCadSnap(editor: Editor) {
+  cadSnapIndicator(editor).set(null);
+  // Never remove a native move/resize guide that replaced our point marker.
+  if (editor.snaps?.getIndicators().some(value => value.id === 'oms-cad-snap')) editor.snaps.clearIndicators();
+}
+const distance = (a: CadPoint, b: CadPoint) => Math.hypot(a.x - b.x, a.y - b.y);
+const middle = (a: CadPoint, b: CadPoint): CadPoint => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+const cross = (a: CadPoint, b: CadPoint) => a.x * b.y - a.y * b.x;
+const subtract = (a: CadPoint, b: CadPoint) => ({ x: a.x - b.x, y: a.y - b.y });
+function nearby(point: CadPoint, points: CadPoint[], tolerance: number) {
+  return point.x >= Math.min(...points.map(p => p.x)) - tolerance && point.x <= Math.max(...points.map(p => p.x)) + tolerance
+    && point.y >= Math.min(...points.map(p => p.y)) - tolerance && point.y <= Math.max(...points.map(p => p.y)) + tolerance;
+}
+export function nearestLinePoint(point: CadPoint, a: CadPoint, b: CadPoint): CadPoint {
+  const d = subtract(b, a), size = d.x * d.x + d.y * d.y;
+  const t = size ? Math.max(0, Math.min(1, ((point.x - a.x) * d.x + (point.y - a.y) * d.y) / size)) : 0;
+  return { x: a.x + d.x * t, y: a.y + d.y * t };
+}
+export function lineSnapIntersection(a: CadPoint, b: CadPoint, c: CadPoint, d: CadPoint): CadPoint | null {
+  const r = subtract(b, a), s = subtract(d, c), denominator = cross(r, s);
+  if (Math.abs(denominator) <= 1e-12 * Math.max(1, Math.hypot(r.x, r.y) * Math.hypot(s.x, s.y))) return null;
+  const offset = subtract(c, a), t = cross(offset, s) / denominator, u = cross(offset, r) / denominator;
+  if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+  return { x: a.x + r.x * t, y: a.y + r.y * t };
+}
+/** A point on the original cubic, with bounded search. Flattened drawing
+ * vertices are never presented as endpoints or manufactured intersections. */
+export function nearestCubicPoint(point: CadPoint, points: CadPoint[]): CadPoint {
+  let best = points[0], bestDistance = distance(point, best), bestT = 0;
+  for (let i = 1; i <= 48; i++) {
+    const p = cubicAt(points, i / 48), delta = distance(point, p);
+    if (delta < bestDistance) { best = p; bestDistance = delta; bestT = i / 48; }
+  }
+  let lo = Math.max(0, bestT - 1 / 48), hi = Math.min(1, bestT + 1 / 48);
+  for (let i = 0; i < 40; i++) {
+    const a = lo + (hi - lo) / 3, b = hi - (hi - lo) / 3;
+    if (distance(point, cubicAt(points, a)) < distance(point, cubicAt(points, b))) hi = b; else lo = a;
+  }
+  const refined = cubicAt(points, (lo + hi) / 2);
+  return distance(point, refined) < bestDistance ? refined : best;
+}
+function cubicMidpoint(points: CadPoint[]): CadPoint {
+  const budget = { remaining: 20000 }, tolerance = Math.max(0.001, distance(points[0], points[3]) * 1e-6);
+  let remaining = cubicLength(points, tolerance, budget) / 2, current = points;
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 24; i++) {
+    const t = (lo + hi) / 2, [a, b] = splitCubic(current), left = cubicLength(a, tolerance, budget);
+    if (left < remaining) { remaining -= left; lo = t; current = b; }
+    else { hi = t; current = a; }
+  }
+  return cubicAt(points, (lo + hi) / 2);
+}
+const midpoints = new WeakMap<object, Map<number, CadPoint>>();
+
+/** Geometric snaps are shared by every CAD drawing tool. Discrete targets win
+ * over nearest-edge and grid fallback; each category remains independently off. */
+export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId | null): CadSnapResult | null {
+  if (!validCadPoint(point) || editor.user.getIsSnapMode() === !!editor.inputs.ctrlKey) return null;
+  const settings = readCadSnapSettings(editor), tolerance = settings.tolerance / editor.getZoomLevel();
+  if (!Number.isFinite(tolerance) || tolerance <= 0) return null;
+  let best: CadSnapResult | null = null, bestDistance = tolerance;
+  const near: CadPoint[] = [], lines: Array<[CadPoint, CadPoint]> = [];
+  const offer = (candidate: CadPoint, kind: CadSnapKind) => {
+    if (!validCadPoint(candidate)) return;
+    const delta = distance(point, candidate);
+    if (delta <= bestDistance) { best = { point: { x: candidate.x, y: candidate.y }, kind }; bestDistance = delta; }
+  };
   for (const shape of editor.getCurrentPageShapesSorted()) {
-    if (shape.id === exclude) continue;
-    const p = shape.props as Record<string, any>;
-    let points: CadPoint[];
-    if (shape.type === 'cad-bezier') points = p.contours.flatMap(c => c.nodes);
-    else if (shape.type === 'cad-path') points = p.points;
-    else if (shape.type === 'line' && p.spline === 'line') points = Object.values(p.points);
-    else if (shape.type === 'cad-ellipse') points = [{ x: p.w / 2, y: p.h / 2 }, { x: 0, y: p.h / 2 }, { x: p.w, y: p.h / 2 }, { x: p.w / 2, y: 0 }, { x: p.w / 2, y: p.h }];
-    else if (shape.type === 'cad-arc') points = [{ x: 0, y: 0 }, ...[p.startAngle, p.endAngle].map(a => ({ x: p.radius * Math.cos(a * Math.PI / 180), y: -p.radius * Math.sin(a * Math.PI / 180) }))];
-    else if (shape.type === 'geo' && ['rectangle', 'triangle', 'diamond', 'pentagon', 'hexagon', 'octagon', 'star'].includes(p.geo)) {
-      const geometry = editor.getShapeGeometry(shape) as any;
-      points = (geometry.children?.[0] ?? geometry).vertices;
-    } else continue;
+    if (shape.id === exclude || shape.opacity === 0 || ['group', 'order-details', 'order-address', 'profile-7st', 'cad-dimension'].includes(shape.type)) continue;
+    // Clipped artwork has a different visible boundary. Do not target hidden nodes.
+    if (editor.getShapeMask?.(shape.id) || (shape.meta.omsVectorPaint as any)?.clips?.length) continue;
     const bounds = editor.getShapePageBounds(shape);
-    // Arc centres can sit outside their visible arc bounds.
-    if (shape.type !== 'cad-arc' && bounds && (point.x < bounds.minX - tolerance || point.x > bounds.maxX + tolerance || point.y < bounds.minY - tolerance || point.y > bounds.maxY + tolerance)) continue;
-    const matrix = editor.getShapePageTransform(shape);
-    for (const candidate of points) {
-      const world = matrix.applyToPoint(candidate), delta = Math.hypot(point.x - world.x, point.y - world.y);
-      if (delta < distance) { nearest = world; distance = delta; }
+    if (shape.type !== 'cad-arc' && bounds && !nearby(point, [{ x: bounds.minX, y: bounds.minY }, { x: bounds.maxX, y: bounds.maxY }], tolerance)) continue;
+    const p = shape.props as Record<string, any>, matrix = editor.getShapePageTransform(shape);
+    const world = (q: CadPoint) => matrix.applyToPoint(q);
+    const offerLocal = (q: CadPoint, kind: CadSnapKind) => offer(world(q), kind);
+    const segment = (a: CadPoint, b: CadPoint) => {
+      const aa = world(a), bb = world(b);
+      if (!nearby(point, [aa, bb], tolerance)) return;
+      if (settings.midpoints) offer(middle(aa, bb), 'midpoints');
+      if (settings.intersections && lines.length < 256) lines.push([aa, bb]);
+      if (settings.nearest) near.push(nearestLinePoint(point, aa, bb));
+    };
+    const path = (points: CadPoint[], closed: boolean) => {
+      if (settings.endpoints) points.forEach(q => offerLocal(q, 'endpoints'));
+      for (let i = 0; i < points.length - (closed ? 0 : 1); i++) segment(points[i], points[(i + 1) % points.length]);
+    };
+    if (shape.type === 'cad-bezier') {
+      let index = 0, cache = midpoints.get(shape.props);
+      if (!cache) { cache = new Map(); midpoints.set(shape.props, cache); }
+      for (const contour of p.contours as CadContour[]) {
+        if (settings.endpoints) contour.nodes.forEach(q => offerLocal(q, 'endpoints'));
+        for (const local of contourSegments(contour)) {
+          const key = index++, points = local.map(world);
+          if (!nearby(point, points, tolerance)) continue;
+          if (distance(local[0], local[1]) < 1e-9 && distance(local[2], local[3]) < 1e-9) { segment(local[0], local[3]); continue; }
+          if (settings.midpoints) {
+            try { if (!cache.has(key)) cache.set(key, cubicMidpoint(local)); offerLocal(cache.get(key)!, 'midpoints'); } catch { /* Bounded integration refuses pathological curves. */ }
+          }
+          if (settings.nearest) near.push(nearestCubicPoint(point, points));
+        }
+      }
+    } else if (shape.type === 'cad-path') path(p.points, p.closed);
+    else if (shape.type === 'line' && p.spline === 'line') path(Object.values(p.points).sort((a: any, b: any) => a.index.localeCompare(b.index)) as CadPoint[], false);
+    else if (shape.type === 'cad-ellipse' || shape.type === 'cad-arc' || shape.type === 'geo' && p.geo === 'ellipse') {
+      const arc = shape.type === 'cad-arc', cx = arc ? 0 : p.w / 2, cy = arc ? 0 : p.h / 2;
+      const rx = arc ? p.radius : p.w / 2, ry = arc ? p.radius : p.h / 2;
+      const start = arc ? p.startAngle : 0, end = arc ? p.endAngle : 360;
+      const at = (angle: number) => ({ x: cx + rx * Math.cos(angle * Math.PI / 180), y: cy - ry * Math.sin(angle * Math.PI / 180) });
+      if (settings.centers) offerLocal({ x: cx, y: cy }, 'centers');
+      if (settings.endpoints && arc) { offerLocal(at(start), 'endpoints'); offerLocal(at(end), 'endpoints'); }
+      if (settings.midpoints && arc) offerLocal(at((start + end) / 2), 'midpoints');
+      if (settings.quadrants) for (let angle = Math.ceil(start / 90) * 90; angle <= end; angle += 90) offerLocal(at(angle), 'quadrants');
+      if (settings.nearest) {
+        let nearest = world(at(start)), value = start;
+        for (let i = 1; i <= 48; i++) { const angle = start + (end - start) * i / 48, q = world(at(angle)); if (distance(point, q) < distance(point, nearest)) { nearest = q; value = angle; } }
+        let lo = Math.max(start, value - (end - start) / 48), hi = Math.min(end, value + (end - start) / 48);
+        for (let i = 0; i < 40; i++) { const a = lo + (hi - lo) / 3, b = hi - (hi - lo) / 3; if (distance(point, world(at(a))) < distance(point, world(at(b)))) hi = b; else lo = a; }
+        const q = world(at((lo + hi) / 2)); near.push(distance(point, q) < distance(point, nearest) ? q : nearest);
+      }
+    } else if (shape.type === 'geo' && ['rectangle', 'triangle', 'diamond', 'pentagon', 'hexagon', 'octagon', 'star'].includes(p.geo)) {
+      const geometry = editor.getShapeGeometry(shape) as any;
+      path((geometry.children?.[0] ?? geometry).vertices, true);
+      if (settings.centers) offerLocal({ x: p.w / 2, y: p.h / 2 }, 'centers');
+    } else if (settings.centers && ['image', 'text'].includes(shape.type)) {
+      const box = editor.getShapeGeometry(shape).bounds; offerLocal({ x: box.x + box.w / 2, y: box.y + box.h / 2 }, 'centers');
     }
   }
-  return { x: nearest.x, y: nearest.y };
+  if (settings.intersections) for (let i = 0; i < lines.length; i++) for (let j = i + 1; j < lines.length; j++) {
+    const intersection = lineSnapIntersection(...lines[i], ...lines[j]); if (intersection) offer(intersection, 'intersections');
+  }
+  if (best) return best;
+  if (settings.nearest) near.forEach(q => offer(q, 'nearest'));
+  if (best) return best;
+  if (settings.grid) offer({ x: Math.round(point.x / settings.gridSpacing) * settings.gridSpacing, y: Math.round(point.y / settings.gridSpacing) * settings.gridSpacing }, 'grid');
+  return best;
+}
+
+export function snapCadPoint(editor: Editor, point: CadPoint, exclude: TLShapeId | null): CadPoint {
+  const result = findCadSnap(editor, point, exclude);
+  if (!result) { clearCadSnap(editor); return { x: point.x, y: point.y }; }
+  cadSnapIndicator(editor).set(result);
+  editor.snaps?.setIndicators([{ id: 'oms-cad-snap', type: 'points', points: [result.point] }]);
+  return result.point;
+}
+
+/** Node editing passes local handle positions; targets live in page space. */
+export function snapCadHandle(editor: Editor, shape: TLShape, point: CadPoint): CadPoint {
+  const matrix = editor.getShapePageTransform(shape);
+  return matrix.clone().invert().applyToPoint(snapCadPoint(editor, matrix.applyToPoint(point), shape.id));
 }

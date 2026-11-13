@@ -1,7 +1,7 @@
 import { StateNode, createShapeId, DefaultColorStyle, type TLEventHandlers, type TLShapeId } from '@tldraw/tldraw';
 import { nodeAt, validContours, type CadBezierNode } from './cad-curves';
 import { validCadPoint } from './cad-settings';
-import { snapCadPoint } from './cad-snap';
+import { clearCadSnap, snapCadPoint } from './cad-snap';
 
 /** Click for corners; drag from the new anchor for symmetric Bézier handles. */
 export class CadBezierTool extends StateNode {
@@ -11,6 +11,7 @@ export class CadBezierTool extends StateNode {
   private mark: string | null = null;
   private dragging = false;
   override onEnter = () => {
+    clearCadSnap(this.editor);
     this.nodes = [];
     this.shapeId = null;
     this.mark = null;
@@ -71,7 +72,8 @@ export class CadBezierTool extends StateNode {
       this.cancel();
       return;
     }
-    if (!this.dragging || !this.nodes.length) return;
+    if (!this.dragging || !this.nodes.length) { snapCadPoint(this.editor, this.editor.inputs.currentPagePoint, this.shapeId); return; }
+    clearCadSnap(this.editor);
     const last = this.nodes.at(-1)!,
       point = this.editor.inputs.currentPagePoint;
     let x = point.x - last.x,
@@ -123,6 +125,7 @@ export class CadBezierTool extends StateNode {
     if (this.mark) this.finish(false, false);
   };
   private finish(closed: boolean, select = true) {
+    clearCadSnap(this.editor);
     if (this.nodes.length < 2 || this.editor.getInstanceState().isReadonly) {
       this.cancel(select);
       return;
@@ -139,6 +142,7 @@ export class CadBezierTool extends StateNode {
     if (mark) this.editor.mark(`${mark}-complete`);
   }
   private cancel(select = true) {
+    clearCadSnap(this.editor);
     const mark = this.mark;
     this.shapeId = null;
     this.mark = null;

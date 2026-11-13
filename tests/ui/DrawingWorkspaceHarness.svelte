@@ -38,6 +38,20 @@
     editor.setCurrentTool('select');editor.setSelectedShapes(['shape:text-one','shape:text-two']);editor.zoomToSelection();
     exampleStatus='Text example ready';
   }
+  function loadSnapping() {
+    if (!editor || readonly) return;
+    editor.updatePage({id:editor.getCurrentPageId(),meta:{omsCad:DEFAULT_CAD_SETTINGS,omsCadSnap:{endpoints:true,midpoints:true,centers:true,quadrants:true,intersections:true,nearest:true,grid:false,tolerance:8}}});
+    editor.user.updateUserPreferences({isSnapMode:true});
+    const samples = [
+      {id:'shape:snap-panel',type:'geo',x:0,y:0,props:{geo:'rectangle',w:240,h:120,fill:'none',dash:'solid',color:'blue'},meta:{omsObjectName:'Reference panel'}},
+      {id:'shape:snap-horizontal',type:'cad-path',x:0,y:200,props:{points:[{x:0,y:0},{x:240,y:0}],closed:false,color:'black'},meta:{omsObjectName:'Horizontal guide'}},
+      {id:'shape:snap-vertical',type:'cad-path',x:100,y:150,props:{points:[{x:0,y:0},{x:0,y:140}],closed:false,color:'black'},meta:{omsObjectName:'Vertical guide'}},
+      {id:'shape:snap-circle',type:'cad-ellipse',x:320,y:160,props:{w:120,h:120,color:'blue'},meta:{omsObjectName:'Circular reference'}},
+      {id:'shape:snap-curve',type:'cad-bezier',x:320,y:0,props:{contours:[{closed:false,nodes:[{...nodeAt({x:0,y:100}),outX:40,outY:-120},{...nodeAt({x:140,y:100}),inX:-40,inY:-120}]}]},meta:{omsObjectName:'Curve reference'}}
+    ];
+    for(const shape of samples){if(editor.getShape(shape.id))editor.deleteShapes([shape.id]);editor.createShape(shape);}
+    editor.setSelectedShapes(samples.map(shape=>shape.id));editor.zoomToSelection();editor.selectNone();exampleStatus='Snapping example ready';
+  }
   async function loadMaterials() {
     if (!editor || readonly) return;
     const rect = (x: number, y: number, w: number, h: number) => ({ closed: true, nodes: [{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}].map(nodeAt) });
@@ -77,11 +91,12 @@
 <header>
   <button onclick={() => readonly = !readonly}>Toggle read only</button>
   {#if materialExample}<button onclick={loadMaterials}>Load material example</button>{/if}
-  {#if textExample}<button onclick={loadText}>Load text example</button>{/if}
+  {#if textExample}<button onclick={loadSnapping} disabled={readonly}>Load snapping example</button>
+    <button onclick={loadText}>Load text example</button>{/if}
   {#if materialExample || textExample}<button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
   <label>Theme <select aria-label="Theme" bind:value={theme}><option>LightVim</option><option>DarkVim</option><option>HighContrastVim</option></select></label>
   <label>Language <select aria-label="Language" value={$locale} onchange={event => locale.set(event.currentTarget.value)}><option value="en">English</option><option value="ru">Русский</option><option value="lv">Latviešu</option></select></label>
-  <label>Workspace <select aria-label="Workspace width" bind:value={workspaceWidth}><option value="100%">Full width</option><option value="880px">880 px</option><option value="520px">520 px</option><option value="390px">390 px</option></select></label>
+  <label>Workspace <select aria-label="Workspace width" bind:value={workspaceWidth}><option value="100%">Full width</option><option value="880px">880 px</option><option value="580px">580 px</option><option value="520px">520 px</option><option value="390px">390 px</option></select></label>
   <label>Height <select aria-label="Workspace height" bind:value={workspaceHeight}><option value="calc(100dvh - 48px)">Full height</option><option value="420px">420 px</option></select></label>
 </header>
 <main style:width={workspaceWidth} style:height={workspaceHeight}><TldrawWrapper orderSeed={order ? seed : null} toolkitBoardId={order ? null : 'fixture-board'}

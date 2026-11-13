@@ -2,13 +2,14 @@ import {getShapeDrawingFontId} from './drawing-fonts';
 import type { Editor, TLShapeId, TLTextShape } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
 import { TEXT_PIXELS } from './workbench-operations';
+import { drawingTextSpacingMeta, getDrawingTextSpacing, validDrawingTextSpacing, type DrawingTextSpacing } from './drawing-text-spacing';
 
 export type DrawingTextStylePatch = Partial<{
   font: TLTextShape['props']['font'];
   pointSize: number;
   textAlign: TLTextShape['props']['textAlign'];
   autoSize: boolean;
-}>;
+} & DrawingTextSpacing>;
 
 /** Remove floating-point conversion noise only at the UI boundary. Shape scale
  * keeps its full precision; equally sized labels should never appear mixed. */
@@ -24,7 +25,8 @@ export function applySelectedDrawingTextStyle(
   patch: DrawingTextStylePatch,
 ): boolean {
   const keys = Object.keys(patch);
-  if (!keys.length || keys.some(key => !['font', 'pointSize', 'textAlign', 'autoSize'].includes(key))) return false;
+  if (!keys.length || keys.some(key => !['font', 'pointSize', 'textAlign', 'autoSize', 'letterSpacing', 'lineHeight'].includes(key))) return false;
+  if (!validDrawingTextSpacing(patch)) return false;
   if ('font' in patch && !['draw', 'sans', 'serif', 'mono'].includes(patch.font!)) return false;
   if ('textAlign' in patch && !['start', 'middle', 'end'].includes(patch.textAlign!)) return false;
   if ('autoSize' in patch && typeof patch.autoSize !== 'boolean') return false;
@@ -48,7 +50,11 @@ export function applySelectedDrawingTextStyle(
       if (!Number.isFinite(scale) || scale <= 0) return false;
       if (scale !== text.props.scale) props.scale = scale;
     }
-    const meta = 'font' in patch && getShapeDrawingFontId(text) ? { ...text.meta, omsFontId: null } : undefined;
+    let meta: TLTextShape['meta'] | undefined = 'font' in patch && getShapeDrawingFontId(text) ? { ...text.meta, omsFontId: null } : undefined;
+    const spacing = getDrawingTextSpacing(text), spacingPatch: Partial<DrawingTextSpacing> = {};
+    if ('letterSpacing' in patch && patch.letterSpacing !== spacing.letterSpacing) spacingPatch.letterSpacing = patch.letterSpacing;
+    if ('lineHeight' in patch && patch.lineHeight !== spacing.lineHeight) spacingPatch.lineHeight = patch.lineHeight;
+    if (Object.keys(spacingPatch).length) meta = drawingTextSpacingMeta({ meta: meta ?? text.meta }, spacingPatch);
     if (Object.keys(props).length || meta) updates.push({ id, type: 'text', props, ...(meta ? { meta } : {}) });
   }
   if (!updates.length) return true;
@@ -56,7 +62,8 @@ export function applySelectedDrawingTextStyle(
     editor.updateShapes(updates);
     for (const update of updates) {
       const current = editor.getShape<TLTextShape>(update.id);
-      if (!current || Object.entries(update.props).some(([key, value]) => current.props[key as keyof TLTextShape['props']] !== value)) {
+      if (!current || Object.entries(update.props).some(([key, value]) => current.props[key as keyof TLTextShape['props']] !== value)
+        || (update.meta && JSON.stringify(current.meta) !== JSON.stringify(update.meta))) {
         throw new Error('Text formatting was not applied');
       }
     }

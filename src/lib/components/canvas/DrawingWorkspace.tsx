@@ -1,3 +1,4 @@
+import {cadSnapIndicator} from './cad-snap';
 import {cadConstruction} from './cad-construction';
 import {isCadNodeEditing, setCadNodeEditing} from './cad-node-selection';
 import {CadPointEntry} from './CadPointEntry';
@@ -5,6 +6,9 @@ import {TextPanel,ArrangePanel,MeasurePanel,FormScaleControl} from './WorkbenchP
 import {useWorkbenchText} from './workbench-copy';
 import {textPointSize} from './workbench-operations';
 import {applySelectedDrawingTextStyle, drawingTextPointSizeDisplay, type DrawingTextStylePatch} from './drawing-text-style';
+import {getDrawingTextSpacing} from './drawing-text-spacing';
+import {CadSnapPanel} from './CadSnapPanel';
+import {useSnapText} from './snap-copy';
 import {DrawingFontPicker, NextDrawingFontPicker} from './DrawingFonts';
 import {applySelectedDrawingFont, clearSelectedDrawingFontOverrides, drawingFontValue, setNextDrawingFont} from './drawing-fonts';
 import {useDrawingFontText} from './font-copy';
@@ -34,7 +38,7 @@ import { paintMetadata, vectorPaint } from './cad-vector';
 import './drawing-workspace.css';
 
 type Slot = 'commands' | 'standard' | 'properties' | 'tools' | 'docker' | 'dockerTabs' | 'palette' | 'status' | 'rulerX' | 'rulerY' | 'rulerOrigin';
-type Panel = 'properties' | 'objects' | 'cad' | 'text' | 'arrange' | 'measure' | null;
+type Panel = 'properties' | 'objects' | 'cad' | 'text' | 'arrange' | 'measure' | 'snap' | null;
 interface WorkspaceContext {
   hosts: Partial<Record<Slot, HTMLElement>>;
   panel: Panel;
@@ -129,6 +133,7 @@ const iconPaths: Record<string, ReactNode> = {
   'cad-circle-three': <><circle cx="12" cy="12" r="8"/><circle cx="12" cy="4" r="2"/><circle cx="5" cy="16" r="2"/><circle cx="19" cy="16" r="2"/></>,
   'cad-circle': <><circle cx="12" cy="12" r="8"/><path d="M12 12h8M10 12h4m-2-2v4"/></>,
   'cad-dimension': <><path d="M3 4v16M21 4v16M3 12h18m-14-3-4 3 4 3m10-6 4 3-4 3"/></>,
+  snap: <><path d="M5 4v9a7 7 0 0 0 14 0V4h-5v9a2 2 0 0 1-4 0V4ZM5 8h5m4 0h5"/></>,
   nodes: <><path d="M4 18C4 4 20 20 20 6"/><rect x="2" y="16" width="4" height="4"/><rect x="18" y="4" width="4" height="4"/></>,
   arrange: <><path d="M3 3v18M3 7h18M3 17h13"/><rect x="6" y="4" width="12" height="6"/><rect x="6" y="14" width="7" height="6"/></>,
   'text-curves': <><path d="M4 20 12 4l8 16M8 13h8"/><rect x="2" y="18" width="4" height="4"/><rect x="10" y="2" width="4" height="4"/><rect x="18" y="18" width="4" height="4"/></>,
@@ -175,29 +180,38 @@ function NumberField({ field, value, disabled, label }: { field: DrawingTransfor
   </label>;
 }
 
-function TextPointSizeField({ selected, value, disabled }: { selected: readonly TLShapeId[]; value: number | undefined; disabled: boolean }) {
+const textNumericFields = {
+  pointSize: { label: 'fontSize', min: 1, max: 3000, testId: 'drawing-text-point-size' },
+  letterSpacing: { label: 'letterSpacing', min: -50, max: 200, testId: 'drawing-text-letter-spacing' },
+  lineHeight: { label: 'lineSpacing', min: 50, max: 500, testId: 'drawing-text-line-spacing' },
+} as const;
+
+function TextNumericStyleField({ field, selected, value, disabled }: {
+  field: keyof typeof textNumericFields; selected: readonly TLShapeId[]; value: number | undefined; disabled: boolean;
+}) {
   const editor = useEditor();
   const { label, tr } = useDrawingText();
   const workbenchLabel = useWorkbenchText();
+  const config = textNumericFields[field];
   const errorId = useId();
   const displayed = value === undefined ? '' : String(drawingTextPointSizeDisplay(value));
   const [draft, setDraft] = useState(displayed);
-  const [error, setError] = useState<'textSizeInvalid' | 'changedFailed' | null>(null);
+  const [error, setError] = useState<'invalid' | 'changedFailed' | null>(null);
   const dirty = useRef(false), cancelBlur = useRef(false);
-  useEffect(() => { setDraft(displayed); setError(null); dirty.current = false; }, [value]);
+  useEffect(() => { setDraft(displayed); setError(null); dirty.current = false; }, [value, field]);
   function commit() {
     if (cancelBlur.current) { cancelBlur.current = false; return; }
     if (!dirty.current) return;
-    const points = draft.trim() ? Number(draft) : NaN;
-    if (!Number.isFinite(points) || points < 1 || points > 3000) { setError('textSizeInvalid'); return; }
-    if (!applySelectedDrawingTextStyle(editor, selected, { pointSize: points })) { setError('changedFailed'); return; }
+    const number = draft.trim() ? Number(draft) : NaN;
+    if (!Number.isFinite(number) || number < config.min || number > config.max) { setError('invalid'); return; }
+    if (!applySelectedDrawingTextStyle(editor, selected, { [field]: field === 'lineHeight' ? number / 100 : number })) { setError('changedFailed'); return; }
     dirty.current = false; setError(null);
   }
   return <>
-    <label className="drawing-property-field drawing-property-point-size"><span>{workbenchLabel('fontSize')}</span>
-      <input type="number" aria-label={workbenchLabel('fontSize')} min={1} max={3000} step="any" value={draft}
+    <label className={`drawing-property-field ${field === 'pointSize' ? 'drawing-property-point-size' : 'drawing-property-text-spacing'}`}><span title={workbenchLabel(config.label)}>{workbenchLabel(config.label)}</span>
+      <input type="number" aria-label={workbenchLabel(config.label)} min={config.min} max={config.max} step="any" value={draft}
         placeholder={value === undefined ? tr('toolkit.toolbar.styleFields.mixed') : undefined} disabled={disabled}
-        aria-invalid={!!error} aria-describedby={error ? errorId : undefined} data-testid="drawing-text-point-size"
+        aria-invalid={!!error} aria-describedby={error ? errorId : undefined} data-testid={config.testId}
         onChange={event => { dirty.current = true; setDraft(event.target.value); setError(null); }} onBlur={commit}
         onKeyDown={event => {
           event.stopPropagation();
@@ -208,7 +222,9 @@ function TextPointSizeField({ selected, value, disabled }: { selected: readonly 
           }
         }} />
     </label>
-    {error && <span className="drawing-property-error" id={errorId} role="alert">{label(error)}</span>}
+    {error && <span className="drawing-property-error" id={errorId} role="alert">{
+      error === 'changedFailed' ? label(error) : field === 'pointSize' ? label('textSizeInvalid') : workbenchLabel(field === 'letterSpacing' ? 'letterSpacingInvalid' : 'lineSpacingInvalid')
+    }</span>}
   </>;
 }
 
@@ -228,12 +244,16 @@ function SelectedTextProperties({ shapes, disabled, onEdit, onOutlines, onFonts 
   };
   const font = shared(drawingFontValue), align = shared(shape => shape.props.textAlign);
   const points = shared(shape => drawingTextPointSizeDisplay(textPointSize(shape))), autoWidth = shared(shape => shape.props.autoSize);
+  const letterSpacing = shared(shape => drawingTextPointSizeDisplay(getDrawingTextSpacing(shape).letterSpacing));
+  const lineSpacing = shared(shape => drawingTextPointSizeDisplay(getDrawingTextSpacing(shape).lineHeight * 100));
   const mixed = tr('toolkit.toolbar.styleFields.mixed');
   const apply = (patch: DrawingTextStylePatch) => setFailed(!applySelectedDrawingTextStyle(editor, selected, patch));
   return <div className="drawing-context-properties" role="group" aria-label={label('selectedText')} data-testid="drawing-selected-text-properties">
     <DrawingFontPicker compact value={font} disabled={disabled} testId="drawing-text-font" onManage={onFonts}
       onChange={value => { setFailed(false); setFontFailed(!applySelectedDrawingFont(editor, selected, value)); }} />
-    <TextPointSizeField selected={selected} value={points} disabled={disabled} />
+    <TextNumericStyleField field="pointSize" selected={selected} value={points} disabled={disabled} />
+    <TextNumericStyleField field="letterSpacing" selected={selected} value={letterSpacing} disabled={disabled} />
+    <TextNumericStyleField field="lineHeight" selected={selected} value={lineSpacing} disabled={disabled} />
     <label className="drawing-property-field"><span>{workbenchLabel('align')}</span>
       <select aria-label={workbenchLabel('align')} disabled={disabled} value={align ?? ''} data-testid="drawing-text-align"
         onChange={event => apply({ textAlign: event.target.value as TLTextShape['props']['textAlign'] })}>
@@ -401,6 +421,8 @@ export function DrawingChrome() {
   const { label: advancedLabel } = useCadAdvancedText();
   const vectorLabel = useVectorText();
   const workbenchLabel = useWorkbenchText();
+  const snapLabel = useSnapText();
+  const activeSnap = useValue('CAD snap target', () => editor.snaps.getIndicators().some(value => value.id === 'oms-cad-snap') ? cadSnapIndicator(editor).get() : null, [editor]);
   const construction = useValue('CAD construction status', () => cadConstruction(editor).get(), [editor]);
   const nodeEditing = useValue('CAD node editing mode', () => isCadNodeEditing(editor), [editor]);
   const constructionHint = construction ? workbenchLabel(construction.points.length === 0 ? 'pickFirst' : construction.points.length === 1 ? 'pickThrough' : construction.kind === 'arc' ? 'pickArcEnd' : 'pickThird') : '';
@@ -681,8 +703,8 @@ export function DrawingChrome() {
     disabled={protectedForm || (field === 'w' || field === 'h' ? !canResize : field === 'rotation' ? !canRotate : !controls.canEditSelection)} /> : <NumberField key={field} field={field} label={label(fieldNames[field])}
     value={field === 'x' ? position?.x : field === 'y' ? position?.y : field === 'w' ? bounds?.w : field === 'h' ? bounds?.h : state.single ? editor.getShapePageTransform(state.single).rotation() * 180 / Math.PI : undefined}
     disabled={field === 'w' || field === 'h' ? !canResize : field === 'rotation' ? !canRotate : !controls.canEditSelection} />;
-  const panelModes = ['properties', 'text', 'arrange', 'measure', 'objects', 'cad'] as const;
-  const panelLabel = (mode: Exclude<Panel, null>) => mode === 'cad' ? cadLabel('cad') : mode === 'properties' || mode === 'objects' ? label(mode) : workbenchLabel(mode);
+  const panelModes = ['properties', 'text', 'arrange', 'measure', 'snap', 'objects', 'cad'] as const;
+  const panelLabel = (mode: Exclude<Panel, null>) => mode === 'snap' ? snapLabel('title') : mode === 'cad' ? cadLabel('cad') : mode === 'properties' || mode === 'objects' ? label(mode) : workbenchLabel(mode);
   const groupLabel = (group: typeof toolGroups[number]) => group.id === 'curves' || group.id === 'shapes' || group.id === 'annotations' ? workbenchLabel(group.id) : toolLabel(group.tools[0]);
   const activeToolGroup = toolGroups.find(group => group.id === toolGroup);
 
@@ -737,6 +759,7 @@ export function DrawingChrome() {
         <details className="drawing-menu" data-drawing-menu="view" open={openMenu === 'view'}>{menuSummary('view', label('view'))}<div className="drawing-menu-popover">{menuActions(['fit', 'fit-selection', 'zoom-reset'])}
           <button type="button" aria-pressed={state.grid} onClick={() => command('grid')}>{state.grid ? '✓ ' : ''}{label('grid')}</button>
           <button type="button" aria-pressed={state.snap} onClick={() => command('snap')}>{state.snap ? '✓ ' : ''}{label('snap')}</button>
+          <button type="button" onClick={() => { setPanel('snap'); closeMenus(); }} data-testid="drawing-menu-snap-options">{snapLabel('open')}</button>
         </div></details>
       </nav>
     </>)}
@@ -808,7 +831,7 @@ export function DrawingChrome() {
         }} />
       </div>
       <div className="drawing-docker-content" role="region" aria-label={panelLabel(activePanel)}>
-        {activePanel === 'text' ? <TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <>
+        {activePanel === 'snap' ? <CadSnapPanel settings={settings}/> : activePanel === 'text' ? <TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <>
           {selectedText && <fieldset className="drawing-workbench-fields drawing-arrange-section drawing-arrange-geometry" data-testid="drawing-text-geometry">
             <legend>{label('positionAndSize')}</legend>
             {(['x', 'y', 'w', 'h', 'rotation'] as const).map(transformField)}
@@ -877,10 +900,11 @@ export function DrawingChrome() {
         }} onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
     </div>)}
     {portal('status', <>
-      <span className="drawing-status-text" role="status" title={controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{notice || (controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
+      <span className="drawing-status-text" role="status" title={controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
       <span className={`drawing-keyboard-hint${settings ? ' drawing-cad-status-unit' : ''}`} title={settings ? cadLabel('nudgeHelp') : label('keyboard')}>{settings ? <>{settings.unit} · 1:{settings.scale}<span className="drawing-cad-status-nudge"> · {cadLabel('nudge')}: {settings.nudge} {settings.unit}</span></> : label('units')}</span>
       <button type="button" onClick={() => command('grid')} aria-pressed={state.grid}>{label('grid')}</button>
       <button type="button" onClick={() => command('snap')} aria-pressed={state.snap}>{label('snap')}</button>
+      <button type="button" className="drawing-snap-options-shortcut" onClick={() => setPanel('snap')} aria-pressed={panel === 'snap'} data-testid="drawing-status-snap-options">{snapLabel('open')}</button>
       <div className="drawing-zoom" aria-label={label('zoom')}>
         <ToolButton label={label('zoomOut')} onClick={() => command('zoom-out')}>−</ToolButton>
         <select aria-label={label('zoom')} value="current" onChange={event => { if (event.target.value === 'fit') command('fit'); else if (event.target.value === 'selection') command('fit-selection'); else { editor.setCamera({ ...editor.getCamera(), z: Number(event.target.value) }); } }}>

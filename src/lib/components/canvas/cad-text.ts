@@ -1,6 +1,7 @@
 import {getShapeDrawingFontId, getLoadedDrawingFont, drawingFontFamily} from './drawing-fonts';
 import { selectedTextGuide, type CadTextGuide, type TextGuide } from './cad-text-guide';
-import { DefaultFontFamilies, type Editor, type TLShapeId } from '@tldraw/tldraw';
+import { DefaultFontFamilies, type Editor, type TLShapeId, type TLTextShape } from '@tldraw/tldraw';
+import { drawingTextBaseline, drawingTextLineHeight, getDrawingTextSpacing, withDrawingTextSpacing } from './drawing-text-spacing';
 import assetUrls from './tldraw-asset-urls.json';
 import { cadPointToCanvas, unitLengthToCanvas, cadMmPerPixel, type CadSettings } from './cad-settings';
 import { curveBounds, mapContours, nodeAt, type CadContour } from './cad-curves';
@@ -74,12 +75,15 @@ export async function getCadFont(name: string, bytes?: ArrayBuffer) {
     );
   return cache.get(name)!;
 }
-function layoutGlyphRun(font: any, text: string, x = 0, baseline = 0, size = 100, letterSpacing = 0): GlyphRun {
-  if ([...text].length > 500 || !Number.isFinite(size) || size <= 0) throw new CadOperationError('limit');
+function layoutGlyphRun(font: any, text: string, x = 0, baseline = 0, size = 100, letterSpacing = 0, browserTracking = false): GlyphRun {
+  // SVG text can be longer than a CAD lettering operation. Keep conversion's
+  // public 500-character limit, but do not make adding spacing break SVG export
+  // of a longer editable label (the editor accepts up to 10,000 characters).
+  if ([...text].length > (browserTracking ? 10000 : 500) || !Number.isFinite(size) || size <= 0) throw new CadOperationError('limit');
   for (const char of text)
     if (!/\s/u.test(char) && !font.hasGlyphForCodePoint(char.codePointAt(0)))
       throw new CadOperationError('missing-glyph');
-  const run = font.layout(text),
+  const run = font.layout(text, browserTracking && letterSpacing ? { liga: false, clig: false } : undefined),
     scale = size / font.unitsPerEm;
   const result: CadContour[] = [], glyphs: GlyphPlacement[] = [];
   let clusterCenter = 0, horizontal = true;
@@ -103,7 +107,7 @@ function layoutGlyphRun(font: any, text: string, x = 0, baseline = 0, size = 100
       y: baseline - (advanceY + position.yOffset + b) * scale
     });
     for (const { command, args } of glyph.path.commands) {
-      if (++total > 15000) throw new CadOperationError('limit');
+      if (++total > (browserTracking ? 600000 : 15000)) throw new CadOperationError('limit');
       if (command === 'moveTo') {
         contour = { closed: false, nodes: [nodeAt(point(args[0], args[1]))] };
         result.push(contour);
@@ -155,8 +159,8 @@ function layoutGlyphRun(font: any, text: string, x = 0, baseline = 0, size = 100
   return { contours: result.filter((c) => c.nodes.length >= 2), advance: advanceX * scale, glyphs, horizontal };
 }
 export const isCadTextSingleLine = (text: string) => !/[\r\n\u2028\u2029]/u.test(text);
-export function glyphRunContours(font: any, text: string, x = 0, baseline = 0, size = 100): CadContour[] {
-  return layoutGlyphRun(font, text, x, baseline, size).contours;
+export function glyphRunContours(font: any, text: string, x = 0, baseline = 0, size = 100, letterSpacing = 0): CadContour[] {
+  return layoutGlyphRun(font, text, x, baseline, size, letterSpacing, true).contours;
 }
 /** New outline text uses shaped line advances for alignment, including whitespace. */
 export function layoutCadText(font: any, text: string, options: Partial<CadTextLayout> = {}): CadContour[] {
@@ -250,10 +254,11 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
   if (source) {
     const fontSize = FONT_SIZES[p.size],
       bounds = editor.getShapeGeometry(source).bounds;
-    const spans = editor.textMeasure.measureTextSpans(text, {
+    const spacing = getDrawingTextSpacing(source as TLTextShape);
+    const spans = withDrawingTextSpacing(editor, spacing, fontSize, () => editor.textMeasure.measureTextSpans(text, {
       fontFamily: uploaded ? drawingFontFamily(uploaded.record) : DefaultFontFamilies[p.font],
       fontSize,
-      lineHeight: 1.35,
+      lineHeight: drawingTextLineHeight(fontSize, spacing),
       fontStyle: 'normal',
       fontWeight: 'normal',
       textAlign: p.textAlign,
@@ -261,12 +266,10 @@ export async function prepareCadText(editor: Editor, settings: CadSettings, opti
       height: Math.ceil(bounds.h / p.scale),
       padding: 0,
       overflow: 'wrap'
-    });
-    const ascent = (font.ascent / font.unitsPerEm) * fontSize,
-      descent = (-font.descent / font.unitsPerEm) * fontSize;
-    const baseline = (Math.floor(fontSize * 1.35) - ascent - descent) / 2 + ascent;
+    }));
+    const baseline = drawingTextBaseline(font, fontSize, spacing, spans[0]?.box.y ?? 0);
     for (const span of spans)
-      contours.push(...glyphRunContours(font, span.text, span.box.x, span.box.y + baseline, fontSize));
+      contours.push(...glyphRunContours(font, span.text, span.box.x, span.box.y + baseline, fontSize, spacing.letterSpacing));
     const matrix = editor.getShapePageTransform(source);
     contours = mapContours(contours, (point) => matrix.applyToPoint({ x: point.x * p.scale, y: point.y * p.scale }));
   } else if (guide && options.guide) {

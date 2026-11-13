@@ -51,10 +51,13 @@
 .drawing-property-field > span { line-height: 12px; color: var(--ink-secondary); white-space: nowrap; }
 .drawing-property-field.drawing-property-font { width: 160px; }
 .drawing-property-field.drawing-property-point-size { width: 112px; }
+.drawing-property-field.drawing-property-text-spacing { width: max-content; }
 .drawing-workspace .drawing-properties .drawing-property-field :is(input[type="number"][aria-label], select[aria-label]) {
   width: 100%; min-width: 0; height: 28px; min-height: 28px; max-height: 28px; margin: 0; padding: 4px 8px;
   border: 1px solid var(--border); border-radius: 2px; background: var(--bg-0); color: var(--ink-primary); font-size: 12px; line-height: 16px;
 }
+/* Let spacing labels set the width, without a number input's default 20ch width. */
+.drawing-workspace .drawing-properties .drawing-property-text-spacing input[type="number"][aria-label] { width: 0; min-width: 100%; }
 .drawing-workspace .drawing-properties .drawing-property-field input[type="number"][aria-label][aria-invalid="true"] { border-color: var(--error); }
 .drawing-property-actions { display: flex; flex: none; align-items: center; gap: 4px; }
 .drawing-property-actions .drawing-button { width: auto; gap: 4px; padding: 4px 8px; white-space: nowrap; }
@@ -141,6 +144,7 @@
 .drawing-zoom select { min-width: 72px; max-width: 120px; height: 28px; border: 1px solid var(--border); background: var(--bg-0); border-radius: 2px; padding: 0 4px; }
 @container (max-width: 880px) {
   .drawing-tool-name, .drawing-keyboard-hint { display: none; }
+  .drawing-status > .drawing-snap-options-shortcut { display: none; }
   .drawing-keyboard-hint.drawing-cad-status-unit { display: inline; }
   .drawing-cad-status-nudge { display: none; }
 }
@@ -305,3 +309,4 @@
 .drawing-radial-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: var(--brand); }
 .drawing-radial-legend .is-original { color: var(--ink-secondary); }
 .drawing-radial-legend .is-pivot { color: var(--ink-primary); }
+.drawing-workspace .drawing-docker .drawing-workbench-fields input[type="number"][aria-invalid="true"] { border-color: var(--error); }
