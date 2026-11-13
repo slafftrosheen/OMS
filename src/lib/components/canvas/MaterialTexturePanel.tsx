@@ -21,6 +21,8 @@ import {
   type MaterialTexturePlan,
 } from './material-texture';
 import { materialAlignmentError, materialTextureError, useMaterialTextureText, type MaterialTextureLabel } from './material-texture-copy';
+import { drawingMaterialOptions, readDrawingMaterial } from './material-library';
+import { MATERIAL_TEXTURE_PRESETS, readMaterialPreset } from './material-presets';
 
 type Draft = { value: MaterialTextureDraft; shapeId: string; version: number };
 type Review = { plan: MaterialTexturePlan; key: string };
@@ -48,6 +50,9 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
   const [alignmentMessage, setAlignmentMessage] = useState<AlignmentMessage>();
   const alignmentSourcesKey = JSON.stringify(alignmentSelection.sources.map(source => source.id));
   const selectedId = selection?.id;
+  const drawingMaterials = useValue('drawing material sources', () => drawingMaterialOptions(editor), [editor]).filter(source => source.id !== selectedId);
+  const drawingMaterialsKey = JSON.stringify(drawingMaterials.map(source => source.id));
+  const [materialChoice, setMaterialChoice] = useState('');
   const materialState = useValue('saved material texture', () => {
     const shape = editor.getOnlySelectedShape(), paint = shape?.meta.omsVectorPaint as any;
     return JSON.stringify([paint?.raster, paint?.fillOpacity, shape?.meta.omsMaterialTexture]);
@@ -60,6 +65,7 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
   const previousSelection = useRef(selectedId);
   const [draft, setDraft] = useState<Draft>();
   const [sourceName, setSourceName] = useState('');
+  const [sourcePresetLabel, setSourcePresetLabel] = useState<(typeof MATERIAL_TEXTURE_PRESETS)[number]['labelKey']>();
   const [scale, setScale] = useState('100'), [angle, setAngle] = useState('0'), [opacity, setOpacity] = useState('100');
   const [mode, setMode] = useState<'cover' | 'tile'>('cover');
   const [tileWidth, setTileWidth] = useState(() => String(DEFAULT_TILE_WIDTH_MM / mmPerUnit));
@@ -92,7 +98,7 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
     setAlignmentMessage(current => current?.revision && current.revision !== revision ? undefined : current);
   }, [revision]);
 
-  function hydrate(current: ReturnType<typeof getMaterialTextureDraft>) {
+  function hydrate(current: ReturnType<typeof getMaterialTextureDraft>, persisted = true) {
     const nextDraft = current && selectedId ? { value: current.draft, shapeId: selectedId, version: ++draftVersion.current } : undefined;
     const nextMode = current?.mode ?? 'cover', nextScale = current?.scale ?? 100;
     const nextAngle = current?.angle ?? 0, nextOpacity = current?.opacity ?? 100;
@@ -108,7 +114,7 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
     setOffsetY(String(nextY / mmPerUnit));
     previousUnit.current = unit;
     previousMapping.current = mappingKey;
-    persistedControls.current = nextDraft ? { version: nextDraft.version, key: controlsKey(nextMode, [nextScale, nextAngle, nextOpacity, nextWidth, nextX, nextY]) } : undefined;
+    persistedControls.current = persisted && nextDraft ? { version: nextDraft.version, key: controlsKey(nextMode, [nextScale, nextAngle, nextOpacity, nextWidth, nextX, nextY]) } : undefined;
   }
 
   useEffect(() => {
@@ -116,12 +122,22 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
     work.current = undefined;
     setBusy(false);
     setReview(undefined);
-    if (previousSelection.current !== selectedId) setMessage(undefined);
+    if (previousSelection.current !== selectedId) {
+      setMessage(undefined);
+      setMaterialChoice('');
+    }
     previousSelection.current = selectedId;
     setSourceName('');
+    setSourcePresetLabel(undefined);
     if (fileInput.current) fileInput.current.value = '';
     hydrate(selectedId ? getMaterialTextureDraft(editor) : null);
   }, [editor, selectedId, materialState]);
+
+  useEffect(() => {
+    if (materialChoice.startsWith('drawing:') && materialChoice !== `drawing:${selectedId}` && !drawingMaterials.some(source => materialChoice === `drawing:${source.id}`)) {
+      setMessage({ key: 'material-source', error: true });
+    }
+  }, [materialChoice, drawingMaterialsKey]);
 
   useEffect(() => {
     if (previousMapping.current === mappingKey) return;
@@ -172,6 +188,9 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
   const validGeometry = validAngle && validOpacity && (mode === 'cover' ? validScale : validTileWidth && validOffsetX && validOffsetY);
   const valid = validGeometry && (mode === 'cover' || !!settings);
   const available = !disabled && !!selection;
+  const chosenPreset = MATERIAL_TEXTURE_PRESETS.find(preset => materialChoice === `preset:${preset.id}`);
+  const chosenDrawingMaterial = drawingMaterials.find(source => materialChoice === `drawing:${source.id}`);
+  const canLoadMaterial = available && !busy && !!(chosenPreset || chosenDrawingMaterial);
   const hasDraft = !!draft && draft.shapeId === selectedId;
   const inputKey = JSON.stringify([revision, settings, selectedId, draft?.version, mode, scale, tileWidth, offsetX, offsetY, angle, opacity]);
   const stale = !!review && (review.key !== inputKey || review.plan.revision !== revision);
@@ -185,6 +204,40 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
   const alignmentError = alignmentSelection.error ?? (readonly ? 'readonly' : !settings ? 'settings' : disabled ? 'locked' : undefined);
   const alignmentAvailable = !disabled && !busy && !alignmentError && !!alignmentSource;
 
+  async function loadSelectedMaterial() {
+    if (!available || busy || !selectedId) return;
+    work.current?.controller.abort();
+    work.current = undefined;
+    setReview(undefined);
+    setMessage(undefined);
+    const request = { controller: new AbortController(), revision: cadRevision(editor) };
+    work.current = request;
+    setBusy(true);
+    try {
+      // Read the source again on Load: its material may have changed since the
+      // option was selected. Neither path modifies the drawing.
+      const source = chosenDrawingMaterial && drawingMaterialOptions(editor).find(candidate => candidate.id === chosenDrawingMaterial.id);
+      const current = chosenPreset
+        ? await readMaterialPreset(chosenPreset.id, request.controller.signal)
+        : source ? readDrawingMaterial(editor, source.id) : null;
+      if (work.current !== request || request.controller.signal.aborted) return;
+      if (!current) throw new Error('material-source');
+      if (cadRevision(editor) !== request.revision || materialTextureSelection(editor)?.id !== selectedId) throw new Error('stale');
+      hydrate({ ...current, offsetXmm: 0, offsetYmm: 0 }, false);
+      setSourceName(chosenPreset ? '' : source!.name);
+      setSourcePresetLabel(chosenPreset?.labelKey);
+      if (fileInput.current) fileInput.current.value = '';
+      setMessage({ key: 'ready' });
+    } catch (error) {
+      if (work.current === request) setMessage({ key: request.controller.signal.aborted ? 'cancelled' : materialTextureError(error), error: !request.controller.signal.aborted });
+    } finally {
+      if (work.current === request) {
+        work.current = undefined;
+        setBusy(false);
+      }
+    }
+  }
+
   async function load(file: File) {
     work.current?.controller.abort();
     work.current = undefined;
@@ -192,7 +245,8 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
     setDraft(undefined);
     setReview(undefined);
     setMessage(undefined);
-    setSourceName(file.name);
+    setSourceName('');
+    setSourcePresetLabel(undefined);
     setScale('100');
     setAngle('0');
     setOpacity('100');
@@ -209,6 +263,7 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
       if (work.current !== request || request.controller.signal.aborted) return;
       if (cadRevision(editor) !== request.revision || materialTextureSelection(editor)?.id !== selectedId) throw new Error('stale');
       setDraft({ value, shapeId: selectedId, version: ++draftVersion.current });
+      setSourceName(file.name);
       setMessage({ key: 'ready' });
     } catch (error) {
       if (work.current === request) setMessage({ key: request.controller.signal.aborted ? 'cancelled' : materialTextureError(error), error: !request.controller.signal.aborted });
@@ -282,6 +337,23 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
     {!selection && <p className="drawing-help">{t('selectionHelp')}</p>}
     <p id={`${id}-help`} className="drawing-help">{t('help')}</p>
     <label className="drawing-cad-field">
+      <span>{t('materialSource')}</span>
+      <select value={materialChoice} disabled={busy} aria-describedby={`${id}-material-source-help`} data-testid="material-texture-source" onChange={event => setMaterialChoice(event.target.value)}>
+        <option value="">{t('chooseMaterial')}</option>
+        <optgroup label={t('builtInFinishes')}>
+          {MATERIAL_TEXTURE_PRESETS.map(preset => <option key={preset.id} value={`preset:${preset.id}`}>{t(preset.labelKey)}</option>)}
+        </optgroup>
+        <optgroup label={t('fromDrawing')}>
+          {!drawingMaterials.length && <option value="" disabled>{t('noDrawingMaterials')}</option>}
+          {drawingMaterials.map((source, index) => <option key={source.id} value={`drawing:${source.id}`}>{`${source.name} · ${index + 1}`}</option>)}
+        </optgroup>
+      </select>
+    </label>
+    <div className="drawing-cad-actions">
+      <button type="button" disabled={!canLoadMaterial} data-testid="material-texture-load" onClick={() => void loadSelectedMaterial()}>{t('loadMaterial')}</button>
+    </div>
+    <p id={`${id}-material-source-help`} className="drawing-help">{t('materialSourceHelp')}</p>
+    <label className="drawing-cad-field">
       <span>{t('file')}</span>
       <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" aria-describedby={`${id}-file-help`} onChange={event => {
         const file = event.currentTarget.files?.[0];
@@ -290,7 +362,7 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
       }} />
     </label>
     <p id={`${id}-file-help`} className="drawing-help">{t('fileHelp')}</p>
-    {(sourceName || hasDraft) && <p className="drawing-help">{sourceName || t('existing')}</p>}
+    {(sourcePresetLabel || sourceName || hasDraft) && <p className="drawing-help">{sourcePresetLabel ? t(sourcePresetLabel) : sourceName || t('existing')}</p>}
     {busy && <div className="drawing-cad-actions">
       <p className="drawing-help" role="status">{t('loading')}</p>
       <button type="button" onClick={() => {
@@ -353,6 +425,7 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
           setDraft(undefined);
           setReview(undefined);
           setSourceName('');
+          setSourcePresetLabel(undefined);
           if (fileInput.current) fileInput.current.value = '';
           setMessage({ key: 'removed' });
         } catch (error) {

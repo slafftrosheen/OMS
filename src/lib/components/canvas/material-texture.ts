@@ -42,10 +42,15 @@ export function materialTextureSelection(editor: Editor) {
     return {id:shape.id,name:drawingObjectName(shape),hasTexture:paint.raster?.usage==='material'};
   }catch{return null;}
 }
-export function getMaterialTextureDraft(editor: Editor): ({draft:MaterialTextureDraft}&MaterialTextureSettings)|null {
+export function getMaterialTextureDraft(editor: Editor, sourceId?: TLShapeId): ({draft:MaterialTextureDraft}&MaterialTextureSettings)|null {
   try {
-    const {shape,paint,contours}=materialTextureSource(editor);
-    if(paint.raster?.usage!=='material')return null;
+    // An explicit source is read-only reuse. Its lock/selection does not prevent
+    // reading pixels; target mutation still goes through materialTextureSource.
+    const shape=sourceId ? editor.getShape(sourceId) : materialTextureSource(editor).shape;
+    if(!shape || shape.type!=='cad-bezier')return null;
+    const props=shape.props as any, contours=props.contours as CadContour[];
+    const paint=vectorPaint(shape.meta,props.color);
+    if(!validContours(contours) || !validVectorPaint(shape.meta.omsVectorPaint) || paint.raster?.usage!=='material')return null;
     const {matrix,...raster}=paint.raster,stored=shape.meta.omsMaterialTexture as any;
     const document=readCadSettings(editor), bounds=curveBounds(contours);
     const tiled = paint.raster.repeat && document ? {

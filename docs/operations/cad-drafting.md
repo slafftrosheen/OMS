@@ -34,7 +34,13 @@ Glyphs rotate rigidly onto the original curve tangent. Guide length and distance
 
 ## Material image textures
 
-Select a closed curve (including compound lettering with holes), then open **CAD → Edit curves & shapes → Fill & outline → Material texture**. Convert native shapes to curves first. Choose a PNG, JPEG or WebP, select a mapping mode, then **Review material → Apply material**:
+Select a closed curve (including compound lettering with holes), then open **CAD → Edit curves & shapes → Fill & outline → Material texture**. Convert native shapes to curves first. Choose a PNG, JPEG or WebP, or choose **Material source → Load material**. Loading prepares an editable draft; only **Review material → Apply material** changes the object.
+
+**Built-in materials** provides original, seamless 256 × 256 px illustrations: Oak (120 mm tile), Brushed aluminium (80 mm), Concrete (120 mm), and Carbon fibre (20 mm). They are generated locally and embedded as ordinary image fills, without an upload or network request. These are illustrative finishes, not calibrated scans or 3D materials. Adjust tile width, rotation and opacity before applying.
+
+**From this drawing** lists textured curves on the current page, including locked source objects. Reuse preserves the source image, physical tile width, rotation and opacity; it resets offsets to centre the image on the target. The source stays unchanged and the new fill is independent. Existing private image references are retained without another upload. This picker is scoped to the current drawing, not a shared cross-project library. For continuous grain between objects, use the alignment workflow below.
+
+Mapping modes:
 
 - **Cover object** preserves the image aspect ratio and covers the object bounds. Scale is a centred zoom from 100–2000%.
 - **Repeat tiles** repeats the image at a physical tile width, displayed in the current drawing unit. Height follows the image aspect ratio. X/Y offsets position the centre cell relative to the object's local centre (X right, Y up). Width accepts 0.01–1,000,000 mm; offsets accept ±1,000,000 mm. Use a seamless source image to avoid visible joins.
