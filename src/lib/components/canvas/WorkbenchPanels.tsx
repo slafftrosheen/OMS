@@ -1,6 +1,8 @@
 import React,{useEffect,useId,useState,type ReactNode} from 'react';
 import {useEditor,useValue,type Editor,type TLShapeId,type TLTextShape} from '@tldraw/tldraw';
 import {useWorkbenchText} from './workbench-copy';
+import {useDrawingText} from './drawing-copy';
+import {drawingTextPointSizeDisplay} from './drawing-text-style';
 import {editDrawingText,scaleCanvasForm,textPointSize} from './workbench-operations';
 import {FORM_WIDTHS} from './shapes/form-shapes/form-layout';
 import {canvasLengthToUnit,readCadSettings,unitLengthToCanvas,type CadSettings} from './cad-settings';
@@ -21,19 +23,28 @@ const displayArrangeGap=(distance:number,settings:CadSettings|null)=>String(sett
 
 export function TextPanel({onOutlines,onLettering}:{onOutlines:()=>void;onLettering:()=>void}){
  const editor=useEditor(),t=useWorkbenchText();
+ const {tr}=useDrawingText();
  const readonly=useValue('lettering permission',()=>editor.getInstanceState().isReadonly,[editor]);
  const shape=useValue('editable text',()=>{const s=editor.getOnlySelectedShape();return s?.type==='text'?s as TLTextShape:null;},[editor]);
  const disabled=useValue('text permission',()=>!shape||editor.getInstanceState().isReadonly||editor.isShapeOrAncestorLocked(shape),[editor,shape]);
  const [text,setText]=useState(''),[font,setFont]=useState<TLTextShape['props']['font']>('sans'),[align,setAlign]=useState<TLTextShape['props']['textAlign']>('start'),[points,setPoints]=useState('18'),[auto,setAuto]=useState(true),[failed,setFailed]=useState(false);
- useEffect(()=>{if(shape){setText(shape.props.text);setFont(shape.props.font);setAlign(shape.props.textAlign);setPoints(String(Number(textPointSize(shape).toFixed(3))));setAuto(shape.props.autoSize);}setFailed(false);},[shape]);
+ const pointSize=shape?textPointSize(shape):undefined;
+ // A property-bar edit only refreshes its corresponding draft. In particular,
+ // changing font or size must not discard content waiting for Apply.
+ useEffect(()=>{if(shape)setText(shape.props.text);},[shape?.id,shape?.props.text]);
+ useEffect(()=>{if(shape)setFont(shape.props.font);},[shape?.id,shape?.props.font]);
+ useEffect(()=>{if(shape)setAlign(shape.props.textAlign);},[shape?.id,shape?.props.textAlign]);
+ useEffect(()=>{if(pointSize!==undefined)setPoints(String(drawingTextPointSizeDisplay(pointSize)));},[shape?.id,pointSize]);
+ useEffect(()=>{if(shape)setAuto(shape.props.autoSize);},[shape?.id,shape?.props.autoSize]);
+ useEffect(()=>setFailed(false),[shape?.id]);
  const lettering=<button type="button" className="drawing-lettering-button" disabled={readonly} onClick={onLettering}>{t('newLettering')}</button>;
  if(!shape)return <><p className="drawing-help">{t('textHint')}</p>{lettering}</>;
  const apply=()=>{const success=editDrawingText(editor,shape.id,{text,font,textAlign:align,autoSize:auto,pointSize:points.trim()?Number(points):NaN});setFailed(!success);return success;};
  return <><fieldset className="drawing-workbench-fields" disabled={disabled}>
   <label><span>{t('content')}</span><textarea rows={6} value={text} maxLength={10000} onChange={e=>setText(e.target.value)}/></label>
-  <label><span>{t('font')}</span><select value={font} onChange={e=>setFont(e.target.value as typeof font)}>{['sans','serif','mono','draw'].map(f=><option key={f} value={f}>{f==='sans'?'Sans serif':f==='serif'?'Serif':f==='mono'?'Monospace':'Handwriting'}</option>)}</select></label>
+  <label><span>{t('font')}</span><select value={font} onChange={e=>setFont(e.target.value as typeof font)}>{['sans','serif','mono','draw'].map(f=><option key={f} value={f}>{tr(`toolkit.toolbar.styleValues.font.${f}`)}</option>)}</select></label>
   <label><span>{t('fontSize')}</span><input type="number" min={1} max={3000} step="any" value={points} onChange={e=>setPoints(e.target.value)}/></label>
-  <label><span>{t('align')}</span><select value={align} onChange={e=>setAlign(e.target.value as typeof align)}><option value="start">←</option><option value="middle">↔</option><option value="end">→</option></select></label>
+  <label><span>{t('align')}</span><select value={align} onChange={e=>setAlign(e.target.value as typeof align)}>{['start','middle','end'].map(value=><option key={value} value={value}>{tr(`toolkit.toolbar.styleValues.horizontal.${value}`)}</option>)}</select></label>
   <label className="drawing-cad-check"><input type="checkbox" checked={auto} onChange={e=>setAuto(e.target.checked)}/><span>{t('autoWidth')}</span></label>
   <div className="drawing-workbench-actions"><button type="button" onClick={()=>setText(text.toLocaleUpperCase())}>{t('upper')}</button><button type="button" onClick={()=>setText(text.toLocaleLowerCase())}>{t('lower')}</button></div>
   <button type="button" onClick={apply}>{t('apply')}</button>

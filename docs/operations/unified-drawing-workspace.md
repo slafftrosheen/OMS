@@ -10,6 +10,15 @@ Rectangle, Ellipse/circles and polygon shapes have separate toolbox positions. T
 
 The labelled vertical rail beside the colour palette opens **Properties**, **Text**, **Arrange**, **Measure**, **Objects** or **CAD**. The active docker has one title and close control; its rail stays available when closed. On narrow embedded canvases, the docker overlays the drawing instead of reducing the viewport to a sliver. Position/size controls remain horizontally scrollable when space is limited. These changes apply to both drawing hosts without changing embedded order-form styling or document data.
 
+The property bar follows the active tool and selection:
+
+- **Selected text** exposes font family, exact point size (1–3000 pt), alignment and automatic/fixed text width. It formats one or several native text objects in one undo step; mixed values remain explicit until changed. Each control changes only its own property. Read-only, locked and stale selections are rejected as a whole.
+- **Edit text** opens the Text docker for one selected label. Unapplied content survives font, size, alignment and width changes from the property bar. **Convert to curves** opens the existing conversion controls. Exact X/Y, width/height, rotation, reference point and proportional scaling remain available in **Arrange** while text is selected.
+- The **Text tool (F8)** shows **Next text** with font, native size presets and alignment. These defaults affect the next label, even if an older object remains selected; they do not format that selection. Native text currently uses the four bundled families, not arbitrary system fonts.
+- Other native shapes expose their relevant fill, outline pattern, size preset, line spline and arrowhead controls beside geometry. Size presets can also affect shape labels. CAD artwork instead links to **Fill & outline** for its vector paint controls.
+
+Point-size conversion retains full precision in document scale. Display and mixed-value comparison remove floating-point noise to six decimals, so a uniform 100 pt selection stays visibly uniform across native size presets.
+
 - Pick, pan, freehand, line, arrow, rectangle, ellipse, triangle, diamond, pentagon, star, text, highlight, eraser, and frame tools.
 - Object X/Y, width/height and rotation; grouping, alignment, distribution, stacking, mirroring, quarter-turn rotation, duplication, and deletion.
 - Properties for available native shape styles: fill, outline pattern, size, opacity, font/alignment, line spline and arrowheads. Objects can be selected and explicitly locked/unlocked in the objects panel.
@@ -55,6 +64,8 @@ Pull `main`, install dependencies if needed, build, and restart `reclame-oms.ser
 Regression coverage includes real multi-page PDF extraction and rendering, original-page selection and out-of-range failures, incomplete text layers, PDF mode/model selection, paid-OCR isolation, provider backoff/exhaustion/cancellation, object permissions/transforms, saved canvas/form bridges, and content-bar behaviour. Drawing-operation tests cover metadata-only names, repeat limits and rollback, and export bounds.
 
 Run source/unit tests, Svelte/TypeScript checking, focused linting, whitespace checks and the production build before publishing changes. Run check and build sequentially because both write `.svelte-kit`. The drawing fixture includes width and height selectors for embedded-layout checks. The current chrome pass was exercised through the browser in both drawing hosts: toolbar edits/undo, numeric sizing, tool flyouts, paint access, rail/menu keyboard focus, closed-docker draft retention, read-only guards, EN/RU/LV and Light/Dark/HighContrast themes, including a 390 × 420 embedded workspace. The full historical Playwright suite was not executed in this pass; earlier cases retain legacy tab-role assumptions and need updating before they can certify the current rail. No live OpenRouter account or production server was used for verification.
+
+The contextual-property pass adds a `?text=1` fixture in either host (`?mode=order&text=1` for orders). Browser checks cover mixed text sizing/alignment/width, formatting undo, unapplied content retention, invalid-size recovery, next-text isolation, exact text positioning, native fill/outline controls, lock/read-only protection, and 390/520 px layouts in all three languages and themes. Unit coverage includes atomic rollback, stale selections, protected objects and point-size precision. These checks exercise the shared editor fixture, not a live production database.
 
 Run the browser regressions in an environment with Chromium available:
 

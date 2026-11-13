@@ -3,6 +3,8 @@ import {isCadNodeEditing, setCadNodeEditing} from './cad-node-selection';
 import {CadPointEntry} from './CadPointEntry';
 import {TextPanel,ArrangePanel,MeasurePanel,FormScaleControl} from './WorkbenchPanels';
 import {useWorkbenchText} from './workbench-copy';
+import {textPointSize} from './workbench-operations';
+import {applySelectedDrawingTextStyle, drawingTextPointSizeDisplay, type DrawingTextStylePatch} from './drawing-text-style';
 import {ProductionSaveButton} from './ProductionSaveButton';
 import React, { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -11,7 +13,7 @@ import {
   DefaultFillStyle, DefaultFontStyle, DefaultHorizontalAlignStyle, DefaultSizeStyle, DefaultTextAlignStyle,
   DefaultVerticalAlignStyle, GeoShapeGeoStyle, LineShapeSplineStyle, createShapeId, exportToBlob,
   Box, getDefaultColorTheme, useEditor, useIsDarkMode, useRelevantStyles, useValue,
-  type EnumStyleProp, type TLShapeId, type TLShape,
+  type EnumStyleProp, type TLShapeId, type TLShape, type TLTextShape,
 } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
 import { applyDrawingCommand, drawingTransaction, toggleDrawingObjectLock, transformDrawingSelection, type DrawingTransformField } from './drawing-commands';
@@ -126,6 +128,7 @@ const iconPaths: Record<string, ReactNode> = {
   'cad-dimension': <><path d="M3 4v16M21 4v16M3 12h18m-14-3-4 3 4 3m10-6 4 3-4 3"/></>,
   nodes: <><path d="M4 18C4 4 20 20 20 6"/><rect x="2" y="16" width="4" height="4"/><rect x="18" y="4" width="4" height="4"/></>,
   arrange: <><path d="M3 3v18M3 7h18M3 17h13"/><rect x="6" y="4" width="12" height="6"/><rect x="6" y="14" width="7" height="6"/></>,
+  'text-curves': <><path d="M4 20 12 4l8 16M8 13h8"/><rect x="2" y="18" width="4" height="4"/><rect x="10" y="2" width="4" height="4"/><rect x="18" y="18" width="4" height="4"/></>,
   close: <path d="m5 5 14 14M19 5 5 19" />,
 };
 function Icon({ name }: { name: string }) { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{iconPaths[name] ?? iconPaths.rectangle}</svg>; }
@@ -167,6 +170,91 @@ function NumberField({ field, value, disabled, label }: { field: DrawingTransfor
       step={field === 'rotation' ? 15 : 1} onChange={event => setDraft(event.target.value)} onBlur={commit}
       onKeyDown={event => { event.stopPropagation(); if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { cancelBlur.current = true; setDraft(value === undefined ? '' : String(Math.round(value * 100) / 100)); event.currentTarget.blur(); } }} />
   </label>;
+}
+
+function TextPointSizeField({ selected, value, disabled }: { selected: readonly TLShapeId[]; value: number | undefined; disabled: boolean }) {
+  const editor = useEditor();
+  const { label, tr } = useDrawingText();
+  const workbenchLabel = useWorkbenchText();
+  const errorId = useId();
+  const displayed = value === undefined ? '' : String(drawingTextPointSizeDisplay(value));
+  const [draft, setDraft] = useState(displayed);
+  const [error, setError] = useState<'textSizeInvalid' | 'changedFailed' | null>(null);
+  const dirty = useRef(false), cancelBlur = useRef(false);
+  useEffect(() => { setDraft(displayed); setError(null); dirty.current = false; }, [value]);
+  function commit() {
+    if (cancelBlur.current) { cancelBlur.current = false; return; }
+    if (!dirty.current) return;
+    const points = draft.trim() ? Number(draft) : NaN;
+    if (!Number.isFinite(points) || points < 1 || points > 3000) { setError('textSizeInvalid'); return; }
+    if (!applySelectedDrawingTextStyle(editor, selected, { pointSize: points })) { setError('changedFailed'); return; }
+    dirty.current = false; setError(null);
+  }
+  return <>
+    <label className="drawing-property-field drawing-property-point-size"><span>{workbenchLabel('fontSize')}</span>
+      <input type="number" aria-label={workbenchLabel('fontSize')} min={1} max={3000} step="any" value={draft}
+        placeholder={value === undefined ? tr('toolkit.toolbar.styleFields.mixed') : undefined} disabled={disabled}
+        aria-invalid={!!error} aria-describedby={error ? errorId : undefined} data-testid="drawing-text-point-size"
+        onChange={event => { dirty.current = true; setDraft(event.target.value); setError(null); }} onBlur={commit}
+        onKeyDown={event => {
+          event.stopPropagation();
+          if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
+          if (event.key === 'Escape') {
+            event.preventDefault(); cancelBlur.current = true; dirty.current = false;
+            setDraft(displayed); setError(null); event.currentTarget.blur();
+          }
+        }} />
+    </label>
+    {error && <span className="drawing-property-error" id={errorId} role="alert">{label(error)}</span>}
+  </>;
+}
+
+function SelectedTextProperties({ shapes, disabled, onEdit, onOutlines }: {
+  shapes: TLTextShape[]; disabled: boolean; onEdit: () => void; onOutlines: () => void;
+}) {
+  const editor = useEditor();
+  const { label, tr } = useDrawingText();
+  const workbenchLabel = useWorkbenchText();
+  const [failed, setFailed] = useState(false);
+  const selected = shapes.map(shape => shape.id);
+  const shared = <T,>(read: (shape: TLTextShape) => T): T | undefined => {
+    const value = read(shapes[0]);
+    return shapes.every(shape => read(shape) === value) ? value : undefined;
+  };
+  const font = shared(shape => shape.props.font), align = shared(shape => shape.props.textAlign);
+  const points = shared(shape => drawingTextPointSizeDisplay(textPointSize(shape))), autoWidth = shared(shape => shape.props.autoSize);
+  const mixed = tr('toolkit.toolbar.styleFields.mixed');
+  const apply = (patch: DrawingTextStylePatch) => setFailed(!applySelectedDrawingTextStyle(editor, selected, patch));
+  return <div className="drawing-context-properties" role="group" aria-label={label('selectedText')} data-testid="drawing-selected-text-properties">
+    <label className="drawing-property-field drawing-property-font"><span>{workbenchLabel('font')}</span>
+      <select aria-label={workbenchLabel('font')} disabled={disabled} value={font ?? ''} data-testid="drawing-text-font"
+        onChange={event => apply({ font: event.target.value as TLTextShape['props']['font'] })}>
+        {font === undefined && <option value="" disabled>{mixed}</option>}
+        {DefaultFontStyle.values.map(value => <option key={value} value={value}>{tr(`toolkit.toolbar.styleValues.font.${value}`)}</option>)}
+      </select>
+    </label>
+    <TextPointSizeField selected={selected} value={points} disabled={disabled} />
+    <label className="drawing-property-field"><span>{workbenchLabel('align')}</span>
+      <select aria-label={workbenchLabel('align')} disabled={disabled} value={align ?? ''} data-testid="drawing-text-align"
+        onChange={event => apply({ textAlign: event.target.value as TLTextShape['props']['textAlign'] })}>
+        {align === undefined && <option value="" disabled>{mixed}</option>}
+        {DefaultTextAlignStyle.values.map(value => <option key={value} value={value}>{tr(`toolkit.toolbar.styleValues.horizontal.${value}`)}</option>)}
+      </select>
+    </label>
+    <label className="drawing-property-field"><span>{workbenchLabel('width')}</span>
+      <select aria-label={workbenchLabel('autoWidth')} disabled={disabled} value={autoWidth === undefined ? '' : String(autoWidth)} data-testid="drawing-text-auto-width"
+        onChange={event => apply({ autoSize: event.target.value === 'true' })}>
+        {autoWidth === undefined && <option value="" disabled>{mixed}</option>}
+        <option value="true">{workbenchLabel('autoWidth')}</option><option value="false">{label('fixedTextWidth')}</option>
+      </select>
+    </label>
+    <span className="drawing-divider" />
+    <div className="drawing-property-actions">
+      <ToolButton icon="text" label={label('editText')} disabled={disabled || shapes.length !== 1} onClick={onEdit} testId="drawing-text-edit">{label('editText')}</ToolButton>
+      <ToolButton icon="text-curves" label={workbenchLabel('outlines')} disabled={disabled || shapes.length !== 1} onClick={onOutlines} testId="drawing-text-outlines">{workbenchLabel('outlines')}</ToolButton>
+    </div>
+    {failed && <span className="drawing-property-error" role="alert">{label('changedFailed')}</span>}
+  </div>;
 }
 
 function CadNumberField({ field, value, disabled, label, settings, anchor, proportional }: {
@@ -330,7 +418,7 @@ export function DrawingChrome() {
   const isDarkMode = useIsDarkMode();
   const styles = useRelevantStyles();
   const controls = useValue('drawing controls', () => captureToolkitControls(editor, editor.getStyleForNextShape(GeoShapeGeoStyle)), [editor]);
-  const state = useValue('drawing display', () => ({ shapes: editor.getCurrentPageShapesSorted(), selected: editor.getSelectedShapeIds(),
+  const state = useValue('drawing display', () => ({ shapes: editor.getCurrentPageShapesSorted(), selected: editor.getSelectedShapeIds(), selectedShapes: editor.getSelectedShapes(),
     zoom: editor.getZoomLevel(), grid: editor.getInstanceState().isGridMode, snap: editor.user.getIsSnapMode(),
     opacity: editor.getSharedOpacity(), single: editor.getOnlySelectedShape() }), [editor]);
   const [notice, setNotice] = useState('');
@@ -481,6 +569,14 @@ export function DrawingChrome() {
   const protectedForm = !!state.single && ['order-details', 'order-address', 'profile-7st'].includes(state.single.type);
   const theme = getDefaultColorTheme({ isDarkMode });
   const color = styles?.get(DefaultColorStyle);
+  const selectedText = controls.tool === 'select' && state.selectedShapes.length > 0 && state.selectedShapes.every(shape => shape.type === 'text')
+    ? state.selectedShapes as TLTextShape[] : null;
+  const nextText = controls.tool === 'text';
+  const textProperties = !!selectedText || nextText;
+  const cadStyleSelection = controls.tool === 'select' && [...editor.getShapeAndDescendantIds([...state.selected])]
+    .some(id => editor.getShape(id)?.type.startsWith('cad-'));
+  const nativePropertyFields = !cadStyleSelection && !controls.tool.startsWith('cad-')
+    ? styleFields.filter(field => ['fill', 'dash', 'size', 'spline', 'arrowheadStart', 'arrowheadEnd'].includes(field.id) && styles?.get(field.style)) : [];
 
   function styleChange(style: EnumStyleProp<string>, value: string) {
     if (!style.values.includes(value) || !captureToolkitControls(editor).canStyle) return;
@@ -494,6 +590,22 @@ export function DrawingChrome() {
       if (editor.isIn('select')) editor.setStyleForSelectedShapes(style, value);
       editor.setStyleForNextShapes(style, value);
     });
+  }
+  function renderStyleSelect(field: typeof styleFields[number], compact = false) {
+    const shared = styles?.get(field.style);
+    if (!shared) return null;
+    const value = shared.type === 'shared' ? shared.value.replace(/-legacy$/, '') : '';
+    const name = compact && field.id === 'dash' ? label('outlinePattern') : compact && field.id === 'size' ? label(nextText ? 'textSizePreset' : 'sizePreset')
+      : ['fill', 'dash', 'size'].includes(field.id) ? label(field.id as DrawingLabel) : tr(`toolkit.toolbar.styleFields.${field.id}`);
+    const labelValue = (value: string) => field.values ? tr(`toolkit.toolbar.styleValues.${field.values}.${value}`)
+      : label(({ s: 'small', m: 'medium', l: 'large', xl: 'extraLarge', fill: 'solid' } as Record<string, DrawingLabel>)[value] ?? value as DrawingLabel);
+    return <label key={field.id} className={compact ? `drawing-property-field${field.id === 'font' ? ' drawing-property-font' : ''}` : undefined}>
+      <span>{name}</span><select aria-label={name} value={value} data-testid={`drawing-${compact ? 'property' : 'style'}-${field.id}`}
+        onChange={event => styleChange(field.style, event.target.value)}>
+        {shared.type === 'mixed' && <option value="" disabled>{tr('toolkit.toolbar.styleFields.mixed')}</option>}
+        {field.style.values.filter(value => !value.endsWith('-legacy')).map(value => <option key={value} value={value}>{labelValue(value)}</option>)}
+      </select>
+    </label>;
   }
   async function importFiles(files: File[]) {
     if (!files.length || !onImport || editor.getInstanceState().isReadonly) return;
@@ -633,8 +745,14 @@ export function DrawingChrome() {
         onChange={event => { void importFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
     </>)}
     {portal('properties', <>
-      <span className="drawing-tool-name">{toolLabel(nodeEditing ? 'nodes' : controls.tool)}</span><span className="drawing-divider" />
-      {controls.tool === 'cad-polyline' ? <CadPointEntry settings={settings}/> : <>
+      {textProperties ? <span className="drawing-property-caption">{label(nextText ? 'nextText' : 'selectedText')}{selectedText && selectedText.length > 1 ? ` · ${selectedText.length}` : ''}</span>
+        : <span className="drawing-tool-name">{toolLabel(nodeEditing ? 'nodes' : controls.tool)}</span>}<span className="drawing-divider" />
+      {selectedText ? <SelectedTextProperties key={state.selected.join('|')} shapes={selectedText} disabled={!controls.canEditSelection}
+        onEdit={() => setPanel('text')} onOutlines={() => focusCad('convert')} />
+      : nextText ? <fieldset className="drawing-context-properties" disabled={!controls.canStyle} aria-label={label('nextText')} data-testid="drawing-next-text-properties">
+        {['font', 'size', 'textAlign'].map(id => renderStyleSelect(styleFields.find(field => field.id === id)!, true))}
+      </fieldset>
+      : controls.tool === 'cad-polyline' ? <CadPointEntry settings={settings}/> : <>
       {settings && <CadAnchorControl value={cadAnchor} onChange={setCadAnchor} />}
       <div className="drawing-property-pair">{transformField('x')}{transformField('y')}</div>
       <span className="drawing-divider" />
@@ -643,6 +761,11 @@ export function DrawingChrome() {
       <span className="drawing-divider" />
       {transformField('rotation')}
       <span className="drawing-unit">{settings ? `${settings.unit} · 1:${settings.scale}` : label('units')}</span>
+      {cadStyleSelection ? <div className="drawing-property-actions"><ToolButton icon="paint" label={vectorLabel('paint')} onClick={() => focusCad('paint')} testId="drawing-property-paint">{vectorLabel('paint')}</ToolButton></div>
+        : nativePropertyFields.length > 0 && <><span className="drawing-divider" /><fieldset className="drawing-context-properties" disabled={!controls.canStyle}
+          aria-label={label(controls.selected && controls.tool === 'select' ? 'selectionStyle' : 'nextObject')} data-testid="drawing-native-properties">
+          {nativePropertyFields.map(field => renderStyleSelect(field, true))}
+        </fieldset></>}
       {order && <div className="drawing-annotations">{(['comment', 'warning', 'explanation'] as const).map((kind, index) =>
         <button type="button" key={kind} aria-label={label((['orderNote', 'orderWarning', 'orderExplain'] as const)[index])} disabled={controls.readOnly} onClick={() => annotation(kind)}>{['✎', '⚠', 'ℹ'][index]} {label((['orderNote', 'orderWarning', 'orderExplain'] as const)[index])}</button>)}</div>}
       </>}
@@ -672,7 +795,16 @@ export function DrawingChrome() {
         }} />
       </div>
       <div className="drawing-docker-content" role="region" aria-label={panelLabel(activePanel)}>
-        {activePanel === 'text' ? <TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')}/> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <><ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings}/></> : activePanel === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : activePanel === 'objects' ? <>
+        {activePanel === 'text' ? <TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')}/> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <>
+          {selectedText && <fieldset className="drawing-workbench-fields drawing-arrange-section drawing-arrange-geometry" data-testid="drawing-text-geometry">
+            <legend>{label('positionAndSize')}</legend>
+            {(['x', 'y', 'w', 'h', 'rotation'] as const).map(transformField)}
+            <span className="drawing-unit">{settings ? `${settings.unit} · 1:${settings.scale}` : label('units')}</span>
+            {settings && <div className="drawing-arrange-geometry-options"><CadAnchorControl value={cadAnchor} onChange={setCadAnchor} />
+              <ToolButton icon={proportional ? 'lock' : 'unlock'} label={cadLabel('proportional')} active={proportional} onClick={() => setProportional(value => !value)} /></div>}
+          </fieldset>}
+          <ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings}/>
+        </> : activePanel === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : activePanel === 'objects' ? <>
           <p className="drawing-help">{state.shapes.length} {label('items')} · {controls.selected} {label('selected')}</p>
           <label className="drawing-object-search"><span>{label('searchObjects')}</span><input type="search" value={search} maxLength={100} onChange={event => setSearch(event.target.value)} /></label>
           {state.single && <ObjectNameField key={state.single.id} shape={state.single} disabled={!controls.canEditSelection} />}
@@ -695,15 +827,7 @@ export function DrawingChrome() {
           <FormScaleControl/>
           <p className="drawing-help">{label(controls.readOnly ? 'readOnly' : controls.selectionLocked ? 'locked' : controls.selected && controls.tool === 'select' ? 'selectionStyle' : 'nextObject')}</p>
           <fieldset className="drawing-style-fields" disabled={!controls.canStyle}>
-            {styleFields.map(field => { const shared = styles?.get(field.style); if (!shared) return null;
-              const value = shared.type === 'shared' ? shared.value.replace(/-legacy$/, '') : '';
-              const name = ['fill', 'dash', 'size'].includes(field.id) ? label(field.id as DrawingLabel) : tr(`toolkit.toolbar.styleFields.${field.id}`);
-              const labelValue = (value: string) => field.values ? tr(`toolkit.toolbar.styleValues.${field.values}.${value}`) : label(({ s: 'small', m: 'medium', l: 'large', xl: 'extraLarge', fill: 'solid' } as Record<string, DrawingLabel>)[value] ?? value as DrawingLabel);
-              return <label key={field.id}><span>{name}</span><select aria-label={name} value={value} data-testid={`drawing-style-${field.id}`} onChange={event => styleChange(field.style, event.target.value)}>
-                {shared.type === 'mixed' && <option value="" disabled>{tr('toolkit.toolbar.styleFields.mixed')}</option>}
-                {field.style.values.filter(value => !value.endsWith('-legacy')).map(value => <option key={value} value={value}>{labelValue(value)}</option>)}
-              </select></label>;
-            })}
+            {styleFields.map(field => renderStyleSelect(field))}
             {state.opacity && <label><span>{label('opacity')}</span><select aria-label={label('opacity')} value={state.opacity.type === 'shared' ? state.opacity.value : ''}
               onChange={event => { if (!captureToolkitControls(editor).canStyle) return; const value = Number(event.target.value); drawingTransaction(editor, () => { if (editor.isIn('select')) editor.setOpacityForSelectedShapes(value); editor.setOpacityForNextShapes(value); }); }}>
               {state.opacity.type === 'mixed' && <option value="" disabled>{tr('toolkit.toolbar.styleFields.mixed')}</option>}

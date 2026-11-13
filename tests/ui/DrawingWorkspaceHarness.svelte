@@ -9,6 +9,7 @@
   import { DEFAULT_CAD_SETTINGS } from '../../src/lib/components/canvas/cad-settings';
   import { readMaterialTexture, prepareMaterialTexture, applyMaterialTexture } from '../../src/lib/components/canvas/material-texture';
   const materialExample = new URLSearchParams(location.search).has('materials');
+  const textExample = new URLSearchParams(location.search).has('text');
   const order = new URLSearchParams(location.search).get('mode') === 'order';
   // Existing orders read authenticated attachments; new drafts keep local files.
   const persisted = new URLSearchParams(location.search).has('persisted');
@@ -25,6 +26,18 @@
   let workspaceHeight = $state('calc(100dvh - 48px)');
   let saves = $state(0);
   let exampleStatus = $state('');
+  function loadText() {
+    if (!editor || readonly) return;
+    editor.updatePage({id:editor.getCurrentPageId(),meta:{omsCad:DEFAULT_CAD_SETTINGS}});
+    const samples = [
+      {id:'shape:text-panel',type:'geo',x:-24,y:-24,props:{geo:'rectangle',w:520,h:232,fill:'none',dash:'solid',color:'grey'},meta:{omsObjectName:'Sample panel'}},
+      {id:'shape:text-one',type:'text',x:0,y:0,props:{text:'REKLĀMA',font:'sans',size:'m',scale:2,textAlign:'start',autoSize:true,color:'blue'},meta:{omsObjectName:'Sign title'}},
+      {id:'shape:text-two',type:'text',x:0,y:120,props:{text:'Rīga • 2026',font:'serif',size:'l',scale:1,textAlign:'middle',autoSize:false,w:360,color:'black'},meta:{omsObjectName:'Sign subtitle'}},
+    ];
+    for (const shape of samples) { if(editor.getShape(shape.id))editor.deleteShapes([shape.id]);editor.createShape(shape); }
+    editor.setCurrentTool('select');editor.setSelectedShapes(['shape:text-one','shape:text-two']);editor.zoomToSelection();
+    exampleStatus='Text example ready';
+  }
   async function loadMaterials() {
     if (!editor || readonly) return;
     const rect = (x: number, y: number, w: number, h: number) => ({ closed: true, nodes: [{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}].map(nodeAt) });
@@ -63,7 +76,9 @@
 </script>
 <header>
   <button onclick={() => readonly = !readonly}>Toggle read only</button>
-  {#if materialExample}<button onclick={loadMaterials}>Load material example</button><button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
+  {#if materialExample}<button onclick={loadMaterials}>Load material example</button>{/if}
+  {#if textExample}<button onclick={loadText}>Load text example</button>{/if}
+  {#if materialExample || textExample}<button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
   <label>Theme <select aria-label="Theme" bind:value={theme}><option>LightVim</option><option>DarkVim</option><option>HighContrastVim</option></select></label>
   <label>Language <select aria-label="Language" value={$locale} onchange={event => locale.set(event.currentTarget.value)}><option value="en">English</option><option value="ru">Русский</option><option value="lv">Latviešu</option></select></label>
   <label>Workspace <select aria-label="Workspace width" bind:value={workspaceWidth}><option value="100%">Full width</option><option value="880px">880 px</option><option value="520px">520 px</option><option value="390px">390 px</option></select></label>
