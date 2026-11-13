@@ -21,7 +21,7 @@ class CadTwoPointTool extends StateNode{
  private point(){
   const raw=this.editor.inputs.currentPagePoint;let point={x:raw.x,y:raw.y};
   if(this.start&&this.editor.inputs.shiftKey){clearCadSnap(this.editor);const dx=point.x-this.start.x,dy=point.y-this.start.y,angle=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*Math.PI/4,length=Math.hypot(dx,dy);point={x:this.start.x+length*Math.cos(angle),y:this.start.y+length*Math.sin(angle)};}
-  else point=snapCadPoint(this.editor,point,this.shapeId);
+  else point=snapCadPoint(this.editor,point,this.shapeId,this.kind==='dimension'?this.start:null);
   return point;
  }
  private preview(){

@@ -285,22 +285,28 @@ function CadNumberField({ field, value, disabled, label, settings, anchor, propo
   const editor = useEditor(); const { label: cadLabel } = useCadText(); const errorId = useId();
   const displayed = value === undefined ? '' : String(Number(value.toFixed(settings.precision)));
   const [draft, setDraft] = useState(displayed); const [failed, setFailed] = useState(false);
+  const [editedFor, setEditedFor] = useState<string | null>(null);
+  const editIdentity = JSON.stringify([value, settings.precision, settings.unit, settings.scale, anchor]);
   const cancelBlur = useRef(false);
-  useEffect(() => { setDraft(displayed); setFailed(false); }, [value, settings.precision, settings.unit, settings.scale, anchor]);
+  useEffect(() => { setDraft(displayed); setFailed(false); setEditedFor(null); }, [value, settings.precision, settings.unit, settings.scale, anchor]);
   const valid = !!draft.trim() && Number.isFinite(Number(draft)) && Math.abs(Number(draft)) <= 1_000_000 && (!['w', 'h'].includes(field) || Number(draft) > 0);
+  // A horizontal or vertical line legitimately displays a zero extent. Validate
+  // edited input only; selecting existing geometry must not announce an error.
+  const hasError = value !== undefined && editedFor === editIdentity && ((draft !== displayed && !valid) || failed);
   function commit() {
     if (cancelBlur.current) { cancelBlur.current = false; return; }
     if (draft === displayed) return;
-    if (!valid || !transformCadSelection(editor, field, Number(draft), settings, anchor, proportional)) { setFailed(true); return; }
+    if (!valid) return;
+    if (!transformCadSelection(editor, field, Number(draft), settings, anchor, proportional)) { setFailed(true); return; }
     setFailed(false);
   }
   return <label className="drawing-number"><span>{field === 'rotation' ? '∠' : field.toUpperCase()}</span>
-    <input type="number" aria-label={`${label} (${field === 'rotation' ? '°' : settings.unit})`} aria-invalid={value !== undefined && (!valid || failed)}
-      aria-describedby={value !== undefined && (!valid || failed) ? errorId : undefined} title={failed ? cadLabel('failed') : label}
+    <input type="number" aria-label={`${label} (${field === 'rotation' ? '°' : settings.unit})`} aria-invalid={hasError}
+      aria-describedby={hasError ? errorId : undefined} title={hasError && failed ? cadLabel('failed') : label}
       value={draft} disabled={disabled || value === undefined} step={field === 'rotation' ? 1 : settings.nudge}
-      onChange={event => { setDraft(event.target.value); setFailed(false); }} onBlur={commit}
-      onKeyDown={event => { event.stopPropagation(); if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { cancelBlur.current = true; setDraft(displayed); setFailed(false); event.currentTarget.blur(); } }} />
-    {value !== undefined && (!valid || failed) && <span className="drawing-sr-only" id={errorId} role="alert">{cadLabel(failed ? 'failed' : 'invalidNumber')}</span>}
+      onChange={event => { setDraft(event.target.value); setFailed(false); setEditedFor(editIdentity); }} onBlur={commit}
+      onKeyDown={event => { event.stopPropagation(); if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { cancelBlur.current = true; setDraft(displayed); setFailed(false); setEditedFor(null); event.currentTarget.blur(); } }} />
+    {hasError && <span className="drawing-sr-only" id={errorId} role="alert">{cadLabel(failed ? 'failed' : 'invalidNumber')}</span>}
   </label>;
 }
 
@@ -698,7 +704,7 @@ export function DrawingChrome() {
   const menuActions = (actions: string[]) => actions.map(action => <button type="button" key={action} disabled={!actionEnabled(action)}
     onClick={() => { command(action); closeMenus(); }} data-testid={`drawing-action-${action}`}>{actionLabel(action)}</button>);
   const fieldNames = { x: 'positionX', y: 'positionY', w: 'width', h: 'height', rotation: 'rotation' } as const;
-  const transformField = (field: DrawingTransformField) => settings ? <CadNumberField key={`cad-${field}`} field={field} label={label(fieldNames[field])}
+  const transformField = (field: DrawingTransformField) => settings ? <CadNumberField key={`cad-${state.selected.join(',')}-${field}`} field={field} label={label(fieldNames[field])}
     value={cadSelection?.[field]} settings={settings} anchor={cadAnchor} proportional={proportional}
     disabled={protectedForm || (field === 'w' || field === 'h' ? !canResize : field === 'rotation' ? !canRotate : !controls.canEditSelection)} /> : <NumberField key={field} field={field} label={label(fieldNames[field])}
     value={field === 'x' ? position?.x : field === 'y' ? position?.y : field === 'w' ? bounds?.w : field === 'h' ? bounds?.h : state.single ? editor.getShapePageTransform(state.single).rotation() * 180 / Math.PI : undefined}

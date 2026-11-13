@@ -3,7 +3,7 @@ import { drawingTransaction } from './drawing-commands';
 
 export interface CadSnapSettings {
   endpoints: boolean; midpoints: boolean; centers: boolean; quadrants: boolean;
-  intersections: boolean; nearest: boolean; grid: boolean;
+  intersections: boolean; perpendicular: boolean; tangent: boolean; nearest: boolean; grid: boolean;
   /** Screen pixels, independent of camera zoom and drawing units. */
   tolerance: number;
   /** Canvas units, shared with tldraw's displayed grid and object movement. */
@@ -11,9 +11,9 @@ export interface CadSnapSettings {
 }
 export const DEFAULT_CAD_SNAP_SETTINGS: CadSnapSettings = {
   endpoints: true, midpoints: false, centers: true, quadrants: true,
-  intersections: false, nearest: false, grid: false, tolerance: 8, gridSpacing: 10,
+  intersections: false, perpendicular: false, tangent: false, nearest: false, grid: false, tolerance: 8, gridSpacing: 10,
 };
-const switches = ['endpoints', 'midpoints', 'centers', 'quadrants', 'intersections', 'nearest', 'grid'] as const;
+const switches = ['endpoints', 'midpoints', 'centers', 'quadrants', 'intersections', 'perpendicular', 'tangent', 'nearest', 'grid'] as const;
 
 export function readCadSnapSettings(editor: Editor): CadSnapSettings {
   const saved = editor.getCurrentPage().meta.omsCadSnap, result = { ...DEFAULT_CAD_SNAP_SETTINGS };

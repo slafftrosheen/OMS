@@ -143,10 +143,12 @@ describe('saved snap settings', () => {
     const editor: any = { store, getInstanceState: () => ({ isReadonly: false }), getCurrentPage: () => store.get('page:page' as any), getDocumentSettings: () => store.get('document:document' as any),
       updatePage: (patch: any) => store.put([{ ...editor.getCurrentPage(), ...patch }]), run: history.batch, mark: history.mark.bind(history), bailToMark: history.bailToMark };
     try {
-      assert.equal(writeCadSnapSettings(editor, { midpoints: true, grid: true, gridSpacing: 25, tolerance: 12 }), true);
+      assert.equal(writeCadSnapSettings(editor, { midpoints: true, perpendicular: true, tangent: true, grid: true, gridSpacing: 25, tolerance: 12 }), true);
       const saved = JSON.parse(JSON.stringify(store.serialize())); assert.equal(saved['page:page'].meta.omsCadSnap.midpoints, true); assert.equal(saved['document:document'].gridSize, 25);
+      assert.equal(saved['page:page'].meta.omsCadSnap.perpendicular, true); assert.equal(saved['page:page'].meta.omsCadSnap.tangent, true);
       history.undo(); assert.deepEqual(readCadSnapSettings(editor), DEFAULT_CAD_SNAP_SETTINGS);
       history.redo(); assert.equal(readCadSnapSettings(editor).gridSpacing, 25); assert.equal(readCadSnapSettings(editor).midpoints, true); assert.equal(editor.getCurrentPage().meta.keep, true);
+      assert.equal(readCadSnapSettings(editor).perpendicular, true); assert.equal(readCadSnapSettings(editor).tangent, true);
     } finally { history.dispose(); }
   });
 });

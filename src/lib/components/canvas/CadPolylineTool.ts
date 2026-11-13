@@ -29,7 +29,7 @@ export class CadPolylineTool extends StateNode {
       point = { x: previous.x + length * Math.cos(angle), y: previous.y + length * Math.sin(angle) };
     }
     // Angle lock takes priority; ordinary clicks use the workspace Snap preference.
-    return previous && this.editor.inputs.shiftKey ? point : snapCadPoint(this.editor, point, this.shapeId);
+    return previous && this.editor.inputs.shiftKey ? point : snapCadPoint(this.editor, point, this.shapeId, previous);
   }
   private render(preview?: CadPoint) {
     this.publish(preview ?? null);
@@ -74,6 +74,7 @@ export class CadPolylineTool extends StateNode {
     else if (info.key === 'Backspace') this.back();
   };
   private back() {
+    clearCadSnap(this.editor);
     if (this.editor.getInstanceState().isReadonly || this.points.length <= 1) this.cancel();
     else { this.points.pop(); this.render(); }
   }

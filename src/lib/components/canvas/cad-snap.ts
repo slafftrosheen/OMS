@@ -3,8 +3,9 @@ import { validCadPoint, type CadPoint } from './cad-settings';
 import { readCadSnapSettings } from './cad-snap-settings';
 import { contourSegments, cubicAt, splitCubic, type CadContour } from './cad-curves';
 import { cubicLength } from './cad-measurements';
+import { ellipseTangentPoints, perpendicularSegmentPoint } from './cad-construction-snaps';
 
-export type CadSnapKind = 'endpoints' | 'midpoints' | 'centers' | 'quadrants' | 'intersections' | 'nearest' | 'grid';
+export type CadSnapKind = 'endpoints' | 'midpoints' | 'centers' | 'quadrants' | 'intersections' | 'perpendicular' | 'tangent' | 'nearest' | 'grid';
 export interface CadSnapResult { point: CadPoint; kind: CadSnapKind }
 const indicators = new WeakMap<Editor, ReturnType<typeof atom<CadSnapResult | null>>>();
 export function cadSnapIndicator(editor: Editor) {
@@ -68,9 +69,10 @@ const midpoints = new WeakMap<object, Map<number, CadPoint>>();
 
 /** Geometric snaps are shared by every CAD drawing tool. Discrete targets win
  * over nearest-edge and grid fallback; each category remains independently off. */
-export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId | null): CadSnapResult | null {
+export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId | null, anchor?: CadPoint | null): CadSnapResult | null {
   if (!validCadPoint(point) || editor.user.getIsSnapMode() === !!editor.inputs.ctrlKey) return null;
   const settings = readCadSnapSettings(editor), tolerance = settings.tolerance / editor.getZoomLevel();
+  const constructionAnchor = anchor && validCadPoint(anchor) ? anchor : null;
   if (!Number.isFinite(tolerance) || tolerance <= 0) return null;
   let best: CadSnapResult | null = null, bestDistance = tolerance;
   const near: CadPoint[] = [], lines: Array<[CadPoint, CadPoint]> = [];
@@ -92,6 +94,10 @@ export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId 
       const aa = world(a), bb = world(b);
       if (!nearby(point, [aa, bb], tolerance)) return;
       if (settings.midpoints) offer(middle(aa, bb), 'midpoints');
+      if (settings.perpendicular && constructionAnchor) {
+        const foot = perpendicularSegmentPoint(constructionAnchor, aa, bb);
+        if (foot) offer(foot, 'perpendicular');
+      }
       if (settings.intersections && lines.length < 256) lines.push([aa, bb]);
       if (settings.nearest) near.push(nearestLinePoint(point, aa, bb));
     };
@@ -125,6 +131,10 @@ export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId 
       if (settings.endpoints && arc) { offerLocal(at(start), 'endpoints'); offerLocal(at(end), 'endpoints'); }
       if (settings.midpoints && arc) offerLocal(at((start + end) / 2), 'midpoints');
       if (settings.quadrants) for (let angle = Math.ceil(start / 90) * 90; angle <= end; angle += 90) offerLocal(at(angle), 'quadrants');
+      if (settings.tangent && constructionAnchor) {
+        const localAnchor = matrix.clone().invert().applyToPoint(constructionAnchor);
+        for (const tangent of ellipseTangentPoints(localAnchor, { x: cx, y: cy }, rx, ry, start, end)) offerLocal(tangent, 'tangent');
+      }
       if (settings.nearest) {
         let nearest = world(at(start)), value = start;
         for (let i = 1; i <= 48; i++) { const angle = start + (end - start) * i / 48, q = world(at(angle)); if (distance(point, q) < distance(point, nearest)) { nearest = q; value = angle; } }
@@ -150,8 +160,8 @@ export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId 
   return best;
 }
 
-export function snapCadPoint(editor: Editor, point: CadPoint, exclude: TLShapeId | null): CadPoint {
-  const result = findCadSnap(editor, point, exclude);
+export function snapCadPoint(editor: Editor, point: CadPoint, exclude: TLShapeId | null, anchor?: CadPoint | null): CadPoint {
+  const result = findCadSnap(editor, point, exclude, anchor);
   if (!result) { clearCadSnap(editor); return { x: point.x, y: point.y }; }
   cadSnapIndicator(editor).set(result);
   editor.snaps?.setIndicators([{ id: 'oms-cad-snap', type: 'points', points: [result.point] }]);

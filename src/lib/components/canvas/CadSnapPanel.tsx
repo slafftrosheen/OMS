@@ -4,7 +4,7 @@ import {canvasLengthToUnit,unitLengthToCanvas,type CadSettings} from './cad-sett
 import {readCadSnapSettings,writeCadSnapSettings} from './cad-snap-settings';
 import {useSnapText} from './snap-copy';
 
-const targets=['endpoints','midpoints','centers','quadrants','intersections','nearest','grid'] as const;
+const targets=['endpoints','midpoints','centers','quadrants','intersections','perpendicular','tangent','nearest','grid'] as const;
 
 function SnapNumberField({field,value,pageId,settings,disabled}:{
   field:'tolerance'|'gridSpacing';value:number;pageId:TLPageId;settings:CadSettings|null;disabled:boolean;
@@ -73,6 +73,7 @@ export function CadSnapPanel({settings}:{settings:CadSettings|null}){
       {targets.map(target=><label key={target} className="drawing-cad-check"><input type="checkbox" checked={state.options[target]} data-testid={`drawing-snap-${target}`}
         onChange={event=>setFailed(editor.getCurrentPageId()!==state.pageId||!writeCadSnapSettings(editor,{[target]:event.target.checked}))}/><span>{t(target)}</span></label>)}
       <p className="drawing-help">{t('intersectionsHelp')}</p>
+      <p className="drawing-help">{t('constructionHelp')}</p>
       <SnapNumberField key={`${state.pageId}-tolerance`} field="tolerance" value={state.options.tolerance} pageId={state.pageId} settings={null} disabled={state.readonly}/>
       <SnapNumberField key={`${state.pageId}-grid`} field="gridSpacing" value={state.options.gridSpacing} pageId={state.pageId} settings={settings} disabled={state.readonly}/>
       <p className="drawing-help">{t('gridHelp')}</p>
