@@ -41,6 +41,26 @@ const en = {
   cancelled: 'Image loading cancelled.',
   stale: 'The drawing or options changed. Review the material again before applying.',
   'material-failed': 'The material could not be updated. Your geometry is unchanged. Review the selection and try again.',
+  alignTitle: 'Align material across objects',
+  alignHelp: 'Select 2–50 unlocked, closed curves without clipping or links. At least one must already use Repeat tiles. Convert shapes to curves first.',
+  alignBehavior: 'The grain continues across objects in their current canvas positions. Each object keeps its outline. Moving an object later moves its texture with it.',
+  alignSelected: 'Selected objects',
+  alignTargets: 'Other objects to update',
+  alignSource: 'Material source',
+  alignSourceHelp: 'Choose a selected curve that uses Repeat tiles. Its image, tile mapping and fill opacity will be copied to the other selected curves.',
+  alignNoSource: 'No repeating material selected',
+  alignReview: 'Review alignment',
+  alignApply: 'Apply alignment',
+  alignPreview: 'Aligned material preview',
+  alignDone: 'Material aligned across the selected objects in one undo step.',
+  alignStale: 'The drawing, selection or source changed. Review the alignment again before applying.',
+  'material-align-selection': 'Select 2–50 unlocked, closed curves without clipping or links. Convert shapes to curves first.',
+  'material-align-source': 'Choose a source from the selected curves that already uses Repeat tiles.',
+  'material-align-limit': 'Alignment supports up to 50 selected curves and 12,000 nodes in total. Select fewer curves or simplify them, then review again.',
+  'material-align-tiles': 'Alignment exceeds 4096 tile placements on one object or 10,000 across the selection. Increase the source tile width or select fewer objects, then review again.',
+  'save-limit': 'Aligned materials would exceed the drawing’s save limit. Select fewer objects or use a smaller source image, then review again.',
+  readonly: 'This drawing is read-only. Material alignment is unavailable.',
+  locked: 'Unlock the selected curves and their parent groups before aligning material.',
 };
 export type MaterialTextureLabel = keyof typeof en;
 const ru: Record<MaterialTextureLabel, string> = {
@@ -82,6 +102,26 @@ const ru: Record<MaterialTextureLabel, string> = {
   cancelled: 'Загрузка изображения отменена.',
   stale: 'Чертёж или параметры изменились. Проверьте материал заново перед применением.',
   'material-failed': 'Не удалось обновить материал. Геометрия не изменилась. Проверьте выделение и повторите попытку.',
+  alignTitle: 'Совместить материал на объектах',
+  alignHelp: 'Выберите 2–50 незаблокированных замкнутых кривых без обрезки и связей. Хотя бы у одной должно быть включено «Повторять плитками». Сначала преобразуйте фигуры в кривые.',
+  alignBehavior: 'Рисунок материала продолжается между объектами в их текущих положениях на холсте. Обводка каждого объекта сохраняется. При последующем перемещении объекта его текстура перемещается вместе с ним.',
+  alignSelected: 'Выбрано объектов',
+  alignTargets: 'Других объектов для обновления',
+  alignSource: 'Источник материала',
+  alignSourceHelp: 'Выберите кривую из выделения с режимом «Повторять плитками». Её изображение, размещение плиток и непрозрачность заливки будут скопированы на остальные выбранные кривые.',
+  alignNoSource: 'Повторяющийся материал не выбран',
+  alignReview: 'Проверить совмещение',
+  alignApply: 'Применить совмещение',
+  alignPreview: 'Предпросмотр совмещения материала',
+  alignDone: 'Материал совмещён на выбранных объектах одним шагом отмены.',
+  alignStale: 'Чертёж, выделение или источник изменились. Проверьте совмещение заново перед применением.',
+  'material-align-selection': 'Выберите 2–50 незаблокированных замкнутых кривых без обрезки и связей. Сначала преобразуйте фигуры в кривые.',
+  'material-align-source': 'Выберите источник среди выделенных кривых с режимом «Повторять плитками».',
+  'material-align-limit': 'Можно совместить материал не более чем на 50 выбранных кривых с общим числом узлов до 12 000. Выберите меньше кривых или упростите их, затем проверьте снова.',
+  'material-align-tiles': 'Совмещение требует более 4096 плиток на одном объекте или 10 000 во всём выделении. Увеличьте ширину плитки источника или выберите меньше объектов, затем проверьте снова.',
+  'save-limit': 'Совмещённые материалы превысят лимит сохранения чертежа. Выберите меньше объектов или используйте меньшее изображение источника, затем проверьте снова.',
+  readonly: 'Чертёж доступен только для чтения. Совмещение материала недоступно.',
+  locked: 'Перед совмещением материала разблокируйте выбранные кривые и их родительские группы.',
 };
 const lv: Record<MaterialTextureLabel, string> = {
   title: 'Materiāla tekstūra',
@@ -122,6 +162,26 @@ const lv: Record<MaterialTextureLabel, string> = {
   cancelled: 'Attēla ielāde atcelta.',
   stale: 'Rasējums vai iestatījumi mainīti. Pirms lietošanas vēlreiz pārskatiet materiālu.',
   'material-failed': 'Materiālu neizdevās atjaunināt. Ģeometrija nav mainīta. Pārbaudiet atlasi un mēģiniet vēlreiz.',
+  alignTitle: 'Saskaņot materiālu starp objektiem',
+  alignHelp: 'Atlasiet 2–50 neaizslēgtas, slēgtas līknes bez apgriešanas vai saitēm. Vismaz vienai jau jāizmanto «Atkārtot flīzes». Vispirms pārveidojiet figūras par līknēm.',
+  alignBehavior: 'Materiāla raksts turpinās starp objektiem to pašreizējās pozīcijās uz audekla. Katra objekta kontūrlīnija saglabājas. Vēlāk pārvietojot objektu, tā tekstūra pārvietojas kopā ar to.',
+  alignSelected: 'Atlasītie objekti',
+  alignTargets: 'Citi atjaunināmie objekti',
+  alignSource: 'Materiāla avots',
+  alignSourceHelp: 'Izvēlieties atlasītu līkni ar režīmu «Atkārtot flīzes». Tās attēls, flīžu izvietojums un aizpildījuma necaurspīdīgums tiks kopēti uz pārējām atlasītajām līknēm.',
+  alignNoSource: 'Nav atlasīts atkārtojošs materiāls',
+  alignReview: 'Pārskatīt saskaņojumu',
+  alignApply: 'Lietot saskaņojumu',
+  alignPreview: 'Saskaņotā materiāla priekšskatījums',
+  alignDone: 'Materiāls saskaņots starp atlasītajiem objektiem vienā atsaukšanas solī.',
+  alignStale: 'Rasējums, atlase vai avots ir mainījies. Pirms lietošanas vēlreiz pārskatiet saskaņojumu.',
+  'material-align-selection': 'Atlasiet 2–50 neaizslēgtas, slēgtas līknes bez apgriešanas vai saitēm. Vispirms pārveidojiet figūras par līknēm.',
+  'material-align-source': 'Izvēlieties avotu no atlasītajām līknēm, kuras jau izmanto «Atkārtot flīzes».',
+  'material-align-limit': 'Saskaņošana atbalsta līdz 50 atlasītām līknēm un 12 000 mezglu kopā. Atlasiet mazāk līkņu vai vienkāršojiet tās, pēc tam pārskatiet vēlreiz.',
+  'material-align-tiles': 'Saskaņošanai vajag vairāk nekā 4096 flīžu izvietojumu vienā objektā vai 10 000 visā atlasē. Palieliniet avota flīzes platumu vai atlasiet mazāk objektu, pēc tam pārskatiet vēlreiz.',
+  'save-limit': 'Saskaņotie materiāli pārsniegtu rasējuma saglabāšanas ierobežojumu. Atlasiet mazāk objektu vai izmantojiet mazāku avota attēlu, pēc tam pārskatiet vēlreiz.',
+  readonly: 'Šis rasējums ir tikai lasāms. Materiāla saskaņošana nav pieejama.',
+  locked: 'Pirms materiāla saskaņošanas atslēdziet atlasītās līknes un to vecākgrupas.',
 };
 
 export function useMaterialTextureText() {
@@ -134,5 +194,12 @@ export function materialTextureError(error: unknown): MaterialTextureLabel {
   const code = (error as { code?: string })?.code ?? (error as Error)?.message;
   if (code === 'readonly' || code === 'locked') return 'material-selection';
   return ['geometry', 'settings', 'material-tiles', 'material-selection', 'material-image', 'material-limit', 'asset-context', 'asset-upload', 'cancelled', 'stale', 'material-failed'].includes(code)
+    ? code as MaterialTextureLabel : 'material-failed';
+}
+
+export function materialAlignmentError(error: unknown): MaterialTextureLabel {
+  const code = (error as { code?: string })?.code ?? (error as Error)?.message;
+  if (code === 'stale') return 'alignStale';
+  return ['settings', 'material-align-selection', 'material-align-source', 'material-align-limit', 'material-align-tiles', 'save-limit', 'readonly', 'locked', 'material-failed'].includes(code)
     ? code as MaterialTextureLabel : 'material-failed';
 }

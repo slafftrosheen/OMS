@@ -4,6 +4,11 @@
   import { getSnapshot, loadSnapshot } from '@tldraw/tldraw';
   import TldrawWrapper from '../../src/lib/components/canvas/TldrawWrapper.svelte';
   import type { OrderSeed } from '../../src/lib/components/canvas/templates/DraftOrderTemplate';
+  import { nodeAt } from '../../src/lib/components/canvas/cad-curves';
+  import { VECTOR_DEFAULT_PAINT } from '../../src/lib/components/canvas/cad-paint';
+  import { DEFAULT_CAD_SETTINGS } from '../../src/lib/components/canvas/cad-settings';
+  import { readMaterialTexture, prepareMaterialTexture, applyMaterialTexture } from '../../src/lib/components/canvas/material-texture';
+  const materialExample = new URLSearchParams(location.search).has('materials');
   const order = new URLSearchParams(location.search).get('mode') === 'order';
   // Existing orders read authenticated attachments; new drafts keep local files.
   const persisted = new URLSearchParams(location.search).has('persisted');
@@ -17,6 +22,33 @@
   let readonly = $state(new URLSearchParams(location.search).has('readonly'));
   let theme = $state('LightVim');
   let saves = $state(0);
+  let exampleStatus = $state('');
+  async function loadMaterials() {
+    if (!editor || readonly) return;
+    const rect = (x: number, y: number, w: number, h: number) => ({ closed: true, nodes: [{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}].map(nodeAt) });
+    editor.updatePage({id:editor.getCurrentPageId(),meta:{omsCad:DEFAULT_CAD_SETTINGS}});
+    for (const [i, name] of ['Grain source','Panel two','Panel three'].entries()) {
+      const shape = {id:`shape:material-${i}`,type:'cad-bezier',x:i*320,y:0,rotation:i===2?.2:0,
+        props:{contours:[rect(0,0,300,220),rect(70,55,160,110)],fillRule:'evenodd'},
+        meta:{omsObjectName:name,omsVectorPaint:{...VECTOR_DEFAULT_PAINT,fill:'#e2e8f0'}}};
+      if (editor.getShape(shape.id)) editor.deleteShapes([shape.id]);
+      editor.createShape(shape);
+    }
+    const canvas=document.createElement('canvas');canvas.width=64;canvas.height=64;
+    const ctx=canvas.getContext('2d')!;ctx.fillStyle='#bd8b53';ctx.fillRect(0,0,64,64);
+    for (let y=0;y<64;y+=8) {ctx.fillStyle=y%16===0?'#71431e':'#d1a775';ctx.fillRect(0,y,64,3);}
+    const blob=await new Promise<Blob>(resolve=>canvas.toBlob(blob=>resolve(blob!),'image/png'));
+    editor.setSelectedShapes(['shape:material-0']);
+    const draft=await readMaterialTexture(editor,new File([blob],'test-grain.png',{type:'image/png'}),new AbortController().signal);
+    applyMaterialTexture(editor,prepareMaterialTexture(editor,draft,{mode:'tile',tileWidthMm:50,scale:100,angle:25,opacity:100}));
+    editor.setSelectedShapes(['shape:material-0','shape:material-1','shape:material-2']);
+    editor.zoomToSelection();exampleStatus='Material example ready';
+  }
+  function reloadDrawing() {
+    if (!editor) return;
+    const snapshot=JSON.parse(JSON.stringify(getSnapshot(editor.store)));
+    loadSnapshot(editor.store,snapshot);exampleStatus='Drawing reloaded from JSON';
+  }
   $effect(() => { document.documentElement.dataset.theme = theme; });
   onMount(() => {
     (window as any).__drawingFixture = {
@@ -29,6 +61,7 @@
 </script>
 <header>
   <button onclick={() => readonly = !readonly}>Toggle read only</button>
+  {#if materialExample}<button onclick={loadMaterials}>Load material example</button><button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
   <label>Theme <select aria-label="Theme" bind:value={theme}><option>LightVim</option><option>DarkVim</option><option>HighContrastVim</option></select></label>
   <label>Language <select aria-label="Language" value={$locale} onchange={event => locale.set(event.currentTarget.value)}><option value="en">English</option><option value="ru">Русский</option><option value="lv">Latviešu</option></select></label>
 </header>

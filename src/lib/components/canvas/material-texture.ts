@@ -21,8 +21,8 @@ export interface MaterialTexturePlan {
   fillRule: 'evenodd'|'nonzero'; settings: MaterialTextureSettings;
   tileCount?: number;
 }
-function source(editor: Editor) {
-  const shape=editor.getOnlySelectedShape();
+export function materialTextureSource(editor: Editor, id?: TLShapeId) {
+  const shape=id ? editor.getShape(id) : editor.getOnlySelectedShape();
   if(shape?.type!=='cad-bezier')throw new Error('material-selection');
   assertCadEditable(editor,[shape.id]);
   const p=shape.props as any,paint=vectorPaint(shape.meta,p.color);
@@ -37,14 +37,14 @@ function source(editor: Editor) {
 }
 export function materialTextureSelection(editor: Editor) {
   try {
-    const {shape,paint,contours}=source(editor);
+    const {shape,paint,contours}=materialTextureSource(editor);
     if(!paint.raster&&contours.some(c=>!c.closed))return null;
     return {id:shape.id,name:drawingObjectName(shape),hasTexture:paint.raster?.usage==='material'};
   }catch{return null;}
 }
 export function getMaterialTextureDraft(editor: Editor): ({draft:MaterialTextureDraft}&MaterialTextureSettings)|null {
   try {
-    const {shape,paint,contours}=source(editor);
+    const {shape,paint,contours}=materialTextureSource(editor);
     if(paint.raster?.usage!=='material')return null;
     const {matrix,...raster}=paint.raster,stored=shape.meta.omsMaterialTexture as any;
     const document=readCadSettings(editor), bounds=curveBounds(contours);
@@ -79,7 +79,7 @@ export async function readMaterialTexture(editor: Editor, file: File, signal: Ab
 }
 /** Cover zoom or physical-size repeated cells, both in object-local coordinates. */
 export function prepareMaterialTexture(editor: Editor,draft:MaterialTextureDraft,settings:MaterialTextureSettings):MaterialTexturePlan {
-  const {shape,paint,contours,fillRule}=source(editor),{scale,angle,opacity}=settings;
+  const {shape,paint,contours,fillRule}=materialTextureSource(editor),{scale,angle,opacity}=settings;
   const mode=settings.mode??'cover';
   if(!['cover','tile'].includes(mode)||![angle,opacity].every(Number.isFinite)||Math.abs(angle)>360||opacity<0||opacity>100||
     mode==='cover'&&(!Number.isFinite(scale)||scale<100||scale>2000))throw new Error('geometry');
@@ -124,7 +124,7 @@ export function applyMaterialTexture(editor:Editor,plan:MaterialTexturePlan):boo
     if(plan.revision!==cadRevision(editor))return false;
     editor.complete();editor.setCurrentTool('select');
     if(plan.revision!==cadRevision(editor))return false;
-    const {shape,contours}=source(editor);
+    const {shape,contours}=materialTextureSource(editor);
     if(shape.id!==plan.shapeId||JSON.stringify(contours)!==JSON.stringify(plan.contours)||!plan.paint.raster)return false;
     const fresh=prepareMaterialTexture(editor,{raster:plan.paint.raster},plan.settings);
     if(JSON.stringify(fresh.paint)!==JSON.stringify(plan.paint))return false;
@@ -134,7 +134,7 @@ export function applyMaterialTexture(editor:Editor,plan:MaterialTexturePlan):boo
 export function removeMaterialTexture(editor:Editor):boolean {
   try {
     editor.complete();editor.setCurrentTool('select');
-    const {shape,paint}=source(editor);
+    const {shape,paint}=materialTextureSource(editor);
     if(paint.raster?.usage!=='material')return false;
     delete paint.raster;
     return updatePaint(editor,shape.id,paint);

@@ -1,9 +1,15 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { useEditor, useValue } from '@tldraw/tldraw';
+import { useEditor, useValue, type TLShapeId } from '@tldraw/tldraw';
 import { curveBounds } from './cad-curves';
 import { cadRevision } from './cad-plans';
 import { unitMm, type CadSettings } from './cad-settings';
 import { VectorArtwork } from './VectorArtwork';
+import {
+  applyMaterialAlignment,
+  materialAlignmentSelection,
+  prepareMaterialAlignment,
+  type MaterialAlignmentPlan,
+} from './material-alignment';
 import {
   applyMaterialTexture,
   getMaterialTextureDraft,
@@ -14,11 +20,13 @@ import {
   type MaterialTextureDraft,
   type MaterialTexturePlan,
 } from './material-texture';
-import { materialTextureError, useMaterialTextureText, type MaterialTextureLabel } from './material-texture-copy';
+import { materialAlignmentError, materialTextureError, useMaterialTextureText, type MaterialTextureLabel } from './material-texture-copy';
 
 type Draft = { value: MaterialTextureDraft; shapeId: string; version: number };
 type Review = { plan: MaterialTexturePlan; key: string };
+type AlignmentReview = { plan: MaterialAlignmentPlan; key: string };
 type Message = { key: MaterialTextureLabel; error?: boolean };
+type AlignmentMessage = Message & { revision?: string };
 const number = (value: string) => value.trim() ? Number(value) : NaN;
 const within = (value: string, min: number, max: number) => Number.isFinite(number(value)) && number(value) >= min && number(value) <= max;
 const physical = (value: number) => Number.isFinite(value) ? Number(value.toPrecision(14)) : value;
@@ -32,6 +40,13 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
   const editor = useEditor(), t = useMaterialTextureText(), id = useId();
   const unit = settings?.unit ?? 'mm', mmPerUnit = unitMm(unit);
   const selection = useValue('material texture selection', () => materialTextureSelection(editor), [editor]);
+  const alignmentSelection = useValue('material alignment selection', () => materialAlignmentSelection(editor), [editor]);
+  const alignmentSelectedIdsKey = useValue('material alignment selected ids', () => JSON.stringify([...editor.getSelectedShapeIds()].sort()), [editor]);
+  const readonly = useValue('material alignment readonly', () => editor.getInstanceState().isReadonly, [editor]);
+  const [alignmentSourceId, setAlignmentSourceId] = useState<TLShapeId>();
+  const [alignmentReview, setAlignmentReview] = useState<AlignmentReview>();
+  const [alignmentMessage, setAlignmentMessage] = useState<AlignmentMessage>();
+  const alignmentSourcesKey = JSON.stringify(alignmentSelection.sources.map(source => source.id));
   const selectedId = selection?.id;
   const materialState = useValue('saved material texture', () => {
     const shape = editor.getOnlySelectedShape(), paint = shape?.meta.omsVectorPaint as any;
@@ -58,6 +73,24 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
   const fileInput = useRef<HTMLInputElement>(null);
   const draftVersion = useRef(0);
   const work = useRef<{ controller: AbortController; revision: string }>();
+
+  useEffect(() => {
+    if (alignmentSelection.sources.some(source => source.id === alignmentSourceId)) return;
+    // A temporarily invalid target suppresses all source candidates. Preserve
+    // the chosen source while it is still selected so fixing the target does
+    // not silently switch the material to another selected curve.
+    if (!alignmentSelection.sources.length && alignmentSourceId && editor.getSelectedShapeIds().includes(alignmentSourceId)) return;
+    setAlignmentSourceId(alignmentSelection.sources[0]?.id);
+    setAlignmentMessage(undefined);
+  }, [editor, alignmentSourcesKey, alignmentSelectedIdsKey, alignmentSourceId]);
+
+  useEffect(() => {
+    setAlignmentMessage(undefined);
+  }, [alignmentSelectedIdsKey]);
+
+  useEffect(() => {
+    setAlignmentMessage(current => current?.revision && current.revision !== revision ? undefined : current);
+  }, [revision]);
 
   function hydrate(current: ReturnType<typeof getMaterialTextureDraft>) {
     const nextDraft = current && selectedId ? { value: current.draft, shapeId: selectedId, version: ++draftVersion.current } : undefined;
@@ -144,6 +177,13 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
   const stale = !!review && (review.key !== inputKey || review.plan.revision !== revision);
   const bounds = review ? curveBounds(review.plan.contours) : null;
   const padding = bounds ? Math.max(bounds.w, bounds.h, 1) * 0.05 : 0;
+  const alignmentSource = alignmentSelection.sources.find(source => source.id === alignmentSourceId);
+  const alignmentKey = JSON.stringify([revision, alignmentSourceId]);
+  const alignmentStale = !!alignmentReview && (alignmentReview.key !== alignmentKey || alignmentReview.plan.revision !== revision || alignmentReview.plan.sourceId !== alignmentSourceId);
+  const alignmentBounds = alignmentReview ? curveBounds(alignmentReview.plan.paths.flatMap(path => path.contours)) : null;
+  const alignmentPadding = alignmentBounds ? Math.max(alignmentBounds.w, alignmentBounds.h, 1) * 0.05 : 0;
+  const alignmentError = alignmentSelection.error ?? (readonly ? 'readonly' : !settings ? 'settings' : disabled ? 'locked' : undefined);
+  const alignmentAvailable = !disabled && !busy && !alignmentError && !!alignmentSource;
 
   async function load(file: File) {
     work.current?.controller.abort();
@@ -179,6 +219,63 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
       }
     }
   }
+
+  if (alignmentSelection.count >= 2) return <fieldset className="drawing-cad-fields" disabled={disabled || busy} aria-describedby={`${id}-alignment-help`} data-testid="material-alignment">
+    <legend className="drawing-cad-preview-title">{t('alignTitle')}</legend>
+    <p id={`${id}-alignment-help`} className="drawing-help">{t('alignHelp')}</p>
+    <p className="drawing-help">{t('alignBehavior')}</p>
+    <p className="drawing-help">{t('alignSelected')}: {alignmentSelection.count} · {t('alignTargets')}: {alignmentSource ? alignmentSelection.count - 1 : 0}</p>
+    <label className="drawing-cad-field">
+      <span>{t('alignSource')}</span>
+      <select value={alignmentSourceId ?? ''} disabled={!alignmentSelection.sources.length} aria-describedby={`${id}-alignment-source-help`} data-testid="material-alignment-source" onChange={event => {
+        setAlignmentSourceId(event.target.value as TLShapeId);
+        setAlignmentMessage(undefined);
+      }}>
+        {!alignmentSelection.sources.length && <option value="">{t('alignNoSource')}</option>}
+        {alignmentSelection.sources.map((source, index) => <option key={source.id} value={source.id}>{`${source.name} · ${index + 1}`}</option>)}
+      </select>
+    </label>
+    <p id={`${id}-alignment-source-help`} className="drawing-help">{t('alignSourceHelp')}</p>
+    {alignmentError && <p className="drawing-help drawing-cad-message is-error" role="alert">{t(materialAlignmentError({ code: alignmentError }))}</p>}
+    {busy && <p className="drawing-help" role="status">{t('loading')}</p>}
+    <div className="drawing-cad-actions">
+      <button type="button" disabled={!alignmentAvailable} data-testid="material-alignment-review" onClick={() => {
+        if (!alignmentAvailable || !alignmentSourceId) return;
+        setAlignmentMessage(undefined);
+        try {
+          setAlignmentReview({ plan: prepareMaterialAlignment(editor, alignmentSourceId), key: alignmentKey });
+        } catch (error) {
+          setAlignmentReview(undefined);
+          setAlignmentMessage({ key: materialAlignmentError(error), error: true });
+        }
+      }}>{t('alignReview')}</button>
+    </div>
+    {alignmentReview && alignmentBounds && <div className="drawing-cad-report" data-testid="material-alignment-preview">
+      <div className="drawing-vector-comparison"><figure>
+        <figcaption>{t('alignPreview')}</figcaption>
+        <svg role="img" aria-label={t('alignPreview')} viewBox={`${alignmentBounds.x - alignmentPadding} ${alignmentBounds.y - alignmentPadding} ${Math.max(alignmentBounds.w, 1) + alignmentPadding * 2} ${Math.max(alignmentBounds.h, 1) + alignmentPadding * 2}`}>
+          {alignmentReview.plan.paths.map((path, index) => <VectorArtwork key={index} id={`${id}-alignment-preview-${index}`} contours={path.contours} fillRule={path.fillRule} paint={path.paint} />)}
+        </svg>
+      </figure></div>
+      <p className="drawing-help">{t('alignTargets')}: {alignmentReview.plan.targetIds.length} · {t('tileCount')}: {alignmentReview.plan.tileCount}</p>
+      {alignmentStale && <p className="drawing-help drawing-cad-message" role="status">{t('alignStale')}</p>}
+      <div className="drawing-cad-actions">
+        <button type="button" disabled={!alignmentAvailable || alignmentStale} data-testid="material-alignment-apply" onClick={() => {
+          if (!alignmentAvailable || alignmentStale) return;
+          setAlignmentMessage(undefined);
+          try {
+            if (alignmentReview.plan.revision !== cadRevision(editor) || alignmentReview.plan.sourceId !== alignmentSourceId) throw new Error('stale');
+            if (!applyMaterialAlignment(editor, alignmentReview.plan)) throw new Error('material-failed');
+            setAlignmentReview(undefined);
+            setAlignmentMessage({ key: 'alignDone', revision: cadRevision(editor) });
+          } catch (error) {
+            setAlignmentMessage({ key: materialAlignmentError(error), error: true });
+          }
+        }}>{t('alignApply')}</button>
+      </div>
+    </div>}
+    {alignmentMessage && (!alignmentMessage.revision || alignmentMessage.revision === revision) && <p className={`drawing-help drawing-cad-message${alignmentMessage.error ? ' is-error' : ''}`} role={alignmentMessage.error ? 'alert' : 'status'}>{t(alignmentMessage.key)}</p>}
+  </fieldset>;
 
   return <fieldset className="drawing-cad-fields" disabled={!available} aria-describedby={`${id}-help`} data-testid="material-texture">
     <legend className="drawing-cad-preview-title">{t('title')}</legend>
