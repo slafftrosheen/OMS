@@ -1008,7 +1008,7 @@ export function VectorPaintControls({
         </button>
       </fieldset>
       {message && <p role="status">{t(message)}</p>}
-      <MaterialTexturePanel revision={revision} disabled={disabled || !settings} />
+      <MaterialTexturePanel settings={settings} revision={revision} disabled={disabled || !settings} />
     </details>
   );
 }

@@ -8,12 +8,18 @@ import { drawingTransaction } from './drawing-commands';
 import { drawingObjectName } from './drawing-operations';
 import { encodePdfRaster } from './cad-raster';
 import { storeCanvasImage } from './cad-asset-store';
+import { readCadSettings, cadMmPerPixel } from './cad-settings';
+import { rasterTileMatrices } from './cad-raster-tiles';
 
 export interface MaterialTextureDraft { raster: Omit<VectorRaster, 'matrix'> }
-export interface MaterialTextureSettings { scale: number; angle: number; opacity: number }
+export interface MaterialTextureSettings {
+  scale: number; angle: number; opacity: number;
+  mode?: 'cover'|'tile'; tileWidthMm?: number; offsetXmm?: number; offsetYmm?: number;
+}
 export interface MaterialTexturePlan {
   revision: string; shapeId: TLShapeId; paint: VectorPaint; contours: CadContour[];
   fillRule: 'evenodd'|'nonzero'; settings: MaterialTextureSettings;
+  tileCount?: number;
 }
 function source(editor: Editor) {
   const shape=editor.getOnlySelectedShape();
@@ -38,11 +44,19 @@ export function materialTextureSelection(editor: Editor) {
 }
 export function getMaterialTextureDraft(editor: Editor): ({draft:MaterialTextureDraft}&MaterialTextureSettings)|null {
   try {
-    const {shape,paint}=source(editor);
+    const {shape,paint,contours}=source(editor);
     if(paint.raster?.usage!=='material')return null;
     const {matrix,...raster}=paint.raster,stored=shape.meta.omsMaterialTexture as any;
-    return {draft:{raster},scale:Number.isFinite(stored?.scale)&&stored.scale>=100&&stored.scale<=2000?stored.scale:100,
-      angle:Number.isFinite(stored?.angle)&&Math.abs(stored.angle)<=360?stored.angle:0,opacity:paint.fillOpacity*100};
+    const document=readCadSettings(editor), bounds=curveBounds(contours);
+    const tiled = paint.raster.repeat && document ? {
+      tileWidthMm:Math.hypot(matrix[0],matrix[1])*cadMmPerPixel(document),
+      offsetXmm:(matrix[4]+(matrix[0]+matrix[2])/2-bounds.x-bounds.w/2)*cadMmPerPixel(document),
+      offsetYmm:-(matrix[5]+(matrix[1]+matrix[3])/2-bounds.y-bounds.h/2)*cadMmPerPixel(document),
+      angle:-Math.atan2(matrix[1],matrix[0])*180/Math.PI,
+    } : {};
+    return {draft:{raster},mode:paint.raster.repeat?'tile':'cover',tileWidthMm:50,offsetXmm:0,offsetYmm:0,
+      scale:Number.isFinite(stored?.scale)&&stored.scale>=100&&stored.scale<=2000?stored.scale:100,
+      angle:Number.isFinite(stored?.angle)&&Math.abs(stored.angle)<=360?stored.angle:0,opacity:paint.fillOpacity*100,...tiled};
   }catch{return null;}
 }
 export async function readMaterialTexture(editor: Editor, file: File, signal: AbortSignal): Promise<MaterialTextureDraft> {
@@ -63,20 +77,32 @@ export async function readMaterialTexture(editor: Editor, file: File, signal: Ab
     return {raster:{...raster,usage:'material'}};
   }finally{bitmap.close();}
 }
-/** Cover the complete outline's bounds, preserving image aspect ratio even when
- * rotated. Scale is a centred zoom, not tiling or a physical material grain size. */
+/** Cover zoom or physical-size repeated cells, both in object-local coordinates. */
 export function prepareMaterialTexture(editor: Editor,draft:MaterialTextureDraft,settings:MaterialTextureSettings):MaterialTexturePlan {
   const {shape,paint,contours,fillRule}=source(editor),{scale,angle,opacity}=settings;
-  if(![scale,angle,opacity].every(Number.isFinite)||scale<100||scale>2000||Math.abs(angle)>360||opacity<0||opacity>100)throw new Error('geometry');
+  const mode=settings.mode??'cover';
+  if(!['cover','tile'].includes(mode)||![angle,opacity].every(Number.isFinite)||Math.abs(angle)>360||opacity<0||opacity>100||
+    mode==='cover'&&(!Number.isFinite(scale)||scale<100||scale>2000))throw new Error('geometry');
   if(contours.some(c=>!c.closed))throw new Error('material-selection');
   const bounds=curveBounds(contours);
   if(bounds.w<=0||bounds.h<=0)throw new Error('material-selection');
   const r=draft.raster,theta=-angle*Math.PI/180,c=Math.cos(theta),s=Math.sin(theta);
-  const factor=Math.max((Math.abs(c)*bounds.w+Math.abs(s)*bounds.h)/r.width,(Math.abs(s)*bounds.w+Math.abs(c)*bounds.h)/r.height)*scale/100;
+  let factor:number,offsetX=0,offsetY=0;
+  if(mode==='tile'){
+    const document=readCadSettings(editor);
+    if(!document)throw new Error('settings');
+    const {tileWidthMm,offsetXmm=0,offsetYmm=0}=settings;
+    if(typeof tileWidthMm!=='number'||!Number.isFinite(tileWidthMm)||tileWidthMm<.01||tileWidthMm>1e6||![offsetXmm,offsetYmm].every(v=>Number.isFinite(v)&&Math.abs(v)<=1e6))throw new Error('geometry');
+    factor=tileWidthMm/cadMmPerPixel(document)/r.width;
+    offsetX=offsetXmm/cadMmPerPixel(document);offsetY=-offsetYmm/cadMmPerPixel(document);
+  }else factor=Math.max((Math.abs(c)*bounds.w+Math.abs(s)*bounds.h)/r.width,(Math.abs(s)*bounds.w+Math.abs(c)*bounds.h)/r.height)*scale/100;
   const w=r.width*factor,h=r.height*factor,a=c*w,b=s*w,cc=-s*h,d=c*h;
-  const next:VectorPaint={...paint,gradient:undefined,fillOpacity:opacity/100,raster:{...r,usage:'material',matrix:[a,b,cc,d,bounds.x+bounds.w/2-(a+cc)/2,bounds.y+bounds.h/2-(b+d)/2]}};
+  const raster:VectorRaster={...r,usage:'material',matrix:[a,b,cc,d,bounds.x+bounds.w/2+offsetX-(a+cc)/2,bounds.y+bounds.h/2+offsetY-(b+d)/2]};
+  if(mode==='tile')raster.repeat=true;else delete raster.repeat;
+  const next:VectorPaint={...paint,gradient:undefined,fillOpacity:opacity/100,raster};
   if(!validVectorPaint(next))throw new Error('geometry');
-  return {revision:cadRevision(editor),shapeId:shape.id,paint:next,contours:structuredClone(contours),fillRule,settings:{...settings}};
+  const tileCount=mode==='tile'?rasterTileMatrices(raster,contours).length:undefined;
+  return {revision:cadRevision(editor),shapeId:shape.id,paint:next,contours:structuredClone(contours),fillRule,settings:{...settings},...(tileCount?{tileCount}:{})};
 }
 function updatePaint(editor:Editor,id:TLShapeId,paint:VectorPaint,settings?:MaterialTextureSettings) {
   const shape=editor.getShape(id)!;

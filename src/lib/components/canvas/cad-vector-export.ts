@@ -26,6 +26,7 @@ import {
 } from "./cad-settings";
 import { cadRevision } from "./cad-plans";
 import { drawingObjectName } from "./drawing-operations";
+import { rasterTileMatrices } from "./cad-raster-tiles";
 
 const num = (n: number) => {
   if (!Number.isFinite(n) || Math.abs(n) > 1e8) throw new Error("geometry");
@@ -110,6 +111,7 @@ export function serializeVectorDocument(
     );
     return ref;
   };
+  let placements = 0;
   for (const [i, path] of paths.entries()) {
     const p = path.paint,
       fill = !!p.gradient || !!p.raster || p.fill !== "none",
@@ -184,25 +186,31 @@ export function serializeVectorDocument(
           body.push(`${matrix} cm`, `/Sh${i} sh`);
         } else body.push(`[${matrix}] concat`, `${shading} shfill`);
       } else if (p.raster) {
-        const r = p.raster,
-          matrix = multiplyMatrix(
-            multiplyMatrix(pageMatrix, r.matrix),
-            [1, 0, 0, -1, 0, 1],
-          )
-            .map(num)
-            .join(" ");
+        const r = p.raster, matrices = rasterTileMatrices(r, path.contours);
+        placements += matrices.length;
+        if (placements > 10000) throw new Error("material-tiles");
         if (pdf) {
           const mask = r.alpha ? imageObject(r, true) : undefined,
             ref = imageObject(r, false, mask);
           images.push(`/Im${i} ${ref} 0 R`);
-          body.push(`${matrix} cm`, `/Im${i} Do`);
-        } else
-          body.push(
-            `[${matrix}] concat`,
-            "/DeviceRGB setcolorspace",
-            `<< /ImageType 1 /Width ${r.width} /Height ${r.height} /BitsPerComponent 8 /ImageMatrix [${r.width} 0 0 -${r.height} 0 ${r.height}] /Decode [0 1 0 1 0 1] /DataSource currentfile /ASCIIHexDecode filter /FlateDecode filter >> image`,
-            hex(r.rgb!),
-          );
+        } else if (r.repeat) {
+          // LanguageLevel 3 reusable stream decodes the original once. Rewind it
+          // for each placement instead of duplicating compressed pixels per tile.
+          body.push(`/OMSImage${i} currentfile /ASCIIHexDecode filter /FlateDecode filter << /AsyncRead false >> /ReusableStreamDecode filter`, hex(r.rgb!), "def");
+        }
+        for (const tile of matrices) {
+          const matrix = multiplyMatrix(multiplyMatrix(pageMatrix, tile), [1,0,0,-1,0,1]).map(num).join(" ");
+          body.push(pdf ? "q" : "gsave");
+          if (pdf) body.push(`${matrix} cm`, `/Im${i} Do`);
+          else {
+            if (r.repeat) body.push(`OMSImage${i} 0 setfileposition`);
+            body.push(`[${matrix}] concat`, "/DeviceRGB setcolorspace",
+              `<< /ImageType 1 /Width ${r.width} /Height ${r.height} /BitsPerComponent 8 /ImageMatrix [${r.width} 0 0 -${r.height} 0 ${r.height}] /Decode [0 1 0 1 0 1] /DataSource ${r.repeat ? `OMSImage${i}` : "currentfile /ASCIIHexDecode filter /FlateDecode filter"} >> image`);
+            if (!r.repeat) body.push(hex(r.rgb!));
+          }
+          body.push(pdf ? "Q" : "grestore");
+        }
+        if (!pdf && r.repeat) body.push(`OMSImage${i} closefile`);
       }
       body.push(pdf ? "Q" : "grestore");
     }

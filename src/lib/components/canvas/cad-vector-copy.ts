@@ -53,6 +53,7 @@ const en = {
   empty: "No supported curves. Adjust the settings or choose another file.",
   limit:
     "File or geometry exceeds limits. Use ≤12 MiB files, fewer colors, more smoothing or a smaller image. The result must fit 4096 nodes / 512 contours.",
+  "material-tiles": "Too many texture tiles. Increase tile width or export fewer objects (4096 cells per object, 10000 image placements per export).",
   failed: "Could not prepare this geometry. Check the file and settings.",
   cancelled: "Cancelled.",
   pageError: "That page is not available.",
@@ -169,6 +170,7 @@ const ru: Record<Key, string> = {
   empty: "Нет поддерживаемых кривых. Измените параметры или файл.",
   limit:
     "Превышен лимит. Файл ≤12 МиБ, меньше цветов, больше сглаживания или меньшее изображение. Результат: до 4096 узлов / 512 контуров.",
+  "material-tiles": "Слишком много повторов текстуры. Увеличьте ширину плитки или экспортируйте меньше объектов (4096 ячеек на объект, 10000 размещений изображения на экспорт).",
   failed: "Не удалось подготовить геометрию. Проверьте файл и параметры.",
   cancelled: "Отменено.",
   pageError: "Такой страницы нет.",
@@ -284,6 +286,7 @@ const lv: Record<Key, string> = {
   empty: "Nav atbalstītu līkņu. Mainiet parametrus vai failu.",
   limit:
     "Pārsniegti ierobežojumi. Fails ≤12 MiB; mazāk krāsu, vairāk izlīdzināšanas vai mazāks attēls. Rezultāts līdz 4096 mezgliem / 512 kontūrām.",
+  "material-tiles": "Pārāk daudz tekstūras atkārtojumu. Palieliniet flīzes platumu vai eksportējiet mazāk objektu (4096 šūnas objektā, 10000 attēlu izvietojumi eksportā).",
   failed: "Neizdevās sagatavot ģeometriju. Pārbaudiet failu un parametrus.",
   cancelled: "Atcelts.",
   pageError: "Šāda lapa nav pieejama.",
@@ -375,7 +378,7 @@ export function vectorError(error: unknown): string {
         "eps-opacity": "exportHelp",
       } as Record<string, string>
     )[code] ??
-    (["empty", "limit", "save-limit", "asset-context", "asset-upload", "asset-fetch", "render-limit", "cancelled", "busy", "timeout", "stale"].includes(code)
+    (["empty", "limit", "material-tiles", "save-limit", "asset-context", "asset-upload", "asset-fetch", "render-limit", "cancelled", "busy", "timeout", "stale"].includes(code)
       ? code
       : "failed")
   );

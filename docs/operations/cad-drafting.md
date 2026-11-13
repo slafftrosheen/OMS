@@ -34,7 +34,15 @@ Glyphs rotate rigidly onto the original curve tangent. Guide length and distance
 
 ## Material image textures
 
-Select a closed curve (including compound lettering with holes), then open **CAD → Edit curves & shapes → Fill & outline → Material texture**. Convert native shapes to curves first. Choose a PNG, JPEG or WebP image, adjust **Scale**, **Rotation** and **Opacity**, then **Review material → Apply material**. The image covers the object's bounds while preserving its aspect ratio; excess pixels are clipped to the contours and their fill rule. Scale is a centred zoom from 100–2000%, and positive rotation is counterclockwise. This is a single image fill, not seamless tiling, physical grain calibration, a 3D shader or a displacement map.
+Select a closed curve (including compound lettering with holes), then open **CAD → Edit curves & shapes → Fill & outline → Material texture**. Convert native shapes to curves first. Choose a PNG, JPEG or WebP, select a mapping mode, then **Review material → Apply material**:
+
+- **Cover object** preserves the image aspect ratio and covers the object bounds. Scale is a centred zoom from 100–2000%.
+- **Repeat tiles** repeats the image at a physical tile width, displayed in the current drawing unit. Height follows the image aspect ratio. X/Y offsets position the centre cell relative to the object's local centre (X right, Y up). Width accepts 0.01–1,000,000 mm; offsets accept ±1,000,000 mm. Use a seamless source image to avoid visible joins.
+- Both modes support counterclockwise rotation and opacity. The original contours and fill rule clip the image, including letter holes.
+
+Saved tile controls are derived from the current mapping after resizing, document-scale changes and node edits. Changing display units preserves physical values. Unsaved controls keep their requested physical values when the document scale or curve bounds change; any prepared review becomes stale. Native resizing scales the texture with the object; reapplying a tile restores the source image's aspect ratio. This is 2D visualization, without 3D shading or displacement.
+
+Review accepts at most 4096 bounding cells per object. PDF/EPS export allows at most 10,000 image placements overall and reports excess density rather than silently dropping tiles. SVG uses a native pattern; PDF/EPS reuse one image resource per object, with repeated placements clipped to the original geometry.
 
 Original pixels are retained up to 25 MiB / 32 megapixels (maximum 16,384 pixels on either side). Small images fit in the canvas snapshot; larger ones use the existing private project/order asset storage. A drawing without an asset destination must be saved or opened in a project/order before a large texture can be used. Existing snapshot limits still apply. Clear and undo/redo preserve the geometry, and restored material settings can be edited again.
 

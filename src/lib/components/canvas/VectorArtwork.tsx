@@ -18,7 +18,9 @@ export function VectorArtwork({
     g = p.gradient,
     r = p.raster;
   const data = curvePathData(contours);
-  let fill: React.ReactNode = r ? (
+  let fill: React.ReactNode = r?.repeat ? (
+    <path d={data} fill={`url(#${prefix}-texture)`} fillRule={fillRule} fillOpacity={p.fillOpacity} stroke="none" />
+  ) : r ? (
     <g clipPath={`url(#${prefix}-boundary)`}>
       <image
         href={r.png}
@@ -62,6 +64,12 @@ export function VectorArtwork({
   return (
     <>
       <defs>
+        {r?.repeat && (
+          <pattern id={`${prefix}-texture`} patternUnits="userSpaceOnUse" patternContentUnits="userSpaceOnUse"
+            width={1} height={1} patternTransform={`matrix(${r.matrix.join(' ')})`}>
+            <image href={r.png} width={1} height={1} preserveAspectRatio="none" />
+          </pattern>
+        )}
         {g?.bounds && (
           <clipPath
             id={`${prefix}-gradient-box`}

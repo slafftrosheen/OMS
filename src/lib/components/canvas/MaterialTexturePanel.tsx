@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { useEditor, useValue } from '@tldraw/tldraw';
 import { curveBounds } from './cad-curves';
 import { cadRevision } from './cad-plans';
+import { unitMm, type CadSettings } from './cad-settings';
 import { VectorArtwork } from './VectorArtwork';
 import {
   applyMaterialTexture,
@@ -20,26 +21,62 @@ type Review = { plan: MaterialTexturePlan; key: string };
 type Message = { key: MaterialTextureLabel; error?: boolean };
 const number = (value: string) => value.trim() ? Number(value) : NaN;
 const within = (value: string, min: number, max: number) => Number.isFinite(number(value)) && number(value) >= min && number(value) <= max;
+const physical = (value: number) => Number.isFinite(value) ? Number(value.toPrecision(14)) : value;
+const controlsKey = (mode: string, values: number[]) => JSON.stringify([mode, ...values.map(physical)]);
+const DEFAULT_TILE_WIDTH_MM = 50;
+const MIN_TILE_WIDTH_MM = 0.01;
+const MAX_TILE_LENGTH_MM = 1_000_000;
 
 /** Material visualization shares the paint controls in both drawing hosts. */
-export function MaterialTexturePanel({ revision, disabled }: { revision: string; disabled: boolean }) {
+export function MaterialTexturePanel({ settings, revision, disabled }: { settings: CadSettings | null; revision: string; disabled: boolean }) {
   const editor = useEditor(), t = useMaterialTextureText(), id = useId();
+  const unit = settings?.unit ?? 'mm', mmPerUnit = unitMm(unit);
   const selection = useValue('material texture selection', () => materialTextureSelection(editor), [editor]);
   const selectedId = selection?.id;
   const materialState = useValue('saved material texture', () => {
     const shape = editor.getOnlySelectedShape(), paint = shape?.meta.omsVectorPaint as any;
     return JSON.stringify([paint?.raster, paint?.fillOpacity, shape?.meta.omsMaterialTexture]);
   }, [editor]);
+  const savedMapping = useValue('saved material texture mapping', () => {
+    const current = getMaterialTextureDraft(editor);
+    return current ? JSON.stringify([current.mode, current.scale, current.angle, current.opacity, current.tileWidthMm, current.offsetXmm, current.offsetYmm]) : null;
+  }, [editor]);
+  const mappingKey = JSON.stringify([settings?.scale, savedMapping]);
   const previousSelection = useRef(selectedId);
   const [draft, setDraft] = useState<Draft>();
   const [sourceName, setSourceName] = useState('');
   const [scale, setScale] = useState('100'), [angle, setAngle] = useState('0'), [opacity, setOpacity] = useState('100');
+  const [mode, setMode] = useState<'cover' | 'tile'>('cover');
+  const [tileWidth, setTileWidth] = useState(() => String(DEFAULT_TILE_WIDTH_MM / mmPerUnit));
+  const [offsetX, setOffsetX] = useState('0'), [offsetY, setOffsetY] = useState('0');
+  const previousUnit = useRef(unit);
+  const previousMapping = useRef(mappingKey);
+  const persistedControls = useRef<{ version: number; key: string }>();
   const [review, setReview] = useState<Review>();
   const [message, setMessage] = useState<Message>();
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const draftVersion = useRef(0);
   const work = useRef<{ controller: AbortController; revision: string }>();
+
+  function hydrate(current: ReturnType<typeof getMaterialTextureDraft>) {
+    const nextDraft = current && selectedId ? { value: current.draft, shapeId: selectedId, version: ++draftVersion.current } : undefined;
+    const nextMode = current?.mode ?? 'cover', nextScale = current?.scale ?? 100;
+    const nextAngle = current?.angle ?? 0, nextOpacity = current?.opacity ?? 100;
+    const nextWidth = physical(current?.tileWidthMm ?? DEFAULT_TILE_WIDTH_MM);
+    const nextX = physical(current?.offsetXmm ?? 0), nextY = physical(current?.offsetYmm ?? 0);
+    setDraft(nextDraft);
+    setMode(nextMode);
+    setScale(String(nextScale));
+    setAngle(String(nextAngle));
+    setOpacity(String(nextOpacity));
+    setTileWidth(String(nextWidth / mmPerUnit));
+    setOffsetX(String(nextX / mmPerUnit));
+    setOffsetY(String(nextY / mmPerUnit));
+    previousUnit.current = unit;
+    previousMapping.current = mappingKey;
+    persistedControls.current = nextDraft ? { version: nextDraft.version, key: controlsKey(nextMode, [nextScale, nextAngle, nextOpacity, nextWidth, nextX, nextY]) } : undefined;
+  }
 
   useEffect(() => {
     work.current?.controller.abort();
@@ -50,12 +87,35 @@ export function MaterialTexturePanel({ revision, disabled }: { revision: string;
     previousSelection.current = selectedId;
     setSourceName('');
     if (fileInput.current) fileInput.current.value = '';
-    const current = selectedId ? getMaterialTextureDraft(editor) : null;
-    setDraft(current ? { value: current.draft, shapeId: selectedId, version: ++draftVersion.current } : undefined);
-    setScale(String(current?.scale ?? 100));
-    setAngle(String(current?.angle ?? 0));
-    setOpacity(String(current?.opacity ?? 100));
+    hydrate(selectedId ? getMaterialTextureDraft(editor) : null);
   }, [editor, selectedId, materialState]);
+
+  useEffect(() => {
+    if (previousMapping.current === mappingKey) return;
+    previousMapping.current = mappingKey;
+    const saved = persistedControls.current, previousMmPerUnit = unitMm(previousUnit.current);
+    const key = controlsKey(mode, [number(scale), number(angle), number(opacity), number(tileWidth) * previousMmPerUnit, number(offsetX) * previousMmPerUnit, number(offsetY) * previousMmPerUnit]);
+    // Refresh only untouched persisted controls; edited and newly uploaded drafts
+    // retain the physical sizes the user requested and their review becomes stale.
+    if (!saved || saved.version !== draft?.version) return;
+    if (saved.key !== key) {
+      // Keep this physical request independent of later scale or bounds changes.
+      persistedControls.current = undefined;
+      return;
+    }
+    const current = selectedId ? getMaterialTextureDraft(editor) : null;
+    if (current) hydrate(current);
+  }, [mappingKey]);
+
+  useEffect(() => {
+    const previousMmPerUnit = unitMm(previousUnit.current);
+    previousUnit.current = unit;
+    if (previousMmPerUnit === mmPerUnit) return;
+    const convert = (value: string) => Number.isFinite(number(value)) ? String(physical(number(value) * previousMmPerUnit) / mmPerUnit) : value;
+    setTileWidth(convert);
+    setOffsetX(convert);
+    setOffsetY(convert);
+  }, [unit]);
 
   useEffect(() => {
     if (work.current && (disabled || work.current.revision !== revision)) {
@@ -72,10 +132,15 @@ export function MaterialTexturePanel({ revision, disabled }: { revision: string;
   }, []);
 
   const validScale = within(scale, 100, 2000), validAngle = within(angle, -360, 360), validOpacity = within(opacity, 0, 100);
-  const valid = validScale && validAngle && validOpacity;
+  const tileWidthMm = physical(number(tileWidth) * mmPerUnit), offsetXmm = physical(number(offsetX) * mmPerUnit), offsetYmm = physical(number(offsetY) * mmPerUnit);
+  const validTileWidth = Number.isFinite(tileWidthMm) && tileWidthMm >= MIN_TILE_WIDTH_MM && tileWidthMm <= MAX_TILE_LENGTH_MM;
+  const validOffsetX = Number.isFinite(offsetXmm) && Math.abs(offsetXmm) <= MAX_TILE_LENGTH_MM;
+  const validOffsetY = Number.isFinite(offsetYmm) && Math.abs(offsetYmm) <= MAX_TILE_LENGTH_MM;
+  const validGeometry = validAngle && validOpacity && (mode === 'cover' ? validScale : validTileWidth && validOffsetX && validOffsetY);
+  const valid = validGeometry && (mode === 'cover' || !!settings);
   const available = !disabled && !!selection;
   const hasDraft = !!draft && draft.shapeId === selectedId;
-  const inputKey = JSON.stringify([revision, selectedId, draft?.version, scale, angle, opacity]);
+  const inputKey = JSON.stringify([revision, settings, selectedId, draft?.version, mode, scale, tileWidth, offsetX, offsetY, angle, opacity]);
   const stale = !!review && (review.key !== inputKey || review.plan.revision !== revision);
   const bounds = review ? curveBounds(review.plan.contours) : null;
   const padding = bounds ? Math.max(bounds.w, bounds.h, 1) * 0.05 : 0;
@@ -83,6 +148,7 @@ export function MaterialTexturePanel({ revision, disabled }: { revision: string;
   async function load(file: File) {
     work.current?.controller.abort();
     work.current = undefined;
+    persistedControls.current = undefined;
     setDraft(undefined);
     setReview(undefined);
     setMessage(undefined);
@@ -90,6 +156,10 @@ export function MaterialTexturePanel({ revision, disabled }: { revision: string;
     setScale('100');
     setAngle('0');
     setOpacity('100');
+    setMode('cover');
+    setTileWidth(String(DEFAULT_TILE_WIDTH_MM / mmPerUnit));
+    setOffsetX('0');
+    setOffsetY('0');
     if (!available || !selectedId) return;
     const request = { controller: new AbortController(), revision: cadRevision(editor) };
     work.current = request;
@@ -134,9 +204,30 @@ export function MaterialTexturePanel({ revision, disabled }: { revision: string;
       }}>{t('cancel')}</button>
     </div>}
     <label className="drawing-cad-field">
+      <span>{t('mapping')}</span>
+      <select value={mode} disabled={busy} aria-describedby={`${id}-mapping-help`} onChange={event => { setMode(event.target.value as 'cover' | 'tile'); setMessage(undefined); }}>
+        <option value="cover">{t('cover')}</option>
+        <option value="tile">{t('tile')}</option>
+      </select>
+    </label>
+    <p id={`${id}-mapping-help`} className="drawing-help">{t(mode === 'cover' ? 'coverHelp' : 'tileHelp')}</p>
+    {mode === 'cover' ? <label className="drawing-cad-field">
       <span>{t('scale')}</span>
       <input type="number" min="100" max="2000" step="any" value={scale} disabled={busy} aria-invalid={!validScale} aria-describedby={!validScale ? `${id}-invalid` : undefined} onChange={event => { setScale(event.target.value); setMessage(undefined); }} />
-    </label>
+    </label> : <>
+      <label className="drawing-cad-field">
+        <span>{`${t('tileWidth')} (${unit})`}</span>
+        <input type="number" min={MIN_TILE_WIDTH_MM / mmPerUnit} max={MAX_TILE_LENGTH_MM / mmPerUnit} step="any" value={tileWidth} disabled={busy} aria-invalid={!validTileWidth} aria-describedby={!validTileWidth ? `${id}-invalid` : `${id}-mapping-help`} onChange={event => { setTileWidth(event.target.value); setMessage(undefined); }} />
+      </label>
+      <label className="drawing-cad-field">
+        <span>{`${t('offsetX')} (${unit})`}</span>
+        <input type="number" min={-MAX_TILE_LENGTH_MM / mmPerUnit} max={MAX_TILE_LENGTH_MM / mmPerUnit} step="any" value={offsetX} disabled={busy} aria-invalid={!validOffsetX} aria-describedby={!validOffsetX ? `${id}-invalid` : `${id}-mapping-help`} onChange={event => { setOffsetX(event.target.value); setMessage(undefined); }} />
+      </label>
+      <label className="drawing-cad-field">
+        <span>{`${t('offsetY')} (${unit})`}</span>
+        <input type="number" min={-MAX_TILE_LENGTH_MM / mmPerUnit} max={MAX_TILE_LENGTH_MM / mmPerUnit} step="any" value={offsetY} disabled={busy} aria-invalid={!validOffsetY} aria-describedby={!validOffsetY ? `${id}-invalid` : `${id}-mapping-help`} onChange={event => { setOffsetY(event.target.value); setMessage(undefined); }} />
+      </label>
+    </>}
     <label className="drawing-cad-field">
       <span>{t('angle')}</span>
       <input type="number" min="-360" max="360" step="any" value={angle} disabled={busy} aria-invalid={!validAngle} aria-describedby={!validAngle ? `${id}-invalid` : undefined} onChange={event => { setAngle(event.target.value); setMessage(undefined); }} />
@@ -145,13 +236,14 @@ export function MaterialTexturePanel({ revision, disabled }: { revision: string;
       <span>{t('opacity')}</span>
       <input type="number" min="0" max="100" step="any" value={opacity} disabled={busy} aria-invalid={!validOpacity} aria-describedby={!validOpacity ? `${id}-invalid` : undefined} onChange={event => { setOpacity(event.target.value); setMessage(undefined); }} />
     </label>
-    {!valid && <p id={`${id}-invalid`} className="drawing-help drawing-cad-message is-error" role="alert">{t('geometry')}</p>}
+    {!validGeometry && <p id={`${id}-invalid`} className="drawing-help drawing-cad-message is-error" role="alert">{t('geometry')}</p>}
+    {mode === 'tile' && !settings && <p className="drawing-help drawing-cad-message is-error" role="alert">{t('settings')}</p>}
     <div className="drawing-cad-actions">
       <button type="button" disabled={busy || !hasDraft || !valid} data-testid="material-texture-review" onClick={() => {
         setMessage(undefined);
         if (!available || busy || !hasDraft || !valid) return;
         try {
-          setReview({ plan: prepareMaterialTexture(editor, draft.value, { scale: number(scale), angle: number(angle), opacity: number(opacity) }), key: inputKey });
+          setReview({ plan: prepareMaterialTexture(editor, draft.value, { mode, scale: mode === 'cover' ? number(scale) : 100, angle: number(angle), opacity: number(opacity), ...(mode === 'tile' ? { tileWidthMm, offsetXmm, offsetYmm } : {}) }), key: inputKey });
         } catch (error) {
           setReview(undefined);
           setMessage({ key: materialTextureError(error), error: true });
@@ -178,6 +270,7 @@ export function MaterialTexturePanel({ revision, disabled }: { revision: string;
           <VectorArtwork id={`${id}-material-preview`} contours={review.plan.contours} fillRule={review.plan.fillRule} paint={review.plan.paint} />
         </svg>
       </figure></div>
+      {review.plan.tileCount !== undefined && <p className="drawing-help">{t('tileCount')}: {review.plan.tileCount}</p>}
       {stale && <p className="drawing-help drawing-cad-message" role="status">{t('stale')}</p>}
       <button type="button" disabled={busy || stale || !valid || !hasDraft} data-testid="material-texture-apply" onClick={() => {
         if (!available || busy || stale || !valid || !hasDraft) return;

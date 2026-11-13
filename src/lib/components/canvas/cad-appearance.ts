@@ -17,6 +17,8 @@ export type VectorGradient = {
 export type VectorRaster = {
   /** Material fills decorate real curves; PDF page bitmaps remain non-cutting. */
   usage?: "material";
+  /** matrix maps one tile; repeats are clipped to the existing cutting contours. */
+  repeat?: true;
   width: number;
   height: number;
   png: string;
@@ -121,7 +123,8 @@ export function validAppearance(p: VectorAppearance) {
   const r = p.raster;
   if (
     r &&
-    (r.usage !== undefined && r.usage !== "material" || ![r.width, r.height].every(
+    (r.usage !== undefined && r.usage !== "material" ||
+      r.repeat !== undefined && (r.repeat !== true || r.usage !== "material") || ![r.width, r.height].every(
       (n) => Number.isSafeInteger(n) && n > 0 && n <= 16384,
     ) ||
       r.width * r.height > 32 * 1024 * 1024 ||

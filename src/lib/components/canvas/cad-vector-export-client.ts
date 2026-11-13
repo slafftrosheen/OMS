@@ -55,7 +55,7 @@ export async function prepareVectorExportWithAssets(
         bitmap.close();
       }
     }
-    p.paint.raster = { ...data, matrix: r.matrix };
+    p.paint.raster = { ...data, matrix: r.matrix, ...(r.usage ? {usage:r.usage} : {}), ...(r.repeat ? {repeat:r.repeat} : {}) };
   }
   if (signal.aborted) throw new Error("cancelled");
   if (cadRevision(editor) !== result.revision) throw new Error("stale");
