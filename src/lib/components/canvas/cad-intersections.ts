@@ -2,6 +2,7 @@ import { validCadPoint, type CadPoint } from './cad-settings';
 import { lineCubicIntersections } from './cad-bezier-intersections';
 import { cubicAt, splitCubic } from './cad-curves';
 import { bernsteinRoots } from './cad-bernstein-roots';
+import { cubicCubicIntersections, type CubicIntersectionBudget } from './cad-cubic-intersections';
 
 /** World-space analytic ellipse. Rotation follows the canvas (Y down); arc
  * angles follow CAD (Y up) in the ellipse's own axes. */
@@ -134,7 +135,7 @@ export function cubicEllipseIntersections(points: CadPoint[], e: SnapEllipse): C
   return result;
 }
 
-export function snapIntersections(a: SnapIntersectionSource, b: SnapIntersectionSource): CadPoint[] {
+export function snapIntersections(a: SnapIntersectionSource, b: SnapIntersectionSource, cubicBudget?: CubicIntersectionBudget): CadPoint[] {
   if (a.kind === 'line' && b.kind === 'line') {
     const point = lineSnapIntersection(a.a, a.b, b.a, b.b); return point ? [point] : [];
   }
@@ -144,6 +145,7 @@ export function snapIntersections(a: SnapIntersectionSource, b: SnapIntersection
   if (a.kind === 'cubic' && b.kind === 'line') return lineCubicIntersections(b.a, b.b, a.points);
   if (a.kind === 'cubic' && b.kind === 'ellipse') return cubicEllipseIntersections(a.points, b.ellipse);
   if (a.kind === 'ellipse' && b.kind === 'cubic') return cubicEllipseIntersections(b.points, a.ellipse);
+  if (a.kind === 'cubic' && b.kind === 'cubic') return cubicCubicIntersections(a.points, b.points, cubicBudget);
   if (a.kind === 'ellipse' && b.kind === 'ellipse') return circleIntersections(a.ellipse, b.ellipse);
   return [];
 }

@@ -96,7 +96,7 @@ describe('finite line / cubic intersections', () => {
     const points = [{ x: 0, y: 0 }, { x: 100, y: 100 }, { x: -100, y: 100 }, { x: 0, y: 0 }];
     const roots = lineCubicIntersections(a, b, points); assert.equal(roots.length, 1); close(roots[0], { x: 0, y: 0 });
   });
-  it('dispatches both line/cubic orders and refuses unsupported cubic pairs', () => {
+  it('dispatches both line/cubic orders and refuses coincident cubic pairs', () => {
     const straight = { kind: 'line' as const, a, b }, cubic = { kind: 'cubic' as const, points: three };
     assert.deepEqual(snapIntersections(straight, cubic), snapIntersections(cubic, straight));
     assert.equal(snapIntersections(straight, cubic).length, 3);

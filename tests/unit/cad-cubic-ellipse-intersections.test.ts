@@ -99,7 +99,7 @@ describe('original cubic / analytic ellipse intersections', () => {
     assert.deepEqual(cubicEllipseIntersections(six.slice(0, 3), ellipse()), []);
     assert.deepEqual(cubicEllipseIntersections(six.map(p => ({ x: p.x + 10, y: p.y })), ellipse()), []);
   });
-  it('dispatches either pair order while keeping cubic/cubic and noncircular conic pairs unsupported', () => {
+  it('dispatches either pair order while omitting coincident cubics and unsupported noncircular conic pairs', () => {
     const cubic = { kind: 'cubic' as const, points: six }, conic = { kind: 'ellipse' as const, ellipse: ellipse() };
     assert.deepEqual(snapIntersections(cubic, conic), snapIntersections(conic, cubic)); assert.equal(snapIntersections(cubic, conic).length, 6);
     assert.deepEqual(snapIntersections(cubic, cubic), []);

@@ -12,6 +12,7 @@
   const textExample = new URLSearchParams(location.search).has('text');
   const intersectionExample = new URLSearchParams(location.search).has('intersections');
   const bezierIntersectionExample = new URLSearchParams(location.search).has('bezier-intersections');
+  const cubicPairExample = new URLSearchParams(location.search).has('cubic-pairs');
   const cubicConicExample = new URLSearchParams(location.search).has('cubic-conic');
   const order = new URLSearchParams(location.search).get('mode') === 'order';
   // Existing orders read authenticated attachments; new drafts keep local files.
@@ -125,6 +126,22 @@
     for(const shape of samples){if(editor.getShape(shape.id))editor.deleteShapes([shape.id]);editor.createShape(shape);}
     editor.setCurrentTool('select');editor.setSelectedShapes(samples.map(shape=>shape.id));editor.zoomToSelection();editor.selectNone();exampleStatus='Cubic/conic intersections ready';
   }
+  function loadCubicPairs() {
+    if (!editor || readonly) return;
+    editor.updatePage({id:editor.getCurrentPageId(),meta:{omsCad:DEFAULT_CAD_SETTINGS,omsCadSnap:{endpoints:false,midpoints:false,centers:false,quadrants:false,intersections:true,nearest:false,grid:false,tolerance:8}}});
+    editor.user.updateUserPreferences({isSnapMode:true});
+    const cubic=(id:string,x:number,y:number,points:Array<{x:number;y:number}>,color:string,name:string)=>({id,type:'cad-bezier',x,y,props:{color,contours:[{closed:false,nodes:[{...nodeAt(points[0]),outX:points[1].x-points[0].x,outY:points[1].y-points[0].y},{...nodeAt(points[3]),inX:points[2].x-points[3].x,inY:points[2].y-points[3].y}]}]},meta:{omsObjectName:name}});
+    const wave=[{x:-100,y:-100},{x:-100/3,y:500},{x:100/3,y:-500},{x:100,y:100}];
+    const parabola=[0.37**2,0.37**2-0.74/3,0.37**2-1.48/3+1/3,0.37**2-0.74+1].map((y,i)=>({x:i*100,y:y*300}));
+    const samples=[
+      cubic('shape:pair-a',140,200,wave,'blue','Nine crossings — first curve'),
+      cubic('shape:pair-b',140,200,wave.map(p=>({x:p.y,y:p.x})),'black','Nine crossings — second curve'),
+      cubic('shape:pair-contact-a',400,200,parabola,'blue','Tangent pair — first curve'),
+      cubic('shape:pair-contact-b',400,200,parabola.map(p=>({x:p.x,y:-p.y})),'black','Tangent pair — second curve')
+    ];
+    for(const shape of samples){if(editor.getShape(shape.id))editor.deleteShapes([shape.id]);editor.createShape(shape);}
+    editor.setCurrentTool('select');editor.setSelectedShapes(samples.map(shape=>shape.id));editor.zoomToSelection();editor.selectNone();exampleStatus='Cubic pair intersections ready';
+  }
   $effect(() => { document.documentElement.dataset.theme = theme; });
   onMount(() => {
     (window as any).__drawingFixture = {
@@ -142,8 +159,9 @@
     <button onclick={loadText}>Load text example</button>{/if}
   {#if intersectionExample}<button onclick={loadIntersections} disabled={readonly}>Load intersection example</button>{/if}
   {#if bezierIntersectionExample}<button onclick={loadBezierIntersections} disabled={readonly}>Load Bézier intersections</button>{/if}
+  {#if cubicPairExample}<button onclick={loadCubicPairs} disabled={readonly}>Load cubic pair intersections</button>{/if}
   {#if cubicConicExample}<button onclick={loadCubicConics} disabled={readonly}>Load cubic/conic intersections</button>{/if}
-  {#if materialExample || textExample || intersectionExample || bezierIntersectionExample || cubicConicExample}<button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
+  {#if materialExample || textExample || intersectionExample || bezierIntersectionExample || cubicConicExample || cubicPairExample}<button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
   <label>Theme <select aria-label="Theme" bind:value={theme}><option>LightVim</option><option>DarkVim</option><option>HighContrastVim</option></select></label>
   <label>Language <select aria-label="Language" value={$locale} onchange={event => locale.set(event.currentTarget.value)}><option value="en">English</option><option value="ru">Русский</option><option value="lv">Latviešu</option></select></label>
   <label>Workspace <select aria-label="Workspace width" bind:value={workspaceWidth}><option value="100%">Full width</option><option value="880px">880 px</option><option value="580px">580 px</option><option value="520px">520 px</option><option value="390px">390 px</option></select></label>
