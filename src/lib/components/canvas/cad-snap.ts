@@ -4,7 +4,7 @@ import { readCadSnapSettings } from './cad-snap-settings';
 import { contourSegments, cubicAt, splitCubic, type CadContour } from './cad-curves';
 import { cubicLength } from './cad-measurements';
 import { ellipseTangentPoints, perpendicularSegmentPoint } from './cad-construction-snaps';
-import { MAX_SNAP_INTERSECTION_SOURCES, snapIntersections, type SnapIntersectionSource } from './cad-intersections';
+import { MAX_SNAP_INTERSECTION_SOURCES, MAX_CUBIC_ELLIPSE_SNAP_PAIRS, snapIntersections, type SnapIntersectionSource } from './cad-intersections';
 export { lineSnapIntersection } from './cad-intersections';
 
 export type CadSnapKind = 'endpoints' | 'midpoints' | 'centers' | 'quadrants' | 'intersections' | 'perpendicular' | 'tangent' | 'nearest' | 'grid';
@@ -157,8 +157,12 @@ export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId 
       const box = editor.getShapeGeometry(shape).bounds; offerLocal({ x: box.x + box.w / 2, y: box.y + box.h / 2 }, 'centers');
     }
   }
+  let cubicEllipsePairs = 0;
   if (settings.intersections) for (let i = 0; i < intersections.length; i++) for (let j = i + 1; j < intersections.length; j++) {
-    for (const intersection of snapIntersections(intersections[i], intersections[j])) offer(intersection, 'intersections');
+    const a = intersections[i], b = intersections[j];
+    const cubicEllipse = a.kind === 'cubic' && b.kind === 'ellipse' || a.kind === 'ellipse' && b.kind === 'cubic';
+    if (cubicEllipse && cubicEllipsePairs++ >= MAX_CUBIC_ELLIPSE_SNAP_PAIRS) continue;
+    for (const intersection of snapIntersections(a, b)) offer(intersection, 'intersections');
   }
   if (best) return best;
   if (settings.nearest) near.forEach(q => offer(q, 'nearest'));

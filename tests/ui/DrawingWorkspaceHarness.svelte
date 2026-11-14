@@ -12,6 +12,7 @@
   const textExample = new URLSearchParams(location.search).has('text');
   const intersectionExample = new URLSearchParams(location.search).has('intersections');
   const bezierIntersectionExample = new URLSearchParams(location.search).has('bezier-intersections');
+  const cubicConicExample = new URLSearchParams(location.search).has('cubic-conic');
   const order = new URLSearchParams(location.search).get('mode') === 'order';
   // Existing orders read authenticated attachments; new drafts keep local files.
   const persisted = new URLSearchParams(location.search).has('persisted');
@@ -108,6 +109,22 @@
     const snapshot=JSON.parse(JSON.stringify(getSnapshot(editor.store)));
     loadSnapshot(editor.store,snapshot);exampleStatus='Drawing reloaded from JSON';
   }
+  function loadCubicConics() {
+    if (!editor || readonly) return;
+    editor.updatePage({id:editor.getCurrentPageId(),meta:{omsCad:DEFAULT_CAD_SETTINGS,omsCadSnap:{endpoints:false,midpoints:false,centers:false,quadrants:false,intersections:true,nearest:false,grid:false,tolerance:8}}});
+    editor.user.updateUserPreferences({isSnapMode:true});
+    const cubic=(id:string,x:number,y:number,points:Array<{x:number;y:number}>,name:string)=>({id,type:'cad-bezier',x,y,props:{color:'blue',contours:[{closed:false,nodes:[{...nodeAt(points[0]),outX:points[1].x-points[0].x,outY:points[1].y-points[0].y},{...nodeAt(points[3]),inX:points[2].x-points[3].x,inY:points[2].y-points[3].y}]}]},meta:{omsObjectName:name}});
+    const samples = [
+      {id:'shape:conic-circle',type:'cad-ellipse',x:60,y:120,props:{w:160,h:160,color:'black'},meta:{omsObjectName:'Circle with six crossings'}},
+      cubic('shape:conic-six',140,200,[{x:-40,y:-160},{x:-80/6,y:800},{x:80/6,y:-800},{x:40,y:160}],'Six original curve crossings'),
+      {id:'shape:conic-ellipse',type:'cad-ellipse',x:400,y:100,props:{w:200,h:120,color:'black'},meta:{omsObjectName:'Ellipse crossing'}},
+      cubic('shape:conic-parabola',500,160,[{x:-200,y:120},{x:-200/3,y:-40},{x:200/3,y:-40},{x:200,y:120}],'Parabola crossing ellipse'),
+      {id:'shape:conic-arc',type:'cad-arc',x:520,y:420,props:{radius:60,startAngle:180,endAngle:360,color:'black'},meta:{omsObjectName:'Lower semicircle'}},
+      cubic('shape:conic-touch',520,420,[{x:-60,y:120},{x:-20,y:40},{x:20,y:40},{x:60,y:120}],'Curve tangent contact')
+    ];
+    for(const shape of samples){if(editor.getShape(shape.id))editor.deleteShapes([shape.id]);editor.createShape(shape);}
+    editor.setCurrentTool('select');editor.setSelectedShapes(samples.map(shape=>shape.id));editor.zoomToSelection();editor.selectNone();exampleStatus='Cubic/conic intersections ready';
+  }
   $effect(() => { document.documentElement.dataset.theme = theme; });
   onMount(() => {
     (window as any).__drawingFixture = {
@@ -125,7 +142,8 @@
     <button onclick={loadText}>Load text example</button>{/if}
   {#if intersectionExample}<button onclick={loadIntersections} disabled={readonly}>Load intersection example</button>{/if}
   {#if bezierIntersectionExample}<button onclick={loadBezierIntersections} disabled={readonly}>Load Bézier intersections</button>{/if}
-  {#if materialExample || textExample || intersectionExample || bezierIntersectionExample}<button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
+  {#if cubicConicExample}<button onclick={loadCubicConics} disabled={readonly}>Load cubic/conic intersections</button>{/if}
+  {#if materialExample || textExample || intersectionExample || bezierIntersectionExample || cubicConicExample}<button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
   <label>Theme <select aria-label="Theme" bind:value={theme}><option>LightVim</option><option>DarkVim</option><option>HighContrastVim</option></select></label>
   <label>Language <select aria-label="Language" value={$locale} onchange={event => locale.set(event.currentTarget.value)}><option value="en">English</option><option value="ru">Русский</option><option value="lv">Latviešu</option></select></label>
   <label>Workspace <select aria-label="Workspace width" bind:value={workspaceWidth}><option value="100%">Full width</option><option value="880px">880 px</option><option value="580px">580 px</option><option value="520px">520 px</option><option value="390px">390 px</option></select></label>

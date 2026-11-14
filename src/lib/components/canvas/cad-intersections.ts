@@ -1,5 +1,7 @@
 import { validCadPoint, type CadPoint } from './cad-settings';
 import { lineCubicIntersections } from './cad-bezier-intersections';
+import { cubicAt, splitCubic } from './cad-curves';
+import { bernsteinRoots } from './cad-bernstein-roots';
 
 /** World-space analytic ellipse. Rotation follows the canvas (Y down); arc
  * angles follow CAD (Y up) in the ellipse's own axes. */
@@ -16,6 +18,7 @@ export type SnapIntersectionSource =
   | { kind: 'cubic'; points: CadPoint[] }
   | { kind: 'ellipse'; ellipse: SnapEllipse };
 export const MAX_SNAP_INTERSECTION_SOURCES = 256;
+export const MAX_CUBIC_ELLIPSE_SNAP_PAIRS = 128;
 const ROUNDING = 64 * Number.EPSILON;
 const cross = (a: CadPoint, b: CadPoint) => a.x * b.y - a.y * b.x;
 const subtract = (a: CadPoint, b: CadPoint) => ({ x: a.x - b.x, y: a.y - b.y });
@@ -88,6 +91,49 @@ export function circleIntersections(a: SnapEllipse, b: SnapEllipse): CadPoint[] 
   ]).filter(point => validCadPoint(point) && onArc(point, a) && onArc(point, b));
 }
 
+/** Intersect the original cubic with an analytic ellipse, retaining only the
+ * visible arc sweep. Squaring cubic Bernstein coordinates produces a degree-6
+ * polynomial. Large control hulls are subdivided before forming coefficients
+ * to keep tiny ellipses / long curves from losing their roots to cancellation.
+ * Subdivision preserves the cubic exactly; no polygon crossings are used. */
+export function cubicEllipseIntersections(points: CadPoint[], e: SnapEllipse): CadPoint[] {
+  if (points.length !== 4 || !points.every(validCadPoint) || !validEllipse(e)) return [];
+  const normalized = points.map(point => normalizedPoint(point, e));
+  if (!normalized.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))) return [];
+  const worldScale = Math.max(e.rx, e.ry, Math.abs(e.center.x), Math.abs(e.center.y), ...points.flatMap(p => [Math.abs(p.x), Math.abs(p.y)]));
+  const epsilon = ROUNDING * worldScale, normalizedError = epsilon / Math.min(e.rx, e.ry);
+  // Refuse geometry below meaningful world-coordinate precision.
+  if (!Number.isFinite(normalizedError) || normalizedError > 1e-4) return [];
+  const pending = [{ points: normalized, lo: 0, hi: 1, depth: 0 }], parameters: number[] = [];
+  const choose3 = [1, 3, 3, 1], choose6 = [1, 6, 15, 20, 15, 6, 1];
+  let remaining = 512;
+  while (pending.length) {
+    if (--remaining < 0) return [];
+    const span = pending.pop()!, p = span.points;
+    const margin = 8 * normalizedError + ROUNDING;
+    if (Math.min(...p.map(q => q.x)) > 1 + margin || Math.max(...p.map(q => q.x)) < -1 - margin
+      || Math.min(...p.map(q => q.y)) > 1 + margin || Math.max(...p.map(q => q.y)) < -1 - margin) continue;
+    if (p.some(q => Math.max(Math.abs(q.x), Math.abs(q.y)) > 4)) {
+      if (span.depth >= 48) return [];
+      const [left, right] = splitCubic(p), mid = (span.lo + span.hi) / 2, depth = span.depth + 1;
+      pending.push({ points: right, lo: mid, hi: span.hi, depth }, { points: left, lo: span.lo, hi: mid, depth });
+      continue;
+    }
+    const coefficients = Array<number>(7).fill(-1);
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++)
+      coefficients[i + j] += choose3[i] * choose3[j] / choose6[i + j] * (p[i].x * p[j].x + p[i].y * p[j].y);
+    for (const t of bernsteinRoots(coefficients, 16 * normalizedError)) parameters.push(span.lo + (span.hi - span.lo) * t);
+  }
+  const result: CadPoint[] = [];
+  for (const t of parameters.sort((a, b) => a - b)) {
+    const point = cubicAt(points, t), local = normalizedPoint(point, e);
+    if (!validCadPoint(point) || Math.abs(Math.hypot(local.x, local.y) - 1) > 16 * normalizedError + ROUNDING
+      || !onArc(point, e) || result.some(q => Math.hypot(q.x - point.x, q.y - point.y) <= 16 * epsilon)) continue;
+    result.push(point);
+  }
+  return result;
+}
+
 export function snapIntersections(a: SnapIntersectionSource, b: SnapIntersectionSource): CadPoint[] {
   if (a.kind === 'line' && b.kind === 'line') {
     const point = lineSnapIntersection(a.a, a.b, b.a, b.b); return point ? [point] : [];
@@ -96,6 +142,8 @@ export function snapIntersections(a: SnapIntersectionSource, b: SnapIntersection
   if (a.kind === 'ellipse' && b.kind === 'line') return lineEllipseIntersections(b.a, b.b, a.ellipse);
   if (a.kind === 'line' && b.kind === 'cubic') return lineCubicIntersections(a.a, a.b, b.points);
   if (a.kind === 'cubic' && b.kind === 'line') return lineCubicIntersections(b.a, b.b, a.points);
+  if (a.kind === 'cubic' && b.kind === 'ellipse') return cubicEllipseIntersections(a.points, b.ellipse);
+  if (a.kind === 'ellipse' && b.kind === 'cubic') return cubicEllipseIntersections(b.points, a.ellipse);
   if (a.kind === 'ellipse' && b.kind === 'ellipse') return circleIntersections(a.ellipse, b.ellipse);
   return [];
 }
