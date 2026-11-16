@@ -1,7 +1,7 @@
 import {snapCadHandle} from '../cad-snap';
 import React from "react";
 import { VectorArtwork } from "../VectorArtwork";
-import { isCadNodeEditing } from "../cad-node-selection";
+import { isCadNodeEditing, retainCadNodesAfterHandleDrag } from "../cad-node-selection";
 import { assertCadEditable } from "../cad-plans";
 import { transformAppearance } from "../cad-appearance";
 import { vectorPaint, paintMetadata } from "../cad-vector";
@@ -335,6 +335,7 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
       }
     }
     if (!validContours(list)) return;
+    retainCadNodesAfterHandleDrag(this.editor, list);
     return { id: shape.id, type: shape.type, props: { contours: list } };
   };
 }

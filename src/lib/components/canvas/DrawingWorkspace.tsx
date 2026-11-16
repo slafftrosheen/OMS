@@ -16,6 +16,9 @@ import {DrawingTransformPanel} from './DrawingTransformPanel';
 import {RadialArrange} from './RadialArrange';
 import {useArrangeTaskText, type ArrangeTask} from './arrange-task-copy';
 import {cadPalettePatch} from './drawing-palette';
+import {useOutlineText} from './outline-copy';
+import {useNodeArrangeText} from './node-arrange-copy';
+import {usePreflightText} from './preflight-copy';
 import {TextPanel,ArrangePanel,MeasurePanel,FormScaleControl} from './WorkbenchPanels';
 import {useWorkbenchText} from './workbench-copy';
 import {textPointSize} from './workbench-operations';
@@ -403,6 +406,9 @@ export function DrawingChrome() {
   const parametricShapeLabel = useParametricShapeText();
   const rectangleShapeLabel = useRectangleShapeText();
   const arrangeTaskLabel = useArrangeTaskText();
+  const outlineLabel = useOutlineText();
+  const nodeArrangeLabel = useNodeArrangeText();
+  const preflightLabel = usePreflightText();
   const [arrangeTask, setArrangeTask] = useState<ArrangeTask>('align');
   const [transformFocusRequest, setTransformFocusRequest] = useState(0);
   const workbenchLabel = useWorkbenchText();
@@ -499,7 +505,7 @@ export function DrawingChrome() {
   }, [toolGroup, context?.hosts.tools]);
   function command(action: string) { if (!applyDrawingCommand(editor, action)) setNotice(label('changedFailed')); else setNotice(''); }
   function focusCad(section: CadFocusRequest['section']) {
-    if (section === 'nodes' || section === 'convert') {
+    if (section === 'nodes' || section === 'nodeArrange' || section === 'convert') {
       editor.complete(); editor.setCurrentTool('select'); setCadNodeEditing(editor, true);
     }
     context?.setPanel('cad'); closeMenus();
@@ -592,7 +598,7 @@ export function DrawingChrome() {
       if(event.key==='Escape' && toolGroup!==null){event.preventDefault();event.stopPropagation();setToolGroup(null);flyoutTrigger.current?.focus();return;}
       if (event.key === 'Escape' && openMenu) { event.preventDefault(); event.stopPropagation(); closeMenus(true); return; }
       if (!(event.target instanceof Element) || event.target.closest('input,textarea,select,[contenteditable="true"]')) return;
-      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'F12') { event.preventDefault(); event.stopPropagation(); focusCad('paint'); return; }
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'F12') { event.preventDefault(); event.stopPropagation(); focusCad('outline'); return; }
       if (!event.ctrlKey && !event.metaKey && !event.altKey && event.shiftKey && event.key === 'F2') { event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'fit-selection'); return; }
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
@@ -841,6 +847,7 @@ export function DrawingChrome() {
           <button type="button" disabled={busy || !controls.hasShapes} onClick={() => void exportDrawing('svg')}>{label('exportSvg')}</button>
           <button type="button" disabled={busy || !controls.hasShapes} onClick={() => void exportDrawing('png')}>{label('exportPng')}</button>
           <button type="button" onClick={() => focusCad('files')}>{vectorLabel('files')}</button>
+          <button type="button" onClick={() => focusCad('preflight')}>{preflightLabel('title')}</button>
           {order&&<><label className="drawing-export-format">{workbenchLabel('exportFormat')}<select value={saveFormat} onChange={e=>setSaveFormat(e.target.value as 'svg'|'png')}><option value="png">PNG</option><option value="svg">SVG</option></select></label><ProductionSaveButton extension={saveFormat} disabled={busy||!controls.hasShapes} createFile={async()=>{
             const result=planDrawingExport(editor,saveFormat,exportOptions);if(!result.ok)throw new Error('saveFailed');const plan=result.value;
             const revision=JSON.stringify([editor.getCurrentPageShapesSorted(),editor.getSelectedShapeIds()]);
@@ -865,8 +872,10 @@ export function DrawingChrome() {
           <hr />
           <button type="button" disabled={!controls.canEditSelection || !settings} onClick={() => compound('combine')}>{advancedLabel('combine')}</button>
           <button type="button" disabled={!controls.canEditSelection || !settings} onClick={() => compound('breakApart')}>{advancedLabel('breakApart')}</button>
-          <button type="button" onClick={() => focusCad('paint')}>{vectorLabel('paint')} · F12</button>
+          <button type="button" onClick={() => focusCad('paint')}>{vectorLabel('paint')}</button>
+          <button type="button" onClick={() => focusCad('outline')} aria-keyshortcuts="F12">{outlineLabel('title')} · F12</button>
           <button type="button" onClick={() => focusCad('nodes')}>{advancedLabel('nodes')}</button>
+          <button type="button" onClick={() => focusCad('nodeArrange')}>{nodeArrangeLabel('title')}</button>
           <button type="button" onClick={() => focusCad('convert')}>{advancedLabel('convert')}</button>
           <button type="button" onClick={() => focusCad('join')}>{advancedLabel('joinCurves')}</button>
           <button type="button" onClick={() => focusCad('shaping')}>{advancedLabel('shaping')}</button>
@@ -939,7 +948,7 @@ export function DrawingChrome() {
             onKeyDown={event => { if (event.key === 'ArrowRight' || event.key === 'ArrowDown') { event.preventDefault(); event.stopPropagation(); toggleToolGroup(group, event.currentTarget, true); } }} data-testid={`drawing-tools-${group.id}`}>▸</button>}
         </div>;
       })}
-      <div className="drawing-tool-paint"><ToolButton icon="paint" label={`${vectorLabel('paint')} (F12)`} onClick={() => { setToolGroup(null); focusCad('paint'); }} testId="drawing-paint" /></div>
+      <div className="drawing-tool-paint"><ToolButton icon="paint" label={vectorLabel('paint')} onClick={() => { setToolGroup(null); focusCad('paint'); }} testId="drawing-paint" /></div>
     </div>)}
     {activeToolGroup && hosts.tools && context.root.current && createPortal(<div className="drawing-tool-flyout" role="group" aria-label={groupLabel(activeToolGroup)} style={flyoutPosition}>
       {activeToolGroup.tools.map(tool => <button type="button" key={tool} disabled={controls.readOnly} aria-pressed={controls.tool === tool} title={`${toolLabel(tool)}${shortcut[tool] ? ` (${shortcut[tool]})` : ''}`} onClick={() => chooseTool(tool)} data-testid={`drawing-flyout-${tool}`}><Icon name={tool} /><span>{toolLabel(tool)}</span>{shortcut[tool] && <kbd>{shortcut[tool]}</kbd>}</button>)}

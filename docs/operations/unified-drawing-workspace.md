@@ -162,6 +162,42 @@ The specific reported live 503 is not reproduced here. No paid-model call, produ
 
 All changed TypeScript/TSX files were parsed/transpiled with real Sucrase. Full application typechecking/build, browser rendering, live database persistence and paid OCR remain unverified in this environment. The workspace briefly disconnected; final source snapshots were preserved and checked against the assembled publish files.
 
+## Outline Pen, node arrangement, cubic construction snaps and production check
+
+Both shared and order canvases use these controls.
+
+### Editing tasks and outline styles
+
+CAD now separates Draw, Edit, Fill/outline, Document, Files, Trace and Production check. F12 and Object → Outline Pen open the outline controls; the existing paint button opens fill controls. Solid fill owns only the fill colour and any replaced gradient/material, preserving outlines, clipping, opacity, file links and geometry. A loaded-source guard prevents a draft colour from being applied to a newly selected object before its controls refresh.
+
+Outline Pen edits selected CAD objects and group descendants. Checked fields apply across mixed selections; unchecked fields are retained. Controls include physical width, colour/no outline, opacity, line caps, joins, miter limit, dash presets/custom lengths and dash offset. The preview and Apply use stale-source and permission checks and one undo transaction. SVG/PDF/EPS retain supported stroke styles; EPS transparency remains an explicit omission. DXF exports geometric paths, not expanded outline silhouettes.
+
+### Shape tool and selected nodes
+
+Shift-click anchor handles to toggle nodes, or use the node list and range/all/clear controls. The overlay identifies selected anchors. Object → Align and move nodes opens numeric movement, alignment and distribution in document axes. Relative handles travel with their anchors. Review/apply is atomic and refuses stale or protected data.
+
+Native dragging still edits one anchor or handle. The panel states this limitation; multi-node movement uses the numeric controls. Known native/numeric single-node edits retain the active anchor. Other geometry/topology edits and undo mismatches invalidate stored indices so removed or shifted nodes cannot silently receive a later batch operation.
+
+### Tangents and perpendiculars to cubic curves
+
+Existing tangent and perpendicular snap toggles now include original cubic Bézier segments. Bernstein root solving checks the finite parameter interval, derivative and connection lengths, and geometric residuals. A shared cap of 64 nearby cubic sources bounds construction work per query. Degenerate stationary cusps, zero-length connections and collinear tangent continua are excluded.
+
+These construction candidates use existing polyline and dimension anchors. The Bézier drawing tool and node handles currently provide no construction anchor and retain ordinary snaps. Perpendiculars to conics remain unsupported. Existing toggles default off.
+
+### Production check and material-filled DXF paths
+
+File → Production check opens a read-only report for a captured selection or all page objects. It lists open paths, zero-length and conservatively short segments, matching paths, and export omissions. Locate selects the source object without editing it; document changes require a refreshed report.
+
+Matching recorded geometry is compared at 0.000001 mm precision, ignoring traversal direction and closed seam position. Different segmentations or converted conics can remain unmatched. The check is limited to 1,000 objects, 12,000 segments and 500 displayed findings. Open paths may be intentional for engraving/bending; this is not self-intersection, kerf or machine approval.
+
+Material-filled native CAD paths and ellipses now remain eligible for DXF and measurement. Regression coverage verifies that their native LWPOLYLINE/ELLIPSE geometry is retained. Imported PDF page rasters remain non-cutting and are omitted.
+
+### Verification of this batch
+
+67 focused checks passed: 14 outline/style/export, 18 node-selection/arrangement/retention, 14 cubic snapping, 13 preflight/DXF/measurement and 8 solid-fill cases. They execute actual helper, shape/tool and serializer source with mocked Editor/runtime boundaries. Supplementary compiled-component checks cover outline field state and solid-fill selection synchronization; an independent numerical probe found all 240 seeded tangent/normal contacts tested.
+
+All changed TypeScript/TSX was parsed/transpiled with real Sucrase; publish bytes were verified and whitespace checked. Full application typechecking/build, browser rendering, live database behavior and paid-model OCR remain unverified. The preceding main CI run failed immediately; available job/check responses exposed no actionable failure logs, so it cannot certify the application.
+
 ## Deployment and verification
 
 Pull `main`, install dependencies if needed, build, and restart `reclame-oms.service` using the normal deployment process. A Git update alone does not replace the running JavaScript bundle. Earlier installations still need the existing `20261109000001_openrouter_model_settings.sql` migration; this change does not apply migrations automatically.

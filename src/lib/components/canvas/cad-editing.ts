@@ -1,3 +1,4 @@
+import {getSelectedCadNodes,setSelectedCadNodes} from './cad-node-selection';
 import { type Editor, type TLShape } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
 import { cadMmPerPixel, cadPointToCanvas, canvasPointToCad, validateCadSettings, type CadSettings } from './cad-settings';
@@ -83,7 +84,7 @@ export function getCadCurveSelection(
       }
     : null;
 }
-function editCurve(editor: Editor, change: (contours: CadContour[]) => void): boolean {
+function editCurve(editor: Editor, change: (contours: CadContour[]) => void, retainNodes = false): boolean {
   const shape = editor.getOnlySelectedShape();
   if (shape?.type !== 'cad-bezier') return false;
   try {
@@ -98,9 +99,12 @@ function editCurve(editor: Editor, change: (contours: CadContour[]) => void): bo
   } catch {
     return false;
   }
-  return drawingTransaction(editor, () => {
+  const nodes = retainNodes ? getSelectedCadNodes(editor) : [];
+  const success = drawingTransaction(editor, () => {
     editor.updateShapes([{ id: shape.id, type: shape.type, props: { contours } }]);
   });
+  if (success && retainNodes) setSelectedCadNodes(editor, nodes);
+  return success;
 }
 export function updateCadCurveNode(
   editor: Editor,
@@ -125,7 +129,7 @@ export function updateCadCurveNode(
   return editCurve(editor, (contours) => {
     if (!contours[ci]?.nodes[ni]) throw new Error('node');
     contours[ci].nodes[ni] = local;
-  });
+  }, true);
 }
 /** Lines split by length fraction; cubics split exactly at parameter t. */
 export function splitCadCurveSegment(editor: Editor, ci: number, ni: number, t = 0.5): boolean {
@@ -176,7 +180,7 @@ export function setCadStraightSegment(editor: Editor, settings: CadSettings, ci:
     b.x = local.x; b.y = local.y;
     // Relative controls on adjoining segments travel with their anchors.
     a.mode = b.mode = 'corner';
-  });
+  }, true);
 }
 export function deleteCadCurveNode(editor: Editor, ci: number, ni: number): boolean {
   return editCurve(editor, (contours) => {
@@ -234,7 +238,7 @@ export function setCadSegmentKind(editor: Editor, ci: number, ni: number, kind: 
     a.outX = kind === 'line' ? 0 : dx; a.outY = kind === 'line' ? 0 : dy;
     b.inX = kind === 'line' ? 0 : -dx; b.inY = kind === 'line' ? 0 : -dy;
     a.mode = b.mode = 'corner';
-  });
+  }, true);
 }
 /** Reverse the traversal without changing any cubic segment or the closed seam. */
 export function reverseCadContour(editor: Editor, ci: number): boolean {

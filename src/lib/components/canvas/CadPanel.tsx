@@ -15,7 +15,8 @@ import {
   setCadOriginToSelection, updateCadArc, updateCadPathPoints, type CadGeometryInput,
 } from './cad-geometry';
 import { buildCadDxf } from './cad-dxf';
-import { CadAdvancedPanel, type CadFocusRequest } from './CadAdvancedPanel';
+import { CadAdvancedPanel, type CadFocusRequest, type CadTask } from './CadAdvancedPanel';
+import { usePreflightText } from './preflight-copy';
 
 function numeric(value: string): number { return value.trim() ? Number(value) : NaN; }
 function format(value: number, precision: number): string { return Number(value.toFixed(precision)).toString(); }
@@ -40,8 +41,9 @@ function Message({ text, error = false }: { text: string; error?: boolean }) {
 /** CAD is part of the shared docker, so order and idea editors have identical controls. */
 export function CadPanel({ settings, focusRequest }: { settings: CadSettings | null; focusRequest?: CadFocusRequest }) {
   const editor = useEditor(); const { label } = useCadText();
+  const preflightLabel = usePreflightText();
   const { label: advancedLabel } = useCadAdvancedText(); const vectorLabel = useVectorText();
-  const [task, setTask] = useState<'draw' | 'edit' | 'document' | 'files' | 'trace'>(settings ? 'edit' : 'document');
+  const [task, setTask] = useState<CadTask>(settings ? 'edit' : 'document');
   const sourceIsText = useValue('cad focus text', () => editor.getOnlySelectedShape()?.type === 'text', [editor]);
   const consumedFocus = useRef<number>();
   useEffect(() => {
@@ -49,7 +51,7 @@ export function CadPanel({ settings, focusRequest }: { settings: CadSettings | n
     const drawingFocus = focusRequest.section === 'rectangle' || focusRequest.section === 'ellipse' || focusRequest.section === 'polygon' || focusRequest.section === 'lettering' || focusRequest.section === 'convert' && sourceIsText;
     if (!settings && drawingFocus) { setTask('document'); return; }
     consumedFocus.current = focusRequest.sequence;
-    setTask(focusRequest.section === 'trace' ? 'trace' : focusRequest.section === 'files' ? 'files' : focusRequest.section === 'document' ? 'document' : drawingFocus ? 'draw' : 'edit');
+    setTask(focusRequest.section === 'paint' || focusRequest.section === 'outline' ? 'paint' : focusRequest.section === 'preflight' ? 'preflight' : focusRequest.section === 'trace' ? 'trace' : focusRequest.section === 'files' ? 'files' : focusRequest.section === 'document' ? 'document' : drawingFocus ? 'draw' : 'edit');
   }, [focusRequest, sourceIsText, settings]);
   const controls = useValue('cad panel permissions', () => captureToolkitControls(editor), [editor]);
   const protectedSelection = useValue('cad protected selection', () => [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].some(id => ['order-details', 'order-address', 'profile-7st'].includes(editor.getShape(id)?.type ?? '')), [editor]);
@@ -78,7 +80,7 @@ export function CadPanel({ settings, focusRequest }: { settings: CadSettings | n
   return <div className="drawing-cad" data-testid="drawing-cad-panel">
     <label className="drawing-cad-task"><span>{advancedLabel('task')}</span>
       <select data-testid="drawing-cad-task" value={task} onChange={event => setTask(event.target.value as typeof task)}>
-        {(['draw', 'edit', 'document', 'files', 'trace'] as const).map(value => <option key={value} value={value}>{value === 'trace' ? vectorLabel('trace') : value === 'files' ? vectorLabel('files') : advancedLabel(`${value}Task`)}</option>)}
+        {(['draw', 'edit', 'paint', 'document', 'files', 'trace', 'preflight'] as const).map(value => <option key={value} value={value}>{value === 'preflight' ? preflightLabel('title') : value === 'paint' ? vectorLabel('paint') : value === 'trace' ? vectorLabel('trace') : value === 'files' ? vectorLabel('files') : advancedLabel(`${value}Task`)}</option>)}
       </select>
     </label>
     {controls.readOnly && <p className="drawing-help">{label('readOnly')}</p>}

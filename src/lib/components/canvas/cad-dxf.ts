@@ -56,7 +56,14 @@ export function cadShapeIsClipped(editor: Editor, shape: TLShape): boolean {
   return [{ x: b.x, y: b.y }, { x: b.x + b.w, y: b.y }, { x: b.x, y: b.y + b.h }, { x: b.x + b.w, y: b.y + b.h }]
     .some(p => !pointInPolygon(matrix.applyToPoint(p), mask));
 }
-function shapeEntity(editor: Editor, shape: TLShape, settings: CadSettings): { entity?: DxfEntity; entities?: DxfEntity[]; reason?: CadDxfOmission } {
+/** Decorative material fills retain their CAD cutting geometry; PDF/image
+ * rasters do not acquire a cutting contour merely by being on the canvas. */
+export function cadShapeHasNonCuttingRaster(shape: TLShape): boolean {
+  const paint = shape.meta.omsVectorPaint as any;
+  return !!paint?.raster && !(['cad-bezier', 'cad-path', 'cad-ellipse', 'cad-arc'].includes(shape.type) &&
+    paint.raster.usage === 'material' && validVectorPaint(paint));
+}
+export function cadShapeDxfGeometry(editor: Editor, shape: TLShape, settings: CadSettings): { entity?: DxfEntity; entities?: DxfEntity[]; reason?: CadDxfOmission } {
   const p = shape.props as Record<string, any>;
   const matrix = editor.getShapePageTransform(shape);
   const factor = cadMmPerPixel(settings);
@@ -66,8 +73,7 @@ function shapeEntity(editor: Editor, shape: TLShape, settings: CadSettings): { e
     return { x: finite((world.x - settings.originX) * factor), y: finite((settings.originY - world.y) * factor) };
   };
   if (cadShapeIsClipped(editor, shape) || (shape.meta.omsVectorPaint as any)?.clips?.length) return { reason: 'clipped' };
-  const paint = shape.meta.omsVectorPaint as any;
-  if (paint?.raster && !(shape.type === 'cad-bezier' && paint.raster.usage === 'material' && validVectorPaint(paint))) return { reason: 'unsupported' };
+  if (cadShapeHasNonCuttingRaster(shape)) return { reason: 'unsupported' };
   if (shape.type === 'cad-bezier') {
     if (!validContours(p.contours)) return { reason: 'invalid' };
     return { entities: mapContours(p.contours, convert).map(contour => contour.nodes.every(n => !n.inX && !n.inY && !n.outX && !n.outY)
@@ -118,8 +124,8 @@ export function buildCadDxf(editor: Editor, scope: 'selected' | 'all', settings:
   for (const id of new Set(ids)) {
     const shape = editor.getShape(id as TLShapeId);
     if (!shape || ['group', 'frame'].includes(shape.type)) continue;
-    let result: ReturnType<typeof shapeEntity>;
-    try { result = shapeEntity(editor, shape, settings); }
+    let result: ReturnType<typeof cadShapeDxfGeometry>;
+    try { result = cadShapeDxfGeometry(editor, shape, settings); }
     catch { result = { reason: 'invalid' }; }
     if (result.entity || result.entities) {
       for (const original of result.entities ?? [result.entity!]) {

@@ -1,5 +1,6 @@
+import {drawingSolidFillSource, applyDrawingSolidFill} from './drawing-solid-fill';
+import {useSolidFillText} from './solid-fill-copy';
 import { prepareEllipseSegment, type EllipseSegmentKind } from './cad-ellipse-segments';
-import { CAD_APPEARANCE_TYPES, cadAppearanceGeometry, cadShapePaint } from './cad-shape-appearance';
 import {ProductionSaveButton} from './ProductionSaveButton';
 import { storeCanvasImage } from "./cad-asset-store";
 import { prepareVectorExportWithAssets } from "./cad-vector-export-client";
@@ -879,162 +880,45 @@ export function CornerControls({ settings, revision, disabled, focusSequence }: 
     </details>
   );
 }
-export function VectorPaintControls({
-  settings,
-  revision,
-  disabled,
-  focusSequence,
-}: Props) {
+export function VectorPaintControls({ settings, revision, disabled, focusSequence }: Props) {
+  const editor = useEditor(), t = useSolidFillText();
   const section = useRef<HTMLDetailsElement>(null);
+  const source = useValue('solid CAD fill', () => drawingSolidFillSource(editor), [editor]);
+  const signature = source?.signature ?? '';
+  const [fill, setFill] = useState('#000000'), [none, setNone] = useState(false), [dirty, setDirty] = useState(false);
+  const [loadedSignature, setLoadedSignature] = useState('');
+  const [result, setResult] = useState<{signature:string;success:boolean} | null>(null);
   useEffect(() => {
-    if (focusSequence !== undefined && section.current) {
-      section.current.open = true;
-      section.current.scrollIntoView({ block: "nearest" });
-      section.current.querySelector("summary")?.focus();
-    }
-  }, [focusSequence]);
-  const editor = useEditor(),
-    t = useVectorText();
-  const shape = useValue("vector paint", () => editor.getOnlySelectedShape(), [
-    editor,
-  ]);
-  const [paint, setPaint] = useState(() => vectorPaint({}, "black")),
-    [width, setWidth] = useState("0.25"),
-    [paintSource, setPaintSource] = useState(""),
-    [message, setMessage] = useState("");
-  const signature = JSON.stringify([
-    shape?.id,
-    shape?.meta,
-    shape?.props,
-    settings,
-  ]);
-  const supported = !!shape && CAD_APPEARANCE_TYPES.has(shape.type);
-  const canFill = (() => {
-    if (!shape || !supported) return false;
-    try { return shape.type === 'cad-bezier' || cadAppearanceGeometry(shape).closed; } catch { return false; }
-  })();
-  useEffect(() => {
-    if (shape && supported && settings) {
-      try {
-        cadAppearanceGeometry(shape);
-        const p = cadShapePaint(shape);
-        setPaint(p);
-        setWidth(String(Number((p.strokeWidth * cadMmPerPixel(settings)).toFixed(5))));
-        setPaintSource(signature);
-      } catch { setPaintSource(''); }
-    } else setPaintSource('');
+    setFill(source?.paint.fill === 'none' ? '#000000' : source?.paint.fill ?? '#000000');
+    setNone(!!source && source.paint.fill === 'none' && !source.paint.gradient && !source.paint.raster);
+    setDirty(false);
+    setLoadedSignature(signature);
   }, [signature]);
-  return (
-    <details
-      className="drawing-cad-section"
-      open
-      data-testid="vector-paint"
-      ref={section}
-    >
-      <summary>{t("paint")}</summary>
-      <p className="drawing-help">{t("paintHelp")}</p>
-      <fieldset
-        className="drawing-cad-fields"
-        disabled={disabled || !settings || !supported || paintSource !== signature}
-      >
-        {(["fill", "stroke"] as const).map((key) => (
-          <div key={key} className="drawing-cad-field">
-            <span>{t(key)}</span>
-            <div className="drawing-vector-paint-row">
-              <input
-                type="color"
-                disabled={key === "fill" && !canFill}
-                aria-label={t(key)}
-                value={paint[key] === "none" ? "#000000" : paint[key]}
-                onChange={(e) =>
-                  setPaint({
-                    ...paint,
-                    ...(key === "fill"
-                      ? { gradient: undefined, raster: undefined }
-                      : {}),
-                    [key]: e.target.value,
-                  })
-                }
-              />
-              <label>
-                <input
-                  type="checkbox"
-                  disabled={key === "fill" && !canFill}
-                  aria-label={`${t(key)} · ${t("none")}`}
-                  checked={paint[key] === "none" && (key !== "fill" || !paint.raster && !paint.gradient)}
-                  onChange={(e) =>
-                    setPaint({
-                      ...paint,
-                      ...(key === "fill"
-                        ? { gradient: undefined, raster: undefined }
-                        : {}),
-                      [key]: e.target.checked ? "none" : "#000000",
-                    })
-                  }
-                />
-                {t("none")}
-              </label>
-            </div>
-          </div>
-        ))}
-        <Field label={t("lineWidth")}>
-          <input
-            type="number"
-            min="0"
-            step="any"
-            value={width}
-            onChange={(e) => setWidth(e.target.value)}
-          />
-        </Field>
-        <button
-          type="button"
-          onClick={() => {
-            try {
-              if (!shape || !settings || !supported || paintSource !== signature) return;
-              const current = editor.getOnlySelectedShape();
-              if (!current || JSON.stringify([current.id, current.meta, current.props, settings]) !== signature) throw new Error('changed');
-              assertCadEditable(editor, [current.id]);
-              const next = {
-                ...paint,
-                strokeWidth: Number(width) / cadMmPerPixel(settings),
-              };
-              if (current.type !== 'cad-bezier' && !cadAppearanceGeometry(current).closed) {
-                if (next.fill !== 'none' || next.gradient || next.raster) throw new Error('geometry');
-                // Open paths hide their fill; outline edits must retain the
-                // stored artwork so closing the path can reveal it again.
-                const raw = vectorPaint(current.meta, (current.props as any).color);
-                next.fill = raw.fill; next.fillOpacity = raw.fillOpacity;
-                next.gradient = raw.gradient; next.raster = raw.raster;
-              }
-              if (!width.trim() || !validVectorPaint(next))
-                throw new Error("geometry");
-              if (
-                !drawingTransaction(editor, () =>
-                  editor.updateShape({
-                    id: shape.id,
-                    type: shape.type,
-                    meta: {
-                      ...shape.meta,
-                      omsVectorPaint: paintMetadata(next),
-                    },
-                  }),
-                )
-              )
-                throw new Error("geometry");
-              setMessage("done");
-            } catch (e) {
-              setMessage(vectorError(e));
-            }
-          }}
-        >
-          {t("updatePaint")}
-        </button>
-      </fieldset>
-      {message && <p role="status">{t(message)}</p>}
-      <GradientFillPanel settings={settings} revision={revision} disabled={disabled || !settings} />
-      <MaterialTexturePanel settings={settings} revision={revision} disabled={disabled || !settings} />
-    </details>
-  );
+  useEffect(() => {
+    if (focusSequence === undefined || !section.current) return;
+    section.current.open = true;
+    section.current.scrollIntoView({block:'nearest'});
+    section.current.querySelector('summary')?.focus();
+  }, [focusSequence]);
+  return <details className="drawing-cad-section" open data-testid="vector-paint" ref={section}>
+    <summary>{t('title')}</summary>
+    <p className="drawing-help">{t('help')}</p>
+    <fieldset className="drawing-cad-fields" disabled={disabled || !source || loadedSignature !== signature}>
+      <div className="drawing-cad-field"><span>{t('colour')}</span><div className="drawing-vector-paint-row">
+        <input type="color" aria-label={t('colour')} value={fill} onChange={event=>{setFill(event.target.value);setNone(false);setDirty(true);setResult(null);}}/>
+        <label><input type="checkbox" checked={none} onChange={event=>{setNone(event.target.checked);setDirty(true);setResult(null);}}/>{t('none')}</label>
+      </div></div>
+      <button type="button" disabled={!dirty} onClick={()=>{
+        if (!source || loadedSignature !== signature || disabled) return;
+        const success=applyDrawingSolidFill(editor,source.shape.id,signature,none?'none':fill);
+        setResult({signature:drawingSolidFillSource(editor)?.signature??'',success});
+        if(success)setDirty(false);
+      }}>{t('apply')}</button>
+    </fieldset>
+    {result && result.signature === signature && <p role={result.success?'status':'alert'} className="drawing-help">{t(result.success?'applied':'failed')}</p>}
+    <GradientFillPanel settings={settings} revision={revision} disabled={disabled || !settings}/>
+    <MaterialTexturePanel settings={settings} revision={revision} disabled={disabled || !settings}/>
+  </details>;
 }
 
 /** Corel-style elliptic arcs and closed sectors share the curve editing/export pipeline. */
@@ -1112,4 +996,3 @@ export function EllipseSegmentControls({ settings, revision, disabled, focusSequ
       onApplied={() => { setReview(undefined); setMessage('done'); }} />}
   </details>;
 }
-

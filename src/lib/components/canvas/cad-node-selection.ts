@@ -1,8 +1,10 @@
 import { atom, type Editor, type TLEventInfo } from '@tldraw/tldraw';
+import type { CadContour } from './cad-curves';
 import type { CadBezierShape } from './shapes/CadBezierShape';
 
 export interface CadNodeSelection { shapeId: string; contourIndex: number; nodeIndex: number }
-function selectionAtom() { return atom<CadNodeSelection | null>('CAD selected node', null); }
+interface NodeSet { shapeId: string; geometry: string; nodes: CadNodeSelection[] }
+function selectionAtom() { return atom<NodeSet | null>('CAD selected nodes', null); }
 const selections = new WeakMap<Editor, ReturnType<typeof selectionAtom>>();
 function editingAtom() { return atom('CAD node editing', false); }
 const modes = new WeakMap<Editor, ReturnType<typeof editingAtom>>();
@@ -19,23 +21,44 @@ function selection(editor: Editor) {
   return value;
 }
 
-/** Editor-local inspection state, never part of the document or its undo history. */
+/** Geometry identity prevents shifted indices after split/delete/reverse/undo.
+ * This UI state is never persisted in the document. */
+export function getSelectedCadNodes(editor: Editor): CadNodeSelection[] {
+  const shape = editor.getOnlySelectedShape() as CadBezierShape | undefined;
+  if (shape?.type !== 'cad-bezier') return [];
+  const saved = selection(editor).get();
+  if (!saved) return [{ shapeId: shape.id, contourIndex: 0, nodeIndex: 0 }];
+  if (saved.shapeId !== shape.id || saved.geometry !== JSON.stringify(shape.props.contours)) return [];
+  return saved.nodes;
+}
+/** Legacy inspector always has a valid node, independent of the batch set. */
 export function getSelectedCadNode(editor: Editor): CadNodeSelection | null {
   const shape = editor.getOnlySelectedShape() as CadBezierShape | undefined;
   if (shape?.type !== 'cad-bezier') return null;
-  const saved = selection(editor).get();
-  if (saved?.shapeId === shape.id && shape.props.contours[saved.contourIndex]?.nodes[saved.nodeIndex]) return saved;
-  return { shapeId: shape.id, contourIndex: 0, nodeIndex: 0 };
+  return getSelectedCadNodes(editor).at(-1) ?? { shapeId: shape.id, contourIndex: 0, nodeIndex: 0 };
+}
+export function setSelectedCadNodes(editor: Editor, nodes: ReadonlyArray<{contourIndex:number;nodeIndex:number}>): boolean {
+  const shape = editor.getOnlySelectedShape() as CadBezierShape | undefined;
+  if (shape?.type !== 'cad-bezier' || nodes.length > 4096 ||
+      nodes.some(n => !Number.isInteger(n.contourIndex) || !Number.isInteger(n.nodeIndex) || !shape.props.contours[n.contourIndex]?.nodes[n.nodeIndex])) return false;
+  const unique = new Map(nodes.map(n => [n.contourIndex + ':' + n.nodeIndex, { shapeId: shape.id, contourIndex: n.contourIndex, nodeIndex: n.nodeIndex }]));
+  selection(editor).set({shapeId:shape.id,geometry:JSON.stringify(shape.props.contours),nodes:[...unique.values()]});
+  return true;
+}
+export function selectCadNode(editor: Editor, contourIndex: number, nodeIndex: number): boolean {
+  return setSelectedCadNodes(editor,[{contourIndex,nodeIndex}]);
+}
+export function toggleCadNode(editor: Editor, contourIndex: number, nodeIndex: number): boolean {
+  const nodes=getSelectedCadNodes(editor), exists=nodes.some(n=>n.contourIndex===contourIndex&&n.nodeIndex===nodeIndex);
+  return setSelectedCadNodes(editor,exists?nodes.filter(n=>n.contourIndex!==contourIndex||n.nodeIndex!==nodeIndex):[...nodes,{contourIndex,nodeIndex}]);
 }
 
-export function selectCadNode(editor: Editor, contourIndex: number, nodeIndex: number): boolean {
-  const shape = editor.getOnlySelectedShape() as CadBezierShape | undefined;
-  if (shape?.type !== 'cad-bezier' || !Number.isInteger(contourIndex) || !Number.isInteger(nodeIndex) ||
-      !shape.props.contours[contourIndex]?.nodes[nodeIndex]) return false;
-  const current = selection(editor).get();
-  if (current?.shapeId !== shape.id || current.contourIndex !== contourIndex || current.nodeIndex !== nodeIndex)
-    selection(editor).set({ shapeId: shape.id, contourIndex, nodeIndex });
-  return true;
+/** A native handle drag changes coordinates, not topology. Preserve the set
+ * only when it still describes the exact current document before that update. */
+export function retainCadNodesAfterHandleDrag(editor: Editor, contours: CadContour[]): void {
+  const shape=editor.getOnlySelectedShape() as CadBezierShape|undefined, saved=selection(editor).get();
+  if(shape?.type!=='cad-bezier'||saved?.shapeId!==shape.id||saved.geometry!==JSON.stringify(shape.props.contours))return;
+  selection(editor).set({...saved,geometry:JSON.stringify(contours)});
 }
 
 /** Observe native handle presses without taking focus or interrupting dragging. */
@@ -44,7 +67,10 @@ export function inspectCadNodeEvent(editor: Editor, event: TLEventInfo): void {
       event.target !== 'handle' || event.shape.type !== 'cad-bezier' ||
       editor.getOnlySelectedShape()?.id !== event.shape.id) return;
   const match = /^(\d+):(\d+):(node|in|out)$/.exec(event.handle.id);
-  if (match) selectCadNode(editor, Number(match[1]), Number(match[2]));
+  if (match) {
+    if (event.shiftKey && match[3] === 'node') toggleCadNode(editor, Number(match[1]), Number(match[2]));
+    else selectCadNode(editor, Number(match[1]), Number(match[2]));
+  }
 }
 
 export function installCadNodeSelection(editor: Editor): () => void {

@@ -1,5 +1,8 @@
 import {ParametricShapePanel} from './ParametricShapePanel';
 import {RectangleShapePanel} from './RectangleShapePanel';
+import {OutlinePenPanel} from './OutlinePenPanel';
+import {CadNodeArrangePanel} from './CadNodeArrangePanel';
+import {DrawingPreflightPanel} from './DrawingPreflightPanel';
 import {drawingFontErrorLabel, useDrawingFontText, type DrawingFontLabel} from './font-copy';
 import {readDrawingFonts, uploadDrawingFont, MAX_DRAWING_FONT_BYTES, MAX_DRAWING_FONTS_BYTES, MAX_DRAWING_FONTS} from './drawing-fonts';
 import { RasterTrace, VectorImport, VectorExport, CornerControls, VectorPaintControls, EllipseSegmentControls } from './CadVectorPanel';
@@ -20,7 +23,8 @@ import { decodeDxf } from './cad-dxf-decode';
 import { prepareCadText, getCadFont, isCadTextSingleLine, DEFAULT_TEXT_LAYOUT, type CadTextLayout, type CadTextPlan } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle'; sequence: number };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'nodeArrange' | 'preflight'; sequence: number };
+export type CadTask = 'draw' | 'edit' | 'paint' | 'document' | 'files' | 'trace' | 'preflight';
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
 const FILE_LIMIT = 8 * 1024 * 1024;
@@ -70,17 +74,20 @@ function useFocusSection(ref: React.RefObject<HTMLDetailsElement>, active: boole
 }
 
 /** Shared advanced CAD controls for the order and idea workspace docker. */
-export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: CadSettings | null; focusRequest?: CadFocusRequest; task: 'draw' | 'edit' | 'document' | 'files' | 'trace' }) {
+export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: CadSettings | null; focusRequest?: CadFocusRequest; task: CadTask }) {
   const editor = useEditor();
   const state = useValue('advanced cad permissions', () => ({ controls: captureToolkitControls(editor), protected: protectedSelection(editor), text: editor.getOnlySelectedShape()?.type === 'text' }), [editor]);
   const revision = useValue('advanced cad revision', () => cadRevision(editor), [editor]);
   const [cornerFocus, setCornerFocus] = useState(0);
   const disabled = !state.controls.canEditSelection || state.protected;
   return <>
-    {!settings && <Message value="settingsRequired" />}
-    {(state.controls.readOnly || state.controls.selectionLocked || state.protected) && <Message value="blocked" />}
-    <div hidden={task !== 'edit'}>
-    <VectorPaintControls settings={settings} revision={revision} disabled={disabled} focusSequence={focusRequest?.section === 'paint' ? focusRequest.sequence : undefined} />
+    {!settings && task !== 'paint' && <Message value="settingsRequired" />}
+    {task !== 'preflight' && (state.controls.readOnly || state.controls.selectionLocked || state.protected) && <Message value="blocked" />}
+    <div hidden={task !== 'paint'}>
+    <VectorPaintControls settings={settings} revision={revision} disabled={disabled} focusSequence={task === 'paint' && focusRequest?.section === 'paint' ? focusRequest.sequence : undefined} />
+    <OutlinePenPanel settings={settings} revision={revision} disabled={disabled} focusSequence={task === 'paint' && focusRequest?.section === 'outline' ? focusRequest.sequence : undefined} />
+    </div><div hidden={task !== 'edit'}>
+    <CadNodeArrangePanel settings={settings} disabled={disabled} focusSequence={task === 'edit' && focusRequest?.section === 'nodeArrange' ? focusRequest.sequence : undefined} />
     <CornerControls settings={settings} revision={revision} disabled={disabled} focusSequence={cornerFocus || undefined} />
     <CompoundControls disabled={disabled || !settings} settings={settings} />
     <CurveNodes settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && (focusRequest?.section === 'nodes' || focusRequest?.section === 'convert' && !state.text)} sequence={focusRequest?.sequence} onCorner={() => setCornerFocus(value => value + 1)} />
@@ -96,6 +103,7 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
     <VectorExport settings={settings} revision={revision} disabled={state.controls.readOnly} />
     <DxfImport settings={settings} revision={revision} disabled={state.controls.readOnly} />
     </div><div hidden={task !== 'trace'}><RasterTrace settings={settings} revision={revision} disabled={state.controls.readOnly} /></div>
+    <div hidden={task !== 'preflight'}><DrawingPreflightPanel settings={settings} focusSequence={task === 'preflight' && focusRequest?.section === 'preflight' ? focusRequest.sequence : undefined}/></div>
   </>;
 }
 

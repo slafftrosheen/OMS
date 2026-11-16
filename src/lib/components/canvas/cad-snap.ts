@@ -4,6 +4,7 @@ import { readCadSnapSettings } from './cad-snap-settings';
 import { contourSegments, cubicAt, splitCubic, type CadContour } from './cad-curves';
 import { cubicLength } from './cad-measurements';
 import { ellipseTangentPoints, perpendicularSegmentPoint } from './cad-construction-snaps';
+import { cubicConstructionPoints, MAX_CUBIC_CONSTRUCTION_SOURCES } from './cad-cubic-construction';
 import { MAX_SNAP_INTERSECTION_SOURCES, MAX_CUBIC_ELLIPSE_SNAP_PAIRS, snapIntersections, type SnapIntersectionSource } from './cad-intersections';
 import { MAX_CUBIC_CUBIC_SNAP_PAIRS, MAX_CUBIC_CUBIC_SNAP_STEPS } from './cad-cubic-intersections';
 export { lineSnapIntersection } from './cad-intersections';
@@ -71,6 +72,7 @@ export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId 
   if (!Number.isFinite(tolerance) || tolerance <= 0) return null;
   let best: CadSnapResult | null = null, bestDistance = tolerance;
   const near: CadPoint[] = [], intersections: SnapIntersectionSource[] = [];
+  let constructionCubics = 0;
   const offer = (candidate: CadPoint, kind: CadSnapKind) => {
     if (!validCadPoint(candidate)) return;
     const delta = distance(point, candidate);
@@ -116,6 +118,10 @@ export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId 
           if (settings.intersections && intersections.length < MAX_SNAP_INTERSECTION_SOURCES) intersections.push({ kind: 'cubic', points });
           if (settings.midpoints) {
             try { if (!cache.has(key)) cache.set(key, cubicMidpoint(local)); offerLocal(cache.get(key)!, 'midpoints'); } catch { /* Bounded integration refuses pathological curves. */ }
+          }
+          if (constructionAnchor && (settings.perpendicular || settings.tangent) && constructionCubics++ < MAX_CUBIC_CONSTRUCTION_SOURCES) {
+            if (settings.perpendicular) for (const candidate of cubicConstructionPoints(constructionAnchor, points, 'perpendicular')) offer(candidate, 'perpendicular');
+            if (settings.tangent) for (const candidate of cubicConstructionPoints(constructionAnchor, points, 'tangent')) offer(candidate, 'tangent');
           }
           if (settings.nearest) near.push(nearestCubicPoint(point, points));
         }
