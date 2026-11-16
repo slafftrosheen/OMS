@@ -1,0 +1,131 @@
+import { describe, it } from 'vitest';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { decodeDxf } from '../../src/lib/components/canvas/cad-dxf-decode';
+import { readDxfSpline } from '../../src/lib/components/canvas/cad-dxf-spline';
+import { readCadDxf, splineContour } from '../../src/lib/components/canvas/cad-import';
+import { cubicAt, cubicPoints } from '../../src/lib/components/canvas/cad-curves';
+import { hatchContours } from '../../src/lib/components/canvas/cad-dxf-geometry';
+import { DEFAULT_CAD_SETTINGS as settings, cadMmPerPixel } from '../../src/lib/components/canvas/cad-settings';
+import type { DxfPair } from '../../src/lib/components/canvas/cad-dxf-decode';
+
+const controlPairs: DxfPair[] = [[71,'3'],[72,'8'],[73,'4'],[74,'0'],
+  ...[0,0,0,0,1,1,1,1].map(v => [40,String(v)] as DxfPair),
+  ...[[0,0],[10,20],[20,20],[30,0]].flatMap(([x,y]) => [[10,String(x)],[20,String(y)]] as DxfPair[])];
+const entity = (pairs: DxfPair[]) => '0\nSPLINE\n' + pairs.flat().join('\n') + '\n';
+const line = '0\nLINE\n10\n0\n20\n0\n11\n10\n21\n0\n';
+const document = (body: string) => '0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n' + body + '0\nENDSEC\n0\nEOF\n';
+const plan = (pairs: DxfPair[]) => readCadDxf(settings,document(entity(pairs)+line),{keepCoordinates:true});
+const failure = (pairs: DxfPair[], reason: string) => {
+  const result=plan(pairs);
+  assert.equal(result.shapes?.length,1,JSON.stringify(result.omitted));
+  assert.equal(result.omitted.length,1);
+  assert.equal(result.omitted[0].reason,reason);
+  assert.equal(result.blocked,false);
+};
+const replace = (code: number, value: string) => controlPairs.map(([c,v]) => [c,c===code?value:v] as DxfPair);
+
+describe('DXF SPLINE records and isolated import failures',()=>{
+  it('imports equivalent ASCII and R13+ binary spline fixtures with the same review and geometry',()=>{
+    const read=(name:string)=>readCadDxf(settings,decodeDxf(readFileSync('tests/fixtures/cad-splines/'+name+'.dxf')),{keepCoordinates:true});
+    const ascii=read('mixed-ascii'),binary=read('mixed-binary');
+    assert.deepEqual(binary,ascii);
+    assert.equal(ascii.blocked,false);
+    assert.equal(ascii.shapes?.length,3);
+    assert.equal(ascii.contours.length,4);
+    assert.equal(ascii.contours[0].closed,true);
+    assert.ok(ascii.contours[0].nodes.length<30,'Polynomial periodic spline retains compact cubic nodes');
+    assert.deepEqual(ascii.warnings,['import-curves-approximated']);
+    assert.deepEqual(ascii.omitted,[{type:'SPLINE',reason:'spline-fit-only',handle:'A4',layer:'FIT_ONLY'}]);
+  });
+  it('keeps polynomial control-point curves exact and ignores exporter metadata flag bits',()=>{
+    const result=plan([...controlPairs,[70,'1064']]);
+    assert.deepEqual(result.omitted,[]);
+    assert.deepEqual(result.warnings,[]);
+    const contour=result.contours[0], mm=cadMmPerPixel(settings);
+    assert.equal(contour.nodes.length,2);
+    assert.ok(Math.abs(contour.nodes[0].outX*mm-10)<1e-10);
+    assert.ok(Math.abs(contour.nodes[0].outY*mm+20)<1e-10);
+  });
+  it('accepts absent counts and absent all-unit weights',()=>{
+    const parsed=readDxfSpline(controlPairs.filter(([c])=>![72,73,74].includes(c)));
+    assert.equal(parsed.weights,undefined);
+    assert.equal(parsed.controls.length,4);
+  });
+  it('reads coordinate series in group order without confusing fit points with controls',()=>{
+    const pairs: DxfPair[] = [[71,'1'],[73,'2'],[74,'2'],[72,'4'],
+      [40,'0'],[40,'0'],[40,'1'],[40,'1'],
+      [10,'0'],[10,'10'],[20,'1'],[20,'2'],
+      [11,'0'],[21,'1'],[11,'10'],[21,'2']];
+    const parsed=readDxfSpline(pairs);
+    assert.deepEqual(parsed.controls,[{x:0,y:1},{x:10,y:2}]);
+    assert.equal(plan(pairs).omitted.length,0);
+  });
+  it('reports fit-point-only records without fabricating a curve',()=>{
+    failure([[71,'3'],[72,'0'],[73,'0'],[74,'3'],[11,'0'],[21,'0'],
+      [11,'10'],[21,'20'],[11,'30'],[21,'0']],'spline-fit-only');
+  });
+  it('validates declared control, knot and fit counts independently',()=>{
+    for(const code of [72,73,74])failure(replace(code,'999'),'spline-count');
+    failure([...controlPairs,[73,'4']],'spline-count');
+  });
+  it('rejects incomplete coordinate sequences and blank coordinates per entity',()=>{
+    failure(controlPairs.filter(([c],i)=>!(c===20&&i===controlPairs.length-1)),'spline-control-points');
+    failure(replace(20,''),'spline-control-points');
+  });
+  it('rejects sparse and nonpositive rational weights without losing other entities',()=>{
+    failure([...controlPairs,[41,'2']],'spline-weights');
+    failure([...controlPairs,...[1,0,1,1].map(v=>[41,String(v)] as DxfPair)],'spline-weights');
+  });
+  it('reports corrupt knots and degrees separately',()=>{
+    failure(replace(40,'NaN'),'spline-knots');
+    failure(replace(71,'3.5'),'spline-degree');
+    failure(replace(71,'17'),'spline-degree');
+  });
+  it('retains source handles and layers with an omitted entity',()=>{
+    const result=plan([...replace(73,'99'),[5,'A7'],[8,'CUTTING']]);
+    assert.deepEqual(result.omitted,[{type:'SPLINE',reason:'spline-count',handle:'A7',layer:'CUTTING'}]);
+  });
+  it('isolates malformed entity colour instead of aborting the document',()=>{
+    failure([...controlPairs,[62,'not-a-colour']],'geometry');
+  });
+  it('does not close a mismatched endpoint just because closed or periodic is set',()=>{
+    failure([...controlPairs,[70,'1']],'spline-closure');
+    failure([...controlPairs,[70,'2']],'spline-closure');
+  });
+  it('imports separate full-multiplicity spans without an invented connecting segment',()=>{
+    const pairs: DxfPair[] = [[71,'1'],[72,'6'],[73,'4'],
+      ...[0,0,0.5,0.5,1,1].map(v=>[40,String(v)] as DxfPair),
+      ...[[0,0],[10,0],[20,0],[30,0]].flatMap(([x,y])=>[[10,String(x)],[20,String(y)]] as DxfPair[])];
+    const result=plan(pairs);
+    assert.deepEqual(result.omitted,[]);
+    assert.equal(result.shapes?.length,2);
+    assert.equal(result.contours.length,3);
+    assert.deepEqual(result.contours.map(c=>c.nodes.length),[2,2,2]);
+    assert.equal((result.shapes?.[0].props.contours as unknown[]).length,2);
+  });
+  it('preserves the legacy single-contour helper and refuses to bridge discontinuities',()=>{
+    assert.equal(splineContour([{x:0,y:0},{x:10,y:0}],[0,0,1,1],1,false).nodes.length,2);
+    const unclamped=splineContour([{x:0,y:0},{x:10,y:10},{x:20,y:0}],[0,1,2,3,4,5],2,false);
+    assert.deepEqual(unclamped.nodes.map(({x,y})=>({x,y})),[{x:5,y:5},{x:15,y:5}]);
+    const middle=cubicAt(cubicPoints(unclamped.nodes[0],unclamped.nodes[1]),0.5);
+    assert.ok(Math.abs(middle.x-10)<1e-10&&Math.abs(middle.y-7.5)<1e-10);
+    assert.throws(()=>splineContour([{x:0,y:0},{x:10,y:0},{x:20,y:0},{x:30,y:0}],[0,0,.5,.5,1,1],1,false),
+      (error:any)=>error.code==='spline-discontinuous');
+  });
+  it('keeps an exact polynomial HATCH spline boundary exact',()=>{
+    const pairs: DxfPair[] = [[91,'1'],[92,'0'],[93,'1'],[72,'4'],[94,'1'],[73,'0'],[74,'0'],[95,'7'],[96,'5'],
+      ...[0,0,1,2,3,4,4].map(v=>[40,String(v)] as DxfPair),
+      ...[[0,0],[10,0],[10,10],[0,10],[0,0]].flatMap(([x,y])=>[[10,String(x)],[20,String(y)]] as DxfPair[]),
+      [97,'0'],[97,'0']];
+    const result=hatchContours(pairs,0.002);
+    assert.equal(result.approximated,false);
+    assert.equal(result.contours[0].closed,true);
+    assert.equal(result.contours[0].nodes.length,4);
+  });
+  it('isolates oversized spline point records while keeping bounded document intake',()=>{
+    const pairs:DxfPair[]=[[71,'1'],[72,'0'],[73,'4097']];
+    for(let i=0;i<4097;i++)pairs.push([10,String(i)],[20,'0']);
+    failure(pairs,'spline-limit');
+  });
+});

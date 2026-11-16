@@ -1,6 +1,7 @@
 import {ParametricShapePanel} from './ParametricShapePanel';
 import {RectangleShapePanel} from './RectangleShapePanel';
 import {OutlinePenPanel} from './OutlinePenPanel';
+import {OutlineToObjectPanel} from './OutlineToObjectPanel';
 import {CadNodeArrangePanel} from './CadNodeArrangePanel';
 import {DrawingPreflightPanel} from './DrawingPreflightPanel';
 import {drawingFontErrorLabel, useDrawingFontText, type DrawingFontLabel} from './font-copy';
@@ -23,7 +24,7 @@ import { decodeDxf } from './cad-dxf-decode';
 import { prepareCadText, getCadFont, isCadTextSingleLine, DEFAULT_TEXT_LAYOUT, type CadTextLayout, type CadTextPlan } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'nodeArrange' | 'preflight'; sequence: number };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle' | 'outline' | 'outlineObject' | 'nodeArrange' | 'preflight'; sequence: number };
 export type CadTask = 'draw' | 'edit' | 'paint' | 'document' | 'files' | 'trace' | 'preflight';
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
@@ -40,7 +41,7 @@ function canChange(editor: Editor, selection = true) {
 }
 function errorLabel(error: unknown, fallback: CadAdvancedLabel = 'failed'): CadAdvancedLabel {
   const code = (error as { code?: string })?.code ?? (error as Error)?.message;
-  return ({ 'join-selection': 'joinHelp', 'join-gap': 'joinGapError', 'arc-text-fit': 'arcTextFit', 'arc-text-advance': 'arcTextAdvance', 'arc-text-line': 'arcTextLine', 'arc-text-layout': 'unsupportedFont', 'guide-selection': 'guideSelection', 'guide-source': 'guideSource', 'guide-fit': 'guideTextFit', 'guide-tangent': 'guideTextTangent', 'guide-limit': 'guideTextLimit', 'guide-layout': 'unsupportedFont', 'fill-rule': 'compoundFailed', empty: 'empty', readonly: 'blocked', locked: 'blocked', font: 'invalidFont', 'missing-glyph': 'unsupportedFont', unit: 'unitRequired', format: 'invalidDxf', unsupported: 'unsupported', stale: 'stale', geometry: 'invalid', selection: 'selectionHelp', open: 'selectionHelp', limit: 'limit', capacity: 'limit', bound: 'bound' } as Record<string, CadAdvancedLabel>)[code ?? ''] ?? fallback;
+  return ({ 'spline-fit-only': 'splineFitOnly', 'spline-fit-points': 'splineFitPoints', 'spline-discontinuous': 'splineDiscontinuous', 'spline-control-points': 'splineControlPoints', 'spline-count': 'splineCount', 'spline-knots': 'splineKnots', 'spline-weights': 'splineWeights', 'spline-degree': 'splineDegree', 'spline-closure': 'splineClosure', 'spline-limit': 'splineLimit', 'join-selection': 'joinHelp', 'join-gap': 'joinGapError', 'arc-text-fit': 'arcTextFit', 'arc-text-advance': 'arcTextAdvance', 'arc-text-line': 'arcTextLine', 'arc-text-layout': 'unsupportedFont', 'guide-selection': 'guideSelection', 'guide-source': 'guideSource', 'guide-fit': 'guideTextFit', 'guide-tangent': 'guideTextTangent', 'guide-limit': 'guideTextLimit', 'guide-layout': 'unsupportedFont', 'fill-rule': 'compoundFailed', empty: 'empty', readonly: 'blocked', locked: 'blocked', font: 'invalidFont', 'missing-glyph': 'unsupportedFont', unit: 'unitRequired', format: 'invalidDxf', unsupported: 'unsupported', stale: 'stale', geometry: 'invalid', selection: 'selectionHelp', open: 'selectionHelp', limit: 'limit', capacity: 'limit', bound: 'bound' } as Record<string, CadAdvancedLabel>)[code ?? ''] ?? fallback;
 }
 function warningLabel(code: string): CadAdvancedLabel {
   return ({ 'join-arc-approximation': 'joinApproximation', 'arc-text-review': 'arcTextReview', 'guide-text-review': 'guideTextReview', 'curves-approximated': 'approximated', 'import-curves-approximated': 'importApproximation', 'import-font-substitution':'importFontSubstitution', 'import-3d-projection':'import3dProjection', 'import-elevation': 'importElevation', 'import-dimension': 'importDimension', 'import-hatch-boundary': 'importHatchBoundary', 'sources-overlap': 'sourcesOverlap', 'text-layout-review': 'textLayoutReview', 'font-outline-only': 'fontOutlineOnly' } as Record<string, CadAdvancedLabel>)[code] ?? 'unrecognizedWarning';
@@ -86,6 +87,7 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
     <div hidden={task !== 'paint'}>
     <VectorPaintControls settings={settings} revision={revision} disabled={disabled} focusSequence={task === 'paint' && focusRequest?.section === 'paint' ? focusRequest.sequence : undefined} />
     <OutlinePenPanel settings={settings} revision={revision} disabled={disabled} focusSequence={task === 'paint' && focusRequest?.section === 'outline' ? focusRequest.sequence : undefined} />
+    <OutlineToObjectPanel settings={settings} revision={revision} disabled={disabled} focusSequence={task === 'paint' && focusRequest?.section === 'outlineObject' ? focusRequest.sequence : undefined} />
     </div><div hidden={task !== 'edit'}>
     <CadNodeArrangePanel settings={settings} disabled={disabled} focusSequence={task === 'edit' && focusRequest?.section === 'nodeArrange' ? focusRequest.sequence : undefined} />
     <CornerControls settings={settings} revision={revision} disabled={disabled} focusSequence={cornerFocus || undefined} />
@@ -509,7 +511,7 @@ function DxfImport({ settings, revision, disabled }: SharedProps) {
       <dl className="drawing-cad-values"><dt>{label('sourceUnit')}</dt><dd>{review.plan.sourceUnit || '—'}</dd><dt>{label('omitted')}</dt><dd>{review.plan.omitted.length}</dd></dl>
       {review.plan.requiresUnit && <Message value="chooseUnit" error />}
       {review.plan.omitted.length || review.plan.warnings.length ? <>
-        <ul className="drawing-cad-omissions">{review.plan.omitted.map((item, index) => <li key={`${item.type}-${index}`}><strong>{item.type}</strong><span>{label(errorLabel({ code: item.reason }, 'unsupported'))}</span></li>)}</ul>
+        <ul className="drawing-cad-omissions">{review.plan.omitted.map((item, index) => <li key={`${item.type}-${index}`}><strong>{item.type}{item.handle ? ` · #${item.handle}` : ''}</strong>{item.layer && <span>{label('importLayer')}: {item.layer}</span>}<span>{label(errorLabel({ code: item.reason }, 'unsupported'))}</span></li>)}</ul>
         <label className="drawing-cad-check"><input type="checkbox" checked={acknowledged} disabled={disabled || busy || review.plan.revision !== revision || review.inputKey !== inputKey} onChange={event => setAcknowledged(event.target.checked)} /><span>{label('acceptOmissions')}</span></label>
       </> : <p className="drawing-help">{label('noOmissions')}</p>}
     </PlanReview>}

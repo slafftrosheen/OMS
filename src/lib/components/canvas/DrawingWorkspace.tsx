@@ -17,6 +17,7 @@ import {RadialArrange} from './RadialArrange';
 import {useArrangeTaskText, type ArrangeTask} from './arrange-task-copy';
 import {cadPalettePatch} from './drawing-palette';
 import {useOutlineText} from './outline-copy';
+import {useOutlineToObjectText} from './outline-object-copy';
 import {useNodeArrangeText} from './node-arrange-copy';
 import {usePreflightText} from './preflight-copy';
 import {TextPanel,ArrangePanel,MeasurePanel,FormScaleControl} from './WorkbenchPanels';
@@ -407,6 +408,7 @@ export function DrawingChrome() {
   const rectangleShapeLabel = useRectangleShapeText();
   const arrangeTaskLabel = useArrangeTaskText();
   const outlineLabel = useOutlineText();
+  const outlineObjectLabel = useOutlineToObjectText();
   const nodeArrangeLabel = useNodeArrangeText();
   const preflightLabel = usePreflightText();
   const [arrangeTask, setArrangeTask] = useState<ArrangeTask>('align');
@@ -624,6 +626,11 @@ export function DrawingChrome() {
         openArrange('align');
         return;
       }
+      if (inDrawing && modifier && event.shiftKey && !event.altKey && !event.isComposing && key === 'q') {
+        event.preventDefault(); event.stopPropagation();
+        if (!event.repeat) focusCad('outlineObject');
+        return;
+      }
       const alignment = alignmentKeys[key];
       if (inDrawing && alignment && !modifier && !event.shiftKey && !event.altKey && !event.isComposing &&
           !openMenu && toolGroup === null && editor.isIn('select.idle') && !isCadNodeEditing(editor)) {
@@ -652,7 +659,7 @@ export function DrawingChrome() {
         return;
       }
       const lockedSelection = captureToolkitControls(editor).selectionLocked;
-      if ((!modifier && !event.altKey && event.key === 'F10') || (modifier && !event.altKey && event.key.toLowerCase() === 'q')) {
+      if ((!modifier && !event.altKey && event.key === 'F10') || (modifier && !event.altKey && !event.shiftKey && !event.isComposing && event.key.toLowerCase() === 'q')) {
         event.preventDefault(); event.stopPropagation();
         focusCad(event.key === 'F10' ? 'nodes' : 'convert');
         return;
@@ -874,6 +881,7 @@ export function DrawingChrome() {
           <button type="button" disabled={!controls.canEditSelection || !settings} onClick={() => compound('breakApart')}>{advancedLabel('breakApart')}</button>
           <button type="button" onClick={() => focusCad('paint')}>{vectorLabel('paint')}</button>
           <button type="button" onClick={() => focusCad('outline')} aria-keyshortcuts="F12">{outlineLabel('title')} · F12</button>
+          <button type="button" onClick={() => focusCad('outlineObject')} aria-keyshortcuts="Control+Shift+Q Meta+Shift+Q">{outlineObjectLabel('title')} · Ctrl/⌘+Shift+Q</button>
           <button type="button" onClick={() => focusCad('nodes')}>{advancedLabel('nodes')}</button>
           <button type="button" onClick={() => focusCad('nodeArrange')}>{nodeArrangeLabel('title')}</button>
           <button type="button" onClick={() => focusCad('convert')}>{advancedLabel('convert')}</button>

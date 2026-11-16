@@ -468,7 +468,7 @@ describe('CAD DXF interchange', () => {
     assert.equal(unsupported.contours.length, 0);
     assert.equal(applyCadPlan(f.editor, unsupported), false);
   });
-  it('converts nonuniform clamped quadratic B-splines exactly and rejects rational/periodic input', () => {
+  it('converts clamped and nonclamped polynomial B-splines exactly and reports malformed records', () => {
     const c = splineContour(
       [
         { x: 0, y: 0 },
@@ -500,20 +500,20 @@ describe('CAD DXF interchange', () => {
     const left = cubicAt(cubicPoints(c.nodes[0], c.nodes[1]), 0.5);
     near(left.x, 8.75);
     near(left.y, 15);
-    assert.throws(
-      () =>
-        splineContour(
-          [
-            { x: 0, y: 0 },
-            { x: 10, y: 10 },
-            { x: 20, y: 0 }
-          ],
-          [0, 1, 2, 3, 4, 5],
-          2,
-          false
-        ),
-      /unsupported/
+    const unclamped = splineContour(
+      [{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 20, y: 0 }],
+      [0, 1, 2, 3, 4, 5],
+      2,
+      false
     );
+    assert.equal(unclamped.nodes.length, 2);
+    near(unclamped.nodes[0].x, 5);
+    near(unclamped.nodes[0].y, 5);
+    near(unclamped.nodes[1].x, 15);
+    near(unclamped.nodes[1].y, 5);
+    const middle = cubicAt(cubicPoints(unclamped.nodes[0], unclamped.nodes[1]), 0.5);
+    near(middle.x, 10);
+    near(middle.y, 7.5);
     const f = fixture(),
       r = prepareCadImport(f.editor, settings, dxf('0\nSPLINE\n70\n4\n71\n2\n41\n0.5\n'), { keepCoordinates: true });
     assert.equal(r.omitted.length, 1);

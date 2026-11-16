@@ -7,7 +7,8 @@ import {
   matrixScale,
   dxfColor,
 } from "./cad-dxf-geometry";
-import { rationalSplineContour } from "./cad-nurbs";
+import { splineContours } from "./cad-nurbs";
+import { dxfSplineContours } from "./cad-dxf-spline";
 import type { Editor } from "@tldraw/tldraw";
 import {
   cadMmPerPixel,
@@ -21,7 +22,6 @@ import {
   arcContour,
   curveBounds,
   mapContours,
-  mix,
   nodeAt,
   validContours,
   type CadContour,
@@ -35,7 +35,7 @@ import {
 } from "./cad-plans";
 
 export interface CadImportPlan extends CadPlan {
-  omitted: { type: string; reason: string }[];
+  omitted: { type: string; reason: string; handle?: string; layer?: string }[];
   sourceUnit: string;
   requiresUnit: boolean;
 }
@@ -100,75 +100,17 @@ function require2d(r: Record) {
     throw new CadOperationError("unsupported");
   if (get(r, 67) || get(r, 60)) throw new CadOperationError("unsupported");
 }
-/** Exact conversion of clamped, non-rational degree 1–3 B-splines by knot insertion. */
+/** Compatibility helper for single-contour polynomial degree 1-3 splines. */
 export function splineContour(
   controls: CadPoint[],
   knots: number[],
   degree: number,
   closed: boolean,
 ): CadContour {
-  let p = controls.map((v) => ({ ...v })),
-    u = [...knots];
-  if (
-    !Number.isInteger(degree) ||
-    degree < 1 ||
-    degree > 3 ||
-    p.length < degree + 1 ||
-    p.length > 4096 ||
-    u.length !== p.length + degree + 1 ||
-    u.some((v, i) => !Number.isFinite(v) || (i && v < u[i - 1])) ||
-    p.some((v) => !Number.isFinite(v.x) || !Number.isFinite(v.y))
-  )
-    throw new CadOperationError("unsupported");
-  const low = u[degree],
-    high = u[p.length];
-  if (
-    !(high > low) ||
-    u.slice(0, degree + 1).some((v) => v !== low) ||
-    u.slice(-degree - 1).some((v) => v !== high)
-  )
-    throw new CadOperationError("unsupported");
-  const inner = [...new Set(u.filter((v) => v > low && v < high))];
-  for (const value of inner) {
-    let multiplicity = u.filter((v) => v === value).length;
-    if (multiplicity > degree) throw new CadOperationError("unsupported");
-    while (multiplicity < degree) {
-      const k = u.findIndex((v) => v > value) - 1,
-        q: CadPoint[] = [];
-      for (let i = 0; i <= k - degree; i++) q[i] = p[i];
-      for (let i = k - multiplicity; i < p.length; i++) q[i + 1] = p[i];
-      for (let i = k - degree + 1; i <= k - multiplicity; i++)
-        q[i] = mix(p[i - 1], p[i], (value - u[i]) / (u[i + degree] - u[i]));
-      p = q;
-      u.splice(k + 1, 0, value);
-      multiplicity++;
-      if (p.length > 12000) throw new CadOperationError("limit");
-    }
-  }
-  const nodes = [nodeAt(p[0])];
-  for (let i = 0; i < p.length - 1; i += degree) {
-    const a = nodes.at(-1)!,
-      b = nodeAt(p[i + degree]);
-    if (degree > 1) {
-      const c1 = degree === 2 ? mix(p[i], p[i + 1], 2 / 3) : p[i + 1],
-        c2 = degree === 2 ? mix(p[i + 2], p[i + 1], 2 / 3) : p[i + 2];
-      a.outX = c1.x - a.x;
-      a.outY = c1.y - a.y;
-      b.inX = c2.x - b.x;
-      b.inY = c2.y - b.y;
-    }
-    nodes.push(b);
-  }
-  if (closed) {
-    const first = nodes[0],
-      last = nodes.at(-1)!;
-    if (Math.hypot(first.x - last.x, first.y - last.y) > 1e-8)
-      throw new CadOperationError("unsupported");
-    first.inX = last.inX;
-    first.inY = last.inY;
-    nodes.pop();
-  }
-  return { closed, nodes };
+  if (degree > 3) throw new CadOperationError("spline-degree");
+  const result = splineContours(controls, undefined, knots, degree, closed, 1e-8);
+  if (result.contours.length !== 1) throw new CadOperationError("spline-discontinuous");
+  return result.contours[0];
 }
 /** Bounds of the created entities, including analytic arcs/ellipses (not preview samples). */
 function plannedBounds(shapes: CadPlannedShape[]) {
@@ -346,8 +288,8 @@ export function readCadDxf(
   ) => {
     const mapped = mapContours(curves, (p) => transform(m, p));
     if (!validContours(mapped)) throw new CadOperationError("geometry");
-    contours.push(...mapped);
     const color = dxfColor(get(r, 420, -1), get(r, 62, 7));
+    contours.push(...mapped);
     shapes.push({
       type: "cad-bezier",
       x: 0,
@@ -374,54 +316,54 @@ export function readCadDxf(
   ) => {
     for (let index = 0; index < records.length; index++) {
       const original = records[index];
-      const layerName =
-        !word(original, 8) || word(original, 8) === "0"
-          ? word(inherited ?? original, 8) || "0"
-          : word(original, 8);
-      const layer = parsed.layers.get(layerName);
-      const style =
-        get(original, 62, 256) === 0
-          ? inherited
-          : get(original, 62, 256) === 256
-            ? layer
-            : original;
-      const r: Record = {
-        ...original,
-        pairs: original.pairs
-          .filter(([c]) => ![8, 62, 420].includes(c))
-          .concat(
-            [
-              [8, layerName],
-              [
-                62,
-                String(
-                  get(original, 62, 256) > 0 && get(original, 62, 256) < 256
-                    ? get(original, 62)
-                    : get(style ?? original, 62, 7),
-                ),
-              ],
-            ],
-            word(original, 420) || word(style ?? original, 420)
-              ? [[420, word(original, 420) || word(style ?? original, 420)]]
-              : [],
-          ),
-      };
-      const ocs = [
-        "INSERT",
-        "CIRCLE",
-        "ARC",
-        "LWPOLYLINE",
-        "POLYLINE",
-        "SOLID",
-        "TRACE",
-        "HATCH", "TEXT", "ATTRIB", "ATTDEF",
-      ].includes(r.type);
-      const m =
-        r.projectedMatrix ? multiply(root,r.projectedMatrix) : ocs && get(r, 230, 1) < 0
-          ? multiply(parent, [-1, 0, 0, 1, 0, 0])
-          : parent;
       if (++seen > 4000) throw new CadOperationError("limit");
       try {
+        const layerName =
+          !word(original, 8) || word(original, 8) === "0"
+            ? word(inherited ?? original, 8) || "0"
+            : word(original, 8);
+        const layer = parsed.layers.get(layerName);
+        const style =
+          get(original, 62, 256) === 0
+            ? inherited
+            : get(original, 62, 256) === 256
+              ? layer
+              : original;
+        const r: Record = {
+          ...original,
+          pairs: original.pairs
+            .filter(([c]) => ![8, 62, 420].includes(c))
+            .concat(
+              [
+                [8, layerName],
+                [
+                  62,
+                  String(
+                    get(original, 62, 256) > 0 && get(original, 62, 256) < 256
+                      ? get(original, 62)
+                      : get(style ?? original, 62, 7),
+                  ),
+                ],
+              ],
+              word(original, 420) || word(style ?? original, 420)
+                ? [[420, word(original, 420) || word(style ?? original, 420)]]
+                : [],
+            ),
+        };
+        const ocs = [
+          "INSERT",
+          "CIRCLE",
+          "ARC",
+          "LWPOLYLINE",
+          "POLYLINE",
+          "SOLID",
+          "TRACE",
+          "HATCH", "TEXT", "ATTRIB", "ATTDEF",
+        ].includes(r.type);
+        const m =
+          r.projectedMatrix ? multiply(root,r.projectedMatrix) : ocs && get(r, 230, 1) < 0
+            ? multiply(parent, [-1, 0, 0, 1, 0, 0])
+            : parent;
         if(!r.projectedMatrix)require2d(r);
         if (
           r.pairs.some(
@@ -600,37 +542,12 @@ export function readCadDxf(
           continue;
         }
         if (r.type === "SPLINE") {
-          const controls = vertices(r),
-            knots = r.pairs.filter((p) => p[0] === 40).map((p) => Number(p[1]));
-          if (
-            get(r, 72, knots.length) !== knots.length ||
-            get(r, 73, controls.length) !== controls.length
-          )
-            throw new CadOperationError("geometry");
-          const weights = r.pairs
-            .filter((p) => p[0] === 41)
-            .map((p) => Number(p[1]));
-          const degree = get(r, 71);
-          const rational =
-            weights.some((w) => w !== 1) ||
-            degree > 3 ||
-            !!(get(r, 70) & 2) ||
-            knots.slice(0, degree + 1).some((v) => v !== knots[degree]) ||
-            knots.slice(-degree - 1).some((v) => v !== knots[controls.length]);
-          if (weights.length && weights.length !== controls.length)
-            throw new CadOperationError("geometry");
-          const contour = rational
-            ? rationalSplineContour(
-                controls,
-                weights.length ? weights : controls.map(() => 1),
-                knots,
-                get(r, 71),
-                !!(get(r, 70) & 1),
-                0.002 / cadMmPerPixel(settings) / matrixScale(m),
-              )
-            : splineContour(controls, knots, get(r, 71), !!(get(r, 70) & 1));
-          if (rational) approximated = true;
-          appendCurve(contour, m, r);
+          const result = dxfSplineContours(
+            r.pairs,
+            0.002 / cadMmPerPixel(settings) / matrixScale(m),
+          );
+          appendCurves(result.contours, m, r);
+          approximated ||= result.approximated;
           continue;
         }
         if (["CIRCLE", "ARC", "ELLIPSE"].includes(r.type)) {
@@ -767,11 +684,13 @@ export function readCadDxf(
         )
           throw new CadOperationError("limit");
         omitted.push({
-          type: r.type,
+          type: original.type,
           reason: (error as CadOperationError).code ?? "geometry",
+          ...(word(original, 5) ? { handle: word(original, 5) } : {}),
+          ...(word(original, 8) ? { layer: word(original, 8) } : {}),
         });
         // Discard remaining children of a rejected legacy POLYLINE as one omitted entity.
-        if (r.type === "POLYLINE") {
+        if (original.type === "POLYLINE") {
           while (["VERTEX", "SEQEND"].includes(records[index + 1]?.type))
             index++;
         }

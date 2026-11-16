@@ -1,5 +1,5 @@
 import { arcContour, mapContours, nodeAt, type CadContour } from "./cad-curves";
-import { rationalSplineContour } from "./cad-nurbs";
+import { splineContours } from "./cad-nurbs";
 import { CadOperationError } from "./cad-plans";
 import type { CadPoint } from "./cad-settings";
 type Pair = [number, string];
@@ -203,11 +203,19 @@ export function hatchContours(pairs: Pair[], tolerance: number) {
           );
           approximated = true;
         } else if (kind === 4) {
-          const degree = count(94, 5),
+          const splineCount = (code: number, max = 4096) => {
+            try { return count(code, max); }
+            catch (error) {
+              if ((error as CadOperationError).code === "limit")
+                throw new CadOperationError("spline-limit");
+              throw error;
+            }
+          };
+          const degree = take(94),
             rational = take(73);
           take(74);
-          const nk = count(95, 8200),
-            np = count(96),
+          const nk = splineCount(95, 8192),
+            np = splineCount(96),
             knots = Array.from({ length: nk }, () => take(40));
           const controls: CadPoint[] = [],
             weights: number[] = [];
@@ -219,22 +227,17 @@ export function hatchContours(pairs: Pair[], tolerance: number) {
           if (rational && pairs[i]?.[0] === 42)
             for (let n = 0; n < np; n++) weights[n] = take(42);
           if (pairs[i]?.[0] === 97) {
-            const nf = count(97);
+            const nf = splineCount(97);
             for (let n = 0; n < nf; n++) point(11);
           }
           if (pairs[i]?.[0] === 12) point(12);
           if (pairs[i]?.[0] === 13) point(13);
-          parts.push(
-            rationalSplineContour(
-              controls,
-              weights,
-              knots,
-              degree,
-              false,
-              tolerance,
-            ),
-          );
-          approximated = true;
+          const result = splineContours(controls, weights, knots, degree, false, tolerance);
+          // A HATCH edge must remain continuous; joining separated spans invents a boundary.
+          if (result.contours.length !== 1)
+            throw new CadOperationError("spline-discontinuous");
+          parts.push(result.contours[0]);
+          approximated ||= result.approximated;
         } else throw new CadOperationError("unsupported");
       }
       const nodes: CadContour["nodes"] = [];
