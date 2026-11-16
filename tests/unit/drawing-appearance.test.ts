@@ -104,3 +104,36 @@ describe('copy and apply drawing appearance', () => {
     assert.deepEqual(applyDrawingAppearance(f.editor, fillOnly), { ok: false, error: 'saveLimit' }); assert.equal(f.marks.length, 0);
   });
 });
+
+describe('analytic CAD appearance', () => {
+  it('fits copied gradients to exact ellipse bounds without changing analytic geometry', () => {
+    const f = fixture();
+    f.add('source', 'cad-bezier', { contours: rect(10, 20, 100, 80) }, { omsVectorPaint: { ...VECTOR_DEFAULT_PAINT, gradient } });
+    const target = f.add('ellipse', 'cad-ellipse', { w: 300, h: 40 }, { custom: 'keep' }), before = structuredClone(target);
+    f.select('source'); assert.equal(copyDrawingAppearance(f.editor).ok, true);
+    f.select('ellipse'); assert.equal(applyDrawingAppearance(f.editor, fillOnly).ok, true);
+    const result = f.shapes.get('ellipse');
+    assert.deepEqual(result.props, before.props); assert.equal(result.type, 'cad-ellipse');
+    assert.deepEqual(result.meta.omsVectorPaint.gradient.matrix, [3, 0, 0, .5, -30, -10]);
+    assert.equal(result.meta.custom, 'keep'); assert.equal(result.rotation, before.rotation);
+    f.editor.bailToMark(f.marks[0].id); assert.deepEqual(f.shapes.get('ellipse'), before);
+  });
+  it('copies all stroke attributes between closed paths, ellipses and arcs', () => {
+    const f = fixture(), paint = { ...VECTOR_DEFAULT_PAINT, stroke: '#aabbcc', strokeWidth: 7, strokeOpacity: .4, dash: [3, 8], dashOffset: 2, lineCap: 'round', lineJoin: 'bevel', miterLimit: 12 };
+    f.add('source', 'cad-path', { points: [{x:0,y:0},{x:10,y:0},{x:10,y:20}], closed:true }, { omsVectorPaint: paint });
+    const arc = f.add('arc', 'cad-arc', { radius:50,startAngle:20,endAngle:250 }), before = structuredClone(arc);
+    f.select('source'); assert.equal(copyDrawingAppearance(f.editor).ok, true); f.select('arc');
+    assert.equal(applyDrawingAppearance(f.editor, outlineOnly).ok, true);
+    assert.deepEqual(f.shapes.get('arc').props, before.props);
+    for (const key of ['stroke','strokeWidth','strokeOpacity','dash','dashOffset','lineCap','lineJoin','miterLimit']) assert.deepEqual(f.shapes.get('arc').meta.omsVectorPaint[key], (paint as any)[key]);
+  });
+  it('refuses fill on open analytic geometry without losing existing paint metadata', () => {
+    const f = fixture(); f.add('source','cad-ellipse',{w:100,h:80},{omsVectorPaint:{...VECTOR_DEFAULT_PAINT,fill:'#ff0000',stroke:'#ff0000'}});
+    const target = f.add('open','cad-path',{points:[{x:0,y:0},{x:100,y:30}],closed:false},{omsVectorPaint:{...VECTOR_DEFAULT_PAINT,gradient}});
+    f.select('source'); copyDrawingAppearance(f.editor); f.select('open');
+    assert.equal(applyDrawingAppearance(f.editor,fillOnly).ok,false); assert.equal(f.marks.length,0);
+    assert.equal(applyDrawingAppearance(f.editor,outlineOnly).ok,true);
+    assert.deepEqual(f.shapes.get('open').meta.omsVectorPaint.gradient,target.meta.omsVectorPaint.gradient);
+    f.select('open'); assert.equal(copyDrawingAppearance(f.editor).ok,true); assert.equal(getDrawingAppearance(f.editor)?.available.fill,false);
+  });
+});

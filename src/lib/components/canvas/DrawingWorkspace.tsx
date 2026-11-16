@@ -5,6 +5,11 @@ import {CadPointEntry} from './CadPointEntry';
 import {RepeatGrid} from './RepeatGrid';
 import {DrawingAppearancePanel} from './DrawingAppearancePanel';
 import {useAppearanceText} from './appearance-copy';
+import {DrawingFindReplacePanel} from './DrawingFindReplacePanel';
+import {useFindReplaceText} from './find-replace-copy';
+import {DrawingSelectSamePanel} from './SelectSamePanel';
+import {useSelectSameText} from './select-same-copy';
+import {useParametricShapeText} from './parametric-shape-copy';
 import {TextPanel,ArrangePanel,MeasurePanel,FormScaleControl} from './WorkbenchPanels';
 import {useWorkbenchText} from './workbench-copy';
 import {textPointSize} from './workbench-operations';
@@ -405,6 +410,9 @@ export function DrawingChrome() {
   const { label: advancedLabel } = useCadAdvancedText();
   const vectorLabel = useVectorText();
   const appearanceLabel = useAppearanceText();
+  const findReplaceLabel = useFindReplaceText();
+  const selectSameLabel = useSelectSameText();
+  const parametricShapeLabel = useParametricShapeText();
   const workbenchLabel = useWorkbenchText();
   const snapLabel = useSnapText();
   const activeSnap = useValue('CAD snap target', () => editor.snaps.getIndicators().some(value => value.id === 'oms-cad-snap') ? cadSnapIndicator(editor).get() : null, [editor]);
@@ -420,6 +428,8 @@ export function DrawingChrome() {
   const [fontFocusRequest, setFontFocusRequest] = useState(0);
   const [repeatFocusRequest, setRepeatFocusRequest] = useState(0);
   const [appearanceFocusRequest, setAppearanceFocusRequest] = useState(0);
+  const [findFocusRequest, setFindFocusRequest] = useState(0);
+  const [selectSameFocusRequest, setSelectSameFocusRequest] = useState(0);
   useEffect(() => { if (context?.panel) setLastPanel(context.panel); }, [context?.panel]);
   const [cadFocus, setCadFocus] = useState<CadFocusRequest>();
   const settings = useValue('drawing cad settings', () => readCadSettings(editor), [editor]);
@@ -523,6 +533,16 @@ export function DrawingChrome() {
     setAppearanceFocusRequest(value => value + 1);
     closeMenus();
   }
+  function openFindReplace() {
+    context?.setPanel('text');
+    setFindFocusRequest(value => value + 1);
+    closeMenus();
+  }
+  function openSelectSame() {
+    context?.setPanel('objects');
+    setSelectSameFocusRequest(value => value + 1);
+    closeMenus();
+  }
   function menuSummary(name: string, text: string) {
     return <summary aria-expanded={openMenu === name} onClick={event => { event.preventDefault(); setOpenMenu(openMenu === name ? null : name); }}
       onKeyDown={event => {
@@ -577,6 +597,11 @@ export function DrawingChrome() {
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
       const inDrawing = !!event.target.closest('.drawing-viewport');
+      if (inDrawing && modifier && !event.shiftKey && !event.altKey && !event.isComposing && key === 'f') {
+        event.preventDefault(); event.stopPropagation();
+        if (!event.repeat) openFindReplace();
+        return;
+      }
       if (inDrawing && modifier && event.shiftKey && !event.altKey && !event.isComposing && key === 'd') {
         event.preventDefault(); event.stopPropagation();
         if (!event.repeat) openRepeat();
@@ -826,6 +851,8 @@ export function DrawingChrome() {
           <p>{label('exportHint')}</p>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="edit" open={openMenu === 'edit'}>{menuSummary('edit', label('edit'))}<div className="drawing-menu-popover">{menuActions(['undo', 'redo', 'select-all', 'duplicate', 'delete'])}
+          <button type="button" onClick={openFindReplace} aria-keyshortcuts="Control+F Meta+F">{findReplaceLabel('title')} · Ctrl/⌘+F</button>
+          <button type="button" onClick={openSelectSame}>{selectSameLabel('title')}</button>
           <button type="button" onClick={openAppearance}>{appearanceLabel('title')}</button>
           <button type="button" onClick={openRepeat} aria-keyshortcuts="Control+Shift+D Meta+Shift+D">{label('repeatGrid')} · Ctrl/⌘+Shift+D</button>
         </div></details>
@@ -843,6 +870,7 @@ export function DrawingChrome() {
           <button type="button" onClick={() => focusCad('join')}>{advancedLabel('joinCurves')}</button>
           <button type="button" onClick={() => focusCad('shaping')}>{advancedLabel('shaping')}</button>
           <button type="button" onClick={() => focusCad('ellipse')}>{vectorLabel('ellipseSegments')}</button>
+          <button type="button" onClick={() => focusCad('polygon')}>{parametricShapeLabel('title')}</button>
           <button type="button" aria-keyshortcuts="Control+Shift+A Meta+Shift+A" title={`${advancedLabel('arrange')} (Ctrl/⌘+Shift+A)`} onClick={()=>{setPanel('arrange');closeMenus();}}>{advancedLabel('arrange')}</button>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="bitmaps" open={openMenu === 'bitmaps'}>{menuSummary('bitmaps', vectorLabel('bitmaps'))}<div className="drawing-menu-popover"><button type="button" disabled={controls.readOnly} onClick={() => focusCad('trace')}>{vectorLabel('trace')}</button></div></details>
@@ -924,7 +952,7 @@ export function DrawingChrome() {
         }} />
       </div>
       <div className="drawing-docker-content" role="region" aria-label={panelLabel(activePanel)}>
-        {activePanel === 'snap' ? <CadSnapPanel settings={settings}/> : activePanel === 'text' ? <TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <>
+        {activePanel === 'snap' ? <CadSnapPanel settings={settings}/> : activePanel === 'text' ? <><DrawingFindReplacePanel focusRequest={findFocusRequest}/><TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/></> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <>
           {selectedText && <fieldset className="drawing-workbench-fields drawing-arrange-section drawing-arrange-geometry" data-testid="drawing-text-geometry">
             <legend>{label('positionAndSize')}</legend>
             {(['x', 'y', 'w', 'h', 'rotation'] as const).map(transformField)}
@@ -934,6 +962,7 @@ export function DrawingChrome() {
           </fieldset>}
           <ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings} focusRequest={repeatFocusRequest}/>
         </> : activePanel === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : activePanel === 'objects' ? <>
+          <DrawingSelectSamePanel focusRequest={selectSameFocusRequest}/>
           <p className="drawing-help">{state.shapes.length} {label('items')} · {controls.selected} {label('selected')}</p>
           <label className="drawing-object-search"><span>{label('searchObjects')}</span><input type="search" value={search} maxLength={100} onChange={event => setSearch(event.target.value)} /></label>
           {state.single && <ObjectNameField key={state.single.id} shape={state.single} disabled={!controls.canEditSelection} />}

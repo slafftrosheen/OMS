@@ -1,6 +1,7 @@
+import {ParametricShapePanel} from './ParametricShapePanel';
 import {drawingFontErrorLabel, useDrawingFontText, type DrawingFontLabel} from './font-copy';
 import {readDrawingFonts, uploadDrawingFont, MAX_DRAWING_FONT_BYTES, MAX_DRAWING_FONTS_BYTES, MAX_DRAWING_FONTS} from './drawing-fonts';
-import { RasterTrace, VectorImport, VectorExport, CornerControls, VectorPaintControls, PolygonControls, EllipseSegmentControls } from './CadVectorPanel';
+import { RasterTrace, VectorImport, VectorExport, CornerControls, VectorPaintControls, EllipseSegmentControls } from './CadVectorPanel';
 import React, { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useEditor, useValue, type Editor } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
@@ -18,7 +19,7 @@ import { decodeDxf } from './cad-dxf-decode';
 import { prepareCadText, getCadFont, isCadTextSingleLine, DEFAULT_TEXT_LAYOUT, type CadTextLayout, type CadTextPlan } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint' | 'ellipse'; sequence: number };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon'; sequence: number };
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
 const FILE_LIMIT = 8 * 1024 * 1024;
@@ -86,7 +87,7 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
     <Shaping settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'shaping'} sequence={focusRequest?.sequence} />
     </div><div hidden={task !== 'draw'}>
     <EllipseSegmentControls settings={settings} revision={revision} disabled={state.controls.readOnly} focusSequence={task === 'draw' && focusRequest?.section === 'ellipse' ? focusRequest.sequence : undefined} />
-    <PolygonControls settings={settings} revision={revision} disabled={state.controls.readOnly} />
+    <ParametricShapePanel settings={settings} revision={revision} disabled={state.controls.readOnly} focusSequence={task === 'draw' && focusRequest?.section === 'polygon' ? focusRequest.sequence : undefined} />
     <TextOutlines settings={settings} revision={revision} disabled={state.controls.readOnly} focus={task === 'draw' && (focusRequest?.section === 'lettering' || focusRequest?.section === 'convert' && state.text)} newText={focusRequest?.section === 'lettering'} sequence={focusRequest?.sequence} />
     </div><div hidden={task !== 'files'}>
     <VectorImport settings={settings} revision={revision} disabled={state.controls.readOnly} />

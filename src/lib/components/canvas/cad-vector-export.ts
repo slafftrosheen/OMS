@@ -1,3 +1,4 @@
+import { cadShapePaint } from './cad-shape-appearance';
 import {
   multiplyMatrix,
   transformAppearance,
@@ -14,7 +15,6 @@ import {
   validContours,
 } from "./cad-curves";
 import {
-  vectorPaint,
   scalePaint,
   validVectorPaint,
   type VectorPath,
@@ -308,7 +308,7 @@ export function prepareVectorExport(
         x = transform.applyToPoint({ x: 1, y: 0 }),
         y = transform.applyToPoint({ x: 0, y: 1 });
       const paint = transformAppearance(
-        scalePaint(vectorPaint(shape.meta, (shape.props as any).color), factor),
+        scalePaint(cadShapePaint(shape), factor),
         [
           x.x - origin.x,
           x.y - origin.y,

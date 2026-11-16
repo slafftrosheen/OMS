@@ -90,7 +90,7 @@ These tools share one implementation in idea boards and order canvases:
 
 - **Edit → Step and Repeat** (**Ctrl/⌘+Shift+D**) opens the Arrange docker. Choose rows and columns, spacing as an edge gap or origin-to-origin distance, and left/right/up/down direction. Preview shows the layout, generated object count and final extent before Apply. Distances follow document units and scale. Changes to the selection, geometry or spacing invalidate the preview. Applying creates one undoable batch; protected, clipped or unsupported objects, excessive copies and oversized drawings are rejected.
 - **Object → Ellipse / pie / arc** opens the CAD section. Set center, width and height (or constrain to a circle), rotation, start/end angles and sweep direction. Create an open arc, pie sector or chord segment. Preview uses the existing CAD plan controls; Apply creates editable Bézier curves for the existing node tools and export paths. Curves approximate ellipses within 0.005 mm; they are not exact conic records. Whole ellipses remain available from the ordinary ellipse tool.
-- **Edit → Copy appearance** opens a collapsible Properties section. Copy one object, select compatible targets, choose color/fill, outline and/or opacity, then apply in one undo step. Bézier gradients fit each target. Native drawing styles and Bézier curve paint remain separate families; convert CAD paths, ellipses and arcs to curves first. Fonts, text, geometry, image assets and material textures are not copied. Locked, read-only, incompatible or oversized selections are rejected as a whole.
+- **Edit → Copy appearance** opens a collapsible Properties section. Copy one object, select compatible targets, choose color/fill, outline and/or opacity, then apply in one undo step. Gradients fit each target. Native drawing styles and CAD curve paint remain separate families; paths, ellipses and arcs also support appearance copying after the editing-and-appearance batch below. Fonts, text, geometry, image assets and material textures are not copied. Locked, read-only, incompatible or oversized selections are rejected as a whole.
 - Top menu commands support arrow-key navigation and Home/End. **Ctrl/⌘+T** opens the Text docker while the canvas has focus. Text-entry fields retain their normal keyboard behavior.
 
 ### Saved-order production pockets
@@ -102,6 +102,42 @@ Apply `supabase/migrations/20261116000001_canvas_file_pockets.sql` before relyin
 All 36 focused executable harness tests passed using real geometry, CAD plans and drawing transactions with a mocked editor: ellipse validation/tolerance/units/stale apply, repeat preview/directions/capacity/rollback, and selective appearance copying with preservation of target data. An additional routing check covers opening the ellipse section and resuming it after document setup. Real TypeScript/TSX syntax parsing passed; Svelte checks cover script syntax only. Seven database regressions are included but could not execute without the missing PGlite dependency.
 
 This workspace has no installed application dependencies or browser fixture. A full application typecheck/build, Svelte template compilation, live browser checks, paid OpenRouter calls and execution of the new database regression suite remain unverified here. The new database migration is provided as source and has not been applied to the production database. Earlier verification entries below describe earlier passes, not this batch.
+
+## Editing and appearance batch — 16 November 2026
+
+The following controls use the same drawing host for idea boards and order canvases. This batch adds no database migration.
+
+### Find and Replace
+
+Open **Edit → Find and Replace** or press **Ctrl/⌘+F** while the canvas has focus. The collapsible Text section searches native editable text on the current page or within the selection captured at search time. Match case and whole-word options support Unicode letters, numbers and combining marks. Queries and replacements are literal text, including dollar signs.
+
+The result list previews before/after text and occurrence counts. Locate a result, choose the objects to replace, or replace all results in one undoable operation. Selecting a result does not change a captured search scope. Any document edit or changed search option invalidates the review. Session controls survive moving between dockers.
+
+Embedded order forms, shape labels and outlined text are excluded. Locked matches may be inspected but cannot be changed; a replacement containing a protected object fails as a whole. Uploaded-font availability and glyph support are checked. Native text content changes preserve formatting, spacing and metadata; native auto-size behavior may resize/reposition text to retain its alignment anchor.
+
+### Select Same
+
+Open **Edit → Select Same** in the Objects docker. Choose one reference object, then match its type, fill, outline, opacity, or all checked criteria together. Preview the result count before replacing the selection or adding matches to it. Selection-only changes after preview are allowed for Add; a document or reference edit requires another preview. No artwork records or undo entries are created.
+
+Native style tokens and CAD paint are compared within their own families. CAD gradient/material mappings normalize to object-local bounds so proportionally fitted fills can match across differently sized objects. Inactive fills/outlines are compared by their visible state. Objects inside ordinary groups are supported; production cards, embedded forms, frames and their contents are excluded. Image objects support type/opacity criteria. Selection remains available in read-only drawings.
+
+### Polygons and stars
+
+**Object → Polygons and stars** opens the existing CAD Draw section with expanded controls. Set the center, outer width/height, proportion lock, rotation and number of points in the active document units. Simple stars expose inner-radius percentage. Complex stars connect every selected nth point and preserve separate closed cycles where the point count and step share a divisor.
+
+Dimensions describe the outer ellipse before rotation and corner finishing; the preview reports actual bounds, contours and nodes. Convex polygons can have measured chamfers or rounded corners. Rounded corners use the existing cubic approximation. The output uses the existing editable-curve, single-undo and CAD export paths. Missing document settings open setup and retain the requested tool.
+
+### CAD appearance consistency
+
+CAD paths, ellipses and arcs now render their full stored outline settings rather than a fixed one-pixel stroke. Closed primitives also render solid, gradient or material fills through the same renderer as Bézier curves. Their native geometry remains analytic, and their SVG output retains exact conic paths. Fill and clip-aware hit testing follows the displayed artwork. Resizing transforms local paint/clips with the geometry, including flips and minimum-size clamping.
+
+**Fill & outline (F12)** edits solid fill and outline width on these primitives. Open CAD paths/arcs remain outlines; changing their outline preserves hidden stored fill assets for a later close operation. Direct gradient/material editors remain Bézier-based; existing fills and copied gradients are rendered on closed analytic shapes. Copy Appearance supports all four CAD shape types, preserving target geometry, assets and unrelated metadata. Open geometry accepts outline/opacity copying. PDF/EPS paint matches the displayed open/closed behavior; DXF remains a geometry export.
+
+### Verification of this batch
+
+All 59 focused regression tests passed: 13 Find and Replace, 14 Select Same, 9 polygon/star, and 23 analytic appearance/clipboard cases. A renderer regression also covers schema-valid legacy arcs with invalid sweep ranges, preserving their previous display instead of throwing while reopening a drawing. They cover literal and Unicode replacement, captured scopes, fonts, protected objects, stale reviews, undo/rollback, gradient normalization, star-cycle geometry, units, exact SVG paths, paint/clips and signed resizing.
+
+TypeScript/TSX syntax was checked with the real Sucrase parser/transpiler, including the source recovered during a temporary workspace disconnection. Focused tests use the actual helper/geometry/transaction implementations with mocked editor and renderer boundaries. Full application typechecking/build, browser behavior, live database persistence and paid-model PDF OCR remain unverified here. Earlier verification sections describe their respective passes.
 
 ## Deployment and verification
 

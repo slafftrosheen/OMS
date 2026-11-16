@@ -1,5 +1,5 @@
 import type { Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
-import { curveBounds, validContours } from './cad-curves';
+import { CAD_APPEARANCE_TYPES, cadAppearanceGeometry, cadShapePaint } from './cad-shape-appearance';
 import { transformAppearance } from './cad-appearance';
 import { validVectorPaint, type VectorPaint } from './cad-paint';
 import { vectorPaint, paintMetadata } from './cad-vector';
@@ -35,13 +35,14 @@ export function subscribeDrawingAppearance(editor: Editor, listener: () => void)
 function capture(shape: TLShape): DrawingAppearance {
   const props = shape.props as any, opacity = shape.opacity ?? 1;
   if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) throw new Error('sourceRequired');
-  if (shape.type === 'cad-bezier') {
-    if (!validContours(props.contours) || shape.meta.omsVectorPaint && !validVectorPaint(shape.meta.omsVectorPaint as any)) throw new Error('sourceRequired');
-    const paint = vectorPaint(shape.meta, props.color);
+  if (CAD_APPEARANCE_TYPES.has(shape.type)) {
+    const geometry = cadAppearanceGeometry(shape);
+    if (shape.meta.omsVectorPaint && !validVectorPaint(shape.meta.omsVectorPaint as any)) throw new Error('sourceRequired');
+    const paint = cadShapePaint(shape);
     // Paint clipboard never carries object clipping or embedded/private artwork.
-    const canFill = !paint.raster;
+    const canFill = !paint.raster && geometry.closed;
     delete paint.clips; delete paint.raster;
-    return { name: drawingObjectName(shape), kind: 'curve', paint, bounds: curveBounds(props.contours), opacity,
+    return { name: drawingObjectName(shape), kind: 'curve', paint, bounds: geometry.bounds, opacity,
       available: { fill: canFill, outline: true, opacity: true } };
   }
   if (!nativeTypes.has(shape.type)) throw new Error('sourceRequired');
@@ -72,7 +73,7 @@ function targets(editor: Editor): TLShape[] {
     const shape = editor.getShape(id);
     if (!shape || editor.isShapeOrAncestorLocked(shape)) throw new Error('protected');
     if (shape.type === 'group') continue;
-    if (!nativeTypes.has(shape.type) && shape.type !== 'cad-bezier') throw new Error('incompatible');
+    if (!nativeTypes.has(shape.type) && !CAD_APPEARANCE_TYPES.has(shape.type)) throw new Error('incompatible');
     // Embedded order forms and frame descendants are never appearance targets.
     let parent = editor.getShape(shape.parentId as TLShapeId); const seen = new Set<string>();
     while (parent && !seen.has(parent.id)) {
@@ -89,16 +90,17 @@ function updateFor(shape: TLShape, source: DrawingAppearance, fields: DrawingApp
   if (fields.opacity) update.opacity = source.opacity;
   if (!fields.fill && !fields.outline) return update;
   if (source.kind === 'curve') {
-    if (shape.type !== 'cad-bezier' || !validContours(props.contours) ||
+    if (!CAD_APPEARANCE_TYPES.has(shape.type) ||
       shape.meta.omsVectorPaint && !validVectorPaint(shape.meta.omsVectorPaint as any)) throw new Error('incompatible');
+    const geometry = cadAppearanceGeometry(shape);
     const paint = vectorPaint(shape.meta, props.color), copied = source.paint!;
     if (fields.fill) {
       if (paint.raster || !source.available.fill) throw new Error('incompatible');
-      if ((copied.gradient || copied.fill !== 'none') && props.contours.some((c: any) => !c.closed)) throw new Error('incompatible');
+      if ((copied.gradient || copied.fill !== 'none') && !geometry.closed) throw new Error('incompatible');
       paint.fill = copied.fill; paint.fillOpacity = copied.fillOpacity;
       delete paint.gradient;
       if (copied.gradient) {
-        const a = source.bounds!, b = curveBounds(props.contours);
+        const a = source.bounds!, b = geometry.bounds;
         if (Math.min(a.w, a.h, b.w, b.h) <= 0) throw new Error('incompatible');
         // Both matrices are object-local. Page translation, rotation and group
         // transforms must not enter this fit-to-object mapping.

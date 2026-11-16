@@ -1,4 +1,5 @@
 import { prepareEllipseSegment, type EllipseSegmentKind } from './cad-ellipse-segments';
+import { CAD_APPEARANCE_TYPES, cadAppearanceGeometry, cadShapePaint } from './cad-shape-appearance';
 import {ProductionSaveButton} from './ProductionSaveButton';
 import { storeCanvasImage } from "./cad-asset-store";
 import { prepareVectorExportWithAssets } from "./cad-vector-export-client";
@@ -24,7 +25,7 @@ import {
 import { DEFAULT_TRACE_OPTIONS } from "./cad-trace";
 import { runRasterTrace } from "./cad-trace-client";
 import { prepareVectorExport } from "./cad-vector-export";
-import { prepareCorners, regularPolygon } from "./cad-corners";
+import { prepareCorners } from "./cad-corners";
 import { prepareNodeCorner, applyNodeCorner, type CadNodeCornerPlan } from './cad-node-corners';
 import { getSelectedCadNode, setCadNodeEditing } from './cad-node-selection';
 import { drawingTransaction } from "./drawing-commands";
@@ -899,6 +900,7 @@ export function VectorPaintControls({
   ]);
   const [paint, setPaint] = useState(() => vectorPaint({}, "black")),
     [width, setWidth] = useState("0.25"),
+    [paintSource, setPaintSource] = useState(""),
     [message, setMessage] = useState("");
   const signature = JSON.stringify([
     shape?.id,
@@ -906,14 +908,21 @@ export function VectorPaintControls({
     shape?.props,
     settings,
   ]);
+  const supported = !!shape && CAD_APPEARANCE_TYPES.has(shape.type);
+  const canFill = (() => {
+    if (!shape || !supported) return false;
+    try { return shape.type === 'cad-bezier' || cadAppearanceGeometry(shape).closed; } catch { return false; }
+  })();
   useEffect(() => {
-    if (shape?.type === "cad-bezier" && settings) {
-      const p = vectorPaint(shape.meta, (shape.props as any).color);
-      setPaint(p);
-      setWidth(
-        String(Number((p.strokeWidth * cadMmPerPixel(settings!)).toFixed(5))),
-      );
-    }
+    if (shape && supported && settings) {
+      try {
+        cadAppearanceGeometry(shape);
+        const p = cadShapePaint(shape);
+        setPaint(p);
+        setWidth(String(Number((p.strokeWidth * cadMmPerPixel(settings)).toFixed(5))));
+        setPaintSource(signature);
+      } catch { setPaintSource(''); }
+    } else setPaintSource('');
   }, [signature]);
   return (
     <details
@@ -926,7 +935,7 @@ export function VectorPaintControls({
       <p className="drawing-help">{t("paintHelp")}</p>
       <fieldset
         className="drawing-cad-fields"
-        disabled={disabled || !settings || shape?.type !== "cad-bezier"}
+        disabled={disabled || !settings || !supported || paintSource !== signature}
       >
         {(["fill", "stroke"] as const).map((key) => (
           <div key={key} className="drawing-cad-field">
@@ -934,6 +943,7 @@ export function VectorPaintControls({
             <div className="drawing-vector-paint-row">
               <input
                 type="color"
+                disabled={key === "fill" && !canFill}
                 aria-label={t(key)}
                 value={paint[key] === "none" ? "#000000" : paint[key]}
                 onChange={(e) =>
@@ -949,6 +959,7 @@ export function VectorPaintControls({
               <label>
                 <input
                   type="checkbox"
+                  disabled={key === "fill" && !canFill}
                   aria-label={`${t(key)} · ${t("none")}`}
                   checked={paint[key] === "none" && (key !== "fill" || !paint.raster && !paint.gradient)}
                   onChange={(e) =>
@@ -979,12 +990,22 @@ export function VectorPaintControls({
           type="button"
           onClick={() => {
             try {
-              if (!shape || !settings) return;
-              assertCadEditable(editor, [shape.id]);
+              if (!shape || !settings || !supported || paintSource !== signature) return;
+              const current = editor.getOnlySelectedShape();
+              if (!current || JSON.stringify([current.id, current.meta, current.props, settings]) !== signature) throw new Error('changed');
+              assertCadEditable(editor, [current.id]);
               const next = {
                 ...paint,
                 strokeWidth: Number(width) / cadMmPerPixel(settings),
               };
+              if (current.type !== 'cad-bezier' && !cadAppearanceGeometry(current).closed) {
+                if (next.fill !== 'none' || next.gradient || next.raster) throw new Error('geometry');
+                // Open paths hide their fill; outline edits must retain the
+                // stored artwork so closing the path can reveal it again.
+                const raw = vectorPaint(current.meta, (current.props as any).color);
+                next.fill = raw.fill; next.fillOpacity = raw.fillOpacity;
+                next.gradient = raw.gradient; next.raster = raw.raster;
+              }
               if (!width.trim() || !validVectorPaint(next))
                 throw new Error("geometry");
               if (
@@ -1012,104 +1033,6 @@ export function VectorPaintControls({
       {message && <p role="status">{t(message)}</p>}
       <GradientFillPanel settings={settings} revision={revision} disabled={disabled || !settings} />
       <MaterialTexturePanel settings={settings} revision={revision} disabled={disabled || !settings} />
-    </details>
-  );
-}
-
-export function PolygonControls({ settings, revision, disabled }: Props) {
-  const editor = useEditor(),
-    t = useVectorText();
-  const [sides, setSides] = useState("6"),
-    [diameter, setDiameter] = useState("100"),
-    [rotation, setRotation] = useState("0"),
-    [ratio, setRatio] = useState("0.5"),
-    [star, setStar] = useState(false),
-    [review, setReview] = useState<Review>(),
-    [message, setMessage] = useState("");
-  const key = JSON.stringify([
-    settings,
-    sides,
-    diameter,
-    rotation,
-    ratio,
-    star,
-  ]);
-  return (
-    <details className="drawing-cad-section" data-testid="vector-polygon">
-      <summary>{t("polygon")}</summary>
-      <fieldset className="drawing-cad-fields" disabled={disabled || !settings}>
-        <label className="drawing-vector-check">
-          <input
-            type="checkbox"
-            checked={star}
-            onChange={(e) => setStar(e.target.checked)}
-          />
-          {t("star")}
-        </label>
-        {[
-          [t("sides"), sides, setSides],
-          [t("diameter"), diameter, setDiameter],
-          [t("rotation"), rotation, setRotation],
-          ...(star ? [[t("innerRatio"), ratio, setRatio]] : []),
-        ].map(([label, value, setter]) => (
-          <Field key={label as string} label={label as string}>
-            <input
-              type="number"
-              step="any"
-              value={value as string}
-              onChange={(e) =>
-                (setter as (value: string) => void)(e.target.value)
-              }
-            />
-          </Field>
-        ))}
-        <button
-          type="button"
-          onClick={() => {
-            try {
-              setMessage("");
-              if (!settings) return;
-              const factor = cadMmPerPixel(settings),
-                center = editor.getViewportPageBounds().center;
-              const contours = mapContours(
-                [
-                  regularPolygon(
-                    Number(sides),
-                    Number(diameter) / factor,
-                    Number(rotation),
-                    star ? Number(ratio) : 1,
-                  ),
-                ],
-                (p) => ({ x: center.x + p.x, y: center.y + p.y }),
-              );
-              setReview({
-                plan: makeCadPlan(editor, settings, contours, {
-                  name: star ? "Star" : "Polygon",
-                }),
-                key,
-              });
-            } catch (e) {
-              setReview(undefined);
-              setMessage(vectorError(e));
-            }
-          }}
-        >
-          {t("preview")}
-        </button>
-      </fieldset>
-      {message && <p role="alert">{t(message)}</p>}
-      {review && (
-        <Preview
-          review={review}
-          inputKey={key}
-          revision={revision}
-          disabled={disabled || !settings}
-          onApplied={() => {
-            setReview(undefined);
-            setMessage("done");
-          }}
-        />
-      )}
     </details>
   );
 }

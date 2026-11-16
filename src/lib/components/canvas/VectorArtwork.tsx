@@ -3,21 +3,19 @@ import { curvePathData, type CadContour } from "./cad-curves";
 import type { VectorPaint } from "./cad-paint";
 /** Shared by the actual canvas, SVG export and the import preview. IDs include
  * a caller prefix so previews and live objects never share gradient/clip IDs. */
-export function VectorArtwork({
-  id,
-  contours,
-  fillRule,
-  paint: p,
-}: {
-  id: string;
-  contours: CadContour[];
-  fillRule: "evenodd" | "nonzero";
-  paint: VectorPaint;
+export function VectorArtwork({ id, contours, fillRule, paint }: {
+  id: string; contours: CadContour[]; fillRule: "evenodd" | "nonzero"; paint: VectorPaint;
+}) {
+  return <VectorPathArtwork id={id} data={curvePathData(contours)} fillRule={fillRule} paint={paint} />;
+}
+
+/** Exact SVG path variant shared with analytic CAD primitives. */
+export function VectorPathArtwork({ id, data, fillRule, paint: p }: {
+  id: string; data: string; fillRule: "evenodd" | "nonzero"; paint: VectorPaint;
 }) {
   const prefix = id.replace(/[^a-zA-Z0-9_-]/g, "_"),
     g = p.gradient,
     r = p.raster;
-  const data = curvePathData(contours);
   let fill: React.ReactNode = r?.repeat ? (
     <path d={data} fill={`url(#${prefix}-texture)`} fillRule={fillRule} fillOpacity={p.fillOpacity} stroke="none" />
   ) : r ? (
@@ -95,7 +93,7 @@ export function VectorArtwork({
         ))}
         {r && (
           <clipPath id={`${prefix}-boundary`} clipPathUnits="userSpaceOnUse">
-            <path d={curvePathData(contours)} clipRule={fillRule} />
+            <path d={data} clipRule={fillRule} />
           </clipPath>
         )}
         {g &&
