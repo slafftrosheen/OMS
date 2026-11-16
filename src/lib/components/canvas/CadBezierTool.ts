@@ -1,3 +1,4 @@
+import { registerCanvasDraft } from './canvas-document';
 import { StateNode, createShapeId, DefaultColorStyle, type TLEventHandlers, type TLShapeId } from '@tldraw/tldraw';
 import { nodeAt, validContours, type CadBezierNode } from './cad-curves';
 import { validCadPoint } from './cad-settings';
@@ -9,8 +10,11 @@ export class CadBezierTool extends StateNode {
   private nodes: CadBezierNode[] = [];
   private shapeId: TLShapeId | null = null;
   private mark: string | null = null;
+  private clearDraft: () => void = () => {};
   private dragging = false;
   override onEnter = () => {
+    this.clearDraft();
+    this.clearDraft = registerCanvasDraft(this.editor, () => this.shapeId ? { id: this.shapeId, props: this.nodes.length >= 2 ? { contours: [{ closed: false, nodes: structuredClone(this.nodes) }] } : null } : null);
     clearCadSnap(this.editor);
     this.nodes = [];
     this.shapeId = null;
@@ -99,6 +103,7 @@ export class CadBezierTool extends StateNode {
     this.dragging = false;
   };
   override onKeyDown: TLEventHandlers['onKeyDown'] = (info) => {
+    if (this.editor.getInstanceState().isReadonly) { this.cancel(); return; }
     if (info.key === 'Enter') this.finish(false);
     else if (info.key === 'Escape') this.cancel();
     else if (info.key === 'Backspace') {
@@ -123,6 +128,7 @@ export class CadBezierTool extends StateNode {
   };
   override onExit = () => {
     if (this.mark) this.finish(false, false);
+    this.clearDraft();
   };
   private finish(closed: boolean, select = true) {
     clearCadSnap(this.editor);
@@ -133,6 +139,7 @@ export class CadBezierTool extends StateNode {
     const id = this.shapeId,
       mark = this.mark;
     this.render(closed);
+    this.clearDraft();
     this.shapeId = null;
     this.mark = null;
     this.nodes = [];
@@ -142,6 +149,7 @@ export class CadBezierTool extends StateNode {
     if (mark) this.editor.mark(`${mark}-complete`);
   }
   private cancel(select = true) {
+    this.clearDraft();
     clearCadSnap(this.editor);
     const mark = this.mark;
     this.shapeId = null;

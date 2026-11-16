@@ -21,6 +21,21 @@ Late metadata, file-library, link-preview or assistant results cannot mutate the
 newly opened board, including an A → B → A switch. Teardown aborts page-owned reads
 and inference, and clears pending autosave timers.
 
+## Draft geometry is not a finished object
+
+`captureCanvasDocument` is shared by Toolkit saves, recovery copies and Canvas
+save callbacks. Active CAD tools register the geometry that the user has already
+confirmed. Polyline snapshots omit the pointer-preview segment; Bezier snapshots
+retain confirmed nodes and handles. A single starting vertex and unconfirmed
+circle, dimension or three-point construction are omitted until valid. Bindings
+to an omitted placeholder are omitted with it.
+
+This is a snapshot overlay: autosave never calls `editor.complete()`, changes the
+live shape, switches tools or writes an undo entry. The user can continue drawing
+after a checkpoint. Tool completion, cancellation and exit clear the reader;
+readers are isolated per editor. `canvas-draft-snapshot.test.ts` exercises the
+actual tool classes and validates JSON checkpoints with a native tldraw store.
+
 ## Recovery copies own their files
 
 On a shared-document revision conflict, **Save copy** calls

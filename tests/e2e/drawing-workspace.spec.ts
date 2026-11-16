@@ -16,6 +16,25 @@ async function drawRectangle(page: Page) {
 }
 
 for (const mode of ['idea', 'order']) {
+  test(`${mode} autosave checkpoints keep committed vertices without stopping a CAD gesture`, async ({ page }) => {
+    await page.goto(`/drawing-workspace.html?mode=${mode}&save-draft=1`);
+    await expect(page.getByTestId('drawing-tool-select')).toBeVisible();
+    await page.evaluate(() => (window as any).__drawingFixture.emptyArea());
+    await page.getByTestId('drawing-tool-cad-polyline').click();
+    const viewport = await page.locator('.drawing-viewport').boundingBox();
+    if (!viewport) throw new Error('Drawing viewport missing');
+    await page.mouse.click(viewport.x + 80, viewport.y + 100);
+    await page.mouse.click(viewport.x + 280, viewport.y + 100);
+    await page.mouse.move(viewport.x + 300, viewport.y + 200);
+    await page.getByRole('button', { name: 'Capture autosave checkpoint', exact: true }).click();
+    await expect(page.getByRole('status')).toContainText('2 polyline vertices');
+    await expect(page.getByTestId('drawing-tool-cad-polyline')).toHaveAttribute('aria-pressed', 'true');
+    await page.mouse.click(viewport.x + 280, viewport.y + 250);
+    await page.getByRole('button', { name: 'Finish', exact: true }).click();
+    await expect.poll(async () => (await scene(page)).shapes.find((s: any) => s.type === 'cad-path')?.props.points.length).toBe(3);
+    await page.getByRole('button', { name: 'Restore checkpoint', exact: true }).click();
+    await expect.poll(async () => (await scene(page)).shapes.find((s: any) => s.type === 'cad-path')?.props.points.length).toBe(2);
+  });
   test(`${mode} breaks and rejoins open curves with a stale-preview guard`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 950 });
     await page.goto(`/drawing-workspace.html?mode=${mode}`);
@@ -122,7 +141,7 @@ for (const mode of ['idea', 'order']) {
     await page.getByTestId('drawing-cad-task').selectOption('edit');
     await page.getByRole('button', { name: 'Toggle read only' }).click();
     await expect(nodes.getByRole('button', { name: 'Update node', exact: true })).toBeDisabled();
-    await page.getByRole('button',{name:'More tools: CAD polyline',exact:true}).click();
+    await page.getByTestId('drawing-tools-curves').click();
     await expect(page.getByTestId('drawing-flyout-cad-bezier')).toBeDisabled();
   });
   test(`${mode} imports CAD with units and omission review then shapes the selected contours`, async ({ page }) => {
@@ -247,7 +266,7 @@ for (const mode of ['idea', 'order']) {
     await expect(width).toBeEnabled();
     const beforeReadonly = JSON.stringify((await scene(page)).shapes);
     await page.getByRole('button', { name: 'Toggle read only' }).click();
-    await expect(page.getByTestId('drawing-tool-draw')).toBeDisabled();
+    await expect(page.getByTestId('drawing-tool-cad-polyline')).toBeDisabled();
     await expect(page.getByTestId('drawing-colour-red')).toBeDisabled();
     await expect(page.getByTestId('drawing-undo')).toBeDisabled();
     await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
@@ -260,7 +279,7 @@ for (const mode of ['idea', 'order']) {
     await expect(page.getByTestId('drawing-tool-select')).toBeVisible();
     const before = await page.locator('.drawing-viewport').boundingBox();
     await page.getByTestId('drawing-properties-toggle').click();
-    await expect(page.getByRole('tabpanel', { name: 'Properties' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Properties', exact: true })).toBeVisible();
     const after = await page.locator('.drawing-viewport').boundingBox();
     expect(after?.width).toBe(before?.width);
     await page.getByRole('button', { name: 'Close panel' }).click();
@@ -285,8 +304,9 @@ for (const mode of ['idea', 'order']) {
     expect((await scene(page)).shapes.find((s: any) => s.id === original.id).props).toEqual(original.props);
     await page.getByLabel('Search objects', { exact: true }).fill('Front panel');
     await expect(page.getByTestId('drawing-object-row')).toHaveCount(1);
-    await page.getByRole('tab', { name: 'Objects', exact: true }).press('ArrowLeft');
-    await expect(page.getByRole('tab', { name: 'Properties', exact: true })).toBeFocused();
+    await page.getByTestId('drawing-objects-toggle').press('Home');
+    await expect(page.getByTestId('drawing-properties-toggle')).toBeFocused();
+    await page.getByTestId('drawing-arrange-toggle').click();
     await page.locator('.drawing-repeat > summary').click();
     await page.getByLabel('Rows', { exact: true }).fill('2');
     await page.getByLabel('Columns', { exact: true }).fill('3');

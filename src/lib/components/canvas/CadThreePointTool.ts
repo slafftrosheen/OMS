@@ -1,3 +1,4 @@
+import { registerCanvasDraft } from './canvas-document';
 import { StateNode, createShapeId, DefaultColorStyle, type TLEventHandlers, type TLShapeId } from '@tldraw/tldraw';
 import { validCadPoint, type CadPoint } from './cad-settings';
 import { clearCadSnap, snapCadPoint } from './cad-snap';
@@ -8,7 +9,10 @@ class CadThreePointTool extends StateNode {
   private points: CadPoint[] = [];
   private shapeId: TLShapeId | null = null;
   private mark: string | null = null;
+  private clearDraft: () => void = () => {};
   override onEnter = () => {
+    this.clearDraft();
+    this.clearDraft = registerCanvasDraft(this.editor, () => this.shapeId ? { id: this.shapeId, props: null } : null);
     clearCadSnap(this.editor);
     this.points = []; this.shapeId = null; this.mark = null;
     this.editor.selectNone(); this.editor.setCursor({ type: 'cross', rotation: 0 }); this.publish(null, false);
@@ -51,12 +55,14 @@ class CadThreePointTool extends StateNode {
   override onInterrupt = () => this.cancel();
   override onExit = () => this.cancel(false);
   private finish() {
+    this.clearDraft();
     clearCadSnap(this.editor);
     const id = this.shapeId, mark = this.mark;
     this.shapeId = null; this.mark = null; this.points = []; cadConstruction(this.editor).set(null);
     this.editor.setCurrentTool('select'); if (id) this.editor.setSelectedShapes([id]); if (mark) this.editor.mark(`${mark}-complete`);
   }
   private cancel(select = true) {
+    this.clearDraft();
     clearCadSnap(this.editor);
     const mark = this.mark; this.mark = null; this.shapeId = null; this.points = []; cadConstruction(this.editor).set(null);
     if (mark) this.editor.bailToMark(mark); if (select) this.editor.setCurrentTool('select');

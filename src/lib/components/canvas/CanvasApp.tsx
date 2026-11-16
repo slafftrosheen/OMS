@@ -1,3 +1,4 @@
+import { captureCanvasDocument } from './canvas-document';
 import {installDrawingTextUtil} from './shapes/DrawingTextShape';
 import {installDrawingFonts} from './drawing-fonts';
 import {CadCircleTool,CadDimensionTool} from './CadTwoPointTool';
@@ -185,8 +186,8 @@ export function CanvasApp({
             captureTimerRef.current = null;
             const onSave = callbacksRef.current.onSave;
             if (onSave) onSave(toolkitBoardId
-                ? { document: editor.store.getStoreSnapshot() }
-                : getSnapshot(editor.store));
+                ? captureCanvasDocument(editor)
+                : { ...getSnapshot(editor.store), ...captureCanvasDocument(editor) });
         };
         const unlisten = editor.store.listen(
             () => {

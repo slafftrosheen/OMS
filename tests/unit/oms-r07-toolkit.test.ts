@@ -111,7 +111,8 @@ describe('OMS-R07 Canvas skills and safe tool actions', () => {
     expect(app).toContain('setTimeout(capture, 250)');
     expect(app).toContain('onDocumentChange?.()');
     expect(app).toContain('if (!callbacksRef.current.onSave) return;');
-    expect(canvas).toContain('lastSnapshot = { document: editor.store.getStoreSnapshot() }');
+    expect(canvas).toContain('lastSnapshot = captureCanvasDocument(editor)');
+    expect(read('src/lib/components/canvas/canvas-document.ts')).toContain('editor.store.getStoreSnapshot()');
     expect(canvas).toContain('onDocumentChange={onDocumentChange}');
     expect(canvas).not.toContain('onSave={onCanvasChange}');
     expect(canvas).toContain('const boardSaves = createSaveQueue(');

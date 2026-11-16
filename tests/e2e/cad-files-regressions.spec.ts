@@ -34,7 +34,7 @@ test('native Bézier pointer gestures survive validation and snapshot reload',as
  await page.goto('/drawing-workspace.html?mode=idea');
  await page.getByTestId('drawing-cad-toggle').click();
  await page.getByTestId('drawing-cad-apply').click();
- await page.getByRole('button',{name:'More tools: CAD polyline',exact:true}).click();
+ await page.getByTestId('drawing-tools-curves').click();
  await page.getByTestId('drawing-flyout-cad-bezier').click();
  const area=await page.locator('.drawing-viewport').boundingBox();if(!area)throw Error('Canvas missing');
  await page.mouse.click(area.x+100,area.y+120);

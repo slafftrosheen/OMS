@@ -19,6 +19,7 @@
   import { captureToolkitScene } from '$lib/components/canvas/toolkit-scene';
   import { captureCanvasDrawing } from '$lib/components/canvas/toolkit-snapshot';
   import { canvasActionsRequireBatch } from '$lib/components/canvas/toolkit-actions';
+  import { captureCanvasDocument } from '$lib/components/canvas/canvas-document';
   import { createSaveQueue } from '$lib/components/canvas/save-queue';
   import { RequestScope } from '$lib/state/request-scope';
   import { EMPTY_TOOLKIT_CONTROLS } from '$lib/components/canvas/toolkit-controls';
@@ -194,7 +195,7 @@
   function captureCurrentDocument() {
     // getStoreSnapshot is the document-only API in the installed tldraw.
     // Capture on save/recovery, never on every intermediate drag update.
-    if (editor) lastSnapshot = { document: editor.store.getStoreSnapshot() };
+    if (editor) lastSnapshot = captureCanvasDocument(editor);
   }
   function onDocumentChange() {
     if (ready) markDirty();

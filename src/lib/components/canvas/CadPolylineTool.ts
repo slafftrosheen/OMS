@@ -1,3 +1,4 @@
+import { registerCanvasDraft } from './canvas-document';
 import { StateNode, createShapeId, DefaultColorStyle, type TLEventHandlers, type TLShapeId } from '@tldraw/tldraw';
 import { CAD_MAX_POINTS, validCadPoint, type CadPoint } from './cad-settings';
 import { clearCadSnap, snapCadPoint } from './cad-snap';
@@ -9,14 +10,17 @@ export class CadPolylineTool extends StateNode {
   private points: CadPoint[] = [];
   private shapeId: TLShapeId | null = null;
   private mark: string | null = null;
+  private clearDraft: () => void = () => {};
   override onEnter = () => {
+    this.clearDraft();
+    this.clearDraft = registerCanvasDraft(this.editor, () => this.shapeId ? { id: this.shapeId, props: this.points.length >= 2 ? { points: this.points.map(p => ({ x: p.x - this.points[0].x, y: p.y - this.points[0].y })), closed: false } : null } : null);
     clearCadSnap(this.editor); this.points = []; this.shapeId = null; this.mark = null;
     this.editor.selectNone(); this.editor.setCursor({ type: 'cross', rotation: 0 });
     polylineSession(this.editor).controller = { add: point => this.addPoint(point), finish: closed => this.finish(closed), back: () => this.back(), cancel: () => this.cancel() };
     this.publish();
   };
   private publish(pointer: CadPoint | null = null) { polylineSession(this.editor).state.set({ points: this.points.map(p => ({ ...p })), pointer }); }
-  private clearSession() { clearCadSnap(this.editor); const session = polylineSession(this.editor); session.state.set(null); session.controller = null; }
+  private clearSession() { this.clearDraft(); clearCadSnap(this.editor); const session = polylineSession(this.editor); session.state.set(null); session.controller = null; }
   private pointer(): CadPoint {
     const raw = this.editor.inputs.currentPagePoint;
     let point = { x: raw.x, y: raw.y };

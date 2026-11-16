@@ -5,10 +5,12 @@
   import TldrawWrapper from '../../src/lib/components/canvas/TldrawWrapper.svelte';
   import type { OrderSeed } from '../../src/lib/components/canvas/templates/DraftOrderTemplate';
   import { nodeAt } from '../../src/lib/components/canvas/cad-curves';
+  import { captureCanvasDocument } from '../../src/lib/components/canvas/canvas-document';
   import { VECTOR_DEFAULT_PAINT } from '../../src/lib/components/canvas/cad-paint';
   import { DEFAULT_CAD_SETTINGS } from '../../src/lib/components/canvas/cad-settings';
   import { readMaterialTexture, prepareMaterialTexture, applyMaterialTexture } from '../../src/lib/components/canvas/material-texture';
   const materialExample = new URLSearchParams(location.search).has('materials');
+  const draftSaveExample = new URLSearchParams(location.search).has('save-draft');
   const textExample = new URLSearchParams(location.search).has('text');
   const intersectionExample = new URLSearchParams(location.search).has('intersections');
   const bezierIntersectionExample = new URLSearchParams(location.search).has('bezier-intersections');
@@ -30,6 +32,19 @@
   let workspaceHeight = $state('calc(100dvh - 48px)');
   let saves = $state(0);
   let exampleStatus = $state('');
+  let checkpoint = $state<ReturnType<typeof captureCanvasDocument> | null>(null);
+  function captureCheckpoint() {
+    if (!editor) return;
+    checkpoint = JSON.parse(JSON.stringify(captureCanvasDocument(editor)));
+    const shapes = Object.values(checkpoint!.document.store).filter((record: any) => record.typeName === 'shape');
+    const vertices = shapes.reduce((count, shape: any) => count + (shape.type === 'cad-path' ? shape.props.points.length : 0), 0);
+    exampleStatus = `Checkpoint: ${shapes.length} objects, ${vertices} polyline vertices`;
+  }
+  function restoreCheckpoint() {
+    if (!editor || !checkpoint) return;
+    editor.cancel(); editor.setCurrentTool('select'); loadSnapshot(editor.store, checkpoint);
+    exampleStatus = 'Checkpoint restored';
+  }
   function loadText() {
     if (!editor || readonly) return;
     editor.updatePage({id:editor.getCurrentPageId(),meta:{omsCad:DEFAULT_CAD_SETTINGS}});
@@ -154,6 +169,7 @@
 </script>
 <header>
   <button onclick={() => readonly = !readonly}>Toggle read only</button>
+  {#if draftSaveExample}<button onclick={captureCheckpoint}>Capture autosave checkpoint</button><button onclick={restoreCheckpoint} disabled={!checkpoint}>Restore checkpoint</button><span role="status">{exampleStatus}</span>{/if}
   {#if materialExample}<button onclick={loadMaterials}>Load material example</button>{/if}
   {#if textExample}<button onclick={loadSnapping} disabled={readonly}>Load snapping example</button>
     <button onclick={loadText}>Load text example</button>{/if}
