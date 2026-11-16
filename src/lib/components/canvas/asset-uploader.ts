@@ -4,14 +4,18 @@ import {getOrderBridge} from './state-bridge';
 import {announceOrderFilesChanged} from '$lib/order/order-files-client';
 import {base} from '$app/paths';
 import {addOrderFileDocument,orderPocketAtPoint} from './order-file-documents';
-import {frameFilePocket} from '$lib/order/file-pockets';
+import {frameFilePocket,type ProductionFilePocket} from '$lib/order/file-pockets';
 export interface UploadedAsset{id:string;url:string;fileName:string;mime:string;kind:'image'|'pdf'|'file'}
 const pending=new WeakSet<Editor>();
 const lifetimes=new WeakMap<Editor,AbortController>();
 export function cancelOrderCanvasUploads(editor:Editor){lifetimes.get(editor)?.abort();lifetimes.delete(editor);}
-export async function uploadOrderCanvasFiles(editor:Editor,files:File[],orderId:string,position:{x:number;y:number},signal?:AbortSignal){
+export async function uploadOrderCanvasFiles(editor:Editor,files:File[],orderId:string,position:{x:number;y:number},signal?:AbortSignal,pocket?:ProductionFilePocket){
  if(editor.getInstanceState().isReadonly||pending.has(editor)||!files.length)return;
- const destination=orderPocketAtPoint(editor,position);if(destination&&editor.isShapeOrAncestorLocked(destination))return;
+ const getDestination=()=>pocket
+  ? editor.getCurrentPageShapesSorted().find(shape=>frameFilePocket(shape)===pocket)
+  : orderPocketAtPoint(editor,position);
+ const destination=getDestination();
+ if((pocket&&!destination)||(destination&&editor.isShapeOrAncestorLocked(destination)))return;
  let lifetime=lifetimes.get(editor);if(!lifetime){lifetime=new AbortController();lifetimes.set(editor,lifetime);}
  signal=signal?AbortSignal.any([signal,lifetime.signal]):lifetime.signal;
  const local=getOrderBridge(editor)?.onFilesUpload;
@@ -19,12 +23,13 @@ export async function uploadOrderCanvasFiles(editor:Editor,files:File[],orderId:
  const report=(message:string,busy:boolean)=>editor.getContainer().dispatchEvent(new CustomEvent('oms:canvas-upload',{detail:{message,busy}}));
  const failures:string[]=[];let completed=0;
  try{
-  if(local){report(`Preparing ${files.length} file(s)…`,true);try{await local(files,position);completed=files.length;}catch(err){failures.push(err instanceof Error?err.message:'Could not attach files');}return;}
+  if(local){report(`Preparing ${files.length} file(s)…`,true);try{await local(files,position,pocket);completed=files.length;}catch(err){failures.push(err instanceof Error?err.message:'Could not attach files');}return;}
   for(const [index,file] of files.entries()){
    if(signal?.aborted||editor.getInstanceState().isReadonly)break;
    report(`Uploading ${index+1}/${files.length}: ${file.name}`,true);
    try{
-    const frame=orderPocketAtPoint(editor,position);
+    const frame=getDestination();
+    if((pocket&&!frame)||(frame&&editor.isShapeOrAncestorLocked(frame)))break;
     const body=new FormData();body.set('file',file);body.set('order_id',orderId);body.set('file_type',frame ? frameFilePocket(frame)! : 'visuals');
     const res=await fetch(base+'/api/files/upload',{method:'POST',body,signal:signal?AbortSignal.any([signal,AbortSignal.timeout(60_000)]):AbortSignal.timeout(60_000)});
     const result=await res.json().catch(()=>({}));

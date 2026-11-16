@@ -522,11 +522,16 @@
     const entries=await addFiles([file],pocket),entry=entries[0];if(!entry)throw new Error('asset-upload');
     return {id:entry.uploadId,url:entry.url};
   }
-  async function addCanvasFiles(files:File[],position:{x:number;y:number}){
+  async function addCanvasFiles(files:File[],position:{x:number;y:number},targetPocket?:ProductionFilePocket){
     const editor=creationEditor;if(!editor||saving)return;
     const {orderPocketAtPoint,addOrderFileDocument}=await import('$lib/components/canvas/order-file-documents');
     const {frameFilePocket}=await import('$lib/order/file-pockets');
-    const frame=orderPocketAtPoint(editor,position),pocket=frame ? frameFilePocket(frame)! : 'visuals';
+    if(editor!==creationEditor||saving||editor.getInstanceState().isReadonly)return;
+    const frame=targetPocket
+      ? editor.getCurrentPageShapesSorted().find((shape:Parameters<typeof frameFilePocket>[0])=>frameFilePocket(shape)===targetPocket)
+      : orderPocketAtPoint(editor,position);
+    if((targetPocket&&!frame)||(frame&&editor.isShapeOrAncestorLocked(frame)))return;
+    const pocket=frame ? frameFilePocket(frame)! : 'visuals';
     const entries=await addFiles(files,pocket);
     if(editor!==creationEditor)return;
     entries.forEach((entry,index)=>{

@@ -68,7 +68,7 @@ function PocketList({editor,shape,pocket}:{editor:Editor;shape?:TLFrameShape;poc
           const id=getOrderBridge(editor)?.orderId;
           if(shape && !state.readonly && typeof id==='string'){
             const point=editor.getShapePageTransform(shape).applyToPoint({x:24,y:180});
-            void uploadOrderCanvasFiles(editor,selected,id,point);
+            void uploadOrderCanvasFiles(editor,selected,id,point,undefined,pocket);
           }
         }}/>
       </div>

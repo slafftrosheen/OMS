@@ -36,7 +36,7 @@ import {
     BoxLetterShapeUtil
 } from './shapes/SignageShapes';
 import { spawnDraftOrderTemplate, syncOrderDataToCanvas, type OrderSeed, type SpawnedShapes } from './templates/DraftOrderTemplate';
-import { setOrderBridge, clearOrderBridge } from './state-bridge';
+import { setOrderBridge, clearOrderBridge, type OrderBridge } from './state-bridge';
 import { wireAssetDropHandler, uploadOrderCanvasFiles, cancelOrderCanvasUploads } from './asset-uploader';
 import { CanvasModeContext } from './canvas-mode';
 import { getRunnableShapeIds } from './node-runner';
@@ -83,7 +83,7 @@ export interface CanvasAppProps {
     orderSeed?: OrderSeed | null;
     onProfileQuantityChange?: (orderId:string,index:number,quantity:number)=>void;
     onStoreCanvasFile?: (file:File,pocket?:import('$lib/order/file-pockets').ProductionFilePocket)=>Promise<{id:string;url:string}>;
-    onFilesUpload?: (files:File[],position:{x:number;y:number})=>Promise<void>;
+    onFilesUpload?: OrderBridge['onFilesUpload'];
     /** Called when a form shape field changes, bridges data back to Svelte */
     onOrderChange?: (orderId: string, patch: Partial<OrderSeed>) => void;
     /** Called when a profile shape changes */

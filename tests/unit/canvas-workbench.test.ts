@@ -5,6 +5,7 @@ import {twoPointGeometry,CadCircleTool,CadDimensionTool} from '../../src/lib/com
 import {editDrawingText,textPointSize,spaceDrawingSelection,scaleCanvasForm} from '../../src/lib/components/canvas/workbench-operations';
 import {addOrderFileDocument} from '../../src/lib/components/canvas/order-file-documents';
 import {arrangeProductionPocket} from '../../src/lib/components/canvas/production-layout';
+import {uploadOrderCanvasFiles} from '../../src/lib/components/canvas/asset-uploader';
 import {saveProductionExport} from '../../src/lib/components/canvas/production-export';
 import {setOrderBridge} from '../../src/lib/components/canvas/state-bridge';
 
@@ -60,6 +61,30 @@ describe('production file destinations',()=>{
   const f=pocket();f.editor.createShape({id:'shape:manual',type:'document',parentId:'shape:cnc',x:40,y:700,props:{w:300,h:200}});arrangeProductionPocket(f.editor,'shape:cnc' as any,200);
   assert.equal(f.editor.getShape('shape:manual').y,700);assert.ok(f.editor.getShape('shape:cnc').props.h>=924);
   f.editor.updateShape({id:'shape:cnc',isLocked:true});addOrderFileDocument(f.editor,{id:'file',originalName:'x',mimeType:'text/plain',url:'/file'},{x:0,y:0},'cnc');assert.equal(f.shapes.size,3);
+ });
+ it('uses the clicked pocket for stored and unsaved uploads when frames overlap',async()=>{
+  const f=pocket();
+  f.editor.updateShape({id:'shape:bender',y:0});
+  f.editor.getContainer=()=>new EventTarget();
+  const point={x:1100,y:100};
+  const file=new File(['drawing'],'part.dxf',{type:'application/dxf'});
+  const original=globalThis.fetch;
+  try {
+   const posted:Array<FormDataEntryValue|null>=[];
+   globalThis.fetch=async(_input,init)=>{
+    posted.push((init?.body as FormData).get('file_type'));
+    return Response.json({file:{id:`upload-${posted.length}`}},{status:201});
+   };
+   setOrderBridge(f.editor,{orderId:'order-123'});
+   await uploadOrderCanvasFiles(f.editor,[file],'order-123',point,undefined,'cnc');
+   assert.equal(f.editor.getCurrentPageShapesSorted().find((s:any)=>s.props.fileId==='upload-1')?.parentId,'shape:cnc');
+   await uploadOrderCanvasFiles(f.editor,[file],'order-123',point);
+   assert.deepEqual(posted,['cnc','bender']);
+   let queued:string|undefined;
+   setOrderBridge(f.editor,{orderId:'draft-local',onFilesUpload:async(_files,_point,pocket)=>{queued=pocket;}});
+   await uploadOrderCanvasFiles(f.editor,[file],'draft-local',point,undefined,'cnc');
+   assert.equal(queued,'cnc');
+  }finally{globalThis.fetch=original;}
  });
  it('routes a generated export through the unsaved draft queue with its selected category',async()=>{
   const f=pocket();let category='';setOrderBridge(f.editor,{orderId:'draft-local',onFilesUpload:async()=>{},onStoreCanvasFile:async(file,pocket)=>{category=pocket!;assert.equal(file.name,'part.dxf');return {id:'queued',url:'blob:queued'};}});

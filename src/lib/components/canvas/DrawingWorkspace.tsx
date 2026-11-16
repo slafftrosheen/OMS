@@ -48,6 +48,11 @@ const alignmentKeys: Readonly<Partial<Record<string, Alignment>>> = {
   b: { axis: 'y', alignment: 'end' },
 };
 
+const objectShortcuts: Readonly<Partial<Record<string, string>>> = {
+  front: 'Home', back: 'End', forward: 'PageUp', backward: 'PageDown', group: 'G', ungroup: 'U',
+};
+const objectActionByKey = new Map(Object.entries(objectShortcuts).map(([action, key]) => [key?.toLowerCase(), action]));
+
 type Slot = 'commands' | 'standard' | 'properties' | 'tools' | 'docker' | 'dockerTabs' | 'palette' | 'status' | 'rulerX' | 'rulerY' | 'rulerOrigin';
 type Panel = 'properties' | 'objects' | 'cad' | 'text' | 'arrange' | 'measure' | 'snap' | null;
 interface WorkspaceContext {
@@ -584,6 +589,16 @@ export function DrawingChrome() {
           return;
         }
       }
+      const objectAction = inDrawing && modifier && !event.altKey && !event.shiftKey && !event.isComposing &&
+        !openMenu && toolGroup === null && editor.isIn('select.idle') && !isCadNodeEditing(editor) &&
+        !event.target.closest('button,a[href],[role="button"],[role="textbox"]')
+        ? objectActionByKey.get(key) : undefined;
+      if (objectAction && editor.getSelectedShapeIds().length) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!event.repeat) command(objectAction);
+        return;
+      }
       const lockedSelection = captureToolkitControls(editor).selectionLocked;
       if ((!modifier && !event.altKey && event.key === 'F10') || (modifier && !event.altKey && event.key.toLowerCase() === 'q')) {
         event.preventDefault(); event.stopPropagation();
@@ -737,8 +752,15 @@ export function DrawingChrome() {
     if (action.startsWith('distribute-')) return controls.canDistribute;
     return controls.canEditSelection;
   };
-  const menuActions = (actions: string[]) => actions.map(action => <button type="button" key={action} disabled={!actionEnabled(action)}
-    onClick={() => { command(action); closeMenus(); }} data-testid={`drawing-action-${action}`}>{actionLabel(action)}</button>);
+  const menuActions = (actions: string[], showShortcuts = false) => actions.map(action => {
+    const key = objectShortcuts[action];
+    const name = actionLabel(action);
+    return <button type="button" key={action} disabled={!actionEnabled(action)}
+      aria-keyshortcuts={key ? `Control+${key} Meta+${key}` : undefined} title={key ? `${name} (Ctrl/⌘+${key})` : undefined}
+      onClick={() => { command(action); closeMenus(); }} data-testid={`drawing-action-${action}`}>
+      {name}{showShortcuts && key && <span aria-hidden="true"> · Ctrl/⌘+{key}</span>}
+    </button>;
+  });
   const fieldNames = { x: 'positionX', y: 'positionY', w: 'width', h: 'height', rotation: 'rotation' } as const;
   const transformField = (field: DrawingTransformField) => settings ? <CadNumberField key={`cad-${state.selected.join(',')}-${field}`} field={field} label={label(fieldNames[field])}
     value={cadSelection?.[field]} settings={settings} anchor={cadAnchor} proportional={proportional}
@@ -783,7 +805,11 @@ export function DrawingChrome() {
           <p>{label('exportHint')}</p>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="edit" open={openMenu === 'edit'}>{menuSummary('edit', label('edit'))}<div className="drawing-menu-popover">{menuActions(['undo', 'redo', 'select-all', 'duplicate', 'delete'])}</div></details>
-        <details className="drawing-menu" data-drawing-menu="object" open={openMenu === 'object'}>{menuSummary('object', label('object'))}<div className="drawing-menu-popover drawing-menu-popover--wide">{menuActions(['group', 'ungroup', 'lock'])}
+        <details className="drawing-menu" data-drawing-menu="object" open={openMenu === 'object'}>{menuSummary('object', label('object'))}<div className="drawing-menu-popover drawing-menu-popover--wide">{menuActions(['group', 'ungroup', 'lock'], true)}
+          <details>
+            <summary>{label('objectOrder')} ▸</summary>
+            <div className="drawing-arrange">{menuActions(['front', 'back', 'forward', 'backward'], true)}</div>
+          </details>
           <hr />
           <button type="button" disabled={!controls.canEditSelection || !settings} onClick={() => compound('combine')}>{advancedLabel('combine')}</button>
           <button type="button" disabled={!controls.canEditSelection || !settings} onClick={() => compound('breakApart')}>{advancedLabel('breakApart')}</button>
