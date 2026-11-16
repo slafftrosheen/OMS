@@ -40,7 +40,7 @@ export const PRODUCTION_INTAKE_JSON_SCHEMA={
 export type IntakeMaterial=Omit<CatalogMaterial,'id'> & {id:string|number};
 export type ProductionReview=ProductionFact & {
   status:'ready'|'unresolved';
-  reason:'exact-match'|'source-value'|'no-exact-match'|'ambiguous-match'|'conflicting-values'|'invalid-value'|'manual-selection';
+  reason:'exact-match'|'source-value'|'no-exact-match'|'catalog-unavailable'|'ambiguous-match'|'conflicting-values'|'invalid-value'|'manual-selection';
   material:IntakeMaterial|null;
 };
 export function sameIntakeMaterial(a:IntakeMaterial|null,b:IntakeMaterial|null):boolean{
@@ -92,13 +92,14 @@ function candidates(target:ProductionFact['target'],catalog:IntakeMaterial[]):In
 }
 /** No fuzzy ranking or color/voltage equivalence. Only complete recorded
  * identities (or explicit catalog aliases) count as a match. */
-export function reviewProductionFacts(raw:unknown[],catalog:IntakeMaterial[]):ProductionReview[]{
+export function reviewProductionFacts(raw:unknown[],catalog:IntakeMaterial[] | null):ProductionReview[]{
   const facts=z.array(productionFactSchema).max(50).parse(raw);
   return facts.map(f=>{
     const review:ProductionReview={...f,status:'ready',reason:'source-value',material:null};
     if(facts.some(other=>other.target===f.target && key(other.value)!==key(f.value)))
       return {...review,status:'unresolved',reason:'conflicting-values'};
     if(materialTargets.has(f.target)){
+      if (catalog === null) return {...review,status:'unresolved',reason:'catalog-unavailable'};
       const matches=candidates(f.target,catalog).filter(m=>{
         const meta=m.metadata??{};
         const identities=[m.code,m.name_en,m.name_ru,m.name_lv,meta.model,meta.manufacturer_part_number,

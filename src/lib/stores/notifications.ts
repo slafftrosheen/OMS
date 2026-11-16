@@ -13,7 +13,9 @@ interface NotificationState {
 }
 
 type NotificationClient = Pick<SupabaseClient, 'from' | 'channel' | 'removeChannel'>;
-type Subscription = { channel: RealtimeChannel; consumers: number };
+type NotificationListener = (notification: Notification) => void;
+type Subscription = { channel: RealtimeChannel | null; consumers: number; listeners: Set<NotificationListener> };
+export type NotificationRealtimeStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 const emptyState = (): NotificationState => ({ items: [], unreadCount: 0, loading: false, error: null });
 const countUnread = (items: Notification[]) => items.filter(item => !item.read).length;
@@ -21,22 +23,69 @@ const sortItems = (items: Notification[]) => items.sort((a, b) => b.created_at.l
 
 export function createNotificationStore(client: NotificationClient = supabase) {
   const store = writable<NotificationState>(emptyState());
+  const realtimeStatus = writable<NotificationRealtimeStatus>('disconnected');
   let userId: string | null = null;
   let sessionVersion = 0;
   let loadVersion = 0;
   let loadController: AbortController | null = null;
   let activeLoad: Promise<void> | null = null;
   let subscription: Subscription | null = null;
+  let channelSequence = 0;
   const mutations = new Map<string, Promise<void>>();
   const mutationControllers = new Set<AbortController>();
   // A refresh must not overwrite an event or successful write that arrived while it was loading.
   let pendingChanges = new Map<string, Notification | null>();
   const seenInsertions = new Set<string>();
 
+  function releaseChannel(current: Subscription) {
+    const channel = current.channel;
+    current.channel = null;
+    if (channel) void Promise.resolve(client.removeChannel(channel)).catch(() => {});
+  }
+
   function stopSubscription() {
     const current = subscription;
     subscription = null;
-    if (current) void Promise.resolve(client.removeChannel(current.channel)).catch(() => {});
+    if (current) releaseChannel(current);
+    realtimeStatus.set('disconnected');
+  }
+
+  function startSubscription(current: Subscription, nextUserId: string) {
+    realtimeStatus.set('connecting');
+    // The previous topic may still be leaving when the same account reconnects.
+    const channel = client.channel(`notifications:${nextUserId}:${++channelSequence}`);
+    current.channel = channel;
+    channel.on('postgres_changes', {
+      event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${nextUserId}`
+    }, payload => {
+      if (subscription !== current || current.channel !== channel) return;
+      const raw = (payload.eventType === 'DELETE' ? payload.old : payload.new) as Record<string, unknown>;
+      if (typeof raw.id !== 'string' || (raw.user_id && raw.user_id !== nextUserId)) return;
+      if (payload.eventType === 'DELETE') {
+        // DELETE payloads can contain only the primary key under RLS.
+        if (get(store).items.some(item => item.id === raw.id) || get(store).loading) applyItem(raw.id, null);
+        return;
+      }
+      if (raw.user_id !== nextUserId) return;
+      const item = normalizeNotification(raw);
+      const isNew = payload.eventType === 'INSERT' && item && !seenInsertions.has(item.id);
+      remember(raw.id);
+      applyItem(raw.id, item);
+      if (isNew && item) {
+        if (!item.read) showBrowserNotification(item);
+        for (const listener of current.listeners) listener(item);
+      }
+    }).subscribe((status, error) => {
+      if (subscription !== current || current.channel !== channel) return;
+      if (status === 'SUBSCRIBED') {
+        const recovering = get(realtimeStatus) === 'error';
+        realtimeStatus.set('connected');
+        if (recovering) void api.load(nextUserId);
+        return;
+      }
+      if (get(realtimeStatus) !== 'error') console.warn('[Realtime] Notifications subscription:', status, error);
+      realtimeStatus.set('error');
+    });
   }
 
   function reset(nextUserId: string | null) {
@@ -110,6 +159,7 @@ export function createNotificationStore(client: NotificationClient = supabase) {
 
   const api = {
     subscribe: store.subscribe,
+    realtimeStatus: { subscribe: realtimeStatus.subscribe },
 
     load(nextUserId: string): Promise<void> {
       if (!nextUserId) { reset(null); return Promise.resolve(); }
@@ -156,44 +206,34 @@ export function createNotificationStore(client: NotificationClient = supabase) {
       return task;
     },
 
-    /** Bell and page share one initial refresh and realtime channel. */
-    connect(nextUserId: string) {
+    /** The bell, notifications page and connection indicator share one channel. */
+    connect(nextUserId: string, onInsert?: NotificationListener) {
       if (!nextUserId) return () => {};
       useUser(nextUserId);
       const firstConsumer = !subscription;
-      if (!subscription) {
-        const current: Subscription = { channel: client.channel(`notifications:${nextUserId}`), consumers: 0 };
-        subscription = current;
-        current.channel.on('postgres_changes', {
-          event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${nextUserId}`
-        }, payload => {
-          if (subscription !== current || userId !== nextUserId) return;
-          const raw = (payload.eventType === 'DELETE' ? payload.old : payload.new) as Record<string, unknown>;
-          if (typeof raw.id !== 'string' || (raw.user_id && raw.user_id !== nextUserId)) return;
-          if (payload.eventType === 'DELETE') {
-            // DELETE payloads can contain only the primary key under RLS.
-            if (get(store).items.some(item => item.id === raw.id) || get(store).loading) applyItem(raw.id, null);
-            return;
-          }
-          if (raw.user_id !== nextUserId) return;
-          const item = normalizeNotification(raw);
-          const show = payload.eventType === 'INSERT' && item && !item.read && !seenInsertions.has(item.id);
-          remember(raw.id);
-          applyItem(raw.id, item);
-          if (show && item) showBrowserNotification(item);
-        }).subscribe();
-      }
-      const current = subscription;
+      const current = subscription ??= { channel: null, consumers: 0, listeners: new Set() };
       current.consumers += 1;
-      if (firstConsumer) void api.load(nextUserId);
+      if (onInsert) current.listeners.add(onInsert);
+      if (firstConsumer) {
+        startSubscription(current, nextUserId);
+        void api.load(nextUserId);
+      }
       let stopped = false;
       return () => {
         if (stopped) return;
         stopped = true;
         if (subscription !== current) return;
+        if (onInsert) current.listeners.delete(onInsert);
         current.consumers -= 1;
         if (current.consumers === 0) stopSubscription();
       };
+    },
+
+    retryRealtime(nextUserId: string) {
+      if (!subscription || userId !== nextUserId || get(realtimeStatus) !== 'error') return;
+      releaseChannel(subscription);
+      startSubscription(subscription, nextUserId);
+      void api.load(nextUserId);
     },
 
     async markAsRead(notificationId: string) {

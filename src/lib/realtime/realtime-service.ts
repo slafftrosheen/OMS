@@ -7,7 +7,9 @@
 import { env } from '$env/dynamic/public';
 import { supabase } from '$lib/supabase-client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { writable, get } from 'svelte/store';
+import { writable } from 'svelte/store';
+import { notificationStore, type NotificationRealtimeStatus } from '$lib/stores/notifications';
+import type { Notification as StoredNotification } from '$lib/notifications/notification-model';
 
 export interface RealtimeOrderUpdate {
   id: string;
@@ -20,7 +22,7 @@ export interface RealtimeOrderUpdate {
 
 export interface RealtimeNotification {
   id: string;
-  type: 'order_update' | 'stage_change' | 'rework' | 'comment' | 'assignment';
+  type: string;
   title: string;
   message: string;
   orderId?: string;
@@ -42,116 +44,105 @@ const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 class RealtimeService {
   private orderChannel: RealtimeChannel | null = null;
-  private notificationChannel: RealtimeChannel | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 2000;
-  private isReconnecting = false;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private generation = 0;
+  private orderStatus: NotificationRealtimeStatus = 'disconnected';
+  private notificationStatus: NotificationRealtimeStatus = 'disconnected';
+  private stopNotifications: (() => void) | null = null;
+  private stopNotificationStatus: (() => void) | null = null;
   private activeUserId: string | null = null;
-  private subscribed = new Set<'orders' | 'notifications'>();
+  private channelSequence = 0;
 
-  /**
-   * Initialize real-time subscriptions for a user
-   * @param userId - Current authenticated user ID
-   */
-  async connect(userId: string): Promise<void> {
-    if (!userId) {
-      console.error('[Realtime] Cannot connect without userId');
-      return;
-    }
+  connect(userId: string): void {
+    if (!userId || this.activeUserId === userId) return;
+    this.disconnect();
 
     if (!isSupabaseConfigured) {
       console.warn('[Realtime] Supabase credentials not configured, realtime disabled');
-      connectionState.set('disconnected');
       return;
     }
 
-    if (this.activeUserId === userId && this.orderChannel && this.notificationChannel) return;
-    await this.disconnect(false);
     this.activeUserId = userId;
-    const generation = this.generation;
-    connectionState.set('connecting');
+    this.orderStatus = 'connecting';
+    this.notificationStatus = 'connecting';
+    this.updateConnectionState();
 
-    try {
-      // Subscribe to order updates
-      await this.subscribeToOrders(userId, generation);
-      
-      // Subscribe to user notifications
-      await this.subscribeToNotifications(userId, generation);
-      
-      // Connection is only healthy after both channel callbacks report SUBSCRIBED.
-    } catch (error) {
-      console.error('[Realtime] Connection error:', error);
+    this.stopNotifications = notificationStore.connect(userId, notification => {
+      if (this.activeUserId === userId) this.handleNotification(notification);
+    });
+    this.stopNotificationStatus = notificationStore.realtimeStatus.subscribe(status => {
+      if (this.activeUserId !== userId) return;
+      this.notificationStatus = status;
+      this.updateConnectionState();
+    });
+    this.subscribeToOrders();
+  }
+
+  private subscribeToOrders(): void {
+    // A manual retry can start before Supabase acknowledges the old topic's leave.
+    const channel = supabase.channel(`oms-orders:${++this.channelSequence}`);
+    this.orderChannel = channel;
+    channel
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'draft_orders' }, payload => {
+        if (this.orderChannel === channel) this.handleOrderChange(payload);
+      })
+      .subscribe((status, error) => {
+        if (this.orderChannel !== channel) return;
+        if (status === 'SUBSCRIBED') {
+          this.orderStatus = 'connected';
+        } else {
+          if (this.orderStatus !== 'error') console.warn('[Realtime] Orders subscription:', status, error);
+          this.orderStatus = 'error';
+        }
+        this.updateConnectionState();
+      });
+  }
+
+  private updateConnectionState(): void {
+    if (this.orderStatus === 'error' || this.notificationStatus === 'error') {
       connectionState.set('error');
-      this.handleReconnect(userId);
+    } else if (this.orderStatus === 'connected' && this.notificationStatus === 'connected') {
+      connectionState.set('connected');
+    } else {
+      connectionState.set('connecting');
     }
   }
 
-  /**
-   * Subscribe to order changes
-   */
-  private async subscribeToOrders(userId: string, generation: number): Promise<void> {
-    this.orderChannel = supabase
-      .channel('orders')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'draft_orders'
-        },
-        (payload) => {
-          this.handleOrderChange(payload, userId);
-        }
-      )
-      .subscribe((status) => {
-        if (generation !== this.generation) return;
-        if (status === 'SUBSCRIBED') {
-          this.markSubscribed('orders');
-          console.log('[Realtime] Subscribed to orders');
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('[Realtime] Order subscription error:', status);
-          this.handleReconnect(userId);
-        }
-      });
+  retry(userId: string): void {
+    if (this.activeUserId !== userId) return;
+    // The SDK rejoins established channels after transient network failures.
+    // The Retry control also handles subscriptions the server closed outright.
+    if (this.orderStatus === 'error') {
+      this.releaseOrders();
+      this.orderStatus = 'connecting';
+      this.subscribeToOrders();
+    }
+    notificationStore.retryRealtime(userId);
+    this.updateConnectionState();
   }
 
-  /**
-   * Subscribe to user notifications
-   */
-  private async subscribeToNotifications(userId: string, generation: number): Promise<void> {
-    this.notificationChannel = supabase
-      .channel(`notifications:${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${userId}`
-        },
-        (payload) => {
-          this.handleNotification(payload);
-        }
-      )
-      .subscribe((status) => {
-        if (generation !== this.generation) return;
-        if (status === 'SUBSCRIBED') {
-          this.markSubscribed('notifications');
-          console.log('[Realtime] Subscribed to notifications');
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('[Realtime] Notification subscription error:', status);
-          this.handleReconnect(userId);
-        }
-      });
+  private releaseOrders(): void {
+    const channel = this.orderChannel;
+    this.orderChannel = null;
+    if (channel) void supabase.removeChannel(channel).catch(() => {});
+  }
+
+  disconnect(): void {
+    this.activeUserId = null;
+    this.stopNotificationStatus?.();
+    this.stopNotificationStatus = null;
+    this.stopNotifications?.();
+    this.stopNotifications = null;
+    this.releaseOrders();
+    this.orderStatus = 'disconnected';
+    this.notificationStatus = 'disconnected';
+    realtimeOrders.set([]);
+    realtimeNotifications.set([]);
+    connectionState.set('disconnected');
   }
 
   /**
    * Handle order change events
    */
-  private handleOrderChange(payload: any, userId: string): void {
+  private handleOrderChange(payload: any): void {
     const update: RealtimeOrderUpdate = {
       id: payload.new?.id || payload.old?.id,
       action: payload.eventType === 'INSERT' ? 'created' : 
@@ -174,108 +165,21 @@ class RealtimeService {
   /**
    * Handle notification events
    */
-  private handleNotification(payload: any): void {
+  private handleNotification(item: StoredNotification): void {
     const notification: RealtimeNotification = {
-      id: payload.new.id,
-      type: payload.new.type,
-      title: payload.new.title,
-      message: payload.new.message,
-      orderId: payload.new.order_id,
-      userId: payload.new.user_id,
-      timestamp: payload.new.created_at,
-      read: false
+      id: item.id,
+      type: item.notification_type,
+      title: item.title,
+      message: item.message,
+      orderId: item.reference_type === 'order' ? item.reference_id : undefined,
+      userId: item.user_id,
+      timestamp: item.created_at,
+      read: item.read
     };
-
-    // Add to store
-    realtimeNotifications.update(notifs => [notification, ...notifs]);
-
-    // Show browser notification if permitted
-    this.showBrowserNotification(notification);
-
-    // Emit custom event
+    realtimeNotifications.update(notifications => [notification, ...notifications].slice(0, 100));
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('notification', { detail: notification }));
     }
-  }
-
-  /**
-   * Show browser notification
-   */
-  private showBrowserNotification(notification: RealtimeNotification): void {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'granted') {
-        new Notification(notification.title, {
-          body: notification.message,
-          icon: '/favicon.png',
-          badge: '/favicon.png',
-          tag: notification.id
-        });
-      }
-    }
-  }
-
-  /**
-   * Handle reconnection logic
-   */
-  private markSubscribed(channel: 'orders' | 'notifications'): void {
-    this.subscribed.add(channel);
-    if (this.subscribed.size === 2) {
-      connectionState.set('connected');
-      this.reconnectAttempts = 0;
-      console.log('[Realtime] Both channels subscribed');
-    }
-  }
-
-  private handleReconnect(userId: string): void {
-    if (this.isReconnecting || this.activeUserId !== userId) return;
-
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('[Realtime] Max reconnection attempts reached');
-      connectionState.set('error');
-      return;
-    }
-
-    this.isReconnecting = true;
-    this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-
-    console.log(`[Realtime] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
-
-    this.reconnectTimer = setTimeout(async () => {
-      this.reconnectTimer = null;
-      if (this.activeUserId !== userId) return;
-      await this.disconnect(false);
-      this.isReconnecting = false;
-      this.activeUserId = null;
-      void this.connect(userId);
-    }, delay);
-  }
-
-  /**
-   * Disconnect all channels
-   */
-  async disconnect(cancelReconnect = true): Promise<void> {
-    this.generation++;
-    this.subscribed.clear();
-    if (cancelReconnect) {
-      if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-      this.isReconnecting = false;
-      this.activeUserId = null;
-      this.reconnectAttempts = 0;
-    }
-    if (this.orderChannel) {
-      await supabase.removeChannel(this.orderChannel);
-      this.orderChannel = null;
-    }
-
-    if (this.notificationChannel) {
-      await supabase.removeChannel(this.notificationChannel);
-      this.notificationChannel = null;
-    }
-
-    connectionState.set('disconnected');
-    console.log('[Realtime] Disconnected');
   }
 
   /**

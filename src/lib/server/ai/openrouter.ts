@@ -188,6 +188,7 @@ export interface OpenRouterCompletionMetadata {
   text: string;
   model: string;
   annotations: unknown[];
+  finishReason?: string;
   /** Number of provider web-search calls when reported; null if absent. */
   webSearchRequests: number | null;
 }
@@ -231,11 +232,12 @@ export async function openRouterCompleteWithMetadata(
     const response = result.response;
     // Providers can also report a failed completion inside an HTTP 200 envelope.
     data = response.ok ? await response.json() : null;
-    const embedded = Number(data?.error?.code);
-    const status = response.ok && data?.error
+    const upstreamError = data?.error ?? data?.choices?.[0]?.error;
+    const embedded = Number(upstreamError?.code);
+    const status = response.ok && upstreamError
       ? Number.isInteger(embedded) && embedded >= 400 && embedded <= 599 ? embedded : 502
       : response.status;
-    if (response.ok && !data?.error) break;
+    if (response.ok && !upstreamError) break;
     const failure = new OpenRouterHttpError(status, response.headers.get('Retry-After'));
     await response.body?.cancel().catch(() => {});
     const waitMs = (failure.retryAfterSeconds ?? 1) * 1000;
@@ -254,6 +256,7 @@ export async function openRouterCompleteWithMetadata(
     text: openRouterTextContent(choice?.message?.content),
     model: typeof data?.model === 'string' && data.model ? data.model : model,
     annotations: Array.isArray(choice?.message?.annotations) ? choice.message.annotations : [],
+    ...(typeof choice?.finish_reason === 'string' ? {finishReason: choice.finish_reason} : {}),
     webSearchRequests: Number.isSafeInteger(reported) && reported >= 0 ? reported : null
   };
 }

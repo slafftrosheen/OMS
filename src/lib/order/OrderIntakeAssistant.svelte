@@ -239,14 +239,16 @@
         if(!source)throw new Error($t('orderIntake.noSource'));
         requestBody=new FormData();requestBody.set('file',source.file);
         requestBody.set('metadata',JSON.stringify({sourceId:source.id,profileIndex:capturedProfileIndex,
-          notes:String(current.notes??'').slice(0,5000),language:$t('orderIntake.locale')}));
+          notes:String(current.notes??'').slice(0,5000),language:$t('orderIntake.locale'),
+          ...(isPdf ? {pdfMode} : {})}));
       }else requestBody=JSON.stringify({orderId:capturedOrderId,
           fileId:capturedFileId||null,profileIndex:capturedProfileIndex,
           expectedUpdatedAt:capturedVersion,ocr:!!ocr,nativePdf:pdfMode==='native'&&isPdf&&!ocr,
           visualPdf:pdfMode==='visual'&&isPdf,language:$t('orderIntake.locale')});
+      const analysisSignal = AbortSignal.any([requestSignal(170_000), activeController.signal]);
       const res=await fetch(`${base}/api/ai/order-intake`,{
         method:'POST',...(typeof requestBody==='string'?{headers:{'Content-Type':'application/json'}}:{}),
-        signal:AbortSignal.any([requestSignal(),activeController.signal]),body:requestBody
+        signal:analysisSignal,body:requestBody
       });
       const body=await res.json().catch(()=>({}));
       if(disposed||orderId!==capturedOrderId||activeController.signal.aborted)return;
@@ -264,6 +266,7 @@
       if(!disposed&&orderId===capturedOrderId&&sourceMatches)reviewHeading?.focus();
     }catch(err){if(!disposed&&orderId===capturedOrderId){
       if(activeController.signal.aborted)notice=$t('orderIntake.cancelled');
+      else if (err instanceof Error && err.name === 'TimeoutError') problem=$t('orderIntake.analysisTimeout');
       else problem=err instanceof Error?err.message:$t('orderIntake.analyzeError');
     }
     }finally{if(!disposed&&orderId===capturedOrderId)analyzing=false;}
@@ -365,7 +368,7 @@
       {#each profileNames as name,i (i)}<option value={String(i)}>{i+1}. {name||$t('orderIntake.unnamedProfile')}</option>{/each}
     </select>
     <p class="hint">{$t(orderId?'orderIntake.profileFocusHint':'orderIntake.newProfileFocusHint')}</p>
-    {#if orderId&&fileId&&isPdf}
+    {#if fileId&&isPdf}
       <details class="pdf-options"><summary>{$t('orderIntake.pdfProcessing')} · {$t(pdfMode==='ocr'?'orderIntake.ocrLabel':pdfMode==='native'?'orderIntake.nativePdf':pdfMode==='visual'?'orderIntake.visualPdf':'orderIntake.textPdf')}</summary>
       <fieldset disabled={!editable||uploading||analyzing||applying}>
         <legend>{$t('orderIntake.pdfProcessing')}</legend>

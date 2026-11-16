@@ -11,9 +11,7 @@
 import { onMount, onDestroy } from 'svelte';
 import { realtimeService, connectionState } from './realtime-service';
 import { currentUser } from '$lib/auth/authState.svelte';
-import Icon from '$lib/ui/Icon.svelte';
 
-let unsubscribe: (() => void) | null = null;
 let userId: string | null = null;
 
 onMount(() => {
@@ -21,9 +19,9 @@ onMount(() => {
   const userUnsub = currentUser.subscribe(user => {
     if (user?.id && user.id !== userId) {
       userId = user.id;
-      connectRealtime();
+      realtimeService.connect(userId);
     } else if (!user && userId) {
-      disconnectRealtime();
+      realtimeService.disconnect();
       userId = null;
     }
   });
@@ -37,24 +35,11 @@ onMount(() => {
 });
 
 onDestroy(() => {
-  disconnectRealtime();
+  realtimeService.disconnect();
 });
 
-async function connectRealtime() {
-  if (userId) {
-    await realtimeService.connect(userId);
-  }
-}
-
-async function disconnectRealtime() {
-  await realtimeService.disconnect();
-}
-
-async function retryConnection() {
-  if (userId) {
-    await realtimeService.disconnect();
-    await realtimeService.connect(userId);
-  }
+function retryConnection() {
+  if (userId) realtimeService.retry(userId);
 }
 
 let statusIcon = $derived($connectionState === 'connected' ? Wifi :

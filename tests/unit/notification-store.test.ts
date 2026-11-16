@@ -46,7 +46,8 @@ function fakeClient() {
         name,
         callback: null,
         on(_type: string, _filters: any, callback: any) { channel.callback = callback; return channel; },
-        subscribe() { return channel; },
+        status: null,
+        subscribe(callback: any) { channel.status = callback; return channel; },
         emit(eventType: string, value: any) {
           channel.callback({ eventType, new: eventType === 'DELETE' ? {} : value, old: eventType === 'DELETE' ? value : {} });
         }
@@ -168,6 +169,47 @@ describe('notification store persistence and subscriptions', () => {
     expect(get(store).items).toHaveLength(0);
     stopNextUser();
     expect(fake.removed).toHaveLength(2);
+  });
+
+  it('shares health and insert events with the connection indicator across rejoin and manual retry', async () => {
+    const fake = fakeClient();
+    const store = createNotificationStore(fake.client);
+    const inserted: string[] = [];
+    const stopBell = store.connect('user-a');
+    const stopIndicator = store.connect('user-a', item => inserted.push(item.id));
+    const first = fake.channels[0];
+
+    expect(fake.channels).toHaveLength(1);
+    expect(get(store.realtimeStatus)).toBe('connecting');
+    first.status('SUBSCRIBED');
+    expect(get(store.realtimeStatus)).toBe('connected');
+    first.status('CHANNEL_ERROR', new Error('transport unavailable'));
+    expect(get(store.realtimeStatus)).toBe('error');
+    expect(fake.channels).toHaveLength(1);
+    first.status('SUBSCRIBED');
+    expect(get(store.realtimeStatus)).toBe('connected');
+    first.emit('INSERT', row('n1'));
+    first.emit('INSERT', row('n1'));
+    expect(inserted).toEqual(['n1']);
+
+    first.status('CLOSED');
+    store.retryRealtime('user-a');
+    expect(fake.removed).toEqual([first]);
+    expect(fake.channels).toHaveLength(2);
+    expect(get(store.realtimeStatus)).toBe('connecting');
+    first.status('SUBSCRIBED');
+    first.emit('INSERT', row('stale'));
+    expect(get(store.realtimeStatus)).toBe('connecting');
+    expect(inserted).toEqual(['n1']);
+    fake.channels[1].status('SUBSCRIBED');
+    fake.channels[1].emit('INSERT', row('n2'));
+    expect(get(store.realtimeStatus)).toBe('connected');
+    expect(inserted).toEqual(['n1', 'n2']);
+
+    stopIndicator();
+    expect(get(store.realtimeStatus)).toBe('connected');
+    stopBell();
+    expect(get(store.realtimeStatus)).toBe('disconnected');
   });
 
   it('keeps realtime changes arriving during a refresh and ignores stale loads after logout', async () => {

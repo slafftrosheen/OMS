@@ -27,14 +27,14 @@ describe('production intake API boundary',()=>{
 });
 
 import {createOrderIntakeHandler} from '../../src/lib/server/order/intake';
-import {OpenRouterHttpError} from '../../src/lib/server/ai/openrouter';
+import {type OpenRouterChatOptions,OpenRouterHttpError} from '../../src/lib/server/ai/openrouter';
 import {GET as addressGET} from '../../src/routes/api/client-delivery-addresses/+server';
 const emptyModel={proposals:[],profileSuggestions:[],missing:[],production:[]};
 let sequence=0;
-function intakeEvent({output=emptyModel,change=false,unlink=false,malformed=false,fail=false}:{output?:any;change?:boolean;unlink?:boolean;malformed?:boolean;fail?:boolean}={}){
+function intakeEvent({output=emptyModel,change=false,unlink=false,malformed=false,fail=false,catalogFails=false}:{output?:any;change?:boolean;unlink?:boolean;malformed?:boolean;fail?:boolean;catalogFails?:boolean}={}){
  const fileId='22222222-2222-4222-8222-222222222222';
  const bytes=Buffer.from('%PDF-1.7\nexample image-only production drawing');
- let orderReads=0,linkReads=0;
+ let orderReads=0,linkReads=0,catalogReads=0;
  let sent:any;
  const db={from(table:string){
   const query:any={select:()=>query,eq:()=>query,order:()=>query,limit:()=>query,range:()=>query,abortSignal:()=>query,
@@ -44,7 +44,11 @@ function intakeEvent({output=emptyModel,change=false,unlink=false,malformed=fals
    if(table==='order_files')return {data:unlink&&linkReads++>0?null:{file_id:fileId},error:null};
    if(table==='files')return {data:{id:fileId,mimetype:'application/pdf',size:bytes.length,original_name:'Drawing.pdf',filepath:'orders/example.pdf',metadata:{storage_bucket:'files'}},error:null};
    if(table==='order_profiles')return {data:[{id:'saved-profile-id',configuration:{},quantity1:1,order_index:0}],error:null};
-   if(table==='materials')return {count:1,data:[{id:'33333333-3333-4333-8333-333333333333',code:'REAL_PLEXI',category:'ACRYLIC_XT',name_en:'Plexi actual',metadata:{model:'5N870'}}],error:null};
+   if (table === 'materials') {
+    catalogReads++;
+    if (catalogFails) return {count:null,data:null,error:{code:'PGRST000'}};
+    return {count:1,data:[{id:'33333333-3333-4333-8333-333333333333',code:'REAL_PLEXI',category:'ACRYLIC_XT',name_en:'Plexi actual',metadata:{model:'5N870'}}],error:null};
+   }
    return {data:{locale:'en'},error:null};
   }
   return query;
@@ -57,7 +61,7 @@ function intakeEvent({output=emptyModel,change=false,unlink=false,malformed=fals
   if(fail)throw new Error('Provider unavailable');
   return {text:malformed?'not JSON':JSON.stringify(output),model:'configured/model',annotations:[],webSearchRequests:null};
  });
- return {e,handler,sent:()=>sent};
+ return {e,handler,sent:()=>sent,catalogReads:()=>catalogReads};
 }
 describe('production intake actual handler with a provider boundary double',()=>{
  it('preserves provider rate limits and identifies incompatible model routing without exposing provider bodies',async()=>{
@@ -82,6 +86,22 @@ describe('production intake actual handler with a provider boundary double',()=>
   expect(sample.sent().options.jsonSchema.schema.properties.production).toBeTruthy();
   expect(sample.sent().options.plugins).toEqual([{id:'file-parser',pdf:{engine:'cloudflare-ai'}}]);
   expect(sample.sent().messages[1].content[1].file.file_data).toContain('data:application/pdf;base64,');
+ });
+ it('preserves extracted details when the catalog is unavailable and skips it for non-material facts', async () => {
+  const fact = {evidence:'SKIN: 5N870',page:1,part:null,confidence:'high'};
+  const proposals = [{field:'clientName',value:'Example client',evidence:'Client: Example client',confidence:'high'}];
+  const width = {...fact,target:'width',value:'300 mm',evidence:'Width 300 mm'};
+  const material = {...fact,target:'faceMaterial',value:'5N870'};
+  for (const production of [[width], [width,material]]) {
+   const sample = intakeEvent({catalogFails:true,output:{...emptyModel,proposals,production}});
+   const result = await (await sample.handler(sample.e)).json();
+   expect(result.proposals[0].value).toBe('Example client');
+   expect(result.production[0].status).toBe('ready');
+   expect(sample.catalogReads()).toBe(production.length-1);
+   if (production.length > 1) expect(result.production[1]).toMatchObject({
+    status:'unresolved',reason:'catalog-unavailable',material:null
+   });
+  }
  });
  it('keeps conflicting deadlines out of the executable proposals',async()=>{
   const sample=intakeEvent({output:{...emptyModel,proposals:[
@@ -114,6 +134,59 @@ describe('production intake actual handler with a provider boundary double',()=>
     let received=0;try{await addressGET(e as any);}catch(err:any){received=err.status;}
     expect([400,401]).toContain(received);
   }
+ });
+});
+
+describe('PDF processing and routing', () => {
+ it('falls back to JSON mode for a free parser request with no strict endpoint and uses the same deadline', async () => {
+  const old = process.env.OPENROUTER_ORDER_INTAKE_STRICT;
+  delete process.env.OPENROUTER_ORDER_INTAKE_STRICT;
+  try {
+   const sample = intakeEvent();
+   const requests: Array<Omit<OpenRouterChatOptions, 'messages'> | undefined> = [];
+   const handler = createOrderIntakeHandler(async (_messages, options) => {
+    requests.push(options);
+    if (requests.length === 1) throw new OpenRouterHttpError(404);
+    return {text:JSON.stringify(emptyModel),model:'configured/model',annotations:[],webSearchRequests:null};
+   });
+   expect((await handler(sample.e)).status).toBe(200);
+   expect(requests[0]).toMatchObject({jsonSchema:{name:'oms_order_intake_v2'}});
+   expect(requests[1]).toMatchObject({jsonMode:true, model:requests[0]?.model, plugins:requests[0]?.plugins});
+   expect(requests[1]?.signal).toBe(requests[0]?.signal);
+  } finally {
+   if (old !== undefined) process.env.OPENROUTER_ORDER_INTAKE_STRICT = old;
+  }
+ });
+ it('honors explicit OCR on an unsaved upload and never falls back to repeating a paid parser request after a no-route error', async () => {
+  const old = process.env.OPENROUTER_TOOLKIT_PDF_OCR;
+  try {
+   process.env.OPENROUTER_TOOLKIT_PDF_OCR = 'true';
+   const sample = intakeEvent();
+   const form = new FormData();
+   form.set('file',new Blob(['%PDF-1.7\\nscan sample'],{type:'application/pdf'}),'drawing.pdf');
+   form.set('metadata',JSON.stringify({sourceId:id,pdfMode:'ocr'}));
+   sample.e.request = new Request('http://localhost/api/ai/order-intake',{method:'POST',body:form});
+   let calls = 0;
+   const handler = createOrderIntakeHandler(async (_messages, options) => {
+    calls++;
+    expect(options?.plugins).toEqual([{id:'file-parser',pdf:{engine:'mistral-ocr'}}]);
+    throw new OpenRouterHttpError(404);
+   });
+   await expect(handler(sample.e)).rejects.toMatchObject({status:503});
+   expect(calls).toBe(1);
+  } finally {
+   if (old === undefined) delete process.env.OPENROUTER_TOOLKIT_PDF_OCR;
+   else process.env.OPENROUTER_TOOLKIT_PDF_OCR = old;
+  }
+ });
+ it('reports a completed request that ran out of output tokens', async () => {
+  const sample = intakeEvent();
+  const handler = createOrderIntakeHandler(async () => ({
+   text:'{"proposals": [',model:'configured/model',annotations:[],webSearchRequests:null,finishReason:'length'
+  }));
+  await expect(handler(sample.e)).rejects.toMatchObject({
+   status:503,body:{message:expect.stringContaining('output limit')}
+  });
  });
 });
 

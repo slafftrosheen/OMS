@@ -64,8 +64,8 @@ describe('OMS-R13 OpenRouter Smart Order Intake',()=>{
     expect(api).toContain("from('files')");
     expect(api).toContain("readOrderStoredFile(locals,file,toolkitMediaLimit(kind))");
     expect(api).toContain('matchesOrderFileSignature');
-    expect(api).toContain('toolkitMediaContent(filename,file.mimetype,bytes)');
-    expect(api).toContain('jsonSchema:{name:');
+    expect(api).toContain('toolkitMediaContent(filename, mime, bytes)');
+    expect(api).toContain('jsonSchema:strictSchema');
     expect(api).toContain("process.env.OPENROUTER_ORDER_INTAKE_STRICT==='false'");
     expect(api).toContain('{jsonMode:true}');
     expect(api).toContain('normalizeIntakeProposals(basic)');
