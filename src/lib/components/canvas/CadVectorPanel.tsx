@@ -1,3 +1,4 @@
+import { prepareEllipseSegment, type EllipseSegmentKind } from './cad-ellipse-segments';
 import {ProductionSaveButton} from './ProductionSaveButton';
 import { storeCanvasImage } from "./cad-asset-store";
 import { prepareVectorExportWithAssets } from "./cad-vector-export-client";
@@ -12,7 +13,7 @@ import {
   makeCadPlan,
   type CadPlan,
 } from "./cad-plans";
-import { cadMmPerPixel, unitMm, type CadSettings } from "./cad-settings";
+import { cadMmPerPixel, canvasPointToCad, unitMm, type CadSettings } from "./cad-settings";
 import {
   prepareVectorImport,
   vectorPaint,
@@ -1112,3 +1113,80 @@ export function PolygonControls({ settings, revision, disabled }: Props) {
     </details>
   );
 }
+
+/** Corel-style elliptic arcs and closed sectors share the curve editing/export pipeline. */
+export function EllipseSegmentControls({ settings, revision, disabled, focusSequence }: Props) {
+  const editor = useEditor(), t = useVectorText();
+  const section = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if (focusSequence === undefined || !section.current) return;
+    section.current.open = true;
+    section.current.scrollIntoView({ block: 'nearest' });
+    section.current.querySelector<HTMLSelectElement>('select')?.focus();
+  }, [focusSequence]);
+  const [kind, setKind] = useState<EllipseSegmentKind>('pie');
+  const [values, setValues] = useState(() => ({
+    width: String(100 / unitMm(settings?.unit ?? 'mm')),
+    height: String(75 / unitMm(settings?.unit ?? 'mm')), centerX: '0', centerY: '0',
+  }));
+  const previousUnit = useRef(settings?.unit ?? 'mm');
+  useEffect(() => {
+    const unit = settings?.unit ?? 'mm', factor = unitMm(previousUnit.current) / unitMm(unit);
+    previousUnit.current = unit;
+    if (factor !== 1) setValues(current => Object.fromEntries(Object.entries(current).map(([key, value]) =>
+      [key, value.trim() && Number.isFinite(Number(value)) ? String(Number((Number(value) * factor).toPrecision(14))) : value])) as typeof current);
+  }, [settings?.unit]);
+  const [start, setStart] = useState('0'), [end, setEnd] = useState('90'), [rotation, setRotation] = useState('0');
+  const [clockwise, setClockwise] = useState(false), [circle, setCircle] = useState(false);
+  const [review, setReview] = useState<Review>(), [message, setMessage] = useState('');
+  const key = JSON.stringify([settings, values, kind, start, end, rotation, clockwise, circle]);
+  const parse = (value: string) => value.trim() ? Number(value) : NaN;
+  const lengthsValid = ['width', ...(circle ? [] : ['height'])].every(key =>
+    Number.isFinite(parse(values[key as 'width' | 'height'])) && parse(values[key as 'width' | 'height']) > 0);
+  const valid = lengthsValid && [values.centerX, values.centerY].every(value => Number.isFinite(parse(value))) &&
+    [start, end, rotation].every(value => Number.isFinite(parse(value)) && Math.abs(parse(value)) <= 360);
+  return <details ref={section} className="drawing-cad-section" data-testid="vector-ellipse-segment">
+    <summary>{t('ellipseSegments')}</summary>
+    <p className="drawing-help">{t('ellipseSegmentHelp')}</p>
+    <form onSubmit={event => {
+      event.preventDefault();
+      if (!settings || disabled || !valid) return;
+      setMessage(''); setReview(undefined);
+      try {
+        setReview({ key, plan: prepareEllipseSegment(editor, settings, {
+          kind, width: parse(values.width), height: parse(circle ? values.width : values.height),
+          centerX: parse(values.centerX), centerY: parse(values.centerY),
+          startAngle: parse(start), endAngle: parse(end), rotation: parse(rotation), clockwise,
+        }) });
+      } catch (error) { setMessage(vectorError(error)); }
+    }}>
+      <fieldset className="drawing-cad-fields" disabled={disabled || !settings}>
+        <Field label={t('ellipseKind')}><select value={kind} onChange={event => setKind(event.target.value as EllipseSegmentKind)}>
+          {(['arc', 'pie', 'chord'] as const).map(value => <option key={value} value={value}>{t('ellipse' + value)}</option>)}
+        </select></Field>
+        {(['width', 'height', 'centerX', 'centerY'] as const).map(field =>
+          <Field key={field} label={t('ellipse' + field) + ' (' + (settings?.unit ?? 'mm') + ')'}>
+            <input type="number" required step="any" min={field === 'width' || field === 'height' ? '0.000001' : undefined}
+              value={field === 'height' && circle ? values.width : values[field]}
+              disabled={field === 'height' && circle}
+              onChange={event => setValues(current => ({ ...current, [field]: event.target.value }))} />
+          </Field>)}
+        <label className="drawing-cad-check"><input type="checkbox" checked={circle} onChange={event => setCircle(event.target.checked)} /><span>{t('ellipseCircle')}</span></label>
+        <button type="button" onClick={() => {
+          if (!settings) return;
+          const center = canvasPointToCad(editor.getViewportPageBounds().center, settings);
+          setValues(current => ({ ...current, centerX: String(Number(center.x.toPrecision(14))), centerY: String(Number(center.y.toPrecision(14))) }));
+        }}>{t('ellipseCenterView')}</button>
+        <Field label={t('ellipseStart')}><input type="number" required min="-360" max="360" step="any" value={start} onChange={event => setStart(event.target.value)} /></Field>
+        <Field label={t('ellipseEnd')}><input type="number" required min="-360" max="360" step="any" value={end} onChange={event => setEnd(event.target.value)} /></Field>
+        <Field label={t('rotation')}><input type="number" required min="-360" max="360" step="any" value={rotation} onChange={event => setRotation(event.target.value)} /></Field>
+        <label className="drawing-cad-check"><input type="checkbox" checked={clockwise} onChange={event => setClockwise(event.target.checked)} /><span>{t('ellipseClockwise')}</span></label>
+        <button type="submit" disabled={!valid}>{t('preview')}</button>
+      </fieldset>
+    </form>
+    {message && <p className="drawing-help" role={message === 'done' ? 'status' : 'alert'}>{t(message)}</p>}
+    {review && <Preview review={review} inputKey={key} revision={revision} disabled={disabled || !settings}
+      onApplied={() => { setReview(undefined); setMessage('done'); }} />}
+  </details>;
+}
+

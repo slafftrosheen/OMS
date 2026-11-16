@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
-import { drawingObjectAlias, drawingObjectName, drawingPngSize, renameDrawingObject, repeatDrawingSelection, planDrawingExport } from '../../src/lib/components/canvas/drawing-operations';
+import { drawingObjectAlias, drawingObjectName, drawingPngSize, renameDrawingObject, repeatDrawingSelection, prepareRepeatGrid, applyRepeatGrid, planDrawingExport } from '../../src/lib/components/canvas/drawing-operations';
 
 function fixture() {
   const a: any = { id: 'shape:a', type: 'geo', parentId: 'page:one', props: { text: 'Production artwork', w: 100, h: 50 }, meta: { audit: 'keep' } };
@@ -15,16 +15,21 @@ function fixture() {
     return result;
   };
   let sequence = 0;
+  const marks = new Map<string, { shapes: Array<[string, any]>; selected: string[] }>();
   const editor: any = {
     options: { maxShapesPerPage: 4000 }, getShape: (id: string) => shapes.get(id),
+    getCurrentPageId: () => 'page:one', getCurrentPageShapesSorted: () => [...shapes.values()],
     getCurrentPageShapeIds: () => new Set(shapes.keys()), getShapeAndDescendantIds: related,
     getSelectedShapeIds: () => selected, getInstanceState: () => state,
     isShapeOrAncestorLocked: (idOrShape: any) => { let shape = typeof idOrShape === 'string' ? shapes.get(idOrShape) : idOrShape; while (shape) { if (shape.isLocked) return true; shape = shapes.get(shape.parentId); } return false; },
     getSelectionPageBounds: () => ({ x: 0, y: 0, w: 120, h: 50 }),
+    getShapeMask: () => undefined, getShapePageTransform: () => ({ point: () => ({ x: 0, y: 0 }) }),
+    getPointInParentSpace: (_shape: any, point: any) => point,
     getShapeMaskedPageBounds: (id: string) => shapes.get(id)?.bounds ?? { x: id === a.id ? 0 : 100, y: 0, w: 100, h: 50 },
     getCamera: () => ({ x: 12, y: 15, z: 1 }), setCamera: (value: any) => calls.push(['camera', value]),
     complete() {}, setCurrentTool() {},
-    mark: (value: string) => calls.push(['mark', value]), bailToMark: (value: string) => calls.push(['rollback', value]),
+    mark: (value: string) => { calls.push(['mark', value]); marks.set(value, { shapes: structuredClone([...shapes.entries()]), selected: [...selected] }); },
+    bailToMark: (value: string) => { calls.push(['rollback', value]); const mark = marks.get(value)!; shapes.clear(); for (const [id, shape] of mark.shapes) shapes.set(id, shape); selected = mark.selected; },
     run: (fn: () => void) => fn(),
     updateShapes: (updates: any[]) => { calls.push(['update', updates]); for (const update of updates) shapes.set(update.id, { ...shapes.get(update.id), ...update }); },
     setSelectedShapes: (ids: string[]) => { selected = ids; },
@@ -90,6 +95,8 @@ describe('Drawing names and repeat grid', () => {
     const f = fixture(); f.state.failAt = 2;
     assert.deepEqual(repeatDrawingSelection(f.editor, { rows: 2, columns: 2, gapX: 4, gapY: 4 }, [...f.selected()]), { ok: false, error: 'changedFailed' });
     assert.equal(f.calls.filter(call => call[0] === 'rollback').length, 1);
+    assert.deepEqual([...f.shapes.keys()], [f.a.id, f.b.id]);
+    assert.deepEqual(f.selected(), [f.a.id, f.b.id]);
     assert.deepEqual(f.calls.at(-1), ['camera', { x: 12, y: 15, z: 1 }]);
   });
 });
@@ -135,3 +142,80 @@ describe('Drawing export resource bounds', () => {
     assert.equal(f.calls.length, 0);
   });
 });
+
+describe('Step and Repeat preview and apply', () => {
+  const options = { rows: 2, columns: 2, gapX: 30, gapY: 40, spacing: 'offset' as const, directionX: -1 as const, directionY: -1 as const };
+  it('previews explicit copy offsets in all directions without changing history or selection', () => {
+    const f = fixture();
+    const plan = prepareRepeatGrid(f.editor, options, [...f.selected()]);
+    assert.equal(plan.ok, true); if (!plan.ok) return;
+    assert.deepEqual(plan.value.offsets, [{ x: -30, y: -0 }, { x: -0, y: -40 }, { x: -30, y: -40 }]);
+    assert.equal(plan.value.generated, 6);
+    assert.equal(f.shapes.size, 2); assert.deepEqual(f.calls, []);
+    assert.deepEqual(applyRepeatGrid(f.editor, plan.value), { ok: true, value: 6 });
+    assert.equal(f.calls.filter(call => call[0] === 'mark').length, 2);
+    assert.deepEqual(f.calls.filter(call => call[0] === 'duplicate').map(call => call[2]), plan.value.offsets);
+  });
+  it('invalidates reviewed geometry and selection and rechecks readonly and descendant locks', () => {
+    for (const change of [
+      (f: ReturnType<typeof fixture>) => { f.a.props.w = 200; },
+      (f: ReturnType<typeof fixture>) => { f.editor.setSelectedShapes([f.a.id]); },
+    ]) {
+      const f = fixture(), plan = prepareRepeatGrid(f.editor, options, [...f.selected()]);
+      assert.equal(plan.ok, true); if (!plan.ok) continue;
+      change(f);
+      assert.deepEqual(applyRepeatGrid(f.editor, plan.value), { ok: false, error: 'selectionChanged' });
+      assert.deepEqual(f.calls, []);
+    }
+    const f = fixture(), plan = prepareRepeatGrid(f.editor, options, [...f.selected()]);
+    assert.equal(plan.ok, true); if (!plan.ok) return;
+    f.state.isReadonly = true;
+    assert.deepEqual(applyRepeatGrid(f.editor, plan.value), { ok: false, error: 'repeatProtected' });
+    assert.deepEqual(f.calls, []);
+  });
+  it('does not trust a cached plan if gesture completion changed the drawing', () => {
+    const f = fixture(), plan = prepareRepeatGrid(f.editor, options, [...f.selected()]);
+    assert.equal(plan.ok, true); if (!plan.ok) return;
+    f.editor.complete = () => { f.a.x = 25; };
+    assert.deepEqual(applyRepeatGrid(f.editor, plan.value), { ok: false, error: 'selectionChanged' });
+    assert.deepEqual(f.calls, []);
+  });
+  it('enforces per-page and descendant object limits, supported artwork and save capacity during preview', () => {
+    const f = fixture();
+    f.editor.options.maxShapesPerPage = 7;
+    assert.deepEqual(prepareRepeatGrid(f.editor, options, [...f.selected()]), { ok: false, error: 'repeatLimit' });
+    f.editor.options.maxShapesPerPage = 4000;
+    f.a.type = 'frame';
+    assert.deepEqual(prepareRepeatGrid(f.editor, options, [...f.selected()]), { ok: false, error: 'repeatProtected' });
+    f.a.type = 'geo';
+    f.editor.getShapeMask = () => [{ x: 0, y: 0 }];
+    assert.deepEqual(prepareRepeatGrid(f.editor, options, [...f.selected()]), { ok: false, error: 'repeatProtected' });
+    f.editor.getShapeMask = () => undefined;
+    f.editor.store = { getStoreSnapshot: () => ({ largeDocument: 'x'.repeat(1_850_000) }) };
+    assert.deepEqual(prepareRepeatGrid(f.editor, options, [...f.selected()]), { ok: false, error: 'repeatLimit' });
+    assert.deepEqual(f.calls, []);
+  });
+  it('rejects coincident offsets, negative copy distances and out-of-bounds coordinates', () => {
+    const f = fixture();
+    for (const update of [{ gapX: 0 }, { gapX: -1 }, { directionX: 0 }, { rows: 21 }])
+      assert.deepEqual(prepareRepeatGrid(f.editor, { ...options, ...update } as any, [...f.selected()]), { ok: false, error: 'invalidOptions' });
+    assert.deepEqual(prepareRepeatGrid(f.editor, { ...options, spacing: 'gap', gapX: -120 }, [...f.selected()]), { ok: false, error: 'invalidOptions' });
+    f.editor.getPointInParentSpace = () => ({ x: 1_000_001, y: 0 });
+    assert.deepEqual(prepareRepeatGrid(f.editor, options, [...f.selected()]), { ok: false, error: 'invalidOptions' });
+    f.editor.getPointInParentSpace = (_shape: any, point: any) => point;
+    f.editor.getSelectionPageBounds = () => ({ x: 1_000_000, y: 0, w: 120, h: 50 });
+    assert.deepEqual(prepareRepeatGrid(f.editor, { ...options, directionX: 1 }, [...f.selected()]), { ok: false, error: 'invalidOptions' });
+    assert.deepEqual(f.calls, []);
+  });
+  it('rolls back native copies if the saved document exceeds its payload bound', () => {
+    const f = fixture();
+    f.editor.store = { getStoreSnapshot: () => ({ document: 'x'.repeat(f.shapes.size > 2 ? 1_900_000 : 10) }) };
+    const plan = prepareRepeatGrid(f.editor, options, [...f.selected()]);
+    assert.equal(plan.ok, true); if (!plan.ok) return;
+    assert.deepEqual(applyRepeatGrid(f.editor, plan.value), { ok: false, error: 'changedFailed' });
+    assert.deepEqual([...f.shapes.keys()], [f.a.id, f.b.id]);
+    assert.deepEqual(f.selected(), [f.a.id, f.b.id]);
+    assert.equal(f.calls.filter(call => call[0] === 'rollback').length, 1);
+  });
+});
+

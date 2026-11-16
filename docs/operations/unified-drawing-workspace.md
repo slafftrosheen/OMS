@@ -1,6 +1,6 @@
 # Shared drawing workspace and PDF analysis
 
-Idea boards and draft-order canvases use the same `DrawingWorkspace` around the existing tldraw editor. Opening, saving, restoring, editing order forms, and uploading attachments still use the existing document and form bridges. No database migration is introduced by this change.
+Idea boards and draft-order canvases use the same `DrawingWorkspace` around the existing tldraw editor. Opening, saving, restoring, editing order forms, and uploading attachments still use the existing document and form bridges. The saved-order file-pocket synchronization described below adds a database migration; drawing-only tools use the existing snapshot.
 
 ## Workspace
 
@@ -84,6 +84,25 @@ The shared non-streaming OpenRouter client retries HTTP 408/502/503/504 once on 
 
 A persistent OpenRouter 503 still means no suitable provider was available; code cannot guarantee free-model capacity. The response now distinguishes that condition from parser/input failures, missing credentials and unavailable database model settings. Select an available model in R&D settings when necessary. Live account/provider availability must be checked on the deployed installation.
 
+## Drawing and production batch — 16 November 2026
+
+These tools share one implementation in idea boards and order canvases:
+
+- **Edit → Step and Repeat** (**Ctrl/⌘+Shift+D**) opens the Arrange docker. Choose rows and columns, spacing as an edge gap or origin-to-origin distance, and left/right/up/down direction. Preview shows the layout, generated object count and final extent before Apply. Distances follow document units and scale. Changes to the selection, geometry or spacing invalidate the preview. Applying creates one undoable batch; protected, clipped or unsupported objects, excessive copies and oversized drawings are rejected.
+- **Object → Ellipse / pie / arc** opens the CAD section. Set center, width and height (or constrain to a circle), rotation, start/end angles and sweep direction. Create an open arc, pie sector or chord segment. Preview uses the existing CAD plan controls; Apply creates editable Bézier curves for the existing node tools and export paths. Curves approximate ellipses within 0.005 mm; they are not exact conic records. Whole ellipses remain available from the ordinary ellipse tool.
+- **Edit → Copy appearance** opens a collapsible Properties section. Copy one object, select compatible targets, choose color/fill, outline and/or opacity, then apply in one undo step. Bézier gradients fit each target. Native drawing styles and Bézier curve paint remain separate families; convert CAD paths, ellipses and arcs to curves first. Fonts, text, geometry, image assets and material textures are not copied. Locked, read-only, incompatible or oversized selections are rejected as a whole.
+- Top menu commands support arrow-key navigation and Home/End. **Ctrl/⌘+T** opens the Text docker while the canvas has focus. Text-entry fields retain their normal keyboard behavior.
+
+### Saved-order production pockets
+
+Apply `supabase/migrations/20261116000001_canvas_file_pockets.sql` before relying on this flow. Moving an existing file card between named production frames and saving updates its linked `order_files.file_type` in the same database transaction as `canvas_state`. The order page refreshes its attachment categories after a successful save. Removing a card is not a file deletion, and ordinary initial placement does not rewrite categories. Conflicting duplicate cards, independently changed categories, missing links and unauthorized status/role changes reject the save rather than partially applying it. Existing snapshot revision checks still prevent overwriting a newer canvas.
+
+### Verification of this batch
+
+All 36 focused executable harness tests passed using real geometry, CAD plans and drawing transactions with a mocked editor: ellipse validation/tolerance/units/stale apply, repeat preview/directions/capacity/rollback, and selective appearance copying with preservation of target data. An additional routing check covers opening the ellipse section and resuming it after document setup. Real TypeScript/TSX syntax parsing passed; Svelte checks cover script syntax only. Seven database regressions are included but could not execute without the missing PGlite dependency.
+
+This workspace has no installed application dependencies or browser fixture. A full application typecheck/build, Svelte template compilation, live browser checks, paid OpenRouter calls and execution of the new database regression suite remain unverified here. The new database migration is provided as source and has not been applied to the production database. Earlier verification entries below describe earlier passes, not this batch.
+
 ## Deployment and verification
 
 Pull `main`, install dependencies if needed, build, and restart `reclame-oms.service` using the normal deployment process. A Git update alone does not replace the running JavaScript bundle. Earlier installations still need the existing `20261109000001_openrouter_model_settings.sql` migration; this change does not apply migrations automatically.
@@ -112,3 +131,4 @@ npx playwright test --config tests/ui/playwright.config.ts canvas-dock.spec.ts c
 Reference patterns: [CorelDRAW workspace overview](https://www.coreldraw.com/en/learn/tutorials/coreldraw-workspace-overview/), [OpenRouter PDF inputs](https://github.com/OpenRouterTeam/docs/blob/main/guides/overview/multimodal/pdfs.mdx), and [OpenRouter errors](https://github.com/OpenRouterTeam/docs/blob/main/api_reference/errors-and-debugging.mdx).
 
 The cubic-pair pass adds `?cubic-pairs=1`. Browser checks acquired all nine crossings of two original cubics, then dimensioned the central crossing to a separate cubic/cubic tangent contact at 98.16 mm. Undo/redo and JSON reload retained the dimension. EN/RU/LV help and the 390 px Russian panel were checked. Fourteen mathematical/editor regressions cover reversed parameter order, isolated tangency versus near misses, close crossings, partial overlap refusal, adjacent split endpoints, translated/rotated/scaled curves, bounded workloads, transformed node snapping and independently parsed DXF endpoints at 1:1 and 1:10. Local validation passed 110 source tests and 1707 unit tests, focused lint, type checking (zero errors; 13 existing warnings), and the production build. These checks do not certify a production server or physical cutter.
+

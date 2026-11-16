@@ -40,9 +40,33 @@ export function renameDrawingObject(editor: Editor, id: TLShapeId, name: string)
   return drawingTransaction(editor, () => { editor.updateShapes([{ id, type: shape.type, meta }]); });
 }
 
-export interface RepeatGridOptions { rows: number; columns: number; gapX: number; gapY: number; }
+export interface RepeatGridOptions {
+  rows: number;
+  columns: number;
+  gapX: number;
+  gapY: number;
+  spacing?: 'gap' | 'offset';
+  directionX?: 1 | -1;
+  directionY?: 1 | -1;
+}
 export type DrawingOperationError = 'selectionRequired' | 'selectionChanged' | 'repeatProtected' | 'repeatLimit' | 'invalidOptions' | 'exportEmpty' | 'exportTooLarge' | 'changedFailed';
 type Result<T> = { ok: true; value: T } | { ok: false; error: DrawingOperationError };
+type RepeatBounds = { x: number; y: number; w: number; h: number };
+export interface RepeatGridPlan {
+  revision: string;
+  selected: TLShapeId[];
+  roots: TLShapeId[];
+  options: RepeatGridOptions;
+  bounds: RepeatBounds;
+  offsets: Array<{ x: number; y: number }>;
+  generated: number;
+}
+
+/** Preview and apply use a document revision, so geometry and selection
+ * cannot silently change between review and mutation. Camera movement is harmless. */
+export function repeatDrawingRevision(editor: Editor): string {
+  return JSON.stringify([editor.getCurrentPageId(), editor.getCurrentPageShapesSorted(), editor.getSelectedShapeIds()]);
+}
 
 function topLevelIds(editor: Editor, ids: readonly TLShapeId[]): TLShapeId[] {
   const selected = new Set(ids);
@@ -57,42 +81,88 @@ function topLevelIds(editor: Editor, ids: readonly TLShapeId[]): TLShapeId[] {
   });
 }
 
-export function repeatDrawingSelection(editor: Editor, options: RepeatGridOptions, expectedIds: readonly TLShapeId[]): Result<number> {
-  const { rows, columns, gapX, gapY } = options;
+export function prepareRepeatGrid(editor: Editor, options: RepeatGridOptions, expectedIds: readonly TLShapeId[]): Result<RepeatGridPlan> {
+  const { rows, columns, gapX, gapY, spacing = 'gap', directionX = 1, directionY = 1 } = options;
   if (!Number.isInteger(rows) || !Number.isInteger(columns) || rows < 1 || columns < 1 || rows > 20 || columns > 20 || rows * columns < 2 ||
-      !Number.isFinite(gapX) || !Number.isFinite(gapY) || Math.abs(gapX) > 10_000 || Math.abs(gapY) > 10_000) return { ok: false, error: 'invalidOptions' };
+      !Number.isFinite(gapX) || !Number.isFinite(gapY) || Math.abs(gapX) > 10_000 || Math.abs(gapY) > 10_000 ||
+      !['gap', 'offset'].includes(spacing) || ![1, -1].includes(directionX) || ![1, -1].includes(directionY) ||
+      (spacing === 'offset' && (gapX < 0 || gapY < 0))) return { ok: false, error: 'invalidOptions' };
   if (!expectedIds.length) return { ok: false, error: 'selectionRequired' };
-  editor.complete(); editor.setCurrentTool('select');
   const current = editor.getSelectedShapeIds();
   if (current.length !== expectedIds.length || !current.every(id => expectedIds.includes(id))) return { ok: false, error: 'selectionChanged' };
-  const ids = topLevelIds(editor, expectedIds);
-  const descendants = [...editor.getShapeAndDescendantIds(ids)];
+  const roots = topLevelIds(editor, expectedIds);
+  const descendants = [...editor.getShapeAndDescendantIds(roots)];
   if (editor.getInstanceState().isReadonly || descendants.some(id => {
-    const shape = editor.getShape(id); return !shape || ORDER_FORMS.has(shape.type) || editor.isShapeOrAncestorLocked(shape);
+    const shape = editor.getShape(id);
+    if (!shape || (shape.type !== 'group' && !ARTWORK_TYPES.has(shape.type)) || editor.isShapeOrAncestorLocked(shape) || editor.getShapeMask(id)) return true;
+    let parent = editor.getShape(shape.parentId as TLShapeId);
+    const seen = new Set<string>();
+    while (parent && !seen.has(parent.id)) {
+      if (ORDER_FORMS.has(parent.type)) return true;
+      seen.add(parent.id); parent = editor.getShape(parent.parentId as TLShapeId);
+    }
+    return false;
   })) return { ok: false, error: 'repeatProtected' };
-  const copies = rows * columns - 1;
-  const generated = copies * descendants.length;
+  const copies = rows * columns - 1, generated = copies * descendants.length;
   if (generated > MAX_REPEAT_SHAPES || generated + editor.getCurrentPageShapeIds().size > editor.options.maxShapesPerPage) return { ok: false, error: 'repeatLimit' };
+  if (editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length +
+      JSON.stringify(descendants.map(id => editor.getShape(id))).length * copies > 1_850_000) return { ok: false, error: 'repeatLimit' };
   const bounds = editor.getSelectionPageBounds();
-  if (!bounds) return { ok: false, error: 'selectionRequired' };
-  const stepX = bounds.w + gapX, stepY = bounds.h + gapY;
-  if (![stepX, stepY, stepX * columns, stepY * rows].every(value => Number.isFinite(value) && Math.abs(value) <= 1_000_000)) return { ok: false, error: 'invalidOptions' };
+  if (!bounds || ![bounds.x, bounds.y, bounds.w, bounds.h].every(Number.isFinite) || bounds.w < 0 || bounds.h < 0) return { ok: false, error: 'selectionRequired' };
+  const stepX = (spacing === 'gap' ? bounds.w + gapX : gapX) * directionX;
+  const stepY = (spacing === 'gap' ? bounds.h + gapY : gapY) * directionY;
+  if (columns > 1 && Math.abs(stepX) < 1e-8 || rows > 1 && Math.abs(stepY) < 1e-8) return { ok: false, error: 'invalidOptions' };
+  const offsets: Array<{ x: number; y: number }> = [];
+  for (let row = 0; row < rows; row++) for (let column = 0; column < columns; column++) {
+    if (row || column) offsets.push({ x: stepX * column, y: stepY * row });
+  }
+  if (offsets.some(offset => ![bounds.x + offset.x, bounds.x + bounds.w + offset.x,
+      bounds.y + offset.y, bounds.y + bounds.h + offset.y].every(value => Number.isFinite(value) && Math.abs(value) <= 1_000_000)))
+    return { ok: false, error: 'invalidOptions' };
+  for (const id of roots) {
+    const shape = editor.getShape(id)!, origin = editor.getShapePageTransform(shape).point();
+    for (const offset of offsets) {
+      const target = { x: origin.x + offset.x, y: origin.y + offset.y };
+      const local = editor.getPointInParentSpace(shape, target);
+      if (![target.x, target.y, local.x, local.y].every(value => Number.isFinite(value) && Math.abs(value) <= 1_000_000))
+        return { ok: false, error: 'invalidOptions' };
+    }
+  }
+  return { ok: true, value: { revision: repeatDrawingRevision(editor), selected: [...expectedIds], roots,
+    options: { ...options }, bounds: {x:bounds.x,y:bounds.y,w:bounds.w,h:bounds.h}, offsets, generated } };
+}
+
+/** A complete reviewed grid is one undo operation; native duplication remaps
+ * group ancestry and bindings for every copy of the original roots. */
+export function applyRepeatGrid(editor: Editor, plan: RepeatGridPlan): Result<number> {
+  if (plan.revision !== repeatDrawingRevision(editor)) return { ok: false, error: 'selectionChanged' };
+  editor.complete(); editor.setCurrentTool('select');
+  if (plan.revision !== repeatDrawingRevision(editor)) return { ok: false, error: 'selectionChanged' };
+  const refreshed = prepareRepeatGrid(editor, plan.options, plan.selected);
+  if (!refreshed.ok) return refreshed;
+  const fresh = refreshed.value;
+  const descendants = editor.getShapeAndDescendantIds(fresh.roots).size;
   const camera = { ...editor.getCamera() };
   const success = drawingTransaction(editor, () => {
     const created: TLShapeId[] = [];
-    for (let row = 0; row < rows; row++) for (let column = 0; column < columns; column++) {
-      if (row === 0 && column === 0) continue;
-      const before = editor.getCurrentPageShapeIds().size;
-      // Native duplication remaps shape IDs, group ancestry and bindings within
-      // each copy. Always duplicate the original immutable roots, not the last copy.
-      editor.duplicateShapes(ids, { x: stepX * column, y: stepY * row });
-      if (editor.getCurrentPageShapeIds().size - before !== descendants.length) throw new Error('Incomplete grid copy');
-      created.push(...editor.getSelectedShapeIds());
+    for (const offset of fresh.offsets) {
+      const before = new Set(editor.getCurrentPageShapeIds());
+      editor.duplicateShapes(fresh.roots, offset);
+      const copied = [...editor.getSelectedShapeIds()];
+      if (editor.getCurrentPageShapeIds().size - before.size !== descendants ||
+          copied.length !== fresh.roots.length || copied.some(id => before.has(id))) throw new Error('Incomplete grid copy');
+      created.push(...copied);
     }
-    editor.setSelectedShapes([...ids, ...created]);
+    if (editor.store && JSON.stringify(editor.store.getStoreSnapshot()).length > 1_900_000) throw new Error('Drawing payload limit');
+    editor.setSelectedShapes([...fresh.roots, ...created]);
   });
   editor.setCamera(camera);
-  return success ? { ok: true, value: generated } : { ok: false, error: 'changedFailed' };
+  return success ? { ok: true, value: fresh.generated } : { ok: false, error: 'changedFailed' };
+}
+
+export function repeatDrawingSelection(editor: Editor, options: RepeatGridOptions, expectedIds: readonly TLShapeId[]): Result<number> {
+  const planned = prepareRepeatGrid(editor, options, expectedIds);
+  return planned.ok ? applyRepeatGrid(editor, planned.value) : planned;
 }
 
 export interface DrawingExportOptions { scope: 'selected' | 'all'; scale: 1 | 2 | 4; background: boolean; padding: number; }
@@ -128,3 +198,4 @@ export function planDrawingExport(editor: Editor, format: 'svg' | 'png', options
     // here so the UI's 1×/2×/4× are the actual PNG output dimensions.
     nativeScale: format === 'png' ? options.scale / 2 : 1 } };
 }
+

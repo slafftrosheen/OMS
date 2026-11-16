@@ -46,9 +46,10 @@ export function CadPanel({ settings, focusRequest }: { settings: CadSettings | n
   const consumedFocus = useRef<number>();
   useEffect(() => {
     if (!focusRequest || consumedFocus.current === focusRequest.sequence) return;
-    if (!settings && (focusRequest.section === 'lettering' || focusRequest.section === 'convert' && sourceIsText)) { setTask('document'); return; }
+    const drawingFocus = focusRequest.section === 'ellipse' || focusRequest.section === 'lettering' || focusRequest.section === 'convert' && sourceIsText;
+    if (!settings && drawingFocus) { setTask('document'); return; }
     consumedFocus.current = focusRequest.sequence;
-    setTask(focusRequest.section === 'trace' ? 'trace' : focusRequest.section === 'files' ? 'files' : focusRequest.section === 'document' ? 'document' : (focusRequest.section === 'lettering' || focusRequest.section === 'convert' && sourceIsText) ? 'draw' : 'edit');
+    setTask(focusRequest.section === 'trace' ? 'trace' : focusRequest.section === 'files' ? 'files' : focusRequest.section === 'document' ? 'document' : drawingFocus ? 'draw' : 'edit');
   }, [focusRequest, sourceIsText, settings]);
   const controls = useValue('cad panel permissions', () => captureToolkitControls(editor), [editor]);
   const protectedSelection = useValue('cad protected selection', () => [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].some(id => ['order-details', 'order-address', 'profile-7st'].includes(editor.getShape(id)?.type ?? '')), [editor]);
@@ -336,3 +337,4 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
     <Message text={message ? label(message) : ''} error={message === 'exportFailed' || message === 'noEntities'} />
   </details>;
 }
+

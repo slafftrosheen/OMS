@@ -2,6 +2,9 @@ import {cadSnapIndicator} from './cad-snap';
 import {cadConstruction} from './cad-construction';
 import {isCadNodeEditing, setCadNodeEditing} from './cad-node-selection';
 import {CadPointEntry} from './CadPointEntry';
+import {RepeatGrid} from './RepeatGrid';
+import {DrawingAppearancePanel} from './DrawingAppearancePanel';
+import {useAppearanceText} from './appearance-copy';
 import {TextPanel,ArrangePanel,MeasurePanel,FormScaleControl} from './WorkbenchPanels';
 import {useWorkbenchText} from './workbench-copy';
 import {textPointSize} from './workbench-operations';
@@ -25,7 +28,7 @@ import {
 import { captureToolkitControls } from './toolkit-controls';
 import { applyDrawingCommand, drawingTransaction, toggleDrawingObjectLock, transformDrawingSelection, type DrawingTransformField } from './drawing-commands';
 import { useDrawingText, type DrawingLabel } from './drawing-copy';
-import { drawingObjectAlias, drawingObjectName, drawingPngSize, renameDrawingObject, repeatDrawingSelection, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
+import { drawingObjectAlias, drawingObjectName, drawingPngSize, renameDrawingObject, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
 import { applyCadCompound, type CadCompoundOperation } from './cad-compound';
 import { applyArrangePlan, arrangementRoots, prepareArrangePlan, type ArrangeOptions } from './drawing-arrange';
 import { CadPanel } from './CadPanel';
@@ -359,47 +362,6 @@ function ObjectNameField({ shape, disabled }: { shape: TLShape; disabled: boolea
   </form>;
 }
 
-function RepeatGrid({ selected, disabled, settings }: { selected: readonly TLShapeId[]; disabled: boolean; settings: CadSettings | null }) {
-  const editor = useEditor(); const { label } = useDrawingText(); const { label: cadLabel } = useCadText();
-  const initialGap = settings ? String(Number(canvasLengthToUnit(24, settings).toFixed(settings.precision))) : '24';
-  const [values, setValues] = useState({ rows: '2', columns: '2', gapX: initialGap, gapY: initialGap });
-  const previousSettings = useRef(settings);
-  const [message, setMessage] = useState('');
-  const errorId = useId();
-  useEffect(() => {
-    const previous = previousSettings.current;
-    const convert = (value: string) => {
-      if (!value.trim() || !Number.isFinite(Number(value))) return value;
-      const px = previous ? unitLengthToCanvas(Number(value), previous) : Number(value);
-      return String(Number((settings ? canvasLengthToUnit(px, settings) : px).toFixed(settings?.precision ?? 2)));
-    };
-    setValues(current => ({ ...current, gapX: convert(current.gapX), gapY: convert(current.gapY) }));
-    previousSettings.current = settings;
-  }, [settings?.unit, settings?.scale, settings?.precision]);
-  const gap = (value: string) => value.trim() ? settings ? unitLengthToCanvas(Number(value), settings) : Number(value) : NaN;
-  const rows = Number(values.rows), columns = Number(values.columns), gapX = gap(values.gapX), gapY = gap(values.gapY);
-  const valid = Number.isInteger(rows) && Number.isInteger(columns) && rows >= 1 && columns >= 1 && rows <= 20 && columns <= 20 && rows * columns >= 2 &&
-    [gapX, gapY].every(value => Number.isFinite(value) && Math.abs(value) <= 10000);
-  const gapLimit = settings ? canvasLengthToUnit(10000, settings) : 10000;
-  return <details className="drawing-repeat"><summary>{label('repeatGrid')}</summary>
-    <form onSubmit={event => {
-      event.preventDefault(); if (!valid) return;
-      const result = repeatDrawingSelection(editor, { rows, columns, gapX, gapY }, [...selected]);
-      setMessage(result.ok === true ? `${label('copiesCreated')}: ${result.value}` : label(result.error));
-    }}>
-      <fieldset className="drawing-style-fields" disabled={disabled} aria-describedby={!valid ? errorId : undefined}>
-        {(['rows', 'columns', 'gapX', 'gapY'] as const).map(key => <label key={key}><span>{key === 'gapX' || key === 'gapY' ? `${cadLabel(key)} (${settings?.unit ?? 'px'})` : label(key)}</span><input type="number" step={key === 'rows' || key === 'columns' ? 1 : 'any'} value={values[key]}
-          min={key === 'rows' || key === 'columns' ? 1 : -gapLimit} max={key === 'rows' || key === 'columns' ? 20 : gapLimit} required
-          onChange={event => { setValues(previous => ({ ...previous, [key]: event.target.value })); setMessage(''); }} /></label>)}
-        <button type="submit" disabled={!valid}>{label('createCopies')}</button>
-      </fieldset>
-      <p className="drawing-help">{settings ? cadLabel('repeatHint') : label('repeatHint')}</p>
-      {!valid && <p id={errorId} className="drawing-help is-error" role="alert">{label('invalidOptions')}</p>}
-      {message && <p className="drawing-help" role="status">{message}</p>}
-    </form>
-  </details>;
-}
-
 function Ruler({ vertical = false, settings }: { vertical?: boolean; settings: CadSettings | null }) {
   const editor = useEditor();
   const bounds = useValue('drawing ruler', () => editor.getViewportPageBounds(), [editor]);
@@ -442,6 +404,7 @@ export function DrawingChrome() {
   const { label: cadLabel } = useCadText();
   const { label: advancedLabel } = useCadAdvancedText();
   const vectorLabel = useVectorText();
+  const appearanceLabel = useAppearanceText();
   const workbenchLabel = useWorkbenchText();
   const snapLabel = useSnapText();
   const activeSnap = useValue('CAD snap target', () => editor.snaps.getIndicators().some(value => value.id === 'oms-cad-snap') ? cadSnapIndicator(editor).get() : null, [editor]);
@@ -455,6 +418,8 @@ export function DrawingChrome() {
   const [saveFormat,setSaveFormat]=useState<'svg'|'png'>('png');
   const [lastPanel, setLastPanel] = useState<Exclude<Panel, null>>('properties');
   const [fontFocusRequest, setFontFocusRequest] = useState(0);
+  const [repeatFocusRequest, setRepeatFocusRequest] = useState(0);
+  const [appearanceFocusRequest, setAppearanceFocusRequest] = useState(0);
   useEffect(() => { if (context?.panel) setLastPanel(context.panel); }, [context?.panel]);
   const [cadFocus, setCadFocus] = useState<CadFocusRequest>();
   const settings = useValue('drawing cad settings', () => readCadSettings(editor), [editor]);
@@ -548,11 +513,57 @@ export function DrawingChrome() {
     const trigger = restoreFocus && openMenu ? context?.root.current?.querySelector<HTMLElement>(`[data-drawing-menu="${openMenu}"] > summary`) : null;
     setOpenMenu(null); trigger?.focus();
   }
+  function openRepeat() {
+    context?.setPanel('arrange');
+    setRepeatFocusRequest(value => value + 1);
+    closeMenus();
+  }
+  function openAppearance() {
+    context?.setPanel('properties');
+    setAppearanceFocusRequest(value => value + 1);
+    closeMenus();
+  }
   function menuSummary(name: string, text: string) {
     return <summary aria-expanded={openMenu === name} onClick={event => { event.preventDefault(); setOpenMenu(openMenu === name ? null : name); }}
       onKeyDown={event => {
-        if (event.key === 'ArrowDown') { event.preventDefault(); setOpenMenu(name); const menu = event.currentTarget.parentElement; queueMicrotask(() => menu?.querySelector<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled)')?.focus()); }
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault(); event.stopPropagation(); setOpenMenu(name);
+          const trigger = event.currentTarget;
+          const menu = trigger.parentElement;
+          const last = event.key === 'ArrowUp';
+          requestAnimationFrame(() => {
+            const choices = Array.from(menu?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),details > summary') ?? [])
+              .filter(choice => choice !== trigger && choice.getClientRects().length > 0);
+            choices[last ? choices.length - 1 : 0]?.focus();
+          });
+        }
       }}>{text}</summary>;
+  }
+  function navigateMenus(event: React.KeyboardEvent<HTMLElement>) {
+    if (!(event.target instanceof HTMLElement) || event.altKey || event.ctrlKey || event.metaKey ||
+        event.target.closest('input,textarea,select,[contenteditable="true"]')) return;
+    const menu = event.target.closest<HTMLElement>('[data-drawing-menu]');
+    if (!menu || !['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key)) return;
+    const trigger = menu.querySelector<HTMLElement>(':scope > summary');
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.target === trigger && ['Home','End'].includes(event.key)) {
+      const menus = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-drawing-menu]'));
+      const index = menus.indexOf(menu);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? menus.length - 1
+        : (index + (event.key === 'ArrowRight' ? 1 : -1) + menus.length) % menus.length;
+      event.preventDefault(); event.stopPropagation();
+      if (openMenu) setOpenMenu(menus[next].dataset.drawingMenu ?? null);
+      menus[next].querySelector<HTMLElement>(':scope > summary')?.focus();
+      return;
+    }
+    if (!event.target.matches('button,summary')) return;
+    const choices = Array.from(menu.querySelectorAll<HTMLElement>('.drawing-menu-popover button:not(:disabled),.drawing-menu-popover summary'))
+      .filter(choice => choice.getClientRects().length > 0 && !choice.closest('fieldset:disabled'));
+    const index = choices.indexOf(event.target);
+    if (index < 0 || !choices.length) return;
+    event.preventDefault(); event.stopPropagation();
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? choices.length - 1
+      : (index + (event.key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length;
+    choices[next]?.focus();
   }
   useEffect(() => {
     const root = context?.root.current;
@@ -566,6 +577,16 @@ export function DrawingChrome() {
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
       const inDrawing = !!event.target.closest('.drawing-viewport');
+      if (inDrawing && modifier && event.shiftKey && !event.altKey && !event.isComposing && key === 'd') {
+        event.preventDefault(); event.stopPropagation();
+        if (!event.repeat) openRepeat();
+        return;
+      }
+      if (inDrawing && modifier && !event.shiftKey && !event.altKey && !event.isComposing && key === 't') {
+        event.preventDefault(); event.stopPropagation();
+        context?.setPanel('text');
+        return;
+      }
       if (inDrawing && modifier && event.shiftKey && !event.altKey && key === 'a') {
         event.preventDefault();
         event.stopPropagation();
@@ -775,7 +796,7 @@ export function DrawingChrome() {
   return <>
     {portal('commands', <>
       <strong className="drawing-title">OMS<span> DRAW</span></strong>
-      <nav className="drawing-menus" aria-label={label('workspace')}>
+      <nav className="drawing-menus" aria-label={label('workspace')} onKeyDown={navigateMenus}>
         <details className="drawing-menu" data-drawing-menu="file" open={openMenu === 'file'}>{menuSummary('file', label('file'))}<div className="drawing-menu-popover">
           <button type="button" disabled={controls.readOnly || busy || !onImport} onClick={() => { closeMenus(); input.current?.click(); }}>{label('import')}</button>
           <fieldset className="drawing-export-options" disabled={busy}>
@@ -804,7 +825,10 @@ export function DrawingChrome() {
           {exportError && <p role="alert">{exportError}</p>}
           <p>{label('exportHint')}</p>
         </div></details>
-        <details className="drawing-menu" data-drawing-menu="edit" open={openMenu === 'edit'}>{menuSummary('edit', label('edit'))}<div className="drawing-menu-popover">{menuActions(['undo', 'redo', 'select-all', 'duplicate', 'delete'])}</div></details>
+        <details className="drawing-menu" data-drawing-menu="edit" open={openMenu === 'edit'}>{menuSummary('edit', label('edit'))}<div className="drawing-menu-popover">{menuActions(['undo', 'redo', 'select-all', 'duplicate', 'delete'])}
+          <button type="button" onClick={openAppearance}>{appearanceLabel('title')}</button>
+          <button type="button" onClick={openRepeat} aria-keyshortcuts="Control+Shift+D Meta+Shift+D">{label('repeatGrid')} · Ctrl/⌘+Shift+D</button>
+        </div></details>
         <details className="drawing-menu" data-drawing-menu="object" open={openMenu === 'object'}>{menuSummary('object', label('object'))}<div className="drawing-menu-popover drawing-menu-popover--wide">{menuActions(['group', 'ungroup', 'lock'], true)}
           <details>
             <summary>{label('objectOrder')} ▸</summary>
@@ -818,6 +842,7 @@ export function DrawingChrome() {
           <button type="button" onClick={() => focusCad('convert')}>{advancedLabel('convert')}</button>
           <button type="button" onClick={() => focusCad('join')}>{advancedLabel('joinCurves')}</button>
           <button type="button" onClick={() => focusCad('shaping')}>{advancedLabel('shaping')}</button>
+          <button type="button" onClick={() => focusCad('ellipse')}>{vectorLabel('ellipseSegments')}</button>
           <button type="button" aria-keyshortcuts="Control+Shift+A Meta+Shift+A" title={`${advancedLabel('arrange')} (Ctrl/⌘+Shift+A)`} onClick={()=>{setPanel('arrange');closeMenus();}}>{advancedLabel('arrange')}</button>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="bitmaps" open={openMenu === 'bitmaps'}>{menuSummary('bitmaps', vectorLabel('bitmaps'))}<div className="drawing-menu-popover"><button type="button" disabled={controls.readOnly} onClick={() => focusCad('trace')}>{vectorLabel('trace')}</button></div></details>
@@ -907,7 +932,7 @@ export function DrawingChrome() {
             {settings && <div className="drawing-arrange-geometry-options"><CadAnchorControl value={cadAnchor} onChange={setCadAnchor} />
               <ToolButton icon={proportional ? 'lock' : 'unlock'} label={cadLabel('proportional')} active={proportional} onClick={() => setProportional(value => !value)} /></div>}
           </fieldset>}
-          <ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings}/>
+          <ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings} focusRequest={repeatFocusRequest}/>
         </> : activePanel === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : activePanel === 'objects' ? <>
           <p className="drawing-help">{state.shapes.length} {label('items')} · {controls.selected} {label('selected')}</p>
           <label className="drawing-object-search"><span>{label('searchObjects')}</span><input type="search" value={search} maxLength={100} onChange={event => setSearch(event.target.value)} /></label>
@@ -929,6 +954,7 @@ export function DrawingChrome() {
           <section className="drawing-selection-actions" aria-label={label('selectionActions')}>{menuActions(['fit-selection', 'duplicate', 'delete'])}</section>
         </> : <>
           <FormScaleControl/>
+          <DrawingAppearancePanel focusRequest={appearanceFocusRequest}/>
           <p className="drawing-help">{label(controls.readOnly ? 'readOnly' : controls.selectionLocked ? 'locked' : controls.selected && controls.tool === 'select' ? 'selectionStyle' : 'nextObject')}</p>
           <fieldset className="drawing-style-fields" disabled={!controls.canStyle}>
             {styleFields.map(field => renderStyleSelect(field))}

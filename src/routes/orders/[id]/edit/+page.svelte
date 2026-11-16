@@ -14,7 +14,7 @@
   import { getAssistantContext } from '$lib/assistant/context';
   import { summarizeNativeProfileConfiguration } from '$lib/order/native-profile-context';
   import { orderScreenContext, validProfileIndex } from '$lib/assistant/visible-context';
-  import {fetchOrderFilesCount} from '$lib/order/order-files-client';
+  import {fetchOrderFilesCount,announceOrderFilesChanged} from '$lib/order/order-files-client';
   import { goto, pushState, beforeNavigate } from '$app/navigation';
   import { page } from '$app/state';
   import { base } from '$app/paths';
@@ -776,8 +776,10 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         );
         if (!canvasResponse.ok) {
           const detail = await canvasResponse.json().catch(() => ({}));
-          if (canvasResponse.status === 409 || canvasResponse.status === 428)
+          if (canvasResponse.status === 428)
             throw new Error($t('orderWorkspace.staleSave'));
+          if (canvasResponse.status === 409)
+            throw new Error(detail.error || detail.message || $t('orderWorkspace.staleSave'));
           throw new Error(detail.error || detail.message ||
             'Order form was saved, but Canvas failed. Retry before confirming.');
         }
@@ -786,6 +788,7 @@ import type { OrderStatus } from '$lib/auth/permission-utils';
         if (typeof savedCanvas.updatedAt !== 'string' || !savedCanvas.updatedAt)
           throw new Error('Canvas saved, but its order revision was not returned. Reload before continuing.');
         orderUpdatedAt = savedCanvas.updatedAt;
+        announceOrderFilesChanged(scope.id);
         if (serialAtSave === canvasChangeSerial) canvasDirty = false;
       }
 

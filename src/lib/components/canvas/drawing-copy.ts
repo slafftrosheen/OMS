@@ -9,7 +9,7 @@ const copy = {
     rename: "Rename",
     renameHint: "A list label only; the drawing and order fields stay unchanged. Leave empty to reset.",
     noMatches: "No matching objects.",
-    repeatGrid: "Repeat as grid",
+    repeatGrid: "Step and Repeat",
     rows: "Rows",
     columns: "Columns",
     gapX: "Horizontal gap (px)",
@@ -69,7 +69,7 @@ const copy = {
     rename: "Переименовать",
     renameHint: "Только подпись в списке; рисунок и поля заказа не меняются. Очистите для сброса.",
     noMatches: "Объекты не найдены.",
-    repeatGrid: "Размножить сеткой",
+    repeatGrid: "Шаг и повтор",
     rows: "Строки",
     columns: "Столбцы",
     gapX: "Зазор по горизонтали (px)",
@@ -129,7 +129,7 @@ const copy = {
     rename: "Pārdēvēt",
     renameHint: "Tikai saraksta nosaukums; zīmējums un pasūtījuma lauki nemainās. Atstājiet tukšu, lai atiestatītu.",
     noMatches: "Nav atbilstošu objektu.",
-    repeatGrid: "Atkārtot režģī",
+    repeatGrid: "Solis un atkārtošana",
     rows: "Rindas",
     columns: "Kolonnas",
     gapX: "Horizontālā atstarpe (px)",
@@ -200,3 +200,4 @@ export function useDrawingText() {
     tr: (key: string) => get(t)(key),
   };
 }
+

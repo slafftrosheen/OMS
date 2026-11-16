@@ -2,6 +2,23 @@ import { useSyncExternalStore } from "react";
 import { get } from "svelte/store";
 import { locale } from "svelte-i18n";
 const en = {
+  "ellipseSegments": "Ellipse / pie / arc",
+  "ellipseKind": "Shape type",
+  "ellipsearc": "Open arc",
+  "ellipsepie": "Pie sector",
+  "ellipsechord": "Chord segment",
+  "ellipsewidth": "Full ellipse width",
+  "ellipseheight": "Full ellipse height",
+  "ellipsecenterX": "Center X",
+  "ellipsecenterY": "Center Y",
+  "ellipseCircle": "Circle · equal width and height",
+  "ellipseCenterView": "Center in view",
+  "ellipseStart": "Starting angle (°)",
+  "ellipseEnd": "Ending angle (°)",
+  "ellipseClockwise": "Clockwise · use the other sweep",
+  "ellipseSegmentHelp": "Angles start at the rightmost point and increase counterclockwise before rotation. Equal angles are not a full ellipse. Creates an editable Bézier curve within 0.005 mm of the nominal ellipse; use Shape/F10 to edit nodes. Width and height describe the full ellipse, not the sector.",
+  "ellipse-size": "Enter positive ellipse dimensions up to 1,000,000 mm and a valid center within the drawing limits.",
+  "ellipse-angles": "Enter angles from −360° to 360°. Start and end must differ by at least 0.001° and less than a full revolution.",
   polygon: "Polygon / star",
   star: "Star polygon",
   sides: "Sides / points (3–64)",
@@ -119,6 +136,23 @@ const en = {
 };
 type Key = keyof typeof en;
 const ru: Record<Key, string> = {
+  "ellipseSegments": "Эллипс / сектор / дуга",
+  "ellipseKind": "Тип фигуры",
+  "ellipsearc": "Открытая дуга",
+  "ellipsepie": "Сектор",
+  "ellipsechord": "Сегмент с хордой",
+  "ellipsewidth": "Ширина полного эллипса",
+  "ellipseheight": "Высота полного эллипса",
+  "ellipsecenterX": "Центр X",
+  "ellipsecenterY": "Центр Y",
+  "ellipseCircle": "Круг · равные ширина и высота",
+  "ellipseCenterView": "В центре вида",
+  "ellipseStart": "Начальный угол (°)",
+  "ellipseEnd": "Конечный угол (°)",
+  "ellipseClockwise": "По часовой стрелке · другая часть дуги",
+  "ellipseSegmentHelp": "Углы отсчитываются от крайней правой точки против часовой стрелки до поворота. Совпадающие углы не создают полный эллипс. Создаётся редактируемая кривая Безье с отклонением до 0,005 мм от номинального эллипса; узлы доступны через Shape/F10. Ширина и высота относятся ко всему эллипсу, а не к сектору.",
+  "ellipse-size": "Введите положительные размеры эллипса до 1 000 000 мм и координаты центра в пределах чертежа.",
+  "ellipse-angles": "Углы должны быть от −360° до 360°. Начальный и конечный углы должны отличаться минимум на 0,001° и менее чем на полный оборот.",
   polygon: "Многоугольник / звезда",
   star: "Звезда",
   sides: "Сторон / лучей (3–64)",
@@ -235,6 +269,23 @@ const ru: Record<Key, string> = {
   pageLimit: "Страница экспорта превышает 5080 мм. Разделите чертёж на части.",
 };
 const lv: Record<Key, string> = {
+  "ellipseSegments": "Elipse / sektors / loks",
+  "ellipseKind": "Figūras veids",
+  "ellipsearc": "Atvērts loks",
+  "ellipsepie": "Sektors",
+  "ellipsechord": "Segments ar hordu",
+  "ellipsewidth": "Pilnas elipses platums",
+  "ellipseheight": "Pilnas elipses augstums",
+  "ellipsecenterX": "Centrs X",
+  "ellipsecenterY": "Centrs Y",
+  "ellipseCircle": "Aplis · vienāds platums un augstums",
+  "ellipseCenterView": "Skata centrā",
+  "ellipseStart": "Sākuma leņķis (°)",
+  "ellipseEnd": "Beigu leņķis (°)",
+  "ellipseClockwise": "Pulksteņrādītāja virzienā · otrs loks",
+  "ellipseSegmentHelp": "Leņķi sākas labējā punktā un pieaug pretēji pulksteņrādītāja virzienam pirms pagriešanas. Vienādi leņķi neveido pilnu elipsi. Tiek izveidota rediģējama Bezjē līkne ar novirzi līdz 0,005 mm; mezgliem izmantojiet Shape/F10. Platums un augstums attiecas uz pilnu elipsi, nevis sektoru.",
+  "ellipse-size": "Ievadiet pozitīvus elipses izmērus līdz 1 000 000 mm un centru rasējuma robežās.",
+  "ellipse-angles": "Ievadiet leņķus no −360° līdz 360°. Sākumam un beigām jāatšķiras vismaz par 0,001° un mazāk par pilnu apgriezienu.",
   polygon: "Daudzstūris / zvaigzne",
   star: "Zvaigzne",
   sides: "Malas / stari (3–64)",
@@ -373,6 +424,7 @@ export function vectorError(error: unknown): string {
         "corner-size": "corner-size", 'corner-source': 'corner-source',
         'corner-node': 'corner-node', 'corner-neighbours': 'corner-neighbours', 'corner-intersection': 'corner-intersection',
         "page-limit": "pageLimit",
+        "ellipse-size": "ellipse-size", "ellipse-angles": "ellipse-angles",
         image: "imageError",
         "asset-context":"asset-context", "asset-upload":"asset-upload", "asset-fetch":"asset-fetch", "render-limit":"render-limit",
         "eps-opacity": "exportHelp",
@@ -383,3 +435,4 @@ export function vectorError(error: unknown): string {
       : "failed")
   );
 }
+

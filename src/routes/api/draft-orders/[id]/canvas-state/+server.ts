@@ -57,6 +57,8 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
       throw error(403, 'Only authorized editors can change an unconfirmed order Canvas');
     }
 
+    // sync_canvas_file_pockets updates moved attachment categories inside this
+    // same transaction. Any destination/link conflict rolls back the snapshot too.
     // Same optimistic concurrency token as the native order/profile form PUT.
     // Do not overwrite a Canvas changed by another operator since GET.
     // Advance at least 1 ms even when two saves share the same system clock tick.
@@ -72,6 +74,12 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 
     if (!updateError && !saved) throw error(409,'Order changed while saving Canvas; reload before confirming');
     if (updateError) {
+        if (updateError.code === 'P0001') throw error(409,
+          'Canvas file destinations conflict or an attachment changed. Keep each file in one production pocket and reload if a file was removed.');
+        if (updateError.code === '42501') throw error(403,
+          'Only authorized draft editors can move production files');
+        if (updateError.code === '22023') throw error(400,
+          'Canvas contains an invalid or unsaved file. Finish uploading files before saving.');
         console.error('Failed to persist canvas_state:', updateError);
         throw error(500, 'Failed to save canvas state');
     }
