@@ -5,7 +5,7 @@ import { drawingObjectName } from './drawing-operations';
 /** Existing drawing objects are the catalogue: no parallel asset store or copies. */
 export function drawingMaterialOptions(editor: Editor): { id:TLShapeId; name:string }[] {
   return editor.getCurrentPageShapesSorted().filter(shape =>
-    shape.type === 'cad-bezier' && getMaterialTextureDraft(editor,shape.id) !== null,
+    getMaterialTextureDraft(editor,shape.id) !== null,
   ).map(shape => ({id:shape.id,name:drawingObjectName(shape)}));
 }
 

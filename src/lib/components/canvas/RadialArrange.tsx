@@ -11,7 +11,7 @@ const numeric=(s:string)=>s.trim()?Number(s):NaN;
 const toPage=(point:CadPoint,settings:CadSettings|null)=>settings?cadPointToCanvas(point,settings):{x:point.x,y:-point.y};
 const fromPage=(point:CadPoint,settings:CadSettings|null)=>settings?canvasPointToCad(point,settings):{x:point.x,y:-point.y};
 
-export function RadialArrange({settings}:{settings:CadSettings|null}) {
+export function RadialArrange({settings,expanded=false}:{settings:CadSettings|null;expanded?:boolean}) {
   const editor=useEditor(),t=useWorkbenchText();
   const state=useValue('radial arrangement',()=>({revision:cadRevision(editor),bounds:getCadSelectionPageBounds(editor),selected:[...editor.getSelectedShapeIds()],readonly:editor.getInstanceState().isReadonly}),[editor]);
   const [action,setAction]=useState<'rotate'|'copy'>('rotate'),[centerMode,setCenterMode]=useState<'selection'|'origin'|'custom'>('selection');
@@ -34,7 +34,7 @@ export function RadialArrange({settings}:{settings:CadSettings|null}) {
   const valid=!!center&&Number.isFinite(center.x)&&Number.isFinite(center.y)&&Number.isFinite(step)&&Number.isInteger(count)&&count>=0&&(action!=='copy'||count>=1);
   const centerDisplay=center?fromPage(center,settings):undefined,unit=settings?.unit??'px';
   const fmt=(n:number)=>n.toFixed(settings?.precision??2);
-  return <details className="drawing-cad-section drawing-radial" data-testid="drawing-radial">
+  return <details open={expanded || undefined} className="drawing-cad-section drawing-radial" data-testid="drawing-radial">
     <summary>{t('radialTitle')}</summary>
     <p className="drawing-help">{t('radialHelp')}</p>
     <form onSubmit={event=>{event.preventDefault();setMessage(undefined);setReview(undefined);try{

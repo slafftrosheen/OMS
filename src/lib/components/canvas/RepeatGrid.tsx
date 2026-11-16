@@ -11,8 +11,8 @@ const number=(value:string)=>value.trim()?Number(value):NaN;
 const display=(value:number,settings:CadSettings|null)=>String(settings?canvasLengthToUnit(value,settings):value);
 const toCanvas=(value:string,settings:CadSettings|null)=>settings?unitLengthToCanvas(number(value),settings):number(value);
 
-export function RepeatGrid({selected,disabled,settings,focusRequest=0}:{
-  selected:readonly TLShapeId[];disabled:boolean;settings:CadSettings|null;focusRequest?:number
+export function RepeatGrid({selected,disabled,settings,focusRequest=0,expanded=false}:{
+  selected:readonly TLShapeId[];disabled:boolean;settings:CadSettings|null;focusRequest?:number;expanded?:boolean
 }){
   const editor=useEditor(),t=useRepeatText(),{label}=useDrawingText(),{label:cadLabel}=useCadText();
   const errorText=(code:DrawingOperationError)=>code==='repeatProtected'?t('protected'):code==='repeatLimit'?t('limit'):label(code);
@@ -50,7 +50,7 @@ export function RepeatGrid({selected,disabled,settings,focusRequest=0}:{
   useEffect(()=>{if(valid)preferences.set(editor,options);},[editor,key,valid]);
   const unit=settings?.unit??'px',limit=settings?canvasLengthToUnit(10000,settings):10000;
   const distance=(value:number)=>(settings?canvasLengthToUnit(value,settings):value).toFixed(settings?.precision??2);
-  return <details ref={section} className="drawing-repeat" data-testid="drawing-repeat">
+  return <details ref={section} open={expanded || undefined} className="drawing-repeat" data-testid="drawing-repeat">
     <summary>{t('title')}</summary>
     <form onSubmit={event=>{
       event.preventDefault();setMessage('');setReview(undefined);

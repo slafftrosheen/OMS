@@ -46,7 +46,7 @@ export function CadPanel({ settings, focusRequest }: { settings: CadSettings | n
   const consumedFocus = useRef<number>();
   useEffect(() => {
     if (!focusRequest || consumedFocus.current === focusRequest.sequence) return;
-    const drawingFocus = focusRequest.section === 'ellipse' || focusRequest.section === 'polygon' || focusRequest.section === 'lettering' || focusRequest.section === 'convert' && sourceIsText;
+    const drawingFocus = focusRequest.section === 'rectangle' || focusRequest.section === 'ellipse' || focusRequest.section === 'polygon' || focusRequest.section === 'lettering' || focusRequest.section === 'convert' && sourceIsText;
     if (!settings && drawingFocus) { setTask('document'); return; }
     consumedFocus.current = focusRequest.sequence;
     setTask(focusRequest.section === 'trace' ? 'trace' : focusRequest.section === 'files' ? 'files' : focusRequest.section === 'document' ? 'document' : drawingFocus ? 'draw' : 'edit');
@@ -337,4 +337,3 @@ function DxfExport({ settings }: { settings: CadSettings | null }) {
     <Message text={message ? label(message) : ''} error={message === 'exportFailed' || message === 'noEntities'} />
   </details>;
 }
-

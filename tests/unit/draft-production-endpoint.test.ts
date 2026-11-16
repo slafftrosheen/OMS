@@ -139,6 +139,27 @@ describe('production intake actual handler with a provider boundary double',()=>
 });
 
 describe('PDF processing and routing', () => {
+  it('identifies source limits and image failures without repeating the same input in JSON mode', async () => {
+    const previous=process.env.OPENROUTER_ORDER_INTAKE_STRICT;
+    delete process.env.OPENROUTER_ORDER_INTAKE_STRICT;
+    try{
+      for(const [type,status,message] of [
+        ['context_length_exceeded',422,'smaller page range'],
+        ['payload_too_large',413,'too large'],
+        ['invalid_image',422,'could not read'],
+        ['content_policy_violation',422,'declined'],
+        ['invalid_prompt',422,'could not process'],
+        ['image_download_failed',503,'Retry shortly']
+      ] as const){
+        const sample=intakeEvent();let calls=0;
+        const handler=createOrderIntakeHandler(async()=>{calls++;throw new OpenRouterHttpError(400,null,type);});
+        let caught:any;try{await handler(sample.e);}catch(err){caught=err;}
+        expect(caught.status).toBe(status);
+        expect(caught.body.message).toContain(message);
+        expect(calls).toBe(1);
+      }
+    }finally{if(previous===undefined)delete process.env.OPENROUTER_ORDER_INTAKE_STRICT;else process.env.OPENROUTER_ORDER_INTAKE_STRICT=previous;}
+  });
  it('renders only the requested pages of a long PDF on saved and unsaved drafts and discards out-of-scope facts', async () => {
   const pdf = new jsPDF();
   for (let page=1; page<=12; page++) {

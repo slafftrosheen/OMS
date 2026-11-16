@@ -1,0 +1,14 @@
+.drawing-objects-panel { min-width: 0; }
+.drawing-tree-actions { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.drawing-tree-actions button { flex: 1 1 auto; min-height: 26px; }
+.drawing-object-tree { display: flex; flex-direction: column; border: 1px solid var(--border-color, #cbd5e1); border-radius: 3px; max-height: 52vh; overflow: auto; }
+.drawing-tree-row { display: flex; align-items: center; gap: 3px; min-height: 30px; padding: 2px 3px; cursor: default; border-bottom: 1px solid var(--border-color, #cbd5e1); }
+.drawing-tree-row:last-child { border-bottom: 0; }
+.drawing-tree-row.is-selected { background: color-mix(in srgb, var(--brand, #2563eb) 16%, transparent); }
+.drawing-tree-row:focus-visible { outline: 2px solid var(--brand, #2563eb); outline-offset: -2px; }
+.drawing-tree-row.is-context .drawing-tree-name { font-style: italic; }
+.drawing-tree-row > svg { flex: 0 0 16px; }
+.drawing-tree-expander, .drawing-tree-lock { display: inline-flex; align-items: center; justify-content: center; width: 24px; min-width: 24px; height: 26px; padding: 2px; flex: 0 0 24px; }
+.drawing-tree-row .drawing-tree-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.drawing-tree-count { font-size: 10px; padding-inline: 2px; font-variant-numeric: tabular-nums; }
+.drawing-tree-lock:not(:disabled) { cursor: pointer; }

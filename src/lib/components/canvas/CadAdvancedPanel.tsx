@@ -1,4 +1,5 @@
 import {ParametricShapePanel} from './ParametricShapePanel';
+import {RectangleShapePanel} from './RectangleShapePanel';
 import {drawingFontErrorLabel, useDrawingFontText, type DrawingFontLabel} from './font-copy';
 import {readDrawingFonts, uploadDrawingFont, MAX_DRAWING_FONT_BYTES, MAX_DRAWING_FONTS_BYTES, MAX_DRAWING_FONTS} from './drawing-fonts';
 import { RasterTrace, VectorImport, VectorExport, CornerControls, VectorPaintControls, EllipseSegmentControls } from './CadVectorPanel';
@@ -19,7 +20,7 @@ import { decodeDxf } from './cad-dxf-decode';
 import { prepareCadText, getCadFont, isCadTextSingleLine, DEFAULT_TEXT_LAYOUT, type CadTextLayout, type CadTextPlan } from './cad-text';
 import { prepareCadImport, type CadImportPlan } from './cad-import';
 
-export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon'; sequence: number };
+export type CadFocusRequest = { section: 'nodes' | 'convert' | 'lettering' | 'document' | 'files' | 'shaping' | 'join' | 'trace' | 'paint' | 'ellipse' | 'polygon' | 'rectangle'; sequence: number };
 type SharedProps = { settings: CadSettings | null; revision: string; disabled: boolean };
 type Review<T extends CadPlan = CadPlan> = { plan: T; inputKey: string };
 const FILE_LIMIT = 8 * 1024 * 1024;
@@ -86,6 +87,7 @@ export function CadAdvancedPanel({ settings, focusRequest, task }: { settings: C
     <JoinCurves settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'join'} sequence={focusRequest?.sequence} />
     <Shaping settings={settings} revision={revision} disabled={disabled} focus={task === 'edit' && focusRequest?.section === 'shaping'} sequence={focusRequest?.sequence} />
     </div><div hidden={task !== 'draw'}>
+    <RectangleShapePanel settings={settings} revision={revision} disabled={state.controls.readOnly} focusSequence={task === 'draw' && focusRequest?.section === 'rectangle' ? focusRequest.sequence : undefined} />
     <EllipseSegmentControls settings={settings} revision={revision} disabled={state.controls.readOnly} focusSequence={task === 'draw' && focusRequest?.section === 'ellipse' ? focusRequest.sequence : undefined} />
     <ParametricShapePanel settings={settings} revision={revision} disabled={state.controls.readOnly} focusSequence={task === 'draw' && focusRequest?.section === 'polygon' ? focusRequest.sequence : undefined} />
     <TextOutlines settings={settings} revision={revision} disabled={state.controls.readOnly} focus={task === 'draw' && (focusRequest?.section === 'lettering' || focusRequest?.section === 'convert' && state.text)} newText={focusRequest?.section === 'lettering'} sequence={focusRequest?.sequence} />
@@ -506,4 +508,3 @@ function DxfImport({ settings, revision, disabled }: SharedProps) {
     <Message value={message} error={failed} />
   </details>;
 }
-

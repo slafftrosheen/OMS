@@ -1,5 +1,5 @@
 import type { Editor, TLShapeId } from '@tldraw/tldraw';
-import { curveBounds, type CadContour } from './cad-curves';
+import type { CadContour } from './cad-curves';
 import { type VectorGradient } from './cad-appearance';
 import { validVectorPaint, type VectorPaint } from './cad-paint';
 import { curveFillSource, updateCurveFill } from './curve-fill';
@@ -17,6 +17,8 @@ export interface GradientFillPlan {
   shapeId: TLShapeId;
   paint: VectorPaint;
   contours: CadContour[];
+  data: string;
+  bounds: { x: number; y: number; w: number; h: number };
   fillRule: 'evenodd' | 'nonzero';
   settings: GradientFillSettings;
 }
@@ -27,7 +29,7 @@ function source(editor: Editor) {
   const current = curveFillSource(editor, undefined, 'gradient-selection');
   if (current.contours.some(contour => !contour.closed) ||
       !['evenodd', 'nonzero'].includes(current.fillRule)) throw new Error('gradient-selection');
-  const bounds = curveBounds(current.contours);
+  const bounds = current.bounds;
   if (!(bounds.w > 0 && bounds.h > 0)) throw new Error('gradient-selection');
   return { ...current, bounds };
 }
@@ -58,7 +60,7 @@ export function getGradientFillSettings(editor: Editor): GradientFillSettings | 
 }
 
 export function prepareGradientFill(editor: Editor, settings: GradientFillSettings): GradientFillPlan {
-  const { shape, paint, contours, fillRule, bounds } = source(editor);
+  const { shape, paint, contours, fillRule, bounds, data } = source(editor);
   if (!['linear', 'radial'].includes(settings.type) || !Number.isFinite(settings.angle) || Math.abs(settings.angle) > 360 ||
       !Number.isFinite(settings.opacity) || settings.opacity < 0 || settings.opacity > 100) throw new Error('geometry');
   const cx = bounds.x + bounds.w / 2, cy = bounds.y + bounds.h / 2;
@@ -76,7 +78,7 @@ export function prepareGradientFill(editor: Editor, settings: GradientFillSettin
   };
   const next: VectorPaint = { ...paint, raster: undefined, gradient, fillOpacity: settings.opacity / 100 };
   if (!validVectorPaint(next)) throw new Error('geometry');
-  return { revision: cadRevision(editor), shapeId: shape.id, paint: next, contours: structuredClone(contours), fillRule, settings: structuredClone(settings) };
+  return { revision: cadRevision(editor), shapeId: shape.id, paint: next, contours: structuredClone(contours), data, bounds: { ...bounds }, fillRule, settings: structuredClone(settings) };
 }
 
 export function applyGradientFill(editor: Editor, plan: GradientFillPlan): boolean {
@@ -85,7 +87,8 @@ export function applyGradientFill(editor: Editor, plan: GradientFillPlan): boole
     editor.complete(); editor.setCurrentTool('select');
     if (plan.revision !== cadRevision(editor)) return false;
     const fresh = prepareGradientFill(editor, plan.settings);
-    if (fresh.shapeId !== plan.shapeId || fresh.fillRule !== plan.fillRule ||
+    if (fresh.shapeId !== plan.shapeId || fresh.fillRule !== plan.fillRule || fresh.data !== plan.data ||
+        JSON.stringify(fresh.bounds) !== JSON.stringify(plan.bounds) ||
         JSON.stringify(fresh.contours) !== JSON.stringify(plan.contours) ||
         JSON.stringify(fresh.paint) !== JSON.stringify(plan.paint)) return false;
     return updateCurveFill(editor, fresh.shapeId, fresh.paint, { omsMaterialTexture: null });

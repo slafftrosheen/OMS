@@ -2,9 +2,9 @@ import type { Editor, TLShapeId } from '@tldraw/tldraw';
 import { type VectorRaster } from './cad-appearance';
 import { type VectorPaint, validVectorPaint } from './cad-paint';
 import { vectorPaint } from './cad-vector';
-import { curveBounds, validContours, type CadContour } from './cad-curves';
+import type { CadContour } from './cad-curves';
 import { cadRevision } from './cad-plans';
-import { curveFillSource, updateCurveFill } from './curve-fill';
+import { curveFillGeometry, curveFillSource, updateCurveFill } from './curve-fill';
 import { drawingObjectName } from './drawing-operations';
 import { encodePdfRaster } from './cad-raster';
 import { storeCanvasImage } from './cad-asset-store';
@@ -18,6 +18,7 @@ export interface MaterialTextureSettings {
 }
 export interface MaterialTexturePlan {
   revision: string; shapeId: TLShapeId; paint: VectorPaint; contours: CadContour[];
+  data: string; bounds: { x: number; y: number; w: number; h: number };
   fillRule: 'evenodd'|'nonzero'; settings: MaterialTextureSettings;
   tileCount?: number;
 }
@@ -36,12 +37,13 @@ export function getMaterialTextureDraft(editor: Editor, sourceId?: TLShapeId): (
     // An explicit source is read-only reuse. Its lock/selection does not prevent
     // reading pixels; target mutation still goes through materialTextureSource.
     const shape=sourceId ? editor.getShape(sourceId) : materialTextureSource(editor).shape;
-    if(!shape || shape.type!=='cad-bezier')return null;
-    const props=shape.props as any, contours=props.contours as CadContour[];
+    if(!shape)return null;
+    const { bounds }=curveFillGeometry(shape);
+    const props=shape.props as any;
     const paint=vectorPaint(shape.meta,props.color);
-    if(!validContours(contours) || !validVectorPaint(shape.meta.omsVectorPaint) || paint.raster?.usage!=='material')return null;
+    if(!validVectorPaint(shape.meta.omsVectorPaint) || paint.raster?.usage!=='material')return null;
     const {matrix,...raster}=paint.raster,stored=shape.meta.omsMaterialTexture as any;
-    const document=readCadSettings(editor), bounds=curveBounds(contours);
+    const document=readCadSettings(editor);
     const tiled = paint.raster.repeat && document ? {
       tileWidthMm:Math.hypot(matrix[0],matrix[1])*cadMmPerPixel(document),
       offsetXmm:(matrix[4]+(matrix[0]+matrix[2])/2-bounds.x-bounds.w/2)*cadMmPerPixel(document),
@@ -73,12 +75,11 @@ export async function readMaterialTexture(editor: Editor, file: File, signal: Ab
 }
 /** Cover zoom or physical-size repeated cells, both in object-local coordinates. */
 export function prepareMaterialTexture(editor: Editor,draft:MaterialTextureDraft,settings:MaterialTextureSettings):MaterialTexturePlan {
-  const {shape,paint,contours,fillRule}=materialTextureSource(editor),{scale,angle,opacity}=settings;
+  const {shape,paint,contours,fillRule,bounds,data}=materialTextureSource(editor),{scale,angle,opacity}=settings;
   const mode=settings.mode??'cover';
   if(!['cover','tile'].includes(mode)||![angle,opacity].every(Number.isFinite)||Math.abs(angle)>360||opacity<0||opacity>100||
     mode==='cover'&&(!Number.isFinite(scale)||scale<100||scale>2000))throw new Error('geometry');
   if(contours.some(c=>!c.closed))throw new Error('material-selection');
-  const bounds=curveBounds(contours);
   if(bounds.w<=0||bounds.h<=0)throw new Error('material-selection');
   const r=draft.raster,theta=-angle*Math.PI/180,c=Math.cos(theta),s=Math.sin(theta);
   let factor:number,offsetX=0,offsetY=0;
@@ -96,7 +97,7 @@ export function prepareMaterialTexture(editor: Editor,draft:MaterialTextureDraft
   const next:VectorPaint={...paint,gradient:undefined,fillOpacity:opacity/100,raster};
   if(!validVectorPaint(next))throw new Error('geometry');
   const tileCount=mode==='tile'?rasterTileMatrices(raster,contours).length:undefined;
-  return {revision:cadRevision(editor),shapeId:shape.id,paint:next,contours:structuredClone(contours),fillRule,settings:{...settings},...(tileCount?{tileCount}:{})};
+  return {revision:cadRevision(editor),shapeId:shape.id,paint:next,contours:structuredClone(contours),data,bounds:{...bounds},fillRule,settings:{...settings},...(tileCount?{tileCount}:{})};
 }
 function updatePaint(editor:Editor,id:TLShapeId,paint:VectorPaint,settings?:MaterialTextureSettings) {
   return updateCurveFill(editor,id,paint,{omsMaterialTexture:settings?{...settings}:null});
@@ -109,7 +110,7 @@ export function applyMaterialTexture(editor:Editor,plan:MaterialTexturePlan):boo
     const {shape,contours}=materialTextureSource(editor);
     if(shape.id!==plan.shapeId||JSON.stringify(contours)!==JSON.stringify(plan.contours)||!plan.paint.raster)return false;
     const fresh=prepareMaterialTexture(editor,{raster:plan.paint.raster},plan.settings);
-    if(JSON.stringify(fresh.paint)!==JSON.stringify(plan.paint))return false;
+    if(fresh.data!==plan.data||fresh.fillRule!==plan.fillRule||JSON.stringify(fresh.bounds)!==JSON.stringify(plan.bounds)||JSON.stringify(fresh.paint)!==JSON.stringify(plan.paint))return false;
     return updatePaint(editor,shape.id,fresh.paint,plan.settings);
   }catch{return false;}
 }

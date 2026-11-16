@@ -13,7 +13,6 @@ import {captureToolkitControls} from './toolkit-controls';
 import {getCadSelectionPageBounds} from './cad-bounds';
 import {cadConstruction} from './cad-construction';
 import {measureCadSelection} from './cad-measurements';
-import {RadialArrange} from './RadialArrange';
 import {applyArrangePlan,arrangementRoots,arrangeGapFromDisplay,MAX_ARRANGE_GAP,prepareArrangePlan,type ArrangeOptions} from './drawing-arrange';
 import {drawingObjectName,drawingObjectAlias} from './drawing-operations';
 import {CadOperationError,cadRevision} from './cad-plans';
@@ -189,7 +188,6 @@ export function ArrangePanel({settings,children}:{settings:CadSettings|null;chil
   </fieldset>
   {message&&message.revision===revision&&<p className="drawing-help" role={message.success?'status':'alert'}>{t(message.key)}{message.success&&message.gap!==undefined&&<> {t('arrangeResultGap')}: {(settings?canvasLengthToUnit(message.gap,settings):message.gap).toFixed(settings?.precision??2)} {unit}.</>}</p>}
   <div className="drawing-arrange">{children}</div>
-  <RadialArrange settings={settings}/>
  </div>;
 }
 function ArrangeAlignmentIcon({axis,alignment}:{axis:'x'|'y';alignment:'start'|'center'|'end'}){

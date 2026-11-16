@@ -40,31 +40,48 @@ class IntakeOutputError extends Error {
 
 function intakeFailure(err: unknown, engine: string | null): never {
   const providerStatus=err instanceof OpenRouterHttpError?err.statusCode:null;
-  console.error('[Orders] AI intake unavailable', {type:err instanceof Error?err.name:'unknown',providerStatus,engine,
+  const providerType=err instanceof OpenRouterHttpError?err.errorType:null;
+  console.error('[Orders] AI intake unavailable', {type:err instanceof Error?err.name:'unknown',providerStatus,providerType,engine,
     ...(err instanceof IntakeOutputError?{output:err.reason}:{}),
     ...(err instanceof z.ZodError?{issues:err.issues.slice(0,8).map(issue=>({code:issue.code,path:issue.path}))}:{})});
+  if(providerType==='context_length_exceeded'||providerType==='string_too_long')
+    throw error(422,'The source exceeds this model’s input limit. For PDFs, choose Visual analysis and a smaller page range; otherwise shorten the source or select a model with a larger context window. No draft changes were applied.');
+  if(providerType==='payload_too_large'||providerType==='image_too_large'||providerStatus===413)
+    throw error(413,'The source is too large for the selected provider. Use a smaller PDF page range in Visual analysis or a smaller image. No draft changes were applied.');
+  if(providerType==='image_download_failed')
+    throw error(503,'OpenRouter could not retrieve a source image or PDF page image. Retry shortly; if it persists, ask R&D to check provider connectivity and the PDF processing mode. No draft changes were applied.');
+  if(providerType&&['invalid_image','image_too_small','unsupported_image_format','image_not_found'].includes(providerType))
+    throw error(422,'OpenRouter could not read the source image or PDF page image. Re-export the source, or choose another PDF processing mode. No draft changes were applied.');
+  if(providerType==='content_policy_violation'||providerType==='refusal')
+    throw error(422,'The AI provider declined this source. Review the document and the provider’s content requirements. No draft changes were applied.');
+  if(providerType==='max_tokens_exceeded'||providerType==='token_limit_exceeded')
+    throw error(503,'OpenRouter reached a token budget limit. Ask R&D to check the model’s output budget and account limits. No draft changes were applied.');
   if (err instanceof IntakeOutputError || err instanceof z.ZodError) {
     throw error(503, err instanceof IntakeOutputError && err.reason === 'truncated'
       ? 'OpenRouter reached the output limit. Try a shorter document or switch models in Settings → AI & OpenRouter.'
       : 'OpenRouter did not return usable order data. Retry or try another PDF processing mode. No draft changes were applied.');
   }
   if (err instanceof Error) {
-    if (err.name === 'TimeoutError' || providerStatus === 408 || providerStatus === 504)
+    if (err.name === 'TimeoutError' || providerStatus === 408 || providerStatus === 504 || providerType === 'timeout')
       throw error(504, 'OpenRouter timed out while reading the source. Try a shorter document or another configured model.');
     if (/data sharing is disabled by R&D/i.test(err.message))
       throw error(403, 'OpenRouter data sharing is disabled in Settings → AI & OpenRouter.');
     if (/policy is unavailable|model settings unavailable|not configured|BASE_URL must use HTTPS/i.test(err.message))
       throw error(503, 'OpenRouter configuration is unavailable. Ask R&D to check data sharing, the API key and model settings.');
   }
-  if(providerStatus===429)throw error(429,'OpenRouter rate limit reached. Wait briefly and retry; the draft has not changed.');
-  if(providerStatus===404||providerStatus===400)
-    throw error(503,'OpenRouter has no compatible endpoint for this model and output format. Ask R&D to select a compatible Vision / order OCR model in Settings → AI & OpenRouter.');
-  if(providerStatus===401||providerStatus===403)
+  if(providerStatus===429||providerType==='rate_limit_exceeded')throw error(429,'OpenRouter rate limit reached. Wait briefly and retry; the draft has not changed.');
+  if(providerType==='invalid_prompt'||providerType==='unprocessable'||providerStatus===422)
+    throw error(422,'The provider could not process this source. Check the source file or choose another PDF processing mode. No draft changes were applied.');
+  if(providerStatus===401||providerStatus===403||providerType==='authentication'||providerType==='permission_denied')
     throw error(503,'OpenRouter rejected the API key or provider access. Ask R&D to check Settings → AI & OpenRouter.');
-  if(providerStatus===402)
+  if(providerStatus===402||providerType==='payment_required')
     throw error(503,'OpenRouter credit is unavailable for the selected model. Choose a free compatible model or check the OpenRouter account balance.');
+  if(providerStatus===400)
+    throw error(503,'OpenRouter rejected the source or request format. Check the selected PDF processing mode, or ask R&D to verify model compatibility in Settings → AI & OpenRouter.');
+  if(providerStatus===404)
+    throw error(503,'The configured OpenRouter model or a matching provider endpoint is unavailable. Ask R&D to check Settings → AI & OpenRouter.');
   if (providerStatus !== null && providerStatus >= 500)
-    throw error(503, 'OpenRouter or its document parser is temporarily unavailable. Retry shortly or choose another PDF processing mode.');
+    throw error(503, 'OpenRouter could not route or complete this request. The model or document parser may be unavailable, or no provider may support the selected format. Retry shortly; if it persists, ask R&D to check the model and PDF mode.');
   throw error(503,'AI intake could not complete. Check OMS server connectivity and OpenRouter settings. No draft changes were applied.');
 }
 const PROMPT=`You extract customer-provided information for a signage manufacturing draft.
@@ -306,7 +323,8 @@ async function extractSource(event:Parameters<RequestHandler>[0],complete:typeof
       // Reuse the same model, parser and deadline. Paid/native PDF parsing stays single-pass.
       const allowFallback = process.env.OPENROUTER_ORDER_INTAKE_STRICT === undefined &&
         (parserEngine === 'page-images' || parserEngine === 'cloudflare-ai');
-      if (!allowFallback || !(err instanceof OpenRouterHttpError) || ![400, 404].includes(err.statusCode)) throw err;
+      if (!allowFallback || !(err instanceof OpenRouterHttpError) || ![400, 404].includes(err.statusCode) ||
+        (err.errorType !== null && !['invalid_request','not_found'].includes(err.errorType))) throw err;
       response = await complete(messages, {...options, jsonMode:true});
     }
     if (response.finishReason === 'length') throw new IntakeOutputError('truncated');

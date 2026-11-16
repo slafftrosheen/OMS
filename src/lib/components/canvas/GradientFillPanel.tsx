@@ -1,9 +1,8 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useEditor, useValue } from '@tldraw/tldraw';
-import { curveBounds } from './cad-curves';
 import { cadRevision } from './cad-plans';
 import type { CadSettings } from './cad-settings';
-import { VectorArtwork } from './VectorArtwork';
+import { VectorPathArtwork } from './VectorArtwork';
 import {
   applyGradientFill,
   getGradientFillSettings,
@@ -92,7 +91,7 @@ export function GradientFillPanel({ settings, revision, disabled }: { settings: 
   const available = !disabled && !readonly && !!selection;
   const inputKey = JSON.stringify([revision, settings, selectedId, draft]);
   const stale = !!review && (!available || review.key !== inputKey || review.plan.revision !== revision || review.plan.shapeId !== selectedId);
-  const bounds = review ? curveBounds(review.plan.contours) : null;
+  const bounds = review?.plan.bounds ?? null;
   const padding = bounds ? Math.max(bounds.w, bounds.h, 1) * 0.05 : 0;
 
   function canEdit() {
@@ -201,7 +200,7 @@ export function GradientFillPanel({ settings, revision, disabled }: { settings: 
         <div className="drawing-vector-comparison"><figure>
           <figcaption>{t('preview')} · {review.name}</figcaption>
           <svg role="img" aria-label={t('preview')} viewBox={`${bounds.x - padding} ${bounds.y - padding} ${Math.max(bounds.w, 1) + padding * 2} ${Math.max(bounds.h, 1) + padding * 2}`}>
-            <VectorArtwork id={`${id}-gradient-preview`} contours={review.plan.contours} fillRule={review.plan.fillRule} paint={review.plan.paint} />
+            <VectorPathArtwork id={`${id}-gradient-preview`} data={review.plan.data} fillRule={review.plan.fillRule} paint={review.plan.paint} />
           </svg>
         </figure></div>
         {stale && <p className="drawing-help drawing-cad-message" role="status">{t('stale')}</p>}

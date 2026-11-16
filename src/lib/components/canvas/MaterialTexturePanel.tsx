@@ -3,7 +3,7 @@ import { useEditor, useValue, type TLShapeId } from '@tldraw/tldraw';
 import { curveBounds } from './cad-curves';
 import { cadRevision } from './cad-plans';
 import { unitMm, type CadSettings } from './cad-settings';
-import { VectorArtwork } from './VectorArtwork';
+import { VectorPathArtwork } from './VectorArtwork';
 import {
   applyMaterialAlignment,
   materialAlignmentSelection,
@@ -194,7 +194,7 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
   const hasDraft = !!draft && draft.shapeId === selectedId;
   const inputKey = JSON.stringify([revision, settings, selectedId, draft?.version, mode, scale, tileWidth, offsetX, offsetY, angle, opacity]);
   const stale = !!review && (review.key !== inputKey || review.plan.revision !== revision);
-  const bounds = review ? curveBounds(review.plan.contours) : null;
+  const bounds = review?.plan.bounds ?? null;
   const padding = bounds ? Math.max(bounds.w, bounds.h, 1) * 0.05 : 0;
   const alignmentSource = alignmentSelection.sources.find(source => source.id === alignmentSourceId);
   const alignmentKey = JSON.stringify([revision, alignmentSourceId]);
@@ -309,7 +309,7 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
       <div className="drawing-vector-comparison"><figure>
         <figcaption>{t('alignPreview')}</figcaption>
         <svg role="img" aria-label={t('alignPreview')} viewBox={`${alignmentBounds.x - alignmentPadding} ${alignmentBounds.y - alignmentPadding} ${Math.max(alignmentBounds.w, 1) + alignmentPadding * 2} ${Math.max(alignmentBounds.h, 1) + alignmentPadding * 2}`}>
-          {alignmentReview.plan.paths.map((path, index) => <VectorArtwork key={index} id={`${id}-alignment-preview-${index}`} contours={path.contours} fillRule={path.fillRule} paint={path.paint} />)}
+          {alignmentReview.plan.paths.map((path, index) => <g key={index} transform={`matrix(${path.local.matrix.join(' ')})`}><VectorPathArtwork id={`${id}-alignment-preview-${index}`} data={path.local.data} fillRule={path.fillRule} paint={path.local.paint} /></g>)}
         </svg>
       </figure></div>
       <p className="drawing-help">{t('alignTargets')}: {alignmentReview.plan.targetIds.length} · {t('tileCount')}: {alignmentReview.plan.tileCount}</p>
@@ -437,7 +437,7 @@ export function MaterialTexturePanel({ settings, revision, disabled }: { setting
       <div className="drawing-vector-comparison"><figure>
         <figcaption>{t('preview')}{selection ? ` · ${selection.name}` : ''}</figcaption>
         <svg role="img" aria-label={t('preview')} viewBox={`${bounds.x - padding} ${bounds.y - padding} ${Math.max(bounds.w, 1) + padding * 2} ${Math.max(bounds.h, 1) + padding * 2}`}>
-          <VectorArtwork id={`${id}-material-preview`} contours={review.plan.contours} fillRule={review.plan.fillRule} paint={review.plan.paint} />
+          <VectorPathArtwork id={`${id}-material-preview`} data={review.plan.data} fillRule={review.plan.fillRule} paint={review.plan.paint} />
         </svg>
       </figure></div>
       {review.plan.tileCount !== undefined && <p className="drawing-help">{t('tileCount')}: {review.plan.tileCount}</p>}

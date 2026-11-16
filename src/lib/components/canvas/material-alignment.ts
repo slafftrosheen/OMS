@@ -20,7 +20,7 @@ export interface MaterialAlignmentPlan {
   revision: string;
   sourceId: TLShapeId;
   targetIds: TLShapeId[];
-  paths: VectorPath[];
+  paths: Array<VectorPath & { local: { data: string; matrix: VectorMatrix; paint: VectorPaint } }>;
   tileCount: number;
   changes: Change[];
 }
@@ -84,7 +84,7 @@ export function prepareMaterialAlignment(editor: Editor, sourceId: TLShapeId): M
   const source = selected.find(s => s.shape.id === sourceId);
   if (!source?.paint.raster?.repeat) throw new Error('material-align-source');
   const shared = multiplyMatrix(pageMatrix(editor, source), source.paint.raster.matrix);
-  const changes: Change[] = [], paths: VectorPath[] = [];
+  const changes: Change[] = [], paths: MaterialAlignmentPlan['paths'] = [];
   let tileCount = 0;
   // Preview in the actual drawing order, independently of source selection.
   const order = new Map(editor.getCurrentPageShapesSorted().map((s, i) => [s.id, i]));
@@ -102,12 +102,18 @@ export function prepareMaterialAlignment(editor: Editor, sourceId: TLShapeId): M
     if (item.shape.id !== sourceId) changes.push({ id: item.shape.id, paint: structuredClone(paint) });
     let opacity = item.shape.opacity ?? 1;
     let parent = editor.getShape(item.shape.parentId as TLShapeId);
-    while (parent) { opacity *= parent.opacity ?? 1; parent = editor.getShape(parent.parentId as TLShapeId); }
+    const ancestors = new Set<string>();
+    while (parent) {
+      if (ancestors.has(parent.id)) throw new Error('material-align-selection');
+      ancestors.add(parent.id); opacity *= parent.opacity ?? 1; parent = editor.getShape(parent.parentId as TLShapeId);
+    }
     const previewPaint = transformAppearance(paint, matrix);
     previewPaint.fillOpacity *= opacity; previewPaint.strokeOpacity *= opacity;
+    const localPaint = { ...paint, fillOpacity: paint.fillOpacity * opacity, strokeOpacity: paint.strokeOpacity * opacity };
     paths.push({
       contours: mapContours(item.contours, p => ({ x: matrix[0]*p.x+matrix[2]*p.y+matrix[4], y: matrix[1]*p.x+matrix[3]*p.y+matrix[5] })),
       fillRule: item.fillRule, paint: previewPaint,
+      local: { data: item.data, matrix, paint: localPaint },
     });
   }
   assertSaveBudget(editor, changes);

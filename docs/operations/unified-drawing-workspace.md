@@ -139,6 +139,29 @@ All 59 focused regression tests passed: 13 Find and Replace, 14 Select Same, 9 p
 
 TypeScript/TSX syntax was checked with the real Sucrase parser/transpiler, including the source recovered during a temporary workspace disconnection. Focused tests use the actual helper/geometry/transaction implementations with mocked editor and renderer boundaries. Full application typechecking/build, browser behavior, live database persistence and paid-model PDF OCR remain unverified here. Earlier verification sections describe their respective passes.
 
+## Transformations, object hierarchy, rectangle corners and direct CAD fills
+
+Both drawing hosts use the same new controls.
+
+- **Object → Transformations** opens the Arrange task selector. Position moves the selected drawing or group by relative X/Y or places its chosen bounds anchor at an absolute coordinate. Scale uses percentages or overall dimensions, a nine-point reference and optional cumulative copies. Review reports bounds before Apply; a clamped/refused native resize rolls back. Native text supports uniform scaling. Nonuniform scaling of obliquely rotated or aspect-locked objects is refused; skew is not simulated. Forms, file cards, masked/bound objects and protected descendants are excluded.
+- **Arrange** now separates Transformations, Align and distribute, Step and repeat, and Rotate/circular copies into focused tasks. Task changes preserve drafts while the docker remains mounted. Ctrl/⌘+Shift+A opens alignment; Ctrl/⌘+Shift+D opens repetition. Existing property-bar and Text-docker controls remain.
+- **Objects** shows actual group hierarchy and sibling stacking order. Expand/collapse, search with ancestor context, reveal selection, Ctrl/⌘ toggle, Shift ranges, keyboard navigation, F2 rename, explicit lock controls and guarded stacking replace the flat list. Rename changes the object alias, not artwork/order content. These controls do not reparent objects or add fake visibility flags.
+- **Object → Rectangles and corners** adds precise center, outer dimensions, rotation, proportion locking and independent sharp, rounded, scalloped or chamfered corners. Corners may be linked. Each radius/cut is capped at half the shorter side to prevent crossing geometry. Rounded/scalloped corners use adaptive cubic geometry within 0.005 mm; they remain editable/exportable curves.
+- **Fill/outline** now directly edits gradients and material textures on closed CAD paths and exact ellipses as well as Bézier artwork. Material reuse and alignment work across these types. Exact ellipse SVG paths render previews; rectangular envelopes are used only for conservative tile budgeting. Geometry and asset references remain unchanged. Open native arcs/paths remain ineligible for these fills.
+- **Palette** click fills closed CAD geometry; right-click changes its outline. Open CAD geometry uses outline colour. Outline changes retain gradients, textures and latent fill data; solid-fill changes clear obsolete material settings. Native objects retain their own fill-style behavior.
+
+### PDF intake diagnostics
+
+The provider boundary retains only allowlisted error types, with failed-response reads capped at 64 KiB. Input/context limits, unreadable images, account access and provider refusals now produce specific remedies instead of being broadly reported as model incompatibility. Known terminal failures do not retry the same input or fall back to another schema format. A transient image-download failure may retry once on HTTP 408/502/503/504; partial content-filter output is rejected.
+
+The specific reported live 503 is not reproduced here. No paid-model call, production credential, database migration or server deployment was used. These changes improve failure handling; they do not establish that live PDF OCR now succeeds.
+
+### Verification of this batch
+
+78 focused checks passed: 19 transformation, 13 object hierarchy, 12 rectangle geometry/plan, 11 direct fill, 7 palette and 16 provider/intake routing cases. They execute actual source with mocked editor/service boundaries; the provider cases use real Node Response/ReadableStream/AbortSignal. Supplemental compiled-component checks cover rectangle drafts, Objects navigation/rename and read-only behavior. Native tldraw resize/duplicate/reorder implementations were independently checked against the pinned API.
+
+All changed TypeScript/TSX files were parsed/transpiled with real Sucrase. Full application typechecking/build, browser rendering, live database persistence and paid OCR remain unverified in this environment. The workspace briefly disconnected; final source snapshots were preserved and checked against the assembled publish files.
+
 ## Deployment and verification
 
 Pull `main`, install dependencies if needed, build, and restart `reclame-oms.service` using the normal deployment process. A Git update alone does not replace the running JavaScript bundle. Earlier installations still need the existing `20261109000001_openrouter_model_settings.sql` migration; this change does not apply migrations automatically.
@@ -167,4 +190,3 @@ npx playwright test --config tests/ui/playwright.config.ts canvas-dock.spec.ts c
 Reference patterns: [CorelDRAW workspace overview](https://www.coreldraw.com/en/learn/tutorials/coreldraw-workspace-overview/), [OpenRouter PDF inputs](https://github.com/OpenRouterTeam/docs/blob/main/guides/overview/multimodal/pdfs.mdx), and [OpenRouter errors](https://github.com/OpenRouterTeam/docs/blob/main/api_reference/errors-and-debugging.mdx).
 
 The cubic-pair pass adds `?cubic-pairs=1`. Browser checks acquired all nine crossings of two original cubics, then dimensioned the central crossing to a separate cubic/cubic tangent contact at 98.16 mm. Undo/redo and JSON reload retained the dimension. EN/RU/LV help and the 390 px Russian panel were checked. Fourteen mathematical/editor regressions cover reversed parameter order, isolated tangency versus near misses, close crossings, partial overlap refusal, adjacent split endpoints, translated/rotated/scaled curves, bounded workloads, transformed node snapping and independently parsed DXF endpoints at 1:1 and 1:10. Local validation passed 110 source tests and 1707 unit tests, focused lint, type checking (zero errors; 13 existing warnings), and the production build. These checks do not certify a production server or physical cutter.
-

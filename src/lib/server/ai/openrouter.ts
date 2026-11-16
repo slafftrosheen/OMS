@@ -204,12 +204,53 @@ export function openRouterRetryAfterSeconds(value: string | null, now = Date.now
 export class OpenRouterHttpError extends Error {
   readonly statusCode: number;
   readonly retryAfterSeconds: number | null;
-  constructor(statusCode: number, retryAfter: string | null = null) {
+  readonly errorType: OpenRouterErrorType | null;
+  constructor(statusCode: number, retryAfter: string | null = null, errorType: unknown = null) {
     super(`OpenRouter completion failed (HTTP ${statusCode})`);
     this.name = 'OpenRouterHttpError';
     this.statusCode = statusCode;
     this.retryAfterSeconds = openRouterRetryAfterSeconds(retryAfter);
+    this.errorType = safeOpenRouterErrorType(errorType);
   }
+}
+
+// Only canonical codes may leave the provider boundary. Never retain the error
+// message, raw provider metadata, document excerpts, URLs or credential echoes.
+const OPENROUTER_ERROR_TYPES = [
+  'context_length_exceeded', 'max_tokens_exceeded', 'token_limit_exceeded', 'string_too_long',
+  'authentication', 'permission_denied', 'payment_required', 'rate_limit_exceeded',
+  'provider_overloaded', 'provider_unavailable', 'invalid_request', 'invalid_prompt',
+  'not_found', 'precondition_failed', 'payload_too_large', 'unprocessable',
+  'content_policy_violation', 'refusal', 'invalid_image', 'image_too_large', 'image_too_small',
+  'unsupported_image_format', 'image_not_found', 'image_download_failed', 'server', 'timeout', 'unmapped'
+] as const;
+export type OpenRouterErrorType = typeof OPENROUTER_ERROR_TYPES[number];
+function safeOpenRouterErrorType(value: unknown): OpenRouterErrorType | null {
+  return typeof value === 'string' && (OPENROUTER_ERROR_TYPES as readonly string[]).includes(value)
+    ? value as OpenRouterErrorType : null;
+}
+
+/** Failure payloads sometimes contain an entire document. Bound reads before parsing. */
+async function readOpenRouterFailure(response: Response): Promise<unknown> {
+  if (!response.body) return null;
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let text = '', bytes = 0;
+  try {
+    while (true) {
+      const part = await reader.read();
+      if (part.done) break;
+      bytes += part.value.byteLength;
+      if (bytes > 65_536) { await reader.cancel().catch(() => {}); return null; }
+      text += decoder.decode(part.value, {stream: true});
+    }
+    return JSON.parse(text + decoder.decode());
+  } catch { return null; }
+  finally { reader.releaseLock(); }
+}
+
+function isTransientOpenRouterFailure(failure: OpenRouterHttpError): boolean {
+  return [408, 502, 503, 504].includes(failure.statusCode) &&
+    (failure.errorType === null || ['provider_overloaded', 'provider_unavailable', 'image_download_failed', 'server', 'timeout', 'unmapped'].includes(failure.errorType));
 }
 
 export async function openRouterCompleteWithMetadata(
@@ -231,18 +272,22 @@ export async function openRouterCompleteWithMetadata(
     model = result.model;
     const response = result.response;
     // Providers can also report a failed completion inside an HTTP 200 envelope.
-    data = response.ok ? await response.json() : null;
-    const upstreamError = data?.error ?? data?.choices?.[0]?.error;
+    data = response.ok ? await response.json() : await readOpenRouterFailure(response);
+    signal.throwIfAborted();
+    const choice = data?.choices?.[0];
+    const upstreamError = data?.error ?? choice?.error ??
+      (choice?.finish_reason === 'content_filter' ? {code:403,metadata:{error_type:'content_policy_violation'}} :
+        choice?.finish_reason === 'error' ? {code:502} : null);
     const embedded = Number(upstreamError?.code);
     const status = response.ok && upstreamError
       ? Number.isInteger(embedded) && embedded >= 400 && embedded <= 599 ? embedded : 502
       : response.status;
     if (response.ok && !upstreamError) break;
-    const failure = new OpenRouterHttpError(status, response.headers.get('Retry-After'));
+    const failure = new OpenRouterHttpError(status, response.headers.get('Retry-After'), upstreamError?.metadata?.error_type);
     await response.body?.cancel().catch(() => {});
     const waitMs = (failure.retryAfterSeconds ?? 1) * 1000;
     // Long cooldowns belong in the UI; do not keep a PDF request hanging for minutes.
-    if (attempt || ![408, 502, 503, 504].includes(status) || waitMs > 5000) throw failure;
+    if (attempt || !isTransientOpenRouterFailure(failure) || waitMs > 5000) throw failure;
     await new Promise<void>((resolve, reject) => {
       const abort = () => { clearTimeout(timer); signal.removeEventListener('abort', abort); reject(signal.reason); };
       const timer = setTimeout(() => { signal.removeEventListener('abort', abort); resolve(); }, waitMs);

@@ -10,6 +10,12 @@ import {useFindReplaceText} from './find-replace-copy';
 import {DrawingSelectSamePanel} from './SelectSamePanel';
 import {useSelectSameText} from './select-same-copy';
 import {useParametricShapeText} from './parametric-shape-copy';
+import {useRectangleShapeText} from './rectangle-shape-copy';
+import {DrawingObjectsPanel} from './DrawingObjectsPanel';
+import {DrawingTransformPanel} from './DrawingTransformPanel';
+import {RadialArrange} from './RadialArrange';
+import {useArrangeTaskText, type ArrangeTask} from './arrange-task-copy';
+import {cadPalettePatch} from './drawing-palette';
 import {TextPanel,ArrangePanel,MeasurePanel,FormScaleControl} from './WorkbenchPanels';
 import {useWorkbenchText} from './workbench-copy';
 import {textPointSize} from './workbench-operations';
@@ -28,12 +34,12 @@ import {
   DefaultFillStyle, DefaultFontStyle, DefaultHorizontalAlignStyle, DefaultSizeStyle, DefaultTextAlignStyle,
   DefaultVerticalAlignStyle, GeoShapeGeoStyle, LineShapeSplineStyle, createShapeId, exportToBlob,
   Box, getDefaultColorTheme, useEditor, useIsDarkMode, useRelevantStyles, useValue,
-  type EnumStyleProp, type TLShapeId, type TLShape, type TLTextShape,
+  type EnumStyleProp, type TLShapeId, type TLTextShape,
 } from '@tldraw/tldraw';
 import { captureToolkitControls } from './toolkit-controls';
-import { applyDrawingCommand, drawingTransaction, toggleDrawingObjectLock, transformDrawingSelection, type DrawingTransformField } from './drawing-commands';
+import { applyDrawingCommand, drawingTransaction, transformDrawingSelection, type DrawingTransformField } from './drawing-commands';
 import { useDrawingText, type DrawingLabel } from './drawing-copy';
-import { drawingObjectAlias, drawingObjectName, drawingPngSize, renameDrawingObject, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
+import { drawingPngSize, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
 import { applyCadCompound, type CadCompoundOperation } from './cad-compound';
 import { applyArrangePlan, arrangementRoots, prepareArrangePlan, type ArrangeOptions } from './drawing-arrange';
 import { CadPanel } from './CadPanel';
@@ -43,7 +49,6 @@ import { useCadText, type CadLabel } from './cad-copy';
 import { canvasLengthToUnit, canvasPointToCad, readCadSettings, unitLengthToCanvas, type CadSettings } from './cad-settings';
 import { getCadSelection, nudgeCadSelection, transformCadSelection, type CadAnchor } from './cad-geometry';
 import { useVectorText } from './cad-vector-copy';
-import { paintMetadata, vectorPaint } from './cad-vector';
 import './drawing-workspace.css';
 
 type Alignment = Pick<Extract<ArrangeOptions, { kind: 'align' }>, 'axis' | 'alignment'>;
@@ -350,23 +355,6 @@ function CadAnchorControl({ value, onChange }: { value: CadAnchor; onChange: (an
   </label>;
 }
 
-function ObjectNameField({ shape, disabled }: { shape: TLShape; disabled: boolean }) {
-  const editor = useEditor(); const { label } = useDrawingText();
-  const alias = drawingObjectAlias(shape);
-  const [draft, setDraft] = useState(alias);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => { setDraft(alias); setFailed(false); }, [shape.id, alias]);
-  return <form className="drawing-object-name" onSubmit={event => {
-    event.preventDefault(); setFailed(!renameDrawingObject(editor, shape.id, draft));
-  }}>
-    <label><span>{label('objectName')}</span><input value={draft} maxLength={80} disabled={disabled}
-      placeholder={drawingObjectName(shape)} onChange={event => { setDraft(event.target.value); setFailed(false); }} /></label>
-    <button type="submit" disabled={disabled}>{label('rename')}</button>
-    <p className="drawing-help">{label('renameHint')}</p>
-    {failed && <p role="alert" className="drawing-help">{label('changedFailed')}</p>}
-  </form>;
-}
-
 function Ruler({ vertical = false, settings }: { vertical?: boolean; settings: CadSettings | null }) {
   const editor = useEditor();
   const bounds = useValue('drawing ruler', () => editor.getViewportPageBounds(), [editor]);
@@ -413,6 +401,10 @@ export function DrawingChrome() {
   const findReplaceLabel = useFindReplaceText();
   const selectSameLabel = useSelectSameText();
   const parametricShapeLabel = useParametricShapeText();
+  const rectangleShapeLabel = useRectangleShapeText();
+  const arrangeTaskLabel = useArrangeTaskText();
+  const [arrangeTask, setArrangeTask] = useState<ArrangeTask>('align');
+  const [transformFocusRequest, setTransformFocusRequest] = useState(0);
   const workbenchLabel = useWorkbenchText();
   const snapLabel = useSnapText();
   const activeSnap = useValue('CAD snap target', () => editor.snaps.getIndicators().some(value => value.id === 'oms-cad-snap') ? cadSnapIndicator(editor).get() : null, [editor]);
@@ -444,7 +436,6 @@ export function DrawingChrome() {
     opacity: editor.getSharedOpacity(), single: editor.getOnlySelectedShape() }), [editor]);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  const [search, setSearch] = useState('');
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [exportOptions, setExportOptions] = useState<DrawingExportOptions>({ scope: 'selected', scale: 1, background: false, padding: 24 });
   const [exportError, setExportError] = useState('');
@@ -523,8 +514,17 @@ export function DrawingChrome() {
     const trigger = restoreFocus && openMenu ? context?.root.current?.querySelector<HTMLElement>(`[data-drawing-menu="${openMenu}"] > summary`) : null;
     setOpenMenu(null); trigger?.focus();
   }
-  function openRepeat() {
+  function openArrange(task: ArrangeTask = 'align') {
     context?.setPanel('arrange');
+    setArrangeTask(task);
+    closeMenus();
+  }
+  function openTransform() {
+    openArrange('transform');
+    setTransformFocusRequest(value => value + 1);
+  }
+  function openRepeat() {
+    openArrange('repeat');
     setRepeatFocusRequest(value => value + 1);
     closeMenus();
   }
@@ -615,7 +615,7 @@ export function DrawingChrome() {
       if (inDrawing && modifier && event.shiftKey && !event.altKey && key === 'a') {
         event.preventDefault();
         event.stopPropagation();
-        context?.setPanel('arrange');
+        openArrange('align');
         return;
       }
       const alignment = alignmentKeys[key];
@@ -710,10 +710,11 @@ export function DrawingChrome() {
     if (!style.values.includes(value) || !captureToolkitControls(editor).canStyle) return;
     drawingTransaction(editor, () => {
       if (style === DefaultFontStyle && editor.isIn('select')) clearSelectedDrawingFontOverrides(editor);
-      if (style === DefaultColorStyle) {
-        for (const shape of [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].map(id => editor.getShape(id))) if (shape && ['cad-bezier','cad-ellipse','cad-arc'].includes(shape.type) && !editor.isShapeOrAncestorLocked(shape)) {
-          const paint = vectorPaint(shape.meta, (shape.props as any).color);
-          editor.updateShape({ id: shape.id, type: shape.type, meta: { ...shape.meta, omsVectorPaint: paintMetadata({ ...paint, gradient: undefined, raster: undefined, [shape.type === 'cad-bezier' ? 'fill' : 'stroke']: getDefaultColorTheme({ isDarkMode: false })[value].solid }) } });
+      if (style === DefaultColorStyle && editor.isIn('select')) {
+        for (const id of editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])) {
+          const shape = editor.getShape(id);
+          const patch = shape && cadPalettePatch(shape, getDefaultColorTheme({ isDarkMode: false })[value].solid, 'fill');
+          if (patch) editor.updateShape(patch);
         }
       }
       if (editor.isIn('select')) editor.setStyleForSelectedShapes(style, value);
@@ -871,7 +872,9 @@ export function DrawingChrome() {
           <button type="button" onClick={() => focusCad('shaping')}>{advancedLabel('shaping')}</button>
           <button type="button" onClick={() => focusCad('ellipse')}>{vectorLabel('ellipseSegments')}</button>
           <button type="button" onClick={() => focusCad('polygon')}>{parametricShapeLabel('title')}</button>
-          <button type="button" aria-keyshortcuts="Control+Shift+A Meta+Shift+A" title={`${advancedLabel('arrange')} (Ctrl/⌘+Shift+A)`} onClick={()=>{setPanel('arrange');closeMenus();}}>{advancedLabel('arrange')}</button>
+          <button type="button" onClick={() => focusCad('rectangle')}>{rectangleShapeLabel('title')}</button>
+          <button type="button" onClick={openTransform}>{arrangeTaskLabel('transform')}</button>
+          <button type="button" aria-keyshortcuts="Control+Shift+A Meta+Shift+A" title={`${advancedLabel('arrange')} (Ctrl/⌘+Shift+A)`} onClick={()=>openArrange('align')}>{advancedLabel('arrange')}</button>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="bitmaps" open={openMenu === 'bitmaps'}>{menuSummary('bitmaps', vectorLabel('bitmaps'))}<div className="drawing-menu-popover"><button type="button" disabled={controls.readOnly} onClick={() => focusCad('trace')}>{vectorLabel('trace')}</button></div></details>
         <details className="drawing-menu" data-drawing-menu="layout" open={openMenu === 'layout'}>{menuSummary('layout', cadLabel('layout'))}<div className="drawing-menu-popover">
@@ -953,33 +956,16 @@ export function DrawingChrome() {
       </div>
       <div className="drawing-docker-content" role="region" aria-label={panelLabel(activePanel)}>
         {activePanel === 'snap' ? <CadSnapPanel settings={settings}/> : activePanel === 'text' ? <><DrawingFindReplacePanel focusRequest={findFocusRequest}/><TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/></> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <>
-          {selectedText && <fieldset className="drawing-workbench-fields drawing-arrange-section drawing-arrange-geometry" data-testid="drawing-text-geometry">
-            <legend>{label('positionAndSize')}</legend>
-            {(['x', 'y', 'w', 'h', 'rotation'] as const).map(transformField)}
-            <span className="drawing-unit">{settings ? `${settings.unit} · 1:${settings.scale}` : label('units')}</span>
-            {settings && <div className="drawing-arrange-geometry-options"><CadAnchorControl value={cadAnchor} onChange={setCadAnchor} />
-              <ToolButton icon={proportional ? 'lock' : 'unlock'} label={cadLabel('proportional')} active={proportional} onClick={() => setProportional(value => !value)} /></div>}
-          </fieldset>}
-          <ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings} focusRequest={repeatFocusRequest}/>
+          <label className="drawing-cad-task"><span>{arrangeTaskLabel('task')}</span><select value={arrangeTask} data-testid="drawing-arrange-task" onChange={event => setArrangeTask(event.target.value as ArrangeTask)}>
+            {(['transform','align','repeat','radial'] as const).map(task => <option key={task} value={task}>{arrangeTaskLabel(task)}</option>)}
+          </select></label>
+          <div hidden={arrangeTask !== 'transform'}><DrawingTransformPanel settings={settings} focusRequest={arrangeTask === 'transform' ? transformFocusRequest : 0}/></div>
+          <div hidden={arrangeTask !== 'align'}><ArrangePanel settings={settings}><details><summary>{label('object')}</summary><div className="drawing-align-grid">{menuActions(['front','back','forward','backward','rotate-left','rotate-right','flip-horizontal','flip-vertical','group','ungroup'])}</div></details></ArrangePanel></div>
+          <div hidden={arrangeTask !== 'repeat'}><RepeatGrid selected={state.selected} disabled={!controls.canEditSelection} settings={settings} focusRequest={arrangeTask === 'repeat' ? repeatFocusRequest : 0} expanded/></div>
+          <div hidden={arrangeTask !== 'radial'}><RadialArrange settings={settings} expanded/></div>
         </> : activePanel === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : activePanel === 'objects' ? <>
           <DrawingSelectSamePanel focusRequest={selectSameFocusRequest}/>
-          <p className="drawing-help">{state.shapes.length} {label('items')} · {controls.selected} {label('selected')}</p>
-          <label className="drawing-object-search"><span>{label('searchObjects')}</span><input type="search" value={search} maxLength={100} onChange={event => setSearch(event.target.value)} /></label>
-          {state.single && <ObjectNameField key={state.single.id} shape={state.single} disabled={!controls.canEditSelection} />}
-          <div className="drawing-object-list">{[...state.shapes].reverse().filter(shape => drawingObjectName(shape).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).map(shape => {
-            const props = shape.props as Record<string, unknown>;
-            const name = drawingObjectName(shape);
-            const locked = editor.isShapeOrAncestorLocked(shape);
-            const parent = editor.getShape(shape.parentId as TLShapeId);
-            return <div key={shape.id} className={`drawing-object-row ${state.selected.includes(shape.id) ? 'is-selected' : ''}`} data-testid="drawing-object-row">
-              <button type="button" className="drawing-object-select" aria-pressed={state.selected.includes(shape.id)} title={name}
-                onClick={event => { editor.complete(); editor.setCurrentTool('select'); editor.setSelectedShapes(event.shiftKey ? state.selected.includes(shape.id) ? state.selected.filter(id => id !== shape.id) : [...state.selected, shape.id] : [shape.id]); }}
-                onDoubleClick={() => editor.zoomToSelection()}><Icon name={shape.type === 'geo' ? String(props.geo) : iconPaths[shape.type] ? shape.type : 'objects'} /><span>{parent ? '↳ ' : ''}{name}</span></button>
-              <ToolButton icon={locked ? 'lock' : 'unlock'} label={label(shape.isLocked ? 'unlock' : 'lock')} disabled={controls.readOnly || !!parent && editor.isShapeOrAncestorLocked(parent)}
-                onClick={() => { if (!toggleDrawingObjectLock(editor, shape.id)) setNotice(label('lockedParent')); }} />
-            </div>;
-          })}</div>{!state.shapes.length && <p className="drawing-help">{label('empty')}</p>}
-          {state.shapes.length > 0 && !state.shapes.some(shape => drawingObjectName(shape).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())) && <p className="drawing-help">{label('noMatches')}</p>}
+          <DrawingObjectsPanel/>
           <section className="drawing-selection-actions" aria-label={label('selectionActions')}>{menuActions(['fit-selection', 'duplicate', 'delete'])}</section>
         </> : <>
           <FormScaleControl/>
@@ -994,7 +980,7 @@ export function DrawingChrome() {
             </select></label>}
           </fieldset>
           {!styles?.size && <p className="drawing-help">{label('noStyles')}</p>}
-          <p className="drawing-help">{label('colourHint')}</p>
+          <p className="drawing-help">{arrangeTaskLabel('paletteHint')}</p>
           <details className="drawing-shortcuts"><summary>{tr('toolkit.toolbar.selection')}</summary><div className="drawing-arrange">{menuActions(['group', 'ungroup', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical'])}</div></details>
 
         </>}
@@ -1016,10 +1002,14 @@ export function DrawingChrome() {
       {DefaultColorStyle.values.map(value => <button key={value} type="button" title={`${label('palette')}: ${label(value)}`}
         aria-label={`${label('palette')}: ${label(value)}`} aria-pressed={color?.type === 'shared' && color.value === value} disabled={!controls.canStyle || !color}
         onContextMenu={event => {
-          event.preventDefault(); if (!controls.canStyle) return;
-          drawingTransaction(editor, () => { for (const shape of [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])].map(id => editor.getShape(id))) if (shape && ['cad-bezier','cad-ellipse','cad-arc'].includes(shape.type) && !editor.isShapeOrAncestorLocked(shape)) {
-            const paint = vectorPaint(shape.meta, (shape.props as any).color); editor.updateShape({ id: shape.id, type: shape.type, meta: { ...shape.meta, omsVectorPaint: paintMetadata({ ...paint, stroke: getDefaultColorTheme({ isDarkMode: false })[value].solid }) } });
-          } });
+          event.preventDefault(); if (!captureToolkitControls(editor).canStyle || !editor.isIn('select')) return;
+          drawingTransaction(editor, () => {
+            for (const id of editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])) {
+              const shape = editor.getShape(id);
+              const patch = shape && cadPalettePatch(shape, getDefaultColorTheme({ isDarkMode: false })[value].solid, 'stroke');
+              if (patch) editor.updateShape(patch);
+            }
+          });
         }} onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
     </div>)}
     {portal('status', <>
