@@ -27,6 +27,7 @@ import { applyDrawingCommand, drawingTransaction, toggleDrawingObjectLock, trans
 import { useDrawingText, type DrawingLabel } from './drawing-copy';
 import { drawingObjectAlias, drawingObjectName, drawingPngSize, renameDrawingObject, repeatDrawingSelection, planDrawingExport, type DrawingExportOptions } from './drawing-operations';
 import { applyCadCompound, type CadCompoundOperation } from './cad-compound';
+import { applyArrangePlan, arrangementRoots, prepareArrangePlan, type ArrangeOptions } from './drawing-arrange';
 import { CadPanel } from './CadPanel';
 import { useCadAdvancedText } from './cad-advanced-copy';
 import type { CadFocusRequest } from './CadAdvancedPanel';
@@ -36,6 +37,16 @@ import { getCadSelection, nudgeCadSelection, transformCadSelection, type CadAnch
 import { useVectorText } from './cad-vector-copy';
 import { paintMetadata, vectorPaint } from './cad-vector';
 import './drawing-workspace.css';
+
+type Alignment = Pick<Extract<ArrangeOptions, { kind: 'align' }>, 'axis' | 'alignment'>;
+const alignmentKeys: Readonly<Partial<Record<string, Alignment>>> = {
+  l: { axis: 'x', alignment: 'start' },
+  c: { axis: 'x', alignment: 'center' },
+  r: { axis: 'x', alignment: 'end' },
+  t: { axis: 'y', alignment: 'start' },
+  e: { axis: 'y', alignment: 'center' },
+  b: { axis: 'y', alignment: 'end' },
+};
 
 type Slot = 'commands' | 'standard' | 'properties' | 'tools' | 'docker' | 'dockerTabs' | 'palette' | 'status' | 'rulerX' | 'rulerY' | 'rulerOrigin';
 type Panel = 'properties' | 'objects' | 'cad' | 'text' | 'arrange' | 'measure' | 'snap' | null;
@@ -547,8 +558,33 @@ export function DrawingChrome() {
       if (!(event.target instanceof Element) || event.target.closest('input,textarea,select,[contenteditable="true"]')) return;
       if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'F12') { event.preventDefault(); event.stopPropagation(); focusCad('paint'); return; }
       if (!event.ctrlKey && !event.metaKey && !event.altKey && event.shiftKey && event.key === 'F2') { event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'fit-selection'); return; }
-      const lockedSelection = captureToolkitControls(editor).selectionLocked;
       const modifier = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
+      const inDrawing = !!event.target.closest('.drawing-viewport');
+      if (inDrawing && modifier && event.shiftKey && !event.altKey && key === 'a') {
+        event.preventDefault();
+        event.stopPropagation();
+        context?.setPanel('arrange');
+        return;
+      }
+      const alignment = alignmentKeys[key];
+      if (inDrawing && alignment && !modifier && !event.shiftKey && !event.altKey && !event.isComposing &&
+          !openMenu && toolGroup === null && editor.isIn('select.idle') && !isCadNodeEditing(editor)) {
+        const roots = arrangementRoots(editor);
+        if (roots.length > 1) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (event.repeat || !captureToolkitControls(editor).canEditSelection) return;
+          try {
+            const plan = prepareArrangePlan(editor, { kind: 'align', ...alignment, reference: roots[roots.length - 1] });
+            setNotice(applyArrangePlan(editor, plan) ? '' : label('changedFailed'));
+          } catch {
+            setNotice(label('changedFailed'));
+          }
+          return;
+        }
+      }
+      const lockedSelection = captureToolkitControls(editor).selectionLocked;
       if ((!modifier && !event.altKey && event.key === 'F10') || (modifier && !event.altKey && event.key.toLowerCase() === 'q')) {
         event.preventDefault(); event.stopPropagation();
         focusCad(event.key === 'F10' ? 'nodes' : 'convert');
@@ -587,7 +623,7 @@ export function DrawingChrome() {
     root.addEventListener('keydown', keys, true);
     document.addEventListener('pointerdown', outside);
     return () => { root.removeEventListener('keydown', keys, true); document.removeEventListener('pointerdown', outside); };
-  }, [context?.root, editor, openMenu, toolGroup, cadLabel, advancedLabel]);
+  }, [context?.root, context?.setPanel, editor, openMenu, toolGroup, cadLabel, advancedLabel, label]);
   if (!context) return null;
   const { hosts, panel, setPanel, order, onImport } = context;
   const activePanel = panel ?? lastPanel;
@@ -756,7 +792,7 @@ export function DrawingChrome() {
           <button type="button" onClick={() => focusCad('convert')}>{advancedLabel('convert')}</button>
           <button type="button" onClick={() => focusCad('join')}>{advancedLabel('joinCurves')}</button>
           <button type="button" onClick={() => focusCad('shaping')}>{advancedLabel('shaping')}</button>
-          <button type="button" onClick={()=>{setPanel('arrange');closeMenus();}}>{advancedLabel('arrange')}</button>
+          <button type="button" aria-keyshortcuts="Control+Shift+A Meta+Shift+A" title={`${advancedLabel('arrange')} (Ctrl/⌘+Shift+A)`} onClick={()=>{setPanel('arrange');closeMenus();}}>{advancedLabel('arrange')}</button>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="bitmaps" open={openMenu === 'bitmaps'}>{menuSummary('bitmaps', vectorLabel('bitmaps'))}<div className="drawing-menu-popover"><button type="button" disabled={controls.readOnly} onClick={() => focusCad('trace')}>{vectorLabel('trace')}</button></div></details>
         <details className="drawing-menu" data-drawing-menu="layout" open={openMenu === 'layout'}>{menuSummary('layout', cadLabel('layout'))}<div className="drawing-menu-popover">

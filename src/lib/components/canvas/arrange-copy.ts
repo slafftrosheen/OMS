@@ -1,5 +1,6 @@
 export const enArrange = {
   arrangePath:'Path',arrangeCurve:'Curve',arrangeEllipse:'Ellipse',arrangeArc:'Arc',arrangeDimension:'Dimension',arrangeGroup:'Group',arrangeImage:'Image',arrangeObject:'Object',
+  arrangeShortcutHelp:"On the drawing, L/C/R align left, center horizontally, or right. T/E/B align top, center vertically, or bottom. The last selected object stays in place.",
   arrangeAlignment:'Align objects', arrangeReference:'Align relative to', arrangeSelectionBounds:'Selection bounds', arrangeSelectedObjects:'Selected objects',
   arrangeLeft:'Left', arrangeHCenter:'H centre', arrangeRight:'Right', arrangeTop:'Top', arrangeVCenter:'V centre', arrangeBottom:'Bottom',
   arrangeAlignLeft:'Align left edges', arrangeAlignHCenter:'Align horizontal centres', arrangeAlignRight:'Align right edges', arrangeAlignTop:'Align top edges', arrangeAlignVCenter:'Align vertical centres', arrangeAlignBottom:'Align bottom edges',
@@ -12,6 +13,7 @@ export const enArrange = {
 };
 export const ruArrange:Record<keyof typeof enArrange,string> = {
   arrangePath:'Контур',arrangeCurve:'Кривая',arrangeEllipse:'Эллипс',arrangeArc:'Дуга',arrangeDimension:'Размер',arrangeGroup:'Группа',arrangeImage:'Изображение',arrangeObject:'Объект',
+  arrangeShortcutHelp:"На чертеже L/C/R выравнивают по левому краю, центру по горизонтали или правому краю. T/E/B выравнивают по верхнему краю, центру по вертикали или нижнему краю. Последний выбранный объект остаётся на месте.",
   arrangeAlignment:'Выравнивание объектов', arrangeReference:'Выровнять относительно', arrangeSelectionBounds:'Границ выделения', arrangeSelectedObjects:'Выбранные объекты',
   arrangeLeft:'Слева', arrangeHCenter:'Центр X', arrangeRight:'Справа', arrangeTop:'Сверху', arrangeVCenter:'Центр Y', arrangeBottom:'Снизу',
   arrangeAlignLeft:'Выровнять левые края', arrangeAlignHCenter:'Совместить центры по горизонтали', arrangeAlignRight:'Выровнять правые края', arrangeAlignTop:'Выровнять верхние края', arrangeAlignVCenter:'Совместить центры по вертикали', arrangeAlignBottom:'Выровнять нижние края',
@@ -24,6 +26,7 @@ export const ruArrange:Record<keyof typeof enArrange,string> = {
 };
 export const lvArrange:Record<keyof typeof enArrange,string> = {
   arrangePath:'Kontūra',arrangeCurve:'Līkne',arrangeEllipse:'Elipse',arrangeArc:'Loks',arrangeDimension:'Izmērs',arrangeGroup:'Grupa',arrangeImage:'Attēls',arrangeObject:'Objekts',
+  arrangeShortcutHelp:"Zīmējumā L/C/R līdzinās pa kreisi, horizontāli centrā vai pa labi. T/E/B līdzinās augšā, vertikāli centrā vai apakšā. Pēdējais atlasītais objekts paliek vietā.",
   arrangeAlignment:'Objektu līdzināšana', arrangeReference:'Līdzināt attiecībā pret', arrangeSelectionBounds:'Atlases robežām', arrangeSelectedObjects:'Atlasītie objekti',
   arrangeLeft:'Pa kreisi', arrangeHCenter:'Centrs X', arrangeRight:'Pa labi', arrangeTop:'Augšā', arrangeVCenter:'Centrs Y', arrangeBottom:'Apakšā',
   arrangeAlignLeft:'Līdzināt kreisās malas', arrangeAlignHCenter:'Līdzināt horizontālos centrus', arrangeAlignRight:'Līdzināt labās malas', arrangeAlignTop:'Līdzināt augšējās malas', arrangeAlignVCenter:'Līdzināt vertikālos centrus', arrangeAlignBottom:'Līdzināt apakšējās malas',

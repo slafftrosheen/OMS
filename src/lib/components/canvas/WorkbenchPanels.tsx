@@ -166,6 +166,7 @@ export function ArrangePanel({settings,children}:{settings:CadSettings|null;chil
     </button>)}
    </div>
    <p id={alignmentHintId} className="drawing-help">{t(state.roots.length<2?'arrangeSelectionHelp':currentReference==='selection'?'arrangeBoundsHelp':'arrangeKeyHelp')}</p>
+   <p className="drawing-help">{t('arrangeShortcutHelp')}</p>
   </fieldset>
   <fieldset className="drawing-workbench-fields drawing-arrange-section" disabled={protectedSelection} aria-describedby={distributionHintId}>
    <legend>{t('arrangeDistribution')}</legend>
