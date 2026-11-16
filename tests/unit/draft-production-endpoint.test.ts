@@ -1,4 +1,5 @@
 import {describe,it,expect} from 'vitest';
+import {jsPDF} from 'jspdf';
 import {POST} from '../../src/routes/api/ai/order-intake/+server';
 const id='11111111-1111-4111-8111-111111111111';
 const order={id,status:'DRAFT',created_by:id,updated_at:'2026-11-05T12:00:00Z'};
@@ -31,9 +32,9 @@ import {type OpenRouterChatOptions,OpenRouterHttpError} from '../../src/lib/serv
 import {GET as addressGET} from '../../src/routes/api/client-delivery-addresses/+server';
 const emptyModel={proposals:[],profileSuggestions:[],missing:[],production:[]};
 let sequence=0;
-function intakeEvent({output=emptyModel,change=false,unlink=false,malformed=false,fail=false,catalogFails=false}:{output?:any;change?:boolean;unlink?:boolean;malformed?:boolean;fail?:boolean;catalogFails?:boolean}={}){
+function intakeEvent({output=emptyModel,change=false,unlink=false,malformed=false,fail=false,catalogFails=false,fileBytes}:{output?:any;change?:boolean;unlink?:boolean;malformed?:boolean;fail?:boolean;catalogFails?:boolean;fileBytes?:Buffer}={}){
  const fileId='22222222-2222-4222-8222-222222222222';
- const bytes=Buffer.from('%PDF-1.7\nexample image-only production drawing');
+ const bytes=fileBytes??Buffer.from('%PDF-1.7\nexample image-only production drawing');
  let orderReads=0,linkReads=0,catalogReads=0;
  let sent:any;
  const db={from(table:string){
@@ -138,6 +139,50 @@ describe('production intake actual handler with a provider boundary double',()=>
 });
 
 describe('PDF processing and routing', () => {
+ it('renders only the requested pages of a long PDF on saved and unsaved drafts and discards out-of-scope facts', async () => {
+  const pdf = new jsPDF();
+  for (let page=1; page<=12; page++) {
+   if (page>1) pdf.addPage();
+   pdf.text(`Page ${page}: height 300 mm`,20,20);
+  }
+  const fileBytes = Buffer.from(pdf.output('arraybuffer'));
+  const fact = {target:'height',value:'300 mm',evidence:'height 300 mm',part:null,confidence:'high'};
+  const pdfPages = {start:11,end:11};
+  for (const saved of [true,false]) {
+   const sample = intakeEvent({fileBytes,output:{...emptyModel,production:[{...fact,page:11},{...fact,page:1}]}});
+   if (saved) {
+    sample.e.request = new Request(sample.e.request,{body:JSON.stringify({orderId:id,
+     fileId:'22222222-2222-4222-8222-222222222222',visualPdf:true,pdfPages})});
+   } else {
+    const form = new FormData();
+    form.set('file',new Blob([new Uint8Array(fileBytes)],{type:'application/pdf'}),'drawing.pdf');
+    form.set('metadata',JSON.stringify({sourceId:id,pdfMode:'visual',pdfPages}));
+    sample.e.request = new Request('http://localhost/api/ai/order-intake',{method:'POST',body:form});
+   }
+   const result = await (await sample.handler(sample.e)).json();
+   expect(result.pdfPages).toEqual({start:11,end:11,total:12});
+   expect(result.production.map((row:{page:number})=>row.page)).toEqual([11]);
+   const parts = sample.sent().messages[1].content as Array<{type:string;text?:string}>;
+   expect(parts.filter(part=>part.type==='image_url')).toHaveLength(1);
+   expect(parts.filter(part=>part.text?.startsWith('Source PDF page'))).toEqual([{type:'text',text:'Source PDF page 11 of 12'}]);
+  }
+ }, 15_000);
+
+ it('rejects ranges over ten pages and never sends a whole PDF when the requested parser cannot restrict pages', async () => {
+  for (const [flags,pdfPages,statusCode] of [
+   [{visualPdf:true},{start:1,end:11},422],
+   [{ocr:true},{start:1,end:2},400],
+   [{nativePdf:true},{start:1,end:2},400],
+   [{},{start:1,end:2},400]
+  ] as const) {
+   const sample = intakeEvent();
+   sample.e.request = new Request(sample.e.request,{body:JSON.stringify({orderId:id,
+     fileId:'22222222-2222-4222-8222-222222222222',...flags,pdfPages})});
+   await expect(sample.handler(sample.e)).rejects.toMatchObject({status:statusCode});
+   expect(sample.sent()).toBe(undefined);
+  }
+ });
+
  it('falls back to JSON mode for a free parser request with no strict endpoint and uses the same deadline', async () => {
   const old = process.env.OPENROUTER_ORDER_INTAKE_STRICT;
   delete process.env.OPENROUTER_ORDER_INTAKE_STRICT;

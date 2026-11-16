@@ -11,7 +11,8 @@ import { resolveResponseLocale, responseLanguageInstruction } from '$lib/server/
 import { z } from 'zod';
 import { PRODUCTION_INTAKE_JSON_SCHEMA, productionIntakeSchema, reviewProductionFacts, resolveIntakePdfEngine, findOrderIntakeConflicts, getProductionMaterialPicker, type IntakeMaterial } from '$lib/order/production-intake';
 import {readCompleteIntakeCatalog} from './intake-catalog';
-import {renderIntakePdf} from './intake-pdf';
+import {renderPdfPageSource} from './intake-pdf';
+import {MAX_VISUAL_PDF_PAGES, parsePdfPageRange, type PdfPageRange, type PdfPageScope} from '$lib/pdf/page-range';
 import { summarizeNativeProfileConfiguration } from '$lib/order/native-profile-context';
 
 const inputSchema=z.object({
@@ -20,6 +21,7 @@ const inputSchema=z.object({
   ocr:z.boolean().optional(),
   nativePdf:z.boolean().optional(),
   visualPdf:z.boolean().optional(),
+  pdfPages:z.unknown().optional(),
   profileIndex:z.number().int().min(0).max(99).nullable().optional(),
   expectedUpdatedAt:z.string().datetime({offset:true}).optional(),
   language:z.string().max(20).optional()
@@ -133,7 +135,7 @@ export function createOrderIntakeHandler(complete:typeof openRouterCompleteWithM
     throw error(409,'Order changed since opening AI intake. Reload before analysis.');
   if(!canEditDraft(user.role,order.created_by,user.id,order.status))
     throw error(403,'Only authorized draft editors may request AI intake');
-  if ((ocr || parsed.data.nativePdf || parsed.data.visualPdf) && !fileId)
+  if ((ocr || parsed.data.nativePdf || parsed.data.visualPdf || parsed.data.pdfPages !== undefined) && !fileId)
     throw error(400, 'PDF processing requires a PDF');
   // The profile selector is an index into the order's saved production order.
   // Resolve it ONLY from the authorized order, never from browser-provided JSON.
@@ -155,12 +157,12 @@ export function createOrderIntakeHandler(complete:typeof openRouterCompleteWithM
     };
   }
   let filename: string | null = null;
-  let source = {parts: [] as Array<Record<string, unknown>>, engine: null as string | null,
-    model: orderIntakeTextModel()};
+  let source: IntakeSource = {parts: [], engine: null, pages: null, model: orderIntakeTextModel()};
   const { visualPdf, nativePdf } = parsed.data;
   if (Number(!!visualPdf) + Number(!!ocr) + Number(!!nativePdf) > 1)
     throw error(400, 'Choose one PDF mode');
   const mode = visualPdf ? 'visual' : ocr ? 'ocr' : nativePdf ? 'native' : 'text';
+  const range = readIntakePdfRange(parsed.data.pdfPages, mode);
   if(fileId){
     // No client-supplied URL, path or model ID. The chosen file MUST be
     // linked to this same draft order under authenticated database RLS.
@@ -186,7 +188,7 @@ export function createOrderIntakeHandler(complete:typeof openRouterCompleteWithM
       !matchesOrderFileSignature(kind==='pdf'?'pdf':
         file.mimetype==='image/png'?'png':file.mimetype==='image/webp'?'webp':'jpg',
         bytes.subarray(0,16))) throw error(422,'Stored order file failed integrity validation');
-    source = await prepareIntakeSource(bytes, filename, file.mimetype, kind, mode, request.signal);
+    source = await prepareIntakeSource(bytes, filename, file.mimetype, kind, mode, request.signal, range);
   }
   const note=String(order.notes??'').trim().slice(0,5000);
   if(!source.parts.length && !note) throw error(422,'Add an order note or upload a PDF/image first');
@@ -209,7 +211,7 @@ Only propose values supported by the selected attachment or actual notes.
 Do not merely repeat current order values without source evidence.`;
   const content = source.parts.length ? [{type:'text',text:sourceText}, ...source.parts] : sourceText;
   validateIntakeModel(source.model);
-  const result = await extractSource(event, complete, content, source.model, source.engine, language)
+  const result = await extractSource(event, complete, content, source, language)
     .catch(err => intakeFailure(err, source.engine));
   // Provider latency must not bind evidence to a changed draft/file/profile.
   const {data:fresh,error:freshError}=await locals.supabase.from('draft_orders')
@@ -226,7 +228,7 @@ Do not merely repeat current order values without source evidence.`;
   }
   return json({...result,profileId,fileId:fileId??null,fileName:filename,
     profileIndex:profileIndex??null,orderUpdatedAt:order.updated_at,
-    engine:source.engine
+    engine:source.engine, pdfPages:source.pages
   },{headers});
 };
 }
@@ -240,13 +242,32 @@ function validateIntakeModel(model: string) {
     throw error(503, 'Invalid configured intake model');
 }
 
+interface IntakeSource {
+  parts: Array<Record<string, unknown>>;
+  engine: string | null;
+  model: string;
+  pages: PdfPageScope | null;
+}
+
+function readIntakePdfRange(input: unknown, mode: IntakePdfMode): PdfPageRange | undefined {
+  if (input === undefined) return undefined;
+  if (mode !== 'visual') throw error(400, 'Choose visual PDF analysis to use a page range.');
+  try {
+    return parsePdfPageRange(input, MAX_VISUAL_PDF_PAGES);
+  } catch (err) {
+    throw error(422, err instanceof Error ? err.message : 'Choose a valid PDF page range.');
+  }
+}
+
 async function prepareIntakeSource(bytes: Uint8Array, filename: string, mime: string,
-  kind: 'pdf' | 'image', mode: IntakePdfMode, signal: AbortSignal) {
+  kind: 'pdf' | 'image', mode: IntakePdfMode, signal: AbortSignal, range?: PdfPageRange): Promise<IntakeSource> {
   if (kind === 'image') {
-    return {parts: [toolkitMediaContent(filename, mime, bytes)], model: OPENROUTER_VISION_MODEL, engine: null};
+    return {parts: [toolkitMediaContent(filename, mime, bytes)], model: OPENROUTER_VISION_MODEL, engine: null, pages: null};
   }
   if (mode === 'visual') {
-    return {parts: await renderIntakePdf(bytes, signal), model: OPENROUTER_VISION_MODEL, engine: 'page-images'};
+    const { parts, pages } = await renderPdfPageSource(bytes, signal, range);
+    const scope = `Source scope: PDF pages ${pages.start}–${pages.end} of ${pages.total}. Use the original page numbers; do not infer content from omitted pages.`;
+    return {parts: [{type:'text',text:scope}, ...parts], pages, model: OPENROUTER_VISION_MODEL, engine: 'page-images'};
   }
   const paid = process.env.OPENROUTER_TOOLKIT_PDF_OCR === 'true';
   if (mode === 'ocr' && !paid) throw error(403, 'Paid OCR is disabled by the administrator');
@@ -258,12 +279,13 @@ async function prepareIntakeSource(bytes: Uint8Array, filename: string, mime: st
     throw error(400, err instanceof Error ? err.message : 'Invalid PDF mode');
   }
   return {parts: [toolkitMediaContent(filename, mime, bytes)],
-    model: mode === 'native' ? pdfModel : orderIntakeTextModel(), engine};
+    model: mode === 'native' ? pdfModel : orderIntakeTextModel(), engine, pages: null};
 }
 
 /** Shared provider boundary. Uses the same Vault/environment key and sharing policy as OMS chat. */
 async function extractSource(event:Parameters<RequestHandler>[0],complete:typeof openRouterCompleteWithMetadata,
- content:string|Array<Record<string,unknown>>,model:string,parserEngine:string|null,language:Parameters<typeof responseLanguageInstruction>[0]){
+ content:string|Array<Record<string,unknown>>,source:IntakeSource,language:Parameters<typeof responseLanguageInstruction>[0]){
+    const {model,engine:parserEngine,pages}=source;
     const messages: Parameters<typeof complete>[0] = [
       {role:'system',content:PROMPT+'\n'+responseLanguageInstruction(language)},
       {role:'user',content}
@@ -294,7 +316,9 @@ async function extractSource(event:Parameters<RequestHandler>[0],complete:typeof
     try {modelJson=JSON.parse(fenced?.[1] ?? response.text);}
     catch {throw new IntakeOutputError('invalid-json');}
     const extracted=productionIntakeSchema.parse(modelJson);
-    const {production,...basic}=extracted;
+    const {production: rawProduction,...basic}=extracted;
+    const production = pages ? rawProduction.filter(fact =>
+      fact.page === null || (fact.page >= pages.start && fact.page <= pages.end)) : rawProduction;
     const orderConflicts=findOrderIntakeConflicts(basic.proposals);
     basic.proposals=basic.proposals.filter(p=>!orderConflicts.some(c=>c.field===p.field));
     const suggestions=normalizeIntakeProposals(basic);
@@ -321,7 +345,7 @@ async function extractSource(event:Parameters<RequestHandler>[0],complete:typeof
 const uploadMetadata=z.object({
  sourceId:z.string().uuid(),profileIndex:z.number().int().min(0).max(99).nullable().optional(),
  notes:z.string().max(5000).optional(),language:z.string().max(20).optional(),
- pdfMode:pdfModes.optional()
+ pdfMode:pdfModes.optional(), pdfPages:z.unknown().optional()
 }).strict();
 /** A source can be reviewed before required order fields exist. No storage or draft writes. */
 async function analyzeUploadedSource(event:Parameters<RequestHandler>[0],complete:typeof openRouterCompleteWithMetadata){
@@ -344,7 +368,10 @@ async function analyzeUploadedSource(event:Parameters<RequestHandler>[0],complet
    throw error(422,'Source file failed integrity validation');
  const filename=file.name.slice(0,180);
  if (kind !== 'pdf' && parsed.data.pdfMode) throw error(400, 'PDF processing requires a PDF');
- const source = await prepareIntakeSource(bytes, filename, file.type, kind, parsed.data.pdfMode ?? 'visual', request.signal);
+ const mode = parsed.data.pdfMode ?? 'visual';
+ const range = readIntakePdfRange(parsed.data.pdfPages, mode);
+ if (range && kind !== 'pdf') throw error(400, 'PDF processing requires a PDF');
+ const source = await prepareIntakeSource(bytes, filename, file.type, kind, mode, request.signal, range);
  validateIntakeModel(source.model);
  const {data:preference}=await locals.supabase.from('user_preferences').select('locale').eq('user_id',locals.user!.id).maybeSingle();
  const language=resolveResponseLocale(parsed.data.language,preference?.locale,request.headers.get('accept-language'));
@@ -353,9 +380,9 @@ async function analyzeUploadedSource(event:Parameters<RequestHandler>[0],complet
     `Analyze this uploaded production source for a new unsaved draft. Source: ${filename}.\n`+
     `Operator notes (untrusted): ${parsed.data.notes||'(none)'}.\n`+
     'Only the attached source is evidence. The draft may have no client, dates or saved profiles yet.'},...source.parts],
-    source.model,source.engine,language);
+    source,language);
    return json({...result,fileId:parsed.data.sourceId,fileName:filename,profileIndex:parsed.data.profileIndex??null,
-    profileId:null,orderUpdatedAt:null,engine:source.engine},{headers});
+    profileId:null,orderUpdatedAt:null,engine:source.engine,pdfPages:source.pages},{headers});
  }catch(err){
    intakeFailure(err, source.engine);
  }

@@ -2,6 +2,7 @@
 export interface PdfPageRange { start: number; end: number }
 export interface PdfPageScope extends PdfPageRange { total: number }
 export const MAX_PDF_PAGE_NUMBER = 10_000;
+export const MAX_VISUAL_PDF_PAGES = 10;
 
 export function parsePdfPageRange(value: unknown, maxPages = 40): PdfPageRange | undefined {
   if (value === undefined) return undefined;

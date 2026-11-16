@@ -1,6 +1,7 @@
 /** Source facts are untrusted. Only the server resolves catalog identities;
  * only individually reviewed facts may reach the local native form. */
 import {z} from 'zod';
+import {MAX_PDF_PAGE_NUMBER} from '$lib/pdf/page-range';
 import {INTAKE_JSON_SCHEMA, intakeModelSchema, type IntakeProposal, type IntakeField} from './intake-contract';
 import {filterProfileMaterials,isProfilePrintMaterial,PROFILE_MATERIAL_CATEGORIES,type ProfileMaterialRole} from '$lib/profiles/material-roles';
 import type {CatalogMaterial} from '$lib/profiles/material-catalog';
@@ -18,7 +19,7 @@ export const PRODUCTION_TARGETS=[
 ] as const;
 export const productionFactSchema=z.object({
   target:z.enum(PRODUCTION_TARGETS),value:z.string().trim().min(1).max(500),
-  evidence:z.string().trim().min(2).max(500),page:z.number().int().min(1).max(1000).nullable(),
+  evidence:z.string().trim().min(2).max(500),page:z.number().int().min(1).max(MAX_PDF_PAGE_NUMBER).nullable(),
   part:z.string().trim().max(120).nullable(),confidence:z.enum(['high','medium','low'])
 }).strict();
 export type ProductionFact=z.infer<typeof productionFactSchema>;
@@ -32,7 +33,7 @@ export const PRODUCTION_INTAKE_JSON_SCHEMA={
     properties:{target:{type:'string',enum:[...PRODUCTION_TARGETS]},
       value:{type:'string',minLength:1,maxLength:500},
       evidence:{type:'string',minLength:2,maxLength:500},
-      page:{type:['integer','null'],minimum:1,maximum:1000},
+      page:{type:['integer','null'],minimum:1,maximum:MAX_PDF_PAGE_NUMBER},
       part:{type:['string','null'],maxLength:120},confidence:{type:'string',enum:['high','medium','low']}},
     required:['target','value','evidence','page','part','confidence']
   }}},required:[...INTAKE_JSON_SCHEMA.required,'production']

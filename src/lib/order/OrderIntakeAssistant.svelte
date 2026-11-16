@@ -2,12 +2,13 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { base } from '$app/paths';
   import { t } from 'svelte-i18n';
+  import { MAX_PDF_PAGE_NUMBER, MAX_VISUAL_PDF_PAGES, parsePdfPageRange, type PdfPageScope } from '$lib/pdf/page-range';
   import { proposalsToPatch, proposalMatchesCurrent, type IntakeProposal, type IntakeResponse } from './intake-contract';
   import {fetchAllOrderFiles,watchOrderFilesChanged,announceOrderFilesChanged} from './order-files-client';
   import MaterialSelect from '$lib/profiles/components/fields/MaterialSelect.svelte';
   import {applyProductionFacts, appendOrderProductionFacts, isOrderProductionFact, recheckProductionSelection, productionCurrentValue, getProductionMaterialPicker, getProductionSelectionConflicts, resolveManualProductionMaterial, ProductionIntakeError, type IntakeMaterial, type ProductionReview} from './production-intake';
 
-  type Analysis = IntakeResponse & { orderUpdatedAt:string|null; engine:string|null;profileIndex?:number|null;profileId?:string|null;production?:ProductionReview[];orderConflicts?:Array<{field:string;alternatives:IntakeProposal[]}> };
+  type Analysis = IntakeResponse & { orderUpdatedAt:string|null; engine:string|null;pdfPages?:PdfPageScope|null;profileIndex?:number|null;profileId?:string|null;production?:ProductionReview[];orderConflicts?:Array<{field:string;alternatives:IntakeProposal[]}> };
   type OrderFile = {id:string; originalName?:string; file_name?:string;
     mimeType?:string; mime_type?:string; size?:number};
   let {orderId='',editable,current,showHeading=true,selectedFileId='',selectedProfileIndex=null,
@@ -39,6 +40,18 @@
   let fileId=$state('');
   let profileChoice=$state('');
   let pdfMode=$state<'visual'|'text'|'native'|'ocr'>('visual');
+  let pdfPageMode=$state<'all'|'range'>('all');
+  let pdfPageStart=$state<number|undefined>(1);
+  let pdfPageEnd=$state<number|undefined>(1);
+  let rangeFileId='';
+  let analyzedPdfKey=$state('');
+  $effect(()=>resetPageRangeFor(fileId));
+  function resetPageRangeFor(sourceId:string){
+    if (rangeFileId===sourceId) return;
+    rangeFileId=sourceId;
+    pdfPageMode='all';
+    pdfPageStart=pdfPageEnd=1;
+  }
   let uploading=$state(false);
   let sourceUploadInput:HTMLInputElement|undefined=$state();
   let uploadInput:HTMLInputElement|undefined=$state();
@@ -76,6 +89,18 @@
   });
   let profileIndex=$derived(profileChoice===''?null:Number(profileChoice));
   let isPdf=$derived((files.find(f=>f.id===fileId)?.mimeType??files.find(f=>f.id===fileId)?.mime_type)==='application/pdf');
+  let usesPageRange=$derived(isPdf && pdfMode==='visual' && pdfPageMode==='range');
+  let pageSelection=$derived.by(()=>{
+    if (!usesPageRange) return {pages:undefined,error:''};
+    try {
+      const pages=parsePdfPageRange({start:pdfPageStart,end:pdfPageEnd},MAX_PDF_PAGE_NUMBER)!;
+      return pages.end-pages.start+1>MAX_VISUAL_PDF_PAGES
+        ? {pages:undefined,error:'pdfRangeTooMany'} : {pages,error:''};
+    } catch {
+      return {pages:undefined,error:'pdfRangeInvalid'};
+    }
+  });
+  let pdfKey=$derived(isPdf ? (usesPageRange ? `visual:${pdfPageStart}:${pdfPageEnd}` : pdfMode) : '');
   function isUnchanged(p:IntakeProposal){
     return proposalMatchesCurrent(p,current);
   }
@@ -92,7 +117,7 @@
   let selectionConflicts=$derived(getProductionSelectionConflicts(production.filter((p,i)=>productionApprovals[i]===true)));
   let sourceMatches=$derived(!analysis || (
     (analysis.fileId??'')===fileId &&
-    (analysis.profileIndex??null)===profileIndex
+    (analysis.profileIndex??null)===profileIndex && analyzedPdfKey===pdfKey
   ));
   onMount(()=>{
     if(orderId)void loadFiles();
@@ -220,6 +245,10 @@
     if(!fileId && !String(current.notes??'').trim()){
       problem=$t('orderIntake.noSource');return;
     }
+    resetPageRangeFor(fileId);
+    if (pageSelection.error) return;
+    const pdfPages=pageSelection.pages;
+    const capturedPdfKey=pdfKey;
     const ocr=pdfMode==='ocr' && !!fileId && isPdf;
     if(isPdf&&((ocr&&!capabilities.paidOcr)||(pdfMode==='native'&&!capabilities.nativePdf))){problem=$t('orderIntake.modeUnavailable');return;}
     if(ocr && !confirm($t('orderIntake.confirmPaidOcr')))return;
@@ -240,11 +269,11 @@
         requestBody=new FormData();requestBody.set('file',source.file);
         requestBody.set('metadata',JSON.stringify({sourceId:source.id,profileIndex:capturedProfileIndex,
           notes:String(current.notes??'').slice(0,5000),language:$t('orderIntake.locale'),
-          ...(isPdf ? {pdfMode} : {})}));
+          ...(isPdf ? {pdfMode} : {}), ...(pdfPages ? {pdfPages} : {})}));
       }else requestBody=JSON.stringify({orderId:capturedOrderId,
           fileId:capturedFileId||null,profileIndex:capturedProfileIndex,
           expectedUpdatedAt:capturedVersion,ocr:!!ocr,nativePdf:pdfMode==='native'&&isPdf&&!ocr,
-          visualPdf:pdfMode==='visual'&&isPdf,language:$t('orderIntake.locale')});
+          visualPdf:pdfMode==='visual'&&isPdf,language:$t('orderIntake.locale'), ...(pdfPages ? {pdfPages} : {})});
       const analysisSignal = AbortSignal.any([requestSignal(170_000), activeController.signal]);
       const res=await fetch(`${base}/api/ai/order-intake`,{
         method:'POST',...(typeof requestBody==='string'?{headers:{'Content-Type':'application/json'}}:{}),
@@ -256,8 +285,10 @@
       // A changed selection never silently binds provider output to a new file/profile.
       if(body.fileId!==(capturedFileId||null)||
          (body.profileIndex??null)!==capturedProfileIndex||
-         body.orderUpdatedAt!==capturedVersion)
+         body.orderUpdatedAt!==capturedVersion ||
+         (pdfPages && (body.pdfPages?.start!==pdfPages.start || body.pdfPages?.end!==pdfPages.end)))
         throw new Error($t('orderIntake.changedOnServer'));
+      analyzedPdfKey=capturedPdfKey;
       analysis=body as Analysis;
       // No checkboxes are accepted by default. Every field is a deliberate
       // staff decision, including low-confidence suggestions.
@@ -376,13 +407,34 @@
         <label class="check"><input type="radio" bind:group={pdfMode} value="text"/>{$t('orderIntake.textPdf')}</label>
         <label class="check"><input type="radio" bind:group={pdfMode} value="native" disabled={!capabilities.nativePdf}/>{$t('orderIntake.nativePdf')}</label>
         <label class="check"><input type="radio" bind:group={pdfMode} value="ocr" disabled={!capabilities.paidOcr}/>{$t('orderIntake.ocrLabel')}</label>
-      </fieldset></details>
+      </fieldset>
+      {#if pdfMode==='visual'}
+        <label for={`${sectionId}-pdf-pages`}>{$t('toolkit.canvas.pdfPages')}</label>
+        <select id={`${sectionId}-pdf-pages`} bind:value={pdfPageMode} disabled={!editable||uploading||analyzing||applying}>
+          <option value="all">{$t('toolkit.canvas.pdfAllPages')}</option>
+          <option value="range">{$t('toolkit.canvas.pdfPageRange')}</option>
+        </select>
+        {#if usesPageRange}
+          <div class="pdf-page-range">
+            <label for={`${sectionId}-pdf-start`}>{$t('toolkit.canvas.pdfStartPage')}
+              <input id={`${sectionId}-pdf-start`} type="number" min="1" max={MAX_PDF_PAGE_NUMBER} bind:value={pdfPageStart}
+                aria-invalid={!!pageSelection.error} aria-describedby={pageSelection.error ? `${sectionId}-pdf-error` : undefined} disabled={!editable||uploading||analyzing||applying} />
+            </label>
+            <label for={`${sectionId}-pdf-end`}>{$t('toolkit.canvas.pdfEndPage')}
+              <input id={`${sectionId}-pdf-end`} type="number" min="1" max={MAX_PDF_PAGE_NUMBER} bind:value={pdfPageEnd}
+                aria-invalid={!!pageSelection.error} aria-describedby={pageSelection.error ? `${sectionId}-pdf-error` : undefined} disabled={!editable||uploading||analyzing||applying} />
+            </label>
+          </div>
+          {#if pageSelection.error}<p id={`${sectionId}-pdf-error`} class="problem">{$t('toolkit.canvas.'+pageSelection.error,{max:MAX_PDF_PAGE_NUMBER,limit:MAX_VISUAL_PDF_PAGES})}</p>{/if}
+        {/if}
+      {/if}
+      </details>
       <p class="hint">{$t(pdfMode==='ocr'?'orderIntake.ocrCharge':pdfMode==='native'?'orderIntake.nativePdfHint':pdfMode==='visual'?'orderIntake.visualPdfHint':'orderIntake.textPdfHint')}</p>
       {#if capabilitiesProblem}<p class="hint">{$t('orderIntake.processingSettingsError')}</p>
       {:else if !capabilities.nativePdf||!capabilities.paidOcr}<p class="hint">{$t('orderIntake.unavailableModes')}</p>{/if}
       {#if capabilitiesProblem}<button type="button" class="text-button" onclick={loadCapabilities}>{$t('orderIntake.retryModes')}</button>{/if}
     {/if}
-    <div class="actions"><button type="button" class="primary" onclick={analyze} disabled={!editable||loading||uploading||analyzing||applying||(!!orderId&&(dirty||!orderUpdatedAt))||(!orderId&&!fileId)}>
+    <div class="actions"><button type="button" class="primary" onclick={analyze} disabled={!editable||loading||uploading||analyzing||applying||!!pageSelection.error||(!!orderId&&(dirty||!orderUpdatedAt))||(!orderId&&!fileId)}>
       {$t(analyzing?'orderIntake.analyzing':'orderIntake.analyze')}</button>
       {#if analyzing}<button type="button" onclick={cancelAnalysis}>{$t('orderIntake.cancel')}</button>{/if}</div>
   </div>
@@ -395,6 +447,7 @@
       <h4 bind:this={reviewHeading} tabindex="-1">{$t('orderIntake.reviewChoices')}</h4>
       <p>{$t('orderIntake.reviewCounts',{count:choiceCount,attention:attentionCount,selected:acceptedCount})}</p>
       <p class="hint">{analysis.fileName??$t('orderIntake.notesOnly')}{profileIndex!==null?' · '+(profileNames[profileIndex]||String(profileIndex+1)):''}</p>
+      {#if analysis.pdfPages}<p class="hint">{$t('orderIntake.pdfReviewScope',{start:analysis.pdfPages.start,end:analysis.pdfPages.end,total:analysis.pdfPages.total})}</p>{/if}
       <p class="hint">{$t('orderIntake.provenance')}</p>
       <details><summary>{$t('orderIntake.sourceDetails')}</summary><p class="hint">{$t('orderIntake.model')}: {analysis.model}</p>
         {#if orderId&&analysis.fileId}<a href={`/api/files/${encodeURIComponent(analysis.fileId)}/download`} target="_blank" rel="noopener noreferrer">{$t('orderIntake.downloadSource')}</a>{/if}</details>
@@ -505,5 +558,7 @@
  .warning,.problem,.empty{padding:var(--space-sm);border:1px solid var(--border);border-radius:var(--radius-sm)}.problem{color:var(--error)}.warning{background:var(--bg-2)}.empty{color:var(--ink-secondary)}.success{font-weight:600}
  a{color:var(--link);font-size:var(--text-xs);text-underline-offset:3px}
  :is(button,select,input,summary,a):focus-visible{outline:2px solid var(--focus,var(--brand));outline-offset:3px}
+ .pdf-page-range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-sm);margin-block:var(--space-xs)}
+ .pdf-page-range input{display:block;width:100%;box-sizing:border-box}
  .pdf-options > summary { cursor:pointer; padding:8px 0; font-weight:550; }
 </style>
