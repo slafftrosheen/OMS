@@ -56,7 +56,7 @@ export function RepeatGrid({selected,disabled,settings,focusRequest=0,expanded=f
       event.preventDefault();setMessage('');setReview(undefined);
       if(!valid||disabled)return;
       const result=prepareRepeatGrid(editor,options,[...selected]);
-      if(result.ok)setReview({plan:result.value,key});else setMessage(errorText(result.error));
+      if(result.ok===true)setReview({plan:result.value,key});else setMessage(errorText(result.error));
     }}>
       <fieldset className="drawing-style-fields" disabled={disabled} aria-describedby={!valid?errorId:undefined}>
         {(['rows','columns'] as const).map((field,index)=><label key={field}><span>{label(field)}</span>
@@ -92,7 +92,7 @@ export function RepeatGrid({selected,disabled,settings,focusRequest=0,expanded=f
       {stale&&<p role="status">{t('stale')}</p>}
       <button type="button" disabled={disabled||stale} onClick={()=>{
         const result=applyRepeatGrid(editor,review.plan);
-        setMessage(result.ok?`${label('copiesCreated')}: ${result.value}`:errorText(result.error));
+        setMessage(result.ok===true?`${label('copiesCreated')}: ${result.value}`:errorText(result.error));
         setReview(undefined);if(result.ok)editor.focus();
       }}>{t('apply')}</button>
     </div>}

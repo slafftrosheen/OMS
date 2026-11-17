@@ -85,6 +85,11 @@
 .drawing-tool-flyout kbd { font: inherit; color: var(--ink-secondary); }
 .drawing-page { grid-row: 4; grid-column: 2; display: grid; grid-template-columns: 20px minmax(0, 1fr); grid-template-rows: 20px minmax(0, 1fr); min-width: 0; min-height: 0; position: relative; }
 .drawing-viewport { grid-column: 2; grid-row: 2; min-height: 0; min-width: 0; position: relative; width: 100%; height: 100%; overflow: hidden; }
+.drawing-context-surface { width: 100%; height: 100%; }
+.drawing-viewport .tlui-menu { color: var(--ink-primary); background: var(--bg-1); border: 1px solid var(--border); box-shadow: var(--glass-shadow-lg); }
+.drawing-viewport .tlui-menu .tlui-button__menu { min-height: 32px; font-size: 12px; }
+.drawing-viewport .tlui-menu .tlui-button__menu[data-highlighted] { background: var(--brand-soft); color: var(--ink-primary); }
+.drawing-context-shortcut { margin-left: auto; padding-left: 16px; color: var(--ink-secondary); font: inherit; font-size: 11px; white-space: nowrap; }
 .drawing-viewport > .tl-container { --color-background: var(--bg-0); --color-panel: var(--bg-1); --color-text: var(--ink-primary); --color-accent: var(--brand); }
 .drawing-ruler { background: var(--bg-2); overflow: hidden; color: var(--ink-secondary); }
 .drawing-ruler-x { grid-row: 1; grid-column: 2; border-bottom: 1px solid var(--border); }

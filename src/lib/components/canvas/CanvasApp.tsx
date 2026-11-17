@@ -6,6 +6,7 @@ import {CadArcThreePointTool,CadCircleThreePointTool} from './CadThreePointTool'
 import {CadConstructionOverlay} from './CadConstructionOverlay';
 import {CadNodeSelectionOverlay} from './CadNodeSelectionOverlay';
 import { DrawingWorkspace, DrawingChrome } from './DrawingWorkspace';
+import { DrawingContextMenu } from './DrawingContextMenu';
 import {OrderFilePocketOverlays, OrderFilePocketFallback, OrderFilePocketsProvider} from './OrderFilePockets';
 import {syncCreationFileDocuments} from './order-file-documents';
 import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from './shapes/CadShapes';
@@ -70,7 +71,7 @@ const drawingUi = {
     InFrontOfTheCanvas: OrderFilePocketFallback,
     Toolbar: null, StylePanel: null,
     ActionsMenu: null, QuickActions: null, MenuPanel: null,
-    NavigationPanel: null, HelperButtons: null, HelpMenu: null, ContextMenu: null,
+    NavigationPanel: null, HelperButtons: null, HelpMenu: null, ContextMenu: DrawingContextMenu,
     DebugPanel: null, DebugMenu: null, PageMenu: null,
 };
 

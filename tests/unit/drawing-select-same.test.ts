@@ -1,5 +1,6 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
+import type { TLShapeId } from '@tldraw/tldraw';
 import { prepareSelectSame, applySelectSame, selectSameRevision, type SelectSameFields } from '../../src/lib/components/canvas/drawing-select-same';
 import { VECTOR_DEFAULT_PAINT } from '../../src/lib/components/canvas/cad-paint';
 
@@ -26,7 +27,6 @@ function canvas(shapes: any[], selected = [shapes[0]?.id]) {
 function plan(editor: any, options: SelectSameFields) {
   const result = prepareSelectSame(editor, options);
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error(result.error);
   return result.value;
 }
 const paintShape = (id: string, type = 'cad-bezier', paint: Record<string, unknown> = {}, props: Record<string, unknown> = {}) =>
@@ -119,7 +119,7 @@ describe('Select Same artwork', () => {
   });
   it('recomputes reviewed matches rather than trusting modified cached ids', () => {
     const c = canvas([shape('source'), shape('same'), shape('form', 'order-details')]);
-    const p = plan(c.editor, fields({ type: true })); p.ids = ['form'];
+    const p = plan(c.editor, fields({ type: true })); p.ids = ['form' as TLShapeId];
     assert.deepEqual(applySelectSame(c.editor, p, 'replace'), { ok: true, value: 2 });
     assert.deepEqual(c.selection(), ['source', 'same']);
   });

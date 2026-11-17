@@ -1,4 +1,5 @@
 import {describe,it,expect} from 'vitest';
+import assert from 'node:assert/strict';
 import {jsPDF} from 'jspdf';
 import {POST} from '../../src/routes/api/ai/order-intake/+server';
 const id='11111111-1111-4111-8111-111111111111';
@@ -53,7 +54,7 @@ function intakeEvent({output=emptyModel,change=false,unlink=false,malformed=fals
    return {data:{locale:'en'},error:null};
   }
   return query;
- },storage:{from:()=>({download:async()=>({data:new Blob([bytes]),error:null})})}};
+ },storage:{from:()=>({download:async()=>({data:new Blob([new Uint8Array(bytes)]),error:null})})}};
  const e=event({orderId:id,fileId,profileIndex:0,expectedUpdatedAt:order.updated_at});
  e.locals.user={...e.locals.user,id:`${(++sequence).toString().padStart(8,'0')}-1111-4111-8111-111111111111`};
  e.locals.supabase=db;
@@ -187,7 +188,7 @@ describe('PDF processing and routing', () => {
    expect(parts.filter(part=>part.type==='image_url')).toHaveLength(1);
    expect(parts.filter(part=>part.text?.startsWith('Source PDF page'))).toEqual([{type:'text',text:'Source PDF page 11 of 12'}]);
   }
- }, 15_000);
+ });
 
  it('rejects ranges over ten pages and never sends a whole PDF when the requested parser cannot restrict pages', async () => {
   for (const [flags,pdfPages,statusCode] of [
@@ -250,8 +251,10 @@ describe('PDF processing and routing', () => {
   const handler = createOrderIntakeHandler(async () => ({
    text:'{"proposals": [',model:'configured/model',annotations:[],webSearchRequests:null,finishReason:'length'
   }));
-  await expect(handler(sample.e)).rejects.toMatchObject({
-   status:503,body:{message:expect.stringContaining('output limit')}
+  await assert.rejects(async () => handler(sample.e), (error: any) => {
+   expect(error).toMatchObject({status:503});
+   expect(error.body.message).toContain('output limit');
+   return true;
   });
  });
 });

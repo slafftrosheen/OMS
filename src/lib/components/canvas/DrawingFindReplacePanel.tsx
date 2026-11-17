@@ -31,7 +31,7 @@ export function DrawingFindReplacePanel({ focusRequest = 0 }: { focusRequest?: n
   const replace = (ids?: TLShapeId[]) => {
     if (!plan || stale) return;
     const result = applyDrawingTextReplacement(editor,plan,ids);
-    if (result.ok) {
+    if (result.ok === true) {
       setMessage({ key: result.value ? 'applied' : 'unchanged', count: result.value });
       setPlan(undefined); setChecked([]);
     } else setMessage({ key: result.error });
@@ -43,7 +43,7 @@ export function DrawingFindReplacePanel({ focusRequest = 0 }: { focusRequest?: n
     <form onSubmit={event => {
       event.preventDefault(); setMessage(undefined);
       const result = prepareDrawingTextSearch(editor,options);
-      if (result.ok) { setPlan(result.value); setChecked(result.value.matches.filter(match => !match.protected).map(match => match.id)); }
+      if (result.ok === true) { setPlan(result.value); setChecked(result.value.matches.filter(match => !match.protected).map(match => match.id)); }
       else { setPlan(undefined); setChecked([]); setMessage({ key: result.error }); }
     }}>
       <div className="drawing-style-fields">

@@ -139,7 +139,7 @@ export function applyRepeatGrid(editor: Editor, plan: RepeatGridPlan): Result<nu
   editor.complete(); editor.setCurrentTool('select');
   if (plan.revision !== repeatDrawingRevision(editor)) return { ok: false, error: 'selectionChanged' };
   const refreshed = prepareRepeatGrid(editor, plan.options, plan.selected);
-  if (!refreshed.ok) return refreshed;
+  if (refreshed.ok === false) return refreshed;
   const fresh = refreshed.value;
   const descendants = editor.getShapeAndDescendantIds(fresh.roots).size;
   const camera = { ...editor.getCamera() };
@@ -162,7 +162,7 @@ export function applyRepeatGrid(editor: Editor, plan: RepeatGridPlan): Result<nu
 
 export function repeatDrawingSelection(editor: Editor, options: RepeatGridOptions, expectedIds: readonly TLShapeId[]): Result<number> {
   const planned = prepareRepeatGrid(editor, options, expectedIds);
-  return planned.ok ? applyRepeatGrid(editor, planned.value) : planned;
+  return planned.ok === true ? applyRepeatGrid(editor, planned.value) : planned;
 }
 
 export interface DrawingExportOptions { scope: 'selected' | 'all'; scale: 1 | 2 | 4; background: boolean; padding: number; }

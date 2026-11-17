@@ -224,6 +224,63 @@ The outline tests cover authored versus generated joins, wide curves, cap/bevel/
 
 All changed TypeScript/TSX was parsed/transpiled, relative imports checked, and published bytes and whitespace verified. The user's failing DXF has not been supplied; external-source fixtures and generated edge cases exercise compatibility but do not establish that every exporter or the user's particular file is fixed. Full application typecheck/build, browser rendering and interaction, live persistence and machine output remain unverified in this environment.
 
+## Context editing, relative order and curve skew — 17 November 2026
+
+These additions use the same components and commands in idea boards and order canvases. Drawing data continues to use the existing snapshots; this batch adds no database migration.
+
+### Editing at the pointer
+
+Right-click artwork to open its editing menu. **Shift+F10** or the keyboard context-menu key opens the menu at the selected artwork, clamped into the visible viewport; an empty selection uses the viewport center. The menu offers applicable edit, duplicate/delete, group, transformation, mirror/rotation, order, curve-conversion, fill/outline and inspection commands. The Order submenu also opens relative stacking directly.
+
+The menu uses the installed Radix/tldraw menu components for pointer selection, positioning, submenus and keyboard navigation, with OMS command guards and translations. Its direct Radix dependency pins the same version already included transitively. Function keys and Home/PageUp/PageDown shortcut hints display as complete keys. Escape closes the menu without clearing the selected objects; menu arrows cannot nudge the drawing underneath it.
+
+Read-only and locked selections retain inspection commands. Native text, form-control, link and media context menus remain available. Mouse, keyboard and touch/pen opening paths are guarded so a context menu cannot finish an active drawing gesture. Requests target the current editor container, including when two drawings are mounted together.
+
+### Relative object order
+
+**Object → Order → Order relative to an object** opens the Objects docker's reference selector. Select a numbered sibling reference and use **Place in front** or **Place behind**. Multiple selected objects retain their internal order. The reference can be locked because its record is not modified. Cross-parent placement is not offered; this operation does not move objects between groups or layers.
+
+**Reverse order**, in the Objects docker and the Object/Order menu, reverses only the selected stack positions. Unselected sibling indices remain unchanged. Both operations preserve geometry, names, group membership and selection, and form one undo step. Already-adjacent placement creates no extra history entry. A changed page, selection, sibling order or lock invalidates the prepared reference. The Objects docker's Russian strings and Latvian diacritics have also been repaired.
+
+### Exact skew of editable curves
+
+Open **Arrange → Transformations → Skew curves**. Choose horizontal or vertical skew, an angle from **−80° to 80°**, and one of nine reference points. The reference stays fixed. Positive horizontal angles lean the upper edge right; positive vertical angles lift the right edge. The preview compares dashed source curves with solid resulting curves and shows the fixed reference point.
+
+The operation transforms CAD polyline vertices and Bézier control points exactly with an affine matrix, including compound holes and curves inside rotated nested groups. Edit mode preserves the existing IDs, group hierarchy and stack positions. **Keep original and create a skewed copy** duplicates the complete selected hierarchy and transforms the copy. A successful apply is one undo step; stale or refused operations retain no partial changes.
+
+Solid fills, opacity and fill rules are preserved. Linear and radial gradient coordinates receive the same transform as the curves. Outline widths and dash lengths stay at their original physical size. Convert an outline to an object first when its complete silhouette needs skewing.
+
+Native text, ordinary shapes, analytic circles and arcs must first be converted to curves. Clipped artwork, bindings, frame children, bitmap fills and material textures are explicitly rejected. Limits are 100 curve objects, 20,000 nodes, 500 records including group descendants, existing coordinate limits and the drawing's existing payload/page capacity. This is a numeric skew workflow; interactive Pick-tool skew handles are not introduced by this batch.
+
+### Validation and local acceptance
+
+The original 28 application type errors were fixed without disabling checks. Discriminated result types now narrow correctly under this project's TypeScript configuration. The text replacement tests use a real bundled font; the node-drag fixture uses the actual tldraw matrix type.
+
+Focused tests cover numerical geometry, gradients, protected/stale edits and rollback. Additional tests use actual tldraw Store, HistoryManager, shape schemas, native shape creation and group-cleanup callbacks to check grouped copies, JSON persistence, Undo/Redo and rollback of legacy singleton-group cleanup. Context-menu tests mount the actual editor and installed Radix components in a DOM environment, including keyboard routing and embedded input behaviour.
+
+Final validation of the assembled batch:
+
+| Check | Result |
+| --- | --- |
+| CAD, drawing, canvas-control/workbench and draft-intake regressions | **750 passed**, run in sequential batches to bound memory use |
+| Native editor/Radix DOM menu regressions | **8 passed**, including normal process cleanup |
+| Application Svelte/TypeScript check | **0 errors**; 13 pre-existing warnings in five unrelated Svelte files |
+| Focused ESLint on all 31 changed/new TS/TSX files | **Passed**, no warnings |
+| Production build | **Passed** with the existing Svelte/bundler warnings |
+| Whitespace check | **Passed** |
+
+The first combined build/regression run exceeded the host's memory limit. The complete regression set was then rerun successfully in separate sequential processes; the figures above are from those completed runs.
+
+The shared browser fixture adds **`?corel-editing=1`** (or **`?mode=order&corel-editing=1`**) and a **Load Corel editing example** button. Eight browser regressions cover both hosts: right-click duplication/undo, keyboard menu navigation, relative/reverse order and reload, and compound-curve skew with stale/read-only guards. Run them with:
+
+```sh
+npx playwright test --config tests/ui/playwright.drawing-workspace.config.ts --grep 'context menu|context keyboard|relative object order|skews compound'
+```
+
+Live browser execution in this pass is blocked by the host's Chromium `socket()` permission restriction; the headless-shell download was unavailable as well. DOM and native-store tests do not certify browser layout, production database persistence or machine output. Earlier browser-verification notes below refer to their respective historical passes.
+
+Behaviour references: [CorelDRAW transformations](https://product.corel.com/help/CorelDRAW/Documentation-Windows/CorelDRAW-en/CorelDRAW-Transform-objects.html) and [CorelDRAW object order](https://product.corel.com/help/CorelDRAW/Documentation-Windows/CorelDRAW-en/CorelDRAW-Change-the-order-of-objects.html).
+
 ## Deployment and verification
 
 Pull `main`, install dependencies if needed, build, and restart `reclame-oms.service` using the normal deployment process. A Git update alone does not replace the running JavaScript bundle. Earlier installations still need the existing `20261109000001_openrouter_model_settings.sql` migration; this change does not apply migrations automatically.

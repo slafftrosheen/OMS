@@ -16,6 +16,7 @@
   const bezierIntersectionExample = new URLSearchParams(location.search).has('bezier-intersections');
   const cubicPairExample = new URLSearchParams(location.search).has('cubic-pairs');
   const cubicConicExample = new URLSearchParams(location.search).has('cubic-conic');
+  const corelEditingExample = new URLSearchParams(location.search).has('corel-editing');
   const order = new URLSearchParams(location.search).get('mode') === 'order';
   // Existing orders read authenticated attachments; new drafts keep local files.
   const persisted = new URLSearchParams(location.search).has('persisted');
@@ -56,6 +57,19 @@
     for (const shape of samples) { if(editor.getShape(shape.id))editor.deleteShapes([shape.id]);editor.createShape(shape); }
     editor.setCurrentTool('select');editor.setSelectedShapes(['shape:text-one','shape:text-two']);editor.zoomToSelection();
     exampleStatus='Text example ready';
+  }
+  function loadCorelEditing() {
+    if (!editor || readonly) return;
+    editor.updatePage({id:editor.getCurrentPageId(),meta:{omsCad:DEFAULT_CAD_SETTINGS}});
+    const rectangle = (x:number,y:number,w:number,h:number) => ({closed:true,nodes:[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}].map(nodeAt)});
+    const shapes = [
+      {id:'shape:corel-a',type:'cad-bezier',x:0,y:0,props:{contours:[rectangle(0,0,160,100),rectangle(55,35,50,30)],fillRule:'evenodd'},meta:{omsObjectName:'Letter A',omsVectorPaint:{...VECTOR_DEFAULT_PAINT,fill:'#2563eb',stroke:'#172554',strokeWidth:2}}},
+      {id:'shape:corel-b',type:'cad-path',x:200,y:0,props:{points:[{x:0,y:0},{x:160,y:0},{x:160,y:100},{x:0,y:100}],closed:true,color:'green'},meta:{omsObjectName:'Panel B'}},
+      {id:'shape:corel-c',type:'cad-path',x:400,y:0,props:{points:[{x:0,y:0},{x:160,y:0},{x:160,y:100},{x:0,y:100}],closed:true,color:'red'},meta:{omsObjectName:'Panel C'}},
+    ];
+    for (const shape of shapes) { if (editor.getShape(shape.id)) editor.deleteShapes([shape.id]); editor.createShape(shape); }
+    editor.setCurrentTool('select'); editor.setSelectedShapes(shapes.map(shape=>shape.id)); editor.zoomToSelection(); editor.selectNone();
+    exampleStatus='Corel editing example ready';
   }
   function loadSnapping() {
     if (!editor || readonly) return;
@@ -160,7 +174,8 @@
   $effect(() => { document.documentElement.dataset.theme = theme; });
   onMount(() => {
     (window as any).__drawingFixture = {
-      inspect: () => ({ shapes: editor?.getCurrentPageShapes(), selected: editor?.getSelectedShapeIds(), page: editor?.getCurrentPage(), readonly, saves }),
+      inspect: () => ({ shapes: editor?.getCurrentPageShapes(), selected: editor?.getSelectedShapeIds(), page: editor?.getCurrentPage(), tool: editor?.getCurrentToolId(), readonly, saves }),
+      point: (id:string,x=.2,y=.2) => { const bounds=editor.getShapePageBounds(id); return editor.pageToScreen({x:bounds.x+bounds.w*x,y:bounds.y+bounds.h*y}); },
       roundTrip: () => { const snapshot = JSON.parse(JSON.stringify(getSnapshot(editor.store))); loadSnapshot(editor.store, snapshot); },
       emptyArea: () => { editor.setCamera({ x: -2400, y: 0, z: 1 }); },
     };
@@ -171,13 +186,14 @@
   <button onclick={() => readonly = !readonly}>Toggle read only</button>
   {#if draftSaveExample}<button onclick={captureCheckpoint}>Capture autosave checkpoint</button><button onclick={restoreCheckpoint} disabled={!checkpoint}>Restore checkpoint</button><span role="status">{exampleStatus}</span>{/if}
   {#if materialExample}<button onclick={loadMaterials}>Load material example</button>{/if}
+  {#if corelEditingExample}<button onclick={loadCorelEditing} disabled={readonly}>Load Corel editing example</button>{/if}
   {#if textExample}<button onclick={loadSnapping} disabled={readonly}>Load snapping example</button>
     <button onclick={loadText}>Load text example</button>{/if}
   {#if intersectionExample}<button onclick={loadIntersections} disabled={readonly}>Load intersection example</button>{/if}
   {#if bezierIntersectionExample}<button onclick={loadBezierIntersections} disabled={readonly}>Load Bézier intersections</button>{/if}
   {#if cubicPairExample}<button onclick={loadCubicPairs} disabled={readonly}>Load cubic pair intersections</button>{/if}
   {#if cubicConicExample}<button onclick={loadCubicConics} disabled={readonly}>Load cubic/conic intersections</button>{/if}
-  {#if materialExample || textExample || intersectionExample || bezierIntersectionExample || cubicConicExample || cubicPairExample}<button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
+  {#if materialExample || textExample || intersectionExample || bezierIntersectionExample || cubicConicExample || cubicPairExample || corelEditingExample}<button onclick={reloadDrawing}>Reload saved drawing</button><span role="status">{exampleStatus}</span>{/if}
   <label>Theme <select aria-label="Theme" bind:value={theme}><option>LightVim</option><option>DarkVim</option><option>HighContrastVim</option></select></label>
   <label>Language <select aria-label="Language" value={$locale} onchange={event => locale.set(event.currentTarget.value)}><option value="en">English</option><option value="ru">Русский</option><option value="lv">Latviešu</option></select></label>
   <label>Workspace <select aria-label="Workspace width" bind:value={workspaceWidth}><option value="100%">Full width</option><option value="880px">880 px</option><option value="580px">580 px</option><option value="520px">520 px</option><option value="390px">390 px</option></select></label>

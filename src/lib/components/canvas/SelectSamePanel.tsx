@@ -30,16 +30,16 @@ export function DrawingSelectSamePanel({ focusRequest = 0 }: { focusRequest?: nu
     </fieldset>
     <div className="drawing-arrange"><button type="button" disabled={!available.ok} onClick={() => {
       const result = prepareSelectSame(editor, fields); setNotice('');
-      if (result.ok) setPlan(result.value); else { setPlan(undefined); setNotice(result.error); }
+      if (result.ok === true) setPlan(result.value); else { setPlan(undefined); setNotice(result.error); }
     }}>{label('preview')}</button></div>
-    {!available.ok && (!plan || stale) && <p className="drawing-help">{label(available.error)}</p>}
+    {available.ok === false && (!plan || stale) && <p className="drawing-help">{label(available.error)}</p>}
     {plan && <div className="drawing-cad-report">
       <p>{label('matches').replace('{count}', String(plan.ids.length)).replace('{total}', String(plan.inspected))}</p>
       <p className="drawing-help">{label('reviewHint')}</p>
       {stale && <p role="status">{label('changed')}</p>}
       <div className="drawing-arrange">{(['replace', 'add'] as const).map(mode => <button key={mode} type="button" disabled={stale} onClick={() => {
         const result = applySelectSame(editor, plan, mode);
-        if (result.ok) { setCount(result.value); setNotice('selected'); setPlan(undefined); }
+        if (result.ok === true) { setCount(result.value); setNotice('selected'); setPlan(undefined); }
         else setNotice(result.error);
       }}>{label(mode)}</button>)}</div>
     </div>}

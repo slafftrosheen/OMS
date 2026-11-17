@@ -1,17 +1,16 @@
-import { describe, it, vi } from 'vitest';
+import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import type { TLShapeId } from '@tldraw/tldraw';
 import { applyDrawingTextReplacement, prepareDrawingTextSearch, replaceDrawingTextLiteral } from '../../src/lib/components/canvas/drawing-find-replace';
-vi.mock('../../src/lib/components/canvas/drawing-fonts', () => ({
-  getShapeDrawingFontId: (shape: any) => shape.meta.omsFontId ?? null,
-  getLoadedDrawingFont: (editor: any, id: string) => editor.fonts.get(id),
-  fontSupportsText: (font: any, text: string) => !font.unsupported || !text.includes(font.unsupported),
-}));
+import { prepareDrawingFont, loadDrawingFont, type DrawingFont } from '../../src/lib/components/canvas/drawing-fonts';
 const options = { query: 'Rīga', replacement: 'Daugavpils', matchCase: false, wholeWord: false, scope: 'page' as const };
 function fixture() {
   const shapes = new Map<string, any>(), marks: any[] = [];
   let selected: string[] = [], page = 'page:one', readOnly = false;
   const editor: any = {
-    fonts: new Map(), skip: null, remove: null, normalize: false, finalize: null, payload: 0, extraAfter: 0,
+    fonts: [] as DrawingFont[], skip: null, remove: null, normalize: false, finalize: null, payload: 0, extraAfter: 0,
+    getDocumentSettings: () => ({ meta: { omsFonts: editor.fonts } }),
     getCurrentPageId: () => page, getCurrentPageShapesSorted: () => [...shapes.values()].filter(shape => shape.pageId === page),
     getSelectedShapeIds: () => selected, getShape: (id: string) => shapes.get(id),
     getShapeAndDescendantIds(ids: string[]) { const all = new Set(ids); for (const id of all) for (const shape of shapes.values()) if (shape.parentId === id) all.add(shape.id); return all; },
@@ -39,7 +38,7 @@ function fixture() {
 }
 function plan(f: ReturnType<typeof fixture>, patch = {}) {
   const result = prepareDrawingTextSearch(f.editor,{ ...options,...patch });
-  assert.equal(result.ok,true); if (!result.ok) throw new Error(result.error); return result.value;
+  assert.equal(result.ok,true); return result.value;
 }
 describe('drawing text find and replace', () => {
   it('uses literal punctuation and literal replacement dollar sequences', () => {
@@ -67,7 +66,7 @@ describe('drawing text find and replace', () => {
   });
   it('replaces selected result objects in one undo step and preserves every unrelated field', () => {
     const f=fixture();f.add('a','Rīga Rīga');f.add('b');const before=structuredClone([...f.shapes]);
-    const result=plan(f);assert.deepEqual(applyDrawingTextReplacement(f.editor,result,['a']),{ok:true,value:2});
+    const result=plan(f);assert.deepEqual(applyDrawingTextReplacement(f.editor,result,['a' as TLShapeId]),{ok:true,value:2});
     assert.deepEqual(f.shapes.get('a'),{...before[0][1],props:{...before[0][1].props,text:'Daugavpils Daugavpils'}});
     assert.deepEqual(f.shapes.get('b'),before[1][1]);assert.equal(f.marks.length,2);
     f.editor.bailToMark(f.marks[0].id);assert.deepEqual([...f.shapes],before);
@@ -82,8 +81,8 @@ describe('drawing text find and replace', () => {
     const f=fixture();f.add('a');f.add('b').isLocked=true;const result=plan(f);
     assert.equal(result.matches[1].protected,true);assert.deepEqual(applyDrawingTextReplacement(f.editor,result),{ok:false,error:'protected'});
     assert.equal(f.shapes.get('a').props.text,'Rīga');assert.equal(f.marks.length,0);
-    f.readonly(true);assert.equal(prepareDrawingTextSearch(f.editor,options).ok,true);assert.deepEqual(applyDrawingTextReplacement(f.editor,result,['a']),{ok:false,error:'protected'});
-    f.readonly(false);assert.equal(applyDrawingTextReplacement(f.editor,result,['a']).ok,true);
+    f.readonly(true);assert.equal(prepareDrawingTextSearch(f.editor,options).ok,true);assert.deepEqual(applyDrawingTextReplacement(f.editor,result,['a' as TLShapeId]),{ok:false,error:'protected'});
+    f.readonly(false);assert.equal(applyDrawingTextReplacement(f.editor,result,['a' as TLShapeId]).ok,true);
   });
   it('rejects changed documents, page switches and finalizing an active text edit', () => {
     const f=fixture();f.add('a');let result=plan(f);f.add('b');
@@ -99,12 +98,16 @@ describe('drawing text find and replace', () => {
       assert.deepEqual([...f.shapes],before);assert.equal(f.marks.length,0);
     }
   });
-  it('checks custom fonts while preserving the loaded font reference and spacing', () => {
-    const f=fixture();const shape:any=f.add('a');shape.meta.omsFontId='custom';let result=plan(f);
-    assert.deepEqual(applyDrawingTextReplacement(f.editor,result),{ok:false,error:'fontUnavailable'});
-    f.editor.fonts.set('custom',{font:{unsupported:'D'}});assert.deepEqual(applyDrawingTextReplacement(f.editor,result),{ok:false,error:'fontUnavailable'});
-    f.editor.fonts.set('custom',{font:{}});result=plan(f);assert.equal(applyDrawingTextReplacement(f.editor,result).ok,true);
-    assert.equal(f.shapes.get('a').meta.omsFontId,'custom');
+  it('checks custom fonts while preserving the loaded font reference and spacing', async () => {
+    const bytes=readFileSync('static/tldraw/2.4.6/fonts/IBMPlexSans-Medium.woff2');
+    const font=await prepareDrawingFont({name:'Custom.woff2',size:bytes.length,arrayBuffer:async()=>Uint8Array.from(bytes).buffer});
+    const f=fixture();const shape:any=f.add('a');shape.meta.omsFontId=font.id;
+    assert.deepEqual(applyDrawingTextReplacement(f.editor,plan(f)),{ok:false,error:'fontUnavailable'});
+    f.editor.fonts=[font];await loadDrawingFont(font);
+    assert.deepEqual(applyDrawingTextReplacement(f.editor,plan(f,{replacement:'\u{10ffff}'})),{ok:false,error:'fontUnavailable'});
+    assert.equal(f.marks.length,0);assert.equal(f.shapes.get('a').props.text,'Rīga');
+    assert.equal(applyDrawingTextReplacement(f.editor,plan(f)).ok,true);
+    assert.equal(f.shapes.get('a').meta.omsFontId,font.id);assert.equal(f.shapes.get('a').meta.omsTextLetterSpacing,12);
   });
   it('bounds search/replacement work and never applies truncated results', () => {
     const f=fixture();f.add('a','Rīga '.repeat(1500));
@@ -124,7 +127,7 @@ describe('drawing text find and replace', () => {
   });
   it('rejects unknown targets and makes no undo mark for unchanged text', () => {
     const f=fixture();f.add('a');const result=plan(f,{replacement:'Rīga'});
-    assert.deepEqual(applyDrawingTextReplacement(f.editor,result,['missing']),{ok:false,error:'targetsRequired'});
+    assert.deepEqual(applyDrawingTextReplacement(f.editor,result,['missing' as TLShapeId]),{ok:false,error:'targetsRequired'});
     assert.deepEqual(applyDrawingTextReplacement(f.editor,result),{ok:true,value:0});assert.equal(f.marks.length,0);
   });
 });

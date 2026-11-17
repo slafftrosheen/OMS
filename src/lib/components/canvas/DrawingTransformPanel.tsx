@@ -4,13 +4,15 @@ import {cadRevision,CadOperationError} from './cad-plans';
 import {canvasLengthToUnit,unitLengthToCanvas,canvasPointToCad,cadPointToCanvas,type CadSettings} from './cad-settings';
 import {TRANSFORM_ANCHORS,transformAnchorPoint,getTransformSelectionBounds,prepareTransformPlan,applyTransformPlan,type TransformAnchor,type TransformOptions,type TransformPlan} from './drawing-transform';
 import {enTransform,useTransformText} from './transform-copy';
+import {DrawingSkewPanel} from './DrawingSkewPanel';
 
-type Draft={kind:'position'|'scale';relative:boolean;size:'percent'|'dimensions';anchor:TransformAnchor;proportional:boolean;x:string;y:string;copies:string};
+type Draft={kind:'position'|'scale'|'skew';relative:boolean;size:'percent'|'dimensions';anchor:TransformAnchor;proportional:boolean;x:string;y:string;copies:string};
 const preferences=new WeakMap<Editor,{draft:Draft;settings:CadSettings|null}>();
 const number=(value:string)=>value.trim()?Number(value):NaN;
 const display=(value:number,settings:CadSettings|null)=>String(settings?canvasLengthToUnit(value,settings):value);
 const length=(value:string,settings:CadSettings|null)=>settings?unitLengthToCanvas(number(value),settings):number(value);
 function convertDraft(draft:Draft,previous:CadSettings|null,next:CadSettings|null):Draft {
+  if(draft.kind==='skew')return draft;
   if(draft.kind==='scale'&&draft.size==='percent')return draft;
   if(draft.kind==='position'&&!draft.relative){
     const point={x:number(draft.x),y:number(draft.y)};
@@ -39,6 +41,7 @@ export function DrawingTransformPanel({settings,focusRequest=0}:{settings:CadSet
   },[bounds?.w,bounds?.h]);
   const update=(patch:Partial<Draft>)=>{setDraft(current=>({...current,...patch}));setMessage(undefined);};
   const resetCoordinates=(next:Draft)=>{
+    if(next.kind==='skew')return next;
     if(next.kind==='position'){
       const point=bounds?transformAnchorPoint(bounds,next.anchor):{x:0,y:0};
       const displayed=settings?canvasPointToCad(point,settings):point;
@@ -68,12 +71,14 @@ export function DrawingTransformPanel({settings,focusRequest=0}:{settings:CadSet
     try{setReview({plan:prepareTransformPlan(editor,options),key});}
     catch(error){const code=error instanceof CadOperationError?error.code:'';setMessage({key:Object.hasOwn(enTransform,code)?code as keyof typeof enTransform:'failed'});}
   };
+  const modeSelector=<label><span>{t('title')}</span><select value={draft.kind} data-testid="drawing-transform-mode" onChange={event=>changeMode({kind:event.target.value as Draft['kind']})}><option value="position">{t('position')}</option><option value="scale">{t('scale')}</option><option value="skew">{t('skew')}</option></select></label>;
+  if(draft.kind==='skew')return <section className="drawing-transform" data-testid="drawing-transform"><div className="drawing-workbench-fields">{modeSelector}</div><DrawingSkewPanel settings={settings} focusRequest={focusRequest}/></section>;
   return <section className="drawing-transform" data-testid="drawing-transform">
+    <div className="drawing-workbench-fields">{modeSelector}</div>
     <p className="drawing-help">{t('help')}</p>
     {!bounds&&<p className="drawing-help" role="status">{t(readonly?'protected':'selection')}</p>}
     <form onSubmit={event=>{event.preventDefault();if(!disabled)runPreview();}}>
       <fieldset className="drawing-workbench-fields" disabled={disabled}>
-        <label><span>{t('title')}</span><select value={draft.kind} onChange={event=>changeMode({kind:event.target.value as Draft['kind']})}><option value="position">{t('position')}</option><option value="scale">{t('scale')}</option></select></label>
         <fieldset className="drawing-transform-anchor"><legend>{t('reference')}</legend><div style={{display:'grid',gridTemplateColumns:'repeat(3, 1fr)',gap:3}}>
           {TRANSFORM_ANCHORS.map(anchor=><button key={anchor} type="button" aria-label={t(anchor)} title={t(anchor)} aria-pressed={draft.anchor===anchor} onClick={()=>draft.kind==='position'&&!draft.relative?changeMode({anchor}):update({anchor})}><span aria-hidden="true">{draft.anchor===anchor?'●':'○'}</span></button>)}
         </div></fieldset>

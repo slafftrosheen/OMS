@@ -36,7 +36,7 @@ function fixtureSplines(text: string): Spline[] {
 
 /** Cox-de Boor basis recurrence, not production's Bezier extraction algorithm. */
 function basisPoint(s: Spline, u: number): Point {
-  let basis = s.knots.slice(1).map((end, i) => s.knots[i] <= u && u < end ? 1 : 0);
+  let basis: number[] = s.knots.slice(1).map((end, i) => s.knots[i] <= u && u < end ? 1 : 0);
   for (let degree = 1; degree <= s.degree; degree++) {
     basis = basis.slice(0, -1).map((_, i) => {
       const left = s.knots[i + degree] - s.knots[i];

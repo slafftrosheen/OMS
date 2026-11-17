@@ -111,13 +111,13 @@ function referenceFor(editor: Editor, fields: SelectSameFields, referenceId?: TL
 /** Checking a button's availability must not rescan the whole drawing. */
 export function inspectSelectSameReference(editor: Editor, fields: SelectSameFields): SelectSameResult<true> {
   const result = referenceFor(editor, fields);
-  return result.ok ? { ok: true, value: true } : { ok: false, error: result.error };
+  return result.ok === true ? { ok: true, value: true } : { ok: false, error: result.error };
 }
 
 export function prepareSelectSame(editor: Editor, fields: SelectSameFields, referenceId?: TLShapeId): SelectSameResult<SelectSamePlan> {
   try {
     const inspected = referenceFor(editor, fields, referenceId);
-    if (!inspected.ok) return { ok: false, error: inspected.error };
+    if (inspected.ok === false) return { ok: false, error: inspected.error };
     const { source, values: reference, chosen } = inspected.value;
     const candidates = editor.getCurrentPageShapesSorted().filter(shape => artwork(editor, shape));
     const ids = candidates.filter(shape => {
@@ -138,7 +138,7 @@ export function applySelectSame(editor: Editor, plan: SelectSamePlan, mode: 'rep
     if (!['replace', 'add'].includes(mode)) return { ok: false, error: 'failed' };
     if (plan.revision !== selectSameRevision(editor)) return { ok: false, error: 'changed' };
     const refreshed = prepareSelectSame(editor, plan.fields, plan.source);
-    if (!refreshed.ok) return refreshed;
+    if (refreshed.ok === false) return refreshed;
     const ids = mode === 'add' ? [...new Set([...before, ...refreshed.value.ids])] : refreshed.value.ids;
     editor.setSelectedShapes(ids);
     const actual = editor.getSelectedShapeIds();

@@ -12,3 +12,6 @@
 .drawing-tree-row .drawing-tree-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .drawing-tree-count { font-size: 10px; padding-inline: 2px; font-variant-numeric: tabular-nums; }
 .drawing-tree-lock:not(:disabled) { cursor: pointer; }
+.drawing-object-relative-order { margin-block: 8px; }
+.drawing-object-reference { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; min-width: 0; }
+.drawing-object-reference select { width: 100%; min-width: 0; max-width: 100%; }

@@ -21,7 +21,7 @@ describe('CAD palette fill and outline semantics',()=>{
     for(const original of [ellipse(),path(true),curve(true)]){
       const before=structuredClone(original),patch=cadPalettePatch(original,'#ff2200','fill');
       assert.equal(paint(patch).fill,'#ff2200');assert.equal(paint(patch).stroke,'#aabbcc');
-      assert.equal(paint(patch).gradient,undefined);assert.equal(patch!.meta.productionTag,'cut');
+      assert.equal(paint(patch).gradient,undefined);assert.ok('productionTag' in patch!.meta);assert.equal(patch!.meta.productionTag,'cut');
       assert.deepEqual(original,before);assert.equal(Object.hasOwn(patch!,'props'),false);
     }
   });

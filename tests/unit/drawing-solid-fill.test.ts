@@ -16,7 +16,7 @@ function artwork(type='cad-ellipse',props:Record<string,unknown>={w:80,h:40}){
 }
 function setup(initial=artwork()){
  const records=new Map<string,TLShape>([[initial.id,structuredClone(initial)]]),marks=new Map<string,TLShape[]>();
- let selected=initial.id,readonly=false,refuse=false,alter=false,before:TLShape[]=[];
+ let selected:string=initial.id,readonly=false,refuse=false,alter=false,before:TLShape[]=[];
  const editor={
   getOnlySelectedShape:()=>records.get(selected),getShape:(id:string)=>records.get(id),
   getShapeAndDescendantIds:(ids:string[])=>new Set(ids),

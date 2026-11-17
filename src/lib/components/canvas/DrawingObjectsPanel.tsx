@@ -2,23 +2,25 @@ import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useEditor, useValue, type Editor, type TLShapeId } from '@tldraw/tldraw';
 import { drawingObjectAlias, drawingObjectName, renameDrawingObject } from './drawing-operations';
 import { toggleDrawingObjectLock } from './drawing-commands';
-import { canReorderDrawingObjects, drawingObjectAncestors, drawingObjectTree, reorderDrawingObjects, selectDrawingObject, type DrawingObjectRow, type ObjectSelectionOptions, type ObjectStackAction } from './drawing-object-tree';
+import { applyDrawingObjectOrder, canReorderDrawingObjects, captureDrawingObjectStack, drawingObjectAncestors, drawingObjectTree, prepareDrawingObjectOrder, reorderDrawingObjects, selectDrawingObject, type DrawingObjectOrderOperation, type DrawingObjectRow, type ObjectSelectionOptions, type ObjectStackAction } from './drawing-object-tree';
 import { useObjectTreeText } from './object-tree-copy';
 import './drawing-objects.css';
 
 const sessions = new WeakMap<Editor, { page: string; search: string; collapsed: Set<TLShapeId> }>();
 
-export function DrawingObjectsPanel() {
+export function DrawingObjectsPanel({ focusRequest = 0 }: { focusRequest?: number } = {}) {
   const editor = useEditor(), t = useObjectTreeText(), helpId = useId();
   const state = useValue('drawing object hierarchy', () => ({ page: editor.getCurrentPageId(), shapes: editor.getCurrentPageShapesSorted(),
-    selected: editor.getSelectedShapeIds(), readonly: editor.getInstanceState().isReadonly, canReorder: canReorderDrawingObjects(editor),
+    selected: editor.getSelectedShapeIds(), readonly: editor.getInstanceState().isReadonly, canReorder: canReorderDrawingObjects(editor), stack: captureDrawingObjectStack(editor),
     locked: new Set(editor.getCurrentPageShapesSorted().filter(shape => editor.isShapeOrAncestorLocked(shape)).map(shape => shape.id)) }), [editor]);
   const saved = sessions.get(editor);
   const [search, setSearch] = useState(saved?.page === state.page ? saved.search : '');
   const [collapsed, setCollapsed] = useState<Set<TLShapeId>>(() => saved?.page === state.page ? saved.collapsed : new Set());
   const [focused, setFocused] = useState<TLShapeId | null>(null), [failed, setFailed] = useState(false);
   const [renaming, setRenaming] = useState(false), [draft, setDraft] = useState('');
+  const [orderTarget, setOrderTarget] = useState<{ id: TLShapeId; signature: string } | null>(null);
   const rowRefs = useRef(new Map<TLShapeId, HTMLDivElement>()), nameRef = useRef<HTMLInputElement>(null), anchor = useRef<TLShapeId | null>(null);
+  const relativeOrderRef = useRef<HTMLDetailsElement>(null), referenceRef = useRef<HTMLSelectElement>(null);
   const lastPage = useRef(state.page);
   useEffect(() => {
     if (lastPage.current !== state.page) { lastPage.current = state.page; setSearch(''); setCollapsed(new Set()); setFocused(null); anchor.current = null; }
@@ -32,6 +34,25 @@ export function DrawingObjectsPanel() {
   const renameDisabled = !single || state.readonly || [...editor.getShapeAndDescendantIds([single.id])].some(id => state.locked.has(id));
   useEffect(() => { setDraft(alias); setFailed(false); setRenaming(false); }, [single?.id, alias]);
   useEffect(() => { if (renaming) { nameRef.current?.focus(); nameRef.current?.select(); } }, [renaming]);
+  useEffect(() => {
+    if (!focusRequest || !relativeOrderRef.current) return;
+    relativeOrderRef.current.open = true;
+    const request = requestAnimationFrame(() => {
+      if (referenceRef.current && !referenceRef.current.disabled) referenceRef.current.focus();
+      else relativeOrderRef.current?.querySelector('summary')?.focus();
+    });
+    return () => cancelAnimationFrame(request);
+  }, [focusRequest]);
+  useEffect(() => { setOrderTarget(null); }, [state.stack?.signature]);
+  const orderTargets = state.stack?.siblings.filter(shape => !state.stack!.selected.includes(shape.id)).slice().reverse() ?? [];
+  const target = orderTarget?.signature === state.stack?.signature ? orderTarget?.id : undefined;
+  const order = (operation: DrawingObjectOrderOperation) => {
+    const plan = prepareDrawingObjectOrder(editor, operation);
+    // Bind a click to the selection/stack represented by the current controls.
+    const ok = !!plan && plan.signature === state.stack?.signature && applyDrawingObjectOrder(editor, plan);
+    setFailed(!ok);
+    if (ok) setOrderTarget(null);
+  };
   const focusRow = (id: TLShapeId | undefined) => { if (!id) return; setFocused(id); rowRefs.current.get(id)?.focus(); };
   const toggle = (id: TLShapeId) => { setCollapsed(previous => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next; }); };
   const select = (id: TLShapeId, options: ObjectSelectionOptions = {}) => {
@@ -72,7 +93,7 @@ export function DrawingObjectsPanel() {
   };
   const hiddenSelected = state.selected.filter(id => !ids.includes(id)).length;
   return <section className="drawing-objects-panel" data-testid="drawing-objects-panel" onKeyDown={event => event.stopPropagation()}>
-    <p className="drawing-help" aria-live="polite">{t('count').replace('{total}', String(state.shapes.length)).replace('{selected}', String(state.selected.length))}{hiddenSelected > 0 && <> � {t('hidden').replace('{count}', String(hiddenSelected))}</>}</p>
+    <p className="drawing-help" aria-live="polite">{t('count').replace('{total}', String(state.shapes.length)).replace('{selected}', String(state.selected.length))}{hiddenSelected > 0 && <> · {t('hidden').replace('{count}', String(hiddenSelected))}</>}</p>
     <label className="drawing-object-search"><span>{t('search')}</span><input type="search" value={search} maxLength={100} onChange={event => setSearch(event.target.value)} /></label>
     <div className="drawing-tree-actions">
       <button type="button" disabled={!rows.length || !!search.trim()} onClick={() => setCollapsed(new Set())}>{t('expandAll')}</button>
@@ -103,8 +124,25 @@ export function DrawingObjectsPanel() {
     {!rows.length && <p className="drawing-help">{t(search.trim() ? 'noMatches' : 'empty')}</p>}
     <div className="drawing-tree-actions" aria-label={t('stack')}>
       {(['front', 'forward', 'backward', 'back'] as const).map((action: ObjectStackAction) => <button type="button" key={action} disabled={!state.canReorder} onClick={() => setFailed(!reorderDrawingObjects(editor, action))}>{t(action)}</button>)}
+      <button type="button" disabled={!state.stack || state.stack.selected.length < 2} onClick={() => order({ kind: 'reverse' })} data-testid="drawing-object-reverse-order">{t('reverse')}</button>
     </div>
     <p className="drawing-help">{t('stackHint')}</p>
+    <details ref={relativeOrderRef} className="drawing-object-relative-order" data-testid="drawing-object-relative-order">
+      <summary>{t('relativeOrder')}</summary>
+      <label className="drawing-object-reference"><span>{t('referenceObject')}</span>
+        <select ref={referenceRef} value={target ?? ''} disabled={!state.stack || !orderTargets.length} data-testid="drawing-object-order-reference"
+          onChange={event => { setOrderTarget(event.target.value && state.stack ? { id: event.target.value as TLShapeId, signature: state.stack.signature } : null); setFailed(false); }}>
+          <option value="">{t('chooseReference')}</option>
+          {orderTargets.map(shape => <option key={shape.id} value={shape.id}>{state.stack!.siblings.length - state.stack!.siblings.indexOf(shape)}. {drawingObjectName(shape)}</option>)}
+        </select>
+      </label>
+      <div className="drawing-tree-actions">
+        <button type="button" disabled={!target} onClick={() => target && order({ kind: 'relative', target, side: 'front' })} data-testid="drawing-object-in-front">{t('inFrontOf')}</button>
+        <button type="button" disabled={!target} onClick={() => target && order({ kind: 'relative', target, side: 'behind' })} data-testid="drawing-object-behind">{t('behind')}</button>
+      </div>
+      <p className="drawing-help">{t('relativeHint')}</p>
+      {!orderTargets.length && <p className="drawing-help">{t('noReference')}</p>}
+    </details>
     {single && <>
       <div className="drawing-tree-actions"><button type="button" disabled={renameDisabled} onClick={() => setRenaming(value => !value)}>{t('rename')}</button><button type="button" disabled={state.readonly || state.locked.has(single.parentId as TLShapeId)} onClick={() => setFailed(!toggleDrawingObjectLock(editor, single.id))}>{t(single.isLocked ? 'unlock' : 'lock')}</button><button type="button" onClick={() => editor.zoomToSelection()}>{t('locate')}</button></div>
       {renaming && <form className="drawing-object-name" onSubmit={event => { event.preventDefault(); const ok = renameDrawingObject(editor, single.id, draft); setFailed(!ok); if (ok) setRenaming(false); }}>

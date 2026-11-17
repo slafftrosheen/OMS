@@ -29,7 +29,7 @@ export function DrawingAppearancePanel({ focusRequest }: { focusRequest?: number
     <summary>{label('title')}</summary>
     <p className="drawing-help">{label('hint')}</p>
     <div className="drawing-arrange"><button type="button" disabled={!state.canCopy} onClick={() => {
-      const result = copyDrawingAppearance(editor); setNotice(result.ok ? 'copied' : result.error);
+      const result = copyDrawingAppearance(editor); setNotice(result.ok === true ? 'copied' : result.error);
     }}>{label('copy')}</button></div>
     {source && <p className="drawing-help"><strong>{label('source')}:</strong> {source.name} · {label(source.kind)}</p>}
     <fieldset className="drawing-style-fields" disabled={!source}>
@@ -40,10 +40,10 @@ export function DrawingAppearancePanel({ focusRequest }: { focusRequest?: number
         }}/><span>{label(key)}</span>
       </label>)}
     </fieldset>
-    <p className="drawing-help">{state.targets.ok ? label('targetCount').replace('{count}', String(state.targets.count)) : label(!source && !state.canCopy ? 'sourceRequired' : state.targets.error)}</p>
+    <p className="drawing-help">{state.targets.ok === true ? label('targetCount').replace('{count}', String(state.targets.count)) : label(!source && !state.canCopy ? 'sourceRequired' : state.targets.error)}</p>
     <div className="drawing-arrange"><button type="button" disabled={!state.targets.ok} onClick={() => {
       const result = applyDrawingAppearance(editor, fields);
-      setNotice(result.ok ? result.count ? 'applied' : 'unchanged' : result.error);
+      setNotice(result.ok === true ? result.count ? 'applied' : 'unchanged' : result.error);
     }}>{label('apply')}</button></div>
     {notice && <p className="drawing-help" role="status">{label(notice)}</p>}
     <p className="drawing-help">{label('limits')}</p>

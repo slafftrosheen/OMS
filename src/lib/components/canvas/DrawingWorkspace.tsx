@@ -13,6 +13,10 @@ import {useParametricShapeText} from './parametric-shape-copy';
 import {useRectangleShapeText} from './rectangle-shape-copy';
 import {DrawingObjectsPanel} from './DrawingObjectsPanel';
 import {DrawingTransformPanel} from './DrawingTransformPanel';
+import {openDrawingContextMenu} from './DrawingContextMenu';
+import {DRAWING_UI_REQUEST, isDrawingUiRequest} from './drawing-ui-requests';
+import {useObjectTreeText} from './object-tree-copy';
+import {captureDrawingObjectStack, prepareDrawingObjectOrder, applyDrawingObjectOrder} from './drawing-object-tree';
 import {RadialArrange} from './RadialArrange';
 import {useArrangeTaskText, type ArrangeTask} from './arrange-task-copy';
 import {cadPalettePatch} from './drawing-palette';
@@ -50,7 +54,7 @@ import { CadPanel } from './CadPanel';
 import { useCadAdvancedText } from './cad-advanced-copy';
 import type { CadFocusRequest } from './CadAdvancedPanel';
 import { useCadText, type CadLabel } from './cad-copy';
-import { canvasLengthToUnit, canvasPointToCad, readCadSettings, unitLengthToCanvas, type CadSettings } from './cad-settings';
+import { canvasLengthToUnit, canvasPointToCad, readCadSettings, type CadSettings } from './cad-settings';
 import { getCadSelection, nudgeCadSelection, transformCadSelection, type CadAnchor } from './cad-geometry';
 import { useVectorText } from './cad-vector-copy';
 import './drawing-workspace.css';
@@ -409,6 +413,7 @@ export function DrawingChrome() {
   const arrangeTaskLabel = useArrangeTaskText();
   const outlineLabel = useOutlineText();
   const outlineObjectLabel = useOutlineToObjectText();
+  const objectTreeLabel = useObjectTreeText();
   const nodeArrangeLabel = useNodeArrangeText();
   const preflightLabel = usePreflightText();
   const [arrangeTask, setArrangeTask] = useState<ArrangeTask>('align');
@@ -430,6 +435,7 @@ export function DrawingChrome() {
   const [appearanceFocusRequest, setAppearanceFocusRequest] = useState(0);
   const [findFocusRequest, setFindFocusRequest] = useState(0);
   const [selectSameFocusRequest, setSelectSameFocusRequest] = useState(0);
+  const [objectOrderFocusRequest, setObjectOrderFocusRequest] = useState(0);
   useEffect(() => { if (context?.panel) setLastPanel(context.panel); }, [context?.panel]);
   const [cadFocus, setCadFocus] = useState<CadFocusRequest>();
   const settings = useValue('drawing cad settings', () => readCadSettings(editor), [editor]);
@@ -551,6 +557,35 @@ export function DrawingChrome() {
     setSelectSameFocusRequest(value => value + 1);
     closeMenus();
   }
+  function openObjectOrder() {
+    context?.setPanel('objects');
+    setObjectOrderFocusRequest(value => value + 1);
+    closeMenus();
+  }
+  function reverseObjectOrder() {
+    const plan = prepareDrawingObjectOrder(editor, { kind: 'reverse' });
+    setNotice(plan && applyDrawingObjectOrder(editor, plan) ? '' : label('changedFailed'));
+    closeMenus();
+  }
+  useEffect(() => {
+    const container = editor.getContainer();
+    const requested = (event: Event) => {
+      const request = (event as CustomEvent<unknown>).detail;
+      if (!isDrawingUiRequest(request)) return;
+      setToolGroup(null); closeMenus();
+      if (request.kind === 'command') command(request.action);
+      else if (request.kind === 'cad') focusCad(request.action);
+      else if (request.kind === 'objects') {
+        if (request.action === 'reverse') reverseObjectOrder(); else openObjectOrder();
+      }
+      else if (request.action === 'transform') openTransform();
+      else if (request.action === 'repeat') openRepeat();
+      else if (request.action === 'align' || request.action === 'radial') openArrange(request.action);
+      else context?.setPanel(request.action);
+    };
+    container.addEventListener(DRAWING_UI_REQUEST, requested);
+    return () => container.removeEventListener(DRAWING_UI_REQUEST, requested);
+  }, [editor, context?.setPanel, label]);
   function menuSummary(name: string, text: string) {
     return <summary aria-expanded={openMenu === name} onClick={event => { event.preventDefault(); setOpenMenu(openMenu === name ? null : name); }}
       onKeyDown={event => {
@@ -597,14 +632,29 @@ export function DrawingChrome() {
     const root = context?.root.current;
     if (!root) return;
     const keys = (event: KeyboardEvent) => {
+      // Radix handles menu navigation. Arrows here must not nudge the artwork
+      // underneath a context menu or trigger single-letter drawing shortcuts.
+      if (event.target instanceof Element && event.target.closest('.tlui-menu')) {
+        // Radix handles Escape in document capture and removes openMenus before
+        // tldraw's bubble listener sees it. Mark the same event handled so closing
+        // a menu cannot also cancel the selection or a drawing interaction.
+        (event as KeyboardEvent & { isKilled?: boolean }).isKilled = true;
+        return;
+      }
       if(event.key==='Escape' && toolGroup!==null){event.preventDefault();event.stopPropagation();setToolGroup(null);flyoutTrigger.current?.focus();return;}
       if (event.key === 'Escape' && openMenu) { event.preventDefault(); event.stopPropagation(); closeMenus(true); return; }
-      if (!(event.target instanceof Element) || event.target.closest('input,textarea,select,[contenteditable="true"]')) return;
+      if (!(event.target instanceof Element) || event.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])')) return;
       if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key === 'F12') { event.preventDefault(); event.stopPropagation(); focusCad('outline'); return; }
       if (!event.ctrlKey && !event.metaKey && !event.altKey && event.shiftKey && event.key === 'F2') { event.preventDefault(); event.stopPropagation(); applyDrawingCommand(editor, 'fit-selection'); return; }
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
       const inDrawing = !!event.target.closest('.drawing-viewport');
+      if (inDrawing && !modifier && !event.altKey && !event.isComposing &&
+          (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10')) {
+        event.preventDefault(); event.stopPropagation();
+        if (!event.repeat) openDrawingContextMenu(editor);
+        return;
+      }
       if (inDrawing && modifier && !event.shiftKey && !event.altKey && !event.isComposing && key === 'f') {
         event.preventDefault(); event.stopPropagation();
         if (!event.repeat) openFindReplace();
@@ -659,7 +709,7 @@ export function DrawingChrome() {
         return;
       }
       const lockedSelection = captureToolkitControls(editor).selectionLocked;
-      if ((!modifier && !event.altKey && event.key === 'F10') || (modifier && !event.altKey && !event.shiftKey && !event.isComposing && event.key.toLowerCase() === 'q')) {
+      if ((!modifier && !event.altKey && !event.shiftKey && event.key === 'F10') || (modifier && !event.altKey && !event.shiftKey && !event.isComposing && event.key.toLowerCase() === 'q')) {
         event.preventDefault(); event.stopPropagation();
         focusCad(event.key === 'F10' ? 'nodes' : 'convert');
         return;
@@ -875,6 +925,8 @@ export function DrawingChrome() {
           <details>
             <summary>{label('objectOrder')} ▸</summary>
             <div className="drawing-arrange">{menuActions(['front', 'back', 'forward', 'backward'], true)}</div>
+            <button type="button" onClick={openObjectOrder}>{objectTreeLabel('relativeOrder')}</button>
+            <button type="button" disabled={(captureDrawingObjectStack(editor)?.selected.length ?? 0) < 2} onClick={reverseObjectOrder} data-testid="drawing-menu-reverse-order">{objectTreeLabel('reverse')}</button>
           </details>
           <hr />
           <button type="button" disabled={!controls.canEditSelection || !settings} onClick={() => compound('combine')}>{advancedLabel('combine')}</button>
@@ -982,7 +1034,7 @@ export function DrawingChrome() {
           <div hidden={arrangeTask !== 'radial'}><RadialArrange settings={settings} expanded/></div>
         </> : activePanel === 'cad' ? <CadPanel settings={settings} focusRequest={cadFocus} /> : activePanel === 'objects' ? <>
           <DrawingSelectSamePanel focusRequest={selectSameFocusRequest}/>
-          <DrawingObjectsPanel/>
+          <DrawingObjectsPanel focusRequest={objectOrderFocusRequest}/>
           <section className="drawing-selection-actions" aria-label={label('selectionActions')}>{menuActions(['fit-selection', 'duplicate', 'delete'])}</section>
         </> : <>
           <FormScaleControl/>

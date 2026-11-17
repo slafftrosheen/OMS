@@ -1,5 +1,6 @@
 import {describe,it} from 'vitest';
 import assert from 'node:assert/strict';
+import {Mat} from '@tldraw/tldraw';
 import {getSelectedCadNode,getSelectedCadNodes,setSelectedCadNodes,selectCadNode,inspectCadNodeEvent,setCadNodeEditing} from '../../src/lib/components/canvas/cad-node-selection';
 import {prepareNodeArrange,applyNodeArrange} from '../../src/lib/components/canvas/cad-node-arrange';
 import {CadBezierShapeUtil} from '../../src/lib/components/canvas/shapes/CadBezierShape';
@@ -9,13 +10,13 @@ const n=(x:number,y:number)=>({x,y,inX:-2,inY:3,outX:5,outY:-4,mode:'corner'});
 function editor(rotation=0){
  let shape:any={id:'shape:test',type:'cad-bezier',x:100,y:200,rotation,parentId:'shape:group',props:{contours:[{closed:false,nodes:[n(0,0),n(10,30),n(40,10),n(100,60)]}],fillRule:'evenodd',color:'black'},meta:{omsObjectName:'Cut',omsVectorPaint:{fill:'#abcdef'}}};
  let selected=true,readonly=false,locked=false,snapshot:any,fail=false,mask:any=null;
- const e:any={inputs:{shiftKey:false},marks:[],tool:'select',
+ const e:any={inputs:{shiftKey:false},user:{getIsSnapMode:()=>false},marks:[],tool:'select',
   getOnlySelectedShape:()=>selected?shape:null,getSelectedShapeIds:()=>selected?[shape.id]:[],
   getShape:(id:string)=>id===shape.id?shape:undefined,getShapeAndDescendantIds:(ids:string[])=>new Set(ids),
   getCurrentToolId:()=>e.tool,getInstanceState:()=>({isReadonly:readonly}),isShapeOrAncestorLocked:()=>locked,
   getShapeMask:()=>mask,getBindingsInvolvingShape:()=>[],getCurrentPage:()=>({id:'page:test'}),
   getCurrentPageShapesSorted:()=>[shape],complete:()=>{},setCurrentTool:(t:string)=>{e.tool=t;},
-  getShapePageTransform:()=>({applyToPoint:(p:any)=>({x:shape.x+Math.cos(rotation)*p.x-Math.sin(rotation)*p.y,y:shape.y+Math.sin(rotation)*p.x+Math.cos(rotation)*p.y})}),
+  getShapePageTransform:()=>new Mat(Math.cos(rotation),Math.sin(rotation),-Math.sin(rotation),Math.cos(rotation),shape.x,shape.y),
   getPointInShapeSpace:(_s:any,p:any)=>({x:Math.cos(rotation)*(p.x-shape.x)+Math.sin(rotation)*(p.y-shape.y),y:-Math.sin(rotation)*(p.x-shape.x)+Math.cos(rotation)*(p.y-shape.y)}),
   mark:(m:string)=>{e.marks.push(m);if(!m.endsWith('-complete'))snapshot=structuredClone(shape);},run:(f:()=>void)=>f(),bailToMark:()=>{shape=snapshot;},
   updateShapes:(changes:any[])=>{for(const c of changes){shape={...shape,...c,props:{...shape.props,...c.props}};if(fail)throw Error('fail');}},

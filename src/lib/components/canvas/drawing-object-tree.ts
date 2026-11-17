@@ -1,4 +1,4 @@
-import type { Editor, TLShape, TLShapeId } from '@tldraw/tldraw';
+import { getIndicesBetween, type Editor, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { drawingObjectName } from './drawing-operations';
 import { drawingTransaction } from './drawing-commands';
 
@@ -110,9 +110,82 @@ export function selectDrawingObject(editor: Editor, visible: readonly TLShapeId[
 export type ObjectStackAction = 'front' | 'back' | 'forward' | 'backward';
 export function canReorderDrawingObjects(editor: Editor): boolean {
   const shapes = editor.getSelectedShapes();
-  if (editor.getInstanceState().isReadonly || !shapes.length || new Set(shapes.map(shape => shape.parentId)).size !== 1) return false;
+  if (editor.getInstanceState().isReadonly || !shapes.length || shapes.length !== editor.getSelectedShapeIds().length || new Set(shapes.map(shape => shape.parentId)).size !== 1) return false;
   const page = editor.getCurrentPageShapeIds();
   return [...editor.getShapeAndDescendantIds(shapes.map(shape => shape.id))].every(id => page.has(id) && !!editor.getShape(id) && !editor.isShapeOrAncestorLocked(id));
+}
+
+export type DrawingObjectOrderOperation = { kind: 'reverse' } | { kind: 'relative'; target: TLShapeId; side: 'front' | 'behind' };
+export interface DrawingObjectOrderPlan { signature: string; operation: DrawingObjectOrderOperation; }
+export interface DrawingObjectStack {
+  signature: string;
+  selected: TLShapeId[];
+  /** Back-to-front, within exactly one parent. Descendants never become siblings. */
+  siblings: TLShape[];
+}
+
+/** Capture selection and sibling order, rather than every geometry edit on a
+ * busy shared page. A locked reference is safe: its record is never changed. */
+export function captureDrawingObjectStack(editor: Editor): DrawingObjectStack | null {
+  if (!canReorderDrawingObjects(editor)) return null;
+  const selected = [...editor.getSelectedShapeIds()].sort();
+  const parent = editor.getShape(selected[0])!.parentId;
+  const siblings = editor.getCurrentPageShapesSorted().filter(shape => shape.parentId === parent)
+    .sort((a, b) => a.index < b.index ? -1 : a.index > b.index ? 1 : a.id.localeCompare(b.id));
+  // Duplicate indices in a damaged/imported stack do not define a reliable
+  // position. Refuse a guess instead of rewriting unrelated objects.
+  if (new Set(siblings.map(shape => shape.index)).size !== siblings.length || selected.some(id => !siblings.some(shape => shape.id === id))) return null;
+  const signature = JSON.stringify([editor.getCurrentPageId(), parent, selected, siblings.map(shape => [shape.id, shape.type, shape.index])]);
+  return { signature, selected, siblings };
+}
+
+export function prepareDrawingObjectOrder(editor: Editor, operation: DrawingObjectOrderOperation): DrawingObjectOrderPlan | null {
+  const stack = captureDrawingObjectStack(editor);
+  if (!stack || !operation || !['relative', 'reverse'].includes(operation.kind)) return null;
+  if (operation.kind === 'reverse' && stack.selected.length < 2) return null;
+  if (operation.kind === 'relative' && (!['front', 'behind'].includes(operation.side) || stack.selected.includes(operation.target) || !stack.siblings.some(shape => shape.id === operation.target))) return null;
+  return { signature: stack.signature, operation: { ...operation } };
+}
+
+/** Relative placement keeps the selection's internal order. Reverse swaps the
+ * selected slots only, leaving every unselected sibling's index unchanged. */
+export function applyDrawingObjectOrder(editor: Editor, plan: DrawingObjectOrderPlan): boolean {
+  try {
+    if (!plan || captureDrawingObjectStack(editor)?.signature !== plan.signature) return false;
+    editor.complete(); editor.setCurrentTool('select');
+    const current = prepareDrawingObjectOrder(editor, plan.operation);
+    if (!current || current.signature !== plan.signature) return false;
+    const stack = captureDrawingObjectStack(editor)!;
+    const selected = new Set(stack.selected), sources = stack.siblings.filter(shape => selected.has(shape.id));
+    const stationaryIndices = new Map(stack.siblings.filter(shape => !selected.has(shape.id)).map(shape => [shape.id, shape.index]));
+    const updates: Array<{ id: TLShapeId; type: TLShape['type']; index: TLShape['index'] }> = [];
+    let expected: TLShapeId[];
+    if (plan.operation.kind === 'reverse') {
+      const indices = sources.map(shape => shape.index).reverse();
+      sources.forEach((shape, i) => { if (shape.index !== indices[i]) updates.push({ id: shape.id, type: shape.type, index: indices[i] }); });
+      const reversed = sources.map(shape => shape.id).reverse();
+      let i = 0;
+      expected = stack.siblings.map(shape => selected.has(shape.id) ? reversed[i++] : shape.id);
+    } else {
+      const operation = plan.operation;
+      const others = stack.siblings.filter(shape => !selected.has(shape.id));
+      const targetPosition = others.findIndex(shape => shape.id === operation.target);
+      const insertion = targetPosition + (operation.side === 'front' ? 1 : 0);
+      expected = [...others.slice(0, insertion), ...sources, ...others.slice(insertion)].map(shape => shape.id);
+      // An already adjacent selection needs no new history entry or indices.
+      if (expected.every((id, i) => id === stack.siblings[i].id)) return true;
+      const indices = getIndicesBetween(others[insertion - 1]?.index, others[insertion]?.index, sources.length);
+      sources.forEach((shape, i) => updates.push({ id: shape.id, type: shape.type, index: indices[i] }));
+    }
+    return drawingTransaction(editor, () => {
+      editor.updateShapes(updates);
+      const after = captureDrawingObjectStack(editor);
+      if (!after || after.siblings.length !== expected.length || after.siblings.some((shape, i) => shape.id !== expected[i])) throw new Error('Object order was not applied');
+      // Retain unrelated sibling slots, names, positions, group membership and
+      // selected roots. Native update hooks may otherwise quietly reject edits.
+      if (after.selected.join('|') !== stack.selected.join('|') || [...stationaryIndices].some(([id, index]) => editor.getShape(id)?.index !== index)) throw new Error('Unrelated object order changed');
+    });
+  } catch { return false; }
 }
 /** The native 2.4 stacking operations modify only sibling indices. No reparenting. */
 export function reorderDrawingObjects(editor: Editor, action: ObjectStackAction): boolean {
