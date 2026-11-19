@@ -281,6 +281,71 @@ Live browser execution in this pass is blocked by the host's Chromium `socket()`
 
 Behaviour references: [CorelDRAW transformations](https://product.corel.com/help/CorelDRAW/Documentation-Windows/CorelDRAW-en/CorelDRAW-Transform-objects.html) and [CorelDRAW object order](https://product.corel.com/help/CorelDRAW/Documentation-Windows/CorelDRAW-en/CorelDRAW-Change-the-order-of-objects.html).
 
+## Guidelines and direct Pick transformations — 19 November 2026
+
+This pass adds the same guideline and on-canvas transformation workflows to idea boards and order canvases. It extends the existing workspace, snapshots, translated dockers and command history; no database migration or new dependency is required.
+
+### Page guidelines
+
+Drag down from the top ruler to create a horizontal guideline, or right from the left ruler to create a vertical one. The line follows the pointer without modifying the saved drawing. Release inside the drawing to commit one undoable change. Drag an existing, unlocked line to move it, or outside the drawing viewport to delete it. Escape, lost pointer capture, a changed page/camera/viewport, read-only transition or invalidated document state cancels the preview.
+
+Open **Layout → Guidelines**, **View → Guidelines**, or the Guidelines docker tab for numeric placement. Enter a position in the current document units: vertical guides use X and horizontal guides use Y. Physical CAD Y increases upward. Changing the units, drawing scale or origin changes the displayed coordinate while keeping the guideline beside the same artwork. Unsaved position edits become stale if their underlying page/calibration changes; reload the current position before applying them.
+
+The docker lists the current page's guidelines, allows individual or global locks, and separates visibility from CAD snapping. Hidden and locked guides remain snap targets when the guideline snap option and CAD snapping are enabled. Exact object targets have priority; guideline lines and their perpendicular crossings take priority over nearest-point and grid fallback targets. The crossing must fit the actual circular screen-space snap tolerance. Snap work is bounded by a limit of 256 guidelines per page.
+
+Guidelines live in versioned page metadata, not artwork shapes. They survive the existing drawing snapshot/JSON round trip and Undo/Redo without entering artwork fit bounds or SVG/DXF/raster exports. Invalid or future metadata is retained and reported instead of being overwritten. Position, save-capacity, stale-plan, lock and read-only guards are checked again when applying. Unfinished CAD drawing drafts and active pointer gestures prevent guideline edits that could otherwise be absorbed by another operation's cancellation history.
+
+An active guideline also supports keyboard nudging in the document's configured nudge unit, Shift for ten times the step and Ctrl/Command for one tenth. Delete removes it; Enter or Space opens its docker; Escape clears the active guideline. These keys do not edit the selected artwork underneath. Visual lines sit above artwork with no pointer ownership; their hit bands sit below real form/media elements so embedded controls retain their input behavior.
+
+### Align selected artwork to a guideline
+
+Select editable artwork, then select a guideline in the docker. Use the three alignment buttons for the relevant axis: left/center/right for a vertical guideline, or top/center/bottom for a horizontal one. **Keep relative positions** is enabled initially and moves the selection as a rigid arrangement. Disable it to align each selected root object individually.
+
+Alignment uses exact existing geometry bounds, including cubic extrema and nested rotated groups, and keeps each shape in its original parent. One Undo restores the operation. Locked objects, protected order forms, clipped groups, bindings and unsupported container cases retain their existing protections. A stale or failed edit leaves no partial placement changes.
+
+### Pick rotation and skew handles
+
+Select supported editable curves or a group of them, then enable **Rotate / skew** in the property bar or Object menu. Four corner controls use the native rotation interaction; four side controls skew the artwork along the page axes. Dragging a side keeps the opposite edge fixed, including for curves inside rotated groups.
+
+The overlay compares original and resulting curves and displays the current angle before release. Previewing changes no document records. Release applies the exact affine transformation in one undo step; Escape cancels. Shift snaps to 15° increments, with snapped values limited to ±75° and continuous values limited to ±80°. Focus a side handle and use the corresponding arrow keys for 1° steps or Shift for 15°; Enter/Space opens the numeric Transformations docker.
+
+Compound holes, supported solid/gradient paint, group hierarchy and IDs are preserved by the existing curve-skew engine. Native corner rotation retains the selection pivot, including for already-rotated groups. Selection, geometry, page, camera, viewport, permission or protection changes invalidate an in-flight preview. Custom guide/skew gestures share pointer ownership so a second finger or pen cannot begin another drawing mutation.
+
+### Current scope
+
+- Rotate/skew uses an explicit mode button. CorelDRAW's ordinary second-click toggle and draggable custom rotation pivot are still absent; normal text/group double-click behavior remains available.
+- Direct skew uses the existing exact curve engine. Convert native text, ordinary shapes and analytic circles/arcs to curves first. Bitmap/material fills, clipped artwork, bindings and protected objects retain the numeric skew restrictions.
+- Guideline snapping applies to CAD creation, node editing and dimension endpoints. Ordinary Pick dragging does not yet snap to metadata guidelines. Use the docker's exact alignment actions for that placement.
+- Guidelines are horizontal/vertical and page-specific. Angled guides and shared master-page guides are not included.
+- DOM tests exercise actual editor event/history behavior. Browser pixel layout, production database persistence and machine output require separate acceptance checks.
+
+### Validation and local acceptance
+
+The native-editor DOM tests cover ruler/line gestures, offset and zoom coordinates, physical nudge units, no writes during previews, Undo/Redo, keyboard ownership, protected form inputs, multi-pointer exclusion, cancellation and stale-state handling. Geometry/history tests cover guide metadata, bounded CAD snap targeting, exact alignment, curve skew, compound geometry and rotated groups. The panel tests cover numeric edits, unit/page transitions, stale drafts and keyboard focus.
+
+Final validation of the assembled source:
+
+| Check | Result |
+| --- | --- |
+| CAD, drawing, canvas-control/workbench/draft and draft-intake regressions | **897 passed, 0 failed** across 68 distinct files, in eight sequential batches |
+| Actual editor/React/DOM cases included in that total | **54 passed**: 8 context-menu, 27 guide interaction, 5 guide panel and 14 Pick transformation cases |
+| Application Svelte/TypeScript check | **0 errors**; 13 existing warnings in five unrelated Svelte files |
+| ESLint on all 30 changed/new TS/TSX files | **Passed**, no warnings |
+| Production build | **Passed**, with existing Svelte/bundler warnings |
+| Static scan of changed workspace UI; whitespace check | **Passed** |
+
+The final event regressions also cover an Enter release after its focused guide has been deleted, normal subsequent native Enter behavior, and cleanup when the window loses focus. Native corner-rotation protection retains external child locks/metadata; the next Undo/Redo cannot resurrect the canceled rotation. A previous stale-guide test was updated to simulate an external metadata write because the new local busy guard correctly refuses an overlapping local edit.
+
+Eight additional Playwright scenarios cover both hosts: ruler placement with one Undo, numeric guideline alignment/lock/reload, direct Pick skew with preview/Shift/Undo/Redo/reload, and cancellation/read-only transitions. Run them with:
+
+```sh
+npx playwright test --config tests/ui/playwright.drawing-workspace.config.ts drawing-guides-skew.spec.ts
+```
+
+These new browser scenarios are defined and discoverable but were not executed here: Chromium aborts at startup because the host denies its `socket()` call. No screenshot or live-browser acceptance is claimed for this pass.
+
+Workflow references: [CorelDRAW guidelines](https://product.corel.com/help/CorelDRAW/540111186/Documentation-Windows/CorelDRAW-en/CorelDRAW-Set-up-guidelines.html) and [CorelDRAW Pick tools](https://www.coreldraw.com/en/learn/tutorials/pick-freehand-tools-coreldraw/).
+
 ## Deployment and verification
 
 Pull `main`, install dependencies if needed, build, and restart `reclame-oms.service` using the normal deployment process. A Git update alone does not replace the running JavaScript bundle. Earlier installations still need the existing `20261109000001_openrouter_model_settings.sql` migration; this change does not apply migrations automatically.

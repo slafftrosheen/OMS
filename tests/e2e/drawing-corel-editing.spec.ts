@@ -3,7 +3,8 @@ import { expect, test, type Page } from '@playwright/test';
 const scene = (page: Page) => page.evaluate(() => (window as any).__drawingFixture.inspect());
 const artwork = async (page: Page) => (await scene(page)).shapes.filter((shape: any) => shape.id.startsWith('shape:corel-'));
 async function pick(page: Page, id: string, button: 'left' | 'right' = 'left') {
-  const point = await page.evaluate(id => (window as any).__drawingFixture.point(id), id);
+  // Letter A's left strip stays outside the interactive order form at x=24.
+  const point = await page.evaluate(id => (window as any).__drawingFixture.point(id, .05, .2), id);
   await page.mouse.click(point.x, point.y, { button });
 }
 async function load(page: Page, mode: string) {

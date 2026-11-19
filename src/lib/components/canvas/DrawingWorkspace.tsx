@@ -13,6 +13,16 @@ import {useParametricShapeText} from './parametric-shape-copy';
 import {useRectangleShapeText} from './rectangle-shape-copy';
 import {DrawingObjectsPanel} from './DrawingObjectsPanel';
 import {DrawingTransformPanel} from './DrawingTransformPanel';
+import {DrawingGuidesPanel} from './DrawingGuidesPanel';
+import {DrawingGuideAlignment} from './DrawingGuideAlignment';
+import {useGuideText} from './guide-copy';
+import {applyDrawingGuideChange, prepareDrawingGuideChange, readDrawingGuides, drawingGuidesAreValid, drawingGuidesBusy} from './drawing-guides';
+import {beginDrawingGuideDrag, drawingGuideNotice} from './drawing-guide-drag';
+import {isDrawingPointerGestureActive} from './drawing-pointer-gesture';
+import {isDrawingSkewMode, setDrawingSkewMode, drawingSkewGesture, drawingSkewNotice} from './drawing-pick-skew';
+import {readSkewSelection} from './drawing-skew';
+import {usePickSkewText} from './pick-skew-copy';
+import {enSkew, useSkewText} from './skew-copy';
 import {openDrawingContextMenu} from './DrawingContextMenu';
 import {DRAWING_UI_REQUEST, isDrawingUiRequest} from './drawing-ui-requests';
 import {useObjectTreeText} from './object-tree-copy';
@@ -75,7 +85,7 @@ const objectShortcuts: Readonly<Partial<Record<string, string>>> = {
 const objectActionByKey = new Map(Object.entries(objectShortcuts).map(([action, key]) => [key?.toLowerCase(), action]));
 
 type Slot = 'commands' | 'standard' | 'properties' | 'tools' | 'docker' | 'dockerTabs' | 'palette' | 'status' | 'rulerX' | 'rulerY' | 'rulerOrigin';
-type Panel = 'properties' | 'objects' | 'cad' | 'text' | 'arrange' | 'measure' | 'snap' | null;
+type Panel = 'properties' | 'objects' | 'cad' | 'text' | 'arrange' | 'measure' | 'snap' | 'guides' | null;
 interface WorkspaceContext {
   hosts: Partial<Record<Slot, HTMLElement>>;
   panel: Panel;
@@ -164,6 +174,8 @@ const iconPaths: Record<string, ReactNode> = {
   paint: <><path d="m4 11 7-7 8 8-7 7-8-8Zm0 0h15M7 3l5 5m-9 13h18" /><path d="M20 14s-2 3-2 4a2 2 0 0 0 4 0c0-1-2-4-2-4Z" /></>,
   properties: <><path d="M3 5h18M3 12h18M3 19h18" /><circle cx="8" cy="5" r="2" /><circle cx="16" cy="12" r="2" /><circle cx="8" cy="19" r="2" /></>,
   objects: <><path d="m12 3 10 5-10 5L2 8Zm-10 9 10 5 10-5M2 17l10 5 10-5" /></>,
+  guides: <><path d="M3 4h18M4 3v18"/><path d="M3 12h18M12 3v18" strokeDasharray="3 2"/><path d="M7 4v3m5-3v3m5-3v3M4 7h3m-3 5h3m-3 5h3"/></>,
+  skew: <><path d="m8 6 12 0-4 12H4ZM3 3h15m-3-2 3 2-3 2M6 21h15m-12-2-3 2 3 2"/></>,
   lock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V6a4 4 0 0 1 8 0v4" /></>,
   unlock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V6a4 4 0 0 1 8-1" /></>,
   'cad-arc-three': <><path d="M4 18A9 9 0 1 1 20 7"/><circle cx="4" cy="18" r="1.5"/><circle cx="6" cy="5" r="1.5"/><circle cx="20" cy="7" r="1.5"/></>,
@@ -363,8 +375,9 @@ function CadAnchorControl({ value, onChange }: { value: CadAnchor; onChange: (an
   </label>;
 }
 
-function Ruler({ vertical = false, settings }: { vertical?: boolean; settings: CadSettings | null }) {
+function Ruler({ vertical = false, settings, onGuides }: { vertical?: boolean; settings: CadSettings | null; onGuides: () => void }) {
   const editor = useEditor();
+  const t = useGuideText();
   const bounds = useValue('drawing ruler', () => editor.getViewportPageBounds(), [editor]);
   const zoom = useValue('drawing ruler zoom', () => editor.getZoomLevel(), [editor]);
   const canvasOrigin = vertical ? bounds.y : bounds.x;
@@ -384,7 +397,19 @@ function Ruler({ vertical = false, settings }: { vertical?: boolean; settings: C
     ticks.push(<g key={count}>{vertical ? <><path d={`M13 ${point}h7`} /><text x="9" y={point + 3} transform={`rotate(-90 9 ${point + 3})`}>{text}</text></> :
       <><path d={`M${point} 13v7`} /><text x={point + 3} y="10">{text}</text></>}</g>);
   }
-  return <svg width={vertical ? '20' : '100%'} height={vertical ? '100%' : '20'} aria-hidden="true">{ticks}</svg>;
+  const description = t(vertical ? 'dragVertical' : 'dragHorizontal');
+  return <div className={`drawing-ruler-guide-control${vertical ? ' is-vertical' : ''}`} role="button" tabIndex={0}
+    aria-label={description} title={description} data-testid={vertical ? 'drawing-ruler-vertical' : 'drawing-ruler-horizontal'}
+    onPointerDown={event => {
+      if (beginDrawingGuideDrag(editor, { axis: vertical ? 'x' : 'y' }, event.nativeEvent, event.currentTarget)) {
+        event.preventDefault(); event.stopPropagation(); event.currentTarget.focus();
+      }
+    }}
+    onDoubleClick={onGuides} onKeyDown={event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onGuides(); }
+    }}>
+    <svg width={vertical ? '20' : '100%'} height={vertical ? '100%' : '20'} aria-hidden="true">{ticks}</svg>
+  </div>;
 }
 
 const styleFields = [
@@ -414,6 +439,10 @@ export function DrawingChrome() {
   const outlineLabel = useOutlineText();
   const outlineObjectLabel = useOutlineToObjectText();
   const objectTreeLabel = useObjectTreeText();
+  const guideLabel = useGuideText();
+  const pickSkewLabel = usePickSkewText();
+  const skewLabel = useSkewText();
+  const skewErrorText = (code: string) => skewLabel(Object.hasOwn(enSkew, code) ? code as keyof typeof enSkew : 'failed');
   const nodeArrangeLabel = useNodeArrangeText();
   const preflightLabel = usePreflightText();
   const [arrangeTask, setArrangeTask] = useState<ArrangeTask>('align');
@@ -436,6 +465,7 @@ export function DrawingChrome() {
   const [findFocusRequest, setFindFocusRequest] = useState(0);
   const [selectSameFocusRequest, setSelectSameFocusRequest] = useState(0);
   const [objectOrderFocusRequest, setObjectOrderFocusRequest] = useState(0);
+  const [guidesFocusRequest, setGuidesFocusRequest] = useState(0);
   useEffect(() => { if (context?.panel) setLastPanel(context.panel); }, [context?.panel]);
   const [cadFocus, setCadFocus] = useState<CadFocusRequest>();
   const settings = useValue('drawing cad settings', () => readCadSettings(editor), [editor]);
@@ -449,6 +479,16 @@ export function DrawingChrome() {
     zoom: editor.getZoomLevel(), grid: editor.getInstanceState().isGridMode, snap: editor.user.getIsSnapMode(),
     opacity: editor.getSharedOpacity(), single: editor.getOnlySelectedShape() }), [editor]);
   const [notice, setNotice] = useState('');
+  const guides = useValue('Guidelines toolbar state', () => ({ ...readDrawingGuides(editor), valid: drawingGuidesAreValid(editor) }), [editor]);
+  const guideNotice = useValue('Guideline editing message', () => drawingGuideNotice(editor).get(), [editor]);
+  const skewMode = useValue('Pick rotate skew state', () => isDrawingSkewMode(editor), [editor]);
+  const skewSelection = useValue('Pick skew eligibility', () => readSkewSelection(editor), [editor]);
+  const skewGesture = useValue('Pick skew preview', () => drawingSkewGesture(editor).get(), [editor]);
+  const skewNotice = useValue('Pick skew message', () => drawingSkewNotice(editor).get(), [editor]);
+  const guideNoticeText = guideNotice ? guideLabel(guideNotice) : '';
+  const skewNoticeText = skewNotice ? skewNotice === 'canceled' ? pickSkewLabel('canceled') : skewErrorText(skewNotice) : '';
+  useEffect(() => { if (guideNoticeText) setNotice(guideNoticeText); }, [guideNoticeText]);
+  useEffect(() => { if (skewNoticeText) setNotice(skewNoticeText); }, [skewNoticeText]);
   const [busy, setBusy] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [exportOptions, setExportOptions] = useState<DrawingExportOptions>({ scope: 'selected', scale: 1, background: false, padding: 24 });
@@ -467,6 +507,7 @@ export function DrawingChrome() {
   function chooseTool(tool: string) {
     if (editor.getInstanceState().isReadonly && !['hand', 'select', 'nodes'].includes(tool)) return;
     if(tool==='nodes'){focusCad('nodes');setToolGroup(null);return;}
+    setDrawingSkewMode(editor, false);
     setCadNodeEditing(editor, false);
     setToolGroup(null);
     const group = toolGroups.find(group => group.tools.includes(tool));
@@ -562,6 +603,23 @@ export function DrawingChrome() {
     setObjectOrderFocusRequest(value => value + 1);
     closeMenus();
   }
+  function openGuides() {
+    context?.setPanel('guides');
+    setGuidesFocusRequest(value => value + 1);
+    closeMenus();
+  }
+  function toggleGuides() {
+    try {
+      const plan = prepareDrawingGuideChange(editor, { kind: 'settings', visible: !readDrawingGuides(editor).visible });
+      if (!applyDrawingGuideChange(editor, plan)) setNotice(guideLabel('failed'));
+    } catch { setNotice(guideLabel('failed')); }
+    closeMenus();
+  }
+  function togglePickSkew() {
+    setToolGroup(null); closeMenus(); drawingGuideNotice(editor).set(null);
+    if (setDrawingSkewMode(editor, !isDrawingSkewMode(editor))) { setNotice(''); editor.focus(); }
+    else setNotice(skewErrorText(readSkewSelection(editor).error ?? 'failed'));
+  }
   function reverseObjectOrder() {
     const plan = prepareDrawingObjectOrder(editor, { kind: 'reverse' });
     setNotice(plan && applyDrawingObjectOrder(editor, plan) ? '' : label('changedFailed'));
@@ -580,6 +638,7 @@ export function DrawingChrome() {
       }
       else if (request.action === 'transform') openTransform();
       else if (request.action === 'repeat') openRepeat();
+      else if (request.action === 'guides') openGuides();
       else if (request.action === 'align' || request.action === 'radial') openArrange(request.action);
       else context?.setPanel(request.action);
     };
@@ -631,7 +690,20 @@ export function DrawingChrome() {
   useEffect(() => {
     const root = context?.root.current;
     if (!root) return;
+    const guardControlKeys = (event: KeyboardEvent) => {
+      // Custom page-space controls own their keyboard events. Mark the native
+      // event before tldraw's container listener; let the control handle it.
+      if (isDrawingPointerGestureActive(editor) || event.target instanceof Element &&
+          event.target.closest('[data-drawing-guide-control],[data-drawing-skew-edge]')) {
+        if (['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) return false;
+        (event as KeyboardEvent & { isKilled?: boolean }).isKilled = true;
+        if (isDrawingPointerGestureActive(editor)) event.preventDefault();
+        return true;
+      }
+      return false;
+    };
     const keys = (event: KeyboardEvent) => {
+      if (guardControlKeys(event)) return;
       // Radix handles menu navigation. Arrows here must not nudge the artwork
       // underneath a context menu or trigger single-letter drawing shortcuts.
       if (event.target instanceof Element && event.target.closest('.tlui-menu')) {
@@ -745,8 +817,9 @@ export function DrawingChrome() {
     };
     const outside = (event: PointerEvent) => { if (event.target instanceof Element && !event.target.closest('.drawing-menu')) closeMenus(); };
     root.addEventListener('keydown', keys, true);
+    root.addEventListener('keyup', guardControlKeys, true);
     document.addEventListener('pointerdown', outside);
-    return () => { root.removeEventListener('keydown', keys, true); document.removeEventListener('pointerdown', outside); };
+    return () => { root.removeEventListener('keydown', keys, true); root.removeEventListener('keyup', guardControlKeys, true); document.removeEventListener('pointerdown', outside); };
   }, [context?.root, context?.setPanel, editor, openMenu, toolGroup, cadLabel, advancedLabel, label]);
   if (!context) return null;
   const { hosts, panel, setPanel, order, onImport } = context;
@@ -877,8 +950,8 @@ export function DrawingChrome() {
     disabled={protectedForm || (field === 'w' || field === 'h' ? !canResize : field === 'rotation' ? !canRotate : !controls.canEditSelection)} /> : <NumberField key={field} field={field} label={label(fieldNames[field])}
     value={field === 'x' ? position?.x : field === 'y' ? position?.y : field === 'w' ? bounds?.w : field === 'h' ? bounds?.h : state.single ? editor.getShapePageTransform(state.single).rotation() * 180 / Math.PI : undefined}
     disabled={field === 'w' || field === 'h' ? !canResize : field === 'rotation' ? !canRotate : !controls.canEditSelection} />;
-  const panelModes = ['properties', 'text', 'arrange', 'measure', 'snap', 'objects', 'cad'] as const;
-  const panelLabel = (mode: Exclude<Panel, null>) => mode === 'snap' ? snapLabel('title') : mode === 'cad' ? cadLabel('cad') : mode === 'properties' || mode === 'objects' ? label(mode) : workbenchLabel(mode);
+  const panelModes = ['properties', 'text', 'arrange', 'measure', 'guides', 'snap', 'objects', 'cad'] as const;
+  const panelLabel = (mode: Exclude<Panel, null>) => mode === 'guides' ? guideLabel('title') : mode === 'snap' ? snapLabel('title') : mode === 'cad' ? cadLabel('cad') : mode === 'properties' || mode === 'objects' ? label(mode) : workbenchLabel(mode);
   const groupLabel = (group: typeof toolGroups[number]) => group.id === 'curves' || group.id === 'shapes' || group.id === 'annotations' ? workbenchLabel(group.id) : toolLabel(group.tools[0]);
   const activeToolGroup = toolGroups.find(group => group.id === toolGroup);
 
@@ -943,16 +1016,21 @@ export function DrawingChrome() {
           <button type="button" onClick={() => focusCad('polygon')}>{parametricShapeLabel('title')}</button>
           <button type="button" onClick={() => focusCad('rectangle')}>{rectangleShapeLabel('title')}</button>
           <button type="button" onClick={openTransform}>{arrangeTaskLabel('transform')}</button>
+          <button type="button" aria-pressed={skewMode} disabled={!skewMode && !!skewSelection.error} onClick={togglePickSkew}
+            title={skewSelection.error ? skewErrorText(skewSelection.error) : pickSkewLabel('help')} data-testid="drawing-menu-skew-mode">{pickSkewLabel('mode')}</button>
           <button type="button" aria-keyshortcuts="Control+Shift+A Meta+Shift+A" title={`${advancedLabel('arrange')} (Ctrl/⌘+Shift+A)`} onClick={()=>openArrange('align')}>{advancedLabel('arrange')}</button>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="bitmaps" open={openMenu === 'bitmaps'}>{menuSummary('bitmaps', vectorLabel('bitmaps'))}<div className="drawing-menu-popover"><button type="button" disabled={controls.readOnly} onClick={() => focusCad('trace')}>{vectorLabel('trace')}</button></div></details>
         <details className="drawing-menu" data-drawing-menu="layout" open={openMenu === 'layout'}>{menuSummary('layout', cadLabel('layout'))}<div className="drawing-menu-popover">
           <button type="button" onClick={() => focusCad('document')}>{cadLabel('document')}</button><button type="button" onClick={()=>{setPanel('measure');closeMenus();}}>{workbenchLabel('measure')}</button>
+          <button type="button" onClick={openGuides}>{guideLabel('open')}</button>
         </div></details>
         <details className="drawing-menu" data-drawing-menu="view" open={openMenu === 'view'}>{menuSummary('view', label('view'))}<div className="drawing-menu-popover">{menuActions(['fit', 'fit-selection', 'zoom-reset'])}
           <button type="button" aria-pressed={state.grid} onClick={() => command('grid')}>{state.grid ? '✓ ' : ''}{label('grid')}</button>
           <button type="button" aria-pressed={state.snap} onClick={() => command('snap')}>{state.snap ? '✓ ' : ''}{label('snap')}</button>
           <button type="button" onClick={() => { setPanel('snap'); closeMenus(); }} data-testid="drawing-menu-snap-options">{snapLabel('open')}</button>
+          <button type="button" aria-pressed={guides.visible} disabled={controls.readOnly || !guides.valid || drawingGuidesBusy(editor)} onClick={toggleGuides} data-testid="drawing-menu-guides-visible">{guides.visible ? '✓ ' : ''}{guideLabel('showGuides')}</button>
+          <button type="button" onClick={openGuides} data-testid="drawing-menu-guides">{guideLabel('open')}</button>
         </div></details>
       </nav>
     </>)}
@@ -989,6 +1067,8 @@ export function DrawingChrome() {
       {settings && <ToolButton icon={proportional ? 'lock' : 'unlock'} label={cadLabel('proportional')} active={proportional} onClick={() => setProportional(value => !value)} testId="drawing-cad-proportional" />}
       <span className="drawing-divider" />
       {transformField('rotation')}
+      {controls.tool === 'select' && !nodeEditing && <ToolButton icon="skew" label={skewSelection.error ? `${pickSkewLabel('mode')}: ${skewErrorText(skewSelection.error)}` : pickSkewLabel('mode')}
+        active={skewMode} disabled={!skewMode && !!skewSelection.error} onClick={togglePickSkew} testId="drawing-skew-mode">{pickSkewLabel('mode')}</ToolButton>}
       <span className="drawing-unit">{settings ? `${settings.unit} · 1:${settings.scale}` : label('units')}</span>
       {cadStyleSelection ? <div className="drawing-property-actions"><ToolButton icon="paint" label={vectorLabel('paint')} onClick={() => focusCad('paint')} testId="drawing-property-paint">{vectorLabel('paint')}</ToolButton></div>
         : nativePropertyFields.length > 0 && <><span className="drawing-divider" /><fieldset className="drawing-context-properties" disabled={!controls.canStyle}
@@ -1014,7 +1094,7 @@ export function DrawingChrome() {
       {activeToolGroup.tools.map(tool => <button type="button" key={tool} disabled={controls.readOnly} aria-pressed={controls.tool === tool} title={`${toolLabel(tool)}${shortcut[tool] ? ` (${shortcut[tool]})` : ''}`} onClick={() => chooseTool(tool)} data-testid={`drawing-flyout-${tool}`}><Icon name={tool} /><span>{toolLabel(tool)}</span>{shortcut[tool] && <kbd>{shortcut[tool]}</kbd>}</button>)}
     </div>, context.root.current, 'tool-flyout')}
     {portal('rulerOrigin', settings?.unit ?? 'px')}
-    {portal('rulerX', <Ruler settings={settings} />)}{portal('rulerY', <Ruler vertical settings={settings} />)}
+    {portal('rulerX', <Ruler settings={settings} onGuides={openGuides} />)}{portal('rulerY', <Ruler vertical settings={settings} onGuides={openGuides} />)}
     {portal('docker', <>
       <div className="drawing-docker-title"><strong>{panelLabel(activePanel)}</strong>
         <ToolButton icon="close" label={label('closePanel')} onClick={() => {
@@ -1024,7 +1104,9 @@ export function DrawingChrome() {
         }} />
       </div>
       <div className="drawing-docker-content" role="region" aria-label={panelLabel(activePanel)}>
-        {activePanel === 'snap' ? <CadSnapPanel settings={settings}/> : activePanel === 'text' ? <><DrawingFindReplacePanel focusRequest={findFocusRequest}/><TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/></> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <>
+        {activePanel === 'guides' ? <DrawingGuidesPanel settings={settings} focusRequest={guidesFocusRequest} onDocument={() => focusCad('document')}
+          renderAlignment={guide => <DrawingGuideAlignment key={guide?.id ?? 'none'} guide={guide}/>}/>
+        : activePanel === 'snap' ? <CadSnapPanel settings={settings}/> : activePanel === 'text' ? <><DrawingFindReplacePanel focusRequest={findFocusRequest}/><TextPanel onOutlines={()=>focusCad('convert')} onLettering={()=>focusCad('lettering')} fontFocusRequest={fontFocusRequest}/></> : activePanel === 'measure' ? <MeasurePanel settings={settings} onTool={chooseTool} onDocument={()=>focusCad('document')}/> : activePanel === 'arrange' ? <>
           <label className="drawing-cad-task"><span>{arrangeTaskLabel('task')}</span><select value={arrangeTask} data-testid="drawing-arrange-task" onChange={event => setArrangeTask(event.target.value as ArrangeTask)}>
             {(['transform','align','repeat','radial'] as const).map(task => <option key={task} value={task}>{arrangeTaskLabel(task)}</option>)}
           </select></label>
@@ -1082,7 +1164,7 @@ export function DrawingChrome() {
         }} onClick={() => styleChange(DefaultColorStyle, value)} style={{ backgroundColor: theme[value].solid }} data-testid={`drawing-colour-${value}`} />)}
     </div>)}
     {portal('status', <>
-      <span className="drawing-status-text" role="status" title={controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
+      <span className="drawing-status-text" role="status" title={skewMode ? pickSkewLabel('help') : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : undefined}>{skewGesture ? skewGesture.error ? skewErrorText(skewGesture.error) : `${pickSkewLabel('mode')}: ${Number(skewGesture.angle.toFixed(2))}°${skewGesture.limited ? ` · ${pickSkewLabel('limit')}` : ''}` : notice || (activeSnap ? snapLabel(activeSnap.kind) : controls.readOnly ? label('readOnly') : controls.selectionLocked ? label('locked') : skewMode ? pickSkewLabel('help') : constructionHint ? `${constructionHint} · ${workbenchLabel('constructionKeys')}` : controls.tool === 'cad-polyline' ? cadLabel('polylineKeys') : controls.tool === 'cad-bezier' ? advancedLabel('bezierKeys') : `${controls.selected} ${label('selected')} · ${state.shapes.length} ${label('items')}`)}</span>
       <span className={`drawing-keyboard-hint${settings ? ' drawing-cad-status-unit' : ''}`} title={settings ? cadLabel('nudgeHelp') : label('keyboard')}>{settings ? <>{settings.unit} · 1:{settings.scale}<span className="drawing-cad-status-nudge"> · {cadLabel('nudge')}: {settings.nudge} {settings.unit}</span></> : label('units')}</span>
       <button type="button" onClick={() => command('grid')} aria-pressed={state.grid}>{label('grid')}</button>
       <button type="button" onClick={() => command('snap')} aria-pressed={state.snap}>{label('snap')}</button>

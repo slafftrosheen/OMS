@@ -6,7 +6,7 @@ export const DRAWING_UI_REQUEST = 'oms:drawing-ui-request';
 const commands = ['undo', 'redo', 'duplicate', 'delete', 'group', 'ungroup', 'front', 'back',
   'forward', 'backward', 'rotate-left', 'rotate-right', 'flip-horizontal', 'flip-vertical',
   'lock', 'fit', 'fit-selection', 'select-all'] as const;
-const panels = ['properties', 'objects', 'text', 'transform', 'align', 'repeat', 'radial'] as const;
+const panels = ['properties', 'objects', 'text', 'transform', 'align', 'repeat', 'radial', 'guides'] as const;
 const cad = ['nodes', 'convert', 'outline', 'paint', 'outlineObject', 'document'] as const;
 const objects = ['relative', 'reverse'] as const;
 export type DrawingUiRequest =

@@ -5,7 +5,7 @@ import { validCadPoint, canvasLengthToUnit, unitLengthToCanvas, type CadSettings
 import { drawingTransaction } from './drawing-commands';
 
 export type ArrangeOptions =
-  | { kind: 'align'; axis: 'x' | 'y'; alignment: 'start' | 'center' | 'end'; reference: 'selection' | TLShapeId }
+  | { kind: 'align'; axis: 'x' | 'y'; alignment: 'start' | 'center' | 'end'; reference: 'selection' | TLShapeId | { position: number; together?: boolean } }
   | { kind: 'distribute'; axis: 'x' | 'y'; mode: 'centers' | 'gaps' }
   | { kind: 'space'; axis: 'x' | 'y'; gap: number; anchor: 'start' | 'end' | TLShapeId };
 interface Item { id: TLShapeId; bounds: Box; leaves: Array<{ id: TLShapeId; bounds: Box; rotation: number }> }
@@ -44,9 +44,9 @@ export function arrangementRoots(editor: Editor): TLShapeId[] {
 }
 const validBounds = (b: Box | undefined): b is Box => !!b && b.w >= 0 && b.h >= 0 &&
   validCadPoint({ x: b.x, y: b.y }) && validCadPoint({ x: b.maxX, y: b.maxY });
-function selection(editor: Editor): Item[] {
+function selection(editor: Editor, minimum = 2): Item[] {
   const roots = arrangementRoots(editor);
-  if (roots.length < 2 || roots.length > 500) throw new CadOperationError('arrangeSelection');
+  if (roots.length < minimum || roots.length > 500) throw new CadOperationError('arrangeSelection');
   try { assertCadEditable(editor, roots); } catch { throw new CadOperationError('arrangeProtected'); }
   return roots.map(id => {
     const members = [...editor.getShapeAndDescendantIds([id])].map(id => editor.getShape(id));
@@ -78,15 +78,27 @@ const position = (b: Box, axis: 'x' | 'y', alignment: 'start' | 'center' | 'end'
  * ties by stable shape ID keeps coincident items independent of selection order. */
 export function prepareArrangePlan(editor: Editor, options: ArrangeOptions): ArrangePlan {
   if (!options || !['x', 'y'].includes(options.axis) || !['align', 'distribute', 'space'].includes(options.kind)) throw new CadOperationError('arrangeFailed');
-  const items = selection(editor), { axis } = options, size = axis === 'x' ? 'w' : 'h';
+  const coordinateReference = options.kind === 'align' && typeof options.reference === 'object';
+  const items = selection(editor, coordinateReference ? 1 : 2), { axis } = options, size = axis === 'x' ? 'w' : 'h';
   const targets = new Map<TLShapeId, number>();
   let gap: number | undefined;
   if (options.kind === 'align') {
     if (!['start', 'center', 'end'].includes(options.alignment)) throw new CadOperationError('arrangeFailed');
-    const reference = options.reference === 'selection' ? Box.Common(items.map(i => i.bounds)) : items.find(i => i.id === options.reference)?.bounds;
-    if (!reference) throw new CadOperationError('arrangeSelection');
-    const target = position(reference, axis, options.alignment);
-    for (const item of items) targets.set(item.id, item.bounds[axis] + target - position(item.bounds, axis, options.alignment));
+    if (typeof options.reference === 'object') {
+      const reference = options.reference;
+      if (!reference || !validCadPoint({ x: axis === 'x' ? reference.position : 0, y: axis === 'y' ? reference.position : 0 }) ||
+          reference.together !== undefined && typeof reference.together !== 'boolean') throw new CadOperationError('arrangeBounds');
+      // A guide can move the selection as one motif, preserving the spacing
+      // between roots, or align each root independently when explicitly chosen.
+      const common = Box.Common(items.map(item => item.bounds));
+      for (const item of items) targets.set(item.id, item.bounds[axis] + reference.position -
+        position(reference.together === false ? item.bounds : common, axis, options.alignment));
+    } else {
+      const reference = options.reference === 'selection' ? Box.Common(items.map(i => i.bounds)) : items.find(i => i.id === options.reference)?.bounds;
+      if (!reference) throw new CadOperationError('arrangeSelection');
+      const target = position(reference, axis, options.alignment);
+      for (const item of items) targets.set(item.id, item.bounds[axis] + target - position(item.bounds, axis, options.alignment));
+    }
   } else {
     if (options.kind === 'distribute' && (items.length < 3 || !['centers', 'gaps'].includes(options.mode))) throw new CadOperationError('arrangeSelection');
     const by = options.kind === 'distribute' && options.mode === 'centers' ? 'center' : 'start';
@@ -134,7 +146,8 @@ export function applyArrangePlan(editor: Editor, plan: ArrangePlan): boolean {
     if (plan.revision !== cadRevision(editor)) return false;
     editor.complete(); editor.setCurrentTool('select');
     if (plan.revision !== cadRevision(editor)) return false;
-    const fresh = prepareArrangePlan(editor, plan.options), items = selection(editor);
+    const fresh = prepareArrangePlan(editor, plan.options), items = selection(editor,
+      plan.options.kind === 'align' && typeof plan.options.reference === 'object' ? 1 : 2);
     if (!fresh.moved) return true;
     const updates = fresh.placements.map(({ id, delta }) => {
       const shape = editor.getShape(id)!, origin = editor.getShapePageTransform(shape).point();

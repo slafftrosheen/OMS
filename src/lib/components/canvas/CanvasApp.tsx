@@ -7,6 +7,10 @@ import {CadConstructionOverlay} from './CadConstructionOverlay';
 import {CadNodeSelectionOverlay} from './CadNodeSelectionOverlay';
 import { DrawingWorkspace, DrawingChrome } from './DrawingWorkspace';
 import { DrawingContextMenu } from './DrawingContextMenu';
+import { DrawingGuideOverlay } from './DrawingGuideOverlay';
+import { DrawingPickHandles, DrawingPickSelectionForeground } from './DrawingPickSelectionForeground';
+import { installDrawingSkewMode } from './drawing-pick-skew';
+import { clearDrawingKeyReleases } from './drawing-pointer-gesture';
 import {OrderFilePocketOverlays, OrderFilePocketFallback, OrderFilePocketsProvider} from './OrderFilePockets';
 import {syncCreationFileDocuments} from './order-file-documents';
 import { CadPathShapeUtil, CadEllipseShapeUtil, CadArcShapeUtil, CadDimensionShapeUtil } from './shapes/CadShapes';
@@ -19,6 +23,8 @@ import canvasAssetUrls from './tldraw-asset-urls.json';
 import React, { useEffect, useRef } from 'react';
 import { Tldraw, getSnapshot, GeoShapeGeoStyle, react as trackEditor, type Editor } from '@tldraw/tldraw';
 import '@tldraw/tldraw/tldraw.css';
+import './drawing-pick-skew.css';
+import './drawing-guides.css';
 import { MakerShapeUtil } from './shapes/MakerShape';
 import { IdeaShapeUtil } from './shapes/IdeaShape';
 import { MaterialSwatchShapeUtil } from './shapes/MaterialSwatchShape';
@@ -67,8 +73,9 @@ const customShapeUtils = [
 // selection handles remain inside tldraw's providers. Object menus go through
 // OMS guards, including locked descendants of a selected group.
 const drawingUi = {
-    OnTheCanvas: () => <><OrderFilePocketOverlays/><CadConstructionOverlay/><CadNodeSelectionOverlay/></>,
+    OnTheCanvas: () => <><OrderFilePocketOverlays/><DrawingGuideOverlay/><CadConstructionOverlay/><CadNodeSelectionOverlay/></>,
     InFrontOfTheCanvas: OrderFilePocketFallback,
+    SelectionForeground: DrawingPickSelectionForeground, Handles: DrawingPickHandles,
     Toolbar: null, StylePanel: null,
     ActionsMenu: null, QuickActions: null, MenuPanel: null,
     NavigationPanel: null, HelperButtons: null, HelpMenu: null, ContextMenu: DrawingContextMenu,
@@ -172,8 +179,8 @@ export function CanvasApp({
     const handleMount = (editor: Editor) => {
         installDrawingTextUtil(editor);
         cleanupCadTransformsRef.current?.();
-        const stopTransforms = installCadTransforms(editor), stopFonts = installDrawingFonts(editor);
-        cleanupCadTransformsRef.current = () => { stopTransforms(); stopFonts(); };
+        const stopTransforms = installCadTransforms(editor), stopFonts = installDrawingFonts(editor), stopSkewMode = installDrawingSkewMode(editor);
+        cleanupCadTransformsRef.current = () => { stopTransforms(); stopFonts(); stopSkewMode(); clearDrawingKeyReleases(editor); };
         editorRef.current = editor;
         editor.updateInstanceState({ isReadonly: toolkitReadOnly });
 

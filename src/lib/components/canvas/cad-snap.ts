@@ -1,6 +1,7 @@
 import { atom, type Editor, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { validCadPoint, type CadPoint } from './cad-settings';
 import { readCadSnapSettings } from './cad-snap-settings';
+import { nearestDrawingGuidePoint, readDrawingGuides } from './drawing-guides';
 import { contourSegments, cubicAt, splitCubic, type CadContour } from './cad-curves';
 import { cubicLength } from './cad-measurements';
 import { ellipseTangentPoints, perpendicularSegmentPoint } from './cad-construction-snaps';
@@ -9,7 +10,7 @@ import { MAX_SNAP_INTERSECTION_SOURCES, MAX_CUBIC_ELLIPSE_SNAP_PAIRS, snapInters
 import { MAX_CUBIC_CUBIC_SNAP_PAIRS, MAX_CUBIC_CUBIC_SNAP_STEPS } from './cad-cubic-intersections';
 export { lineSnapIntersection } from './cad-intersections';
 
-export type CadSnapKind = 'endpoints' | 'midpoints' | 'centers' | 'quadrants' | 'intersections' | 'perpendicular' | 'tangent' | 'nearest' | 'grid';
+export type CadSnapKind = 'endpoints' | 'midpoints' | 'centers' | 'quadrants' | 'intersections' | 'perpendicular' | 'tangent' | 'guidelines' | 'nearest' | 'grid';
 export interface CadSnapResult { point: CadPoint; kind: CadSnapKind }
 const indicators = new WeakMap<Editor, ReturnType<typeof atom<CadSnapResult | null>>>();
 export function cadSnapIndicator(editor: Editor) {
@@ -174,6 +175,10 @@ export function findCadSnap(editor: Editor, point: CadPoint, exclude: TLShapeId 
     for (const intersection of snapIntersections(a, b, cubicBudget)) offer(intersection, 'intersections');
   }
   if (best) return best;
+  if (settings.guidelines) {
+    const guide = nearestDrawingGuidePoint(readDrawingGuides(editor), point, tolerance);
+    if (guide) return { point: guide, kind: 'guidelines' };
+  }
   if (settings.nearest) near.forEach(q => offer(q, 'nearest'));
   if (best) return best;
   if (settings.grid) offer({ x: Math.round(point.x / settings.gridSpacing) * settings.gridSpacing, y: Math.round(point.y / settings.gridSpacing) * settings.gridSpacing }, 'grid');

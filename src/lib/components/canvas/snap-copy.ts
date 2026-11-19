@@ -5,6 +5,7 @@ import {get} from 'svelte/store';
 const en = {
   title:'Snap options',open:'Snap options…',enabled:'Object guides and CAD snapping',gridShow:'Show grid and snap moved objects',targets:'Snap targets',
   endpoints:'Endpoints and nodes',midpoints:'Segment midpoints',centers:'Centres',quadrants:'Quadrants',intersections:'Intersections',nearest:'Nearest point',grid:'Grid points',
+  guidelines:'Document guidelines',guidelinesHelp:'CAD tools snap to document guidelines after exact object targets and before nearest points or the grid. Locked and hidden guidelines remain snap targets while this option is on. Ordinary Pick-tool movement is unchanged.',
   perpendicular:'Perpendicular to straight edges and Bézier curves',tangent:'Tangent to circles, arcs, ellipses and Bézier curves',
   constructionHelp:'Perpendicular and tangent targets start from the last polyline vertex or first dimension point. Pick that point first, then move near the connection you want. Bézier contacts use the original cubic, including isolated tangent contacts. Cusps and coincident connections are skipped. Perpendiculars to circles, arcs and ellipses are not included. At most 64 nearby cubic segments are checked per pointer move.',
   tolerance:'Snap distance (screen px)',gridSpacing:'Grid step',range:'Allowed range',
@@ -17,6 +18,7 @@ type Key=keyof typeof en;
 const ru:Record<Key,string> = {
   title:'Параметры привязки',open:'Параметры привязки…',enabled:'Направляющие объектов и привязки CAD',gridShow:'Показать сетку и привязывать перемещаемые объекты',targets:'Объекты привязки',
   endpoints:'Концы и узлы',midpoints:'Середины сегментов',centers:'Центры',quadrants:'Квадранты',intersections:'Пересечения',nearest:'Ближайшая точка',grid:'Точки сетки',
+  guidelines:'Направляющие документа',guidelinesHelp:'Инструменты CAD привязываются к направляющим после точных точек объектов и перед ближайшими точками или сеткой. Заблокированные и скрытые направляющие остаются целями привязки, пока эта опция включена. Обычное перемещение инструментом выбора не меняется.',
   perpendicular:'Перпендикуляр к прямым и кривым Безье',tangent:'Касательная к окружностям, дугам, эллипсам и кривым Безье',
   constructionHelp:'Перпендикуляр и касательная строятся из последней вершины полилинии или первой точки размера. Сначала задайте эту точку, затем подведите курсор к нужному месту соединения. Точки на кривых Безье вычисляются на исходном кубическом сегменте, включая отдельные точки касания. Особые точки с нулевой производной и соединения нулевой длины пропускаются. Перпендикуляры к окружностям, дугам и эллипсам не включены. За движение курсора проверяется до 64 кубических сегментов рядом с курсором.',
   tolerance:'Радиус привязки (пикс. экрана)',gridSpacing:'Шаг сетки',range:'Допустимый диапазон',
@@ -28,6 +30,7 @@ const ru:Record<Key,string> = {
 const lv:Record<Key,string> = {
   title:'Piesaistes iestatījumi',open:'Piesaistes iestatījumi…',enabled:'Objektu vadlīnijas un CAD piesaiste',gridShow:'Rādīt režģi un piesaistīt pārvietotos objektus',targets:'Piesaistes punkti',
   endpoints:'Galapunkti un mezgli',midpoints:'Segmentu viduspunkti',centers:'Centri',quadrants:'Kvadranti',intersections:'Krustpunkti',nearest:'Tuvākais punkts',grid:'Režģa punkti',
+  guidelines:'Dokumenta vadlīnijas',guidelinesHelp:'CAD rīki piesaistās dokumenta vadlīnijām pēc precīzajiem objektu punktiem un pirms tuvākajiem punktiem vai režģa. Bloķētas un paslēptas vadlīnijas paliek piesaistes mērķi, kamēr šī opcija ir ieslēgta. Parasta pārvietošana ar atlases rīku nemainās.',
   perpendicular:'Perpendikuls pret taisnām malām un Bezjē līknēm',tangent:'Pieskare apļiem, lokiem, elipsēm un Bezjē līknēm',
   constructionHelp:'Perpendikulu un pieskari veido no pēdējās polilīnijas virsotnes vai pirmā izmēra punkta. Vispirms norādiet šo punktu, tad pārvietojiet kursoru pie vēlamā savienojuma. Bezjē punkti tiek aprēķināti uz sākotnējās kubiskās līknes, arī atsevišķi pieskares punkti. Punkti ar nulles atvasinājumu un nulles garuma savienojumi tiek izlaisti. Perpendikuli pret apļiem, lokiem un elipsēm nav iekļauti. Katrā kursora kustībā pārbauda līdz 64 tuvumā esošiem kubiskiem segmentiem.',
   tolerance:'Piesaistes attālums (ekrāna px)',gridSpacing:'Režģa solis',range:'Atļautais diapazons',

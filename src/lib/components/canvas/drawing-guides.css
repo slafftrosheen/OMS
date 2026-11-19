@@ -1,0 +1,44 @@
+.drawing-guide-overlay, .drawing-guide-controls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.drawing-guide-overlay { z-index: 1000000; }
+.drawing-guide-controls { z-index: 1; }
+.drawing-guide-line { stroke: var(--color-selected, var(--brand)); pointer-events: none; }
+.drawing-guide-line.is-selected { stroke: var(--ink-primary); }
+.drawing-guide-preview { stroke: var(--color-selected, var(--brand)); pointer-events: none; }
+.drawing-guide-hit { stroke: transparent; pointer-events: stroke; touch-action: none; outline: none; }
+.drawing-guide-hit.is-x { cursor: ew-resize; }
+.drawing-guide-hit.is-y { cursor: ns-resize; }
+.drawing-guide-hit:focus-visible { stroke: var(--brand-soft); }
+.drawing-ruler-guide-control { width: 100%; height: 100%; touch-action: none; cursor: ns-resize; }
+.drawing-ruler-guide-control.is-vertical { cursor: ew-resize; }
+.drawing-ruler-guide-control:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.drawing-guide-alignment { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.drawing-guide-alignment h3 { margin: 0 0 8px; font-size: 12px; }
+.drawing-guide-align-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.drawing-guide-align-actions button { min-width: 0; min-height: 36px; overflow-wrap: anywhere; }
+.drawing-guides { min-width: 0; }
+.drawing-guides .drawing-workbench-fields { margin: 0 0 12px; }
+.drawing-guides .drawing-workbench-fields legend { margin-bottom: 8px; padding: 0; font-size: 12px; font-weight: 600; }
+.drawing-guide-list { display: grid; gap: 6px; margin: 16px 0; font-size: 12px; }
+.drawing-guide-list select {
+  width: 100%; min-width: 0; padding: 4px; border: 1px solid var(--border);
+  border-radius: 3px; color: var(--ink-primary); background: var(--bg-0); font-size: 12px;
+}
+.drawing-guide-list option { padding: 6px 4px; }
+.drawing-guide-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.drawing-guide-selected { padding-top: 8px; border-top: 1px solid var(--border); }
+.drawing-guide-help { margin-top: 16px; font-size: 12px; }
+.drawing-guide-help summary { min-height: 36px; padding: 8px 0; cursor: pointer; }
+.drawing-guides :is(select, summary, button, input):focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+@media (pointer: coarse) {
+  .drawing-guides button, .drawing-guide-help summary { min-height: 44px; }
+}
+@media (forced-colors: active) {
+  .drawing-guide-line, .drawing-guide-preview { stroke: Highlight; }
+  .drawing-guide-line.is-selected { stroke: CanvasText; }
+}

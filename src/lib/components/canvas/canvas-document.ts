@@ -10,6 +10,12 @@ export function registerCanvasDraft(editor: Editor, read: () => Draft) {
   return () => { if (drafts.get(editor) === read) drafts.delete(editor); };
 }
 
+/** True only after a CAD tool has unfinished geometry, not merely because its
+ * idle drawing tool is selected. A later cancel rolls back to this draft's mark. */
+export function hasCanvasDraft(editor: Editor): boolean {
+  return !!drafts.get(editor)?.();
+}
+
 /** Document-only persistence boundary, shared by autosave and recovery.
  * Never mutate the live store, history, selection or current drawing tool. */
 export function captureCanvasDocument(editor: Editor) {

@@ -1,0 +1,14 @@
+.drawing-pick-skew { overflow: visible; pointer-events: none; color: var(--color-selected, #2f66cf); }
+.drawing-pick-skew-bounds { fill: none; stroke: currentColor; opacity: .55; }
+.drawing-pick-skew-preview { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.drawing-pick-skew-source { stroke: var(--color-text-3, #697787); opacity: .7; }
+.drawing-pick-skew-result, .drawing-pick-skew-anchor { stroke: currentColor; }
+.drawing-pick-skew-angle { fill: var(--color-text-0, #172535); stroke: var(--color-background, white); paint-order: stroke; font-family: inherit; font-weight: 600; }
+.drawing-pick-skew-handle, .drawing-pick-rotate-handle { pointer-events: all; touch-action: none; outline: none; }
+.drawing-pick-skew-handle { cursor: ew-resize; }
+.drawing-pick-skew-handle--left, .drawing-pick-skew-handle--right { cursor: ns-resize; }
+.drawing-pick-rotate-handle { cursor: grab; }
+.drawing-pick-handle-target { fill: transparent; stroke: none; }
+.drawing-pick-skew-handle > path, .drawing-pick-rotate-handle > path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.drawing-pick-skew-handle:hover .drawing-pick-handle-target, .drawing-pick-rotate-handle:hover .drawing-pick-handle-target { fill: var(--color-selected, #2f66cf); fill-opacity: .12; }
+.drawing-pick-skew-handle:focus-visible .drawing-pick-handle-target { fill: var(--color-background, white); stroke: currentColor; stroke-width: 2; stroke-dasharray: 2 2; }

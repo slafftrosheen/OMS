@@ -176,6 +176,8 @@
     (window as any).__drawingFixture = {
       inspect: () => ({ shapes: editor?.getCurrentPageShapes(), selected: editor?.getSelectedShapeIds(), page: editor?.getCurrentPage(), tool: editor?.getCurrentToolId(), readonly, saves }),
       point: (id:string,x=.2,y=.2) => { const bounds=editor.getShapePageBounds(id); return editor.pageToScreen({x:bounds.x+bounds.w*x,y:bounds.y+bounds.h*y}); },
+      screenPoint: (point:{x:number;y:number}) => editor.screenToPage(point),
+      bounds: (id:string) => { const bounds=editor.getShapePageBounds(id); return bounds ? {x:bounds.x,y:bounds.y,w:bounds.w,h:bounds.h} : null; },
       roundTrip: () => { const snapshot = JSON.parse(JSON.stringify(getSnapshot(editor.store))); loadSnapshot(editor.store, snapshot); },
       emptyArea: () => { editor.setCamera({ x: -2400, y: 0, z: 1 }); },
     };

@@ -17,7 +17,7 @@ export interface SkewOptions {
   anchor: TransformAnchor;
   keepOriginal: boolean;
 }
-type Bounds = ReturnType<typeof curveBounds>;
+export type SkewBounds = ReturnType<typeof curveBounds>;
 export interface SkewItem {
   id: TLShapeId;
   source: CadContour[];
@@ -30,8 +30,8 @@ export interface SkewPlan {
   options: SkewOptions;
   roots: TLShapeId[];
   items: SkewItem[];
-  sourceBounds: Bounds;
-  resultBounds: Bounds;
+  sourceBounds: SkewBounds;
+  resultBounds: SkewBounds;
   anchor: CadPoint;
   generated: number;
 }
@@ -99,8 +99,8 @@ function selection(editor: Editor) {
 }
 
 /** Give the docker a specific reason before an operator prepares a preview. */
-export function readSkewSelection(editor: Editor): { count: number; error?: string } {
-  try { return { count: selection(editor).leaves.length }; }
+export function readSkewSelection(editor: Editor): { count: number; bounds?: SkewBounds; error?: string } {
+  try { const value = selection(editor); return { count: value.leaves.length, bounds: value.bounds }; }
   catch (error) { return { count: 0, error: error instanceof CadOperationError ? error.code : 'failed' }; }
 }
 
