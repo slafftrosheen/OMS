@@ -336,6 +336,51 @@ describe('CAD region shaping', () => {
     assert.ok(f.editor.getShape(a) && f.editor.getShape(b));
     assert.equal(f.only().props.contours[0].closed, false);
   });
+  it('pairs differently segmented DXF rails and exports an open midline at full scale', () => {
+    const f = fixture();
+    const source = dxf('0\nLINE\n10\n0\n20\n0\n11\n100\n21\n0\n' +
+      '0\nLWPOLYLINE\n90\n3\n70\n0\n10\n100\n20\n50\n10\n60\n20\n50\n10\n0\n20\n50\n');
+    const imported = prepareCadImport(f.editor, settings, source, { keepCoordinates: true });
+    assert.equal(imported.omitted.length, 0);
+    assert.equal(applyCadPlan(f.editor, imported), true);
+    const plan = prepareCadShaping(f.editor, settings, { ...opts, operation: 'midline' });
+    assert.ok(plan.warnings.includes('midline-sampled'));
+    assert.equal(plan.contours[0].closed, false);
+    assert.equal(plan.contours[0].nodes.length, 3);
+    assert.equal(applyCadPlan(f.editor, plan), true);
+    const result = buildCadDxf(f.editor, 'selected', settings);
+    assert.equal(result.omitted.length, 0);
+    assert.equal(result.closedContours, 0);
+    const [line] = new DxfParser().parseSync(result.text)!.entities as ILwpolylineEntity[];
+    assert.equal(line.type, 'LWPOLYLINE');
+    for (const [i, x] of [0, 60, 100].entries()) {
+      near(line.vertices[i].x, x); near(line.vertices[i].y, 25);
+    }
+    assert.equal(f.shapes.size, 3);
+  });
+  it('offsets an imported DXF arc concentrically and exports the result as a native ARC', () => {
+    const f = fixture();
+    const imported = prepareCadImport(f.editor, settings,
+      dxf('0\nARC\n10\n30\n20\n-20\n40\n100\n50\n350\n51\n20\n'), { keepCoordinates: true });
+    assert.equal(imported.omitted.length, 0);
+    assert.equal(applyCadPlan(f.editor, imported), true);
+    const source = f.only();
+    assert.equal(source.type, 'cad-arc');
+    const offset = (amount: number) => prepareCadShaping(f.editor, settings, { ...opts, operation: 'offset', offset: amount });
+    assert.throws(() => offset(100), /offset-collapse/);
+    near(Number(offset(-12).shapes![0].props.radius) * cadMmPerPixel(settings), 112);
+    const plan = offset(12);
+    assert.equal(applyCadPlan(f.editor, plan), true);
+    const result = buildCadDxf(f.editor, 'selected', settings);
+    assert.equal(result.omitted.length, 0);
+    const [arc] = new DxfParser().parseSync(result.text)!.entities as Array<{
+      type: string; center: { x: number; y: number }; radius: number; startAngle: number; endAngle: number
+    }>;
+    assert.equal(arc.type, 'ARC');
+    near(arc.center.x, 30); near(arc.center.y, -20); near(arc.radius, 88);
+    near(arc.startAngle * 180 / Math.PI, 350); near(arc.endAngle * 180 / Math.PI, 20);
+    assert.ok(f.editor.getShape(source.id));
+  });
   it('joins exact offset segments around open polyline corners and catches collapsed cuts', () => {
     const f = fixture();
     const id = shape(f, 'elbow', [{ closed: false,

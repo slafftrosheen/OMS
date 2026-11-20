@@ -1,12 +1,14 @@
 import ClipperLib from 'clipper-lib';
-import type { Editor } from '@tldraw/tldraw';
+import type { Editor, TLShape } from '@tldraw/tldraw';
 import { cadMmPerPixel, unitMm, type CadSettings } from './cad-settings';
-import { CAD_FLATTEN_LIMIT, flattenContours, mix, type CadContour } from './cad-curves';
+import { CAD_FLATTEN_LIMIT, flattenContours } from './cad-curves';
 import { restoreShapingCurves, shapingSpan, type Polygon, type PolygonPoint } from './cad-shaping-curves';
 import { cadSelectedShapes, shapeCadContours } from './cad-editing';
 import { assertCadMergeContext, cadReferencePaintWarnings, sourceCurveResult } from './cad-source-result';
 import { makeCadPlan, CadOperationError, type CadPlan } from './cad-plans';
 import { offsetOpenPolyline } from './cad-open-offset';
+import { prepareMidline } from './cad-midline';
+import type { CadArcShape } from './shapes/CadShapes';
 
 export interface CadShapingOptions {
   operation: 'weld' | 'trim' | 'intersect' | 'offset' | 'midline';
@@ -18,21 +20,20 @@ export interface CadShapingOptions {
 }
 const SCALE = 10000;
 
-function middleContour(a: CadContour, b: CadContour): CadContour {
-  if (a.closed || b.closed || a.nodes.length !== b.nodes.length) throw new CadOperationError('midline-pair');
-  const distance = (a: {x: number; y: number}, b: {x: number; y: number}) => Math.hypot(a.x - b.x, a.y - b.y);
-  const first = a.nodes[0], last = a.nodes.at(-1)!, from = b.nodes[0], to = b.nodes.at(-1)!;
-  const paired = distance(first, from) + distance(last, to) <= distance(first, to) + distance(last, from)
-    ? b.nodes : [...b.nodes].reverse().map(n => ({ ...n, inX: n.outX, inY: n.outY, outX: n.inX, outY: n.inY }));
-  const nodes = a.nodes.map((node, i) => ({
-    ...mix(node, paired[i], 0.5),
-    inX: (node.inX + paired[i].inX) / 2, inY: (node.inY + paired[i].inY) / 2,
-    outX: (node.outX + paired[i].outX) / 2, outY: (node.outY + paired[i].outY) / 2,
-    mode: 'corner' as const
-  }));
-  if (nodes.some((node, i) => i > 0 && distance(node, nodes[i - 1]) < 1e-8))
-    throw new CadOperationError('midline-pair');
-  return { closed: false, nodes };
+function offsetArc(editor: Editor, source: TLShape, distance: number, tolerance: number) {
+  const arc = source as CadArcShape;
+  const sweep = arc.props.endAngle - arc.props.startAngle;
+  if (!(sweep > 0 && sweep < 360) || !(arc.props.radius > 0)) throw new CadOperationError('offset-open');
+  // Positive sweep is counterclockwise in CAD coordinates, so left is inward.
+  const radius = arc.props.radius - distance;
+  if (radius <= 1e-8) throw new CadOperationError('offset-collapse');
+  const props = { ...arc.props, radius };
+  const contours = shapeCadContours(editor, { ...arc, props }, tolerance);
+  const shape = {
+    type: 'cad-arc' as const, aboveSourceId: arc.id,
+    x: arc.x, y: arc.y, rotation: arc.rotation, opacity: arc.opacity, props, meta: arc.meta
+  };
+  return { contours, shape };
 }
 
 function clip(a: Polygon[], b: Polygon[], operation: number, evenOdd = false): Polygon[] {
@@ -67,17 +68,34 @@ export function prepareCadShaping(editor: Editor, settings: CadSettings, options
   const distanceMm = options.offset * unitMm(settings.unit);
   if (options.operation === 'offset' && (!Number.isFinite(distanceMm) || !distanceMm || Math.abs(distanceMm) > 100_000))
     throw new CadOperationError('geometry');
-  if (options.operation === 'midline' || options.operation === 'offset' && hasOpen) {
-    if (options.operation === 'midline' && (shapes.length !== 2 || sourceCurves.some(curves => curves.length !== 1)))
+  const ids = shapes.map(shape => shape.id);
+  const removeIds = options.keepSources ? [] : ids;
+  if (options.operation === 'midline') {
+    if (shapes.length !== 2 || sourceCurves.some(curves => curves.length !== 1))
       throw new CadOperationError('midline-pair');
-    const contours = options.operation === 'midline'
-      ? [middleContour(sourceCurves[0][0], sourceCurves[1][0])]
-      : sourceCurves.flat().map(contour => offsetOpenPolyline(contour, distanceMm / factor, options.join, tolerance / factor));
-    const ids = shapes.map(shape => shape.id);
+    const { contour, sampled } = prepareMidline(sourceCurves[0][0], sourceCurves[1][0], tolerance / factor);
+    return makeCadPlan(editor, settings, [contour], {
+      sourceIds: ids, removeIds, name: 'CAD midline',
+      shapes: [sourceCurveResult(editor, reference, [contour], 'nonzero')],
+      warnings: [...(sampled ? ['midline-sampled'] : []), ...cadReferencePaintWarnings(editor, shapes, reference)]
+    });
+  }
+  if (options.operation === 'offset' && hasOpen) {
+    const offsetPolyline = (curves: typeof sourceCurves[number]) =>
+      curves.map(contour => offsetOpenPolyline(contour, distanceMm / factor, options.join, tolerance / factor));
+    if (shapes.some(shape => shape.type === 'cad-arc')) {
+      const results = shapes.map((source, i) => {
+        if (source.type === 'cad-arc') return offsetArc(editor, source, distanceMm / factor, tolerance / factor / 8);
+        const contours = offsetPolyline(sourceCurves[i]);
+        return { contours, shape: sourceCurveResult(editor, source, contours, 'nonzero') };
+      });
+      return makeCadPlan(editor, settings, results.flatMap(result => result.contours), {
+        sourceIds: ids, removeIds, name: 'CAD offset', shapes: results.map(result => result.shape)
+      });
+    }
+    const contours = sourceCurves.flatMap(offsetPolyline);
     return makeCadPlan(editor, settings, contours, {
-      sourceIds: ids,
-      removeIds: options.keepSources ? [] : ids,
-      name: options.operation === 'midline' ? 'CAD midline' : 'CAD offset',
+      sourceIds: ids, removeIds, name: 'CAD offset',
       shapes: [sourceCurveResult(editor, reference, contours, 'nonzero')],
       warnings: cadReferencePaintWarnings(editor, shapes, reference)
     });
@@ -142,10 +160,9 @@ export function prepareCadShaping(editor: Editor, settings: CadSettings, options
   }
   if (!result.length) throw new CadOperationError('empty');
   const { contours, restored } = restoreShapingCurves(result, spans, tolerance * SCALE + 2, toPage);
-  const ids = shapes.map((s) => s.id);
   return makeCadPlan(editor, settings, contours, {
     sourceIds: ids,
-    removeIds: options.keepSources ? [] : ids,
+    removeIds,
     name: `CAD ${options.operation}`,
     fillRule: 'nonzero',
     shapes: [sourceCurveResult(editor, reference, contours, 'nonzero')],
