@@ -1077,6 +1077,12 @@
     "provider": {
       "activeProvider": "Active AI provider",
       "openAISetup": "To choose OpenAI, set OMS_AI_PROVIDER=openai and OPENAI_API_KEY in the server environment, then restart OMS.",
+      "openAISharingTitle": "Allow OMS to send data to OpenAI",
+      "probe": "Test active provider",
+      "probeRunning": "Testing provider…",
+      "probeHint": "Sends one short request to the active provider and may count toward usage.",
+      "probePassed": "Provider responded",
+      "probeFailed": "Provider test failed",
       "openAISharing": "Allow OMS to send prompts, images, PDFs, and relevant order data to the OpenAI API under the configured API account.",
       "title": "AI provider — OpenRouter",
       "description": "Shared AI credential for the team. Prompts and attached images may be sent to OpenRouter; free routes can be rate-limited.",

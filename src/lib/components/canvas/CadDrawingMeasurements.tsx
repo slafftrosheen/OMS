@@ -1,7 +1,8 @@
 import React from 'react';
-import { useEditor, useValue, type Editor, type TLShape } from '@tldraw/tldraw';
+import { Box, useEditor, useValue, type Editor, type TLShape } from '@tldraw/tldraw';
 import { getCanvasDraftShape } from './canvas-document';
 import { canvasLengthToUnit, DEFAULT_CAD_SETTINGS, readCadSettings } from './cad-settings';
+import { cadFreehandPreview } from './cad-freehand-state';
 
 function drawingShape(editor: Editor): TLShape | undefined {
   // A click-based tool may stay in the same state when creating its preview.
@@ -16,17 +17,19 @@ function drawingShape(editor: Editor): TLShape | undefined {
 
 function drawingMeasurement(editor: Editor) {
   const shape = drawingShape(editor);
-  if (!shape || shape.type === 'cad-dimension') return null;
-  const bounds = editor.getShapePageBounds(shape);
+  if (shape?.type === 'cad-dimension') return null;
+  const penBounds = shape ? null : cadFreehandPreview(editor).get()?.geometry?.bounds;
+  const bounds = shape ? editor.getShapePageBounds(shape) :
+    penBounds ? new Box(penBounds.x, penBounds.y, penBounds.w, penBounds.h) : null;
   if (!bounds) return null;
   const settings = readCadSettings(editor) ?? DEFAULT_CAD_SETTINGS;
   const format = (size: number) => canvasLengthToUnit(size, settings).toFixed(settings.precision);
-  const props = shape.props as { radius?: number; w?: number; points?: Array<{ x: number; y: number }> };
+  const props = shape?.props as { radius?: number; w?: number; points?: Array<{ x: number; y: number }> } | undefined;
   let text = `${format(bounds.w)} × ${format(bounds.h)} ${settings.unit}`;
-  if (shape.type === 'cad-arc' && props.radius) text = `R ${format(props.radius)} ${settings.unit}`;
-  if (shape.type === 'cad-ellipse' && props.w) text = `Ø ${format(props.w)} ${settings.unit}`;
-  if (shape.type === 'cad-path' || shape.type === 'line') {
-    const points = shape.type === 'cad-path' ? props.points :
+  if (shape?.type === 'cad-arc' && props?.radius) text = `R ${format(props.radius)} ${settings.unit}`;
+  if (shape?.type === 'cad-ellipse' && props?.w) text = `Ø ${format(props.w)} ${settings.unit}`;
+  if (shape?.type === 'cad-path' || shape?.type === 'line') {
+    const points = shape.type === 'cad-path' ? props?.points :
       editor.getShapeHandles(shape)?.filter(handle => handle.type === 'vertex')
         .sort((a, b) => a.index.localeCompare(b.index));
     const a = points?.at(-2), b = points?.at(-1);

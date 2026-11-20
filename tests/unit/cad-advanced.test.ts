@@ -336,6 +336,27 @@ describe('CAD region shaping', () => {
     assert.ok(f.editor.getShape(a) && f.editor.getShape(b));
     assert.equal(f.only().props.contours[0].closed, false);
   });
+  it('joins exact offset segments around open polyline corners and catches collapsed cuts', () => {
+    const f = fixture();
+    const id = shape(f, 'elbow', [{ closed: false,
+      nodes: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 50 }].map(nodeAt) }]);
+    f.editor.setSelectedShapes([id]);
+    const offset = (pixels: number, join: 'round' | 'miter' | 'square') => prepareCadShaping(f.editor, settings, {
+      ...opts, operation: 'offset', offset: pixels * cadMmPerPixel(settings), join
+    }).contours[0];
+    const points = (contour: CadContour) => contour.nodes.map(node => [node.x, node.y]);
+    assert.deepEqual(points(offset(10, 'miter')), [[0, -10], [110, -10], [110, 50]]);
+    assert.deepEqual(points(offset(-10, 'round')), [[0, 10], [90, 10], [90, 50]]);
+    const square = points(offset(10, 'square'));
+    near(square[1][0], 100 + Math.tan(Math.PI / 8) * 10);
+    near(square[2][1], -Math.tan(Math.PI / 8) * 10);
+    const round = offset(10, 'round');
+    const [a, b] = round.nodes.slice(1, 3);
+    near(a.x, 100); near(a.y, -10); near(b.x, 110); near(b.y, 0);
+    const mid = cubicAt(cubicPoints(a, b), .5);
+    near(Math.hypot(mid.x - 100, mid.y), 10);
+    assert.throws(() => offset(-60, 'miter'), /offset-collapse/);
+  });
   it('refuses open contours, clipped geometry, protected and bound destructive operations, and stale plans', () => {
     const f = fixture(),
       id = shape(f, 'a', [rect(0, 0, 100, 100)]);
@@ -352,7 +373,9 @@ describe('CAD region shaping', () => {
     f.state.isReadonly = false;
     f.editor.updateShape({ id, mask: [] });
     assert.throws(() => prepareCadShaping(f.editor, settings, { ...opts, operation: 'offset' }), /unsupported/);
-    f.editor.updateShape({ id, mask: undefined, props: { contours: [{ ...rect(0, 0, 20, 20), closed: false }] } });
+    f.editor.updateShape({ id, mask: undefined, props: { contours: [{ closed: false, nodes: [
+      { ...nodeAt({ x: 0, y: 0 }), outY: 20 }, nodeAt({ x: 20, y: 0 })
+    ] }] } });
     assert.throws(() => prepareCadShaping(f.editor, settings, { ...opts, operation: 'offset' }), /open/);
     f.editor.createShape({ id: 'shape:form', type: 'order-details', props: {} });
     f.editor.setSelectedShapes(['shape:form']);

@@ -30,6 +30,8 @@
   let aiSettingsSaving = $state(false);
   let aiSettingsError = $state('');
   let aiSettingsMessage = $state('');
+  let providerTesting = $state(false);
+  let providerTest = $state<{ result: 'passed' | 'failed'; model?: string; latencyMs?: number; httpStatus?: number } | null>(null);
   type SettingsTab = 'general' | 'account' | 'ai' | 'telegram' | 'integrations';
   let activeSettingsTab = $state<SettingsTab>('general');
   let aiPolicy = $state<{ enabled: boolean; updatedAt: string | null; updatedBy: string | null } | null>(null);
@@ -37,6 +39,8 @@
   let aiPolicySaving = $state(false);
   let aiPolicyError = $state('');
   let aiPolicyMessage = $state('');
+  const activeProviderConfigured = $derived(aiSettings?.activeProvider === 'openai'
+    ? aiSettings.openAI?.configured === true : aiSettings?.configured === true);
   const authState = getContext<AuthState>('authState');
   const logoutAuthState = authState;
   let showOpenRouterSettings = $derived(authState?.user?.role === 'RD');
@@ -70,7 +74,7 @@
     } finally { aiPolicyLoading = false; }
   }
   async function saveAiPolicy(enabled: boolean) {
-    if (!showOpenRouterSettings || !aiPolicy || aiPolicySaving) return;
+    if (!showOpenRouterSettings || !aiPolicy || aiPolicySaving || providerTesting) return;
     aiPolicySaving = true; aiPolicyError = ''; aiPolicyMessage = '';
     try {
       const response = await fetch(`${base}/api/settings/ai-policy`, {
@@ -79,12 +83,32 @@
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || result.enabled !== enabled) throw new Error(tabCopy.sharingSaveFailed);
+      providerTest = null;
       aiPolicy = result; aiPolicyMessage = enabled ? tabCopy.sharingEnabled : tabCopy.sharingDisabled;
     } catch {
       // Force controlled checkbox to revert to last saved server value.
       if (aiPolicy) aiPolicy = { ...aiPolicy };
       aiPolicyError = tabCopy.sharingSaveFailed;
     } finally { aiPolicySaving = false; }
+  }
+  async function testAiProvider() {
+    if (!showOpenRouterSettings || !activeProviderConfigured || !aiPolicy?.enabled ||
+      aiSettingsLoading || aiPolicySaving || aiSettingsSaving || providerTesting) return;
+    providerTesting = true;
+    providerTest = null;
+    try {
+      const response = await fetch(`${base}/api/ai/health`, {
+        method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(25_000)
+      });
+      const payload = await response.json().catch(() => null);
+      if (response.ok && payload?.connectivity === 'ok') {
+        providerTest = { result: 'passed', model: payload.model, latencyMs: payload.latencyMs };
+      } else {
+        providerTest = { result: 'failed',
+          httpStatus: typeof payload?.providerStatus === 'number' ? payload.providerStatus : response.status };
+      }
+    } catch { providerTest = { result: 'failed' }; }
+    finally { providerTesting = false; }
   }
 
   async function loadOpenRouterSettings() {
@@ -96,6 +120,7 @@
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || `Settings request failed (${response.status})`);
       aiSettings = payload;
+      providerTest = null;
     } catch (err) {
       aiSettingsError = err instanceof Error ? err.message : 'Could not load provider settings.';
     } finally {
@@ -104,6 +129,7 @@
   }
 
   async function saveOpenRouterKey() {
+    if (providerTesting) return;
     aiSettingsSaving = true;
     aiSettingsError = '';
     aiSettingsMessage = '';
@@ -126,6 +152,7 @@
   }
 
   async function removeOpenRouterKey() {
+    if (providerTesting) return;
     if (!confirm($t('settings.provider.removeConfirm'))) return;
     aiSettingsSaving = true;
     aiSettingsError = '';
@@ -372,15 +399,35 @@
         <div class="setting-group ai-policy-group">
           <label class="ai-policy-label">
             <input type="checkbox" checked={aiPolicy?.enabled===true}
-              disabled={aiPolicyLoading || aiPolicySaving || !aiPolicy}
+              disabled={aiPolicyLoading || aiPolicySaving || !aiPolicy || providerTesting}
               onchange={event => void saveAiPolicy(event.currentTarget.checked)} />
-            <span><strong>{tabCopy.sharingTitle}</strong><small>{aiSettings?.activeProvider === 'openai' ? $t('settings.provider.openAISharing') : tabCopy.sharingHint}</small></span>
+            <span><strong>{aiSettings?.activeProvider === 'openai' ? $t('settings.provider.openAISharingTitle') : tabCopy.sharingTitle}</strong><small>{aiSettings?.activeProvider === 'openai' ? $t('settings.provider.openAISharing') : tabCopy.sharingHint}</small></span>
           </label>
           {#if aiPolicyLoading}<p class="muted">{tabCopy.sharingLoading}</p>{/if}
           {#if aiPolicySaving}<p class="muted">{tabCopy.sharingSaving}</p>{/if}
           {#if aiPolicyError}<p role="alert" class="settings-error">{aiPolicyError}</p>{/if}
           {#if aiPolicyMessage}<p role="status" class="settings-success">{aiPolicyMessage}</p>{/if}
         </div>
+        {#if aiSettings}
+          <div class="setting-group">
+            <button class="rf-btn" type="button" onclick={() => void testAiProvider()}
+              disabled={!activeProviderConfigured || !aiPolicy?.enabled || aiSettingsLoading || aiPolicySaving || aiSettingsSaving || providerTesting}>
+              {$t(providerTesting ? 'settings.provider.probeRunning' : 'settings.provider.probe')}
+            </button>
+            <p class="muted">{$t('settings.provider.probeHint')}</p>
+            {#if providerTest?.result === 'passed'}
+              <p class="settings-success" role="status">
+                {$t('settings.provider.probePassed')}
+                {#if providerTest.model} · {providerTest.model}{/if}
+                {#if Number.isFinite(providerTest.latencyMs)} · {providerTest.latencyMs} ms{/if}
+              </p>
+            {:else if providerTest?.result === 'failed'}
+              <p class="settings-error" role="alert">
+                {$t('settings.provider.probeFailed')}{#if providerTest.httpStatus} · HTTP {providerTest.httpStatus}{/if}
+              </p>
+            {/if}
+          </div>
+        {/if}
         <div class="setting-group">
           {#if aiSettingsLoading}
             <p class="muted">{$t('settings.provider.loading')}</p>
@@ -402,11 +449,11 @@
               required
               disabled={aiSettingsSaving}
             />
-            <button class="rf-btn" type="submit" disabled={aiSettingsSaving || !openRouterKey.trim()}>
+            <button class="rf-btn" type="submit" disabled={aiSettingsSaving || providerTesting || !openRouterKey.trim()}>
               {aiSettingsSaving ? $t('settings.provider.saving') : $t('settings.provider.saveKey')}
             </button>
             {#if aiSettings?.source === 'vault' && aiSettings.configured}
-              <button class="rf-btn remove-key" type="button" onclick={() => void removeOpenRouterKey()} disabled={aiSettingsSaving}>{$t('settings.provider.removeKey')}</button>
+              <button class="rf-btn remove-key" type="button" onclick={() => void removeOpenRouterKey()} disabled={aiSettingsSaving || providerTesting}>{$t('settings.provider.removeKey')}</button>
             {/if}
           </form>
           {#if aiSettingsError}<p class="settings-error" role="alert">{aiSettingsError}</p>{/if}

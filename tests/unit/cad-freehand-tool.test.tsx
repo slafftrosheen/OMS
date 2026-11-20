@@ -62,6 +62,7 @@ async function harness(run: (value: any) => Promise<void>, withPenBridge = false
   const { CadBezierShapeUtil } = await import('../../src/lib/components/canvas/shapes/CadBezierShape');
   const controller = await import('../../src/lib/components/canvas/CadFreehandTool');
   const { CadFreehandOverlay } = await import('../../src/lib/components/canvas/CadFreehandOverlay');
+  const { CadDrawingMeasurements } = await import('../../src/lib/components/canvas/CadDrawingMeasurements');
   const engine = await import('../../src/lib/components/canvas/cad-freehand');
   const gesture = await import('../../src/lib/components/canvas/drawing-pointer-gesture');
   const curves = await import('../../src/lib/components/canvas/cad-curves');
@@ -96,6 +97,7 @@ async function harness(run: (value: any) => Promise<void>, withPenBridge = false
     return <div className="tl-canvas" tabIndex={0} {...events}>
       <NativeArtwork />
       <CadFreehandOverlay />
+      <CadDrawingMeasurements />
       <div className="canvas-form-sheet" onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
         <input aria-label="Order address" defaultValue="Rīga" />
       </div>
@@ -218,6 +220,18 @@ describe('CAD freehand through the actual canvas and editor', () => {
     });
   });
 
+  it('shows the current pen stroke dimensions in physical units and clears them on completion', async () => {
+    await harness(async ({ container, dispatch, configure }) => {
+      await configure({ mode: 'curve', smoothing: 0 });
+      const label = () => container.querySelector('[data-testid="cad-live-measurement"]');
+      await dispatch('pointer_down', { x: 20, y: 20 }, { isPen: true });
+      assert.equal(label(), null);
+      await dispatch('pointer_move', { x: 116, y: 20 }, { isPen: true });
+      assert.equal(label()?.textContent, '25.40 × 0.00 mm');
+      await dispatch('pointer_up', { x: 116, y: 20 }, { isPen: true });
+      assert.equal(label(), null);
+    });
+  });
   it('preserves normalized pen pressure, stationary pressure peaks, and the release coordinate through public dispatch', async () => {
     await harness(async ({ editor, dispatch, configure, preview, snapshot, pageContours, curves, act }) => {
       await configure({ mode: 'ink', width: 20, smoothing: 0, autoClose: false });

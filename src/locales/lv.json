@@ -1077,6 +1077,12 @@
     "provider": {
       "activeProvider": "Aktīvais MI pakalpojumu sniedzējs",
       "openAISetup": "Lai izvēlētos OpenAI, servera vidē iestatiet OMS_AI_PROVIDER=openai un OPENAI_API_KEY, pēc tam restartējiet OMS.",
+      "openAISharingTitle": "Atļaut OMS sūtīt datus uz OpenAI",
+      "probe": "Pārbaudīt aktīvo pakalpojumu sniedzēju",
+      "probeRunning": "Pārbauda pakalpojumu sniedzēju…",
+      "probeHint": "Pārbaude nosūta vienu īsu pieprasījumu aktīvajam pakalpojumu sniedzējam un var tikt ieskaitīta lietojumā.",
+      "probePassed": "Pakalpojumu sniedzējs atbildēja",
+      "probeFailed": "Pakalpojumu sniedzēja pārbaude neizdevās",
       "openAISharing": "Atļaut OMS nosūtīt vaicājumus, attēlus, PDF un saistītos pasūtījumu datus uz OpenAI API no konfigurētā konta.",
       "title": "AI pakalpojums — OpenRouter",
       "description": "Kopīga AI piekļuves atslēga komandai. Uzvednes un pievienotie attēli var tikt nosūtīti OpenRouter; bezmaksas maršrutiem var būt pieprasījumu ierobežojumi.",

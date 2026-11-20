@@ -22,10 +22,13 @@ export const GET: RequestHandler = async ({ locals }) => {
     }, { headers: noStore });
 };
 
-export const POST: RequestHandler = async ({ locals }) => {
+export const POST: RequestHandler = async ({ locals, request, url }) => {
     if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401, headers: noStore });
     if (locals.user.role !== 'RD') return json({ error: 'Only R&D can run provider probes' },
         { status: 403, headers: noStore });
+    const origin = request.headers.get('origin');
+    if (origin && origin !== url.origin)
+        return json({ error: 'Cross-origin provider probe denied' }, { status: 403, headers: noStore });
     const start = Date.now();
     let service: ReturnType<typeof activeAiProvider> | 'unavailable' = 'unavailable';
     try {
@@ -34,8 +37,9 @@ export const POST: RequestHandler = async ({ locals }) => {
             messages: [{ role: 'user', content: 'Reply only OK.' }],
             stream: false,
             temperature: 0,
-            maxTokens: 16,
-            timeoutMs: 15_000
+            maxTokens: 64,
+            timeoutMs: 15_000,
+            signal: request.signal
         });
         if (!response.ok) {
             return json({
@@ -45,7 +49,7 @@ export const POST: RequestHandler = async ({ locals }) => {
         }
         const payload = await response.json().catch(() => null);
         const text = payload?.choices?.[0]?.message?.content;
-        if (typeof text !== 'string') {
+        if (typeof text !== 'string' || !text.trim()) {
             return json({ service, connectivity: 'unexpected_response', latencyMs: Date.now() - start },
                 { status: 502, headers: noStore });
         }

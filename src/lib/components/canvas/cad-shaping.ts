@@ -1,11 +1,12 @@
 import ClipperLib from 'clipper-lib';
 import type { Editor } from '@tldraw/tldraw';
 import { cadMmPerPixel, unitMm, type CadSettings } from './cad-settings';
-import { CAD_FLATTEN_LIMIT, cubicPoints, flattenContours, mapContours, mix, type CadContour } from './cad-curves';
+import { CAD_FLATTEN_LIMIT, flattenContours, mix, type CadContour } from './cad-curves';
 import { restoreShapingCurves, shapingSpan, type Polygon, type PolygonPoint } from './cad-shaping-curves';
 import { cadSelectedShapes, shapeCadContours } from './cad-editing';
 import { assertCadMergeContext, cadReferencePaintWarnings, sourceCurveResult } from './cad-source-result';
 import { makeCadPlan, CadOperationError, type CadPlan } from './cad-plans';
+import { offsetOpenPolyline } from './cad-open-offset';
 
 export interface CadShapingOptions {
   operation: 'weld' | 'trim' | 'intersect' | 'offset' | 'midline';
@@ -32,17 +33,6 @@ function middleContour(a: CadContour, b: CadContour): CadContour {
   if (nodes.some((node, i) => i > 0 && distance(node, nodes[i - 1]) < 1e-8))
     throw new CadOperationError('midline-pair');
   return { closed: false, nodes };
-}
-
-function offsetOpenSegment(contour: CadContour, distance: number): CadContour {
-  if (contour.closed || contour.nodes.length !== 2) throw new CadOperationError('offset-open');
-  const [a, c1, c2, b] = cubicPoints(contour.nodes[0], contour.nodes[1]);
-  const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy);
-  if (length <= 1e-8 || [c1, c2].some(p => {
-    const x = p.x - a.x, y = p.y - a.y, along = (x * dx + y * dy) / length;
-    return Math.abs(x * dy - y * dx) / length > 1e-7 || along < -1e-7 || along > length + 1e-7;
-  })) throw new CadOperationError('offset-open');
-  return mapContours([contour], p => ({ x: p.x + dy / length * distance, y: p.y - dx / length * distance }))[0];
 }
 
 function clip(a: Polygon[], b: Polygon[], operation: number, evenOdd = false): Polygon[] {
@@ -82,7 +72,7 @@ export function prepareCadShaping(editor: Editor, settings: CadSettings, options
       throw new CadOperationError('midline-pair');
     const contours = options.operation === 'midline'
       ? [middleContour(sourceCurves[0][0], sourceCurves[1][0])]
-      : sourceCurves.flat().map(contour => offsetOpenSegment(contour, distanceMm / factor));
+      : sourceCurves.flat().map(contour => offsetOpenPolyline(contour, distanceMm / factor, options.join, tolerance / factor));
     const ids = shapes.map(shape => shape.id);
     return makeCadPlan(editor, settings, contours, {
       sourceIds: ids,
