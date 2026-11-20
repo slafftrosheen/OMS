@@ -1,4 +1,4 @@
-import { cadShapePaint } from './cad-shape-appearance';
+import { cadPaintHasFill, cadPaintHasStroke, cadShapePaint } from './cad-shape-appearance';
 import {
   multiplyMatrix,
   transformAppearance,
@@ -34,30 +34,50 @@ const num = (n: number) => {
 };
 const rgb = (hex: string) =>
   [1, 3, 5].map((i) => num(parseInt(hex.slice(i, i + 2), 16) / 255)).join(" ");
+function paintedPathBounds(path: VectorPath) {
+  const { paint, contours } = path;
+  const stroke = cadPaintHasStroke(paint);
+  if (!stroke && !cadPaintHasFill(paint)) return null;
+  const geometry = curveBounds(contours);
+  const joins = contours.some(contour => contour.closed || contour.nodes.length > 2);
+  const reach = stroke ? Math.max(paint.lineCap === "square" ? Math.SQRT2 : 1,
+    joins && paint.lineJoin === "miter" ? paint.miterLimit : 1) * paint.strokeWidth / 2 : 0;
+  let left = geometry.x - reach, top = geometry.y - reach;
+  let right = geometry.x + geometry.w + reach, bottom = geometry.y + geometry.h + reach;
+  // Intersect in output coordinates after adding stroke reach. Ink can enter a
+  // clip even when the centerline is completely outside it.
+  for (const clip of paint.clips ?? []) {
+    const b = curveBounds(clip.contours);
+    left = Math.max(left, b.x); top = Math.max(top, b.y);
+    right = Math.min(right, b.x + b.w); bottom = Math.min(bottom, b.y + b.h);
+    if (right <= left || bottom <= top) return null;
+  }
+  return right > left && bottom > top ? { left, top, right, bottom } : null;
+}
+
 export function serializeVectorDocument(
-  paths: VectorPath[],
+  input: VectorPath[],
   format: "pdf" | "eps",
 ) {
   if (
-    !paths.length ||
-    paths.length > 2000 ||
-    paths.some((p) => !validContours(p.contours) || !validVectorPaint(p.paint))
+    !input.length ||
+    input.length > 2000 ||
+    input.some((p) => !validContours(p.contours) || !validVectorPaint(p.paint))
   )
     throw new Error("geometry");
-  if(paths.some(p=>p.paint.raster?.external))throw new Error("asset-fetch");
-  const bounds = curveBounds(paths.flatMap((p) => p.contours));
-  const padding = Math.max(
-    0.01,
-    ...paths.map((p) =>
-      p.paint.stroke === "none"
-        ? 0
-        : (p.paint.strokeWidth *
-            (p.paint.lineJoin === "miter" ? p.paint.miterLimit : 2)) /
-          2,
-    ),
-  );
-  const width = bounds.w + 2 * padding,
-    height = bounds.h + 2 * padding;
+  const paths: VectorPath[] = [];
+  let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+  for (const path of input) {
+    const b = paintedPathBounds(path);
+    if (!b) continue;
+    paths.push(path);
+    left = Math.min(left, b.left); top = Math.min(top, b.top);
+    right = Math.max(right, b.right); bottom = Math.max(bottom, b.bottom);
+  }
+  if (!paths.length) throw new Error("geometry");
+  if (paths.some(p => p.paint.raster?.external)) throw new Error("asset-fetch");
+  const bounds = { x: left, y: top, w: right - left, h: bottom - top };
+  const padding = 0.01, width = bounds.w + 2 * padding, height = bounds.h + 2 * padding;
   if (width > 14400 || height > 14400) throw new Error("page-limit");
   const pdf = format === "pdf",
     body: string[] = [],
@@ -114,13 +134,13 @@ export function serializeVectorDocument(
   let placements = 0;
   for (const [i, path] of paths.entries()) {
     const p = path.paint,
-      fill = !!p.gradient || !!p.raster || p.fill !== "none",
-      stroke = p.stroke !== "none";
+      fill = cadPaintHasFill(p),
+      stroke = cadPaintHasStroke(p);
     if (
       !pdf &&
       ((fill && p.fillOpacity !== 1) ||
         (stroke && p.strokeOpacity !== 1) ||
-        (p.raster?.alpha || p.raster?.hasAlpha))
+        (fill && (p.raster?.alpha || p.raster?.hasAlpha)))
     )
       throw new Error("eps-opacity");
     body.push(pdf ? "q" : "gsave");
@@ -133,7 +153,7 @@ export function serializeVectorDocument(
       `${num(p.miterLimit)} ${pdf ? "M" : "setmiterlimit"}`,
       `[${p.dash.map(num).join(" ")}] ${num(p.dashOffset)} ${pdf ? "d" : "setdash"}`,
     );
-    if (p.gradient || p.raster) {
+    if (fill && (p.gradient || p.raster)) {
       body.push(pdf ? "q" : "gsave", clip(path.contours, path.fillRule));
       if (p.gradient) {
         const g = p.gradient,
@@ -298,7 +318,8 @@ export function prepareVectorExport(
   for (const shape of shapes) {
     if (["group", "frame"].includes(shape.type)) continue;
     try {
-      if (editor.getShapeMask(shape.id)) throw new Error("clipped");
+      const mask = editor.getShapeMask(shape.id);
+      if (mask && mask.length < 3) throw new Error("clipped");
       const contours = mapContours(
         shapeCadContours(editor, shape, 0.005 / cadMmPerPixel(settings)),
         (p) => ({ x: p.x * factor, y: p.y * factor }),
@@ -318,6 +339,12 @@ export function prepareVectorExport(
           origin.y * factor,
         ],
       );
+      if (mask) {
+        paint.clips = [...(paint.clips ?? []), {
+          contours: [{ closed: true, nodes: mask.map(point => nodeAt({ x: point.x * factor, y: point.y * factor })) }],
+          fillRule: "nonzero",
+        }];
+      }
       let opacity = shape.opacity ?? 1,
         ancestor = editor.getShape(shape.parentId);
       while (ancestor) {
@@ -328,21 +355,21 @@ export function prepareVectorExport(
       paint.strokeOpacity *= opacity;
       if (
         format === "eps" &&
-        (((paint.fill !== "none" || paint.gradient || paint.raster) &&
-          paint.fillOpacity !== 1) ||
-          (paint.stroke !== "none" && paint.strokeOpacity !== 1) ||
-          (paint.raster?.alpha || paint.raster?.hasAlpha))
+        ((cadPaintHasFill(paint) && (paint.fillOpacity !== 1 || paint.raster?.alpha || paint.raster?.hasAlpha)) ||
+          (cadPaintHasStroke(paint) && paint.strokeOpacity !== 1))
       )
         throw new Error("opacity");
       if (shape.type === "geo" && (shape.props as any).fill !== "none")
         throw new Error("style");
-      total += contours.reduce((n, c) => n + c.nodes.length, 0);
-      if (total > 20000) throw new Error("limit");
-      paths.push({
+      const path: VectorPath = {
         contours,
         paint,
         fillRule: (shape.props as any).fillRule ?? "evenodd",
-      });
+      };
+      if (!validVectorPaint(paint) || !paintedPathBounds(path)) throw new Error("clipped");
+      total += contours.reduce((n, c) => n + c.nodes.length, 0);
+      if (total > 20000) throw new Error("limit");
+      paths.push(path);
     } catch (error) {
       if ((error as Error).message === "limit") throw error;
       omitted.push(drawingObjectName(shape));

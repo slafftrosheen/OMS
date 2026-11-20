@@ -2,7 +2,7 @@ import { Box, type Editor, type TLShape, type TLShapeId } from '@tldraw/tldraw';
 import { drawingTransaction } from './drawing-commands';
 import { getCadShapePageBounds } from './cad-bounds';
 import { curveBounds, mapContours } from './cad-curves';
-import { CAD_APPEARANCE_TYPES, cadAppearanceGeometry, cadShapePaint } from './cad-shape-appearance';
+import { CAD_APPEARANCE_TYPES, cadAppearanceGeometry, cadPaintHasFill, cadPaintHasStroke, cadShapePaint } from './cad-shape-appearance';
 
 const NAME_KEY = 'omsObjectName';
 const ORDER_FORMS = new Set(['order-details', 'order-address', 'profile-7st']);
@@ -180,13 +180,17 @@ export interface DrawingExportPlan {
  * allowance for a pen that might be much wider than the default padding. */
 function drawingExportBounds(editor: Editor, shape: TLShape): Box | undefined {
   if (!CAD_APPEARANCE_TYPES.has(shape.type)) return editor.getShapeMaskedPageBounds(shape.id);
+  const paint = cadShapePaint(shape), stroke = cadPaintHasStroke(paint);
+  if (!stroke && !cadPaintHasFill(paint)) return;
+  for (let ancestor: TLShape | undefined = shape; ancestor; ancestor = editor.getShape(ancestor.parentId)) {
+    if (ancestor.opacity === 0) return;
+  }
   let bounds: Box | undefined;
   try { cadAppearanceGeometry(shape); bounds = getCadShapePageBounds(editor, shape); }
   catch { bounds = editor.getShapePageBounds(shape); }
   if (!bounds) return;
   bounds = bounds.clone();
-  const paint = cadShapePaint(shape);
-  if (paint.stroke !== 'none' && paint.strokeOpacity > 0 && paint.strokeWidth > 0) {
+  if (stroke) {
     const props = shape.props as any;
     const joins = shape.type === 'cad-bezier' ? props.contours.some((c: any) => c.closed || c.nodes.length > 2)
       : shape.type === 'cad-path' && (props.closed || props.points.length > 2);

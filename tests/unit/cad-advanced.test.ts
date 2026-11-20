@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import DxfParser from 'dxf-parser';
+import DxfParser, { type ILwpolylineEntity } from 'dxf-parser';
 import { fixture } from '../helpers/cad-editor';
 import {
   DEFAULT_CAD_SETTINGS as settings,
@@ -589,5 +589,55 @@ describe('CAD DXF interchange', () => {
     const f = fixture(),
       r = prepareCadImport(f.editor, settings, dxf('0\nSPLINE\n70\n4\n71\n2\n41\n0.5\n'), { keepCoordinates: true });
     assert.equal(r.omitted.length, 1);
+  });
+});
+
+
+describe('DXF polygon output for small cutting contours', () => {
+  it('refines a tiny two-node hole that would collapse at the chosen polyline tolerance', () => {
+    const f = fixture(), factor = cadMmPerPixel(settings);
+    const p = (x: number, y: number) => nodeAt({ x: x / factor, y: y / factor });
+    const hole = { closed: true, nodes: [
+      { ...p(10, 10), inY: -.006 / factor, outY: .006 / factor },
+      { ...p(10.008, 10), inY: .006 / factor, outY: -.006 / factor },
+    ] };
+    const panel = shape(f, 'panel', [rect(0, 0, 100 / factor, 100 / factor), hole]);
+    f.editor.setSelectedShapes([panel]);
+    const output = buildCadDxf(f.editor, 'selected', settings, { curves: 'polyline', toleranceMm: .01 });
+    assert.equal(output.closedContours, 2);
+    assert.deepEqual(output.omitted, []);
+    near(output.widthMm, 100); near(output.heightMm, 100);
+    const entities = new DxfParser().parseSync(output.text)!.entities as ILwpolylineEntity[];
+    assert.ok(entities.every(entity => entity.type === 'LWPOLYLINE' && entity.shape));
+    assert.ok(entities[1].vertices.length >= 3);
+    assert.ok(Math.max(...entities[1].vertices.map(p => p.y)) - Math.min(...entities[1].vertices.map(p => p.y)) > .004);
+    const spline = buildCadDxf(f.editor, 'selected', settings);
+    assert.equal(new DxfParser().parseSync(spline.text)!.entities[1].type, 'SPLINE');
+  });
+
+  it('omits a compound with an invalid hole without losing other selected objects', () => {
+    const f = fixture();
+    const invalid = shape(f, 'invalid', [rect(0, 0, 100, 100), { closed: true, nodes: [
+      { ...nodeAt({ x: 10, y: 10 }), outX: 12, inX: -12 },
+      { ...nodeAt({ x: 20, y: 10 }), inX: -12, outX: 12 },
+    ] }]);
+    const valid = shape(f, 'valid', [rect(120, 0, 200, 200)]);
+    f.editor.setSelectedShapes([invalid, valid]);
+    const output = buildCadDxf(f.editor, 'selected', settings, { curves: 'polyline' });
+    assert.equal(output.closedContours, 1);
+    assert.equal(output.omitted.length, 1);
+    assert.equal(output.omitted[0].id, invalid);
+    assert.equal(output.omitted[0].reason, 'invalid');
+    near(output.widthMm, 200 * cadMmPerPixel(settings));
+  });
+
+  it('preserves a small closed polyline at a large model coordinate', () => {
+    const origin = 90_000_000;
+    const output = serializeCadDxf([{ type: 'polyline', closed: true,
+      points: rect(origin, origin, .05, .025).nodes }]);
+    near(output.widthMm, .05);
+    near(output.heightMm, .025);
+    const entities = new DxfParser().parseSync(output.text)!.entities;
+    assert.equal(entities[0].type, 'LWPOLYLINE');
   });
 });

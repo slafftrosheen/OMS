@@ -31,7 +31,16 @@ function checkedPolyline(points: CadPoint[], closed: boolean): DxfEntity {
   if (closed && list.length > 2 && Math.hypot(list[0].x - list.at(-1)!.x, list[0].y - list.at(-1)!.y) < 1e-7) list.pop();
   if (list.length < (closed ? 3 : 2)) throw new CadDxfError('invalid');
   for (let i = 1; i < list.length; i++) if (Math.hypot(list[i].x - list[i - 1].x, list[i].y - list[i - 1].y) < 1e-6) throw new CadDxfError('invalid');
-  if (closed && Math.abs(list.reduce((area, a, i) => { const b = list[(i + 1) % list.length]; return area + a.x * b.y - b.x * a.y; }, 0)) < 1e-10) throw new CadDxfError('invalid');
+  if (closed) {
+    // Evaluate signed area relative to a vertex to retain small loops far from
+    // the origin, where subtraction of large world-coordinate products loses it.
+    const origin = list[0];
+    const area = list.reduce((sum, a, i) => {
+      const b = list[(i + 1) % list.length];
+      return sum + (a.x - origin.x) * (b.y - origin.y) - (b.x - origin.x) * (a.y - origin.y);
+    }, 0);
+    if (Math.abs(area) < 1e-10) throw new CadDxfError('invalid');
+  }
   return { type: 'polyline', points: list, closed };
 }
 function positive(n: number) { if (finite(n) < 1e-6) throw new CadDxfError('invalid'); return n; }
@@ -113,10 +122,34 @@ export function cadShapeDxfGeometry(editor: Editor, shape: TLShape, settings: Ca
   return { reason: 'unsupported' };
 }
 
+function flattenForDxf(contour: CadContour, tolerance: number): DxfEntity {
+  let finer = tolerance;
+  for (let attempt = 0; attempt <= 8; attempt++) {
+    try {
+      return checkedPolyline(flattenContours([contour], finer)[0], contour.closed);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'limit') throw new CadDxfError('limit');
+      if (!(error instanceof CadDxfError && error.code === 'invalid')) throw error;
+    }
+    // A coarse tolerance can reduce a closed two-anchor spline to a pair of
+    // points. Retry at a finer resolution within the same error budget.
+    finer /= 2;
+    if (!attempt) {
+      const bounds = curveBounds([contour]);
+      if (contour.closed && (!bounds.w || !bounds.h)) break;
+      finer = Math.min(finer, Math.max(1e-8, Math.min(bounds.w, bounds.h) / 8));
+    }
+  }
+  throw new CadDxfError('invalid');
+}
+
 /** Full model-space millimetres, Cartesian Y-up, no padding or view/zoom rescaling. */
 export function buildCadDxf(editor: Editor, scope: 'selected' | 'all', settings: CadSettings, options: { curves?: 'spline' | 'polyline'; toleranceMm?: number } = {}): CadDxfResult {
   if (!validateCadSettings(settings)) throw new CadDxfError('settings');
   if (!['selected', 'all'].includes(scope)) throw new CadDxfError('invalid');
+  const tolerance = options.toleranceMm ?? 0.01;
+  if (options.curves === 'polyline' && (!Number.isFinite(tolerance) || tolerance < 0.001 || tolerance > 1))
+    throw new CadDxfError('invalid');
   const ids = scope === 'all' ? [...editor.getCurrentPageShapeIds()] : [...editor.getShapeAndDescendantIds([...editor.getSelectedShapeIds()])];
   if (ids.length > MAX_ENTITIES * 2) throw new CadDxfError('limit');
   const entities: DxfEntity[] = [], omitted: CadDxfResult['omitted'] = [];
@@ -124,22 +157,29 @@ export function buildCadDxf(editor: Editor, scope: 'selected' | 'all', settings:
   for (const id of new Set(ids)) {
     const shape = editor.getShape(id as TLShapeId);
     if (!shape || ['group', 'frame'].includes(shape.type)) continue;
-    let result: ReturnType<typeof cadShapeDxfGeometry>;
-    try { result = cadShapeDxfGeometry(editor, shape, settings); }
-    catch { result = { reason: 'invalid' }; }
-    if (result.entity || result.entities) {
-      for (const original of result.entities ?? [result.entity!]) {
-        let entity = original;
-        if (original.type === 'spline' && options.curves === 'polyline') {
-          const tolerance = options.toleranceMm ?? 0.01;
-          if (!Number.isFinite(tolerance) || tolerance < 0.001 || tolerance > 1) throw new CadDxfError('invalid');
-          entity = checkedPolyline(flattenContours([original.contour], tolerance)[0], original.contour.closed);
-        }
-        entities.push(entity); vertices += entity.type === 'polyline' ? entity.points.length : entity.type === 'spline' ? entity.contour.nodes.length * 3 + 1 : 1;
-      }
+    try {
+      const result = cadShapeDxfGeometry(editor, shape, settings);
+      const source = result.entities ?? (result.entity ? [result.entity] : []);
+      if (source.length) {
+        // Treat every contour of an object as one unit. A failed hole must not
+        // leave its exterior in the cutting file on its own.
+        let outputVertices = vertices;
+        const output = source.map(original => {
+          const entity = original.type === 'spline' && options.curves === 'polyline'
+            ? flattenForDxf(original.contour, tolerance) : original;
+          outputVertices += entity.type === 'polyline' ? entity.points.length : entity.type === 'spline'
+            ? entity.contour.nodes.length * 3 + 1 : 1;
+          if (outputVertices > MAX_VERTICES) throw new CadDxfError('limit');
+          return entity;
+        });
+        entities.push(...output);
+        vertices = outputVertices;
+      } else omitted.push({ id: shape.id, name: drawingObjectName(shape), reason: result.reason ?? 'unsupported' });
+    } catch (error) {
+      if (error instanceof CadDxfError && error.code === 'limit') throw error;
+      omitted.push({ id: shape.id, name: drawingObjectName(shape), reason: 'invalid' });
     }
-    else omitted.push({ id: shape.id, name: drawingObjectName(shape), reason: result.reason ?? 'unsupported' });
-    if (entities.length > MAX_ENTITIES || vertices > MAX_VERTICES) throw new CadDxfError('limit');
+    if (entities.length > MAX_ENTITIES) throw new CadDxfError('limit');
   }
   if (!entities.length) {
     if (!omitted.length) throw new CadDxfError('empty');

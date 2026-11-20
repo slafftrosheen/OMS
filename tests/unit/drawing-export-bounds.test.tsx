@@ -320,3 +320,80 @@ describe('portable artwork export through native SVG and PNG APIs', () => {
     await assert.rejects(() => attempt(controller.signal), /cancelled/); assert.equal(calls, 0);
   })));
 });
+
+
+describe('production vector PDF and EPS', () => {
+  it('preserves frame and shape clips, the counter, inherited opacity and physical bounds', async () => harness(async h => {
+    const { prepareVectorExport } = await import('../../src/lib/components/canvas/cad-vector-export');
+    const { buildCadDxf } = await import('../../src/lib/components/canvas/cad-dxf');
+    const settings = { ...h.cad.DEFAULT_CAD_SETTINGS, scale: 4 / 3 };
+    h.editor.updatePage({ id: h.editor.getCurrentPageId(), meta: { omsCad: settings } });
+    const frame = h.tl.createShapeId();
+    h.editor.createShape({ id: frame, type: 'frame', x: 100, y: 100, opacity: .5, props: { w: 120, h: 80 } });
+    const artwork = h.create([h.rectangle(-10, -20, 140, 120), h.curves.arcContour(60, 40, 12, 12, 0, Math.PI * 2)], {
+      fill: '#d62828', stroke: 'none', clips: [{ contours: [h.rectangle(20, -10, 80, 100)], fillRule: 'nonzero' }]
+    }, { parentId: frame, x: 0, y: 0 });
+    const hidden = h.create([h.rectangle(0, 0, 20, 20)], { fill: '#0033ff', stroke: 'none' }, { parentId: frame, x: 200, y: 200 });
+    h.editor.select(artwork.id, hidden.id);
+    const before = h.snapshot(), pdf = prepareVectorExport(h.editor, settings, 'selected', 'pdf');
+    assert.equal(pdf.paths.length, 1);
+    assert.equal(pdf.omitted.length, 1);
+    assert.equal(pdf.paths[0].fillRule, 'evenodd');
+    assert.equal(pdf.paths[0].contours.length, 2);
+    assert.equal(pdf.paths[0].paint.clips.length, 2);
+    near(pdf.paths[0].paint.fillOpacity, .5);
+    assert.match(pdf.text, /\/MediaBox \[0 0 80\.02 80\.02\]/);
+    const eps = prepareVectorExport(h.editor, settings, 'selected', 'eps');
+    assert.equal(eps.omitted.length, 2);
+    assert.equal(eps.text, '');
+    const dxf = buildCadDxf(h.editor, 'selected', settings);
+    assert.equal(dxf.entities, 0);
+    assert.deepEqual(dxf.omitted.map(item => item.reason), ['clipped', 'clipped']);
+    assert.deepEqual(h.snapshot(), before);
+  }));
+
+  it('uses each visible stroke to bound the page and never turns a zero-width stroke into a hairline', async () => harness(async h => {
+    const { prepareVectorExport } = await import('../../src/lib/components/canvas/cad-vector-export');
+    const settings = { ...h.cad.DEFAULT_CAD_SETTINGS, scale: 4 / 3 };
+    const stroke = h.create([h.contour([[0, 0], [100, 0]])], { strokeWidth: 40, strokeOpacity: 1 });
+    const face = h.create([h.rectangle(0, 0, 100, 20)], { fill: '#33aaff', strokeWidth: 0, strokeOpacity: .2 }, { x: 300, y: 90 });
+    const outline = h.create([h.contour([[0, 0], [100, 0]])], { strokeWidth: 0 }, { x: 1000, y: 100 });
+    const invisible = h.create([h.rectangle(0, 0, 100, 100)], { fill: '#ff0000', stroke: 'none' }, { x: 1200, opacity: 0 });
+    h.editor.select(stroke.id, face.id, outline.id, invisible.id);
+    for (const format of ['svg', 'png'] as const) {
+      const result = h.planDrawingExport(h.editor, format, { scope: 'selected', scale: 1, background: false, padding: 0 });
+      assert.equal(result.ok, true);
+      assert.deepEqual(result.value.bounds, { x: 80, y: 80, w: 320, h: 40 });
+      assert.deepEqual(result.value.ids, [stroke.id, face.id]);
+    }
+    for (const format of ['pdf', 'eps'] as const) {
+      const output = prepareVectorExport(h.editor, settings, 'selected', format);
+      assert.equal(output.paths.length, 2);
+      assert.equal(output.omitted.length, 2);
+      if (format === 'pdf') {
+        assert.match(output.text, /\/MediaBox \[0 0 320\.02 40\.02\]/);
+        assert.equal(output.text.match(/^S$/gm)?.length, 1);
+        assert.match(output.text, /^f\*$/m);
+      } else {
+        assert.match(output.text, /%%HiResBoundingBox: 0 0 320\.02 40\.02/);
+        assert.equal(output.text.match(/setrgbcolor stroke/g)?.length, 1);
+      }
+    }
+  }));
+
+  it('retains stroke ink that reaches a native frame from an outside centerline', async () => harness(async h => {
+    const { prepareVectorExport } = await import('../../src/lib/components/canvas/cad-vector-export');
+    const settings = { ...h.cad.DEFAULT_CAD_SETTINGS, scale: 4 / 3 };
+    const frame = h.tl.createShapeId();
+    h.editor.createShape({ id: frame, type: 'frame', x: 100, y: 100, props: { w: 120, h: 80 } });
+    const stroke = h.create([h.contour([[0, 0], [100, 0]])], { strokeWidth: 40, strokeOpacity: 1 },
+      { parentId: frame, x: 0, y: -10 });
+    assert.equal(h.editor.getShapeMaskedPageBounds(stroke.id), undefined);
+    h.editor.select(stroke.id);
+    const output = prepareVectorExport(h.editor, settings, 'selected', 'pdf');
+    assert.deepEqual(output.omitted, []);
+    assert.equal(output.paths[0].paint.clips.length, 1);
+    assert.match(output.text, /\/MediaBox \[0 0 120\.02 10\.02\]/);
+  }));
+
+});

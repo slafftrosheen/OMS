@@ -43,6 +43,9 @@ export function cadShapePaint(shape: TLShape): VectorPaint {
   }
   return paint;
 }
+export function cadPaintHasStroke(paint: VectorPaint): boolean {
+  return paint.stroke !== 'none' && paint.strokeOpacity > 0 && paint.strokeWidth > 0;
+}
 export function cadPaintHasFill(paint: VectorPaint): boolean {
   return paint.fillOpacity > 0 && (paint.fill !== 'none' || !!paint.gradient || !!paint.raster);
 }
