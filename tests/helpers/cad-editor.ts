@@ -64,7 +64,9 @@ export function fixture() {
     setCursor() {},
     getStyleForNextShape: () => 'black',
     getZoomLevel: () => state.zoom,
+    getViewportPageBounds: () => new Box(-400, -300, 800, 600),
     getShapePageTransform: transform,
+    getShapeHandles: (shape: any) => utils[shape.type]?.getHandles?.(shape),
     getPointInParentSpace: (s: any, p: any) => {
       if (typeof s === 'string') s = shapes.get(s);
       return shapes.has(s.parentId) ? inverse(transform(shapes.get(s.parentId)), p) : p;

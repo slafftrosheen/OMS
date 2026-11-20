@@ -1,6 +1,6 @@
 import {cadSnapIndicator} from './cad-snap';
 import {cadConstruction} from './cad-construction';
-import {isCadNodeEditing, setCadNodeEditing} from './cad-node-selection';
+import { getSelectedCadNodes, isCadNodeEditing, setCadNodeEditing } from './cad-node-selection';
 import {CadPointEntry} from './CadPointEntry';
 import {RepeatGrid} from './RepeatGrid';
 import {DrawingAppearancePanel} from './DrawingAppearancePanel';
@@ -467,6 +467,9 @@ export function DrawingChrome() {
   const activeSnap = useValue('CAD snap target', () => editor.snaps.getIndicators().some(value => value.id === 'oms-cad-snap') ? cadSnapIndicator(editor).get() : null, [editor]);
   const construction = useValue('CAD construction status', () => cadConstruction(editor).get(), [editor]);
   const nodeEditing = useValue('CAD node editing mode', () => isCadNodeEditing(editor), [editor]);
+  const nodeCount = useValue('Selected CAD node count', () =>
+    nodeEditing && editor.getOnlySelectedShape()?.type === 'cad-bezier' ? getSelectedCadNodes(editor).length : null,
+    [editor, nodeEditing]);
   const constructionHint = construction ? workbenchLabel(construction.points.length === 0 ? 'pickFirst' : construction.points.length === 1 ? 'pickThrough' : construction.kind === 'arc' ? 'pickArcEnd' : 'pickThird') : '';
   const [toolGroup, setToolGroup] = useState<string | null>(null);
   const [groupTools, setGroupTools] = useState<Record<string, string>>({});
@@ -1109,7 +1112,14 @@ export function DrawingChrome() {
         {['size', 'textAlign'].map(id => renderStyleSelect(styleFields.find(field => field.id === id)!, true))}
       </fieldset>
       : controls.tool === 'cad-freehand' ? <><DrawingFreehandControls compact /><ToolButton icon="pen" label={penLabel('title')} onClick={() => setPanel('pen')} testId="drawing-property-pen" /></>
-      : controls.tool === 'cad-polyline' ? <CadPointEntry settings={settings}/> : <>
+      : controls.tool === 'cad-polyline' ? <CadPointEntry settings={settings}/>
+      : nodeEditing ? <div className="drawing-property-actions" data-testid="drawing-node-properties">
+        {nodeCount === null ? <span className="drawing-unit">{nodeArrangeLabel('none')}</span> : <>
+          <span className="drawing-unit" data-testid="drawing-node-selection-count">{nodeArrangeLabel('selection')} · {nodeCount}</span>
+          <ToolButton icon="nodes" label={advancedLabel('nodeCoordinates')} onClick={() => focusCad('nodes')} testId="drawing-property-node-coordinates">{advancedLabel('nodeCoordinates')}</ToolButton>
+          <ToolButton icon="arrange" label={nodeArrangeLabel('title')} onClick={() => focusCad('nodeArrange')} testId="drawing-property-node-arrange">{nodeArrangeLabel('title')}</ToolButton>
+        </>}
+      </div> : <>
       {settings && <CadAnchorControl value={cadAnchor} onChange={setCadAnchor} />}
       <div className="drawing-property-pair">{transformField('x')}{transformField('y')}</div>
       <span className="drawing-divider" />

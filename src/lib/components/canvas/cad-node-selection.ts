@@ -67,10 +67,16 @@ export function inspectCadNodeEvent(editor: Editor, event: TLEventInfo): void {
       event.target !== 'handle' || event.shape.type !== 'cad-bezier' ||
       editor.getOnlySelectedShape()?.id !== event.shape.id) return;
   const match = /^(\d+):(\d+):(node|in|out)$/.exec(event.handle.id);
-  if (match) {
-    if (event.shiftKey && match[3] === 'node') toggleCadNode(editor, Number(match[1]), Number(match[2]));
-    else selectCadNode(editor, Number(match[1]), Number(match[2]));
+  if (!match) return;
+  const node = { contourIndex: Number(match[1]), nodeIndex: Number(match[2]) };
+  if (event.shiftKey && match[3] === 'node') {
+    toggleCadNode(editor, node.contourIndex, node.nodeIndex);
+    return;
   }
+  const selected = getSelectedCadNodes(editor);
+  const others = selected.filter(value => value.contourIndex !== node.contourIndex || value.nodeIndex !== node.nodeIndex);
+  if (match[3] === 'node' && others.length < selected.length) setSelectedCadNodes(editor, [...others, node]);
+  else selectCadNode(editor, node.contourIndex, node.nodeIndex);
 }
 
 export function installCadNodeSelection(editor: Editor): () => void {

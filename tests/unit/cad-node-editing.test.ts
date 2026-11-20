@@ -1,11 +1,12 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import DxfParser from 'dxf-parser';
+import { Box } from '@tldraw/tldraw';
 import { fixture } from '../helpers/cad-editor';
 import { nodeAt, cubicAt, cubicPoints, type CadContour } from '../../src/lib/components/canvas/cad-curves';
 import { DEFAULT_CAD_SETTINGS as settings } from '../../src/lib/components/canvas/cad-settings';
 import { getCadCurveSelection, setCadStraightSegment, splitCadCurveSegment } from '../../src/lib/components/canvas/cad-editing';
-import { getSelectedCadNode, selectCadNode, inspectCadNodeEvent, installCadNodeSelection, setCadNodeEditing, isCadNodeEditing } from '../../src/lib/components/canvas/cad-node-selection';
+import { getSelectedCadNode, getSelectedCadNodes, selectCadNode, inspectCadNodeEvent, installCadNodeSelection, setCadNodeEditing, isCadNodeEditing } from '../../src/lib/components/canvas/cad-node-selection';
 import { buildCadDxf } from '../../src/lib/components/canvas/cad-dxf';
 
 const near = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
@@ -146,7 +147,7 @@ describe('canvas node inspection and handle targets', () => {
     f.state.isReadonly = true; assert.equal(selectCadNode(f.editor, 0, 1), true); assert.equal(f.marks.length, 0);
     cleanup(); assert.equal(listeners.size, 0);
   });
-  it('keeps collapsed controls off the anchor hit target and supports large compounds through the selector', () => {
+  it('keeps collapsed controls off the anchor and limits dense curves to visible targets', () => {
     const f = setup(), util = f.utils['cad-bezier'];
     assert.deepEqual(util.getHandles(f.only()), []); assert.equal(util.hideResizeHandles(), false);
     setCadNodeEditing(f.editor, true);
@@ -156,9 +157,40 @@ describe('canvas node inspection and handle targets', () => {
     assert.ok(util.getHandles(f.only()).some((h: any) => h.id === '0:1:in'));
     const change = util.onHandleDrag(f.only(), { handle: { id: '0:1:node', x: 120, y: 20 } });
     assert.equal(change.props.contours[0].nodes[1].x, 120); assert.equal(change.props.contours[0].nodes[1].inX, -10);
-    f.only().props.contours[0].nodes = Array.from({ length: 129 }, (_, x) => nodeAt({ x, y: 0 }));
-    assert.deepEqual(util.getHandles(f.only()), []); assert.equal(selectCadNode(f.editor, 0, 128), true);
-    assert.equal(getSelectedCadNode(f.editor)!.nodeIndex, 128);
+    f.only().props.contours[0].nodes = Array.from({ length: 900 }, (_, x) => nodeAt({ x: x * 10, y: 0 }));
+    const overview = util.getHandles(f.only());
+    assert.ok(overview.length > 1 && overview.length <= 160);
+    assert.ok(overview.slice(1).every((handle: any) => handle.x <= 410));
+    f.editor.getViewportPageBounds = () => new Box(2000, -40, 80, 80);
+    f.state.zoom = 10;
+    assert.equal(selectCadNode(f.editor, 0, 204), true);
+    const detail = util.getHandles(f.only());
+    assert.equal(detail[0].id, '0:204:node');
+    assert.ok(detail.some((handle: any) => handle.id === '0:205:node'));
+    assert.ok(detail.every((handle: any) => handle.x >= 1999 && handle.x <= 2081));
+  });
+  it('moves all selected anchors together without moving an unselected node or its controls', () => {
+    const f = setup(), shape = f.only(), util = f.utils['cad-bezier'];
+    setCadNodeEditing(f.editor, true);
+    shape.props.contours[0].nodes[0].outX = 24;
+    const press = (node: number, shiftKey = false, kind = 'node') =>
+      inspectCadNodeEvent(f.editor, { type: 'pointer', name: 'pointer_down', button: 0, target: 'handle',
+        shape: f.only(), handle: { id: `0:${node}:${kind}` }, shiftKey } as any);
+    press(0);
+    press(1, true);
+    press(0);
+    assert.deepEqual(getSelectedCadNodes(f.editor).map(node => node.nodeIndex), [1, 0]);
+    const first = util.onHandleDrag(f.only(), { handle: { id: '0:0:node', x: 12, y: -8 } });
+    f.editor.updateShape(first);
+    const second = util.onHandleDrag(f.only(), { handle: { id: '0:0:node', x: 24, y: -16 } });
+    f.editor.updateShape(second);
+    assert.deepEqual(f.only().props.contours[0].nodes.map(({ x, y, outX }: any) => [x, y, outX]),
+      [[24, -16, 24], [124, -16, 0], [100, 100, 0]]);
+    assert.deepEqual(getSelectedCadNodes(f.editor).map(node => node.nodeIndex), [1, 0]);
+    press(0, false, 'out');
+    assert.deepEqual(getSelectedCadNodes(f.editor).map(node => node.nodeIndex), [0]);
+    press(2);
+    assert.deepEqual(getSelectedCadNodes(f.editor).map(node => node.nodeIndex), [2]);
   });
   it('returns from node editing to normal selection with V, Escape or a different native tool', () => {
     const f = setup(); let listener: (event: any) => void;

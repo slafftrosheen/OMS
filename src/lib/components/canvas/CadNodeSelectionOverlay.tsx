@@ -15,13 +15,15 @@ export function CadNodeSelectionOverlay() {
     const contour=shape.props.contours[active.contourIndex],node=contour.nodes[active.nodeIndex];
     const next=contour.closed||active.nodeIndex<contour.nodes.length-1?contour.nodes[(active.nodeIndex+1)%contour.nodes.length]:undefined;
     const matrix=editor.getShapePageTransform(shape),selected=getSelectedCadNodes(editor);
-    return {...active,point:matrix.applyToPoint(node),zoom:editor.getZoomLevel(),
-      nodes:selected.map(n=>({...n,point:matrix.applyToPoint(shape.props.contours[n.contourIndex].nodes[n.nodeIndex])})),
+    const handles = new Set(editor.getShapeHandles(shape)?.map(handle => handle.id));
+    return {...active,point:matrix.applyToPoint(node),zoom:editor.getZoomLevel(), selectedCount: selected.length,
+      nodes:selected.filter(n => handles.has(`${n.contourIndex}:${n.nodeIndex}:node`))
+        .map(n=>({...n,point:matrix.applyToPoint(shape.props.contours[n.contourIndex].nodes[n.nodeIndex])})),
       path:next?curvePathData(mapContours([{closed:false,nodes:[node,next]}],p=>matrix.applyToPoint(p))):''};
   },[editor]);
   if(!state)return null;
   const {point,zoom}=state,scale=1/zoom;
-  return <svg aria-hidden="true" data-testid="cad-selected-node" data-contour={state.contourIndex+1} data-node={state.nodeIndex+1} data-selected-count={state.nodes.length}
+  return <svg aria-hidden="true" data-testid="cad-selected-node" data-contour={state.contourIndex+1} data-node={state.nodeIndex+1} data-selected-count={state.selectedCount}
     width={1} height={1} style={{position:'absolute',overflow:'visible',pointerEvents:'none',zIndex:1000001}}>
     <path d={state.path} fill="none" stroke="var(--color-selected, #4169e1)" opacity={0.45} strokeWidth={3*scale}/>
     {state.nodes.map(n=><circle key={n.contourIndex+':'+n.nodeIndex} cx={n.point.x} cy={n.point.y} r={7*scale} fill="none" stroke="var(--color-selected, #4169e1)" strokeWidth={2*scale}/>)}

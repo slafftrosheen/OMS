@@ -1,7 +1,7 @@
 import {snapCadHandle} from '../cad-snap';
 import React from "react";
 import { VectorArtwork } from "../VectorArtwork";
-import { isCadNodeEditing, retainCadNodesAfterHandleDrag } from "../cad-node-selection";
+import { getSelectedCadNode, getSelectedCadNodes, isCadNodeEditing, retainCadNodesAfterHandleDrag } from "../cad-node-selection";
 import { assertCadEditable } from "../cad-plans";
 import { transformAppearance } from "../cad-appearance";
 import { vectorPaint, paintMetadata } from "../cad-vector";
@@ -266,20 +266,14 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
     return <SVGContainer><CadBezierArtwork editor={this.editor} shape={shape} artwork={this.path(shape)} /></SVGContainer>;
   }
   override indicator(shape: CadBezierShape) {
-    const showHandles =
-      isCadNodeEditing(this.editor) &&
-      this.editor.getSelectedShapeIds().includes(shape.id) &&
-      shape.props.contours.reduce((n, c) => n + c.nodes.length, 0) <= 128;
-    const guides = showHandles
-      ? shape.props.contours
-          .flatMap((c) =>
-            c.nodes.map(
-              (n) =>
-                `M${n.x + n.inX},${n.y + n.inY}L${n.x},${n.y}L${n.x + n.outX},${n.y + n.outY}`,
-            ),
-          )
-          .join(" ")
-      : "";
+    const guides = this.editor.getOnlySelectedShape()?.id === shape.id
+      ? (this.editor.getShapeHandles(shape) ?? []).flatMap(handle => {
+        if (handle.type !== 'virtual') return [];
+        const [ci, ni] = handle.id.split(':').map(Number);
+        const node = shape.props.contours[ci].nodes[ni];
+        return `M${node.x},${node.y}L${handle.x},${handle.y}`;
+      }).join(' ')
+      : '';
     return (
       <g>
         <path d={curvePathData(shape.props.contours)} />
@@ -314,39 +308,53 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
     },
   });
   override getHandles(shape: CadBezierShape): TLHandle[] {
-    if (!isCadNodeEditing(this.editor)) return [];
-    // Large text compounds are edited one contour/node at a time in the docker.
-    if (shape.props.contours.reduce((n, c) => n + c.nodes.length, 0) > 128)
-      return [];
-    const handles: Omit<TLHandle, "index">[] = [];
-    shape.props.contours.forEach((c, ci) =>
-      c.nodes.forEach((n, ni) => {
-        handles.push({
-          id: `${ci}:${ni}:node`,
-          x: n.x,
-          y: n.y,
-          type: "vertex",
-          canSnap: false,
-        });
-        // Collapsed control handles otherwise cover the node and steal its drag.
-        if ((c.closed || ni > 0) && (n.inX || n.inY))
-          handles.push({
-            id: `${ci}:${ni}:in`,
-            x: n.x + n.inX,
-            y: n.y + n.inY,
-            type: "virtual",
-            canSnap: false,
-          });
-        if ((c.closed || ni < c.nodes.length - 1) && (n.outX || n.outY))
-          handles.push({
-            id: `${ci}:${ni}:out`,
-            x: n.x + n.outX,
-            y: n.y + n.outY,
-            type: "virtual",
-            canSnap: false,
-          });
-      }),
-    );
+    if (!isCadNodeEditing(this.editor) || this.editor.getOnlySelectedShape()?.id !== shape.id) return [];
+    const contours = shape.props.contours;
+    const dense = contours.reduce((count, contour) => count + contour.nodes.length, 0) > 128;
+    const active = dense ? getSelectedCadNode(this.editor) : null;
+    const viewport = dense ? this.editor.getViewportPageBounds() : null;
+    const transform = dense ? this.editor.getShapePageTransform(shape) : null;
+    const zoom = dense ? this.editor.getZoomLevel() : 1;
+    const padding = 10 / zoom;
+    const cellSize = viewport ? Math.max(12 / zoom, Math.sqrt(viewport.w * viewport.h / 128)) : 1;
+    const cells = new Set<string>();
+    const cellAt = (point: { x: number; y: number }) =>
+      `${Math.floor(point.x / cellSize)}:${Math.floor(point.y / cellSize)}`;
+    const handles: Omit<TLHandle, 'index'>[] = [];
+    const add = (ci: number, ni: number, kind: 'node' | 'in' | 'out', x: number, y: number) => {
+      handles.push({ id: `${ci}:${ni}:${kind}`, x, y, type: kind === 'node' ? 'vertex' : 'virtual', canSnap: false });
+    };
+    const addNode = (ci: number, ni: number, controls: boolean) => {
+      const contour = contours[ci], node = contour.nodes[ni];
+      add(ci, ni, 'node', node.x, node.y);
+      if (!controls) return;
+      // Collapsed control handles cover the anchor's pointer target.
+      if ((contour.closed || ni > 0) && (node.inX || node.inY))
+        add(ci, ni, 'in', node.x + node.inX, node.y + node.inY);
+      if ((contour.closed || ni < contour.nodes.length - 1) && (node.outX || node.outY))
+        add(ci, ni, 'out', node.x + node.outX, node.y + node.outY);
+    };
+
+    // Keep the active node and its control handles. Sample the other anchors
+    // in screen-space cells so zooming into dense artwork reveals nearby nodes.
+    if (active && transform) {
+      addNode(active.contourIndex, active.nodeIndex, true);
+      cells.add(cellAt(transform.applyToPoint(contours[active.contourIndex].nodes[active.nodeIndex])));
+    }
+    contours.forEach((contour, ci) => contour.nodes.forEach((node, ni) => {
+      if (!viewport || !transform) {
+        addNode(ci, ni, true);
+        return;
+      }
+      if (handles.length >= 160 || (active?.contourIndex === ci && active.nodeIndex === ni)) return;
+      const point = transform.applyToPoint(node);
+      if (point.x < viewport.minX - padding || point.x > viewport.maxX + padding ||
+          point.y < viewport.minY - padding || point.y > viewport.maxY + padding) return;
+      const cell = cellAt(point);
+      if (cells.has(cell)) return;
+      cells.add(cell);
+      addNode(ci, ni, false);
+    }));
     const indices = getIndices(handles.length);
     return handles.map((h, i) => ({ ...h, index: indices[i] }));
   }
@@ -361,6 +369,15 @@ export class CadBezierShapeUtil extends ShapeUtil<CadBezierShape> {
     if (!node) return;
     if (kind === "node") {
       const point = this.editor.inputs.shiftKey ? handle : snapCadHandle(this.editor, shape, handle);
+      const dx = point.x - node.x, dy = point.y - node.y;
+      const selected = getSelectedCadNodes(this.editor);
+      if (selected.some(value => list[value.contourIndex].nodes[value.nodeIndex] === node)) {
+        for (const value of selected) {
+          const member = list[value.contourIndex].nodes[value.nodeIndex];
+          member.x += dx;
+          member.y += dy;
+        }
+      }
       node.x = point.x;
       node.y = point.y;
     } else {

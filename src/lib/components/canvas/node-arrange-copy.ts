@@ -4,7 +4,7 @@ import {locale} from 'svelte-i18n';
 const en={
   title:'Align and move nodes',selection:'Selected nodes',all:'Select all nodes',clear:'Clear nodes',none:'Select one Bézier object to edit its nodes.',
   pick:'Shift-click anchor handles to add or remove nodes. Use Ctrl/⌘ and Shift in this list for multiple or range selection.',
-  drag:'Dragging a handle edits that anchor only. Use Move nodes to move the selected set together.',
+  drag:'Drag a selected anchor to move the set together. Drag a control handle to adjust that curve segment.',
   staleSelection:'Node selection clears after outside curve edits to avoid targeting changed node indices. Select the nodes again.',
   action:'Operation',move:'Move nodes',left:'Align left',centerX:'Align horizontal centres',right:'Align right',top:'Align top',centerY:'Align vertical centres',bottom:'Align bottom',
   distributeX:'Distribute horizontally',distributeY:'Distribute vertically',x:'Move X',y:'Move Y',axes:'Align/distribute uses page axes. Positive X moves right; positive Y moves up in CAD units (down in pixels).',
@@ -16,7 +16,7 @@ type Key=keyof typeof en;
 const ru:Record<Key,string>={
   title:'Выравнивание и перемещение узлов',selection:'Выбранные узлы',all:'Выбрать все узлы',clear:'Снять выбор',none:'Выберите один объект Безье для редактирования узлов.',
   pick:'Shift+щелчок по узлу добавляет или снимает выбор. В списке используйте Ctrl/⌘ и Shift для выбора нескольких узлов или диапазона.',
-  drag:'Перетаскивание маркера меняет только этот узел. Для совместного перемещения используйте «Переместить узлы».',
+  drag:'Перетащите выбранный узел, чтобы переместить весь набор. Маркер управляющей точки изменяет отдельный сегмент кривой.',
   staleSelection:'После других правок кривой выбор узлов сбрасывается, чтобы не затронуть изменившиеся индексы. Выберите узлы снова.',
   action:'Операция',move:'Переместить узлы',left:'По левому краю',centerX:'По центру горизонтали',right:'По правому краю',top:'По верхнему краю',centerY:'По центру вертикали',bottom:'По нижнему краю',
   distributeX:'Распределить по горизонтали',distributeY:'Распределить по вертикали',x:'Сдвиг X',y:'Сдвиг Y',axes:'Выравнивание и распределение выполняются по осям страницы. Положительный X — вправо; положительный Y — вверх в CAD (вниз в пикселях).',
@@ -27,7 +27,7 @@ const ru:Record<Key,string>={
 const lv:Record<Key,string>={
   title:'Mezglu līdzināšana un pārvietošana',selection:'Atlasītie mezgli',all:'Atlasīt visus mezglus',clear:'Notīrīt atlasi',none:'Atlasiet vienu Bezjē objektu, lai rediģētu mezglus.',
   pick:'Shift un klikšķis uz mezgla pievieno vai noņem to. Sarakstā izmantojiet Ctrl/⌘ un Shift vairāku mezglu vai diapazona atlasei.',
-  drag:'Velkot turi, mainās tikai šis mezgls. Lai pārvietotu visu atlasi, izmantojiet mezglu pārvietošanu.',
+  drag:'Velciet atlasītu mezglu, lai pārvietotu visu atlasi. Velkot vadības turi, mainās attiecīgais līknes posms.',
   staleSelection:'Pēc citām līknes izmaiņām mezglu atlase tiek notīrīta, lai nepārvietotu nepareizus indeksus. Atlasiet mezglus vēlreiz.',
   action:'Darbība',move:'Pārvietot mezglus',left:'Līdzināt pa kreisi',centerX:'Līdzināt horizontāli centrā',right:'Līdzināt pa labi',top:'Līdzināt augšā',centerY:'Līdzināt vertikāli centrā',bottom:'Līdzināt apakšā',
   distributeX:'Sadalīt horizontāli',distributeY:'Sadalīt vertikāli',x:'X nobīde',y:'Y nobīde',axes:'Līdzināšana un sadalīšana notiek lapas asīs. Pozitīvs X ir pa labi; pozitīvs Y ir augšup CAD vienībās (lejup pikseļos).',

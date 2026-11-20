@@ -356,3 +356,52 @@ describe('native CAD replacements preserve source context', () => {
     assert.deepEqual(snapshot(), clipped);
   }));
 });
+
+
+describe('native Bézier node handles', () => {
+  it('keeps handles for large paths after zoom and translates Shift-selected nodes in one native drag', async () => harness(async h => {
+    const { editor, create, contour, snapshot } = h;
+    const { getSelectedCadNodes, installCadNodeSelection, setCadNodeEditing } = await import('../../src/lib/components/canvas/cad-node-selection');
+    const source = create('cad-bezier', { contours: [contour(Array.from({ length: 300 }, (_, i) => [i * 32, 80]))] },
+      { x: 20, y: 30 }, {});
+    editor.select(source.id);
+    editor.mark('native-node-fixture');
+    setCadNodeEditing(editor, true);
+    const initial = editor.getShapeHandles(source);
+    assert.ok(initial.length > 1 && initial.length <= 160);
+    editor.setCamera({ x: -2800, y: 0, z: 2 });
+    const handles = editor.getShapeHandles(source);
+    assert.ok(handles.some((handle: any) => handle.id === '0:91:node'));
+    assert.ok(!handles.some((handle: any) => handle.id === '0:4:node'));
+    const a = handles.find((handle: any) => handle.id === '0:91:node'), b = handles.find((handle: any) => handle.id === '0:93:node');
+    assert.ok(a && b);
+    const off = installCadNodeSelection(editor);
+    const before = snapshot();
+    const dispatch = (name: string, handle: any, shiftKey = false, dx = 0, dy = 0) => {
+      const shape = editor.getShape(source.id);
+      const point = editor.pageToScreen(editor.getShapePageTransform(shape).applyToPoint(handle));
+      editor.dispatch({ type: 'pointer', name, target: 'handle', handle, shape, pointerId: 1, button: 0,
+        point: { x: point.x + dx, y: point.y + dy, z: 0 }, isPen: false, shiftKey, ctrlKey: false, altKey: false, accelKey: false });
+    };
+    try {
+      dispatch('pointer_down', a); dispatch('pointer_up', a);
+      dispatch('pointer_down', b, true); dispatch('pointer_up', b, true);
+      assert.deepEqual(getSelectedCadNodes(editor).map(node => node.nodeIndex), [91, 93]);
+      dispatch('pointer_down', a);
+      // The native editor debounces modifier releases for 150 ms before dragging.
+      await new Promise<void>(resolve => setTimeout(resolve, 200));
+      dispatch('pointer_move', a, false, 24, 16);
+      dispatch('pointer_up', a, false, 24, 16);
+      const nodes = editor.getShape(source.id).props.contours[0].nodes;
+      near(nodes[91].x, 91 * 32 + 12);
+      near(nodes[91].y, 88);
+      near(nodes[93].x, 93 * 32 + 12);
+      near(nodes[93].y, 88);
+      assert.deepEqual(nodes[92], source.props.contours[0].nodes[92]);
+      assert.deepEqual(getSelectedCadNodes(editor).map(node => node.nodeIndex), [93, 91]);
+      const after = snapshot();
+      editor.undo(); assert.deepEqual(snapshot(), before);
+      editor.redo(); assert.deepEqual(snapshot(), after);
+    } finally { off(); }
+  }));
+});
